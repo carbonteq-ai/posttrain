@@ -126,6 +126,7 @@ def training_inputs(request: SFTRequest | DPORequest) -> dict[str, str | int | f
     }
     if isinstance(request, DPORequest):
         values["dpo_beta"] = request.profile.beta
+        values["dpo_loss_kernel"] = request.profile.loss_kernel
     if isinstance(request.model, ModelVariant):
         values["base_model_revision"] = request.model.base_artifact.revision
     return values

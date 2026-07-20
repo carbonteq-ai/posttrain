@@ -17,6 +17,10 @@ so the application can install Verifiers v1 and TRL together. It does not
 contain project-specific trainers or environment logic.
 Its entropy metrics also preserve chunked-memory behavior for non-contiguous
 sequence slices, which is required for DPO on large-vocabulary models.
+The supported DPO profiles select TRL's Liger fused DPO loss. That kernel keeps
+the projection and preference loss fused instead of materializing the complete
+vocabulary logits during backward; the selected kernel is recorded in run
+config as `dpo_loss_kernel`.
 See [ADR 0007](../../decisions/0007-trl-vllm-025-fork.md) for the provenance and
 upgrade policy.
 

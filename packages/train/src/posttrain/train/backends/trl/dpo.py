@@ -54,6 +54,7 @@ def run_dpo(context: ExecutionContext, request: DPORequest, output_dir: Path) ->
         {
             "beta": request.profile.beta,
             "loss_type": ["sigmoid"],
+            "use_liger_kernel": request.profile.loss_kernel == "liger",
             "precompute_ref_log_probs": False,
             "padding_free": False,
         }

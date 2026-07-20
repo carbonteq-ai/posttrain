@@ -86,6 +86,7 @@ class DPOProfile:
     renderer: RendererProfile
     loop: TrainingLoop
     beta: float = 0.1
+    loss_kernel: Literal["liger", "torch"] = "liger"
     qlora: QLoRAProfile = field(default_factory=QLoRAProfile)
 
     def __post_init__(self) -> None:
