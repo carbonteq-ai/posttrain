@@ -16,7 +16,10 @@ from posttrain.common import (
     RunAttempt,
     TraceObservation,
 )
+from posttrain.common.profiles import QWEN_35_2B
+from posttrain.serve import QWEN35_VLLM_TEXT, BenchmarkCell, BenchmarkRequest
 from posttrain_lab.execution import AttemptSpec, execute, execute_tracked
+from posttrain_lab.jobs.foundation_screening import foundation_screening_job, serving_benchmark_action
 from posttrain_lab.tracking import TrackioObserver
 
 REVISION = "a" * 40
@@ -136,3 +139,15 @@ def test_execute_tracked_finishes_failed_attempt(monkeypatch: pytest.MonkeyPatch
 
     assert run.finished == 1
     assert any(values.get("run/status") == "failed" for values, _ in run.logs)
+
+
+def test_foundation_screening_action_has_stable_job_owned_identity() -> None:
+    request = BenchmarkRequest(
+        model=QWEN_35_2B,
+        profile=QWEN35_VLLM_TEXT,
+        cell=BenchmarkCell("smoke", "short", 1_024, 1, 128, 32, 1, 1),
+    )
+    job = foundation_screening_job(REVISION)
+    action = serving_benchmark_action(request)
+    assert action.job_id == job.id
+    assert action.id == "serve/qwen3.5-2b/short-ctx1024-c1"

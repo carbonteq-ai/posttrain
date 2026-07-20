@@ -902,7 +902,9 @@ state.
   - [x] Replace serving profile and workload YAML as the source of truth with typed Python definitions.
   - [x] Remove SGLang and its incompatible dependency branch from the MVP lock.
   - [x] Diagnose and correct the Qwen3.5-2B 8 GiB text-only startup profile with a real GPU run.
-  - [ ] Move benchmark execution behind typed operations and delete the legacy YAML/Trackio CLI path.
+  - [x] Move offline benchmark execution behind a typed, observer-neutral operation.
+  - [x] Add the first code-defined foundation-screening serving action.
+  - [ ] Delete the legacy YAML/Trackio CLI path after the tracked operation GPU smoke.
 - [ ] Phase 3 — evaluation and environment vertical slice.
 - [ ] Phase 4 — renderer-based SFT and DPO.
 - [ ] Phase 5 — Verifiers-to-TRL GRPO bridge.
@@ -967,6 +969,9 @@ state.
   baseline; the final target remains 85% for the refactored non-GPU code.
 - 2026-07-20: Raise the coverage ratchet to 60% after typed serving profiles and
   workload definitions moved measured coverage to 60.81%.
+- 2026-07-20: Raise the coverage ratchet to 65% after the public serving
+  operation, internal vLLM adapter, and foundation-screening action reached
+  65.07% measured coverage.
 
 ## Outcomes & Retrospective
 

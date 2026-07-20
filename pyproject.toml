@@ -82,7 +82,7 @@ source = [
 show_missing = true
 skip_covered = true
 precision = 1
-fail_under = 60
+fail_under = 65
 
 [tool.importlinter]
 root_packages = ["common", "posttrain", "posttrain_lab"]

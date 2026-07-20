@@ -5,6 +5,7 @@ description = "Composition root for code-defined post-training jobs"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "posttrain-common",
+    "posttrain-serve",
     "trackio @ git+https://github.com/carbonteq-ai/trackio.git@02351d871050bf4b3505c7371239c698b710ec83",
 ]
 
@@ -13,6 +14,7 @@ posttrain-lab = "posttrain_lab.cli:main"
 
 [tool.uv.sources]
 posttrain-common = { workspace = true }
+posttrain-serve = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

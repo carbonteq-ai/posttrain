@@ -34,8 +34,9 @@ def apply_vllm_compatibility_patches() -> tuple[str, ...]:
         if self.kv_quant_mode == KVQuantMode.NONE:
             object.__setattr__(self, "kv_quant_mode", KVQuantMode.FP8_PER_TENSOR)
 
-    TQFullAttentionSpec.__post_init__ = tq_post_init
-    TQFullAttentionSpec._lab_quant_marker_patch = True
+    spec_class: Any = TQFullAttentionSpec
+    spec_class.__post_init__ = tq_post_init
+    spec_class._lab_quant_marker_patch = True
     return ("turboquant-quant-marker",)
 
 

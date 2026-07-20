@@ -1,5 +1,6 @@
 """Reusable vLLM serving operations and typed profile definitions."""
 
+from .api import benchmark
 from .benchmarks import CORE_INFERENCE_V1, BenchmarkCell, BenchmarkSuite, WorkloadShape
 from .profiles import (
     LFM25_VLLM,
@@ -13,9 +14,13 @@ from .profiles import (
     VllmServeProfile,
     VllmSpeculativeConfig,
 )
+from .requests import BenchmarkRequest
+from .results import BenchmarkResult
 
 __all__ = [
     "BenchmarkCell",
+    "BenchmarkRequest",
+    "BenchmarkResult",
     "BenchmarkSuite",
     "CORE_INFERENCE_V1",
     "LFM25_VLLM",
@@ -29,4 +34,5 @@ __all__ = [
     "VllmServeProfile",
     "VllmSpeculativeConfig",
     "WorkloadShape",
+    "benchmark",
 ]

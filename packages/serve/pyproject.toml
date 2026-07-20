@@ -10,7 +10,7 @@ dependencies = [
 ]
 
 [project.scripts]
-serve-benchmark = "posttrain.serve.benchmark:main"
+serve-benchmark = "posttrain.serve.cli:main"
 serve-benchmark-suite = "posttrain.serve.suite_cli:main"
 
 [project.entry-points."vllm.general_plugins"]
