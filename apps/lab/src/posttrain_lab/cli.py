@@ -27,6 +27,7 @@ from posttrain.train import LFM25_SFT_SMOKE, QWEN35_SFT_SMOKE, SFTRequest, Train
 from .data import load_gsm8k_supervised
 from .execution import AttemptSpec, execute, execute_tracked
 from .jobs import (
+    GSM8K_TRAINING_ROLLOUTS,
     ManagedEvaluationRequest,
     evaluation_action,
     foundation_screening_job,
@@ -34,6 +35,7 @@ from .jobs import (
     noop_action,
     noop_job,
     online_smoke_action,
+    rollout_collection_action,
     run_managed_evaluation,
     run_noop,
     run_online_smoke,
@@ -59,6 +61,8 @@ def _parser() -> argparse.ArgumentParser:
             "foundation-lfm-gsm8k",
             "gsm8k-qwen-sft-smoke",
             "gsm8k-lfm-sft-smoke",
+            "gsm8k-qwen-preference-rollouts",
+            "gsm8k-lfm-preference-rollouts",
         ),
     )
     parser.add_argument("--tracked", action="store_true")
@@ -77,6 +81,34 @@ def main() -> None:
             source_metadata=source.metadata(),
         )
         operation = run_noop
+    elif args.job in {"gsm8k-qwen-preference-rollouts", "gsm8k-lfm-preference-rollouts"}:
+        model, profile = (
+            (QWEN_35_2B, QWEN35_VLLM_TURBOQUANT_K8)
+            if args.job == "gsm8k-qwen-preference-rollouts"
+            else (LFM_25_12B_THINKING, LFM25_VLLM_TURBOQUANT_K8)
+        )
+        request = ManagedEvaluationRequest(
+            launch=LaunchRequest(model, profile),
+            program=GSM8K_TRAINING_ROLLOUTS,
+            environment_id="gsm8k-train-candidates",
+            context_window=8_192,
+        )
+        spec = AttemptSpec(
+            job=gsm8k_posttraining_job(source.revision),
+            action=rollout_collection_action(model.id),
+            inputs={
+                "model_profile_id": model.id,
+                "serve_profile_id": profile.id,
+                "program_id": request.program.id,
+                "program_kind": request.program.kind,
+                "environment_id": request.environment_id,
+                "context_window": request.context_window,
+                "num_tasks": request.budget.resolve(request.program.environment(request.environment_id))[0],
+                "num_rollouts": request.budget.resolve(request.program.environment(request.environment_id))[1],
+            },
+            source_metadata=source.metadata(),
+        )
+        operation = partial(run_managed_evaluation, request=request)
     elif args.job in {"gsm8k-qwen-sft-smoke", "gsm8k-lfm-sft-smoke"}:
         model, profile = (
             (QWEN_35_2B, QWEN35_SFT_SMOKE)

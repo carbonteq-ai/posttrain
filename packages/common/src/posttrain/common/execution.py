@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
 
-from .artifacts import JsonValue, ProducedArtifact
+from .artifacts import JsonValue, LocalArtifactRef, ProducedArtifact
 from .errors import OperationCancelled
 from .jobs import Invocation, Job, JobAction, RunAttempt
 
@@ -111,6 +111,7 @@ class ExecutionContext:
     cancellation: CancellationToken = field(default_factory=CancellationToken)
     clock: Clock = utc_now
     source_metadata: Attributes = field(default_factory=dict)
+    input_artifacts: Mapping[str, LocalArtifactRef] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.action.job_id != self.job.id:
@@ -156,3 +157,10 @@ class ExecutionContext:
     def artifact(self, artifact: ProducedArtifact) -> None:
         self.cancellation.raise_if_cancelled()
         self.observer.artifact(artifact)
+
+    def input_artifact(self, name: str) -> LocalArtifactRef:
+        try:
+            return self.input_artifacts[name]
+        except KeyError as error:
+            available = ", ".join(sorted(self.input_artifacts)) or "none"
+            raise KeyError(f"input artifact {name!r} is unavailable; materialized inputs: {available}") from error

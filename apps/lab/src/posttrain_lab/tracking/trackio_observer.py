@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 import trackio
 from posttrain.common import (
@@ -17,9 +17,18 @@ from posttrain.common import (
     TraceObservation,
 )
 
+if TYPE_CHECKING:
+    from posttrain_lab.execution import ArtifactInput
+
 
 class TrackioRun(Protocol):
     def log(self, metrics: dict[str, Any], step: int | None = None) -> None: ...
+
+    def use_artifact(
+        self,
+        artifact_or_name: trackio.Artifact | str,
+        type: str | None = None,
+    ) -> trackio.Artifact: ...
 
     def log_artifact(
         self,
@@ -46,11 +55,44 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _tree_sha256(path: Path) -> str:
+    if path.is_file():
+        return _sha256(path)
+    digest = hashlib.sha256()
+    for child in sorted(item for item in path.rglob("*") if item.is_file()):
+        digest.update(child.relative_to(path).as_posix().encode())
+        digest.update(b"\0")
+        with child.open("rb") as source:
+            for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                digest.update(chunk)
+    return digest.hexdigest()
+
+
 class TrackioObserver:
     """Trackio adapter; operations only depend on the Observer protocol."""
 
     def __init__(self, run: TrackioRun) -> None:
         self._run = run
+
+    def materialize_inputs(
+        self,
+        inputs: Mapping[str, ArtifactInput],
+        root: Path,
+        *,
+        project: str,
+    ) -> Mapping[str, LocalArtifactRef]:
+        materialized: dict[str, LocalArtifactRef] = {}
+        for logical_name, value in inputs.items():
+            reference = value.reference
+            if reference.project != project:
+                raise ValueError("cross-project Trackio artifact materialization is not supported")
+            version = reference.version if reference.version.startswith("v") else f"v{reference.version}"
+            artifact = self._run.use_artifact(f"{reference.name}:{version}", type=value.kind)
+            destination = root / logical_name
+            destination.mkdir(parents=True, exist_ok=False)
+            path = Path(artifact.download(root=destination)).resolve()
+            materialized[logical_name] = LocalArtifactRef(path, _tree_sha256(path))
+        return materialized
 
     def event(self, observation: EventObservation) -> None:
         self._run.log(

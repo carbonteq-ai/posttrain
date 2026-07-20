@@ -17,6 +17,7 @@ from posttrain.common import (
     ProducedArtifact,
     RunAttempt,
     TraceObservation,
+    TrackioArtifactRef,
 )
 from posttrain.common.profiles import LFM_25_12B_THINKING, QWEN_35_2B
 from posttrain.eval.programs import GENERAL_SMOKE
@@ -31,7 +32,7 @@ from posttrain.serve import (
     LaunchRequest,
     ProbeResult,
 )
-from posttrain_lab.execution import AttemptSpec, execute, execute_tracked
+from posttrain_lab.execution import ArtifactInput, AttemptSpec, execute, execute_tracked
 from posttrain_lab.jobs import foundation_screening as foundation_job
 from posttrain_lab.jobs.foundation_screening import (
     ManagedEvaluationRequest,
@@ -49,6 +50,7 @@ class FakeRun:
     def __init__(self) -> None:
         self.logs: list[tuple[dict[str, Any], int | None]] = []
         self.artifacts: list[trackio.Artifact] = []
+        self.used_artifacts: list[tuple[str, str | None]] = []
         self.finished = 0
 
     def log(self, metrics: dict[str, Any], step: int | None = None) -> None:
@@ -65,6 +67,19 @@ class FakeRun:
         assert isinstance(artifact_or_path, trackio.Artifact)
         self.artifacts.append(artifact_or_path)
         return artifact_or_path
+
+    def use_artifact(self, artifact_or_name: trackio.Artifact | str, type: str | None = None) -> Any:
+        assert isinstance(artifact_or_name, str)
+        self.used_artifacts.append((artifact_or_name, type))
+
+        class DownloadableArtifact:
+            def download(self, root: str | Path | None = None) -> str:
+                assert root is not None
+                destination = Path(root)
+                (destination / "adapter_config.json").write_text("{}\n", encoding="utf-8")
+                return str(destination)
+
+        return DownloadableArtifact()
 
     def finish(self) -> None:
         self.finished += 1
@@ -159,6 +174,38 @@ def test_execute_tracked_finishes_failed_attempt(monkeypatch: pytest.MonkeyPatch
 
     assert run.finished == 1
     assert any(values.get("run/status") == "failed" for values, _ in run.logs)
+
+
+def test_execute_tracked_materializes_and_records_input_artifact(monkeypatch: pytest.MonkeyPatch) -> None:
+    run = FakeRun()
+    monkeypatch.setattr(trackio, "init", lambda **kwargs: run)
+    base = spec()
+    attempt = AttemptSpec(
+        job=base.job,
+        action=base.action,
+        invocation=base.invocation,
+        attempt=base.attempt,
+        artifacts={
+            "model_adapter": ArtifactInput(
+                TrackioArtifactRef(
+                    project="job-tests",
+                    name="training-qwen3.5-2b-sft-adapter",
+                    version="v0",
+                ),
+                "model-adapter",
+            )
+        },
+    )
+
+    def operation(context: ExecutionContext) -> str:
+        adapter = context.input_artifact("model_adapter")
+        assert adapter.path.joinpath("adapter_config.json").is_file()
+        return adapter.digest
+
+    digest = execute_tracked(attempt, operation, project="job-tests")
+
+    assert len(digest) == 64
+    assert run.used_artifacts == [("training-qwen3.5-2b-sft-adapter:v0", "model-adapter")]
 
 
 def test_foundation_screening_action_has_stable_job_owned_identity() -> None:

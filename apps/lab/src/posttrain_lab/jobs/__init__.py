@@ -11,8 +11,10 @@ from .foundation_screening import (
     serving_benchmark_action,
 )
 from .gsm8k_posttraining import (
+    GSM8K_TRAINING_ROLLOUTS,
     dpo_action,
     gsm8k_posttraining_job,
+    rollout_collection_action,
     run_dpo,
     run_sft,
     sft_action,
@@ -22,6 +24,7 @@ from .noop import noop_action, noop_job, run_noop
 
 __all__ = [
     "ManagedEvaluationRequest",
+    "GSM8K_TRAINING_ROLLOUTS",
     "evaluation_action",
     "foundation_screening_job",
     "online_smoke_action",
@@ -36,6 +39,7 @@ __all__ = [
     "gsm8k_posttraining_job",
     "run_dpo",
     "run_sft",
+    "rollout_collection_action",
     "sft_action",
     "training_inputs",
 ]

@@ -2,10 +2,50 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from posttrain.common import ExecutionContext, Job, JobAction, ModelVariant
+from posttrain.eval import EnvironmentProgram, EnvironmentSource, EvaluationProgram, SamplingPolicy
 from posttrain.train import DPORequest, SFTRequest, TrainingResult, dpo, sft
 
 JOB_ID = "posttraining/gsm8k"
+VERIFIERS_REVISION = "284a868d6a9022109b749710672a0460e8a996d4"
+
+
+def _training_environment() -> object:
+    try:
+        from verifiers.v1.env import EnvConfig
+    except ImportError as error:
+        raise RuntimeError("install posttrain-lab with the gpu-posttrain extra") from error
+    config: dict[str, Any] = {
+        "taskset": {"id": "gsm8k-v1", "split": "train"},
+        "harness": {"id": "null", "runtime": {"type": "subprocess"}},
+        "timeout": {"setup": 120, "rollout": 180, "finalize": 60, "scoring": 120},
+    }
+    return EnvConfig.model_validate(config)
+
+
+GSM8K_TRAINING_ROLLOUTS = EvaluationProgram(
+    id="gsm8k-training-rollouts-v1",
+    kind="domain",
+    environments=(
+        EnvironmentProgram(
+            id="gsm8k-train-candidates",
+            category="math-reasoning",
+            source=EnvironmentSource(
+                package="gsm8k-v1",
+                repository="https://github.com/PrimeIntellect-ai/verifiers",
+                revision=VERIFIERS_REVISION,
+                subdirectory="environments/gsm8k_v1",
+            ),
+            factory=_training_environment,
+            sampling=SamplingPolicy(max_tokens=1_024, temperature=0.8, top_p=0.95),
+            num_tasks=4,
+            num_rollouts=2,
+            max_concurrent=1,
+        ),
+    ),
+)
 
 
 def gsm8k_posttraining_job(version: str) -> Job:
@@ -25,6 +65,14 @@ def dpo_action(request: DPORequest) -> JobAction:
         job_id=JOB_ID,
         id=f"train/dpo/{request.model.profile.id}/{request.profile.id}",
         kind="preference-optimization",
+    )
+
+
+def rollout_collection_action(model_profile_id: str) -> JobAction:
+    return JobAction(
+        job_id=JOB_ID,
+        id=f"eval/domain/{model_profile_id}/gsm8k-train-candidates",
+        kind="preference-rollout-collection",
     )
 
 
