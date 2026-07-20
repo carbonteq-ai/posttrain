@@ -57,6 +57,9 @@ expected to change when a newer runtime proves a better rule.
 
 - Prefer a backend's supported plugin lifecycle for process-wide compatibility
   fixes; vLLM workers use `spawn`, so a parent-only monkey patch is incomplete.
+- Launch GPU operations from an importable module or console entry point, never
+  from stdin/heredoc. Once CUDA is initialized, vLLM may require `spawn`, whose
+  child process must be able to import the main module by filesystem path.
 - Keep each compatibility fix narrow and state-guarded, test the invariant it
   repairs, and make it a no-op once upstream behavior is correct.
 - Never edit an installed wheel or silently disable the requested optimized
