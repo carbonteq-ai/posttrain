@@ -7,6 +7,7 @@ from typing import Any, cast
 
 from posttrain.common import ExecutionContext
 
+from ...profiles import GRPORolloutProfile
 from ...requests import GRPORequest
 from .common import (
     BackendTrainingResult,
@@ -92,14 +93,21 @@ def _grpo_arguments(request: GRPORequest, output_dir: Path, template_kwargs: dic
                 "vllm_tensor_parallel_size": rollout.tensor_parallel_size,
                 "vllm_max_model_length": rollout.max_model_length,
                 "vllm_speculative_config": rollout.speculative_config(),
-                "vllm_engine_kwargs": (
-                    {"skip_mm_profiling": True} if rollout.skip_multimodal_profiling else None
-                ),
+                "vllm_engine_kwargs": _vllm_engine_kwargs(rollout),
                 "vllm_model_impl": "vllm",
                 "vllm_importance_sampling_correction": True,
             }
         )
     return arguments
+
+
+def _vllm_engine_kwargs(rollout: GRPORolloutProfile) -> dict[str, Any] | None:
+    values: dict[str, Any] = {}
+    if rollout.skip_multimodal_profiling:
+        values["skip_mm_profiling"] = True
+    if rollout.kv_cache_memory_bytes is not None:
+        values["kv_cache_memory_bytes"] = rollout.kv_cache_memory_bytes
+    return values or None
 
 
 def _emit_parameter_counts(context: ExecutionContext, model: Any) -> None:

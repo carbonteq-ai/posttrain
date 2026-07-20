@@ -191,7 +191,10 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
     assert arguments["use_vllm"] is True
     assert arguments["vllm_mode"] == "colocate"
     assert arguments["vllm_enable_sleep_mode"] is True
-    assert arguments["vllm_engine_kwargs"] == {"skip_mm_profiling": True}
+    assert arguments["vllm_engine_kwargs"] == {
+        "skip_mm_profiling": True,
+        "kv_cache_memory_bytes": 64 * 1024 * 1024,
+    }
     assert arguments["vllm_speculative_config"] is None
 
     mtp_request = GRPORequest(

@@ -105,6 +105,7 @@ class GRPORolloutProfile:
     tensor_parallel_size: int = 1
     max_model_length: int | None = None
     skip_multimodal_profiling: bool = False
+    kv_cache_memory_bytes: int | None = None
     speculative_method: str | None = None
     num_speculative_tokens: int | None = None
 
@@ -122,6 +123,7 @@ class GRPORolloutProfile:
                     self.max_model_length,
                     self.speculative_method,
                     self.num_speculative_tokens,
+                    self.kv_cache_memory_bytes,
                 )
             ) or self.sleep_during_optimization or self.skip_multimodal_profiling:
                 raise ValueError("Transformers rollouts cannot declare vLLM settings")
@@ -134,6 +136,8 @@ class GRPORolloutProfile:
             raise ValueError("speculative method and token count must be configured together")
         if self.num_speculative_tokens is not None and self.num_speculative_tokens < 1:
             raise ValueError("speculative token count must be positive")
+        if self.kv_cache_memory_bytes is not None and self.kv_cache_memory_bytes < 1:
+            raise ValueError("vLLM KV cache memory must be positive")
 
     def speculative_config(self) -> dict[str, str | int] | None:
         if self.speculative_method is None:
@@ -225,6 +229,7 @@ QWEN35_GRPO_SMOKE = GRPOProfile(
         gpu_memory_utilization=0.2,
         max_model_length=512,
         skip_multimodal_profiling=True,
+        kv_cache_memory_bytes=64 * 1024 * 1024,
     ),
 )
 QWEN35_GRPO_MTP_SMOKE = GRPOProfile(
