@@ -6,7 +6,7 @@
   discards its weights and KV cache before backprop; Verifiers must never load a
   third policy copy.
 - For composite checkpoints, keep the vLLM implementation that can load the
-  native checkpoint and disable unused towers with `language_model_only`.
+  native checkpoint and disable unused towers with zero multimodal limits.
   Declare any trainer-to-vLLM weight namespace in the rollout profile; do not
   rewrite names in the job or reward bridge.
 - Enable native MTP only through a compatible typed rollout profile. Record the

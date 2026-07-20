@@ -35,7 +35,7 @@ generation, or weight-synchronization behavior. Those changes exist after the
   generation adapter. Rollout profiles may use native MTP while retaining TRL's
   weight synchronization and sleep lifecycle.
 - Keep vLLM's native composite model when that is how the Hub checkpoint is
-  stored, omit unused modality towers with `language_model_only`, and expose a
+  stored, omit unused modality towers with zero multimodal limits, and expose a
   declarative weight-name prefix for synchronizing a text-only trainer into
   the retained composite namespace.
 

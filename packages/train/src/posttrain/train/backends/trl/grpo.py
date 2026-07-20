@@ -105,7 +105,7 @@ def _vllm_engine_kwargs(request: GRPORequest) -> dict[str, Any] | None:
     rollout = request.profile.rollout
     values: dict[str, Any] = {}
     if rollout.text_only:
-        values["language_model_only"] = True
+        values["limit_mm_per_prompt"] = {"image": 0, "video": 0}
     if rollout.skip_multimodal_profiling:
         values["skip_mm_profiling"] = True
     if rollout.kv_cache_memory_bytes is not None:

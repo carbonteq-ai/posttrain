@@ -91,7 +91,6 @@ def test_qwen_launch_command_keeps_8gb_text_only_constraints() -> None:
     command = build_vllm_command(LaunchRequest(QWEN_35_2B, QWEN35_VLLM_TEXT))
 
     assert "--enforce-eager" in command
-    assert "--language-model-only" in command
     assert "--skip-mm-profiling" in command
     mm_limits = json.loads(command[command.index("--limit-mm-per-prompt") + 1])
     assert mm_limits == {"image": 0, "video": 0}

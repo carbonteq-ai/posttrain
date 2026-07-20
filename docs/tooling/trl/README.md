@@ -29,8 +29,8 @@ merged in [`carbonteq-ai/trl#6`](https://github.com/carbonteq-ai/trl/pull/6).
 Composite vLLM implementations may retain a namespace around a text-only
 training model. The fork therefore exposes an explicit weight-name prefix at
 the synchronization boundary instead of placing model-name rewrites in a job.
-Qwen3.5 uses `language_model.` while vLLM's `language_model_only` mode omits the
-vision tower. The generic change was merged in
+Qwen3.5 uses `language_model.` while zero image/video limits omit the vision
+tower without changing the text path. The generic change was merged in
 [`carbonteq-ai/trl#7`](https://github.com/carbonteq-ai/trl/pull/7).
 DPO kernel choice is model-specific and recorded as `dpo_loss_kernel`. Liger's
 fused DPO loss can reduce projection memory for moderate vocabularies, but its

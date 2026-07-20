@@ -193,7 +193,7 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
     assert arguments["vllm_enable_sleep_mode"] is True
     assert arguments["vllm_weight_name_prefix"] == "language_model."
     assert arguments["vllm_engine_kwargs"] == {
-        "language_model_only": True,
+        "limit_mm_per_prompt": {"image": 0, "video": 0},
         "skip_mm_profiling": True,
         "kv_cache_memory_bytes": 64 * 1024 * 1024,
     }

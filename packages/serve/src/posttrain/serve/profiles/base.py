@@ -75,7 +75,6 @@ class VllmEngineConfig:
             values["max_num_batched_tokens"] = self.max_num_batched_tokens
         if self.text_only:
             values["limit_mm_per_prompt"] = {"image": 0, "video": 0}
-            values["language_model_only"] = True
         if self.skip_mm_profiling:
             values["skip_mm_profiling"] = True
         if self.flash_attn_version is not None:
@@ -108,7 +107,6 @@ class VllmEngineConfig:
         if self.max_num_batched_tokens is not None:
             values.extend(("--max-num-batched-tokens", str(self.max_num_batched_tokens)))
         if self.text_only:
-            values.append("--language-model-only")
             values.extend(("--limit-mm-per-prompt", json.dumps({"image": 0, "video": 0})))
         if self.skip_mm_profiling:
             values.append("--skip-mm-profiling")
