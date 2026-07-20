@@ -1,0 +1,15 @@
+id: vllm-base
+backend: vllm
+engine:
+  dtype: float16
+  load_format: auto
+  enforce_eager: false
+  enable_chunked_prefill: true
+  disable_log_stats: false
+workload:
+  concurrency: 1
+  warmup_iterations: 1
+  iterations: 3
+sampling:
+  max_tokens: 128
+  temperature: 0.0

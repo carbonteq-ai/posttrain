@@ -1,0 +1,46 @@
+id: qwen3.5-2b
+model:
+  artifact: hf://Qwen/Qwen3.5-2B@15852e8c16360a2fea060d615a32b45270f8a8fc
+  family: qwen3.5
+  form: base
+  stage: post-trained
+  parameters: 2000000000
+  weights:
+    format: safetensors
+  capabilities:
+    modalities: [text, image]
+    reasoning: optional
+    context_window: 262144
+    mtp: trained
+defaults:
+  eval:
+    general: eval/general-smoke-v1
+    serve: serve/vllm/qwen3.5-2b-turboquant-k8v4
+  serve:
+    vllm: serve/vllm/qwen3.5-2b
+    variants:
+      standard: serve/vllm/qwen3.5-2b
+      turboquant_k8v4: serve/vllm/qwen3.5-2b-turboquant-k8v4
+      mtp: serve/vllm/qwen3.5-2b-mtp
+prompting:
+  chat_template: tokenizer
+  reasoning:
+    default: "off"
+    modes:
+      native:
+        chat_template_kwargs: {}
+        sampling: {}
+      "off":
+        chat_template_kwargs:
+          enable_thinking: false
+        sampling: {}
+      thinking:
+        chat_template_kwargs:
+          enable_thinking: true
+        sampling: {}
+  generation_guidance:
+    typical_max_output_tokens: 32768
+    complex_reasoning_max_output_tokens: 81920
+limitations:
+  - The local general-eval serving profile deliberately exposes 32K of the native context window.
+  - Initial benchmark coverage is text-only even though the model is multimodal.

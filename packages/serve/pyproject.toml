@@ -1,0 +1,49 @@
+[project]
+name = "serve"
+version = "0.1.0"
+description = "Reusable vLLM and SGLang inference engine"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "common",
+    "huggingface-hub",
+    "pyyaml>=6",
+]
+
+[project.scripts]
+serve-benchmark = "serve.benchmark:main"
+serve-benchmark-suite = "serve.suite_cli:main"
+
+[project.entry-points."vllm.general_plugins"]
+lab-serve-compat = "serve.vllm_compat:apply_vllm_compatibility_patches"
+
+[project.optional-dependencies]
+vllm = [
+    "torch",
+    "torchvision",
+    "torchaudio",
+    "nvidia-cuda-cccl==13.0.85; sys_platform == 'linux'",
+    "nvidia-cuda-crt==13.0.88; sys_platform == 'linux'",
+    "nvidia-cuda-nvcc==13.0.88; sys_platform == 'linux'",
+    "nvidia-nvvm==13.0.88; sys_platform == 'linux'",
+    "nvidia-ml-py>=13.580.82; sys_platform == 'linux'",
+    "vllm==0.25.1",
+]
+sglang = [
+    "sglang>=0.5.9",
+]
+
+[tool.uv]
+package = true
+
+[tool.uv.sources]
+common = { workspace = true }
+torch = { index = "pytorch-cu130" }
+torchvision = { index = "pytorch-cu130" }
+torchaudio = { index = "pytorch-cu130" }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/serve"]

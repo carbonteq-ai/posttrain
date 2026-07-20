@@ -1,0 +1,24 @@
+# Python / tooling
+.venv/
+.venvs/
+__pycache__/
+*.py[cod]
+.python-version
+.env
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+uv.lock.bak
+
+# Models / data / runs
+runs/
+outputs/
+checkpoints/
+wandb/
+trackio/
+*.pt
+*.safetensors
+*.bin
+
+# OS
+.DS_Store

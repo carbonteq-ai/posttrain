@@ -1,0 +1,40 @@
+[project]
+name = "lab"
+version = "0.1.0"
+description = "Local post-training lab (uv workspace)"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "common",
+]
+
+[tool.uv.sources]
+common = { workspace = true }
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv]
+package = false
+conflicts = [
+    # Current backend releases pin incompatible Transformers generations.
+    [
+        { package = "serve", extra = "vllm" },
+        { package = "serve", extra = "sglang" },
+    ],
+    # Training rollout generation uses vLLM's Torch stack, not SGLang's pinned stack.
+    [
+        { package = "train", extra = "vllm" },
+        { package = "serve", extra = "sglang" },
+    ],
+    # TRL 1.8 needs datasets>=4.7; Verifiers 0.2 needs datasets<4.7
+    [
+        { package = "train" },
+        { package = "eval", extra = "verifiers" },
+    ],
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true

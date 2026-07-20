@@ -1,0 +1,44 @@
+from __future__ import annotations
+
+import importlib.metadata
+import json
+import unittest
+import warnings
+
+
+TRL_FORK_COMMIT = "935060f640f5195fe62f1acc300c16db327a32b9"
+
+
+class TrlVllmCompatibilityTest(unittest.TestCase):
+    def test_trl_is_installed_from_the_pinned_fork_commit(self) -> None:
+        distribution = importlib.metadata.distribution("trl")
+        direct_url = distribution.read_text("direct_url.json")
+
+        self.assertIsNotNone(direct_url)
+        source = json.loads(direct_url)
+        self.assertEqual(source["url"], "https://github.com/carbonteq-ai/trl.git")
+        self.assertEqual(source["vcs_info"]["commit_id"], TRL_FORK_COMMIT)
+        self.assertEqual(distribution.version, "1.8.0")
+
+    def test_trl_accepts_the_pinned_vllm_release(self) -> None:
+        try:
+            import vllm
+            from trl.import_utils import is_vllm_available
+        except ImportError:
+            self.skipTest("vLLM optional dependency is not installed")
+
+        self.assertEqual(vllm.__version__, "0.25.1")
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            warnings.simplefilter("always")
+            self.assertTrue(is_vllm_available())
+
+        compatibility_warnings = [
+            warning
+            for warning in caught_warnings
+            if "TRL currently supports vLLM" in str(warning.message)
+        ]
+        self.assertEqual(compatibility_warnings, [])
+
+
+if __name__ == "__main__":
+    unittest.main()

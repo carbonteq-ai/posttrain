@@ -1,0 +1,13 @@
+id: vllm-lfm2.5-1.2b-thinking
+extends: vllm/base
+compatibility:
+  model_family: lfm2.5
+  text_only: true
+  native_context_window: 32768
+engine:
+  max_model_len: 4096
+  gpu_memory_utilization: 0.82
+sampling:
+  temperature: 0.05
+  top_k: 50
+  repetition_penalty: 1.05

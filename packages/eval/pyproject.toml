@@ -1,0 +1,45 @@
+[project]
+name = "eval"
+version = "0.1.0"
+description = "Reusable Verifiers evaluation engine"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "common",
+    "huggingface-hub",
+    "pyyaml>=6",
+    "tokenizers>=0.22",
+]
+
+[project.scripts]
+eval-suite = "eval.cli:main"
+
+[project.optional-dependencies]
+verifiers = [
+    "verifiers",
+    "prime>=0.6",
+    "torch",
+    "transformers>=4.57",
+    "gsm8k-v1",
+    "reverse-text-v1",
+    "code-golf-v1",
+    "alphabet-sort-v1",
+]
+
+[tool.uv]
+package = true
+
+[tool.uv.sources]
+common = { workspace = true }
+torch = { index = "pytorch-cu130" }
+verifiers = { git = "https://github.com/PrimeIntellect-ai/verifiers.git", rev = "284a868d6a9022109b749710672a0460e8a996d4" }
+gsm8k-v1 = { git = "https://github.com/PrimeIntellect-ai/verifiers.git", rev = "284a868d6a9022109b749710672a0460e8a996d4", subdirectory = "environments/gsm8k_v1" }
+reverse-text-v1 = { git = "https://github.com/PrimeIntellect-ai/verifiers.git", rev = "284a868d6a9022109b749710672a0460e8a996d4", subdirectory = "environments/reverse_text_v1" }
+code-golf-v1 = { git = "https://github.com/PrimeIntellect-ai/verifiers.git", rev = "284a868d6a9022109b749710672a0460e8a996d4", subdirectory = "environments/code_golf_v1" }
+alphabet-sort-v1 = { git = "https://github.com/PrimeIntellect-ai/verifiers.git", rev = "284a868d6a9022109b749710672a0460e8a996d4", subdirectory = "environments/alphabet_sort_v1" }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/eval"]

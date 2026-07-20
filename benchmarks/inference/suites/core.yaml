@@ -1,0 +1,22 @@
+schema_version: 1
+id: core-inference-v1
+description: Controlled token-shape matrix for local model serving comparisons.
+contexts: [1024, 2048, 4096, 8192, 16384, 32768]
+concurrencies: [1, 2, 4, 8]
+context_variants:
+  32768: turboquant_k8v4
+warmup_iterations: 1
+iterations: 3
+shapes:
+  - id: short-interactive
+    input_tokens: 128
+    output_tokens: 128
+  - id: decode-heavy
+    input_tokens: 128
+    output_tokens: 512
+  - id: balanced
+    input_fraction: 0.45
+    output_tokens: 512
+  - id: prefill-heavy
+    input_fraction: 0.75
+    output_tokens: 128

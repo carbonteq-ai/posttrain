@@ -1,0 +1,9 @@
+id: vllm-qwen3.5-2b
+extends: vllm/base
+compatibility:
+  model_family: qwen3.5
+  benchmark_mode: text-only
+  native_context_window: 262144
+engine:
+  max_model_len: 4096
+  gpu_memory_utilization: 0.82

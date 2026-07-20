@@ -1,0 +1,12 @@
+id: vllm-qwen3.5-2b-turboquant-k8v4
+extends: vllm/qwen3.5-2b
+compatibility:
+  model_family: qwen3.5
+  benchmark_mode: text-only
+  kv_cache_quantization: turboquant_k8v4
+engine:
+  max_model_len: 32768
+  kv_cache_dtype: turboquant_k8v4
+  gpu_memory_utilization: 0.82
+  attention_config:
+    flash_attn_version: 2

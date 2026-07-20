@@ -1,0 +1,33 @@
+id: lfm2.5-1.2b-thinking
+model:
+  artifact: hf://LiquidAI/LFM2.5-1.2B-Thinking@95053d21d8e0b7ca99421a2127ae39c64f685ff3
+  family: lfm2.5
+  form: base
+  stage: post-trained
+  parameters: 1170000000
+  weights:
+    format: safetensors
+  capabilities:
+    modalities: [text]
+    reasoning: required
+    context_window: 32768
+defaults:
+  eval:
+    general: eval/general-smoke-v1
+    serve: serve/vllm/lfm2.5-1.2b-thinking-turboquant-k8v4
+  serve:
+    vllm: serve/vllm/lfm2.5-1.2b-thinking
+    variants:
+      standard: serve/vllm/lfm2.5-1.2b-thinking
+      turboquant_k8v4: serve/vllm/lfm2.5-1.2b-thinking-turboquant-k8v4
+prompting:
+  chat_template: tokenizer
+  reasoning:
+    default: native
+    modes:
+      native:
+        chat_template_kwargs: {}
+        sampling:
+          temperature: 0.05
+          top_k: 50
+          repetition_penalty: 1.05

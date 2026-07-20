@@ -1,0 +1,4 @@
+{"id":"chat-001","messages":[{"role":"user","content":"Explain why the sky appears blue in two concise sentences."}],"tags":["chat","short"],"reasoning_mode":"native"}
+{"id":"reasoning-001","messages":[{"role":"user","content":"A farmer has 48 meters of fencing for a rectangular pen. Determine the integer side lengths that maximize its area and explain your reasoning."}],"tags":["reasoning","output-heavy"],"reasoning_mode":"native"}
+{"id":"code-001","messages":[{"role":"user","content":"Write a Python function that merges overlapping intervals. Explain its time complexity and include three edge-case tests."}],"tags":["code","output-heavy"],"reasoning_mode":"native"}
+{"id":"extraction-001","messages":[{"role":"user","content":"Extract the person, organization, date, and amount from this sentence as JSON: On 12 March 2026, Ada Chen paid Northwind Labs $4,250 for consulting."}],"tags":["extraction","structured"],"reasoning_mode":"native"}

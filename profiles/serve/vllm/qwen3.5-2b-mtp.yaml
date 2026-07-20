@@ -1,0 +1,10 @@
+id: vllm-qwen3.5-2b-mtp
+extends: vllm/qwen3.5-2b
+compatibility:
+  model_family: qwen3.5
+  benchmark_mode: text-only
+  speculative_decoding: native_mtp
+engine:
+  speculative_config:
+    method: qwen3_next_mtp
+    num_speculative_tokens: 2
