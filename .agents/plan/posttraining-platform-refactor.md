@@ -951,6 +951,10 @@ state.
   contains mandatory identity, a single 23-field metric batch, an inference
   trace, and a versioned output artifact. It measured 75.66 output tok/s,
   35.5 ms TTFT, 6.99 GiB peak VRAM, and 19.51 seconds cache-warm startup.
+- LFM2.5 passed the matching canonical cell at Git revision `c13df39` with
+  170.90 output tok/s, 14.2 ms TTFT, 6.35 GiB peak VRAM, and 22.55 seconds
+  startup. Both pinned foundations now have comparable job-owned serving
+  evidence through the new operation and observation boundaries.
 
 ## Decision Log
 

@@ -124,3 +124,10 @@ It measured 75.66 output tok/s, 35.5 ms TTFT, 6.99 GiB peak VRAM, and a
 cache-warm 19.51 second engine start. The earlier module-backed run remains
 valid direct evidence, but its scalar metrics were fragmented across steps;
 the canonical rerun verifies the corrected observation grain.
+
+The matching LFM2.5 canonical job is
+`serve/lfm2.5-1.2b-thinking/short-interactive-ctx1024-c1-13f0e79a-a1`
+at clean Git revision `c13df39`. Its single metric batch records 170.90 output
+tok/s, 14.2 ms TTFT, 6.35 GiB peak VRAM, and 22.55 seconds engine startup.
+Both foundation models therefore pass the same typed 128-input/32-output/c1
+cell through the same job, observer, trace, and artifact path.
