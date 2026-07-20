@@ -122,6 +122,7 @@ def _reward_function(
                         token_ids=tuple(int(value) for value in token_ids),
                         step=step,
                         terminated=bool(token_ids) and token_ids[-1] in terminal_token_ids,
+                        model_id=request.model.profile.id,
                     )
                 )
                 for completion, token_ids, identifier in zip(

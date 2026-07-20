@@ -24,11 +24,17 @@ type EnvironmentFactory = Callable[[], Any]
 
 def _imports() -> tuple[type[Any], type[Any], type[Any], Any]:
     try:
-        from verifiers.v1 import MessageNode, Trace, TraceTask, TrainRunInfo  # pyright: ignore[reportMissingImports]
+        from verifiers.v1 import (  # pyright: ignore[reportMissingImports]
+            AgentInfo,
+            MessageNode,
+            Trace,
+            TraceTask,
+            TrainRunInfo,
+        )
         from verifiers.v1.runtimes import make_runtime  # pyright: ignore[reportMissingImports]
     except ImportError as error:
         raise RuntimeError("install the Verifiers integration dependencies") from error
-    return Trace, TraceTask, TrainRunInfo, (MessageNode, make_runtime)
+    return Trace, TraceTask, TrainRunInfo, (AgentInfo, MessageNode, make_runtime)
 
 
 def _rollout_dataset(
@@ -91,16 +97,20 @@ class VerifiersOnlineRLEnvironment:
         except KeyError as error:
             raise ValueError(f"unknown rollout example {rollout.example_id!r}") from error
         Trace, TraceTask, TrainRunInfo, extras = _imports()
-        MessageNode, make_runtime = extras
+        AgentInfo, MessageNode, make_runtime = extras
         trace = Trace(
             task=TraceTask(type=type(task).__name__, data=task.data),
             run=TrainRunInfo(id=self.run_id, step=rollout.step),
+            agent=AgentInfo(model=rollout.model_id),
             nodes=[
                 MessageNode(message={"role": "user", "content": str(task.data.prompt)}, sampled=False),
                 MessageNode(
                     parent=0,
                     message={"role": "assistant", "content": rollout.completion},
                     sampled=True,
+                    token_ids=list(rollout.token_ids),
+                    mask=[True] * rollout.token_count,
+                    is_content=[True] * rollout.token_count,
                 ),
             ],
             info={
@@ -131,6 +141,7 @@ class VerifiersOnlineRLEnvironment:
                 "task_index": task_index,
                 "example_id": rollout.example_id,
                 "is_truncated": rollout.is_truncated,
+                "model": rollout.model_id,
             },
         )
         return RolloutScore(float(trace.reward), observation)

@@ -135,11 +135,14 @@ class CompletedRollout:
     token_ids: tuple[int, ...]
     step: int
     terminated: bool
+    model_id: str
 
     def __post_init__(self) -> None:
         _validate_id(self.example_id)
         if self.step < 0:
             raise ValueError("rollout step cannot be negative")
+        if not self.model_id.strip():
+            raise ValueError("rollout model id cannot be empty")
 
     @property
     def token_count(self) -> int:

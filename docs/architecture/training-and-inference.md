@@ -115,7 +115,9 @@ the dataset columns and reward callback required by `GRPOTrainer`, then sends
 the returned traces through the execution context. It also converts the
 backend's terminal token into explicit rollout termination state, so an
 environment trace distinguishes an agent-completed response from a
-max-token truncation.
+max-token truncation. The completed-rollout envelope also carries the producing
+model identity and sampled token IDs; Verifiers stores those in its native
+agent and message-graph fields rather than losing them in Trackio-only metadata.
 
 `posttrain.train.integrations.verifiers.VerifiersOnlineRLEnvironment`
 implements this contract for native Verifiers task collections. It constructs
