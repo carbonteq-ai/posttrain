@@ -4,15 +4,8 @@ version = "0.1.0"
 description = "Reusable Verifiers evaluation engine"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "posttrain-common[legacy]",
-    "huggingface-hub",
-    "pyyaml>=6",
-    "tokenizers>=0.22",
-    "tomli-w>=1.2",
+    "posttrain-common",
 ]
-
-[project.scripts]
-eval-suite = "posttrain.eval.cli:main"
 
 [project.optional-dependencies]
 verifiers = [

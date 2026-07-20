@@ -11,10 +11,11 @@ Read [the execution plan](../.agents/plan/posttraining-platform-refactor.md),
 ```text
 packages/common   framework-free identities, model/artifact types, execution context
 packages/serve    typed vLLM profiles, workloads, prompts, benchmark operation
-packages/eval     legacy eval path awaiting the next migration slice
+packages/eval     endpoint-neutral Verifiers v1 operation and code-defined programs
 packages/train    training boundary awaiting SFT/DPO/GRPO operations
 packages/reports  read-only evidence/query boundary
 apps/lab          code-defined jobs, execution host, Trackio observer
+environments/automationbench_v1  independently locked native-v1 environment
 ```
 
 The target is code-first. Reusable behavior lives in `posttrain.common`,
@@ -42,6 +43,13 @@ retained as compatibility surfaces.
 - Temporary execution workspaces; durable evidence belongs in Trackio.
 - Import-linter boundaries preventing reusable packages from importing the lab
   and preventing serving from importing observation or legacy config systems.
+- Public `posttrain.eval.evaluate(context, request)` with typed endpoint,
+  program, environment-cell, context, reasoning, and invocation-budget inputs.
+- Pinned upstream GSM8K and three other general environment packages, plus
+  code-defined general, agentic-smoke, and AutomationBench domain programs.
+- Native Verifiers v1 AutomationBench 1.0.5 port with per-rollout world state,
+  API discovery/execution MCP tools, dense reward, strict outcome metrics, and
+  full assertion/end-state trace detail.
 
 ## GPU evidence
 
@@ -81,6 +89,13 @@ uv run --package posttrain-serve --extra vllm \
   posttrain-lab foundation-lfm-smoke --tracked --project posttrain-foundation
 uv run --package posttrain-serve --extra vllm \
   posttrain-lab foundation-lfm-online-smoke --tracked --project posttrain-foundation
+uv run --package posttrain-lab --extra gpu-eval \
+  posttrain-lab foundation-qwen-gsm8k --tracked --project posttrain-foundation
+uv run --package posttrain-lab --extra gpu-eval \
+  posttrain-lab foundation-lfm-gsm8k --tracked --project posttrain-foundation
+
+uv run --project environments/automationbench_v1 --python 3.13 \
+  --with pytest --with pytest-asyncio pytest -q environments/automationbench_v1/tests
 ```
 
 The module-backed CLI is required for GPU jobs because vLLM may use spawned
@@ -88,12 +103,12 @@ workers after CUDA initialization; do not launch those operations from stdin.
 
 ## Next slices
 
-1. Replace the legacy eval CLI/YAML/Trackio path with endpoint-neutral
-   `posttrain.eval.evaluate(context, request)` and code-defined programs.
-2. Package and qualify the selected Verifiers environments, including GSM8K
-   and the Zapier automation environment.
-3. Prove Trackio Verifiers traces, scalar summaries, artifacts, and lineage in
-   a real local evaluation.
+1. Qualify the implemented endpoint-neutral GSM8K job on both foundation
+   profiles and inspect the resulting Trackio traces/native artifacts.
+2. Run the implemented native-v1 AutomationBench simple environment through
+   its isolated Python 3.13 worker against the same endpoint contract.
+3. Add report-side reward/pass/truncation calculations over trace populations;
+   do not persist those derived summaries in eval runs.
 4. Add renderer-aware SFT and DPO public operations with internal TRL adapters.
 5. Add the Verifiers-to-TRL GRPO operation and prove one rollout plus one
    optimizer/backpropagation step.

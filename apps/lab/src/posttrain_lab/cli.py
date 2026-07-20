@@ -8,9 +8,13 @@ from functools import partial
 from pathlib import Path
 
 from posttrain.common.profiles import LFM_25_12B_THINKING, QWEN_35_2B
+from posttrain.eval import EvaluationBudget, EvaluationResult
+from posttrain.eval.programs import GENERAL_SMOKE
 from posttrain.serve import (
     LFM25_VLLM,
+    LFM25_VLLM_TURBOQUANT_K8,
     QWEN35_VLLM_TEXT,
+    QWEN35_VLLM_TURBOQUANT_K8,
     BenchmarkCell,
     BenchmarkRequest,
     BenchmarkResult,
@@ -20,10 +24,13 @@ from posttrain.serve import (
 
 from .execution import AttemptSpec, execute, execute_tracked
 from .jobs import (
+    ManagedEvaluationRequest,
+    evaluation_action,
     foundation_screening_job,
     noop_action,
     noop_job,
     online_smoke_action,
+    run_managed_evaluation,
     run_noop,
     run_online_smoke,
     run_serving_cell,
@@ -36,7 +43,14 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="posttrain-lab")
     parser.add_argument(
         "job",
-        choices=("noop", "foundation-qwen-smoke", "foundation-lfm-smoke", "foundation-lfm-online-smoke"),
+        choices=(
+            "noop",
+            "foundation-qwen-smoke",
+            "foundation-lfm-smoke",
+            "foundation-lfm-online-smoke",
+            "foundation-qwen-gsm8k",
+            "foundation-lfm-gsm8k",
+        ),
     )
     parser.add_argument("--tracked", action="store_true")
     parser.add_argument("--project", default="posttrain-platform")
@@ -54,6 +68,35 @@ def main() -> None:
             source_metadata=source.metadata(),
         )
         operation = run_noop
+    elif args.job in {"foundation-qwen-gsm8k", "foundation-lfm-gsm8k"}:
+        model, profile = (
+            (QWEN_35_2B, QWEN35_VLLM_TURBOQUANT_K8)
+            if args.job == "foundation-qwen-gsm8k"
+            else (LFM_25_12B_THINKING, LFM25_VLLM_TURBOQUANT_K8)
+        )
+        request = ManagedEvaluationRequest(
+            launch=LaunchRequest(model, profile),
+            program=GENERAL_SMOKE,
+            environment_id="math-gsm8k",
+            context_window=8_192,
+            budget=EvaluationBudget(num_tasks=1, max_concurrent=1),
+        )
+        spec = AttemptSpec(
+            job=foundation_screening_job(source.revision),
+            action=evaluation_action(request),
+            inputs={
+                "model_profile_id": model.id,
+                "serve_profile_id": profile.id,
+                "program_id": request.program.id,
+                "program_kind": request.program.kind,
+                "environment_id": request.environment_id,
+                "context_window": request.context_window,
+                "num_tasks": request.budget.num_tasks,
+                "max_concurrent": request.budget.max_concurrent,
+            },
+            source_metadata=source.metadata(),
+        )
+        operation = partial(run_managed_evaluation, request=request)
     elif args.job == "foundation-lfm-online-smoke":
         request = LaunchRequest(LFM_25_12B_THINKING, LFM25_VLLM)
         spec = AttemptSpec(
@@ -105,6 +148,20 @@ def main() -> None:
         print(json.dumps(result.as_json(), indent=2, sort_keys=True))
     elif isinstance(result, GenerationResult):
         print(json.dumps(result.summary(), indent=2, sort_keys=True))
+    elif isinstance(result, EvaluationResult):
+        print(
+            json.dumps(
+                {
+                    "program_id": result.program_id,
+                    "environment_id": result.environment_id,
+                    "model_profile_id": result.model_profile_id,
+                    "trace_ids": result.trace_ids,
+                    "trace_sync_complete": result.synchronization.complete,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
     else:
         print(result)
 

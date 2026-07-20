@@ -19,9 +19,11 @@ from posttrain.common import (
     TraceObservation,
 )
 from posttrain.common.profiles import LFM_25_12B_THINKING, QWEN_35_2B
+from posttrain.eval.programs import GENERAL_SMOKE
 from posttrain.serve import (
     LFM25_VLLM,
     QWEN35_VLLM_TEXT,
+    QWEN35_VLLM_TURBOQUANT_K8,
     BenchmarkCell,
     BenchmarkRequest,
     Endpoint,
@@ -31,7 +33,13 @@ from posttrain.serve import (
 )
 from posttrain_lab.execution import AttemptSpec, execute, execute_tracked
 from posttrain_lab.jobs import foundation_screening as foundation_job
-from posttrain_lab.jobs.foundation_screening import foundation_screening_job, serving_benchmark_action
+from posttrain_lab.jobs.foundation_screening import (
+    ManagedEvaluationRequest,
+    evaluation_action,
+    foundation_screening_job,
+    run_managed_evaluation,
+    serving_benchmark_action,
+)
 from posttrain_lab.tracking import TrackioObserver
 
 REVISION = "a" * 40
@@ -163,6 +171,58 @@ def test_foundation_screening_action_has_stable_job_owned_identity() -> None:
     action = serving_benchmark_action(request)
     assert action.job_id == job.id
     assert action.id == "serve/qwen3.5-2b/short-ctx1024-c1"
+
+
+def test_managed_eval_action_is_one_environment_cell() -> None:
+    request = ManagedEvaluationRequest(
+        LaunchRequest(QWEN_35_2B, QWEN35_VLLM_TURBOQUANT_K8),
+        GENERAL_SMOKE,
+        "math-gsm8k",
+        context_window=8_192,
+    )
+    action = evaluation_action(request)
+    assert action.id == "eval/general/qwen3.5-2b/math-gsm8k"
+    assert action.kind == "general-evaluation"
+
+
+def test_managed_eval_composes_endpoint_without_leaking_serve_into_eval(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    endpoint = Endpoint("http://model.test/v1", QWEN_35_2B.artifact.repo_id)
+
+    @contextmanager
+    def fake_launch(*args: Any, **kwargs: Any) -> Iterator[Endpoint]:
+        del args, kwargs
+        yield endpoint
+
+    observed: list[Any] = []
+    monkeypatch.setattr(foundation_job, "launch", fake_launch)
+    monkeypatch.setattr(
+        foundation_job,
+        "probe",
+        lambda *args, **kwargs: ProbeResult(True, True, 0.1, (endpoint.model,)),
+    )
+    monkeypatch.setattr(foundation_job, "evaluate", lambda context, request: observed.append(request) or "done")
+    managed = ManagedEvaluationRequest(
+        LaunchRequest(QWEN_35_2B, QWEN35_VLLM_TURBOQUANT_K8),
+        GENERAL_SMOKE,
+        "math-gsm8k",
+        context_window=8_192,
+    )
+
+    assert run_managed_evaluation(
+        ExecutionContext(
+            job=spec().job,
+            action=spec().action,
+            invocation=spec().invocation,
+            attempt=spec().attempt,
+            workspace=tmp_path.resolve(),
+        ),
+        managed,
+    ) == "done"
+    assert observed[0].target.base_url == endpoint.base_url
+    assert observed[0].program is GENERAL_SMOKE
 
 
 def test_online_smoke_rejects_a_reasoning_only_truncated_response(

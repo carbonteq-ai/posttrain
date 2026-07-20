@@ -1,6 +1,6 @@
 # Post-Training Platform Refactor Plan
 
-**Status:** Proposed, revision 2  
+**Status:** In progress, revision 3
 **Created:** 2026-07-20  
 **Last revised:** 2026-07-20  
 **Intent:** MVP revamp; existing code is not a compatibility contract
@@ -909,6 +909,14 @@ state.
   - [x] Add managed online launch, probe, and streaming generate operations with deterministic HTTP tests.
   - [x] Prove the online endpoint on GPU and add deterministic bounded-concurrency scheduling tests.
 - [ ] Phase 3 — evaluation and environment vertical slice.
+  - [x] Replace the legacy CLI/YAML suite with a typed, endpoint-neutral public evaluation operation.
+  - [x] Compose the pinned Verifiers v1 Python runner directly and preserve its native result directory.
+  - [x] Add code-defined general and agentic programs with per-run task, rollout, and concurrency budgets.
+  - [x] Consume upstream `gsm8k-v1` and stream completed JSONL traces idempotently through the observer.
+  - [x] Implement and independently lock the native Verifiers v1 AutomationBench package on Python 3.13.
+  - [x] Preserve upstream AutomationBench tasks, simulated APIs, final-world assertions, dense reward, and strict outcome metrics.
+  - [ ] Prove Qwen and LFM GSM8K cells on GPU with queryable Trackio traces and retained native artifacts.
+  - [ ] Add the isolated Python 3.13 environment worker and prove a live AutomationBench smoke against a served model.
 - [ ] Phase 4 — renderer-based SFT and DPO.
 - [ ] Phase 5 — Verifiers-to-TRL GRPO bridge.
 - [ ] Phase 6 — observation, reports, and reference lifecycle.

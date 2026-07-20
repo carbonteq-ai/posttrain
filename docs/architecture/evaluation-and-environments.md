@@ -1,6 +1,6 @@
 # Evaluation and environments
 
-Status: target MVP architecture  
+Status: implemented evaluation vertical slice; GPU qualification in progress
 Last revised: 2026-07-20
 
 ## Purpose
@@ -27,24 +27,48 @@ used by each execution.
 
 ## Code-first evaluation operations
 
-`packages/eval` exposes a reusable public operation API and evaluation programs:
+`packages/eval` exposes a reusable public operation API and evaluation programs.
+The canonical implementation files are:
+
+- `packages/eval/src/posttrain/eval/requests.py` for program, target, budget,
+  and request contracts;
+- `packages/eval/src/posttrain/eval/api.py` for the public operation;
+- `packages/eval/src/posttrain/eval/backends/verifiers/` for the pinned v1
+  adapter and trace synchronization;
+- `packages/eval/src/posttrain/eval/programs/` for reusable code-defined
+  selections.
 
 ```python
 GENERAL_SMOKE = EvaluationProgram(
-    id="general.smoke",
+    id="general-smoke-v1",
+    kind="general",
     environments=(
-        EnvironmentRef("team/instruction-following", version="1.1.0"),
-        EnvironmentRef("team/long-context-needle", version="2.0.1"),
+        EnvironmentProgram(...),
     ),
 )
 
-result = model_eval.evaluate(model=model, program=GENERAL_SMOKE)
+result = evaluate(
+    context,
+    EvaluationRequest(
+        model=model,
+        target=EvaluationTarget("http://127.0.0.1:8000/v1", served_model),
+        program=GENERAL_SMOKE,
+        environment_id="math-gsm8k",
+        context_window=8192,
+        budget=EvaluationBudget(num_tasks=1, max_concurrent=1),
+    ),
+)
 ```
 
-An evaluation program selects environment references and supplies default
-runtime, rollout, and sampling policy. It never copies environment data or
-scoring logic. A job may create an explicit copy with task counts, subsets, or
-sampling overrides.
+An evaluation program selects native environment factories and supplies default
+task, rollout, concurrency, and sampling policy. It never copies environment
+data or scoring logic. `EvaluationBudget` selects a smaller invocation subset
+without cloning or mutating the reusable program.
+
+One `evaluate` call runs exactly one environment cell. A general program may
+contain several categories, but each category gets its own run attempt,
+configuration, trace population, and native artifact. Reports can compose those
+runs later without making an opaque multi-environment run.
 
 TOML is useful for upstream Verifiers CLI interoperability and can instantiate
 a typed config. It is not the platform's job or workflow language.
@@ -61,6 +85,26 @@ a typed config. It is not the platform's job or workflow language.
 
 The distinction is curation and intent, not a different package API or storage
 schema.
+
+## Qualified MVP environments
+
+| Program | Intent | Environment package |
+| --- | --- | --- |
+| `GENERAL_SMOKE` | math, instruction following, code execution, multi-turn state | pinned upstream `gsm8k-v1`, `reverse-text-v1`, `code-golf-v1`, and `alphabet-sort-v1` |
+| `AGENTIC_SMOKE` | foundational cross-application tool use | local `automationbench-v1`, simple domain |
+| `AUTOMATIONBENCH_PUBLIC` | full domain evaluation | the same `automationbench-v1` package across sales, marketing, operations, support, finance, and HR |
+
+`environments/automationbench_v1` is a real native-v1 port rather than a call
+through Verifiers' legacy environment bridge. It reuses Zapier AutomationBench
+1.0.5 task builders, simulated SaaS world, API routes, and assertion registry at
+commit `a321764ace3cfbe42289e6a13abef2f0f4f56fad`. The port owns typed v1
+`TaskData`, per-rollout state, an MCP API toolset, and trace projection.
+
+AutomationBench declares Python 3.13 while the GPU workspace currently uses
+Python 3.12. The environment therefore has an independent uv project and lock.
+This is dependency isolation, not a separate evaluation model: a 3.13
+environment worker can evaluate the same OpenAI-compatible endpoint and emit
+the same Verifiers trace schema.
 
 ## Environment creation and reuse
 
@@ -121,6 +165,13 @@ output ceilings are preferable to one global small cap. Truncation and
 `finish_reason=length` are recorded on traces and must be considered when
 comparing capability.
 
+Conversation rendering is not redefined by an environment. The foundation
+model profile owns chat-template selection, reasoning modes, roles, and native
+tool-call grammar. A serving profile maps those facts to backend parsers. The
+Verifiers harness supplies messages and MCP tools through the endpoint's
+OpenAI-compatible protocol, so Qwen and LFM keep their own rendered formats
+without model-specific branches in `posttrain.eval`.
+
 ## Execution and evidence
 
 `packages/eval`:
@@ -136,7 +187,10 @@ In this lab, the host context converts those emissions to idempotent
 `VerifiersTrace` records and a Trackio artifact. Another project can supply a
 different observer. The environment owns task semantics. Trackio owns only the
 observations the lab host records.
-`packages/reports` owns aggregate calculations and comparison views. The job
+The run stores synchronization counters because they are direct execution
+health observations. It does not store mean reward, pass rate, or other
+cross-trace capability summaries. `packages/reports` owns those aggregate
+calculations and comparison views. The job
 owns selection, thresholds, and what to do next.
 
 ## Serving evaluation remains separate
@@ -151,15 +205,20 @@ report, but one package never absorbs the other.
 
 ## MVP sequence
 
-1. Expose a typed, directly reusable `eval.evaluate` operation and program API.
-2. Run one qualified Verifiers environment package.
-3. Define a reusable general-smoke program.
-4. Prove trace/native-artifact emission with a no-op/local observer and the lab's Trackio observer.
-5. Create one independently published domain environment.
-6. Exercise both from model-onboarding and post-training job actions.
+1. [x] Expose a typed, directly reusable `eval.evaluate` operation and program API.
+2. [x] Consume pinned upstream GSM8K through native Verifiers v1.
+3. [x] Define reusable general, agentic-smoke, and AutomationBench domain programs.
+4. [x] Prove trace/native-artifact emission with local and Trackio observer adapters.
+5. [x] Create and package the native-v1 AutomationBench port.
+6. [ ] Qualify real GPU GSM8K runs for both foundation profiles.
+7. [ ] Qualify an AutomationBench simple rollout through its isolated Python 3.13 worker.
+8. [ ] Reuse the same task packages for checkpoint evaluation and GRPO.
 
 ## Revision history
 
+- 2026-07-20: Implemented one-cell endpoint-neutral evaluation, typed subset
+  budgets, code-defined general/agentic/domain programs, and a native Verifiers
+  v1 AutomationBench 1.0.5 port with isolated Python 3.13 dependencies.
 - 2026-07-20: Replaced YAML eval/job composition with typed programs and
   operations, required model onboarding to use a code-defined job, and made
   Trackio observation-only.

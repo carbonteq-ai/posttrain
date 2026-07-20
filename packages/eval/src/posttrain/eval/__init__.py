@@ -1,12 +1,26 @@
-"""Reusable evaluation engine over independently packaged Verifiers environments."""
+"""Reusable evaluation operations over independently packaged environments."""
 
-from .results import summarize_traces
-from .suites import EnvironmentSpec, EvalSuite, EvalSuiteError, load_suite
+from .api import evaluate
+from .requests import (
+    EnvironmentProgram,
+    EnvironmentSource,
+    EvaluationBudget,
+    EvaluationProgram,
+    EvaluationRequest,
+    EvaluationTarget,
+    SamplingPolicy,
+)
+from .results import EvaluationResult, TraceSynchronization
 
 __all__ = [
-    "EnvironmentSpec",
-    "EvalSuite",
-    "EvalSuiteError",
-    "load_suite",
-    "summarize_traces",
+    "EnvironmentProgram",
+    "EnvironmentSource",
+    "EvaluationBudget",
+    "EvaluationProgram",
+    "EvaluationRequest",
+    "EvaluationResult",
+    "EvaluationTarget",
+    "SamplingPolicy",
+    "TraceSynchronization",
+    "evaluate",
 ]

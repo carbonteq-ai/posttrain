@@ -2437,11 +2437,7 @@ name = "posttrain-eval"
 version = "0.1.0"
 source = { editable = "packages/eval" }
 dependencies = [
-    { name = "huggingface-hub" },
-    { name = "posttrain-common", extra = ["legacy"] },
-    { name = "pyyaml" },
-    { name = "tokenizers" },
-    { name = "tomli-w" },
+    { name = "posttrain-common" },
 ]
 
 [package.optional-dependencies]
@@ -2461,13 +2457,9 @@ requires-dist = [
     { name = "alphabet-sort-v1", marker = "extra == 'verifiers'", git = "https://github.com/PrimeIntellect-ai/verifiers.git?subdirectory=environments%2Falphabet_sort_v1&rev=284a868d6a9022109b749710672a0460e8a996d4" },
     { name = "code-golf-v1", marker = "extra == 'verifiers'", git = "https://github.com/PrimeIntellect-ai/verifiers.git?subdirectory=environments%2Fcode_golf_v1&rev=284a868d6a9022109b749710672a0460e8a996d4" },
     { name = "gsm8k-v1", marker = "extra == 'verifiers'", git = "https://github.com/PrimeIntellect-ai/verifiers.git?subdirectory=environments%2Fgsm8k_v1&rev=284a868d6a9022109b749710672a0460e8a996d4" },
-    { name = "huggingface-hub" },
-    { name = "posttrain-common", extras = ["legacy"], editable = "packages/common" },
+    { name = "posttrain-common", editable = "packages/common" },
     { name = "prime", marker = "extra == 'verifiers'", specifier = ">=0.6" },
-    { name = "pyyaml", specifier = ">=6" },
     { name = "reverse-text-v1", marker = "extra == 'verifiers'", git = "https://github.com/PrimeIntellect-ai/verifiers.git?subdirectory=environments%2Freverse_text_v1&rev=284a868d6a9022109b749710672a0460e8a996d4" },
-    { name = "tokenizers", specifier = ">=0.22" },
-    { name = "tomli-w", specifier = ">=1.2" },
     { name = "torch", marker = "extra == 'verifiers'", index = "https://download.pytorch.org/whl/cu130" },
     { name = "transformers", marker = "extra == 'verifiers'", specifier = ">=4.57" },
     { name = "verifiers", marker = "extra == 'verifiers'", git = "https://github.com/PrimeIntellect-ai/verifiers.git?rev=284a868d6a9022109b749710672a0460e8a996d4" },
@@ -2480,16 +2472,28 @@ version = "0.1.0"
 source = { editable = "apps/lab" }
 dependencies = [
     { name = "posttrain-common" },
+    { name = "posttrain-eval" },
     { name = "posttrain-serve" },
     { name = "trackio" },
+]
+
+[package.optional-dependencies]
+gpu-eval = [
+    { name = "posttrain-eval" },
+    { name = "posttrain-eval", extra = ["verifiers"], marker = "extra == 'extra-14-posttrain-eval-verifiers'" },
+    { name = "posttrain-serve", extra = ["vllm"] },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "posttrain-common", editable = "packages/common" },
+    { name = "posttrain-eval", editable = "packages/eval" },
+    { name = "posttrain-eval", extras = ["verifiers"], marker = "extra == 'gpu-eval'", editable = "packages/eval" },
     { name = "posttrain-serve", editable = "packages/serve" },
+    { name = "posttrain-serve", extras = ["vllm"], marker = "extra == 'gpu-eval'", editable = "packages/serve" },
     { name = "trackio", git = "https://github.com/carbonteq-ai/trackio.git?rev=02351d871050bf4b3505c7371239c698b710ec83" },
 ]
+provides-extras = ["gpu-eval"]
 
 [[package]]
 name = "posttrain-reports"

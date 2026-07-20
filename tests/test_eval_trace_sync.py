@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from posttrain.eval.trace_sync import VerifiersTraceSynchronizer
+from posttrain.eval.backends.verifiers.synchronization import VerifiersTraceSynchronizer
 
 
 def _record(trace_id: str) -> dict:
@@ -33,7 +33,7 @@ def test_tailer_waits_for_complete_lines_and_batches(tmp_path: Path):
     stats = sync.drain()
 
     assert [record["id"] for record in uploaded[0]] == ["one", "two"]
-    assert stats.synced_records == 2
+    assert stats.emitted_records == 2
 
 
 def test_finalization_retries_failed_batches(tmp_path: Path):
@@ -51,9 +51,9 @@ def test_finalization_retries_failed_batches(tmp_path: Path):
     stats = sync.finalize()
 
     assert calls == 2
-    assert stats.synced_records == 1
+    assert stats.emitted_records == 1
     assert stats.failed_batches == 1
-    assert stats.unsynced_records == 0
+    assert stats.unsynchronized_records == 0
     assert stats.complete
 
 
@@ -68,6 +68,21 @@ def test_invalid_records_are_reported_without_stopping_valid_sync(tmp_path: Path
 
     assert stats.observed_records == 2
     assert stats.invalid_records == 1
-    assert stats.synced_records == 1
+    assert stats.emitted_records == 1
     assert not stats.complete
     assert uploaded[0][0]["id"] == "valid"
+
+
+def test_duplicate_external_ids_are_emitted_once(tmp_path: Path):
+    path = tmp_path / "traces.jsonl"
+    path.write_text(
+        json.dumps(_record("same")) + "\n" + json.dumps(_record("same")) + "\n",
+        encoding="utf-8",
+    )
+    uploaded: list[list[dict]] = []
+    stats = VerifiersTraceSynchronizer(path, uploaded.append, validate=_identity).finalize()
+
+    assert stats.observed_records == 2
+    assert stats.duplicate_records == 1
+    assert stats.emitted_records == 1
+    assert uploaded == [[_record("same")]]

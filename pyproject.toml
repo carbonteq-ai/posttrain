@@ -110,3 +110,9 @@ name = "Serving is independent of observation and legacy configuration"
 type = "forbidden"
 source_modules = ["posttrain.serve"]
 forbidden_modules = ["trackio", "yaml", "common"]
+
+[[tool.importlinter.contracts]]
+name = "Evaluation is endpoint neutral and observation independent"
+type = "forbidden"
+source_modules = ["posttrain.eval"]
+forbidden_modules = ["posttrain.serve", "vllm", "trackio", "yaml", "common"]
