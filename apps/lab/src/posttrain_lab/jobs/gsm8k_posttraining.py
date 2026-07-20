@@ -47,6 +47,23 @@ GSM8K_TRAINING_ROLLOUTS = EvaluationProgram(
     ),
 )
 
+GSM8K_LFM_TRAINING_ROLLOUTS = EvaluationProgram(
+    id="gsm8k-lfm-training-rollouts-v1",
+    kind="domain",
+    environments=(
+        EnvironmentProgram(
+            id="gsm8k-train-candidates",
+            category="math-reasoning",
+            source=GSM8K_TRAINING_ROLLOUTS.environments[0].source,
+            factory=_training_environment,
+            sampling=SamplingPolicy(max_tokens=4_096, temperature=0.8, top_p=0.95),
+            num_tasks=4,
+            num_rollouts=2,
+            max_concurrent=1,
+        ),
+    ),
+)
+
 
 def gsm8k_posttraining_job(version: str) -> Job:
     return Job(id=JOB_ID, version=version, name="GSM8K post-training")

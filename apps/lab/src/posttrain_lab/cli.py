@@ -35,6 +35,7 @@ from posttrain.train import (
 from .data import RejectedRollout, load_gsm8k_supervised, preferences_from_rollouts
 from .execution import ArtifactInput, AttemptSpec, execute, execute_tracked
 from .jobs import (
+    GSM8K_LFM_TRAINING_ROLLOUTS,
     GSM8K_TRAINING_ROLLOUTS,
     ManagedEvaluationRequest,
     dpo_action,
@@ -143,9 +144,14 @@ def main() -> None:
             if args.job == "gsm8k-qwen-preference-rollouts"
             else (LFM_25_12B_THINKING, LFM25_VLLM_TURBOQUANT_K8)
         )
+        program = (
+            GSM8K_TRAINING_ROLLOUTS
+            if args.job == "gsm8k-qwen-preference-rollouts"
+            else GSM8K_LFM_TRAINING_ROLLOUTS
+        )
         request = ManagedEvaluationRequest(
             launch=LaunchRequest(model, profile),
-            program=GSM8K_TRAINING_ROLLOUTS,
+            program=program,
             environment_id="gsm8k-train-candidates",
             context_window=8_192,
         )
