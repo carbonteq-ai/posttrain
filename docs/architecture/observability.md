@@ -32,7 +32,7 @@ definition registry.
 For every operation observed by this lab, the host context supplies:
 
 - `job_id`, `job_module`, and `action_id`;
-- optional `invocation_id` correlating runs submitted together;
+- mandatory `invocation_id` correlating attempts submitted together;
 - run kind and implementation ID/package/version;
 - source repository commit and dirty digest;
 - exact model and consumed artifact identities;
@@ -40,9 +40,10 @@ For every operation observed by this lab, the host context supplies:
 - environment, workload, sampling, hardware, and software context;
 - produced artifacts, final status, and failure information.
 
-`packages/common` owns this host envelope and the narrow Trackio write adapter.
-The reusable `posttrain.train`, `posttrain.eval`, and `posttrain.serve` APIs emit through an execution context
-protocol and do not require Trackio or a Job when used elsewhere.
+`posttrain.common` owns the framework-neutral envelope and observer protocol;
+`posttrain_lab` owns the Trackio write adapter. The reusable
+`posttrain.train`, `posttrain.eval`, and `posttrain.serve` APIs emit through an
+execution context and do not import Trackio.
 
 ## Run kinds
 
@@ -52,7 +53,7 @@ protocol and do not require Trackio or a Job when used elsewhere.
 - `domain-eval`;
 - `sft`;
 - `dpo`;
-- `rl`;
+- `grpo`;
 - `model-transformation`;
 - `comparison-report`.
 
@@ -112,6 +113,10 @@ Direct run metrics retain GPU/system series, cache and scheduler counters,
 speculative acceptance, and kernel-specific measurements. Throughput and
 latency distributions are computed from measured request traces plus direct
 population counters.
+
+One benchmark result emits its run-level scalar set as one metric batch. Metric
+names are columns in that observation, not synthetic sequential steps. Request
+traces remain separate high-cardinality observations linked to the same run.
 
 Warmup requests are explicitly labeled or excluded. Production-style tracing
 must declare sampling and redaction policy.

@@ -114,3 +114,13 @@ device memory. It does not offload weights or KV cache to host RAM. A 128-input,
 TTFT, and 6.92 GiB peak VRAM. Cold start was 65.24 seconds, so this safe local
 profile is not yet the optimized Qwen profile; compilation and graph-capture
 variants must be evaluated independently rather than folded into this result.
+
+The first canonical code-defined foundation-screening job is Trackio run
+`serve/qwen3.5-2b/short-interactive-ctx1024-c1-a7b17eb5-a1` in project
+`posttrain-foundation`, produced from clean Git revision `5b429cb`. It records
+the mandatory job/action/invocation/attempt identities, one 23-field run-level
+metric batch, one inference trace, and one versioned serving-result artifact.
+It measured 75.66 output tok/s, 35.5 ms TTFT, 6.99 GiB peak VRAM, and a
+cache-warm 19.51 second engine start. The earlier module-backed run remains
+valid direct evidence, but its scalar metrics were fragmented across steps;
+the canonical rerun verifies the corrected observation grain.

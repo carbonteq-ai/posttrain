@@ -947,6 +947,10 @@ state.
   artifact linkage but wrote one row per scalar metric. Run-level metric batches
   are now a shared observer primitive so one result becomes one coherent metric
   observation rather than an artificial step sequence.
+- The corrected canonical foundation-screening run at Git revision `5b429cb`
+  contains mandatory identity, a single 23-field metric batch, an inference
+  trace, and a versioned output artifact. It measured 75.66 output tok/s,
+  35.5 ms TTFT, 6.99 GiB peak VRAM, and 19.51 seconds cache-warm startup.
 
 ## Decision Log
 
