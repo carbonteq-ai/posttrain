@@ -93,6 +93,7 @@ def _grpo_arguments(request: GRPORequest, output_dir: Path, template_kwargs: dic
                 "vllm_max_model_length": rollout.max_model_length,
                 "vllm_speculative_config": rollout.speculative_config(),
                 "vllm_engine_kwargs": _vllm_engine_kwargs(request),
+                "vllm_weight_name_prefix": rollout.weight_name_prefix,
                 "vllm_model_impl": "vllm",
                 "vllm_importance_sampling_correction": True,
             }
@@ -105,12 +106,6 @@ def _vllm_engine_kwargs(request: GRPORequest) -> dict[str, Any] | None:
     values: dict[str, Any] = {}
     if rollout.text_only:
         values["language_model_only"] = True
-        architecture = request.model.profile.hf_text_generation_architecture
-        if architecture is not None:
-            values["hf_overrides"] = {"architectures": [architecture]}
-            model_class = request.model.profile.vllm_text_generation_model_class
-            if model_class is not None:
-                values["model_class_overrides"] = {architecture: model_class}
     if rollout.skip_multimodal_profiling:
         values["skip_mm_profiling"] = True
     if rollout.kv_cache_memory_bytes is not None:

@@ -137,7 +137,7 @@ def run_offline_benchmark(request: BenchmarkRequest) -> BenchmarkResult:
         llm = LLM(
             model=request.model.artifact.repo_id,
             revision=request.model.artifact.revision,
-            **engine.as_vllm_kwargs(request.model),
+            **engine.as_vllm_kwargs(),
         )
         engine_start_seconds = time.perf_counter() - engine_started
         params = SamplingParams(**sampling.as_vllm_kwargs())

@@ -41,6 +41,4 @@ QWEN_35_2B = ModelProfile(
         ),
         strips_past_reasoning=True,
     ),
-    hf_text_generation_architecture="Qwen3_5ForCausalLM",
-    vllm_text_generation_model_class="vllm.model_executor.models.qwen3_5:Qwen3_5ForCausalLM",
 )

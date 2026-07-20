@@ -63,14 +63,6 @@ class IdentityContractTests(unittest.TestCase):
                 profile.default_reasoning_mode,
             )
             self.assertIn(profile.conversation.chat_template.source, {"tokenizer", "package"})
-        self.assertEqual(
-            FOUNDATION_PROFILES["qwen3.5-2b"].hf_text_generation_architecture,
-            "Qwen3_5ForCausalLM",
-        )
-        self.assertEqual(
-            FOUNDATION_PROFILES["qwen3.5-2b"].vllm_text_generation_model_class,
-            "vllm.model_executor.models.qwen3_5:Qwen3_5ForCausalLM",
-        )
 
     def test_model_variants_separate_profile_behavior_from_descendant_weights(self) -> None:
         profile = FOUNDATION_PROFILES["qwen3.5-2b"]

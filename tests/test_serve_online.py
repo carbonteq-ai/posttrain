@@ -93,12 +93,6 @@ def test_qwen_launch_command_keeps_8gb_text_only_constraints() -> None:
     assert "--enforce-eager" in command
     assert "--language-model-only" in command
     assert "--skip-mm-profiling" in command
-    hf_overrides = json.loads(command[command.index("--hf-overrides") + 1])
-    assert hf_overrides == {"architectures": ["Qwen3_5ForCausalLM"]}
-    model_class_overrides = json.loads(command[command.index("--model-class-overrides") + 1])
-    assert model_class_overrides == {
-        "Qwen3_5ForCausalLM": "vllm.model_executor.models.qwen3_5:Qwen3_5ForCausalLM"
-    }
     mm_limits = json.loads(command[command.index("--limit-mm-per-prompt") + 1])
     assert mm_limits == {"image": 0, "video": 0}
 

@@ -10,7 +10,7 @@ The lab's injected observation context maps those hooks to Trackio. Datasets,
 rewards, and Verifiers environment implementations remain independently owned.
 
 The workspace uses the `carbonteq-ai/trl` fork pinned to immutable commit
-`b31dc19ad82b0f8fcba77ee1bdf7bd03986a193d`. The fork preserves TRL 1.8.0 and
+`b6976fde8391afc8cd638b476d30dddc2e365c01`. The fork preserves TRL 1.8.0 and
 adds the upstream-validated vLLM 0.24/0.25 dependency support plus regression
 coverage. It also keeps the trainer runtime compatible with `datasets 4.6.1`
 so the application can install Verifiers v1 and TRL together. It does not
@@ -26,6 +26,12 @@ It also accepts non-conflicting colocated engine arguments while protecting
 TRL-controlled weight-sync and lifecycle options. Text-only runs of multimodal
 models use this to skip an irrelevant dummy vision profiling pass. This was
 merged in [`carbonteq-ai/trl#6`](https://github.com/carbonteq-ai/trl/pull/6).
+Composite vLLM implementations may retain a namespace around a text-only
+training model. The fork therefore exposes an explicit weight-name prefix at
+the synchronization boundary instead of placing model-name rewrites in a job.
+Qwen3.5 uses `language_model.` while vLLM's `language_model_only` mode omits the
+vision tower. The generic change was merged in
+[`carbonteq-ai/trl#7`](https://github.com/carbonteq-ai/trl/pull/7).
 DPO kernel choice is model-specific and recorded as `dpo_loss_kernel`. Liger's
 fused DPO loss can reduce projection memory for moderate vocabularies, but its
 current backward path creates a full FP32 LM-head gradient even when that head

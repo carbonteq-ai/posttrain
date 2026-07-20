@@ -23,7 +23,7 @@ generation, or weight-synchronization behavior. Those changes exist after the
 - Apply upstream vLLM 0.24 support commit `c1fdca18f0cc56fb60726d879d73f0cbd344e91f`
   and vLLM 0.25 support commit `68d7cb1a4228f91d832c2dc7ced80674d2c46c56`.
 - Pin the workspace to merged fork commit
-  `b31dc19ad82b0f8fcba77ee1bdf7bd03986a193d` and pin vLLM to `0.25.1`.
+  `b6976fde8391afc8cd638b476d30dddc2e365c01` and pin vLLM to `0.25.1`.
 - Keep the trainer-runtime dependency on `datasets>=4.6.1,<4.7`. TRL's runtime
   paths use APIs available in 4.6.1; 4.7-only `Json` dtype helpers belong to
   repository dataset-authoring scripts. This makes TRL 1.8 and Verifiers v1
@@ -34,6 +34,10 @@ generation, or weight-synchronization behavior. Those changes exist after the
 - Expose vLLM's engine-level speculative configuration through GRPO's colocated
   generation adapter. Rollout profiles may use native MTP while retaining TRL's
   weight synchronization and sleep lifecycle.
+- Keep vLLM's native composite model when that is how the Hub checkpoint is
+  stored, omit unused modality towers with `language_model_only`, and expose a
+  declarative weight-name prefix for synchronizing a text-only trainer into
+  the retained composite namespace.
 
 ## Consequences
 
@@ -70,6 +74,11 @@ engine tests were merged in
 
 Safe forwarding of non-conflicting colocated vLLM engine arguments was merged
 in [`carbonteq-ai/trl#6`](https://github.com/carbonteq-ai/trl/pull/6).
+
+Declarative vLLM weight namespaces were merged in
+[`carbonteq-ai/trl#7`](https://github.com/carbonteq-ai/trl/pull/7). The Qwen3.5
+rollout profile uses `language_model.`; the generic TRL adapter applies the
+prefix once at its weight-update boundary for PEFT, FSDP, and ordinary models.
 
 ## Maintenance
 

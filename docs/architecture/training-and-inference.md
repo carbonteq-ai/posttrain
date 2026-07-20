@@ -124,6 +124,14 @@ The GRPO rollout profile explicitly selects one of two execution modes:
   is not literally a single representation, but it prevents a separate
   Verifiers model and bounds concurrent GPU residency.
 
+Text-only training does not imply that the Hub checkpoint has a text-only
+top-level namespace. Qwen3.5 is distributed as a composite checkpoint, so
+vLLM retains its composite implementation while `language_model_only` prevents
+the vision tower from consuming memory. The rollout profile declares the
+`language_model.` synchronization namespace and the TRL adapter applies it at
+the single weight-transfer boundary. Jobs and Verifiers environments remain
+unaware of this backend compatibility detail.
+
 For compatible Qwen profiles, colocated vLLM may additionally enable native MTP.
 Engine-level speculative configuration is part of the rollout profile and is
 passed through the pinned TRL fork. Verifiers always scores the completions from

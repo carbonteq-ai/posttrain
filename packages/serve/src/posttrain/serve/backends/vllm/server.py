@@ -29,7 +29,7 @@ def build_vllm_command(request: LaunchRequest, chat_template_path: Path | None =
         request.host,
         "--port",
         str(request.port),
-        *request.profile.engine.as_cli_args(request.model),
+        *request.profile.engine.as_cli_args(),
         *request.profile.frontend_args(),
     ]
     if chat_template_path is not None:

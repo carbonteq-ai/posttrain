@@ -107,6 +107,7 @@ class GRPORolloutProfile:
     text_only: bool = False
     skip_multimodal_profiling: bool = False
     kv_cache_memory_bytes: int | None = None
+    weight_name_prefix: str | None = None
     speculative_method: str | None = None
     num_speculative_tokens: int | None = None
 
@@ -125,6 +126,7 @@ class GRPORolloutProfile:
                     self.speculative_method,
                     self.num_speculative_tokens,
                     self.kv_cache_memory_bytes,
+                    self.weight_name_prefix,
                 )
             ) or self.sleep_during_optimization or self.text_only or self.skip_multimodal_profiling:
                 raise ValueError("Transformers rollouts cannot declare vLLM settings")
@@ -141,6 +143,10 @@ class GRPORolloutProfile:
             raise ValueError("speculative token count must be positive")
         if self.kv_cache_memory_bytes is not None and self.kv_cache_memory_bytes < 1:
             raise ValueError("vLLM KV cache memory must be positive")
+        if self.weight_name_prefix is not None and (
+            not self.weight_name_prefix or not self.weight_name_prefix.endswith(".")
+        ):
+            raise ValueError("vLLM weight name prefixes must end with a dot")
 
     def speculative_config(self) -> dict[str, str | int] | None:
         if self.speculative_method is None:
@@ -234,6 +240,7 @@ QWEN35_GRPO_SMOKE = GRPOProfile(
         text_only=True,
         skip_multimodal_profiling=True,
         kv_cache_memory_bytes=64 * 1024 * 1024,
+        weight_name_prefix="language_model.",
     ),
 )
 QWEN35_GRPO_MTP_SMOKE = GRPOProfile(
@@ -251,6 +258,7 @@ QWEN35_GRPO_MTP_SMOKE = GRPOProfile(
         max_model_length=1_024,
         text_only=True,
         skip_multimodal_profiling=True,
+        weight_name_prefix="language_model.",
         speculative_method="qwen3_next_mtp",
         num_speculative_tokens=2,
     ),
