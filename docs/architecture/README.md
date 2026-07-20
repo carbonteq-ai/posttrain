@@ -15,10 +15,12 @@ The architecture is a target MVP revamp derived from the [post-training job life
 
 Current durable decisions: [ADR 0004](../decisions/0004-lifecycle-driven-mvp-platform.md),
 [ADR 0005](../decisions/0005-trackio-verifiers-traces.md), and
-[ADR 0006](../decisions/0006-trackio-observation-model.md).
+[ADR 0006](../decisions/0006-trackio-observation-model.md). Model conversation
+ownership is defined by [ADR 0008](../decisions/0008-model-conversation-contracts.md).
 
 ## Revision history
 
+- 2026-07-20: Linked the shared model conversation and backend-parser decision.
 - 2026-07-20: Made train/eval/serve package APIs the cross-project reuse
   boundary and their framework adapters internal.
 - 2026-07-20: Made the document set code-first and Trackio purely observational.

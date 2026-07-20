@@ -14,6 +14,8 @@ LFM25_VLLM = VllmServeProfile(
     model_family="lfm2.5",
     engine=VllmEngineConfig(max_model_len=4_096, gpu_memory_utilization=0.82),
     sampling=_SAMPLING,
+    tool_call_parser="lfm2",
+    reasoning_parser="deepseek_r1",
 )
 
 LFM25_VLLM_TURBOQUANT_K8 = VllmServeProfile(
@@ -27,4 +29,6 @@ LFM25_VLLM_TURBOQUANT_K8 = VllmServeProfile(
     ),
     sampling=_SAMPLING,
     variant="turboquant",
+    tool_call_parser="lfm2",
+    reasoning_parser="deepseek_r1",
 )

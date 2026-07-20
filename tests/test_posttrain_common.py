@@ -57,7 +57,11 @@ class IdentityContractTests(unittest.TestCase):
         for profile in FOUNDATION_PROFILES.values():
             self.assertEqual(len(profile.artifact.revision), 40)
             self.assertTrue(profile.instruction_tuned)
-            self.assertIn(profile.default_reasoning_mode, profile.capabilities.reasoning_modes)
+            self.assertEqual(
+                profile.conversation.reasoning_mode(profile.default_reasoning_mode).id,
+                profile.default_reasoning_mode,
+            )
+            self.assertIn(profile.conversation.chat_template.source, {"tokenizer", "package"})
 
 
 class ExecutionContextTests(unittest.TestCase):

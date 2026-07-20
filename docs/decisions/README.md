@@ -11,5 +11,6 @@ Architecture and stack choices for this lab.
 | [0005](./0005-trackio-verifiers-traces.md) | Compatible Trackio fork with queryable Verifiers traces |
 | [0006](./0006-trackio-observation-model.md) | Trackio-only observability and evidence model |
 | [0007](./0007-trl-vllm-025-fork.md) | TRL 1.8 fork pinned with validated vLLM 0.25.1 support |
+| [0008](./0008-model-conversation-contracts.md) | Shared model-native conversation contracts and backend-owned parsers |
 
 ADRs 0001–0003 describe the prototype and are superseded by ADR 0004 for current platform architecture.

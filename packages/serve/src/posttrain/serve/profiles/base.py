@@ -122,6 +122,8 @@ class VllmServeProfile:
     engine: VllmEngineConfig
     sampling: VllmSamplingConfig
     variant: Literal["standard", "turboquant", "mtp"] = "standard"
+    tool_call_parser: str | None = None
+    reasoning_parser: str | None = None
 
     def validate_model(self, model: ModelProfile) -> None:
         if model.family != self.model_family:
@@ -130,3 +132,13 @@ class VllmServeProfile:
             raise ValueError("serve context exceeds the model's native context window")
         if self.variant == "mtp" and not model.capabilities.mtp:
             raise ValueError("MTP profile requires a model trained with MTP")
+        if self.tool_call_parser is not None and model.conversation.tool_calls is None:
+            raise ValueError("tool-call parser requires a model tool-call protocol")
+
+    def frontend_args(self) -> tuple[str, ...]:
+        values: list[str] = []
+        if self.tool_call_parser is not None:
+            values.extend(("--enable-auto-tool-choice", "--tool-call-parser", self.tool_call_parser))
+        if self.reasoning_parser is not None:
+            values.extend(("--reasoning-parser", self.reasoning_parser))
+        return tuple(values)

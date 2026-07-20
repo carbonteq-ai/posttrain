@@ -108,7 +108,8 @@ through the producing and consuming runs.
 | native context limit | context actually exposed by an endpoint |
 | modalities | kernels, scheduling, caching, and parallelism |
 | native reasoning/MTP capability | speculative-decoding configuration |
-| tokenizer/chat-template identity | workload and resource defaults |
+| tokenizer/chat template, roles, and reasoning controls | reasoning parser and server flags |
+| native tool-call grammar | vLLM tool-call parser selection |
 
 MTP support is a model fact; enabling MTP in vLLM is a serve-profile
 choice. TurboQuant KV cache is entirely a serve-profile choice. A weight-changing

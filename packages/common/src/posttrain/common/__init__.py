@@ -20,11 +20,12 @@ from .execution import (
     TraceObservation,
 )
 from .jobs import Invocation, Job, JobAction, RunAttempt
-from .models import ModelCapabilities, ModelProfile
+from .models import ChatTemplate, ConversationProfile, ModelCapabilities, ModelProfile, ReasoningMode, ToolCallProtocol
 
 __all__ = [
     "ArtifactRef",
     "CancellationToken",
+    "ChatTemplate",
     "ContractError",
     "EventObservation",
     "ExecutionContext",
@@ -38,6 +39,9 @@ __all__ = [
     "MetricBatchObservation",
     "ModelCapabilities",
     "ModelProfile",
+    "ConversationProfile",
+    "ReasoningMode",
+    "ToolCallProtocol",
     "NullObserver",
     "Observer",
     "OperationCancelled",

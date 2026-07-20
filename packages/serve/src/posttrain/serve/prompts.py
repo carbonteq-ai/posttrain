@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
@@ -85,27 +85,33 @@ def reasoning_template_kwargs(
 ) -> dict[str, Any]:
     """Resolve a requested mode without pretending unsupported levels exist."""
 
-    modes = model_profile.capabilities.reasoning_modes
-    if requested_mode not in modes:
-        supported = ", ".join(sorted(modes))
-        raise PromptError(f"reasoning mode {requested_mode!r} is unsupported; supported modes: {supported}")
-    if model_profile.family == "qwen3.5" and requested_mode in {"off", "thinking"}:
-        return {"enable_thinking": requested_mode == "thinking"}
-    return {}
+    try:
+        return model_profile.conversation.reasoning_mode(requested_mode).kwargs()
+    except ValueError as error:
+        raise PromptError(str(error)) from error
 
 
 def render_prompt(
     tokenizer: Any,
     record: PromptRecord,
     model_profile: ModelProfile,
+    *,
+    tools: Sequence[Mapping[str, Any]] | None = None,
 ) -> Sequence[int]:
     """Render canonical messages through the model tokenizer's native template."""
 
     kwargs = reasoning_template_kwargs(model_profile, record.reasoning_mode)
+    chat_template = model_profile.conversation.chat_template.text()
+    if chat_template is not None:
+        kwargs["chat_template"] = chat_template
+    unsupported_roles = {str(message["role"]) for message in record.messages} - set(model_profile.conversation.roles)
+    if unsupported_roles:
+        raise PromptError(f"model does not support message roles: {', '.join(sorted(unsupported_roles))}")
     return tokenizer.apply_chat_template(
         list(record.messages),
         tokenize=True,
         add_generation_prompt=True,
+        tools=list(tools) if tools is not None else None,
         **kwargs,
     )
 

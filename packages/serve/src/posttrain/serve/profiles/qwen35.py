@@ -17,6 +17,8 @@ QWEN35_VLLM_TEXT = VllmServeProfile(
     model_family="qwen3.5",
     engine=_TEXT_ENGINE,
     sampling=VllmSamplingConfig(max_tokens=128),
+    tool_call_parser="qwen3_xml",
+    reasoning_parser="qwen3",
 )
 
 QWEN35_VLLM_TURBOQUANT_K8 = VllmServeProfile(
@@ -35,6 +37,8 @@ QWEN35_VLLM_TURBOQUANT_K8 = VllmServeProfile(
     ),
     sampling=VllmSamplingConfig(max_tokens=128),
     variant="turboquant",
+    tool_call_parser="qwen3_xml",
+    reasoning_parser="qwen3",
 )
 
 QWEN35_VLLM_MTP = VllmServeProfile(
@@ -52,4 +56,6 @@ QWEN35_VLLM_MTP = VllmServeProfile(
     ),
     sampling=VllmSamplingConfig(max_tokens=128),
     variant="mtp",
+    tool_call_parser="qwen3_xml",
+    reasoning_parser="qwen3",
 )

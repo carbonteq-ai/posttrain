@@ -1,9 +1,27 @@
 from __future__ import annotations
 
 import unittest
+from typing import Any
 
 from posttrain.common.profiles import LFM_25_12B_THINKING, QWEN_35_2B
-from posttrain.serve.prompts import PromptError, reasoning_template_kwargs, representative_prompt_records
+from posttrain.serve.prompts import (
+    PromptError,
+    PromptRecord,
+    reasoning_template_kwargs,
+    render_prompt,
+    representative_prompt_records,
+)
+
+
+class RecordingTokenizer:
+    def __init__(self) -> None:
+        self.messages: list[dict[str, Any]] = []
+        self.kwargs: dict[str, Any] = {}
+
+    def apply_chat_template(self, messages: list[dict[str, Any]], **kwargs: Any) -> list[int]:
+        self.messages = messages
+        self.kwargs = kwargs
+        return [1, 2, 3]
 
 
 class InferencePromptTest(unittest.TestCase):
@@ -29,6 +47,30 @@ class InferencePromptTest(unittest.TestCase):
         self.assertEqual(reasoning_template_kwargs(LFM_25_12B_THINKING, "native"), {})
         with self.assertRaisesRegex(PromptError, "unsupported"):
             reasoning_template_kwargs(LFM_25_12B_THINKING, "off")
+
+    def test_render_passes_model_reasoning_and_tools_to_native_template(self) -> None:
+        tokenizer = RecordingTokenizer()
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "weather",
+                    "description": "Read weather",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            }
+        ]
+        ids = render_prompt(
+            tokenizer,
+            PromptRecord("tool", ({"role": "user", "content": "Check weather"},), (), "thinking"),
+            QWEN_35_2B,
+            tools=tools,
+        )
+
+        self.assertEqual(ids, [1, 2, 3])
+        self.assertEqual(tokenizer.kwargs["tools"], tools)
+        self.assertTrue(tokenizer.kwargs["enable_thinking"])
+        self.assertTrue(tokenizer.kwargs["add_generation_prompt"])
 
 
 if __name__ == "__main__":

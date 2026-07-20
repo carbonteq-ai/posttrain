@@ -962,6 +962,12 @@ state.
   loads from `posttrain.serve` package resources in an isolated wheel-only
   environment; import-linter also proves serving has no Trackio, YAML, legacy
   `common`, or lab-host dependency.
+- The pinned LFM2.5 tokenizer template advertises tools but serializes an
+  OpenAI assistant tool-call history as `null`. The shared model conversation
+  contract now supplies a tested package template that preserves LFM's native
+  Pythonic tool call; Qwen continues to use its pinned XML tokenizer template.
+  vLLM parser names remain serve-profile details (`qwen3_xml`/`qwen3` and
+  `lfm2`/tag-compatible `deepseek_r1`).
 
 ## Decision Log
 
@@ -969,6 +975,8 @@ state.
   preserving compatibility.
 - 2026-07-20: Use `posttrain.*` namespace packages and keep foundation model
   definitions in `common`.
+- 2026-07-20: Keep chat templates, reasoning modes, roles, and native tool
+  grammar in the shared model profile; keep backend parser choices in serve.
 - 2026-07-20: Make train/eval/serve/reports reusable operations, with jobs as
   code-defined compositions in `apps/lab`.
 - 2026-07-20: Make Trackio the observability/evidence layer, not an execution or

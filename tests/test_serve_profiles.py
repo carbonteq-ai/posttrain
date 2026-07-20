@@ -24,6 +24,25 @@ def test_qwen_text_profile_captures_tested_8gb_constraints() -> None:
     assert kwargs["limit_mm_per_prompt"] == {"image": 0, "video": 0}
     assert kwargs["skip_mm_profiling"] is True
     assert kwargs["max_num_seqs"] == 4
+    assert profile.frontend_args() == (
+        "--enable-auto-tool-choice",
+        "--tool-call-parser",
+        "qwen3_xml",
+        "--reasoning-parser",
+        "qwen3",
+    )
+
+
+def test_lfm_profile_uses_native_tool_parser_and_tag_compatible_reasoning_parser() -> None:
+    assert LFM_25_12B_THINKING.conversation.tool_calls is not None
+    assert LFM_25_12B_THINKING.conversation.tool_calls.id == "lfm2_pythonic"
+    assert LFM25_VLLM.frontend_args() == (
+        "--enable-auto-tool-choice",
+        "--tool-call-parser",
+        "lfm2",
+        "--reasoning-parser",
+        "deepseek_r1",
+    )
 
 
 @pytest.mark.parametrize(
