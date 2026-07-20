@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import threading
+import time
 from pathlib import Path
 
 import httpx
@@ -10,7 +12,9 @@ from posttrain.serve import (
     QWEN35_VLLM_TEXT,
     Endpoint,
     GenerationRequest,
+    GenerationResult,
     LaunchRequest,
+    generate_concurrently,
 )
 from posttrain.serve.backends.vllm import build_vllm_command
 from posttrain.serve.online import generate, probe
@@ -90,3 +94,30 @@ def test_qwen_launch_command_keeps_8gb_text_only_constraints() -> None:
     assert "--skip-mm-profiling" in command
     mm_limits = json.loads(command[command.index("--limit-mm-per-prompt") + 1])
     assert mm_limits == {"image": 0, "video": 0}
+
+
+def test_concurrent_generation_is_bounded_and_preserves_request_order() -> None:
+    endpoint = Endpoint("http://model.test/v1", QWEN_35_2B.artifact.repo_id)
+    requests = tuple(
+        GenerationRequest(endpoint, ({"role": "user", "content": str(index)},), max_tokens=8) for index in range(4)
+    )
+    lock = threading.Lock()
+    active = 0
+    peak = 0
+
+    def runner(request: GenerationRequest, model) -> GenerationResult:
+        nonlocal active, peak
+        assert model is QWEN_35_2B
+        with lock:
+            active += 1
+            peak = max(peak, active)
+        time.sleep(0.01)
+        with lock:
+            active -= 1
+        content = str(request.messages[0]["content"])
+        return GenerationResult(content, "", (), 1, 1, 0.01, 0.005, "stop", ())
+
+    results = generate_concurrently(requests, QWEN_35_2B, max_concurrency=2, runner=runner)
+
+    assert peak == 2
+    assert tuple(result.content for result in results) == ("0", "1", "2", "3")

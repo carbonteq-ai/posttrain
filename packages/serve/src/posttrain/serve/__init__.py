@@ -2,7 +2,7 @@
 
 from .api import benchmark, generate, launch, probe
 from .benchmarks import CORE_INFERENCE_V1, BenchmarkCell, BenchmarkSuite, WorkloadShape
-from .online import Endpoint, GenerationRequest, GenerationResult, LaunchRequest, ProbeResult
+from .online import Endpoint, GenerationRequest, GenerationResult, LaunchRequest, ProbeResult, generate_concurrently
 from .profiles import (
     LFM25_VLLM,
     LFM25_VLLM_TURBOQUANT_K8,
@@ -42,6 +42,7 @@ __all__ = [
     "WorkloadShape",
     "benchmark",
     "generate",
+    "generate_concurrently",
     "launch",
     "probe",
 ]

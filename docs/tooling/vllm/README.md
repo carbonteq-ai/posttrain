@@ -143,10 +143,12 @@ tok/s, 14.2 ms TTFT, 6.35 GiB peak VRAM, and 22.55 seconds engine startup.
 Both foundation models therefore pass the same typed 128-input/32-output/c1
 cell through the same job, observer, trace, and artifact path.
 
-The first successful managed online endpoint run is
-`serve-online/lfm2.5-1.2b-thinking-b477f22b-a1` at clean revision `a8c1706`.
+The canonical managed online endpoint run is
+`serve-online/lfm2.5-1.2b-thinking-95a0371d-a1` at clean revision `371a49c`.
 The health/model probe passed and a streamed response stopped normally with
 final content after 169 output tokens. It measured 168 ms TTFT and 953 ms
-end-to-end latency. Earlier capped attempts correctly exposed a product
+end-to-end latency in the first successful run; the refined canonical run
+measured 42 ms TTFT and 884 ms end-to-end latency, with raw SSE events moved
+from searchable trace metadata into a native-response artifact. Earlier capped attempts correctly exposed a product
 distinction: endpoint health can succeed while a model response is truncated
 inside reasoning, so the job now requires non-empty final content.

@@ -898,7 +898,7 @@ state.
   - [x] Add `posttrain-lab` composition root, ephemeral attempt host, Trackio observer, and no-op job.
   - [x] Migrate train/eval/serve/reports distributions and imports to `posttrain.*`.
   - [ ] Remove the legacy `common` surface as each vertical slice stops consuming it.
-- [ ] Phase 2 — serving vertical slice.
+- [x] Phase 2 — serving vertical slice.
   - [x] Replace serving profile and workload YAML as the source of truth with typed Python definitions.
   - [x] Remove SGLang and its incompatible dependency branch from the MVP lock.
   - [x] Diagnose and correct the Qwen3.5-2B 8 GiB text-only startup profile with a real GPU run.
@@ -907,7 +907,7 @@ state.
   - [x] Move the representative corpus into the installable serve wheel and verify it from an isolated environment.
   - [x] Delete the legacy serving YAML/Trackio CLI path after the tracked operation GPU smoke.
   - [x] Add managed online launch, probe, and streaming generate operations with deterministic HTTP tests.
-  - [ ] Prove the online endpoint on GPU and add deterministic concurrency scheduling tests.
+  - [x] Prove the online endpoint on GPU and add deterministic bounded-concurrency scheduling tests.
 - [ ] Phase 3 — evaluation and environment vertical slice.
 - [ ] Phase 4 — renderer-based SFT and DPO.
 - [ ] Phase 5 — Verifiers-to-TRL GRPO bridge.
@@ -977,6 +977,12 @@ state.
   repetitive reasoning. The final smoke uses a natural prompt and a 512-token
   thinking budget. Raw SSE events belong in the native output artifact rather
   than searchable trace metadata.
+- The canonical refined online run is
+  `serve-online/lfm2.5-1.2b-thinking-95a0371d-a1` at clean revision `371a49c`.
+  It records a 42 ms TTFT and 884 ms request latency, a compact projected trace,
+  a 73.7 KB native streamed-response artifact, and a versioned server log.
+  The package also has a bounded, order-preserving concurrent generation
+  primitive with deterministic concurrency tests.
 
 ## Decision Log
 

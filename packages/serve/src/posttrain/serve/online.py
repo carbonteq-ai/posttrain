@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import json
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any
 
@@ -235,6 +236,29 @@ def generate(
     )
 
 
+type GenerationRunner = Callable[[GenerationRequest, ModelProfile], GenerationResult]
+
+
+def generate_concurrently(
+    requests: Sequence[GenerationRequest],
+    model: ModelProfile,
+    *,
+    max_concurrency: int,
+    runner: GenerationRunner = generate,
+) -> tuple[GenerationResult, ...]:
+    """Execute a bounded request wave while preserving input/result order."""
+
+    if not requests:
+        raise ValueError("concurrent generation requires at least one request")
+    if max_concurrency < 1:
+        raise ValueError("max_concurrency must be positive")
+    if max_concurrency > 4:
+        raise ValueError("this local scheduler is limited to concurrency four")
+    with ThreadPoolExecutor(max_workers=max_concurrency, thread_name_prefix="posttrain-serve") as executor:
+        futures = [executor.submit(runner, request, model) for request in requests]
+        return tuple(future.result() for future in futures)
+
+
 __all__ = [
     "Endpoint",
     "GenerationRequest",
@@ -242,5 +266,6 @@ __all__ = [
     "LaunchRequest",
     "ProbeResult",
     "generate",
+    "generate_concurrently",
     "probe",
 ]
