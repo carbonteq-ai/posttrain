@@ -268,11 +268,6 @@ packages/
 profiles/
   models/                 typed, importable model definitions
 
-benchmarks/
-  inference/
-    suites/               token shapes, context, concurrency, repetitions
-    corpora/              canonical message records
-
 jobs/
   customer_support/
     job.py                Job and actions
@@ -284,8 +279,10 @@ docs/
   decisions/
 ```
 
-Operation-specific shared definitions live with their owning package. Environment
-source lives in separately publishable Verifiers packages.
+Operation-specific shared definitions live with their owning package. Inference
+workload suites and canonical prompt corpora therefore live in
+`packages/serve`; environment source lives in separately publishable Verifiers
+packages.
 
 ## Shared versus job-specific
 

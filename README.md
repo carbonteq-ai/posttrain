@@ -18,15 +18,16 @@ profiles/
   models/    typed foundation and intentionally promoted derived targets
 
 jobs/        code-based objectives, actions, and decisions
-benchmarks/  versioned inference suites and canonical prompt corpora
 docs/        lifecycle, architecture, decisions, and tooling guidance
 ```
 
 `train`, `eval`, and `serve` are reusable package APIs for this lab and other
 projects; framework runners/adapters stay internal. Their definitions live with
-the package that validates and executes them. Verifiers environments are independently published packages and do not
-live in a repository-owned environment catalog. Trackio is purely the durable
-observability layer; Git/Python defines jobs, profiles, and behavior.
+the package that validates and executes them. Inference workloads and prompt
+corpora live in `packages/serve`; Verifiers environments are independently
+published packages and do not live in a repository-owned environment catalog.
+Trackio is purely the durable observability layer; Git/Python defines jobs,
+profiles, and behavior.
 
 ## Setup
 

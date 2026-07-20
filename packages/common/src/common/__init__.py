@@ -10,7 +10,6 @@ WORKSPACE_ROOT = Path(__file__).resolve().parents[4]
 RUNS_DIR = WORKSPACE_ROOT / "runs"
 PROFILES_DIR = WORKSPACE_ROOT / "profiles"
 JOBS_DIR = WORKSPACE_ROOT / "jobs"
-BENCHMARKS_DIR = WORKSPACE_ROOT / "benchmarks"
 
 TRACKIO_PROJECT = os.environ.get("LAB_TRACKIO_PROJECT", "lab")
 
@@ -21,7 +20,6 @@ from common.tracking import TrackedRun  # noqa: E402
 
 __all__ = [
     "JOBS_DIR",
-    "BENCHMARKS_DIR",
     "PROFILES_DIR",
     "ProfileError",
     "ProfileResolver",
