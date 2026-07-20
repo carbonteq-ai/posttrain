@@ -96,8 +96,8 @@ def preferences_from_rollouts(
             PreferenceExample(
                 id=demonstration.id,
                 prompt=demonstration.prompt,
-                chosen=demonstration.response,
-                rejected=rollout.response,
+                chosen=demonstration.response.strip(),
+                rejected=rollout.response.strip(),
                 chosen_score=1.0,
                 rejected_score=rollout.score,
                 system_prompt=demonstration.system_prompt,

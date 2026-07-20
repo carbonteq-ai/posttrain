@@ -36,7 +36,7 @@ def test_preferences_require_trace_derived_failed_rollouts(monkeypatch) -> None:
         (
             RejectedRollout(
                 example_id="train/000000",
-                response="Incorrect reasoning.\n#### 3",
+                response="\n\nIncorrect reasoning.\n#### 3\n",
                 score=0.0,
                 trace_id="trace-123",
             ),
@@ -46,6 +46,7 @@ def test_preferences_require_trace_derived_failed_rollouts(monkeypatch) -> None:
     assert preferences.examples[0].chosen_score == 1.0
     assert preferences.examples[0].rejected_score == 0.0
     assert preferences.examples[0].rejected_trace_id == "trace-123"
+    assert preferences.examples[0].rejected == "Incorrect reasoning.\n#### 3"
 
 
 def test_training_actions_and_run_config_preserve_model_and_data_identity(monkeypatch) -> None:
