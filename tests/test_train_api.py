@@ -37,6 +37,7 @@ from posttrain.train import (
     sft,
 )
 from posttrain.train.backends.trl.common import BackendTrainingResult
+from posttrain.train.backends.trl.grpo import _grpo_arguments
 from posttrain.train.results import TrainingSummary
 
 
@@ -172,6 +173,20 @@ def test_grpo_operation_reuses_training_artifact_contract() -> None:
         )
     assert result.technique == "grpo"
     assert result.model_artifact.metadata["dataset_id"] == "gsm8k-grpo-smoke-v1"
+
+
+def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path) -> None:
+    request = GRPORequest(
+        ModelVariant.foundation(QWEN_35_2B),
+        _rollouts(),
+        QWEN35_GRPO_SMOKE,
+        _reward,
+    )
+
+    arguments = _grpo_arguments(request, tmp_path, {"enable_thinking": False})
+
+    assert arguments["generation_batch_size"] == 2
+    assert "steps_per_generation" not in arguments
 
 
 def test_preference_contract_rejects_unordered_or_identical_pairs() -> None:
