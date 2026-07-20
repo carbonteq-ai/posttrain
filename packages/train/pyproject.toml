@@ -36,7 +36,7 @@ package = true
 
 [tool.uv.sources]
 posttrain-common = { workspace = true }
-trl = { git = "https://github.com/carbonteq-ai/trl.git", rev = "b6976fde8391afc8cd638b476d30dddc2e365c01" }
+trl = { git = "https://github.com/carbonteq-ai/trl.git", rev = "c45fab729418baff42da1b35627e9a4ff43d4514" }
 torch = { index = "pytorch-cu130" }
 torchvision = { index = "pytorch-cu130" }
 

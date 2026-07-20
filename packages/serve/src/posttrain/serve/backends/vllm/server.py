@@ -10,8 +10,8 @@ from pathlib import Path
 from typing import IO, Any, cast
 
 import httpx
+from posttrain.common.cuda import TorchModule, cuda_environment
 
-from ...cuda import TorchModule, resolve_cuda_home
 from ...online import Endpoint, LaunchRequest
 
 
@@ -42,14 +42,7 @@ def _server_environment() -> dict[str, str]:
         import torch
     except ImportError as error:
         raise RuntimeError("PyTorch is not installed; install posttrain-serve[vllm]") from error
-    cuda_home = resolve_cuda_home(cast(TorchModule, torch))
-    environment = dict(os.environ)
-    environment["CUDA_HOME"] = str(cuda_home)
-    toolkit_bin = str(cuda_home / "bin")
-    path_entries = [entry for entry in environment.get("PATH", "").split(":") if entry]
-    if toolkit_bin not in path_entries:
-        environment["PATH"] = ":".join([toolkit_bin, *path_entries])
-    return environment
+    return cuda_environment(cast(TorchModule, torch), environ=os.environ)
 
 
 class VllmServer:

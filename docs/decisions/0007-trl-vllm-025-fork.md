@@ -23,7 +23,7 @@ generation, or weight-synchronization behavior. Those changes exist after the
 - Apply upstream vLLM 0.24 support commit `c1fdca18f0cc56fb60726d879d73f0cbd344e91f`
   and vLLM 0.25 support commit `68d7cb1a4228f91d832c2dc7ced80674d2c46c56`.
 - Pin the workspace to merged fork commit
-  `b6976fde8391afc8cd638b476d30dddc2e365c01` and pin vLLM to `0.25.1`.
+  `c45fab729418baff42da1b35627e9a4ff43d4514` and pin vLLM to `0.25.1`.
 - Keep the trainer-runtime dependency on `datasets>=4.6.1,<4.7`. TRL's runtime
   paths use APIs available in 4.6.1; 4.7-only `Json` dtype helpers belong to
   repository dataset-authoring scripts. This makes TRL 1.8 and Verifiers v1
@@ -35,9 +35,12 @@ generation, or weight-synchronization behavior. Those changes exist after the
   generation adapter. Rollout profiles may use native MTP while retaining TRL's
   weight synchronization and sleep lifecycle.
 - Keep vLLM's native composite model when that is how the Hub checkpoint is
-  stored, omit unused modality towers with zero multimodal limits, and expose a
-  declarative weight-name prefix for synchronizing a text-only trainer into
-  the retained composite namespace.
+  stored, omit unused modality towers through its native text-only mode, and
+  expose a declarative weight-name prefix for compatible full-weight sync.
+- For QLoRA policies, use vLLM's dynamic-LoRA path: retain the healthy
+  quantized base representation and synchronize only the active PEFT adapter.
+  Never pass packed `Linear4bit` parameter storage to the ordinary dense-weight
+  update path.
 
 ## Consequences
 
@@ -77,8 +80,13 @@ in [`carbonteq-ai/trl#6`](https://github.com/carbonteq-ai/trl/pull/6).
 
 Declarative vLLM weight namespaces were merged in
 [`carbonteq-ai/trl#7`](https://github.com/carbonteq-ai/trl/pull/7). The Qwen3.5
-rollout profile uses `language_model.`; the generic TRL adapter applies the
-prefix once at its weight-update boundary for PEFT, FSDP, and ordinary models.
+full-weight compatibility probe used `language_model.`; the generic TRL adapter
+applies the prefix once at its weight-update boundary.
+
+Native PEFT adapter synchronization was merged in
+[`carbonteq-ai/trl#8`](https://github.com/carbonteq-ai/trl/pull/8). A local
+Qwen3.5-2B probe loaded the real SFT adapter over the bitsandbytes base through
+vLLM 0.25.1 and produced coherent text without replacing the base parameters.
 
 ## Maintenance
 

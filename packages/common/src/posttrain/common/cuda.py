@@ -1,11 +1,11 @@
-"""CUDA toolkit discovery for JIT-compiled inference kernels.
+"""CUDA toolkit discovery for optional JIT-compiled GPU kernels.
 
 NVIDIA's pip CUDA packages install a complete toolkit under ``nvidia/cu*``,
-but use ``lib`` and versioned shared-library names. Some CUDA build systems,
-including FlashInfer's JIT path, expect the conventional toolkit layout with
-``lib64`` and development linker names such as ``libcudart.so``. This module
-creates a small cache-local view of the pinned toolkit instead of modifying the
-installed wheels or disabling optimized kernels.
+but use ``lib`` and versioned shared-library names. Some CUDA build systems
+expect the conventional toolkit layout with ``lib64`` and development linker
+names such as ``libcudart.so``. This module creates a cache-local view of the
+pinned toolkit without modifying installed wheels or disabling optimized
+kernels.
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Protocol
 
@@ -48,8 +49,6 @@ def _replace_symlink(link: Path, target: Path) -> None:
 
 
 def _linker_name(library: Path) -> str | None:
-    """Return the conventional unversioned linker name for a shared object."""
-
     match = re.match(r"(.+\.so)\.\d", library.name)
     return match.group(1) if match else None
 
@@ -100,7 +99,7 @@ def resolve_cuda_home(torch_module: TorchModule, *, cache_root: Path | None = No
     if matching_root is None:
         raise RuntimeError(
             f"no complete CUDA {expected_cuda} toolkit matching PyTorch was found; "
-            "sync the serve[vllm] environment from the workspace lock"
+            "sync the selected GPU extra from the workspace lock"
         )
 
     if cache_root is None:
@@ -111,3 +110,38 @@ def resolve_cuda_home(torch_module: TorchModule, *, cache_root: Path | None = No
         cuda_version=expected_cuda,
         cache_root=cache_root,
     )
+
+
+def cuda_environment(
+    torch_module: TorchModule,
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    """Return an environment with the matching pip CUDA toolkit activated."""
+
+    environment = dict(os.environ if environ is None else environ)
+    cuda_home = resolve_cuda_home(torch_module)
+    environment["CUDA_HOME"] = str(cuda_home)
+    toolkit_bin = str(cuda_home / "bin")
+    path_entries = [entry for entry in environment.get("PATH", "").split(":") if entry]
+    if toolkit_bin not in path_entries:
+        environment["PATH"] = ":".join([toolkit_bin, *path_entries])
+    return environment
+
+
+def activate_cuda_toolkit(torch_module: TorchModule) -> Path:
+    """Activate the matching toolkit for in-process and child-process JITs."""
+
+    environment = cuda_environment(torch_module)
+    os.environ["CUDA_HOME"] = environment["CUDA_HOME"]
+    os.environ["PATH"] = environment["PATH"]
+    return Path(environment["CUDA_HOME"])
+
+
+__all__ = [
+    "TorchModule",
+    "activate_cuda_toolkit",
+    "build_toolkit_view",
+    "cuda_environment",
+    "resolve_cuda_home",
+]

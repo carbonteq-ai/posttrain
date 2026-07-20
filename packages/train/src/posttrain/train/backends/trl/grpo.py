@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from posttrain.common import ExecutionContext, TraceObservation
+from posttrain.common.cuda import TorchModule, activate_cuda_toolkit
 
 from ...data import CompletedRollout
 from ...requests import GRPORequest
@@ -22,6 +23,12 @@ from .common import (
 
 
 def run_grpo(context: ExecutionContext, request: GRPORequest, output_dir: Path) -> BackendTrainingResult:
+    if request.profile.rollout.engine == "vllm":
+        try:
+            import torch
+        except ImportError as error:
+            raise RuntimeError("PyTorch is not installed; install posttrain-train[trl-vllm]") from error
+        activate_cuda_toolkit(cast(TorchModule, torch))
     try:
         from trl.trainer.grpo_config import GRPOConfig  # pyright: ignore[reportMissingImports]
         from trl.trainer.grpo_trainer import GRPOTrainer  # pyright: ignore[reportMissingImports]
@@ -159,6 +166,7 @@ def _grpo_arguments(request: GRPORequest, output_dir: Path, template_kwargs: dic
                 "vllm_speculative_config": rollout.speculative_config(),
                 "vllm_engine_kwargs": _vllm_engine_kwargs(request),
                 "vllm_weight_name_prefix": rollout.weight_name_prefix,
+                "vllm_weight_sync_mode": rollout.weight_sync_mode,
                 "vllm_model_impl": "vllm",
                 "vllm_importance_sampling_correction": True,
             }
@@ -170,7 +178,7 @@ def _vllm_engine_kwargs(request: GRPORequest) -> dict[str, Any] | None:
     rollout = request.profile.rollout
     values: dict[str, Any] = {}
     if rollout.text_only:
-        values["limit_mm_per_prompt"] = {"image": 0, "video": 0}
+        values["language_model_only"] = True
     if rollout.skip_multimodal_profiling:
         values["skip_mm_profiling"] = True
     if rollout.kv_cache_memory_bytes is not None:

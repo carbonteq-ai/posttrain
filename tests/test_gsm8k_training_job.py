@@ -91,6 +91,7 @@ def test_grpo_job_config_records_environment_and_generation_policy() -> None:
     assert inputs["rollout_engine"] == "vllm"
     assert inputs["rollout_sleep_during_optimization"] is True
     assert inputs["rollout_skip_multimodal_profiling"] is True
+    assert inputs["rollout_vllm_weight_sync_mode"] == "lora"
     assert inputs["rollout_kv_cache_memory_bytes"] == 64 * 1024 * 1024
     assert "rollout_speculative_method" not in inputs
     assert inputs["reward_shaping_id"] == "final-answer-conciseness-v1"

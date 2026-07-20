@@ -247,6 +247,7 @@ def grpo_job_inputs(request: GSM8KGRPOJobRequest) -> dict[str, str | int | float
         result["rollout_vllm_max_model_length"] = rollout.max_model_length or 0
         result["rollout_text_only"] = rollout.text_only
         result["rollout_vllm_weight_name_prefix"] = rollout.weight_name_prefix or ""
+        result["rollout_vllm_weight_sync_mode"] = rollout.weight_sync_mode
         result["rollout_skip_multimodal_profiling"] = rollout.skip_multimodal_profiling
         result["rollout_kv_cache_memory_bytes"] = rollout.kv_cache_memory_bytes or 0
         if speculative is not None:

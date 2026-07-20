@@ -15,7 +15,7 @@ different CUDA releases.
 Both `posttrain-serve[vllm]` and `posttrain-train[vllm]` pin vLLM 0.25.1. Training resolves TRL
 1.8.0 from the immutable CarbonTeq fork commit documented in
 [ADR 0007](../../decisions/0007-trl-vllm-025-fork.md), which raises TRL's
-validated vLLM ceiling without changing its trainer or weight-sync logic.
+validated vLLM ceiling and adds explicitly profiled synchronization options.
 Future vLLM versions remain unsupported until both the fork tests and the lab's
 GPU rollout smoke pass and the pins are advanced together.
 
@@ -33,9 +33,10 @@ tested LFM2.5 template override required for multi-turn OpenAI tool history.
 
 NVIDIA's pip toolkit uses `lib` and versioned shared-object names, while CUDA JIT
 builders commonly expect `CUDA_HOME/lib64` and linker names such as
-`libcudart.so`. `packages/serve/src/posttrain/serve/cuda.py` validates the toolkit against
-the active PyTorch build and creates a cache-local conventional view. It does
-not alter the installed wheels and does not disable FlashInfer.
+`libcudart.so`. `posttrain.common.cuda` validates the toolkit against the
+active PyTorch build and creates a cache-local conventional view. Serving and
+colocated training activate the same view before vLLM or FlashInfer starts. It
+does not alter the installed wheels and does not disable FlashInfer.
 
 Run either current code-defined foundation smoke through the lab composition
 root. The operation remains usable directly from Python through

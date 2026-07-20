@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import statistics
 import threading
 import time
@@ -10,7 +9,8 @@ from collections.abc import Sequence
 from dataclasses import replace
 from typing import Any, cast
 
-from ...cuda import TorchModule, resolve_cuda_home
+from posttrain.common.cuda import TorchModule, activate_cuda_toolkit
+
 from ...requests import BenchmarkRequest
 from ...results import BenchmarkResult
 
@@ -103,12 +103,7 @@ def _load_vllm() -> tuple[Any, Any]:
         import torch
     except ImportError as error:
         raise RuntimeError("PyTorch is not installed; install posttrain-serve[vllm]") from error
-    cuda_home = resolve_cuda_home(cast(TorchModule, torch))
-    os.environ["CUDA_HOME"] = str(cuda_home)
-    toolkit_bin = str(cuda_home / "bin")
-    path_entries = [entry for entry in os.environ.get("PATH", "").split(":") if entry]
-    if toolkit_bin not in path_entries:
-        os.environ["PATH"] = ":".join([toolkit_bin, *path_entries])
+    activate_cuda_toolkit(cast(TorchModule, torch))
     try:
         from vllm import LLM, SamplingParams  # pyright: ignore[reportMissingImports]
     except ImportError as error:

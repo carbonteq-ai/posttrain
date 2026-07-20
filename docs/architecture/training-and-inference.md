@@ -133,18 +133,23 @@ The GRPO rollout profile explicitly selects one of two execution modes:
 - Transformers generation uses the autograd model directly and therefore has
   one policy-weight representation. It is the constrained-hardware fallback.
 - colocated vLLM creates an optimized inference representation inside the TRL
-  process, synchronizes the current training weights before rollout, and uses
-  sleep level 2 to discard vLLM weights and KV cache before optimization. This
-  is not literally a single representation, but it prevents a separate
-  Verifiers model and bounds concurrent GPU residency.
+  process. For QLoRA, it retains the quantized base and reloads only the active
+  LoRA adapter before rollout; sleep level 2 discards vLLM weights and KV cache
+  before optimization. This is not literally a single representation, but it
+  prevents a separate Verifiers model and bounds concurrent GPU residency.
 
 Text-only training does not imply that the Hub checkpoint has a text-only
 top-level namespace. Qwen3.5 is distributed as a composite checkpoint, so
-vLLM retains its composite implementation while zero image/video limits omit
-the vision tower without changing the text execution path. The rollout profile
-declares the `language_model.` synchronization namespace and the TRL adapter
-applies it at the single weight-transfer boundary. Jobs and Verifiers
-environments remain unaware of this backend compatibility detail.
+vLLM retains its native composite loader while `language_model_only` omits the
+vision tower without changing the text execution path.
+
+Full-weight synchronization is unsafe for a QLoRA policy: a merged
+`Linear4bit` parameter still exposes packed quantized storage, not the dense
+weight expected by vLLM's ordinary update loader. The rollout profile therefore
+selects native LoRA synchronization. TRL writes the current adapter in PEFT's
+standard format and vLLM reloads the same dynamic adapter ID in place. The
+generic full-weight namespace option remains available for non-quantized model
+layouts. Jobs and Verifiers environments are unaware of either mechanism.
 
 For compatible Qwen profiles, colocated vLLM may additionally enable native MTP.
 Engine-level speculative configuration is part of the rollout profile and is
