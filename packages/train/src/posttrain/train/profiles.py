@@ -190,6 +190,12 @@ class GRPOProfile:
             raise ValueError("GRPO batch size must be divisible by num_generations")
         if self.max_prompt_length < 1 or self.max_completion_length < 1 or self.beta < 0:
             raise ValueError("invalid GRPO generation or KL settings")
+        if (
+            self.rollout.engine == "vllm"
+            and self.rollout.max_model_length is not None
+            and self.max_prompt_length + self.max_completion_length > self.rollout.max_model_length
+        ):
+            raise ValueError("vLLM model length must cover the declared prompt and completion limits")
 
 
 def _validate_profile(identifier: str, family: str, renderer: RendererProfile) -> None:
@@ -233,18 +239,18 @@ LFM25_DPO_SMOKE = DPOProfile(
     loss_kernel="liger",
 )
 QWEN35_GRPO_SMOKE = GRPOProfile(
-    "qwen3.5-2b/grpo-qlora-vllm-smoke-v1",
+    "qwen3.5-2b/grpo-qlora-vllm-smoke-v2",
     "qwen3.5",
     QWEN35_RENDERER,
     TrainingLoop(max_steps=1, per_device_batch_size=2, learning_rate=1e-5),
-    max_completion_length=256,
+    max_completion_length=384,
     rollout=GRPORolloutProfile(
-        "qwen3.5-2b/vllm-colocate-v1",
+        "qwen3.5-2b/vllm-colocate-v2",
         "vllm",
         vllm_mode="colocate",
         sleep_during_optimization=True,
         gpu_memory_utilization=0.2,
-        max_model_length=512,
+        max_model_length=640,
         text_only=True,
         skip_multimodal_profiling=True,
         kv_cache_memory_bytes=64 * 1024 * 1024,

@@ -25,10 +25,13 @@ from posttrain.train import (
     QWEN35_DPO_SMOKE,
     QWEN35_GRPO_MTP_SMOKE,
     QWEN35_GRPO_SMOKE,
+    QWEN35_RENDERER,
     QWEN35_SFT_SMOKE,
     CompletedRollout,
     DPORequest,
+    GRPOProfile,
     GRPORequest,
+    GRPORolloutProfile,
     PreferenceDataset,
     PreferenceExample,
     RolloutDataset,
@@ -37,6 +40,7 @@ from posttrain.train import (
     SFTRequest,
     SupervisedDataset,
     SupervisedExample,
+    TrainingLoop,
     dpo,
     grpo,
     sft,
@@ -216,9 +220,11 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
 
     assert arguments["generation_batch_size"] == 2
     assert "steps_per_generation" not in arguments
+    assert arguments["max_completion_length"] == 384
     assert arguments["use_vllm"] is True
     assert arguments["vllm_mode"] == "colocate"
     assert arguments["vllm_enable_sleep_mode"] is True
+    assert arguments["vllm_max_model_length"] == 640
     assert arguments["vllm_weight_name_prefix"] is None
     assert arguments["vllm_weight_sync_mode"] == "lora"
     assert arguments["vllm_engine_kwargs"] == {
@@ -238,6 +244,25 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
         "method": "qwen3_next_mtp",
         "num_speculative_tokens": 2,
     }
+
+
+def test_grpo_profile_requires_engine_window_to_cover_declared_generation_bounds() -> None:
+    with pytest.raises(ValueError, match="model length must cover"):
+        GRPOProfile(
+            "qwen3.5-2b/invalid-window-v1",
+            "qwen3.5",
+            QWEN35_RENDERER,
+            TrainingLoop(max_steps=1, per_device_batch_size=2),
+            max_prompt_length=256,
+            max_completion_length=384,
+            rollout=GRPORolloutProfile(
+                "qwen3.5-2b/invalid-window-v1",
+                "vllm",
+                vllm_mode="colocate",
+                gpu_memory_utilization=0.2,
+                max_model_length=512,
+            ),
+        )
 
 
 def test_trl_reward_adapter_preserves_rollout_identity_and_observes_native_trace(tmp_path: Path) -> None:
