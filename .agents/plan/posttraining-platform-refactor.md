@@ -404,7 +404,7 @@ Log entry and rerunning the affected package and GPU contracts.
 | Verifiers v1 | `PrimeIntellect-ai/verifiers@284a868d6a9022109b749710672a0460e8a996d4` |
 | GSM8K environment | `environments/gsm8k_v1` at the same Verifiers revision |
 | AutomationBench source | Hub package `zapier/automationbench` version `1.0.5`, wrapped by the native-v1 package |
-| TRL | `carbonteq-ai/trl@8a28a479e5cc4934ce78b8e90da79e65d067a0bb`, package version 1.8.0 |
+| TRL | `carbonteq-ai/trl@72e5d176bf0820621759107aa9699bf4aed43396`, package version 1.8.0 |
 | vLLM | `0.25.1` with the current CUDA 13/PyTorch lock |
 | Trackio | `carbonteq-ai/trackio@02351d871050bf4b3505c7371239c698b710ec83` until the fork work is advanced |
 

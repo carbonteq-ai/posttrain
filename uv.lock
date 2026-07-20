@@ -2420,7 +2420,7 @@ gpu-eval = [
 ]
 gpu-posttrain = [
     { name = "posttrain-eval", extra = ["verifiers"] },
-    { name = "posttrain-train", extra = ["trl"] },
+    { name = "posttrain-train", extra = ["trl", "trl-vllm"] },
 ]
 gpu-train = [
     { name = "posttrain-train", extra = ["trl"] },
@@ -2435,8 +2435,8 @@ requires-dist = [
     { name = "posttrain-serve", editable = "packages/serve" },
     { name = "posttrain-serve", extras = ["vllm"], marker = "extra == 'gpu-eval'", editable = "packages/serve" },
     { name = "posttrain-train", editable = "packages/train" },
-    { name = "posttrain-train", extras = ["trl"], marker = "extra == 'gpu-posttrain'", editable = "packages/train" },
     { name = "posttrain-train", extras = ["trl"], marker = "extra == 'gpu-train'", editable = "packages/train" },
+    { name = "posttrain-train", extras = ["trl", "trl-vllm"], marker = "extra == 'gpu-posttrain'", editable = "packages/train" },
     { name = "trackio", git = "https://github.com/carbonteq-ai/trackio.git?rev=02351d871050bf4b3505c7371239c698b710ec83" },
 ]
 provides-extras = ["gpu-eval", "gpu-train", "gpu-posttrain"]
@@ -2547,7 +2547,7 @@ requires-dist = [
     { name = "torch", marker = "extra == 'trl'", index = "https://download.pytorch.org/whl/cu130" },
     { name = "torchvision", marker = "extra == 'trl'", index = "https://download.pytorch.org/whl/cu130" },
     { name = "transformers", marker = "extra == 'trl'", specifier = ">=5.0" },
-    { name = "trl", marker = "extra == 'trl'", git = "https://github.com/carbonteq-ai/trl.git?rev=8a28a479e5cc4934ce78b8e90da79e65d067a0bb" },
+    { name = "trl", marker = "extra == 'trl'", git = "https://github.com/carbonteq-ai/trl.git?rev=72e5d176bf0820621759107aa9699bf4aed43396" },
     { name = "vllm", marker = "extra == 'trl-vllm'", specifier = "==0.25.1" },
 ]
 provides-extras = ["trl", "trl-vllm"]
@@ -3788,7 +3788,7 @@ wheels = [
 [[package]]
 name = "trl"
 version = "1.8.0"
-source = { git = "https://github.com/carbonteq-ai/trl.git?rev=8a28a479e5cc4934ce78b8e90da79e65d067a0bb#8a28a479e5cc4934ce78b8e90da79e65d067a0bb" }
+source = { git = "https://github.com/carbonteq-ai/trl.git?rev=72e5d176bf0820621759107aa9699bf4aed43396#72e5d176bf0820621759107aa9699bf4aed43396" }
 dependencies = [
     { name = "accelerate" },
     { name = "datasets" },

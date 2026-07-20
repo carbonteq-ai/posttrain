@@ -96,6 +96,58 @@ class DPOProfile:
 
 
 @dataclass(frozen=True, slots=True)
+class GRPORolloutProfile:
+    id: str
+    engine: Literal["transformers", "vllm"]
+    vllm_mode: Literal["colocate"] | None = None
+    sleep_during_optimization: bool = False
+    gpu_memory_utilization: float | None = None
+    tensor_parallel_size: int = 1
+    max_model_length: int | None = None
+    speculative_method: str | None = None
+    num_speculative_tokens: int | None = None
+
+    def __post_init__(self) -> None:
+        if not _ID.fullmatch(self.id):
+            raise ValueError("rollout profile id is invalid")
+        if self.tensor_parallel_size < 1:
+            raise ValueError("rollout tensor parallel size must be positive")
+        if self.engine == "transformers":
+            if any(
+                value is not None
+                for value in (
+                    self.vllm_mode,
+                    self.gpu_memory_utilization,
+                    self.max_model_length,
+                    self.speculative_method,
+                    self.num_speculative_tokens,
+                )
+            ) or self.sleep_during_optimization:
+                raise ValueError("Transformers rollouts cannot declare vLLM settings")
+            return
+        if self.vllm_mode != "colocate" or self.gpu_memory_utilization is None:
+            raise ValueError("vLLM rollouts require colocate mode and a memory budget")
+        if not 0 < self.gpu_memory_utilization < 1:
+            raise ValueError("vLLM GPU memory utilization must be between zero and one")
+        if (self.speculative_method is None) != (self.num_speculative_tokens is None):
+            raise ValueError("speculative method and token count must be configured together")
+        if self.num_speculative_tokens is not None and self.num_speculative_tokens < 1:
+            raise ValueError("speculative token count must be positive")
+
+    def speculative_config(self) -> dict[str, str | int] | None:
+        if self.speculative_method is None:
+            return None
+        assert self.num_speculative_tokens is not None
+        return {
+            "method": self.speculative_method,
+            "num_speculative_tokens": self.num_speculative_tokens,
+        }
+
+
+TRANSFORMERS_GRPO_ROLLOUT = GRPORolloutProfile("transformers-generate-v1", "transformers")
+
+
+@dataclass(frozen=True, slots=True)
 class GRPOProfile:
     id: str
     model_family: str
@@ -105,6 +157,7 @@ class GRPOProfile:
     max_prompt_length: int = 256
     max_completion_length: int = 128
     beta: float = 0.0
+    rollout: GRPORolloutProfile = TRANSFORMERS_GRPO_ROLLOUT
     qlora: QLoRAProfile = field(default_factory=QLoRAProfile)
 
     def __post_init__(self) -> None:
@@ -158,16 +211,27 @@ LFM25_DPO_SMOKE = DPOProfile(
     loss_kernel="liger",
 )
 QWEN35_GRPO_SMOKE = GRPOProfile(
-    "qwen3.5-2b/grpo-qlora-smoke-v2",
+    "qwen3.5-2b/grpo-qlora-vllm-mtp-smoke-v1",
     "qwen3.5",
     QWEN35_RENDERER,
     TrainingLoop(max_steps=1, per_device_batch_size=2, learning_rate=1e-5),
     max_completion_length=512,
+    rollout=GRPORolloutProfile(
+        "qwen3.5-2b/vllm-colocate-mtp-v1",
+        "vllm",
+        vllm_mode="colocate",
+        sleep_during_optimization=True,
+        gpu_memory_utilization=0.2,
+        max_model_length=1_024,
+        speculative_method="qwen3_next_mtp",
+        num_speculative_tokens=2,
+    ),
 )
 
 __all__ = [
     "DPOProfile",
     "GRPOProfile",
+    "GRPORolloutProfile",
     "LFM25_DPO_SMOKE",
     "LFM25_RENDERER",
     "LFM25_SFT_SMOKE",
@@ -179,4 +243,5 @@ __all__ = [
     "RendererProfile",
     "SFTProfile",
     "TrainingLoop",
+    "TRANSFORMERS_GRPO_ROLLOUT",
 ]

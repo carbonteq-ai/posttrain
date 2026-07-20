@@ -78,10 +78,24 @@ def _grpo_arguments(request: GRPORequest, output_dir: Path, template_kwargs: dic
             "loss_type": "grpo",
             "scale_rewards": "group",
             "mask_truncated_completions": True,
-            "use_vllm": False,
+            "use_vllm": request.profile.rollout.engine == "vllm",
             "temperature": 1.0,
         }
     )
+    if request.profile.rollout.engine == "vllm":
+        rollout = request.profile.rollout
+        arguments.update(
+            {
+                "vllm_mode": rollout.vllm_mode,
+                "vllm_enable_sleep_mode": rollout.sleep_during_optimization,
+                "vllm_gpu_memory_utilization": rollout.gpu_memory_utilization,
+                "vllm_tensor_parallel_size": rollout.tensor_parallel_size,
+                "vllm_max_model_length": rollout.max_model_length,
+                "vllm_speculative_config": rollout.speculative_config(),
+                "vllm_model_impl": "vllm",
+                "vllm_importance_sampling_correction": True,
+            }
+        )
     return arguments
 
 

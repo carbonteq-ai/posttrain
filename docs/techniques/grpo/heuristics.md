@@ -1,8 +1,15 @@
 # GRPO heuristics (local 8 GB)
 
-- Default: **no vLLM** (`use_vllm=False`); Transformers generate is safer on one 8 GB card.
+- Keep both rollout modes explicit. Transformers generation is the single-weight
+  fallback for an 8 GB card; optimized profiles use colocated vLLM with sleep.
+- Colocated vLLM still owns a separate inference representation. Sleep level 2
+  discards its weights and KV cache before backprop; Verifiers must never load a
+  third policy copy.
+- Enable native MTP only through a compatible typed rollout profile. Record the
+  method, speculative-token count, acceptance, and importance-sampling metrics.
 - Keep `num_generations` at 2–4 for smoke; 8 is often too heavy here.
-- Cap `max_completion_length` (e.g. 256); long CoT blows VRAM and wall time.
+- Size `max_completion_length` from observed termination. A clipped rollout is
+  not a useful memory optimization; reduce the group or use more memory instead.
 - Combine **format** + **exact-match** rewards so the model learns `\boxed{}` before accuracy.
 - SFT warm-start often stabilizes GRPO vs cold instruct checkpoint.
 - Reward collapse / all-zeros: check extraction, prompt contract, and that `solution` column is wired.

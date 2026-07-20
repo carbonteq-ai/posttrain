@@ -187,6 +187,13 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
 
     assert arguments["generation_batch_size"] == 2
     assert "steps_per_generation" not in arguments
+    assert arguments["use_vllm"] is True
+    assert arguments["vllm_mode"] == "colocate"
+    assert arguments["vllm_enable_sleep_mode"] is True
+    assert arguments["vllm_speculative_config"] == {
+        "method": "qwen3_next_mtp",
+        "num_speculative_tokens": 2,
+    }
 
 
 def test_preference_contract_rejects_unordered_or_identical_pairs() -> None:

@@ -21,7 +21,7 @@ gpu-train = [
 ]
 gpu-posttrain = [
     "posttrain-eval[verifiers]",
-    "posttrain-train[trl]",
+    "posttrain-train[trl,trl-vllm]",
 ]
 
 [project.scripts]

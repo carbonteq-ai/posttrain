@@ -18,7 +18,7 @@ from posttrain.train import (
     sft,
 )
 
-from ..environments import VERIFIERS_REVISION, GSM8KRewardBridge, load_gsm8k_rollout_dataset
+from ..environments import VERIFIERS_REVISION, create_gsm8k_reward_bridge, load_gsm8k_rollout_dataset
 
 JOB_ID = "posttraining/gsm8k"
 
@@ -167,12 +167,12 @@ def run_grpo_materialized(
         format="peft-adapter",
     )
     dataset, tasks = load_gsm8k_rollout_dataset(request.task_indices)
-    bridge = GSM8KRewardBridge(
-        context=context,
-        tasks=tasks,
-        trace_path=context.workspace / "training" / "grpo" / "verifiers-traces.jsonl",
-        model_profile_id=local_model.profile.id,
-        training_profile_id=request.profile.id,
+    bridge = create_gsm8k_reward_bridge(
+        context,
+        tasks,
+        context.workspace / "training" / "grpo" / "verifiers-traces.jsonl",
+        local_model.profile.id,
+        request.profile.id,
     )
     try:
         return grpo(
@@ -220,7 +220,7 @@ def training_inputs(request: SFTRequest | DPORequest | GRPORequest) -> dict[str,
 
 
 def grpo_job_inputs(request: GSM8KGRPOJobRequest) -> dict[str, str | int | float | bool]:
-    return {
+    result: dict[str, str | int | float | bool] = {
         "model_profile_id": request.model.profile.id,
         "input_model_format": request.model.format,
         "base_model_revision": request.model.base_artifact.revision,
@@ -238,6 +238,20 @@ def grpo_job_inputs(request: GSM8KGRPOJobRequest) -> dict[str, str | int | float
         "grpo_num_generations": request.profile.num_generations,
         "grpo_max_prompt_length": request.profile.max_prompt_length,
         "grpo_max_completion_length": request.profile.max_completion_length,
+        "rollout_profile_id": request.profile.rollout.id,
+        "rollout_engine": request.profile.rollout.engine,
+        "rollout_sleep_during_optimization": request.profile.rollout.sleep_during_optimization,
         "reward_shaping_id": "final-answer-conciseness-v1",
         "reward_shaping_weight": 0.1,
     }
+    if request.profile.rollout.engine == "vllm":
+        rollout = request.profile.rollout
+        speculative = request.profile.rollout.speculative_config()
+        result["rollout_vllm_mode"] = rollout.vllm_mode or ""
+        result["rollout_vllm_gpu_memory_utilization"] = rollout.gpu_memory_utilization or 0.0
+        result["rollout_vllm_tensor_parallel_size"] = rollout.tensor_parallel_size
+        result["rollout_vllm_max_model_length"] = rollout.max_model_length or 0
+        if speculative is not None:
+            result["rollout_speculative_method"] = str(speculative["method"])
+            result["rollout_num_speculative_tokens"] = int(speculative["num_speculative_tokens"])
+    return result

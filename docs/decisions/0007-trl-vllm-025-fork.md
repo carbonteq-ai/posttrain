@@ -23,7 +23,7 @@ generation, or weight-synchronization behavior. Those changes exist after the
 - Apply upstream vLLM 0.24 support commit `c1fdca18f0cc56fb60726d879d73f0cbd344e91f`
   and vLLM 0.25 support commit `68d7cb1a4228f91d832c2dc7ced80674d2c46c56`.
 - Pin the workspace to merged fork commit
-  `8a28a479e5cc4934ce78b8e90da79e65d067a0bb` and pin vLLM to `0.25.1`.
+  `72e5d176bf0820621759107aa9699bf4aed43396` and pin vLLM to `0.25.1`.
 - Keep the trainer-runtime dependency on `datasets>=4.6.1,<4.7`. TRL's runtime
   paths use APIs available in 4.6.1; 4.7-only `Json` dtype helpers belong to
   repository dataset-authoring scripts. This makes TRL 1.8 and Verifiers v1
@@ -31,6 +31,9 @@ generation, or weight-synchronization behavior. Those changes exist after the
 - Preserve TRL's package name, public imports, and version `1.8.0`.
 - Treat the fork as a dependency compatibility boundary. Project-specific
   training behavior remains in `packages/train`, not in the fork.
+- Expose vLLM's engine-level speculative configuration through GRPO's colocated
+  generation adapter. Rollout profiles may use native MTP while retaining TRL's
+  weight synchronization and sleep lifecycle.
 
 ## Consequences
 
@@ -60,6 +63,10 @@ The fork also avoids flattening non-contiguous sequence logits before chunked
 entropy calculation. On large-vocabulary DPO models, the old reshape could
 allocate a full logits copy before chunking. The regression fix and 33 entropy
 tests were merged in [`carbonteq-ai/trl#4`](https://github.com/carbonteq-ai/trl/pull/4).
+
+Colocated GRPO speculative configuration forwarding and its focused config and
+engine tests were merged in
+[`carbonteq-ai/trl#5`](https://github.com/carbonteq-ai/trl/pull/5).
 
 ## Maintenance
 

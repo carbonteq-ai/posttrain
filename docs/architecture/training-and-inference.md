@@ -92,6 +92,43 @@ Complex Verifiers environments may require a different internal training
 integration than a simple TRL reward callback. The public `train.rl` operation
 and its result remain the reuse boundary.
 
+### GRPO rollout and Verifiers bridge
+
+GRPO keeps rollout generation and environment scoring separate:
+
+```text
+rollout dataset prompt
+  -> TRL rollout engine (Transformers or colocated vLLM)
+  -> generated assistant completion
+  -> generic VerifiersGRPOBridge
+  -> native task runtime and task.score(trace, runtime)
+  -> reward returned to TRL
+  -> loss and optimizer step
+```
+
+`posttrain.train.integrations.verifiers.VerifiersGRPOBridge` is reusable across
+environment packages. It accepts native Verifiers tasks and an environment
+factory, constructs native training traces, invokes native scoring, emits the
+queryable trace observation, and preserves JSONL for artifact publication. It
+does not load or call a policy model. An environment-specific package owns task
+loading, prompt selection, and optional trace reward enrichment. The GSM8K job,
+for example, owns only the pinned taskset and its final-answer shaping rule.
+
+The GRPO rollout profile explicitly selects one of two execution modes:
+
+- Transformers generation uses the autograd model directly and therefore has
+  one policy-weight representation. It is the constrained-hardware fallback.
+- colocated vLLM creates an optimized inference representation inside the TRL
+  process, synchronizes the current training weights before rollout, and uses
+  sleep level 2 to discard vLLM weights and KV cache before optimization. This
+  is not literally a single representation, but it prevents a separate
+  Verifiers model and bounds concurrent GPU residency.
+
+For compatible Qwen profiles, colocated vLLM may additionally enable native MTP.
+Engine-level speculative configuration is part of the rollout profile and is
+passed through the pinned TRL fork. Verifiers always scores the completions from
+that selected rollout engine; it never starts a second inference server.
+
 ## Evaluation operations
 
 `eval.evaluate` consumes a model/endpoint, a reusable program or environment
@@ -160,6 +197,7 @@ Public modules stay lightweight; concrete integrations use extras:
 
 ```text
 posttrain-train[trl]
+posttrain-train[trl,trl-vllm]
 posttrain-eval[verifiers]
 posttrain-serve[vllm]
 ```

@@ -10,13 +10,18 @@ The lab's injected observation context maps those hooks to Trackio. Datasets,
 rewards, and Verifiers environment implementations remain independently owned.
 
 The workspace uses the `carbonteq-ai/trl` fork pinned to immutable commit
-`8a28a479e5cc4934ce78b8e90da79e65d067a0bb`. The fork preserves TRL 1.8.0 and
+`72e5d176bf0820621759107aa9699bf4aed43396`. The fork preserves TRL 1.8.0 and
 adds the upstream-validated vLLM 0.24/0.25 dependency support plus regression
 coverage. It also keeps the trainer runtime compatible with `datasets 4.6.1`
 so the application can install Verifiers v1 and TRL together. It does not
 contain project-specific trainers or environment logic.
 Its entropy metrics also preserve chunked-memory behavior for non-contiguous
 sequence slices, which is required for DPO on large-vocabulary models.
+The fork also exposes colocated vLLM's engine-level speculative configuration
+through `GRPOConfig`. This lets a typed Qwen rollout profile enable native MTP
+without bypassing TRL's weight synchronization, importance-sampling correction,
+or sleep lifecycle. The generic change was merged in
+[`carbonteq-ai/trl#5`](https://github.com/carbonteq-ai/trl/pull/5).
 DPO kernel choice is model-specific and recorded as `dpo_loss_kernel`. Liger's
 fused DPO loss can reduce projection memory for moderate vocabularies, but its
 current backward path creates a full FP32 LM-head gradient even when that head
@@ -33,3 +38,6 @@ replace SFT, DPO, or GRPO acceptance for the two foundation profiles.
 
 The code-defined `posttrain-lab` entrypoint now composes typed training requests
 with job-owned data. Reusable trainers remain callable directly from Python.
+The generic `VerifiersGRPOBridge` scores completions and records native traces;
+it does not initialize a model. Transformers and colocated-vLLM rollouts are
+explicit training-profile choices rather than behavior hidden in job code.
