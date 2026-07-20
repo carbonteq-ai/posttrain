@@ -205,6 +205,8 @@ class GRPOProfile:
     num_generations: int = 2
     max_prompt_length: int = 256
     max_completion_length: int = 128
+    temperature: float = 1.0
+    top_p: float = 1.0
     beta: float = 0.0
     rollout: GRPORolloutProfile = TRANSFORMERS_GRPO_ROLLOUT
     qlora: QLoRAProfile = field(default_factory=QLoRAProfile)
@@ -217,6 +219,8 @@ class GRPOProfile:
             raise ValueError("GRPO batch size must be divisible by num_generations")
         if self.max_prompt_length < 1 or self.max_completion_length < 1 or self.beta < 0:
             raise ValueError("invalid GRPO generation or KL settings")
+        if self.temperature <= 0 or not 0 < self.top_p <= 1:
+            raise ValueError("invalid GRPO sampling settings")
         if (
             self.rollout.engine == "vllm"
             and self.rollout.max_model_length is not None

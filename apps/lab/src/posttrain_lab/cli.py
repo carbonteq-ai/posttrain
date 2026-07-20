@@ -111,11 +111,7 @@ def main() -> None:
         remote_adapter = TrackioArtifactRef(args.project, adapter_name, args.adapter_version)
         request = GSM8KGRPOJobRequest(
             model=ModelVariant(QWEN_35_2B, remote_adapter, "peft-adapter"),
-            profile=(
-                QWEN35_GRPO_SMOKE
-                if args.job == "gsm8k-qwen-grpo-smoke"
-                else QWEN35_GRPO_MTP_SMOKE
-            ),
+            profile=(QWEN35_GRPO_SMOKE if args.job == "gsm8k-qwen-grpo-smoke" else QWEN35_GRPO_MTP_SMOKE),
             task_indices=(0,),
         )
         spec = AttemptSpec(
@@ -173,9 +169,7 @@ def main() -> None:
             else (LFM_25_12B_THINKING, LFM25_VLLM_TURBOQUANT_K8)
         )
         program = (
-            GSM8K_TRAINING_ROLLOUTS
-            if args.job == "gsm8k-qwen-preference-rollouts"
-            else GSM8K_LFM_TRAINING_ROLLOUTS
+            GSM8K_TRAINING_ROLLOUTS if args.job == "gsm8k-qwen-preference-rollouts" else GSM8K_LFM_TRAINING_ROLLOUTS
         )
         request = ManagedEvaluationRequest(
             launch=LaunchRequest(model, profile),

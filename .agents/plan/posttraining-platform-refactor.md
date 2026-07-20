@@ -404,7 +404,7 @@ Log entry and rerunning the affected package and GPU contracts.
 | Verifiers v1 | `PrimeIntellect-ai/verifiers@284a868d6a9022109b749710672a0460e8a996d4` |
 | GSM8K environment | `environments/gsm8k_v1` at the same Verifiers revision |
 | AutomationBench source | Hub package `zapier/automationbench` version `1.0.5`, wrapped by the native-v1 package |
-| TRL | `carbonteq-ai/trl@b31dc19ad82b0f8fcba77ee1bdf7bd03986a193d`, package version 1.8.0 |
+| TRL | `carbonteq-ai/trl@a0b4bca78eeeb02abb050abfa04624f952d5f633`, package version 1.8.0 |
 | vLLM | `0.25.1` with the current CUDA 13/PyTorch lock |
 | Trackio | `carbonteq-ai/trackio@02351d871050bf4b3505c7371239c698b710ec83` until the fork work is advanced |
 
@@ -920,6 +920,11 @@ state.
   - [ ] Add the isolated environment worker to the lab composition API so AutomationBench traces and artifacts flow into the same tracked attempt automatically.
 - [ ] Phase 4 — renderer-based SFT and DPO.
 - [ ] Phase 5 — Verifiers-to-TRL GRPO bridge.
+  - [x] Replace the post-generation reward callback with a first-class `OnlineRLBridge` contract.
+  - [x] Run native Verifiers episodes through a policy client backed by the already-loaded TRL generator.
+  - [x] Translate native branches into aligned prompt IDs, completion IDs, sampling logprobs, rewards, and environment masks.
+  - [x] Preserve task identity through aligned TRL dataset rows and authoritative native truncation state.
+  - [ ] Prove the new environment-driven path with a one-step GPU GRPO smoke.
 - [ ] Phase 6 — observation, reports, and reference lifecycle.
 - [ ] Phase 7 — legacy deletion and quality hardening.
 
@@ -1023,6 +1028,9 @@ state.
 - 2026-07-20: Raise the coverage ratchet to 65% after the public serving
   operation, internal vLLM adapter, and foundation-screening action reached
   65.07% measured coverage.
+- 2026-07-20: Replace the partial GRPO scoring callback with a native
+  environment-driven `OnlineRLBridge`; Verifiers owns complete episode
+  execution and TRL provides the already-loaded policy generator.
 
 ## Outcomes & Retrospective
 

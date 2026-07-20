@@ -58,9 +58,7 @@ class AutomationBenchTaskConfig(vf.TaskConfig):
     search_top_k: int = 20
 
 
-class AutomationBenchTask(
-    vf.Task[AutomationBenchData, AutomationBenchState, AutomationBenchTaskConfig]
-):
+class AutomationBenchTask(vf.Task[AutomationBenchData, AutomationBenchState, AutomationBenchTaskConfig]):
     tools = (AutomationBenchToolset,)
 
     async def setup(self, trace: vf.Trace, runtime: vf.Runtime) -> None:

@@ -1,8 +1,5 @@
 """Optional adapters between the reusable training API and environment frameworks."""
 
-from .verifiers import (
-    TraceEnricher,
-    VerifiersOnlineRLEnvironment,
-)
+from .verifiers import TraceEnricher, VerifiersOnlineRLBridge
 
-__all__ = ["TraceEnricher", "VerifiersOnlineRLEnvironment"]
+__all__ = ["TraceEnricher", "VerifiersOnlineRLBridge"]

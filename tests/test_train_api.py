@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -27,7 +26,6 @@ from posttrain.train import (
     QWEN35_GRPO_SMOKE,
     QWEN35_RENDERER,
     QWEN35_SFT_SMOKE,
-    CompletedRollout,
     DPORequest,
     GRPOProfile,
     GRPORequest,
@@ -36,17 +34,17 @@ from posttrain.train import (
     PreferenceExample,
     RolloutDataset,
     RolloutExample,
-    RolloutScore,
     SFTRequest,
     SupervisedDataset,
     SupervisedExample,
     TrainingLoop,
+    TrainingRollout,
     dpo,
     grpo,
     sft,
 )
 from posttrain.train.backends.trl.common import BackendTrainingResult, trainer_lifecycle
-from posttrain.train.backends.trl.grpo import _grpo_arguments, _reward_function
+from posttrain.train.backends.trl.grpo import _grpo_arguments, _rollout_function
 from posttrain.train.results import TrainingSummary
 
 
@@ -108,17 +106,27 @@ def _rollouts() -> RolloutDataset:
 
 
 @dataclass
-class FakeRLEnvironment:
+class FakeRLBridge:
     dataset: RolloutDataset = field(default_factory=_rollouts)
 
-    async def score(self, rollout: CompletedRollout) -> RolloutScore:
-        return RolloutScore(
-            1.0,
-            TraceObservation(
-                "test",
-                rollout.example_id,
-                {"completion": rollout.completion, "terminated": rollout.terminated},
-            ),
+    async def run(self, batch, generator) -> tuple[TrainingRollout, ...]:
+        del generator
+        return tuple(
+            TrainingRollout(
+                example_id=example_id,
+                prompt_ids=(1, 2),
+                completion_ids=(10, 11, 12),
+                sampling_logprobs=(-0.1, -0.2, -0.3),
+                env_mask=(True, True, True),
+                reward=1.0,
+                is_truncated=False,
+                trace=TraceObservation(
+                    "test",
+                    f"trace-{index}",
+                    {"example_id": example_id, "step": batch.step},
+                ),
+            )
+            for index, example_id in enumerate(batch.example_ids)
         )
 
     def finalize(self) -> tuple[ProducedArtifact, ...]:
@@ -200,7 +208,7 @@ def test_grpo_operation_reuses_training_artifact_contract() -> None:
             context,
             GRPORequest(
                 ModelVariant.foundation(QWEN_35_2B),
-                FakeRLEnvironment(),
+                FakeRLBridge(),
                 QWEN35_GRPO_SMOKE,
             ),
             runner=_backend,
@@ -212,7 +220,7 @@ def test_grpo_operation_reuses_training_artifact_contract() -> None:
 def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path) -> None:
     request = GRPORequest(
         ModelVariant.foundation(QWEN_35_2B),
-        FakeRLEnvironment(),
+        FakeRLBridge(),
         QWEN35_GRPO_SMOKE,
     )
 
@@ -239,7 +247,7 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
 
     mtp_request = GRPORequest(
         ModelVariant.foundation(QWEN_35_2B),
-        FakeRLEnvironment(),
+        FakeRLBridge(),
         QWEN35_GRPO_MTP_SMOKE,
     )
     mtp_arguments = _grpo_arguments(mtp_request, tmp_path, {"enable_thinking": False})
@@ -282,28 +290,33 @@ def test_vllm_rollout_requires_explicit_importance_sampling_strategy() -> None:
         )
 
 
-def test_trl_reward_adapter_preserves_rollout_identity_and_observes_native_trace(tmp_path: Path) -> None:
+def test_trl_rollout_adapter_preserves_identity_rewards_masks_and_native_traces(monkeypatch, tmp_path: Path) -> None:
     observer = Observer()
     context = _context(tmp_path.resolve(), observer)
     request = GRPORequest(
         ModelVariant.foundation(QWEN_35_2B),
-        FakeRLEnvironment(),
+        FakeRLBridge(),
         QWEN35_GRPO_SMOKE,
     )
-
-    rewards = asyncio.run(
-        _reward_function(context, request, frozenset({12}))(
-            completions=[[{"role": "assistant", "content": "#### 4"}]],
-            completion_ids=[[10, 11, 12]],
-            example_id=["gsm8k/train/0"],
-            trainer_state=type("TrainerState", (), {"global_step": 3})(),
-        )
+    monkeypatch.setattr(
+        "posttrain.train.backends.trl.online_rl.TrlPolicyGenerator",
+        lambda *args: object(),
     )
 
-    assert rewards == [1.0]
-    assert observer.traces[0].external_id == "gsm8k/train/0"
-    assert observer.traces[0].payload["completion"] == "#### 4"
-    assert observer.traces[0].payload["terminated"] is True
+    output = _rollout_function(context, request, object())(
+        [[{"role": "user", "content": "What is 2 + 2?"}]],
+        SimpleNamespace(state=SimpleNamespace(global_step=3)),
+        inputs=[{"example_id": "gsm8k/train/0"}],
+    )
+
+    assert output["rollout_reward"] == [1.0]
+    assert output["prompt_ids"] == [[1, 2]]
+    assert output["completion_ids"] == [[10, 11, 12]]
+    assert output["env_mask"] == [[True, True, True]]
+    assert output["is_truncated"] == [False]
+    assert observer.traces[0].external_id == "trace-0"
+    assert observer.traces[0].payload["example_id"] == "gsm8k/train/0"
+    assert observer.traces[0].payload["step"] == 3
     assert observer.traces[0].attributes["technique"] == "grpo"
     assert observer.traces[0].attributes["model_profile_id"] == QWEN_35_2B.id
 

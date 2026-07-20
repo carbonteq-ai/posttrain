@@ -103,24 +103,18 @@ def render_preferences(
     for example in dataset.examples:
         prompt_messages = example.prompt_messages()
         prompt_ids = tuple(renderer.render_ids(prompt_messages, add_generation_prompt=True))
-        chosen_full = tuple(
-            renderer.render_ids([*prompt_messages, {"role": "assistant", "content": example.chosen}])
-        )
+        chosen_full = tuple(renderer.render_ids([*prompt_messages, {"role": "assistant", "content": example.chosen}]))
         rejected_full = tuple(
             renderer.render_ids([*prompt_messages, {"role": "assistant", "content": example.rejected}])
         )
         if chosen_full[: len(prompt_ids)] != prompt_ids or rejected_full[: len(prompt_ids)] != prompt_ids:
-            raise ValueError(
-                f"preference example {example.id!r} violates renderer prompt-prefix equality"
-            )
+            raise ValueError(f"preference example {example.id!r} violates renderer prompt-prefix equality")
         chosen_ids = chosen_full[len(prompt_ids) :]
         rejected_ids = rejected_full[len(prompt_ids) :]
         if not chosen_ids or not rejected_ids:
             raise ValueError(f"preference example {example.id!r} rendered an empty completion")
         if len(prompt_ids) + max(len(chosen_ids), len(rejected_ids)) > max_length:
-            raise ValueError(
-                f"preference example {example.id!r} exceeds max_length; curate or raise the profile limit"
-            )
+            raise ValueError(f"preference example {example.id!r} exceeds max_length; curate or raise the profile limit")
         rendered.append(RenderedPreferenceExample(example.id, prompt_ids, chosen_ids, rejected_ids))
     return tuple(rendered)
 

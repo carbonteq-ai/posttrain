@@ -75,8 +75,7 @@ AUTOMATIONBENCH_PUBLIC = EvaluationProgram(
     id="automationbench-public-v1",
     kind="domain",
     environments=tuple(
-        _domain_cell(domain)
-        for domain in ("sales", "marketing", "operations", "support", "finance", "hr")
+        _domain_cell(domain) for domain in ("sales", "marketing", "operations", "support", "finance", "hr")
     ),
 )
 

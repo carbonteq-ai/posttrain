@@ -50,4 +50,3 @@ def score_world(
 
 
 __all__ = ["ScoreSnapshot", "score_world"]
-

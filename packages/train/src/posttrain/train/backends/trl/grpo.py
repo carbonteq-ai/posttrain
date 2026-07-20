@@ -9,7 +9,7 @@ from typing import Any, cast
 from posttrain.common import ExecutionContext, TraceObservation
 from posttrain.common.cuda import TorchModule, activate_cuda_toolkit
 
-from ...data import CompletedRollout
+from ...online_rl import RolloutBatch
 from ...requests import GRPORequest
 from .common import (
     BackendTrainingResult,
@@ -42,7 +42,7 @@ def run_grpo(context: ExecutionContext, request: GRPORequest, output_dir: Path) 
     template_kwargs = request.model.profile.conversation.reasoning_mode(
         request.profile.renderer.reasoning_mode
     ).kwargs()
-    for example in request.environment.dataset.examples:
+    for example in request.bridge.dataset.examples:
         prompt = [{"role": "user", "content": example.prompt}]
         rendered = tokenizer.apply_chat_template(
             prompt,
@@ -65,16 +65,8 @@ def run_grpo(context: ExecutionContext, request: GRPORequest, output_dir: Path) 
     arguments = _grpo_arguments(request, output_dir, template_kwargs)
     trainer = GRPOTrainer(
         model=model,
-        reward_funcs=cast(
-            Any,
-            _reward_function(
-                context,
-                request,
-                frozenset(
-                    token_id for token_id in (tokenizer.eos_token_id, tokenizer.pad_token_id) if token_id is not None
-                ),
-            ),
-        ),
+        reward_funcs=cast(Any, _bridge_reward),
+        rollout_func=cast(Any, _rollout_function(context, request, tokenizer)),
         args=GRPOConfig(**arguments),
         train_dataset=dataset,
         processing_class=tokenizer,
@@ -86,62 +78,47 @@ def run_grpo(context: ExecutionContext, request: GRPORequest, output_dir: Path) 
         return finish_training(trainer, train_output, tokenizer, output_dir.parent, "grpo", imports)
 
 
-def _completion_text(completion: Any) -> str:
-    if isinstance(completion, str):
-        return completion
-    if not isinstance(completion, list) or not completion:
-        raise TypeError("conversational GRPO completions must be non-empty message lists")
-    message = completion[-1]
-    if not isinstance(message, dict) or not isinstance(message.get("content"), str):
-        raise TypeError("GRPO completion messages require string content")
-    return cast(str, message["content"])
-
-
-def _reward_function(
+def _rollout_function(
     context: ExecutionContext,
     request: GRPORequest,
-    terminal_token_ids: frozenset[int],
+    tokenizer: Any,
 ) -> Any:
-    """Translate TRL callback arguments into the public online-RL environment contract."""
+    """Translate TRL generation batches into the public online-RL bridge contract."""
 
-    async def score_rollouts(
+    def run_rollouts(
+        prompts: list[Any],
+        trainer: Any,
         *,
-        completions: list[Any],
-        completion_ids: list[list[int]],
-        example_id: list[str],
-        trainer_state: Any,
-        **_: Any,
-    ) -> list[float]:
-        if len(completions) != len(example_id) or len(completions) != len(completion_ids):
-            raise ValueError("completion and rollout identity counts differ")
-        step = int(trainer_state.global_step)
-        scores = await asyncio.gather(
-            *(
-                request.environment.score(
-                    CompletedRollout(
-                        example_id=identifier,
-                        completion=_completion_text(completion),
-                        token_ids=tuple(int(value) for value in token_ids),
-                        step=step,
-                        terminated=bool(token_ids) and token_ids[-1] in terminal_token_ids,
-                        model_id=request.model.profile.id,
-                    )
-                )
-                for completion, token_ids, identifier in zip(
-                    completions,
-                    completion_ids,
-                    example_id,
-                    strict=True,
-                )
+        inputs: list[dict[str, Any]] | None,
+    ) -> dict[str, Any]:
+        if inputs is None or len(inputs) != len(prompts):
+            raise ValueError("TRL must provide dataset rows aligned with rollout prompts")
+        try:
+            example_ids = tuple(str(row["example_id"]) for row in inputs)
+        except KeyError as error:
+            raise ValueError("every online-RL dataset row requires an example_id") from error
+        from .online_rl import TrlPolicyGenerator
+
+        generator = TrlPolicyGenerator(trainer, tokenizer, request.model.profile, request.profile)
+        rollouts = asyncio.run(
+            request.bridge.run(
+                RolloutBatch(
+                    example_ids=example_ids,
+                    step=int(trainer.state.global_step),
+                    model_id=request.model.profile.id,
+                ),
+                generator,
             )
         )
+        if len(rollouts) != len(inputs):
+            raise ValueError("online-RL bridge returned a rollout count that does not match the trainer batch")
         attributes = {
             "technique": "grpo",
             "model_profile_id": request.model.profile.id,
             "training_profile_id": request.profile.id,
         }
-        for score in scores:
-            trace = score.trace
+        for rollout in rollouts:
+            trace = rollout.trace
             context.trace(
                 TraceObservation(
                     trace_type=trace.trace_type,
@@ -150,9 +127,23 @@ def _reward_function(
                     attributes={**trace.attributes, **attributes},
                 )
             )
-        return [score.reward for score in scores]
+        return {
+            "prompt_ids": [list(rollout.prompt_ids) for rollout in rollouts],
+            "completion_ids": [list(rollout.completion_ids) for rollout in rollouts],
+            "logprobs": [list(rollout.sampling_logprobs) for rollout in rollouts],
+            "env_mask": [list(rollout.env_mask) for rollout in rollouts],
+            "rollout_reward": [rollout.reward for rollout in rollouts],
+            "is_truncated": [rollout.is_truncated for rollout in rollouts],
+            "rollout_trace_id": [rollout.trace.external_id for rollout in rollouts],
+        }
 
-    return score_rollouts
+    return run_rollouts
+
+
+def _bridge_reward(rollout_reward: list[float], **_: Any) -> list[float]:
+    """Return rewards already computed by the native online-RL environment."""
+
+    return [float(value) for value in rollout_reward]
 
 
 def _grpo_arguments(request: GRPORequest, output_dir: Path, template_kwargs: dict[str, Any]) -> dict[str, Any]:
@@ -171,7 +162,8 @@ def _grpo_arguments(request: GRPORequest, output_dir: Path, template_kwargs: dic
             "scale_rewards": "group",
             "mask_truncated_completions": True,
             "use_vllm": request.profile.rollout.engine == "vllm",
-            "temperature": 1.0,
+            "temperature": request.profile.temperature,
+            "top_p": request.profile.top_p,
         }
     )
     if request.profile.rollout.engine == "vllm":

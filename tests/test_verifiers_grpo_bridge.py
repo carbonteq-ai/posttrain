@@ -1,114 +1,168 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
-from posttrain.train import CompletedRollout
-from posttrain.train.integrations import VerifiersOnlineRLEnvironment
-from posttrain.train.integrations import verifiers as bridge_module
-
-
-class FakeTrace:
-    def __init__(self, **values: object) -> None:
-        self.id = "trace-1"
-        self.values: dict[str, Any] = values
-        self.rewards: dict[str, float] = {}
-        self.metrics: dict[str, float] = {}
-
-    def record_reward(self, name: str, value: float, weight: float = 1.0) -> None:
-        self.rewards[name] = value * weight
-
-    def record_metric(self, name: str, value: float) -> None:
-        self.metrics[name] = value
-
-    @property
-    def reward(self) -> float:
-        return sum(self.rewards.values())
-
-    def to_record(self) -> dict[str, object]:
-        return {
-            "id": self.id,
-            "rewards": self.rewards,
-            "metrics": self.metrics,
-            "is_completed": self.values["is_completed"],
-            "stop_condition": self.values["stop_condition"],
-            "model": self.values["agent"].values["model"],
-            "completion_token_ids": self.values["nodes"][1].values["token_ids"],
-            "completion_mask": self.values["nodes"][1].values["mask"],
-        }
+from posttrain.train import PolicySampling, PolicyTurnResult, RolloutBatch
+from posttrain.train.integrations import VerifiersOnlineRLBridge
+from posttrain.train.integrations.verifiers import _PolicyClient
+from verifiers.v1 import (
+    AgentInfo,
+    AssistantMessage,
+    MessageNode,
+    Sampling,
+    TaskData,
+    ToolMessage,
+    Trace,
+    TraceTask,
+    UserMessage,
+)
+from verifiers.v1.dialects import ChatDialect
 
 
-class FakeValue:
-    def __init__(self, **values: object) -> None:
-        self.values = values
+class FakeGenerator:
+    def __init__(self) -> None:
+        self.requests = []
+
+    async def generate(self, request):
+        self.requests.append(request)
+        return PolicyTurnResult(
+            message={"role": "assistant", "content": "done"},
+            prompt_ids=(1, 2),
+            completion_ids=(3, 4),
+            completion_logprobs=(-0.1, -0.2),
+            finish_reason="stop",
+            prompt_message_spans=((0, 2),),
+            prompt_is_content=(False, True),
+            raw_response={"id": "response-1"},
+        )
 
 
-class FakeRuntime:
-    async def start(self) -> None:
-        pass
+def _trace(task: Any, suffix: int) -> Trace:
+    trace = Trace(
+        id=f"trace-{suffix}",
+        task=TraceTask(type=type(task).__name__, data=task.data),
+        agent=AgentInfo(model="model-profile-v1", sampling=Sampling(temperature=1.0, max_tokens=32)),
+        nodes=[
+            MessageNode(
+                message=UserMessage(content=str(task.data.prompt)),
+                token_ids=[1, 2],
+                mask=[False, False],
+            ),
+            MessageNode(
+                parent=0,
+                message=AssistantMessage(content="calling"),
+                sampled=True,
+                token_ids=[3, 4],
+                mask=[True, True],
+                logprobs=[-0.1, -0.2],
+            ),
+            MessageNode(
+                parent=1,
+                message=ToolMessage(tool_call_id="call-1", content="result"),
+                token_ids=[5, 6],
+                mask=[False, False],
+            ),
+            MessageNode(
+                parent=2,
+                message=AssistantMessage(content="done"),
+                sampled=True,
+                token_ids=[7, 8],
+                mask=[True, True],
+                logprobs=[-0.3, -0.4],
+            ),
+        ],
+        is_completed=True,
+        stop_condition="agent_completed",
+    )
+    trace.record_reward("native", 1.0)
+    return trace
 
-    async def stop(self) -> None:
-        pass
+
+class FakeEpisode:
+    def __init__(self, task: object, count: int) -> None:
+        self.task = task
+        self.count = count
+
+    async def run(self):
+        return [_trace(self.task, index) for index in range(self.count)]
 
 
-class FakeTask:
-    data = SimpleNamespace(prompt="Arbitrary environment prompt")
+class FakeEnvironment:
+    @asynccontextmanager
+    async def serving(self):
+        yield
 
-    async def score(self, trace: FakeTrace, runtime: FakeRuntime) -> None:
-        del runtime
-        trace.record_reward("native", 1.0)
+    def episode(self, task, context, n=1):
+        assert context.model == "model-profile-v1"
+        return FakeEpisode(task, n)
 
 
-def add_shaping(trace: FakeTrace, rollout: CompletedRollout) -> None:
-    del rollout
+def add_shaping(trace: Trace) -> None:
     trace.record_reward("shape", 0.5, 0.1)
 
 
-def test_generic_bridge_projects_tasks_scores_and_preserves_native_trace(monkeypatch, tmp_path) -> None:
-    task = FakeTask()
-    runtime = FakeRuntime()
-    monkeypatch.setattr(
-        bridge_module,
-        "_imports",
-        lambda: (FakeTrace, FakeValue, FakeValue, (FakeValue, FakeValue, lambda _: runtime)),
+def test_policy_client_preserves_exact_turn_tokens_and_response() -> None:
+    generator = FakeGenerator()
+    client = _PolicyClient(generator)
+
+    response = asyncio.run(
+        client.get_response(
+            ChatDialect(),
+            {"messages": [{"role": "user", "content": "hello"}]},
+            "model-profile-v1",
+            Sampling(temperature=1.0, max_tokens=32),
+            session_id="session-1",
+        )
     )
-    environment = VerifiersOnlineRLEnvironment(
+
+    assert generator.requests[0].messages[0]["content"] == "hello"
+    assert generator.requests[0].session_id == "session-1"
+    assert response.tokens.prompt_ids == [1, 2]
+    assert response.tokens.completion_ids == [3, 4]
+    assert response.tokens.completion_logprobs == [-0.1, -0.2]
+    assert response.model == "model-profile-v1"
+    assert response.raw == {"id": "response-1"}
+
+
+def test_native_bridge_projects_multiturn_masks_rewards_and_trace_artifact(tmp_path) -> None:
+    task = SimpleNamespace(data=TaskData(idx=7, prompt="Arbitrary environment prompt"))
+    bridge = VerifiersOnlineRLBridge(
         dataset_id="custom/train-v1",
         revision="revision",
         tasks={7: task},
-        environment_factory=lambda: SimpleNamespace(runtime_for=lambda _: object()),
+        environment_factory=FakeEnvironment,
         trace_path=tmp_path / "traces.jsonl",
         environment_id="custom-v1",
         run_id="run-1",
+        sampling=PolicySampling(max_tokens=32),
         enrichers=(add_shaping,),
     )
-    assert environment.dataset.examples[0].prompt == "Arbitrary environment prompt"
-    assert environment.dataset.examples[0].metadata["task_index"] == 7
 
-    score = asyncio.run(
-        environment.score(
-            CompletedRollout(
-                example_id="train/000007",
-                completion="completion",
-                token_ids=tuple(range(12)),
-                step=0,
-                terminated=False,
+    rollouts = asyncio.run(
+        bridge.run(
+            RolloutBatch(
+                example_ids=("train/000007", "train/000007"),
+                step=3,
                 model_id="model-profile-v1",
-            )
+            ),
+            FakeGenerator(),
         )
     )
-    artifacts = environment.finalize()
+    artifacts = bridge.finalize()
 
-    assert score.reward == 1.05
-    assert score.trace.external_id == "trace-1"
-    assert score.trace.payload["rewards"] == {"native": 1.0, "shape": 0.05}
-    assert score.trace.payload["is_completed"] is False
-    assert score.trace.payload["stop_condition"] == "max_tokens"
-    assert score.trace.payload["model"] == "model-profile-v1"
-    assert score.trace.payload["completion_token_ids"] == list(range(12))
-    assert score.trace.payload["completion_mask"] == [True] * 12
-    assert score.trace.attributes["is_truncated"] is True
-    assert score.trace.attributes["model"] == "model-profile-v1"
+    assert bridge.dataset.examples[0].prompt == "Arbitrary environment prompt"
+    assert len(rollouts) == 2
+    assert rollouts[0].prompt_ids == (1, 2)
+    assert rollouts[0].completion_ids == (3, 4, 5, 6, 7, 8)
+    assert rollouts[0].env_mask == (True, True, False, False, True, True)
+    assert rollouts[0].sampling_logprobs == (-0.1, -0.2, 0.0, 0.0, -0.3, -0.4)
+    assert rollouts[0].reward == 1.05
+    assert rollouts[0].is_truncated is False
+    assert rollouts[0].trace.payload["run"] == {"type": "train", "id": "run-1", "step": 3}
+    info = cast(dict[str, object], rollouts[0].trace.payload["info"])
+    assert info["example_id"] == "train/000007"
     assert len(artifacts) == 1
-    assert artifacts[0].metadata["trace_count"] == 1
+    assert artifacts[0].metadata["trace_count"] == 2

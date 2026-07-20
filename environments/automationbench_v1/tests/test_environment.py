@@ -76,4 +76,3 @@ def test_task_setup_and_finalize_put_evaluation_detail_on_trace() -> None:
     assert trace.reward == 1.0
     assert trace.metrics["task_completed_correctly"] == 1.0
     assert trace.info["automationbench"]["assertions"][0]["passed"] is True
-

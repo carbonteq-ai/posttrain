@@ -18,7 +18,7 @@ from posttrain.train import (
     sft,
 )
 
-from ..environments import VERIFIERS_REVISION, create_gsm8k_training_environment
+from ..environments import VERIFIERS_REVISION, create_gsm8k_training_bridge
 
 JOB_ID = "posttraining/gsm8k"
 
@@ -166,16 +166,19 @@ def run_grpo_materialized(
         artifact=context.input_artifact(input_name),
         format="peft-adapter",
     )
-    environment = create_gsm8k_training_environment(
+    bridge = create_gsm8k_training_bridge(
         request.task_indices,
         context.workspace / "training" / "grpo" / "verifiers-traces.jsonl",
         context.attempt.id,
+        max_tokens=request.profile.max_completion_length,
+        temperature=request.profile.temperature,
+        top_p=request.profile.top_p,
     )
     return grpo(
         context,
         GRPORequest(
             model=local_model,
-            environment=environment,
+            bridge=bridge,
             profile=request.profile,
         ),
     )
@@ -184,7 +187,7 @@ def run_grpo_materialized(
 def training_inputs(request: SFTRequest | DPORequest | GRPORequest) -> dict[str, str | int | float | bool]:
     """Stable run config; large examples and traces remain datasets/artifacts, not config."""
 
-    dataset = request.environment.dataset if isinstance(request, GRPORequest) else request.dataset
+    dataset = request.bridge.dataset if isinstance(request, GRPORequest) else request.dataset
     values: dict[str, str | int | float | bool] = {
         "model_profile_id": request.model.profile.id,
         "input_model_format": request.model.format,
@@ -208,6 +211,8 @@ def training_inputs(request: SFTRequest | DPORequest | GRPORequest) -> dict[str,
         values["grpo_num_generations"] = request.profile.num_generations
         values["grpo_max_prompt_length"] = request.profile.max_prompt_length
         values["grpo_max_completion_length"] = request.profile.max_completion_length
+        values["grpo_temperature"] = request.profile.temperature
+        values["grpo_top_p"] = request.profile.top_p
     if isinstance(request.model, ModelVariant):
         values["base_model_revision"] = request.model.base_artifact.revision
     return values
@@ -232,6 +237,8 @@ def grpo_job_inputs(request: GSM8KGRPOJobRequest) -> dict[str, str | int | float
         "grpo_num_generations": request.profile.num_generations,
         "grpo_max_prompt_length": request.profile.max_prompt_length,
         "grpo_max_completion_length": request.profile.max_completion_length,
+        "grpo_temperature": request.profile.temperature,
+        "grpo_top_p": request.profile.top_p,
         "rollout_profile_id": request.profile.rollout.id,
         "rollout_engine": request.profile.rollout.engine,
         "rollout_sleep_during_optimization": request.profile.rollout.sleep_during_optimization,

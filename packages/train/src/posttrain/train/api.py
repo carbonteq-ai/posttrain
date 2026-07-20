@@ -44,7 +44,7 @@ def _finish(
     technique: Literal["sft", "dpo", "grpo"],
     backend: BackendTrainingResult,
 ) -> TrainingResult:
-    dataset = request.environment.dataset if isinstance(request, GRPORequest) else request.dataset
+    dataset = request.bridge.dataset if isinstance(request, GRPORequest) else request.dataset
     attributes = {
         "technique": technique,
         "model_profile_id": request.model.profile.id,
@@ -148,7 +148,7 @@ def grpo(
     *,
     runner: GRPOBackend = run_grpo,
 ) -> TrainingResult:
-    dataset = request.environment.dataset
+    dataset = request.bridge.dataset
     attributes = {
         "technique": "grpo",
         "model_profile_id": request.model.profile.id,
@@ -161,7 +161,7 @@ def grpo(
     try:
         backend = runner(context, request, output_dir)
     finally:
-        for artifact in request.environment.finalize():
+        for artifact in request.bridge.finalize():
             context.artifact(artifact)
     return _finish(context, request, "grpo", backend)
 

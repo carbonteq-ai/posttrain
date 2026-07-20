@@ -292,16 +292,19 @@ def test_managed_eval_composes_endpoint_without_leaking_serve_into_eval(
         context_window=8_192,
     )
 
-    assert run_managed_evaluation(
-        ExecutionContext(
-            job=spec().job,
-            action=spec().action,
-            invocation=spec().invocation,
-            attempt=spec().attempt,
-            workspace=tmp_path.resolve(),
-        ),
-        managed,
-    ) == "done"
+    assert (
+        run_managed_evaluation(
+            ExecutionContext(
+                job=spec().job,
+                action=spec().action,
+                invocation=spec().invocation,
+                attempt=spec().attempt,
+                workspace=tmp_path.resolve(),
+            ),
+            managed,
+        )
+        == "done"
+    )
     assert observed[0].target.base_url == endpoint.base_url
     assert observed[0].program is GENERAL_SMOKE
 

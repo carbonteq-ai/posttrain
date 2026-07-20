@@ -88,6 +88,8 @@ def test_grpo_job_config_records_environment_and_generation_policy() -> None:
     assert inputs["environment_id"] == "gsm8k-v1"
     assert inputs["task_indices"] == "2"
     assert inputs["grpo_num_generations"] == 2
+    assert inputs["grpo_temperature"] == 1.0
+    assert inputs["grpo_top_p"] == 1.0
     assert inputs["rollout_engine"] == "vllm"
     assert inputs["rollout_sleep_during_optimization"] is True
     assert inputs["rollout_skip_multimodal_profiling"] is True

@@ -57,8 +57,10 @@ replace SFT, DPO, or GRPO acceptance for the two foundation profiles.
 
 The code-defined `posttrain-lab` entrypoint now composes typed training requests
 with job-owned data. Reusable trainers remain callable directly from Python.
-The generic `VerifiersOnlineRLEnvironment` scores completed rollouts and
-returns native traces; the TRL backend privately adapts that contract to its
-reward callback and records the traces through the execution context.
-It does not initialize a model. Transformers and colocated-vLLM rollouts are
-explicit training-profile choices rather than behavior hidden in job code.
+The generic `VerifiersOnlineRLBridge` runs native Verifiers episodes through a
+policy client backed by TRL's already-loaded generator. It returns aligned
+token IDs, sampling logprobs, environment masks, rewards, and native traces;
+the private TRL adapter converts those values into its custom rollout contract
+and records traces through the execution context. Verifiers does not initialize
+a model. Transformers and colocated-vLLM generation remain explicit
+training-profile choices rather than behavior hidden in job code.

@@ -3,4 +3,3 @@
 from .taskset import AutomationBenchTaskset
 
 __all__ = ["AutomationBenchTaskset"]
-

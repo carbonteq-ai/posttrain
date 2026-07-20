@@ -1,4 +1,4 @@
-"""Pinned GSM8K task selection and job-specific GRPO reward shaping."""
+"""Pinned GSM8K tasks and job-specific native Verifiers reward shaping."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ import re
 from pathlib import Path
 from typing import Any
 
-from posttrain.train import CompletedRollout
-from posttrain.train.integrations import VerifiersOnlineRLEnvironment
+from posttrain.train import PolicySampling
+from posttrain.train.integrations import VerifiersOnlineRLBridge
 
 VERIFIERS_REVISION = "284a868d6a9022109b749710672a0460e8a996d4"
 _FINAL_ANSWER = re.compile(r"(?m)^####\s*[+-]?(?:\d[\d,]*)(?:\.\d+)?\s*$")
@@ -22,11 +22,15 @@ def _imports() -> tuple[type[Any], type[Any]]:
     return GSM8KConfig, GSM8KTaskset
 
 
-def create_gsm8k_training_environment(
+def create_gsm8k_training_bridge(
     task_indices: tuple[int, ...],
     trace_path: Path,
     run_id: str,
-) -> VerifiersOnlineRLEnvironment:
+    *,
+    max_tokens: int,
+    temperature: float,
+    top_p: float,
+) -> VerifiersOnlineRLBridge:
     if not task_indices or len(task_indices) != len(set(task_indices)) or min(task_indices) < 0:
         raise ValueError("GRPO task indices must be non-empty, unique, and non-negative")
     GSM8KConfig, GSM8KTaskset = _imports()
@@ -36,7 +40,7 @@ def create_gsm8k_training_environment(
     except IndexError as error:
         raise ValueError("GRPO task index is outside the GSM8K training split") from error
     suffix = "-".join(str(index) for index in task_indices)
-    return VerifiersOnlineRLEnvironment(
+    return VerifiersOnlineRLBridge(
         dataset_id=f"gsm8k/grpo/train-{suffix}-v1",
         revision=VERIFIERS_REVISION,
         tasks=tasks,
@@ -44,14 +48,15 @@ def create_gsm8k_training_environment(
         trace_path=trace_path,
         environment_id="gsm8k-v1",
         run_id=run_id,
+        sampling=PolicySampling(max_tokens=max_tokens, temperature=temperature, top_p=top_p),
         enrichers=(_add_gsm8k_shaping,),
     )
 
 
-def _add_gsm8k_shaping(trace: Any, rollout: CompletedRollout) -> None:
+def _add_gsm8k_shaping(trace: Any) -> None:
     trace.record_reward(
         "final_answer_conciseness",
-        _final_answer_conciseness(rollout.completion, rollout.token_count),
+        _final_answer_conciseness(trace.last_reply, trace.num_output_tokens),
         weight=_SHAPING_WEIGHT,
     )
 
@@ -77,4 +82,4 @@ def _training_environment() -> Any:
     return Environment(config)
 
 
-__all__ = ["VERIFIERS_REVISION", "create_gsm8k_training_environment"]
+__all__ = ["VERIFIERS_REVISION", "create_gsm8k_training_bridge"]

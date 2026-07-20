@@ -4,9 +4,12 @@ Post-training methods. Each technique folder holds overview, **recipes/** (playb
 
 | Technique | Status |
 | --- | --- |
-| [sft/](./sft/) | Planned first training slice |
-| [grpo/](./grpo/) | Planned after a Verifiers bridge is defined |
-| [inference/](./inference/) | Planned first serving slice |
+| [sft/](./sft/) | Qwen3.5 QLoRA smoke verified |
+| [dpo/](./dpo/) | Qwen3.5 trace-derived preference smoke verified |
+| [grpo/](./grpo/) | Qwen3.5 colocated-vLLM + Verifiers smoke verified |
+| [inference/](./inference/) | vLLM foundation screening implemented |
 | [_template/](./_template/) | Copy for a new method |
 
-Compare methods here as the catalog grows (when to SFT vs GRPO, cold-start, etc.).
+Technique code remains in the reusable `posttrain.train` package. These pages
+record measured recipes and failure modes; jobs supply task-specific data,
+environments, parent artifacts, and acceptance policy.

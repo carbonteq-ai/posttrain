@@ -23,7 +23,7 @@ generation, or weight-synchronization behavior. Those changes exist after the
 - Apply upstream vLLM 0.24 support commit `c1fdca18f0cc56fb60726d879d73f0cbd344e91f`
   and vLLM 0.25 support commit `68d7cb1a4228f91d832c2dc7ced80674d2c46c56`.
 - Pin the workspace to merged fork commit
-  `b30d820a160ee39a2294a2755fd2d96fe3ac57b0` and pin vLLM to `0.25.1`.
+  `a0b4bca78eeeb02abb050abfa04624f952d5f633` and pin vLLM to `0.25.1`.
 - Keep the trainer-runtime dependency on `datasets>=4.6.1,<4.7`. TRL's runtime
   paths use APIs available in 4.6.1; 4.7-only `Json` dtype helpers belong to
   repository dataset-authoring scripts. This makes TRL 1.8 and Verifiers v1
@@ -93,10 +93,10 @@ sleep backed up 1.82 GiB of Qwen3.5 base weights on the local RTX 3070 Ti,
 wake restored them without `reload_weights`, and the real SFT adapter produced
 a coherent completion.
 
-Native PEFT adapter synchronization was merged in
-[`carbonteq-ai/trl#8`](https://github.com/carbonteq-ai/trl/pull/8). A local
-Qwen3.5-2B probe loaded the real SFT adapter over the bitsandbytes base through
-vLLM 0.25.1 and produced coherent text without replacing the base parameters.
+Aligned raw dataset rows and authoritative custom-rollout truncation were
+merged in [`carbonteq-ai/trl#10`](https://github.com/carbonteq-ai/trl/pull/10).
+These additive fields let native environment-driven rollouts preserve stable
+task identity and termination semantics without encoding metadata into prompts.
 
 ## Maintenance
 
@@ -104,3 +104,11 @@ For each fork update, fetch `huggingface/trl`, rebase the maintenance branch on
 the intended released TRL tag, record the upstream commits here, run upstream
 vLLM client/server tests, and run the lab's import and GPU rollout smokes. Never
 replace the immutable workspace pin with a branch or floating version range.
+
+## Revision History
+
+- 2026-07-20: Advanced the immutable pin to PR 10 for aligned custom-rollout
+  inputs and authoritative truncation state.
+- 2026-07-20: Accepted the TRL 1.8 compatibility fork and recorded vLLM 0.25.1,
+  speculative decoding, engine arguments, weight namespaces, and native LoRA
+  synchronization support.

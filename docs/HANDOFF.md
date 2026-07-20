@@ -12,7 +12,7 @@ Read [the execution plan](../.agents/plan/posttraining-platform-refactor.md),
 packages/common   framework-free identities, model/artifact types, execution context
 packages/serve    typed vLLM profiles, workloads, prompts, benchmark operation
 packages/eval     endpoint-neutral Verifiers v1 operation and code-defined programs
-packages/train    training boundary awaiting SFT/DPO/GRPO operations
+packages/train    typed SFT/DPO/GRPO operations and internal TRL adapters
 packages/reports  read-only evidence/query boundary
 apps/lab          code-defined jobs, execution host, Trackio observer
 environments/automationbench_v1  independently locked native-v1 environment
@@ -50,6 +50,15 @@ retained as compatibility surfaces.
 - Native Verifiers v1 AutomationBench 1.0.5 port with per-rollout world state,
   API discovery/execution MCP tools, dense reward, strict outcome metrics, and
   full assertion/end-state trace detail.
+- Public observer-neutral SFT, DPO, and GRPO operations with model renderers,
+  QLoRA profiles, recovery checkpoints, selected adapters, and summaries.
+- A backend-neutral `OnlineRLBridge` and `PolicyGenerator` contract. Native
+  Verifiers episodes own multi-turn/tool execution and scoring; the private TRL
+  adapter supplies the already-loaded policy and receives exact token
+  sequences, logprobs, environment masks, rewards, and traces.
+- Colocated Qwen GRPO with one trainable QLoRA model, an immutable vLLM
+  bitsandbytes base, dynamic adapter synchronization, level-1 sleep, and no
+  separately loaded Verifiers policy.
 
 ## GPU evidence
 
@@ -86,6 +95,21 @@ Each run contains one queryable Verifiers trace, direct synchronization-health
 metrics, the complete native evaluation directory, and its serving log. This
 demonstrates why run completion and trace quality remain distinct facts.
 
+## Training evidence
+
+| Technique | Trackio run ID | Parent | Steps | Key signal |
+| --- | --- | --- | ---: | --- |
+| SFT | `b549afa7241942bfa6ed31cc4fdacffd` | Qwen3.5 foundation | 2 | final loss `0.9181`, grad norm `4.6875` |
+| DPO | `9a89fda28de34c6d9254995402becba9` | SFT adapter `v0` | 2 | final loss `0.3474`, grad norm `0.1387` |
+| GRPO | `17b7f95710a14e359f7c4706f2925690` | SFT adapter `v0` | 1 | reward std `0.00888`, grad norm `0.08447`, clipped ratio `0` |
+
+The GRPO run contains two coherent, correct Verifiers traces that terminated at
+164 and 273 tokens. Both preserve model identity, sampled token IDs, train
+masks, reward components, and stop state. The run also produced the native
+trace artifact, GRPO adapter, step-1 recovery checkpoint, and summary. The
+scalar loss is zero on the first centered group-relative step, but its nonzero
+gradient proves the requested backpropagation pass.
+
 A live `automationbench-v1` simple task also completed through the independent
 Python 3.13 runtime against the Qwen endpoint. The MCP tool server started, Qwen
 made correctly parsed `api_search` calls, final-state scoring ran, and the trace
@@ -117,6 +141,12 @@ uv run --package posttrain-lab --extra gpu-eval \
 
 uv run --project environments/automationbench_v1 --python 3.13 \
   --with pytest --with pytest-asyncio pytest -q environments/automationbench_v1/tests
+
+uv run --package posttrain-lab --extra gpu-posttrain \
+  posttrain-lab gsm8k-qwen-sft-smoke --tracked --project posttrain-platform
+uv run --package posttrain-lab --extra gpu-posttrain \
+  posttrain-lab gsm8k-qwen-grpo-smoke --tracked \
+  --project posttrain-platform --adapter-version v0
 ```
 
 The module-backed CLI is required for GPU jobs because vLLM may use spawned
@@ -129,9 +159,12 @@ workers after CUDA initialization; do not launch those operations from stdin.
    the same Trackio attempt as the managed model endpoint.
 2. Add report-side reward/pass/truncation calculations over trace populations;
    do not persist those derived summaries in eval runs.
-3. Add renderer-aware SFT and DPO public operations with internal TRL adapters.
-4. Add the Verifiers-to-TRL GRPO operation and prove one rollout plus one
-   optimizer/backpropagation step.
+3. Qualify the LFM SFT and DPO profiles; do not infer their renderer or kernel
+   behavior from Qwen.
+4. Extend GRPO when a concrete job requires multimodal trajectories, multiple
+   terminal branches, or higher rollout concurrency. Linear multi-turn/tool-use
+   episodes now run natively through Verifiers; ambiguous branch shapes are
+   rejected explicitly.
 
 Do not repair old YAML or CLI paths. Replace them at the package boundary and
 delete them once the corresponding vertical slice is proven.

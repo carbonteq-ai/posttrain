@@ -2,14 +2,21 @@
 
 from .api import DPOBackend, GRPOBackend, SFTBackend, dpo, grpo, sft
 from .data import (
-    CompletedRollout,
     PreferenceDataset,
     PreferenceExample,
     RolloutDataset,
     RolloutExample,
-    RolloutScore,
     SupervisedDataset,
     SupervisedExample,
+)
+from .online_rl import (
+    OnlineRLBridge,
+    PolicyGenerator,
+    PolicySampling,
+    PolicyTurnRequest,
+    PolicyTurnResult,
+    RolloutBatch,
+    TrainingRollout,
 )
 from .profiles import (
     LFM25_DPO_SMOKE,
@@ -30,11 +37,10 @@ from .profiles import (
     TrainingLoop,
 )
 from .rendering import RenderedPreferenceExample, RenderedSFTExample, render_preferences, render_supervised
-from .requests import DPORequest, GRPORequest, OnlineRLEnvironment, SFTRequest
+from .requests import DPORequest, GRPORequest, SFTRequest
 from .results import TrainingResult, TrainingSummary
 
 __all__ = [
-    "CompletedRollout",
     "DPOBackend",
     "DPOProfile",
     "DPORequest",
@@ -56,16 +62,21 @@ __all__ = [
     "RenderedPreferenceExample",
     "RenderedSFTExample",
     "RendererProfile",
-    "OnlineRLEnvironment",
+    "OnlineRLBridge",
+    "PolicyGenerator",
+    "PolicySampling",
+    "PolicyTurnRequest",
+    "PolicyTurnResult",
     "RolloutDataset",
     "RolloutExample",
-    "RolloutScore",
+    "RolloutBatch",
     "SFTBackend",
     "SFTProfile",
     "SFTRequest",
     "SupervisedDataset",
     "SupervisedExample",
     "TrainingLoop",
+    "TrainingRollout",
     "TRANSFORMERS_GRPO_ROLLOUT",
     "TrainingResult",
     "TrainingSummary",

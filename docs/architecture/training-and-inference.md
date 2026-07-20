@@ -88,50 +88,81 @@ result containing selected outputs and checkpoint/recovery information.
 | DPO | preference validation, execution lifecycle, result semantics | model, preference data, typed config |
 | RL | supported environment/rollout lifecycle, result semantics | model, environment, typed config |
 
-Complex Verifiers environments may require a different internal training
-integration than a simple TRL reward callback. The public `train.rl` operation
-and its result remain the reuse boundary.
+Environment-driven RL uses the same native Verifiers episode model as
+evaluation. The public `train.grpo` operation and its result remain the reuse
+boundary; neither a TRL callback nor a Verifiers runner is exposed as the
+cross-project API.
 
 ### GRPO rollout and Verifiers bridge
 
-GRPO keeps rollout generation and environment scoring separate:
+GRPO keeps policy generation, environment execution, trainer translation, and
+observation separate:
 
 ```text
-rollout dataset prompt
-  -> TRL rollout engine (Transformers or colocated vLLM)
-  -> generated assistant completion
-  -> private TRL callback adapter
-  -> reusable OnlineRLEnvironment.score(completed_rollout)
-  -> native task runtime and task.score(trace, runtime)
-  -> reward and native trace returned to the adapter
-  -> loss and optimizer step
+Verifiers task + harness + runtime
+  -> OnlineRLBridge.run(batch, policy_generator)
+  -> native Verifiers episode
+       -> policy client requests one or more model turns
+       -> PolicyGenerator uses the already-loaded TRL policy
+       -> tools, user simulation, stops, finalization, and scoring stay native
+  -> final Verifiers trace branch
+  -> prompt IDs + completion IDs + sampling logprobs + env mask + reward
+  -> private TRL rollout adapter
+  -> GRPO loss and optimizer step
+
+same trace
+  -> ExecutionContext.trace(...)
+  -> injected observer
+  -> Trackio queryable trace copy
+
+native traces.jsonl
+  -> required evaluation-traces artifact
 ```
 
-`GRPORequest` accepts one backend-neutral `OnlineRLEnvironment`, not a
-TRL-shaped dataset plus reward callback. The environment owns its rollout
-examples, stable task identity, asynchronous scoring, native traces, and native
-evidence finalization. The TRL adapter privately converts that contract into
-the dataset columns and reward callback required by `GRPOTrainer`, then sends
-the returned traces through the execution context. It also converts the
-backend's terminal token into explicit rollout termination state, so an
-environment trace distinguishes an agent-completed response from a
-max-token truncation. The completed-rollout envelope also carries the producing
-model identity and sampled token IDs; Verifiers stores those in its native
-agent and message-graph fields rather than losing them in Trackio-only metadata.
+`GRPORequest` accepts one backend-neutral `OnlineRLBridge`. The bridge owns a
+task-neutral rollout dataset, native episode execution, scored-trajectory
+projection, and native evidence finalization. It receives a `PolicyGenerator`
+from the selected trainer adapter rather than constructing or loading a model.
+This inversion lets Verifiers drive as many model, tool, and user turns as the
+native environment requires while the trainer retains sole ownership of policy
+weights and optimization.
 
-`posttrain.train.integrations.verifiers.VerifiersOnlineRLEnvironment`
-implements this contract for native Verifiers task collections. It constructs
-training traces, starts an isolated task runtime, invokes native scoring, and
-preserves JSONL for artifact publication. It does not load or call a policy
-model and does not know about TRL callback arguments, model profiles, or
-Trackio. An environment-specific package owns only task loading, environment
-configuration, and optional native reward enrichment. The GSM8K package, for
-example, owns the pinned task selection and its final-answer shaping rule.
+The reusable contracts live in `posttrain.train.online_rl`:
 
-The current contract supports policy-generated, single-completion rollouts.
-Interactive agent environments that require tools or user simulation during
-generation need a separate environment-driven rollout adapter; they must not
-be disguised as post-generation reward callbacks.
+| Contract | Owns | Does not own |
+| --- | --- | --- |
+| `PolicySampling` | max output tokens, temperature, top-p shared by environment and generator | backend-only engine tuning |
+| `PolicyTurnRequest` / `PolicyTurnResult` | messages, tools, exact token IDs, token attribution, logprobs, finish reason | environment state, rewards, trainer tensors |
+| `PolicyGenerator` | one model turn against an already-loaded policy | task selection, runtime, scoring, observation |
+| `RolloutBatch` | trainer step, model identity, aligned stable example IDs | model-visible prompt metadata |
+| `TrainingRollout` | exact trainer sequence, sampled-token mask, reward, truncation, trace observation | framework-specific tensors |
+| `OnlineRLBridge` | native episodes and trajectory projection | TRL, vLLM, Trackio |
+
+`posttrain.train.integrations.verifiers.VerifiersOnlineRLBridge` implements the
+bridge with native Verifiers `Environment.episode(...)`. Its policy client maps
+native model turns onto `PolicyGenerator`, then derives the training sequence
+from the final trace branch. Tokens produced by the model are `True` in
+`env_mask`; tool, harness, simulator, and template tokens remain in the
+sequence for context but are masked from policy loss. Native termination and
+error state is authoritative instead of being guessed from the final token.
+
+`posttrain.train.backends.trl.online_rl.TrlPolicyGenerator` implements policy
+generation with the trainer's already-loaded Transformers or colocated-vLLM
+representation and the model-family renderer. The private TRL rollout adapter
+converts `TrainingRollout` values into `rollout_func` output. The pinned TRL fork
+passes aligned raw dataset rows into that function, preserving stable task
+identity without adding hidden fields to model-visible prompts.
+
+An environment package owns task loading, tools, runtime requirements, rewards,
+and optional native reward enrichment. It imports neither TRL nor Trackio. The
+lab job composes that package with `VerifiersOnlineRLBridge`, a training
+profile, and an observer-backed execution context.
+
+The MVP supports linear single-branch chat trajectories, including multiple
+model turns and tools. A native trace with zero or multiple terminal branches is
+rejected explicitly because one trainer example cannot silently choose among
+several trainable branches. Multimodal sidecars and trainer-side parallel
+episode scheduling remain separate extensions to the same contracts.
 
 The GRPO rollout profile explicitly selects one of two execution modes:
 

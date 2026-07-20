@@ -13,5 +13,6 @@ Architecture and stack choices for this lab.
 | [0007](./0007-trl-vllm-025-fork.md) | TRL 1.8 fork pinned with validated vLLM 0.25.1 support |
 | [0008](./0008-model-conversation-contracts.md) | Shared model-native conversation contracts and backend-owned parsers |
 | [0009](./0009-native-verifiers-environment-packages.md) | Independently publishable native Verifiers v1 environments |
+| [0010](./0010-environment-driven-online-rl-bridge.md) | Environment-driven online-RL bridge with trainer-owned policy generation |
 
 ADRs 0001–0003 describe the prototype and are superseded by ADR 0004 for current platform architecture.
