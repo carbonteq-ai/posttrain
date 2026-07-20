@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import json
 import uuid
 from pathlib import Path
+from typing import Any, cast
 
+import httpx
 from posttrain.common import (
     EventObservation,
     ExecutionContext,
@@ -17,7 +20,18 @@ from posttrain.common import (
     TraceObservation,
 )
 from posttrain.common.profiles import QWEN_35_2B
-from posttrain.serve import QWEN35_VLLM_TEXT, BenchmarkCell, BenchmarkRequest, BenchmarkResult, benchmark
+from posttrain.serve import (
+    QWEN35_VLLM_TEXT,
+    BenchmarkCell,
+    BenchmarkRequest,
+    BenchmarkResult,
+    Endpoint,
+    GenerationRequest,
+    LaunchRequest,
+    benchmark,
+    generate,
+    launch,
+)
 
 
 class RecordingObserver:
@@ -98,9 +112,8 @@ def _result(request: BenchmarkRequest) -> BenchmarkResult:
     )
 
 
-def test_benchmark_emits_direct_metrics_trace_and_native_artifact(tmp_path: Path) -> None:
-    observer = RecordingObserver()
-    context = ExecutionContext(
+def _context(tmp_path: Path, observer: RecordingObserver) -> ExecutionContext:
+    return ExecutionContext(
         job=Job("tests/serve", "a" * 40, "Serve test"),
         action=JobAction("tests/serve", "benchmark", "serving-benchmark"),
         invocation=Invocation(str(uuid.uuid4())),
@@ -108,6 +121,11 @@ def test_benchmark_emits_direct_metrics_trace_and_native_artifact(tmp_path: Path
         workspace=tmp_path.resolve(),
         observer=observer,
     )
+
+
+def test_benchmark_emits_direct_metrics_trace_and_native_artifact(tmp_path: Path) -> None:
+    observer = RecordingObserver()
+    context = _context(tmp_path, observer)
     request = _request()
     result = benchmark(context, request, runner=lambda value: _result(value))
 
@@ -123,3 +141,73 @@ def test_benchmark_emits_direct_metrics_trace_and_native_artifact(tmp_path: Path
     assert isinstance(artifact_ref, LocalArtifactRef)
     assert artifact_ref.path.read_text().startswith("{\n")
     assert [event.name for event in observer.events] == ["serve_benchmark_started", "serve_benchmark_completed"]
+
+
+def test_generate_emits_request_metrics_and_full_inference_trace(tmp_path: Path) -> None:
+    observer = RecordingObserver()
+    context = _context(tmp_path, observer)
+    endpoint = Endpoint("http://model.test/v1", QWEN_35_2B.artifact.repo_id)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.read())
+        assert payload["enable_thinking"] is False
+        return httpx.Response(
+            200,
+            text="\n".join(
+                [
+                    'data: {"choices":[{"delta":{"content":"answer"},"finish_reason":"stop"}]}',
+                    'data: {"choices":[],"usage":{"prompt_tokens":4,"completion_tokens":1}}',
+                    "data: [DONE]",
+                ]
+            ),
+        )
+
+    request = GenerationRequest(endpoint, ({"role": "user", "content": "Question"},), max_tokens=8)
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        result = generate(context, request, QWEN_35_2B, client=client)
+
+    assert result.content == "answer"
+    assert {item.name for item in observer.metric_observations} >= {
+        "serve/request_latency_seconds",
+        "serve/request_ttft_seconds",
+        "serve/request_input_tokens",
+        "serve/request_output_tokens",
+    }
+    messages = cast(list[dict[str, Any]], observer.traces[0].payload["messages"])
+    events = cast(list[dict[str, Any]], observer.traces[0].payload["events"])
+    assert messages[-1] == {"role": "assistant", "content": "answer"}
+    assert len(events) == 2
+
+
+def test_launch_manages_server_template_log_and_lifecycle(tmp_path: Path) -> None:
+    observer = RecordingObserver()
+    context = _context(tmp_path, observer)
+    closed: list[bool] = []
+
+    class FakeServer:
+        def __init__(self, request: LaunchRequest, log_path: Path, template_path: Path | None) -> None:
+            self.endpoint = request.endpoint
+            self.log_path = log_path
+            assert template_path is None
+
+        def start(self) -> Endpoint:
+            self.log_path.write_text("ready\n", encoding="utf-8")
+            return self.endpoint
+
+        def close(self) -> None:
+            closed.append(True)
+
+    with launch(
+        context,
+        LaunchRequest(QWEN_35_2B, QWEN35_VLLM_TEXT),
+        server_factory=FakeServer,
+    ) as endpoint:
+        assert endpoint.model == QWEN_35_2B.artifact.repo_id
+
+    assert closed == [True]
+    assert [event.name for event in observer.events] == [
+        "serve_launch_started",
+        "serve_endpoint_ready",
+        "serve_endpoint_stopped",
+    ]
+    assert observer.artifacts[0].kind == "serving-log"

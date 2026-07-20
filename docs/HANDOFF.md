@@ -71,6 +71,8 @@ uv run --package posttrain-serve --extra vllm \
   posttrain-lab foundation-qwen-smoke --tracked --project posttrain-foundation
 uv run --package posttrain-serve --extra vllm \
   posttrain-lab foundation-lfm-smoke --tracked --project posttrain-foundation
+uv run --package posttrain-serve --extra vllm \
+  posttrain-lab foundation-lfm-online-smoke --tracked --project posttrain-foundation
 ```
 
 The module-backed CLI is required for GPU jobs because vLLM may use spawned

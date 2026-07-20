@@ -2511,6 +2511,7 @@ name = "posttrain-serve"
 version = "0.1.0"
 source = { editable = "packages/serve" }
 dependencies = [
+    { name = "httpx" },
     { name = "posttrain-common" },
 ]
 
@@ -2529,6 +2530,7 @@ vllm = [
 
 [package.metadata]
 requires-dist = [
+    { name = "httpx", specifier = ">=0.28,<1" },
     { name = "nvidia-cuda-cccl", marker = "sys_platform == 'linux' and extra == 'vllm'", specifier = "==13.0.85" },
     { name = "nvidia-cuda-crt", marker = "sys_platform == 'linux' and extra == 'vllm'", specifier = "==13.0.88" },
     { name = "nvidia-cuda-nvcc", marker = "sys_platform == 'linux' and extra == 'vllm'", specifier = "==13.0.88" },

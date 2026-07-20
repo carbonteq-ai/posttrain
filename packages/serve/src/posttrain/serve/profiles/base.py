@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Literal
 
@@ -81,6 +82,39 @@ class VllmEngineConfig:
         if self.speculative is not None:
             values["speculative_config"] = self.speculative.as_vllm()
         return values
+
+    def as_cli_args(self) -> tuple[str, ...]:
+        values: list[str] = [
+            "--max-model-len",
+            str(self.max_model_len),
+            "--gpu-memory-utilization",
+            str(self.gpu_memory_utilization),
+            "--dtype",
+            self.dtype,
+            "--load-format",
+            self.load_format,
+            "--kv-cache-dtype",
+            self.kv_cache_dtype,
+        ]
+        if self.enforce_eager:
+            values.append("--enforce-eager")
+        if self.enable_chunked_prefill:
+            values.append("--enable-chunked-prefill")
+        if self.disable_log_stats:
+            values.append("--disable-log-stats")
+        if self.max_num_seqs is not None:
+            values.extend(("--max-num-seqs", str(self.max_num_seqs)))
+        if self.max_num_batched_tokens is not None:
+            values.extend(("--max-num-batched-tokens", str(self.max_num_batched_tokens)))
+        if self.text_only:
+            values.extend(("--limit-mm-per-prompt", json.dumps({"image": 0, "video": 0})))
+        if self.skip_mm_profiling:
+            values.append("--skip-mm-profiling")
+        if self.flash_attn_version is not None:
+            values.extend(("--attention-config", json.dumps({"flash_attn_version": self.flash_attn_version})))
+        if self.speculative is not None:
+            values.extend(("--speculative-config", json.dumps(self.speculative.as_vllm())))
+        return tuple(values)
 
 
 @dataclass(frozen=True, slots=True)

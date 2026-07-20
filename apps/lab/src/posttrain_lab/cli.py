@@ -7,14 +7,16 @@ from functools import partial
 from pathlib import Path
 
 from posttrain.common.profiles import LFM_25_12B_THINKING, QWEN_35_2B
-from posttrain.serve import LFM25_VLLM, QWEN35_VLLM_TEXT, BenchmarkCell, BenchmarkRequest
+from posttrain.serve import LFM25_VLLM, QWEN35_VLLM_TEXT, BenchmarkCell, BenchmarkRequest, LaunchRequest
 
 from .execution import AttemptSpec, execute, execute_tracked
 from .jobs import (
     foundation_screening_job,
     noop_action,
     noop_job,
+    online_smoke_action,
     run_noop,
+    run_online_smoke,
     run_serving_cell,
     serving_benchmark_action,
 )
@@ -25,7 +27,7 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="posttrain-lab")
     parser.add_argument(
         "job",
-        choices=("noop", "foundation-qwen-smoke", "foundation-lfm-smoke"),
+        choices=("noop", "foundation-qwen-smoke", "foundation-lfm-smoke", "foundation-lfm-online-smoke"),
     )
     parser.add_argument("--tracked", action="store_true")
     parser.add_argument("--project", default="posttrain-platform")
@@ -43,6 +45,19 @@ def main() -> None:
             source_metadata=source.metadata(),
         )
         operation = run_noop
+    elif args.job == "foundation-lfm-online-smoke":
+        request = LaunchRequest(LFM_25_12B_THINKING, LFM25_VLLM)
+        spec = AttemptSpec(
+            job=foundation_screening_job(source.revision),
+            action=online_smoke_action(request.model),
+            inputs={
+                "model_profile_id": request.model.id,
+                "serve_profile_id": request.profile.id,
+                "endpoint_kind": "openai-compatible",
+            },
+            source_metadata=source.metadata(),
+        )
+        operation = partial(run_online_smoke, request=request)
     else:
         model, profile = (
             (QWEN_35_2B, QWEN35_VLLM_TEXT) if args.job == "foundation-qwen-smoke" else (LFM_25_12B_THINKING, LFM25_VLLM)

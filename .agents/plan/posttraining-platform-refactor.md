@@ -906,7 +906,8 @@ state.
   - [x] Add the first code-defined foundation-screening serving action.
   - [x] Move the representative corpus into the installable serve wheel and verify it from an isolated environment.
   - [x] Delete the legacy serving YAML/Trackio CLI path after the tracked operation GPU smoke.
-  - [ ] Add the online launch/generate/probe path and deterministic concurrency scheduling tests.
+  - [x] Add managed online launch, probe, and streaming generate operations with deterministic HTTP tests.
+  - [ ] Prove the online endpoint on GPU and add deterministic concurrency scheduling tests.
 - [ ] Phase 3 — evaluation and environment vertical slice.
 - [ ] Phase 4 — renderer-based SFT and DPO.
 - [ ] Phase 5 — Verifiers-to-TRL GRPO bridge.

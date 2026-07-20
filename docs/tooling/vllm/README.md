@@ -19,6 +19,18 @@ validated vLLM ceiling without changing its trainer or weight-sync logic.
 Future vLLM versions remain unsupported until both the fork tests and the lab's
 GPU rollout smoke pass and the pins are advanced together.
 
+`posttrain.serve` exposes two execution paths. `benchmark` uses the offline
+engine for exact token-shape throughput cells. `launch` manages an
+OpenAI-compatible vLLM process; `probe` validates health and model exposure;
+and `generate` streams one chat request while retaining TTFT, usage, reasoning,
+tool-call deltas, and raw protocol events. The lab host adds Trackio observation
+and stores the server log as an artifact.
+
+The shared model profile selects the native chat template and tool grammar.
+The serving profile selects vLLM's parser flags. See
+[ADR 0008](../../decisions/0008-model-conversation-contracts.md), including the
+tested LFM2.5 template override required for multi-turn OpenAI tool history.
+
 NVIDIA's pip toolkit uses `lib` and versioned shared-object names, while CUDA JIT
 builders commonly expect `CUDA_HOME/lib64` and linker names such as
 `libcudart.so`. `packages/serve/src/posttrain/serve/cuda.py` validates the toolkit against

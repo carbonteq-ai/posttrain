@@ -2,8 +2,18 @@
 
 from __future__ import annotations
 
-from posttrain.common import ExecutionContext, Job, JobAction
-from posttrain.serve import BenchmarkRequest, BenchmarkResult, benchmark
+from posttrain.common import ExecutionContext, Job, JobAction, ModelProfile
+from posttrain.serve import (
+    BenchmarkRequest,
+    BenchmarkResult,
+    GenerationRequest,
+    GenerationResult,
+    LaunchRequest,
+    benchmark,
+    generate,
+    launch,
+    probe,
+)
 
 JOB_ID = "platform/foundation-screening"
 
@@ -22,3 +32,27 @@ def serving_benchmark_action(request: BenchmarkRequest) -> JobAction:
 
 def run_serving_cell(context: ExecutionContext, request: BenchmarkRequest) -> BenchmarkResult:
     return benchmark(context, request)
+
+
+def online_smoke_action(model: ModelProfile) -> JobAction:
+    return JobAction(
+        job_id=JOB_ID,
+        id=f"serve-online/{model.id}",
+        kind="serving-online-smoke",
+    )
+
+
+def run_online_smoke(context: ExecutionContext, request: LaunchRequest) -> GenerationResult:
+    with launch(context, request) as endpoint:
+        health = probe(context, endpoint)
+        if not health.model_available:
+            raise RuntimeError(f"launched endpoint does not expose {endpoint.model!r}")
+        return generate(
+            context,
+            GenerationRequest(
+                endpoint=endpoint,
+                messages=({"role": "user", "content": "Answer with exactly the word ready."},),
+                max_tokens=16,
+            ),
+            request.model,
+        )
