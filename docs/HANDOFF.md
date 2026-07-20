@@ -73,6 +73,27 @@ end-to-end latency. The searchable trace is compact; the complete streamed
 response and server log are separate Trackio artifacts. Reasoning-only
 truncations are rejected rather than recorded as successful model responses.
 
+The endpoint-neutral GSM8K cell then ran at an explicit 8,192-token evaluation
+context with a 4,096-token response ceiling. These are one-task integration
+checks, not capability estimates:
+
+| Model | Trackio run | Reward | Trace outcome |
+| --- | --- | ---: | --- |
+| Qwen3.5-2B | `eval/general/qwen3.5-2b/math-gsm8k-05f21808-a1` | 1.0 | expected and produced `18`; complete, no error, not truncated |
+| LFM2.5-1.2B-Thinking | `eval/general/lfm2.5-1.2b-thinking/math-gsm8k-8991dbf7-a1` | 0.0 | produced `32`; complete but truncated after repetitive 4,096-token generation |
+
+Each run contains one queryable Verifiers trace, direct synchronization-health
+metrics, the complete native evaluation directory, and its serving log. This
+demonstrates why run completion and trace quality remain distinct facts.
+
+A live `automationbench-v1` simple task also completed through the independent
+Python 3.13 runtime against the Qwen endpoint. The MCP tool server started, Qwen
+made correctly parsed `api_search` calls, final-state scoring ran, and the trace
+retained assertion and end-world detail. Qwen repeated a schema search until
+the six-turn diagnostic limit, made no Salesforce mutation, and scored 0. This
+was a runtime qualification, not yet a canonical tracked job; the generic
+isolated-worker composition is the remaining integration step.
+
 ## Commands
 
 ```bash
@@ -103,14 +124,13 @@ workers after CUDA initialization; do not launch those operations from stdin.
 
 ## Next slices
 
-1. Qualify the implemented endpoint-neutral GSM8K job on both foundation
-   profiles and inspect the resulting Trackio traces/native artifacts.
-2. Run the implemented native-v1 AutomationBench simple environment through
-   its isolated Python 3.13 worker against the same endpoint contract.
-3. Add report-side reward/pass/truncation calculations over trace populations;
+1. Add a generic isolated-environment executor so the proven Python 3.13
+   AutomationBench runtime streams traces and promotes its native directory in
+   the same Trackio attempt as the managed model endpoint.
+2. Add report-side reward/pass/truncation calculations over trace populations;
    do not persist those derived summaries in eval runs.
-4. Add renderer-aware SFT and DPO public operations with internal TRL adapters.
-5. Add the Verifiers-to-TRL GRPO operation and prove one rollout plus one
+3. Add renderer-aware SFT and DPO public operations with internal TRL adapters.
+4. Add the Verifiers-to-TRL GRPO operation and prove one rollout plus one
    optimizer/backpropagation step.
 
 Do not repair old YAML or CLI paths. Replace them at the package boundary and

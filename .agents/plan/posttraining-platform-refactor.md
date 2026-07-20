@@ -915,8 +915,9 @@ state.
   - [x] Consume upstream `gsm8k-v1` and stream completed JSONL traces idempotently through the observer.
   - [x] Implement and independently lock the native Verifiers v1 AutomationBench package on Python 3.13.
   - [x] Preserve upstream AutomationBench tasks, simulated APIs, final-world assertions, dense reward, and strict outcome metrics.
-  - [ ] Prove Qwen and LFM GSM8K cells on GPU with queryable Trackio traces and retained native artifacts.
-  - [ ] Add the isolated Python 3.13 environment worker and prove a live AutomationBench smoke against a served model.
+  - [x] Prove Qwen and LFM GSM8K cells on GPU with queryable Trackio traces and retained native artifacts.
+  - [x] Prove the native Python 3.13 AutomationBench package, MCP tool server, endpoint calls, world finalization, and scoring against live Qwen.
+  - [ ] Add the isolated environment worker to the lab composition API so AutomationBench traces and artifacts flow into the same tracked attempt automatically.
 - [ ] Phase 4 — renderer-based SFT and DPO.
 - [ ] Phase 5 — Verifiers-to-TRL GRPO bridge.
 - [ ] Phase 6 — observation, reports, and reference lifecycle.

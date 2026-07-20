@@ -210,15 +210,19 @@ report, but one package never absorbs the other.
 3. [x] Define reusable general, agentic-smoke, and AutomationBench domain programs.
 4. [x] Prove trace/native-artifact emission with local and Trackio observer adapters.
 5. [x] Create and package the native-v1 AutomationBench port.
-6. [ ] Qualify real GPU GSM8K runs for both foundation profiles.
-7. [ ] Qualify an AutomationBench simple rollout through its isolated Python 3.13 worker.
-8. [ ] Reuse the same task packages for checkpoint evaluation and GRPO.
+6. [x] Qualify real GPU GSM8K runs for both foundation profiles.
+7. [x] Qualify the AutomationBench package and MCP/scoring lifecycle against a live endpoint in Python 3.13.
+8. [ ] Integrate the isolated environment process with the lab observer so live trace streaming and artifact promotion are automatic.
+9. [ ] Reuse the same task packages for checkpoint evaluation and GRPO.
 
 ## Revision history
 
 - 2026-07-20: Implemented one-cell endpoint-neutral evaluation, typed subset
   budgets, code-defined general/agentic/domain programs, and a native Verifiers
   v1 AutomationBench 1.0.5 port with isolated Python 3.13 dependencies.
+- 2026-07-20: Qualified Qwen and LFM GSM8K Trackio runs plus the native
+  AutomationBench Python 3.13 MCP and final-state scoring lifecycle on live GPU
+  inference; retained isolated-worker observation as the next integration.
 - 2026-07-20: Replaced YAML eval/job composition with typed programs and
   operations, required model onboarding to use a code-defined job, and made
   Trackio observation-only.
