@@ -37,7 +37,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [common, eval, reports, serve, train]
+        include:
+          - package: posttrain-common
+            import_name: posttrain.common
+          - package: eval
+            import_name: eval
+          - package: reports
+            import_name: reports
+          - package: serve
+            import_name: serve
+          - package: train
+            import_name: train
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -47,4 +57,4 @@ jobs:
       - name: Install package
         run: uv sync --package ${{ matrix.package }} --python 3.12
       - name: Import package
-        run: uv run python -c "import ${{ matrix.package }}"
+        run: uv run python -c "import ${{ matrix.import_name }}"

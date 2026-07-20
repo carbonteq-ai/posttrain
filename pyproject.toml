@@ -5,7 +5,7 @@ description = "Local post-training lab (uv workspace)"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "common",
+    "posttrain-common[legacy]",
 ]
 
 [dependency-groups]
@@ -19,7 +19,7 @@ dev = [
 ]
 
 [tool.uv.sources]
-common = { workspace = true }
+posttrain-common = { workspace = true }
 
 [tool.uv.workspace]
 members = ["packages/*"]
@@ -88,6 +88,7 @@ source = [
     "reports",
     "serve",
     "train",
+    "posttrain",
 ]
 
 [tool.coverage.report]
@@ -97,10 +98,16 @@ precision = 1
 fail_under = 55
 
 [tool.importlinter]
-root_packages = ["common", "eval", "reports", "serve", "train"]
+root_packages = ["common", "eval", "posttrain", "reports", "serve", "train"]
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
 name = "Reusable capability packages are independent"
 type = "independence"
 modules = ["eval", "reports", "serve", "train"]
+
+[[tool.importlinter.contracts]]
+name = "New common contracts do not import execution frameworks"
+type = "forbidden"
+source_modules = ["posttrain.common"]
+forbidden_modules = ["trackio", "trl", "verifiers", "vllm"]

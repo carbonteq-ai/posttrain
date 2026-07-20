@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Reusable TRL training engine"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "common",
+    "posttrain-common[legacy]",
     "torch",
     "torchvision",
     "torchaudio",
@@ -33,7 +33,7 @@ vllm = [
 package = true
 
 [tool.uv.sources]
-common = { workspace = true }
+posttrain-common = { workspace = true }
 trl = { git = "https://github.com/carbonteq-ai/trl.git", rev = "935060f640f5195fe62f1acc300c16db327a32b9" }
 torch = { index = "pytorch-cu130" }
 torchvision = { index = "pytorch-cu130" }

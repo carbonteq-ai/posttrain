@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Reusable vLLM and SGLang inference engine"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "common",
+    "posttrain-common[legacy]",
     "huggingface-hub",
     "pyyaml>=6",
 ]
@@ -36,7 +36,7 @@ sglang = [
 package = true
 
 [tool.uv.sources]
-common = { workspace = true }
+posttrain-common = { workspace = true }
 torch = { index = "pytorch-cu130" }
 torchvision = { index = "pytorch-cu130" }
 torchaudio = { index = "pytorch-cu130" }

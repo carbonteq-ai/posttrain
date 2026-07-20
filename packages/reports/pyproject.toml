@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Read-only reporting and raw-query tools for Trackio evidence"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "common",
+    "posttrain-common[legacy]",
     "trackio @ git+https://github.com/carbonteq-ai/trackio.git@02351d871050bf4b3505c7371239c698b710ec83",
 ]
 
@@ -15,7 +15,7 @@ trackio-query = "reports.query:main"
 package = true
 
 [tool.uv.sources]
-common = { workspace = true }
+posttrain-common = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

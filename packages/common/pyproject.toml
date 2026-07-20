@@ -1,9 +1,12 @@
 [project]
-name = "common"
+name = "posttrain-common"
 version = "0.1.0"
 description = "Shared profile, run-context, artifact-reference, and platform utilities"
 requires-python = ">=3.12,<3.13"
-dependencies = [
+dependencies = []
+
+[project.optional-dependencies]
+legacy = [
     "pyyaml>=6",
     "trackio @ git+https://github.com/carbonteq-ai/trackio.git@02351d871050bf4b3505c7371239c698b710ec83",
 ]
@@ -16,7 +19,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/common"]
+packages = ["src/common", "src/posttrain"]
 
 [tool.hatch.metadata]
 allow-direct-references = true
