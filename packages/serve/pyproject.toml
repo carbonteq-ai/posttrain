@@ -21,6 +21,7 @@ vllm = [
     "nvidia-cuda-nvcc==13.0.88; sys_platform == 'linux'",
     "nvidia-nvvm==13.0.88; sys_platform == 'linux'",
     "nvidia-ml-py>=13.580.82; sys_platform == 'linux'",
+    "ninja>=1.13",
     "vllm==0.25.1",
 ]
 [tool.uv]

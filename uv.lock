@@ -2467,6 +2467,7 @@ dependencies = [
 
 [package.optional-dependencies]
 vllm = [
+    { name = "ninja" },
     { name = "nvidia-cuda-cccl", marker = "sys_platform == 'linux'" },
     { name = "nvidia-cuda-crt", marker = "sys_platform == 'linux'" },
     { name = "nvidia-cuda-nvcc", marker = "sys_platform == 'linux'" },
@@ -2481,6 +2482,7 @@ vllm = [
 [package.metadata]
 requires-dist = [
     { name = "httpx", specifier = ">=0.28,<1" },
+    { name = "ninja", marker = "extra == 'vllm'", specifier = ">=1.13" },
     { name = "nvidia-cuda-cccl", marker = "sys_platform == 'linux' and extra == 'vllm'", specifier = "==13.0.85" },
     { name = "nvidia-cuda-crt", marker = "sys_platform == 'linux' and extra == 'vllm'", specifier = "==13.0.88" },
     { name = "nvidia-cuda-nvcc", marker = "sys_platform == 'linux' and extra == 'vllm'", specifier = "==13.0.88" },

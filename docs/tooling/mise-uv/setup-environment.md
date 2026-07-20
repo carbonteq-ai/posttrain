@@ -45,6 +45,10 @@ The CarbonTeq TRL compatibility pin removes the former TRL/Verifiers datasets
 conflict. Serving engines remain optional runtime choices and should only be
 installed when that backend is being exercised.
 
+The vLLM extra includes the CUDA compiler packages and `ninja`. TurboQuant may
+route sampling through a FlashInfer kernel that is compiled on first use; NVCC
+without `ninja` is not a complete runtime for that profile.
+
 ## Hugging Face
 
 ```bash

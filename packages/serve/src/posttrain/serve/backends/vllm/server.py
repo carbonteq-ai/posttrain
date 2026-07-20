@@ -83,7 +83,7 @@ class VllmServer:
             returncode = self._process.poll()
             if returncode is not None:
                 self._close_log()
-                tail = self.log_path.read_text(encoding="utf-8", errors="replace")[-4_000:]
+                tail = self.log_path.read_text(encoding="utf-8", errors="replace")[-16_000:]
                 raise RuntimeError(f"vLLM server exited with code {returncode}:\n{tail}")
             try:
                 response = httpx.get(self.endpoint.health_url, timeout=1)
@@ -93,7 +93,7 @@ class VllmServer:
                 pass
             time.sleep(0.25)
         self.close()
-        tail = self.log_path.read_text(encoding="utf-8", errors="replace")[-4_000:]
+        tail = self.log_path.read_text(encoding="utf-8", errors="replace")[-16_000:]
         raise TimeoutError(f"vLLM server did not become healthy before timeout:\n{tail}")
 
     def close(self) -> None:
