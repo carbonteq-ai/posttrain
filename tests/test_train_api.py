@@ -227,6 +227,9 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
     assert arguments["vllm_max_model_length"] == 640
     assert arguments["vllm_weight_name_prefix"] is None
     assert arguments["vllm_weight_sync_mode"] == "lora"
+    assert arguments["vllm_importance_sampling_mode"] == "sequence_truncate"
+    assert arguments["vllm_importance_sampling_clip_min"] == 0.1
+    assert arguments["vllm_importance_sampling_clip_max"] == 3.0
     assert arguments["vllm_engine_kwargs"] == {
         "language_model_only": True,
         "skip_mm_profiling": True,
@@ -261,7 +264,21 @@ def test_grpo_profile_requires_engine_window_to_cover_declared_generation_bounds
                 vllm_mode="colocate",
                 gpu_memory_utilization=0.2,
                 max_model_length=512,
+                importance_sampling_mode="sequence_truncate",
+                importance_sampling_clip_min=0.1,
+                importance_sampling_clip_max=3.0,
             ),
+        )
+
+
+def test_vllm_rollout_requires_explicit_importance_sampling_strategy() -> None:
+    with pytest.raises(ValueError, match="explicit importance-sampling"):
+        GRPORolloutProfile(
+            "qwen3.5-2b/missing-is-v1",
+            "vllm",
+            vllm_mode="colocate",
+            gpu_memory_utilization=0.2,
+            max_model_length=512,
         )
 
 

@@ -189,6 +189,9 @@ def _grpo_arguments(request: GRPORequest, output_dir: Path, template_kwargs: dic
                 "vllm_weight_sync_mode": rollout.weight_sync_mode,
                 "vllm_model_impl": "vllm",
                 "vllm_importance_sampling_correction": True,
+                "vllm_importance_sampling_mode": rollout.importance_sampling_mode,
+                "vllm_importance_sampling_clip_min": rollout.importance_sampling_clip_min,
+                "vllm_importance_sampling_clip_max": rollout.importance_sampling_clip_max,
             }
         )
     return arguments

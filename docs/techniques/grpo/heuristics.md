@@ -15,6 +15,13 @@
   rewrite names in the job or reward bridge.
 - Enable native MTP only through a compatible typed rollout profile. Record the
   method, speculative-token count, acceptance, and importance-sampling metrics.
+- Do not inherit TRL's importance-sampling defaults implicitly. Long Qwen smoke
+  completions produced raw sequence ratios around `1e-4` despite a mean
+  per-token log-probability difference below `0.1`; an unbounded lower tail
+  nearly erased the policy gradient. The local profile explicitly uses
+  sequence-level truncated importance sampling with `[0.1, 3.0]`. Keep the
+  theoretically appropriate sequence ratio, but bound measured train/inference
+  numerical drift on both sides and record the selected bounds in run inputs.
 - On the RTX 3070 Ti, Qwen3.5-2B colocated MTP reaches the native vLLM drafter
   but cannot allocate its additional ~970 MiB embedding beside the training and
   inference representations. Use the non-MTP colocated profile here and retain

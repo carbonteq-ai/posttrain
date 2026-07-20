@@ -111,6 +111,17 @@ class GRPORolloutProfile:
     weight_sync_mode: Literal["full", "lora"] = "full"
     speculative_method: str | None = None
     num_speculative_tokens: int | None = None
+    importance_sampling_mode: (
+        Literal[
+            "token_truncate",
+            "token_mask",
+            "sequence_truncate",
+            "sequence_mask",
+        ]
+        | None
+    ) = None
+    importance_sampling_clip_min: float | None = None
+    importance_sampling_clip_max: float | None = None
 
     def __post_init__(self) -> None:
         if not _ID.fullmatch(self.id):
@@ -128,6 +139,9 @@ class GRPORolloutProfile:
                     self.num_speculative_tokens,
                     self.kv_cache_memory_bytes,
                     self.weight_name_prefix,
+                    self.importance_sampling_mode,
+                    self.importance_sampling_clip_min,
+                    self.importance_sampling_clip_max,
                 )
             ) or (
                 self.sleep_during_optimization
@@ -155,6 +169,19 @@ class GRPORolloutProfile:
             raise ValueError("vLLM weight name prefixes must end with a dot")
         if self.weight_sync_mode == "lora" and self.weight_name_prefix is not None:
             raise ValueError("LoRA synchronization does not use a full-weight namespace prefix")
+        if self.importance_sampling_mode is None:
+            raise ValueError("vLLM rollouts require an explicit importance-sampling strategy")
+        bounds = (self.importance_sampling_clip_min, self.importance_sampling_clip_max)
+        if any(value is not None and value <= 0 for value in bounds):
+            raise ValueError("importance-sampling bounds must be positive")
+        if self.importance_sampling_mode.endswith("_truncate") and all(value is None for value in bounds):
+            raise ValueError("truncated importance sampling requires at least one bound")
+        if (
+            self.importance_sampling_clip_min is not None
+            and self.importance_sampling_clip_max is not None
+            and self.importance_sampling_clip_min >= self.importance_sampling_clip_max
+        ):
+            raise ValueError("importance-sampling minimum must be smaller than maximum")
 
     def speculative_config(self) -> dict[str, str | int] | None:
         if self.speculative_method is None:
@@ -255,6 +282,9 @@ QWEN35_GRPO_SMOKE = GRPOProfile(
         skip_multimodal_profiling=True,
         kv_cache_memory_bytes=64 * 1024 * 1024,
         weight_sync_mode="lora",
+        importance_sampling_mode="sequence_truncate",
+        importance_sampling_clip_min=0.1,
+        importance_sampling_clip_max=3.0,
     ),
 )
 QWEN35_GRPO_MTP_SMOKE = GRPOProfile(
@@ -275,6 +305,9 @@ QWEN35_GRPO_MTP_SMOKE = GRPOProfile(
         weight_sync_mode="lora",
         speculative_method="qwen3_next_mtp",
         num_speculative_tokens=2,
+        importance_sampling_mode="sequence_truncate",
+        importance_sampling_clip_min=0.1,
+        importance_sampling_clip_max=3.0,
     ),
 )
 
