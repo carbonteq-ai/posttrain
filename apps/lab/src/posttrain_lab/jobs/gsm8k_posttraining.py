@@ -251,6 +251,7 @@ def grpo_job_inputs(request: GSM8KGRPOJobRequest) -> dict[str, str | int | float
         result["rollout_vllm_gpu_memory_utilization"] = rollout.gpu_memory_utilization or 0.0
         result["rollout_vllm_tensor_parallel_size"] = rollout.tensor_parallel_size
         result["rollout_vllm_max_model_length"] = rollout.max_model_length or 0
+        result["rollout_skip_multimodal_profiling"] = rollout.skip_multimodal_profiling
         if speculative is not None:
             result["rollout_speculative_method"] = str(speculative["method"])
             result["rollout_num_speculative_tokens"] = int(speculative["num_speculative_tokens"])

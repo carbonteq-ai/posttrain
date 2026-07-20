@@ -104,6 +104,7 @@ class GRPORolloutProfile:
     gpu_memory_utilization: float | None = None
     tensor_parallel_size: int = 1
     max_model_length: int | None = None
+    skip_multimodal_profiling: bool = False
     speculative_method: str | None = None
     num_speculative_tokens: int | None = None
 
@@ -122,7 +123,7 @@ class GRPORolloutProfile:
                     self.speculative_method,
                     self.num_speculative_tokens,
                 )
-            ) or self.sleep_during_optimization:
+            ) or self.sleep_during_optimization or self.skip_multimodal_profiling:
                 raise ValueError("Transformers rollouts cannot declare vLLM settings")
             return
         if self.vllm_mode != "colocate" or self.gpu_memory_utilization is None:
@@ -223,6 +224,7 @@ QWEN35_GRPO_SMOKE = GRPOProfile(
         sleep_during_optimization=True,
         gpu_memory_utilization=0.2,
         max_model_length=512,
+        skip_multimodal_profiling=True,
     ),
 )
 QWEN35_GRPO_MTP_SMOKE = GRPOProfile(
@@ -238,6 +240,7 @@ QWEN35_GRPO_MTP_SMOKE = GRPOProfile(
         sleep_during_optimization=True,
         gpu_memory_utilization=0.2,
         max_model_length=1_024,
+        skip_multimodal_profiling=True,
         speculative_method="qwen3_next_mtp",
         num_speculative_tokens=2,
     ),

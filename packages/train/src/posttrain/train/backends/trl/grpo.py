@@ -92,6 +92,9 @@ def _grpo_arguments(request: GRPORequest, output_dir: Path, template_kwargs: dic
                 "vllm_tensor_parallel_size": rollout.tensor_parallel_size,
                 "vllm_max_model_length": rollout.max_model_length,
                 "vllm_speculative_config": rollout.speculative_config(),
+                "vllm_engine_kwargs": (
+                    {"skip_mm_profiling": True} if rollout.skip_multimodal_profiling else None
+                ),
                 "vllm_model_impl": "vllm",
                 "vllm_importance_sampling_correction": True,
             }
