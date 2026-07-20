@@ -1,7 +1,7 @@
 [project]
 name = "posttrain-serve"
 version = "0.1.0"
-description = "Reusable vLLM and SGLang inference engine"
+description = "Reusable vLLM serving and inference benchmark operations"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "posttrain-common[legacy]",
@@ -28,10 +28,6 @@ vllm = [
     "nvidia-ml-py>=13.580.82; sys_platform == 'linux'",
     "vllm==0.25.1",
 ]
-sglang = [
-    "sglang>=0.5.9",
-]
-
 [tool.uv]
 package = true
 

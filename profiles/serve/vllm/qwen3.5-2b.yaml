@@ -6,4 +6,13 @@ compatibility:
   native_context_window: 262144
 engine:
   max_model_len: 4096
-  gpu_memory_utilization: 0.82
+  # Text-only local profile: avoid multimodal encoder profiling and CUDA-graph
+  # reservations that exceed an 8 GiB card once the 4.25 GiB model is loaded.
+  gpu_memory_utilization: 0.75
+  enforce_eager: true
+  max_num_seqs: 4
+  max_num_batched_tokens: 4096
+  skip_mm_profiling: true
+  limit_mm_per_prompt:
+    image: 0
+    video: 0

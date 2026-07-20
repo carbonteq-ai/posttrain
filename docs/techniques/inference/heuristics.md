@@ -24,6 +24,13 @@ expected to change when a newer runtime proves a better rule.
   settings, model revision, engine profile, GPU, and package versions.
 - Compare model-weight memory, CUDA graph memory, and KV-cache capacity as
   separate quantities.
+- For multimodal checkpoints used in text-only benchmarks, explicitly set all
+  multimodal request limits to zero before enabling `skip_mm_profiling`. Skipping
+  profiling without disabling those inputs creates an unsafe capacity claim.
+- Treat CUDA-graph capture as a measured profile variant on an 8 GiB card. If
+  graph profiling OOMs after weights fit, first prove an eager text-only path;
+  do not misclassify the model as incompatible or hide the problem with CPU
+  offload.
 - Keep configured context length separate from occupied input length. Include at
   least one genuinely input-heavy cell before claiming long-context performance.
 - Use exact token-ID prompts and forced output lengths for controlled systems

@@ -27,16 +27,6 @@ members = ["apps/*", "packages/*"]
 [tool.uv]
 package = false
 conflicts = [
-    # Current backend releases pin incompatible Transformers generations.
-    [
-        { package = "posttrain-serve", extra = "vllm" },
-        { package = "posttrain-serve", extra = "sglang" },
-    ],
-    # Training rollout generation uses vLLM's Torch stack, not SGLang's pinned stack.
-    [
-        { package = "posttrain-train", extra = "vllm" },
-        { package = "posttrain-serve", extra = "sglang" },
-    ],
     # TRL 1.8 needs datasets>=4.7; Verifiers 0.2 needs datasets<4.7
     [
         { package = "posttrain-train" },
@@ -92,7 +82,7 @@ source = [
 show_missing = true
 skip_covered = true
 precision = 1
-fail_under = 55
+fail_under = 60
 
 [tool.importlinter]
 root_packages = ["common", "posttrain", "posttrain_lab"]

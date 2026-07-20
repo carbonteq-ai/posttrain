@@ -3,8 +3,8 @@
 vLLM is an optional backend of `packages/serve` and an optional rollout dependency of `packages/train`.
 
 ```bash
-uv sync --package serve --extra vllm --python 3.12
-uv sync --package train --extra vllm --python 3.12
+uv sync --package posttrain-serve --extra vllm --python 3.12
+uv sync --package posttrain-train --extra vllm --python 3.12
 ```
 
 The vLLM dependency set pins PyTorch and the CUDA compiler components to the
@@ -12,7 +12,7 @@ same CUDA minor version. This is required because FlashInfer compiles kernels
 locally: the runtime, headers, NVCC, NVVM, CRT, and CCCL cannot safely float to
 different CUDA releases.
 
-Both `serve[vllm]` and `train[vllm]` pin vLLM 0.25.1. Training resolves TRL
+Both `posttrain-serve[vllm]` and `posttrain-train[vllm]` pin vLLM 0.25.1. Training resolves TRL
 1.8.0 from the immutable CarbonTeq fork commit documented in
 [ADR 0007](../../decisions/0007-trl-vllm-025-fork.md), which raises TRL's
 validated vLLM ceiling without changing its trainer or weight-sync logic.
@@ -21,21 +21,21 @@ GPU rollout smoke pass and the pins are advanced together.
 
 NVIDIA's pip toolkit uses `lib` and versioned shared-object names, while CUDA JIT
 builders commonly expect `CUDA_HOME/lib64` and linker names such as
-`libcudart.so`. `packages/serve/src/serve/cuda.py` validates the toolkit against
+`libcudart.so`. `packages/serve/src/posttrain/serve/cuda.py` validates the toolkit against
 the active PyTorch build and creates a cache-local conventional view. It does
 not alter the installed wheels and does not disable FlashInfer.
 
 Run the current offline benchmark with:
 
 ```bash
-uv run --package serve --extra vllm --python 3.12 \
+uv run --package posttrain-serve --extra vllm --python 3.12 \
   serve-benchmark lfm2.5-1.2b-thinking
 ```
 
 Plan the reusable workload matrix without loading a model:
 
 ```bash
-uv run --package serve --extra vllm --python 3.12 \
+uv run --package posttrain-serve --extra vllm --python 3.12 \
   serve-benchmark-suite lfm2.5-1.2b-thinking --dry-run
 ```
 
@@ -43,13 +43,13 @@ The checked-in suite contains concurrency 1, 2, 4, and 8 for portability. On
 this RTX 3070 Ti, execute only through concurrency 4:
 
 ```bash
-uv run --package serve --extra vllm --python 3.12 \
+uv run --package posttrain-serve --extra vllm --python 3.12 \
   serve-benchmark-suite lfm2.5-1.2b-thinking \
   --concurrency 1 --concurrency 2 --concurrency 4
 ```
 
-Each matrix cell is a separate `serving-benchmark` Trackio run carrying the
-code-defined job, action, and suite-invocation IDs. The suite covers short interactive, decode-heavy, balanced,
+The lab host records each matrix cell as a separate Trackio run carrying the
+code-defined job, action, invocation, and attempt IDs. The suite covers short interactive, decode-heavy, balanced,
 and prefill-heavy shapes at 1K through 32K configured context. All 32K cells
 resolve the model profile's `turboquant_k8v4` serve variant.
 
@@ -104,3 +104,13 @@ On 2026-07-20, the current controlled benchmark implementation also completed th
 These validate execution and measurement coverage, not the complete comparison
 matrix. Full base-model comparisons must use matching suite cells and package,
 model, hardware, and configuration revisions.
+
+On the same date, the original Qwen3.5-2B profile failed during CUDA-graph/KV
+profiling after loading 4.25 GiB of weights. The tested text-only correction
+disables multimodal request capacity, skips multimodal profiling, caps
+`max_num_seqs` at 4, uses eager execution, and reserves 75% rather than 82% of
+device memory. It does not offload weights or KV cache to host RAM. A 128-input,
+32-output, concurrency-1 cell then completed at 65.05 output tok/s, 43.1 ms
+TTFT, and 6.92 GiB peak VRAM. Cold start was 65.24 seconds, so this safe local
+profile is not yet the optimized Qwen profile; compilation and graph-capture
+variants must be evaluated independently rather than folded into this result.

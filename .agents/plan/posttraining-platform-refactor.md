@@ -899,6 +899,10 @@ state.
   - [x] Migrate train/eval/serve/reports distributions and imports to `posttrain.*`.
   - [ ] Remove the legacy `common` surface as each vertical slice stops consuming it.
 - [ ] Phase 2 — serving vertical slice.
+  - [x] Replace serving profile and workload YAML as the source of truth with typed Python definitions.
+  - [x] Remove SGLang and its incompatible dependency branch from the MVP lock.
+  - [x] Diagnose and correct the Qwen3.5-2B 8 GiB text-only startup profile with a real GPU run.
+  - [ ] Move benchmark execution behind typed operations and delete the legacy YAML/Trackio CLI path.
 - [ ] Phase 3 — evaluation and environment vertical slice.
 - [ ] Phase 4 — renderer-based SFT and DPO.
 - [ ] Phase 5 — Verifiers-to-TRL GRPO bridge.
@@ -933,6 +937,10 @@ state.
 - All six new distributions build independently as wheels and compose through
   a PEP 420 `posttrain.*` namespace; the previous top-level `eval`, `reports`,
   `serve`, and `train` import packages are no longer shipped.
+- Qwen3.5-2B fits without CPU offload, but the old 82%/CUDA-graph profile OOMed
+  during graph/KV profiling. The explicit text-only eager profile completed at
+  65.05 output tok/s, 43.1 ms TTFT, and 6.92 GiB peak VRAM; cold start remains
+  65.24 seconds and is a separate optimization target.
 
 ## Decision Log
 
@@ -957,6 +965,8 @@ state.
   deletion/migration target, review boundary, and acceptance test.
 - 2026-07-20: Set the initial coverage ratchet to 55% against a measured 56%
   baseline; the final target remains 85% for the refactored non-GPU code.
+- 2026-07-20: Raise the coverage ratchet to 60% after typed serving profiles and
+  workload definitions moved measured coverage to 60.81%.
 
 ## Outcomes & Retrospective
 

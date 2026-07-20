@@ -1,10 +1,32 @@
-"""Reusable inference-engine package.
+"""Reusable vLLM serving operations and typed profile definitions."""
 
-vLLM, SGLang, TurboQuant, MTP, and custom-kernel integrations are implemented
-behind this package boundary while their reusable settings live in profiles.
+from .benchmarks import CORE_INFERENCE_V1, BenchmarkCell, BenchmarkSuite, WorkloadShape
+from .profiles import (
+    LFM25_VLLM,
+    LFM25_VLLM_TURBOQUANT_K8,
+    QWEN35_VLLM_MTP,
+    QWEN35_VLLM_TEXT,
+    QWEN35_VLLM_TURBOQUANT_K8,
+    SERVE_PROFILES,
+    VllmEngineConfig,
+    VllmSamplingConfig,
+    VllmServeProfile,
+    VllmSpeculativeConfig,
+)
 
-The package initializer intentionally avoids importing engine modules so CLI
-subprocesses can start through ``python -m`` without preloading CUDA code.
-"""
-
-__all__: list[str] = []
+__all__ = [
+    "BenchmarkCell",
+    "BenchmarkSuite",
+    "CORE_INFERENCE_V1",
+    "LFM25_VLLM",
+    "LFM25_VLLM_TURBOQUANT_K8",
+    "QWEN35_VLLM_MTP",
+    "QWEN35_VLLM_TEXT",
+    "QWEN35_VLLM_TURBOQUANT_K8",
+    "SERVE_PROFILES",
+    "VllmEngineConfig",
+    "VllmSamplingConfig",
+    "VllmServeProfile",
+    "VllmSpeculativeConfig",
+    "WorkloadShape",
+]
