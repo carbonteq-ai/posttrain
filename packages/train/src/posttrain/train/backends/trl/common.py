@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -23,6 +24,7 @@ class BackendTrainingResult:
 
 
 def framework_imports() -> dict[str, Any]:
+    os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
     try:
         import torch
         from datasets import Dataset

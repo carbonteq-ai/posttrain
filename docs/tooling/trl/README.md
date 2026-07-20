@@ -17,10 +17,12 @@ so the application can install Verifiers v1 and TRL together. It does not
 contain project-specific trainers or environment logic.
 Its entropy metrics also preserve chunked-memory behavior for non-contiguous
 sequence slices, which is required for DPO on large-vocabulary models.
-The supported DPO profiles select TRL's Liger fused DPO loss. That kernel keeps
-the projection and preference loss fused instead of materializing the complete
-vocabulary logits during backward; the selected kernel is recorded in run
-config as `dpo_loss_kernel`.
+DPO kernel choice is model-specific and recorded as `dpo_loss_kernel`. Liger's
+fused DPO loss can reduce projection memory for moderate vocabularies, but its
+current backward path creates a full FP32 LM-head gradient even when that head
+is frozen. The Qwen3.5 profile therefore uses the Torch loss with expandable
+CUDA allocator segments; LFM2.5 uses Liger. This is a measured profile choice,
+not a universal backend default.
 See [ADR 0007](../../decisions/0007-trl-vllm-025-fork.md) for the provenance and
 upgrade policy.
 

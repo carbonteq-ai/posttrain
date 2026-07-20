@@ -86,7 +86,7 @@ class DPOProfile:
     renderer: RendererProfile
     loop: TrainingLoop
     beta: float = 0.1
-    loss_kernel: Literal["liger", "torch"] = "liger"
+    loss_kernel: Literal["liger", "torch"] = "torch"
     qlora: QLoRAProfile = field(default_factory=QLoRAProfile)
 
     def __post_init__(self) -> None:
@@ -133,6 +133,7 @@ LFM25_DPO_SMOKE = DPOProfile(
     "lfm2.5",
     LFM25_RENDERER,
     TrainingLoop(max_steps=2, learning_rate=1e-4),
+    loss_kernel="liger",
 )
 
 __all__ = [
