@@ -47,12 +47,15 @@ def run_online_smoke(context: ExecutionContext, request: LaunchRequest) -> Gener
         health = probe(context, endpoint)
         if not health.model_available:
             raise RuntimeError(f"launched endpoint does not expose {endpoint.model!r}")
-        return generate(
+        result = generate(
             context,
             GenerationRequest(
                 endpoint=endpoint,
                 messages=({"role": "user", "content": "Answer with exactly the word ready."},),
-                max_tokens=16,
+                max_tokens=128,
             ),
             request.model,
         )
+        if not result.content.strip():
+            raise RuntimeError(f"online smoke produced no final answer (finish_reason={result.finish_reason!r})")
+        return result

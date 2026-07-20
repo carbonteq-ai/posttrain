@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -16,9 +18,19 @@ from posttrain.common import (
     RunAttempt,
     TraceObservation,
 )
-from posttrain.common.profiles import QWEN_35_2B
-from posttrain.serve import QWEN35_VLLM_TEXT, BenchmarkCell, BenchmarkRequest
+from posttrain.common.profiles import LFM_25_12B_THINKING, QWEN_35_2B
+from posttrain.serve import (
+    LFM25_VLLM,
+    QWEN35_VLLM_TEXT,
+    BenchmarkCell,
+    BenchmarkRequest,
+    Endpoint,
+    GenerationResult,
+    LaunchRequest,
+    ProbeResult,
+)
 from posttrain_lab.execution import AttemptSpec, execute, execute_tracked
+from posttrain_lab.jobs import foundation_screening as foundation_job
 from posttrain_lab.jobs.foundation_screening import foundation_screening_job, serving_benchmark_action
 from posttrain_lab.tracking import TrackioObserver
 
@@ -151,3 +163,37 @@ def test_foundation_screening_action_has_stable_job_owned_identity() -> None:
     action = serving_benchmark_action(request)
     assert action.job_id == job.id
     assert action.id == "serve/qwen3.5-2b/short-ctx1024-c1"
+
+
+def test_online_smoke_rejects_a_reasoning_only_truncated_response(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    endpoint = Endpoint("http://model.test/v1", LFM_25_12B_THINKING.artifact.repo_id)
+
+    @contextmanager
+    def fake_launch(*args: Any, **kwargs: Any) -> Iterator[Endpoint]:
+        del args, kwargs
+        yield endpoint
+
+    monkeypatch.setattr(foundation_job, "launch", fake_launch)
+    monkeypatch.setattr(
+        foundation_job, "probe", lambda *args, **kwargs: ProbeResult(True, True, 0.1, (endpoint.model,))
+    )
+    monkeypatch.setattr(
+        foundation_job,
+        "generate",
+        lambda *args, **kwargs: GenerationResult("", "thinking", (), 4, 16, 0.2, 0.1, "length", ()),
+    )
+
+    with pytest.raises(RuntimeError, match="no final answer"):
+        foundation_job.run_online_smoke(
+            ExecutionContext(
+                job=spec().job,
+                action=spec().action,
+                invocation=spec().invocation,
+                attempt=spec().attempt,
+                workspace=tmp_path.resolve(),
+            ),
+            LaunchRequest(LFM_25_12B_THINKING, LFM25_VLLM),
+        )
