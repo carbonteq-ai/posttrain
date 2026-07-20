@@ -21,14 +21,19 @@ from posttrain.common import (
 from posttrain.common.profiles import QWEN_35_2B
 from posttrain.train import (
     QWEN35_DPO_SMOKE,
+    QWEN35_GRPO_SMOKE,
     QWEN35_SFT_SMOKE,
     DPORequest,
+    GRPORequest,
     PreferenceDataset,
     PreferenceExample,
+    RolloutDataset,
+    RolloutExample,
     SFTRequest,
     SupervisedDataset,
     SupervisedExample,
     dpo,
+    grpo,
     sft,
 )
 from posttrain.train.backends.trl.common import BackendTrainingResult
@@ -81,6 +86,18 @@ def _preferences() -> PreferenceDataset:
             ),
         ),
     )
+
+
+def _rollouts() -> RolloutDataset:
+    return RolloutDataset(
+        "gsm8k-grpo-smoke-v1",
+        "a" * 40,
+        (RolloutExample("gsm8k/train/0", "What is 2 + 2?", {"task_index": 0}),),
+    )
+
+
+def _reward(**_: object) -> list[float | None]:
+    return [1.0, 0.0]
 
 
 def _context(workspace: Path, observer: Observer) -> ExecutionContext:
@@ -137,6 +154,24 @@ def test_dpo_operation_preserves_preference_dataset_identity() -> None:
         )
     assert result.technique == "dpo"
     assert result.model_artifact.metadata["dataset_id"] == "gsm8k-dpo-smoke-v1"
+
+
+def test_grpo_operation_reuses_training_artifact_contract() -> None:
+    observer = Observer()
+    with tempfile.TemporaryDirectory() as raw:
+        context = _context(Path(raw).resolve(), observer)
+        result = grpo(
+            context,
+            GRPORequest(
+                ModelVariant.foundation(QWEN_35_2B),
+                _rollouts(),
+                QWEN35_GRPO_SMOKE,
+                _reward,
+            ),
+            runner=_backend,
+        )
+    assert result.technique == "grpo"
+    assert result.model_artifact.metadata["dataset_id"] == "gsm8k-grpo-smoke-v1"
 
 
 def test_preference_contract_rejects_unordered_or_identical_pairs() -> None:

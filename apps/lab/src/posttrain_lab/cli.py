@@ -26,6 +26,7 @@ from posttrain.train import (
     LFM25_DPO_SMOKE,
     LFM25_SFT_SMOKE,
     QWEN35_DPO_SMOKE,
+    QWEN35_GRPO_SMOKE,
     QWEN35_SFT_SMOKE,
     DPORequest,
     SFTRequest,
@@ -37,16 +38,20 @@ from .execution import ArtifactInput, AttemptSpec, execute, execute_tracked
 from .jobs import (
     GSM8K_LFM_TRAINING_ROLLOUTS,
     GSM8K_TRAINING_ROLLOUTS,
+    GSM8KGRPOJobRequest,
     ManagedEvaluationRequest,
     dpo_action,
     evaluation_action,
     foundation_screening_job,
+    grpo_action,
+    grpo_job_inputs,
     gsm8k_posttraining_job,
     noop_action,
     noop_job,
     online_smoke_action,
     rollout_collection_action,
     run_dpo_materialized,
+    run_grpo_materialized,
     run_managed_evaluation,
     run_noop,
     run_online_smoke,
@@ -77,6 +82,7 @@ def _parser() -> argparse.ArgumentParser:
             "gsm8k-lfm-preference-rollouts",
             "gsm8k-qwen-dpo-smoke",
             "gsm8k-lfm-dpo-smoke",
+            "gsm8k-qwen-grpo-smoke",
         ),
     )
     parser.add_argument("--tracked", action="store_true")
@@ -98,6 +104,22 @@ def main() -> None:
             source_metadata=source.metadata(),
         )
         operation = run_noop
+    elif args.job == "gsm8k-qwen-grpo-smoke":
+        adapter_name = f"training-{QWEN_35_2B.id}-sft-adapter"
+        remote_adapter = TrackioArtifactRef(args.project, adapter_name, args.adapter_version)
+        request = GSM8KGRPOJobRequest(
+            model=ModelVariant(QWEN_35_2B, remote_adapter, "peft-adapter"),
+            profile=QWEN35_GRPO_SMOKE,
+            task_indices=(2,),
+        )
+        spec = AttemptSpec(
+            job=gsm8k_posttraining_job(source.revision),
+            action=grpo_action(request),
+            inputs=grpo_job_inputs(request),
+            source_metadata=source.metadata(),
+            artifacts={"model_adapter": ArtifactInput(remote_adapter, "model-adapter")},
+        )
+        operation = partial(run_grpo_materialized, request=request)
     elif args.job in {"gsm8k-qwen-dpo-smoke", "gsm8k-lfm-dpo-smoke"}:
         if args.rollout_run_id is None or args.rejected_trace_id is None:
             raise SystemExit("DPO smoke requires --rollout-run-id and --rejected-trace-id")

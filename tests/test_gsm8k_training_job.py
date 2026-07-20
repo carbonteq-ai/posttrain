@@ -2,10 +2,17 @@ from __future__ import annotations
 
 from posttrain.common import ModelVariant
 from posttrain.common.profiles import QWEN_35_2B
-from posttrain.train import QWEN35_DPO_SMOKE, QWEN35_SFT_SMOKE, DPORequest, SFTRequest
+from posttrain.train import QWEN35_DPO_SMOKE, QWEN35_GRPO_SMOKE, QWEN35_SFT_SMOKE, DPORequest, SFTRequest
 from posttrain_lab.data import RejectedRollout, load_gsm8k_supervised, preferences_from_rollouts
 from posttrain_lab.data import gsm8k as gsm8k_data
-from posttrain_lab.jobs import dpo_action, sft_action, training_inputs
+from posttrain_lab.jobs import (
+    GSM8KGRPOJobRequest,
+    dpo_action,
+    grpo_action,
+    grpo_job_inputs,
+    sft_action,
+    training_inputs,
+)
 
 
 def test_gsm8k_supervised_data_uses_environment_prompt_and_pinned_revision(monkeypatch) -> None:
@@ -66,3 +73,17 @@ def test_training_actions_and_run_config_preserve_model_and_data_identity(monkey
     assert dpo_action(dpo_request).kind == "preference-optimization"
     assert training_inputs(sft_request)["base_model_revision"] == QWEN_35_2B.artifact.revision
     assert training_inputs(dpo_request)["dpo_beta"] == QWEN35_DPO_SMOKE.beta
+
+
+def test_grpo_job_config_records_environment_and_generation_policy() -> None:
+    request = GSM8KGRPOJobRequest(
+        ModelVariant.foundation(QWEN_35_2B),
+        QWEN35_GRPO_SMOKE,
+        (2,),
+    )
+
+    assert grpo_action(request).kind == "reinforcement-learning"
+    inputs = grpo_job_inputs(request)
+    assert inputs["environment_id"] == "gsm8k-v1"
+    assert inputs["task_indices"] == "2"
+    assert inputs["grpo_num_generations"] == 2

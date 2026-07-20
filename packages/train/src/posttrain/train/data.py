@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
+
+from posttrain.common import JsonValue
 
 _ID = re.compile(r"^[a-z0-9][a-z0-9._/-]*$")
 
@@ -96,4 +99,38 @@ class PreferenceDataset:
             raise ValueError("dataset revision cannot be empty")
 
 
-__all__ = ["PreferenceDataset", "PreferenceExample", "SupervisedDataset", "SupervisedExample"]
+@dataclass(frozen=True, slots=True)
+class RolloutExample:
+    id: str
+    prompt: str
+    metadata: Mapping[str, JsonValue]
+
+    def __post_init__(self) -> None:
+        _validate_id(self.id)
+        if not self.prompt.strip():
+            raise ValueError("rollout examples require a non-empty prompt")
+
+
+@dataclass(frozen=True, slots=True)
+class RolloutDataset:
+    id: str
+    revision: str
+    examples: tuple[RolloutExample, ...]
+
+    def __post_init__(self) -> None:
+        _validate_id(self.id)
+        ids = tuple(example.id for example in self.examples)
+        if not ids or len(ids) != len(set(ids)):
+            raise ValueError("rollout datasets require non-empty, unique example ids")
+        if not self.revision.strip():
+            raise ValueError("dataset revision cannot be empty")
+
+
+__all__ = [
+    "PreferenceDataset",
+    "PreferenceExample",
+    "RolloutDataset",
+    "RolloutExample",
+    "SupervisedDataset",
+    "SupervisedExample",
+]

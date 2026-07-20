@@ -2,14 +2,38 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from posttrain.common import ExecutionContext, Job, JobAction, ModelVariant
 from posttrain.eval import EnvironmentProgram, EnvironmentSource, EvaluationProgram, SamplingPolicy
-from posttrain.train import DPORequest, SFTRequest, TrainingResult, dpo, sft
+from posttrain.train import (
+    DPORequest,
+    GRPOProfile,
+    GRPORequest,
+    SFTRequest,
+    TrainingResult,
+    dpo,
+    grpo,
+    sft,
+)
+
+from ..environments import VERIFIERS_REVISION, GSM8KRewardBridge, load_gsm8k_rollout_dataset
 
 JOB_ID = "posttraining/gsm8k"
-VERIFIERS_REVISION = "284a868d6a9022109b749710672a0460e8a996d4"
+
+
+@dataclass(frozen=True, slots=True)
+class GSM8KGRPOJobRequest:
+    model: ModelVariant
+    profile: GRPOProfile
+    task_indices: tuple[int, ...]
+
+    def __post_init__(self) -> None:
+        if self.model.profile.family != self.profile.model_family:
+            raise ValueError("GRPO profile is incompatible with the model family")
+        if not self.task_indices:
+            raise ValueError("GRPO requires at least one task")
 
 
 def _training_environment() -> object:
@@ -85,6 +109,14 @@ def dpo_action(request: DPORequest) -> JobAction:
     )
 
 
+def grpo_action(request: GSM8KGRPOJobRequest) -> JobAction:
+    return JobAction(
+        job_id=JOB_ID,
+        id=f"train/grpo/{request.model.profile.id}/{request.profile.id}",
+        kind="reinforcement-learning",
+    )
+
+
 def rollout_collection_action(model_profile_id: str) -> JobAction:
     return JobAction(
         job_id=JOB_ID,
@@ -123,7 +155,40 @@ def run_dpo_materialized(
     )
 
 
-def training_inputs(request: SFTRequest | DPORequest) -> dict[str, str | int | float | bool]:
+def run_grpo_materialized(
+    context: ExecutionContext,
+    request: GSM8KGRPOJobRequest,
+    *,
+    input_name: str = "model_adapter",
+) -> TrainingResult:
+    local_model = ModelVariant(
+        profile=request.model.profile,
+        artifact=context.input_artifact(input_name),
+        format="peft-adapter",
+    )
+    dataset, tasks = load_gsm8k_rollout_dataset(request.task_indices)
+    bridge = GSM8KRewardBridge(
+        context=context,
+        tasks=tasks,
+        trace_path=context.workspace / "training" / "grpo" / "verifiers-traces.jsonl",
+        model_profile_id=local_model.profile.id,
+        training_profile_id=request.profile.id,
+    )
+    try:
+        return grpo(
+            context,
+            GRPORequest(
+                model=local_model,
+                dataset=dataset,
+                profile=request.profile,
+                reward=bridge.reward_function(),
+            ),
+        )
+    finally:
+        bridge.publish_native_artifact()
+
+
+def training_inputs(request: SFTRequest | DPORequest | GRPORequest) -> dict[str, str | int | float | bool]:
     """Stable run config; large examples and traces remain datasets/artifacts, not config."""
 
     values: dict[str, str | int | float | bool] = {
@@ -144,6 +209,33 @@ def training_inputs(request: SFTRequest | DPORequest) -> dict[str, str | int | f
     if isinstance(request, DPORequest):
         values["dpo_beta"] = request.profile.beta
         values["dpo_loss_kernel"] = request.profile.loss_kernel
+    if isinstance(request, GRPORequest):
+        values["grpo_beta"] = request.profile.beta
+        values["grpo_num_generations"] = request.profile.num_generations
+        values["grpo_max_prompt_length"] = request.profile.max_prompt_length
+        values["grpo_max_completion_length"] = request.profile.max_completion_length
     if isinstance(request.model, ModelVariant):
         values["base_model_revision"] = request.model.base_artifact.revision
     return values
+
+
+def grpo_job_inputs(request: GSM8KGRPOJobRequest) -> dict[str, str | int | float | bool]:
+    return {
+        "model_profile_id": request.model.profile.id,
+        "input_model_format": request.model.format,
+        "base_model_revision": request.model.base_artifact.revision,
+        "training_profile_id": request.profile.id,
+        "renderer_profile_id": request.profile.renderer.id,
+        "reasoning_mode": request.profile.renderer.reasoning_mode,
+        "environment_id": "gsm8k-v1",
+        "environment_revision": VERIFIERS_REVISION,
+        "task_indices": ",".join(str(value) for value in request.task_indices),
+        "max_steps": request.profile.loop.max_steps,
+        "learning_rate": request.profile.loop.learning_rate,
+        "qlora_rank": request.profile.qlora.lora_rank,
+        "qlora_quant_type": request.profile.qlora.quant_type,
+        "grpo_beta": request.profile.beta,
+        "grpo_num_generations": request.profile.num_generations,
+        "grpo_max_prompt_length": request.profile.max_prompt_length,
+        "grpo_max_completion_length": request.profile.max_completion_length,
+    }

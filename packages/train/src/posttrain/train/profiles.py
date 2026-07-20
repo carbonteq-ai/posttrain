@@ -95,6 +95,28 @@ class DPOProfile:
             raise ValueError("DPO beta must be positive")
 
 
+@dataclass(frozen=True, slots=True)
+class GRPOProfile:
+    id: str
+    model_family: str
+    renderer: RendererProfile
+    loop: TrainingLoop
+    num_generations: int = 2
+    max_prompt_length: int = 256
+    max_completion_length: int = 128
+    beta: float = 0.0
+    qlora: QLoRAProfile = field(default_factory=QLoRAProfile)
+
+    def __post_init__(self) -> None:
+        _validate_profile(self.id, self.model_family, self.renderer)
+        if self.num_generations < 2:
+            raise ValueError("GRPO requires at least two generations per prompt")
+        if self.loop.per_device_batch_size % self.num_generations != 0:
+            raise ValueError("GRPO batch size must be divisible by num_generations")
+        if self.max_prompt_length < 1 or self.max_completion_length < 1 or self.beta < 0:
+            raise ValueError("invalid GRPO generation or KL settings")
+
+
 def _validate_profile(identifier: str, family: str, renderer: RendererProfile) -> None:
     if not _ID.fullmatch(identifier) or not family:
         raise ValueError("training profile identity and family are required")
@@ -135,14 +157,22 @@ LFM25_DPO_SMOKE = DPOProfile(
     TrainingLoop(max_steps=2, learning_rate=1e-4),
     loss_kernel="liger",
 )
+QWEN35_GRPO_SMOKE = GRPOProfile(
+    "qwen3.5-2b/grpo-qlora-smoke-v1",
+    "qwen3.5",
+    QWEN35_RENDERER,
+    TrainingLoop(max_steps=1, per_device_batch_size=2, learning_rate=1e-5),
+)
 
 __all__ = [
     "DPOProfile",
+    "GRPOProfile",
     "LFM25_DPO_SMOKE",
     "LFM25_RENDERER",
     "LFM25_SFT_SMOKE",
     "QLoRAProfile",
     "QWEN35_DPO_SMOKE",
+    "QWEN35_GRPO_SMOKE",
     "QWEN35_RENDERER",
     "QWEN35_SFT_SMOKE",
     "RendererProfile",

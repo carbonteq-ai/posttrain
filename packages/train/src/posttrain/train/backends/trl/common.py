@@ -167,7 +167,7 @@ def finish_training(
     train_output: Any,
     tokenizer: Any,
     workspace: Path,
-    technique: Literal["sft", "dpo"],
+    technique: Literal["sft", "dpo", "grpo"],
     imports: dict[str, Any],
 ) -> BackendTrainingResult:
     adapter_dir = workspace / "adapter"

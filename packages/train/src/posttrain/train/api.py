@@ -9,9 +9,9 @@ from typing import Literal, Protocol
 
 from posttrain.common import ExecutionContext, LocalArtifactRef, ModelVariant, ProducedArtifact
 
-from .backends.trl import run_dpo, run_sft
+from .backends.trl import run_dpo, run_grpo, run_sft
 from .backends.trl.common import BackendTrainingResult
-from .requests import DPORequest, SFTRequest
+from .requests import DPORequest, GRPORequest, SFTRequest
 from .results import TrainingResult
 
 
@@ -21,6 +21,7 @@ class TrainingRequest(Protocol):
 
 type SFTBackend = Callable[[ExecutionContext, SFTRequest, Path], BackendTrainingResult]
 type DPOBackend = Callable[[ExecutionContext, DPORequest, Path], BackendTrainingResult]
+type GRPOBackend = Callable[[ExecutionContext, GRPORequest, Path], BackendTrainingResult]
 
 
 def _digest(path: Path) -> str:
@@ -39,8 +40,8 @@ def _digest(path: Path) -> str:
 
 def _finish(
     context: ExecutionContext,
-    request: SFTRequest | DPORequest,
-    technique: Literal["sft", "dpo"],
+    request: SFTRequest | DPORequest | GRPORequest,
+    technique: Literal["sft", "dpo", "grpo"],
     backend: BackendTrainingResult,
 ) -> TrainingResult:
     attributes = {
@@ -140,4 +141,22 @@ def dpo(
     return _finish(context, request, "dpo", runner(context, request, output_dir))
 
 
-__all__ = ["DPOBackend", "SFTBackend", "dpo", "sft"]
+def grpo(
+    context: ExecutionContext,
+    request: GRPORequest,
+    *,
+    runner: GRPOBackend = run_grpo,
+) -> TrainingResult:
+    attributes = {
+        "technique": "grpo",
+        "model_profile_id": request.model.profile.id,
+        "training_profile_id": request.profile.id,
+        "dataset_id": request.dataset.id,
+    }
+    context.event("training_started", attributes)
+    output_dir = context.workspace / "training" / "grpo" / "trainer"
+    output_dir.mkdir(parents=True, exist_ok=False)
+    return _finish(context, request, "grpo", runner(context, request, output_dir))
+
+
+__all__ = ["DPOBackend", "GRPOBackend", "SFTBackend", "dpo", "grpo", "sft"]

@@ -1,28 +1,40 @@
 """Reusable, observer-neutral post-training operations."""
 
-from .api import DPOBackend, SFTBackend, dpo, sft
-from .data import PreferenceDataset, PreferenceExample, SupervisedDataset, SupervisedExample
+from .api import DPOBackend, GRPOBackend, SFTBackend, dpo, grpo, sft
+from .data import (
+    PreferenceDataset,
+    PreferenceExample,
+    RolloutDataset,
+    RolloutExample,
+    SupervisedDataset,
+    SupervisedExample,
+)
 from .profiles import (
     LFM25_DPO_SMOKE,
     LFM25_RENDERER,
     LFM25_SFT_SMOKE,
     QWEN35_DPO_SMOKE,
+    QWEN35_GRPO_SMOKE,
     QWEN35_RENDERER,
     QWEN35_SFT_SMOKE,
     DPOProfile,
+    GRPOProfile,
     QLoRAProfile,
     RendererProfile,
     SFTProfile,
     TrainingLoop,
 )
 from .rendering import RenderedPreferenceExample, RenderedSFTExample, render_preferences, render_supervised
-from .requests import DPORequest, SFTRequest
+from .requests import DPORequest, GRPORequest, RewardFunction, SFTRequest
 from .results import TrainingResult, TrainingSummary
 
 __all__ = [
     "DPOBackend",
     "DPOProfile",
     "DPORequest",
+    "GRPOBackend",
+    "GRPOProfile",
+    "GRPORequest",
     "LFM25_DPO_SMOKE",
     "LFM25_RENDERER",
     "LFM25_SFT_SMOKE",
@@ -30,11 +42,15 @@ __all__ = [
     "PreferenceExample",
     "QLoRAProfile",
     "QWEN35_DPO_SMOKE",
+    "QWEN35_GRPO_SMOKE",
     "QWEN35_RENDERER",
     "QWEN35_SFT_SMOKE",
     "RenderedPreferenceExample",
     "RenderedSFTExample",
     "RendererProfile",
+    "RewardFunction",
+    "RolloutDataset",
+    "RolloutExample",
     "SFTBackend",
     "SFTProfile",
     "SFTRequest",
@@ -44,6 +60,7 @@ __all__ = [
     "TrainingResult",
     "TrainingSummary",
     "dpo",
+    "grpo",
     "render_preferences",
     "render_supervised",
     "sft",
