@@ -18,16 +18,8 @@ class InferenceSuiteTest(unittest.TestCase):
         self.assertEqual(len(suite.cases()), 96)
         long_context = [case for case in suite.cases() if case.context_window == 32768]
         self.assertEqual(len(long_context), 16)
-        self.assertTrue(
-            all(case.serve_variant == "turboquant_k8v4" for case in long_context)
-        )
-        self.assertTrue(
-            all(
-                case.serve_variant is None
-                for case in suite.cases()
-                if case.context_window < 32768
-            )
-        )
+        self.assertTrue(all(case.serve_variant == "turboquant_k8v4" for case in long_context))
+        self.assertTrue(all(case.serve_variant is None for case in suite.cases() if case.context_window < 32768))
 
     def test_filters_matrix_without_changing_case_identity(self) -> None:
         suite = load_suite(BENCHMARKS_DIR / "inference" / "suites" / "core.yaml")
@@ -45,9 +37,9 @@ class InferenceSuiteTest(unittest.TestCase):
         resolver = ProfileResolver(PROFILES_DIR)
         for reference in ("lfm2.5-1.2b-thinking", "qwen3.5-2b"):
             model = resolver.resolve("models", reference)
-            serve_reference = _serve_profile_for_variant(
-                model.data, "turboquant_k8v4"
-            )
+            serve_reference = _serve_profile_for_variant(model.data, "turboquant_k8v4")
+            self.assertIsNotNone(serve_reference)
+            assert serve_reference is not None
             serve = resolver.resolve("serve", serve_reference)
             self.assertEqual(serve.data["engine"]["kv_cache_dtype"], "turboquant_k8v4")
 

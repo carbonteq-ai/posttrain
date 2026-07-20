@@ -34,12 +34,8 @@ class ProfileResolverTest(unittest.TestCase):
             model.data["defaults"]["eval"]["serve"],
             "serve/vllm/qwen3.5-2b-turboquant-k8v4",
         )
-        mtp = resolver.resolve(
-            "serve", model.data["defaults"]["serve"]["variants"]["mtp"]
-        )
-        self.assertEqual(
-            mtp.data["engine"]["speculative_config"]["method"], "qwen3_next_mtp"
-        )
+        mtp = resolver.resolve("serve", model.data["defaults"]["serve"]["variants"]["mtp"])
+        self.assertEqual(mtp.data["engine"]["speculative_config"]["method"], "qwen3_next_mtp")
 
     def test_resolves_one_parent_and_deep_merges_mappings(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

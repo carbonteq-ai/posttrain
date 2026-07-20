@@ -11,8 +11,8 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from common import PROFILES_DIR, ProfileResolver, TrackedRun
 import trackio
+from common import PROFILES_DIR, ProfileResolver, TrackedRun
 
 from .results import summarize_traces
 from .suites import EnvironmentSpec, load_suite
@@ -82,9 +82,7 @@ def _eval_path(reference: str) -> Path:
     return path
 
 
-def _reasoning_settings(
-    model: dict[str, Any], requested: str | None
-) -> tuple[str, dict[str, Any], dict[str, Any]]:
+def _reasoning_settings(model: dict[str, Any], requested: str | None) -> tuple[str, dict[str, Any], dict[str, Any]]:
     reasoning = model.get("prompting", {}).get("reasoning", {})
     mode = requested or reasoning.get("default", "native")
     modes = reasoning.get("modes", {})
@@ -160,9 +158,7 @@ def build_verifiers_config(
     return config
 
 
-def _validate_eval_budgets(
-    environments: tuple[EnvironmentSpec, ...], context_window: int
-) -> None:
+def _validate_eval_budgets(environments: tuple[EnvironmentSpec, ...], context_window: int) -> None:
     for environment in environments:
         max_tokens = environment.sampling.get("max_tokens")
         if not isinstance(max_tokens, int) or isinstance(max_tokens, bool) or max_tokens < 1:
@@ -194,9 +190,7 @@ def _run_native(
     _write_toml(config, config_path)
     executable = Path(sys.executable).with_name("eval")
     if not executable.is_file():
-        raise RuntimeError(
-            "Verifiers eval executable is unavailable; sync packages/eval with --extra verifiers"
-        )
+        raise RuntimeError("Verifiers eval executable is unavailable; sync packages/eval with --extra verifiers")
     with log_path.open("w", encoding="utf-8") as log:
         process = subprocess.Popen(
             [str(executable), "@", str(config_path)],
@@ -247,9 +241,7 @@ def main(argv: list[str] | None = None) -> int:
     context_window = _served_context_window(serve_profile.data, args.served_context_window)
     native_context = model_profile.data["model"]["capabilities"]["context_window"]
     if context_window > native_context:
-        raise ValueError(
-            f"served context window ({context_window}) exceeds model capability ({native_context})"
-        )
+        raise ValueError(f"served context window ({context_window}) exceeds model capability ({native_context})")
     _validate_eval_budgets(environments, context_window)
     execution_id = uuid.uuid4().hex[:10]
     plan = {
@@ -318,11 +310,7 @@ def main(argv: list[str] | None = None) -> int:
                 trace_sync = VerifiersTraceSynchronizer(
                     native_dir / "traces.jsonl",
                     lambda records: run.log(
-                        {
-                            "eval/verifiers_trace": [
-                                trackio.VerifiersTrace(record) for record in records
-                            ]
-                        }
+                        {"eval/verifiers_trace": [trackio.VerifiersTrace(record) for record in records]}
                     ),
                 )
                 sync_stats = _run_native(

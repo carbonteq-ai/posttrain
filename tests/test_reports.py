@@ -28,7 +28,7 @@ class RawQueryTest(unittest.TestCase):
             database = Path(directory) / "trackio.db"
             with sqlite3.connect(database) as connection:
                 connection.execute("CREATE TABLE configs (config BLOB)")
-                connection.execute("INSERT INTO configs VALUES (?)", (b'{\"run_kind\":\"general-eval\"}',))
+                connection.execute("INSERT INTO configs VALUES (?)", (b'{"run_kind":"general-eval"}',))
 
             rows = query_database(database, "SELECT config FROM configs")
 

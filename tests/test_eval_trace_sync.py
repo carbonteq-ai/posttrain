@@ -22,9 +22,7 @@ def test_tailer_waits_for_complete_lines_and_batches(tmp_path: Path):
     first = json.dumps(_record("one"))
     second = json.dumps(_record("two"))
     path.write_bytes(f"{first}\n{second}".encode())
-    sync = VerifiersTraceSynchronizer(
-        path, uploaded.append, batch_size=2, validate=_identity
-    )
+    sync = VerifiersTraceSynchronizer(path, uploaded.append, batch_size=2, validate=_identity)
 
     sync.drain()
     assert sync.stats.observed_records == 1
@@ -66,9 +64,7 @@ def test_invalid_records_are_reported_without_stopping_valid_sync(tmp_path: Path
         encoding="utf-8",
     )
     uploaded: list[list[dict]] = []
-    stats = VerifiersTraceSynchronizer(
-        path, uploaded.append, validate=_identity
-    ).finalize()
+    stats = VerifiersTraceSynchronizer(path, uploaded.append, validate=_identity).finalize()
 
     assert stats.observed_records == 2
     assert stats.invalid_records == 1

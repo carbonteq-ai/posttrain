@@ -45,9 +45,7 @@ class EvalSuiteTest(unittest.TestCase):
             verbose=True,
         )
 
-        self.assertEqual(
-            config["sampling"]["chat_template_kwargs"], {"enable_thinking": False}
-        )
+        self.assertEqual(config["sampling"]["chat_template_kwargs"], {"enable_thinking": False})
         self.assertEqual(config["sampling"]["top_p"], 0.95)
         self.assertEqual(config["max_total_tokens"], 32768)
         self.assertTrue(config["verbose"])

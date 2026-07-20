@@ -111,8 +111,12 @@ def load_suite(path: Path) -> EvalSuite:
                 taskset=taskset,
                 harness=harness,
                 num_tasks=_positive(item.get("num_tasks", defaults.get("num_tasks")), f"{environment_id}.num_tasks"),
-                num_rollouts=_positive(item.get("num_rollouts", defaults.get("num_rollouts")), f"{environment_id}.num_rollouts"),
-                max_concurrent=_positive(item.get("max_concurrent", defaults.get("max_concurrent")), f"{environment_id}.max_concurrent"),
+                num_rollouts=_positive(
+                    item.get("num_rollouts", defaults.get("num_rollouts")), f"{environment_id}.num_rollouts"
+                ),
+                max_concurrent=_positive(
+                    item.get("max_concurrent", defaults.get("max_concurrent")), f"{environment_id}.max_concurrent"
+                ),
                 sampling=_mapping(item.get("sampling", defaults.get("sampling", {})), f"{environment_id}.sampling"),
                 timeout=_mapping(item.get("timeout", defaults.get("timeout", {})), f"{environment_id}.timeout"),
                 source=source,

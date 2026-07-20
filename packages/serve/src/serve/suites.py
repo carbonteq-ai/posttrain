@@ -128,13 +128,9 @@ def load_suite(path: Path) -> BenchmarkSuite:
         input_tokens = raw.get("input_tokens")
         input_fraction = raw.get("input_fraction")
         if (input_tokens is None) == (input_fraction is None):
-            raise SuiteError(
-                f"shape {shape_id!r} requires exactly one of input_tokens or input_fraction"
-            )
+            raise SuiteError(f"shape {shape_id!r} requires exactly one of input_tokens or input_fraction")
         if input_tokens is not None and (
-            not isinstance(input_tokens, int)
-            or isinstance(input_tokens, bool)
-            or input_tokens < 1
+            not isinstance(input_tokens, int) or isinstance(input_tokens, bool) or input_tokens < 1
         ):
             raise SuiteError(f"shape {shape_id!r} input_tokens must be positive")
         if input_fraction is not None and (

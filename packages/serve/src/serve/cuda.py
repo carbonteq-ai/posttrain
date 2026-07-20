@@ -14,6 +14,16 @@ import os
 import re
 import subprocess
 from pathlib import Path
+from typing import Protocol
+
+
+class TorchVersion(Protocol):
+    cuda: str | None
+
+
+class TorchModule(Protocol):
+    version: TorchVersion
+    __file__: str
 
 
 def _nvcc_release(nvcc: Path) -> str | None:
@@ -68,13 +78,13 @@ def build_toolkit_view(toolkit: Path, *, cuda_version: str, cache_root: Path) ->
     return view
 
 
-def resolve_cuda_home(torch_module: object, *, cache_root: Path | None = None) -> Path:
+def resolve_cuda_home(torch_module: TorchModule, *, cache_root: Path | None = None) -> Path:
     """Find a pip CUDA toolkit matching PyTorch and return its standard view."""
 
-    expected_cuda = getattr(getattr(torch_module, "version"), "cuda")
+    expected_cuda = torch_module.version.cuda
     if not expected_cuda:
         raise RuntimeError("the installed PyTorch build does not include CUDA")
-    torch_file = Path(getattr(torch_module, "__file__")).resolve()
+    torch_file = Path(torch_module.__file__).resolve()
     site_packages = torch_file.parents[1]
     candidates = sorted(site_packages.glob("nvidia/cu*/bin/nvcc"))
     matching_root: Path | None = None

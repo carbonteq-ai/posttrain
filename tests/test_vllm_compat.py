@@ -8,7 +8,10 @@ class VllmCompatibilityTest(unittest.TestCase):
         try:
             import torch
             from serve.vllm_compat import apply_vllm_compatibility_patches
-            from vllm.v1.kv_cache_interface import KVQuantMode, TQFullAttentionSpec
+            from vllm.v1.kv_cache_interface import (  # pyright: ignore[reportMissingImports]
+                KVQuantMode,
+                TQFullAttentionSpec,
+            )
         except ImportError:
             self.skipTest("serve[vllm] optional dependencies are not installed")
 

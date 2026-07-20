@@ -68,38 +68,19 @@ def summarize_traces(path: Path) -> dict[str, int | float]:
     rewards = [_trace_reward(trace) for trace in traces]
     errors = sum(bool(trace.get("errors")) for trace in traces)
     completed = sum(bool(trace.get("is_completed")) for trace in traces)
-    calls = [
-        call
-        for trace in traces
-        for call in trace.get("calls", [])
-        if isinstance(call, dict)
-    ]
+    calls = [call for trace in traces for call in trace.get("calls", []) if isinstance(call, dict)]
     input_tokens = sum(
         int((call.get("usage") or {}).get("prompt_tokens", 0))
         + int((call.get("usage") or {}).get("cached_input_tokens", 0) or 0)
         for call in calls
     )
-    output_tokens = sum(
-        int((call.get("usage") or {}).get("completion_tokens", 0))
-        for call in calls
-    )
-    cached_input_tokens = sum(
-        int((call.get("usage") or {}).get("cached_input_tokens", 0) or 0) for call in calls
-    )
-    reasoning_tokens = sum(
-        int((call.get("usage") or {}).get("reasoning_tokens", 0) or 0) for call in calls
-    )
+    output_tokens = sum(int((call.get("usage") or {}).get("completion_tokens", 0)) for call in calls)
+    cached_input_tokens = sum(int((call.get("usage") or {}).get("cached_input_tokens", 0) or 0) for call in calls)
+    reasoning_tokens = sum(int((call.get("usage") or {}).get("reasoning_tokens", 0) or 0) for call in calls)
     agent_cost = sum(float((call.get("usage") or {}).get("cost", 0.0) or 0.0) for call in calls)
-    extra_usage = [
-        usage
-        for trace in traces
-        for usage in trace.get("extra_usage", [])
-        if isinstance(usage, dict)
-    ]
+    extra_usage = [usage for trace in traces for usage in trace.get("extra_usage", []) if isinstance(usage, dict)]
     extra_input_tokens = sum(
-        int(usage.get("prompt_tokens", 0) or 0)
-        + int(usage.get("cached_input_tokens", 0) or 0)
-        for usage in extra_usage
+        int(usage.get("prompt_tokens", 0) or 0) + int(usage.get("cached_input_tokens", 0) or 0) for usage in extra_usage
     )
     extra_output_tokens = sum(int(usage.get("completion_tokens", 0) or 0) for usage in extra_usage)
     extra_reasoning_tokens = sum(int(usage.get("reasoning_tokens", 0) or 0) for usage in extra_usage)
@@ -119,11 +100,7 @@ def summarize_traces(path: Path) -> dict[str, int | float]:
     def is_truncated(trace: dict[str, Any]) -> bool:
         if trace.get("stop_condition") in truncating_stops:
             return True
-        successful = [
-            call
-            for call in trace.get("calls", [])
-            if isinstance(call, dict) and not call.get("error")
-        ]
+        successful = [call for call in trace.get("calls", []) if isinstance(call, dict) and not call.get("error")]
         return bool(successful and successful[-1].get("finish_reason") == "length")
 
     truncated_rollouts = sum(is_truncated(trace) for trace in traces)

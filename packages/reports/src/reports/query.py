@@ -5,8 +5,9 @@ from __future__ import annotations
 import argparse
 import json
 import sqlite3
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from trackio.sqlite_storage import SQLiteStorage
 
@@ -42,10 +43,7 @@ def query_database(
 
     with _read_only_connection(database) as connection:
         cursor = connection.execute(sql, tuple(parameters))
-        return [
-            {key: _decode_cell(value) for key, value in dict(row).items()}
-            for row in cursor.fetchall()
-        ]
+        return [{key: _decode_cell(value) for key, value in dict(row).items()} for row in cursor.fetchall()]
 
 
 def query_project(
@@ -96,9 +94,7 @@ def list_runs(project: str, *, run_kind: str | None = None) -> list[dict[str, An
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Run a read-only SQL query against a local Trackio project."
-    )
+    parser = argparse.ArgumentParser(description="Run a read-only SQL query against a local Trackio project.")
     parser.add_argument("project", help="Trackio project name")
     parser.add_argument("sql", help="SQL SELECT/PRAGMA statement")
     return parser

@@ -60,9 +60,7 @@ class TrackingRunTest(unittest.TestCase):
                 ):
                     raise RuntimeError("broken")
 
-            self.assertTrue(
-                (Path(directory) / "failed-run" / "output" / "failure.json").is_file()
-            )
+            self.assertTrue((Path(directory) / "failed-run" / "output" / "failure.json").is_file())
             remote.finish.assert_called_once()
 
     @patch("common.tracking.trackio.Artifact")
@@ -95,7 +93,7 @@ class TrackingRunTest(unittest.TestCase):
             )
 
             events = (run.context.root / "events.jsonl").read_text(encoding="utf-8")
-            self.assertIn('\"artifact_name\": \"result\"', events)
+            self.assertIn('"artifact_name": "result"', events)
 
 
 if __name__ == "__main__":

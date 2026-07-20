@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 TraceBatchUploader = Callable[[list[dict[str, Any]]], None]
 TraceValidator = Callable[[dict[str, Any]], dict[str, Any]]
@@ -14,7 +15,7 @@ TraceValidator = Callable[[dict[str, Any]], dict[str, Any]]
 def validate_verifiers_record(record: dict[str, Any]) -> dict[str, Any]:
     """Validate and normalize a record with the pinned Verifiers wire schema."""
     try:
-        from verifiers.v1.trace import WireTrace
+        from verifiers.v1.trace import WireTrace  # pyright: ignore[reportMissingImports]
     except ImportError as error:
         raise RuntimeError(
             "Verifiers dependencies are unavailable; sync packages/eval with --extra verifiers"

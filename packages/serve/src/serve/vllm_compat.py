@@ -16,7 +16,7 @@ def apply_vllm_compatibility_patches() -> tuple[str, ...]:
     calculation and backend remain unchanged.
     """
 
-    from vllm.v1.kv_cache_interface import (
+    from vllm.v1.kv_cache_interface import (  # pyright: ignore[reportMissingImports]
         KVQuantMode,
         TQFullAttentionSpec,
         get_kv_quant_mode,

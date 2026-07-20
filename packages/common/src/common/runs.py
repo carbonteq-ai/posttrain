@@ -7,7 +7,7 @@ import platform
 import subprocess
 import sys
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any, Literal
@@ -43,7 +43,7 @@ RUN_KINDS = frozenset(
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _package_versions() -> dict[str, str]:
@@ -109,7 +109,7 @@ class RunContext:
         run_kind: RunKind,
         resolved_config: dict[str, Any],
         resolved_profile: ResolvedProfile | None = None,
-    ) -> "RunContext":
+    ) -> RunContext:
         if run_kind not in RUN_KINDS:
             expected = ", ".join(sorted(RUN_KINDS))
             raise ValueError(f"unsupported run kind {run_kind!r}; expected one of: {expected}")

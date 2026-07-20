@@ -15,8 +15,8 @@ BENCHMARKS_DIR = WORKSPACE_ROOT / "benchmarks"
 TRACKIO_PROJECT = os.environ.get("LAB_TRACKIO_PROJECT", "lab")
 
 
-from common.runs import RUN_KINDS, RunContext, RunKind  # noqa: E402
 from common.profiles import ProfileError, ProfileResolver, ResolvedProfile  # noqa: E402
+from common.runs import RUN_KINDS, RunContext, RunKind  # noqa: E402
 from common.tracking import TrackedRun  # noqa: E402
 
 __all__ = [

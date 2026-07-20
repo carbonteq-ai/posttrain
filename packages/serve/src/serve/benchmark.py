@@ -8,13 +8,13 @@ import os
 import statistics
 import threading
 import time
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
-from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, cast
 
 from common import PROFILES_DIR, ProfileResolver, TrackedRun
 
-from .cuda import resolve_cuda_home
+from .cuda import TorchModule, resolve_cuda_home
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,11 +130,7 @@ def _controlled_prompt_ids(
         "Prefill and decode performance depend on token and batch dimensions. ",
         "Systems measurements remain separate from model capability evaluation. ",
     )
-    seed_ids = [
-        token
-        for seed in seeds
-        for token in tokenizer.encode(seed, add_special_tokens=False)
-    ]
+    seed_ids = [token for seed in seeds for token in tokenizer.encode(seed, add_special_tokens=False)]
     if not seed_ids:
         raise RuntimeError("tokenizer produced no IDs for the controlled prompt seed")
     prompts: list[dict[str, list[int]]] = []
@@ -164,7 +160,7 @@ class _GpuMemoryMonitor:
 
     def start(self) -> None:
         try:
-            import pynvml
+            import pynvml  # pyright: ignore[reportMissingImports]
         except ImportError:
             return
         try:
@@ -208,11 +204,9 @@ def _load_vllm() -> tuple[Any, Any, Any]:
     try:
         import torch
     except ImportError as error:
-        raise RuntimeError(
-            "PyTorch is not installed; sync the serve package with its vLLM extra"
-        ) from error
+        raise RuntimeError("PyTorch is not installed; sync the serve package with its vLLM extra") from error
 
-    cuda_home = resolve_cuda_home(torch)
+    cuda_home = resolve_cuda_home(cast(TorchModule, torch))
     os.environ["CUDA_HOME"] = str(cuda_home)
     path_entries = [entry for entry in os.environ.get("PATH", "").split(":") if entry]
     toolkit_bin = str(cuda_home / "bin")
@@ -220,7 +214,7 @@ def _load_vllm() -> tuple[Any, Any, Any]:
         os.environ["PATH"] = ":".join([toolkit_bin, *path_entries])
 
     try:
-        from vllm import LLM, SamplingParams
+        from vllm import LLM, SamplingParams  # pyright: ignore[reportMissingImports]
     except ImportError as error:
         raise RuntimeError(
             "vLLM is not installed or its CUDA wheel is not aligned with PyTorch; "
@@ -276,9 +270,7 @@ def run_vllm_benchmark(
             )
             prompt_source = "controlled_tokens"
         else:
-            conversations = [
-                [{"role": "user", "content": prompt}] for prompt in prompts or ()
-            ]
+            conversations = [[{"role": "user", "content": prompt}] for prompt in prompts or ()]
             requests = conversations
             generate = lambda: llm.chat(  # noqa: E731
                 conversations, sampling_params=sampling, use_tqdm=False
@@ -309,10 +301,7 @@ def run_vllm_benchmark(
                     ttfts.append(float(metrics.first_token_latency))
                 generated = len(output.outputs[0].token_ids)
                 if generated > 1 and metrics.last_token_ts > metrics.first_token_ts:
-                    tpots.append(
-                        float(metrics.last_token_ts - metrics.first_token_ts)
-                        / (generated - 1)
-                    )
+                    tpots.append(float(metrics.last_token_ts - metrics.first_token_ts) / (generated - 1))
             if iteration == 0:
                 samples.extend(output.outputs[0].text for output in outputs)
         elapsed = time.perf_counter() - started
@@ -394,11 +383,7 @@ def main(argv: list[str] | None = None) -> int:
     workload = dict(config.get("workload", {}))
     sampling = dict(config.get("sampling", {}))
     iterations = args.iterations if args.iterations is not None else workload.get("iterations", 3)
-    warmup = (
-        args.warmup_iterations
-        if args.warmup_iterations is not None
-        else workload.get("warmup_iterations", 1)
-    )
+    warmup = args.warmup_iterations if args.warmup_iterations is not None else workload.get("warmup_iterations", 1)
     if args.max_tokens is not None:
         sampling["max_tokens"] = args.max_tokens
     if args.output_tokens is not None:

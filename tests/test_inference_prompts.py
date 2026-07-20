@@ -8,9 +8,7 @@ from serve.prompts import PromptError, load_prompt_records, reasoning_template_k
 
 class InferencePromptTest(unittest.TestCase):
     def test_loads_canonical_messages_without_rendered_model_text(self) -> None:
-        records = load_prompt_records(
-            BENCHMARKS_DIR / "inference" / "corpora" / "representative-v1.jsonl"
-        )
+        records = load_prompt_records(BENCHMARKS_DIR / "inference" / "corpora" / "representative-v1.jsonl")
 
         self.assertEqual(len(records), 4)
         self.assertEqual(records[0].messages[0]["role"], "user")
@@ -30,9 +28,7 @@ class InferencePromptTest(unittest.TestCase):
             reasoning_template_kwargs(profile.data, "medium")
 
     def test_lfm_thinking_checkpoint_exposes_only_native_mode(self) -> None:
-        profile = ProfileResolver(PROFILES_DIR).resolve(
-            "models", "lfm2.5-1.2b-thinking"
-        )
+        profile = ProfileResolver(PROFILES_DIR).resolve("models", "lfm2.5-1.2b-thinking")
 
         self.assertEqual(reasoning_template_kwargs(profile.data, "native"), {})
         with self.assertRaisesRegex(PromptError, "unsupported"):

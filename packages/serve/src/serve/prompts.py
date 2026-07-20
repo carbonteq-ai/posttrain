@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 
 class PromptError(ValueError):
@@ -37,12 +38,17 @@ def load_prompt_records(path: Path) -> tuple[PromptRecord, ...]:
         if not isinstance(messages, list) or not messages:
             raise PromptError(f"prompt {prompt_id!r} requires non-empty messages")
         for message in messages:
-            if not isinstance(message, dict) or message.get("role") not in {
-                "system",
-                "user",
-                "assistant",
-                "tool",
-            } or "content" not in message:
+            if (
+                not isinstance(message, dict)
+                or message.get("role")
+                not in {
+                    "system",
+                    "user",
+                    "assistant",
+                    "tool",
+                }
+                or "content" not in message
+            ):
                 raise PromptError(f"prompt {prompt_id!r} contains an invalid message")
         tags = raw.get("tags", [])
         if not isinstance(tags, list) or any(not isinstance(tag, str) for tag in tags):
@@ -72,17 +78,13 @@ def reasoning_template_kwargs(
     modes = reasoning.get("modes", {}) if isinstance(reasoning, dict) else {}
     if requested_mode not in modes:
         supported = ", ".join(sorted(modes)) or "none"
-        raise PromptError(
-            f"reasoning mode {requested_mode!r} is unsupported; supported modes: {supported}"
-        )
+        raise PromptError(f"reasoning mode {requested_mode!r} is unsupported; supported modes: {supported}")
     value = modes[requested_mode]
     if not isinstance(value, dict):
         raise PromptError(f"reasoning mode {requested_mode!r} must be a mapping")
     kwargs = value.get("chat_template_kwargs", {})
     if not isinstance(kwargs, dict):
-        raise PromptError(
-            f"reasoning mode {requested_mode!r}.chat_template_kwargs must be a mapping"
-        )
+        raise PromptError(f"reasoning mode {requested_mode!r}.chat_template_kwargs must be a mapping")
     return dict(kwargs)
 
 

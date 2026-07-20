@@ -5,11 +5,12 @@ from __future__ import annotations
 import json
 import time
 import uuid
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 import trackio
 
@@ -21,7 +22,7 @@ TRACKING_SCHEMA_VERSION = 1
 
 
 def _timestamp() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 
 
 def _model_fields(profile: ResolvedProfile | None) -> dict[str, Any]:
@@ -68,7 +69,7 @@ class TrackedRun:
         stage_id: str | None = None,
         auto_log_gpu: bool = True,
         auto_log_cpu: bool = True,
-    ) -> "TrackedRun":
+    ) -> TrackedRun:
         run_name = name or f"{run_kind}-{_timestamp()}-{uuid.uuid4().hex[:6]}"
         local_root = runs_dir / run_name
         context = RunContext.create(
@@ -167,7 +168,7 @@ class TrackedRun:
         if status == "complete":
             self.context.complete()
         else:
-            self.context.update_metadata(status=status, finished_at=datetime.now(timezone.utc).isoformat())
+            self.context.update_metadata(status=status, finished_at=datetime.now(UTC).isoformat())
             self.context.event("run_finished", status=status)
         bundle = trackio.Artifact(
             name=f"{self.name}-run-bundle",
@@ -219,7 +220,7 @@ class TrackedRun:
         self.trackio_run.finish()
         self._finished = True
 
-    def __enter__(self) -> "TrackedRun":
+    def __enter__(self) -> TrackedRun:
         return self
 
     def __exit__(

@@ -8,6 +8,7 @@ dependencies = [
     "huggingface-hub",
     "pyyaml>=6",
     "tokenizers>=0.22",
+    "tomli-w>=1.2",
 ]
 
 [project.scripts]

@@ -138,9 +138,7 @@ def main(argv: list[str] | None = None) -> int:
     failures: list[str] = []
     for case in cases:
         serve_profile = _serve_profile_for_variant(model.data, case.serve_variant)
-        completed = subprocess.run(
-            _command(args.model_profile, case, execution_id, serve_profile)
-        )
+        completed = subprocess.run(_command(args.model_profile, case, execution_id, serve_profile))
         if completed.returncode != 0:
             failures.append(case.id)
             if not args.continue_on_error:

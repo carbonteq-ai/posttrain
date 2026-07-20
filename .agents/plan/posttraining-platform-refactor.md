@@ -892,7 +892,7 @@ state.
 - [x] Original 3/10 critique mapped to target owners, migration tasks, and acceptance evidence.
 - [x] Trackio fork and Verifiers trace direction established.
 - [x] TRL 1.8 fork with vLLM 0.25.1 support merged and GPU-smoked.
-- [ ] Phase 0 — safe Git/reproducibility baseline.
+- [x] Phase 0 — local Git/reproducibility and quality baseline; remote publication is deferred.
 - [ ] Phase 1 — namespace and shared contracts.
 - [ ] Phase 2 — serving vertical slice.
 - [ ] Phase 3 — evaluation and environment vertical slice.
@@ -905,6 +905,9 @@ state.
 
 - The workspace contains an empty `.git` directory rather than valid repository
   metadata. This must be resolved before a broad refactor can be safely staged.
+- No existing CarbonTeq GitHub repository was found for this workspace. A local
+  `main` history now provides safe refactor checkpoints; creating/pushing a
+  remote remains an explicit publication action outside the code refactor.
 - TRL 1.8.0 originally capped vLLM at 0.23.0, while the serving environment uses
   0.25.1. The CarbonTeq fork now carries upstream-validated compatibility
   commits without moving to TRL 1.9 development APIs.
@@ -912,6 +915,9 @@ state.
   environment. Validation must use separate train, eval, and serve variants.
 - `unittest` discovery omitted pytest-style trace synchronization tests; pytest
   is the canonical test runner going forward.
+- The measured prototype coverage baseline is 56%. Delivery 0 establishes a
+  55% non-regression floor rather than spending effort testing CLIs scheduled
+  for deletion; each replacement delivery raises the floor toward the final 85%.
 - Verifiers v1 already separates taskset, harness, runtime, client, and trace;
   the platform should compose those abstractions rather than recreate an eval
   schema or reduce environments to reward callbacks.
@@ -939,6 +945,8 @@ state.
   lifecycle before expanding the model set.
 - 2026-07-20: Expanded revision 2 so every original critique finding has a
   deletion/migration target, review boundary, and acceptance test.
+- 2026-07-20: Set the initial coverage ratchet to 55% against a measured 56%
+  baseline; the final target remains 85% for the refactored non-GPU code.
 
 ## Outcomes & Retrospective
 

@@ -8,6 +8,16 @@ dependencies = [
     "common",
 ]
 
+[dependency-groups]
+dev = [
+    "import-linter>=2.3",
+    "pyright>=1.1.400",
+    "pytest>=8.4",
+    "pytest-asyncio>=1.0",
+    "pytest-cov>=6.2",
+    "ruff>=0.12",
+]
+
 [tool.uv.sources]
 common = { workspace = true }
 
@@ -38,3 +48,59 @@ conflicts = [
 name = "pytorch-cu130"
 url = "https://download.pytorch.org/whl/cu130"
 explicit = true
+
+[tool.pytest.ini_options]
+addopts = [
+    "--strict-config",
+    "--strict-markers",
+]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "docker: requires a local Docker daemon and image runtime",
+    "gpu: requires a compatible CUDA GPU and model runtime",
+    "network: requires external network access",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+extend-exclude = [".venv", ".venvs", "runs", "outputs", "checkpoints"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["B017"]
+
+[tool.pyright]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+include = ["packages", "tests"]
+exclude = ["**/__pycache__", ".venv", ".venvs"]
+reportMissingTypeStubs = "none"
+
+[tool.coverage.run]
+branch = true
+source = [
+    "common",
+    "eval",
+    "reports",
+    "serve",
+    "train",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+precision = 1
+fail_under = 55
+
+[tool.importlinter]
+root_packages = ["common", "eval", "reports", "serve", "train"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Reusable capability packages are independent"
+type = "independence"
+modules = ["eval", "reports", "serve", "train"]
