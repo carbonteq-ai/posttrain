@@ -6,8 +6,8 @@ import argparse
 from functools import partial
 from pathlib import Path
 
-from posttrain.common.profiles import QWEN_35_2B
-from posttrain.serve import QWEN35_VLLM_TEXT, BenchmarkCell, BenchmarkRequest
+from posttrain.common.profiles import LFM_25_12B_THINKING, QWEN_35_2B
+from posttrain.serve import LFM25_VLLM, QWEN35_VLLM_TEXT, BenchmarkCell, BenchmarkRequest
 
 from .execution import AttemptSpec, execute, execute_tracked
 from .jobs import (
@@ -23,7 +23,10 @@ from .source import resolve_git_source
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="posttrain-lab")
-    parser.add_argument("job", choices=("noop", "foundation-qwen-smoke"))
+    parser.add_argument(
+        "job",
+        choices=("noop", "foundation-qwen-smoke", "foundation-lfm-smoke"),
+    )
     parser.add_argument("--tracked", action="store_true")
     parser.add_argument("--project", default="posttrain-platform")
     parser.add_argument("--repository", type=Path, default=Path.cwd())
@@ -41,9 +44,12 @@ def main() -> None:
         )
         operation = run_noop
     else:
+        model, profile = (
+            (QWEN_35_2B, QWEN35_VLLM_TEXT) if args.job == "foundation-qwen-smoke" else (LFM_25_12B_THINKING, LFM25_VLLM)
+        )
         request = BenchmarkRequest(
-            model=QWEN_35_2B,
-            profile=QWEN35_VLLM_TEXT,
+            model=model,
+            profile=profile,
             cell=BenchmarkCell(
                 "foundation-smoke-v1",
                 "short-interactive",
