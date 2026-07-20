@@ -109,7 +109,11 @@ class FakeRLEnvironment:
     async def score(self, rollout: CompletedRollout) -> RolloutScore:
         return RolloutScore(
             1.0,
-            TraceObservation("test", rollout.example_id, {"completion": rollout.completion}),
+            TraceObservation(
+                "test",
+                rollout.example_id,
+                {"completion": rollout.completion, "terminated": rollout.terminated},
+            ),
         )
 
     def finalize(self) -> tuple[ProducedArtifact, ...]:
@@ -234,7 +238,7 @@ def test_trl_reward_adapter_preserves_rollout_identity_and_observes_native_trace
     )
 
     rewards = asyncio.run(
-        _reward_function(context, request)(
+        _reward_function(context, request, frozenset({12}))(
             completions=[[{"role": "assistant", "content": "#### 4"}]],
             completion_ids=[[10, 11, 12]],
             example_id=["gsm8k/train/0"],
@@ -245,6 +249,7 @@ def test_trl_reward_adapter_preserves_rollout_identity_and_observes_native_trace
     assert rewards == [1.0]
     assert observer.traces[0].external_id == "gsm8k/train/0"
     assert observer.traces[0].payload["completion"] == "#### 4"
+    assert observer.traces[0].payload["terminated"] is True
     assert observer.traces[0].attributes["technique"] == "grpo"
     assert observer.traces[0].attributes["model_profile_id"] == QWEN_35_2B.id
 

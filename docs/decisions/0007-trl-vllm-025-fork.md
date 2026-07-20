@@ -23,7 +23,7 @@ generation, or weight-synchronization behavior. Those changes exist after the
 - Apply upstream vLLM 0.24 support commit `c1fdca18f0cc56fb60726d879d73f0cbd344e91f`
   and vLLM 0.25 support commit `68d7cb1a4228f91d832c2dc7ced80674d2c46c56`.
 - Pin the workspace to merged fork commit
-  `c45fab729418baff42da1b35627e9a4ff43d4514` and pin vLLM to `0.25.1`.
+  `b30d820a160ee39a2294a2755fd2d96fe3ac57b0` and pin vLLM to `0.25.1`.
 - Keep the trainer-runtime dependency on `datasets>=4.6.1,<4.7`. TRL's runtime
   paths use APIs available in 4.6.1; 4.7-only `Json` dtype helpers belong to
   repository dataset-authoring scripts. This makes TRL 1.8 and Verifiers v1
@@ -40,7 +40,9 @@ generation, or weight-synchronization behavior. Those changes exist after the
 - For QLoRA policies, use vLLM's dynamic-LoRA path: retain the healthy
   quantized base representation and synchronize only the active PEFT adapter.
   Never pass packed `Linear4bit` parameter storage to the ordinary dense-weight
-  update path.
+  update path. With sleep enabled, preserve the immutable base through vLLM
+  level-1 CPU backup; level 2 discards it and vLLM cannot reload bitsandbytes
+  checkpoints in place.
 
 ## Consequences
 
@@ -82,6 +84,14 @@ Declarative vLLM weight namespaces were merged in
 [`carbonteq-ai/trl#7`](https://github.com/carbonteq-ai/trl/pull/7). The Qwen3.5
 full-weight compatibility probe used `language_model.`; the generic TRL adapter
 applies the prefix once at its weight-update boundary.
+
+Native PEFT adapter synchronization was merged in
+[`carbonteq-ai/trl#8`](https://github.com/carbonteq-ai/trl/pull/8). Its
+quantized-base sleep lifecycle was corrected in
+[`carbonteq-ai/trl#9`](https://github.com/carbonteq-ai/trl/pull/9): level-1
+sleep backed up 1.82 GiB of Qwen3.5 base weights on the local RTX 3070 Ti,
+wake restored them without `reload_weights`, and the real SFT adapter produced
+a coherent completion.
 
 Native PEFT adapter synchronization was merged in
 [`carbonteq-ai/trl#8`](https://github.com/carbonteq-ai/trl/pull/8). A local

@@ -39,7 +39,7 @@ uv run --package posttrain-lab --extra gpu-posttrain python -c \
 ```
 
 Expect CUDA `True`, `datasets` `4.6.1`, and `trl` `1.8.0` from fork commit
-`c45fab729418baff42da1b35627e9a4ff43d4514`.
+`b30d820a160ee39a2294a2755fd2d96fe3ac57b0`.
 
 The CarbonTeq TRL compatibility pin removes the former TRL/Verifiers datasets
 conflict. Serving engines remain optional runtime choices and should only be

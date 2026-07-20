@@ -10,7 +10,7 @@ The lab's injected observation context maps those hooks to Trackio. Datasets,
 rewards, and Verifiers environment implementations remain independently owned.
 
 The workspace uses the `carbonteq-ai/trl` fork pinned to immutable commit
-`c45fab729418baff42da1b35627e9a4ff43d4514`. The fork preserves TRL 1.8.0 and
+`b30d820a160ee39a2294a2755fd2d96fe3ac57b0`. The fork preserves TRL 1.8.0 and
 adds the upstream-validated vLLM 0.24/0.25 dependency support plus regression
 coverage. It also keeps the trainer runtime compatible with `datasets 4.6.1`
 so the application can install Verifiers v1 and TRL together. It does not
@@ -36,6 +36,11 @@ vLLM's quantized base untouched, exports only the current adapter, and reloads
 that adapter through vLLM's dynamic-LoRA API. This avoids treating packed
 4-bit parameter storage as a dense weight tensor. The generic change was
 merged in [`carbonteq-ai/trl#8`](https://github.com/carbonteq-ai/trl/pull/8).
+Because level-2 sleep discards the immutable base and vLLM cannot reload a
+bitsandbytes checkpoint in place, native-LoRA mode uses level-1 sleep. This
+CPU-backs the quantized base while still releasing its GPU allocation; full
+weight synchronization retains level 2. The lifecycle correction was merged
+in [`carbonteq-ai/trl#9`](https://github.com/carbonteq-ai/trl/pull/9).
 DPO kernel choice is model-specific and recorded as `dpo_loss_kernel`. Liger's
 fused DPO loss can reduce projection memory for moderate vocabularies, but its
 current backward path creates a full FP32 LM-head gradient even when that head

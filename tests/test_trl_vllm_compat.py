@@ -5,7 +5,7 @@ import json
 import unittest
 import warnings
 
-TRL_FORK_COMMIT = "c45fab729418baff42da1b35627e9a4ff43d4514"
+TRL_FORK_COMMIT = "b30d820a160ee39a2294a2755fd2d96fe3ac57b0"
 
 
 class TrlVllmCompatibilityTest(unittest.TestCase):

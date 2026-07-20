@@ -47,8 +47,11 @@ def run_grpo(context: ExecutionContext, request: GRPORequest, output_dir: Path) 
             prompt,
             tokenize=True,
             add_generation_prompt=True,
+            return_dict=False,
             **template_kwargs,
         )
+        if not isinstance(rendered, list) or any(not isinstance(token_id, int) for token_id in rendered):
+            raise TypeError("chat template must return one flat token-id list")
         if len(rendered) > request.profile.max_prompt_length:
             raise ValueError(
                 f"rollout example {example.id!r} has {len(rendered)} prompt tokens; "
@@ -61,7 +64,16 @@ def run_grpo(context: ExecutionContext, request: GRPORequest, output_dir: Path) 
     arguments = _grpo_arguments(request, output_dir, template_kwargs)
     trainer = GRPOTrainer(
         model=model,
-        reward_funcs=cast(Any, _reward_function(context, request)),
+        reward_funcs=cast(
+            Any,
+            _reward_function(
+                context,
+                request,
+                frozenset(
+                    token_id for token_id in (tokenizer.eos_token_id, tokenizer.pad_token_id) if token_id is not None
+                ),
+            ),
+        ),
         args=GRPOConfig(**arguments),
         train_dataset=dataset,
         processing_class=tokenizer,
@@ -83,7 +95,11 @@ def _completion_text(completion: Any) -> str:
     return cast(str, message["content"])
 
 
-def _reward_function(context: ExecutionContext, request: GRPORequest) -> Any:
+def _reward_function(
+    context: ExecutionContext,
+    request: GRPORequest,
+    terminal_token_ids: frozenset[int],
+) -> Any:
     """Translate TRL callback arguments into the public online-RL environment contract."""
 
     async def score_rollouts(
@@ -105,6 +121,7 @@ def _reward_function(context: ExecutionContext, request: GRPORequest) -> Any:
                         completion=_completion_text(completion),
                         token_ids=tuple(int(value) for value in token_ids),
                         step=step,
+                        terminated=bool(token_ids) and token_ids[-1] in terminal_token_ids,
                     )
                 )
                 for completion, token_ids, identifier in zip(

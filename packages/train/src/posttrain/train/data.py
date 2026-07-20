@@ -134,6 +134,7 @@ class CompletedRollout:
     completion: str
     token_ids: tuple[int, ...]
     step: int
+    terminated: bool
 
     def __post_init__(self) -> None:
         _validate_id(self.example_id)
@@ -143,6 +144,10 @@ class CompletedRollout:
     @property
     def token_count(self) -> int:
         return len(self.token_ids)
+
+    @property
+    def is_truncated(self) -> bool:
+        return not self.terminated
 
 
 @dataclass(frozen=True, slots=True)

@@ -26,7 +26,13 @@ class FakeTrace:
         return sum(self.rewards.values())
 
     def to_record(self) -> dict[str, object]:
-        return {"id": self.id, "rewards": self.rewards, "metrics": self.metrics}
+        return {
+            "id": self.id,
+            "rewards": self.rewards,
+            "metrics": self.metrics,
+            "is_completed": self.values["is_completed"],
+            "stop_condition": self.values["stop_condition"],
+        }
 
 
 class FakeValue:
@@ -78,7 +84,13 @@ def test_generic_bridge_projects_tasks_scores_and_preserves_native_trace(monkeyp
 
     score = asyncio.run(
         environment.score(
-            CompletedRollout("train/000007", "completion", tuple(range(12)), 0)
+            CompletedRollout(
+                example_id="train/000007",
+                completion="completion",
+                token_ids=tuple(range(12)),
+                step=0,
+                terminated=False,
+            )
         )
     )
     artifacts = environment.finalize()
@@ -86,5 +98,8 @@ def test_generic_bridge_projects_tasks_scores_and_preserves_native_trace(monkeyp
     assert score.reward == 1.05
     assert score.trace.external_id == "trace-1"
     assert score.trace.payload["rewards"] == {"native": 1.0, "shape": 0.05}
+    assert score.trace.payload["is_completed"] is False
+    assert score.trace.payload["stop_condition"] == "max_tokens"
+    assert score.trace.attributes["is_truncated"] is True
     assert len(artifacts) == 1
     assert artifacts[0].metadata["trace_count"] == 1

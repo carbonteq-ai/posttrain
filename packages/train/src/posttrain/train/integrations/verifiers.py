@@ -108,8 +108,8 @@ class VerifiersOnlineRLEnvironment:
                 "task_index": task_index,
                 "example_id": rollout.example_id,
             },
-            is_completed=True,
-            stop_condition="agent_completed",
+            is_completed=rollout.terminated,
+            stop_condition="agent_completed" if rollout.terminated else "max_tokens",
         )
         runtime = make_runtime(self._environment.runtime_for(task))
         await runtime.start()
@@ -130,6 +130,7 @@ class VerifiersOnlineRLEnvironment:
                 "environment_id": self.environment_id,
                 "task_index": task_index,
                 "example_id": rollout.example_id,
+                "is_truncated": rollout.is_truncated,
             },
         )
         return RolloutScore(float(trace.reward), observation)

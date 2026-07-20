@@ -112,7 +112,10 @@ TRL-shaped dataset plus reward callback. The environment owns its rollout
 examples, stable task identity, asynchronous scoring, native traces, and native
 evidence finalization. The TRL adapter privately converts that contract into
 the dataset columns and reward callback required by `GRPOTrainer`, then sends
-the returned traces through the execution context.
+the returned traces through the execution context. It also converts the
+backend's terminal token into explicit rollout termination state, so an
+environment trace distinguishes an agent-completed response from a
+max-token truncation.
 
 `posttrain.train.integrations.verifiers.VerifiersOnlineRLEnvironment`
 implements this contract for native Verifiers task collections. It constructs
@@ -134,9 +137,11 @@ The GRPO rollout profile explicitly selects one of two execution modes:
   one policy-weight representation. It is the constrained-hardware fallback.
 - colocated vLLM creates an optimized inference representation inside the TRL
   process. For QLoRA, it retains the quantized base and reloads only the active
-  LoRA adapter before rollout; sleep level 2 discards vLLM weights and KV cache
-  before optimization. This is not literally a single representation, but it
-  prevents a separate Verifiers model and bounds concurrent GPU residency.
+  LoRA adapter before rollout. Sleep level 1 moves the immutable quantized base
+  to CPU and discards the KV cache before optimization, then restores the base
+  without an unsupported bitsandbytes checkpoint reload. This is not literally
+  a single representation, but it prevents a separate Verifiers model and
+  bounds concurrent GPU residency.
 
 Text-only training does not imply that the Hub checkpoint has a text-only
 top-level namespace. Qwen3.5 is distributed as a composite checkpoint, so
