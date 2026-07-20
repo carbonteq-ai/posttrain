@@ -21,6 +21,7 @@ from posttrain.common import (
 from posttrain.common.profiles import QWEN_35_2B
 from posttrain.train import (
     QWEN35_DPO_SMOKE,
+    QWEN35_GRPO_MTP_SMOKE,
     QWEN35_GRPO_SMOKE,
     QWEN35_SFT_SMOKE,
     DPORequest,
@@ -190,7 +191,16 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
     assert arguments["use_vllm"] is True
     assert arguments["vllm_mode"] == "colocate"
     assert arguments["vllm_enable_sleep_mode"] is True
-    assert arguments["vllm_speculative_config"] == {
+    assert arguments["vllm_speculative_config"] is None
+
+    mtp_request = GRPORequest(
+        ModelVariant.foundation(QWEN_35_2B),
+        _rollouts(),
+        QWEN35_GRPO_MTP_SMOKE,
+        _reward,
+    )
+    mtp_arguments = _grpo_arguments(mtp_request, tmp_path, {"enable_thinking": False})
+    assert mtp_arguments["vllm_speculative_config"] == {
         "method": "qwen3_next_mtp",
         "num_speculative_tokens": 2,
     }

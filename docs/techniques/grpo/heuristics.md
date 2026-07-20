@@ -7,6 +7,10 @@
   third policy copy.
 - Enable native MTP only through a compatible typed rollout profile. Record the
   method, speculative-token count, acceptance, and importance-sampling metrics.
+- On the RTX 3070 Ti, Qwen3.5-2B colocated MTP reaches the native vLLM drafter
+  but cannot allocate its additional ~970 MiB embedding beside the training and
+  inference representations. Use the non-MTP colocated profile here and retain
+  the MTP profile for the larger acceptance machine.
 - Keep `num_generations` at 2–4 for smoke; 8 is often too heavy here.
 - Size `max_completion_length` from observed termination. A clipped rollout is
   not a useful memory optimization; reduce the group or use more memory instead.

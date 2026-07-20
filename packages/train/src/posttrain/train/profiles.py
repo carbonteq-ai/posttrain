@@ -211,6 +211,21 @@ LFM25_DPO_SMOKE = DPOProfile(
     loss_kernel="liger",
 )
 QWEN35_GRPO_SMOKE = GRPOProfile(
+    "qwen3.5-2b/grpo-qlora-vllm-smoke-v1",
+    "qwen3.5",
+    QWEN35_RENDERER,
+    TrainingLoop(max_steps=1, per_device_batch_size=2, learning_rate=1e-5),
+    max_completion_length=256,
+    rollout=GRPORolloutProfile(
+        "qwen3.5-2b/vllm-colocate-v1",
+        "vllm",
+        vllm_mode="colocate",
+        sleep_during_optimization=True,
+        gpu_memory_utilization=0.2,
+        max_model_length=512,
+    ),
+)
+QWEN35_GRPO_MTP_SMOKE = GRPOProfile(
     "qwen3.5-2b/grpo-qlora-vllm-mtp-smoke-v1",
     "qwen3.5",
     QWEN35_RENDERER,
@@ -237,6 +252,7 @@ __all__ = [
     "LFM25_SFT_SMOKE",
     "QLoRAProfile",
     "QWEN35_DPO_SMOKE",
+    "QWEN35_GRPO_MTP_SMOKE",
     "QWEN35_GRPO_SMOKE",
     "QWEN35_RENDERER",
     "QWEN35_SFT_SMOKE",

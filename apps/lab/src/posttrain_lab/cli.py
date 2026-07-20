@@ -26,6 +26,7 @@ from posttrain.train import (
     LFM25_DPO_SMOKE,
     LFM25_SFT_SMOKE,
     QWEN35_DPO_SMOKE,
+    QWEN35_GRPO_MTP_SMOKE,
     QWEN35_GRPO_SMOKE,
     QWEN35_SFT_SMOKE,
     DPORequest,
@@ -83,6 +84,7 @@ def _parser() -> argparse.ArgumentParser:
             "gsm8k-qwen-dpo-smoke",
             "gsm8k-lfm-dpo-smoke",
             "gsm8k-qwen-grpo-smoke",
+            "gsm8k-qwen-grpo-mtp-smoke",
         ),
     )
     parser.add_argument("--tracked", action="store_true")
@@ -104,12 +106,16 @@ def main() -> None:
             source_metadata=source.metadata(),
         )
         operation = run_noop
-    elif args.job == "gsm8k-qwen-grpo-smoke":
+    elif args.job in {"gsm8k-qwen-grpo-smoke", "gsm8k-qwen-grpo-mtp-smoke"}:
         adapter_name = f"training-{QWEN_35_2B.id}-sft-adapter"
         remote_adapter = TrackioArtifactRef(args.project, adapter_name, args.adapter_version)
         request = GSM8KGRPOJobRequest(
             model=ModelVariant(QWEN_35_2B, remote_adapter, "peft-adapter"),
-            profile=QWEN35_GRPO_SMOKE,
+            profile=(
+                QWEN35_GRPO_SMOKE
+                if args.job == "gsm8k-qwen-grpo-smoke"
+                else QWEN35_GRPO_MTP_SMOKE
+            ),
             task_indices=(2,),
         )
         spec = AttemptSpec(
