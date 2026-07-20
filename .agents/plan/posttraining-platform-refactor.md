@@ -924,7 +924,7 @@ state.
   - [x] Run native Verifiers episodes through a policy client backed by the already-loaded TRL generator.
   - [x] Translate native branches into aligned prompt IDs, completion IDs, sampling logprobs, rewards, and environment masks.
   - [x] Preserve task identity through aligned TRL dataset rows and authoritative native truncation state.
-  - [ ] Prove the new environment-driven path with a one-step GPU GRPO smoke.
+  - [x] Prove the new environment-driven path with a one-step GPU GRPO smoke.
 - [ ] Phase 6 — observation, reports, and reference lifecycle.
 - [ ] Phase 7 — legacy deletion and quality hardening.
 
@@ -1031,6 +1031,9 @@ state.
 - 2026-07-20: Replace the partial GRPO scoring callback with a native
   environment-driven `OnlineRLBridge`; Verifiers owns complete episode
   execution and TRL provides the already-loaded policy generator.
+- 2026-07-20: Prove that bridge on the local 8 GB GPU from clean revision
+  `e7babfc`; Trackio run `07984dfc3feb44e1b34dcd5b92e2d850` retained two
+  native traces, lineage, adapter/checkpoint outputs, and a nonzero gradient.
 
 ## Outcomes & Retrospective
 

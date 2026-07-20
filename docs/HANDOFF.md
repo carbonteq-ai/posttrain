@@ -101,14 +101,18 @@ demonstrates why run completion and trace quality remain distinct facts.
 | --- | --- | --- | ---: | --- |
 | SFT | `b549afa7241942bfa6ed31cc4fdacffd` | Qwen3.5 foundation | 2 | final loss `0.9181`, grad norm `4.6875` |
 | DPO | `9a89fda28de34c6d9254995402becba9` | SFT adapter `v0` | 2 | final loss `0.3474`, grad norm `0.1387` |
-| GRPO | `17b7f95710a14e359f7c4706f2925690` | SFT adapter `v0` | 1 | reward std `0.00888`, grad norm `0.08447`, clipped ratio `0` |
+| GRPO | `07984dfc3feb44e1b34dcd5b92e2d850` | SFT adapter `v0` | 1 | native episode bridge, reward std `0.00139`, grad norm `0.05420` |
 
-The GRPO run contains two coherent, correct Verifiers traces that terminated at
-164 and 273 tokens. Both preserve model identity, sampled token IDs, train
-masks, reward components, and stop state. The run also produced the native
-trace artifact, GRPO adapter, step-1 recovery checkpoint, and summary. The
-scalar loss is zero on the first centered group-relative step, but its nonzero
-gradient proves the requested backpropagation pass.
+The canonical GRPO run is from clean revision `e7babfc`. Verifiers drove two
+native episodes through the policy client; both were correct, completed with
+`agent_completed`, and produced 251 and 232 sampled tokens. Their traces
+preserve model identity, exact token IDs/logprobs, train masks, reward
+components, and stop state. The run also produced the native trace artifact,
+GRPO adapter, step-1 recovery checkpoint, and summary. Loss was `-3.997e-06`
+and the nonzero gradient proves the requested backpropagation pass. The
+sequence-level importance ratio reached the configured `0.1` floor, so that
+profile remains a tuning target even though the architectural acceptance gate
+passed.
 
 A live `automationbench-v1` simple task also completed through the independent
 Python 3.13 runtime against the Qwen endpoint. The MCP tool server started, Qwen

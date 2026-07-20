@@ -114,10 +114,14 @@ the aligned dataset rows to the custom rollout function instead.
   [`carbonteq-ai/trl#10`](https://github.com/carbonteq-ai/trl/pull/10) and is
   pinned at `a0b4bca78eeeb02abb050abfa04624f952d5f633`.
 - Contract tests cover exact turn tokens, native multi-turn masks, reward and
-  trace projection, task identity, and native artifact finalization. A one-step
-  GPU smoke remains the runtime acceptance gate.
+  trace projection, task identity, and native artifact finalization. Trackio
+  run `07984dfc3feb44e1b34dcd5b92e2d850` from clean revision `e7babfc` passed
+  the one-step GPU runtime gate with two native traces and no additional
+  Verifiers-owned policy load. Colocated TRL/vLLM still uses its intentional
+  training and rollout representations.
 
 ## Revision History
 
 - 2026-07-20: Accepted the environment-driven bridge, replacing the partial
   post-generation Verifiers scoring callback.
+- 2026-07-20: Recorded the clean one-step colocated-vLLM GPU acceptance run.
