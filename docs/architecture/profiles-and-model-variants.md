@@ -72,11 +72,11 @@ as one profile family.
 
 | Definition | Location | Why |
 | --- | --- | --- |
-| Model profile | `profiles/models/` | Cross-engine entry point with lightweight model facts and references |
+| Model profile | `posttrain.common.profiles` | Cross-engine entry point with lightweight model facts and references |
 | Train profile | `packages/train` | Versioned with the reusable package operation and validation that understand it |
 | Eval program | `packages/eval` | Versioned with environment loading and execution policy |
 | Serve profile | `packages/serve` | Versioned with backend adapter, kernels, and compatibility tests |
-| Workload suite/corpus | `benchmarks/inference` | Versioned independently from model and backend behavior |
+| Workload suite/corpus | `posttrain.serve.benchmarks` | Shipped and versioned with the public operation that validates and executes it |
 
 The existing YAML files may be migrated into these typed definitions. They are
 not retained as compatibility contracts.

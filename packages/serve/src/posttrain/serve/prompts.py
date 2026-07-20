@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
+from importlib.resources import files
 from pathlib import Path
 from typing import Any
+
+from posttrain.common import ModelProfile
 
 
 class PromptError(ValueError):
@@ -21,20 +24,20 @@ class PromptRecord:
     reasoning_mode: str = "native"
 
 
-def load_prompt_records(path: Path) -> tuple[PromptRecord, ...]:
+def _parse_prompt_records(text: str, source: str) -> tuple[PromptRecord, ...]:
     records: list[PromptRecord] = []
     seen: set[str] = set()
-    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+    for line_number, line in enumerate(text.splitlines(), 1):
         if not line.strip():
             continue
         try:
             raw = json.loads(line)
         except json.JSONDecodeError as error:
-            raise PromptError(f"invalid JSON at {path}:{line_number}: {error}") from error
+            raise PromptError(f"invalid JSON at {source}:{line_number}: {error}") from error
         prompt_id = raw.get("id") if isinstance(raw, dict) else None
         messages = raw.get("messages") if isinstance(raw, dict) else None
         if not isinstance(prompt_id, str) or not prompt_id or prompt_id in seen:
-            raise PromptError(f"prompt id must be non-empty and unique at {path}:{line_number}")
+            raise PromptError(f"prompt id must be non-empty and unique at {source}:{line_number}")
         if not isinstance(messages, list) or not messages:
             raise PromptError(f"prompt {prompt_id!r} requires non-empty messages")
         for message in messages:
@@ -63,35 +66,38 @@ def load_prompt_records(path: Path) -> tuple[PromptRecord, ...]:
             )
         )
     if not records:
-        raise PromptError(f"prompt corpus is empty: {path}")
+        raise PromptError(f"prompt corpus is empty: {source}")
     return tuple(records)
 
 
+def load_prompt_records(path: Path) -> tuple[PromptRecord, ...]:
+    return _parse_prompt_records(path.read_text(encoding="utf-8"), str(path))
+
+
+def representative_prompt_records() -> tuple[PromptRecord, ...]:
+    resource = files("posttrain.serve.benchmarks.resources").joinpath("corpora/representative-v1.jsonl")
+    return _parse_prompt_records(resource.read_text(encoding="utf-8"), str(resource))
+
+
 def reasoning_template_kwargs(
-    model_profile: Mapping[str, Any],
+    model_profile: ModelProfile,
     requested_mode: str,
 ) -> dict[str, Any]:
     """Resolve a requested mode without pretending unsupported levels exist."""
 
-    prompting = model_profile.get("prompting", {})
-    reasoning = prompting.get("reasoning", {}) if isinstance(prompting, dict) else {}
-    modes = reasoning.get("modes", {}) if isinstance(reasoning, dict) else {}
+    modes = model_profile.capabilities.reasoning_modes
     if requested_mode not in modes:
-        supported = ", ".join(sorted(modes)) or "none"
+        supported = ", ".join(sorted(modes))
         raise PromptError(f"reasoning mode {requested_mode!r} is unsupported; supported modes: {supported}")
-    value = modes[requested_mode]
-    if not isinstance(value, dict):
-        raise PromptError(f"reasoning mode {requested_mode!r} must be a mapping")
-    kwargs = value.get("chat_template_kwargs", {})
-    if not isinstance(kwargs, dict):
-        raise PromptError(f"reasoning mode {requested_mode!r}.chat_template_kwargs must be a mapping")
-    return dict(kwargs)
+    if model_profile.family == "qwen3.5" and requested_mode in {"off", "thinking"}:
+        return {"enable_thinking": requested_mode == "thinking"}
+    return {}
 
 
 def render_prompt(
     tokenizer: Any,
     record: PromptRecord,
-    model_profile: Mapping[str, Any],
+    model_profile: ModelProfile,
 ) -> Sequence[int]:
     """Render canonical messages through the model tokenizer's native template."""
 
@@ -109,5 +115,6 @@ __all__ = [
     "PromptRecord",
     "load_prompt_records",
     "reasoning_template_kwargs",
+    "representative_prompt_records",
     "render_prompt",
 ]

@@ -5,37 +5,32 @@ import unittest
 from pathlib import Path
 
 from common.profiles import ProfileError, ProfileResolver
+from posttrain.common.profiles import LFM_25_12B_THINKING, QWEN_35_2B
+from posttrain.serve.profiles import (
+    LFM25_VLLM,
+    LFM25_VLLM_TURBOQUANT_K8,
+    QWEN35_VLLM_MTP,
+    QWEN35_VLLM_TEXT,
+    QWEN35_VLLM_TURBOQUANT_K8,
+)
 
 
 class ProfileResolverTest(unittest.TestCase):
-    def test_resolves_checked_in_foundation_and_serve_profiles(self) -> None:
-        root = Path(__file__).resolve().parents[1] / "profiles"
-        resolver = ProfileResolver(root)
-
-        model = resolver.resolve("models", "lfm2.5-1.2b-thinking")
-        serve = resolver.resolve("serve", model.data["defaults"]["serve"]["vllm"])
-
-        self.assertEqual(model.data["model"]["family"], "lfm2.5")
-        self.assertEqual(serve.data["backend"], "vllm")
-        self.assertEqual(serve.data["engine"]["max_model_len"], 4096)
-        self.assertEqual(model.data["model"]["capabilities"]["context_window"], 32768)
-
-        eval_serve = resolver.resolve("serve", model.data["defaults"]["eval"]["serve"])
-        self.assertEqual(eval_serve.data["engine"]["max_model_len"], 32768)
-        self.assertEqual(eval_serve.data["engine"]["kv_cache_dtype"], "turboquant_k8v4")
+    def test_lfm_foundation_and_serve_profiles_are_typed_and_separate(self) -> None:
+        self.assertEqual(LFM_25_12B_THINKING.family, "lfm2.5")
+        self.assertEqual(LFM_25_12B_THINKING.capabilities.native_context_window, 32_768)
+        self.assertEqual(LFM25_VLLM.model_family, LFM_25_12B_THINKING.family)
+        self.assertEqual(LFM25_VLLM.engine.max_model_len, 4_096)
+        self.assertEqual(LFM25_VLLM_TURBOQUANT_K8.engine.max_model_len, 32_768)
+        self.assertEqual(LFM25_VLLM_TURBOQUANT_K8.engine.kv_cache_dtype, "turboquant_k8v4")
 
     def test_qwen_exposes_standard_turboquant_and_mtp_serve_variants(self) -> None:
-        root = Path(__file__).resolve().parents[1] / "profiles"
-        resolver = ProfileResolver(root)
-        model = resolver.resolve("models", "qwen3.5-2b")
-
-        self.assertEqual(model.data["model"]["capabilities"]["context_window"], 262144)
-        self.assertEqual(
-            model.data["defaults"]["eval"]["serve"],
-            "serve/vllm/qwen3.5-2b-turboquant-k8v4",
-        )
-        mtp = resolver.resolve("serve", model.data["defaults"]["serve"]["variants"]["mtp"])
-        self.assertEqual(mtp.data["engine"]["speculative_config"]["method"], "qwen3_next_mtp")
+        self.assertEqual(QWEN_35_2B.capabilities.native_context_window, 262_144)
+        self.assertEqual(QWEN35_VLLM_TEXT.model_family, QWEN_35_2B.family)
+        self.assertEqual(QWEN35_VLLM_TURBOQUANT_K8.engine.max_model_len, 32_768)
+        self.assertEqual(QWEN35_VLLM_TURBOQUANT_K8.engine.kv_cache_dtype, "turboquant_k8v4")
+        assert QWEN35_VLLM_MTP.engine.speculative is not None
+        self.assertEqual(QWEN35_VLLM_MTP.engine.speculative.method, "qwen3_next_mtp")
 
     def test_resolves_one_parent_and_deep_merges_mappings(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

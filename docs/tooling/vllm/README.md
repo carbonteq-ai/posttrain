@@ -25,35 +25,34 @@ builders commonly expect `CUDA_HOME/lib64` and linker names such as
 the active PyTorch build and creates a cache-local conventional view. It does
 not alter the installed wheels and does not disable FlashInfer.
 
-Run the current offline benchmark with:
+Run either current code-defined foundation smoke through the lab composition
+root. The operation remains usable directly from Python through
+`posttrain.serve.benchmark`; the CLI is only a job launcher:
 
 ```bash
 uv run --package posttrain-serve --extra vllm --python 3.12 \
-  serve-benchmark lfm2.5-1.2b-thinking
+  posttrain-lab foundation-lfm-smoke --tracked --project posttrain-foundation
+uv run --package posttrain-serve --extra vllm --python 3.12 \
+  posttrain-lab foundation-qwen-smoke --tracked --project posttrain-foundation
 ```
 
-Plan the reusable workload matrix without loading a model:
+The reusable matrix is a typed value and can be inspected without loading a
+model:
 
 ```bash
-uv run --package posttrain-serve --extra vllm --python 3.12 \
-  serve-benchmark-suite lfm2.5-1.2b-thinking --dry-run
+uv run --package posttrain-serve python -c \
+  'from posttrain.serve import CORE_INFERENCE_V1; print(*CORE_INFERENCE_V1.cells(max_concurrency=4), sep="\n")'
 ```
 
 The checked-in suite contains concurrency 1, 2, 4, and 8 for portability. On
 this RTX 3070 Ti, execute only through concurrency 4:
 
-```bash
-uv run --package posttrain-serve --extra vllm --python 3.12 \
-  serve-benchmark-suite lfm2.5-1.2b-thinking \
-  --concurrency 1 --concurrency 2 --concurrency 4
-```
-
-The lab host records each matrix cell as a separate Trackio run carrying the
+The lab host records each executed matrix cell as a separate Trackio run carrying the
 code-defined job, action, invocation, and attempt IDs. The suite covers short interactive, decode-heavy, balanced,
 and prefill-heavy shapes at 1K through 32K configured context. All 32K cells
 resolve the model profile's `turboquant_k8v4` serve variant.
 
-Model targets are selected through typed definitions in `profiles/models`;
+Model targets are selected through typed definitions in `posttrain.common.profiles`;
 vLLM settings, MTP, TurboQuant, cache behavior, and compatibility declarations
 belong in typed profiles shipped with `packages/serve`. Each benchmark records its resolved inputs, package and GPU
 context, portable throughput metrics, native output, and result artifact in a

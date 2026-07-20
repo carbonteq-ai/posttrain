@@ -143,11 +143,11 @@ Definitions live with the public package that validates them:
 
 | Definition | Owner | Example import |
 | --- | --- | --- |
-| Model profile | shared `profiles.models` | `QWEN_35_2B` |
+| Model profile | `posttrain.common.profiles` | `QWEN_35_2B` |
 | Training profile | `packages/train` | `train.profiles.qwen35.SFT_QLORA` |
 | General eval program | `packages/eval` | `eval.programs.GENERAL_SMOKE` |
 | Serve profile | `packages/serve` | `serve.profiles.qwen35.VLLM_TURBOQUANT_K8` |
-| Inference workload | `benchmarks/inference` | `CONTEXT_CONCURRENCY_MATRIX` |
+| Inference workload | `posttrain.serve.benchmarks` | `CORE_INFERENCE_V1` |
 | Environment | standalone Verifiers package | `org/customer-support@0.4.0` |
 
 Definitions are typed Python objects or factories. TOML/YAML may instantiate a

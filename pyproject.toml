@@ -104,3 +104,9 @@ name = "Reusable packages do not import the lab application"
 type = "forbidden"
 source_modules = ["posttrain", "common"]
 forbidden_modules = ["posttrain_lab"]
+
+[[tool.importlinter.contracts]]
+name = "Serving is independent of observation and legacy configuration"
+type = "forbidden"
+source_modules = ["posttrain.serve"]
+forbidden_modules = ["trackio", "yaml", "common"]

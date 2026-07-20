@@ -4,14 +4,8 @@ version = "0.1.0"
 description = "Reusable vLLM serving and inference benchmark operations"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "posttrain-common[legacy]",
-    "huggingface-hub",
-    "pyyaml>=6",
+    "posttrain-common",
 ]
-
-[project.scripts]
-serve-benchmark = "posttrain.serve.cli:main"
-serve-benchmark-suite = "posttrain.serve.suite_cli:main"
 
 [project.entry-points."vllm.general_plugins"]
 lab-serve-compat = "posttrain.serve.vllm_compat:apply_vllm_compatibility_patches"

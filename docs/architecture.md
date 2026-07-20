@@ -148,9 +148,9 @@ more explicit actions:
 
 ```python
 from posttrain.common import ExecutionContext, Job, JobAction
-from posttrain.common.profiles import QWEN35_2B
-from posttrain.eval import EvaluationRequest, evaluate
-from posttrain.serve import BenchmarkRequest, benchmark
+from posttrain.common.profiles import QWEN_35_2B
+from posttrain.eval import GENERAL_SMOKE, EvaluationRequest, evaluate
+from posttrain.serve import QWEN35_VLLM_TURBOQUANT_K8, BenchmarkRequest, benchmark
 
 JOB = Job(
     id="customer-support/v1",
@@ -164,8 +164,8 @@ SCREEN_FOUNDATIONS = JobAction(
 )
 
 def screen_foundations(ctx: ExecutionContext) -> None:
-    benchmark(ctx, BenchmarkRequest(model=QWEN35_2B, profile="vllm.turboquant_k8"))
-    evaluate(ctx, EvaluationRequest(model=QWEN35_2B, program="general.smoke"))
+    benchmark(ctx, BenchmarkRequest(model=QWEN_35_2B, profile=QWEN35_VLLM_TURBOQUANT_K8))
+    evaluate(ctx, EvaluationRequest(model=QWEN_35_2B, program=GENERAL_SMOKE))
 ```
 
 The function is ordinary Python: it can loop over candidates, call helpers,

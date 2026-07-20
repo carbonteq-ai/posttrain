@@ -2,37 +2,33 @@ from __future__ import annotations
 
 import unittest
 
-from common import BENCHMARKS_DIR, PROFILES_DIR, ProfileResolver
-from posttrain.serve.prompts import PromptError, load_prompt_records, reasoning_template_kwargs
+from posttrain.common.profiles import LFM_25_12B_THINKING, QWEN_35_2B
+from posttrain.serve.prompts import PromptError, reasoning_template_kwargs, representative_prompt_records
 
 
 class InferencePromptTest(unittest.TestCase):
     def test_loads_canonical_messages_without_rendered_model_text(self) -> None:
-        records = load_prompt_records(BENCHMARKS_DIR / "inference" / "corpora" / "representative-v1.jsonl")
+        records = representative_prompt_records()
 
         self.assertEqual(len(records), 4)
         self.assertEqual(records[0].messages[0]["role"], "user")
 
     def test_qwen_maps_only_declared_reasoning_modes(self) -> None:
-        profile = ProfileResolver(PROFILES_DIR).resolve("models", "qwen3.5-2b")
-
         self.assertEqual(
-            reasoning_template_kwargs(profile.data, "thinking"),
+            reasoning_template_kwargs(QWEN_35_2B, "thinking"),
             {"enable_thinking": True},
         )
         self.assertEqual(
-            reasoning_template_kwargs(profile.data, "off"),
+            reasoning_template_kwargs(QWEN_35_2B, "off"),
             {"enable_thinking": False},
         )
         with self.assertRaisesRegex(PromptError, "unsupported"):
-            reasoning_template_kwargs(profile.data, "medium")
+            reasoning_template_kwargs(QWEN_35_2B, "medium")
 
     def test_lfm_thinking_checkpoint_exposes_only_native_mode(self) -> None:
-        profile = ProfileResolver(PROFILES_DIR).resolve("models", "lfm2.5-1.2b-thinking")
-
-        self.assertEqual(reasoning_template_kwargs(profile.data, "native"), {})
+        self.assertEqual(reasoning_template_kwargs(LFM_25_12B_THINKING, "native"), {})
         with self.assertRaisesRegex(PromptError, "unsupported"):
-            reasoning_template_kwargs(profile.data, "off")
+            reasoning_template_kwargs(LFM_25_12B_THINKING, "off")
 
 
 if __name__ == "__main__":

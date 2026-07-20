@@ -25,30 +25,30 @@ typed definitions ──► code-based jobs ──► train/eval/serve packages
 
 | Surface | Responsibility |
 | --- | --- |
-| `packages/common` | Lightweight Job/action/request, identity, artifact-reference, provenance, and Trackio-write contracts |
+| `packages/common` | Lightweight job/action/invocation, model, artifact, execution-context, and observation protocols |
 | `packages/train` | Reusable SFT/DPO/RL operations with internal TRL or future adapters |
 | `packages/eval` | Reusable evaluation operations/programs with internal Verifiers integration |
-| `packages/serve` | Reusable serving/benchmark operations with internal vLLM/SGLang adapters |
-| `profiles/models` | Reusable typed model entry points |
-| `jobs/` | Code-based objectives, actions, job-local policy, and decisions |
+| `packages/serve` | Reusable serving/benchmark operations with an internal vLLM adapter |
+| `packages/common/posttrain/common/profiles` | Reusable typed foundation-model entry points |
+| `apps/lab/.../jobs` | Code-based objectives, actions, job-local policy, and decisions |
 | Trackio | Pure observability: runs, snapshots, metrics, traces, artifacts, and observed lineage |
 
 See [Post-training platform architecture](./architecture.md) and [Architecture documents](./architecture/README.md).
 
 ## Current implementation state
 
-The current uv workspace has the domain packages and an earlier YAML profile/run
-implementation. That implementation is evidence for the refactor, not a
-compatibility contract. The target replaces it with typed Python definitions,
-code-based jobs, and temporary execution workspaces.
+The common execution contracts, code-defined lab host, Trackio observation
+adapter, typed foundation/serve profiles, packaged benchmark data, workload
+matrix, and vLLM benchmark operation are implemented. The legacy YAML eval and
+training paths are still being replaced and are not compatibility contracts.
 
-The next vertical slice will add:
+The next vertical slices will add:
 
-1. the code-first Job/action/request SDK;
-2. typed model and engine definitions for the selected base models;
-3. vLLM/SGLang baseline, MTP, and TurboQuant serving configs;
-4. independently packaged Verifiers environments;
-5. one end-to-end code-based job proving multiple runs, artifact lineage, and reevaluation.
+1. endpoint-neutral, code-defined Verifiers evaluation operations and programs;
+2. independently packaged Verifiers environments;
+3. renderer-aware SFT and DPO operations;
+4. a Verifiers-to-TRL GRPO operation;
+5. one end-to-end job proving model lineage and reevaluation.
 
 ## Design principles
 
@@ -66,5 +66,5 @@ The next vertical slice will add:
 cd /home/hammad/projects/rl
 mise install
 uv sync --all-packages --python 3.12
-uv run --package common profile-resolve --help
+uv run --package posttrain-lab posttrain-lab noop --tracked
 ```

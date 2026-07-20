@@ -904,7 +904,9 @@ state.
   - [x] Diagnose and correct the Qwen3.5-2B 8 GiB text-only startup profile with a real GPU run.
   - [x] Move offline benchmark execution behind a typed, observer-neutral operation.
   - [x] Add the first code-defined foundation-screening serving action.
-  - [ ] Delete the legacy YAML/Trackio CLI path after the tracked operation GPU smoke.
+  - [x] Move the representative corpus into the installable serve wheel and verify it from an isolated environment.
+  - [x] Delete the legacy serving YAML/Trackio CLI path after the tracked operation GPU smoke.
+  - [ ] Add the online launch/generate/probe path and deterministic concurrency scheduling tests.
 - [ ] Phase 3 — evaluation and environment vertical slice.
 - [ ] Phase 4 — renderer-based SFT and DPO.
 - [ ] Phase 5 — Verifiers-to-TRL GRPO bridge.
@@ -955,6 +957,11 @@ state.
   170.90 output tok/s, 14.2 ms TTFT, 6.35 GiB peak VRAM, and 22.55 seconds
   startup. Both pinned foundations now have comparable job-owned serving
   evidence through the new operation and observation boundaries.
+- Root serving YAML, the YAML benchmark matrix, and both legacy serving CLIs
+  were deleted after the typed operation smokes. The representative corpus now
+  loads from `posttrain.serve` package resources in an isolated wheel-only
+  environment; import-linter also proves serving has no Trackio, YAML, legacy
+  `common`, or lab-host dependency.
 
 ## Decision Log
 

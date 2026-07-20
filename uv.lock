@@ -2511,9 +2511,7 @@ name = "posttrain-serve"
 version = "0.1.0"
 source = { editable = "packages/serve" }
 dependencies = [
-    { name = "huggingface-hub" },
-    { name = "posttrain-common", extra = ["legacy"] },
-    { name = "pyyaml" },
+    { name = "posttrain-common" },
 ]
 
 [package.optional-dependencies]
@@ -2531,14 +2529,12 @@ vllm = [
 
 [package.metadata]
 requires-dist = [
-    { name = "huggingface-hub" },
     { name = "nvidia-cuda-cccl", marker = "sys_platform == 'linux' and extra == 'vllm'", specifier = "==13.0.85" },
     { name = "nvidia-cuda-crt", marker = "sys_platform == 'linux' and extra == 'vllm'", specifier = "==13.0.88" },
     { name = "nvidia-cuda-nvcc", marker = "sys_platform == 'linux' and extra == 'vllm'", specifier = "==13.0.88" },
     { name = "nvidia-ml-py", marker = "sys_platform == 'linux' and extra == 'vllm'", specifier = ">=13.580.82" },
     { name = "nvidia-nvvm", marker = "sys_platform == 'linux' and extra == 'vllm'", specifier = "==13.0.88" },
-    { name = "posttrain-common", extras = ["legacy"], editable = "packages/common" },
-    { name = "pyyaml", specifier = ">=6" },
+    { name = "posttrain-common", editable = "packages/common" },
     { name = "torch", marker = "extra == 'vllm'", index = "https://download.pytorch.org/whl/cu130" },
     { name = "torchaudio", marker = "extra == 'vllm'", index = "https://download.pytorch.org/whl/cu130" },
     { name = "torchvision", marker = "extra == 'vllm'", index = "https://download.pytorch.org/whl/cu130" },
