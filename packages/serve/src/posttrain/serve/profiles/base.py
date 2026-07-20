@@ -58,7 +58,7 @@ class VllmEngineConfig:
         if self.skip_mm_profiling and not self.text_only:
             raise ValueError("skip_mm_profiling is only safe for an explicit text-only profile")
 
-    def as_vllm_kwargs(self) -> dict[str, object]:
+    def as_vllm_kwargs(self, model: ModelProfile | None = None) -> dict[str, object]:
         values: dict[str, object] = {
             "max_model_len": self.max_model_len,
             "gpu_memory_utilization": self.gpu_memory_utilization,
@@ -75,6 +75,11 @@ class VllmEngineConfig:
             values["max_num_batched_tokens"] = self.max_num_batched_tokens
         if self.text_only:
             values["limit_mm_per_prompt"] = {"image": 0, "video": 0}
+            values["language_model_only"] = True
+            if model is not None and model.hf_text_generation_architecture is not None:
+                values["hf_overrides"] = {
+                    "architectures": [model.hf_text_generation_architecture]
+                }
         if self.skip_mm_profiling:
             values["skip_mm_profiling"] = True
         if self.flash_attn_version is not None:
@@ -83,7 +88,7 @@ class VllmEngineConfig:
             values["speculative_config"] = self.speculative.as_vllm()
         return values
 
-    def as_cli_args(self) -> tuple[str, ...]:
+    def as_cli_args(self, model: ModelProfile | None = None) -> tuple[str, ...]:
         values: list[str] = [
             "--max-model-len",
             str(self.max_model_len),
@@ -107,7 +112,15 @@ class VllmEngineConfig:
         if self.max_num_batched_tokens is not None:
             values.extend(("--max-num-batched-tokens", str(self.max_num_batched_tokens)))
         if self.text_only:
+            values.append("--language-model-only")
             values.extend(("--limit-mm-per-prompt", json.dumps({"image": 0, "video": 0})))
+            if model is not None and model.hf_text_generation_architecture is not None:
+                values.extend(
+                    (
+                        "--hf-overrides",
+                        json.dumps({"architectures": [model.hf_text_generation_architecture]}),
+                    )
+                )
         if self.skip_mm_profiling:
             values.append("--skip-mm-profiling")
         if self.flash_attn_version is not None:

@@ -41,4 +41,5 @@ QWEN_35_2B = ModelProfile(
         ),
         strips_past_reasoning=True,
     ),
+    hf_text_generation_architecture="Qwen3_5ForCausalLM",
 )

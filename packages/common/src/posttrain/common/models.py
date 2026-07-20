@@ -112,6 +112,7 @@ class ModelProfile:
     instruction_tuned: bool
     capabilities: ModelCapabilities
     conversation: ConversationProfile
+    hf_text_generation_architecture: str | None = None
 
     def __post_init__(self) -> None:
         if not _PROFILE_ID.fullmatch(self.id):
@@ -120,6 +121,8 @@ class ModelProfile:
             raise ContractError("model family cannot be empty")
         if self.parameters < 1:
             raise ContractError("parameter count must be positive")
+        if self.hf_text_generation_architecture is not None and not self.hf_text_generation_architecture.strip():
+            raise ContractError("text-generation architecture cannot be blank")
 
     @property
     def default_reasoning_mode(self) -> str:

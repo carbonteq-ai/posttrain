@@ -104,6 +104,7 @@ class GRPORolloutProfile:
     gpu_memory_utilization: float | None = None
     tensor_parallel_size: int = 1
     max_model_length: int | None = None
+    text_only: bool = False
     skip_multimodal_profiling: bool = False
     kv_cache_memory_bytes: int | None = None
     speculative_method: str | None = None
@@ -125,13 +126,15 @@ class GRPORolloutProfile:
                     self.num_speculative_tokens,
                     self.kv_cache_memory_bytes,
                 )
-            ) or self.sleep_during_optimization or self.skip_multimodal_profiling:
+            ) or self.sleep_during_optimization or self.text_only or self.skip_multimodal_profiling:
                 raise ValueError("Transformers rollouts cannot declare vLLM settings")
             return
         if self.vllm_mode != "colocate" or self.gpu_memory_utilization is None:
             raise ValueError("vLLM rollouts require colocate mode and a memory budget")
         if not 0 < self.gpu_memory_utilization < 1:
             raise ValueError("vLLM GPU memory utilization must be between zero and one")
+        if self.skip_multimodal_profiling and not self.text_only:
+            raise ValueError("skipping multimodal profiling requires an explicit text-only rollout")
         if (self.speculative_method is None) != (self.num_speculative_tokens is None):
             raise ValueError("speculative method and token count must be configured together")
         if self.num_speculative_tokens is not None and self.num_speculative_tokens < 1:
@@ -228,6 +231,7 @@ QWEN35_GRPO_SMOKE = GRPOProfile(
         sleep_during_optimization=True,
         gpu_memory_utilization=0.2,
         max_model_length=512,
+        text_only=True,
         skip_multimodal_profiling=True,
         kv_cache_memory_bytes=64 * 1024 * 1024,
     ),
@@ -245,6 +249,7 @@ QWEN35_GRPO_MTP_SMOKE = GRPOProfile(
         sleep_during_optimization=True,
         gpu_memory_utilization=0.2,
         max_model_length=1_024,
+        text_only=True,
         skip_multimodal_profiling=True,
         speculative_method="qwen3_next_mtp",
         num_speculative_tokens=2,

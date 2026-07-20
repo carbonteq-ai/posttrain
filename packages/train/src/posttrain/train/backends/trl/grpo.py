@@ -7,7 +7,6 @@ from typing import Any, cast
 
 from posttrain.common import ExecutionContext
 
-from ...profiles import GRPORolloutProfile
 from ...requests import GRPORequest
 from .common import (
     BackendTrainingResult,
@@ -93,7 +92,7 @@ def _grpo_arguments(request: GRPORequest, output_dir: Path, template_kwargs: dic
                 "vllm_tensor_parallel_size": rollout.tensor_parallel_size,
                 "vllm_max_model_length": rollout.max_model_length,
                 "vllm_speculative_config": rollout.speculative_config(),
-                "vllm_engine_kwargs": _vllm_engine_kwargs(rollout),
+                "vllm_engine_kwargs": _vllm_engine_kwargs(request),
                 "vllm_model_impl": "vllm",
                 "vllm_importance_sampling_correction": True,
             }
@@ -101,8 +100,14 @@ def _grpo_arguments(request: GRPORequest, output_dir: Path, template_kwargs: dic
     return arguments
 
 
-def _vllm_engine_kwargs(rollout: GRPORolloutProfile) -> dict[str, Any] | None:
+def _vllm_engine_kwargs(request: GRPORequest) -> dict[str, Any] | None:
+    rollout = request.profile.rollout
     values: dict[str, Any] = {}
+    if rollout.text_only:
+        values["language_model_only"] = True
+        architecture = request.model.profile.hf_text_generation_architecture
+        if architecture is not None:
+            values["hf_overrides"] = {"architectures": [architecture]}
     if rollout.skip_multimodal_profiling:
         values["skip_mm_profiling"] = True
     if rollout.kv_cache_memory_bytes is not None:
