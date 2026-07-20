@@ -116,7 +116,7 @@ def main() -> None:
                 if args.job == "gsm8k-qwen-grpo-smoke"
                 else QWEN35_GRPO_MTP_SMOKE
             ),
-            task_indices=(2,),
+            task_indices=(0,),
         )
         spec = AttemptSpec(
             job=gsm8k_posttraining_job(source.revision),
