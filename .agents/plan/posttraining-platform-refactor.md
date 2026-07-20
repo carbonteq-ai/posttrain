@@ -969,6 +969,14 @@ state.
   Pythonic tool call; Qwen continues to use its pinned XML tokenizer template.
   vLLM parser names remain serve-profile details (`qwen3_xml`/`qwen3` and
   `lfm2`/tag-compatible `deepseek_r1`).
+- The managed LFM endpoint completed a clean-revision online smoke at
+  `a8c1706`: health/model probe passed, the response stopped normally with
+  final content `4.`, 22 input and 169 output tokens, 168 ms TTFT, and 953 ms
+  end-to-end latency. Earlier capped attempts exposed that reasoning-only
+  truncation must fail the job and that a contrived exact-word prompt caused
+  repetitive reasoning. The final smoke uses a natural prompt and a 512-token
+  thinking budget. Raw SSE events belong in the native output artifact rather
+  than searchable trace metadata.
 
 ## Decision Log
 

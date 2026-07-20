@@ -174,9 +174,13 @@ def test_generate_emits_request_metrics_and_full_inference_trace(tmp_path: Path)
         "serve/request_output_tokens",
     }
     messages = cast(list[dict[str, Any]], observer.traces[0].payload["messages"])
-    events = cast(list[dict[str, Any]], observer.traces[0].payload["events"])
     assert messages[-1] == {"role": "assistant", "content": "answer"}
-    assert len(events) == 2
+    assert "events" not in observer.traces[0].payload
+    native_artifact = observer.artifacts[0]
+    assert native_artifact.kind == "inference-output"
+    assert isinstance(native_artifact.reference, LocalArtifactRef)
+    native = json.loads(native_artifact.reference.path.read_text())
+    assert len(native["response"]["events"]) == 2
 
 
 def test_launch_manages_server_template_log_and_lifecycle(tmp_path: Path) -> None:

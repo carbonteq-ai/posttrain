@@ -68,6 +68,8 @@ def test_streaming_generation_preserves_reasoning_tools_usage_and_raw_events() -
     assert result.ttft_seconds is not None
     assert result.tool_call_deltas[0]["function"]["name"] == "weather"
     assert len(result.events) == 3
+    assert result.summary()["reasoning_characters"] == len("checking ")
+    assert len(result.as_json()["events"]) == 3
 
 
 def test_vllm_command_contains_model_engine_frontend_and_template_contract(tmp_path: Path) -> None:

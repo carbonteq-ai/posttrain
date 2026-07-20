@@ -3,11 +3,20 @@
 from __future__ import annotations
 
 import argparse
+import json
 from functools import partial
 from pathlib import Path
 
 from posttrain.common.profiles import LFM_25_12B_THINKING, QWEN_35_2B
-from posttrain.serve import LFM25_VLLM, QWEN35_VLLM_TEXT, BenchmarkCell, BenchmarkRequest, LaunchRequest
+from posttrain.serve import (
+    LFM25_VLLM,
+    QWEN35_VLLM_TEXT,
+    BenchmarkCell,
+    BenchmarkRequest,
+    BenchmarkResult,
+    GenerationResult,
+    LaunchRequest,
+)
 
 from .execution import AttemptSpec, execute, execute_tracked
 from .jobs import (
@@ -92,7 +101,12 @@ def main() -> None:
         result = execute_tracked(spec, operation, project=args.project)
     else:
         result = execute(spec, operation)
-    print(result)
+    if isinstance(result, BenchmarkResult):
+        print(json.dumps(result.as_json(), indent=2, sort_keys=True))
+    elif isinstance(result, GenerationResult):
+        print(json.dumps(result.summary(), indent=2, sort_keys=True))
+    else:
+        print(result)
 
 
 if __name__ == "__main__":

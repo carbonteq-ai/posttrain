@@ -162,6 +162,8 @@ def generate(
     client: httpx.Client | None = None,
 ) -> GenerationResult:
     result = run_generation(request, model, client=client)
+    observation_suffix = str(time_ns())
+    external_id = f"{context.attempt.id}:generation:{observation_suffix}"
     metrics: dict[str, int | float] = {"serve/request_latency_seconds": result.latency_seconds}
     if result.ttft_seconds is not None:
         metrics["serve/request_ttft_seconds"] = result.ttft_seconds
@@ -173,7 +175,7 @@ def generate(
     context.trace(
         TraceObservation(
             trace_type="inference",
-            external_id=f"{context.attempt.id}:generation:{len(result.events)}:{time_ns()}",
+            external_id=external_id,
             payload={
                 "messages": [
                     *(dict(message) for message in request.messages),
@@ -182,9 +184,34 @@ def generate(
                 "reasoning": result.reasoning,
                 "tool_call_deltas": list(result.tool_call_deltas),
                 "finish_reason": result.finish_reason,
-                "events": list(result.events),
+                "input_tokens": result.input_tokens,
+                "output_tokens": result.output_tokens,
+                "latency_seconds": result.latency_seconds,
+                "ttft_seconds": result.ttft_seconds,
             },
             attributes={"model_profile_id": model.id, "endpoint_model": request.endpoint.model},
+        )
+    )
+    native = {
+        "request": {
+            "endpoint_model": request.endpoint.model,
+            "messages": [dict(message) for message in request.messages],
+            "max_tokens": request.max_tokens,
+            "temperature": request.temperature,
+            "reasoning_mode": request.reasoning_mode or model.default_reasoning_mode,
+            "tools": [dict(tool) for tool in request.tools],
+        },
+        "response": result.as_json(),
+    }
+    encoded = (json.dumps(native, indent=2, sort_keys=True) + "\n").encode()
+    output = context.workspace / f"generation-{observation_suffix}.json"
+    output.write_bytes(encoded)
+    context.artifact(
+        ProducedArtifact(
+            name=f"serving/{model.id}/generation-{observation_suffix}",
+            kind="inference-output",
+            reference=LocalArtifactRef(output, hashlib.sha256(encoded).hexdigest()),
+            metadata={"external_id": external_id, "endpoint_model": request.endpoint.model},
         )
     )
     return result

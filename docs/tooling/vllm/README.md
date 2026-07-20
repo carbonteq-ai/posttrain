@@ -142,3 +142,11 @@ at clean Git revision `c13df39`. Its single metric batch records 170.90 output
 tok/s, 14.2 ms TTFT, 6.35 GiB peak VRAM, and 22.55 seconds engine startup.
 Both foundation models therefore pass the same typed 128-input/32-output/c1
 cell through the same job, observer, trace, and artifact path.
+
+The first successful managed online endpoint run is
+`serve-online/lfm2.5-1.2b-thinking-b477f22b-a1` at clean revision `a8c1706`.
+The health/model probe passed and a streamed response stopped normally with
+final content after 169 output tokens. It measured 168 ms TTFT and 953 ms
+end-to-end latency. Earlier capped attempts correctly exposed a product
+distinction: endpoint health can succeed while a model response is truncated
+inside reasoning, so the job now requires non-empty final content.

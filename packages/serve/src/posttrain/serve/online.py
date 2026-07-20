@@ -97,6 +97,31 @@ class GenerationResult:
     finish_reason: str | None
     events: tuple[dict[str, Any], ...]
 
+    def as_json(self) -> dict[str, Any]:
+        return {
+            "content": self.content,
+            "reasoning": self.reasoning,
+            "tool_call_deltas": list(self.tool_call_deltas),
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "latency_seconds": self.latency_seconds,
+            "ttft_seconds": self.ttft_seconds,
+            "finish_reason": self.finish_reason,
+            "events": list(self.events),
+        }
+
+    def summary(self) -> dict[str, Any]:
+        return {
+            "content": self.content,
+            "reasoning_characters": len(self.reasoning),
+            "tool_call_delta_count": len(self.tool_call_deltas),
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "latency_seconds": self.latency_seconds,
+            "ttft_seconds": self.ttft_seconds,
+            "finish_reason": self.finish_reason,
+        }
+
 
 def probe(endpoint: Endpoint, *, client: httpx.Client | None = None) -> ProbeResult:
     """Check both process health and whether the requested model is exposed."""

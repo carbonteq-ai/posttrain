@@ -57,6 +57,13 @@ These are path-validation cells, not a completed capacity study. Qwen uses a
 text-only, eager, no-offload 8 GB-safe profile. First-shape Triton JIT warnings
 still appear during warmup and startup optimization remains open.
 
+The managed LFM OpenAI endpoint also completed through run
+`serve-online/lfm2.5-1.2b-thinking-b477f22b-a1` at clean revision `a8c1706`.
+Health and model probes passed; a streamed reasoning response produced final
+content `4.` with 22 input tokens, 169 output tokens, 168 ms TTFT, and 953 ms
+end-to-end latency. Reasoning-only truncations are rejected by the job rather
+than recorded as successful model responses.
+
 ## Commands
 
 ```bash
