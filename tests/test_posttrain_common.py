@@ -15,6 +15,7 @@ from posttrain.common import (
     Invocation,
     Job,
     JobAction,
+    MetricBatchObservation,
     MetricObservation,
     OperationCancelled,
     ProducedArtifact,
@@ -27,13 +28,17 @@ from posttrain.common.profiles import FOUNDATION_PROFILES
 @dataclass
 class RecordingObserver:
     events: list[EventObservation] = field(default_factory=list)
-    metrics: list[MetricObservation] = field(default_factory=list)
+    metric_observations: list[MetricObservation] = field(default_factory=list)
 
     def event(self, observation: EventObservation) -> None:
         self.events.append(observation)
 
     def metric(self, observation: MetricObservation) -> None:
-        self.metrics.append(observation)
+        self.metric_observations.append(observation)
+
+    def metrics(self, observation: MetricBatchObservation) -> None:
+        for name, value in observation.values.items():
+            self.metric_observations.append(MetricObservation(name, value, observation.step, observation.attributes))
 
     def trace(self, observation: TraceObservation) -> None:
         del observation
@@ -70,8 +75,8 @@ class ExecutionContextTests(unittest.TestCase):
             context.metric("train/loss", 0.5, step=1)
 
         self.assertEqual(observer.events[0].name, "operation.started")
-        self.assertEqual(observer.metrics[0].step, 1)
-        self.assertEqual(observer.metrics[0].value, 0.5)
+        self.assertEqual(observer.metric_observations[0].step, 1)
+        self.assertEqual(observer.metric_observations[0].value, 0.5)
 
     def test_cancellation_stops_future_observation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

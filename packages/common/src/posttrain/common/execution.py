@@ -33,6 +33,13 @@ class MetricObservation:
 
 
 @dataclass(frozen=True, slots=True)
+class MetricBatchObservation:
+    values: Mapping[str, float]
+    step: int | None = None
+    attributes: Attributes = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
 class TraceObservation:
     trace_type: str
     external_id: str
@@ -44,6 +51,8 @@ class Observer(Protocol):
     def event(self, observation: EventObservation) -> None: ...
 
     def metric(self, observation: MetricObservation) -> None: ...
+
+    def metrics(self, observation: MetricBatchObservation) -> None: ...
 
     def trace(self, observation: TraceObservation) -> None: ...
 
@@ -57,6 +66,9 @@ class NullObserver:
         del observation
 
     def metric(self, observation: MetricObservation) -> None:
+        del observation
+
+    def metrics(self, observation: MetricBatchObservation) -> None:
         del observation
 
     def trace(self, observation: TraceObservation) -> None:
@@ -120,6 +132,22 @@ class ExecutionContext:
     ) -> None:
         self.cancellation.raise_if_cancelled()
         self.observer.metric(MetricObservation(name, float(value), step, attributes or {}))
+
+    def metrics(
+        self,
+        values: Mapping[str, float],
+        *,
+        step: int | None = None,
+        attributes: Attributes | None = None,
+    ) -> None:
+        self.cancellation.raise_if_cancelled()
+        self.observer.metrics(
+            MetricBatchObservation(
+                {name: float(value) for name, value in values.items()},
+                step,
+                attributes or {},
+            )
+        )
 
     def trace(self, observation: TraceObservation) -> None:
         self.cancellation.raise_if_cancelled()

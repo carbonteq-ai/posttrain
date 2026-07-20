@@ -39,8 +39,7 @@ def benchmark(
         "suite_id": request.cell.suite_id,
         "cell_id": request.cell.id,
     }
-    for name, value in result.metrics().items():
-        context.metric(name, value, attributes=metric_attributes)
+    context.metrics(result.metrics(), attributes=metric_attributes)
     for index, sample in enumerate(result.samples):
         context.trace(
             TraceObservation(

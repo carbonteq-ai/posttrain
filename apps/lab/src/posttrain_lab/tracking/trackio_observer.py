@@ -11,6 +11,7 @@ import trackio
 from posttrain.common import (
     EventObservation,
     LocalArtifactRef,
+    MetricBatchObservation,
     MetricObservation,
     ProducedArtifact,
     TraceObservation,
@@ -66,9 +67,16 @@ class TrackioObserver:
             values[f"{observation.name}/attributes"] = _json_dict(observation.attributes)
         self._run.log(values, step=observation.step)
 
+    def metrics(self, observation: MetricBatchObservation) -> None:
+        values: dict[str, Any] = dict(observation.values)
+        if observation.attributes:
+            values["metric/attributes"] = _json_dict(observation.attributes)
+        self._run.log(values, step=observation.step)
+
     def trace(self, observation: TraceObservation) -> None:
         metadata = {
             "external_id": observation.external_id,
+            "observation_type": observation.trace_type,
             **_json_dict(observation.attributes),
         }
         if observation.trace_type == "verifiers":

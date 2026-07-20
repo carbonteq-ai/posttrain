@@ -943,6 +943,10 @@ state.
   during graph/KV profiling. The explicit text-only eager profile completed at
   65.05 output tok/s, 43.1 ms TTFT, and 6.92 GiB peak VRAM; cold start remains
   65.24 seconds and is a separate optimization target.
+- The first canonical Trackio serving run preserved identity, trace, and
+  artifact linkage but wrote one row per scalar metric. Run-level metric batches
+  are now a shared observer primitive so one result becomes one coherent metric
+  observation rather than an artificial step sequence.
 
 ## Decision Log
 

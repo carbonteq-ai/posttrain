@@ -10,6 +10,7 @@ from posttrain.common import (
     Job,
     JobAction,
     LocalArtifactRef,
+    MetricBatchObservation,
     MetricObservation,
     ProducedArtifact,
     RunAttempt,
@@ -22,7 +23,7 @@ from posttrain.serve import QWEN35_VLLM_TEXT, BenchmarkCell, BenchmarkRequest, B
 class RecordingObserver:
     def __init__(self) -> None:
         self.events: list[EventObservation] = []
-        self.metrics: list[MetricObservation] = []
+        self.metric_observations: list[MetricObservation] = []
         self.traces: list[TraceObservation] = []
         self.artifacts: list[ProducedArtifact] = []
 
@@ -30,7 +31,11 @@ class RecordingObserver:
         self.events.append(observation)
 
     def metric(self, observation: MetricObservation) -> None:
-        self.metrics.append(observation)
+        self.metric_observations.append(observation)
+
+    def metrics(self, observation: MetricBatchObservation) -> None:
+        for name, value in observation.values.items():
+            self.metric_observations.append(MetricObservation(name, value, observation.step, observation.attributes))
 
     def trace(self, observation: TraceObservation) -> None:
         self.traces.append(observation)
@@ -107,7 +112,7 @@ def test_benchmark_emits_direct_metrics_trace_and_native_artifact(tmp_path: Path
     result = benchmark(context, request, runner=lambda value: _result(value))
 
     assert result.output_token_throughput == 64.0
-    assert {metric.name for metric in observer.metrics} >= {
+    assert {metric.name for metric in observer.metric_observations} >= {
         "serve/output_token_throughput",
         "serve/engine_start_seconds",
         "serve/peak_gpu_memory_gib",
