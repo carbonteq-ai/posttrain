@@ -158,6 +158,11 @@ standard format and vLLM reloads the same dynamic adapter ID in place. The
 generic full-weight namespace option remains available for non-quantized model
 layouts. Jobs and Verifiers environments are unaware of either mechanism.
 
+Every TRL adapter runs inside the same trainer lifecycle boundary. After model
+publication and recovery-checkpoint discovery—or after an exception—the
+boundary calls Accelerate's `end_training()` so trackers and distributed
+process groups are closed explicitly rather than left to interpreter shutdown.
+
 For compatible Qwen profiles, colocated vLLM may additionally enable native MTP.
 Engine-level speculative configuration is part of the rollout profile and is
 passed through the pinned TRL fork. Verifiers always scores the completions from

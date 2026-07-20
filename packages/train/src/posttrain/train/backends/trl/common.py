@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import math
 import os
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -162,6 +164,15 @@ def trainer_arguments(loop: TrainingLoop, output_dir: Path) -> dict[str, Any]:
     }
 
 
+@contextmanager
+def trainer_lifecycle(trainer: Any) -> Iterator[None]:
+    """Close Accelerate's distributed runtime after success or failure."""
+    try:
+        yield
+    finally:
+        trainer.accelerator.end_training()
+
+
 def finish_training(
     trainer: Any,
     train_output: Any,
@@ -217,5 +228,6 @@ __all__ = [
     "framework_imports",
     "load_tokenizer",
     "load_trainable_model",
+    "trainer_lifecycle",
     "trainer_arguments",
 ]

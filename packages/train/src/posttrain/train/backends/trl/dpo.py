@@ -17,6 +17,7 @@ from .common import (
     load_tokenizer,
     load_trainable_model,
     trainer_arguments,
+    trainer_lifecycle,
 )
 
 
@@ -79,8 +80,9 @@ def run_dpo(context: ExecutionContext, request: DPORequest, output_dir: Path) ->
         callbacks=[callback],
     )
     resume = str(request.resume_from.path) if request.resume_from is not None else None
-    train_output = trainer.train(resume_from_checkpoint=resume)
-    return finish_training(trainer, train_output, tokenizer, output_dir.parent, "dpo", imports)
+    with trainer_lifecycle(trainer):
+        train_output = trainer.train(resume_from_checkpoint=resume)
+        return finish_training(trainer, train_output, tokenizer, output_dir.parent, "dpo", imports)
 
 
 def _emit_parameter_counts(context: ExecutionContext, model: Any) -> None:

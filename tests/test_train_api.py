@@ -4,6 +4,7 @@ import asyncio
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from posttrain.common import (
@@ -40,7 +41,7 @@ from posttrain.train import (
     grpo,
     sft,
 )
-from posttrain.train.backends.trl.common import BackendTrainingResult
+from posttrain.train.backends.trl.common import BackendTrainingResult, trainer_lifecycle
 from posttrain.train.backends.trl.grpo import _grpo_arguments, _reward_function
 from posttrain.train.results import TrainingSummary
 
@@ -142,6 +143,17 @@ def _backend(_: ExecutionContext, __: object, output_dir: Path) -> BackendTraini
     summary_file = root / "training-summary.json"
     summary_file.write_text("{}")
     return BackendTrainingResult(TrainingSummary(2, 0.5, 1.0, 2.0, 2.0), adapter, checkpoint, summary_file)
+
+
+def test_trainer_lifecycle_closes_distributed_runtime_after_failure() -> None:
+    closed: list[bool] = []
+    trainer = SimpleNamespace(accelerator=SimpleNamespace(end_training=lambda: closed.append(True)))
+
+    with pytest.raises(RuntimeError, match="training failed"):
+        with trainer_lifecycle(trainer):
+            raise RuntimeError("training failed")
+
+    assert closed == [True]
 
 
 def test_sft_operation_separates_adapter_recovery_and_summary_artifacts() -> None:

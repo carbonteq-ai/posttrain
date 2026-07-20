@@ -19,6 +19,7 @@ from .common import (
     load_tokenizer,
     load_trainable_model,
     trainer_arguments,
+    trainer_lifecycle,
 )
 
 
@@ -80,8 +81,9 @@ def run_grpo(context: ExecutionContext, request: GRPORequest, output_dir: Path) 
         callbacks=[callback_type(context, imports)()],
     )
     resume = str(request.resume_from.path) if request.resume_from is not None else None
-    train_output = trainer.train(resume_from_checkpoint=resume)
-    return finish_training(trainer, train_output, tokenizer, output_dir.parent, "grpo", imports)
+    with trainer_lifecycle(trainer):
+        train_output = trainer.train(resume_from_checkpoint=resume)
+        return finish_training(trainer, train_output, tokenizer, output_dir.parent, "grpo", imports)
 
 
 def _completion_text(completion: Any) -> str:
