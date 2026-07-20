@@ -238,4 +238,6 @@ def grpo_job_inputs(request: GSM8KGRPOJobRequest) -> dict[str, str | int | float
         "grpo_num_generations": request.profile.num_generations,
         "grpo_max_prompt_length": request.profile.max_prompt_length,
         "grpo_max_completion_length": request.profile.max_completion_length,
+        "reward_shaping_id": "final-answer-conciseness-v1",
+        "reward_shaping_weight": 0.1,
     }

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import re
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -14,6 +15,8 @@ from posttrain.common import ExecutionContext, LocalArtifactRef, ProducedArtifac
 from posttrain.train import RewardFunction, RolloutDataset, RolloutExample
 
 VERIFIERS_REVISION = "284a868d6a9022109b749710672a0460e8a996d4"
+_FINAL_ANSWER = re.compile(r"(?m)^####\s*[+-]?(?:\d[\d,]*)(?:\.\d+)?\s*$")
+_SHAPING_WEIGHT = 0.1
 
 
 def _imports() -> tuple[type[Any], type[Any], type[Any], type[Any], Any]:
@@ -76,11 +79,12 @@ class GSM8KRewardBridge:
         async def gsm8k_verifiers_reward(
             *,
             completions: list[Any],
+            completion_ids: list[list[int]],
             task_index: list[int],
             trainer_state: Any,
             **_: Any,
         ) -> list[float]:
-            if len(completions) != len(task_index):
+            if len(completions) != len(task_index) or len(completions) != len(completion_ids):
                 raise ValueError("completion and task metadata counts differ")
             return list(
                 await asyncio.gather(
@@ -89,16 +93,29 @@ class GSM8KRewardBridge:
                             self.tasks[int(index)],
                             int(index),
                             _completion_text(completion),
+                            len(token_ids),
                             int(trainer_state.global_step),
                         )
-                        for completion, index in zip(completions, task_index, strict=True)
+                        for completion, token_ids, index in zip(
+                            completions,
+                            completion_ids,
+                            task_index,
+                            strict=True,
+                        )
                     )
                 )
             )
 
         return cast(RewardFunction, gsm8k_verifiers_reward)
 
-    async def _score(self, task: Any, task_index: int, completion: str, step: int) -> float:
+    async def _score(
+        self,
+        task: Any,
+        task_index: int,
+        completion: str,
+        completion_tokens: int,
+        step: int,
+    ) -> float:
         _, _, Trace, TraceTask, extras = _imports()
         MessageNode, TrainRunInfo, make_runtime = extras
         trace = Trace(
@@ -128,6 +145,12 @@ class GSM8KRewardBridge:
             await task.score(trace, runtime)
         finally:
             await runtime.stop()
+        trace.record_reward(
+            "final_answer_conciseness",
+            _final_answer_conciseness(completion, completion_tokens),
+            weight=_SHAPING_WEIGHT,
+        )
+        trace.record_metric("completion_tokens", float(completion_tokens))
         record = trace.to_record()
         self._preserve(record)
         self.context.trace(
@@ -187,6 +210,14 @@ def _training_environment() -> Any:
         }
     )
     return Environment(config)
+
+
+def _final_answer_conciseness(completion: str, completion_tokens: int) -> float:
+    """Small shaping signal: require the native answer format, then prefer concision."""
+
+    if completion_tokens < 1 or _FINAL_ANSWER.search(completion) is None:
+        return 0.0
+    return 1.0 / (1.0 + completion_tokens / 256.0)
 
 
 __all__ = ["GSM8KRewardBridge", "VERIFIERS_REVISION", "load_gsm8k_rollout_dataset"]

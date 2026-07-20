@@ -5,6 +5,7 @@ from posttrain.common.profiles import QWEN_35_2B
 from posttrain.train import QWEN35_DPO_SMOKE, QWEN35_GRPO_SMOKE, QWEN35_SFT_SMOKE, DPORequest, SFTRequest
 from posttrain_lab.data import RejectedRollout, load_gsm8k_supervised, preferences_from_rollouts
 from posttrain_lab.data import gsm8k as gsm8k_data
+from posttrain_lab.environments.gsm8k_grpo import _final_answer_conciseness
 from posttrain_lab.jobs import (
     GSM8KGRPOJobRequest,
     dpo_action,
@@ -87,3 +88,11 @@ def test_grpo_job_config_records_environment_and_generation_policy() -> None:
     assert inputs["environment_id"] == "gsm8k-v1"
     assert inputs["task_indices"] == "2"
     assert inputs["grpo_num_generations"] == 2
+    assert inputs["reward_shaping_id"] == "final-answer-conciseness-v1"
+
+
+def test_grpo_shaping_requires_native_final_answer_format_and_rewards_concision() -> None:
+    assert _final_answer_conciseness("Reasoning only", 64) == 0.0
+    short = _final_answer_conciseness("Reasoning.\n#### 42", 64)
+    long = _final_answer_conciseness("Long reasoning.\n#### 42", 128)
+    assert short > long > 0.0

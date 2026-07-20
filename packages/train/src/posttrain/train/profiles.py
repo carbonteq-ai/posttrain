@@ -158,10 +158,11 @@ LFM25_DPO_SMOKE = DPOProfile(
     loss_kernel="liger",
 )
 QWEN35_GRPO_SMOKE = GRPOProfile(
-    "qwen3.5-2b/grpo-qlora-smoke-v1",
+    "qwen3.5-2b/grpo-qlora-smoke-v2",
     "qwen3.5",
     QWEN35_RENDERER,
     TrainingLoop(max_steps=1, per_device_batch_size=2, learning_rate=1e-5),
+    max_completion_length=512,
 )
 
 __all__ = [
