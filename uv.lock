@@ -2530,7 +2530,7 @@ requires-dist = [
     { name = "torch", marker = "extra == 'trl'", index = "https://download.pytorch.org/whl/cu130" },
     { name = "torchvision", marker = "extra == 'trl'", index = "https://download.pytorch.org/whl/cu130" },
     { name = "transformers", marker = "extra == 'trl'", specifier = ">=5.0" },
-    { name = "trl", marker = "extra == 'trl'", git = "https://github.com/carbonteq-ai/trl.git?rev=d726190b2f0a399e5a13f69584617efd0e7fcf00" },
+    { name = "trl", marker = "extra == 'trl'", git = "https://github.com/carbonteq-ai/trl.git?rev=8a28a479e5cc4934ce78b8e90da79e65d067a0bb" },
     { name = "vllm", marker = "extra == 'trl-vllm'", specifier = "==0.25.1" },
 ]
 provides-extras = ["trl", "trl-vllm"]
@@ -3771,7 +3771,7 @@ wheels = [
 [[package]]
 name = "trl"
 version = "1.8.0"
-source = { git = "https://github.com/carbonteq-ai/trl.git?rev=d726190b2f0a399e5a13f69584617efd0e7fcf00#d726190b2f0a399e5a13f69584617efd0e7fcf00" }
+source = { git = "https://github.com/carbonteq-ai/trl.git?rev=8a28a479e5cc4934ce78b8e90da79e65d067a0bb#8a28a479e5cc4934ce78b8e90da79e65d067a0bb" }
 dependencies = [
     { name = "accelerate" },
     { name = "datasets" },

@@ -23,7 +23,7 @@ generation, or weight-synchronization behavior. Those changes exist after the
 - Apply upstream vLLM 0.24 support commit `c1fdca18f0cc56fb60726d879d73f0cbd344e91f`
   and vLLM 0.25 support commit `68d7cb1a4228f91d832c2dc7ced80674d2c46c56`.
 - Pin the workspace to merged fork commit
-  `d726190b2f0a399e5a13f69584617efd0e7fcf00` and pin vLLM to `0.25.1`.
+  `8a28a479e5cc4934ce78b8e90da79e65d067a0bb` and pin vLLM to `0.25.1`.
 - Keep the trainer-runtime dependency on `datasets>=4.6.1,<4.7`. TRL's runtime
   paths use APIs available in 4.6.1; 4.7-only `Json` dtype helpers belong to
   repository dataset-authoring scripts. This makes TRL 1.8 and Verifiers v1
@@ -55,6 +55,11 @@ The datasets-bound change resolved `datasets 4.6.1`, TRL 1.8, and Verifiers v1
 together, passed 26 focused upstream SFT/DPO/GRPO contract tests, and passed
 upstream tiny-model SFT and DPO training tests. It was merged in
 [`carbonteq-ai/trl#3`](https://github.com/carbonteq-ai/trl/pull/3).
+
+The fork also avoids flattening non-contiguous sequence logits before chunked
+entropy calculation. On large-vocabulary DPO models, the old reshape could
+allocate a full logits copy before chunking. The regression fix and 33 entropy
+tests were merged in [`carbonteq-ai/trl#4`](https://github.com/carbonteq-ai/trl/pull/4).
 
 ## Maintenance
 

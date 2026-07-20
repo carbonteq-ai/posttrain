@@ -10,11 +10,13 @@ The lab's injected observation context maps those hooks to Trackio. Datasets,
 rewards, and Verifiers environment implementations remain independently owned.
 
 The workspace uses the `carbonteq-ai/trl` fork pinned to immutable commit
-`d726190b2f0a399e5a13f69584617efd0e7fcf00`. The fork preserves TRL 1.8.0 and
+`8a28a479e5cc4934ce78b8e90da79e65d067a0bb`. The fork preserves TRL 1.8.0 and
 adds the upstream-validated vLLM 0.24/0.25 dependency support plus regression
 coverage. It also keeps the trainer runtime compatible with `datasets 4.6.1`
 so the application can install Verifiers v1 and TRL together. It does not
 contain project-specific trainers or environment logic.
+Its entropy metrics also preserve chunked-memory behavior for non-contiguous
+sequence slices, which is required for DPO on large-vocabulary models.
 See [ADR 0007](../../decisions/0007-trl-vllm-025-fork.md) for the provenance and
 upgrade policy.
 
