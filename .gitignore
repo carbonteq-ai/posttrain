@@ -13,8 +13,7 @@ __pycache__/
 htmlcov/
 uv.lock.bak
 
-# Models / data / runs
-runs/
+# Models / data
 outputs/
 checkpoints/
 wandb/

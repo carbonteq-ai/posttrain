@@ -119,7 +119,7 @@ job identifies missing scenarios
   -> evaluation and compatible online RL reuse it
 ```
 
-The source does not become a permanent `jobs/<id>/environments` tree. General
+The source does not become a permanent job-local environment tree. General
 environments such as agency benchmarks or long-context tests can be onboarded
 in their own maintenance job and then selected by all later jobs.
 

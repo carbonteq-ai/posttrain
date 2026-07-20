@@ -897,7 +897,7 @@ state.
   - [x] Add independently installable `posttrain-common` contracts and pinned foundation profiles.
   - [x] Add `posttrain-lab` composition root, ephemeral attempt host, Trackio observer, and no-op job.
   - [x] Migrate train/eval/serve/reports distributions and imports to `posttrain.*`.
-  - [ ] Remove the legacy `common` surface as each vertical slice stops consuming it.
+  - [x] Remove the legacy `common` YAML-profile and filesystem-run surface after all vertical slices stopped consuming it.
 - [x] Phase 2 — serving vertical slice.
   - [x] Replace serving profile and workload YAML as the source of truth with typed Python definitions.
   - [x] Remove SGLang and its incompatible dependency branch from the MVP lock.

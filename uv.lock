@@ -1269,7 +1269,7 @@ name = "lab"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
-    { name = "posttrain-common", extra = ["legacy"] },
+    { name = "posttrain-common" },
 ]
 
 [package.dev-dependencies]
@@ -1283,7 +1283,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "posttrain-common", extras = ["legacy"], editable = "packages/common" }]
+requires-dist = [{ name = "posttrain-common", editable = "packages/common" }]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2354,19 +2354,6 @@ name = "posttrain-common"
 version = "0.1.0"
 source = { editable = "packages/common" }
 
-[package.optional-dependencies]
-legacy = [
-    { name = "pyyaml" },
-    { name = "trackio" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "pyyaml", marker = "extra == 'legacy'", specifier = ">=6" },
-    { name = "trackio", marker = "extra == 'legacy'", git = "https://github.com/carbonteq-ai/trackio.git?rev=02351d871050bf4b3505c7371239c698b710ec83" },
-]
-provides-extras = ["legacy"]
-
 [[package]]
 name = "posttrain-eval"
 version = "0.1.0"
@@ -2446,13 +2433,13 @@ name = "posttrain-reports"
 version = "0.1.0"
 source = { editable = "packages/reports" }
 dependencies = [
-    { name = "posttrain-common", extra = ["legacy"] },
+    { name = "posttrain-common" },
     { name = "trackio" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "posttrain-common", extras = ["legacy"], editable = "packages/common" },
+    { name = "posttrain-common", editable = "packages/common" },
     { name = "trackio", git = "https://github.com/carbonteq-ai/trackio.git?rev=02351d871050bf4b3505c7371239c698b710ec83" },
 ]
 

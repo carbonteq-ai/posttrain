@@ -20,8 +20,8 @@ packages/serve    # reusable vLLM/SGLang inference engine
 
 ```bash
 uv sync --all-packages --python 3.12
-uv run --package common profile-resolve --help
-uv run --package common python -m unittest discover -s tests
+uv run --all-packages --group dev pytest -q
+uv run --all-packages --group dev lint-imports
 ```
 
 Install heavy engine variants only when needed:

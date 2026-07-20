@@ -281,11 +281,8 @@ workstream—not merely because a model artifact branched.
 
 ## Implementation gaps
 
-Current code predates this target and must not be treated as compatibility:
+Remaining gaps must not be treated as compatibility requirements:
 
-- the local run directory duplicates Trackio state;
-- `TrackedRun` permits missing jobs and groups by run kind;
-- the generic resolver treats unrelated schemas as one profile family;
 - serving benchmarks do not yet emit one standard trace per measured request;
 - eval summaries materialize values that should normally be computed;
 - reports depend too directly on physical SQLite tables;

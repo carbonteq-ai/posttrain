@@ -41,8 +41,8 @@ expected to change when a newer runtime proves a better rule.
 
 ## Configuration ownership
 
-- Put immutable model identity and the default compatible serve profile in
-  `profiles/models`.
+- Put immutable model identity in `posttrain.common.profiles` and compatible
+  serving defaults in typed profiles shipped with `packages/serve`.
 - Put backend knobs and model-specific runtime compatibility in
   typed profiles shipped with `packages/serve`.
 - Put reusable execution and measurement behavior in `packages/serve`.

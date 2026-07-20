@@ -265,13 +265,10 @@ packages/
   serve/
   reports/
 
-profiles/
-  models/                 typed, importable model definitions
-
-jobs/
-  customer_support/
-    job.py                Job and actions
-    README.md             objective and human decisions
+apps/
+  lab/
+    jobs/                 code-defined job compositions and actions
+    environments/         job-side environment composition
 
 docs/
   architecture/
@@ -279,7 +276,9 @@ docs/
   decisions/
 ```
 
-Operation-specific shared definitions live with their owning package. Inference
+Model and operation profiles are typed definitions in their owning packages;
+jobs compose them in `apps/lab`. Operation-specific shared definitions live
+with their owning package. Inference
 workload suites and canonical prompt corpora therefore live in
 `packages/serve`; environment source lives in separately publishable Verifiers
 packages.

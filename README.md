@@ -8,16 +8,16 @@ The repository is being rebuilt around the [target architecture](./docs/architec
 
 ```text
 packages/
-  common/    lightweight job, request, identity, and observability contracts
+  common/    framework-neutral identities, models, artifacts, and execution contracts
   train/     reusable training operations with internal framework adapters
   eval/      reusable evaluation operations and programs
   serve/     reusable serving operations, profiles, and optimizations
   reports/   read-only Trackio queries and report-facing data access
 
-profiles/
-  models/    typed foundation and intentionally promoted derived targets
+apps/
+  lab/       code-defined jobs, execution host, and Trackio observer
 
-jobs/        code-based objectives, actions, and decisions
+environments/ independently versioned domain environment packages
 docs/        lifecycle, architecture, decisions, and tooling guidance
 ```
 
@@ -48,30 +48,17 @@ uv sync --package train --extra vllm --python 3.12
 
 ## Current executable surface
 
-Profile resolution, typed Trackio runs, raw reporting queries, and the first
-offline vLLM benchmark are available now:
+Profiles and jobs are typed Python definitions in their owning packages. Runs
+use temporary execution workspaces and publish durable evidence to Trackio.
+Representative commands are:
 
 ```bash
-uv run --package common profile-resolve models <profile-id>
-uv run --package common profile-resolve train <config-id>
-uv run --package reports trackio-query lab \
+uv run --package posttrain-reports trackio-query posttrain-platform \
   "SELECT run_id, run_name, config FROM configs ORDER BY id DESC LIMIT 10"
-uv run --package serve --extra vllm serve-benchmark lfm2.5-1.2b-thinking
-uv run --package serve --extra vllm \
-  serve-benchmark-suite lfm2.5-1.2b-thinking --dry-run
+uv run --package posttrain-lab posttrain-lab foundation-qwen-smoke --tracked
+uv run --package posttrain-lab posttrain-lab foundation-lfm-gsm8k --tracked
+uv run --package posttrain-lab posttrain-lab gsm8k-qwen-sft-smoke --tracked
 ```
-
-The first Verifiers general-eval slice is also executable:
-
-```bash
-uv run --package eval --extra verifiers eval-suite lfm2.5-1.2b-thinking --dry-run
-uv run --package eval --extra verifiers eval-suite qwen3.5-2b --reasoning-mode thinking
-```
-
-The current executable surface predates the final code-first target. The next
-refactor moves backend definitions beside `packages/serve`, replaces the generic
-YAML resolver with typed definitions, and removes the local run registry in
-favor of Trackio plus temporary execution workspaces.
 
 The reusable inference suite contains concurrency 1/2/4/8, but the current
 RTX 3070 Ti execution policy stops at 4. Its 32K cells select the model's
