@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from eval.trace_sync import VerifiersTraceSynchronizer
+from posttrain.eval.trace_sync import VerifiersTraceSynchronizer
 
 
 def _record(trace_id: str) -> dict:

@@ -43,8 +43,8 @@ QWEN_35_2B = ModelProfile(
     modalities={"text"},
     reasoning_modes={"thinking", "non_thinking"},
     recommended={
-        "serve": "serve.profiles.qwen35.VLLM_STANDARD",
-        "general_eval": "eval.programs.GENERAL_SMALL_MODEL",
+        "serve": "posttrain.serve.profiles.qwen35.VLLM_STANDARD",
+        "general_eval": "posttrain.eval.programs.GENERAL_SMALL_MODEL",
     },
 )
 ```
@@ -110,7 +110,7 @@ through the producing and consuming runs.
 | native reasoning/MTP capability | speculative-decoding configuration |
 | tokenizer/chat-template identity | workload and resource defaults |
 
-MTP support is a model fact; enabling MTP in vLLM or SGLang is a serve-profile
+MTP support is a model fact; enabling MTP in vLLM is a serve-profile
 choice. TurboQuant KV cache is entirely a serve-profile choice. A weight-changing
 quantization produces another model artifact; a runtime-only cache or kernel
 setting does not.
@@ -122,13 +122,13 @@ teams:
 
 ```python
 QWEN_35_2B.recommended == {
-    "serve.standard": "serve.profiles.qwen35.VLLM_STANDARD",
-    "serve.turboquant_k8": "serve.profiles.qwen35.VLLM_TURBOQUANT_K8",
-    "serve.mtp": "serve.profiles.qwen35.VLLM_MTP",
-    "train.sft": "train.profiles.qwen35.TRL_SFT_QLORA",
-    "train.dpo": "train.profiles.qwen35.TRL_DPO",
-    "train.grpo": "train.profiles.qwen35.TRL_GRPO",
-    "eval.general": "eval.programs.GENERAL_SMALL_MODEL",
+    "serve.standard": "posttrain.serve.profiles.qwen35.VLLM_STANDARD",
+    "serve.turboquant_k8": "posttrain.serve.profiles.qwen35.VLLM_TURBOQUANT_K8",
+    "serve.mtp": "posttrain.serve.profiles.qwen35.VLLM_MTP",
+    "train.sft": "posttrain.train.profiles.qwen35.TRL_SFT_QLORA",
+    "train.dpo": "posttrain.train.profiles.qwen35.TRL_DPO",
+    "train.grpo": "posttrain.train.profiles.qwen35.TRL_GRPO",
+    "eval.general": "posttrain.eval.programs.GENERAL_SMALL_MODEL",
 }
 ```
 

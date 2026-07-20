@@ -41,7 +41,7 @@ For every operation observed by this lab, the host context supplies:
 - produced artifacts, final status, and failure information.
 
 `packages/common` owns this host envelope and the narrow Trackio write adapter.
-The reusable `train`, `eval`, and `serve` APIs emit through an optional context
+The reusable `posttrain.train`, `posttrain.eval`, and `posttrain.serve` APIs emit through an execution context
 protocol and do not require Trackio or a Job when used elsewhere.
 
 ## Run kinds
@@ -101,7 +101,7 @@ The Trackio Verifiers UI provides a dedicated rollout view with:
 
 The UI uses the stored structured record but does not expose a raw payload dump.
 Evaluation summaries such as mean reward, success rate, and truncation rate are
-computed by `reports` from the trace population.
+computed by `posttrain.reports` from the trace population.
 
 ## Serving observability
 

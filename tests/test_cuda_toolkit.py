@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from serve.cuda import build_toolkit_view
+from posttrain.serve.cuda import build_toolkit_view
 
 
 class CudaToolkitViewTests(unittest.TestCase):

@@ -42,14 +42,14 @@ jobs:
             import_name: posttrain.common
           - package: posttrain-lab
             import_name: posttrain_lab
-          - package: eval
-            import_name: eval
-          - package: reports
-            import_name: reports
-          - package: serve
-            import_name: serve
-          - package: train
-            import_name: train
+          - package: posttrain-eval
+            import_name: posttrain.eval
+          - package: posttrain-reports
+            import_name: posttrain.reports
+          - package: posttrain-serve
+            import_name: posttrain.serve
+          - package: posttrain-train
+            import_name: posttrain.train
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -59,4 +59,4 @@ jobs:
       - name: Install package
         run: uv sync --package ${{ matrix.package }} --python 3.12
       - name: Import package
-        run: uv run python -c "import ${{ matrix.import_name }}"
+        run: uv run --package ${{ matrix.package }} python -c "import ${{ matrix.import_name }}"

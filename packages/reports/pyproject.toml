@@ -1,5 +1,5 @@
 [project]
-name = "reports"
+name = "posttrain-reports"
 version = "0.1.0"
 description = "Read-only reporting and raw-query tools for Trackio evidence"
 requires-python = ">=3.12,<3.13"
@@ -9,7 +9,7 @@ dependencies = [
 ]
 
 [project.scripts]
-trackio-query = "reports.query:main"
+trackio-query = "posttrain.reports.query:main"
 
 [tool.uv]
 package = true
@@ -22,7 +22,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/reports"]
+packages = ["src/posttrain"]
 
 [tool.hatch.metadata]
 allow-direct-references = true

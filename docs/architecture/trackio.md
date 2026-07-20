@@ -273,7 +273,7 @@ Job: customer-support-v1
 
 Job: qwen-serving-enablement
   action optimize
-    invocation 06 -> vLLM/SGLang/TurboQuant/MTP benchmark runs
+    invocation 06 -> vLLM/TurboQuant/MTP benchmark runs
 ```
 
 The second job exists because serving enablement is a separate owned

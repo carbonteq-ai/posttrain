@@ -5,8 +5,8 @@ import unittest
 from pathlib import Path
 
 from common import BENCHMARKS_DIR, PROFILES_DIR, ProfileResolver
-from serve.suite_cli import _serve_profile_for_variant, select_cases
-from serve.suites import SuiteError, load_suite
+from posttrain.serve.suite_cli import _serve_profile_for_variant, select_cases
+from posttrain.serve.suites import SuiteError, load_suite
 
 
 class InferenceSuiteTest(unittest.TestCase):

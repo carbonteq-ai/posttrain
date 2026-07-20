@@ -1,5 +1,5 @@
 [project]
-name = "serve"
+name = "posttrain-serve"
 version = "0.1.0"
 description = "Reusable vLLM and SGLang inference engine"
 requires-python = ">=3.12,<3.13"
@@ -10,11 +10,11 @@ dependencies = [
 ]
 
 [project.scripts]
-serve-benchmark = "serve.benchmark:main"
-serve-benchmark-suite = "serve.suite_cli:main"
+serve-benchmark = "posttrain.serve.benchmark:main"
+serve-benchmark-suite = "posttrain.serve.suite_cli:main"
 
 [project.entry-points."vllm.general_plugins"]
-lab-serve-compat = "serve.vllm_compat:apply_vllm_compatibility_patches"
+lab-serve-compat = "posttrain.serve.vllm_compat:apply_vllm_compatibility_patches"
 
 [project.optional-dependencies]
 vllm = [
@@ -46,4 +46,4 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/serve"]
+packages = ["src/posttrain"]

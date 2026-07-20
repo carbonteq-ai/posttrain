@@ -7,7 +7,7 @@ class VllmCompatibilityTest(unittest.TestCase):
     def test_turboquant_spec_keeps_packed_size_and_quantized_marker(self) -> None:
         try:
             import torch
-            from serve.vllm_compat import apply_vllm_compatibility_patches
+            from posttrain.serve.vllm_compat import apply_vllm_compatibility_patches
             from vllm.v1.kv_cache_interface import (  # pyright: ignore[reportMissingImports]
                 KVQuantMode,
                 TQFullAttentionSpec,

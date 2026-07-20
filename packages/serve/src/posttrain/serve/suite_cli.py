@@ -62,7 +62,7 @@ def _command(
     command = [
         sys.executable,
         "-m",
-        "serve.benchmark",
+        "posttrain.serve.benchmark",
         model_profile,
         "--context-window",
         str(case.context_window),

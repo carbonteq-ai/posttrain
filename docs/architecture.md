@@ -27,8 +27,9 @@ The central rule is:
 1. **Code first, data when useful.** Jobs, profiles, and package contracts are
    typed Python. TOML or YAML may instantiate a typed config, but no generic
    configuration language controls the platform.
-2. **Reuse packages, not runners.** `train`, `eval`, and `serve` expose stable
-   project-facing operation APIs. TRL, Verifiers, vLLM, SGLang, and runner or
+2. **Reuse packages, not runners.** `posttrain.train`, `posttrain.eval`, and
+   `posttrain.serve` expose stable project-facing operation APIs. TRL,
+   Verifiers, vLLM, and runner or
    adapter objects are replaceable implementation details behind those APIs.
 3. **Keep reusable work with its owner.** Train, eval, serve, reports, and
    independently published environment packages have separate release and
@@ -58,7 +59,7 @@ flowchart LR
     J --> S["packages/serve API"]
     T --> TI["Internal trainer adapters"]
     E --> EI["Internal Verifiers adapter"]
-    S --> SI["Internal vLLM / SGLang adapters"]
+    S --> SI["Internal vLLM adapter"]
     J --> C["Lab observation context"]
     T -. "emit" .-> C
     E -. "emit" .-> C
@@ -70,24 +71,24 @@ flowchart LR
 ```
 
 The lab injects the Trackio-backed context. Another project can inject its own
-observer or no-op context. A job may query prior evidence through `reports`,
+observer or no-op context. A job may query prior evidence through
+`posttrain.reports`,
 but Trackio never becomes the workflow engine.
 
 ## Layers
 
 ### 1. Shared SDK: `packages/common`
 
-`common` contains the lightweight vocabulary used when these reusable packages
+`posttrain.common` contains the lightweight vocabulary used when these reusable packages
 are composed into this platform:
 
 - `Job`, `JobAction`, and invocation context;
 - model and artifact references;
 - execution/observation context protocols and result identity;
-- run kind, status, source-revision, and provenance types;
-- the narrow Trackio write adapter;
-- temporary execution-workspace helpers.
+- source-revision and provenance types;
+- framework-neutral observer, cancellation, and temporary-workspace contracts.
 
-It does not import TRL, Verifiers, vLLM, or SGLang and does not define their
+It does not import Trackio, TRL, Verifiers, or vLLM and does not define their
 native configuration fields.
 
 ### 2. Reusable project-facing packages
@@ -96,25 +97,26 @@ native configuration fields.
 | --- | --- |
 | `packages/train` | Stable SFT/DPO/RL operations, typed inputs/results, checkpoint behavior, and internal TRL or future framework adapters. |
 | `packages/eval` | Stable evaluation operations, typed inputs/results, reusable evaluation programs, and internal Verifiers integration. |
-| `packages/serve` | Stable launch/probe/benchmark operations, typed inputs/results, reusable serving profiles, and internal vLLM/SGLang integrations. |
+| `packages/serve` | Stable launch/probe/benchmark operations, typed inputs/results, reusable serving profiles, and the internal vLLM integration. |
 | `packages/reports` | Read-only evidence queries, versioned calculators, comparisons, and frontend-facing view models. |
 
 Each package is the reusable unit and owns its public contract. Concrete
 backend adapters inside it own typed configuration models. There is no
 universal trainer, evaluator, or server configuration containing every backend flag.
 Heavy dependencies are optional extras or isolated execution environments, for
-example `train[trl]`, `serve[vllm]`, and `serve[sglang]`.
+example `posttrain-train[trl]`, `posttrain-eval[verifiers]`, and
+`posttrain-serve[vllm]`.
 
 ### 3. Reusable definitions
 
 Reusable definitions are normal importable Python values and factories:
 
 ```text
-profiles/models/                    cross-engine model entry points
+packages/common/.../profiles/       cross-engine model entry points
 packages/train/.../profiles/        technique and implementation defaults
 packages/eval/.../programs/         general evaluation collections
 packages/serve/.../profiles/        backend/family/model serving defaults
-benchmarks/inference/               workload suites and prompt corpora
+packages/serve/.../benchmarks/       workload suites and prompt corpora
 ```
 
 This keeps ownership explicit. A Qwen vLLM TurboQuant profile ships with the
@@ -145,26 +147,31 @@ A job is an importable Python module with stable identity, metadata, and one or
 more explicit actions:
 
 ```python
-from common.jobs import Job
-import eval as model_eval
-import serve
-from profiles.models import QWEN_35_2B
+from posttrain.common import ExecutionContext, Job, JobAction
+from posttrain.common.profiles import QWEN35_2B
+from posttrain.eval import EvaluationRequest, evaluate
+from posttrain.serve import BenchmarkRequest, benchmark
 
-job = Job(
-    id="customer-support-v1",
-    objective="Select and adapt a support model",
+JOB = Job(
+    id="customer-support/v1",
+    version=source_revision,
+    name="Select and adapt a support model",
+)
+SCREEN_FOUNDATIONS = JobAction(
+    job_id=JOB.id,
+    id="screen-foundations",
+    kind="foundation-screening",
 )
 
-@job.action
-def screen_foundations(ctx):
-    ctx.run(serve.benchmark, model=QWEN_35_2B, profile="vllm.turboquant_k8")
-    ctx.run(model_eval.evaluate, model=QWEN_35_2B, program="general.smoke")
+def screen_foundations(ctx: ExecutionContext) -> None:
+    benchmark(ctx, BenchmarkRequest(model=QWEN35_2B, profile="vllm.turboquant_k8"))
+    evaluate(ctx, EvaluationRequest(model=QWEN35_2B, program="general.smoke"))
 ```
 
-The decorator only discovers an action. The function remains ordinary Python:
-it can loop over candidates, call helper functions, reuse typed definitions,
-and construct requests conditionally. It does not create a hidden scheduler or
-compiled DAG.
+The function is ordinary Python: it can loop over candidates, call helpers,
+reuse typed definitions, and construct requests conditionally. `apps/lab`
+binds the stable job/action identities to an invocation and run attempt; there
+is no hidden scheduler or compiled DAG.
 
 A job owns:
 
@@ -179,10 +186,11 @@ it is not a new hierarchy level.
 
 ### 6. Package execution and platform integration
 
-`train`, `eval`, and `serve` can be used directly by another Python project,
-CLI, notebook, or service. Their public operation APIs return typed results and
-accept an optional execution context for streaming events, metrics, traces,
-artifacts, cancellation, and workspaces.
+`posttrain.train`, `posttrain.eval`, and `posttrain.serve` can be used directly
+by another Python project, CLI, notebook, or service. Their public operation
+APIs return typed results and accept an execution context for streaming events,
+metrics, traces, artifacts, cancellation, and workspaces. A caller that does
+not need observation uses `NullObserver` in that context.
 
 Inside this platform, a job action asks its host context to run a normal package
 operation. The host adds an observation envelope that is separate from the
@@ -205,7 +213,7 @@ result type. Package code does not receive `job_id` and does not require a
 `Job` object or Trackio in order to be useful elsewhere.
 
 Changing training frameworks therefore changes the implementation and its
-native config behind the `train` API, not the job or package-level operation:
+native config behind the `posttrain.train` API, not the job or package-level operation:
 
 ```python
 ctx.run(train.sft, model=checkpoint, config=trl_config)
@@ -330,7 +338,7 @@ The MVP does not include:
 
 ## Revision history
 
-- 2026-07-20: Made `train`, `eval`, and `serve` themselves the reusable
+- 2026-07-20: Made `posttrain.train`, `posttrain.eval`, and `posttrain.serve` themselves the reusable
   project-facing units; moved framework runners/adapters behind their public
   operation APIs and made the platform observation context injectable.
 - 2026-07-20: Made the platform code-first, introduced job actions and typed

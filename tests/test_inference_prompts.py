@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 
 from common import BENCHMARKS_DIR, PROFILES_DIR, ProfileResolver
-from serve.prompts import PromptError, load_prompt_records, reasoning_template_kwargs
+from posttrain.serve.prompts import PromptError, load_prompt_records, reasoning_template_kwargs
 
 
 class InferencePromptTest(unittest.TestCase):

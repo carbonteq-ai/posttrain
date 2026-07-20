@@ -5,7 +5,7 @@ Last revised: 2026-07-20
 
 ## Purpose
 
-`train`, `eval`, and `serve` are reusable Python packages for many kinds of
+`posttrain.train`, `posttrain.eval`, and `posttrain.serve` are reusable Python packages for many kinds of
 projects. This lab's jobs are consumers of those packages; their internal
 framework runners are not the shared architecture.
 
@@ -16,9 +16,9 @@ optional instrumentation hooks:
 
 | Package | Stable public operations | Initial internal integration |
 | --- | --- | --- |
-| `train` | `sft`, `dpo`, `rl`, checkpoint selection/resume | TRL |
-| `eval` | `evaluate`, program execution, checkpoint comparison inputs | Verifiers |
-| `serve` | `launch`, `generate`, `probe`, `benchmark` | vLLM and SGLang |
+| `posttrain.train` | `sft`, `dpo`, `grpo`, checkpoint selection/resume | TRL |
+| `posttrain.eval` | `evaluate`, program execution, checkpoint comparison inputs | Verifiers |
+| `posttrain.serve` | `launch`, `generate`, `probe`, `benchmark` | vLLM |
 
 The public operation is stable across implementations. The concrete config may
 remain framework-specific when the framework exposes genuinely different
@@ -53,9 +53,9 @@ than a mandatory dependency of the reusable package contract.
 Each package may define private protocols for testing and framework replacement:
 
 ```text
-train.sft -> TRL adapter or future trainer adapter
-eval.evaluate -> Verifiers adapter
-serve.benchmark -> vLLM or SGLang adapter
+posttrain.train.sft -> TRL adapter or future trainer adapter
+posttrain.eval.evaluate -> Verifiers adapter
+posttrain.serve.benchmark -> vLLM adapter
 ```
 
 Those protocols organize package internals. They are not the objects job or
@@ -70,7 +70,7 @@ A new training framework is added inside `packages/train`:
 2. map the public operation lifecycle and typed result;
 3. map checkpoints, artifacts, metrics, and failures;
 4. add capability and compatibility tests;
-5. publish a new `train` package version.
+5. publish a new `posttrain-train` package version.
 
 Consumers continue calling `train.sft`, `train.dpo`, or `train.rl`. They may
 choose the new concrete config, but do not replace the reusable package with a
@@ -135,7 +135,8 @@ another package.
 
 ## Inference benchmark data
 
-`benchmarks/inference` owns reusable workload inputs independently of `serve`:
+`posttrain.serve.benchmarks` owns reusable workload inputs with the benchmark
+operation that interprets them:
 
 - suites define token shapes, configured context, concurrency, warmup, and
   repetitions;
@@ -158,10 +159,9 @@ and observation run kinds.
 Public modules stay lightweight; concrete integrations use extras:
 
 ```text
-train[trl]
-eval[verifiers]
-serve[vllm]
-serve[sglang]
+posttrain-train[trl]
+posttrain-eval[verifiers]
+posttrain-serve[vllm]
 ```
 
 Other projects can install only the packages and implementations they require.
@@ -173,7 +173,7 @@ context:
 
 1. resolve job/action/invocation and source provenance;
 2. start an observable run;
-3. call the public `train`, `eval`, or `serve` operation;
+3. call the public `posttrain.train`, `posttrain.eval`, or `posttrain.serve` operation;
 4. stream observations through the context;
 5. link selected input/output artifacts;
 6. finalize the run and return the package's typed result.
@@ -187,7 +187,7 @@ make that decision.
 2. Define the optional execution/observation context protocol in `common`.
 3. Adapt the existing vLLM benchmark behind `serve.benchmark`.
 4. Adapt Verifiers execution behind `eval.evaluate`.
-5. Add SFT and DPO behind `train`; then define the supported RL boundary.
+5. Add SFT and DPO behind `posttrain.train`; then define the supported GRPO boundary.
 6. Prove direct use from a small standalone script with no Job and no Trackio.
 7. Prove lab-job use of the same operations with Trackio observation enabled.
 

@@ -5,7 +5,7 @@ Last revised: 2026-07-20
 
 ## Purpose
 
-`train`, `eval`, and `serve` are reusable Python products that can be consumed
+`posttrain.train`, `posttrain.eval`, and `posttrain.serve` are reusable Python products that can be consumed
 by this lab, another repository, a CLI, a notebook, or a service. Their
 framework runners and adapters are internal implementation details.
 
@@ -23,7 +23,7 @@ flowchart TB
     J --> M["Reusable model definitions"]
     T --> TI["Internal TRL / trainer adapters"]
     E --> EI["Internal Verifiers adapter"]
-    S --> SI["Internal vLLM / SGLang adapters"]
+    S --> SI["Internal vLLM adapter"]
     C --> O["Trackio observation context"]
     R["packages/reports"] --> O
 ```
@@ -52,7 +52,7 @@ project code
 The package is the cross-project reuse boundary. It owns lifecycle semantics,
 typed inputs/results, reusable profiles, compatibility checks, and
 instrumentation hooks. Internal adapters translate those operations to TRL,
-Verifiers, vLLM, SGLang, or another framework.
+Verifiers, vLLM, or another future framework.
 
 A public operation may accept a backend-specific typed config when backend
 behavior matters. That does not make the adapter object the reusable unit.
@@ -124,7 +124,7 @@ Public reusable surface:
 
 Internal surface:
 
-- vLLM and SGLang adapters;
+- the vLLM adapter and compatibility guards;
 - backend process/API translation;
 - cache, scheduler, kernel, and version-specific compatibility work.
 
@@ -201,10 +201,9 @@ Public operation and definition modules remain lightweight. Execution installs
 the selected implementation extra:
 
 ```text
-train[trl]
-eval[verifiers]
-serve[vllm]
-serve[sglang]
+posttrain-train[trl]
+posttrain-eval[verifiers]
+posttrain-serve[vllm]
 ```
 
 This keeps project source importable without initializing every CUDA framework

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from serve.benchmark import _controlled_prompt_ids, _hf_target, _percentile
+from posttrain.serve.benchmark import _controlled_prompt_ids, _hf_target, _percentile
 
 
 class _Tokenizer:

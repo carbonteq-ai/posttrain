@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from reports.query import list_runs, query_database
+from posttrain.reports.query import list_runs, query_database
 
 
 class RawQueryTest(unittest.TestCase):
@@ -49,7 +49,7 @@ class RawQueryTest(unittest.TestCase):
             }
         ]
         metrics = [{"run_id": "run-1", "metrics": {"run/status": "complete"}}]
-        with mock.patch("reports.query.query_project", side_effect=[configs, metrics]):
+        with mock.patch("posttrain.reports.query.query_project", side_effect=[configs, metrics]):
             rows = list_runs("lab", run_kind="serving-benchmark")
 
         self.assertEqual(rows[0]["status"], "complete")

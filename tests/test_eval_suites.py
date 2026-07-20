@@ -6,9 +6,9 @@ import unittest
 from pathlib import Path
 
 from common import PROFILES_DIR
-from eval.cli import build_verifiers_config
-from eval.results import summarize_traces
-from eval.suites import EvalSuiteError, load_suite
+from posttrain.eval.cli import build_verifiers_config
+from posttrain.eval.results import summarize_traces
+from posttrain.eval.suites import EvalSuiteError, load_suite
 
 
 class EvalSuiteTest(unittest.TestCase):

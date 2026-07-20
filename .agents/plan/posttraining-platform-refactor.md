@@ -896,7 +896,8 @@ state.
 - [ ] Phase 1 — namespace and shared contracts.
   - [x] Add independently installable `posttrain-common` contracts and pinned foundation profiles.
   - [x] Add `posttrain-lab` composition root, ephemeral attempt host, Trackio observer, and no-op job.
-  - [ ] Migrate train/eval/serve/reports distributions and remove the legacy `common` surface.
+  - [x] Migrate train/eval/serve/reports distributions and imports to `posttrain.*`.
+  - [ ] Remove the legacy `common` surface as each vertical slice stops consuming it.
 - [ ] Phase 2 — serving vertical slice.
 - [ ] Phase 3 — evaluation and environment vertical slice.
 - [ ] Phase 4 — renderer-based SFT and DPO.
@@ -929,6 +930,9 @@ state.
 - A clean `posttrain-common` wheel imports with no Trackio, Torch, TRL,
   Verifiers, vLLM, or YAML installation. `posttrain-lab` is the first and only
   new package that selects the pinned Trackio adapter.
+- All six new distributions build independently as wheels and compose through
+  a PEP 420 `posttrain.*` namespace; the previous top-level `eval`, `reports`,
+  `serve`, and `train` import packages are no longer shipped.
 
 ## Decision Log
 

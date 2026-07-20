@@ -142,8 +142,9 @@ owns selection, thresholds, and what to do next.
 ## Serving evaluation remains separate
 
 Serving benchmarks measure TTFT, decode latency, throughput, concurrency,
-memory, cache behavior, and failures. They are `serve` operations. Verifiers
-evaluations measure model behavior and are `eval` operations.
+memory, cache behavior, and failures. They are `posttrain.serve` operations.
+Verifiers evaluations measure model behavior and are `posttrain.eval`
+operations.
 
 They may share a model artifact, endpoint, action invocation, Trackio job, and
 report, but one package never absorbs the other.
