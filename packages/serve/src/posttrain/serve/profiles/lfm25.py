@@ -3,7 +3,7 @@
 from .base import VllmEngineConfig, VllmSamplingConfig, VllmServeProfile
 
 _SAMPLING = VllmSamplingConfig(
-    max_tokens=128,
+    max_tokens=512,
     temperature=0.05,
     top_k=50,
     repetition_penalty=1.05,

@@ -52,7 +52,7 @@ def run_online_smoke(context: ExecutionContext, request: LaunchRequest) -> Gener
             GenerationRequest(
                 endpoint=endpoint,
                 messages=({"role": "user", "content": "Answer with exactly the word ready."},),
-                max_tokens=128,
+                max_tokens=request.profile.sampling.max_tokens,
             ),
             request.model,
         )

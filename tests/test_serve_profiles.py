@@ -36,6 +36,7 @@ def test_qwen_text_profile_captures_tested_8gb_constraints() -> None:
 def test_lfm_profile_uses_native_tool_parser_and_tag_compatible_reasoning_parser() -> None:
     assert LFM_25_12B_THINKING.conversation.tool_calls is not None
     assert LFM_25_12B_THINKING.conversation.tool_calls.id == "lfm2_pythonic"
+    assert LFM25_VLLM.sampling.max_tokens == 512
     assert LFM25_VLLM.frontend_args() == (
         "--enable-auto-tool-choice",
         "--tool-call-parser",
