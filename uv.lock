@@ -52,6 +52,7 @@ members = [
     "eval",
     "lab",
     "posttrain-common",
+    "posttrain-lab",
     "reports",
     "serve",
     "train",
@@ -3381,6 +3382,21 @@ requires-dist = [
     { name = "trackio", marker = "extra == 'legacy'", git = "https://github.com/carbonteq-ai/trackio.git?rev=02351d871050bf4b3505c7371239c698b710ec83" },
 ]
 provides-extras = ["legacy"]
+
+[[package]]
+name = "posttrain-lab"
+version = "0.1.0"
+source = { editable = "apps/lab" }
+dependencies = [
+    { name = "posttrain-common" },
+    { name = "trackio" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "posttrain-common", editable = "packages/common" },
+    { name = "trackio", git = "https://github.com/carbonteq-ai/trackio.git?rev=02351d871050bf4b3505c7371239c698b710ec83" },
+]
 
 [[package]]
 name = "prime"

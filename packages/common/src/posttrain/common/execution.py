@@ -98,6 +98,7 @@ class ExecutionContext:
     observer: Observer = field(default_factory=NullObserver)
     cancellation: CancellationToken = field(default_factory=CancellationToken)
     clock: Clock = utc_now
+    source_metadata: Attributes = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.action.job_id != self.job.id:

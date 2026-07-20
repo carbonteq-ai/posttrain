@@ -894,6 +894,9 @@ state.
 - [x] TRL 1.8 fork with vLLM 0.25.1 support merged and GPU-smoked.
 - [x] Phase 0 — local Git/reproducibility and quality baseline; remote publication is deferred.
 - [ ] Phase 1 — namespace and shared contracts.
+  - [x] Add independently installable `posttrain-common` contracts and pinned foundation profiles.
+  - [x] Add `posttrain-lab` composition root, ephemeral attempt host, Trackio observer, and no-op job.
+  - [ ] Migrate train/eval/serve/reports distributions and remove the legacy `common` surface.
 - [ ] Phase 2 — serving vertical slice.
 - [ ] Phase 3 — evaluation and environment vertical slice.
 - [ ] Phase 4 — renderer-based SFT and DPO.
@@ -923,6 +926,9 @@ state.
   schema or reduce environments to reward callbacks.
 - Renderer-based tokenization is essential for preserving thinking controls and
   assistant loss attribution across SFT and DPO.
+- A clean `posttrain-common` wheel imports with no Trackio, Torch, TRL,
+  Verifiers, vLLM, or YAML installation. `posttrain-lab` is the first and only
+  new package that selects the pinned Trackio adapter.
 
 ## Decision Log
 

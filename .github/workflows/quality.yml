@@ -40,6 +40,8 @@ jobs:
         include:
           - package: posttrain-common
             import_name: posttrain.common
+          - package: posttrain-lab
+            import_name: posttrain_lab
           - package: eval
             import_name: eval
           - package: reports

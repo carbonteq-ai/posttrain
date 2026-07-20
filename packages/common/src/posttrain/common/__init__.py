@@ -3,6 +3,7 @@
 from .artifacts import (
     ArtifactRef,
     HubModelRef,
+    JsonValue,
     LocalArtifactRef,
     ProducedArtifact,
     TrackioArtifactRef,
@@ -30,6 +31,7 @@ __all__ = [
     "Invocation",
     "Job",
     "JobAction",
+    "JsonValue",
     "LocalArtifactRef",
     "MetricObservation",
     "ModelCapabilities",
