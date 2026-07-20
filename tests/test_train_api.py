@@ -194,6 +194,9 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
     assert arguments["vllm_engine_kwargs"] == {
         "language_model_only": True,
         "hf_overrides": {"architectures": ["Qwen3_5ForCausalLM"]},
+        "model_class_overrides": {
+            "Qwen3_5ForCausalLM": "vllm.model_executor.models.qwen3_5:Qwen3_5ForCausalLM"
+        },
         "skip_mm_profiling": True,
         "kv_cache_memory_bytes": 64 * 1024 * 1024,
     }

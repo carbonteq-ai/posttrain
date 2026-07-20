@@ -113,6 +113,7 @@ class ModelProfile:
     capabilities: ModelCapabilities
     conversation: ConversationProfile
     hf_text_generation_architecture: str | None = None
+    vllm_text_generation_model_class: str | None = None
 
     def __post_init__(self) -> None:
         if not _PROFILE_ID.fullmatch(self.id):
@@ -123,6 +124,11 @@ class ModelProfile:
             raise ContractError("parameter count must be positive")
         if self.hf_text_generation_architecture is not None and not self.hf_text_generation_architecture.strip():
             raise ContractError("text-generation architecture cannot be blank")
+        if self.vllm_text_generation_model_class is not None:
+            if self.hf_text_generation_architecture is None:
+                raise ContractError("a vLLM text model class requires a Hugging Face architecture")
+            if ":" not in self.vllm_text_generation_model_class:
+                raise ContractError("vLLM model classes must use the module:class form")
 
     @property
     def default_reasoning_mode(self) -> str:

@@ -80,6 +80,10 @@ class VllmEngineConfig:
                 values["hf_overrides"] = {
                     "architectures": [model.hf_text_generation_architecture]
                 }
+                if model.vllm_text_generation_model_class is not None:
+                    values["model_class_overrides"] = {
+                        model.hf_text_generation_architecture: model.vllm_text_generation_model_class
+                    }
         if self.skip_mm_profiling:
             values["skip_mm_profiling"] = True
         if self.flash_attn_version is not None:
@@ -121,6 +125,19 @@ class VllmEngineConfig:
                         json.dumps({"architectures": [model.hf_text_generation_architecture]}),
                     )
                 )
+                if model.vllm_text_generation_model_class is not None:
+                    values.extend(
+                        (
+                            "--model-class-overrides",
+                            json.dumps(
+                                {
+                                    model.hf_text_generation_architecture: (
+                                        model.vllm_text_generation_model_class
+                                    )
+                                }
+                            ),
+                        )
+                    )
         if self.skip_mm_profiling:
             values.append("--skip-mm-profiling")
         if self.flash_attn_version is not None:

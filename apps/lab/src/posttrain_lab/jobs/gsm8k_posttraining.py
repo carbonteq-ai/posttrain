@@ -255,6 +255,9 @@ def grpo_job_inputs(request: GSM8KGRPOJobRequest) -> dict[str, str | int | float
         result["rollout_hf_text_generation_architecture"] = (
             request.model.profile.hf_text_generation_architecture or ""
         )
+        result["rollout_vllm_text_generation_model_class"] = (
+            request.model.profile.vllm_text_generation_model_class or ""
+        )
         result["rollout_skip_multimodal_profiling"] = rollout.skip_multimodal_profiling
         result["rollout_kv_cache_memory_bytes"] = rollout.kv_cache_memory_bytes or 0
         if speculative is not None:
