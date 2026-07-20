@@ -6,7 +6,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-from posttrain.common import JsonValue
+from posttrain.common import JsonValue, TraceObservation
 
 _ID = re.compile(r"^[a-z0-9][a-z0-9._/-]*$")
 
@@ -126,11 +126,40 @@ class RolloutDataset:
             raise ValueError("dataset revision cannot be empty")
 
 
+@dataclass(frozen=True, slots=True)
+class CompletedRollout:
+    """One policy completion passed from a training backend to an RL environment."""
+
+    example_id: str
+    completion: str
+    token_ids: tuple[int, ...]
+    step: int
+
+    def __post_init__(self) -> None:
+        _validate_id(self.example_id)
+        if self.step < 0:
+            raise ValueError("rollout step cannot be negative")
+
+    @property
+    def token_count(self) -> int:
+        return len(self.token_ids)
+
+
+@dataclass(frozen=True, slots=True)
+class RolloutScore:
+    """Environment-owned reward and its full-fidelity rollout observation."""
+
+    reward: float
+    trace: TraceObservation
+
+
 __all__ = [
+    "CompletedRollout",
     "PreferenceDataset",
     "PreferenceExample",
     "RolloutDataset",
     "RolloutExample",
+    "RolloutScore",
     "SupervisedDataset",
     "SupervisedExample",
 ]

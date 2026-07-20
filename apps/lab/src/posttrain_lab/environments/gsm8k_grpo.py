@@ -6,9 +6,8 @@ import re
 from pathlib import Path
 from typing import Any
 
-from posttrain.common import ExecutionContext
-from posttrain.train import RolloutDataset
-from posttrain.train.integrations import VerifiersGRPOBridge, verifiers_rollout_dataset
+from posttrain.train import CompletedRollout
+from posttrain.train.integrations import VerifiersOnlineRLEnvironment
 
 VERIFIERS_REVISION = "284a868d6a9022109b749710672a0460e8a996d4"
 _FINAL_ANSWER = re.compile(r"(?m)^####\s*[+-]?(?:\d[\d,]*)(?:\.\d+)?\s*$")
@@ -23,7 +22,11 @@ def _imports() -> tuple[type[Any], type[Any]]:
     return GSM8KConfig, GSM8KTaskset
 
 
-def load_gsm8k_rollout_dataset(task_indices: tuple[int, ...]) -> tuple[RolloutDataset, dict[int, Any]]:
+def create_gsm8k_training_environment(
+    task_indices: tuple[int, ...],
+    trace_path: Path,
+    run_id: str,
+) -> VerifiersOnlineRLEnvironment:
     if not task_indices or len(task_indices) != len(set(task_indices)) or min(task_indices) < 0:
         raise ValueError("GRPO task indices must be non-empty, unique, and non-negative")
     GSM8KConfig, GSM8KTaskset = _imports()
@@ -33,38 +36,22 @@ def load_gsm8k_rollout_dataset(task_indices: tuple[int, ...]) -> tuple[RolloutDa
     except IndexError as error:
         raise ValueError("GRPO task index is outside the GSM8K training split") from error
     suffix = "-".join(str(index) for index in task_indices)
-    dataset = verifiers_rollout_dataset(
-        f"gsm8k/grpo/train-{suffix}-v1",
-        VERIFIERS_REVISION,
-        "gsm8k-v1",
-        tasks,
-    )
-    return dataset, tasks
-
-
-def create_gsm8k_reward_bridge(
-    context: ExecutionContext,
-    tasks: dict[int, Any],
-    trace_path: Path,
-    model_profile_id: str,
-    training_profile_id: str,
-) -> VerifiersGRPOBridge:
-    return VerifiersGRPOBridge(
-        context=context,
+    return VerifiersOnlineRLEnvironment(
+        dataset_id=f"gsm8k/grpo/train-{suffix}-v1",
+        revision=VERIFIERS_REVISION,
         tasks=tasks,
         environment_factory=_training_environment,
         trace_path=trace_path,
         environment_id="gsm8k-v1",
-        model_profile_id=model_profile_id,
-        training_profile_id=training_profile_id,
+        run_id=run_id,
         enrichers=(_add_gsm8k_shaping,),
     )
 
 
-def _add_gsm8k_shaping(trace: Any, completion: str, completion_tokens: int) -> None:
+def _add_gsm8k_shaping(trace: Any, rollout: CompletedRollout) -> None:
     trace.record_reward(
         "final_answer_conciseness",
-        _final_answer_conciseness(completion, completion_tokens),
+        _final_answer_conciseness(rollout.completion, rollout.token_count),
         weight=_SHAPING_WEIGHT,
     )
 
@@ -90,4 +77,4 @@ def _training_environment() -> Any:
     return Environment(config)
 
 
-__all__ = ["VERIFIERS_REVISION", "create_gsm8k_reward_bridge", "load_gsm8k_rollout_dataset"]
+__all__ = ["VERIFIERS_REVISION", "create_gsm8k_training_environment"]

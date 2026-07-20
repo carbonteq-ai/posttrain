@@ -48,6 +48,8 @@ replace SFT, DPO, or GRPO acceptance for the two foundation profiles.
 
 The code-defined `posttrain-lab` entrypoint now composes typed training requests
 with job-owned data. Reusable trainers remain callable directly from Python.
-The generic `VerifiersGRPOBridge` scores completions and records native traces;
+The generic `VerifiersOnlineRLEnvironment` scores completed rollouts and
+returns native traces; the TRL backend privately adapts that contract to its
+reward callback and records the traces through the execution context.
 it does not initialize a model. Transformers and colocated-vLLM rollouts are
 explicit training-profile choices rather than behavior hidden in job code.

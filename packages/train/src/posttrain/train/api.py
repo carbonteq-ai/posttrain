@@ -44,13 +44,14 @@ def _finish(
     technique: Literal["sft", "dpo", "grpo"],
     backend: BackendTrainingResult,
 ) -> TrainingResult:
+    dataset = request.environment.dataset if isinstance(request, GRPORequest) else request.dataset
     attributes = {
         "technique": technique,
         "model_profile_id": request.model.profile.id,
         "source_model_format": request.model.format,
         "training_profile_id": request.profile.id,
-        "dataset_id": request.dataset.id,
-        "dataset_revision": request.dataset.revision,
+        "dataset_id": dataset.id,
+        "dataset_revision": dataset.revision,
     }
     adapter_ref = LocalArtifactRef(backend.adapter_dir.resolve(), _digest(backend.adapter_dir))
     model_artifact = ProducedArtifact(
@@ -147,16 +148,22 @@ def grpo(
     *,
     runner: GRPOBackend = run_grpo,
 ) -> TrainingResult:
+    dataset = request.environment.dataset
     attributes = {
         "technique": "grpo",
         "model_profile_id": request.model.profile.id,
         "training_profile_id": request.profile.id,
-        "dataset_id": request.dataset.id,
+        "dataset_id": dataset.id,
     }
     context.event("training_started", attributes)
     output_dir = context.workspace / "training" / "grpo" / "trainer"
     output_dir.mkdir(parents=True, exist_ok=False)
-    return _finish(context, request, "grpo", runner(context, request, output_dir))
+    try:
+        backend = runner(context, request, output_dir)
+    finally:
+        for artifact in request.environment.finalize():
+            context.artifact(artifact)
+    return _finish(context, request, "grpo", backend)
 
 
 __all__ = ["DPOBackend", "GRPOBackend", "SFTBackend", "dpo", "grpo", "sft"]

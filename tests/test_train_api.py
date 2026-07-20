@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -24,12 +25,14 @@ from posttrain.train import (
     QWEN35_GRPO_MTP_SMOKE,
     QWEN35_GRPO_SMOKE,
     QWEN35_SFT_SMOKE,
+    CompletedRollout,
     DPORequest,
     GRPORequest,
     PreferenceDataset,
     PreferenceExample,
     RolloutDataset,
     RolloutExample,
+    RolloutScore,
     SFTRequest,
     SupervisedDataset,
     SupervisedExample,
@@ -38,7 +41,7 @@ from posttrain.train import (
     sft,
 )
 from posttrain.train.backends.trl.common import BackendTrainingResult
-from posttrain.train.backends.trl.grpo import _grpo_arguments
+from posttrain.train.backends.trl.grpo import _grpo_arguments, _reward_function
 from posttrain.train.results import TrainingSummary
 
 
@@ -47,6 +50,7 @@ class Observer:
     events: list[EventObservation] = field(default_factory=list)
     metrics_seen: list[MetricBatchObservation] = field(default_factory=list)
     artifacts: list[ProducedArtifact] = field(default_factory=list)
+    traces: list[TraceObservation] = field(default_factory=list)
 
     def event(self, observation: EventObservation) -> None:
         self.events.append(observation)
@@ -58,7 +62,7 @@ class Observer:
         self.metrics_seen.append(observation)
 
     def trace(self, observation: TraceObservation) -> None:
-        del observation
+        self.traces.append(observation)
 
     def artifact(self, artifact: ProducedArtifact) -> None:
         self.artifacts.append(artifact)
@@ -98,8 +102,18 @@ def _rollouts() -> RolloutDataset:
     )
 
 
-def _reward(**_: object) -> list[float | None]:
-    return [1.0, 0.0]
+@dataclass
+class FakeRLEnvironment:
+    dataset: RolloutDataset = field(default_factory=_rollouts)
+
+    async def score(self, rollout: CompletedRollout) -> RolloutScore:
+        return RolloutScore(
+            1.0,
+            TraceObservation("test", rollout.example_id, {"completion": rollout.completion}),
+        )
+
+    def finalize(self) -> tuple[ProducedArtifact, ...]:
+        return ()
 
 
 def _context(workspace: Path, observer: Observer) -> ExecutionContext:
@@ -166,9 +180,8 @@ def test_grpo_operation_reuses_training_artifact_contract() -> None:
             context,
             GRPORequest(
                 ModelVariant.foundation(QWEN_35_2B),
-                _rollouts(),
+                FakeRLEnvironment(),
                 QWEN35_GRPO_SMOKE,
-                _reward,
             ),
             runner=_backend,
         )
@@ -179,9 +192,8 @@ def test_grpo_operation_reuses_training_artifact_contract() -> None:
 def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path) -> None:
     request = GRPORequest(
         ModelVariant.foundation(QWEN_35_2B),
-        _rollouts(),
+        FakeRLEnvironment(),
         QWEN35_GRPO_SMOKE,
-        _reward,
     )
 
     arguments = _grpo_arguments(request, tmp_path, {"enable_thinking": False})
@@ -201,15 +213,39 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
 
     mtp_request = GRPORequest(
         ModelVariant.foundation(QWEN_35_2B),
-        _rollouts(),
+        FakeRLEnvironment(),
         QWEN35_GRPO_MTP_SMOKE,
-        _reward,
     )
     mtp_arguments = _grpo_arguments(mtp_request, tmp_path, {"enable_thinking": False})
     assert mtp_arguments["vllm_speculative_config"] == {
         "method": "qwen3_next_mtp",
         "num_speculative_tokens": 2,
     }
+
+
+def test_trl_reward_adapter_preserves_rollout_identity_and_observes_native_trace(tmp_path: Path) -> None:
+    observer = Observer()
+    context = _context(tmp_path.resolve(), observer)
+    request = GRPORequest(
+        ModelVariant.foundation(QWEN_35_2B),
+        FakeRLEnvironment(),
+        QWEN35_GRPO_SMOKE,
+    )
+
+    rewards = asyncio.run(
+        _reward_function(context, request)(
+            completions=[[{"role": "assistant", "content": "#### 4"}]],
+            completion_ids=[[10, 11, 12]],
+            example_id=["gsm8k/train/0"],
+            trainer_state=type("TrainerState", (), {"global_step": 3})(),
+        )
+    )
+
+    assert rewards == [1.0]
+    assert observer.traces[0].external_id == "gsm8k/train/0"
+    assert observer.traces[0].payload["completion"] == "#### 4"
+    assert observer.traces[0].attributes["technique"] == "grpo"
+    assert observer.traces[0].attributes["model_profile_id"] == QWEN_35_2B.id
 
 
 def test_preference_contract_rejects_unordered_or_identical_pairs() -> None:

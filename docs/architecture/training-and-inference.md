@@ -100,19 +100,33 @@ GRPO keeps rollout generation and environment scoring separate:
 rollout dataset prompt
   -> TRL rollout engine (Transformers or colocated vLLM)
   -> generated assistant completion
-  -> generic VerifiersGRPOBridge
+  -> private TRL callback adapter
+  -> reusable OnlineRLEnvironment.score(completed_rollout)
   -> native task runtime and task.score(trace, runtime)
-  -> reward returned to TRL
+  -> reward and native trace returned to the adapter
   -> loss and optimizer step
 ```
 
-`posttrain.train.integrations.verifiers.VerifiersGRPOBridge` is reusable across
-environment packages. It accepts native Verifiers tasks and an environment
-factory, constructs native training traces, invokes native scoring, emits the
-queryable trace observation, and preserves JSONL for artifact publication. It
-does not load or call a policy model. An environment-specific package owns task
-loading, prompt selection, and optional trace reward enrichment. The GSM8K job,
-for example, owns only the pinned taskset and its final-answer shaping rule.
+`GRPORequest` accepts one backend-neutral `OnlineRLEnvironment`, not a
+TRL-shaped dataset plus reward callback. The environment owns its rollout
+examples, stable task identity, asynchronous scoring, native traces, and native
+evidence finalization. The TRL adapter privately converts that contract into
+the dataset columns and reward callback required by `GRPOTrainer`, then sends
+the returned traces through the execution context.
+
+`posttrain.train.integrations.verifiers.VerifiersOnlineRLEnvironment`
+implements this contract for native Verifiers task collections. It constructs
+training traces, starts an isolated task runtime, invokes native scoring, and
+preserves JSONL for artifact publication. It does not load or call a policy
+model and does not know about TRL callback arguments, model profiles, or
+Trackio. An environment-specific package owns only task loading, environment
+configuration, and optional native reward enrichment. The GSM8K package, for
+example, owns the pinned task selection and its final-answer shaping rule.
+
+The current contract supports policy-generated, single-completion rollouts.
+Interactive agent environments that require tools or user simulation during
+generation need a separate environment-driven rollout adapter; they must not
+be disguised as post-generation reward callbacks.
 
 The GRPO rollout profile explicitly selects one of two execution modes:
 

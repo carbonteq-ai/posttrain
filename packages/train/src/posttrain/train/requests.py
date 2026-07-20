@@ -4,18 +4,23 @@ from __future__ import annotations
 
 from collections.abc import Awaitable
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Protocol
 
-from posttrain.common import LocalArtifactRef, ModelVariant
+from posttrain.common import LocalArtifactRef, ModelVariant, ProducedArtifact
 
-from .data import PreferenceDataset, RolloutDataset, SupervisedDataset
+from .data import CompletedRollout, PreferenceDataset, RolloutDataset, RolloutScore, SupervisedDataset
 from .profiles import DPOProfile, GRPOProfile, SFTProfile
 
 
-class RewardFunction(Protocol):
-    __name__: str
+class OnlineRLEnvironment(Protocol):
+    """Backend-neutral prompts, scoring, traces, and native evidence for online RL."""
 
-    def __call__(self, **kwargs: Any) -> list[float | None] | Awaitable[list[float | None]]: ...
+    @property
+    def dataset(self) -> RolloutDataset: ...
+
+    def score(self, rollout: CompletedRollout) -> Awaitable[RolloutScore]: ...
+
+    def finalize(self) -> tuple[ProducedArtifact, ...]: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,16 +50,15 @@ class DPORequest:
 @dataclass(frozen=True, slots=True)
 class GRPORequest:
     model: ModelVariant
-    dataset: RolloutDataset
+    environment: OnlineRLEnvironment
     profile: GRPOProfile
-    reward: RewardFunction
     resume_from: LocalArtifactRef | None = None
 
     def __post_init__(self) -> None:
         if self.model.profile.family != self.profile.model_family:
             raise ValueError("GRPO profile is incompatible with the model family")
-        if not callable(self.reward):
-            raise ValueError("GRPO requires a callable reward")
+        if not self.environment.dataset.examples:
+            raise ValueError("GRPO requires at least one rollout example")
 
 
-__all__ = ["DPORequest", "GRPORequest", "RewardFunction", "SFTRequest"]
+__all__ = ["DPORequest", "GRPORequest", "OnlineRLEnvironment", "SFTRequest"]

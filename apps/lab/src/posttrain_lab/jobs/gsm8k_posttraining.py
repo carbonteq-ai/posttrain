@@ -18,7 +18,7 @@ from posttrain.train import (
     sft,
 )
 
-from ..environments import VERIFIERS_REVISION, create_gsm8k_reward_bridge, load_gsm8k_rollout_dataset
+from ..environments import VERIFIERS_REVISION, create_gsm8k_training_environment
 
 JOB_ID = "posttraining/gsm8k"
 
@@ -166,40 +166,34 @@ def run_grpo_materialized(
         artifact=context.input_artifact(input_name),
         format="peft-adapter",
     )
-    dataset, tasks = load_gsm8k_rollout_dataset(request.task_indices)
-    bridge = create_gsm8k_reward_bridge(
-        context,
-        tasks,
+    environment = create_gsm8k_training_environment(
+        request.task_indices,
         context.workspace / "training" / "grpo" / "verifiers-traces.jsonl",
-        local_model.profile.id,
-        request.profile.id,
+        context.attempt.id,
     )
-    try:
-        return grpo(
-            context,
-            GRPORequest(
-                model=local_model,
-                dataset=dataset,
-                profile=request.profile,
-                reward=bridge.reward_function(),
-            ),
-        )
-    finally:
-        bridge.publish_native_artifact()
+    return grpo(
+        context,
+        GRPORequest(
+            model=local_model,
+            environment=environment,
+            profile=request.profile,
+        ),
+    )
 
 
 def training_inputs(request: SFTRequest | DPORequest | GRPORequest) -> dict[str, str | int | float | bool]:
     """Stable run config; large examples and traces remain datasets/artifacts, not config."""
 
+    dataset = request.environment.dataset if isinstance(request, GRPORequest) else request.dataset
     values: dict[str, str | int | float | bool] = {
         "model_profile_id": request.model.profile.id,
         "input_model_format": request.model.format,
         "training_profile_id": request.profile.id,
         "renderer_profile_id": request.profile.renderer.id,
         "reasoning_mode": request.profile.renderer.reasoning_mode,
-        "dataset_id": request.dataset.id,
-        "dataset_revision": request.dataset.revision,
-        "dataset_examples": len(request.dataset.examples),
+        "dataset_id": dataset.id,
+        "dataset_revision": dataset.revision,
+        "dataset_examples": len(dataset.examples),
         "max_steps": request.profile.loop.max_steps,
         "max_length": request.profile.loop.max_length,
         "learning_rate": request.profile.loop.learning_rate,

@@ -2,10 +2,12 @@
 
 from .api import DPOBackend, GRPOBackend, SFTBackend, dpo, grpo, sft
 from .data import (
+    CompletedRollout,
     PreferenceDataset,
     PreferenceExample,
     RolloutDataset,
     RolloutExample,
+    RolloutScore,
     SupervisedDataset,
     SupervisedExample,
 )
@@ -28,10 +30,11 @@ from .profiles import (
     TrainingLoop,
 )
 from .rendering import RenderedPreferenceExample, RenderedSFTExample, render_preferences, render_supervised
-from .requests import DPORequest, GRPORequest, RewardFunction, SFTRequest
+from .requests import DPORequest, GRPORequest, OnlineRLEnvironment, SFTRequest
 from .results import TrainingResult, TrainingSummary
 
 __all__ = [
+    "CompletedRollout",
     "DPOBackend",
     "DPOProfile",
     "DPORequest",
@@ -53,9 +56,10 @@ __all__ = [
     "RenderedPreferenceExample",
     "RenderedSFTExample",
     "RendererProfile",
-    "RewardFunction",
+    "OnlineRLEnvironment",
     "RolloutDataset",
     "RolloutExample",
+    "RolloutScore",
     "SFTBackend",
     "SFTProfile",
     "SFTRequest",

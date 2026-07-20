@@ -2,8 +2,7 @@
 
 from .verifiers import (
     TraceEnricher,
-    VerifiersGRPOBridge,
-    verifiers_rollout_dataset,
+    VerifiersOnlineRLEnvironment,
 )
 
-__all__ = ["TraceEnricher", "VerifiersGRPOBridge", "verifiers_rollout_dataset"]
+__all__ = ["TraceEnricher", "VerifiersOnlineRLEnvironment"]
