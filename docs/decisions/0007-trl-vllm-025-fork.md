@@ -1,4 +1,4 @@
-# ADR 0007 — Pin a TRL 1.8 fork with vLLM 0.25 support
+# ADR 0007 — Pin a TRL 1.8 compatibility fork
 
 **Status:** Accepted  
 **Date:** 2026-07-20
@@ -23,7 +23,11 @@ generation, or weight-synchronization behavior. Those changes exist after the
 - Apply upstream vLLM 0.24 support commit `c1fdca18f0cc56fb60726d879d73f0cbd344e91f`
   and vLLM 0.25 support commit `68d7cb1a4228f91d832c2dc7ced80674d2c46c56`.
 - Pin the workspace to merged fork commit
-  `935060f640f5195fe62f1acc300c16db327a32b9` and pin vLLM to `0.25.1`.
+  `d726190b2f0a399e5a13f69584617efd0e7fcf00` and pin vLLM to `0.25.1`.
+- Keep the trainer-runtime dependency on `datasets>=4.6.1,<4.7`. TRL's runtime
+  paths use APIs available in 4.6.1; 4.7-only `Json` dtype helpers belong to
+  repository dataset-authoring scripts. This makes TRL 1.8 and Verifiers v1
+  installable in the same application environment.
 - Preserve TRL's package name, public imports, and version `1.8.0`.
 - Treat the fork as a dependency compatibility boundary. Project-specific
   training behavior remains in `packages/train`, not in the fork.
@@ -33,6 +37,8 @@ generation, or weight-synchronization behavior. Those changes exist after the
 The serving and online-training paths can share one validated vLLM release
 without moving the training API to TRL 1.9 development code. The workspace
 must explicitly validate and raise the ceiling for every future vLLM upgrade.
+The application can also compose Verifiers environments with TRL trainers;
+neither reusable package imports the other.
 An upstream TRL release containing the same support may replace the fork after
 the training acceptance matrix passes unchanged.
 
@@ -44,6 +50,11 @@ synchronized trainer weights, generated a two-token completion, and returned
 two aligned token log-probability records. Peak PyTorch allocation was
 3,120.7 MiB. This proves the dependency and internal API contract; model-profile
 GRPO acceptance remains a separate training milestone.
+
+The datasets-bound change resolved `datasets 4.6.1`, TRL 1.8, and Verifiers v1
+together, passed 26 focused upstream SFT/DPO/GRPO contract tests, and passed
+upstream tiny-model SFT and DPO training tests. It was merged in
+[`carbonteq-ai/trl#3`](https://github.com/carbonteq-ai/trl/pull/3).
 
 ## Maintenance
 

@@ -21,13 +21,12 @@ mise install                    # Python 3.12 from mise.toml
 uv sync --all-packages --python 3.12
 ```
 
-Optional extras (see conflicts below):
+Optional application/runtime extras:
 
 ```bash
-uv sync --package eval --extra verifiers --python 3.12
-uv sync --package serve --extra vllm --python 3.12
-uv sync --package serve --extra sglang --python 3.12
-uv sync --package train --extra vllm --python 3.12
+uv sync --package posttrain-lab --extra gpu-eval --python 3.12
+uv sync --package posttrain-lab --extra gpu-train --python 3.12
+uv sync --package posttrain-lab --extra gpu-posttrain --python 3.12
 ```
 
 Root `.env` sets `LD_LIBRARY_PATH` for `libcudart.so.13` (vLLM) and `LAB_TRACKIO_PROJECT=lab`.
@@ -35,24 +34,16 @@ Root `.env` sets `LD_LIBRARY_PATH` for `libcudart.so.13` (vLLM) and `LAB_TRACKIO
 ## Verify
 
 ```bash
-uv run --package train python -c \
-  "import torch, trl; from common import WORKSPACE_ROOT; print(WORKSPACE_ROOT, torch.cuda.is_available(), trl.__version__)"
-uv run --package common profile-resolve --help
+uv run --package posttrain-lab --extra gpu-posttrain python -c \
+  "import datasets, torch, trl, verifiers; print(torch.cuda.is_available(), datasets.__version__, trl.__version__, verifiers.__version__)"
 ```
 
-Expect: CUDA `True`, `trl` `1.8.0` from fork commit
-`935060f640f5195fe62f1acc300c16db327a32b9`, workspace root
-`/home/hammad/projects/rl`. The `train[vllm]` variant must report vLLM `0.25.1`
-without a TRL compatibility warning.
+Expect CUDA `True`, `datasets` `4.6.1`, and `trl` `1.8.0` from fork commit
+`d726190b2f0a399e5a13f69584617efd0e7fcf00`.
 
-## Dependency conflicts (declared in root `pyproject.toml`)
-
-| Pair | Why |
-| --- | --- |
-| `serve[vllm]` vs `serve[sglang]` | Backends pin incompatible Torch/Transformers stacks |
-| `train` vs `eval[verifiers]` | TRL and the pinned Verifiers revision require incompatible `datasets` versions |
-
-Sync the engine variant being developed; do not force resolver-driven downgrades across incompatible stacks.
+The CarbonTeq TRL compatibility pin removes the former TRL/Verifiers datasets
+conflict. Serving engines remain optional runtime choices and should only be
+installed when that backend is being exercised.
 
 ## Hugging Face
 

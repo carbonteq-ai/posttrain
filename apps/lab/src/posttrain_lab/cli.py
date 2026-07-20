@@ -7,6 +7,7 @@ import json
 from functools import partial
 from pathlib import Path
 
+from posttrain.common import ModelVariant
 from posttrain.common.profiles import LFM_25_12B_THINKING, QWEN_35_2B
 from posttrain.eval import EvaluationBudget, EvaluationResult
 from posttrain.eval.programs import GENERAL_SMOKE
@@ -21,12 +22,15 @@ from posttrain.serve import (
     GenerationResult,
     LaunchRequest,
 )
+from posttrain.train import LFM25_SFT_SMOKE, QWEN35_SFT_SMOKE, SFTRequest, TrainingResult
 
+from .data import load_gsm8k_supervised
 from .execution import AttemptSpec, execute, execute_tracked
 from .jobs import (
     ManagedEvaluationRequest,
     evaluation_action,
     foundation_screening_job,
+    gsm8k_posttraining_job,
     noop_action,
     noop_job,
     online_smoke_action,
@@ -34,7 +38,10 @@ from .jobs import (
     run_noop,
     run_online_smoke,
     run_serving_cell,
+    run_sft,
     serving_benchmark_action,
+    sft_action,
+    training_inputs,
 )
 from .source import resolve_git_source
 
@@ -50,6 +57,8 @@ def _parser() -> argparse.ArgumentParser:
             "foundation-lfm-online-smoke",
             "foundation-qwen-gsm8k",
             "foundation-lfm-gsm8k",
+            "gsm8k-qwen-sft-smoke",
+            "gsm8k-lfm-sft-smoke",
         ),
     )
     parser.add_argument("--tracked", action="store_true")
@@ -68,6 +77,24 @@ def main() -> None:
             source_metadata=source.metadata(),
         )
         operation = run_noop
+    elif args.job in {"gsm8k-qwen-sft-smoke", "gsm8k-lfm-sft-smoke"}:
+        model, profile = (
+            (QWEN_35_2B, QWEN35_SFT_SMOKE)
+            if args.job == "gsm8k-qwen-sft-smoke"
+            else (LFM_25_12B_THINKING, LFM25_SFT_SMOKE)
+        )
+        request = SFTRequest(
+            model=ModelVariant.foundation(model),
+            dataset=load_gsm8k_supervised(count=2),
+            profile=profile,
+        )
+        spec = AttemptSpec(
+            job=gsm8k_posttraining_job(source.revision),
+            action=sft_action(request),
+            inputs=training_inputs(request),
+            source_metadata=source.metadata(),
+        )
+        operation = partial(run_sft, request=request)
     elif args.job in {"foundation-qwen-gsm8k", "foundation-lfm-gsm8k"}:
         model, profile = (
             (QWEN_35_2B, QWEN35_VLLM_TURBOQUANT_K8)
@@ -157,6 +184,21 @@ def main() -> None:
                     "model_profile_id": result.model_profile_id,
                     "trace_ids": result.trace_ids,
                     "trace_sync_complete": result.synchronization.complete,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+    elif isinstance(result, TrainingResult):
+        print(
+            json.dumps(
+                {
+                    "technique": result.technique,
+                    "model_profile_id": result.model.profile.id,
+                    "model_format": result.model.format,
+                    "global_step": result.summary.global_step,
+                    "train_loss": result.summary.train_loss,
+                    "runtime_seconds": result.summary.runtime_seconds,
                 },
                 indent=2,
                 sort_keys=True,

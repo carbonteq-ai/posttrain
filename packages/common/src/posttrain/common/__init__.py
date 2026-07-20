@@ -20,7 +20,15 @@ from .execution import (
     TraceObservation,
 )
 from .jobs import Invocation, Job, JobAction, RunAttempt
-from .models import ChatTemplate, ConversationProfile, ModelCapabilities, ModelProfile, ReasoningMode, ToolCallProtocol
+from .models import (
+    ChatTemplate,
+    ConversationProfile,
+    ModelCapabilities,
+    ModelProfile,
+    ModelVariant,
+    ReasoningMode,
+    ToolCallProtocol,
+)
 
 __all__ = [
     "ArtifactRef",
@@ -39,6 +47,7 @@ __all__ = [
     "MetricBatchObservation",
     "ModelCapabilities",
     "ModelProfile",
+    "ModelVariant",
     "ConversationProfile",
     "ReasoningMode",
     "ToolCallProtocol",

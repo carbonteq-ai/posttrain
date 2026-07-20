@@ -10,9 +10,11 @@ The lab's injected observation context maps those hooks to Trackio. Datasets,
 rewards, and Verifiers environment implementations remain independently owned.
 
 The workspace uses the `carbonteq-ai/trl` fork pinned to immutable commit
-`935060f640f5195fe62f1acc300c16db327a32b9`. The fork preserves TRL 1.8.0 and
+`d726190b2f0a399e5a13f69584617efd0e7fcf00`. The fork preserves TRL 1.8.0 and
 adds the upstream-validated vLLM 0.24/0.25 dependency support plus regression
-coverage. It does not contain project-specific trainers or environment logic.
+coverage. It also keeps the trainer runtime compatible with `datasets 4.6.1`
+so the application can install Verifiers v1 and TRL together. It does not
+contain project-specific trainers or environment logic.
 See [ADR 0007](../../decisions/0007-trl-vllm-025-fork.md) for the provenance and
 upgrade policy.
 
@@ -21,4 +23,5 @@ a 0.5B Qwen smoke through engine creation, CUDA graph capture, weight sync,
 generation, and token-logprob extraction. That compatibility smoke does not
 replace SFT, DPO, or GRPO acceptance for the two foundation profiles.
 
-The old `train-sft` and `train-grpo` entrypoints were removed because they depended on the deleted prototype config and task schemas. New entrypoints will be introduced with the first model-profile vertical slice.
+The code-defined `posttrain-lab` entrypoint now composes typed training requests
+with job-owned data. Reusable trainers remain callable directly from Python.

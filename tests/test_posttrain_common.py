@@ -17,6 +17,7 @@ from posttrain.common import (
     JobAction,
     MetricBatchObservation,
     MetricObservation,
+    ModelVariant,
     OperationCancelled,
     ProducedArtifact,
     RunAttempt,
@@ -62,6 +63,15 @@ class IdentityContractTests(unittest.TestCase):
                 profile.default_reasoning_mode,
             )
             self.assertIn(profile.conversation.chat_template.source, {"tokenizer", "package"})
+
+    def test_model_variants_separate_profile_behavior_from_descendant_weights(self) -> None:
+        profile = FOUNDATION_PROFILES["qwen3.5-2b"]
+        foundation = ModelVariant.foundation(profile)
+        self.assertEqual(foundation.artifact, profile.artifact)
+        self.assertEqual(foundation.base_artifact, profile.artifact)
+
+        with self.assertRaisesRegex(ContractError, "pinned artifact"):
+            ModelVariant(profile, HubModelRef("Qwen/Qwen3.5-2B", "b" * 40), "foundation")
 
 
 class ExecutionContextTests(unittest.TestCase):

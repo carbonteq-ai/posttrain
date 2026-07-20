@@ -26,13 +26,6 @@ members = ["apps/*", "packages/*"]
 
 [tool.uv]
 package = false
-conflicts = [
-    # TRL 1.8 needs datasets>=4.7; Verifiers 0.2 needs datasets<4.7
-    [
-        { package = "posttrain-train" },
-        { package = "posttrain-eval", extra = "verifiers" },
-    ],
-]
 
 [[tool.uv.index]]
 name = "pytorch-cu130"
@@ -116,3 +109,9 @@ name = "Evaluation is endpoint neutral and observation independent"
 type = "forbidden"
 source_modules = ["posttrain.eval"]
 forbidden_modules = ["posttrain.serve", "vllm", "trackio", "yaml", "common"]
+
+[[tool.importlinter.contracts]]
+name = "Training is observation and serving independent"
+type = "forbidden"
+source_modules = ["posttrain.train"]
+forbidden_modules = ["posttrain.eval", "posttrain.serve", "trackio", "vllm", "yaml", "common"]

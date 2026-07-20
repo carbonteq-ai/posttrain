@@ -1,8 +1,50 @@
-"""Reusable training-engine package.
+"""Reusable, observer-neutral post-training operations."""
 
-Technique runners are added here only when they consume the shared model-profile
-and artifact contracts. Job-specific datasets, rewards, and environments do not
-belong in this package.
-"""
+from .api import DPOBackend, SFTBackend, dpo, sft
+from .data import PreferenceDataset, PreferenceExample, SupervisedDataset, SupervisedExample
+from .profiles import (
+    LFM25_DPO_SMOKE,
+    LFM25_RENDERER,
+    LFM25_SFT_SMOKE,
+    QWEN35_DPO_SMOKE,
+    QWEN35_RENDERER,
+    QWEN35_SFT_SMOKE,
+    DPOProfile,
+    QLoRAProfile,
+    RendererProfile,
+    SFTProfile,
+    TrainingLoop,
+)
+from .rendering import RenderedPreferenceExample, RenderedSFTExample, render_preferences, render_supervised
+from .requests import DPORequest, SFTRequest
+from .results import TrainingResult, TrainingSummary
 
-__all__: list[str] = []
+__all__ = [
+    "DPOBackend",
+    "DPOProfile",
+    "DPORequest",
+    "LFM25_DPO_SMOKE",
+    "LFM25_RENDERER",
+    "LFM25_SFT_SMOKE",
+    "PreferenceDataset",
+    "PreferenceExample",
+    "QLoRAProfile",
+    "QWEN35_DPO_SMOKE",
+    "QWEN35_RENDERER",
+    "QWEN35_SFT_SMOKE",
+    "RenderedPreferenceExample",
+    "RenderedSFTExample",
+    "RendererProfile",
+    "SFTBackend",
+    "SFTProfile",
+    "SFTRequest",
+    "SupervisedDataset",
+    "SupervisedExample",
+    "TrainingLoop",
+    "TrainingResult",
+    "TrainingSummary",
+    "dpo",
+    "render_preferences",
+    "render_supervised",
+    "sft",
+]

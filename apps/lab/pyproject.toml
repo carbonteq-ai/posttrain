@@ -7,6 +7,7 @@ dependencies = [
     "posttrain-common",
     "posttrain-eval",
     "posttrain-serve",
+    "posttrain-train",
     "trackio @ git+https://github.com/carbonteq-ai/trackio.git@02351d871050bf4b3505c7371239c698b710ec83",
 ]
 
@@ -14,6 +15,13 @@ dependencies = [
 gpu-eval = [
     "posttrain-eval[verifiers]",
     "posttrain-serve[vllm]",
+]
+gpu-train = [
+    "posttrain-train[trl]",
+]
+gpu-posttrain = [
+    "posttrain-eval[verifiers]",
+    "posttrain-train[trl]",
 ]
 
 [project.scripts]
@@ -23,6 +31,7 @@ posttrain-lab = "posttrain_lab.cli:main"
 posttrain-common = { workspace = true }
 posttrain-eval = { workspace = true }
 posttrain-serve = { workspace = true }
+posttrain-train = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

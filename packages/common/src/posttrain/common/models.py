@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from importlib.resources import files
 from typing import Literal
 
-from .artifacts import HubModelRef
+from .artifacts import ArtifactRef, HubModelRef
 from .errors import ContractError
 
 _PROFILE_ID = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
@@ -124,3 +124,24 @@ class ModelProfile:
     @property
     def default_reasoning_mode(self) -> str:
         return self.conversation.default_reasoning_mode
+
+
+@dataclass(frozen=True, slots=True)
+class ModelVariant:
+    """One loadable weight artifact interpreted through a foundation profile."""
+
+    profile: ModelProfile
+    artifact: ArtifactRef
+    format: Literal["foundation", "peft-adapter", "merged"]
+
+    def __post_init__(self) -> None:
+        if self.format == "foundation" and self.artifact != self.profile.artifact:
+            raise ContractError("foundation variants must use the profile's pinned artifact")
+
+    @classmethod
+    def foundation(cls, profile: ModelProfile) -> ModelVariant:
+        return cls(profile=profile, artifact=profile.artifact, format="foundation")
+
+    @property
+    def base_artifact(self) -> HubModelRef:
+        return self.profile.artifact
