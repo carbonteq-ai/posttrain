@@ -84,6 +84,28 @@ def run_dpo(context: ExecutionContext, request: DPORequest) -> TrainingResult:
     return dpo(context, request)
 
 
+def run_dpo_materialized(
+    context: ExecutionContext,
+    request: DPORequest,
+    *,
+    input_name: str = "model_adapter",
+) -> TrainingResult:
+    local_model = ModelVariant(
+        profile=request.model.profile,
+        artifact=context.input_artifact(input_name),
+        format="peft-adapter",
+    )
+    return dpo(
+        context,
+        DPORequest(
+            model=local_model,
+            dataset=request.dataset,
+            profile=request.profile,
+            resume_from=request.resume_from,
+        ),
+    )
+
+
 def training_inputs(request: SFTRequest | DPORequest) -> dict[str, str | int | float | bool]:
     """Stable run config; large examples and traces remain datasets/artifacts, not config."""
 

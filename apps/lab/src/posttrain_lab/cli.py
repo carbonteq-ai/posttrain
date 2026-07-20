@@ -7,7 +7,7 @@ import json
 from functools import partial
 from pathlib import Path
 
-from posttrain.common import ModelVariant
+from posttrain.common import ModelVariant, TrackioArtifactRef
 from posttrain.common.profiles import LFM_25_12B_THINKING, QWEN_35_2B
 from posttrain.eval import EvaluationBudget, EvaluationResult
 from posttrain.eval.programs import GENERAL_SMOKE
@@ -22,13 +22,22 @@ from posttrain.serve import (
     GenerationResult,
     LaunchRequest,
 )
-from posttrain.train import LFM25_SFT_SMOKE, QWEN35_SFT_SMOKE, SFTRequest, TrainingResult
+from posttrain.train import (
+    LFM25_DPO_SMOKE,
+    LFM25_SFT_SMOKE,
+    QWEN35_DPO_SMOKE,
+    QWEN35_SFT_SMOKE,
+    DPORequest,
+    SFTRequest,
+    TrainingResult,
+)
 
-from .data import load_gsm8k_supervised
-from .execution import AttemptSpec, execute, execute_tracked
+from .data import RejectedRollout, load_gsm8k_supervised, preferences_from_rollouts
+from .execution import ArtifactInput, AttemptSpec, execute, execute_tracked
 from .jobs import (
     GSM8K_TRAINING_ROLLOUTS,
     ManagedEvaluationRequest,
+    dpo_action,
     evaluation_action,
     foundation_screening_job,
     gsm8k_posttraining_job,
@@ -36,6 +45,7 @@ from .jobs import (
     noop_job,
     online_smoke_action,
     rollout_collection_action,
+    run_dpo_materialized,
     run_managed_evaluation,
     run_noop,
     run_online_smoke,
@@ -46,6 +56,7 @@ from .jobs import (
     training_inputs,
 )
 from .source import resolve_git_source
+from .tracking import verifiers_rollout
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -63,11 +74,16 @@ def _parser() -> argparse.ArgumentParser:
             "gsm8k-lfm-sft-smoke",
             "gsm8k-qwen-preference-rollouts",
             "gsm8k-lfm-preference-rollouts",
+            "gsm8k-qwen-dpo-smoke",
+            "gsm8k-lfm-dpo-smoke",
         ),
     )
     parser.add_argument("--tracked", action="store_true")
     parser.add_argument("--project", default="posttrain-platform")
     parser.add_argument("--repository", type=Path, default=Path.cwd())
+    parser.add_argument("--rollout-run-id")
+    parser.add_argument("--rejected-trace-id")
+    parser.add_argument("--adapter-version", default="v0")
     return parser
 
 
@@ -81,6 +97,46 @@ def main() -> None:
             source_metadata=source.metadata(),
         )
         operation = run_noop
+    elif args.job in {"gsm8k-qwen-dpo-smoke", "gsm8k-lfm-dpo-smoke"}:
+        if args.rollout_run_id is None or args.rejected_trace_id is None:
+            raise SystemExit("DPO smoke requires --rollout-run-id and --rejected-trace-id")
+        model, profile = (
+            (QWEN_35_2B, QWEN35_DPO_SMOKE)
+            if args.job == "gsm8k-qwen-dpo-smoke"
+            else (LFM_25_12B_THINKING, LFM25_DPO_SMOKE)
+        )
+        rollout = verifiers_rollout(args.project, args.rollout_run_id, args.rejected_trace_id)
+        demonstrations = load_gsm8k_supervised(count=1, offset=rollout.task_index)
+        preferences = preferences_from_rollouts(
+            demonstrations,
+            (
+                RejectedRollout(
+                    example_id=demonstrations.examples[0].id,
+                    response=rollout.response,
+                    score=rollout.reward,
+                    trace_id=rollout.trace_id,
+                ),
+            ),
+        )
+        adapter_name = f"training-{model.id}-sft-adapter"
+        remote_adapter = TrackioArtifactRef(args.project, adapter_name, args.adapter_version)
+        request = DPORequest(
+            model=ModelVariant(model, remote_adapter, "peft-adapter"),
+            dataset=preferences,
+            profile=profile,
+        )
+        spec = AttemptSpec(
+            job=gsm8k_posttraining_job(source.revision),
+            action=dpo_action(request),
+            inputs={
+                **training_inputs(request),
+                "preference_rollout_run_id": args.rollout_run_id,
+                "rejected_trace_id": args.rejected_trace_id,
+            },
+            source_metadata=source.metadata(),
+            artifacts={"model_adapter": ArtifactInput(remote_adapter, "model-adapter")},
+        )
+        operation = partial(run_dpo_materialized, request=request)
     elif args.job in {"gsm8k-qwen-preference-rollouts", "gsm8k-lfm-preference-rollouts"}:
         model, profile = (
             (QWEN_35_2B, QWEN35_VLLM_TURBOQUANT_K8)

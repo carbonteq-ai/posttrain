@@ -42,6 +42,7 @@ from posttrain_lab.jobs.foundation_screening import (
     serving_benchmark_action,
 )
 from posttrain_lab.tracking import TrackioObserver
+from posttrain_lab.tracking import verifiers_rollout as read_verifiers_rollout
 
 REVISION = "a" * 40
 
@@ -206,6 +207,39 @@ def test_execute_tracked_materializes_and_records_input_artifact(monkeypatch: py
 
     assert len(digest) == 64
     assert run.used_artifacts == [("training-qwen3.5-2b-sft-adapter:v0", "model-adapter")]
+
+
+def test_verifiers_rollout_query_rejects_truncated_candidates(monkeypatch: pytest.MonkeyPatch) -> None:
+    from trackio.sqlite_storage import SQLiteStorage
+
+    payload = {
+        "nodes": [
+            {"message": {"role": "user", "content": "question"}},
+            {"message": {"role": "assistant", "content": "wrong\n#### 3"}},
+        ]
+    }
+    metadata = {
+        "is_completed": True,
+        "is_truncated": False,
+        "error_type": None,
+        "task_index": 2,
+        "reward": 0.0,
+    }
+    monkeypatch.setattr(
+        SQLiteStorage,
+        "get_traces",
+        lambda *args, **kwargs: [{"external_id": "trace-1", "payload": payload, "metadata": metadata}],
+    )
+
+    rollout = read_verifiers_rollout("project", "run-1", "trace-1")
+
+    assert rollout.task_index == 2
+    assert rollout.response == "wrong\n#### 3"
+    assert rollout.reward == 0.0
+
+    metadata["is_truncated"] = True
+    with pytest.raises(ValueError, match="completed, untruncated, and error-free"):
+        read_verifiers_rollout("project", "run-1", "trace-1")
 
 
 def test_foundation_screening_action_has_stable_job_owned_identity() -> None:
