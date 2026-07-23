@@ -12,7 +12,10 @@ TRL_FORK_COMMIT = "5c50c69f2d9b25dc2ce729d030f7cabb144d8431"
 
 class TrlVllmCompatibilityTest(unittest.TestCase):
     def test_trl_is_installed_from_the_pinned_fork_commit(self) -> None:
-        distribution = importlib.metadata.distribution("trl")
+        try:
+            distribution = importlib.metadata.distribution("trl")
+        except importlib.metadata.PackageNotFoundError:
+            self.skipTest("TRL optional dependency is not installed")
         direct_url = distribution.read_text("direct_url.json")
 
         self.assertIsNotNone(direct_url)

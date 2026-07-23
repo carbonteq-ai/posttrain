@@ -16,6 +16,17 @@ transformers = pytest.importorskip("transformers")
 pytest.importorskip("renderers")
 
 
+def _load_tokenizer(model):
+    try:
+        return transformers.AutoTokenizer.from_pretrained(
+            model.base.repo_id,
+            revision=model.base.revision,
+            local_files_only=True,
+        )
+    except OSError:
+        pytest.skip(f"tokenizer for {model.base.repo_id}@{model.base.revision} is not cached")
+
+
 @pytest.mark.parametrize(
     ("model", "profile"),
     (
@@ -24,11 +35,7 @@ pytest.importorskip("renderers")
     ),
 )
 def test_renderer_builds_nonempty_assistant_only_sft_masks(model, profile) -> None:
-    tokenizer = transformers.AutoTokenizer.from_pretrained(
-        model.base.repo_id,
-        revision=model.base.revision,
-        local_files_only=True,
-    )
+    tokenizer = _load_tokenizer(model)
     dataset = SupervisedDataset(
         "gsm8k-sft-golden-v1",
         "a" * 40,
@@ -60,11 +67,7 @@ def test_renderer_builds_nonempty_assistant_only_sft_masks(model, profile) -> No
     ),
 )
 def test_renderer_produces_equal_dpo_prompt_prefixes(model, profile) -> None:
-    tokenizer = transformers.AutoTokenizer.from_pretrained(
-        model.base.repo_id,
-        revision=model.base.revision,
-        local_files_only=True,
-    )
+    tokenizer = _load_tokenizer(model)
     dataset = PreferenceDataset(
         "gsm8k-dpo-golden-v1",
         "a" * 40,

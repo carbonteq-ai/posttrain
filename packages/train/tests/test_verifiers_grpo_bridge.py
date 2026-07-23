@@ -7,9 +7,13 @@ from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from typing import Any, cast
 
+import pytest
 from posttrain.train import PolicySampling, PolicyTurnResult, RolloutBatch
 from posttrain.train.integrations import VerifiersEnvironmentRolloutBridge
 from posttrain.train.integrations.verifiers import _PolicyClient, load_verifiers_bridge_snapshot
+
+pytest.importorskip("verifiers")
+
 from verifiers.v1 import (
     AgentInfo,
     AssistantMessage,

@@ -20,7 +20,7 @@ jobs:
       - name: Verify lockfile
         run: uv lock --check
       - name: Install workspace and quality tools
-        run: uv sync --all-packages --group dev --extra verifiers --python 3.12
+        run: uv sync --all-packages --group dev --python 3.12
       - name: Test
         run: uv run pytest --cov --cov-report=term-missing
       - name: Lint
@@ -87,3 +87,22 @@ jobs:
         run: uv sync --all-packages --group dev --python 3.12
       - name: Build wheels and run outside the workspace
         run: uv run pytest -q tests/consumer
+
+  optional-verifiers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: "3.12"
+      - name: Install the Verifiers integration
+        run: uv sync --package posttrain-train --extra verifiers --python 3.12
+      - name: Test the Verifiers bridge
+        run: |
+          uv run \
+            --package posttrain-train \
+            --extra verifiers \
+            --with pytest \
+            --with pytest-asyncio \
+            pytest -q packages/train/tests/test_verifiers_grpo_bridge.py
