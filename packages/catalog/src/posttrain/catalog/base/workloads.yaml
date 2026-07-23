@@ -1,0 +1,16 @@
+workload:
+  workloads/foundation-smoke-v1@1:
+    revision: "1"
+    requests:
+      suite_id: foundation-smoke-v1
+      shape_id: short-interactive
+      context_window: 1024
+      input_tokens: 128
+      output_tokens: 32
+    concurrency: [1]
+    warmup_repetitions: 1
+    measured_repetitions: 1
+    required_measures:
+      - serve/output_token_throughput
+      - serve/p95_ttft
+      - serve/peak_gpu_memory_gib

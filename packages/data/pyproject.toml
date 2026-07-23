@@ -1,0 +1,32 @@
+[project]
+name = "posttrain-data"
+version = "0.1.0"
+description = "Trainer-neutral post-training dataset contracts and adapters"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "posttrain-common",
+]
+
+[project.optional-dependencies]
+huggingface = [
+    "datasets>=4.6.1,<4.7",
+]
+verifiers = [
+    "verifiers @ git+https://github.com/PrimeIntellect-ai/verifiers.git@284a868d6a9022109b749710672a0460e8a996d4",
+]
+
+[tool.uv]
+package = true
+
+[tool.uv.sources]
+posttrain-common = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/posttrain"]
+
+[tool.hatch.metadata]
+allow-direct-references = true

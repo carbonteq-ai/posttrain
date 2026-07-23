@@ -1,0 +1,366 @@
+{
+  "schema_version": 1,
+  "tools": [
+    {
+      "description": "List compact source-qualified run summaries.",
+      "inputSchema": {
+        "properties": {
+          "limit": {
+            "default": 50,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Project Id"
+          }
+        },
+        "title": "list_runsArguments",
+        "type": "object"
+      },
+      "name": "list_runs",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "list_runsOutput",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Get the curated job view or deterministic generic fallback.",
+      "inputSchema": {
+        "$defs": {
+          "ViewMode": {
+            "enum": [
+              "auto",
+              "job",
+              "generic"
+            ],
+            "type": "string"
+          }
+        },
+        "properties": {
+          "mode": {
+            "$ref": "#/$defs/ViewMode",
+            "default": "auto"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "run_id"
+        ],
+        "title": "get_run_viewArguments",
+        "type": "object"
+      },
+      "name": "get_run_view",
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "get_run_viewDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "description": "List metric namespaces and names without fetching all points.",
+      "inputSchema": {
+        "properties": {
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "run_id"
+        ],
+        "title": "list_run_metricsArguments",
+        "type": "object"
+      },
+      "name": "list_run_metrics",
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "list_run_metricsDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Get bounded cross-job system and tracking telemetry.",
+      "inputSchema": {
+        "properties": {
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "run_id"
+        ],
+        "title": "get_system_metricsArguments",
+        "type": "object"
+      },
+      "name": "get_system_metrics",
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "get_system_metricsDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Fetch explicitly named, bounded metric series.",
+      "inputSchema": {
+        "properties": {
+          "max_points": {
+            "default": 200,
+            "title": "Max Points",
+            "type": "integer"
+          },
+          "names": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Names",
+            "type": "array"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "run_id",
+          "names"
+        ],
+        "title": "get_metric_seriesArguments",
+        "type": "object"
+      },
+      "name": "get_metric_series",
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "get_metric_seriesDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Return deterministic job-health conditions that fired.",
+      "inputSchema": {
+        "properties": {
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "run_id"
+        ],
+        "title": "get_run_alertsArguments",
+        "type": "object"
+      },
+      "name": "get_run_alerts",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_run_alertsOutput",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Return bounded Verifiers population aggregates and trace tips.",
+      "inputSchema": {
+        "properties": {
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "run_id"
+        ],
+        "title": "get_trace_evaluation_viewArguments",
+        "type": "object"
+      },
+      "name": "get_trace_evaluation_view",
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "get_trace_evaluation_viewDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Return one redacted trace with transcript and reward components.",
+      "inputSchema": {
+        "properties": {
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          },
+          "trace_id": {
+            "title": "Trace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "run_id",
+          "trace_id"
+        ],
+        "title": "get_trace_detailArguments",
+        "type": "object"
+      },
+      "name": "get_trace_detail",
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "get_trace_detailDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Compare runs only when their exact job kind and schema match.",
+      "inputSchema": {
+        "properties": {
+          "run_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Run Ids",
+            "type": "array"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "run_ids"
+        ],
+        "title": "compare_runsArguments",
+        "type": "object"
+      },
+      "name": "compare_runs",
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "compare_runsDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Explicitly request a cited, non-authoritative semantic summary.",
+      "inputSchema": {
+        "properties": {
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "scope": {
+            "default": "run",
+            "title": "Scope",
+            "type": "string"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "run_id"
+        ],
+        "title": "summarize_runArguments",
+        "type": "object"
+      },
+      "name": "summarize_run",
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "summarize_runDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Return the versioned deterministic telemetry definition for a job kind.",
+      "inputSchema": {
+        "properties": {
+          "job_kind": {
+            "title": "Job Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_kind"
+        ],
+        "title": "get_job_view_schemaArguments",
+        "type": "object"
+      },
+      "name": "get_job_view_schema",
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "get_job_view_schemaDictOutput",
+        "type": "object"
+      }
+    }
+  ]
+}

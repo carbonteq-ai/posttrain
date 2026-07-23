@@ -10,27 +10,51 @@ from pathlib import Path
 from typing import IO, Any, cast
 
 import httpx
+from posttrain.common import HubModelRef, LocalArtifactRef
 from posttrain.common.cuda import TorchModule, cuda_environment
 
-from ...online import Endpoint, LaunchRequest
+from ...online import Endpoint, ServeLaunchRequest, served_model_name
+from .bindings import engine_config, frontend_args
 
 
-def build_vllm_command(request: LaunchRequest, chat_template_path: Path | None = None) -> tuple[str, ...]:
+def build_vllm_command(request: ServeLaunchRequest, chat_template_path: Path | None = None) -> tuple[str, ...]:
     executable = Path(sys.executable).with_name("vllm")
+    model = request.inference.model
+    engine = engine_config(request.inference)
+    artifact = model.artifact
+    if model.form in {"adapter", "peft-adapter"}:
+        if not isinstance(artifact, LocalArtifactRef):
+            raise ValueError("vLLM requires the host to materialize a PEFT adapter before launch")
+        source = model.base.repo_id
+        revision_args = ("--revision", model.base.revision)
+        adapter_args = ("--enable-lora", "--lora-modules", f"{served_model_name(model)}={artifact.path}")
+        base_served_name = model.base.repo_id
+    elif isinstance(artifact, HubModelRef):
+        source = artifact.repo_id
+        revision_args = ("--revision", artifact.revision)
+        adapter_args = ()
+        base_served_name = served_model_name(model)
+    elif isinstance(artifact, LocalArtifactRef):
+        source = str(artifact.path)
+        revision_args = ()
+        adapter_args = ()
+        base_served_name = served_model_name(model)
+    else:
+        raise ValueError("vLLM requires Hub-hosted or host-materialized model weights")
     values = [
         str(executable),
         "serve",
-        request.model.artifact.repo_id,
-        "--revision",
-        request.model.artifact.revision,
+        source,
+        *revision_args,
         "--served-model-name",
-        request.model.artifact.repo_id,
+        base_served_name,
         "--host",
         request.host,
         "--port",
         str(request.port),
-        *request.profile.engine.as_cli_args(),
-        *request.profile.frontend_args(),
+        *engine.as_cli_args(),
+        *adapter_args,
+        *frontend_args(request.inference),
     ]
     if chat_template_path is not None:
         values.extend(("--chat-template", str(chat_template_path)))
@@ -48,7 +72,7 @@ def _server_environment() -> dict[str, str]:
 class VllmServer:
     def __init__(
         self,
-        request: LaunchRequest,
+        request: ServeLaunchRequest,
         log_path: Path,
         chat_template_path: Path | None = None,
     ) -> None:

@@ -9,5 +9,6 @@ Group Relative Policy Optimization (online RL with group-relative advantages).
 
 ## Contents
 
+- [Single-GPU optimization](./single-gpu-optimization.md)
 - [heuristics.md](./heuristics.md)
 - [recipes/](./recipes/)

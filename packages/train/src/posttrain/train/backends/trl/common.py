@@ -5,24 +5,20 @@ from __future__ import annotations
 import json
 import math
 import os
-from collections.abc import Iterator
+import sys
+import time
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
-from dataclasses import dataclass
+from importlib.metadata import version
 from pathlib import Path
 from typing import Any, Literal
 
-from posttrain.common import ExecutionContext, LocalArtifactRef, ModelVariant
+from posttrain.common import JsonValue, LocalArtifactRef, ModelVariant, RunContext
 
-from ...profiles import QLoRAProfile, TrainingLoop
+from ...bindings import FullParameterUpdate, LoRAUpdate, ParameterUpdatePlan, QLoRAUpdate, QuantizationAwareUpdate
+from ...profiles import TrainingLoop
 from ...results import TrainingSummary
-
-
-@dataclass(frozen=True, slots=True)
-class BackendTrainingResult:
-    summary: TrainingSummary
-    adapter_dir: Path
-    recovery_checkpoint: Path | None
-    summary_file: Path
+from ..common import BackendTrainingResult
 
 
 def framework_imports() -> dict[str, Any]:
@@ -55,10 +51,52 @@ def framework_imports() -> dict[str, Any]:
     }
 
 
+def vllm_rollout_options(
+    model: ModelVariant, engine: Mapping[str, JsonValue]
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """Validate and translate shared rollout-engine selections for colocated TRL."""
+    speculative = engine.get("speculative_config")
+    if speculative is not None:
+        if engine.get("mode", "colocate") != "colocate":
+            raise ValueError("TRL trainer-side speculative_config requires colocated vLLM mode")
+        if not isinstance(speculative, Mapping):
+            raise ValueError("TRL rollout speculative_config must be a mapping")
+        if speculative.get("method") != "mtp":
+            raise ValueError("TRL currently supports only native MTP speculative rollout")
+        count = speculative.get("num_speculative_tokens")
+        if not isinstance(count, int) or isinstance(count, bool) or count < 1:
+            raise ValueError("TRL MTP num_speculative_tokens must be a positive integer")
+        if not model.capabilities.mtp:
+            raise ValueError(f"model variant {model.id!r} does not declare a native MTP head")
+
+    values: dict[str, Any] = {}
+    if engine.get("text_only"):
+        values["language_model_only"] = True
+    if engine.get("skip_mm_profiling"):
+        values["skip_mm_profiling"] = True
+    if engine.get("enforce_eager") is not None:
+        enforce_eager = engine["enforce_eager"]
+        if not isinstance(enforce_eager, bool):
+            raise ValueError("TRL rollout enforce_eager must be a boolean")
+        values["enforce_eager"] = enforce_eager
+    if engine.get("kv_cache_memory_bytes") is not None:
+        values["kv_cache_memory_bytes"] = engine["kv_cache_memory_bytes"]
+    kv_cache_dtype = engine.get("kv_cache_dtype")
+    if kv_cache_dtype is not None:
+        if not isinstance(kv_cache_dtype, str) or not kv_cache_dtype:
+            raise ValueError("TRL rollout kv_cache_dtype must be a non-empty string")
+        values["kv_cache_dtype"] = kv_cache_dtype
+        if kv_cache_dtype.startswith("turboquant_"):
+            values["dtype"] = "float16"
+    if speculative is not None:
+        values["disable_log_stats"] = False
+    return dict(speculative) if isinstance(speculative, Mapping) else None, values or None
+
+
 def load_tokenizer(model: ModelVariant, imports: dict[str, Any]) -> Any:
     tokenizer = imports["AutoTokenizer"].from_pretrained(
-        model.base_artifact.repo_id,
-        revision=model.base_artifact.revision,
+        model.base.repo_id,
+        revision=model.base.revision,
         trust_remote_code=False,
     )
     if tokenizer.pad_token_id is None:
@@ -69,44 +107,52 @@ def load_tokenizer(model: ModelVariant, imports: dict[str, Any]) -> Any:
 
 def load_trainable_model(
     model: ModelVariant,
-    qlora: QLoRAProfile,
+    update: ParameterUpdatePlan,
     loop: TrainingLoop,
     imports: dict[str, Any],
 ) -> Any:
     torch = imports["torch"]
-    quantization = imports["BitsAndBytesConfig"](
-        load_in_4bit=True,
-        bnb_4bit_quant_type=qlora.quant_type,
-        bnb_4bit_compute_dtype=torch.bfloat16,
-        bnb_4bit_use_double_quant=qlora.double_quant,
-    )
-    base = imports["AutoModelForCausalLM"].from_pretrained(
-        model.base_artifact.repo_id,
-        revision=model.base_artifact.revision,
-        quantization_config=quantization,
-        device_map={"": 0},
-        dtype=torch.bfloat16,
-        attn_implementation="sdpa",
-        trust_remote_code=False,
-    )
+    if isinstance(update, QuantizationAwareUpdate):
+        raise ValueError("the TRL adapter does not yet implement quantization-aware updates")
+    load_options: dict[str, Any] = {
+        "revision": model.base.revision,
+        "device_map": {"": 0},
+        "dtype": torch.bfloat16,
+        "attn_implementation": "sdpa",
+        "trust_remote_code": False,
+    }
+    if isinstance(update, QLoRAUpdate):
+        load_options["quantization_config"] = imports["BitsAndBytesConfig"](
+            load_in_4bit=True,
+            bnb_4bit_quant_type=update.quant_type,
+            bnb_4bit_compute_dtype=torch.bfloat16,
+            bnb_4bit_use_double_quant=update.double_quant,
+        )
+    base = imports["AutoModelForCausalLM"].from_pretrained(model.base.repo_id, **load_options)
     base.config.use_cache = False
-    base = imports["prepare_model_for_kbit_training"](
-        base,
-        use_gradient_checkpointing=loop.gradient_checkpointing,
-        gradient_checkpointing_kwargs={"use_reentrant": False},
-    )
-    if model.format == "foundation":
+    if isinstance(update, QLoRAUpdate):
+        base = imports["prepare_model_for_kbit_training"](
+            base,
+            use_gradient_checkpointing=loop.gradient_checkpointing,
+            gradient_checkpointing_kwargs={"use_reentrant": False},
+        )
+    if model.form == "foundation":
+        if update.kind == "full":
+            return base
+        assert isinstance(update, (LoRAUpdate, QLoRAUpdate))
         config = imports["LoraConfig"](
-            r=qlora.lora_rank,
-            lora_alpha=qlora.lora_alpha,
-            lora_dropout=qlora.lora_dropout,
-            target_modules=qlora.target_modules,
+            r=update.rank,
+            lora_alpha=update.alpha,
+            lora_dropout=update.dropout,
+            target_modules=update.target_modules,
             bias="none",
             task_type="CAUSAL_LM",
         )
         return imports["get_peft_model"](base, config)
-    if model.format != "peft-adapter":
+    if model.form not in {"adapter", "peft-adapter"}:
         raise ValueError("training currently accepts foundation or PEFT-adapter variants")
+    if update.kind == "full":
+        raise ValueError("full-parameter updates cannot resume from a PEFT-adapter variant")
     if not isinstance(model.artifact, LocalArtifactRef):
         raise ValueError("the host must materialize a remote adapter artifact before training")
     if not model.artifact.path.is_dir():
@@ -114,19 +160,105 @@ def load_trainable_model(
     return imports["PeftModel"].from_pretrained(base, model.artifact.path, is_trainable=True)
 
 
-def callback_type(context: ExecutionContext, imports: dict[str, Any]) -> type[Any]:
+def emit_parameter_counts(context: RunContext, model: Any, update: ParameterUpdatePlan) -> None:
+    total = sum(parameter.numel() for parameter in model.parameters())
+    trainable = sum(parameter.numel() for parameter in model.parameters() if parameter.requires_grad)
+    if trainable < 1:
+        raise RuntimeError(f"training selected no parameters: trainable={trainable}, total={total}")
+    if not isinstance(update, FullParameterUpdate) and trainable >= total:
+        raise RuntimeError(f"invalid PEFT parameter selection: trainable={trainable}, total={total}")
+    context.metrics(
+        {
+            "train/parameters_total": total,
+            "train/parameters_trainable": trainable,
+            "train/parameters_trainable_fraction": trainable / total,
+        }
+    )
+
+
+def emit_runtime_versions(context: RunContext, imports: dict[str, Any]) -> None:
+    torch = imports["torch"]
+    context.event(
+        "training_runtime_resolved",
+        {
+            "python": sys.version.split()[0],
+            "torch": version("torch"),
+            "transformers": version("transformers"),
+            "trl": version("trl"),
+            "peft": version("peft"),
+            "bitsandbytes": version("bitsandbytes"),
+            "datasets": version("datasets"),
+            "cuda": str(torch.version.cuda),
+        },
+    )
+
+
+type MetricNormalizer = Callable[[int, Mapping[str, object]], Mapping[str, float]]
+
+
+def callback_type(
+    context: RunContext,
+    imports: dict[str, Any],
+    *,
+    metric_normalizer: MetricNormalizer | None = None,
+) -> type[Any]:
     parent = imports["TrainerCallback"]
 
     class ObservationCallback(parent):
-        def on_log(self, args: Any, state: Any, control: Any, logs: dict[str, Any] | None = None, **_: Any) -> Any:
+        def __init__(self) -> None:
+            super().__init__()
+            self._step_started_at: float | None = None
+            self._last_token_count: float | None = None
+            self._last_token_time: float | None = None
+
+        def on_step_begin(self, args: Any, state: Any, control: Any, **_: Any) -> Any:
+            del args, state
+            self._step_started_at = time.perf_counter()
+            return control
+
+        def on_step_end(self, args: Any, state: Any, control: Any, **_: Any) -> Any:
             del args
+            if self._step_started_at is not None:
+                context.metric(
+                    "train/step_time_seconds",
+                    time.perf_counter() - self._step_started_at,
+                    step=int(state.global_step),
+                )
+                self._step_started_at = None
+            return control
+
+        def on_log(self, args: Any, state: Any, control: Any, logs: dict[str, Any] | None = None, **_: Any) -> Any:
             values: dict[str, float] = {}
-            for name, value in (logs or {}).items():
-                if isinstance(value, int | float):
-                    numeric = float(value)
-                    if not math.isfinite(numeric):
-                        raise FloatingPointError(f"non-finite training metric {name}={numeric}")
-                    values[f"train/{name}"] = numeric
+            records = logs or {}
+            if metric_normalizer is not None:
+                values.update(metric_normalizer(int(state.global_step), records))
+            else:
+                for name, value in records.items():
+                    if isinstance(value, int | float):
+                        numeric = float(value)
+                        if not math.isfinite(numeric):
+                            raise FloatingPointError(f"non-finite training metric {name}={numeric}")
+                        metric_name = (
+                            f"train/validation/{name.removeprefix('eval_')}"
+                            if name.startswith("eval_")
+                            else f"train/{name}"
+                        )
+                        values[metric_name] = numeric
+            grad_norm = (logs or {}).get("grad_norm")
+            max_grad_norm = getattr(args, "max_grad_norm", None)
+            if isinstance(grad_norm, int | float) and isinstance(max_grad_norm, int | float):
+                values["train/gradient_clipped"] = float(grad_norm >= max_grad_norm)
+            token_count = (logs or {}).get("num_tokens")
+            now = time.perf_counter()
+            if isinstance(token_count, int | float):
+                numeric_tokens = float(token_count)
+                if self._last_token_count is not None and self._last_token_time is not None:
+                    elapsed = now - self._last_token_time
+                    delta = numeric_tokens - self._last_token_count
+                    if elapsed > 0 and delta >= 0:
+                        values["train/non_padding_tokens_per_second"] = delta / elapsed
+                self._last_token_count = numeric_tokens
+                self._last_token_time = now
             if values:
                 context.metrics(values, step=int(state.global_step))
             return control
@@ -174,16 +306,18 @@ def trainer_lifecycle(trainer: Any) -> Iterator[None]:
 
 
 def finish_training(
+    context: RunContext,
     trainer: Any,
     train_output: Any,
     tokenizer: Any,
     workspace: Path,
-    technique: Literal["sft", "dpo", "grpo"],
+    technique: Literal["sft", "dpo", "grpo", "distill"],
+    update: ParameterUpdatePlan,
     imports: dict[str, Any],
 ) -> BackendTrainingResult:
-    adapter_dir = workspace / "adapter"
-    trainer.save_model(adapter_dir)
-    tokenizer.save_pretrained(adapter_dir)
+    model_dir = workspace / ("weights" if isinstance(update, FullParameterUpdate) else "adapter")
+    trainer.save_model(model_dir)
+    tokenizer.save_pretrained(model_dir)
     latest = imports["get_last_checkpoint"](trainer.args.output_dir)
     metrics = train_output.metrics
     summary = TrainingSummary(
@@ -213,9 +347,13 @@ def finish_training(
         + "\n",
         encoding="utf-8",
     )
+    torch = imports["torch"]
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+        context.metrics({"train/peak_gpu_memory_gib": torch.cuda.max_memory_allocated() / (1024**3)})
     return BackendTrainingResult(
         summary,
-        adapter_dir,
+        model_dir,
         Path(latest).resolve() if latest is not None else None,
         summary_file,
     )
@@ -224,10 +362,13 @@ def finish_training(
 __all__ = [
     "BackendTrainingResult",
     "callback_type",
+    "emit_parameter_counts",
+    "emit_runtime_versions",
     "finish_training",
     "framework_imports",
     "load_tokenizer",
     "load_trainable_model",
     "trainer_lifecycle",
     "trainer_arguments",
+    "vllm_rollout_options",
 ]

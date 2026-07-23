@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from importlib.resources import files
+from types import MappingProxyType
 from typing import Literal
 
-from .artifacts import ArtifactRef, HubModelRef
+from .artifacts import ArtifactRef, HubModelRef, JsonValue, LocalArtifactRef, StoredArtifactRef, TrackioArtifactRef
 from .errors import ContractError
 
 _PROFILE_ID = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
+_VARIANT_ID = re.compile(r"^[a-z0-9][a-z0-9._/@:-]*$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,44 +107,99 @@ class ConversationProfile:
 
 
 @dataclass(frozen=True, slots=True)
-class ModelProfile:
+class RendererContract:
+    """Versioned model-interface contract used by train, eval, and serve adapters."""
+
     id: str
-    artifact: HubModelRef
-    family: str
-    parameters: int
-    instruction_tuned: bool
-    capabilities: ModelCapabilities
+    model_family: str
     conversation: ConversationProfile
 
     def __post_init__(self) -> None:
-        if not _PROFILE_ID.fullmatch(self.id):
-            raise ContractError(f"model profile id is invalid: {self.id!r}")
-        if not self.family.strip():
-            raise ContractError("model family cannot be empty")
-        if self.parameters < 1:
-            raise ContractError("parameter count must be positive")
+        if not _VARIANT_ID.fullmatch(self.id):
+            raise ContractError(f"renderer contract id is invalid: {self.id!r}")
+        if not self.model_family.strip():
+            raise ContractError("renderer contract model_family cannot be empty")
+
+
+type ModelForm = Literal[
+    "foundation",
+    "adapter",
+    "peft-adapter",
+    "merged",
+    "full-finetuned",
+    "weight-quantized",
+]
+
+
+@dataclass(frozen=True, slots=True)
+class ModelVariant:
+    """One exact loadable weight state and its explicit model-interface facts."""
+
+    id: str
+    artifact: ArtifactRef
+    form: ModelForm
+    weight_precision: str
+    family: str
+    parameters: int
+    instruction_tuned: bool
+    renderer: RendererContract
+    capabilities: ModelCapabilities
+    base: HubModelRef
+    revision: str | None = None
+    digest: str | None = None
+    tokenizer_fingerprint: str | None = None
+    quantization: Mapping[str, JsonValue] = MappingProxyType({})
+    parent: str | None = None
+    provenance: Mapping[str, JsonValue] = MappingProxyType({})
+
+    def __post_init__(self) -> None:
+        if not _VARIANT_ID.fullmatch(self.id):
+            raise ContractError(f"model variant id is invalid: {self.id!r}")
+        if not self.weight_precision.strip():
+            raise ContractError("model variant weight_precision cannot be empty")
+        if not self.family.strip() or self.parameters < 1:
+            raise ContractError("model variant requires a family and positive parameter count")
+        if self.renderer.model_family != self.family:
+            raise ContractError("renderer contract is incompatible with the model family")
+        revision = self.revision
+        digest = self.digest
+        if revision is None and isinstance(self.artifact, HubModelRef):
+            revision = self.artifact.revision
+        if digest is None and isinstance(self.artifact, LocalArtifactRef):
+            digest = self.artifact.digest
+        if revision is None and isinstance(self.artifact, (StoredArtifactRef, TrackioArtifactRef)):
+            revision = self.artifact.version
+        if revision is None and digest is None:
+            raise ContractError("model variant requires an immutable revision or digest")
+        if self.tokenizer_fingerprint is not None and re.fullmatch(r"[0-9a-f]{64}", self.tokenizer_fingerprint) is None:
+            raise ContractError("tokenizer fingerprint must be a sha256 digest")
+        if self.form == "foundation" and self.artifact != self.base:
+            raise ContractError("foundation variants must use their pinned base artifact")
+        if self.form == "weight-quantized" and not self.quantization:
+            raise ContractError("weight-quantized variants require quantization metadata")
+        object.__setattr__(self, "revision", revision)
+        object.__setattr__(self, "digest", digest)
+        object.__setattr__(self, "quantization", MappingProxyType(dict(self.quantization)))
+        object.__setattr__(self, "provenance", MappingProxyType(dict(self.provenance)))
+
+    @property
+    def renderer_contract(self) -> str:
+        return self.renderer.id
+
+    @property
+    def conversation(self) -> ConversationProfile:
+        return self.renderer.conversation
 
     @property
     def default_reasoning_mode(self) -> str:
         return self.conversation.default_reasoning_mode
 
-
-@dataclass(frozen=True, slots=True)
-class ModelVariant:
-    """One loadable weight artifact interpreted through a foundation profile."""
-
-    profile: ModelProfile
-    artifact: ArtifactRef
-    format: Literal["foundation", "peft-adapter", "merged"]
-
-    def __post_init__(self) -> None:
-        if self.format == "foundation" and self.artifact != self.profile.artifact:
-            raise ContractError("foundation variants must use the profile's pinned artifact")
-
-    @classmethod
-    def foundation(cls, profile: ModelProfile) -> ModelVariant:
-        return cls(profile=profile, artifact=profile.artifact, format="foundation")
-
     @property
-    def base_artifact(self) -> HubModelRef:
-        return self.profile.artifact
+    def artifact_uri(self) -> str:
+        if isinstance(self.artifact, HubModelRef):
+            return self.artifact.uri
+        if isinstance(self.artifact, LocalArtifactRef):
+            return f"file://{self.artifact.path}#{self.artifact.digest}"
+        if isinstance(self.artifact, StoredArtifactRef):
+            return f"{self.artifact.provider}://{self.artifact.namespace}/{self.artifact.name}@{self.artifact.version}"
+        return f"trackio://{self.artifact.project}/{self.artifact.name}@{self.artifact.version}"

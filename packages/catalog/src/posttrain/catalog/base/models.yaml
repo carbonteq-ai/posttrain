@@ -1,0 +1,54 @@
+model:
+  models/qwen3.5-0.8b@bf16:
+    artifact:
+      kind: hub
+      repo_id: Qwen/Qwen3.5-0.8B
+      revision: 2fc06364715b967f1860aea9cf38778875588b17
+    form: foundation
+    weight_precision: bf16
+    family: qwen3.5
+    parameters: 800000000
+    instruction_tuned: true
+    renderer_contract: qwen3.5-tools@1
+    tokenizer_fingerprint: 544bc020ecb01661a305ed3ba1fffe49011d65eed195b059457edb69db4ded0c
+    capabilities:
+      modalities: [text, image]
+      native_context_window: 262144
+      mtp: true
+    provenance:
+      source: huggingface
+  models/qwen3.5-2b@bf16:
+    artifact:
+      kind: hub
+      repo_id: Qwen/Qwen3.5-2B
+      revision: 15852e8c16360a2fea060d615a32b45270f8a8fc
+    form: foundation
+    weight_precision: bf16
+    family: qwen3.5
+    parameters: 2000000000
+    instruction_tuned: true
+    renderer_contract: qwen3.5-tools@1
+    tokenizer_fingerprint: 544bc020ecb01661a305ed3ba1fffe49011d65eed195b059457edb69db4ded0c
+    capabilities:
+      modalities: [text, image]
+      native_context_window: 262144
+      mtp: true
+    provenance:
+      source: huggingface
+  models/lfm2.5-1.2b-thinking@bf16:
+    artifact:
+      kind: hub
+      repo_id: LiquidAI/LFM2.5-1.2B-Thinking
+      revision: 95053d21d8e0b7ca99421a2127ae39c64f685ff3
+    form: foundation
+    weight_precision: bf16
+    family: lfm2.5
+    parameters: 1170000000
+    instruction_tuned: true
+    renderer_contract: lfm2.5-tools@1
+    capabilities:
+      modalities: [text]
+      native_context_window: 32768
+      mtp: false
+    provenance:
+      source: huggingface

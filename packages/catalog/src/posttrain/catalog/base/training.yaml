@@ -1,0 +1,218 @@
+training:
+  automationbench/qwen3.5-0.8b/grpo-mtp-smoke-v1:
+    selection_type: grpo-settings
+    revision: "1"
+    loop:
+      max_steps: 1
+      max_length: 8192
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 16
+      learning_rate: 0.00001
+    num_prompts_per_step: 2
+    num_generations: 8
+    max_prompt_length: 2048
+    max_completion_length: 6144
+  qwen3.5-0.8b/on-policy-distill-smoke-v1:
+    selection_type: on-policy-distillation-settings
+    revision: "1"
+    loop:
+      max_steps: 1
+      max_length: 640
+      per_device_batch_size: 2
+      learning_rate: 0.00001
+    temperature: 1.0
+    num_prompts_per_step: 1
+    num_generations: 2
+    max_prompt_length: 256
+    max_completion_length: 384
+  qwen3.5-2b/sft-smoke-v2:
+    selection_type: sft-settings
+    revision: "1"
+    loop:
+      max_steps: 2
+  qwen3.5-2b/sft-peft-comparison-v1:
+    selection_type: sft-settings
+    revision: "1"
+    loop:
+      max_steps: 2
+      max_length: 192
+  qwen3.5-2b/sft-validated-smoke-v1:
+    selection_type: sft-settings
+    revision: "1"
+    loop:
+      max_steps: 2
+      max_length: 512
+    validation:
+      steps: 1
+      per_device_batch_size: 2
+      on_start: false
+      at_end: true
+  qwen3.5-2b/dpo-smoke-v2:
+    selection_type: dpo-settings
+    revision: "1"
+    loop:
+      max_steps: 2
+      max_length: 448
+      learning_rate: 0.0001
+  qwen3.5-2b/grpo-smoke-v3:
+    selection_type: grpo-settings
+    revision: "1"
+    loop:
+      max_steps: 1
+      per_device_batch_size: 2
+      learning_rate: 0.00001
+    max_completion_length: 384
+  qwen3.5-2b/grpo-mtp-smoke-v2:
+    selection_type: grpo-settings
+    revision: "1"
+    loop:
+      max_steps: 1
+      per_device_batch_size: 2
+      learning_rate: 0.00001
+    max_completion_length: 512
+  lfm2.5-1.2b/sft-smoke-v2:
+    selection_type: sft-settings
+    revision: "1"
+    loop:
+      max_steps: 2
+  lfm2.5-1.2b/dpo-smoke-v2:
+    selection_type: dpo-settings
+    revision: "1"
+    loop:
+      max_steps: 2
+      learning_rate: 0.0001
+    loss_kernel: liger
+  training/qwen3.5-trl-lora@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.8.0
+    renderer:
+      id: qwen3.5-off-v1
+      model_family: qwen3.5
+      implementation: qwen3.5
+      reasoning_mode: "off"
+    update:
+      kind: lora
+      rank: 8
+      alpha: 16
+      target_modules: all-linear
+    target: targets/local-cuda-8gb
+    parallelism:
+      sequence_length_divisor: 2
+    runtime:
+      global_batch_size: 2
+      use_liger_kernel: true
+      backend_source_revision: 5c50c69f2d9b25dc2ce729d030f7cabb144d8431
+      dependency_lock_sha256: 795303780c50b57f948a8a70e2fdfefbc0fe212b35e6f7ae785ae17f44aef91b
+  training/qwen3.5-0.8b-trl-distill-lora@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.8.0
+    renderer:
+      id: qwen3.5-off-v1
+      model_family: qwen3.5
+      implementation: qwen3.5
+      reasoning_mode: "off"
+    update:
+      kind: lora
+      rank: 8
+      alpha: 16
+      target_modules: all-linear
+    target: targets/local-cuda-8gb
+    parallelism:
+      sequence_length_divisor: 2
+    runtime:
+      global_batch_size: 2
+      backend_source_revision: 5c50c69f2d9b25dc2ce729d030f7cabb144d8431
+      dependency_lock_sha256: 795303780c50b57f948a8a70e2fdfefbc0fe212b35e6f7ae785ae17f44aef91b
+  training/qwen3.5-0.8b-trl-automationbench-lora-thinking@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.8.0
+    renderer:
+      id: qwen3.5-thinking-v1
+      model_family: qwen3.5
+      implementation: qwen3.5
+      reasoning_mode: thinking
+    update:
+      kind: lora
+      rank: 8
+      alpha: 16
+      target_modules: .*[.](o_proj|down_proj)$
+    target: targets/local-cuda-8gb
+    parallelism:
+      sequence_length_divisor: 2
+    runtime:
+      global_batch_size: 16
+      use_liger_kernel: true
+      logits_chunk_size: 128
+      backend_source_revision: 5c50c69f2d9b25dc2ce729d030f7cabb144d8431
+      dependency_lock_sha256: 795303780c50b57f948a8a70e2fdfefbc0fe212b35e6f7ae785ae17f44aef91b
+  training/qwen3.5-trl-qlora@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.8.0
+    renderer:
+      id: qwen3.5-off-v1
+      model_family: qwen3.5
+      implementation: qwen3.5
+      reasoning_mode: "off"
+    update:
+      kind: qlora
+      quant_type: nf4
+      compute_dtype: bfloat16
+      double_quant: true
+      rank: 8
+      alpha: 16
+      target_modules: all-linear
+    target: targets/local-cuda-8gb
+    parallelism:
+      sequence_length_divisor: 2
+    runtime:
+      global_batch_size: 2
+      use_liger_kernel: true
+      backend_source_revision: 5c50c69f2d9b25dc2ce729d030f7cabb144d8431
+      dependency_lock_sha256: 795303780c50b57f948a8a70e2fdfefbc0fe212b35e6f7ae785ae17f44aef91b
+  training/lfm2.5-trl-lora@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.8.0
+    renderer:
+      id: lfm2.5-native-v1
+      model_family: lfm2.5
+      implementation: default
+      reasoning_mode: native
+    update:
+      kind: lora
+      rank: 8
+      alpha: 16
+      target_modules: all-linear
+    target: targets/local-cuda-8gb
+    parallelism:
+      sequence_length_divisor: 2
+    runtime:
+      backend_source_revision: 5c50c69f2d9b25dc2ce729d030f7cabb144d8431
+      dependency_lock_sha256: 795303780c50b57f948a8a70e2fdfefbc0fe212b35e6f7ae785ae17f44aef91b
+  training/lfm2.5-trl-qlora@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.8.0
+    renderer:
+      id: lfm2.5-native-v1
+      model_family: lfm2.5
+      implementation: default
+      reasoning_mode: native
+    update:
+      kind: qlora
+      quant_type: nf4
+      compute_dtype: bfloat16
+      double_quant: true
+      rank: 8
+      alpha: 16
+      target_modules: all-linear
+    target: targets/local-cuda-8gb
+    parallelism:
+      sequence_length_divisor: 2
+    runtime:
+      backend_source_revision: 5c50c69f2d9b25dc2ce729d030f7cabb144d8431
+      dependency_lock_sha256: 795303780c50b57f948a8a70e2fdfefbc0fe212b35e6f7ae785ae17f44aef91b

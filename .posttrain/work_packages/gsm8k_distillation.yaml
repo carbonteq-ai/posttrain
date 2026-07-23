@@ -1,0 +1,61 @@
+project_id: foundation-models
+work_package_id: train/qwen3.5-0.8b/distill-from-qwen3.5-2b-smoke
+stage: train
+description: Distill one live GSM8K trajectory from the frozen Qwen 3.5 2B teacher into the smaller student and retain replayable evidence.
+recipe:
+  type: inline
+  id: recipes/gsm8k-on-policy-distillation@1
+  revision: "1"
+  stage: train
+  seats:
+    student: model
+    teacher: model
+    environment: environment
+    settings: training
+    training: training
+    rollout_inference: inference
+    teacher_inference: inference
+  jobs:
+    - id: distill
+      kind: train.distill
+      definition: train/trl-distill@1
+  expected_artifacts:
+    - trained student adapter
+    - native Verifiers trajectories
+    - training summary
+bindings:
+  student:
+    type: ref
+    family: model
+    id: models/qwen3.5-0.8b@bf16
+  teacher:
+    type: ref
+    family: model
+    id: models/qwen3.5-2b@bf16
+  environment:
+    type: ref
+    family: environment
+    id: gsm8k-distill-train
+  settings:
+    type: ref
+    family: training
+    id: qwen3.5-0.8b/on-policy-distill-smoke-v1
+  training:
+    type: ref
+    family: training
+    id: training/qwen3.5-0.8b-trl-distill-lora@1
+  rollout_inference:
+    type: ref
+    family: inference
+    id: inference/qwen3.5-0.8b-vllm-distill-rollout@1
+  teacher_inference:
+    type: ref
+    family: inference
+    id: inference/qwen3.5-2b-vllm-teacher-score@1
+enabled_optional_jobs: []
+metadata:
+  question: Can a live Verifiers trajectory distill the frozen teacher into the current student policy?
+  labels:
+    - distillation
+    - on-policy
+    - verifiers

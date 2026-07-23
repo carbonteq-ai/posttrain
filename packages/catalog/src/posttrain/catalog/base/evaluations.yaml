@@ -1,0 +1,9 @@
+evaluation:
+  general-smoke-v1:
+    revision: "1"
+    kind: general
+    environments:
+      - math-gsm8k
+      - instruction-reverse-text
+      - code-execution
+      - multi-turn-alphabet-sort

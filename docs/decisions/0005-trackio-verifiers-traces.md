@@ -1,5 +1,9 @@
 # ADR 0005 — Add Verifiers traces through a compatible Trackio fork
 
+
+> **STALE — pending reconciliation (2026-07-21).**
+> Canonical design: [docs/post-training/](../post-training/README.md). Gap list: [RECONCILIATION.md](../architecture/RECONCILIATION.md).
+
 ## Status
 
 Accepted.

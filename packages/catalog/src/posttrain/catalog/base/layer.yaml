@@ -1,0 +1,11 @@
+schema_version: 1
+layer_id: framework-v1
+files:
+  - models.yaml
+  - targets.yaml
+  - training.yaml
+  - quantization.yaml
+  - inference.yaml
+  - workloads.yaml
+  - environments.yaml
+  - evaluations.yaml

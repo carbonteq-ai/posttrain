@@ -11,8 +11,8 @@ from typing import Any, cast
 
 from posttrain.common.cuda import TorchModule, activate_cuda_toolkit
 
-from ...requests import BenchmarkRequest
 from ...results import BenchmarkResult
+from .bindings import VllmBenchmarkConfig
 
 
 def _percentile(values: Sequence[float], percentile: float) -> float | None:
@@ -114,13 +114,13 @@ def _load_vllm() -> tuple[Any, Any]:
     return LLM, SamplingParams
 
 
-def run_offline_benchmark(request: BenchmarkRequest) -> BenchmarkResult:
+def run_offline_benchmark(request: VllmBenchmarkConfig) -> BenchmarkResult:
     """Measure exact token shapes; engine startup is excluded from steady-state metrics."""
 
     LLM, SamplingParams = _load_vllm()
-    engine = replace(request.profile.engine, max_model_len=request.cell.context_window)
+    engine = replace(request.engine, max_model_len=request.cell.context_window)
     sampling = replace(
-        request.profile.sampling,
+        request.sampling,
         max_tokens=request.cell.output_tokens,
         min_tokens=request.cell.output_tokens,
         ignore_eos=True,
@@ -130,8 +130,8 @@ def run_offline_benchmark(request: BenchmarkRequest) -> BenchmarkResult:
     try:
         engine_started = time.perf_counter()
         llm = LLM(
-            model=request.model.artifact.repo_id,
-            revision=request.model.artifact.revision,
+            model=request.model.base.repo_id,
+            revision=request.model.base.revision,
             **engine.as_vllm_kwargs(),
         )
         engine_start_seconds = time.perf_counter() - engine_started
@@ -171,9 +171,9 @@ def run_offline_benchmark(request: BenchmarkRequest) -> BenchmarkResult:
     request_count = request.cell.concurrency * request.cell.iterations
     return BenchmarkResult(
         backend="vllm",
-        model=request.model.artifact.repo_id,
-        revision=request.model.artifact.revision,
-        profile_id=request.profile.id,
+        model=request.model.base.repo_id,
+        revision=request.model.base.revision,
+        inference_binding_id=request.inference_binding_id,
         suite_id=request.cell.suite_id,
         cell_id=request.cell.id,
         shape_id=request.cell.shape_id,

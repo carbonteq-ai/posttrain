@@ -1,0 +1,7 @@
+target:
+  targets/project-cuda-24gb:
+    revision: "1"
+    device_class: nvidia-cuda
+    memory_gb: 24
+    placement:
+      world_size: 1

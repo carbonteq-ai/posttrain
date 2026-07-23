@@ -5,10 +5,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from ..requests import EnvironmentProgram, EnvironmentSource, EvaluationProgram, SamplingPolicy
+from ..requests import EnvironmentBinding, EnvironmentSource, EvaluationPlan, SamplingPolicy
 
-AUTOMATIONBENCH_REVISION = "a321764ace3cfbe42289e6a13abef2f0f4f56fad"
-AUTOMATIONBENCH_REPOSITORY = "https://github.com/zapier/AutomationBench"
+AUTOMATIONBENCH_REVISION = "d54dbebabdba6c6eda201694aee8ddcf36ccfc51"
+AUTOMATIONBENCH_REPOSITORY = "https://github.com/carbonteq-ai/AutomationBench"
 
 
 def _environment(domains: list[str]) -> object:
@@ -42,11 +42,11 @@ SOURCE = EnvironmentSource(
     revision=AUTOMATIONBENCH_REVISION,
 )
 
-AGENTIC_SMOKE = EvaluationProgram(
+AGENTIC_SMOKE = EvaluationPlan(
     id="agentic-smoke-v1",
     kind="general",
     environments=(
-        EnvironmentProgram(
+        EnvironmentBinding(
             id="automationbench-simple",
             category="agentic-tool-use",
             source=SOURCE,
@@ -59,8 +59,8 @@ AGENTIC_SMOKE = EvaluationProgram(
 )
 
 
-def _domain_cell(domain: str) -> EnvironmentProgram:
-    return EnvironmentProgram(
+def _domain_cell(domain: str) -> EnvironmentBinding:
+    return EnvironmentBinding(
         id=f"automationbench-{domain}",
         category=f"business-{domain}",
         source=SOURCE,
@@ -71,7 +71,7 @@ def _domain_cell(domain: str) -> EnvironmentProgram:
     )
 
 
-AUTOMATIONBENCH_PUBLIC = EvaluationProgram(
+AUTOMATIONBENCH_PUBLIC = EvaluationPlan(
     id="automationbench-public-v1",
     kind="domain",
     environments=tuple(

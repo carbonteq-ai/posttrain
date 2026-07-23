@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from random import Random
 from typing import Any
 
+from posttrain.eval import EnvironmentBinding
 from posttrain.train import PolicySampling
-from posttrain.train.integrations import VerifiersOnlineRLBridge
+from posttrain.train.integrations import VerifiersEnvironmentRolloutBridge
 
 VERIFIERS_REVISION = "284a868d6a9022109b749710672a0460e8a996d4"
 _FINAL_ANSWER = re.compile(r"(?m)^####\s*[+-]?(?:\d[\d,]*)(?:\.\d+)?\s*$")
@@ -30,18 +32,19 @@ def create_gsm8k_training_bridge(
     max_tokens: int,
     temperature: float,
     top_p: float,
-) -> VerifiersOnlineRLBridge:
+    purpose: str = "grpo",
+) -> VerifiersEnvironmentRolloutBridge:
     if not task_indices or len(task_indices) != len(set(task_indices)) or min(task_indices) < 0:
-        raise ValueError("GRPO task indices must be non-empty, unique, and non-negative")
+        raise ValueError("training task indices must be non-empty, unique, and non-negative")
     GSM8KConfig, GSM8KTaskset = _imports()
     available = GSM8KTaskset(GSM8KConfig(split="train")).load()
     try:
         tasks = {index: available[index] for index in task_indices}
     except IndexError as error:
-        raise ValueError("GRPO task index is outside the GSM8K training split") from error
+        raise ValueError("training task index is outside the GSM8K training split") from error
     suffix = "-".join(str(index) for index in task_indices)
-    return VerifiersOnlineRLBridge(
-        dataset_id=f"gsm8k/grpo/train-{suffix}-v1",
+    return VerifiersEnvironmentRolloutBridge(
+        dataset_id=f"gsm8k/{purpose}/train-{suffix}-v1",
         revision=VERIFIERS_REVISION,
         tasks=tasks,
         environment_factory=_training_environment,
@@ -50,6 +53,41 @@ def create_gsm8k_training_bridge(
         run_id=run_id,
         sampling=PolicySampling(max_tokens=max_tokens, temperature=temperature, top_p=top_p),
         enrichers=(_add_gsm8k_shaping,),
+    )
+
+
+def create_gsm8k_training_bridge_from_environment(
+    environment: EnvironmentBinding,
+    trace_path: Path,
+    run_id: str,
+    *,
+    max_tokens: int,
+    temperature: float,
+    top_p: float,
+    purpose: str = "grpo",
+) -> VerifiersEnvironmentRolloutBridge:
+    """Resolve a bounded GSM8K population from an environment-only GRPO seat."""
+
+    if environment.source.package != "gsm8k-v1":
+        raise ValueError("GSM8K bridge requires a gsm8k-v1 environment")
+    seed = environment.parameters.get("sampling_seed", 0)
+    if not isinstance(seed, int) or isinstance(seed, bool) or seed < 0:
+        raise ValueError("GSM8K environment sampling_seed must be a non-negative integer")
+    GSM8KConfig, GSM8KTaskset = _imports()
+    available = GSM8KTaskset(GSM8KConfig(split="train")).load()
+    if environment.num_tasks > len(available):
+        raise ValueError(
+            f"GSM8K environment requests {environment.num_tasks} tasks, but train exposes {len(available)}"
+        )
+    indices = tuple(sorted(Random(seed).sample(range(len(available)), environment.num_tasks)))
+    return create_gsm8k_training_bridge(
+        indices,
+        trace_path,
+        run_id,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        top_p=top_p,
+        purpose=purpose,
     )
 
 
@@ -82,4 +120,8 @@ def _training_environment() -> Any:
     return Environment(config)
 
 
-__all__ = ["VERIFIERS_REVISION", "create_gsm8k_training_bridge"]
+__all__ = [
+    "VERIFIERS_REVISION",
+    "create_gsm8k_training_bridge",
+    "create_gsm8k_training_bridge_from_environment",
+]

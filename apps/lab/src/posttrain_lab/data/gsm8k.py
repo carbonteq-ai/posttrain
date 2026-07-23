@@ -1,34 +1,13 @@
-"""Pinned GSM8K demonstrations and trace-derived preference pairs."""
+"""Pinned GSM8K source producing canonical trainer-neutral conversations."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
 
-from posttrain.train import (
-    PreferenceDataset,
-    PreferenceExample,
-    SupervisedDataset,
-    SupervisedExample,
-)
+from posttrain.data import DatasetDescriptor, SupervisedDataset, SupervisedExample
 
 GSM8K_REVISION = "740312add88f781978c0658806c59bc2815b9866"
-
-
-@dataclass(frozen=True, slots=True)
-class RejectedRollout:
-    """A completed, scored rollout selected as the rejected DPO response."""
-
-    example_id: str
-    response: str
-    score: float
-    trace_id: str
-
-    def __post_init__(self) -> None:
-        if not self.response.strip() or not self.trace_id.strip():
-            raise ValueError("rejected rollouts require response text and trace lineage")
-        if self.score >= 1.0:
-            raise ValueError("a rejected rollout must score below the GSM8K reference")
 
 
 def _rows(split: str) -> Any:
@@ -52,62 +31,70 @@ def _system_prompt() -> str:
     return SYSTEM
 
 
-def load_gsm8k_supervised(*, count: int, offset: int = 0) -> SupervisedDataset:
-    """Load deterministic train demonstrations using the eval environment's prompt contract."""
+@dataclass(frozen=True, slots=True)
+class GSM8KSupervisedSource:
+    """Lazy deterministic view over pinned GSM8K demonstrations."""
 
-    if count < 1 or offset < 0:
-        raise ValueError("count must be positive and offset cannot be negative")
-    rows = _rows("train")
-    end = offset + count
-    if end > len(rows):
-        raise ValueError(f"requested rows [{offset}:{end}] exceed the GSM8K train split")
-    system_prompt = _system_prompt()
-    examples = tuple(
-        SupervisedExample(
-            id=f"train/{index:06d}",
-            prompt=str(rows[index]["question"]),
-            response=str(rows[index]["answer"]),
-            system_prompt=system_prompt,
+    count: int
+    offset: int = 0
+
+    def __post_init__(self) -> None:
+        if self.count < 1 or self.offset < 0:
+            raise ValueError("count must be positive and offset cannot be negative")
+
+    @property
+    def descriptor(self) -> DatasetDescriptor:
+        end = self.offset + self.count
+        return DatasetDescriptor(
+            id=f"gsm8k/train-{self.offset}-{end}-v1",
+            revision=GSM8K_REVISION,
+            kind="supervised",
+            metadata={
+                "source": "huggingface",
+                "repository": "openai/gsm8k",
+                "split": "train",
+                "offset": self.offset,
+                "count": self.count,
+                "prompt_contract": "gsm8k-v1",
+            },
+            num_examples=self.count,
         )
-        for index in range(offset, end)
-    )
-    return SupervisedDataset(
-        id=f"gsm8k/train-{offset}-{end}-v1",
-        revision=GSM8K_REVISION,
-        examples=examples,
-    )
 
+    @property
+    def id(self) -> str:
+        return self.descriptor.id
 
-def preferences_from_rollouts(
-    demonstrations: SupervisedDataset,
-    rejected_rollouts: tuple[RejectedRollout, ...],
-) -> PreferenceDataset:
-    """Join gold demonstrations with failed, queryable rollout traces by stable example ID."""
+    @property
+    def revision(self) -> str:
+        return self.descriptor.revision
 
-    rejected = {rollout.example_id: rollout for rollout in rejected_rollouts}
-    if len(rejected) != len(rejected_rollouts):
-        raise ValueError("rejected rollout example ids must be unique")
-    examples: list[PreferenceExample] = []
-    for demonstration in demonstrations.examples:
-        rollout = rejected.get(demonstration.id)
-        if rollout is None:
-            continue
-        examples.append(
-            PreferenceExample(
-                id=demonstration.id,
-                prompt=demonstration.prompt,
-                chosen=demonstration.response.strip(),
-                rejected=rollout.response.strip(),
-                chosen_score=1.0,
-                rejected_score=rollout.score,
-                system_prompt=demonstration.system_prompt,
-                rejected_trace_id=rollout.trace_id,
+    def load(self) -> SupervisedDataset:
+        rows = _rows("train")
+        end = self.offset + self.count
+        if end > len(rows):
+            raise ValueError(f"requested rows [{self.offset}:{end}] exceed the GSM8K train split")
+        system_prompt = _system_prompt()
+        examples = tuple(
+            SupervisedExample(
+                id=f"train/{index:06d}",
+                messages=(
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": str(rows[index]["question"])},
+                    {"role": "assistant", "content": str(rows[index]["answer"])},
+                ),
+                trainable_message_indices=(2,),
+                metadata={"source_row": index},
             )
+            for index in range(self.offset, end)
         )
-    if not examples:
-        raise ValueError("no rejected rollouts matched the supervised demonstrations")
-    return PreferenceDataset(
-        id=f"{demonstrations.id}/trace-preferences",
-        revision=demonstrations.revision,
-        examples=tuple(examples),
-    )
+        descriptor = self.descriptor
+        return SupervisedDataset(
+            descriptor.id,
+            descriptor.revision,
+            examples,
+            metadata=descriptor.metadata,
+            schema_version=descriptor.schema_version,
+        )
+
+
+__all__ = ["GSM8K_REVISION", "GSM8KSupervisedSource"]

@@ -3,24 +3,42 @@
 .venvs/
 __pycache__/
 *.py[cod]
+*.egg-info/
 .python-version
 .env
+.env.*
+!.env.example
 .mypy_cache/
 .ruff_cache/
 .pytest_cache/
+.import_linter_cache/
 .coverage
 .coverage.*
 htmlcov/
 uv.lock.bak
 
-# Models / data
+# JavaScript / frontend
+node_modules/
+dist/
+.vite/
+playwright-report/
+test-results/
+blob-report/
+
+# Models / data / run outputs
 outputs/
 checkpoints/
+artifacts/
 wandb/
 trackio/
+.posttrain/state/
 *.pt
 *.safetensors
 *.bin
+
+# Local agent tooling
+.agents/
+.codex/
 
 # OS
 .DS_Store

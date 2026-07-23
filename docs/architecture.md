@@ -1,5 +1,10 @@
 # Post-training platform architecture
 
+
+> **STALE — pending reconciliation (2026-07-21).**
+> Canonical design: [docs/post-training/](./post-training/README.md).
+> Do not treat this document as the current product contract. Gap list: [architecture/RECONCILIATION.md](./architecture/RECONCILIATION.md).
+
 Status: target MVP architecture  
 Last revised: 2026-07-20
 
@@ -72,7 +77,7 @@ flowchart LR
 
 The lab injects the Trackio-backed context. Another project can inject its own
 observer or no-op context. A job may query prior evidence through
-`posttrain.reports`,
+`posttrain_observatory`,
 but Trackio never becomes the workflow engine.
 
 ## Layers

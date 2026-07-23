@@ -1,0 +1,207 @@
+inference:
+  inference/qwen3.5-0.8b-vllm-automationbench-rollout-mtp@1:
+    revision: "1"
+    model: models/qwen3.5-0.8b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools@1
+    engine:
+      mode: colocate
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.55
+      tensor_parallel_size: 1
+      max_model_len: 8192
+      max_num_batched_tokens: 4096
+      max_num_seqs: 4
+      text_only: true
+      skip_mm_profiling: true
+      kv_cache_memory_bytes: 201326592
+      weight_sync_mode: lora
+      enforce_eager: true
+      enable_chunked_prefill: true
+      free_cache_engine: true
+      disable_log_stats: false
+      speculative_config:
+        method: mtp
+        num_speculative_tokens: 1
+    sampling:
+      max_tokens: 6144
+      temperature: 1.0
+      top_p: 0.95
+    target: targets/local-cuda-rollout-8gb
+    purpose: [rollout]
+  inference/qwen3.5-0.8b-vllm-distill-rollout@1:
+    revision: "1"
+    model: models/qwen3.5-0.8b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools@1
+    engine:
+      mode: colocate
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.2
+      tensor_parallel_size: 1
+      max_model_len: 640
+      text_only: true
+      skip_mm_profiling: true
+      kv_cache_memory_bytes: 67108864
+      weight_sync_mode: lora
+    sampling:
+      max_tokens: 384
+      temperature: 1.0
+      top_p: 1.0
+    target: targets/local-cuda-rollout-8gb
+    purpose: [rollout]
+  inference/qwen3.5-2b-vllm-teacher-score@1:
+    revision: "1"
+    model: models/qwen3.5-2b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools@1
+    engine:
+      base_url: http://127.0.0.1:8000
+      max_model_len: 640
+      tensor_parallel_size: 1
+    sampling:
+      temperature: 1.0
+    target: targets/local-cuda-teacher-8gb
+    purpose: [teacher-score]
+  inference/qwen3.5-2b-vllm-screen@1:
+    revision: "1"
+    model: models/qwen3.5-2b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools@1
+    engine:
+      max_model_len: 4096
+      gpu_memory_utilization: 0.75
+      dtype: float16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 4
+      max_num_batched_tokens: 4096
+      kv_cache_dtype: auto
+      text_only: true
+      skip_mm_profiling: true
+    sampling:
+      max_tokens: 128
+      temperature: 0.0
+    target: targets/local-cuda-8gb
+    purpose: [screen, smoke]
+  inference/qwen3.5-2b-vllm-eval@1:
+    revision: "1"
+    model: models/qwen3.5-2b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools@1
+    engine:
+      max_model_len: 32768
+      gpu_memory_utilization: 0.75
+      dtype: float16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 4
+      max_num_batched_tokens: 4096
+      kv_cache_dtype: turboquant_k8v4
+      text_only: true
+      skip_mm_profiling: true
+      flash_attn_version: 2
+    sampling:
+      max_tokens: 4096
+      temperature: 0.0
+    target: targets/local-cuda-8gb
+    purpose: [eval]
+  inference/qwen3.5-2b-vllm-rollout@1:
+    revision: "1"
+    model: models/qwen3.5-2b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools@1
+    engine:
+      mode: colocate
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.2
+      tensor_parallel_size: 1
+      max_model_len: 640
+      text_only: true
+      skip_mm_profiling: true
+      kv_cache_memory_bytes: 67108864
+      weight_sync_mode: lora
+    sampling:
+      max_tokens: 384
+      temperature: 1.0
+      top_p: 1.0
+    target: targets/local-cuda-rollout-8gb
+    purpose: [rollout]
+  inference/qwen3.5-2b-vllm-rollout-mtp@1:
+    revision: "1"
+    model: models/qwen3.5-2b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools@1
+    engine:
+      mode: colocate
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.2
+      tensor_parallel_size: 1
+      max_model_len: 1024
+      text_only: true
+      skip_mm_profiling: true
+      kv_cache_memory_bytes: 67108864
+      weight_sync_mode: lora
+      speculative_config:
+        method: mtp
+        num_speculative_tokens: 1
+    sampling:
+      max_tokens: 512
+      temperature: 1.0
+      top_p: 1.0
+    target: targets/local-cuda-rollout-8gb
+    purpose: [rollout]
+  inference/lfm2.5-1.2b-vllm-screen@1:
+    revision: "1"
+    model: models/lfm2.5-1.2b-thinking@bf16
+    backend: vllm@0.25.1
+    renderer: lfm2.5-tools@1
+    engine:
+      max_model_len: 4096
+      gpu_memory_utilization: 0.75
+      dtype: float16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 4
+      max_num_batched_tokens: 4096
+      kv_cache_dtype: auto
+      text_only: true
+      skip_mm_profiling: true
+      tool_call_parser: lfm2
+      reasoning_parser: lfm2
+    sampling:
+      max_tokens: 128
+      temperature: 0.0
+    target: targets/local-cuda-8gb
+    purpose: [screen, smoke]
+  inference/lfm2.5-1.2b-vllm-eval@1:
+    revision: "1"
+    model: models/lfm2.5-1.2b-thinking@bf16
+    backend: vllm@0.25.1
+    renderer: lfm2.5-tools@1
+    engine:
+      max_model_len: 32768
+      gpu_memory_utilization: 0.75
+      dtype: float16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 4
+      max_num_batched_tokens: 4096
+      kv_cache_dtype: turboquant_k8v4
+      text_only: true
+      skip_mm_profiling: true
+      tool_call_parser: lfm2
+      reasoning_parser: lfm2
+    sampling:
+      max_tokens: 4096
+      temperature: 0.0
+    target: targets/local-cuda-8gb
+    purpose: [eval]

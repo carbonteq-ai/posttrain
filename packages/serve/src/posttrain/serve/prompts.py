@@ -9,7 +9,7 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
-from posttrain.common import ModelProfile
+from posttrain.common import ModelVariant
 
 
 class PromptError(ValueError):
@@ -80,13 +80,13 @@ def representative_prompt_records() -> tuple[PromptRecord, ...]:
 
 
 def reasoning_template_kwargs(
-    model_profile: ModelProfile,
+    model: ModelVariant,
     requested_mode: str,
 ) -> dict[str, Any]:
     """Resolve a requested mode without pretending unsupported levels exist."""
 
     try:
-        return model_profile.conversation.reasoning_mode(requested_mode).kwargs()
+        return model.conversation.reasoning_mode(requested_mode).kwargs()
     except ValueError as error:
         raise PromptError(str(error)) from error
 
@@ -94,17 +94,17 @@ def reasoning_template_kwargs(
 def render_prompt(
     tokenizer: Any,
     record: PromptRecord,
-    model_profile: ModelProfile,
+    model: ModelVariant,
     *,
     tools: Sequence[Mapping[str, Any]] | None = None,
 ) -> Sequence[int]:
     """Render canonical messages through the model tokenizer's native template."""
 
-    kwargs = reasoning_template_kwargs(model_profile, record.reasoning_mode)
-    chat_template = model_profile.conversation.chat_template.text()
+    kwargs = reasoning_template_kwargs(model, record.reasoning_mode)
+    chat_template = model.conversation.chat_template.text()
     if chat_template is not None:
         kwargs["chat_template"] = chat_template
-    unsupported_roles = {str(message["role"]) for message in record.messages} - set(model_profile.conversation.roles)
+    unsupported_roles = {str(message["role"]) for message in record.messages} - set(model.conversation.roles)
     if unsupported_roles:
         raise PromptError(f"model does not support message roles: {', '.join(sorted(unsupported_roles))}")
     return tokenizer.apply_chat_template(

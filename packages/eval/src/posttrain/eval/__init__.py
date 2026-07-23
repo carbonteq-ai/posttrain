@@ -1,26 +1,36 @@
 """Reusable evaluation operations over independently packaged environments."""
 
-from .api import evaluate
+from .api import domain, evaluate, general
+from .catalog_schema import (
+    EnvironmentBindingSchema,
+    EvaluationPlanSchema,
+    evaluation_catalog_decoders,
+)
 from .requests import (
-    EnvironmentProgram,
+    EnvironmentBinding,
     EnvironmentSource,
+    EvaluateRequest,
     EvaluationBudget,
-    EvaluationProgram,
-    EvaluationRequest,
-    EvaluationTarget,
+    EvaluationEndpoint,
+    EvaluationPlan,
     SamplingPolicy,
 )
 from .results import EvaluationResult, TraceSynchronization
 
 __all__ = [
-    "EnvironmentProgram",
+    "EnvironmentBinding",
+    "EnvironmentBindingSchema",
     "EnvironmentSource",
+    "EvaluateRequest",
     "EvaluationBudget",
-    "EvaluationProgram",
-    "EvaluationRequest",
+    "EvaluationEndpoint",
+    "EvaluationPlan",
+    "EvaluationPlanSchema",
     "EvaluationResult",
-    "EvaluationTarget",
     "SamplingPolicy",
     "TraceSynchronization",
+    "domain",
     "evaluate",
+    "evaluation_catalog_decoders",
+    "general",
 ]

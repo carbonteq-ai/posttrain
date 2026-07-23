@@ -11,6 +11,11 @@ from automationbench.rubric.registry import AssertionRegistry
 from automationbench.schema.world import WorldState
 from pydantic import Field
 
+from .api_tools import AutomationBenchApiToolset
+from .limited_tools import (
+    AutomationBenchLimitedToolset,
+    AutomationBenchLimitedToolsetConfig,
+)
 from .scoring import ScoreSnapshot, score_world
 from .tools import AutomationBenchState, AutomationBenchToolset
 
@@ -55,11 +60,25 @@ class AutomationBenchData(vf.TaskData):
 
 class AutomationBenchTaskConfig(vf.TaskConfig):
     tools: vf.ToolsetConfig = Field(default_factory=vf.ToolsetConfig)
+    toolset: Literal["zapier", "limited_zapier", "api"] = "zapier"
     search_top_k: int = 20
 
 
 class AutomationBenchTask(vf.Task[AutomationBenchData, AutomationBenchState, AutomationBenchTaskConfig]):
     tools = (AutomationBenchToolset,)
+
+    def tool_servers(self) -> list[vf.Toolset]:
+        if self.config.toolset == "api":
+            return [AutomationBenchApiToolset(self.config.tools)]
+        if self.config.toolset == "limited_zapier":
+            config = AutomationBenchLimitedToolsetConfig.model_validate(
+                {
+                    **self.config.tools.model_dump(mode="python"),
+                    "allowed_tools": self.data.zapier_tools,
+                }
+            )
+            return [AutomationBenchLimitedToolset(config)]
+        return super().tool_servers()
 
     async def setup(self, trace: vf.Trace, runtime: vf.Runtime) -> None:
         del runtime

@@ -16,7 +16,8 @@ type ArtifactMetadata = Mapping[str, JsonValue]
 
 _COMMIT_SHA = re.compile(r"^[0-9a-f]{40}$")
 _SHA256 = re.compile(r"^(?:sha256:)?[0-9a-f]{64}$")
-_NAME = re.compile(r"^[a-z0-9][a-z0-9._/-]*$")
+_NAME = re.compile(r"^[a-z0-9][a-z0-9._/@-]*$")
+_PROVIDER = re.compile(r"^[a-z][a-z0-9._-]*$")
 
 
 def _require_name(value: str, field_name: str) -> str:
@@ -60,6 +61,25 @@ class TrackioArtifactRef:
 
 
 @dataclass(frozen=True, slots=True)
+class StoredArtifactRef:
+    """An immutable artifact reference owned by an external storage provider."""
+
+    provider: str
+    namespace: str
+    name: str
+    version: str
+    digest: str | None = None
+    provider_metadata: ArtifactMetadata = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if not _PROVIDER.fullmatch(self.provider):
+            raise ContractError(f"artifact provider must be a stable lowercase identifier, got {self.provider!r}")
+        if not self.namespace.strip() or not self.name.strip() or not self.version.strip():
+            raise ContractError("stored artifact namespace, name, and immutable version are required")
+        object.__setattr__(self, "provider_metadata", MappingProxyType(dict(self.provider_metadata)))
+
+
+@dataclass(frozen=True, slots=True)
 class LocalArtifactRef:
     """Content-addressed local output that has not yet been promoted."""
 
@@ -73,7 +93,7 @@ class LocalArtifactRef:
             raise ContractError("Local artifact digest must be a SHA-256 value")
 
 
-type ArtifactRef = HubModelRef | TrackioArtifactRef | LocalArtifactRef
+type ArtifactRef = HubModelRef | StoredArtifactRef | TrackioArtifactRef | LocalArtifactRef
 
 
 @dataclass(frozen=True, slots=True)

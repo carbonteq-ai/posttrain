@@ -1,0 +1,19 @@
+target:
+  targets/local-cuda-8gb:
+    revision: "1"
+    device_class: nvidia-cuda
+    memory_gb: 8
+    placement:
+      world_size: 1
+  targets/local-cuda-rollout-8gb:
+    revision: "1"
+    device_class: nvidia-cuda
+    memory_gb: 8
+    placement:
+      world_size: 1
+  targets/local-cuda-teacher-8gb:
+    revision: "1"
+    device_class: nvidia-cuda
+    memory_gb: 8
+    placement:
+      world_size: 1

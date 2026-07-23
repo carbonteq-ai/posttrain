@@ -1,0 +1,8 @@
+{
+  "step": 7,
+  "native": {
+    "training/off_policy/trajectory_staleness/mean": 1.25,
+    "training/off_policy/trajectory_staleness/max": 3,
+    "training/off_policy/trajectory_spans/mean": 1.5
+  }
+}

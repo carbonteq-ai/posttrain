@@ -7,10 +7,8 @@ from dataclasses import dataclass
 from typing import Literal, Protocol
 
 from posttrain.common import JsonValue, ProducedArtifact, TraceObservation
+from posttrain.data import MessageRecord, RolloutDataset
 
-from .data import RolloutDataset
-
-type MessageRecord = Mapping[str, JsonValue]
 type ToolRecord = Mapping[str, JsonValue]
 type TokenSpan = tuple[int, int]
 
@@ -101,7 +99,7 @@ class RolloutBatch:
 
 
 @dataclass(frozen=True, slots=True)
-class TrainingRollout:
+class EnvironmentRollout:
     """One scored trajectory translated into the sequence a trainer optimizes."""
 
     example_id: str
@@ -124,20 +122,20 @@ class TrainingRollout:
             raise ValueError("training rollouts require at least one model-sampled token")
 
 
-class OnlineRLBridge(Protocol):
+class EnvironmentRolloutBridge(Protocol):
     """Run native environment episodes against an injected policy generator."""
 
     @property
     def dataset(self) -> RolloutDataset: ...
 
-    async def run(self, batch: RolloutBatch, generator: PolicyGenerator) -> Sequence[TrainingRollout]: ...
+    async def run(self, batch: RolloutBatch, generator: PolicyGenerator) -> Sequence[EnvironmentRollout]: ...
 
     def finalize(self) -> tuple[ProducedArtifact, ...]: ...
 
 
 __all__ = [
-    "MessageRecord",
-    "OnlineRLBridge",
+    "EnvironmentRolloutBridge",
+    "EnvironmentRollout",
     "PolicyGenerator",
     "PolicySampling",
     "PolicyTurnRequest",
@@ -145,5 +143,4 @@ __all__ = [
     "RolloutBatch",
     "TokenSpan",
     "ToolRecord",
-    "TrainingRollout",
 ]

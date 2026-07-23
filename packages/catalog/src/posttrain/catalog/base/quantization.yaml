@@ -1,0 +1,41 @@
+quantization:
+  qwen3.5-2b/awq-4bit-v1:
+    revision: "1"
+    method: awq
+    recipe: tools/quantization/recipes/awq-w4a16-group128-v1.yaml
+    recipe_digest: 114b7f502f65b439ba49fe964fd97d72339131214f2a4c7dc31f2fa2f2a40326
+    weight_format: int4-group128
+    backend: llmcompressor@655b83d1240c37920a603b747bbfb6c218f66383
+    dependency_lock_digest: 71e46d45842db55609aaa194a3aebb5f2a338d922c01d53fe25eab94af5fe9ff
+    calibration:
+      dataset_id: openai/gsm8k
+      dataset_revision: main
+      dataset_config: main
+      split: train
+      text_column: question
+      sample_count: 16
+      sequence_length: 512
+      batch_size: 1
+    output_weight_precision: int4
+    output_quantization:
+      bits: 4
+      group_size: 128
+      zero_point: true
+      scheme: W4A16
+  qwen3.5-2b/rtn-w4a16-v3:
+    revision: "3"
+    method: rtn
+    recipe: tools/quantization/recipes/rtn-language-w4a16-group128-v3.yaml
+    recipe_digest: 521a710aa1c406be8381e8b2347d6f16f0bffb075164c1cc943b87abfd855a49
+    weight_format: int4-group128
+    backend: llmcompressor@655b83d1240c37920a603b747bbfb6c218f66383
+    dependency_lock_digest: 71e46d45842db55609aaa194a3aebb5f2a338d922c01d53fe25eab94af5fe9ff
+    excluded_modules:
+      - model.visual
+    output_weight_precision: int4
+    output_quantization:
+      bits: 4
+      group_size: 128
+      scope: language_model
+      zero_point: false
+      scheme: W4A16

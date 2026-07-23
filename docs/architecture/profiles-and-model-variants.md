@@ -1,5 +1,10 @@
 # Profiles and model variants
 
+
+> **STALE — pending reconciliation (2026-07-21).**
+> Canonical design: [docs/post-training/](../post-training/README.md).
+> Do not treat this document as the current product contract. Gap list: [RECONCILIATION.md](./RECONCILIATION.md).
+
 Status: target MVP architecture  
 Last revised: 2026-07-20
 

@@ -1,0 +1,73 @@
+name: posttrain-observatory
+
+services:
+  trackio:
+    build:
+      context: ../..
+      dockerfile: apps/observatory/Dockerfile
+    image: posttrain-observatory:local
+    init: true
+    user: "${UID:-1000}:${GID:-1000}"
+    entrypoint: ["python", "-c"]
+    command:
+      - >-
+        import os, trackio;
+        trackio.show(
+          project=os.environ["POSTTRAIN_TRACKIO_PROJECT"],
+          host="0.0.0.0",
+          server_port=7860,
+          open_browser=False,
+          block_thread=True,
+        )
+    environment:
+      POSTTRAIN_TRACKIO_PROJECT: ${POSTTRAIN_TRACKIO_PROJECT:-posttrain-observatory-v4-20260722}
+      TRACKIO_DIR: /evidence/trackio
+    expose:
+      - "7860"
+    volumes:
+      - ${HOME}/.cache/huggingface/trackio:/evidence/trackio
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:7860/version', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      start_period: 10s
+      retries: 6
+    restart: unless-stopped
+
+  observatory:
+    build:
+      context: ../..
+      dockerfile: apps/observatory/Dockerfile
+    image: posttrain-observatory:local
+    init: true
+    depends_on:
+      trackio:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:7861:7861"
+    environment:
+      POSTTRAIN_OBSERVATORY_SOURCE: trackio
+      POSTTRAIN_OBSERVATORY_SOURCE_ID: trackio-local
+      POSTTRAIN_OBSERVATORY_SOURCES: ${POSTTRAIN_OBSERVATORY_SOURCES:-}
+      POSTTRAIN_TRACKIO_PROJECT: ${POSTTRAIN_TRACKIO_PROJECT:-posttrain-observatory-v4-20260722}
+      POSTTRAIN_TRACKIO_SERVER_URL: http://trackio:7860
+      WANDB_API_KEY: ${WANDB_API_KEY:-}
+      WANDB_BASE_URL: ${WANDB_BASE_URL:-https://api.wandb.ai}
+      WANDB_CACHE_DIR: /tmp/wandb-cache
+      XDG_CACHE_HOME: /tmp/cache
+      POSTTRAIN_OBSERVATORY_LLM_PROVIDER: disabled
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped

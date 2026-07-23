@@ -5,23 +5,25 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Callable
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import Literal
 
-from posttrain.common import ExecutionContext, LocalArtifactRef, ModelVariant, ProducedArtifact
+from posttrain.common import JsonValue, LocalArtifactRef, ModelVariant, ProducedArtifact, RunContext
+from posttrain.data import DatasetDescriptor, PreferenceDataset, SupervisedDataset, SupervisedDataSource
 
-from .backends.trl import run_dpo, run_grpo, run_sft
-from .backends.trl.common import BackendTrainingResult
-from .requests import DPORequest, GRPORequest, SFTRequest
-from .results import TrainingResult
+from .backends.common import BackendTrainingResult
+from .backends.trl import run_dpo, run_sft
+from .bindings import FullParameterUpdate, LoRAUpdate, QLoRAUpdate, parameter_update_digest
+from .requests import DPORequest, GRPORequest, OnPolicyDistillationRequest, SFTRequest
+from .results import TeacherScoringSummary, TrainingResult
 
-
-class TrainingRequest(Protocol):
-    model: ModelVariant
-
-
-type SFTBackend = Callable[[ExecutionContext, SFTRequest, Path], BackendTrainingResult]
-type DPOBackend = Callable[[ExecutionContext, DPORequest, Path], BackendTrainingResult]
-type GRPOBackend = Callable[[ExecutionContext, GRPORequest, Path], BackendTrainingResult]
+type TrainingContext = RunContext
+type SFTBackend = Callable[
+    [TrainingContext, SFTRequest, SupervisedDataset, SupervisedDataset | None, Path],
+    BackendTrainingResult,
+]
+type DPOBackend = Callable[[TrainingContext, DPORequest, PreferenceDataset, Path], BackendTrainingResult]
+type GRPOBackend = Callable[[TrainingContext, GRPORequest, Path], BackendTrainingResult]
+type DistillationBackend = Callable[[TrainingContext, OnPolicyDistillationRequest, Path], BackendTrainingResult]
 
 
 def _digest(path: Path) -> str:
@@ -39,25 +41,45 @@ def _digest(path: Path) -> str:
 
 
 def _finish(
-    context: ExecutionContext,
-    request: SFTRequest | DPORequest | GRPORequest,
-    technique: Literal["sft", "dpo", "grpo"],
+    context: TrainingContext,
+    request: SFTRequest | DPORequest | GRPORequest | OnPolicyDistillationRequest,
+    technique: Literal["sft", "dpo", "grpo", "distill"],
     backend: BackendTrainingResult,
+    dataset: SupervisedDataset | PreferenceDataset | None = None,
+    validation_dataset: SupervisedDataset | None = None,
 ) -> TrainingResult:
-    dataset = request.bridge.dataset if isinstance(request, GRPORequest) else request.dataset
+    model = _source_model(request)
+    resolved_dataset = (
+        request.bridge.dataset if isinstance(request, GRPORequest | OnPolicyDistillationRequest) else dataset
+    )
+    if resolved_dataset is None:
+        raise AssertionError("materialized training data is required")
     attributes = {
         "technique": technique,
-        "model_profile_id": request.model.profile.id,
-        "source_model_format": request.model.format,
-        "training_profile_id": request.profile.id,
-        "dataset_id": dataset.id,
-        "dataset_revision": dataset.revision,
+        "model_variant_id": model.id,
+        "source_model_form": model.form,
+        "training_settings_id": request.settings.id,
+        "training_settings_revision": request.settings.revision,
+        "dataset_id": resolved_dataset.id,
+        "dataset_revision": resolved_dataset.revision,
+        **_seat_attributes(request),
     }
-    adapter_ref = LocalArtifactRef(backend.adapter_dir.resolve(), _digest(backend.adapter_dir))
+    if validation_dataset is not None:
+        attributes.update(
+            {
+                "validation_dataset_id": validation_dataset.id,
+                "validation_dataset_revision": validation_dataset.revision,
+                "validation_dataset_examples": len(validation_dataset.examples),
+            }
+        )
+    update = request.training.update
+    is_full_update = isinstance(update, FullParameterUpdate)
+    model_ref = LocalArtifactRef(backend.model_dir.resolve(), _digest(backend.model_dir))
+    output_name = "weights" if is_full_update else "adapter"
     model_artifact = ProducedArtifact(
-        name=f"training/{request.model.profile.id}/{technique}/adapter",
-        kind="model-adapter",
-        reference=adapter_ref,
+        name=f"training/{model.id}/{technique}/{update.kind}/{output_name}",
+        kind="model-weights" if is_full_update else "model-adapter",
+        reference=model_ref,
         metadata=attributes,
     )
     recovery_artifact = None
@@ -67,14 +89,14 @@ def _finish(
             _digest(backend.recovery_checkpoint),
         )
         recovery_artifact = ProducedArtifact(
-            name=f"training/{request.model.profile.id}/{technique}/recovery-checkpoint",
+            name=f"training/{model.id}/{technique}/recovery-checkpoint",
             kind="training-checkpoint",
             reference=recovery_ref,
             metadata={**attributes, "global_step": backend.summary.global_step},
         )
     summary_ref = LocalArtifactRef(backend.summary_file.resolve(), _digest(backend.summary_file))
     native_artifact = ProducedArtifact(
-        name=f"training/{request.model.profile.id}/{technique}/summary",
+        name=f"training/{model.id}/{technique}/summary",
         kind="training-summary",
         reference=summary_ref,
         metadata=attributes,
@@ -94,76 +116,325 @@ def _finish(
         attributes=attributes,
     )
     context.event("training_completed", attributes)
-    output_model = ModelVariant(request.model.profile, adapter_ref, "peft-adapter")
+    output_model = ModelVariant(
+        id=f"{model.id}/{technique}-{update.kind}-{model_ref.digest[-12:]}",
+        artifact=model_ref,
+        form="full-finetuned" if is_full_update else "adapter",
+        weight_precision=model.weight_precision,
+        family=model.family,
+        parameters=model.parameters,
+        instruction_tuned=model.instruction_tuned,
+        renderer=model.renderer,
+        capabilities=model.capabilities,
+        base=model.base,
+        tokenizer_fingerprint=model.tokenizer_fingerprint,
+        digest=model_ref.digest,
+        parent=model.id,
+        provenance={
+            "operation": technique,
+            "settings_id": request.settings.id,
+            "training_binding_id": request.training.id,
+            "parameter_update_kind": request.training.update.kind,
+            "parameter_update_digest": parameter_update_digest(request.training.update),
+            "base_model_repo_id": model.base.repo_id,
+            "base_model_revision": model.base.revision,
+        },
+    )
+    teacher_scoring = None
+    if isinstance(request, OnPolicyDistillationRequest):
+        teacher_scoring = TeacherScoringSummary(
+            request.teacher,
+            "external-exact-token",
+            request.settings.temperature,
+            1,
+        )
     return TrainingResult(
         technique,
-        request.model,
+        model,
         output_model,
         backend.summary,
         model_artifact,
         recovery_artifact,
         native_artifact,
+        teacher_scoring,
     )
 
 
 def sft(
-    context: ExecutionContext,
+    context: TrainingContext,
     request: SFTRequest,
     *,
     runner: SFTBackend = run_sft,
 ) -> TrainingResult:
+    dataset = _load_supervised(request)
+    validation_dataset = (
+        _load_supervised_source(request.validation_data) if request.validation_data is not None else None
+    )
+    if validation_dataset is not None:
+        train_ids = {example.id for example in dataset.examples}
+        validation_ids = {example.id for example in validation_dataset.examples}
+        overlap = train_ids & validation_ids
+        if overlap:
+            examples = ", ".join(sorted(overlap)[:3])
+            raise ValueError(f"SFT train and validation datasets overlap: {examples}")
     attributes = {
         "technique": "sft",
-        "model_profile_id": request.model.profile.id,
-        "training_profile_id": request.profile.id,
-        "dataset_id": request.dataset.id,
+        "model_variant_id": request.model.id,
+        "training_settings_id": request.settings.id,
+        "training_settings_revision": request.settings.revision,
+        "dataset_id": dataset.id,
+        "dataset_revision": dataset.revision,
+        "dataset_schema_version": dataset.schema_version,
+        "dataset_examples": len(dataset.examples),
+        **_seat_attributes(request),
     }
+    if validation_dataset is not None:
+        assert request.settings.validation is not None
+        attributes.update(
+            {
+                "validation_dataset_id": validation_dataset.id,
+                "validation_dataset_revision": validation_dataset.revision,
+                "validation_dataset_schema_version": validation_dataset.schema_version,
+                "validation_dataset_examples": len(validation_dataset.examples),
+                "validation_steps": request.settings.validation.steps,
+                "validation_on_start": request.settings.validation.on_start,
+                "validation_at_end": request.settings.validation.at_end,
+            }
+        )
     context.event("training_started", attributes)
     output_dir = context.workspace / "training" / "sft" / "trainer"
     output_dir.mkdir(parents=True, exist_ok=False)
-    return _finish(context, request, "sft", runner(context, request, output_dir))
+    return _finish(
+        context,
+        request,
+        "sft",
+        runner(context, request, dataset, validation_dataset, output_dir),
+        dataset,
+        validation_dataset,
+    )
 
 
 def dpo(
-    context: ExecutionContext,
+    context: TrainingContext,
     request: DPORequest,
     *,
     runner: DPOBackend = run_dpo,
 ) -> TrainingResult:
+    dataset = _load_preferences(request)
     attributes = {
         "technique": "dpo",
-        "model_profile_id": request.model.profile.id,
-        "training_profile_id": request.profile.id,
-        "dataset_id": request.dataset.id,
+        "model_variant_id": request.model.id,
+        "training_settings_id": request.settings.id,
+        "training_settings_revision": request.settings.revision,
+        "dataset_id": dataset.id,
+        "dataset_revision": dataset.revision,
+        "dataset_schema_version": dataset.schema_version,
+        "dataset_examples": len(dataset.examples),
+        **_seat_attributes(request),
     }
     context.event("training_started", attributes)
     output_dir = context.workspace / "training" / "dpo" / "trainer"
     output_dir.mkdir(parents=True, exist_ok=False)
-    return _finish(context, request, "dpo", runner(context, request, output_dir))
+    return _finish(context, request, "dpo", runner(context, request, dataset, output_dir), dataset)
 
 
 def grpo(
-    context: ExecutionContext,
+    context: TrainingContext,
     request: GRPORequest,
     *,
-    runner: GRPOBackend = run_grpo,
+    runner: GRPOBackend | None = None,
 ) -> TrainingResult:
+    selected_runner = runner or _grpo_backend(request.training.backend)
     dataset = request.bridge.dataset
     attributes = {
         "technique": "grpo",
-        "model_profile_id": request.model.profile.id,
-        "training_profile_id": request.profile.id,
+        "model_variant_id": request.policy.id,
+        "training_settings_id": request.settings.id,
+        "training_settings_revision": request.settings.revision,
         "dataset_id": dataset.id,
+        **_seat_attributes(request),
     }
     context.event("training_started", attributes)
     output_dir = context.workspace / "training" / "grpo" / "trainer"
     output_dir.mkdir(parents=True, exist_ok=False)
     try:
-        backend = runner(context, request, output_dir)
+        backend = selected_runner(context, request, output_dir)
     finally:
         for artifact in request.bridge.finalize():
             context.artifact(artifact)
     return _finish(context, request, "grpo", backend)
 
 
-__all__ = ["DPOBackend", "GRPOBackend", "SFTBackend", "dpo", "grpo", "sft"]
+def distill(
+    context: TrainingContext,
+    request: OnPolicyDistillationRequest,
+    *,
+    runner: DistillationBackend | None = None,
+) -> TrainingResult:
+    selected_runner = runner or _distillation_backend(request.training.backend)
+    dataset = request.bridge.dataset
+    attributes = {
+        "technique": "distill",
+        "student_model_variant_id": request.student.id,
+        "teacher_model_variant_id": request.teacher.id,
+        "training_settings_id": request.settings.id,
+        "training_settings_revision": request.settings.revision,
+        "dataset_id": dataset.id,
+        **_seat_attributes(request),
+    }
+    context.event("training_started", attributes)
+    output_dir = context.workspace / "training" / "distill" / "trainer"
+    output_dir.mkdir(parents=True, exist_ok=False)
+    try:
+        backend = selected_runner(context, request, output_dir)
+    finally:
+        for artifact in request.bridge.finalize():
+            context.artifact(artifact)
+    context.metrics(
+        {
+            "train/distill/loss": backend.summary.train_loss,
+            "train/distill/reverse_kl": backend.summary.train_loss,
+            "train/distill/teacher_failures": 0,
+        },
+        attributes=attributes,
+    )
+    return _finish(context, request, "distill", backend)
+
+
+def _grpo_backend(backend: str) -> GRPOBackend:
+    product = backend.split("@", 1)[0]
+    if product == "trl":
+        from .backends.trl import run_grpo
+
+        return run_grpo
+    if product == "verl":
+        from .backends.verl import run_grpo
+
+        return run_grpo
+    raise ValueError(f"unsupported GRPO training backend {backend!r}")
+
+
+def _distillation_backend(backend: str) -> DistillationBackend:
+    product = backend.split("@", 1)[0]
+    if product == "trl":
+        from .backends.trl import run_distillation
+
+        return run_distillation
+    if product == "verl":
+        from .backends.verl import run_distillation
+
+        return run_distillation
+    raise ValueError(f"unsupported distillation training backend {backend!r}")
+
+
+def _validate_materialization(expected: DatasetDescriptor, actual: DatasetDescriptor) -> None:
+    if actual != expected:
+        raise ValueError(f"data source materialized {actual!r}, expected its declared descriptor {expected!r}")
+
+
+def _source_model(request: SFTRequest | DPORequest | GRPORequest | OnPolicyDistillationRequest) -> ModelVariant:
+    if isinstance(request, GRPORequest):
+        return request.policy
+    if isinstance(request, OnPolicyDistillationRequest):
+        return request.student
+    return request.model
+
+
+def _seat_attributes(
+    request: SFTRequest | DPORequest | GRPORequest | OnPolicyDistillationRequest,
+) -> dict[str, JsonValue]:
+    update = request.training.update
+    attributes: dict[str, JsonValue] = {
+        "training_binding_id": request.training.id,
+        "training_binding_revision": request.training.revision,
+        "target_id": request.training.target.id,
+        "target_revision": request.training.target.revision,
+        "parameter_update_kind": request.training.update.kind,
+        "parameter_update_digest": parameter_update_digest(request.training.update),
+        "base_model_repo_id": _source_model(request).base.repo_id,
+        "base_model_revision": _source_model(request).base.revision,
+    }
+    source_revision = request.training.backend_options.get(
+        "source_revision", request.training.runtime.get("backend_source_revision")
+    )
+    if isinstance(source_revision, str):
+        attributes["training_backend_source_revision"] = source_revision
+    lock_digest = request.training.backend_options.get(
+        "dependency_lock_sha256", request.training.runtime.get("dependency_lock_sha256")
+    )
+    if isinstance(lock_digest, str):
+        attributes["dependency_lock_sha256"] = lock_digest
+    if isinstance(update, LoRAUpdate | QLoRAUpdate):
+        attributes.update(
+            {
+                "peft_rank": update.rank,
+                "peft_alpha": update.alpha,
+                "peft_dropout": update.dropout,
+                "peft_target_modules": update.target_modules,
+            }
+        )
+    if isinstance(update, QLoRAUpdate):
+        attributes.update(
+            {
+                "qlora_quant_type": update.quant_type,
+                "qlora_compute_dtype": update.compute_dtype,
+                "qlora_double_quant": update.double_quant,
+                "qlora_storage_bits": 4,
+            }
+        )
+    if isinstance(request, GRPORequest):
+        attributes["environment_id"] = request.environment.id
+        attributes["environment_revision"] = request.environment.revision
+        attributes["inference_id"] = request.inference.id
+        attributes["inference_revision"] = request.inference.revision
+        attributes["rollout_target_id"] = request.inference.target.id
+        if request.quantization is not None:
+            attributes["quantization_plan_id"] = request.quantization.id
+            attributes["quantization_recipe_digest"] = request.quantization.recipe_digest
+    if isinstance(request, OnPolicyDistillationRequest):
+        attributes.update(
+            {
+                "environment_id": request.environment.id,
+                "environment_revision": request.environment.revision,
+                "student_model_variant_id": request.student.id,
+                "teacher_model_variant_id": request.teacher.id,
+                "rollout_inference_id": request.rollout_inference.id,
+                "rollout_target_id": request.rollout_inference.target.id,
+                "teacher_inference_id": request.teacher_inference.id,
+                "teacher_target_id": request.teacher_inference.target.id,
+                "tokenizer_fingerprint": request.student.tokenizer_fingerprint or "",
+            }
+        )
+        if request.quantization is not None:
+            attributes["quantization_plan_id"] = request.quantization.id
+            attributes["quantization_recipe_digest"] = request.quantization.recipe_digest
+    return attributes
+
+
+def _load_supervised(request: SFTRequest) -> SupervisedDataset:
+    return _load_supervised_source(request.data)
+
+
+def _load_supervised_source(source: SupervisedDataSource) -> SupervisedDataset:
+    dataset = source.load()
+    _validate_materialization(source.descriptor, dataset.descriptor)
+    return dataset
+
+
+def _load_preferences(request: DPORequest) -> PreferenceDataset:
+    dataset = request.data.load()
+    _validate_materialization(request.data.descriptor, dataset.descriptor)
+    return dataset
+
+
+__all__ = [
+    "DPOBackend",
+    "DistillationBackend",
+    "GRPOBackend",
+    "SFTBackend",
+    "TrainingContext",
+    "distill",
+    "dpo",
+    "grpo",
+    "sft",
+]

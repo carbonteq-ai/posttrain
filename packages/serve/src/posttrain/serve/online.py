@@ -10,9 +10,13 @@ from dataclasses import dataclass
 from typing import Any
 
 import httpx
-from posttrain.common import ModelProfile
+from posttrain.common import HubModelRef, InferenceBinding, LocalArtifactRef, ModelVariant
 
-from .profiles import VllmServeProfile
+
+def served_model_name(model: ModelVariant) -> str:
+    if model.form == "foundation" and isinstance(model.artifact, HubModelRef):
+        return model.artifact.repo_id
+    return model.id
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,15 +40,19 @@ class Endpoint:
 
 
 @dataclass(frozen=True, slots=True)
-class LaunchRequest:
-    model: ModelProfile
-    profile: VllmServeProfile
+class ServeLaunchRequest:
+    inference: InferenceBinding
     host: str = "127.0.0.1"
     port: int = 8000
     startup_timeout_seconds: float = 180.0
 
     def __post_init__(self) -> None:
-        self.profile.validate_model(self.model)
+        if "smoke" not in self.inference.purpose and "eval" not in self.inference.purpose:
+            raise ValueError("managed serving requires an inference binding with smoke or eval purpose")
+        if not self.inference.backend.startswith("vllm@"):
+            raise ValueError("managed serving currently requires a vLLM inference binding")
+        if not isinstance(self.inference.model.artifact, HubModelRef | LocalArtifactRef):
+            raise ValueError("managed serving requires Hub-hosted or host-materialized model weights")
         if not self.host:
             raise ValueError("host cannot be empty")
         if not 0 < self.port < 65_536:
@@ -54,7 +62,7 @@ class LaunchRequest:
 
     @property
     def endpoint(self) -> Endpoint:
-        return Endpoint(f"http://{self.host}:{self.port}/v1", self.model.artifact.repo_id)
+        return Endpoint(f"http://{self.host}:{self.port}/v1", served_model_name(self.inference.model))
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,14 +164,14 @@ def _event_payload(line: str) -> dict[str, Any] | None:
 
 def generate(
     request: GenerationRequest,
-    model: ModelProfile,
+    model: ModelVariant,
     *,
     client: httpx.Client | None = None,
 ) -> GenerationResult:
     """Stream one chat request and preserve both normalized fields and raw events."""
 
-    if request.endpoint.model != model.artifact.repo_id:
-        raise ValueError("generation endpoint does not match the selected model profile")
+    if request.endpoint.model != served_model_name(model):
+        raise ValueError("generation endpoint does not match the selected model variant")
     mode = request.reasoning_mode or model.default_reasoning_mode
     extra = model.conversation.reasoning_mode(mode).kwargs()
     payload: dict[str, Any] = {
@@ -236,12 +244,12 @@ def generate(
     )
 
 
-type GenerationRunner = Callable[[GenerationRequest, ModelProfile], GenerationResult]
+type GenerationRunner = Callable[[GenerationRequest, ModelVariant], GenerationResult]
 
 
 def generate_concurrently(
     requests: Sequence[GenerationRequest],
-    model: ModelProfile,
+    model: ModelVariant,
     *,
     max_concurrency: int,
     runner: GenerationRunner = generate,
@@ -263,7 +271,7 @@ __all__ = [
     "Endpoint",
     "GenerationRequest",
     "GenerationResult",
-    "LaunchRequest",
+    "ServeLaunchRequest",
     "ProbeResult",
     "generate",
     "generate_concurrently",

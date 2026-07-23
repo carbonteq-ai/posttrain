@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 import threading
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+import uuid
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
 
 from .artifacts import JsonValue, LocalArtifactRef, ProducedArtifact
 from .errors import OperationCancelled
-from .jobs import Invocation, Job, JobAction, RunAttempt
+from .selections import validate_selection_id
 
 Attributes = Mapping[str, JsonValue]
 Clock = Callable[[], datetime]
@@ -101,11 +103,14 @@ def utc_now() -> datetime:
 
 
 @dataclass(frozen=True, slots=True)
-class ExecutionContext:
-    job: Job
-    action: JobAction
-    invocation: Invocation
-    attempt: RunAttempt
+class RunContext:
+    """Canonical host-injected identity and observation context for one run."""
+
+    project_id: str
+    work_package_id: str
+    run_id: str
+    job_kind: str
+    job_definition_version: str
     workspace: Path
     observer: Observer = field(default_factory=NullObserver)
     cancellation: CancellationToken = field(default_factory=CancellationToken)
@@ -114,14 +119,65 @@ class ExecutionContext:
     input_artifacts: Mapping[str, LocalArtifactRef] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        if self.action.job_id != self.job.id:
-            raise ValueError("action job_id must match the execution job")
+        validate_selection_id(self.project_id, "project id")
+        validate_selection_id(self.work_package_id, "work package id")
+        validate_selection_id(self.run_id, "run id")
+        validate_selection_id(self.job_kind, "job kind")
+        if not self.job_definition_version.strip():
+            raise ValueError("job definition version cannot be empty")
         if not self.workspace.is_absolute():
-            raise ValueError("execution workspace must be absolute")
+            raise ValueError("run workspace must be absolute")
+
+    @property
+    def identity_attributes(self) -> dict[str, JsonValue]:
+        return {
+            "project_id": self.project_id,
+            "work_package_id": self.work_package_id,
+            "run_id": self.run_id,
+            "job_kind": self.job_kind,
+            "job_definition_version": self.job_definition_version,
+        }
+
+    def _attributes(self, attributes: Attributes | None = None) -> dict[str, JsonValue]:
+        return {**self.identity_attributes, **dict(attributes or {})}
 
     def event(self, name: str, attributes: Attributes | None = None) -> None:
         self.cancellation.raise_if_cancelled()
-        self.observer.event(EventObservation(name, self.clock(), attributes or {}))
+        self._emit_event(name, attributes)
+
+    def _emit_event(self, name: str, attributes: Attributes | None = None) -> None:
+        self.observer.event(EventObservation(name, self.clock(), self._attributes(attributes)))
+
+    @contextmanager
+    def phase(
+        self,
+        name: str,
+        attributes: Attributes | None = None,
+    ) -> Iterator[str]:
+        """Record one timestamped runtime phase without coupling to a provider.
+
+        Phases may be nested. Readers assign a host sample to the most specific
+        active interval, so an outer ``actor_update`` phase can contain a
+        shorter ``rollout`` phase without double-counting the sample.
+        """
+
+        phase = name.strip()
+        if not phase:
+            raise ValueError("runtime phase name cannot be empty")
+        phase_id = str(uuid.uuid4())
+        phase_attributes = {**dict(attributes or {}), "phase": phase, "phase_id": phase_id}
+        self.cancellation.raise_if_cancelled()
+        self._emit_event("runtime_phase_started", phase_attributes)
+        try:
+            yield phase_id
+        except BaseException as error:
+            self._emit_event(
+                "runtime_phase_failed",
+                {**phase_attributes, "error_type": type(error).__name__},
+            )
+            raise
+        else:
+            self._emit_event("runtime_phase_completed", phase_attributes)
 
     def metric(
         self,
@@ -132,7 +188,7 @@ class ExecutionContext:
         attributes: Attributes | None = None,
     ) -> None:
         self.cancellation.raise_if_cancelled()
-        self.observer.metric(MetricObservation(name, float(value), step, attributes or {}))
+        self.observer.metric(MetricObservation(name, float(value), step, self._attributes(attributes)))
 
     def metrics(
         self,
@@ -146,17 +202,17 @@ class ExecutionContext:
             MetricBatchObservation(
                 {name: float(value) for name, value in values.items()},
                 step,
-                attributes or {},
+                self._attributes(attributes),
             )
         )
 
     def trace(self, observation: TraceObservation) -> None:
         self.cancellation.raise_if_cancelled()
-        self.observer.trace(observation)
+        self.observer.trace(replace(observation, attributes=self._attributes(observation.attributes)))
 
     def artifact(self, artifact: ProducedArtifact) -> None:
         self.cancellation.raise_if_cancelled()
-        self.observer.artifact(artifact)
+        self.observer.artifact(replace(artifact, metadata=self._attributes(artifact.metadata)))
 
     def input_artifact(self, name: str) -> LocalArtifactRef:
         try:

@@ -1,5 +1,10 @@
 # Observability
 
+
+> **STALE — pending reconciliation (2026-07-21).**
+> Canonical design: [docs/post-training/](../post-training/README.md).
+> Do not treat this document as the current product contract. Gap list: [RECONCILIATION.md](./RECONCILIATION.md).
+
 Status: target MVP architecture  
 Last revised: 2026-07-20
 
@@ -102,7 +107,7 @@ The Trackio Verifiers UI provides a dedicated rollout view with:
 
 The UI uses the stored structured record but does not expose a raw payload dump.
 Evaluation summaries such as mean reward, success rate, and truncation rate are
-computed by `posttrain.reports` from the trace population.
+computed by `posttrain_observatory` from the trace population.
 
 ## Serving observability
 

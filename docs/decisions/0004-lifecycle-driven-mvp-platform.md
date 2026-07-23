@@ -1,5 +1,9 @@
 # ADR 0004 — Code-first lifecycle platform boundaries
 
+
+> **STALE — pending reconciliation (2026-07-21).**
+> Canonical design: [docs/post-training/](../post-training/README.md). Gap list: [RECONCILIATION.md](../architecture/RECONCILIATION.md).
+
 ## Status
 
 Accepted. Supersedes ADRs 0001, 0002, and 0003 as platform architecture guidance.

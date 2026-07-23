@@ -1,48 +1,35 @@
-"""Reusable vLLM serving operations and typed profile definitions."""
+"""Reusable serving operations over explicit inference bindings."""
 
 from .api import benchmark, generate, launch, probe
 from .benchmarks import CORE_INFERENCE_V1, BenchmarkCell, BenchmarkSuite, WorkloadShape
-from .online import Endpoint, GenerationRequest, GenerationResult, LaunchRequest, ProbeResult, generate_concurrently
-from .profiles import (
-    LFM25_VLLM,
-    LFM25_VLLM_TURBOQUANT_K8,
-    QWEN35_VLLM_MTP,
-    QWEN35_VLLM_TEXT,
-    QWEN35_VLLM_TURBOQUANT_K8,
-    SERVE_PROFILES,
-    VllmEngineConfig,
-    VllmSamplingConfig,
-    VllmServeProfile,
-    VllmSpeculativeConfig,
+from .online import (
+    Endpoint,
+    GenerationRequest,
+    GenerationResult,
+    ProbeResult,
+    ServeLaunchRequest,
+    generate_concurrently,
+    served_model_name,
 )
-from .requests import BenchmarkRequest
+from .requests import ServeBenchmarkRequest
 from .results import BenchmarkResult
 
 __all__ = [
     "BenchmarkCell",
-    "BenchmarkRequest",
     "BenchmarkResult",
+    "ServeBenchmarkRequest",
     "BenchmarkSuite",
     "CORE_INFERENCE_V1",
     "Endpoint",
     "GenerationRequest",
     "GenerationResult",
-    "LFM25_VLLM",
-    "LFM25_VLLM_TURBOQUANT_K8",
-    "LaunchRequest",
     "ProbeResult",
-    "QWEN35_VLLM_MTP",
-    "QWEN35_VLLM_TEXT",
-    "QWEN35_VLLM_TURBOQUANT_K8",
-    "SERVE_PROFILES",
-    "VllmEngineConfig",
-    "VllmSamplingConfig",
-    "VllmServeProfile",
-    "VllmSpeculativeConfig",
+    "ServeLaunchRequest",
     "WorkloadShape",
     "benchmark",
     "generate",
     "generate_concurrently",
     "launch",
     "probe",
+    "served_model_name",
 ]

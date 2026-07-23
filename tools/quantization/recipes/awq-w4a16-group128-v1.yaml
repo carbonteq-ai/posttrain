@@ -1,0 +1,10 @@
+version: 1
+backend: llmcompressor
+modifiers:
+  - type: AWQModifier
+  - type: QuantizationModifier
+    targets:
+      - Linear
+    ignore:
+      - lm_head
+    scheme: W4A16

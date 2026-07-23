@@ -1,0 +1,6 @@
+target:
+  targets/external-cpu:
+    revision: "1"
+    device_class: cpu
+    placement:
+      world_size: 1

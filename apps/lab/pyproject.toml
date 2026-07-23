@@ -5,10 +5,18 @@ description = "Composition root for code-defined post-training jobs"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "posttrain-common",
+    "posttrain-catalog",
+    "posttrain-data",
     "posttrain-eval",
     "posttrain-serve",
+    "posttrain-tracking",
+    "posttrain-tracking-trackio",
+    "posttrain-tracking-wandb",
     "posttrain-train",
-    "trackio @ git+https://github.com/carbonteq-ai/trackio.git@02351d871050bf4b3505c7371239c698b710ec83",
+    "posttrain-work",
+    "pydantic>=2.12,<3",
+    "pyyaml>=6.0,<7",
+    "carbonteq-trackio @ git+https://github.com/carbonteq-ai/trackio.git@c5072198b3b1556d31ed96ffc246a03f65418ab8",
 ]
 
 [project.optional-dependencies]
@@ -20,6 +28,7 @@ gpu-train = [
     "posttrain-train[trl]",
 ]
 gpu-posttrain = [
+    "automationbench-v1",
     "posttrain-eval[verifiers]",
     "posttrain-train[trl,trl-vllm]",
 ]
@@ -29,9 +38,16 @@ posttrain-lab = "posttrain_lab.cli:main"
 
 [tool.uv.sources]
 posttrain-common = { workspace = true }
+posttrain-catalog = { workspace = true }
+posttrain-data = { workspace = true }
 posttrain-eval = { workspace = true }
 posttrain-serve = { workspace = true }
+posttrain-tracking = { workspace = true }
+posttrain-tracking-trackio = { workspace = true }
+posttrain-tracking-wandb = { workspace = true }
 posttrain-train = { workspace = true }
+posttrain-work = { workspace = true }
+automationbench-v1 = { path = "../../environments/automationbench_v1" }
 
 [build-system]
 requires = ["hatchling"]

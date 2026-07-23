@@ -18,14 +18,23 @@ class TrainingSummary:
 
 
 @dataclass(frozen=True, slots=True)
+class TeacherScoringSummary:
+    teacher: ModelVariant
+    mode: Literal["external-exact-token"]
+    temperature: float
+    top_k: int
+
+
+@dataclass(frozen=True, slots=True)
 class TrainingResult:
-    technique: Literal["sft", "dpo", "grpo"]
+    technique: Literal["sft", "dpo", "grpo", "distill"]
     source_model: ModelVariant
     model: ModelVariant
     summary: TrainingSummary
     model_artifact: ProducedArtifact
     recovery_artifact: ProducedArtifact | None
     native_artifact: ProducedArtifact
+    teacher_scoring: TeacherScoringSummary | None = None
 
 
-__all__ = ["TrainingResult", "TrainingSummary"]
+__all__ = ["TeacherScoringSummary", "TrainingResult", "TrainingSummary"]

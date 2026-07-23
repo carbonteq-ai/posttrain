@@ -11,7 +11,7 @@ class BenchmarkResult:
     backend: str
     model: str
     revision: str
-    profile_id: str
+    inference_binding_id: str
     suite_id: str
     cell_id: str
     shape_id: str

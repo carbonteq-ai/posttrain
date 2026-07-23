@@ -1,0 +1,91 @@
+environment:
+  automationbench-zapier-simple-grpo:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/AutomationBench
+      revision: d54dbebabdba6c6eda201694aee8ddcf36ccfc51
+    factory: automationbench-zapier-training
+    sampling:
+      max_tokens: 6144
+      temperature: 1.0
+      top_p: 0.95
+    num_tasks: 2
+    num_rollouts: 8
+    max_concurrent: 1
+    parameters:
+      domains: [simple]
+      sampling_seed: 17
+      toolset: zapier
+      search_top_k: 20
+      max_turns: 50
+      max_total_tokens: 8192
+      rollout_timeout_seconds: 1800
+    reward_components:
+      - partial_credit
+      - task_completed_correctly
+      - assertions_passed
+  gsm8k-distill-train:
+    category: math-reasoning
+    source:
+      package: gsm8k-v1
+      repository: https://github.com/PrimeIntellect-ai/verifiers
+      revision: 284a868d6a9022109b749710672a0460e8a996d4
+      subdirectory: environments/gsm8k_v1
+    factory: math-gsm8k
+    sampling:
+      max_tokens: 384
+      temperature: 1.0
+      top_p: 1.0
+    num_tasks: 1
+    num_rollouts: 2
+    max_concurrent: 1
+    parameters:
+      sampling_seed: 0
+    reward_components: [reward]
+  math-gsm8k:
+    category: math-reasoning
+    source:
+      package: gsm8k-v1
+      repository: https://github.com/PrimeIntellect-ai/verifiers
+      revision: 284a868d6a9022109b749710672a0460e8a996d4
+      subdirectory: environments/gsm8k_v1
+    factory: math-gsm8k
+    sampling:
+      max_tokens: 4096
+    num_tasks: 8
+  instruction-reverse-text:
+    category: instruction-following
+    source:
+      package: reverse-text-v1
+      repository: https://github.com/PrimeIntellect-ai/verifiers
+      revision: 284a868d6a9022109b749710672a0460e8a996d4
+      subdirectory: environments/reverse_text_v1
+    factory: instruction-reverse-text
+    sampling:
+      max_tokens: 1024
+    num_tasks: 8
+  code-execution:
+    category: code-generation
+    source:
+      package: code-golf-v1
+      repository: https://github.com/PrimeIntellect-ai/verifiers
+      revision: 284a868d6a9022109b749710672a0460e8a996d4
+      subdirectory: environments/code_golf_v1
+    factory: code-execution
+    sampling:
+      max_tokens: 4096
+    num_tasks: 3
+    num_rollouts: 2
+    max_concurrent: 1
+  multi-turn-alphabet-sort:
+    category: multi-turn-state
+    source:
+      package: alphabet-sort-v1
+      repository: https://github.com/PrimeIntellect-ai/verifiers
+      revision: 284a868d6a9022109b749710672a0460e8a996d4
+      subdirectory: environments/alphabet_sort_v1
+    factory: multi-turn-alphabet-sort
+    sampling:
+      max_tokens: 2048
+    num_tasks: 4

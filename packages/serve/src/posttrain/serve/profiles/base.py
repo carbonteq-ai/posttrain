@@ -6,8 +6,6 @@ import json
 from dataclasses import dataclass
 from typing import Literal
 
-from posttrain.common import ModelProfile
-
 type KvCacheDtype = Literal["auto", "turboquant_k8v4"]
 
 
@@ -147,32 +145,3 @@ class VllmSamplingConfig:
         if self.min_tokens is not None:
             values["min_tokens"] = self.min_tokens
         return values
-
-
-@dataclass(frozen=True, slots=True)
-class VllmServeProfile:
-    id: str
-    model_family: str
-    engine: VllmEngineConfig
-    sampling: VllmSamplingConfig
-    variant: Literal["standard", "turboquant", "mtp"] = "standard"
-    tool_call_parser: str | None = None
-    reasoning_parser: str | None = None
-
-    def validate_model(self, model: ModelProfile) -> None:
-        if model.family != self.model_family:
-            raise ValueError(f"serve profile {self.id!r} does not support model family {model.family!r}")
-        if self.engine.max_model_len > model.capabilities.native_context_window:
-            raise ValueError("serve context exceeds the model's native context window")
-        if self.variant == "mtp" and not model.capabilities.mtp:
-            raise ValueError("MTP profile requires a model trained with MTP")
-        if self.tool_call_parser is not None and model.conversation.tool_calls is None:
-            raise ValueError("tool-call parser requires a model tool-call protocol")
-
-    def frontend_args(self) -> tuple[str, ...]:
-        values: list[str] = []
-        if self.tool_call_parser is not None:
-            values.extend(("--enable-auto-tool-choice", "--tool-call-parser", self.tool_call_parser))
-        if self.reasoning_parser is not None:
-            values.extend(("--reasoning-parser", self.reasoning_parser))
-        return tuple(values)

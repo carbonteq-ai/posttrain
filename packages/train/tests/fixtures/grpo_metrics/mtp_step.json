@@ -1,0 +1,9 @@
+{
+  "step": 3,
+  "native": {
+    "rollout/spec_num_draft_tokens": 10,
+    "rollout/spec_num_accepted_tokens": 5,
+    "rollout/spec_accept_rate": 0.5,
+    "rollout/spec_accept_length": 1.25
+  }
+}

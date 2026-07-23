@@ -16,8 +16,9 @@ The upstream GSM8K v1 environment already implements the required native
 Verifiers contract and can be consumed directly. Zapier AutomationBench 1.0.5
 contains authoritative datasets, simulated SaaS APIs, world schemas, and
 assertion scoring, but its published environment targets the previous
-Verifiers API and requires Python 3.13. The main GPU workspace currently targets
-Python 3.12. Importing the legacy bridge into the reusable evaluation engine
+Verifiers API. Upstream initially declared Python 3.13 even though the exercised
+benchmark paths are compatible with the platform's Python 3.12 runtime.
+Importing the legacy bridge into the reusable evaluation engine
 would couple every evaluation to two incompatible environment APIs and obscure
 which trace contract is authoritative.
 
@@ -35,10 +36,11 @@ which trace contract is authoritative.
 - Preserve per-rollout mutable world state in typed Verifiers state. Store
   dense partial credit as the reward, strict completion and assertion counts as
   trace metrics, and assertion details plus the final world in trace info.
-- Keep `automationbench-v1` outside the root uv workspace and give it an
-  independent Python 3.13 lock. Execute it in an isolated worker while exposing
-  the same OpenAI-compatible model endpoint and Verifiers trace schema used by
-  other environments.
+- Maintain a CarbonTeq AutomationBench compatibility fork whose initial
+  boundary change is a Python 3.12 package floor. Pin its immutable revision in
+  `automationbench-v1`, validate the native benchmark and Verifiers paths under
+  Python 3.12, and install the adapter through the lab's explicit
+  `gpu-posttrain` extra.
 - Do not add a legacy Verifiers compatibility layer to `posttrain.eval`.
 
 ## Consequences
@@ -49,8 +51,8 @@ which trace contract is authoritative.
   their own cadence and jobs can pin those releases.
 - AutomationBench retains upstream scoring semantics without copying its
   dataset or verification rules into platform code.
-- The Python 3.13 environment needs an isolated worker integration before the
-  lab can execute it from the Python 3.12 composition process in one command.
+- AutomationBench evaluation and GRPO can execute in the Python 3.12 trainer
+  process without an unrecorded patched wheel or policy-generation RPC bridge.
 - Cross-environment reports can query the same trace fields, while detailed
   task-specific evidence remains in each trace's typed metadata.
 - Updating either pinned upstream repository requires its own compatibility and
@@ -76,6 +78,13 @@ Rejected for the MVP because the pinned CUDA, vLLM, TRL, and model stacks are
 already validated on Python 3.12. An environment package should not force an
 unrelated serving and training runtime migration.
 
+### Keep AutomationBench in an isolated Python 3.13 worker
+
+Rejected after compatibility testing because the exact benchmark source and
+Verifiers v1 adapter passed their relevant suites under Python 3.12. An
+isolated worker would add a policy-generation RPC boundary without protecting
+against any observed language incompatibility.
+
 ### Vendor AutomationBench into this repository
 
 Rejected because the upstream project is already versioned and publishable.
@@ -89,8 +98,8 @@ all of its source.
 - `posttrain.eval.programs.general` defines reusable general-evaluation cells;
   `posttrain.eval.programs.agentic` references the independently installable
   AutomationBench package.
-- The AutomationBench package pins upstream AutomationBench commit
-  `a321764ace3cfbe42289e6a13abef2f0f4f56fad` and Verifiers commit
+- The AutomationBench package pins CarbonTeq AutomationBench commit
+  `d54dbebabdba6c6eda201694aee8ddcf36ccfc51` and Verifiers commit
   `284a868d6a9022109b749710672a0460e8a996d4` in its own `uv.lock`.
 - The package test suite covers task loading, upstream dense and strict scoring,
   API discovery and mutation, and final trace evidence.
@@ -101,3 +110,6 @@ all of its source.
 
 - 2026-07-20: Established independently publishable native Verifiers v1
   environments and the isolated Python 3.13 AutomationBench adapter boundary.
+- 2026-07-23: Replaced the isolated Python 3.13 boundary with an immutable
+  CarbonTeq Python 3.12 compatibility fork after the benchmark's relevant
+  Python 3.12 suites and the six Verifiers adapter tests passed.
