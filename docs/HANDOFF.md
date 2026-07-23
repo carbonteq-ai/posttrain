@@ -1,35 +1,47 @@
 # Thread handoff
 
-Handoff for work in `/home/hammad/projects/rl` as of 2026-07-20.
+Handoff for work in `/home/hammad/projects/rl` as of 2026-07-21.
 
-Read [the execution plan](../.agents/plan/posttraining-platform-refactor.md),
-[platform architecture](./architecture.md), and
-[post-training lifecycle](./functional/finetuning-lifecycle.md) first.
+## Design freeze
 
-## Canonical implementation
+**Authority (FROZEN 2026-07-21):** [post-training baseline](./post-training/README.md)
+([01](./post-training/01-workflow.md) → [06](./post-training/06-observation-and-lineage.md)).
+
+Do not redesign 01–06 while planning or coding. Typos/links only unless
+explicitly unfrozen. Architecture docs and ADRs 0004–0006 remain **stale** —
+[RECONCILIATION.md](./architecture/RECONCILIATION.md). Existing code is
+prototype evidence, not the API contract.
+
+## Next work
+
+**Implementation plan:** [baseline-implementation.md](../.agents/plan/baseline-implementation.md)
+— **next: slice 3a** (train config decoupling: `TrainingBinding`,
+`ParameterUpdatePlan`, `QuantizationPlan`; no async RL).
+
+Slices 0–2 are largely landed; finish shims later. Architecture rewrites remain
+optional.
+
+## Canonical implementation (target packages)
 
 ```text
-packages/common   framework-free identities, model/artifact types, execution context
-packages/serve    typed vLLM profiles, workloads, prompts, benchmark operation
-packages/eval     endpoint-neutral Verifiers v1 operation and code-defined programs
-packages/train    typed SFT/DPO/GRPO operations and internal TRL adapters
-packages/reports  read-only evidence/query boundary
-apps/lab          code-defined jobs, execution host, Trackio observer
-environments/automationbench_v1  independently locked native-v1 environment
+packages/common   identities, selections, RunContext / observer protocols
+packages/data     dataset prepare / materialize
+packages/serve    inference bindings → benchmark, smoke
+packages/eval     evaluation plans → Verifiers adapter (traces = authority)
+packages/train    sft / dpo / grpo / transform
+packages/reports  read-only views over evidence
+apps/lab          reference host + Trackio observer
+environments/*    published Verifiers env packages
 ```
 
-The target is code-first. Reusable behavior lives in `posttrain.common`,
-`posttrain.serve`, `posttrain.eval`, and `posttrain.train`. Jobs compose those
-APIs in ordinary Python. Trackio observes attempts; it does not define jobs,
-profiles, scheduling, or execution.
+Config-first: YAML+schema and typed Python; catalog base + overlay. Trackio
+observes; it does not author jobs or decisions.
 
-The new serving path has no dependency on Trackio, YAML, the legacy `common`
-package, or the lab host. Its representative prompt corpus is a package
-resource, so installing the wheel is sufficient to use it. Root serving YAML,
-the old benchmark suite YAML, and the old serving CLIs were deleted rather than
-retained as compatibility surfaces.
+## Implemented slices (prototype inventory)
 
-## Implemented slices
+> Snapshot of what exists in the repo. Nouns may lag the frozen baseline
+> (`ModelVariant`, work package, …). Use as gap-analysis input for the
+> implementation plan — not as the target contract.
 
 - Immutable foundation profiles for Qwen3.5-2B and LFM2.5-1.2B-Thinking.
 - Typed vLLM standard, TurboQuant K8V4, and Qwen MTP profiles.
@@ -114,6 +126,49 @@ sequence-level importance ratio reached the configured `0.1` floor, so that
 profile remains a tuning target even though the architectural acceptance gate
 passed.
 
+### PEFT and materialized-quantization evidence (2026-07-22)
+
+The comparison project is `posttrain-peft-20260722`. LoRA and QLoRA used the
+same two GSM8K examples, seed, 192-token ceiling, two optimizer steps, adapter
+shape, and explicit `use_liger_kernel: true`. Liger is a resolved training
+binding input: it replaces the fork's fixed 256-token chunked vocabulary
+projection, which requested another roughly 970 MiB and OOMed this 8 GB GPU.
+It does not change the cross-entropy objective.
+
+| Variant | Successful Trackio run | Final loss | Peak VRAM | Runtime | One-task GSM8K eval |
+| --- | --- | ---: | ---: | ---: | ---: |
+| BF16 foundation | — | — | — | — | `eval.general-6ab8307a`: `1.0` |
+| BF16 + LoRA | `train.sft-841db8d7` | `0.9381` | `3.709 GiB` | `5.43 s` | `eval.general-df83b47e`: `1.0` |
+| NF4 QLoRA | `train.sft-1f3a2907` | `0.9265` | `3.601 GiB` | `6.82 s` | `eval.general-22b1b4e1`: `1.0` |
+| RTN W4A16 language weights | `model.transform-0ceb93e0` | — | `6.020 GiB` | `11.10 s` | `eval.general-19220cc7`: `0.0` |
+
+These are path-validation cells, not quality estimates. In particular, the
+single RTN miss is a regression signal that requires a larger matched
+evaluation before promotion; the framework does not label the quantized model
+quality-equivalent merely because it loads and serves.
+
+The promoted quantized artifact is
+`training/models/qwen3.5-2b@rtn-w4a16-v3/weights:v0`. Its plan explicitly says
+that only language-model linears are symmetric group-128 int4; the visual tower
+and `lm_head` remain unquantized. Promotion requires all three checks: the
+serialized compressed-tensors config matches the catalog, a clean reload can
+generate one token, and vLLM can complete the managed evaluation. The earlier
+RTN v1/v2 diagnostics are superseded because their contracts were too weak or
+their metadata was inaccurate.
+
+AWQ remains a distinct calibration-based plan. On the pinned Qwen3.5 model and
+LLM Compressor revision it currently fails inside the sequential calibration
+path at `Qwen3_5GatedDeltaNet.forward(hidden_states=...)`; it was not silently
+relabelled as RTN and no third-party prequantized checkpoint was substituted.
+
+The root training environment is locked by `uv.lock` SHA-256
+`f53c58e3f73be8bb789d6fa7afec07e9789c262edcba5b0f75f18659f863010e`.
+Quantization uses its own environment because its dependency solution differs;
+`tools/quantization/uv.lock` has SHA-256
+`71e46d45842db55609aaa194a3aebb5f2a338d922c01d53fe25eab94af5fe9ff`.
+Both digests, the exact TRL/LLM Compressor Git revisions, and quantization
+recipe-file digests are resolved inputs recorded in Trackio.
+
 A live `automationbench-v1` simple task also completed through the independent
 Python 3.13 runtime against the Qwen endpoint. The MCP tool server started, Qwen
 made correctly parsed `api_search` calls, final-state scoring ran, and the trace
@@ -151,6 +206,20 @@ uv run --package posttrain-lab --extra gpu-posttrain \
 uv run --package posttrain-lab --extra gpu-posttrain \
   posttrain-lab gsm8k-qwen-grpo-smoke --tracked \
   --project posttrain-platform --adapter-version v0
+
+uv run --package posttrain-lab --extra gpu-posttrain \
+  posttrain-lab gsm8k-qwen-sft-smoke --peft lora --tracked \
+  --project posttrain-peft-20260722
+uv run --package posttrain-lab --extra gpu-posttrain \
+  posttrain-lab gsm8k-qwen-sft-smoke --peft qlora --tracked \
+  --project posttrain-peft-20260722
+
+uv sync --project tools/quantization --locked
+export POSTTRAIN_QUANTIZATION_PYTHON="$PWD/tools/quantization/.venv/bin/python"
+uv run posttrain-lab qwen-rtn-transform --tracked \
+  --project posttrain-peft-20260722
+uv run posttrain-lab qwen-rtn-eval --artifact-version v0 --tracked \
+  --project posttrain-peft-20260722
 ```
 
 The module-backed CLI is required for GPU jobs because vLLM may use spawned

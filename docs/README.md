@@ -1,16 +1,25 @@
 # Docs map
 
-Start here: **[Project overview](./overview.md)** · **[Post-training job lifecycle](./functional/finetuning-lifecycle.md)** · **[Product capabilities](./functional/overview.md)** · **[Architecture](./architecture.md)** · **[Thread handoff](./HANDOFF.md)**.
+Start here: **[post-training baseline — FROZEN](./post-training/README.md)**
+([01](./post-training/01-workflow.md) → [06](./post-training/06-observation-and-lineage.md)) ·
+**[Architecture](./architecture.md)** (stale — see [reconciliation](./architecture/RECONCILIATION.md)) ·
+**[Thread handoff](./HANDOFF.md)** (next: implementation plan).
 
 Knowledge base for this lab. Runtime is a **uv workspace** with
-`packages/{common,train,eval,serve,reports}`.
+`packages/{common,data,train,eval,serve,reports}`.
 
 | Area | Purpose |
 | --- | --- |
-| [overview.md](./overview.md) | Project goals, architecture, workflows |
-| [functional/overview.md](./functional/overview.md) | Product domains, user needs, ownership boundaries, and initial capability scope |
-| [functional/finetuning-lifecycle.md](./functional/finetuning-lifecycle.md) | Post-training job stages, required platform capabilities, and reusable work at each stage |
-| [architecture.md](./architecture.md) | Target MVP platform architecture and links to concern-specific documents |
+| [overview.md](./overview.md) | Project goal, implementation orientation, and setup |
+| [post-training/01-workflow.md](./post-training/01-workflow.md) | Mental model: framework-shared assets, screen → train → qualify |
+| [post-training/02-primitives.md](./post-training/02-primitives.md) | Exact model, data, environment, inference, training, evaluation, workload, and execution selections |
+| [post-training/03-work-and-evidence.md](./post-training/03-work-and-evidence.md) | Project, work package, stages, job kinds, framework-shared reuse, views |
+| [post-training/04-framework.md](./post-training/04-framework.md) | Developer experience: packages, boundaries, catalog, and composition playthrough |
+| [post-training/05-apis.md](./post-training/05-apis.md) | Target public APIs: primitive selections, jobs, config-first composition |
+| [post-training/06-observation-and-lineage.md](./post-training/06-observation-and-lineage.md) | Metrics, traces, artifacts, lineage, and observer wiring |
+| [release-and-consumption.md](./release-and-consumption.md) | Package publication order, project installation, remote operation, and release gates |
+| [architecture.md](./architecture.md) | Target MVP architecture (**stale** pending reconcile) |
+| [architecture/RECONCILIATION.md](./architecture/RECONCILIATION.md) | Keep / rewrite / delete gap list vs post-training baseline |
 | [architecture/](./architecture/README.md) | Layers, evaluation, training/inference, observability, and lineage |
 | [HANDOFF.md](./HANDOFF.md) | Context for a new agent/thread |
 | [techniques/](./techniques/) | Post-training methods (SFT, GRPO, …) + recipes + heuristics |
@@ -18,6 +27,34 @@ Knowledge base for this lab. Runtime is a **uv workspace** with
 | [datasets/](./datasets/) | HF datasets **and** RL task/env cards (prompt, reward, contract) |
 | [research/](./research/) | Papers, surveys, cross-cutting summaries |
 | [decisions/](./decisions/) | Architecture / stack ADRs |
+| [design/](./design/README.md) | Revision-aware product-design references, explorations, and accepted contracts |
+| [plan/observatory-product-implementation.md](./plan/observatory-product-implementation.md) | Detailed living implementation plan for the Observatory read product |
+
+## Canonical design sequence
+
+Desired post-training behavior is established before implementation structure.
+This prevents prototype code or a convenient API from silently becoming the
+contract.
+
+1. **Workflow** — done ([01](./post-training/01-workflow.md))
+2. **Primitives** — done ([02](./post-training/02-primitives.md))
+3. **Work and evidence** — done ([03](./post-training/03-work-and-evidence.md))
+4. **Framework** — done ([04](./post-training/04-framework.md))
+5. **APIs** — done ([05](./post-training/05-apis.md))
+6. **Observation** — done ([06](./post-training/06-observation-and-lineage.md))
+7. **~~Design freeze~~** — **FROZEN 2026-07-21** ([post-training README](./post-training/README.md))
+8. **Implementation plan** — **active** ([baseline-implementation.md](../.agents/plan/baseline-implementation.md); start slice 0)
+9. **Architecture reconciliation** — parallel/later ([RECONCILIATION.md](./architecture/RECONCILIATION.md)); do not block plan slices that already match 05/06
+10. **Code and validation** — implement plan slices; code is not the contract
+
+Existing code is useful evidence about constraints, but it is not the authority
+for the intended workflow during this revamp. If implementation reveals that an
+assumption is invalid, **unfreeze** and update the post-training documents
+first, then the plan and code. Do not document an accidental implementation
+detail as a requirement merely because it already exists.
+
+The numbered post-training documents are the frozen baseline. Architecture
+docs remain stale until reconciled.
 
 ## Flow
 

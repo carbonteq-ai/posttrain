@@ -1,5 +1,8 @@
 # GRPO heuristics (local 8 GB)
 
+- Use the detailed [single-GPU optimization guide](./single-gpu-optimization.md)
+  for phase budgeting, benchmark procedure, failure diagnosis, and current
+  qualification status.
 - Keep both rollout modes explicit. Transformers generation is the single-weight
   fallback for an 8 GB card; optimized profiles use colocated vLLM with sleep.
 - Colocated vLLM still owns a separate inference representation. Native-LoRA
@@ -26,7 +29,10 @@
   but cannot allocate its additional ~970 MiB embedding beside the training and
   inference representations. Use the non-MTP colocated profile here and retain
   the MTP profile for the larger acceptance machine.
-- Keep `num_generations` at 2–4 for smoke; 8 is often too heavy here.
+- Keep `num_generations` at 2–4 for a minimal construction smoke. A larger
+  algorithm batch, including the current eight-generation benchmark, must use
+  physical microbatching and gradient accumulation without changing its
+  declared GRPO group.
 - Size `max_completion_length` from observed termination and version the profile
   when the bound changes. The Qwen3.5 local smoke moved from 256 to 384 after
   observing a 164-token termination and one 256-token clip; its 640-token engine

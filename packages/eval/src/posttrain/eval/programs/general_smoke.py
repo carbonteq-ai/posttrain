@@ -5,9 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 from ..requests import (
-    EnvironmentProgram,
+    EnvironmentBinding,
     EnvironmentSource,
-    EvaluationProgram,
+    EvaluationPlan,
     SamplingPolicy,
 )
 
@@ -85,11 +85,11 @@ def _source(package: str, subdirectory: str) -> EnvironmentSource:
     )
 
 
-GENERAL_SMOKE = EvaluationProgram(
+GENERAL_SMOKE = EvaluationPlan(
     id="general-smoke-v1",
     kind="general",
     environments=(
-        EnvironmentProgram(
+        EnvironmentBinding(
             id="math-gsm8k",
             category="math-reasoning",
             source=_source("gsm8k-v1", "environments/gsm8k_v1"),
@@ -97,7 +97,7 @@ GENERAL_SMOKE = EvaluationProgram(
             sampling=SamplingPolicy(max_tokens=4_096),
             num_tasks=8,
         ),
-        EnvironmentProgram(
+        EnvironmentBinding(
             id="instruction-reverse-text",
             category="instruction-following",
             source=_source("reverse-text-v1", "environments/reverse_text_v1"),
@@ -105,7 +105,7 @@ GENERAL_SMOKE = EvaluationProgram(
             sampling=SamplingPolicy(max_tokens=1_024),
             num_tasks=8,
         ),
-        EnvironmentProgram(
+        EnvironmentBinding(
             id="code-execution",
             category="code-generation",
             source=_source("code-golf-v1", "environments/code_golf_v1"),
@@ -115,7 +115,7 @@ GENERAL_SMOKE = EvaluationProgram(
             num_rollouts=2,
             max_concurrent=1,
         ),
-        EnvironmentProgram(
+        EnvironmentBinding(
             id="multi-turn-alphabet-sort",
             category="multi-turn-state",
             source=_source("alphabet-sort-v1", "environments/alphabet_sort_v1"),
@@ -126,4 +126,16 @@ GENERAL_SMOKE = EvaluationProgram(
     ),
 )
 
-__all__ = ["GENERAL_SMOKE", "VERIFIERS_REPOSITORY", "VERIFIERS_REVISION"]
+GENERAL_ENVIRONMENT_FACTORIES = {
+    "math-gsm8k": _gsm8k,
+    "instruction-reverse-text": _reverse_text,
+    "code-execution": _code_golf,
+    "multi-turn-alphabet-sort": _alphabet_sort,
+}
+
+__all__ = [
+    "GENERAL_ENVIRONMENT_FACTORIES",
+    "GENERAL_SMOKE",
+    "VERIFIERS_REPOSITORY",
+    "VERIFIERS_REVISION",
+]

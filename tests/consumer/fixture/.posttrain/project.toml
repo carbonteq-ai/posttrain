@@ -1,0 +1,5 @@
+schema_version = 1
+project_id = "external-consumer"
+catalog_overlays = ["catalog/consumer"]
+work_packages = "work_packages"
+state = "state"

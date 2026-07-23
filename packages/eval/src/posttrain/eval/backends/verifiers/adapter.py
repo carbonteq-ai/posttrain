@@ -7,10 +7,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol, cast
 
-from posttrain.common import ExecutionContext, JsonValue, TraceObservation
+from posttrain.common import JsonValue, RunContext, TraceObservation
 
-from ...requests import EvaluationRequest
+from ...requests import EvaluateRequest
 from .synchronization import TraceSyncStats, VerifiersTraceSynchronizer
+
+type EvaluationContext = RunContext
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,7 +37,7 @@ def _imports() -> tuple[type[Any], type[Any], Any]:
     return EvalConfig, Environment, (EnvConfig, run_eval)
 
 
-def _native_sampling(request: EvaluationRequest) -> dict[str, JsonValue]:
+def _native_sampling(request: EvaluateRequest) -> dict[str, JsonValue]:
     policy = request.environment.sampling
     values: dict[str, JsonValue] = {
         "temperature": policy.temperature,
@@ -51,7 +53,7 @@ def _native_sampling(request: EvaluationRequest) -> dict[str, JsonValue]:
     return values
 
 
-def _build_native(request: EvaluationRequest, output_dir: Path) -> tuple[Any, Any, Any]:
+def _build_native(request: EvaluateRequest, output_dir: Path) -> tuple[Any, Any, Any]:
     EvalConfig, Environment, (EnvConfig, run_eval) = _imports()
     base = request.environment.factory()
     if not isinstance(base, EnvConfig):
@@ -61,11 +63,11 @@ def _build_native(request: EvaluationRequest, output_dir: Path) -> tuple[Any, An
     raw = base.model_dump(mode="python")
     raw.update(
         {
-            "model": request.target.served_model,
+            "model": request.endpoint.served_model,
             "client": {
                 "type": "eval",
-                "base_url": request.target.base_url,
-                "api_key_var": request.target.api_key_var,
+                "base_url": request.endpoint.base_url,
+                "api_key_var": request.endpoint.api_key_var,
             },
             "sampling": _native_sampling(request),
             "num_tasks": num_tasks,
@@ -86,13 +88,15 @@ def _build_native(request: EvaluationRequest, output_dir: Path) -> tuple[Any, An
     return Environment(config), config, run_eval
 
 
-def _emit_batch(context: ExecutionContext, request: EvaluationRequest, records: list[dict[str, Any]]) -> None:
+def _emit_batch(context: EvaluationContext, request: EvaluateRequest, records: list[dict[str, Any]]) -> None:
     attributes = {
-        "model_profile_id": request.model.id,
-        "program_id": request.program.id,
-        "program_kind": request.program.kind,
+        "model_variant_id": request.model.id,
+        "evaluation_plan_id": request.plan.id,
+        "evaluation_plan_kind": request.plan.kind,
         "environment_id": request.environment.id,
         "environment_category": request.environment.category,
+        "inference_binding_id": request.inference.id,
+        "execution_target_id": request.target.id,
     }
     for record in records:
         context.trace(
@@ -105,7 +109,7 @@ def _emit_batch(context: ExecutionContext, request: EvaluationRequest, records: 
         )
 
 
-async def _run(context: ExecutionContext, request: EvaluationRequest, output_dir: Path) -> VerifiersRunResult:
+async def _run(context: EvaluationContext, request: EvaluateRequest, output_dir: Path) -> VerifiersRunResult:
     environment, config, native_run = _build_native(request, output_dir)
     trace_path = output_dir / "traces.jsonl"
     sync = VerifiersTraceSynchronizer(
@@ -132,13 +136,14 @@ async def _run(context: ExecutionContext, request: EvaluationRequest, output_dir
 
 
 def run_verifiers(
-    context: ExecutionContext,
-    request: EvaluationRequest,
+    context: EvaluationContext,
+    request: EvaluateRequest,
     output_dir: Path,
 ) -> VerifiersRunResult:
     """Run one native Verifiers environment and stream completed trace records."""
 
-    return asyncio.run(_run(context, request, output_dir))
+    with context.phase("evaluation", {"backend": "verifiers"}):
+        return asyncio.run(_run(context, request, output_dir))
 
 
 __all__ = ["VerifiersRunResult", "run_verifiers"]

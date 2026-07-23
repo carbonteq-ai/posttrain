@@ -1,0 +1,2696 @@
+{
+  "components": {
+    "schemas": {
+      "AlertSeverity": {
+        "enum": [
+          "info",
+          "warning",
+          "error"
+        ],
+        "type": "string"
+      },
+      "ArtifactLink": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact": {
+            "$ref": "#/components/schemas/StoredArtifact"
+          },
+          "direction": {
+            "enum": [
+              "input",
+              "output"
+            ],
+            "title": "Direction",
+            "type": "string"
+          },
+          "kind": {
+            "minLength": 1,
+            "title": "Kind",
+            "type": "string"
+          },
+          "logical_name": {
+            "minLength": 1,
+            "title": "Logical Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "direction",
+          "logical_name",
+          "kind",
+          "artifact"
+        ],
+        "title": "ArtifactLink",
+        "type": "object"
+      },
+      "ArtifactSet": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ArtifactLink"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "title": "ArtifactSet",
+        "type": "object"
+      },
+      "ChartView": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "minLength": 1,
+            "title": "Key",
+            "type": "string"
+          },
+          "question": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/MetricSeries"
+            },
+            "title": "Series",
+            "type": "array"
+          },
+          "title": {
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "series"
+        ],
+        "title": "ChartView",
+        "type": "object"
+      },
+      "CompareRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "run_keys": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 12,
+            "minItems": 1,
+            "title": "Run Keys",
+            "type": "array"
+          }
+        },
+        "required": [
+          "run_keys"
+        ],
+        "title": "CompareRequest",
+        "type": "object"
+      },
+      "EvaluationRunView": {
+        "additionalProperties": false,
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/RunAlert"
+            },
+            "title": "Alerts",
+            "type": "array"
+          },
+          "artifacts": {
+            "$ref": "#/components/schemas/ArtifactSet"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/TrackingCapabilities"
+          },
+          "charts": {
+            "items": {
+              "$ref": "#/components/schemas/ChartView"
+            },
+            "title": "Charts",
+            "type": "array"
+          },
+          "completeness": {
+            "$ref": "#/components/schemas/EvidenceCompleteness"
+          },
+          "evaluation": {
+            "$ref": "#/components/schemas/TraceEvaluationView"
+          },
+          "execution_targets": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ExecutionTargetContext"
+            },
+            "title": "Execution Targets",
+            "type": "array"
+          },
+          "locator": {
+            "$ref": "#/components/schemas/RunLocator"
+          },
+          "metric_help": {
+            "items": {
+              "$ref": "#/components/schemas/MetricHelp"
+            },
+            "title": "Metric Help",
+            "type": "array"
+          },
+          "resolved_inputs": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonPayload"
+            },
+            "title": "Resolved Inputs",
+            "type": "object"
+          },
+          "run": {
+            "$ref": "#/components/schemas/RunSummary"
+          },
+          "schema_version": {
+            "minimum": 1.0,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "source_metadata": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonPayload"
+            },
+            "title": "Source Metadata",
+            "type": "object"
+          },
+          "summary": {
+            "items": {
+              "$ref": "#/components/schemas/SummaryValue"
+            },
+            "title": "Summary",
+            "type": "array"
+          },
+          "trace_evaluation_enabled": {
+            "default": true,
+            "title": "Trace Evaluation Enabled",
+            "type": "boolean"
+          },
+          "view_kind": {
+            "const": "job.evaluation",
+            "default": "job.evaluation",
+            "title": "View Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema_version",
+          "locator",
+          "run",
+          "summary",
+          "charts",
+          "metric_help",
+          "completeness",
+          "alerts",
+          "evaluation",
+          "artifacts",
+          "capabilities"
+        ],
+        "title": "EvaluationRunView",
+        "type": "object"
+      },
+      "EvaluationSlice": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "minimum": 0.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "key": {
+            "minLength": 1,
+            "title": "Key",
+            "type": "string"
+          },
+          "mean_reward": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Reward"
+          },
+          "success_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Success Rate"
+          }
+        },
+        "required": [
+          "key",
+          "count"
+        ],
+        "title": "EvaluationSlice",
+        "type": "object"
+      },
+      "EventRecord": {
+        "additionalProperties": false,
+        "properties": {
+          "attributes": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Attributes",
+            "type": "object"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "occurred_at"
+        ],
+        "title": "EventRecord",
+        "type": "object"
+      },
+      "EvidenceCompleteness": {
+        "additionalProperties": false,
+        "properties": {
+          "conditional_active": {
+            "minimum": 0.0,
+            "title": "Conditional Active",
+            "type": "integer"
+          },
+          "conditional_available": {
+            "minimum": 0.0,
+            "title": "Conditional Available",
+            "type": "integer"
+          },
+          "required_available": {
+            "minimum": 0.0,
+            "title": "Required Available",
+            "type": "integer"
+          },
+          "required_total": {
+            "minimum": 0.0,
+            "title": "Required Total",
+            "type": "integer"
+          },
+          "requirements": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceRequirement"
+            },
+            "title": "Requirements",
+            "type": "array"
+          },
+          "research_ready": {
+            "title": "Research Ready",
+            "type": "boolean"
+          },
+          "state": {
+            "$ref": "#/components/schemas/EvidenceCompletenessState"
+          }
+        },
+        "required": [
+          "state",
+          "research_ready",
+          "required_available",
+          "required_total",
+          "conditional_available",
+          "conditional_active",
+          "requirements"
+        ],
+        "title": "EvidenceCompleteness",
+        "type": "object"
+      },
+      "EvidenceCompletenessState": {
+        "enum": [
+          "complete",
+          "partial",
+          "insufficient"
+        ],
+        "type": "string"
+      },
+      "EvidenceRequirement": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "minLength": 1,
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "level": {
+            "$ref": "#/components/schemas/EvidenceRequirementLevel"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/StringTuple",
+            "minLength": 1
+          },
+          "missing_metrics": {
+            "$ref": "#/components/schemas/StringTuple",
+            "default": []
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "state": {
+            "$ref": "#/components/schemas/EvidenceRequirementState"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "level",
+          "state",
+          "metrics"
+        ],
+        "title": "EvidenceRequirement",
+        "type": "object"
+      },
+      "EvidenceRequirementLevel": {
+        "enum": [
+          "required",
+          "conditional",
+          "diagnostic"
+        ],
+        "type": "string"
+      },
+      "EvidenceRequirementState": {
+        "enum": [
+          "available",
+          "missing",
+          "not_applicable"
+        ],
+        "type": "string"
+      },
+      "EvidenceState": {
+        "enum": [
+          "available",
+          "missing",
+          "incomparable",
+          "not_run",
+          "stale",
+          "reused_from_framework"
+        ],
+        "type": "string"
+      },
+      "ExecutionTargetContext": {
+        "additionalProperties": false,
+        "description": "Immutable hardware context retained with the run's resolved selections.",
+        "properties": {
+          "aggregate_memory_bytes": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aggregate Memory Bytes"
+          },
+          "device_class": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Class"
+          },
+          "device_count": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Count"
+          },
+          "host_constraints": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonPayload"
+            },
+            "title": "Host Constraints",
+            "type": "object"
+          },
+          "memory_bytes_per_device": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Memory Bytes Per Device"
+          },
+          "placement": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonPayload"
+            },
+            "title": "Placement",
+            "type": "object"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision"
+          },
+          "roles": {
+            "$ref": "#/components/schemas/StringTuple",
+            "default": []
+          },
+          "selection_id": {
+            "minLength": 1,
+            "title": "Selection Id",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "complete",
+              "partial"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "selection_id",
+          "state"
+        ],
+        "title": "ExecutionTargetContext",
+        "type": "object"
+      },
+      "ExportRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "format": {
+            "default": "json",
+            "enum": [
+              "json",
+              "csv"
+            ],
+            "title": "Format",
+            "type": "string"
+          },
+          "run_keys": {
+            "$ref": "#/components/schemas/StringTuple",
+            "default": []
+          },
+          "work_package_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Package Id"
+          }
+        },
+        "title": "ExportRequest",
+        "type": "object"
+      },
+      "GRPOAccelerationEvidence": {
+        "additionalProperties": false,
+        "properties": {
+          "accepted_speculative_length": {
+            "$ref": "#/components/schemas/SummaryValue"
+          },
+          "kv_cache_peak_usage": {
+            "$ref": "#/components/schemas/SummaryValue"
+          },
+          "mtp_selected": {
+            "title": "Mtp Selected",
+            "type": "boolean"
+          },
+          "quantized_kv_cache_selected": {
+            "title": "Quantized Kv Cache Selected",
+            "type": "boolean"
+          },
+          "speculative_acceptance": {
+            "$ref": "#/components/schemas/SummaryValue"
+          }
+        },
+        "required": [
+          "mtp_selected",
+          "quantized_kv_cache_selected",
+          "speculative_acceptance",
+          "accepted_speculative_length",
+          "kv_cache_peak_usage"
+        ],
+        "title": "GRPOAccelerationEvidence",
+        "type": "object"
+      },
+      "GRPOProjection": {
+        "additionalProperties": false,
+        "description": "GRPO-specific evidence consumed identically by HTTP, MCP, Python, and UI.",
+        "properties": {
+          "acceleration": {
+            "$ref": "#/components/schemas/GRPOAccelerationEvidence"
+          },
+          "rollout_population": {
+            "$ref": "#/components/schemas/GRPORolloutPopulation"
+          }
+        },
+        "required": [
+          "rollout_population",
+          "acceleration"
+        ],
+        "title": "GRPOProjection",
+        "type": "object"
+      },
+      "GRPORolloutPopulation": {
+        "additionalProperties": false,
+        "properties": {
+          "attempted": {
+            "$ref": "#/components/schemas/SummaryValue"
+          },
+          "completed": {
+            "$ref": "#/components/schemas/SummaryValue"
+          },
+          "failed": {
+            "$ref": "#/components/schemas/SummaryValue"
+          },
+          "truncated": {
+            "$ref": "#/components/schemas/SummaryValue"
+          },
+          "unscorable": {
+            "$ref": "#/components/schemas/SummaryValue"
+          }
+        },
+        "required": [
+          "attempted",
+          "completed",
+          "failed",
+          "truncated",
+          "unscorable"
+        ],
+        "title": "GRPORolloutPopulation",
+        "type": "object"
+      },
+      "GenericRunView": {
+        "additionalProperties": false,
+        "properties": {
+          "artifacts": {
+            "$ref": "#/components/schemas/ArtifactSet"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/TrackingCapabilities"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/EventRecord"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "execution_targets": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ExecutionTargetContext"
+            },
+            "title": "Execution Targets",
+            "type": "array"
+          },
+          "locator": {
+            "$ref": "#/components/schemas/RunLocator"
+          },
+          "metric_catalog": {
+            "$ref": "#/components/schemas/MetricCatalog"
+          },
+          "resolved_inputs": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonPayload"
+            },
+            "title": "Resolved Inputs",
+            "type": "object"
+          },
+          "run": {
+            "$ref": "#/components/schemas/RunSummary"
+          },
+          "schema_version": {
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "selected_series": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricSeriesSet"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_metadata": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonPayload"
+            },
+            "title": "Source Metadata",
+            "type": "object"
+          },
+          "trace_count": {
+            "minimum": 0.0,
+            "title": "Trace Count",
+            "type": "integer"
+          },
+          "trace_evaluation_enabled": {
+            "title": "Trace Evaluation Enabled",
+            "type": "boolean"
+          },
+          "view_kind": {
+            "const": "generic",
+            "default": "generic",
+            "title": "View Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "locator",
+          "run",
+          "metric_catalog",
+          "events",
+          "artifacts",
+          "resolved_inputs",
+          "source_metadata",
+          "trace_count",
+          "trace_evaluation_enabled",
+          "capabilities"
+        ],
+        "title": "GenericRunView",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "JsonPayload": {
+        "description": "Any JSON-compatible value."
+      },
+      "JsonScalar": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "integer"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "JsonValue": {
+        "description": "Any JSON-compatible value.",
+        "title": "JsonValue"
+      },
+      "MetricCatalog": {
+        "additionalProperties": false,
+        "properties": {
+          "namespaces": {
+            "items": {
+              "$ref": "#/components/schemas/MetricNamespace"
+            },
+            "title": "Namespaces",
+            "type": "array"
+          },
+          "total": {
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "namespaces",
+          "total"
+        ],
+        "title": "MetricCatalog",
+        "type": "object"
+      },
+      "MetricHelp": {
+        "additionalProperties": false,
+        "description": "Human-readable semantics for one provider-neutral metric name.",
+        "properties": {
+          "caveat": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caveat"
+          },
+          "description": {
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "interpretation": {
+            "minLength": 1,
+            "title": "Interpretation",
+            "type": "string"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "metric": {
+            "minLength": 1,
+            "title": "Metric",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "required": [
+          "metric",
+          "label",
+          "description",
+          "interpretation"
+        ],
+        "title": "MetricHelp",
+        "type": "object"
+      },
+      "MetricNamespace": {
+        "additionalProperties": false,
+        "properties": {
+          "metrics": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "metrics"
+        ],
+        "title": "MetricNamespace",
+        "type": "object"
+      },
+      "MetricPoint": {
+        "additionalProperties": false,
+        "properties": {
+          "attributes": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Attributes",
+            "type": "object"
+          },
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "step": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "title": "MetricPoint",
+        "type": "object"
+      },
+      "MetricSeries": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "points": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/MetricPoint"
+            },
+            "title": "Points",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "MetricSeries",
+        "type": "object"
+      },
+      "MetricSeriesQuery": {
+        "additionalProperties": false,
+        "properties": {
+          "end_step": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Step"
+          },
+          "max_points": {
+            "default": 400,
+            "maximum": 2000.0,
+            "minimum": 10.0,
+            "title": "Max Points",
+            "type": "integer"
+          },
+          "names": {
+            "$ref": "#/components/schemas/StringTuple",
+            "maxLength": 12,
+            "minLength": 1
+          },
+          "start_step": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Step"
+          }
+        },
+        "required": [
+          "names"
+        ],
+        "title": "MetricSeriesQuery",
+        "type": "object"
+      },
+      "MetricSeriesSet": {
+        "additionalProperties": false,
+        "properties": {
+          "downsampled": {
+            "default": false,
+            "title": "Downsampled",
+            "type": "boolean"
+          },
+          "requested_points": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Requested Points",
+            "type": "integer"
+          },
+          "returned_points": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Returned Points",
+            "type": "integer"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/MetricSeries"
+            },
+            "title": "Series",
+            "type": "array"
+          }
+        },
+        "required": [
+          "series"
+        ],
+        "title": "MetricSeriesSet",
+        "type": "object"
+      },
+      "RunAlert": {
+        "additionalProperties": false,
+        "properties": {
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field"
+          },
+          "id": {
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          },
+          "message": {
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/AlertSeverity"
+          }
+        },
+        "required": [
+          "id",
+          "severity",
+          "message"
+        ],
+        "title": "RunAlert",
+        "type": "object"
+      },
+      "RunLocator": {
+        "additionalProperties": false,
+        "properties": {
+          "run_id": {
+            "minLength": 1,
+            "title": "Run Id",
+            "type": "string"
+          },
+          "source_id": {
+            "minLength": 1,
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "run_id"
+        ],
+        "title": "RunLocator",
+        "type": "object"
+      },
+      "RunStatus": {
+        "enum": [
+          "running",
+          "succeeded",
+          "partial",
+          "failed",
+          "cancelled",
+          "unsupported"
+        ],
+        "type": "string"
+      },
+      "RunSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "display_name": {
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SafeRunError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "job_definition_version": {
+            "minLength": 1,
+            "title": "Job Definition Version",
+            "type": "string"
+          },
+          "job_kind": {
+            "minLength": 1,
+            "title": "Job Kind",
+            "type": "string"
+          },
+          "project_id": {
+            "minLength": 1,
+            "title": "Project Id",
+            "type": "string"
+          },
+          "provider": {
+            "minLength": 1,
+            "title": "Provider",
+            "type": "string"
+          },
+          "provider_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Run Id"
+          },
+          "run_id": {
+            "minLength": 1,
+            "title": "Run Id",
+            "type": "string"
+          },
+          "stage": {
+            "$ref": "#/components/schemas/Stage"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunStatus"
+          },
+          "work_package_id": {
+            "minLength": 1,
+            "title": "Work Package Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "run_id",
+          "display_name",
+          "project_id",
+          "work_package_id",
+          "stage",
+          "job_kind",
+          "job_definition_version",
+          "status",
+          "started_at"
+        ],
+        "title": "RunSummary",
+        "type": "object"
+      },
+      "RunView": {
+        "additionalProperties": false,
+        "description": "Registered metric-job projection. Kept as the stable Python name.",
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/RunAlert"
+            },
+            "title": "Alerts",
+            "type": "array"
+          },
+          "artifacts": {
+            "$ref": "#/components/schemas/ArtifactSet"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/TrackingCapabilities"
+          },
+          "charts": {
+            "items": {
+              "$ref": "#/components/schemas/ChartView"
+            },
+            "title": "Charts",
+            "type": "array"
+          },
+          "completeness": {
+            "$ref": "#/components/schemas/EvidenceCompleteness"
+          },
+          "execution_targets": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ExecutionTargetContext"
+            },
+            "title": "Execution Targets",
+            "type": "array"
+          },
+          "grpo": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GRPOProjection"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "locator": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunLocator"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "metric_help": {
+            "items": {
+              "$ref": "#/components/schemas/MetricHelp"
+            },
+            "title": "Metric Help",
+            "type": "array"
+          },
+          "resolved_inputs": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonPayload"
+            },
+            "title": "Resolved Inputs",
+            "type": "object"
+          },
+          "run": {
+            "$ref": "#/components/schemas/RunSummary"
+          },
+          "schema_version": {
+            "minimum": 1.0,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "source_metadata": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonPayload"
+            },
+            "title": "Source Metadata",
+            "type": "object"
+          },
+          "summary": {
+            "items": {
+              "$ref": "#/components/schemas/SummaryValue"
+            },
+            "title": "Summary",
+            "type": "array"
+          },
+          "trace_count": {
+            "minimum": 0.0,
+            "title": "Trace Count",
+            "type": "integer"
+          },
+          "trace_evaluation_enabled": {
+            "title": "Trace Evaluation Enabled",
+            "type": "boolean"
+          },
+          "view_kind": {
+            "const": "job.metrics",
+            "default": "job.metrics",
+            "title": "View Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema_version",
+          "run",
+          "summary",
+          "charts",
+          "metric_help",
+          "completeness",
+          "alerts",
+          "artifacts",
+          "trace_count",
+          "trace_evaluation_enabled",
+          "capabilities"
+        ],
+        "title": "RunView",
+        "type": "object"
+      },
+      "RunViewResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "fallback_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Reason"
+          },
+          "requested_mode": {
+            "$ref": "#/components/schemas/ViewMode"
+          },
+          "resolved_mode": {
+            "enum": [
+              "job",
+              "generic"
+            ],
+            "title": "Resolved Mode",
+            "type": "string"
+          },
+          "view": {
+            "$ref": "#/components/schemas/RunViewVariant"
+          }
+        },
+        "required": [
+          "requested_mode",
+          "resolved_mode",
+          "view"
+        ],
+        "title": "RunViewResponse",
+        "type": "object"
+      },
+      "RunViewVariant": {
+        "discriminator": {
+          "mapping": {
+            "generic": "#/components/schemas/GenericRunView",
+            "job.evaluation": "#/components/schemas/EvaluationRunView",
+            "job.metrics": "#/components/schemas/RunView"
+          },
+          "propertyName": "view_kind"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/RunView"
+          },
+          {
+            "$ref": "#/components/schemas/EvaluationRunView"
+          },
+          {
+            "$ref": "#/components/schemas/GenericRunView"
+          }
+        ]
+      },
+      "SafeRunError": {
+        "additionalProperties": false,
+        "properties": {
+          "message": {
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "minLength": 1,
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "message"
+        ],
+        "title": "SafeRunError",
+        "type": "object"
+      },
+      "SemanticSummaryRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "metric_names": {
+            "$ref": "#/components/schemas/StringTuple",
+            "default": []
+          },
+          "scope": {
+            "default": "run",
+            "enum": [
+              "run",
+              "metrics",
+              "evaluation",
+              "trace"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "trace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trace Id"
+          }
+        },
+        "title": "SemanticSummaryRequest",
+        "type": "object"
+      },
+      "Stage": {
+        "enum": [
+          "screen",
+          "train",
+          "qualify"
+        ],
+        "type": "string"
+      },
+      "StoredArtifact": {
+        "additionalProperties": false,
+        "properties": {
+          "digest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Digest"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "namespace": {
+            "minLength": 1,
+            "title": "Namespace",
+            "type": "string"
+          },
+          "provider": {
+            "minLength": 1,
+            "title": "Provider",
+            "type": "string"
+          },
+          "provider_metadata": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Provider Metadata",
+            "type": "object"
+          },
+          "version": {
+            "minLength": 1,
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "namespace",
+          "name",
+          "version"
+        ],
+        "title": "StoredArtifact",
+        "type": "object"
+      },
+      "StringTuple": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "SummaryValue": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "minLength": 1,
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "metric": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metric"
+          },
+          "state": {
+            "$ref": "#/components/schemas/EvidenceState"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "value": {
+            "$ref": "#/components/schemas/JsonPayload"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "state"
+        ],
+        "title": "SummaryValue",
+        "type": "object"
+      },
+      "TraceEvaluationView": {
+        "additionalProperties": false,
+        "properties": {
+          "expected": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected"
+          },
+          "failures": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Failures",
+            "type": "integer"
+          },
+          "included": {
+            "minimum": 0.0,
+            "title": "Included",
+            "type": "integer"
+          },
+          "live": {
+            "default": false,
+            "title": "Live",
+            "type": "boolean"
+          },
+          "mean_reward": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Reward"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "scanned": {
+            "minimum": 0.0,
+            "title": "Scanned",
+            "type": "integer"
+          },
+          "slices": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/EvaluationSlice"
+            },
+            "title": "Slices",
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "complete",
+              "partial",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "success_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Success Rate"
+          },
+          "traces": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/TraceSummary"
+            },
+            "title": "Traces",
+            "type": "array"
+          },
+          "truncated": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Truncated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "state",
+          "scanned",
+          "included"
+        ],
+        "title": "TraceEvaluationView",
+        "type": "object"
+      },
+      "TraceSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "external_id": {
+            "minLength": 1,
+            "title": "External Id",
+            "type": "string"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          },
+          "reward": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reward"
+          },
+          "success": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Success"
+          },
+          "task": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task"
+          },
+          "tokens": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens"
+          },
+          "tool_calls": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Calls"
+          },
+          "trace_type": {
+            "minLength": 1,
+            "title": "Trace Type",
+            "type": "string"
+          },
+          "truncated": {
+            "default": false,
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "external_id",
+          "trace_type"
+        ],
+        "title": "TraceSummary",
+        "type": "object"
+      },
+      "TrackingCapabilities": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact_lineage": {
+            "default": true,
+            "title": "Artifact Lineage",
+            "type": "boolean"
+          },
+          "artifacts": {
+            "default": true,
+            "title": "Artifacts",
+            "type": "boolean"
+          },
+          "live_metrics": {
+            "default": true,
+            "title": "Live Metrics",
+            "type": "boolean"
+          },
+          "live_traces": {
+            "default": false,
+            "title": "Live Traces",
+            "type": "boolean"
+          },
+          "provider": {
+            "minLength": 1,
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider"
+        ],
+        "title": "TrackingCapabilities",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "ViewMode": {
+        "enum": [
+          "auto",
+          "job",
+          "generic"
+        ],
+        "type": "string"
+      }
+    }
+  },
+  "info": {
+    "description": "Provider-neutral, job-aware post-training evidence views.",
+    "title": "Posttrain Observatory",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/exports": {
+      "post": {
+        "operationId": "export_api_v1_exports_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export"
+      }
+    },
+    "/api/v1/job-kinds": {
+      "get": {
+        "operationId": "job_kinds_api_v1_job_kinds_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Job Kinds Api V1 Job Kinds Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Job Kinds"
+      }
+    },
+    "/api/v1/job-kinds/{job_kind}": {
+      "get": {
+        "operationId": "job_kind_api_v1_job_kinds__job_kind__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_kind",
+            "required": true,
+            "schema": {
+              "title": "Job Kind",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Job Kind Api V1 Job Kinds  Job Kind  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Job Kind"
+      }
+    },
+    "/api/v1/runs": {
+      "get": {
+        "operationId": "runs_api_v1_runs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "project_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "work_package_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Work Package Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "job_kind",
+            "required": false,
+            "schema": {
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "title": "Job Kind",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "title": "Status",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Runs Api V1 Runs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Runs"
+      }
+    },
+    "/api/v1/runs/compare": {
+      "post": {
+        "operationId": "compare_api_v1_runs_compare_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompareRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Compare Api V1 Runs Compare Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Compare"
+      }
+    },
+    "/api/v1/runs/{run_key}/alerts": {
+      "get": {
+        "operationId": "alerts_api_v1_runs__run_key__alerts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_key",
+            "required": true,
+            "schema": {
+              "title": "Run Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Alerts Api V1 Runs  Run Key  Alerts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Alerts"
+      }
+    },
+    "/api/v1/runs/{run_key}/delta": {
+      "get": {
+        "operationId": "delta_api_v1_runs__run_key__delta_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_key",
+            "required": true,
+            "schema": {
+              "title": "Run Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delta Api V1 Runs  Run Key  Delta Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delta"
+      }
+    },
+    "/api/v1/runs/{run_key}/metric-series": {
+      "post": {
+        "operationId": "metric_series_api_v1_runs__run_key__metric_series_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_key",
+            "required": true,
+            "schema": {
+              "title": "Run Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MetricSeriesQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Metric Series Api V1 Runs  Run Key  Metric Series Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Metric Series"
+      }
+    },
+    "/api/v1/runs/{run_key}/metrics": {
+      "get": {
+        "operationId": "metrics_api_v1_runs__run_key__metrics_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_key",
+            "required": true,
+            "schema": {
+              "title": "Run Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Metrics Api V1 Runs  Run Key  Metrics Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Metrics"
+      }
+    },
+    "/api/v1/runs/{run_key}/semantic-summary": {
+      "post": {
+        "operationId": "semantic_summary_api_v1_runs__run_key__semantic_summary_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_key",
+            "required": true,
+            "schema": {
+              "title": "Run Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SemanticSummaryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Semantic Summary Api V1 Runs  Run Key  Semantic Summary Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Semantic Summary"
+      }
+    },
+    "/api/v1/runs/{run_key}/system-metrics": {
+      "get": {
+        "operationId": "system_metrics_api_v1_runs__run_key__system_metrics_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_key",
+            "required": true,
+            "schema": {
+              "title": "Run Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response System Metrics Api V1 Runs  Run Key  System Metrics Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "System Metrics"
+      }
+    },
+    "/api/v1/runs/{run_key}/traces-evaluation": {
+      "get": {
+        "operationId": "traces_evaluation_api_v1_runs__run_key__traces_evaluation_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_key",
+            "required": true,
+            "schema": {
+              "title": "Run Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Traces Evaluation Api V1 Runs  Run Key  Traces Evaluation Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Traces Evaluation"
+      }
+    },
+    "/api/v1/runs/{run_key}/traces/{trace_id}": {
+      "get": {
+        "operationId": "trace_detail_api_v1_runs__run_key__traces__trace_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_key",
+            "required": true,
+            "schema": {
+              "title": "Run Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "trace_id",
+            "required": true,
+            "schema": {
+              "title": "Trace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Trace Detail Api V1 Runs  Run Key  Traces  Trace Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Trace Detail"
+      }
+    },
+    "/api/v1/runs/{run_key}/view": {
+      "get": {
+        "operationId": "run_view_api_v1_runs__run_key__view_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_key",
+            "required": true,
+            "schema": {
+              "title": "Run Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "default": "auto",
+              "enum": [
+                "auto",
+                "job",
+                "generic"
+              ],
+              "title": "Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "metric",
+            "required": false,
+            "schema": {
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "title": "Metric",
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunViewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run View"
+      }
+    },
+    "/api/v1/sources": {
+      "get": {
+        "operationId": "sources_api_v1_sources_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Sources Api V1 Sources Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Sources"
+      }
+    },
+    "/api/v1/work-packages/{work_package_id}": {
+      "get": {
+        "operationId": "work_package_api_v1_work_packages__work_package_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_package_id",
+            "required": true,
+            "schema": {
+              "title": "Work Package Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "project_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Work Package Api V1 Work Packages  Work Package Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Work Package"
+      }
+    },
+    "/health/live": {
+      "get": {
+        "operationId": "live_health_live_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Live Health Live Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Live"
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "operationId": "ready_health_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Ready Health Ready Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ready"
+      }
+    },
+    "/version": {
+      "get": {
+        "operationId": "version_version_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Version Version Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Version"
+      }
+    }
+  }
+}

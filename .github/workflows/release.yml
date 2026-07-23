@@ -1,0 +1,71 @@
+name: GitHub Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  wheelhouse:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: "3.12"
+      - name: Verify and install the locked workspace
+        run: |
+          uv lock --check
+          uv sync --all-packages --group dev --python 3.12
+      - name: Validate the release source
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run pyright
+          uv run lint-imports
+          uv run pytest
+          git diff --check
+      - name: Build the GitHub wheelhouse
+        run: |
+          mkdir wheelhouse
+          uv build --all-packages --wheel --out-dir wheelhouse
+          uv build environments/automationbench_v1 --wheel --out-dir wheelhouse
+          cp docs/release-and-consumption.md wheelhouse/README.md
+          cp release/github-constraints.txt wheelhouse/github-constraints.txt
+          (
+            cd wheelhouse
+            sha256sum ./*.whl > SHA256SUMS
+          )
+          tar -czf "posttrain-wheelhouse-${GITHUB_REF_NAME}.tar.gz" -C wheelhouse .
+          sha256sum "posttrain-wheelhouse-${GITHUB_REF_NAME}.tar.gz" > release-SHA256SUMS
+      - name: Install the exact wheelhouse
+        run: |
+          uv venv release-environment --python 3.12
+          uv pip install \
+            --python release-environment/bin/python \
+            --constraint wheelhouse/github-constraints.txt \
+            --find-links wheelhouse \
+            posttrain \
+            posttrain-lab \
+            posttrain-observatory
+          release-environment/bin/posttrain version
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          release_flags=()
+          if [[ "${GITHUB_REF_NAME}" == *-* ]]; then
+            release_flags+=(--prerelease)
+          fi
+          gh release create "${GITHUB_REF_NAME}" \
+            "posttrain-wheelhouse-${GITHUB_REF_NAME}.tar.gz" \
+            release-SHA256SUMS \
+            --generate-notes \
+            --title "Posttrain ${GITHUB_REF_NAME}" \
+            "${release_flags[@]}"

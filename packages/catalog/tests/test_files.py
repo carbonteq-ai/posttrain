@@ -1,0 +1,31 @@
+"""Tests for manifest-controlled catalog layers."""
+
+from pathlib import Path
+
+import pytest
+from posttrain.catalog import load_catalog_layer, open_catalog
+from posttrain.common import ContractError
+
+
+def test_empty_overlay_is_valid_and_composes_with_packaged_base(tmp_path: Path) -> None:
+    (tmp_path / "layer.yaml").write_text(
+        "schema_version: 1\nlayer_id: empty-project-v1\nfiles: []\n",
+        encoding="utf-8",
+    )
+
+    layer = load_catalog_layer(tmp_path)
+    catalog = open_catalog(scope="empty-project", overlays=(tmp_path,))
+
+    assert layer == {"layer_id": "empty-project-v1"}
+    assert catalog.overlay_ids == ("empty-project-v1",)
+    assert catalog.list()
+
+
+def test_catalog_manifest_still_rejects_duplicate_files(tmp_path: Path) -> None:
+    (tmp_path / "layer.yaml").write_text(
+        "schema_version: 1\nlayer_id: duplicate-v1\nfiles: [models.yaml, models.yaml]\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ContractError, match="unique files"):
+        load_catalog_layer(tmp_path)

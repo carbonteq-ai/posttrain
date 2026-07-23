@@ -1,0 +1,23 @@
+project_id: external-consumer
+work_package_id: screen/cpu-check
+stage: screen
+description: Validate a CPU-only selection through the distributed work-package boundary.
+recipe:
+  type: inline
+  id: recipes/cpu-check@1
+  revision: "1"
+  stage: screen
+  seats:
+    target: target
+  jobs:
+    - id: validate
+      kind: data.prepare
+      definition: data/cpu-check@1
+bindings:
+  target:
+    type: ref
+    family: target
+    id: targets/external-cpu
+enabled_optional_jobs: []
+metadata:
+  question: Can an installed consumer resolve project-owned work configuration?

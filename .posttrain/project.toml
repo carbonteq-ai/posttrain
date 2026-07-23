@@ -1,0 +1,5 @@
+schema_version = 1
+project_id = "foundation-models"
+catalog_overlays = []
+work_packages = "work_packages"
+state = "state"

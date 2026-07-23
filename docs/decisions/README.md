@@ -1,5 +1,10 @@
 # Decisions (ADRs)
 
+
+> **STALE — pending reconciliation (2026-07-21).**
+> Canonical design: [docs/post-training/](../post-training/README.md).
+> Individual ADRs may still be historically useful, but product vocabulary and contracts follow the post-training baseline until each ADR is reconciled. Gap list: [architecture/RECONCILIATION.md](../architecture/RECONCILIATION.md).
+
 Architecture and stack choices for this lab.
 
 | ID | Title |
@@ -14,5 +19,11 @@ Architecture and stack choices for this lab.
 | [0008](./0008-model-conversation-contracts.md) | Shared model-native conversation contracts and backend-owned parsers |
 | [0009](./0009-native-verifiers-environment-packages.md) | Independently publishable native Verifiers v1 environments |
 | [0010](./0010-environment-driven-online-rl-bridge.md) | Environment-driven online-RL bridge with trainer-owned policy generation |
+| [0011](./0011-canonical-posttraining-data.md) | Canonical SFT/preference data with HF, NeMo, and Verifiers adapters |
+| [0012](./0012-observatory-read-product.md) | Observatory as the single post-training read and analysis product |
+| [0013](./0013-portable-project-layout.md) | Portable `.posttrain` project layout and runtime-state boundary |
 
-ADRs 0001–0003 describe the prototype and are superseded by ADR 0004 for current platform architecture.
+ADRs 0001–0003 describe the prototype and were superseded by ADR 0004 for the
+previous platform architecture. ADR 0004–0006 are themselves pending rewrite
+against the [post-training baseline](../post-training/README.md); see
+[RECONCILIATION.md](../architecture/RECONCILIATION.md).

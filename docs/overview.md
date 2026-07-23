@@ -1,12 +1,21 @@
-# Project overview
+# Post-training project overview
 
-Local post-training lab for small open models on a consumer GPU. The project uses a generic uv workspace so model, training, evaluation, serving, and environment work can evolve independently.
+This repository develops and validates a post-training workflow and, for teams
+that repeat it, a reusable framework — using small open models on a consumer
+GPU. The local lab is a reference host; it is not the product boundary.
 
 ## Product goal
 
-Support the complete path from raw-model comparison through repeated SFT, DPO, and GRPO stages while retaining model lineage, evaluation evidence, serving observations, and human decisions.
+Make evidence-backed finetune production repeatable: raw-model comparison,
+general and domain evaluation, SFT, DPO, and GRPO stages, model lineage,
+serving qualification, observability, and explicit decisions.
 
-The detailed product journey is in [Post-training job lifecycle](./functional/finetuning-lifecycle.md).
+Start with [01 · Workflow](./post-training/01-workflow.md), then
+[02 · Primitives](./post-training/02-primitives.md),
+[03 · Work and Evidence](./post-training/03-work-and-evidence.md),
+[04 · Framework](./post-training/04-framework.md), and
+[05 · APIs](./post-training/05-apis.md), and
+[06 · Observation](./post-training/06-observation-and-lineage.md).
 
 ## Architecture
 
@@ -26,6 +35,7 @@ typed definitions ──► code-based jobs ──► train/eval/serve packages
 | Surface | Responsibility |
 | --- | --- |
 | `packages/common` | Lightweight job/action/invocation, model, artifact, execution-context, and observation protocols |
+| `packages/data` | Trainer-neutral supervised/preference data contracts and external-format adapters |
 | `packages/train` | Reusable SFT/DPO/RL operations with internal TRL or future adapters |
 | `packages/eval` | Reusable evaluation operations/programs with internal Verifiers integration |
 | `packages/serve` | Reusable serving/benchmark operations with an internal vLLM adapter |

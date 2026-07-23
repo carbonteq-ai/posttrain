@@ -5,35 +5,42 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from posttrain.common import ExecutionContext, Job, JobAction, ModelVariant
-from posttrain.eval import EnvironmentProgram, EnvironmentSource, EvaluationProgram, SamplingPolicy
+from posttrain.common import InferenceBinding, ModelVariant, RunContext
+from posttrain.eval import EnvironmentBinding, EnvironmentSource, EvaluationPlan, SamplingPolicy
 from posttrain.train import (
     DPORequest,
-    GRPOProfile,
     GRPORequest,
+    LoRAUpdate,
+    OnPolicyDistillationRequest,
+    OnPolicyDistillationSettings,
+    QLoRAUpdate,
     SFTRequest,
+    TrainingBinding,
     TrainingResult,
+    distill,
     dpo,
-    grpo,
+    parameter_update_digest,
     sft,
 )
 
-from ..environments import VERIFIERS_REVISION, create_gsm8k_training_bridge
+from ..environments import VERIFIERS_REVISION, create_training_bridge
 
 JOB_ID = "posttraining/gsm8k"
 
 
 @dataclass(frozen=True, slots=True)
-class GSM8KGRPOJobRequest:
-    model: ModelVariant
-    profile: GRPOProfile
-    task_indices: tuple[int, ...]
+class GSM8KDistillationJobRequest:
+    student: ModelVariant
+    teacher: ModelVariant
+    environment: EnvironmentBinding
+    settings: OnPolicyDistillationSettings
+    training: TrainingBinding
+    rollout_inference: InferenceBinding
+    teacher_inference: InferenceBinding
 
     def __post_init__(self) -> None:
-        if self.model.profile.family != self.profile.model_family:
-            raise ValueError("GRPO profile is incompatible with the model family")
-        if not self.task_indices:
-            raise ValueError("GRPO requires at least one task")
+        if self.student.family != self.training.renderer.model_family:
+            raise ValueError("distillation training binding is incompatible with the student family")
 
 
 def _training_environment() -> object:
@@ -49,11 +56,11 @@ def _training_environment() -> object:
     return EnvConfig.model_validate(config)
 
 
-GSM8K_TRAINING_ROLLOUTS = EvaluationProgram(
+GSM8K_TRAINING_ROLLOUTS = EvaluationPlan(
     id="gsm8k-training-rollouts-v1",
     kind="domain",
     environments=(
-        EnvironmentProgram(
+        EnvironmentBinding(
             id="gsm8k-train-candidates",
             category="math-reasoning",
             source=EnvironmentSource(
@@ -71,11 +78,11 @@ GSM8K_TRAINING_ROLLOUTS = EvaluationProgram(
     ),
 )
 
-GSM8K_LFM_TRAINING_ROLLOUTS = EvaluationProgram(
+GSM8K_LFM_TRAINING_ROLLOUTS = EvaluationPlan(
     id="gsm8k-lfm-training-rollouts-v1",
     kind="domain",
     environments=(
-        EnvironmentProgram(
+        EnvironmentBinding(
             id="gsm8k-train-candidates",
             category="math-reasoning",
             source=GSM8K_TRAINING_ROLLOUTS.environments[0].source,
@@ -89,97 +96,68 @@ GSM8K_LFM_TRAINING_ROLLOUTS = EvaluationProgram(
 )
 
 
-def gsm8k_posttraining_job(version: str) -> Job:
-    return Job(id=JOB_ID, version=version, name="GSM8K post-training")
-
-
-def sft_action(request: SFTRequest) -> JobAction:
-    return JobAction(
-        job_id=JOB_ID,
-        id=f"train/sft/{request.model.profile.id}/{request.profile.id}",
-        kind="supervised-finetuning",
-    )
-
-
-def dpo_action(request: DPORequest) -> JobAction:
-    return JobAction(
-        job_id=JOB_ID,
-        id=f"train/dpo/{request.model.profile.id}/{request.profile.id}",
-        kind="preference-optimization",
-    )
-
-
-def grpo_action(request: GSM8KGRPOJobRequest) -> JobAction:
-    return JobAction(
-        job_id=JOB_ID,
-        id=f"train/grpo/{request.model.profile.id}/{request.profile.id}",
-        kind="reinforcement-learning",
-    )
-
-
-def rollout_collection_action(model_profile_id: str) -> JobAction:
-    return JobAction(
-        job_id=JOB_ID,
-        id=f"eval/domain/{model_profile_id}/gsm8k-train-candidates",
-        kind="preference-rollout-collection",
-    )
-
-
-def run_sft(context: ExecutionContext, request: SFTRequest) -> TrainingResult:
+def run_sft(context: RunContext, request: SFTRequest) -> TrainingResult:
     return sft(context, request)
 
 
-def run_dpo(context: ExecutionContext, request: DPORequest) -> TrainingResult:
+def run_dpo(context: RunContext, request: DPORequest) -> TrainingResult:
     return dpo(context, request)
 
 
 def run_dpo_materialized(
-    context: ExecutionContext,
+    context: RunContext,
     request: DPORequest,
     *,
     input_name: str = "model_adapter",
 ) -> TrainingResult:
     local_model = ModelVariant(
-        profile=request.model.profile,
+        id=request.model.id,
         artifact=context.input_artifact(input_name),
-        format="peft-adapter",
+        form="peft-adapter",
+        weight_precision=request.model.weight_precision,
+        family=request.model.family,
+        parameters=request.model.parameters,
+        instruction_tuned=request.model.instruction_tuned,
+        renderer=request.model.renderer,
+        capabilities=request.model.capabilities,
+        base=request.model.base,
+        tokenizer_fingerprint=request.model.tokenizer_fingerprint,
+        parent=request.model.parent,
+        provenance=request.model.provenance,
     )
     return dpo(
         context,
         DPORequest(
             model=local_model,
-            dataset=request.dataset,
-            profile=request.profile,
+            data=request.data,
+            settings=request.settings,
+            training=request.training,
             resume_from=request.resume_from,
         ),
     )
 
 
-def run_grpo_materialized(
-    context: ExecutionContext,
-    request: GSM8KGRPOJobRequest,
-    *,
-    input_name: str = "model_adapter",
-) -> TrainingResult:
-    local_model = ModelVariant(
-        profile=request.model.profile,
-        artifact=context.input_artifact(input_name),
-        format="peft-adapter",
+def run_distillation(context: RunContext, request: GSM8KDistillationJobRequest) -> TrainingResult:
+    bridge = create_training_bridge(
+        request.environment,
+        context.workspace / "training" / "distill" / "verifiers-traces.jsonl",
+        context.run_id,
+        max_tokens=request.settings.max_completion_length,
+        temperature=_float_setting(request.rollout_inference, "temperature", request.settings.temperature),
+        top_p=_float_setting(request.rollout_inference, "top_p", 1.0),
+        purpose="distill",
     )
-    bridge = create_gsm8k_training_bridge(
-        request.task_indices,
-        context.workspace / "training" / "grpo" / "verifiers-traces.jsonl",
-        context.attempt.id,
-        max_tokens=request.profile.max_completion_length,
-        temperature=request.profile.temperature,
-        top_p=request.profile.top_p,
-    )
-    return grpo(
+    return distill(
         context,
-        GRPORequest(
-            model=local_model,
+        OnPolicyDistillationRequest(
+            student=request.student,
+            teacher=request.teacher,
             bridge=bridge,
-            profile=request.profile,
+            settings=request.settings,
+            environment=request.environment,
+            training=request.training,
+            rollout_inference=request.rollout_inference,
+            teacher_inference=request.teacher_inference,
         ),
     )
 
@@ -187,80 +165,78 @@ def run_grpo_materialized(
 def training_inputs(request: SFTRequest | DPORequest | GRPORequest) -> dict[str, str | int | float | bool]:
     """Stable run config; large examples and traces remain datasets/artifacts, not config."""
 
-    dataset = request.bridge.dataset if isinstance(request, GRPORequest) else request.dataset
-    values: dict[str, str | int | float | bool] = {
-        "model_profile_id": request.model.profile.id,
-        "input_model_format": request.model.format,
-        "training_profile_id": request.profile.id,
-        "renderer_profile_id": request.profile.renderer.id,
-        "reasoning_mode": request.profile.renderer.reasoning_mode,
-        "dataset_id": dataset.id,
-        "dataset_revision": dataset.revision,
-        "dataset_examples": len(dataset.examples),
-        "max_steps": request.profile.loop.max_steps,
-        "max_length": request.profile.loop.max_length,
-        "learning_rate": request.profile.loop.learning_rate,
-        "qlora_rank": request.profile.qlora.lora_rank,
-        "qlora_quant_type": request.profile.qlora.quant_type,
-    }
-    if isinstance(request, DPORequest):
-        values["dpo_beta"] = request.profile.beta
-        values["dpo_loss_kernel"] = request.profile.loss_kernel
     if isinstance(request, GRPORequest):
-        values["grpo_beta"] = request.profile.beta
-        values["grpo_num_generations"] = request.profile.num_generations
-        values["grpo_max_prompt_length"] = request.profile.max_prompt_length
-        values["grpo_max_completion_length"] = request.profile.max_completion_length
-        values["grpo_temperature"] = request.profile.temperature
-        values["grpo_top_p"] = request.profile.top_p
-    if isinstance(request.model, ModelVariant):
-        values["base_model_revision"] = request.model.base_artifact.revision
+        model = request.policy
+        dataset = None
+        dataset_examples = None
+    else:
+        model = request.model
+        dataset = request.data.descriptor
+        dataset_examples = dataset.num_examples
+    values: dict[str, str | int | float | bool] = {
+        "model_variant_id": model.id,
+        "input_model_form": model.form,
+        "training_settings_id": request.settings.id,
+        "training_binding_id": request.training.id,
+        "training_target_id": request.training.target.id,
+        "training_renderer_id": request.training.renderer.id,
+        "reasoning_mode": request.training.renderer.reasoning_mode,
+        "parameter_update_kind": request.training.update.kind,
+        "parameter_update_digest": parameter_update_digest(request.training.update),
+        "max_steps": request.settings.loop.max_steps,
+        "max_length": request.settings.loop.max_length,
+        "learning_rate": request.settings.loop.learning_rate,
+    }
+    if dataset is not None:
+        values["dataset_id"] = dataset.id
+        values["dataset_revision"] = dataset.revision
+    if isinstance(request.training.update, LoRAUpdate | QLoRAUpdate):
+        values["peft_rank"] = request.training.update.rank
+        values["peft_alpha"] = request.training.update.alpha
+        values["peft_target_modules"] = request.training.update.target_modules
+    if isinstance(request.training.update, QLoRAUpdate):
+        values["qlora_quant_type"] = request.training.update.quant_type
+        values["qlora_compute_dtype"] = request.training.update.compute_dtype
+        values["qlora_double_quant"] = request.training.update.double_quant
+    if dataset_examples is not None:
+        values["dataset_examples"] = dataset_examples
+    if isinstance(request, DPORequest):
+        values["dpo_beta"] = request.settings.beta
+        values["dpo_loss_kernel"] = request.settings.loss_kernel
+    if isinstance(request, GRPORequest):
+        values["environment_id"] = request.environment.id
+        values["environment_revision"] = request.environment.revision
+        values["grpo_beta"] = request.settings.beta
+        values["grpo_num_generations"] = request.settings.num_generations
+        values["grpo_max_prompt_length"] = request.settings.max_prompt_length
+        values["grpo_max_completion_length"] = request.settings.max_completion_length
+        values["grpo_temperature"] = _float_setting(request.inference, "temperature", 1.0)
+        values["grpo_top_p"] = _float_setting(request.inference, "top_p", 1.0)
+        values["rollout_binding_id"] = request.inference.id
+        values["rollout_target_id"] = request.inference.target.id
+        if request.quantization is not None:
+            values["quantization_plan_id"] = request.quantization.id
+            values["quantization_recipe_digest"] = request.quantization.recipe_digest
+    else:
+        values["dataset_schema_version"] = request.data.descriptor.schema_version
+    if isinstance(request, SFTRequest) and request.validation_data is not None:
+        validation = request.validation_data.descriptor
+        schedule = request.settings.validation
+        assert schedule is not None
+        values["validation_dataset_id"] = validation.id
+        values["validation_dataset_revision"] = validation.revision
+        if validation.num_examples is not None:
+            values["validation_dataset_examples"] = validation.num_examples
+        values["validation_steps"] = schedule.steps
+        values["validation_on_start"] = schedule.on_start
+        values["validation_at_end"] = schedule.at_end
+    values["base_model_revision"] = model.base.revision
     return values
 
 
-def grpo_job_inputs(request: GSM8KGRPOJobRequest) -> dict[str, str | int | float | bool]:
-    result: dict[str, str | int | float | bool] = {
-        "model_profile_id": request.model.profile.id,
-        "input_model_format": request.model.format,
-        "base_model_revision": request.model.base_artifact.revision,
-        "training_profile_id": request.profile.id,
-        "renderer_profile_id": request.profile.renderer.id,
-        "reasoning_mode": request.profile.renderer.reasoning_mode,
-        "environment_id": "gsm8k-v1",
-        "environment_revision": VERIFIERS_REVISION,
-        "task_indices": ",".join(str(value) for value in request.task_indices),
-        "max_steps": request.profile.loop.max_steps,
-        "learning_rate": request.profile.loop.learning_rate,
-        "qlora_rank": request.profile.qlora.lora_rank,
-        "qlora_quant_type": request.profile.qlora.quant_type,
-        "grpo_beta": request.profile.beta,
-        "grpo_num_generations": request.profile.num_generations,
-        "grpo_max_prompt_length": request.profile.max_prompt_length,
-        "grpo_max_completion_length": request.profile.max_completion_length,
-        "grpo_temperature": request.profile.temperature,
-        "grpo_top_p": request.profile.top_p,
-        "rollout_profile_id": request.profile.rollout.id,
-        "rollout_engine": request.profile.rollout.engine,
-        "rollout_sleep_during_optimization": request.profile.rollout.sleep_during_optimization,
-        "reward_shaping_id": "final-answer-conciseness-v1",
-        "reward_shaping_weight": 0.1,
-    }
-    if request.profile.rollout.engine == "vllm":
-        rollout = request.profile.rollout
-        speculative = request.profile.rollout.speculative_config()
-        result["rollout_vllm_mode"] = rollout.vllm_mode or ""
-        result["rollout_vllm_gpu_memory_utilization"] = rollout.gpu_memory_utilization or 0.0
-        result["rollout_vllm_tensor_parallel_size"] = rollout.tensor_parallel_size
-        result["rollout_vllm_max_model_length"] = rollout.max_model_length or 0
-        result["rollout_text_only"] = rollout.text_only
-        result["rollout_vllm_weight_name_prefix"] = rollout.weight_name_prefix or ""
-        result["rollout_vllm_weight_sync_mode"] = rollout.weight_sync_mode
-        result["rollout_vllm_importance_sampling_mode"] = rollout.importance_sampling_mode or ""
-        result["rollout_vllm_importance_sampling_clip_min"] = rollout.importance_sampling_clip_min or 0.0
-        result["rollout_vllm_importance_sampling_clip_max"] = rollout.importance_sampling_clip_max or 0.0
-        result["rollout_skip_multimodal_profiling"] = rollout.skip_multimodal_profiling
-        result["rollout_kv_cache_memory_bytes"] = rollout.kv_cache_memory_bytes or 0
-        if speculative is not None:
-            result["rollout_speculative_method"] = str(speculative["method"])
-            result["rollout_num_speculative_tokens"] = int(speculative["num_speculative_tokens"])
-    return result
+def _number(value: object, default: float = 0.0) -> float:
+    return float(value) if isinstance(value, (int, float)) else default
+
+
+def _float_setting(binding: InferenceBinding, key: str, default: float) -> float:
+    return _number(binding.sampling.get(key), default)

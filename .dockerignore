@@ -1,0 +1,15 @@
+.git
+.venv
+.venvs
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+**/node_modules
+**/dist
+artifacts
+checkpoints
+outputs
+.env
+.env.*
+!.env.example

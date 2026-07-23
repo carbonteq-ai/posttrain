@@ -1,0 +1,17 @@
+version: 3
+backend: llmcompressor
+model_scope: language_model
+modifiers:
+  - type: QuantizationModifier
+    targets:
+      - Linear
+    ignore:
+      - lm_head
+      - model.visual
+    scheme: W4A16
+    group_size: 128
+    symmetric: true
+validation:
+  serialized_config: true
+  reload: true
+  generate_tokens: 1

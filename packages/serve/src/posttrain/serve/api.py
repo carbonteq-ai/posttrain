@@ -11,15 +11,17 @@ from time import time_ns
 from typing import Protocol
 
 import httpx
-from posttrain.common import ExecutionContext, LocalArtifactRef, ModelProfile, ProducedArtifact, TraceObservation
+from posttrain.common import LocalArtifactRef, ModelVariant, ProducedArtifact, RunContext, TraceObservation
 
 from .backends.vllm import VllmServer, run_offline_benchmark
+from .backends.vllm.bindings import VllmBenchmarkConfig
+from .backends.vllm.bindings import benchmark_config as vllm_benchmark_config
 from .online import (
     Endpoint,
     GenerationRequest,
     GenerationResult,
-    LaunchRequest,
     ProbeResult,
+    ServeLaunchRequest,
 )
 from .online import (
     generate as run_generation,
@@ -27,10 +29,10 @@ from .online import (
 from .online import (
     probe as run_probe,
 )
-from .requests import BenchmarkRequest
+from .requests import ServeBenchmarkRequest
 from .results import BenchmarkResult
 
-type BenchmarkRunner = Callable[[BenchmarkRequest], BenchmarkResult]
+type BenchmarkRunner = Callable[[VllmBenchmarkConfig], BenchmarkResult]
 
 
 class ManagedServer(Protocol):
@@ -39,39 +41,31 @@ class ManagedServer(Protocol):
     def close(self) -> None: ...
 
 
-type ServerFactory = Callable[[LaunchRequest, Path, Path | None], ManagedServer]
+type ServerFactory = Callable[[ServeLaunchRequest, Path, Path | None], ManagedServer]
 
 
 def benchmark(
-    context: ExecutionContext,
-    request: BenchmarkRequest,
+    context: RunContext,
+    request: ServeBenchmarkRequest,
     *,
     runner: BenchmarkRunner = run_offline_benchmark,
 ) -> BenchmarkResult:
     """Run one benchmark cell and emit only direct observations."""
 
+    adapter_request = vllm_benchmark_config(request)
+    attributes = _benchmark_attributes(request, adapter_request)
     context.event(
         "serve_benchmark_started",
-        {
-            "model_profile_id": request.model.id,
-            "serve_profile_id": request.profile.id,
-            "suite_id": request.cell.suite_id,
-            "cell_id": request.cell.id,
-        },
+        attributes,
     )
-    result = runner(request)
-    metric_attributes = {
-        "model_profile_id": request.model.id,
-        "serve_profile_id": request.profile.id,
-        "suite_id": request.cell.suite_id,
-        "cell_id": request.cell.id,
-    }
+    result = runner(adapter_request)
+    metric_attributes = attributes
     context.metrics(result.metrics(), attributes=metric_attributes)
     for index, sample in enumerate(result.samples):
         context.trace(
             TraceObservation(
                 trace_type="inference",
-                external_id=f"{context.attempt.id}:{request.cell.id}:{index}",
+                external_id=f"{context.run_id}:{adapter_request.cell.id}:{index}",
                 payload={
                     "messages": [{"role": "assistant", "content": sample}],
                     "model": result.model,
@@ -87,27 +81,42 @@ def benchmark(
     output.write_bytes(encoded)
     context.artifact(
         ProducedArtifact(
-            name=f"serving/{request.model.id}/{request.cell.id}",
+            name=f"serving/{request.inference.model.id}/{adapter_request.cell.id}",
             kind="serving-benchmark",
             reference=LocalArtifactRef(output, hashlib.sha256(encoded).hexdigest()),
             metadata=metric_attributes,
         )
     )
-    context.event("serve_benchmark_completed", {"cell_id": request.cell.id})
+    context.event("serve_benchmark_completed", {"cell_id": adapter_request.cell.id})
     return result
+
+
+def _benchmark_attributes(
+    request: ServeBenchmarkRequest,
+    adapter: VllmBenchmarkConfig,
+) -> dict[str, str]:
+    return {
+        "model_variant_id": request.inference.model.id,
+        "inference_binding_id": request.inference.id,
+        "workload_id": request.workload.id,
+        "execution_target_id": request.resolved_target.id,
+        "suite_id": adapter.cell.suite_id,
+        "cell_id": adapter.cell.id,
+    }
 
 
 @contextmanager
 def launch(
-    context: ExecutionContext,
-    request: LaunchRequest,
+    context: RunContext,
+    request: ServeLaunchRequest,
     *,
     server_factory: ServerFactory = VllmServer,
 ) -> Iterator[Endpoint]:
     """Launch one managed endpoint and retain its server log as evidence."""
 
     log_path = context.workspace / "vllm-server.log"
-    template = request.model.conversation.chat_template.text()
+    model = request.inference.model
+    template = model.conversation.chat_template.text()
     template_path: Path | None = None
     if template is not None:
         template_path = context.workspace / "chat-template.jinja"
@@ -115,7 +124,7 @@ def launch(
     server = server_factory(request, log_path, template_path)
     context.event(
         "serve_launch_started",
-        {"model_profile_id": request.model.id, "serve_profile_id": request.profile.id},
+        {"model_variant_id": model.id, "inference_binding_id": request.inference.id},
     )
     try:
         endpoint = server.start()
@@ -127,17 +136,17 @@ def launch(
             encoded = log_path.read_bytes()
             context.artifact(
                 ProducedArtifact(
-                    name=f"serving/{request.model.id}/server-log",
+                    name=f"serving/{model.id}/server-log",
                     kind="serving-log",
                     reference=LocalArtifactRef(log_path, hashlib.sha256(encoded).hexdigest()),
-                    metadata={"serve_profile_id": request.profile.id},
+                    metadata={"inference_binding_id": request.inference.id},
                 )
             )
-        context.event("serve_endpoint_stopped", {"model_profile_id": request.model.id})
+        context.event("serve_endpoint_stopped", {"model_variant_id": model.id})
 
 
 def probe(
-    context: ExecutionContext,
+    context: RunContext,
     endpoint: Endpoint,
     *,
     client: httpx.Client | None = None,
@@ -155,15 +164,15 @@ def probe(
 
 
 def generate(
-    context: ExecutionContext,
+    context: RunContext,
     request: GenerationRequest,
-    model: ModelProfile,
+    model: ModelVariant,
     *,
     client: httpx.Client | None = None,
 ) -> GenerationResult:
     result = run_generation(request, model, client=client)
     observation_suffix = str(time_ns())
-    external_id = f"{context.attempt.id}:generation:{observation_suffix}"
+    external_id = f"{context.run_id}:generation:{observation_suffix}"
     metrics: dict[str, int | float] = {"serve/request_latency_seconds": result.latency_seconds}
     if result.ttft_seconds is not None:
         metrics["serve/request_ttft_seconds"] = result.ttft_seconds
@@ -171,7 +180,7 @@ def generate(
         metrics["serve/request_input_tokens"] = result.input_tokens
     if result.output_tokens is not None:
         metrics["serve/request_output_tokens"] = result.output_tokens
-    context.metrics(metrics, attributes={"model_profile_id": model.id, "endpoint_model": request.endpoint.model})
+    context.metrics(metrics, attributes={"model_variant_id": model.id, "endpoint_model": request.endpoint.model})
     context.trace(
         TraceObservation(
             trace_type="inference",
@@ -189,7 +198,7 @@ def generate(
                 "latency_seconds": result.latency_seconds,
                 "ttft_seconds": result.ttft_seconds,
             },
-            attributes={"model_profile_id": model.id, "endpoint_model": request.endpoint.model},
+            attributes={"model_variant_id": model.id, "endpoint_model": request.endpoint.model},
         )
     )
     native = {

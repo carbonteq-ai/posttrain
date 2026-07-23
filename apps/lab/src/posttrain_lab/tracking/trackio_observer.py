@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
@@ -18,7 +19,7 @@ from posttrain.common import (
 )
 
 if TYPE_CHECKING:
-    from posttrain_lab.execution import ArtifactInput
+    from posttrain.tracking import ArtifactInput
 
 
 class TrackioRun(Protocol):
@@ -43,8 +44,10 @@ def _json_dict(values: Mapping[str, object]) -> dict[str, object]:
     return dict(values)
 
 
-def _artifact_name(logical_name: str) -> str:
-    return logical_name.replace("/", "-")
+def trackio_artifact_name(logical_name: str) -> str:
+    """Translate a logical artifact path into Trackio's portable name alphabet."""
+
+    return re.sub(r"[^A-Za-z0-9._-]+", "-", logical_name).strip("-")
 
 
 def _sha256(path: Path) -> str:
@@ -84,7 +87,9 @@ class TrackioObserver:
         materialized: dict[str, LocalArtifactRef] = {}
         for logical_name, value in inputs.items():
             reference = value.reference
-            if reference.project != project:
+            if reference.provider != "trackio":
+                raise ValueError(f"Trackio cannot materialize {reference.provider!r} artifacts")
+            if reference.namespace != project:
                 raise ValueError("cross-project Trackio artifact materialization is not supported")
             version = reference.version if reference.version.startswith("v") else f"v{reference.version}"
             artifact = self._run.use_artifact(f"{reference.name}:{version}", type=value.kind)
@@ -155,7 +160,7 @@ class TrackioObserver:
                 raise ValueError(f"artifact digest does not match file contents: {path}")
 
         logged = trackio.Artifact(
-            name=_artifact_name(artifact.name),
+            name=trackio_artifact_name(artifact.name),
             type=artifact.kind,
             metadata={"logical_name": artifact.name, **dict(artifact.metadata)},
         )

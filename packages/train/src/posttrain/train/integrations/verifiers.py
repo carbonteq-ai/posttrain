@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import pickle
 import threading
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
@@ -12,9 +13,9 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from posttrain.common import JsonValue, LocalArtifactRef, ProducedArtifact, TraceObservation
+from posttrain.data import RolloutDataset, RolloutExample
 
-from ..data import RolloutDataset, RolloutExample
-from ..online_rl import PolicyGenerator, PolicySampling, PolicyTurnRequest, RolloutBatch, TrainingRollout
+from ..online_rl import EnvironmentRollout, PolicyGenerator, PolicySampling, PolicyTurnRequest, RolloutBatch
 
 
 class TraceEnricher(Protocol):
@@ -22,6 +23,34 @@ class TraceEnricher(Protocol):
 
 
 type EnvironmentFactory = Callable[[], Any]
+
+
+@dataclass(frozen=True, slots=True)
+class VerifiersBridgeSnapshot:
+    """Pickle-safe reconstruction state for isolated trainer workers."""
+
+    dataset_id: str
+    revision: str
+    tasks: Mapping[int, Any]
+    environment_factory: EnvironmentFactory
+    trace_path: Path
+    environment_id: str
+    run_id: str
+    sampling: PolicySampling
+    enrichers: tuple[TraceEnricher, ...]
+
+    def create(self) -> VerifiersEnvironmentRolloutBridge:
+        return VerifiersEnvironmentRolloutBridge(
+            dataset_id=self.dataset_id,
+            revision=self.revision,
+            tasks=self.tasks,
+            environment_factory=self.environment_factory,
+            trace_path=self.trace_path,
+            environment_id=self.environment_id,
+            run_id=self.run_id,
+            sampling=self.sampling,
+            enrichers=self.enrichers,
+        )
 
 
 def _imports() -> tuple[Any, ...]:
@@ -148,7 +177,7 @@ def _record(value: Any) -> Mapping[str, JsonValue]:
 
 
 @dataclass(slots=True)
-class VerifiersOnlineRLBridge:
+class VerifiersEnvironmentRolloutBridge:
     """Run native Verifiers episodes using an injected, already-loaded policy."""
 
     dataset_id: str
@@ -178,7 +207,7 @@ class VerifiersOnlineRLBridge:
     def dataset(self) -> RolloutDataset:
         return self._dataset
 
-    async def run(self, batch: RolloutBatch, generator: PolicyGenerator) -> Sequence[TrainingRollout]:
+    async def run(self, batch: RolloutBatch, generator: PolicyGenerator) -> Sequence[EnvironmentRollout]:
         _, _, ModelContext, _, Sampling, TrainRunInfo, _, _, _, _ = _imports()
         counts = Counter(batch.example_ids)
         order = tuple(dict.fromkeys(batch.example_ids))
@@ -194,7 +223,7 @@ class VerifiersOnlineRLBridge:
                 top_p=self.sampling.top_p,
             ),
         )
-        by_id: dict[str, list[TrainingRollout]] = {}
+        by_id: dict[str, list[EnvironmentRollout]] = {}
         async with self._environment.serving():
             for example_id in order:
                 try:
@@ -202,7 +231,7 @@ class VerifiersOnlineRLBridge:
                 except KeyError as error:
                     raise ValueError(f"unknown rollout example {example_id!r}") from error
                 traces = await self._environment.episode(task, context, n=counts[example_id]).run()
-                projected: list[TrainingRollout] = []
+                projected: list[EnvironmentRollout] = []
                 for trace in traces:
                     trace.stamp(
                         run=TrainRunInfo(id=self.run_id, step=batch.step),
@@ -212,20 +241,23 @@ class VerifiersOnlineRLBridge:
                     )
                     for enrich in self.enrichers:
                         enrich(trace)
+                    self._preserve(trace.to_record())
                     projected.append(self._project(trace, example_id, task_index))
                 by_id[example_id] = projected
         positions = {identifier: 0 for identifier in by_id}
-        aligned: list[TrainingRollout] = []
+        aligned: list[EnvironmentRollout] = []
         for example_id in batch.example_ids:
             position = positions[example_id]
             aligned.append(by_id[example_id][position])
             positions[example_id] = position + 1
         return aligned
 
-    def _project(self, trace: Any, example_id: str, task_index: int) -> TrainingRollout:
+    def _project(self, trace: Any, example_id: str, task_index: int) -> EnvironmentRollout:
         branches = trace.branches
         if len(branches) != 1:
-            raise ValueError(f"online-RL MVP requires one trainable trace branch, got {len(branches)}")
+            error = trace.error
+            detail = f"; trace error={error.type}: {error.message}" if error is not None else ""
+            raise ValueError(f"online-RL MVP requires one trainable trace branch, got {len(branches)}{detail}")
         branch = branches[0]
         token_ids = tuple(int(value) for value in branch.token_ids)
         sampled_mask = tuple(bool(value) for value in branch.sampled_mask)
@@ -242,7 +274,6 @@ class VerifiersOnlineRLBridge:
         if len(logprobs) != len(completion_ids):
             raise ValueError("Verifiers branch logprobs are not aligned to the training sequence")
         record = trace.to_record()
-        self._preserve(record)
         observation = TraceObservation(
             trace_type="verifiers",
             external_id=str(trace.id),
@@ -255,7 +286,7 @@ class VerifiersOnlineRLBridge:
                 "model": trace.agent.model if trace.agent is not None else "",
             },
         )
-        return TrainingRollout(
+        return EnvironmentRollout(
             example_id=example_id,
             prompt_ids=prompt_ids,
             completion_ids=completion_ids,
@@ -271,12 +302,43 @@ class VerifiersOnlineRLBridge:
         with self._write_lock:
             self.trace_path.parent.mkdir(parents=True, exist_ok=True)
             with self.trace_path.open("a", encoding="utf-8") as stream:
-                stream.write(encoded)
+                try:
+                    import fcntl
+                except ImportError:  # pragma: no cover - Windows is not a qualified veRL target
+                    fcntl = None
+                if fcntl is not None:
+                    fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
+                try:
+                    stream.write(encoded)
+                    stream.flush()
+                finally:
+                    if fcntl is not None:
+                        fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
             self._trace_count += 1
+
+    def write_portable_snapshot(self, path: Path) -> None:
+        """Serialize trusted reconstruction state for an isolated veRL/Ray runtime."""
+
+        snapshot = VerifiersBridgeSnapshot(
+            dataset_id=self.dataset_id,
+            revision=self.revision,
+            tasks=self.tasks,
+            environment_factory=self.environment_factory,
+            trace_path=self.trace_path,
+            environment_id=self.environment_id,
+            run_id=self.run_id,
+            sampling=self.sampling,
+            enrichers=self.enrichers,
+        )
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("wb") as stream:
+            pickle.dump(snapshot, stream, protocol=pickle.HIGHEST_PROTOCOL)
 
     def finalize(self) -> tuple[ProducedArtifact, ...]:
         if not self.trace_path.is_file():
             return ()
+        with self.trace_path.open("r", encoding="utf-8") as stream:
+            preserved_trace_count = sum(1 for line in stream if line.strip())
         digest = hashlib.sha256(self.trace_path.read_bytes()).hexdigest()
         artifact = ProducedArtifact(
             name=f"training/rollouts/{self.dataset.id}/verifiers-traces",
@@ -287,11 +349,26 @@ class VerifiersOnlineRLBridge:
                 "environment_id": self.environment_id,
                 "dataset_id": self.dataset.id,
                 "dataset_revision": self.dataset.revision,
-                "trace_count": self._trace_count,
+                "trace_count": preserved_trace_count,
                 "schema_version": 2,
             },
         )
         return (artifact,)
 
 
-__all__ = ["TraceEnricher", "VerifiersOnlineRLBridge"]
+def load_verifiers_bridge_snapshot(path: Path) -> VerifiersEnvironmentRolloutBridge:
+    """Load a trusted bridge snapshot created by this package."""
+
+    with path.open("rb") as stream:
+        snapshot = pickle.load(stream)  # noqa: S301 - internal trusted artifact, never user supplied
+    if not isinstance(snapshot, VerifiersBridgeSnapshot):
+        raise TypeError("portable Verifiers bridge snapshot has an incompatible schema")
+    return snapshot.create()
+
+
+__all__ = [
+    "TraceEnricher",
+    "VerifiersBridgeSnapshot",
+    "VerifiersEnvironmentRolloutBridge",
+    "load_verifiers_bridge_snapshot",
+]

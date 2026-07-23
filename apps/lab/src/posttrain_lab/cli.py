@@ -1,69 +1,102 @@
-"""Thin CLI for invoking code-defined jobs."""
+"""Reference CLI: compose exact selections into work packages and runs."""
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
+from dataclasses import replace
 from functools import partial
 from pathlib import Path
 
-from posttrain.common import ModelVariant, TrackioArtifactRef
-from posttrain.common.profiles import LFM_25_12B_THINKING, QWEN_35_2B
-from posttrain.eval import EvaluationBudget, EvaluationResult
-from posttrain.eval.programs import GENERAL_SMOKE
-from posttrain.serve import (
-    LFM25_VLLM,
-    LFM25_VLLM_TURBOQUANT_K8,
-    QWEN35_VLLM_TEXT,
-    QWEN35_VLLM_TURBOQUANT_K8,
-    BenchmarkCell,
-    BenchmarkRequest,
-    BenchmarkResult,
-    GenerationResult,
-    LaunchRequest,
+from posttrain.common import (
+    Catalog,
+    CatalogRef,
+    ExecutionTarget,
+    InferenceBinding,
+    LocalArtifactRef,
+    ModelVariant,
+    StoredArtifactRef,
+    TrackioArtifactRef,
+    Workload,
 )
+from posttrain.common.selections import Selection, SelectionFamily
+from posttrain.data import (
+    PreferencePairSource,
+    ScoredContinuation,
+    SupervisedPartitionPlan,
+    partition_supervised_dataset,
+)
+from posttrain.eval import EnvironmentBinding, EvaluationBudget, EvaluationPlan, EvaluationResult
+from posttrain.serve import BenchmarkResult, GenerationResult
+from posttrain.tracking import TrackingBackend
 from posttrain.train import (
-    LFM25_DPO_SMOKE,
-    LFM25_SFT_SMOKE,
-    QWEN35_DPO_SMOKE,
-    QWEN35_GRPO_MTP_SMOKE,
-    QWEN35_GRPO_SMOKE,
-    QWEN35_SFT_SMOKE,
-    DPORequest,
-    SFTRequest,
+    GRPOSettings,
+    LoRAUpdate,
+    QuantizationPlan,
+    TrainingBinding,
     TrainingResult,
+    TransformResult,
 )
+from posttrain_tracking_trackio import TrackioBackend, TrackioSettings
+from posttrain_tracking_wandb import WandbBackend, WandbSettings, wandb_artifact_name
 
-from .data import RejectedRollout, load_gsm8k_supervised, preferences_from_rollouts
-from .execution import ArtifactInput, AttemptSpec, execute, execute_tracked
+from .catalog import (
+    AUTOMATIONBENCH_ZAPIER_GRPO,
+    LFM25_DPO,
+    LFM25_SFT,
+    LFM25_TRL_LORA,
+    LFM25_TRL_QLORA,
+    QWEN35_AUTOMATIONBENCH_GRPO_MTP,
+    QWEN35_AUTOMATIONBENCH_TRL_LORA_THINKING,
+    QWEN35_DISTILL,
+    QWEN35_DISTILL_TRL_LORA,
+    QWEN35_DPO,
+    QWEN35_GRPO,
+    QWEN35_GRPO_MTP,
+    QWEN35_SFT_PEFT_COMPARISON,
+    QWEN35_SFT_VALIDATED_SMOKE,
+    QWEN35_TRL_LORA,
+    QWEN35_TRL_QLORA,
+    open_project_catalog,
+)
+from .data import GSM8KSupervisedSource, SmolSmolTalkSupervisedSource
+from .execution import execute_run, execute_run_tracked
 from .jobs import (
     GSM8K_LFM_TRAINING_ROLLOUTS,
     GSM8K_TRAINING_ROLLOUTS,
-    GSM8KGRPOJobRequest,
-    ManagedEvaluationRequest,
-    dpo_action,
-    evaluation_action,
-    foundation_screening_job,
-    grpo_action,
-    grpo_job_inputs,
-    gsm8k_posttraining_job,
-    noop_action,
-    noop_job,
-    online_smoke_action,
-    rollout_collection_action,
+    run_distillation,
     run_dpo_materialized,
     run_grpo_materialized,
     run_managed_evaluation,
     run_noop,
     run_online_smoke,
-    run_serving_cell,
+    run_quantization_transform,
+    run_screen_benchmark,
     run_sft,
-    serving_benchmark_action,
-    sft_action,
-    training_inputs,
 )
+from .project import ProjectLayout, discover_project
 from .source import resolve_git_source
-from .tracking import verifiers_rollout
+from .tracking import trackio_artifact_name, verifiers_rollout
+from .work_packages import (
+    JobDefinition,
+    Recipe,
+    RecipeJob,
+    WorkPackage,
+    WorkPackageContext,
+    distillation_definition,
+    dpo_definition,
+    grpo_definition,
+    load_work_package,
+    managed_evaluation_definition,
+    model_transform_definition,
+    run_work_package,
+    serve_benchmark_definition,
+    serve_smoke_definition,
+    sft_definition,
+)
+from .work_packages.contracts import Stage
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -78,6 +111,7 @@ def _parser() -> argparse.ArgumentParser:
             "foundation-qwen-gsm8k",
             "foundation-lfm-gsm8k",
             "gsm8k-qwen-sft-smoke",
+            "smoltalk-qwen-sft-validated-smoke",
             "gsm8k-lfm-sft-smoke",
             "gsm8k-qwen-preference-rollouts",
             "gsm8k-lfm-preference-rollouts",
@@ -85,208 +119,825 @@ def _parser() -> argparse.ArgumentParser:
             "gsm8k-lfm-dpo-smoke",
             "gsm8k-qwen-grpo-smoke",
             "gsm8k-qwen-grpo-mtp-smoke",
+            "gsm8k-qwen-0.8b-grpo-mtp-smoke",
+            "automationbench-zapier-qwen-0.8b-grpo-mtp-smoke",
+            "gsm8k-qwen-distill-smoke",
+            "gsm8k-qwen-peft-eval",
+            "qwen-awq-transform",
+            "qwen-awq-eval",
+            "qwen-rtn-transform",
+            "qwen-rtn-eval",
         ),
     )
     parser.add_argument("--tracked", action="store_true")
+    parser.add_argument(
+        "--tracking-backend",
+        choices=("trackio", "wandb"),
+        help="enable tracking with this backend; --tracked alone defaults to trackio",
+    )
+    parser.add_argument("--tracking-server-url")
+    parser.add_argument("--wandb-entity", default=os.environ.get("WANDB_ENTITY"))
+    parser.add_argument("--wandb-base-url", default=os.environ.get("WANDB_BASE_URL"))
     parser.add_argument("--project", default="posttrain-platform")
-    parser.add_argument("--repository", type=Path, default=Path.cwd())
+    parser.add_argument(
+        "--project-root",
+        type=Path,
+        help="portable project root containing .posttrain/project.toml; otherwise discover upward",
+    )
+    parser.add_argument(
+        "--repository",
+        type=Path,
+        help="legacy repository root containing top-level catalog/ and work_packages/",
+    )
+    parser.add_argument(
+        "--scratch-root",
+        type=Path,
+        help="disk-backed parent for ephemeral run workspaces",
+    )
     parser.add_argument("--rollout-run-id")
+    parser.add_argument("--rollout-project")
     parser.add_argument("--rejected-trace-id")
+    parser.add_argument("--adapter-backend", choices=("trackio", "wandb"))
+    parser.add_argument("--adapter-run-id")
     parser.add_argument("--adapter-version", default="v0")
+    parser.add_argument("--artifact-version", default="v0")
+    parser.add_argument("--max-length", type=int)
+    parser.add_argument("--max-steps", type=int)
+    parser.add_argument("--peft", choices=("lora", "qlora"), default="qlora")
+    parser.add_argument("--training-backend", choices=("trl", "verl"), default="trl")
+    parser.add_argument("--verl-python-executable", default=os.environ.get("POSTTRAIN_VERL_PYTHON"))
+    parser.add_argument("--verl-working-directory", default=os.environ.get("POSTTRAIN_VERL_WORKTREE"))
+    parser.add_argument("--verl-source-revision", default=os.environ.get("POSTTRAIN_VERL_REVISION"))
+    parser.add_argument(
+        "--verl-dependency-lock",
+        type=Path,
+        default=(Path(value) if (value := os.environ.get("POSTTRAIN_VERL_DEPENDENCY_LOCK")) else None),
+        help="path to the isolated veRL environment lockfile recorded in run lineage",
+    )
     return parser
+
+
+def _selection[SelectionT: Selection](
+    catalog: Catalog,
+    family: SelectionFamily,
+    identifier: str,
+    expected: type[SelectionT],
+) -> SelectionT:
+    value = catalog.resolve(CatalogRef(family, identifier)).value
+    if not isinstance(value, expected):
+        raise TypeError(f"catalog entry {family}/{identifier} has the wrong type")
+    return value
+
+
+def _one_job_package(
+    *,
+    project_id: str,
+    work_package_id: str,
+    stage: Stage,
+    job_id: str,
+    definition: JobDefinition,
+    bindings: dict[str, tuple[SelectionFamily, Selection | CatalogRef]],
+) -> WorkPackage:
+    return WorkPackage(
+        project_id=project_id,
+        work_package_id=work_package_id,
+        stage=stage,
+        recipe=Recipe(
+            id=f"recipes/{job_id}@1",
+            revision="1",
+            stage=stage,
+            seats={name: family for name, (family, _) in bindings.items()},
+            jobs=(RecipeJob(job_id, definition.kind, definition.id),),
+        ),
+        bindings={name: value for name, (_, value) in bindings.items()},
+        description=definition.description,
+    )
+
+
+def _adapter_variant(
+    model: ModelVariant,
+    reference: StoredArtifactRef | TrackioArtifactRef,
+    update_kind: str,
+) -> ModelVariant:
+    return replace(
+        model,
+        id=f"{model.id}/sft-{update_kind}-{reference.version}",
+        artifact=reference,
+        form="peft-adapter",
+        revision=reference.version,
+        digest=None,
+        parent=model.id,
+        provenance={
+            "operation": "sft",
+            "parameter_update_kind": update_kind,
+            "base_model_repo_id": model.base.repo_id,
+            "base_model_revision": model.base.revision,
+        },
+    )
+
+
+def _adapter_reference(args: argparse.Namespace, model: ModelVariant) -> StoredArtifactRef | TrackioArtifactRef:
+    logical_name = f"training/{model.id}/sft/{args.peft}/adapter"
+    provider = args.adapter_backend or args.tracking_backend or "trackio"
+    if provider == "wandb":
+        if not args.wandb_entity:
+            raise SystemExit("W&B adapter inputs require --wandb-entity or WANDB_ENTITY")
+        if not args.adapter_run_id:
+            raise SystemExit("W&B adapter inputs require --adapter-run-id")
+        return StoredArtifactRef(
+            provider="wandb",
+            namespace=f"{args.wandb_entity}/{args.project}",
+            name=wandb_artifact_name(logical_name, args.adapter_run_id),
+            version=args.adapter_version,
+        )
+    return TrackioArtifactRef(
+        args.project,
+        trackio_artifact_name(logical_name),
+        args.adapter_version,
+    )
+
+
+def _grpo_training_binding(
+    args: argparse.Namespace,
+    *,
+    base: TrainingBinding | None = None,
+) -> TrainingBinding:
+    base = base or (QWEN35_TRL_LORA if args.peft == "lora" else QWEN35_TRL_QLORA)
+    if args.training_backend == "trl":
+        return base
+    if not isinstance(base.update, LoRAUpdate):
+        raise SystemExit("the qualified veRL GRPO path requires a LoRA update selection")
+    missing = [
+        name
+        for name, value in (
+            ("--verl-python-executable", args.verl_python_executable),
+            ("--verl-working-directory", args.verl_working_directory),
+            ("--verl-source-revision", args.verl_source_revision),
+            ("--verl-dependency-lock", args.verl_dependency_lock),
+        )
+        if not value
+    ]
+    if missing:
+        raise SystemExit(f"veRL GRPO requires {', '.join(missing)}")
+    worktree = Path(args.verl_working_directory).resolve()
+    source = resolve_git_source(worktree)
+    if source.revision != args.verl_source_revision:
+        raise SystemExit(f"veRL worktree is at {source.revision}, expected {args.verl_source_revision}")
+    lockfile = Path(args.verl_dependency_lock).resolve()
+    if not lockfile.is_file():
+        raise SystemExit(f"veRL dependency lock does not exist: {lockfile}")
+    source_state: dict[str, object] = {"source_dirty": source.dirty}
+    if source.dirty_digest is not None:
+        source_state["source_dirty_digest"] = source.dirty_digest
+    return replace(
+        base,
+        id="training/qwen3.5-0.8b-verl-lora-mtp-qualified@1",
+        backend=f"verl@{source.revision[:7]}",
+        update=replace(
+            base.update,
+            target_modules=r".*[.](o_proj|down_proj)$",
+        ),
+        runtime={
+            **base.runtime,
+            "nodes": 1,
+            "devices_per_node": 1,
+            "parameter_offload": True,
+            "optimizer_offload": True,
+            "timeout_seconds": 900,
+            "backend_source_revision": source.revision,
+            "backend_source_dirty": source.dirty,
+            "dependency_lock_sha256": hashlib.sha256(lockfile.read_bytes()).hexdigest(),
+            **({"backend_source_dirty_digest": source.dirty_digest} if source.dirty_digest is not None else {}),
+        },
+        backend_options={
+            "python_executable": args.verl_python_executable,
+            "working_directory": str(worktree),
+            "source_revision": source.revision,
+            "attention_implementation": "sdpa",
+            **source_state,
+            "hydra_overrides": [
+                "actor_rollout_ref.rollout.agent.num_workers=2",
+                "actor_rollout_ref.rollout.checkpoint_engine.update_weights_bucket_megabytes=16",
+                "actor_rollout_ref.actor.entropy_from_logits_with_chunking=true",
+                "actor_rollout_ref.actor.entropy_from_logits_chunk_size=256",
+                "actor_rollout_ref.actor.fsdp_config.use_torch_compile=false",
+                "actor_rollout_ref.model.use_fused_kernels=true",
+                "actor_rollout_ref.model.fused_kernel_options.impl_backend=torch",
+                "reward.num_workers=2",
+                "data.dataloader_num_workers=1",
+            ],
+        },
+    )
+
+
+def _grpo_settings_with_loop_overrides(
+    settings: GRPOSettings,
+    *,
+    max_steps: int | None,
+    max_length: int | None,
+) -> GRPOSettings:
+    if max_steps is None and max_length is None:
+        return settings
+    return replace(
+        settings,
+        loop=replace(
+            settings.loop,
+            max_steps=settings.loop.max_steps if max_steps is None else max_steps,
+            max_length=settings.loop.max_length if max_length is None else max_length,
+        ),
+    )
+
+
+def _quantized_variant(
+    model: ModelVariant,
+    plan: QuantizationPlan,
+    reference: TrackioArtifactRef,
+    output_id: str,
+) -> ModelVariant:
+    return replace(
+        model,
+        id=output_id,
+        artifact=reference,
+        form="weight-quantized",
+        weight_precision=plan.output_weight_precision,
+        revision=reference.version,
+        digest=None,
+        quantization={
+            "method": plan.method,
+            "weight_format": plan.weight_format,
+            **plan.output_quantization,
+        },
+        parent=model.id,
+        provenance={
+            "operation": "transform",
+            "quantization_plan_id": plan.id,
+            "recipe_digest": plan.recipe_digest,
+        },
+    )
+
+
+def _tracking_backend(args: argparse.Namespace) -> TrackingBackend | None:
+    selected = args.tracking_backend or ("trackio" if args.tracked else None)
+    if selected is None:
+        return None
+    if selected == "trackio":
+        return TrackioBackend(
+            TrackioSettings(
+                project=args.project,
+                server_url=args.tracking_server_url,
+                auto_log_gpu=True,
+                auto_log_cpu=True,
+            )
+        )
+    if not args.wandb_entity:
+        raise SystemExit("W&B tracking requires --wandb-entity or WANDB_ENTITY")
+    return WandbBackend(
+        WandbSettings(
+            entity=args.wandb_entity,
+            project=args.project,
+            base_url=args.wandb_base_url,
+        )
+    )
+
+
+def _project_layout(args: argparse.Namespace, project_id: str) -> ProjectLayout:
+    if args.repository is not None:
+        return ProjectLayout.legacy(args.repository, project_id)
+    return discover_project(Path.cwd(), explicit_root=args.project_root)
+
+
+def _execute_package(
+    args: argparse.Namespace,
+    package: WorkPackage,
+    definition: JobDefinition,
+    *,
+    layout: ProjectLayout | None = None,
+) -> object:
+    selected_layout = _project_layout(args, package.project_id) if layout is None else layout
+    source = resolve_git_source(selected_layout.root)
+    backend = _tracking_backend(args)
+    scratch_root = args.scratch_root.resolve() if args.scratch_root is not None else (selected_layout.state / "scratch")
+    if scratch_root is not None:
+        scratch_root.mkdir(parents=True, exist_ok=True)
+    executor = (
+        partial(execute_run_tracked, backend=backend, scratch_root=scratch_root)
+        if backend is not None
+        else partial(execute_run, scratch_root=scratch_root)
+    )
+    result = run_work_package(
+        WorkPackageContext(
+            catalog=open_project_catalog(selected_layout, scope=package.project_id),
+            definitions={definition.id: definition},
+            source_metadata=source.metadata(),
+            executor=executor,
+        ),
+        package,
+    )
+    return result.jobs[0].value
 
 
 def main() -> None:
     args = _parser().parse_args()
-    source = resolve_git_source(args.repository.resolve())
-    if args.job == "noop":
-        spec = AttemptSpec(
-            job=noop_job(source.revision),
-            action=noop_action(),
-            source_metadata=source.metadata(),
+    project = args.project
+    layout = _project_layout(args, project)
+    catalog = open_project_catalog(layout, scope=project)
+    qwen = _selection(catalog, "model", "models/qwen3.5-2b@bf16", ModelVariant)
+    qwen_student = _selection(catalog, "model", "models/qwen3.5-0.8b@bf16", ModelVariant)
+    lfm = _selection(catalog, "model", "models/lfm2.5-1.2b-thinking@bf16", ModelVariant)
+    target = _selection(catalog, "target", "targets/local-cuda-8gb", ExecutionTarget)
+    workload = _selection(catalog, "workload", "workloads/foundation-smoke-v1@1", Workload)
+
+    if args.job == "foundation-qwen-smoke":
+        package = load_work_package(layout.work_packages / "foundation_screen.yaml")
+        definition = serve_benchmark_definition(run_screen_benchmark)
+    elif args.job == "noop":
+        definition = JobDefinition(
+            "platform/noop@1", "data.prepare", {"target": type(target)}, lambda context, _: run_noop(context)
         )
-        operation = run_noop
-    elif args.job in {"gsm8k-qwen-grpo-smoke", "gsm8k-qwen-grpo-mtp-smoke"}:
-        adapter_name = f"training-{QWEN_35_2B.id}-sft-adapter"
-        remote_adapter = TrackioArtifactRef(args.project, adapter_name, args.adapter_version)
-        request = GSM8KGRPOJobRequest(
-            model=ModelVariant(QWEN_35_2B, remote_adapter, "peft-adapter"),
-            profile=(QWEN35_GRPO_SMOKE if args.job == "gsm8k-qwen-grpo-smoke" else QWEN35_GRPO_MTP_SMOKE),
-            task_indices=(0,),
+        package = _one_job_package(
+            project_id=project,
+            work_package_id="screen/noop",
+            stage="screen",
+            job_id="noop",
+            definition=definition,
+            bindings={"target": ("target", target)},
         )
-        spec = AttemptSpec(
-            job=gsm8k_posttraining_job(source.revision),
-            action=grpo_action(request),
-            inputs=grpo_job_inputs(request),
-            source_metadata=source.metadata(),
-            artifacts={"model_adapter": ArtifactInput(remote_adapter, "model-adapter")},
+    elif args.job in {"gsm8k-qwen-sft-smoke", "gsm8k-lfm-sft-smoke"}:
+        model, settings, lora, qlora = (
+            (qwen, QWEN35_SFT_PEFT_COMPARISON, QWEN35_TRL_LORA, QWEN35_TRL_QLORA)
+            if args.job == "gsm8k-qwen-sft-smoke"
+            else (lfm, LFM25_SFT, LFM25_TRL_LORA, LFM25_TRL_QLORA)
         )
-        operation = partial(run_grpo_materialized, request=request)
+        training = lora if args.peft == "lora" else qlora
+        data = GSM8KSupervisedSource(count=2)
+        definition = sft_definition(run_sft)
+        package = _one_job_package(
+            project_id=project,
+            work_package_id=f"train/{model.id}/sft-{args.peft}-smoke",
+            stage="train",
+            job_id="sft",
+            definition=definition,
+            bindings={
+                "model": ("model", model),
+                "dataset": ("dataset", data),
+                "settings": ("training", settings),
+                "training": ("training", training),
+            },
+        )
+    elif args.job == "smoltalk-qwen-sft-validated-smoke":
+        source = SmolSmolTalkSupervisedSource(count=64)
+        partitions = partition_supervised_dataset(
+            source.load(),
+            SupervisedPartitionPlan(
+                id="smol-smoltalk/sft-smoke-partitions-v1",
+                revision="1",
+                validation_fraction=0.20,
+                reserve_fraction=0.10,
+                seed=42,
+                stratify_by="source",
+            ),
+        )
+        if partitions.validation is None:
+            raise AssertionError("validated SFT partition plan produced no validation population")
+        training = QWEN35_TRL_LORA if args.peft == "lora" else QWEN35_TRL_QLORA
+        definition = sft_definition(
+            run_sft,
+            definition_id="train/trl-sft-validated@1",
+            with_validation=True,
+        )
+        package = _one_job_package(
+            project_id=project,
+            work_package_id=f"train/{qwen.id}/smoltalk-sft-{args.peft}-validated-smoke",
+            stage="train",
+            job_id="sft",
+            definition=definition,
+            bindings={
+                "model": ("model", qwen),
+                "dataset": ("dataset", partitions.train),
+                "validation_dataset": ("dataset", partitions.validation),
+                "settings": ("training", QWEN35_SFT_VALIDATED_SMOKE),
+                "training": ("training", training),
+            },
+        )
+        package = replace(
+            package,
+            metadata={"dataset_partition_manifest": partitions.manifest.as_dict()},
+        )
     elif args.job in {"gsm8k-qwen-dpo-smoke", "gsm8k-lfm-dpo-smoke"}:
         if args.rollout_run_id is None or args.rejected_trace_id is None:
             raise SystemExit("DPO smoke requires --rollout-run-id and --rejected-trace-id")
-        model, profile = (
-            (QWEN_35_2B, QWEN35_DPO_SMOKE)
+        foundation, settings, lora, qlora = (
+            (qwen, QWEN35_DPO, QWEN35_TRL_LORA, QWEN35_TRL_QLORA)
             if args.job == "gsm8k-qwen-dpo-smoke"
-            else (LFM_25_12B_THINKING, LFM25_DPO_SMOKE)
+            else (lfm, LFM25_DPO, LFM25_TRL_LORA, LFM25_TRL_QLORA)
         )
-        rollout = verifiers_rollout(args.project, args.rollout_run_id, args.rejected_trace_id)
-        demonstrations = load_gsm8k_supervised(count=1, offset=rollout.task_index)
-        preferences = preferences_from_rollouts(
-            demonstrations,
-            (
-                RejectedRollout(
-                    example_id=demonstrations.examples[0].id,
-                    response=rollout.response,
+        training = lora if args.peft == "lora" else qlora
+        if args.max_length is not None or args.max_steps is not None:
+            settings = replace(
+                settings,
+                loop=replace(
+                    settings.loop,
+                    max_length=settings.loop.max_length if args.max_length is None else args.max_length,
+                    max_steps=settings.loop.max_steps if args.max_steps is None else args.max_steps,
+                ),
+            )
+        rollout_project = args.rollout_project or project
+        rollout = verifiers_rollout(rollout_project, args.rollout_run_id, args.rejected_trace_id)
+        data = PreferencePairSource(
+            demonstrations=GSM8KSupervisedSource(count=1, offset=rollout.task_index),
+            candidates=(
+                ScoredContinuation(
+                    example_id=f"train/{rollout.task_index:06d}",
+                    messages=({"role": "assistant", "content": rollout.response},),
                     score=rollout.reward,
                     trace_id=rollout.trace_id,
+                    metadata={
+                        "source_project": rollout_project,
+                        "source_run_id": args.rollout_run_id,
+                        "source_trace_id": rollout.trace_id,
+                    },
                 ),
             ),
+            id_suffix="trace-preferences",
         )
-        adapter_name = f"training-{model.id}-sft-adapter"
-        remote_adapter = TrackioArtifactRef(args.project, adapter_name, args.adapter_version)
-        request = DPORequest(
-            model=ModelVariant(model, remote_adapter, "peft-adapter"),
-            dataset=preferences,
-            profile=profile,
-        )
-        spec = AttemptSpec(
-            job=gsm8k_posttraining_job(source.revision),
-            action=dpo_action(request),
-            inputs={
-                **training_inputs(request),
-                "preference_rollout_run_id": args.rollout_run_id,
-                "rejected_trace_id": args.rejected_trace_id,
+        remote = _adapter_reference(args, foundation)
+        model = _adapter_variant(foundation, remote, args.peft)
+        definition = dpo_definition(run_dpo_materialized)
+        package = _one_job_package(
+            project_id=project,
+            work_package_id=f"train/{foundation.id}/dpo-{args.peft}-smoke",
+            stage="train",
+            job_id="dpo",
+            definition=definition,
+            bindings={
+                "model": ("model", model),
+                "dataset": ("dataset", data),
+                "settings": ("training", settings),
+                "training": ("training", training),
             },
-            source_metadata=source.metadata(),
-            artifacts={"model_adapter": ArtifactInput(remote_adapter, "model-adapter")},
         )
-        operation = partial(run_dpo_materialized, request=request)
-    elif args.job in {"gsm8k-qwen-preference-rollouts", "gsm8k-lfm-preference-rollouts"}:
-        model, profile = (
-            (QWEN_35_2B, QWEN35_VLLM_TURBOQUANT_K8)
-            if args.job == "gsm8k-qwen-preference-rollouts"
-            else (LFM_25_12B_THINKING, LFM25_VLLM_TURBOQUANT_K8)
+    elif args.job in {
+        "gsm8k-qwen-grpo-smoke",
+        "gsm8k-qwen-grpo-mtp-smoke",
+        "gsm8k-qwen-0.8b-grpo-mtp-smoke",
+        "automationbench-zapier-qwen-0.8b-grpo-mtp-smoke",
+    }:
+        automationbench = args.job == "automationbench-zapier-qwen-0.8b-grpo-mtp-smoke"
+        small_model = automationbench or args.job == "gsm8k-qwen-0.8b-grpo-mtp-smoke"
+        if args.training_backend == "verl" and not small_model:
+            raise SystemExit(
+                "the local 8 GiB veRL qualification is restricted to "
+                "gsm8k-qwen-0.8b-grpo-mtp-smoke or "
+                "automationbench-zapier-qwen-0.8b-grpo-mtp-smoke"
+            )
+        if automationbench:
+            model = qwen_student
+            settings = QWEN35_AUTOMATIONBENCH_GRPO_MTP
+            inference = _selection(
+                catalog,
+                "inference",
+                "inference/qwen3.5-0.8b-vllm-automationbench-rollout-mtp@1",
+                InferenceBinding,
+            )
+            training_base = QWEN35_AUTOMATIONBENCH_TRL_LORA_THINKING
+            environment: EnvironmentBinding | CatalogRef = CatalogRef("environment", AUTOMATIONBENCH_ZAPIER_GRPO.id)
+        elif small_model:
+            model = qwen_student
+            settings = replace(
+                QWEN35_GRPO_MTP,
+                loop=replace(QWEN35_GRPO_MTP.loop, max_length=640),
+                max_prompt_length=256,
+                max_completion_length=384,
+            )
+            inference = _selection(
+                catalog,
+                "inference",
+                "inference/qwen3.5-0.8b-vllm-distill-rollout@1",
+                InferenceBinding,
+            )
+            inference = replace(
+                inference,
+                model=model,
+                engine={
+                    **inference.engine,
+                    "disable_log_stats": False,
+                    **(
+                        {
+                            "gpu_memory_utilization": 0.55,
+                            "max_num_batched_tokens": 640,
+                            "max_num_seqs": 2,
+                            "free_cache_engine": True,
+                            "sleep_during_optimization": True,
+                            "enforce_eager": True,
+                            "enable_chunked_prefill": True,
+                        }
+                        if args.training_backend == "verl"
+                        else {}
+                    ),
+                    "speculative_config": {"method": "mtp", "num_speculative_tokens": 1},
+                },
+            )
+            if args.training_backend == "verl":
+                inference = replace(
+                    inference,
+                    engine={name: value for name, value in inference.engine.items() if name != "kv_cache_memory_bytes"},
+                )
+            training_base = replace(
+                QWEN35_DISTILL_TRL_LORA,
+                update=replace(
+                    QWEN35_DISTILL_TRL_LORA.update,
+                    target_modules=".*(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj)$",
+                ),
+            )
+            environment = replace(
+                GSM8K_TRAINING_ROLLOUTS.environment("gsm8k-train-candidates"),
+                num_tasks=1,
+                num_rollouts=settings.num_generations,
+                parameters={"sampling_seed": 0},
+                reward_components=("reward", "final_answer_conciseness"),
+            )
+        else:
+            remote = _adapter_reference(args, qwen)
+            model = _adapter_variant(qwen, remote, args.peft)
+            settings = QWEN35_GRPO if args.job == "gsm8k-qwen-grpo-smoke" else QWEN35_GRPO_MTP
+            inference_id = (
+                "inference/qwen3.5-2b-vllm-rollout@1"
+                if args.job == "gsm8k-qwen-grpo-smoke"
+                else "inference/qwen3.5-2b-vllm-rollout-mtp@1"
+            )
+            inference = replace(_selection(catalog, "inference", inference_id, InferenceBinding), model=model)
+            training_base = None
+            environment = replace(
+                GSM8K_TRAINING_ROLLOUTS.environment("gsm8k-train-candidates"),
+                num_tasks=1,
+                num_rollouts=settings.num_generations,
+                parameters={"sampling_seed": 0},
+                reward_components=("reward", "final_answer_conciseness"),
+            )
+        settings = _grpo_settings_with_loop_overrides(
+            settings,
+            max_steps=args.max_steps,
+            max_length=args.max_length,
         )
-        program = (
-            GSM8K_TRAINING_ROLLOUTS if args.job == "gsm8k-qwen-preference-rollouts" else GSM8K_LFM_TRAINING_ROLLOUTS
-        )
-        request = ManagedEvaluationRequest(
-            launch=LaunchRequest(model, profile),
-            program=program,
-            environment_id="gsm8k-train-candidates",
-            context_window=8_192,
-        )
-        spec = AttemptSpec(
-            job=gsm8k_posttraining_job(source.revision),
-            action=rollout_collection_action(model.id),
-            inputs={
-                "model_profile_id": model.id,
-                "serve_profile_id": profile.id,
-                "program_id": request.program.id,
-                "program_kind": request.program.kind,
-                "environment_id": request.environment_id,
-                "context_window": request.context_window,
-                "num_tasks": request.budget.resolve(request.program.environment(request.environment_id))[0],
-                "num_rollouts": request.budget.resolve(request.program.environment(request.environment_id))[1],
+        training = _grpo_training_binding(args, base=training_base)
+        definition = grpo_definition(run_grpo_materialized)
+        package = _one_job_package(
+            project_id=project,
+            work_package_id=(
+                f"train/{qwen_student.id if small_model else qwen.id}/"
+                f"grpo-{training.update.kind}-{'automationbench-zapier' if automationbench else 'gsm8k'}-smoke"
+            ),
+            stage="train",
+            job_id="grpo",
+            definition=definition,
+            bindings={
+                "model": ("model", model),
+                "environment": ("environment", environment),
+                "settings": ("training", settings),
+                "training": ("training", training),
+                "rollout_inference": ("inference", inference),
             },
-            source_metadata=source.metadata(),
         )
-        operation = partial(run_managed_evaluation, request=request)
-    elif args.job in {"gsm8k-qwen-sft-smoke", "gsm8k-lfm-sft-smoke"}:
-        model, profile = (
-            (QWEN_35_2B, QWEN35_SFT_SMOKE)
-            if args.job == "gsm8k-qwen-sft-smoke"
-            else (LFM_25_12B_THINKING, LFM25_SFT_SMOKE)
+    elif args.job == "gsm8k-qwen-distill-smoke":
+        rollout_inference = _selection(
+            catalog,
+            "inference",
+            "inference/qwen3.5-0.8b-vllm-distill-rollout@1",
+            InferenceBinding,
         )
-        request = SFTRequest(
-            model=ModelVariant.foundation(model),
-            dataset=load_gsm8k_supervised(count=2),
-            profile=profile,
+        teacher_inference = _selection(
+            catalog,
+            "inference",
+            "inference/qwen3.5-2b-vllm-teacher-score@1",
+            InferenceBinding,
         )
-        spec = AttemptSpec(
-            job=gsm8k_posttraining_job(source.revision),
-            action=sft_action(request),
-            inputs=training_inputs(request),
-            source_metadata=source.metadata(),
+        environment = _selection(
+            catalog,
+            "environment",
+            "gsm8k-distill-train",
+            EnvironmentBinding,
         )
-        operation = partial(run_sft, request=request)
-    elif args.job in {"foundation-qwen-gsm8k", "foundation-lfm-gsm8k"}:
-        model, profile = (
-            (QWEN_35_2B, QWEN35_VLLM_TURBOQUANT_K8)
-            if args.job == "foundation-qwen-gsm8k"
-            else (LFM_25_12B_THINKING, LFM25_VLLM_TURBOQUANT_K8)
+        definition = distillation_definition(run_distillation)
+        package = _one_job_package(
+            project_id=project,
+            work_package_id=f"train/{qwen_student.id}/distill-from-{qwen.id}-smoke",
+            stage="train",
+            job_id="distill",
+            definition=definition,
+            bindings={
+                "student": ("model", qwen_student),
+                "teacher": ("model", qwen),
+                "environment": ("environment", environment),
+                "settings": ("training", QWEN35_DISTILL),
+                "training": ("training", QWEN35_DISTILL_TRL_LORA),
+                "rollout_inference": ("inference", rollout_inference),
+                "teacher_inference": ("inference", teacher_inference),
+            },
         )
-        request = ManagedEvaluationRequest(
-            launch=LaunchRequest(model, profile),
-            program=GENERAL_SMOKE,
-            environment_id="math-gsm8k",
+    elif args.job == "gsm8k-qwen-peft-eval":
+        remote = TrackioArtifactRef(
+            project,
+            trackio_artifact_name(f"training/{qwen.id}/sft/{args.peft}/adapter"),
+            args.adapter_version,
+        )
+        model = _adapter_variant(qwen, remote, args.peft)
+        inference = replace(
+            _selection(catalog, "inference", "inference/qwen3.5-2b-vllm-eval@1", InferenceBinding),
+            id=f"inference/qwen3.5-2b-{args.peft}-vllm-eval@1",
+            model=model,
+        )
+        evaluation_plan = _selection(catalog, "evaluation", "general-smoke-v1", EvaluationPlan)
+        environment = evaluation_plan.environment("math-gsm8k")
+        definition = managed_evaluation_definition(
+            run_managed_evaluation,
             context_window=8_192,
             budget=EvaluationBudget(num_tasks=1, max_concurrent=1),
+            kind="eval.general",
+            definition_id="eval/verifiers-managed-general@1",
         )
-        spec = AttemptSpec(
-            job=foundation_screening_job(source.revision),
-            action=evaluation_action(request),
-            inputs={
-                "model_profile_id": model.id,
-                "serve_profile_id": profile.id,
-                "program_id": request.program.id,
-                "program_kind": request.program.kind,
-                "environment_id": request.environment_id,
-                "context_window": request.context_window,
-                "num_tasks": request.budget.num_tasks,
-                "max_concurrent": request.budget.max_concurrent,
+        package = _one_job_package(
+            project_id=project,
+            work_package_id=f"qualify/qwen3.5-2b/sft-{args.peft}",
+            stage="qualify",
+            job_id="managed-eval",
+            definition=definition,
+            bindings={
+                "model": ("model", model),
+                "evaluation_inference": ("inference", inference),
+                "target": ("target", target),
+                "evaluation_plan": ("evaluation", evaluation_plan),
+                "environment": ("environment", environment),
             },
-            source_metadata=source.metadata(),
         )
-        operation = partial(run_managed_evaluation, request=request)
-    elif args.job == "foundation-lfm-online-smoke":
-        request = LaunchRequest(LFM_25_12B_THINKING, LFM25_VLLM)
-        spec = AttemptSpec(
-            job=foundation_screening_job(source.revision),
-            action=online_smoke_action(request.model),
-            inputs={
-                "model_profile_id": request.model.id,
-                "serve_profile_id": request.profile.id,
-                "endpoint_kind": "openai-compatible",
+    elif args.job == "qwen-awq-transform":
+        quantization_plan = _selection(catalog, "quantization", "qwen3.5-2b/awq-4bit-v1", QuantizationPlan)
+        output_id = "models/qwen3.5-2b@awq-int4-v1"
+        definition = model_transform_definition(run_quantization_transform, output_id=output_id)
+        package = _one_job_package(
+            project_id=project,
+            work_package_id="train/qwen3.5-2b/awq-int4-v1",
+            stage="train",
+            job_id="transform",
+            definition=definition,
+            bindings={
+                "model": ("model", qwen),
+                "quantization": ("quantization", quantization_plan),
+                "target": ("target", target),
             },
-            source_metadata=source.metadata(),
         )
-        operation = partial(run_online_smoke, request=request)
-    else:
-        model, profile = (
-            (QWEN_35_2B, QWEN35_VLLM_TEXT) if args.job == "foundation-qwen-smoke" else (LFM_25_12B_THINKING, LFM25_VLLM)
+    elif args.job == "qwen-rtn-transform":
+        quantization_plan = _selection(catalog, "quantization", "qwen3.5-2b/rtn-w4a16-v3", QuantizationPlan)
+        output_id = "models/qwen3.5-2b@rtn-w4a16-v3"
+        definition = model_transform_definition(run_quantization_transform, output_id=output_id)
+        package = _one_job_package(
+            project_id=project,
+            work_package_id="train/qwen3.5-2b/rtn-w4a16-v3",
+            stage="train",
+            job_id="transform",
+            definition=definition,
+            bindings={
+                "model": ("model", qwen),
+                "quantization": ("quantization", quantization_plan),
+                "target": ("target", target),
+            },
         )
-        request = BenchmarkRequest(
+    elif args.job == "qwen-awq-eval":
+        quantization_plan = _selection(catalog, "quantization", "qwen3.5-2b/awq-4bit-v1", QuantizationPlan)
+        output_id = "models/qwen3.5-2b@awq-int4-v1"
+        remote = TrackioArtifactRef(
+            project,
+            trackio_artifact_name(f"training/{output_id}/weights"),
+            args.artifact_version,
+        )
+        model = _quantized_variant(qwen, quantization_plan, remote, output_id)
+        inference = replace(
+            _selection(catalog, "inference", "inference/qwen3.5-2b-vllm-eval@1", InferenceBinding),
+            id="inference/qwen3.5-2b-awq-vllm-eval@1",
             model=model,
-            profile=profile,
-            cell=BenchmarkCell(
-                "foundation-smoke-v1",
-                "short-interactive",
-                1_024,
-                1,
-                128,
-                32,
-                1,
-                1,
-            ),
         )
-        spec = AttemptSpec(
-            job=foundation_screening_job(source.revision),
-            action=serving_benchmark_action(request),
-            inputs={
-                "model_profile_id": request.model.id,
-                "serve_profile_id": request.profile.id,
-                "suite_id": request.cell.suite_id,
-                "cell_id": request.cell.id,
+        evaluation_plan = _selection(catalog, "evaluation", "general-smoke-v1", EvaluationPlan)
+        environment = evaluation_plan.environment("math-gsm8k")
+        definition = managed_evaluation_definition(
+            run_managed_evaluation,
+            context_window=8_192,
+            budget=EvaluationBudget(num_tasks=1, max_concurrent=1),
+            kind="eval.general",
+            definition_id="eval/verifiers-managed-general@1",
+        )
+        package = _one_job_package(
+            project_id=project,
+            work_package_id="qualify/qwen3.5-2b/awq-int4-v1",
+            stage="qualify",
+            job_id="managed-eval",
+            definition=definition,
+            bindings={
+                "model": ("model", model),
+                "evaluation_inference": ("inference", inference),
+                "target": ("target", target),
+                "evaluation_plan": ("evaluation", evaluation_plan),
+                "environment": ("environment", environment),
             },
-            source_metadata=source.metadata(),
         )
-        operation = partial(run_serving_cell, request=request)
-    if args.tracked:
-        result = execute_tracked(spec, operation, project=args.project)
+    elif args.job == "qwen-rtn-eval":
+        quantization_plan = _selection(catalog, "quantization", "qwen3.5-2b/rtn-w4a16-v3", QuantizationPlan)
+        output_id = "models/qwen3.5-2b@rtn-w4a16-v3"
+        remote = TrackioArtifactRef(
+            project,
+            trackio_artifact_name(f"training/{output_id}/weights"),
+            args.artifact_version,
+        )
+        model = _quantized_variant(qwen, quantization_plan, remote, output_id)
+        inference = replace(
+            _selection(catalog, "inference", "inference/qwen3.5-2b-vllm-eval@1", InferenceBinding),
+            id="inference/qwen3.5-2b-rtn-vllm-eval@1",
+            model=model,
+        )
+        evaluation_plan = _selection(catalog, "evaluation", "general-smoke-v1", EvaluationPlan)
+        environment = evaluation_plan.environment("math-gsm8k")
+        definition = managed_evaluation_definition(
+            run_managed_evaluation,
+            context_window=8_192,
+            budget=EvaluationBudget(num_tasks=1, max_concurrent=1),
+            kind="eval.general",
+            definition_id="eval/verifiers-managed-general@1",
+        )
+        package = _one_job_package(
+            project_id=project,
+            work_package_id="qualify/qwen3.5-2b/rtn-w4a16-v3",
+            stage="qualify",
+            job_id="managed-eval",
+            definition=definition,
+            bindings={
+                "model": ("model", model),
+                "evaluation_inference": ("inference", inference),
+                "target": ("target", target),
+                "evaluation_plan": ("evaluation", evaluation_plan),
+                "environment": ("environment", environment),
+            },
+        )
+    elif args.job == "foundation-lfm-online-smoke":
+        inference = _selection(catalog, "inference", "inference/lfm2.5-1.2b-vllm-screen@1", InferenceBinding)
+        definition = serve_smoke_definition(run_online_smoke)
+        package = _one_job_package(
+            project_id=project,
+            work_package_id="screen/lfm2.5-online-smoke",
+            stage="screen",
+            job_id="serve-smoke",
+            definition=definition,
+            bindings={"inference": ("inference", inference)},
+        )
+    elif args.job == "foundation-lfm-smoke":
+        inference = _selection(catalog, "inference", "inference/lfm2.5-1.2b-vllm-screen@1", InferenceBinding)
+        definition = serve_benchmark_definition(run_screen_benchmark)
+        package = _one_job_package(
+            project_id=project,
+            work_package_id="screen/lfm2.5-benchmark-smoke",
+            stage="screen",
+            job_id="benchmark",
+            definition=definition,
+            bindings={
+                "model": ("model", lfm),
+                "screen_inference": ("inference", inference),
+                "workload": ("workload", workload),
+                "target": ("target", target),
+            },
+        )
     else:
-        result = execute(spec, operation)
+        is_rollout = args.job in {"gsm8k-qwen-preference-rollouts", "gsm8k-lfm-preference-rollouts"}
+        model = qwen if "qwen" in args.job else lfm
+        inference_id = "inference/qwen3.5-2b-vllm-eval@1" if model is qwen else "inference/lfm2.5-1.2b-vllm-eval@1"
+        inference = _selection(catalog, "inference", inference_id, InferenceBinding)
+        plan: EvaluationPlan = (
+            GSM8K_TRAINING_ROLLOUTS
+            if args.job == "gsm8k-qwen-preference-rollouts"
+            else GSM8K_LFM_TRAINING_ROLLOUTS
+            if args.job == "gsm8k-lfm-preference-rollouts"
+            else _selection(catalog, "evaluation", "general-smoke-v1", EvaluationPlan)
+        )
+        environment = plan.environment("gsm8k-train-candidates" if is_rollout else "math-gsm8k")
+        definition = managed_evaluation_definition(
+            run_managed_evaluation,
+            context_window=8_192,
+            budget=EvaluationBudget(num_tasks=None if is_rollout else 1, max_concurrent=1),
+            kind="eval.domain" if is_rollout else "eval.general",
+            definition_id=("eval/verifiers-managed-domain@1" if is_rollout else "eval/verifiers-managed-general@1"),
+        )
+        package = _one_job_package(
+            project_id=project,
+            work_package_id=f"{'train' if is_rollout else 'qualify'}/{model.id}/gsm8k",
+            stage="train" if is_rollout else "qualify",
+            job_id="managed-eval",
+            definition=definition,
+            bindings={
+                "model": ("model", model),
+                "evaluation_inference": ("inference", inference),
+                "target": ("target", target),
+                "evaluation_plan": ("evaluation", plan),
+                "environment": ("environment", environment),
+            },
+        )
+
+    result = _execute_package(args, package, definition, layout=layout)
     if isinstance(result, BenchmarkResult):
         print(json.dumps(result.as_json(), indent=2, sort_keys=True))
     elif isinstance(result, GenerationResult):
@@ -295,11 +946,26 @@ def main() -> None:
         print(
             json.dumps(
                 {
-                    "program_id": result.program_id,
+                    "evaluation_plan_id": result.plan_id,
                     "environment_id": result.environment_id,
-                    "model_profile_id": result.model_profile_id,
+                    "model_variant_id": result.model_id,
                     "trace_ids": result.trace_ids,
                     "trace_sync_complete": result.synchronization.complete,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+    elif isinstance(result, TransformResult):
+        if not isinstance(result.artifact.reference, LocalArtifactRef):
+            raise TypeError("model transforms must return a local artifact before host promotion")
+        print(
+            json.dumps(
+                {
+                    "source_model_variant_id": result.source_model.id,
+                    "output_model_variant_id": result.model.id,
+                    "artifact_name": result.artifact.name,
+                    "artifact_digest": result.artifact.reference.digest,
                 },
                 indent=2,
                 sort_keys=True,
@@ -310,8 +976,8 @@ def main() -> None:
             json.dumps(
                 {
                     "technique": result.technique,
-                    "model_profile_id": result.model.profile.id,
-                    "model_format": result.model.format,
+                    "model_variant_id": result.model.id,
+                    "model_form": result.model.form,
                     "global_step": result.summary.global_step,
                     "train_loss": result.summary.train_loss,
                     "runtime_seconds": result.summary.runtime_seconds,

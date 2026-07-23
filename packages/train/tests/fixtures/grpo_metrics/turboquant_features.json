@@ -1,0 +1,8 @@
+{
+  "features": {
+    "quantized_kv_cache": true
+  },
+  "expected_required": [
+    "serve/backend/kv_cache_peak_usage_ratio"
+  ]
+}

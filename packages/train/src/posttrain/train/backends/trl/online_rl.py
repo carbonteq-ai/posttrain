@@ -6,20 +6,28 @@ import asyncio
 import json
 from typing import Any, Literal, cast
 
-from posttrain.common import ModelProfile
+from posttrain.common import ModelVariant
 
+from ...bindings import TrainingBinding
 from ...online_rl import PolicyTurnRequest, PolicyTurnResult
-from ...profiles import GRPOProfile
+from ...profiles import GRPOSettings, OnPolicyDistillationSettings
 from ...rendering import create_renderer
 
 
 class TrlPolicyGenerator:
     """Expose the trainer's already-loaded policy as a backend-neutral turn generator."""
 
-    def __init__(self, trainer: Any, tokenizer: Any, model: ModelProfile, profile: GRPOProfile) -> None:
+    def __init__(
+        self,
+        trainer: Any,
+        tokenizer: Any,
+        model: ModelVariant,
+        settings: GRPOSettings | OnPolicyDistillationSettings,
+        training: TrainingBinding,
+    ) -> None:
         self._trainer = trainer
-        self._renderer = create_renderer(tokenizer, model, profile.renderer)
-        self._max_completion_length = profile.max_completion_length
+        self._renderer = create_renderer(tokenizer, model, training.renderer)
+        self._max_completion_length = settings.max_completion_length
         self._lock = asyncio.Lock()
 
     async def generate(self, request: PolicyTurnRequest) -> PolicyTurnResult:
@@ -61,13 +69,10 @@ class TrlPolicyGenerator:
         tool_calls = [
             {
                 "id": item.id or f"call_{index}",
-                "type": "function",
-                "function": {
-                    "name": item.name,
-                    "arguments": item.arguments
-                    if isinstance(item.arguments, str)
-                    else json.dumps(item.arguments or {}, separators=(",", ":")),
-                },
+                "name": item.name,
+                "arguments": item.arguments
+                if isinstance(item.arguments, str)
+                else json.dumps(item.arguments or {}, separators=(",", ":")),
             }
             for index, item in enumerate(parsed.tool_calls)
             if item.name is not None and item.status.value == "ok"
@@ -131,11 +136,25 @@ def _finish_reason(
 
 
 def _openai_response(message: dict[str, Any], finish_reason: str) -> dict[str, Any]:
+    wire_message = dict(message)
+    tool_calls = wire_message.get("tool_calls")
+    if isinstance(tool_calls, list):
+        wire_message["tool_calls"] = [
+            {
+                "id": str(call["id"]),
+                "type": "function",
+                "function": {
+                    "name": str(call["name"]),
+                    "arguments": str(call["arguments"]),
+                },
+            }
+            for call in tool_calls
+        ]
     return {
         "id": "posttrain-policy-turn",
         "object": "chat.completion",
         "created": 0,
-        "choices": [{"index": 0, "message": message, "finish_reason": finish_reason}],
+        "choices": [{"index": 0, "message": wire_message, "finish_reason": finish_reason}],
     }
 
 

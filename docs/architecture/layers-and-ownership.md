@@ -1,27 +1,36 @@
 # Layers and ownership
 
+
+> **STALE — pending reconciliation (2026-07-21).**
+> Canonical design: [docs/post-training/](../post-training/README.md).
+> Do not treat this document as the current product contract. Gap list: [RECONCILIATION.md](./RECONCILIATION.md).
+
 Status: target MVP architecture  
 Last revised: 2026-07-20
 
 ## Purpose
 
-`posttrain.train`, `posttrain.eval`, and `posttrain.serve` are reusable Python products that can be consumed
-by this lab, another repository, a CLI, a notebook, or a service. Their
-framework runners and adapters are internal implementation details.
+`posttrain.data`, `posttrain.train`, `posttrain.eval`, and `posttrain.serve` are
+reusable Python products that can be consumed by this lab, another repository,
+a CLI, a notebook, or a service. Their framework runners and adapters are
+internal implementation details.
 
 ## Dependency direction
 
 ```mermaid
 flowchart TB
+    P["Other projects / CLIs / services"] --> D["packages/data API"]
     P["Other projects / CLIs / services"] --> T["packages/train API"]
     P --> E["packages/eval API"]
     P --> S["packages/serve API"]
     J["Code-based lab jobs"] --> C["packages/common integration SDK"]
     J --> T
+    J --> D
     J --> E
     J --> S
     J --> M["Reusable model definitions"]
     T --> TI["Internal TRL / trainer adapters"]
+    T --> D
     E --> EI["Internal Verifiers adapter"]
     S --> SI["Internal vLLM adapter"]
     C --> O["Trackio observation context"]
@@ -35,6 +44,7 @@ Rules:
 - those package APIs do not require the lab's `Job` object or Trackio;
 - framework adapters are selected inside their owning package;
 - `train`, `eval`, and `serve` do not import one another;
+- `data` owns canonical static datasets and does not import execution packages;
 - `common` never imports a heavy execution framework;
 - environment packages depend on Verifiers, not on this platform;
 - the lab injects Trackio-backed observation through an execution context.
@@ -43,7 +53,7 @@ Rules:
 
 ```text
 project code
-  -> train/eval/serve public operation
+  -> data contract or train/eval/serve public operation
   -> package-owned validation and lifecycle
   -> internal framework adapter
   -> public typed result
@@ -94,6 +104,18 @@ Internal surface:
 Adding an adapter must not require callers to replace the `train` package API
 with direct runner composition.
 
+### `packages/data`
+
+Owns immutable supervised, preference, and task-neutral rollout snapshots;
+stable descriptors and source protocols; common Hub-format normalization; NeMo
+import/export; and Verifiers trace projection into SFT examples. It does not
+own task execution, trainer configuration, tokenization, model templates,
+artifact publication, or observability.
+
+`posttrain.train` consumes these snapshots and performs model-specific
+rendering. A standalone data-curation project can use `posttrain.data` without
+installing TRL, vLLM, Trackio, or the lab application.
+
 ### `packages/eval`
 
 Public reusable surface:
@@ -143,6 +165,7 @@ Definitions live with the public package that validates them:
 
 | Definition | Owner | Example import |
 | --- | --- | --- |
+| Canonical SFT/preference dataset | `packages/data` | `posttrain.data.SupervisedDataset` |
 | Model profile | `posttrain.common.profiles` | `QWEN_35_2B` |
 | Training profile | `packages/train` | `train.profiles.qwen35.SFT_QLORA` |
 | General eval program | `packages/eval` | `eval.programs.GENERAL_SMOKE` |
@@ -201,6 +224,8 @@ Public operation and definition modules remain lightweight. Execution installs
 the selected implementation extra:
 
 ```text
+posttrain-data[huggingface]
+posttrain-data[verifiers]
 posttrain-train[trl]
 posttrain-eval[verifiers]
 posttrain-serve[vllm]
@@ -220,6 +245,9 @@ and lets package owners release independently.
 - a second lineage or results database.
 
 ## Revision history
+
+- 2026-07-20: Added the independent canonical data package and made training a
+  consumer of its snapshots rather than their owner.
 
 - 2026-07-20: Made `train`, `eval`, and `serve` the reusable cross-project
   units, moved framework runners/adapters behind public operations, and made

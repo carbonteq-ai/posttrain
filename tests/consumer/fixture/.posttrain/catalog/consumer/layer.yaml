@@ -1,0 +1,4 @@
+schema_version: 1
+layer_id: external-consumer-v1
+files:
+  - targets.yaml

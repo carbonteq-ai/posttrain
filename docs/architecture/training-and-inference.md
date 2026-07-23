@@ -1,13 +1,19 @@
 # Training, evaluation, and serving package boundaries
 
+
+> **STALE — pending reconciliation (2026-07-21).**
+> Canonical design: [docs/post-training/](../post-training/README.md).
+> Do not treat this document as the current product contract. Gap list: [RECONCILIATION.md](./RECONCILIATION.md).
+
 Status: target MVP architecture  
 Last revised: 2026-07-20
 
 ## Purpose
 
-`posttrain.train`, `posttrain.eval`, and `posttrain.serve` are reusable Python packages for many kinds of
-projects. This lab's jobs are consumers of those packages; their internal
-framework runners are not the shared architecture.
+`posttrain.data`, `posttrain.train`, `posttrain.eval`, and `posttrain.serve` are
+reusable Python packages for many kinds of projects. This lab's jobs are
+consumers of those packages; their internal framework runners are not the
+shared architecture.
 
 ## Public package contract
 
@@ -16,6 +22,7 @@ optional instrumentation hooks:
 
 | Package | Stable public operations | Initial internal integration |
 | --- | --- | --- |
+| `posttrain.data` | canonical snapshots, sources, format import/export | HF/TRL, NeMo, Verifiers traces |
 | `posttrain.train` | `sft`, `dpo`, `grpo`, checkpoint selection/resume | TRL |
 | `posttrain.eval` | `evaluate`, program execution, checkpoint comparison inputs | Verifiers |
 | `posttrain.serve` | `launch`, `generate`, `probe`, `benchmark` | vLLM |
@@ -77,6 +84,35 @@ choose the new concrete config, but do not replace the reusable package with a
 runner object.
 
 ## Training operations
+
+### Canonical data boundary
+
+Static supervised and preference data is owned by `packages/data`, not by a
+trainer or environment framework:
+
+```text
+HF/TRL rows ─┐
+NeMo rows ───┼─> posttrain.data canonical snapshot ─> trainer renderer/adapter
+legacy Hub ──┤
+VF traces ───┘
+```
+
+`SupervisedExample` contains canonical messages, tools, explicit trainable
+message indices, and lineage metadata. `PreferenceExample` contains an
+explicit shared prompt, chosen/rejected continuations, optional scores, tools,
+and trace references. A `DatasetDescriptor` exposes identity before a lazy
+source is materialized. Hugging Face Dataset, JSONL, Parquet, and Trackio
+artifacts are transports; none is the domain contract.
+
+Verifiers tasksets stay executable environment packages. The Verifiers data
+adapter consumes finished native traces and emits one supervised example per
+retained branch. Filtering errors, truncation, and reward is explicit. Native
+traces remain authoritative and are not replaced by the derived SFT snapshot.
+
+Model renderers stay in `posttrain.train`: they apply model-native templates,
+preserve tool definitions, and turn message-level targets into token-level loss
+masks. This prevents a canonical dataset from being tied to one tokenizer,
+renderer revision, or trainer.
 
 A training operation consumes an exact model/profile, data or environment
 inputs, typed technique config, and recovery/output policy. It returns a typed
@@ -266,6 +302,8 @@ and observation run kinds.
 Public modules stay lightweight; concrete integrations use extras:
 
 ```text
+posttrain-data[huggingface]
+posttrain-data[verifiers]
 posttrain-train[trl]
 posttrain-train[trl,trl-vllm]
 posttrain-eval[verifiers]
@@ -300,6 +338,9 @@ make that decision.
 7. Prove lab-job use of the same operations with Trackio observation enabled.
 
 ## Revision history
+
+- 2026-07-20: Added `posttrain.data` as the canonical supervised/preference
+  data owner with explicit HF, NeMo, and Verifiers trace adapters.
 
 - 2026-07-20: Replaced the public runner-centric model with reusable
   `train`/`eval`/`serve` operation APIs, internal framework adapters, and an

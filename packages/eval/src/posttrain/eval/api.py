@@ -6,13 +6,14 @@ import hashlib
 from collections.abc import Callable
 from pathlib import Path
 
-from posttrain.common import ExecutionContext, LocalArtifactRef, ProducedArtifact
+from posttrain.common import LocalArtifactRef, ProducedArtifact, RunContext
 
 from .backends.verifiers import VerifiersRunResult, run_verifiers
-from .requests import EvaluationRequest
+from .requests import EvaluateRequest
 from .results import EvaluationResult, TraceSynchronization
 
-type EvaluationRunner = Callable[[ExecutionContext, EvaluationRequest, Path], VerifiersRunResult]
+type EvaluationContext = RunContext
+type EvaluationRunner = Callable[[EvaluationContext, EvaluateRequest, Path], VerifiersRunResult]
 
 
 def _directory_digest(path: Path) -> str:
@@ -27,8 +28,8 @@ def _directory_digest(path: Path) -> str:
 
 
 def evaluate(
-    context: ExecutionContext,
-    request: EvaluationRequest,
+    context: EvaluationContext,
+    request: EvaluateRequest,
     *,
     runner: EvaluationRunner = run_verifiers,
 ) -> EvaluationResult:
@@ -36,23 +37,23 @@ def evaluate(
 
     environment = request.environment
     num_tasks, num_rollouts, max_concurrent = request.resolved_budget
-    attributes = {
-        "model_profile_id": request.model.id,
-        "program_id": request.program.id,
-        "program_kind": request.program.kind,
-        "environment_id": environment.id,
-        "environment_category": environment.category,
-        "reasoning_mode": request.resolved_reasoning_mode,
-        "num_tasks": num_tasks,
-        "num_rollouts": num_rollouts,
-        "max_concurrent": max_concurrent,
-    }
+    attributes = _attributes(request)
+    attributes.update(
+        {
+            "environment_id": environment.id,
+            "environment_category": environment.category,
+            "reasoning_mode": request.resolved_reasoning_mode,
+            "num_tasks": num_tasks,
+            "num_rollouts": num_rollouts,
+            "max_concurrent": max_concurrent,
+        }
+    )
     context.event("evaluation_started", attributes)
     output_dir = context.workspace / "evaluation" / environment.id
     output_dir.mkdir(parents=True, exist_ok=False)
     backend = runner(context, request, output_dir)
     artifact = ProducedArtifact(
-        name=f"evaluation/{request.model.id}/{request.program.id}/{environment.id}",
+        name=f"evaluation/{_model_id(request)}/{_plan_id(request)}/{environment.id}",
         kind="verifiers-evaluation",
         reference=LocalArtifactRef(output_dir, _directory_digest(output_dir)),
         metadata={
@@ -83,16 +84,65 @@ def evaluate(
     )
     context.event(
         "evaluation_completed",
-        {**attributes, "rollouts": len(backend.trace_ids), "trace_sync_complete": sync.complete},
+        {
+            **attributes,
+            "rollouts": len(backend.trace_ids),
+            "trace_sync_complete": sync.complete,
+            "evaluation_status": sync.status,
+        },
     )
     return EvaluationResult(
-        program_id=request.program.id,
+        plan_id=_plan_id(request),
         environment_id=environment.id,
-        model_profile_id=request.model.id,
+        model_id=_model_id(request),
         trace_ids=backend.trace_ids,
         native_artifact=artifact,
         synchronization=sync,
     )
 
 
-__all__ = ["EvaluationRunner", "evaluate"]
+def general(
+    context: EvaluationContext,
+    request: EvaluateRequest,
+    *,
+    runner: EvaluationRunner = run_verifiers,
+) -> EvaluationResult:
+    """Run one cell from a general evaluation plan."""
+
+    if request.plan.kind != "general":
+        raise ValueError("eval.general requires a general evaluation plan")
+    return evaluate(context, request, runner=runner)
+
+
+def domain(
+    context: EvaluationContext,
+    request: EvaluateRequest,
+    *,
+    runner: EvaluationRunner = run_verifiers,
+) -> EvaluationResult:
+    """Run one cell from a domain evaluation plan."""
+
+    if request.plan.kind != "domain":
+        raise ValueError("eval.domain requires a domain evaluation plan")
+    return evaluate(context, request, runner=runner)
+
+
+def _attributes(request: EvaluateRequest) -> dict[str, str | int]:
+    return {
+        "model_variant_id": request.model.id,
+        "evaluation_plan_id": request.plan.id,
+        "evaluation_plan_kind": request.plan.kind,
+        "inference_binding_id": request.inference.id,
+        "execution_target_id": request.target.id,
+    }
+
+
+def _model_id(request: EvaluateRequest) -> str:
+    return request.model.id
+
+
+def _plan_id(request: EvaluateRequest) -> str:
+    return request.plan.id
+
+
+__all__ = ["EvaluationContext", "EvaluationRunner", "domain", "evaluate", "general"]

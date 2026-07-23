@@ -1,0 +1,32 @@
+[project]
+name = "posttrain-observatory"
+version = "0.1.0"
+description = "Dedicated post-training observability and analysis product"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi>=0.136.3,<0.137",
+    "httpx>=0.28,<1",
+    "mcp>=1.28,<2",
+    "posttrain-common",
+    "posttrain-tracking",
+    "posttrain-tracking-trackio",
+    "posttrain-tracking-wandb",
+    "pydantic>=2.12,<3",
+    "uvicorn>=0.51,<0.52",
+]
+
+[project.scripts]
+posttrain-observatory = "posttrain_observatory.cli:main"
+
+[tool.uv.sources]
+posttrain-common = { workspace = true }
+posttrain-tracking = { workspace = true }
+posttrain-tracking-trackio = { workspace = true }
+posttrain-tracking-wandb = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/posttrain_observatory"]

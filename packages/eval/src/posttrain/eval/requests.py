@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import Literal
 from urllib.parse import urlparse
 
-from posttrain.common import ModelProfile
+from posttrain.common import (
+    ExecutionTarget,
+    InferenceBinding,
+    JsonValue,
+    ModelVariant,
+)
 
 _ID = re.compile(r"^[a-z0-9][a-z0-9._/-]*$")
 _COMMIT_SHA = re.compile(r"^[0-9a-f]{40}$")
@@ -62,8 +68,8 @@ class SamplingPolicy:
 
 
 @dataclass(frozen=True, slots=True)
-class EnvironmentProgram:
-    """One independently runnable Verifiers environment inside a program."""
+class EnvironmentBinding:
+    """One versioned, independently runnable environment inside a plan."""
 
     id: str
     category: str
@@ -73,6 +79,8 @@ class EnvironmentProgram:
     num_tasks: int
     num_rollouts: int = 1
     max_concurrent: int = 4
+    parameters: Mapping[str, JsonValue] = field(default_factory=dict)
+    reward_components: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         _stable_id(self.id, "environment id")
@@ -81,30 +89,47 @@ class EnvironmentProgram:
             raise ValueError("environment factory must be callable")
         if self.num_tasks < 1 or self.num_rollouts < 1 or self.max_concurrent < 1:
             raise ValueError("evaluation task, rollout, and concurrency counts must be positive")
+        if any(not value.strip() for value in self.reward_components):
+            raise ValueError("environment reward component names cannot be empty")
+        object.__setattr__(self, "parameters", MappingProxyType(dict(self.parameters)))
+
+    @property
+    def revision(self) -> str:
+        return self.source.revision
 
 
 @dataclass(frozen=True, slots=True)
-class EvaluationProgram:
-    """Reusable selection of independently runnable environment cells."""
+class EvaluationPlan:
+    """Reusable selection and interpretation policy for environment cells."""
 
     id: str
     kind: Literal["general", "domain"]
-    environments: tuple[EnvironmentProgram, ...]
+    environments: tuple[EnvironmentBinding, ...]
+    revision: str = "1"
+    inference_requirements: Mapping[str, JsonValue] = field(default_factory=dict)
+    metrics_and_slices: tuple[str, ...] = ()
+    aggregation: Mapping[str, JsonValue] = field(default_factory=dict)
+    comparison: Mapping[str, JsonValue] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         _stable_id(self.id, "evaluation program id")
         ids = tuple(environment.id for environment in self.environments)
         if not ids or len(ids) != len(set(ids)):
-            raise ValueError("evaluation programs require non-empty, unique environment ids")
+            raise ValueError("evaluation plans require non-empty, unique environment ids")
+        if not self.revision.strip():
+            raise ValueError("evaluation plan revision cannot be empty")
+        object.__setattr__(self, "inference_requirements", MappingProxyType(dict(self.inference_requirements)))
+        object.__setattr__(self, "aggregation", MappingProxyType(dict(self.aggregation)))
+        object.__setattr__(self, "comparison", MappingProxyType(dict(self.comparison)))
 
-    def environment(self, environment_id: str) -> EnvironmentProgram:
+    def environment(self, environment_id: str) -> EnvironmentBinding:
         for environment in self.environments:
             if environment.id == environment_id:
                 return environment
         available = ", ".join(item.id for item in self.environments)
         raise ValueError(f"unknown environment {environment_id!r}; available: {available}")
 
-    def select(self, *environment_ids: str) -> tuple[EnvironmentProgram, ...]:
+    def select(self, *environment_ids: str) -> tuple[EnvironmentBinding, ...]:
         if not environment_ids:
             return self.environments
         requested = set(environment_ids)
@@ -116,7 +141,7 @@ class EvaluationProgram:
 
 
 @dataclass(frozen=True, slots=True)
-class EvaluationTarget:
+class EvaluationEndpoint:
     """An OpenAI-compatible generation target, independent of its serving engine."""
 
     base_url: str
@@ -146,7 +171,7 @@ class EvaluationBudget:
         if any(value is not None and value < 1 for value in values):
             raise ValueError("evaluation budget overrides must be positive")
 
-    def resolve(self, environment: EnvironmentProgram) -> tuple[int, int, int]:
+    def resolve(self, environment: EnvironmentBinding) -> tuple[int, int, int]:
         return (
             self.num_tasks or environment.num_tasks,
             self.num_rollouts or environment.num_rollouts,
@@ -155,12 +180,14 @@ class EvaluationBudget:
 
 
 @dataclass(frozen=True, slots=True)
-class EvaluationRequest:
-    """One model evaluated on one environment cell from a reusable program."""
+class EvaluateRequest:
+    """Canonical evaluation seats plus the host-provided live endpoint."""
 
-    model: ModelProfile
-    target: EvaluationTarget
-    program: EvaluationProgram
+    model: ModelVariant
+    plan: EvaluationPlan
+    inference: InferenceBinding
+    target: ExecutionTarget
+    endpoint: EvaluationEndpoint
     environment_id: str
     context_window: int
     reasoning_mode: str | None = None
@@ -168,7 +195,13 @@ class EvaluationRequest:
     budget: EvaluationBudget = EvaluationBudget()
 
     def __post_init__(self) -> None:
-        environment = self.program.environment(self.environment_id)
+        environment = self.plan.environment(self.environment_id)
+        if self.inference.model != self.model:
+            raise ValueError("evaluation model conflicts with its inference binding")
+        if self.inference.target != self.target:
+            raise ValueError("evaluation target conflicts with its inference binding")
+        if "eval" not in self.inference.purpose:
+            raise ValueError("evaluation requires an inference binding with eval purpose")
         if self.context_window < 1:
             raise ValueError("evaluation context window must be positive")
         if self.context_window > self.model.capabilities.native_context_window:
@@ -178,8 +211,8 @@ class EvaluationRequest:
         self.model.conversation.reasoning_mode(self.resolved_reasoning_mode)
 
     @property
-    def environment(self) -> EnvironmentProgram:
-        return self.program.environment(self.environment_id)
+    def environment(self) -> EnvironmentBinding:
+        return self.plan.environment(self.environment_id)
 
     @property
     def resolved_reasoning_mode(self) -> str:
@@ -192,11 +225,11 @@ class EvaluationRequest:
 
 __all__ = [
     "EnvironmentFactory",
-    "EnvironmentProgram",
+    "EnvironmentBinding",
     "EnvironmentSource",
+    "EvaluateRequest",
     "EvaluationBudget",
-    "EvaluationProgram",
-    "EvaluationRequest",
-    "EvaluationTarget",
+    "EvaluationEndpoint",
+    "EvaluationPlan",
     "SamplingPolicy",
 ]

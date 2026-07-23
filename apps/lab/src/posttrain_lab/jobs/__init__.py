@@ -1,57 +1,35 @@
-"""Code-defined reference jobs."""
+"""Reference operations composed by the lab host."""
 
-from .foundation_screening import (
-    ManagedEvaluationRequest,
-    evaluation_action,
-    foundation_screening_job,
-    online_smoke_action,
-    run_managed_evaluation,
-    run_online_smoke,
-    run_serving_cell,
-    serving_benchmark_action,
-)
+from .environment_grpo import VerifiersGRPOJobRequest, grpo_job_inputs, run_grpo_materialized
+from .foundation_screening import run_managed_evaluation, run_online_smoke, run_screen_benchmark
 from .gsm8k_posttraining import (
     GSM8K_LFM_TRAINING_ROLLOUTS,
     GSM8K_TRAINING_ROLLOUTS,
-    GSM8KGRPOJobRequest,
-    dpo_action,
-    grpo_action,
-    grpo_job_inputs,
-    gsm8k_posttraining_job,
-    rollout_collection_action,
+    GSM8KDistillationJobRequest,
+    run_distillation,
     run_dpo,
     run_dpo_materialized,
-    run_grpo_materialized,
     run_sft,
-    sft_action,
     training_inputs,
 )
-from .noop import noop_action, noop_job, run_noop
+from .model_transform import run_quantization_transform
+from .noop import run_noop
 
 __all__ = [
-    "ManagedEvaluationRequest",
     "GSM8K_LFM_TRAINING_ROLLOUTS",
     "GSM8K_TRAINING_ROLLOUTS",
-    "GSM8KGRPOJobRequest",
-    "evaluation_action",
-    "foundation_screening_job",
-    "online_smoke_action",
-    "noop_action",
-    "noop_job",
-    "run_noop",
-    "run_managed_evaluation",
-    "run_online_smoke",
-    "run_serving_cell",
-    "serving_benchmark_action",
-    "dpo_action",
-    "grpo_action",
+    "VerifiersGRPOJobRequest",
+    "GSM8KDistillationJobRequest",
     "grpo_job_inputs",
-    "gsm8k_posttraining_job",
     "run_dpo",
+    "run_distillation",
     "run_dpo_materialized",
     "run_grpo_materialized",
+    "run_managed_evaluation",
+    "run_noop",
+    "run_quantization_transform",
+    "run_online_smoke",
+    "run_screen_benchmark",
     "run_sft",
-    "rollout_collection_action",
-    "sft_action",
     "training_inputs",
 ]

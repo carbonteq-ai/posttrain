@@ -10,7 +10,7 @@ The lab's injected observation context maps those hooks to Trackio. Datasets,
 rewards, and Verifiers environment implementations remain independently owned.
 
 The workspace uses the `carbonteq-ai/trl` fork pinned to immutable commit
-`b30d820a160ee39a2294a2755fd2d96fe3ac57b0`. The fork preserves TRL 1.8.0 and
+`5c50c69f2d9b25dc2ce729d030f7cabb144d8431`. The fork preserves TRL 1.8.0 and
 adds the upstream-validated vLLM 0.24/0.25 dependency support plus regression
 coverage. It also keeps the trainer runtime compatible with `datasets 4.6.1`
 so the application can install Verifiers v1 and TRL together. It does not
@@ -50,10 +50,135 @@ not a universal backend default.
 See [ADR 0007](../../decisions/0007-trl-vllm-025-fork.md) for the provenance and
 upgrade policy.
 
+For GRPO, the fork additionally exposes `logits_chunk_size`. It bounds the
+number of flattened token positions projected through the LM head at once
+during old-policy and reference-policy scoring, then reconstructs the same
+token-aligned log-probabilities and entropies. The focused fork regression
+compares chunked and unchunked numerical results. This control does not bound
+the differentiable train loss by itself; the current constrained profile pairs
+it with `use_liger_kernel=true`.
+
 The fork's colocated vLLM path has been exercised on the local RTX 3070 Ti with
 a 0.5B Qwen smoke through engine creation, CUDA graph capture, weight sync,
 generation, and token-logprob extraction. That compatibility smoke does not
 replace SFT, DPO, or GRPO acceptance for the two foundation profiles.
+
+## Native MTP and TurboQuant rollouts
+
+The next fork candidate standardizes both controls through the same
+backend-neutral inference binding used by veRL:
+
+    engine:
+      mode: colocate
+      max_model_len: 32768
+      kv_cache_dtype: auto
+      speculative_config:
+        method: mtp
+        num_speculative_tokens: 1
+
+`speculative_config` enables a compatible Qwen model's native MTP head for
+rollout acceleration. It does not add an MTP loss or train the draft head.
+The adapter rejects non-MTP methods, non-positive draft counts, models which do
+not declare MTP, and trainer-side speculative settings in external-server mode
+before constructing a trainer.
+
+For colocated GRPO and on-policy distillation, TRL forwards the speculative
+configuration without bypassing weight synchronization or sleep/wake. vLLM's
+process-lifetime counters are captured before the rollout engine sleeps,
+converted to per-generation deltas, and logged under the same normalized names
+as veRL:
+
+- `rollout/spec_num_drafts`
+- `rollout/spec_num_draft_tokens`
+- `rollout/spec_num_accepted_tokens`
+- `rollout/spec_accept_rate`
+- `rollout/spec_accept_length`
+
+TurboQuant uses the same binding with
+`kv_cache_dtype: turboquant_k8v4`. The private TRL adapter forwards the cache
+dtype, selects an FP16 rollout copy on the local Ampere target, and applies the
+narrow vLLM 0.25.1 cache-marker guard only if that build still reports no
+TurboQuant quantization mode. TurboQuant affects rollout KV-cache storage, not
+QLoRA actor weights.
+
+This is an experimental configuration surface, not a Qwen 3.5 quality claim.
+The existing matched probe increased cache-token capacity by about 2.67 times,
+but K8V4 failed the beginning-of-context recall check at 8K, 16K, 24K, and
+32.7K where normal KV passed. Therefore the first real TRL MTP GRPO and
+distillation qualifications must use normal KV. K8V4 becomes supported for
+Qwen 3.5 only after it passes deterministic short-generation and 32K recall
+comparisons against normal KV. Combining MTP and K8V4 is a later, separate
+qualification.
+
+### Qwen 3.5 0.8B MTP GRPO qualification
+
+Run `artifacts/automationbench-trl-qwen35-08b-mtp-qualification-09` completed
+four original AutomationBench trajectories across two optimizer steps on the
+local RTX 3070 Ti. It used a 32,768-token engine window, native MTP-1, BF16
+LoRA, vLLM sleep mode, eager rollout execution, and a 640 MiB explicit KV
+cache. The effective GRPO batch was two generations, executed as physical
+microbatch one with two gradient-accumulation slices. This is still one GRPO
+group per optimizer update; accumulation changes memory scheduling, not the
+algorithm batch.
+
+The first step had non-zero gradient norm `0.1378`, reward mean `0.25`, reward
+standard deviation `0.3536`, and 84.35% MTP draft-token acceptance. The second
+post-synchronization rollout had 87.49% acceptance and completed its second
+backward/optimizer cycle. Its gradient was zero because both sampled rewards
+were identical, which is expected GRPO behavior; the exported adapter was
+already changed by step one. Checkpoint 2, the final adapter, four native
+traces, and the training summary were all preserved.
+
+Run `artifacts/automationbench-trl-qwen35-08b-mtp-qualification-10` requalified
+the final step-total observability bridge after replacing TRL's default metric
+averaging. Its two complete trajectories recorded 237 draft tokens, 204
+accepted tokens, 86.08% weighted acceptance, gradient norm `0.1332`, reward
+standard deviation `0.3536`, a recovery checkpoint, and changed LoRA-B
+weights.
+
+The failed attempts are also operational evidence. A 256 MiB KV allocation
+cannot represent one 32K MTP request; vLLM reports a 0.49 GiB minimum. CUDA
+graph capture leaves about 1.05 GiB in private pools after rollout sleep on
+this device, and a physical actor batch of two then OOMs during backward.
+Therefore the qualified 8 GiB profile uses `kv_cache_memory_bytes=671088640`,
+`enforce_eager=true`, physical microbatch one, and gradient accumulation two.
+Do not lower the context target or call a constructor-only run a substitute.
+
+The exact qualification entrypoint is
+`tools/run_automationbench_trl_grpo.py`. On-policy distillation accepts the same
+MTP and engine settings in code and unit coverage, but still requires its own
+real student-rollout plus teacher-score GPU qualification before it is marked
+released.
+
+### Current 8 GiB, large-group optimization
+
+The current matched benchmark increases the workload to two AutomationBench
+prompt groups, eight generations per group, and three intended optimizer
+updates with an 8,192-token engine window. Its TRL selection uses:
+
+- physical actor batch one and gradient accumulation 16;
+- a 192 MiB explicit KV-cache budget;
+- native MTP-1 with eager colocated vLLM and rollout sleep;
+- LoRA rank 8 on `o_proj` and `down_proj`;
+- `logits_chunk_size=128`;
+- Liger's fused GRPO loss.
+
+The failure sequence isolated two different vocabulary-projection allocations.
+Full-batch old-policy scoring requested another 1.43 GiB, while batch-one
+scoring still attempted a 3.54 GiB full logits tensor. Chunked projection plus
+the fused differentiable loss crossed both boundaries. Trackio run
+`train.grpo-494bbf38` preserved 16 completed native AutomationBench traces
+totaling 1,786,242 bytes, but the process was interrupted before optimizer
+update one completed.
+
+This is memory-boundary evidence, not a qualified three-update profile and not
+a valid TRL-versus-veRL timing result. The detailed operating sequence,
+failure ladder, benchmark method, and release gates are maintained in
+[Optimizing GRPO on a single GPU](../../techniques/grpo/single-gpu-optimization.md).
+
+The fork implementation is published and selected immutably. The maintained
+delta, source/test surfaces, constraints, and rebase procedure live in the
+fork's root `CARBONTEQ_FORK.md`.
 
 The code-defined `posttrain-lab` entrypoint now composes typed training requests
 with job-owned data. Reusable trainers remain callable directly from Python.

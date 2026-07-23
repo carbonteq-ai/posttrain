@@ -38,18 +38,32 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - package: posttrain
+            import_name: posttrain_cli
           - package: posttrain-common
             import_name: posttrain.common
+          - package: posttrain-catalog
+            import_name: posttrain.catalog
+          - package: posttrain-data
+            import_name: posttrain.data
           - package: posttrain-lab
             import_name: posttrain_lab
           - package: posttrain-eval
             import_name: posttrain.eval
-          - package: posttrain-reports
-            import_name: posttrain.reports
           - package: posttrain-serve
             import_name: posttrain.serve
+          - package: posttrain-tracking
+            import_name: posttrain.tracking
+          - package: posttrain-tracking-trackio
+            import_name: posttrain_tracking_trackio
+          - package: posttrain-tracking-wandb
+            import_name: posttrain_tracking_wandb
           - package: posttrain-train
             import_name: posttrain.train
+          - package: posttrain-work
+            import_name: posttrain.work
+          - package: posttrain-observatory
+            import_name: posttrain_observatory
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -60,3 +74,35 @@ jobs:
         run: uv sync --package ${{ matrix.package }} --python 3.12
       - name: Import package
         run: uv run --package ${{ matrix.package }} python -c "import ${{ matrix.import_name }}"
+
+  external-consumer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: "3.12"
+      - name: Install workspace and test tools
+        run: uv sync --all-packages --group dev --python 3.12
+      - name: Build wheels and run outside the workspace
+        run: uv run pytest -q tests/consumer
+
+  optional-verifiers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: "3.12"
+      - name: Install the Verifiers integration
+        run: uv sync --package posttrain-train --extra verifiers --python 3.12
+      - name: Test the Verifiers bridge
+        run: |
+          uv run \
+            --package posttrain-train \
+            --extra verifiers \
+            --with pytest \
+            --with pytest-asyncio \
+            pytest -q packages/train/tests/test_verifiers_grpo_bridge.py

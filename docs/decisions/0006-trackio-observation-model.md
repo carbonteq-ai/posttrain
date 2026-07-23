@@ -1,5 +1,9 @@
 # ADR 0006 — Use Trackio only as the observability and evidence layer
 
+
+> **STALE — pending reconciliation (2026-07-21).**
+> Canonical design: [docs/post-training/](../post-training/README.md). Gap list: [RECONCILIATION.md](../architecture/RECONCILIATION.md).
+
 ## Status
 
 Accepted.
