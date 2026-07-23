@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal, TypeVar, cast
 
+import wandb
 from posttrain.common import (
     ContractError,
     EventObservation,
@@ -44,8 +45,6 @@ from posttrain.tracking import (
     TrackingCapabilities,
 )
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-
-import wandb
 
 _WANDB_SYSTEM_METRICS = {
     "system/cpu_percent": ("system.cpu", 1.0),
