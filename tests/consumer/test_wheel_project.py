@@ -66,7 +66,6 @@ def test_installed_wheels_discover_external_project_and_compose_catalog(
         "install",
         "--python",
         str(python),
-        "--offline",
         "pydantic>=2.12,<3",
         "pyyaml>=6.0,<7",
         cwd=tmp_path,

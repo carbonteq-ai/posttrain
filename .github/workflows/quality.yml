@@ -20,7 +20,7 @@ jobs:
       - name: Verify lockfile
         run: uv lock --check
       - name: Install workspace and quality tools
-        run: uv sync --all-packages --group dev --python 3.12
+        run: uv sync --all-packages --group dev --extra verifiers --python 3.12
       - name: Test
         run: uv run pytest --cov --cov-report=term-missing
       - name: Lint
