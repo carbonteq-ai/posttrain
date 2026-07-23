@@ -5,11 +5,28 @@ from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import Any, TypeVar, cast
 
 import pytest
-from posttrain.train import PolicySampling, PolicyTurnResult, RolloutBatch
-from posttrain.train.integrations import VerifiersEnvironmentRolloutBridge
+from posttrain.catalog import open_catalog
+from posttrain.common import CatalogRef, InferenceBinding, ModelVariant
+from posttrain.eval import EnvironmentBinding
+from posttrain.train import (
+    GRPORequest,
+    GRPOSettings,
+    OnPolicyDistillationRequest,
+    OnPolicyDistillationSettings,
+    PolicySampling,
+    PolicyTurnResult,
+    RolloutBatch,
+    TrainingBinding,
+    build_verifiers_distillation_request,
+    build_verifiers_grpo_request,
+)
+from posttrain.train.integrations import (
+    VerifiersEnvironmentRolloutBridge,
+    preflight_verifiers_environment,
+)
 from posttrain.train.integrations.verifiers import _PolicyClient, load_verifiers_bridge_snapshot
 
 pytest.importorskip("verifiers")
@@ -26,6 +43,8 @@ from verifiers.v1 import (
     UserMessage,
 )
 from verifiers.v1.dialects import ChatDialect
+
+T = TypeVar("T")
 
 
 class FakeGenerator:
@@ -195,3 +214,65 @@ def test_native_bridge_portable_snapshot_reconstructs_without_live_environment_s
     assert restored.dataset == bridge.dataset
     assert restored.environment_id == bridge.environment_id
     assert restored.trace_path == bridge.trace_path
+
+
+def test_catalog_environment_builds_public_grpo_and_distillation_requests(tmp_path) -> None:
+    catalog = open_catalog(scope="bridge-test")
+
+    def selection(family, selection_id, expected: type[T]) -> T:
+        value = catalog.resolve(CatalogRef(family, selection_id)).value
+        assert isinstance(value, expected)
+        return value
+
+    environment = selection("environment", "gsm8k-distill-train", EnvironmentBinding)
+    config = preflight_verifiers_environment(environment)
+    tasks = {0: SimpleNamespace(data=SimpleNamespace(prompt="What is 2 + 2?"))}
+
+    grpo_request = build_verifiers_grpo_request(
+        policy=selection("model", "models/qwen3.5-2b@bf16", ModelVariant),
+        environment=environment,
+        settings=selection("training", "qwen3.5-2b/grpo-smoke-v3", GRPOSettings),
+        training=selection("training", "training/qwen3.5-trl-lora@1", TrainingBinding),
+        inference=selection(
+            "inference",
+            "inference/qwen3.5-2b-vllm-rollout@1",
+            InferenceBinding,
+        ),
+        trace_path=tmp_path / "grpo-traces.jsonl",
+        run_id="grpo-run",
+        tasks=tasks,
+    )
+    distillation_request = build_verifiers_distillation_request(
+        student=selection("model", "models/qwen3.5-0.8b@bf16", ModelVariant),
+        teacher=selection("model", "models/qwen3.5-2b@bf16", ModelVariant),
+        environment=environment,
+        settings=selection(
+            "training",
+            "qwen3.5-0.8b/on-policy-distill-smoke-v1",
+            OnPolicyDistillationSettings,
+        ),
+        training=selection(
+            "training",
+            "training/qwen3.5-0.8b-trl-distill-lora@1",
+            TrainingBinding,
+        ),
+        rollout_inference=selection(
+            "inference",
+            "inference/qwen3.5-0.8b-vllm-distill-rollout@1",
+            InferenceBinding,
+        ),
+        teacher_inference=selection(
+            "inference",
+            "inference/qwen3.5-2b-vllm-teacher-score@1",
+            InferenceBinding,
+        ),
+        trace_path=tmp_path / "distill-traces.jsonl",
+        run_id="distill-run",
+        tasks=tasks,
+    )
+
+    assert config["taskset"]["split"] == "train"
+    assert isinstance(grpo_request, GRPORequest)
+    assert isinstance(distillation_request, OnPolicyDistillationRequest)
+    assert grpo_request.bridge.dataset.examples[0].prompt == "What is 2 + 2?"
+    assert distillation_request.bridge.dataset.examples[0].prompt == "What is 2 + 2?"

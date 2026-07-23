@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from types import MappingProxyType
 
 from posttrain.common import (
@@ -47,6 +48,7 @@ from .contracts import (
 from .execution import ArtifactInput, RunSpec, execute_run
 
 type RunExecutor = Callable[[RunSpec, Callable[[RunContext], object]], object]
+type SeatResolver = Callable[[ResolvedSeat], Selection]
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,6 +87,7 @@ class WorkPackageContext:
     definitions: Mapping[str, JobDefinition]
     source_metadata: Mapping[str, JsonValue] = field(default_factory=dict)
     executor: RunExecutor = execute_run
+    seat_resolver: SeatResolver | None = None
 
     def __post_init__(self) -> None:
         if len(self.definitions) != len(set(self.definitions)):
@@ -94,6 +97,28 @@ class WorkPackageContext:
                 raise ContractError("job-definition registry keys must match definition ids")
         object.__setattr__(self, "definitions", MappingProxyType(dict(self.definitions)))
         object.__setattr__(self, "source_metadata", MappingProxyType(dict(self.source_metadata)))
+
+
+@dataclass(frozen=True, slots=True)
+class WorkPackageHostRequest:
+    """Resolved project values passed to an explicitly selected execution host."""
+
+    project_id: str
+    project_root: Path
+    state_dir: Path
+    work_package_path: Path
+    catalog: Catalog
+
+    def __post_init__(self) -> None:
+        if self.catalog.scope != self.project_id:
+            raise ContractError("host request catalog scope must match the project id")
+        if not self.project_root.is_absolute() or not self.state_dir.is_absolute():
+            raise ContractError("host request paths must be absolute")
+        if not self.work_package_path.is_absolute():
+            raise ContractError("host request work-package path must be absolute")
+
+
+type WorkPackageHostFactory = Callable[[WorkPackageHostRequest], WorkPackageContext]
 
 
 def resolve_work_package(catalog: Catalog, package: WorkPackage) -> ResolvedWorkPackage:
@@ -195,6 +220,59 @@ def run_work_package(context: WorkPackageContext, package: WorkPackage) -> WorkP
     return WorkPackageResult(package.project_id, package.work_package_id, tuple(results))
 
 
+def run_work_package_job(
+    context: WorkPackageContext,
+    package: WorkPackage,
+    job_id: str,
+) -> WorkPackageResult:
+    """Run exactly one enabled job without replaying the rest of its work package."""
+
+    resolved = resolve_work_package(context.catalog, package)
+    enabled = {job.id: job for job in _enabled_jobs(resolved.recipe, package.enabled_optional_jobs)}
+    try:
+        job = enabled[job_id]
+    except KeyError as error:
+        raise ContractError(f"work-package job is not enabled: {job_id}") from error
+    try:
+        definition = context.definitions[job.definition]
+    except KeyError as error:
+        raise ContractError(f"job definition is not registered: {job.definition}") from error
+    if definition.kind != job.kind:
+        raise ContractError(
+            f"recipe job {job.id!r} kind {job.kind!r} conflicts with definition kind {definition.kind!r}"
+        )
+    seats = _job_seats(resolved, definition, context.seat_resolver)
+    resolved_inputs = dict(resolved.snapshot)
+    resolved_inputs["job_definition"] = {
+        "id": definition.id,
+        "kind": definition.kind,
+        "description": definition.description,
+    }
+    spec = RunSpec(
+        project_id=package.project_id,
+        work_package_id=package.work_package_id,
+        stage=package.stage,
+        job_kind=job.kind,
+        job_definition_version=definition.id,
+        resolved_inputs=resolved_inputs,
+        source_metadata=context.source_metadata,
+        artifacts=_artifact_inputs(seats),
+    )
+    value = context.executor(
+        spec,
+        lambda run_context: definition.operation(run_context, seats),
+    )
+    result = WorkPackageJobResult(
+        job.id,
+        job.kind,
+        job.definition,
+        "succeeded",
+        spec.run_id,
+        value,
+    )
+    return WorkPackageResult(package.project_id, package.work_package_id, (result,))
+
+
 def validate_work_package(
     context: WorkPackageContext,
     package: WorkPackage,
@@ -225,7 +303,7 @@ def _prepare_work_package(
             raise ContractError(
                 f"recipe job {job.id!r} kind {job.kind!r} conflicts with definition kind {definition.kind!r}"
             )
-        prepared[job.id] = (job, definition, _job_seats(resolved, definition))
+        prepared[job.id] = (job, definition, _job_seats(resolved, definition, context.seat_resolver))
 
     return resolved, enabled, prepared
 
@@ -259,6 +337,7 @@ def _enabled_jobs(recipe: Recipe, requested: tuple[str, ...]) -> tuple[RecipeJob
 def _job_seats(
     package: ResolvedWorkPackage,
     definition: JobDefinition,
+    resolver: SeatResolver | None = None,
 ) -> ResolvedSeats:
     result: dict[str, Selection] = {}
     for name, expected in definition.seats.items():
@@ -266,9 +345,10 @@ def _job_seats(
         if family is None:
             raise ContractError(f"job definition {definition.id!r} requires undeclared recipe seat {name!r}")
         try:
-            value = package.seats[name].value
+            seat = package.seats[name]
         except KeyError as error:
             raise ContractError(f"enabled job definition {definition.id!r} requires unbound seat {name!r}") from error
+        value = resolver(seat) if resolver is not None else seat.value
         if not isinstance(value, expected):
             raise ContractError(f"enabled job definition {definition.id!r} received the wrong type for seat {name!r}")
         result[name] = value
@@ -513,7 +593,10 @@ __all__ = [
     "ResolvedWorkPackage",
     "RunExecutor",
     "WorkPackageContext",
+    "WorkPackageHostFactory",
+    "WorkPackageHostRequest",
     "resolve_work_package",
     "run_work_package",
+    "run_work_package_job",
     "validate_work_package",
 ]

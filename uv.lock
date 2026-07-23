@@ -16,6 +16,7 @@ members = [
     "posttrain-common",
     "posttrain-data",
     "posttrain-eval",
+    "posttrain-jobs",
     "posttrain-lab",
     "posttrain-observatory",
     "posttrain-serve",
@@ -2411,10 +2412,15 @@ version = "0.1.0"
 source = { editable = "apps/cli" }
 dependencies = [
     { name = "posttrain-catalog" },
+    { name = "posttrain-data" },
+    { name = "posttrain-jobs" },
     { name = "posttrain-work" },
 ]
 
 [package.optional-dependencies]
+observatory = [
+    { name = "posttrain-observatory" },
+]
 trackio = [
     { name = "posttrain-tracking-trackio" },
 ]
@@ -2434,21 +2440,25 @@ wandb = [
 [package.metadata]
 requires-dist = [
     { name = "posttrain-catalog", editable = "packages/catalog" },
+    { name = "posttrain-data", editable = "packages/data" },
     { name = "posttrain-eval", extras = ["verifiers"], marker = "extra == 'verifiers'", editable = "packages/eval" },
+    { name = "posttrain-jobs", editable = "packages/jobs" },
+    { name = "posttrain-observatory", marker = "extra == 'observatory'", editable = "apps/observatory" },
     { name = "posttrain-serve", extras = ["vllm"], marker = "extra == 'vllm'", editable = "packages/serve" },
     { name = "posttrain-tracking-trackio", marker = "extra == 'trackio'", editable = "packages/tracking-trackio" },
     { name = "posttrain-tracking-wandb", marker = "extra == 'wandb'", editable = "packages/tracking-wandb" },
     { name = "posttrain-train", extras = ["trl"], marker = "extra == 'trl'", editable = "packages/train" },
     { name = "posttrain-work", editable = "packages/work" },
 ]
-provides-extras = ["trackio", "wandb", "trl", "verifiers", "vllm"]
+provides-extras = ["observatory", "trackio", "wandb", "trl", "verifiers", "vllm"]
 
 [[package]]
 name = "posttrain-catalog"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "packages/catalog" }
 dependencies = [
     { name = "posttrain-common" },
+    { name = "posttrain-data" },
     { name = "posttrain-eval" },
     { name = "posttrain-train" },
     { name = "pyyaml" },
@@ -2457,6 +2467,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "posttrain-common", editable = "packages/common" },
+    { name = "posttrain-data", editable = "packages/data" },
     { name = "posttrain-eval", editable = "packages/eval" },
     { name = "posttrain-train", editable = "packages/train" },
     { name = "pyyaml", specifier = ">=6.0,<7" },
@@ -2534,6 +2545,35 @@ requires-dist = [
 provides-extras = ["verifiers"]
 
 [[package]]
+name = "posttrain-jobs"
+version = "0.1.0"
+source = { editable = "packages/jobs" }
+dependencies = [
+    { name = "posttrain-common" },
+    { name = "posttrain-data" },
+    { name = "posttrain-eval" },
+    { name = "posttrain-serve" },
+    { name = "posttrain-tracking" },
+    { name = "posttrain-tracking-trackio" },
+    { name = "posttrain-tracking-wandb" },
+    { name = "posttrain-train" },
+    { name = "posttrain-work" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "posttrain-common", editable = "packages/common" },
+    { name = "posttrain-data", editable = "packages/data" },
+    { name = "posttrain-eval", editable = "packages/eval" },
+    { name = "posttrain-serve", editable = "packages/serve" },
+    { name = "posttrain-tracking", editable = "packages/tracking" },
+    { name = "posttrain-tracking-trackio", editable = "packages/tracking-trackio" },
+    { name = "posttrain-tracking-wandb", editable = "packages/tracking-wandb" },
+    { name = "posttrain-train", editable = "packages/train" },
+    { name = "posttrain-work", editable = "packages/work" },
+]
+
+[[package]]
 name = "posttrain-lab"
 version = "0.1.0"
 source = { editable = "apps/lab" }
@@ -2543,6 +2583,7 @@ dependencies = [
     { name = "posttrain-common" },
     { name = "posttrain-data" },
     { name = "posttrain-eval" },
+    { name = "posttrain-jobs" },
     { name = "posttrain-serve" },
     { name = "posttrain-tracking" },
     { name = "posttrain-tracking-trackio" },
@@ -2577,6 +2618,7 @@ requires-dist = [
     { name = "posttrain-eval", editable = "packages/eval" },
     { name = "posttrain-eval", extras = ["verifiers"], marker = "extra == 'gpu-eval'", editable = "packages/eval" },
     { name = "posttrain-eval", extras = ["verifiers"], marker = "extra == 'gpu-posttrain'", editable = "packages/eval" },
+    { name = "posttrain-jobs", editable = "packages/jobs" },
     { name = "posttrain-serve", editable = "packages/serve" },
     { name = "posttrain-serve", extras = ["vllm"], marker = "extra == 'gpu-eval'", editable = "packages/serve" },
     { name = "posttrain-tracking", editable = "packages/tracking" },

@@ -33,6 +33,16 @@ def _gsm8k() -> object:
     )
 
 
+def _gsm8k_train() -> object:
+    return _environment(
+        {
+            "taskset": {"id": "gsm8k-v1", "split": "train"},
+            "harness": {"id": "null", "runtime": {"type": "subprocess"}},
+            "timeout": {"setup": 120, "rollout": 180, "finalize": 60, "scoring": 120},
+        }
+    )
+
+
 def _reverse_text() -> object:
     return _environment(
         {
@@ -128,6 +138,7 @@ GENERAL_SMOKE = EvaluationPlan(
 
 GENERAL_ENVIRONMENT_FACTORIES = {
     "math-gsm8k": _gsm8k,
+    "math-gsm8k-train": _gsm8k_train,
     "instruction-reverse-text": _reverse_text,
     "code-execution": _code_golf,
     "multi-turn-alphabet-sort": _alphabet_sort,

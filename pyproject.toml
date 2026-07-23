@@ -48,6 +48,7 @@ testpaths = [
     "packages/common/tests",
     "packages/data/tests",
     "packages/eval/tests",
+    "packages/jobs/tests",
     "packages/serve/tests",
     "packages/tracking/tests",
     "packages/tracking-trackio/tests",

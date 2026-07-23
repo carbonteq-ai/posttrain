@@ -1,4 +1,4 @@
-"""Small reference job used to prove the composition boundary."""
+"""Small qualification job used to prove the composition boundary."""
 
 from __future__ import annotations
 

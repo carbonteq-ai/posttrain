@@ -97,7 +97,7 @@ class ObservatorySettings(ObservatoryModel):
         return (FixtureSourceSettings(source_id=self.source_id),)
 
     @classmethod
-    def from_env(cls) -> ObservatorySettings:
+    def _environment_values(cls) -> dict[str, object]:
         origins = tuple(
             value.strip() for value in os.getenv("POSTTRAIN_OBSERVATORY_CORS", "").split(",") if value.strip()
         )
@@ -111,28 +111,64 @@ class ObservatorySettings(ObservatoryModel):
             if not isinstance(decoded, list):
                 raise ValueError("POSTTRAIN_OBSERVATORY_SOURCES must be a JSON array")
             sources = tuple(decoded)
-        return cls.model_validate(
+        return {
+            "environment": os.getenv("POSTTRAIN_OBSERVATORY_ENV", "local"),
+            "host": os.getenv("POSTTRAIN_OBSERVATORY_HOST", "127.0.0.1"),
+            "port": int(os.getenv("POSTTRAIN_OBSERVATORY_PORT", "7861")),
+            "source": os.getenv("POSTTRAIN_OBSERVATORY_SOURCE", "trackio"),
+            "source_id": os.getenv("POSTTRAIN_OBSERVATORY_SOURCE_ID", "trackio-local"),
+            "trackio_project": os.getenv("POSTTRAIN_TRACKIO_PROJECT", "posttrain"),
+            "trackio_server_url": os.getenv("POSTTRAIN_TRACKIO_SERVER_URL"),
+            "wandb_entity": os.getenv("WANDB_ENTITY"),
+            "wandb_project": os.getenv("POSTTRAIN_WANDB_PROJECT"),
+            "wandb_base_url": os.getenv("WANDB_BASE_URL"),
+            "auth_mode": os.getenv("POSTTRAIN_OBSERVATORY_AUTH", "none"),
+            "cors_origins": origins,
+            "semantic_provider": os.getenv("POSTTRAIN_OBSERVATORY_LLM_PROVIDER", "disabled"),
+            "semantic_base_url": os.getenv("POSTTRAIN_OBSERVATORY_LLM_BASE_URL"),
+            "semantic_model": os.getenv("POSTTRAIN_OBSERVATORY_LLM_MODEL"),
+            "semantic_api_key": os.getenv("POSTTRAIN_OBSERVATORY_LLM_API_KEY"),
+            "frontend_dir": os.getenv("POSTTRAIN_OBSERVATORY_FRONTEND_DIR"),
+            "sources": sources,
+        }
+
+    @classmethod
+    def from_env(cls) -> ObservatorySettings:
+        return cls.model_validate(cls._environment_values())
+
+    @classmethod
+    def for_project(
+        cls,
+        project_id: str,
+        tracking: Literal["trackio", "wandb"],
+        *,
+        host: str | None = None,
+        port: int | None = None,
+    ) -> ObservatorySettings:
+        """Build local-server settings from one project's tracking selection."""
+
+        values = cls._environment_values()
+        values.update(
             {
-                "environment": os.getenv("POSTTRAIN_OBSERVATORY_ENV", "local"),
-                "host": os.getenv("POSTTRAIN_OBSERVATORY_HOST", "127.0.0.1"),
-                "port": int(os.getenv("POSTTRAIN_OBSERVATORY_PORT", "7861")),
-                "source": os.getenv("POSTTRAIN_OBSERVATORY_SOURCE", "trackio"),
-                "source_id": os.getenv("POSTTRAIN_OBSERVATORY_SOURCE_ID", "trackio-local"),
-                "trackio_project": os.getenv("POSTTRAIN_TRACKIO_PROJECT", "posttrain"),
-                "trackio_server_url": os.getenv("POSTTRAIN_TRACKIO_SERVER_URL"),
-                "wandb_entity": os.getenv("WANDB_ENTITY"),
-                "wandb_project": os.getenv("POSTTRAIN_WANDB_PROJECT"),
-                "wandb_base_url": os.getenv("WANDB_BASE_URL"),
-                "auth_mode": os.getenv("POSTTRAIN_OBSERVATORY_AUTH", "none"),
-                "cors_origins": origins,
-                "semantic_provider": os.getenv("POSTTRAIN_OBSERVATORY_LLM_PROVIDER", "disabled"),
-                "semantic_base_url": os.getenv("POSTTRAIN_OBSERVATORY_LLM_BASE_URL"),
-                "semantic_model": os.getenv("POSTTRAIN_OBSERVATORY_LLM_MODEL"),
-                "semantic_api_key": os.getenv("POSTTRAIN_OBSERVATORY_LLM_API_KEY"),
-                "frontend_dir": os.getenv("POSTTRAIN_OBSERVATORY_FRONTEND_DIR"),
-                "sources": sources,
+                "source": tracking,
+                "source_id": f"{tracking}-{project_id}",
+                "sources": (),
             }
         )
+        if host is not None:
+            values["host"] = host
+        if port is not None:
+            values["port"] = port
+        if tracking == "trackio":
+            values["trackio_project"] = os.getenv("POSTTRAIN_TRACKIO_PROJECT", project_id)
+        else:
+            values["wandb_entity"] = os.getenv("WANDB_ENTITY")
+            values["wandb_project"] = (
+                os.getenv("POSTTRAIN_WANDB_PROJECT")
+                or os.getenv("WANDB_PROJECT")
+                or project_id
+            )
+        return cls.model_validate(values)
 
 
 __all__ = [

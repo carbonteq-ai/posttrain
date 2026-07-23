@@ -224,6 +224,7 @@ def test_base_catalog_manifest_is_complete_and_manifest_controlled() -> None:
     assert set(layer) == {
         "layer_id",
         "model",
+        "dataset",
         "target",
         "inference",
         "workload",

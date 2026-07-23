@@ -24,7 +24,10 @@ One idea → one noun. Do not invent parallel vocabularies in the API.
 | **Request / Result** | Inputs and evidence for one operation call | Control-plane decisions |
 | **Run** | One observed execution of one job definition | Work package |
 | **Work package** | Stage-tied bindings + which jobs to run | Python package / catalog package |
-| **RunContext** | Host-injected identity, observer, workspace | Backend handle or Trackio import |
+| **RunContext** | Operation-facing identity, observer, workspace | Backend handle or Trackio import |
+| **JobRuntime** | Resolved definitions, catalog, tracking, and scratch used to execute jobs | A trainer or provider SDK |
+| **ProjectExecutionRequest** | Project-scoped inputs used to construct a job runtime | One operation request |
+| **ProjectEntry** | Optional hook that adds custom definitions or factories | Required host factory |
 
 ```text
 CatalogRef  --resolve-->  Selection  --bind seats-->  Work package
@@ -92,7 +95,8 @@ hooks. No third-party marketplace SDK.
 | Catalog | `open` / `resolve` / `list` | `common` + catalog modules |
 | Operations | `data.prepare`, `serve.benchmark`, `train.sft`, … | `data`, `serve`, `eval`, `train` |
 | Composition | Recipe, work-package bindings | project + thin helpers |
-| RunContext | Identity, observer, workspace | host injects; protocol in `common` |
+| Standard jobs | Stable seat-to-operation definitions and default runtime | `jobs` |
+| RunContext | Identity, observer, workspace | job runtime injects; protocol in `common` |
 | Evidence | Query raw runs/artifacts; compute job-aware views | raw contracts in `tracking`; product queries and views in Observatory |
 
 ```mermaid
@@ -107,22 +111,24 @@ flowchart LR
     Res --> Observatory["Observatory"]
 ```
 
-## Command-line host
+## Primary project CLI
 
-The `posttrain` distribution is the primary command host for repository and
+The `posttrain` distribution is the primary command for repository and
 remote-server workflows. It coordinates the public APIs in this document; it
 does not introduce new selection, work, run, artifact, or evidence types.
 
 ```text
-posttrain init [PATH] [--project-id ID]
+posttrain init [PATH] --template sft|grpo [--project-id ID] [--no-install]
 posttrain version
 posttrain doctor
 posttrain project show
 posttrain catalog list [--family FAMILY]
 posttrain catalog show FAMILY ID
 posttrain catalog validate
+posttrain dataset validate DATASET_ID
 posttrain work-package validate PATH
-posttrain work-package run PATH
+posttrain work-package run PATH --job JOB_ID
+posttrain observatory up [--port PORT]
 ```
 
 Project and catalog commands load the same `ProjectLayout`, `CatalogRef`, and
@@ -132,8 +138,14 @@ Commands return zero on success, one for expected project or contract failures,
 and argparse's exit code two for invalid command syntax. Readable terminal
 output is the default; `--json` provides deterministic automation output.
 
-`posttrain-lab` remains a reference-host command for concrete qualification
-jobs. Its fixed job names are not the portable CLI contract.
+Initialization writes the project layout and an installable project package,
+then creates the project environment and installs dependencies. There is no
+separate `posttrain sync` command. Work-package execution builds a default
+`JobRuntime` from framework standard definitions and project tracking config;
+`--host` / `--entry` remain temporary compatibility overrides only.
+
+`posttrain-lab` remains the reference-project command for concrete
+qualification jobs. Its fixed scenario names are not the portable CLI contract.
 
 ## Selections
 
@@ -278,10 +290,11 @@ run.
 
 ## Catalog
 
-One **logical** catalog at resolve time: **base** + zero or more **overlays**.
+One **logical** catalog at resolve time: published **global catalog** + zero or
+more **project overlays**.
 
 ```text
-Base (framework-shared)
+Global (framework-shared package resource)
   + Overlay(s) (project / work-package)
         │
         ▼
@@ -293,8 +306,9 @@ Base (framework-shared)
 | Single read API | `catalog.resolve(ref)` only (no dual base-then-project lookup in configs) |
 | Overlay wins | Same id in overlay replaces base |
 | Scope | Usually project-scoped so overlays do not leak |
-| Provenance | Snapshot records `source_layer: base \| overlay` (+ overlay id) |
-| No silent base mutation | Publishing to base is an explicit catalog release |
+| Provenance | Snapshot records `source_layer: base \| overlay` (+ overlay id); `base` is the serialized name for the global layer |
+| No silent global mutation | Publishing a shared entry requires a catalog package release |
+| First-use materialization | Dataset pointers materialize idempotently into project state; environment bindings verify an installed pinned package |
 
 ```text
 CatalogRef
@@ -315,7 +329,7 @@ Catalog
   list(family=None) -> [CatalogRef]
 ```
 
-YAML / Python configs emit `CatalogRef`s (or inline selections). The host
+YAML / Python configs emit `CatalogRef`s (or inline selections). The job runtime
 resolves before calling operations.
 
 ```yaml
@@ -324,9 +338,36 @@ bindings:
   training_data: { family: dataset, id: datasets/memory-sft-v3@<digest> }
 ```
 
+Declarative dataset entries use existing `posttrain.data` adapter vocabulary:
+
+```yaml
+dataset:
+  datasets/support-sft@1:
+    revision: "1"
+    source:
+      kind: huggingface        # or jsonl | parquet | nemo
+      repo: org/support-conversations
+      revision: <immutable-revision>
+      split: train
+    format:
+      kind: messages           # auto | messages | prompt-completion | alpaca | sharegpt
+```
+
+NeMo project files use `source.kind: nemo` with a project-relative JSONL
+`path`. Supervised NeMo entries use format `messages` (or `auto`); preference
+entries use format `nemo-ranked` (or `auto`). Materialization routes through
+`supervised_from_nemo` / `preferences_from_nemo` and caches the same canonical
+HF-normalized JSONL used by other sources.
+
+Environment entries bind a pinned Verifiers package and factory. Standard
+GRPO, distillation, and evaluation definitions build the existing environment
+bridges from the resolved `EnvironmentBinding`; projects do not supply a
+parallel dataset seat for environment-only GRPO.
+
 ## RunContext
 
-Every operation takes a `RunContext` (host-injected):
+Every operation takes a `RunContext` injected by the `JobRuntime` (or directly
+by a library caller):
 
 | Concern | Expectation |
 | --- | --- |
@@ -335,10 +376,10 @@ Every operation takes a `RunContext` (host-injected):
 | Workspace | Temp paths; durable evidence via observer/artifacts |
 | Cancellation | Cooperative cancel |
 
-Capability packages must not import Trackio or W&B. The lab injects an observer
-opened by a provider-neutral tracking backend; hosts may select Trackio, W&B,
-no-op, or another conforming implementation. Trackio remains the default local
-backend.
+Capability packages must not import Trackio or W&B. The job runtime injects an
+observer opened by a provider-neutral tracking backend; projects may select
+Trackio, W&B, no-op, or another conforming implementation. Trackio remains the
+default local backend.
 
 The observer is the operation-facing emission surface. Run start/finish,
 provider translation, durable reads, and artifact materialization live behind
@@ -516,6 +557,21 @@ JobDefinition
 The description is authored with the versioned definition and copied into each
 run snapshot. Evidence readers do not resolve mutable definition text later.
 
+Framework-shipped definitions live in `posttrain.jobs` and include stable ids
+for SFT, DPO, GRPO, on-policy distillation, evaluation, serving smoke/benchmark,
+and model transform. They resolve catalog seats, invoke existing data adapters
+or Verifiers bridges where required, then call the public capability operation.
+They do not freeze project learning rates, datasets, environments, targets, or
+acceptance policy.
+
+```text
+standard_definitions() -> { definition_id: JobDefinition }
+```
+
+Projects customize standard jobs through bindings. A `ProjectEntry` may add a
+new versioned definition or an unshipped factory, but cannot shadow a standard
+definition id with different semantics.
+
 ### Work package
 
 ```text
@@ -543,6 +599,36 @@ run_work_package(ctx, WorkPackage) -> WorkPackageResult
 Resolves catalog refs, validates seats per job kind, runs enabled jobs, returns
 per-job results. Convenience only — not a workflow engine and not a decision
 system.
+
+### Project runtime
+
+```text
+ProjectExecutionRequest
+  project_layout
+  catalog
+  tracking
+  optional entry
+
+ProjectEntry
+  configure(runtime) -> None
+
+JobRuntime
+  catalog
+  definitions
+  tracking
+  scratch
+
+build_job_runtime(
+  ProjectExecutionRequest,
+  tracking=None,
+  extra_definitions=None,
+) -> JobRuntime
+```
+
+`JobRuntime` is the preferred public name for the resolved execution registry.
+`ProjectExecutionRequest` and `ProjectEntry` describe project composition
+without making “host” a developer concept. Existing `WorkPackageHost*` symbols
+remain additive compatibility aliases during migration.
 
 ## Evidence, tracking, and Observatory
 
@@ -589,7 +675,7 @@ of raw provider rows.
 ```text
 <project>/
   .posttrain/
-    project.toml           # identity, overlay/work-package paths, state policy
+    project.toml           # identity, tracking, optional entry, paths, state policy
     catalog/               # tracked project overlay
       datasets/...
       inference/...
@@ -598,7 +684,8 @@ of raw provider rows.
       train_sft_bootstrap.yaml
       qualify_sft.yaml
     state/                 # ignored scratch/cache/recovery/provider state
-  run.py                   # open catalog → load → run_work_package
+  pyproject.toml           # installed project and pinned environment packages
+  project_entry.py         # optional escape hatch; absent on the happy path
 ```
 
 Prefer directory name `work_packages/` (not `packages/`) so it does not collide

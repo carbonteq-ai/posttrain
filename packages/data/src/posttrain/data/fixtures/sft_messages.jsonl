@@ -1,0 +1,2 @@
+{"id":"rows/welcome","messages":[{"role":"user","content":"Say hello to a new post-training project."},{"role":"assistant","content":"Hello! Your post-training project is ready."}]}
+{"id":"rows/status","messages":[{"role":"user","content":"What should I validate before training?"},{"role":"assistant","content":"Validate the dataset and work package before allocating a GPU."}]}

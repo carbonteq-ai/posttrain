@@ -10,6 +10,7 @@ from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+from random import Random
 from typing import Any, Protocol
 
 from posttrain.common import JsonValue, LocalArtifactRef, ProducedArtifact, TraceObservation
@@ -23,6 +24,50 @@ class TraceEnricher(Protocol):
 
 
 type EnvironmentFactory = Callable[[], Any]
+
+
+class EnvironmentSourceSelection(Protocol):
+    @property
+    def package(self) -> str: ...
+
+    @property
+    def revision(self) -> str: ...
+
+
+class VerifiersEnvironmentSelection(Protocol):
+    """Structural environment binding consumed without importing posttrain.eval."""
+
+    @property
+    def id(self) -> str: ...
+
+    @property
+    def source(self) -> EnvironmentSourceSelection: ...
+
+    @property
+    def factory(self) -> EnvironmentFactory: ...
+
+    @property
+    def num_tasks(self) -> int: ...
+
+    @property
+    def parameters(self) -> Mapping[str, JsonValue]: ...
+
+    @property
+    def revision(self) -> str: ...
+
+
+@dataclass(frozen=True, slots=True)
+class NativeVerifiersEnvironmentFactory:
+    """Pickle-safe reconstruction of a validated native Verifiers environment."""
+
+    config: Mapping[str, Any]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "config", dict(self.config))
+
+    def __call__(self) -> Any:
+        EnvConfig, Environment = _environment_imports()
+        return Environment(EnvConfig.model_validate(dict(self.config)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,6 +125,121 @@ def _imports() -> tuple[Any, ...]:
         ChatDialect,
         parse_tools,
     )
+
+
+def _environment_imports() -> tuple[type[Any], type[Any]]:
+    try:
+        from verifiers.v1.env import EnvConfig, Environment  # pyright: ignore[reportMissingImports]
+    except ImportError as error:
+        raise RuntimeError("install the Verifiers integration dependencies") from error
+    return EnvConfig, Environment
+
+
+def preflight_verifiers_environment(environment: VerifiersEnvironmentSelection) -> Mapping[str, Any]:
+    """Check an installed environment binding and return portable native config."""
+
+    EnvConfig, Environment = _environment_imports()
+    base = environment.factory()
+    if isinstance(base, Environment):
+        base = base.config
+    if not isinstance(base, EnvConfig):
+        raise TypeError("Verifiers environment factories must return verifiers.v1.EnvConfig")
+    payload = base.model_dump(mode="python")
+    _apply_training_parameters(environment, payload)
+    config = EnvConfig.model_validate(payload)
+    Environment(config)
+    return config.model_dump(mode="python")
+
+
+def create_verifiers_training_bridge(
+    environment: VerifiersEnvironmentSelection,
+    trace_path: Path,
+    run_id: str,
+    *,
+    max_tokens: int,
+    temperature: float,
+    top_p: float,
+    purpose: str = "grpo",
+    tasks: Mapping[int, Any] | None = None,
+) -> VerifiersEnvironmentRolloutBridge:
+    """Build the existing native bridge from a public environment selection."""
+
+    if not purpose or "/" in purpose:
+        raise ValueError("Verifiers bridge purpose must be one stable path segment")
+    config = preflight_verifiers_environment(environment)
+    native_factory = NativeVerifiersEnvironmentFactory(config)
+    selected = dict(tasks) if tasks is not None else _load_selected_tasks(environment, native_factory)
+    if not selected:
+        raise ValueError("Verifiers training bridge requires at least one selected task")
+    if len(selected) != environment.num_tasks:
+        raise ValueError(
+            f"environment {environment.id!r} requests {environment.num_tasks} tasks, "
+            f"but the bridge received {len(selected)}"
+        )
+    seed = _sampling_seed(environment)
+    return VerifiersEnvironmentRolloutBridge(
+        dataset_id=f"{environment.id}/{purpose}/seed-{seed}-limit-{len(selected)}",
+        revision=environment.source.revision,
+        tasks=selected,
+        environment_factory=native_factory,
+        trace_path=trace_path,
+        environment_id=environment.id,
+        run_id=run_id,
+        sampling=PolicySampling(max_tokens=max_tokens, temperature=temperature, top_p=top_p),
+    )
+
+
+def _apply_training_parameters(
+    environment: VerifiersEnvironmentSelection,
+    payload: dict[str, Any],
+) -> None:
+    parameters = environment.parameters
+    for key in ("max_turns", "max_total_tokens"):
+        value = parameters.get(key)
+        if isinstance(value, int) and not isinstance(value, bool):
+            payload[key] = value
+    rollout_timeout = parameters.get("rollout_timeout_seconds")
+    if isinstance(rollout_timeout, int | float) and not isinstance(rollout_timeout, bool):
+        timeout = payload.setdefault("timeout", {})
+        if isinstance(timeout, dict):
+            timeout["rollout"] = float(rollout_timeout)
+    if environment.source.package != "automationbench-v1":
+        return
+    taskset = payload.setdefault("taskset", {})
+    if not isinstance(taskset, dict):
+        raise TypeError("Verifiers taskset config must be an object")
+    domains = parameters.get("domains")
+    if isinstance(domains, (tuple, list)) and all(isinstance(value, str) for value in domains):
+        taskset["domains"] = list(domains)
+    task = taskset.setdefault("task", {})
+    if not isinstance(task, dict):
+        raise TypeError("AutomationBench task config must be an object")
+    for key in ("toolset", "search_top_k"):
+        value = parameters.get(key)
+        if isinstance(value, str | int) and not isinstance(value, bool):
+            task[key] = value
+
+
+def _sampling_seed(environment: VerifiersEnvironmentSelection) -> int:
+    seed = environment.parameters.get("sampling_seed", 0)
+    if not isinstance(seed, int) or isinstance(seed, bool) or seed < 0:
+        raise ValueError("environment sampling_seed must be a non-negative integer")
+    return seed
+
+
+def _load_selected_tasks(
+    environment: VerifiersEnvironmentSelection,
+    factory: NativeVerifiersEnvironmentFactory,
+) -> dict[int, Any]:
+    available = factory().taskset.load()
+    size = len(available)
+    if environment.num_tasks > size:
+        raise ValueError(
+            f"environment {environment.id!r} requests {environment.num_tasks} tasks, "
+            f"but the installed taskset exposes {size}"
+        )
+    indices = sorted(Random(_sampling_seed(environment)).sample(range(size), environment.num_tasks))
+    return {index: available[index] for index in indices}
 
 
 def _rollout_dataset(
@@ -367,8 +527,13 @@ def load_verifiers_bridge_snapshot(path: Path) -> VerifiersEnvironmentRolloutBri
 
 
 __all__ = [
+    "EnvironmentSourceSelection",
+    "NativeVerifiersEnvironmentFactory",
     "TraceEnricher",
     "VerifiersBridgeSnapshot",
+    "VerifiersEnvironmentSelection",
     "VerifiersEnvironmentRolloutBridge",
+    "create_verifiers_training_bridge",
     "load_verifiers_bridge_snapshot",
+    "preflight_verifiers_environment",
 ]

@@ -1,4 +1,4 @@
-"""Source identity resolution owned by the application host."""
+"""Source identity resolution for the qualification project entry."""
 
 from __future__ import annotations
 

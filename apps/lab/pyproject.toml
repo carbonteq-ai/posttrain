@@ -1,13 +1,16 @@
 [project]
 name = "posttrain-lab"
 version = "0.1.0"
-description = "Composition root for code-defined post-training jobs"
+description = "Qualification project and scenario CLI for post-training jobs"
+authors = [{ name = "CarbonTeq" }]
+license = "Apache-2.0"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "posttrain-common",
     "posttrain-catalog",
     "posttrain-data",
     "posttrain-eval",
+    "posttrain-jobs",
     "posttrain-serve",
     "posttrain-tracking",
     "posttrain-tracking-trackio",
@@ -41,6 +44,7 @@ posttrain-common = { workspace = true }
 posttrain-catalog = { workspace = true }
 posttrain-data = { workspace = true }
 posttrain-eval = { workspace = true }
+posttrain-jobs = { workspace = true }
 posttrain-serve = { workspace = true }
 posttrain-tracking = { workspace = true }
 posttrain-tracking-trackio = { workspace = true }
@@ -58,3 +62,8 @@ packages = ["src/posttrain_lab"]
 
 [tool.hatch.metadata]
 allow-direct-references = true
+
+[project.urls]
+Documentation = "https://github.com/carbonteq-ai/posttrain#readme"
+Issues = "https://github.com/carbonteq-ai/posttrain/issues"
+Repository = "https://github.com/carbonteq-ai/posttrain"

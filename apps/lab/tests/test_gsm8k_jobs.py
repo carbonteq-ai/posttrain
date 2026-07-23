@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+from typing import cast
+
 from posttrain.common.variants import QWEN_35_2B
-from posttrain.data import PreferencePairSource, ScoredContinuation
+from posttrain.data import PreferencePairSource, RolloutDataset, RolloutExample, ScoredContinuation
 from posttrain.train import (
     QWEN35_DPO_SMOKE,
     QWEN35_SFT_SMOKE,
     DPORequest,
+    EnvironmentRolloutBridge,
+    GRPORequest,
     SFTRequest,
 )
 from posttrain_lab.catalog import (
@@ -22,7 +27,6 @@ from posttrain_lab.data import GSM8KSupervisedSource
 from posttrain_lab.data import gsm8k as gsm8k_data
 from posttrain_lab.environments.gsm8k_grpo import _final_answer_conciseness
 from posttrain_lab.jobs import (
-    VerifiersGRPOJobRequest,
     grpo_job_inputs,
     training_inputs,
 )
@@ -104,12 +108,22 @@ def test_training_run_config_preserves_model_and_data_identity(monkeypatch) -> N
 
 
 def test_grpo_job_config_records_environment_and_generation_policy() -> None:
-    request = VerifiersGRPOJobRequest(
-        QWEN_35_08B_BF16,
-        AUTOMATIONBENCH_ZAPIER_GRPO,
-        QWEN35_AUTOMATIONBENCH_GRPO_MTP,
-        QWEN35_AUTOMATIONBENCH_TRL_LORA_THINKING,
-        QWEN_AUTOMATIONBENCH_GRPO_MTP_VLLM,
+    request = GRPORequest(
+        policy=QWEN_35_08B_BF16,
+        bridge=cast(
+            EnvironmentRolloutBridge,
+            SimpleNamespace(
+                dataset=RolloutDataset(
+                    "automationbench/simple",
+                    AUTOMATIONBENCH_ZAPIER_GRPO.revision,
+                    (RolloutExample("train/000000", "task", {}),),
+                )
+            ),
+        ),
+        environment=AUTOMATIONBENCH_ZAPIER_GRPO,
+        settings=QWEN35_AUTOMATIONBENCH_GRPO_MTP,
+        training=QWEN35_AUTOMATIONBENCH_TRL_LORA_THINKING,
+        inference=QWEN_AUTOMATIONBENCH_GRPO_MTP_VLLM,
     )
 
     inputs = grpo_job_inputs(request)

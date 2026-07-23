@@ -62,6 +62,10 @@ from .transform import (
     TransformRunner,
     transform,
 )
+from .verifiers_requests import (
+    build_verifiers_distillation_request,
+    build_verifiers_grpo_request,
+)
 
 __all__ = [
     "DPOBackend",
@@ -129,6 +133,8 @@ __all__ = [
     "distill",
     "grpo",
     "assess_grpo_evidence",
+    "build_verifiers_distillation_request",
+    "build_verifiers_grpo_request",
     "normalize_grpo_metrics",
     "render_preferences",
     "render_supervised",

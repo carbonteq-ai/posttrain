@@ -1,76 +1,53 @@
-"""Environment-only GRPO composition for the reference lab host."""
+"""Environment-only GRPO composition for lab qualification scenarios."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import replace
+from typing import cast
 
 from posttrain.common import InferenceBinding, ModelVariant, RunContext
 from posttrain.eval import EnvironmentBinding
 from posttrain.train import (
     GRPORequest,
-    GRPOSettings,
     LoRAUpdate,
     QLoRAUpdate,
-    TrainingBinding,
     TrainingResult,
     grpo,
     parameter_update_digest,
 )
 
-from ..environments import create_training_bridge
-
-
-@dataclass(frozen=True, slots=True)
-class VerifiersGRPOJobRequest:
-    model: ModelVariant
-    environment: EnvironmentBinding
-    settings: GRPOSettings
-    training: TrainingBinding
-    inference: InferenceBinding
-
-    def __post_init__(self) -> None:
-        if self.model.family != self.training.renderer.model_family:
-            raise ValueError("GRPO training binding is incompatible with the model family")
-        if self.inference.model != self.model:
-            raise ValueError("GRPO rollout binding must select the policy model")
-        if "rollout" not in self.inference.purpose:
-            raise ValueError("GRPO requires a rollout inference binding")
+VerifiersGRPOJobRequest = GRPORequest
 
 
 def run_grpo_materialized(
     context: RunContext,
-    request: VerifiersGRPOJobRequest,
+    request: GRPORequest,
     *,
     input_name: str | None = None,
 ) -> TrainingResult:
-    local_model = _materialized_model(context, request.model, input_name)
-    bridge = create_training_bridge(
-        request.environment,
-        context.workspace / "training" / "grpo" / "verifiers-traces.jsonl",
-        context.run_id,
-        max_tokens=request.settings.max_completion_length,
-        temperature=_float_setting(request.inference, "temperature", 1.0),
-        top_p=_float_setting(request.inference, "top_p", 1.0),
-    )
+    local_model = _materialized_model(context, request.policy, input_name)
     return grpo(
         context,
         GRPORequest(
             policy=local_model,
-            bridge=bridge,
+            bridge=request.bridge,
             settings=request.settings,
             environment=request.environment,
             training=request.training,
             inference=replace(request.inference, model=local_model),
+            quantization=request.quantization,
+            reference=request.reference,
+            resume_from=request.resume_from,
         ),
     )
 
 
-def grpo_job_inputs(request: VerifiersGRPOJobRequest) -> dict[str, str | int | float | bool]:
-    environment = request.environment
+def grpo_job_inputs(request: GRPORequest) -> dict[str, str | int | float | bool]:
+    environment = cast(EnvironmentBinding, request.environment)
     result: dict[str, str | int | float | bool] = {
-        "model_variant_id": request.model.id,
-        "input_model_form": request.model.form,
-        "base_model_revision": request.model.base.revision,
+        "model_variant_id": request.policy.id,
+        "input_model_form": request.policy.form,
+        "base_model_revision": request.policy.base.revision,
         "training_settings_id": request.settings.id,
         "training_binding_id": request.training.id,
         "training_target_id": request.training.target.id,
@@ -123,7 +100,7 @@ def grpo_job_inputs(request: VerifiersGRPOJobRequest) -> dict[str, str | int | f
 
 def _add_vllm_inputs(
     result: dict[str, str | int | float | bool],
-    request: VerifiersGRPOJobRequest,
+    request: GRPORequest,
 ) -> None:
     rollout = request.inference.engine
     result["rollout_vllm_mode"] = str(rollout.get("mode", ""))

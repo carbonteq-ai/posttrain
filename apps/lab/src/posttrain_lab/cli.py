@@ -1,4 +1,4 @@
-"""Reference CLI: compose exact selections into work packages and runs."""
+"""Qualification scenario CLI: compose exact selections into work packages and runs."""
 
 from __future__ import annotations
 
@@ -958,7 +958,7 @@ def main() -> None:
         )
     elif isinstance(result, TransformResult):
         if not isinstance(result.artifact.reference, LocalArtifactRef):
-            raise TypeError("model transforms must return a local artifact before host promotion")
+            raise TypeError("model transforms must return a local artifact before promotion")
         print(
             json.dumps(
                 {

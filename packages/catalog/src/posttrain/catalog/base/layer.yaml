@@ -2,6 +2,7 @@ schema_version: 1
 layer_id: framework-v1
 files:
   - models.yaml
+  - datasets.yaml
   - targets.yaml
   - training.yaml
   - quantization.yaml

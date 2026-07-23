@@ -50,6 +50,22 @@ definitions and provider wiring are supplied by a host. Details:
 [04 · Framework](./04-framework.md),
 [05 · APIs](./05-apis.md), and the
 [release implementation plan](../plan/polished-framework-release.md).
+**Amendment — project developer experience and standard jobs (2026-07-23):**
+ordinary projects use the framework-published global catalog, project overlays,
+and standard job definitions from `posttrain.jobs`; they do not import
+`posttrain_lab` or author a composition host on the happy path.
+`posttrain.jobs` owns stable seat-to-operation definitions and default
+`JobRuntime` construction, while `posttrain.work` remains the
+recipe/work-package contract and runner layer. Standard jobs materialize
+declarative dataset and environment bindings on first use through the existing
+`posttrain.data` adapters and Verifiers bridges. The primary CLI initializes
+and installs project templates, runs jobs without a required host flag, and
+starts local Observatory. `ProjectExecutionRequest`, `ProjectEntry`, and
+`JobRuntime` are the preferred public composition names; existing
+`WorkPackageHost*` names remain compatibility aliases during migration.
+Details: [04 · Framework](./04-framework.md), [05 · APIs](./05-apis.md),
+[developer experience](../developer-experience.md), and the
+[implementation plan](../plan/project-developer-experience.md).
 
 These six documents are the **product/design authority** for the post-training
 framework. Do not expand or redesign them while building the implementation
@@ -114,6 +130,9 @@ Locked in at freeze time:
 | catalog base + overlay | dual catalogs / copy-paste engine YAML |
 | `work_package_id` (tracking group) | Provider group = old `job_id` alone |
 | `.posttrain/work_packages/` (project dir) | `packages/` for YAML work-package configs |
+| project entry / job runtime | host factory / host context on the project happy path |
+| `posttrain.jobs` standard definitions | copying definitions from `apps/lab` |
+| global catalog + project overlay | empty base catalog / project copies of shared entries |
 | async RL (deferred) | calling Trackio/background I/O “async RL” |
 
 ## Next (after freeze)

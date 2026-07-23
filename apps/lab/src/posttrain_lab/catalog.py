@@ -1,4 +1,4 @@
-"""Filesystem-backed catalog composition for the reference lab host."""
+"""Filesystem-backed catalog composition for the qualification project."""
 
 from __future__ import annotations
 

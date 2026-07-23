@@ -42,7 +42,9 @@ from .semantic import (
     SemanticAnalysisService,
     SemanticSummaryProvider,
 )
+from .server import serve
 from .service import ObservatoryService, RunViewService
+from .settings import ObservatorySettings
 from .sources import RunSourceRegistry
 from .telemetry import (
     DEFAULT_TELEMETRY_DEFINITIONS,
@@ -89,6 +91,7 @@ __all__ = [
     "MetricSeriesQuery",
     "MetricSeriesSet",
     "ObservatoryService",
+    "ObservatorySettings",
     "OpenAICompatibleSemanticSummaryProvider",
     "RunAlert",
     "RunComparison",
@@ -119,4 +122,5 @@ __all__ = [
     "TraceSectionDefinition",
     "WorkPackageView",
     "telemetry_registry",
+    "serve",
 ]

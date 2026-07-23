@@ -1,4 +1,4 @@
-"""Reference operations composed by the lab host."""
+"""Qualification scenario operations composed by the lab project."""
 
 from .environment_grpo import VerifiersGRPOJobRequest, grpo_job_inputs, run_grpo_materialized
 from .foundation_screening import run_managed_evaluation, run_online_smoke, run_screen_benchmark
