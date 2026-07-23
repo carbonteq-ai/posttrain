@@ -92,10 +92,11 @@ training or evaluation path on a remote server.
   Observatory from installed wheels outside the workspace.
 - [ ] Write and test the installation, quickstart, project layout, catalog,
   work-package, remote server, tracking, Observatory, troubleshooting, support
-  matrix, and upgrade documentation. (Completed: release/consumption guide,
-  package graph, remote workflow, and explicit release gates; remaining:
-  task-specific guides, troubleshooting, compatibility, upgrades, and
-  CI-executed documentation examples.)
+  matrix, and upgrade documentation. (Completed: developer-facing root
+  quickstart and framework overview, release/consumption guide, package graph,
+  remote workflow, and explicit release gates; remaining: task-specific
+  guides, troubleshooting, compatibility, upgrades, and CI-executed
+  documentation examples.)
 - [ ] Complete distribution metadata, licensing, changelog, compatibility
   policy, and release notes for all maintained artifacts.
 - [ ] Add tag-driven PyPI Trusted Publishing and GHCR workflows with staged
@@ -176,6 +177,14 @@ training or evaluation path on a remote server.
   Evidence: the first full run failed one catalog assertion; updating six
   `dependency_lock_sha256` values to the new `uv.lock` hash produced 267 passed
   and 5 credential-gated skips.
+
+- Observation: A clean base installation intentionally omits large or
+  credentialed backend dependencies such as Torch, TRL, Verifiers, and
+  Transformers. Pyright otherwise reports those guarded optional imports as
+  missing even though the base package graph and tests are valid.
+  Evidence: the clean GitHub quality job passed tests and lint but reported
+  only `reportMissingImports` diagnostics; optional Verifiers behavior passed
+  in its dedicated extra-enabled job.
 
 - Observation: The portable project manifest used `posttrain-platform`, while
   every tracked work package used `foundation-models`. The former is also the

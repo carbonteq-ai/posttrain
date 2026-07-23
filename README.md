@@ -1,161 +1,256 @@
-# Post-Training Framework Lab
+# Posttrain
 
-Reference workspace for developing and validating a reusable Post-Training
-Framework for model onboarding, inference, evaluation, and staged training.
+Posttrain is CarbonTeq's framework for taking a base model through screening,
+training, and qualification. It gives projects a shared way to select models,
+data, environments, inference engines, training methods, evaluation plans, and
+execution targets while keeping project policy in the project repository.
 
-The framework definition and contracts are established before the repository is
-reconciled with the [target architecture](./docs/architecture.md). Prototype
-catalogs, configuration trees, task callbacks, normalized evaluation stores,
-and framework-specific CLIs are not retained as compatibility interfaces.
+The framework is built around three stages:
 
-## Workspace
+| Stage | Question | Typical work |
+| --- | --- | --- |
+| Screen | Is this model and runtime combination worth pursuing? | Capability checks, inference benchmarks, dataset validation |
+| Train | Can we produce a better model variant? | SFT, preference training, GRPO, distillation, quantization |
+| Qualify | Is the resulting variant ready for its intended use? | General and domain evaluation, performance checks, evidence review |
 
-```text
-packages/
-  common/    framework-neutral identities, selections, artifacts, and execution contracts
-  catalog/   versioned base catalog assets, project discovery, and overlay loading
-  data/      canonical supervised/preference/rollout data and adapters
-  train/     reusable training operations with internal framework adapters
-  eval/      reusable evaluation operations and programs
-  serve/     reusable serving operations, profiles, and optimizations
-  tracking/  provider-neutral run lifecycle and evidence reads
-  work/      reusable recipe/work-package loading, preflight, and execution
+A **work package** captures one decision-making unit across those stages. It
+contains ordered jobs, resolved catalog selections, and the evidence needed to
+understand or reproduce a run.
 
-apps/
-  cli/          primary `posttrain` project, catalog, and work-package command host
-  lab/          reference work-package execution host
-  observatory/  read-only analysis, API, MCP, frontend, and report product
+## Quickstart
 
-environments/ independently versioned domain environment packages
-docs/        lifecycle, architecture, decisions, and tooling guidance
-.posttrain/  tracked project configuration plus ignored local state
+Posttrain currently ships to the team as a versioned GitHub Release wheelhouse.
+Python 3.12, [`uv`](https://docs.astral.sh/uv/), and the GitHub CLI are required.
+
+Download and install one exact release:
+
+```bash
+gh release download <release-tag> \
+  --repo carbonteq-ai/posttrain \
+  --pattern 'posttrain-wheelhouse-*.tar.gz'
+
+mkdir posttrain-wheelhouse
+tar -xzf posttrain-wheelhouse-*.tar.gz -C posttrain-wheelhouse
+
+uv venv --python 3.12
+uv pip install \
+  --python .venv/bin/python \
+  --constraint posttrain-wheelhouse/github-constraints.txt \
+  --find-links posttrain-wheelhouse \
+  posttrain
 ```
 
-`data`, `train`, `eval`, `serve`, and `tracking` are reusable package APIs.
-`posttrain-catalog` distributes the framework base selections and resolves
-project overlays. The lab is a reference host rather than a required import
-path. Trackio and W&B are replaceable tracking adapters; Observatory reads
-their normalized evidence through the shared tracking contracts.
+Initialize a project and inspect the generated configuration:
 
-## Setup
+```bash
+.venv/bin/posttrain init my-model-project --project-id my-model-project
+cd my-model-project
 
-The source repository is public at
-[`carbonteq-ai/posttrain`](https://github.com/carbonteq-ai/posttrain). Until
-the framework packages are published to PyPI, team environments should use an
-immutable GitHub release or clone an exact tag:
+../.venv/bin/posttrain doctor
+../.venv/bin/posttrain project show
+../.venv/bin/posttrain catalog validate
+```
+
+In a normal application repository, add Posttrain to that repository's locked
+environment rather than keeping the sibling virtual environment shown above.
+The wheelhouse constraints file is important: it pins the CarbonTeq Trackio and
+AutomationBench forks to immutable Git commits.
+
+## Project structure
+
+`posttrain init` creates one portable control directory:
+
+```text
+my-model-project/
+  .posttrain/
+    project.toml       project identity and path policy
+    catalog/           project-owned catalog overlays
+    work_packages/     screen, train, and qualify compositions
+    state/             ignored caches, scratch, recovery, and local provider state
+```
+
+Commit `project.toml`, catalog overlays, work packages, `pyproject.toml`, and
+`uv.lock`. Do not commit `.posttrain/state/`, credentials, downloaded model
+weights, or machine-local caches.
+
+The framework base catalog is included in `posttrain-catalog`; projects add only
+their own selections and overrides. Project discovery checks an explicit
+`--project-root`, then `POSTTRAIN_PROJECT_ROOT`, then searches upward for
+`.posttrain/project.toml`.
+
+## Define and validate work
+
+A project catalog layer declares its files:
+
+```yaml
+# .posttrain/catalog/project/layer.yaml
+schema_version: 1
+layer_id: my-model-project-v1
+files:
+  - targets.yaml
+```
+
+The selection file contains project-specific execution policy:
+
+```yaml
+# .posttrain/catalog/project/targets.yaml
+target:
+  targets/local-cpu:
+    revision: "1"
+    device_class: cpu
+    placement:
+      world_size: 1
+```
+
+A work package references catalog selections instead of copying their values:
+
+```yaml
+# .posttrain/work_packages/cpu_check.yaml
+project_id: my-model-project
+work_package_id: screen/cpu-check
+stage: screen
+description: Validate the local CPU execution target.
+recipe:
+  type: inline
+  id: recipes/cpu-check@1
+  revision: "1"
+  stage: screen
+  seats:
+    target: target
+  jobs:
+    - id: validate
+      kind: data.prepare
+      definition: data/cpu-check@1
+bindings:
+  target:
+    type: ref
+    family: target
+    id: targets/local-cpu
+enabled_optional_jobs: []
+metadata:
+  question: Can this project resolve and execute its local configuration?
+```
+
+Validate the composed catalog and work package before execution:
+
+```bash
+posttrain doctor
+posttrain catalog list
+posttrain catalog show target targets/local-cpu
+posttrain work-package validate .posttrain/work_packages/cpu_check.yaml
+```
+
+The primary CLI currently owns initialization, diagnostics, catalog inspection,
+and composition-level work-package validation. Concrete execution is supplied
+by a host because job definitions and backend wiring are project-specific.
+`posttrain-lab` is the included reference host; it is an example composition,
+not a required framework dependency.
+
+## Choose capabilities
+
+Install only the packages a project needs from the same release wheelhouse:
+
+| Package | Use it for |
+| --- | --- |
+| `posttrain-data` | Dataset preparation and canonical training data |
+| `posttrain-train` | Backend-neutral training operations |
+| `posttrain-eval` | Evaluation plans and Verifiers environments |
+| `posttrain-serve` | Serving and inference benchmarks |
+| `posttrain-tracking-trackio` | Default local tracking backend |
+| `posttrain-tracking-wandb` | W&B tracking backend |
+| `posttrain-observatory` | Read-only evidence queries, reports, HTTP, MCP, and UI |
+| `posttrain-lab` | Reference jobs and end-to-end compositions |
+
+Backend-specific extras are opt-in. For example:
+
+```bash
+uv pip install \
+  --python .venv/bin/python \
+  --constraint posttrain-wheelhouse/github-constraints.txt \
+  --find-links posttrain-wheelhouse \
+  'posttrain-train[trl]' \
+  'posttrain-eval[verifiers]' \
+  'posttrain-serve[vllm]' \
+  posttrain-tracking-trackio
+```
+
+Training, evaluation, serving, and tracking remain separate reusable
+capabilities. A project or host composes them through framework contracts;
+those packages do not import one another.
+
+## Run the reference host
+
+Install `posttrain-lab` when developing the framework or adapting one of its
+reference workflows:
+
+```bash
+uv pip install \
+  --python .venv/bin/python \
+  --constraint posttrain-wheelhouse/github-constraints.txt \
+  --find-links posttrain-wheelhouse \
+  posttrain-lab posttrain-observatory
+
+.venv/bin/posttrain-lab foundation-qwen-smoke --tracked
+```
+
+`--tracked` uses local Trackio by default. W&B is available through
+`--tracking-backend wandb` when its credentials and project settings are
+provided. Runs expose provider-neutral metrics, events, traces, artifacts, and
+outcomes to Observatory.
+
+## Framework development
+
+Clone an exact tag when contributing to the framework itself:
 
 ```bash
 git clone --branch <release-tag> --depth 1 \
   https://github.com/carbonteq-ai/posttrain.git
 cd posttrain
-```
 
-```bash
 mise install
 uv sync --all-packages --locked --python 3.12
-```
-
-Backend and Verifiers dependency variants are installed only when working on that engine:
-
-```bash
-uv sync --package posttrain-serve --extra vllm --python 3.12
-uv sync --package posttrain-eval --extra verifiers --python 3.12
-uv sync --package posttrain-train --extra trl --python 3.12
-```
-
-Use the checked-in lockfile for executable evidence. Training bindings record
-its SHA-256. Materialized weight quantization has a separately solved and
-locked environment under `tools/quantization`; do not force LLM Compressor
-into the TRL environment merely to reduce the number of lockfiles.
-
-## Project layout
-
-Portable projects use one control directory:
-
-```text
-.posttrain/
-  project.toml       tracked project identity and path policy
-  catalog/           tracked project catalog overlays
-  work_packages/     tracked screen, train, and qualify compositions
-  state/             ignored scratch, recovery, cache, and provider-local state
-```
-
-Framework base selections are package resources in `posttrain-catalog`; a
-project does not copy them into its overlay. Durable run artifacts are
-published through the selected tracking/artifact backend. They are not inferred
-from `.posttrain/state/` directory structure.
-
-`posttrain.catalog.discover_project` checks an explicit project root,
-`POSTTRAIN_PROJECT_ROOT`, then searches upward for
-`.posttrain/project.toml`. See `tests/consumer/fixture` for a minimal independent
-project.
-
-The primary command host is installed by the `posttrain` distribution. From a
-tagged source checkout, run its workspace build directly:
-
-```bash
-uv run --package posttrain posttrain version
 uv run --package posttrain posttrain doctor
-uv run --package posttrain posttrain project show
-uv run --package posttrain posttrain catalog validate
-uv run --package posttrain posttrain work-package validate foundation_screen.yaml
-```
-
-Initialize a separate project with:
-
-```bash
-uv run --package posttrain posttrain init ../my-posttrain-project \
-  --project-id my-posttrain-project
-```
-
-Initialization creates tracked project configuration and an empty valid catalog
-overlay while `.posttrain/state/` remains ignored. It refuses to overwrite an
-existing project manifest.
-
-## Portability acceptance
-
-The external-consumer test builds framework wheels, installs them into a fresh
-environment, copies a fixture repository outside this workspace, resolves a
-packaged base selection plus project overlay, executes a deterministic CPU work
-package, records its terminal run through real local Trackio storage, and reads
-the same run through Observatory:
-
-```bash
 uv run pytest -q tests/consumer
 ```
 
-This is a source-build acceptance path, not a claim that public packages have
-already been released. See
-[Release and consumption](./docs/release-and-consumption.md) for the package
-graph, remote-project workflow, and remaining release gates.
+The repository is a Python 3.12 `uv` workspace:
 
-## Current executable surface
-
-The Qwen foundation screen is the reference vertical: packaged base catalog
-selections resolve into a `.posttrain/work_packages` definition, invoke
-`serve.benchmark` through `RunContext`, and publish durable evidence through the
-selected backend.
-
-The canonical qualification composition resolves an `EvaluationPlan` and
-`EnvironmentBinding`, then calls `eval.general` or `eval.domain`. Native
-Verifiers traces remain the evaluation authority; incomplete observer sync is
-reported as `partial` rather than converted into a score.
-
-```bash
-uv run --package posttrain-lab posttrain-lab foundation-qwen-smoke --tracked
-uv run --package posttrain-lab posttrain-lab foundation-lfm-gsm8k --tracked
-uv run --package posttrain-lab posttrain-lab gsm8k-qwen-sft-smoke --tracked
+```text
+packages/       reusable contracts, capabilities, catalog, tracking, and composition
+apps/cli/       primary `posttrain` command
+apps/lab/       reference execution host
+apps/observatory/ read-only evidence product
+environments/   independently versioned domain environment packages
+.posttrain/     this repository's project overlays and work packages
 ```
 
-The reusable inference suite contains concurrency 1/2/4/8, but the current
-RTX 3070 Ti execution policy stops at 4. Its 32K cells select the model's
-TurboQuant K8V4 serve variant automatically.
+Run the full validation ladder before submitting a change:
 
-Start with [01 · Workflow](./docs/post-training/01-workflow.md), then
-[02 · Primitives](./docs/post-training/02-primitives.md),
-[03 · Work and Evidence](./docs/post-training/03-work-and-evidence.md),
-[04 · Framework](./docs/post-training/04-framework.md), and
-[05 · APIs](./docs/post-training/05-apis.md), and
-[06 · Observation](./docs/post-training/06-observation-and-lineage.md).
-The [architecture](./docs/architecture.md) is reconciled only after that
-baseline is accepted.
+```bash
+uv run ruff check .
+uv run ruff format --check .
+uv run pyright
+uv run lint-imports
+uv run pytest
+git diff --check
+```
+
+## Learn the framework
+
+Read the documentation progressively:
+
+1. [Workflow](./docs/post-training/01-workflow.md) — screen, train, and qualify.
+2. [Primitives](./docs/post-training/02-primitives.md) — reproducible
+   selections.
+3. [Work and evidence](./docs/post-training/03-work-and-evidence.md) — projects,
+   work packages, jobs, runs, and views.
+4. [Framework](./docs/post-training/04-framework.md) — package ownership and
+   extension boundaries.
+5. [APIs](./docs/post-training/05-apis.md) — public names and contracts.
+6. [Observation and lineage](./docs/post-training/06-observation-and-lineage.md)
+   — metrics, traces, artifacts, and provenance.
+
+For release installation, remote-server use, package ordering, and known
+release gaps, see [Release and consumption](./docs/release-and-consumption.md).
+The smallest independent project is
+[`tests/consumer/fixture`](./tests/consumer/fixture).

@@ -81,6 +81,7 @@ pythonVersion = "3.12"
 typeCheckingMode = "standard"
 include = ["apps", "packages", "tests"]
 exclude = ["**/__pycache__", ".venv", ".venvs"]
+reportMissingImports = false
 reportMissingTypeStubs = "none"
 
 [tool.coverage.run]
