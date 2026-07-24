@@ -49,11 +49,12 @@ def register(app: typer.Typer) -> None:
         emit(
             state,
             payload,
-            f"{action} dataset {materialized.selection_id} "
-            f"({materialized.examples} examples) at {materialized.path}",
+            f"{action} dataset {materialized.selection_id} ({materialized.examples} examples) at {materialized.path}",
         )
 
-    add_app = typer.Typer(rich_markup_mode=None, no_args_is_help=True, help="write a dataset entry into the project overlay")
+    add_app = typer.Typer(
+        rich_markup_mode=None, no_args_is_help=True, help="write a dataset entry into the project overlay"
+    )
     dataset_app.add_typer(add_app, name="add")
 
     @add_app.command("hf", help="register a Hugging Face dataset")

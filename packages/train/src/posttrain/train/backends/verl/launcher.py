@@ -103,9 +103,7 @@ def build_sampo_launch_plan(request: SAMPORequest, output_dir: Path) -> VerlLaun
                 "clip_epsilon_low": request.settings.clip_epsilon_low,
                 "clip_epsilon_high": request.settings.clip_epsilon_high,
                 "dynamic_sampling": True,
-                "dynamic_sampling_max_candidate_batches": (
-                    request.settings.dynamic_sampling.max_candidate_batches
-                ),
+                "dynamic_sampling_max_candidate_batches": (request.settings.dynamic_sampling.max_candidate_batches),
                 "mask_truncated_completions": request.settings.mask_truncated_completions,
                 "overlong_penalty_factor": 1.0,
                 "discount_gamma": request.settings.discount_gamma,
@@ -203,9 +201,7 @@ def _plan(
         if recipe_directory is None and operation == "grpo":
             recipe_directory = backend_options.get("dapo_recipe_working_directory")
         if not isinstance(recipe_directory, str) or not recipe_directory.strip():
-            raise ValueError(
-                "veRL dynamic sampling requires backend_options.dynamic_sampling_recipe_working_directory"
-            )
+            raise ValueError("veRL dynamic sampling requires backend_options.dynamic_sampling_recipe_working_directory")
         recipe_worktree = Path(recipe_directory).expanduser()
         if not recipe_worktree.is_absolute():
             raise ValueError("veRL dynamic-sampling recipe working directory must be an absolute path")

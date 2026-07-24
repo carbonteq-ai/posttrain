@@ -395,8 +395,8 @@ step, adapter synchronization, and a later rollout using updated weights.
 ## Fork-owned changes
 
 The maintained CarbonTeq fork is published at immutable candidate revision
-`7ed83a140e0b2c1e794c062ecd288cb202e7592a` on
-`carbonteq-ai/verl:codex/sampo-agentic-advantages`. It is based on upstream veRL
+`553280b88afe4e7fbc4aefeff27bbf0a22e7c048` on
+`carbonteq-ai/verl:main`. It is based on upstream veRL
 commit `a35908ca3c9632859c58d6a2855d858918ae21dc` and contains three generic
 runtime fixes plus a candidate SAMPO extension. The SAMPO implementation itself
 is commit `8a718e5be7a107587f63967336ece333a5c160e1`:
@@ -444,7 +444,7 @@ reward-constant groups. A project training binding therefore supplies immutable
 `dynamic_sampling_recipe_source_revision` backend options in addition to the
 veRL interpreter, worktree, and source revision. Select
 `backend_options.source_revision` as
-`7ed83a140e0b2c1e794c062ecd288cb202e7592a`; the interpreter and both checkout
+`553280b88afe4e7fbc4aefeff27bbf0a22e7c048`; the interpreter and both checkout
 paths remain machine-local execution values rather than catalog defaults.
 
 This composition follows the official ARL-Arena SAMPO extension at

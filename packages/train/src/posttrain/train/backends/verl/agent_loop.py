@@ -198,9 +198,7 @@ def _sampo_metadata(rollout: EnvironmentRollout) -> dict[str, Any]:
     if not rollout.turns:
         raise RuntimeError("SAMPO requires sampled assistant-turn metadata")
     return {
-        "sampo_turn_spans": [
-            [turn.completion_start, turn.completion_end] for turn in rollout.turns
-        ],
+        "sampo_turn_spans": [[turn.completion_start, turn.completion_end] for turn in rollout.turns],
         "sampo_anchor_state_keys": [turn.anchor_state_key for turn in rollout.turns],
         "sampo_step_rewards": [turn.step_reward for turn in rollout.turns],
     }

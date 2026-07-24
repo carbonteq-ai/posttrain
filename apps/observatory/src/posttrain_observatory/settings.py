@@ -163,11 +163,7 @@ class ObservatorySettings(ObservatoryModel):
             values["trackio_project"] = os.getenv("POSTTRAIN_TRACKIO_PROJECT", project_id)
         else:
             values["wandb_entity"] = os.getenv("WANDB_ENTITY")
-            values["wandb_project"] = (
-                os.getenv("POSTTRAIN_WANDB_PROJECT")
-                or os.getenv("WANDB_PROJECT")
-                or project_id
-            )
+            values["wandb_project"] = os.getenv("POSTTRAIN_WANDB_PROJECT") or os.getenv("WANDB_PROJECT") or project_id
         return cls.model_validate(values)
 
 

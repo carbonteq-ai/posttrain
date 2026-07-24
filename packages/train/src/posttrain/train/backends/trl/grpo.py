@@ -293,9 +293,7 @@ def _online_rl_arguments(
             "epsilon": request.settings.clip_epsilon_low,
             "epsilon_high": epsilon_high,
             "scale_rewards": "group",
-            "dynamic_sampling": (
-                request.settings.dynamic_sampling is not None if not is_sampo else True
-            ),
+            "dynamic_sampling": (request.settings.dynamic_sampling is not None if not is_sampo else True),
             "dynamic_sampling_max_batches": (
                 request.settings.dynamic_sampling.max_candidate_batches
                 if request.settings.dynamic_sampling is not None

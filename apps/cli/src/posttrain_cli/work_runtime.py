@@ -131,10 +131,8 @@ def validate_standard_definitions(runtime: JobRuntime) -> None:
         configured = runtime.definitions.get(definition_id)
         if configured is None:
             raise ContractError(f"project entry omitted standard job definition: {definition_id}")
-        same_operation = getattr(configured.operation, "__code__", None) is getattr(standard.operation, "__code__", None)
-        if (
-            configured.kind != standard.kind
-            or configured.seats != standard.seats
-            or not same_operation
-        ):
+        same_operation = getattr(configured.operation, "__code__", None) is getattr(
+            standard.operation, "__code__", None
+        )
+        if configured.kind != standard.kind or configured.seats != standard.seats or not same_operation:
             raise ContractError(f"project entry cannot redefine standard job definition: {definition_id}")

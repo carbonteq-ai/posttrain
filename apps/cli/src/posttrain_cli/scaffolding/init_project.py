@@ -67,10 +67,7 @@ def starter_direct_references(template: str) -> tuple[str, ...]:
             if selected_extra is None:
                 if separator and "extra" in marker:
                     continue
-            elif not (
-                f'extra == "{selected_extra}"' in marker
-                or f"extra == '{selected_extra}'" in marker
-            ):
+            elif not (f'extra == "{selected_extra}"' in marker or f"extra == '{selected_extra}'" in marker):
                 continue
             references.add(requirement)
     return tuple(sorted(references))
@@ -288,9 +285,7 @@ def initialize(
     control_ignore = control / ".gitignore"
 
     if project_root.exists() and any(project_root.iterdir()):
-        raise FileExistsError(
-            f"refusing to overwrite existing project files in non-empty directory: {project_root}"
-        )
+        raise FileExistsError(f"refusing to overwrite existing project files in non-empty directory: {project_root}")
 
     project_root.mkdir(parents=True, exist_ok=True)
     catalog.mkdir(parents=True, exist_ok=True)

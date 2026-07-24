@@ -116,7 +116,9 @@ def run_work_package_cmd(
 
 
 def register(app: typer.Typer) -> None:
-    work_package_app = typer.Typer(rich_markup_mode=None, no_args_is_help=True, help="inspect and execute work packages")
+    work_package_app = typer.Typer(
+        rich_markup_mode=None, no_args_is_help=True, help="inspect and execute work packages"
+    )
     app.add_typer(work_package_app, name="work-package")
 
     @work_package_app.command("validate", help="validate YAML, recipe structure, and catalog bindings")

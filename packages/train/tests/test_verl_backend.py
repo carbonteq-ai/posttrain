@@ -698,9 +698,9 @@ def test_verl_result_uses_validated_structured_metrics_as_native_summary(tmp_pat
                 "samples_per_second": 1.0,
                 "steps_per_second": 0.5,
             },
-        "model_dir": model,
-        "recovery_checkpoint": checkpoint,
-        "metrics_file": metrics,
+            "model_dir": model,
+            "recovery_checkpoint": checkpoint,
+            "metrics_file": metrics,
         }
     )
 

@@ -15,10 +15,14 @@ from ..overlay_write import ensure_overlay_file, overlay_directory, upsert_famil
 
 
 def register(app: typer.Typer) -> None:
-    environment_app = typer.Typer(rich_markup_mode=None, no_args_is_help=True, help="register Verifiers environment bindings")
+    environment_app = typer.Typer(
+        rich_markup_mode=None, no_args_is_help=True, help="register Verifiers environment bindings"
+    )
     app.add_typer(environment_app, name="environment")
 
-    add_app = typer.Typer(rich_markup_mode=None, no_args_is_help=True, help="write an environment binding into the project overlay")
+    add_app = typer.Typer(
+        rich_markup_mode=None, no_args_is_help=True, help="write an environment binding into the project overlay"
+    )
     environment_app.add_typer(add_app, name="add")
 
     @add_app.command("local", help="register an installed Verifiers package binding")

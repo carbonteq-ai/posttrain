@@ -53,7 +53,7 @@ The canonical amendment precedes implementation.
   configuration, backend dispatch, and tests in this repository.
 - [x] (2026-07-24 10:15Z) Published the veRL fork and its fork ledger, and
   selected immutable candidate revision
-  `7ed83a140e0b2c1e794c062ecd288cb202e7592a`. Runnable project bindings provide
+  `553280b88afe4e7fbc4aefeff27bbf0a22e7c048`. Runnable project bindings provide
   this revision with their machine-local interpreter and checkout paths.
 - [ ] Run a real multi-turn GPU qualification workload.
 
@@ -154,7 +154,7 @@ The canonical amendment precedes implementation.
 The framework contract, backend-neutral calculator, Verifiers projection, TRL
 adapter, standard job, and typed veRL adapter are implemented. The TRL fork is
 immutably pinned. The veRL fork is published at
-`7ed83a140e0b2c1e794c062ecd288cb202e7592a`; it contains the SAMPO
+`553280b88afe4e7fbc4aefeff27bbf0a22e7c048`; it contains the SAMPO
 implementation commit `8a718e5be7a107587f63967336ece333a5c160e1` and its
 published fork ledger. The framework maps that estimator to GSPO plus pinned
 recipe-backed dynamic sampling. The main repository passes 309 tests with 15

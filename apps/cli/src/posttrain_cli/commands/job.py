@@ -12,7 +12,9 @@ from .work_package import run_work_package_cmd, validate_work_package_cmd
 
 
 def register(app: typer.Typer) -> None:
-    job_app = typer.Typer(rich_markup_mode=None, no_args_is_help=True, help="convenience aliases for work-package plan and run")
+    job_app = typer.Typer(
+        rich_markup_mode=None, no_args_is_help=True, help="convenience aliases for work-package plan and run"
+    )
     app.add_typer(job_app, name="job")
 
     @job_app.command("plan", help="alias for work-package validate (composition/preflight plan)")

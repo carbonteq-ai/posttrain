@@ -247,8 +247,7 @@ def test_wheel_starters_cover_sft_and_environment_backed_paths(
         str(python),
         "--find-links",
         str(wheelhouse),
-        "carbonteq-trackio @ "
-        "git+https://github.com/carbonteq-ai/trackio.git@c5072198b3b1556d31ed96ffc246a03f65418ab8",
+        "carbonteq-trackio @ git+https://github.com/carbonteq-ai/trackio.git@c5072198b3b1556d31ed96ffc246a03f65418ab8",
         "posttrain[observatory]",
         cwd=tmp_path,
     )
@@ -365,8 +364,6 @@ def test_wheel_starters_cover_sft_and_environment_backed_paths(
         path.read_text(encoding="utf-8")
         for root in (sft, grpo)
         for path in root.rglob("*")
-        if path.is_file()
-        and ".venv" not in path.parts
-        and path.suffix in {".py", ".toml", ".yaml", ".md"}
+        if path.is_file() and ".venv" not in path.parts and path.suffix in {".py", ".toml", ".yaml", ".md"}
     )
     assert "posttrain_lab" not in starter_text

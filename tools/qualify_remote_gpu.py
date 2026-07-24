@@ -136,9 +136,7 @@ def main() -> int:
         )
         evidence = json.loads(completed.stdout.splitlines()[-1])
 
-    output = args.output or (
-        Path(".posttrain") / "state" / "qualification" / f"remote-gpu-{args.release}.json"
-    )
+    output = args.output or (Path(".posttrain") / "state" / "qualification" / f"remote-gpu-{args.release}.json")
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps({"evidence": str(output.resolve()), **evidence}, indent=2, sort_keys=True))

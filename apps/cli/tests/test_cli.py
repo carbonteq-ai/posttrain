@@ -105,9 +105,7 @@ def test_init_sft_template_writes_installable_project_and_valid_standard_job(
 
     pyproject = (project / "pyproject.toml").read_text(encoding="utf-8")
     settings = (project / ".posttrain" / "catalog" / "settings.yaml").read_text(encoding="utf-8")
-    work_package = (project / ".posttrain" / "work_packages" / "sft.yaml").read_text(
-        encoding="utf-8"
-    )
+    work_package = (project / ".posttrain" / "work_packages" / "sft.yaml").read_text(encoding="utf-8")
     assert '"posttrain[observatory,trackio,trl]' in pyproject
     assert "carbonteq-ai/trackio.git@c5072198" in pyproject
     assert "carbonteq-ai/trl.git@b43a0a3d" in pyproject
@@ -155,9 +153,7 @@ def test_init_grpo_template_declares_environment_and_selected_extras(
     capsys.readouterr()
 
     pyproject = (project / "pyproject.toml").read_text(encoding="utf-8")
-    work_package = (project / ".posttrain" / "work_packages" / "grpo.yaml").read_text(
-        encoding="utf-8"
-    )
+    work_package = (project / ".posttrain" / "work_packages" / "grpo.yaml").read_text(encoding="utf-8")
     assert '"posttrain[observatory,trackio,trl,verifiers]' in pyproject
     assert "PrimeIntellect-ai/verifiers.git@284a868d" in pyproject
     assert "gsm8k-distill-train" in work_package
@@ -194,9 +190,7 @@ def test_init_template_installs_with_uv(
     captured = capsys.readouterr()
 
     assert calls == [(["/usr/bin/uv", "sync", "--python", "3.12"], project.resolve())]
-    assert captured.out.index("Initialized post-training project") < captured.out.index(
-        "Installing dependencies..."
-    )
+    assert captured.out.index("Initialized post-training project") < captured.out.index("Installing dependencies...")
     assert f"Environment ready: {project.resolve() / '.venv'}" in captured.out
 
 
@@ -719,7 +713,7 @@ def test_dataset_add_jsonl_and_catalog_materialize(tmp_path: Path, capsys) -> No
                 "recipe:",
                 "  type: inline",
                 "  id: recipes/local-sft@1",
-                "  revision: \"1\"",
+                '  revision: "1"',
                 "  stage: train",
                 "  seats:",
                 "    dataset: dataset",

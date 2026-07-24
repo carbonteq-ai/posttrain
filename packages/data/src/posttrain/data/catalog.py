@@ -53,9 +53,7 @@ class DatasetLoadPlan:
         source = dict(self.source)
         source_kind = source.get("kind")
         if source_kind not in {"fixture", "huggingface", "jsonl", "nemo", "parquet"}:
-            raise ContractError(
-                "dataset source kind must be fixture, huggingface, jsonl, nemo, or parquet"
-            )
+            raise ContractError("dataset source kind must be fixture, huggingface, jsonl, nemo, or parquet")
         _validate_source(cast(DatasetSourceKind, source_kind), source)
         if source_kind == "nemo":
             allowed_formats = _NEMO_SFT_FORMATS if self.kind == "supervised" else _NEMO_PREFERENCE_FORMATS

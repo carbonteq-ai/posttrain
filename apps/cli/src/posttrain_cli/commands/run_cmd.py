@@ -42,8 +42,7 @@ def register(app: typer.Typer) -> None:
         layout = state.layout()
         if layout.tracking == "none":
             raise ContractError(
-                "run show requires project tracking; set tracking to 'trackio' or 'wandb' in "
-                ".posttrain/project.toml"
+                "run show requires project tracking; set tracking to 'trackio' or 'wandb' in .posttrain/project.toml"
             )
         try:
             observatory = importlib.import_module("posttrain_observatory")
@@ -56,9 +55,7 @@ def register(app: typer.Typer) -> None:
         create_service = getattr(observatory, "create_service", None)
         run_locator_type = getattr(observatory, "RunLocator", None)
         if settings_type is None or not callable(create_service) or run_locator_type is None:
-            raise RuntimeError(
-                "installed Observatory does not expose its query API; upgrade posttrain-observatory"
-            )
+            raise RuntimeError("installed Observatory does not expose its query API; upgrade posttrain-observatory")
         settings = settings_type.for_project(layout.project_id, layout.tracking)
         source_id = source or settings.source_id
         service: Any = create_service(settings)

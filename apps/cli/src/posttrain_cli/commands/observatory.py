@@ -13,7 +13,9 @@ from ..output import emit
 
 
 def register(app: typer.Typer) -> None:
-    observatory_app = typer.Typer(rich_markup_mode=None, no_args_is_help=True, help="start the project evidence product")
+    observatory_app = typer.Typer(
+        rich_markup_mode=None, no_args_is_help=True, help="start the project evidence product"
+    )
     app.add_typer(observatory_app, name="observatory")
 
     @observatory_app.command("up", help="serve Observatory for the discovered project's tracking backend")
@@ -32,8 +34,7 @@ def register(app: typer.Typer) -> None:
         layout = state.layout()
         if layout.tracking == "none":
             raise ContractError(
-                "Observatory requires project tracking; set tracking to 'trackio' or 'wandb' in "
-                ".posttrain/project.toml"
+                "Observatory requires project tracking; set tracking to 'trackio' or 'wandb' in .posttrain/project.toml"
             )
         try:
             observatory = importlib.import_module("posttrain_observatory")
@@ -46,16 +47,16 @@ def register(app: typer.Typer) -> None:
         settings_type = getattr(observatory, "ObservatorySettings", None)
         serve = getattr(observatory, "serve", None)
         if settings_type is None or not callable(serve):
-            raise RuntimeError(
-                "installed Observatory does not expose its server API; upgrade posttrain-observatory"
-            )
+            raise RuntimeError("installed Observatory does not expose its server API; upgrade posttrain-observatory")
         settings = settings_type.for_project(
             layout.project_id,
             layout.tracking,
             host=host,
             port=port,
         )
-        display_host = f"[{settings.host}]" if ":" in settings.host and not settings.host.startswith("[") else settings.host
+        display_host = (
+            f"[{settings.host}]" if ":" in settings.host and not settings.host.startswith("[") else settings.host
+        )
         url = f"http://{display_host}:{settings.port}"
         emit(
             state,
