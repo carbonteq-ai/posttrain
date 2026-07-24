@@ -89,6 +89,19 @@ GSPO alone.
 Details: [02 · Primitives](./02-primitives.md),
 [05 · APIs](./05-apis.md), [06 · Observation and lineage](./06-observation-and-lineage.md),
 and the [implementation plan](../plan/sampo-agentic-training.md).
+**Amendment — constraint-driven serving capacity (2026-07-24):**
+projects own serving requirements such as required context, minimum sustained
+aggregate output-token throughput, latency limits, and failure-rate limits.
+`Workload` owns the representative prompt population, output budget, bounded
+concurrency sweep, and saturation methodology. `serve.benchmark` records
+point-level capacity evidence without applying project thresholds; Observatory
+computes operating-point eligibility and comparable Pareto views from the
+snapshotted requirements. Representative and controlled diagnostic workloads
+remain distinct populations. Details: [01 · Workflow](./01-workflow.md),
+[02 · Primitives](./02-primitives.md), [03 · Work and evidence](./03-work-and-evidence.md),
+[04 · Framework](./04-framework.md), [05 · APIs](./05-apis.md),
+[06 · Observation and lineage](./06-observation-and-lineage.md), and the
+[implementation plan](../plan/serving-capacity-screen-and-observatory.md).
 
 These six documents are the **product/design authority** for the post-training
 framework. Do not expand or redesign them while building the implementation

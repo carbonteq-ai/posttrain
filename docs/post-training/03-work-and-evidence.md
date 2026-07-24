@@ -88,7 +88,8 @@ must show whether it consumed shared results, re-ran them, or skipped them.
 
 A project is the durable boundary for one model-improvement use case. It owns:
 
-- the product objective and operating constraints
+- the product objective and typed operating constraints, including serving
+  context, throughput, latency, and reliability requirements when applicable
 - the people responsible for the outcome
 - related work packages and their evidence
 - which framework-shared assets were consumed
@@ -276,11 +277,13 @@ Results do not belong inside catalog entries or recipes.
 | Stage view | Has this project selected a base (`screen`)? Produced descendants (`train`)? Accepted any (`qualify`)? |
 | Project view | What is complete, what was reused from the framework, which decisions remain open? |
 | Model-lineage view | How does this descendant compare with its parent and siblings? |
-| Serving Pareto view | Which contenders remain non-dominated under project constraints? |
+| Serving capacity run view | Which measured concurrency point best satisfies the snapshotted project requirements, and why? |
+| Serving Pareto view | Which comparable contenders remain non-dominated under the same project requirements, representative workload, and target? |
 
 Views must expose missing, failed, unsupported, stale, **not-run**,
 **reused-from-framework**, and incomparable evidence. Do not invent a fixed job
-mix per stage.
+mix per stage. Serving eligibility and Pareto membership are computed views;
+they are not written by `serve.benchmark` or stored as catalog results.
 
 ## Naming
 

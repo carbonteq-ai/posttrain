@@ -113,7 +113,7 @@ flowchart TB
 | `packages/common` | Cross-cutting identities, artifact refs, execution/observation protocols, statuses | Train/eval/serve behavior, backend options, env semantics, report math |
 | `packages/catalog` | Versioned framework base catalog resources, project discovery, manifest-controlled overlay loading | Capability execution, project decisions, runtime artifact lineage |
 | `packages/data` | Dataset contracts, prepare/materialize, format import/export, trace→SFT projection | Training loops, tokenization tied to one model, serving, Trackio requirement |
-| `packages/serve` | Inference bindings as runnable operations: benchmark, smoke | Training, Verifiers scoring, project thresholds |
+| `packages/serve` | Inference bindings as runnable operations: benchmark, smoke; representative and controlled capacity evidence | Training, Verifiers scoring, project thresholds or eligibility |
 | `packages/eval` | Evaluation plans as runnable operations (`general`, `domain`); Verifiers adapter retains native traces | Trainer APIs, vLLM engine ownership, promotion policy, parallel score schema |
 | `packages/train` | Training operations: SFT, DPO, GRPO, on-policy distillation (+ transform); backend-neutral rollout contracts and private trainer adapters | Environment task ownership, eval suite authorship, Trackio UI |
 | `packages/tracking` | Provider-neutral run lifecycle, raw evidence read contracts, normalized evidence models | Provider SDKs, product presentation, execution policy, “winner” selection |
@@ -122,7 +122,7 @@ flowchart TB
 | `packages/jobs` | Framework-shipped standard job definitions, dataset/environment wiring, and default `JobRuntime` construction | Project thresholds, scenario policy, or capability implementation |
 | `apps/cli` | Primary `posttrain` command: project initialization and install, diagnostics, catalog/work-package execution, and Observatory bring-up | Capability semantics, provider storage logic, project decisions |
 | `apps/lab` | Reference project and qualification suite: scenario policy, backend integration tests, and hardware release gates | Being imported by ordinary projects or owning the standard job contract |
-| `apps/observatory` | Dedicated read product: telemetry definitions, query/intelligence service, Python API, HTTP API, MCP, frontend, and materialized reports | Provider storage queries, execution, mutation of runs, or “winner” selection |
+| `apps/observatory` | Dedicated read product: telemetry definitions, query/intelligence service, Python API, HTTP API, MCP, frontend, materialized reports, and versioned serving-capacity interpretation | Provider storage queries, execution, mutation of runs, or “winner” selection |
 | Env packages (e.g. AutomationBench) | Published Verifiers environments | Importing lab or train/serve packages |
 
 ### Dependency rules (DX contracts)
@@ -205,6 +205,12 @@ secrets.
 Capability packages own **backend-native fields** inside their public configs
 when those fields matter to callers (e.g. vLLM engine options on an inference
 binding). Framework core does not absorb every backend knob into one mega-schema.
+
+Project serving requirements enter run snapshots through project/work-package
+composition; they are not operation seats. The serve package measures bounded
+workload points without interpreting those requirements. Observatory applies a
+versioned calculator to the retained evidence and the exact requirement
+snapshot, keeping execution independent of project policy.
 
 ## Developer playthrough
 

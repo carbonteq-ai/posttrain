@@ -295,7 +295,10 @@ and [06 · Verifiers ingest](./06-observation-and-lineage.md#verifiers-ingest-no
 
 ### `Workload`
 
-Request shapes, concurrency, warmup/repeat policy, required operating measures.
+Request shapes, a versioned prompt-corpus identity, representative or
+controlled cohort, ordered bounded concurrency sweep, saturation methodology,
+warmup/repeat policy, and required operating measures. Project throughput,
+latency, context, and reliability thresholds are not workload fields.
 
 ### `ExecutionTarget`
 
@@ -482,6 +485,12 @@ OnPolicyDistillationRequest
   teacher_inference: InferenceBinding      # exact-token teacher scoring
   quantization: QuantizationPlan | None    # when student update requires it
 ```
+
+`ServeBenchmarkRequest` does not accept a project-requirements seat. The
+project runtime snapshots the typed project brief beside the resolved seats,
+while the operation returns the measured concurrency points and their safe
+failure states. Representative and controlled workloads retain distinct
+identities.
 
 `train.grpo` is environment-only in the current API. A work package binds an
 `EnvironmentBinding` reference; it does not bind a dataset, prompt collection,
@@ -687,12 +696,20 @@ posttrain_observatory  # dedicated read product and query/intelligence service
   work_package_view(work_package_id) -> WorkPackageView
   stage_view(project_id, stage) -> StageView
   lineage_view(model: ModelVariant) -> LineageView
+  serving_capacity_run_view(run_id) -> ServingCapacityRunView
   serving_pareto_view(project_id, screen_work_package_id) -> ParetoView
   export_report(view, format) -> MaterializedReport
 ```
 
 Views must expose `missing` | `failed` | `unsupported` | `not_run` |
 `reused_from_framework` | `incomparable`. No report API picks a production winner.
+
+Serving-capacity views apply project constraints only after reading evidence.
+Their versioned calculator selects the highest-throughput measured point that
+satisfies context, latency, reliability, and evidence-completeness constraints.
+It reports eligibility against the project minimum throughput and may compute
+a Pareto set only across runs with the same requirement snapshot,
+representative workload/corpus, target, and calculator version.
 
 Each supported job kind has one versioned `JobTelemetryDefinition` owned by
 Observatory and describing summary fields, chart series, health rules,

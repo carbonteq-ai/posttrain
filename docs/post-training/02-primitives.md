@@ -653,19 +653,30 @@ be compared under the same project conditions.
 ### What it may specify
 
 - context sizes and prompt/output token shapes
-- concurrency and arrival behavior
+- a versioned representative prompt-corpus identity, provenance, and renderer
+- an ordered, bounded concurrency sweep and arrival behavior
 - representative tools, modalities, or structured-output patterns
-- warmup, repetition, and failure policy
+- warmup, repetition, failure, and saturation policy
 - which operating metrics must be collected (TTFT, ITL, e2e, throughput, VRAM,
   KV behavior, truncation, errors)
+
+The workload does not own project accept/reject thresholds. A representative
+workload uses model-visible messages rendered through the declared model
+renderer and is suitable for project capacity interpretation. A controlled
+diagnostic workload may use exact token-id shapes to isolate backend behavior.
+Those cohorts have different identities and must not be merged into one
+capacity curve or Pareto set.
 
 ### Example
 
 ```text
-workloads/memory-recall-32k-c2@1
+workloads/general-serving-32k-sweep@1
   context: 32768
-  concurrency: 2
-  shapes: [recall-heavy, write-heavy, mixed]
+  cohort: representative
+  corpus: general-serving-v1@1 (content digest recorded)
+  concurrency: [1, 2, 4, 8, 12, 16]
+  shapes: [reasoning, code, chat, extraction, structured-output, tool-use]
+  output_tokens: 128
   measures: [ttft, e2e_p95, thruput, peak_vram, truncations]
 ```
 
@@ -673,6 +684,9 @@ workloads/memory-recall-32k-c2@1
 
 - Embedding workload only inside an inference binding so comparisons drift
 - Changing shapes between candidates without calling it a new workload
+- Treating a project throughput or latency threshold as workload methodology
+- Padding representative prompts into controlled token shapes without changing
+  the workload identity
 
 ---
 

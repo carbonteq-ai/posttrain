@@ -107,7 +107,12 @@ Record:
 - model-size, deployment, licensing, privacy, and data restrictions
 - required task improvement and acceptable general-capability regression
 
-Numeric thresholds belong to the project. Prefer framework-shared models and
+Numeric thresholds belong to the project. For serving capacity, state required
+context, minimum sustained aggregate output-token throughput, latency limits,
+and an acceptable request-failure rate. Concurrency, batching, cache policy,
+and backend-native engine settings are not product thresholds: a serving
+workload varies them within explicit bounds to find how well a fixed execution
+target can satisfy the project envelope. Prefer framework-shared models and
 recipes that already match these constraints.
 
 > **Example:** An automation assistant may require reliable structured tool
@@ -123,6 +128,12 @@ A contender combines:
   framework-shared)
 - the target hardware
 - a representative workload for *this* project’s prompt/output/context/concurrency needs
+
+The representative workload identifies a versioned prompt population and a
+bounded concurrency sweep. It fixes comparable request methodology while
+retaining each measured operating point. A separate controlled workload may use
+exact token shapes for backend diagnosis, but its results are not merged with a
+representative product-capacity decision.
 
 **Always relevant:** load reliability and operating fit (context, concurrency,
 memory, latency/throughput gates the project cares about).
