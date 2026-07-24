@@ -24,6 +24,13 @@ from .execution import (
     execute_run,
     execute_run_tracked,
 )
+from .project_brief import (
+    ProjectBrief,
+    ServingRequirements,
+    load_project_brief,
+    project_brief_digest,
+    project_brief_snapshot,
+)
 from .runner import (
     ResolvedSeat,
     ResolvedWorkPackage,
@@ -53,6 +60,7 @@ __all__ = [
     "Recipe",
     "RecipeJob",
     "ProjectEntry",
+    "ProjectBrief",
     "ProjectExecutionRequest",
     "ResolvedSeat",
     "ResolvedSeats",
@@ -61,6 +69,7 @@ __all__ = [
     "RunOperation",
     "RunSpec",
     "SeatResolver",
+    "ServingRequirements",
     "SeatBinding",
     "Stage",
     "WorkPackage",
@@ -73,6 +82,9 @@ __all__ = [
     "execute_run",
     "execute_run_tracked",
     "load_work_package",
+    "load_project_brief",
+    "project_brief_digest",
+    "project_brief_snapshot",
     "resolve_work_package",
     "run_work_package",
     "run_work_package_job",

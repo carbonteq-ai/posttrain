@@ -61,6 +61,11 @@ def test_init_creates_portable_project_and_valid_empty_overlay(
 
     assert f"Initialized post-training project example-project at {project.resolve()}" in initialized.out
     assert (project / ".posttrain" / "project.toml").is_file()
+    assert 'schema_version = 2' in (project / ".posttrain" / "project.toml").read_text(encoding="utf-8")
+    assert 'project_brief = "project.yaml"' in (project / ".posttrain" / "project.toml").read_text(
+        encoding="utf-8"
+    )
+    assert (project / ".posttrain" / "project.yaml").is_file()
     assert (project / ".posttrain" / "catalog" / "layer.yaml").read_text(encoding="utf-8").endswith("files: []\n")
     assert (project / ".posttrain" / ".gitignore").read_text(encoding="utf-8") == "state/\n"
     assert main(["--project-root", str(project), "catalog", "validate"]) == 0
@@ -269,6 +274,8 @@ def test_project_show_discovers_from_nested_directory(
     assert payload["project_id"] == "support-agent"
     assert Path(payload["root"]) == project.resolve()
     assert payload["catalog_overlays"] == [str((project / ".posttrain" / "catalog").resolve())]
+    assert payload["serving_requirements"] == "not_configured"
+    assert isinstance(payload["project_brief_digest"], str)
 
 
 def test_catalog_list_and_show_include_resolution_provenance(

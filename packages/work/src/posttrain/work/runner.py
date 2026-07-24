@@ -46,6 +46,7 @@ from .contracts import (
     WorkPackageResult,
 )
 from .execution import ArtifactInput, RunSpec, execute_run
+from .project_brief import ProjectBrief, project_brief_snapshot
 
 type RunExecutor = Callable[[RunSpec, Callable[[RunContext], object]], object]
 type SeatResolver = Callable[[ResolvedSeat], Selection]
@@ -85,6 +86,7 @@ class ResolvedWorkPackage:
 class WorkPackageContext:
     catalog: Catalog
     definitions: Mapping[str, JobDefinition]
+    project_brief: ProjectBrief | None = None
     source_metadata: Mapping[str, JsonValue] = field(default_factory=dict)
     executor: RunExecutor = execute_run
     seat_resolver: SeatResolver | None = None
@@ -108,6 +110,7 @@ class WorkPackageHostRequest:
     state_dir: Path
     work_package_path: Path
     catalog: Catalog
+    project_brief: ProjectBrief | None = None
 
     def __post_init__(self) -> None:
         if self.catalog.scope != self.project_id:
@@ -187,7 +190,7 @@ def run_work_package(context: WorkPackageContext, package: WorkPackage) -> WorkP
             results.append(WorkPackageJobResult(job.id, job.kind, job.definition, "not_run"))
             continue
         _, definition, seats = prepared[job.id]
-        resolved_inputs = dict(resolved.snapshot)
+        resolved_inputs = _run_snapshot(resolved, context.project_brief)
         resolved_inputs["job_definition"] = {
             "id": definition.id,
             "kind": definition.kind,
@@ -242,7 +245,8 @@ def run_work_package_job(
             f"recipe job {job.id!r} kind {job.kind!r} conflicts with definition kind {definition.kind!r}"
         )
     seats = _job_seats(resolved, definition, context.seat_resolver)
-    resolved_inputs = dict(resolved.snapshot)
+    _preflight_job(context.project_brief, job, seats)
+    resolved_inputs = _run_snapshot(resolved, context.project_brief)
     resolved_inputs["job_definition"] = {
         "id": definition.id,
         "kind": definition.kind,
@@ -303,9 +307,59 @@ def _prepare_work_package(
             raise ContractError(
                 f"recipe job {job.id!r} kind {job.kind!r} conflicts with definition kind {definition.kind!r}"
             )
-        prepared[job.id] = (job, definition, _job_seats(resolved, definition, context.seat_resolver))
+        seats = _job_seats(resolved, definition, context.seat_resolver)
+        _preflight_job(context.project_brief, job, seats)
+        prepared[job.id] = (job, definition, seats)
 
     return resolved, enabled, prepared
+
+
+def _run_snapshot(
+    resolved: ResolvedWorkPackage,
+    project_brief: ProjectBrief | None,
+) -> dict[str, JsonValue]:
+    snapshot = dict(resolved.snapshot)
+    if project_brief is not None:
+        snapshot["project_brief"] = project_brief_snapshot(project_brief)
+    return snapshot
+
+
+def _preflight_job(
+    project_brief: ProjectBrief | None,
+    job: RecipeJob,
+    seats: ResolvedSeats,
+) -> None:
+    """Apply project policy only at the composition boundary."""
+
+    requirements = project_brief.serving if project_brief is not None else None
+    if job.kind != "serve.benchmark" or requirements is None:
+        return
+
+    inferences = [value for value in seats.values() if isinstance(value, InferenceBinding)]
+    workloads = [value for value in seats.values() if isinstance(value, Workload)]
+    targets = [value for value in seats.values() if isinstance(value, ExecutionTarget)]
+    models = [value for value in seats.values() if isinstance(value, ModelVariant)]
+    if len(inferences) != 1 or len(workloads) != 1:
+        raise ContractError("serve.benchmark preflight requires one inference binding and one workload")
+
+    inference = inferences[0]
+    workload = workloads[0]
+    if targets and any(target != inference.target for target in targets):
+        raise ContractError("serve.benchmark target conflicts with its inference binding")
+    if models and any(model != inference.model for model in models):
+        raise ContractError("serve.benchmark model conflicts with its inference binding")
+
+    context_window = workload.requests.get("context_window")
+    if not isinstance(context_window, int) or isinstance(context_window, bool) or context_window < 1:
+        raise ContractError("serve.benchmark workload context_window must be a positive integer")
+    if context_window < requirements.required_context_tokens:
+        raise ContractError(
+            "serve.benchmark workload context_window is below the project serving requirement"
+        )
+    if inference.model.capabilities.native_context_window < requirements.required_context_tokens:
+        raise ContractError(
+            "serve.benchmark model native context window is below the project serving requirement"
+        )
 
 
 def _resolve_recipe(catalog: Catalog, selection: CatalogRef | Recipe) -> tuple[Recipe, JsonValue]:

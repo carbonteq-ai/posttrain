@@ -22,7 +22,7 @@ The first demonstrable scenario uses a project requirement of at least 50 sustai
 - [x] (2026-07-24 15:02Z) Refined the benchmark-population design after confirming that the shipped four-record representative corpus is not used by the offline benchmark; selected a 128-record mixed representative corpus for capacity and retained exact-token prompts as a separate diagnostic workload.
 - [x] (2026-07-24 15:15Z) Created branch `codex/serving-capacity-observatory` from `main` while preserving the unrelated dirty Observatory design file.
 - [x] (2026-07-24 15:15Z) Amended the frozen canonical baseline narrowly to formalize project serving requirements, representative and controlled saturation workloads, point-level capacity evidence, and Observatory-owned interpretation.
-- [ ] Add a portable typed project brief with serving requirements and a compatibility path for existing projects without a brief.
+- [x] (2026-07-24 15:20Z) Added a strict portable project brief, stable digest and run snapshot, schema-version-1 compatibility, schema-version-2 discovery, CLI/scaffold integration, root project requirements, and serving context preflight.
 - [ ] Replace the naive prompt population and refactor `serve.benchmark` from one fixed-concurrency cell into one bounded representative capacity sweep with canonical metrics, per-request traces, point failures, and a versioned result artifact.
 - [ ] Add the `serve.benchmark` telemetry definition, backend-runtime configuration projection, specialized run view, and deterministic eligibility calculator to Observatory.
 - [ ] Add the screen work-package serving-capacity/Pareto query and expose it through Python, HTTP, MCP, exports, and the frontend.
@@ -57,6 +57,13 @@ The first demonstrable scenario uses a project requirement of at least 50 sustai
 
 - Observation: The project manifest currently contains paths and tracking configuration but no project brief. Work-package metadata is intentionally forbidden from carrying outcomes and is not a sufficient typed home for durable serving requirements.
   Evidence: `packages/catalog/src/posttrain/catalog/project.py` defines the strict `.posttrain/project.toml` schema; `packages/work/src/posttrain/work/contracts.py` permits descriptive metadata but rejects outcome and decision fields.
+
+- Observation: The global `workloads/foundation-smoke-v1@1` selection allocates
+  only 1,024 context tokens and one concurrency point, so it cannot satisfy the
+  repository project's new 32,768-token serving requirement.
+  Evidence: The new work-package preflight accepts the workload at a
+  1,024-token project requirement and rejects it at 32,768; the focused test
+  suite reports 45 passing tests after covering both paths.
 
 ## Decision Log
 
@@ -126,11 +133,14 @@ The first demonstrable scenario uses a project requirement of at least 50 sustai
 
 ## Outcomes & Retrospective
 
-Milestone 1 is complete on `codex/serving-capacity-observatory`. The six
+Milestones 1 and 2 are complete on `codex/serving-capacity-observatory`. The six
 canonical documents now agree that serving requirements are project policy,
 capacity methodology belongs to `Workload`, `serve.benchmark` emits
 uninterpreted point evidence, and Observatory alone computes eligibility and
-comparable Pareto views. Runtime implementation has not started.
+comparable Pareto views. Projects now load a strict YAML brief through manifest
+schema version 2, while schema-version-1 projects remain compatible. The
+standard runtime snapshots the brief and digest and rejects serving workloads
+or models below required context before opening a run.
 
 At completion, update this section with the final project-brief schema, canonical metric/result versions, tested real-hardware profile, screenshots or recorded view evidence, compatibility behavior for pre-change runs, and any limitations left for additional inference backends.
 
@@ -547,3 +557,5 @@ Revision note (2026-07-24): Created the initial plan to formalize the user's dec
 Revision note (2026-07-24): Replaced the naive four-prompt/synthetic-seed benchmark population with a provenance-aware 128-record representative corpus using GSM8K, HumanEval, and first-party message prompts; kept exact-token prompts as a separate diagnostic cohort so systems controls do not contaminate product capacity evidence.
 
 Revision note (2026-07-24): Started implementation on `codex/serving-capacity-observatory` and completed the required narrow frozen-baseline amendment before changing runtime contracts.
+
+Revision note (2026-07-24): Completed the typed project-brief slice, including portable discovery, compatibility, scaffold and CLI presentation, run snapshot propagation, and serving context preflight.

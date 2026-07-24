@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import sys
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, cast
 
@@ -18,6 +19,7 @@ from posttrain.work import (
     WorkPackageContext,
     WorkPackageHostFactory,
     WorkPackageHostRequest,
+    load_project_brief,
     load_work_package,
 )
 
@@ -79,12 +81,21 @@ def host_context(
         state_dir=layout.state,
         work_package_path=path,
         catalog=catalog,
+        project_brief=(
+            load_project_brief(layout.project_brief)
+            if layout.project_brief is not None
+            else None
+        ),
     )
     context = factory(request)
     if not isinstance(context, WorkPackageContext):
         raise ContractError(f"work-package host {spec!r} must return WorkPackageContext")
     if context.catalog is not catalog:
         raise ContractError("work-package host must use the catalog supplied in WorkPackageHostRequest")
+    if context.project_brief is None and request.project_brief is not None:
+        context = replace(context, project_brief=request.project_brief)
+    elif context.project_brief != request.project_brief:
+        raise ContractError("work-package host project brief conflicts with the discovered project")
     return context
 
 
@@ -100,6 +111,11 @@ def execution_request(
         state_dir=layout.state,
         work_package_path=path,
         catalog=catalog,
+        project_brief=(
+            load_project_brief(layout.project_brief)
+            if layout.project_brief is not None
+            else None
+        ),
     )
 
 

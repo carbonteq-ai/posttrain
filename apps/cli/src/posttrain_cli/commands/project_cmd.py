@@ -17,9 +17,10 @@ def register(app: typer.Typer) -> None:
     def project_show_cmd(ctx: typer.Context) -> None:
         state: CliState = ctx.obj
         layout = state.layout()
+        payload = layout_payload(layout)
         emit(
             state,
-            layout_payload(layout),
+            payload,
             "\n".join(
                 (
                     f"Project: {layout.project_id}",
@@ -28,6 +29,16 @@ def register(app: typer.Typer) -> None:
                     f"Catalog overlays: {', '.join(map(str, layout.catalog_overlays)) or '(none)'}",
                     f"Work packages: {layout.work_packages}",
                     f"State: {layout.state}",
+                    f"Project brief: {layout.project_brief or '(not configured)'}",
+                    f"Project brief digest: {payload['project_brief_digest'] or '(none)'}",
+                    (
+                        "Serving requirements: "
+                        + (
+                            "configured"
+                            if payload["serving_requirements"] == "configured"
+                            else "not configured"
+                        )
+                    ),
                 )
             ),
         )

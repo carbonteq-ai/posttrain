@@ -89,6 +89,7 @@ def build_job_runtime(
     return JobRuntime(
         catalog=request.catalog,
         definitions=definitions,
+        project_brief=request.project_brief,
         source_metadata={
             "project_root": str(request.project_root),
             "tracking_backend": selected_tracking,

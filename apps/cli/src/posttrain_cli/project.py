@@ -8,10 +8,11 @@ from typing import Any
 from posttrain.catalog import ProjectLayout
 from posttrain.common import ContractError
 from posttrain.common.selections import SelectionFamily
+from posttrain.work import load_project_brief, project_brief_digest
 
 
 def layout_payload(layout: ProjectLayout) -> dict[str, object]:
-    return {
+    payload: dict[str, object] = {
         "project_id": layout.project_id,
         "root": str(layout.root),
         "manifest": str(layout.manifest),
@@ -20,7 +21,16 @@ def layout_payload(layout: ProjectLayout) -> dict[str, object]:
         "state": str(layout.state),
         "tracking": layout.tracking,
         "entry": layout.entry,
+        "project_brief": str(layout.project_brief) if layout.project_brief is not None else None,
     }
+    if layout.project_brief is None:
+        payload["serving_requirements"] = "not_configured"
+        payload["project_brief_digest"] = None
+    else:
+        brief = load_project_brief(layout.project_brief)
+        payload["serving_requirements"] = "configured" if brief.serving is not None else "not_configured"
+        payload["project_brief_digest"] = project_brief_digest(brief)
+    return payload
 
 
 def work_package_path(layout: ProjectLayout, configured: Path) -> Path:

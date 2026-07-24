@@ -278,6 +278,7 @@ def initialize(
     )
     control = project_root / ".posttrain"
     manifest = control / "project.toml"
+    project_brief = control / "project.yaml"
     catalog = control / "catalog"
     catalog_manifest = catalog / "layer.yaml"
     work_packages = control / "work_packages"
@@ -294,12 +295,24 @@ def initialize(
     manifest.write_text(
         "\n".join(
             (
-                "schema_version = 1",
+                "schema_version = 2",
                 f'project_id = "{resolved_id}"',
                 'catalog_overlays = ["catalog"]',
                 'work_packages = "work_packages"',
                 'state = "state"',
                 'tracking = "trackio"',
+                'project_brief = "project.yaml"',
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    project_brief.write_text(
+        "\n".join(
+            (
+                "schema_version: 1",
+                f"objective: Improve and qualify models for the {resolved_id} project.",
+                "serving: null",
                 "",
             )
         ),

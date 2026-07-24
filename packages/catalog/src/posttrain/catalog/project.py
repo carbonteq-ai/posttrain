@@ -28,6 +28,7 @@ class _ProjectManifest(BaseModel):
     state: str = "state"
     tracking: Literal["trackio", "wandb", "none"] = "trackio"
     entry: str | None = None
+    project_brief: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,6 +42,7 @@ class ProjectLayout:
     catalog_overlays: tuple[Path, ...]
     work_packages: Path
     state: Path
+    project_brief: Path | None = None
     tracking: Literal["trackio", "wandb", "none"] = "trackio"
     entry: str | None = None
     base_catalog: Path | None = None
@@ -54,6 +56,8 @@ class ProjectLayout:
             raise ContractError("project layout catalog overlay paths must be absolute")
         if self.base_catalog is not None and not self.base_catalog.is_absolute():
             raise ContractError("project layout base catalog path must be absolute")
+        if self.project_brief is not None and not self.project_brief.is_absolute():
+            raise ContractError("project layout project brief path must be absolute")
         if self.entry is not None:
             _validate_entry(self.entry)
 
@@ -121,8 +125,14 @@ def load_project_layout(root: Path) -> ProjectLayout:
         manifest = _ProjectManifest.model_validate(payload)
     except ValidationError as error:
         raise ContractError(f"invalid post-training project manifest {manifest_path}: {error}") from error
-    if manifest.schema_version != 1:
-        raise ContractError(f"unsupported post-training project schema_version {manifest.schema_version}; expected 1")
+    if manifest.schema_version not in {1, 2}:
+        raise ContractError(
+            f"unsupported post-training project schema_version {manifest.schema_version}; expected 1 or 2"
+        )
+    if manifest.schema_version == 1 and manifest.project_brief is not None:
+        raise ContractError("post-training project_brief requires project schema_version 2")
+    if manifest.schema_version == 2 and manifest.project_brief is None:
+        raise ContractError("post-training project schema_version 2 requires project_brief")
     validate_selection_id(manifest.project_id, "project id")
     if len(set(manifest.catalog_overlays)) != len(manifest.catalog_overlays):
         raise ContractError("post-training project catalog overlays must be unique")
@@ -137,6 +147,13 @@ def load_project_layout(root: Path) -> ProjectLayout:
         "work_packages",
     )
     state = _state_path(control_dir, manifest.state)
+    project_brief = (
+        _project_source_path(project_root, control_dir, manifest.project_brief, "project_brief")
+        if manifest.project_brief is not None
+        else None
+    )
+    if project_brief is not None and not project_brief.is_file():
+        raise ContractError(f"post-training project brief not found: {project_brief}")
     return ProjectLayout(
         project_id=manifest.project_id,
         root=project_root,
@@ -145,6 +162,7 @@ def load_project_layout(root: Path) -> ProjectLayout:
         catalog_overlays=overlays,
         work_packages=work_packages,
         state=state,
+        project_brief=project_brief,
         tracking=manifest.tracking,
         entry=_validate_entry(manifest.entry) if manifest.entry is not None else None,
     )
