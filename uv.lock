@@ -2415,6 +2415,7 @@ dependencies = [
     { name = "posttrain-data" },
     { name = "posttrain-jobs" },
     { name = "posttrain-work" },
+    { name = "typer" },
 ]
 
 [package.optional-dependencies]
@@ -2449,6 +2450,7 @@ requires-dist = [
     { name = "posttrain-tracking-wandb", marker = "extra == 'wandb'", editable = "packages/tracking-wandb" },
     { name = "posttrain-train", extras = ["trl"], marker = "extra == 'trl'", editable = "packages/train" },
     { name = "posttrain-work", editable = "packages/work" },
+    { name = "typer", specifier = ">=0.25.1" },
 ]
 provides-extras = ["observatory", "trackio", "wandb", "trl", "verifiers", "vllm"]
 

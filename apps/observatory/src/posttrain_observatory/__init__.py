@@ -1,5 +1,6 @@
 """Dedicated post-training observability and analysis product."""
 
+from .composition import create_service
 from .fixtures import FixtureRunDataSource
 from .models import (
     ChartView,
@@ -121,6 +122,7 @@ __all__ = [
     "TraceEvaluationView",
     "TraceSectionDefinition",
     "WorkPackageView",
+    "create_service",
     "telemetry_registry",
     "serve",
 ]

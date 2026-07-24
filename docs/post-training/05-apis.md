@@ -135,8 +135,10 @@ Project and catalog commands load the same `ProjectLayout`, `CatalogRef`, and
 composed `Catalog` values used by Python callers. Work-package commands validate
 all seats and catalog references before opening a run or invoking an operation.
 Commands return zero on success, one for expected project or contract failures,
-and argparse's exit code two for invalid command syntax. Readable terminal
-output is the default; `--json` provides deterministic automation output.
+and two for invalid command syntax. The primary CLI is built with Typer; that is
+an implementation detail and does not change the public noun surface. Readable
+terminal output is the default; `--json` provides deterministic automation
+output.
 
 Initialization writes the project layout and an installable project package,
 then creates the project environment and installs dependencies. There is no

@@ -83,9 +83,9 @@ installed wheels, validate and run an SFT path and an environment-backed path
 - [x] (2026-07-23T18:06Z) Final Validation and Acceptance — locked sync,
   repository-wide ruff/pyright/import contracts, full package tests, isolated
   consumer wheels, lock digest, and diff whitespace checks pass.
-- [ ] Optional in-plan if cheap: `dataset add` / `environment add` helpers,
-  `job plan` / `run show` aliases, `catalog materialize`, extra hub packages in
-  `project.toml`.
+- [x] (2026-07-24) Optional helpers: `dataset add` / `environment add`,
+  `catalog materialize`, `doctor --fix`, `job plan` / `job run` /
+  `run show` aliases. Extra hub packages in `project.toml` remain deferred.
 
 ## Surprises & Discoveries
 

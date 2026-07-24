@@ -797,3 +797,105 @@ def test_environment_add_local_writes_overlay(tmp_path: Path, capsys) -> None:
     assert added["id"] == "custom-gsm8k"
     assert added["package"] == "gsm8k-v1"
     assert (project / ".posttrain" / "catalog" / "environments.yaml").is_file()
+
+
+def test_job_plan_aliases_work_package_validate(tmp_path: Path, capsys) -> None:
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+    package = project / ".posttrain" / "work_packages" / "cpu-check.yaml"
+    package.write_text(
+        """
+project_id: example
+work_package_id: screen/cpu-check
+stage: screen
+recipe:
+  type: inline
+  id: recipes/cpu-check@1
+  revision: "1"
+  stage: screen
+  seats: {model: model, dataset: dataset, settings: training, training: training}
+  jobs:
+    - {id: validate, kind: train.sft, definition: train/trl-sft@1}
+bindings:
+  model: {type: ref, family: model, id: models/qwen3.5-2b@bf16}
+  dataset: {type: ref, family: dataset, id: datasets/posttrain-sft-smoke@1}
+  settings: {type: ref, family: training, id: qwen3.5-2b/sft-smoke-v2}
+  training: {type: ref, family: training, id: training/qwen3.5-trl-lora@1}
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    assert (
+        main(
+            [
+                "--json",
+                "--project-root",
+                str(project),
+                "job",
+                "plan",
+                "cpu-check.yaml",
+            ]
+        )
+        == 0
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["work_package_id"] == "screen/cpu-check"
+    assert payload["validation_level"] == "project"
+
+
+def test_run_show_uses_project_tracking_source(
+    tmp_path: Path,
+    capsys,
+    monkeypatch,
+) -> None:
+    import posttrain_observatory
+
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+
+    class FakeView:
+        def model_dump(self, *, mode: str = "python") -> dict[str, object]:
+            assert mode == "json"
+            return {"run_id": "run-1", "source_id": "trackio-example"}
+
+    class FakeService:
+        async def get_run_view_response(self, locator, mode):
+            assert locator.source_id == "trackio-example"
+            assert locator.run_id == "run-1"
+            assert mode == "auto"
+            return FakeView()
+
+    monkeypatch.setattr(posttrain_observatory, "create_service", lambda settings: FakeService())
+
+    assert (
+        main(
+            [
+                "--json",
+                "--project-root",
+                str(project),
+                "run",
+                "show",
+                "run-1",
+            ]
+        )
+        == 0
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {"run_id": "run-1", "source_id": "trackio-example"}
+
+
+def test_run_show_rejects_project_without_tracking(tmp_path: Path, capsys) -> None:
+    project = tmp_path / "untracked"
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+    manifest = project / ".posttrain" / "project.toml"
+    manifest.write_text(
+        manifest.read_text(encoding="utf-8").replace('tracking = "trackio"', 'tracking = "none"'),
+        encoding="utf-8",
+    )
+
+    assert main(["--project-root", str(project), "run", "show", "run-1"]) == 1
+    assert "run show requires project tracking" in capsys.readouterr().err

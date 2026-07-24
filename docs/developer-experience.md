@@ -572,10 +572,13 @@ These land with the DX CLI:
 - `posttrain catalog materialize [--work-package PATH]` → materializes datasets and
   preflights environments referenced by work packages
 - `posttrain doctor --fix` → readiness plus the same materialize/preflight pass
+- `posttrain job plan PATH` → alias for `work-package validate`
+- `posttrain job run PATH --job ID` → alias for `work-package run`
+- `posttrain run show RUN_ID [--source SOURCE_ID]` → Observatory run view for the
+  project’s tracking source (defaults to `{tracking}-{project_id}`)
 
-Composition “plan” remains `posttrain work-package validate`. Run inspection
-remains Observatory (`posttrain observatory up` / `posttrain-observatory run`).
-Do not invent parallel `job` / `run` top-level nouns on the primary CLI.
+Canonical nouns remain `work-package` and Observatory. The `job` / `run` commands
+are thin aliases only; they do not introduce a second product vocabulary.
 
 ## Code extension ladder
 
