@@ -606,6 +606,9 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
             "warmup_repetitions": value.warmup_repetitions,
             "measured_repetitions": value.measured_repetitions,
             "required_measures": list(value.required_measures),
+            "plateau_improvement_ratio": value.plateau_improvement_ratio,
+            "plateau_intervals": value.plateau_intervals,
+            "max_consecutive_point_failures": value.max_consecutive_point_failures,
         }
     return {}
 

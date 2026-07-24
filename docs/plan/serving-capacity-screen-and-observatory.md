@@ -23,7 +23,7 @@ The first demonstrable scenario uses a project requirement of at least 50 sustai
 - [x] (2026-07-24 15:15Z) Created branch `codex/serving-capacity-observatory` from `main` while preserving the unrelated dirty Observatory design file.
 - [x] (2026-07-24 15:15Z) Amended the frozen canonical baseline narrowly to formalize project serving requirements, representative and controlled saturation workloads, point-level capacity evidence, and Observatory-owned interpretation.
 - [x] (2026-07-24 15:20Z) Added a strict portable project brief, stable digest and run snapshot, schema-version-1 compatibility, schema-version-2 discovery, CLI/scaffold integration, root project requirements, and serving context preflight.
-- [ ] Replace the naive prompt population and refactor `serve.benchmark` from one fixed-concurrency cell into one bounded representative capacity sweep with canonical metrics, per-request traces, point failures, and a versioned result artifact.
+- [ ] (2026-07-24 15:25Z) Replace the naive prompt population and refactor `serve.benchmark` into one bounded representative capacity sweep (completed: strict corpus contracts, deterministic 128-record GSM8K/HumanEval/first-party materialization, checked-in digest/manifest, native tool metadata, ordered unique concurrency and saturation fields; remaining: request/result contract, one-engine sweep, canonical metrics/traces, point failures, artifact).
 - [ ] Add the `serve.benchmark` telemetry definition, backend-runtime configuration projection, specialized run view, and deterministic eligibility calculator to Observatory.
 - [ ] Add the screen work-package serving-capacity/Pareto query and expose it through Python, HTTP, MCP, exports, and the frontend.
 - [ ] Update project scaffolding, the base catalog, the foundation screen example, developer documentation, generated schemas, and fixtures.
@@ -64,6 +64,21 @@ The first demonstrable scenario uses a project requirement of at least 50 sustai
   Evidence: The new work-package preflight accepts the workload at a
   1,024-token project requirement and rejects it at 32,768; the focused test
   suite reports 45 passing tests after covering both paths.
+
+- Observation: `uv run --package posttrain-data` does not expose the package's
+  `datasets` dependency in the active root environment, despite `packages/data`
+  declaring it.
+  Evidence: Both `--package posttrain-data` and `--project packages/data`
+  raised `ModuleNotFoundError`; the reproducible maintainer command is
+  `uv run --with 'datasets>=4.6.1,<4.7' python
+  scripts/materialize_serving_corpus.py --check`.
+
+- Observation: The materialized corpus contains exactly 128 model-visible
+  prompt records with digest
+  `9a9467fd8a5e744968d09a4d8fd6f4d92a089c50a84e1e6e7e5c5520a9f4e50e`.
+  Evidence: The rebuild check succeeds from the immutable revisions; field
+  inspection finds no GSM8K `answer` or HumanEval `canonical_solution`,
+  `test`, or `entry_point` fields.
 
 ## Decision Log
 
@@ -141,6 +156,12 @@ comparable Pareto views. Projects now load a strict YAML brief through manifest
 schema version 2, while schema-version-1 projects remain compatible. The
 standard runtime snapshots the brief and digest and rejects serving workloads
 or models below required context before opening a run.
+
+Milestone 3 is in progress. Its benchmark-population portion is complete: the
+runtime verifies a checked-in 128-record corpus and manifest, tool-use records
+carry native tool schemas, and the maintainer rebuild is deterministic. The
+benchmark still uses its legacy single-cell controlled-token adapter until the
+next slice replaces the request, result, trace, and sweep contracts together.
 
 At completion, update this section with the final project-brief schema, canonical metric/result versions, tested real-hardware profile, screenshots or recorded view evidence, compatibility behavior for pre-change runs, and any limitations left for additional inference backends.
 
@@ -414,7 +435,7 @@ Validate the frontend:
 
 Run the real backend integration after documenting the immutable model revision and target:
 
-    uv run python scripts/materialize_serving_corpus.py --check
+    uv run --with 'datasets>=4.6.1,<4.7' python scripts/materialize_serving_corpus.py --check
 
     POSTTRAIN_GPU_BENCHMARK_MODEL=<repo-id> \
     POSTTRAIN_GPU_BENCHMARK_REVISION=<immutable-revision> \
@@ -559,3 +580,5 @@ Revision note (2026-07-24): Replaced the naive four-prompt/synthetic-seed benchm
 Revision note (2026-07-24): Started implementation on `codex/serving-capacity-observatory` and completed the required narrow frozen-baseline amendment before changing runtime contracts.
 
 Revision note (2026-07-24): Completed the typed project-brief slice, including portable discovery, compatibility, scaffold and CLI presentation, run snapshot propagation, and serving context preflight.
+
+Revision note (2026-07-24): Completed the representative corpus and workload-saturation contract portion of Milestone 3, recorded the actual reproducible `uv --with` materialization command, and left the single-cell benchmark replacement explicitly in progress.

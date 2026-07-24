@@ -82,6 +82,9 @@ class WorkloadSchema(CatalogSchema):
     warmup_repetitions: int = Field(default=0, ge=0)
     measured_repetitions: int = Field(default=1, gt=0)
     required_measures: tuple[str, ...] = ()
+    plateau_improvement_ratio: float = Field(default=0.05, gt=0, lt=1)
+    plateau_intervals: int = Field(default=2, gt=0)
+    max_consecutive_point_failures: int = Field(default=1, gt=0)
 
 
 class CatalogLinkSchema(CatalogSchema):
