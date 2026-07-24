@@ -9,7 +9,7 @@ from typing import Any, Literal, cast
 from uuid import uuid4
 
 from ...integrations.verifiers import load_verifiers_bridge_snapshot
-from ...online_rl import PolicyTurnRequest, PolicyTurnResult, RolloutBatch
+from ...online_rl import EnvironmentRollout, PolicyTurnRequest, PolicyTurnResult, RolloutBatch
 from ...profiles import shape_soft_overlong_reward
 
 try:
@@ -122,6 +122,7 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
         max_completion_tokens: int,
         overlong_buffer_tokens: int | None = None,
         overlong_penalty_factor: float | None = None,
+        emit_sampo_metadata: bool = False,
         **kwargs: Any,
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -135,6 +136,7 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
         self._max_completion_tokens = max_completion_tokens
         self._overlong_buffer_tokens = overlong_buffer_tokens
         self._overlong_penalty_factor = overlong_penalty_factor
+        self._emit_sampo_metadata = emit_sampo_metadata
 
     async def run(self, sampling_params: dict[str, Any], **kwargs: Any) -> Any:
         del sampling_params
@@ -169,6 +171,17 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
         response_mask = [int(value) for value in rollout.env_mask]
         if rollout.is_truncated and self._mask_truncated_completions:
             response_mask = [0] * len(response_mask)
+        extra_fields: dict[str, Any] = {
+            "rollout_trace_id": rollout.trace.external_id,
+            "example_id": rollout.example_id,
+            "is_truncated": rollout.is_truncated,
+            "task_reward": rollout.reward,
+            "algorithm_reward": reward,
+            "min_global_steps": step,
+            "max_global_steps": step,
+        }
+        if self._emit_sampo_metadata:
+            extra_fields.update(_sampo_metadata(rollout))
         return AgentLoopOutput(
             prompt_ids=list(rollout.prompt_ids),
             response_ids=list(rollout.completion_ids),
@@ -177,16 +190,20 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
             reward_score=reward,
             num_turns=num_turns,
             metrics=AgentLoopMetrics(generate_sequences=perf_counter() - started),
-            extra_fields={
-                "rollout_trace_id": rollout.trace.external_id,
-                "example_id": rollout.example_id,
-                "is_truncated": rollout.is_truncated,
-                "task_reward": rollout.reward,
-                "algorithm_reward": reward,
-                "min_global_steps": step,
-                "max_global_steps": step,
-            },
+            extra_fields=extra_fields,
         )
+
+
+def _sampo_metadata(rollout: EnvironmentRollout) -> dict[str, Any]:
+    if not rollout.turns:
+        raise RuntimeError("SAMPO requires sampled assistant-turn metadata")
+    return {
+        "sampo_turn_spans": [
+            [turn.completion_start, turn.completion_end] for turn in rollout.turns
+        ],
+        "sampo_anchor_state_keys": [turn.anchor_state_key for turn in rollout.turns],
+        "sampo_step_rewards": [turn.step_reward for turn in rollout.turns],
+    }
 
 
 def _finish_reason(

@@ -42,6 +42,13 @@ def compute_sampo_advantages(
             raise ValueError("SAMPO requires finite trajectory rewards")
         if not rollout.turns:
             raise ValueError("SAMPO requires explicit sampled assistant-turn spans")
+        covered = [False] * len(rollout.completion_ids)
+        for turn in rollout.turns:
+            covered[turn.completion_start : turn.completion_end] = [True] * (
+                turn.completion_end - turn.completion_start
+            )
+        if tuple(covered) != rollout.env_mask:
+            raise ValueError("SAMPO turn spans must cover every sampled policy token")
     grouped_indices = [
         list(range(start, start + settings.num_generations))
         for start in range(0, len(rollouts), settings.num_generations)

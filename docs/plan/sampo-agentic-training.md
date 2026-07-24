@@ -13,10 +13,10 @@ anchor-state advantages, applies sequence-level importance-ratio clipping, and
 filters reward-constant trajectory groups. A SAMPO run is independently
 identified in catalog configuration and run evidence; it is not a DAPO flag.
 
-The first executable backend is the maintained TRL fork. The current veRL
-checkout already has the GSPO loss kernel but not SAMPO's GiGPO hierarchical
-advantage estimator, so its adapter must reject SAMPO until a maintained,
-published veRL fork implements that missing contract.
+The executable backends are the maintained TRL fork and a maintained veRL
+fork. The veRL implementation uses the official ARL-Arena SAMPO extension as
+its semantic reference: `adv_estimator=sampo` selects GiGPO-style hierarchical
+advantages while the actor uses the existing GSPO loss.
 
 This work changes the frozen product baseline by adding `train.sampo`,
 `SAMPOSettings`, `SAMPORequest`, and an explicit agentic trajectory contract.
@@ -44,6 +44,17 @@ The canonical amendment precedes implementation.
   focused TRL validation (6 passed).
 - [x] (2026-07-24) Published the TRL fork and moved the immutable consumer pin
   to `b43a0a3d622ab1547f4d2abbd1b25eab3c52a0b9`.
+- [x] (2026-07-24 08:10Z) Re-inspected the official ARL-Arena veRL extension
+  and identified its SAMPO-to-GiGPO-plus-GSPO mapping, anchor metadata, and
+  dynamic-filtering seams.
+- [x] (2026-07-24 09:00Z) Added and validated the hierarchical SAMPO advantage estimator in the clean
+  `../verl` fork checkout.
+- [x] (2026-07-24 09:20Z) Wired typed SAMPO launch manifests, agent-loop turn metadata, Hydra
+  configuration, backend dispatch, and tests in this repository.
+- [x] (2026-07-24 10:15Z) Published the veRL fork and its fork ledger, and
+  selected immutable candidate revision
+  `7ed83a140e0b2c1e794c062ecd288cb202e7592a`. Runnable project bindings provide
+  this revision with their machine-local interpreter and checkout paths.
 - [ ] Run a real multi-turn GPU qualification workload.
 
 ## Surprises & Discoveries
@@ -77,8 +88,16 @@ The canonical amendment precedes implementation.
 
 - Observation: the selected veRL checkout implements `loss_mode=gspo` but
   contains no GiGPO or anchor-state advantage implementation.
-  Evidence: source searches in `../verl-upstream/verl` find GSPO and no GiGPO
-  symbols.
+  Evidence: source searches in the clean `../verl` fork checkout find GSPO and
+  no GiGPO symbols at base revision
+  `5da56132aebca765adb5ab23cf83b43fd5b5f1dc`.
+
+- Observation: the official SAMPO veRL extension retains one optimizer row per
+  active agent step, while this framework already retains one complete
+  trajectory plus token-aligned turn spans.
+  Evidence: ARL-Arena's `gather_rollout_data` flattens active step rows; the
+  framework's `EnvironmentRollout` stores ordered `AgenticTurn` spans over one
+  flattened trajectory.
 
 ## Decision Log
 
@@ -115,20 +134,31 @@ The canonical amendment precedes implementation.
   log-probabilities and the clipped loss.
   Date/Author: 2026-07-24 / Codex
 
-- Decision: support TRL first and make veRL fail closed.
-  Rationale: adding a fake veRL mapping to GSPO alone would omit SAMPO's
-  hierarchical advantage and mislabel the run. The selected veRL checkout is
-  also dirty and unpublished, so it is not a safe implicit modification target.
+- Decision: implement veRL SAMPO in the clean `../verl` fork using the official
+  ARL-Arena extension as the semantic reference.
+  Rationale: the reference confirms the required composition is hierarchical
+  GiGPO advantages plus GSPO loss. The fork can implement that composition
+  without approximating SAMPO as GSPO alone.
+  Date/Author: 2026-07-24 / Codex
+
+- Decision: retain one complete agent trajectory per veRL row and compute
+  token-aligned hierarchical advantages from typed turn spans.
+  Rationale: it preserves exact Verifiers lineage and lets GSPO form one
+  sequence ratio over all sampled policy tokens, while implementing the same
+  episode-plus-anchor advantage equations as the official row-per-step
+  extension.
   Date/Author: 2026-07-24 / Codex
 
 ## Outcomes & Retrospective
 
 The framework contract, backend-neutral calculator, Verifiers projection, TRL
-adapter, standard job, and fail-closed veRL boundary are implemented. Focused
-main-repository validation passes and the full suite has 306 passes and 15
-skips; focused TRL
-validation passes with 6 tests. The implementation is contract-complete and
-immutably pinned; real GPU qualification remains.
+adapter, standard job, and typed veRL adapter are implemented. The TRL fork is
+immutably pinned. The veRL fork is published at
+`7ed83a140e0b2c1e794c062ecd288cb202e7592a`; it contains the SAMPO
+implementation commit `8a718e5be7a107587f63967336ece333a5c160e1` and its
+published fork ledger. The framework maps that estimator to GSPO plus pinned
+recipe-backed dynamic sampling. The main repository passes 309 tests with 15
+skips; the focused veRL suite passes 35 tests. Real GPU qualification remains.
 
 ## Context and Orientation
 
@@ -177,16 +207,31 @@ the option without a rollout function or aligned values. Map SAMPO to
 sequence-level lower/upper clipping, group reward scaling only inside the framework
 advantage calculator, retained-group dynamic sampling, and sequence-mean loss.
 
-Fifth, reject SAMPO in the veRL dispatcher with an error naming missing GiGPO
-support. Add tests for the mathematical calculation, multi-turn token spans,
-catalog/request validation, TRL arguments, dynamic filtering, and veRL
-rejection.
+Fifth, extend the maintained veRL fork with a registered SAMPO advantage
+estimator. Consume typed turn spans, anchor-state keys, and optional step
+rewards from the agent-loop metadata; compute episode and anchor-relative
+advantages on the driver; and use veRL's existing GSPO policy loss.
+
+Sixth, add a typed SAMPO launch plan and worker mapping in this repository.
+The isolated worker selects `algorithm.adv_estimator=sampo`,
+`policy_loss.loss_mode=gspo`, sequence-mean aggregation, the selected clipping
+bounds, and bounded native group filtering. Add tests for the mathematical
+calculation, metadata validation, launch manifest, Hydra mapping, and backend
+dispatch.
 
 ## Concrete Steps
 
 Run from `/home/hammad/projects/trl`:
 
     uv run pytest tests/test_sampo_precomputed_advantages.py tests/test_dapo_dynamic_sampling.py -q
+
+Run from `/home/hammad/projects/verl`:
+
+    .venv/bin/python -m pytest \
+      tests/trainer/ppo/test_sampo_advantage_on_cpu.py \
+      tests/trainer/ppo/test_core_algos_on_cpu.py \
+      tests/special_sanity/test_config_docs.py -q
+    PATH="$PWD/.venv/bin:$PATH" bash scripts/generate_trainer_config.sh
 
 Run from `/home/hammad/projects/rl`:
 
@@ -208,10 +253,11 @@ expected episode-relative and discounted anchor-state-relative advantages. It
 rejects incomplete groups, misaligned spans, single-generation groups, and
 non-finite rewards.
 
-TRL receives sequence-level importance sampling, symmetric clipping,
+TRL receives sequence-level importance sampling, asymmetric clipping,
 precomputed token advantages, and retained-group dynamic filtering. It refuses
-missing or misaligned precomputed advantages. veRL refuses SAMPO before process
-launch and explicitly names missing hierarchical advantage support.
+missing or misaligned precomputed advantages. veRL receives the same logical
+turn metadata, computes hierarchical advantages on the driver, and combines
+them with its existing GSPO loss and bounded group filtering.
 
 No CPU contract test claims training quality. Release qualification requires a
 short real multi-turn tool-agent run and inspection of non-zero step-advantage,
@@ -221,9 +267,10 @@ sequence-ratio, dynamic-filter, KL, gradient, and success metrics.
 
 All main-repository tests use temporary paths. ARL-Arena remains a clean,
 read-only research checkout. Do not modify the dirty `../verl-upstream`
-checkout. TRL changes are published on `codex/dapo-dynamic-sampling` and
-selected by the main repository at immutable commit
-`b43a0a3d622ab1547f4d2abbd1b25eab3c52a0b9`.
+checkout. veRL changes belong on `../verl` branch
+`codex/sampo-agentic-advantages`. TRL changes are published on
+`codex/dapo-dynamic-sampling` and selected by the main repository at immutable
+commit `b43a0a3d622ab1547f4d2abbd1b25eab3c52a0b9`.
 
 ## Artifacts and Notes
 
@@ -249,3 +296,12 @@ float advantages per rollout, aligned to `completion_ids`.
 
 Revision note (2026-07-24): Created from the paper, official source, local
 Verifiers bridge, and exact selected backend revisions.
+
+Revision note (2026-07-24): Reopened the veRL milestone after confirming that
+the official SAMPO repository includes a veRL extension. The revised work uses
+that implementation as the semantic reference instead of treating veRL support
+as unavailable.
+
+Revision note (2026-07-24): Implemented the candidate veRL fork estimator and
+framework adapter. Publication and GPU qualification remain explicit release
+gates.

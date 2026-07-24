@@ -393,7 +393,9 @@ def _sampo_backend(backend: str) -> SAMPOBackend:
 
         return run_sampo
     if product == "verl":
-        raise ValueError("veRL SAMPO requires hierarchical GiGPO advantages; GSPO alone is insufficient")
+        from .backends.verl import run_sampo
+
+        return run_sampo
     raise ValueError(f"unsupported SAMPO training backend {backend!r}")
 
 

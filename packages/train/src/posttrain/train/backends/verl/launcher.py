@@ -1,4 +1,4 @@
-"""Isolated veRL launcher for backend-neutral GRPO and distillation requests."""
+"""Isolated veRL launcher for backend-neutral online RL and distillation."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ from posttrain.common import (
 
 from ...bindings import FullParameterUpdate, LoRAUpdate
 from ...grpo_observations import GRPOObservationFeatures, normalize_grpo_metrics
-from ...requests import GRPORequest, OnPolicyDistillationRequest
+from ...requests import GRPORequest, OnPolicyDistillationRequest, SAMPORequest
 from ...results import TrainingSummary
 from ..common import BackendTrainingResult
 from .contracts import (
@@ -82,6 +82,42 @@ def build_grpo_launch_plan(request: GRPORequest, output_dir: Path) -> VerlLaunch
     )
 
 
+def build_sampo_launch_plan(request: SAMPORequest, output_dir: Path) -> VerlLaunchPlan:
+    _validate_backend(request.training.backend)
+    _validate_model(request.policy, "policy")
+    return _plan(
+        request,
+        output_dir,
+        "sampo",
+        {
+            "policy": _model(request.policy),
+            "reference": _model(request.reference) if request.reference is not None else None,
+            "algorithm": {
+                "advantage_estimator": "sampo",
+                "beta": request.settings.beta,
+                "num_prompts_per_step": request.settings.num_prompts_per_step,
+                "num_generations": request.settings.num_generations,
+                "max_prompt_length": request.settings.max_prompt_length,
+                "max_completion_length": request.settings.max_completion_length,
+                "online_rl_algorithm": "sampo",
+                "clip_epsilon_low": request.settings.clip_epsilon_low,
+                "clip_epsilon_high": request.settings.clip_epsilon_high,
+                "dynamic_sampling": True,
+                "dynamic_sampling_max_candidate_batches": (
+                    request.settings.dynamic_sampling.max_candidate_batches
+                ),
+                "mask_truncated_completions": request.settings.mask_truncated_completions,
+                "overlong_penalty_factor": 1.0,
+                "discount_gamma": request.settings.discount_gamma,
+                "step_advantage_weight": request.settings.step_advantage_weight,
+                "advantage_normalization": request.settings.advantage_normalization,
+            },
+            "rollout": _inference(request.inference),
+            "environment": _environment(request, output_dir),
+        },
+    )
+
+
 def build_distillation_launch_plan(
     request: OnPolicyDistillationRequest,
     output_dir: Path,
@@ -118,6 +154,10 @@ def run_grpo(context: RunContext, request: GRPORequest, output_dir: Path) -> Bac
     return _launch(context, request, build_grpo_launch_plan(request, output_dir), output_dir)
 
 
+def run_sampo(context: RunContext, request: SAMPORequest, output_dir: Path) -> BackendTrainingResult:
+    return _launch(context, request, build_sampo_launch_plan(request, output_dir), output_dir)
+
+
 def run_distillation(
     context: RunContext,
     request: OnPolicyDistillationRequest,
@@ -127,9 +167,9 @@ def run_distillation(
 
 
 def _plan(
-    request: GRPORequest | OnPolicyDistillationRequest,
+    request: GRPORequest | SAMPORequest | OnPolicyDistillationRequest,
     output_dir: Path,
-    operation: Literal["grpo", "distill"],
+    operation: Literal["grpo", "sampo", "distill"],
     operation_payload: dict[str, object],
 ) -> VerlLaunchPlan:
     runtime = request.training.runtime
@@ -152,19 +192,28 @@ def _plan(
     recipe_worktree = None
     recipe_source_revision = None
     algorithm_payload = operation_payload.get("algorithm")
-    dynamic_sampling = (
-        bool(algorithm_payload.get("dynamic_sampling")) if isinstance(algorithm_payload, Mapping) else False
+    uses_dynamic_recipe = (
+        operation in {"grpo", "sampo"}
+        and isinstance(algorithm_payload, Mapping)
+        and algorithm_payload.get("online_rl_algorithm") in {"dapo", "sampo"}
+        and bool(algorithm_payload.get("dynamic_sampling"))
     )
-    if dynamic_sampling:
-        recipe_directory = backend_options.get("dapo_recipe_working_directory")
+    if uses_dynamic_recipe:
+        recipe_directory = backend_options.get("dynamic_sampling_recipe_working_directory")
+        if recipe_directory is None and operation == "grpo":
+            recipe_directory = backend_options.get("dapo_recipe_working_directory")
         if not isinstance(recipe_directory, str) or not recipe_directory.strip():
-            raise ValueError("veRL DAPO dynamic sampling requires backend_options.dapo_recipe_working_directory")
+            raise ValueError(
+                "veRL dynamic sampling requires backend_options.dynamic_sampling_recipe_working_directory"
+            )
         recipe_worktree = Path(recipe_directory).expanduser()
         if not recipe_worktree.is_absolute():
-            raise ValueError("veRL dapo_recipe_working_directory must be an absolute path")
-        recipe_source_revision = backend_options.get("dapo_recipe_source_revision")
+            raise ValueError("veRL dynamic-sampling recipe working directory must be an absolute path")
+        recipe_source_revision = backend_options.get("dynamic_sampling_recipe_source_revision")
+        if recipe_source_revision is None and operation == "grpo":
+            recipe_source_revision = backend_options.get("dapo_recipe_source_revision")
         if not isinstance(recipe_source_revision, str) or len(recipe_source_revision) != 40:
-            raise ValueError("veRL DAPO dynamic sampling requires a 40-character dapo_recipe_source_revision")
+            raise ValueError("veRL dynamic sampling requires a 40-character recipe source revision")
     update = request.training.update
     if not isinstance(update, FullParameterUpdate | LoRAUpdate):
         raise ValueError("the qualified veRL slice supports full-parameter and LoRA updates")
@@ -233,7 +282,7 @@ def _plan(
 
 def _launch(
     context: RunContext,
-    request: GRPORequest | OnPolicyDistillationRequest,
+    request: GRPORequest | SAMPORequest | OnPolicyDistillationRequest,
     plan: VerlLaunchPlan,
     output_dir: Path,
 ) -> BackendTrainingResult:
@@ -255,7 +304,7 @@ def _launch(
             "supported_model_families": ",".join(sorted(_SUPPORTED_MODEL_FAMILIES)),
         },
     )
-    if isinstance(request, GRPORequest):
+    if isinstance(request, GRPORequest | SAMPORequest):
         context.event("grpo_runtime_resolved", _grpo_runtime_attributes(request, plan))
     environment = _isolated_environment()
     environment["POSTTRAIN_VERL_MANIFEST"] = str(manifest)
@@ -298,7 +347,7 @@ def _launch(
         raise RuntimeError(f"veRL process completed without its result contract: {result_path}")
     result = VerlWorkerResult.read(result_path)
     backend, records = _backend_result(result, output_dir)
-    if isinstance(request, GRPORequest):
+    if isinstance(request, GRPORequest | SAMPORequest):
         _replay_grpo_metrics(context, request, records)
     return backend
 
@@ -380,7 +429,7 @@ def _output_path(value: Path, output_dir: Path, field: str) -> Path:
 
 def _replay_grpo_metrics(
     context: RunContext,
-    request: GRPORequest,
+    request: GRPORequest | SAMPORequest,
     records: tuple[VerlMetricRecord, ...],
 ) -> None:
     features = GRPOObservationFeatures.from_request(request)
@@ -409,11 +458,11 @@ def _isolated_environment() -> dict[str, str]:
     return environment
 
 
-def _runtime_timeout(request: GRPORequest | OnPolicyDistillationRequest) -> float | None:
+def _runtime_timeout(request: GRPORequest | SAMPORequest | OnPolicyDistillationRequest) -> float | None:
     return request.training.runtime.timeout_seconds
 
 
-def _grpo_runtime_attributes(request: GRPORequest, plan: VerlLaunchPlan) -> dict[str, Any]:
+def _grpo_runtime_attributes(request: GRPORequest | SAMPORequest, plan: VerlLaunchPlan) -> dict[str, Any]:
     engine = request.inference.engine
     speculative = engine.get("speculative_config")
     attributes: dict[str, Any] = {
@@ -431,13 +480,22 @@ def _grpo_runtime_attributes(request: GRPORequest, plan: VerlLaunchPlan) -> dict
             "max_model_len",
             request.settings.max_prompt_length + request.settings.max_completion_length,
         ),
-        "online_rl_algorithm": request.settings.algorithm,
+        "online_rl_algorithm": request.settings.algorithm if isinstance(request, GRPORequest) else "sampo",
         "clip_epsilon_low": request.settings.clip_epsilon_low,
-        "clip_epsilon_high": request.settings.resolved_clip_epsilon_high,
+        "clip_epsilon_high": (
+            request.settings.resolved_clip_epsilon_high
+            if isinstance(request, GRPORequest)
+            else request.settings.clip_epsilon_high
+        ),
         "mask_truncated_completions": request.settings.mask_truncated_completions,
-        "overlong_buffer_tokens": request.settings.overlong_buffer_tokens,
-        "overlong_penalty_factor": request.settings.overlong_penalty_factor,
     }
+    if isinstance(request, GRPORequest):
+        attributes["overlong_buffer_tokens"] = request.settings.overlong_buffer_tokens
+        attributes["overlong_penalty_factor"] = request.settings.overlong_penalty_factor
+    else:
+        attributes["discount_gamma"] = request.settings.discount_gamma
+        attributes["step_advantage_weight"] = request.settings.step_advantage_weight
+        attributes["advantage_normalization"] = request.settings.advantage_normalization
     if isinstance(speculative, dict):
         attributes["speculative_method"] = str(speculative.get("method"))
         attributes["num_speculative_tokens"] = speculative.get("num_speculative_tokens")
@@ -488,7 +546,7 @@ def _inference(binding: Any) -> VerlInference:
 
 
 def _environment(
-    request: GRPORequest | OnPolicyDistillationRequest,
+    request: GRPORequest | SAMPORequest | OnPolicyDistillationRequest,
     output_dir: Path,
 ) -> VerlEnvironment:
     return VerlEnvironment(
@@ -508,6 +566,8 @@ __all__ = [
     "VerlLaunchPlan",
     "build_distillation_launch_plan",
     "build_grpo_launch_plan",
+    "build_sampo_launch_plan",
     "run_distillation",
     "run_grpo",
+    "run_sampo",
 ]

@@ -131,7 +131,7 @@ class VerlTraining(VerlContract):
 
 
 class VerlAlgorithm(VerlContract):
-    advantage_estimator: Literal["grpo"] = "grpo"
+    advantage_estimator: Literal["grpo", "sampo"] = "grpo"
     num_prompts_per_step: int = Field(gt=0)
     num_generations: int = Field(gt=0)
     max_prompt_length: int = Field(gt=0)
@@ -141,7 +141,7 @@ class VerlAlgorithm(VerlContract):
     use_policy_gradient: bool | None = None
     use_task_rewards: bool | None = None
     temperature: float | None = Field(default=None, gt=0, allow_inf_nan=False)
-    online_rl_algorithm: Literal["grpo", "dapo"] | None = None
+    online_rl_algorithm: Literal["grpo", "dapo", "sampo"] | None = None
     clip_epsilon_low: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     clip_epsilon_high: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     dynamic_sampling: bool | None = None
@@ -149,6 +149,9 @@ class VerlAlgorithm(VerlContract):
     mask_truncated_completions: bool | None = None
     overlong_buffer_tokens: int | None = Field(default=None, gt=0)
     overlong_penalty_factor: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    discount_gamma: float | None = Field(default=None, gt=0, le=1, allow_inf_nan=False)
+    step_advantage_weight: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    advantage_normalization: Literal["mean", "mean_std"] | None = None
 
 
 class VerlPayload(VerlContract):
@@ -167,8 +170,8 @@ class VerlPayload(VerlContract):
 class VerlLaunchManifest(VerlContract):
     """Complete, validated input to one isolated veRL worker process."""
 
-    schema_version: Literal[2] = 2
-    operation: Literal["grpo", "distill"]
+    schema_version: Literal[3] = 3
+    operation: Literal["grpo", "sampo", "distill"]
     backend: str
     backend_source_revision: str = Field(pattern=r"^[0-9a-f]{40}$")
     recipe_source_revision: str | None = Field(default=None, pattern=r"^[0-9a-f]{40}$")
@@ -205,13 +208,13 @@ class VerlLaunchManifest(VerlContract):
             raise ValueError("veRL result_file must remain inside output_directory")
         if not payload.environment.bridge_snapshot.is_relative_to(self.output_directory):
             raise ValueError("veRL bridge_snapshot must remain inside output_directory")
-        if self.operation == "grpo":
+        if self.operation in {"grpo", "sampo"}:
             if payload.policy is None or payload.student is not None or payload.teacher is not None:
-                raise ValueError("GRPO manifest requires policy and forbids student and teacher")
+                raise ValueError("online-RL manifest requires policy and forbids student and teacher")
             if payload.teacher_scoring is not None:
-                raise ValueError("GRPO manifest forbids teacher_scoring")
+                raise ValueError("online-RL manifest forbids teacher_scoring")
             if payload.algorithm.beta is None:
-                raise ValueError("GRPO manifest requires algorithm.beta")
+                raise ValueError("online-RL manifest requires algorithm.beta")
             algorithm = payload.algorithm
             if (
                 algorithm.online_rl_algorithm is None
@@ -221,17 +224,31 @@ class VerlLaunchManifest(VerlContract):
                 or algorithm.mask_truncated_completions is None
                 or algorithm.overlong_penalty_factor is None
             ):
-                raise ValueError("GRPO manifest requires its policy objective settings")
-            if algorithm.dynamic_sampling and (
+                raise ValueError("online-RL manifest requires its policy objective settings")
+            if self.operation == "grpo" and algorithm.advantage_estimator != "grpo":
+                raise ValueError("GRPO manifest requires the GRPO advantage estimator")
+            if self.operation == "sampo" and (
+                algorithm.advantage_estimator != "sampo"
+                or algorithm.online_rl_algorithm != "sampo"
+                or algorithm.discount_gamma is None
+                or algorithm.step_advantage_weight is None
+                or algorithm.advantage_normalization is None
+            ):
+                raise ValueError("SAMPO manifest requires hierarchical advantage settings")
+            uses_dynamic_recipe = algorithm.dynamic_sampling and algorithm.online_rl_algorithm in {
+                "dapo",
+                "sampo",
+            }
+            if uses_dynamic_recipe and (
                 algorithm.dynamic_sampling_max_candidate_batches is None
                 or self.recipe_source_revision is None
                 or self.recipe_working_directory is None
             ):
-                raise ValueError("veRL DAPO dynamic sampling requires a pinned recipe source")
-            if not algorithm.dynamic_sampling and (
+                raise ValueError("veRL dynamic sampling requires a pinned recipe source")
+            if not uses_dynamic_recipe and (
                 self.recipe_source_revision is not None or self.recipe_working_directory is not None
             ):
-                raise ValueError("veRL recipe source is only valid for dynamic DAPO")
+                raise ValueError("veRL recipe source is only valid for dynamic online RL")
         else:
             if self.recipe_source_revision is not None or self.recipe_working_directory is not None:
                 raise ValueError("distillation manifests forbid a DAPO recipe source")

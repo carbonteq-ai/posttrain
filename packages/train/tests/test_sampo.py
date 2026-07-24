@@ -122,6 +122,29 @@ def test_agentic_turns_must_cover_only_sampled_tokens() -> None:
         )
 
 
+def test_sampo_turns_must_cover_every_sampled_token() -> None:
+    incomplete = EnvironmentRollout(
+        example_id="task-1",
+        prompt_ids=(1,),
+        completion_ids=(2, 3),
+        sampling_logprobs=(-0.1, -0.1),
+        env_mask=(True, True),
+        reward=1.0,
+        is_truncated=False,
+        trace=TraceObservation("test", "trace-incomplete", {}),
+        turns=(AgenticTurn(0, 1, "observation"),),
+    )
+
+    with pytest.raises(ValueError, match="cover every sampled"):
+        compute_sampo_advantages(
+            _settings(
+                loop=TrainingLoop(max_steps=1, max_length=8, per_device_batch_size=2),
+            ),
+            ("task-1", "task-1"),
+            (incomplete, incomplete),
+        )
+
+
 def test_trl_sampo_selects_sequence_clipping_and_precomputed_advantages(tmp_path) -> None:
     request = cast(
         Any,
@@ -142,6 +165,5 @@ def test_trl_sampo_selects_sequence_clipping_and_precomputed_advantages(tmp_path
     assert arguments["epsilon_high"] == 0.004
 
 
-def test_verl_rejects_sampo_without_hierarchical_advantages() -> None:
-    with pytest.raises(ValueError, match="GiGPO"):
-        _sampo_backend("verl@candidate")
+def test_verl_sampo_uses_the_hierarchical_backend_adapter() -> None:
+    assert _sampo_backend("verl@candidate").__module__ == "posttrain.train.backends.verl.launcher"

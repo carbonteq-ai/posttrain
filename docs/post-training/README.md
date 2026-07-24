@@ -82,8 +82,10 @@ sequence-level clipped policy updates, group-relative episode advantages,
 anchor-state-relative turn advantages, and bounded filtering of
 reward-constant trajectory groups. Its rollout contract records sampled
 assistant-turn token spans and stable preceding observation keys. TRL is the
-first supported backend; adapters without hierarchical agentic advantages must
-reject the selection rather than approximate it with GSPO alone.
+first qualified backend. The veRL adapter uses a maintained fork implementing
+the same hierarchical advantage contract and the existing GSPO loss; adapters
+without both pieces must reject the selection rather than approximate it with
+GSPO alone.
 Details: [02 · Primitives](./02-primitives.md),
 [05 · APIs](./05-apis.md), [06 · Observation and lineage](./06-observation-and-lineage.md),
 and the [implementation plan](../plan/sampo-agentic-training.md).

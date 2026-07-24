@@ -45,7 +45,7 @@ def main() -> None:
     if _uses_turboquant(payload):
         os.environ["VERL_ENABLE_TURBOQUANT_COMPAT"] = "1"
     trainer_module = "verl.trainer.main_ppo"
-    if payload.algorithm.dynamic_sampling:
+    if manifest.recipe_working_directory is not None:
         recipe_directory = manifest.recipe_working_directory
         assert recipe_directory is not None
         existing_pythonpath = os.environ.get("PYTHONPATH")
@@ -124,7 +124,7 @@ def build_hydra_overrides(
     engine = payload.rollout.engine
     runtime_options = training.runtime
     backend_options = training.backend_options
-    model = payload.policy if manifest.operation == "grpo" else payload.student
+    model = payload.policy if manifest.operation in {"grpo", "sampo"} else payload.student
     assert model is not None
     model_path = _model_path(model)
     world_size = training.target.world_size
@@ -147,7 +147,7 @@ def build_hydra_overrides(
     parameter_offload = runtime_options.parameter_offload
     optimizer_offload = runtime_options.optimizer_offload
     overrides = [
-        "algorithm.adv_estimator=grpo",
+        f"algorithm.adv_estimator={algorithm.advantage_estimator}",
         "algorithm.use_kl_in_reward=False",
         f"data.train_files={dataset_path}",
         f"data.val_files={dataset_path}",
@@ -212,7 +212,7 @@ def build_hydra_overrides(
         "trainer.test_freq=-1",
         "trainer.val_before_train=False",
     ]
-    if manifest.operation == "grpo":
+    if manifest.operation in {"grpo", "sampo"}:
         loss_agg_mode = "token-mean" if algorithm.online_rl_algorithm == "dapo" else "seq-mean-token-mean"
         overrides.extend(
             [
@@ -221,6 +221,16 @@ def build_hydra_overrides(
                 f"actor_rollout_ref.actor.clip_ratio_high={algorithm.clip_epsilon_high}",
             ]
         )
+        if manifest.operation == "sampo":
+            overrides.extend(
+                [
+                    "actor_rollout_ref.actor.policy_loss.loss_mode=gspo",
+                    f"algorithm.gamma={algorithm.discount_gamma}",
+                    f"algorithm.sampo.discount_gamma={algorithm.discount_gamma}",
+                    f"algorithm.sampo.step_advantage_weight={algorithm.step_advantage_weight}",
+                    f"algorithm.sampo.advantage_normalization={algorithm.advantage_normalization}",
+                ]
+            )
         if algorithm.dynamic_sampling:
             overrides.extend(
                 [
@@ -372,6 +382,9 @@ def _backend_hydra_overrides(options: dict[str, Any]) -> list[str]:
         "actor_rollout_ref.actor.loss_agg_mode=",
         "actor_rollout_ref.actor.clip_ratio_low=",
         "actor_rollout_ref.actor.clip_ratio_high=",
+        "actor_rollout_ref.actor.policy_loss.loss_mode=",
+        "algorithm.adv_estimator=",
+        "algorithm.sampo.",
         "data.gen_batch_size=",
         "algorithm.filter_groups.",
         "actor_rollout_ref.rollout.agent.agent_loop_config_path=",
@@ -422,6 +435,7 @@ def _write_agent_config(payload: VerlPayload, path: Path) -> None:
             "max_completion_tokens": algorithm.max_completion_length,
             "overlong_buffer_tokens": algorithm.overlong_buffer_tokens,
             "overlong_penalty_factor": algorithm.overlong_penalty_factor,
+            "emit_sampo_metadata": algorithm.advantage_estimator == "sampo",
         }
     ]
     path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
@@ -481,7 +495,7 @@ def _validate_runtime(manifest: VerlLaunchManifest) -> None:
             text=True,
         ).stdout
         if recipe_status:
-            raise RuntimeError("veRL DAPO recipe worktree must be clean")
+            raise RuntimeError("veRL dynamic-sampling recipe worktree must be clean")
     backend_options = manifest.payload.training.backend_options
     expected_dirty = backend_options.get("source_dirty")
     expected_digest = backend_options.get("source_dirty_digest")
