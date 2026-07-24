@@ -1,66 +1,169 @@
-# Environment setup (uv workspace)
+# Developer environment setup
 
-Machine: **RTX 3070 Ti (8 GB)**, i9-12900K, ~62 GB RAM, Pop!_OS / Ubuntu 22.04-class.
+Use this page when working from a Posttrain source checkout. Product projects
+created by `posttrain init` own a separate `.venv` and `uv.lock`; they should
+follow the generated project workflow instead.
 
 ## Prerequisites
 
-- Working `nvidia-smi` (driver/userspace aligned — a past mismatch was fixed with reboot + `nvidia-driver-580-open`)
-- `mise` + `uv` on `PATH`
+All developers need:
+
+- Git;
+- [`mise`](https://mise.jdx.dev/) or an existing Python 3.12 installation;
+- [`uv`](https://docs.astral.sh/uv/);
+- access to the private or organization-owned Git dependencies selected by
+  `uv.lock`.
+
+GPU development additionally needs Linux, a visible NVIDIA GPU, and a driver
+new enough for the CUDA 13 runtime selected by the lock.
 
 ```bash
-nvidia-smi
+git --version
 mise --version
 uv --version
+nvidia-smi                    # GPU profiles only
 ```
 
-## Bootstrap
+Do not install TRL, Transformers, PyTorch, vLLM, or Verifiers separately with
+`pip`. The workspace extras and lockfile select compatible versions and exact
+fork commits together.
+
+## 1. Clone and install the core workspace
 
 ```bash
-cd /home/hammad/projects/rl
-mise install                    # Python 3.12 from mise.toml
-uv sync --all-packages --python 3.12
+git clone git@github.com:carbonteq-ai/posttrain.git
+cd posttrain
+
+mise install
+uv sync --all-packages --locked --python 3.12
 ```
 
-Optional application/runtime extras:
+This is the default profile for CLI, catalog, contracts, documentation,
+Observatory, and CPU tests. It includes the root development group, so Ruff,
+Pyright, pytest, and import-linter are available.
+
+Verify the checkout:
 
 ```bash
-uv sync --package posttrain-lab --extra gpu-eval --python 3.12
-uv sync --package posttrain-lab --extra gpu-train --python 3.12
-uv sync --package posttrain-lab --extra gpu-posttrain --python 3.12
+uv run --package posttrain posttrain doctor
+uv run pytest -q tests/consumer
+uv run python -c "import sys; print(sys.version)"
 ```
 
-Root `.env` sets `LD_LIBRARY_PATH` for `libcudart.so.13` (vLLM) and `LAB_TRACKIO_PROJECT=lab`.
+## 2. Select the backend profile you are developing
 
-## Verify
+The profiles are workspace extras on `posttrain-lab`. Use `--all-packages` so
+the development tools and applications stay installed while the backend
+dependencies are added.
+
+| Work | Command |
+| --- | --- |
+| Core/CPU development | `uv sync --all-packages --locked --python 3.12` |
+| Verifiers evaluation with vLLM | `uv sync --all-packages --extra gpu-eval --locked --python 3.12` |
+| TRL trainer work: SFT, DPO, trainer-side tests | `uv sync --all-packages --extra gpu-train --locked --python 3.12` |
+| Agentic training: GRPO, DAPO, SAMPO, distillation | `uv sync --all-packages --extra gpu-posttrain --locked --python 3.12` |
+
+`gpu-posttrain` installs the pinned CarbonTeq TRL fork, PyTorch CUDA 13,
+vLLM, Verifiers, the CUDA compiler packages, `ninja`, and the local
+AutomationBench environment. It is the complete TRL-side integration profile.
+After selecting a GPU profile, use `uv run --no-sync ...` for profile-specific
+commands. A plain `uv run` may synchronize back to the default profile because
+the root project does not select those optional extras.
+
+The active TRL fork revision is recorded in
+`packages/train/pyproject.toml`, `uv.lock`, and
+[`docs/tooling/trl/README.md`](../trl/README.md). Treat those files as the
+authority instead of copying a revision into a local install command.
+
+## 3. Verify a GPU profile
+
+For TRL without vLLM:
 
 ```bash
-uv run --package posttrain-lab --extra gpu-posttrain python -c \
-  "import datasets, torch, trl, verifiers; print(torch.cuda.is_available(), datasets.__version__, trl.__version__, verifiers.__version__)"
+uv run --no-sync python -c \
+  "import torch, transformers, trl; print(torch.cuda.is_available(), torch.__version__, transformers.__version__, trl.__version__)"
 ```
 
-Expect CUDA `True`, `datasets` `4.6.1`, and `trl` `1.8.0` from fork commit
-`b30d820a160ee39a2294a2755fd2d96fe3ac57b0`.
+For the complete agentic profile:
 
-The CarbonTeq TRL compatibility pin removes the former TRL/Verifiers datasets
-conflict. Serving engines remain optional runtime choices and should only be
-installed when that backend is being exercised.
+```bash
+uv run --no-sync python -c \
+  "import torch, trl, verifiers, vllm; print(torch.cuda.is_available(), torch.__version__, trl.__version__, verifiers.__version__, vllm.__version__)"
+```
 
-The vLLM extra includes the CUDA compiler packages and `ninja`. TurboQuant may
-route sampling through a FlashInfer kernel that is compiled on first use; NVCC
-without `ninja` is not a complete runtime for that profile.
+Expect `torch.cuda.is_available()` to be `True` on a GPU developer machine.
+These import checks prove dependency compatibility; they do not replace a
+bounded training qualification.
 
-## Hugging Face
+If vLLM cannot locate the wheel-provided CUDA runtime, add its library directory
+for the current shell:
+
+```bash
+export LD_LIBRARY_PATH="$(pwd)/.venv/lib/python3.12/site-packages/nvidia/cu13/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+```
+
+Do not commit an absolute checkout path or credentials in `.env`. The repository
+ignores `.env`; provider secrets belong in the developer's secret manager or
+local shell.
+
+## Hugging Face access
+
+Model downloads require a Hugging Face token when the selected repository is
+gated:
 
 ```bash
 uv tool install huggingface_hub
-huggingface-cli login   # if needed
-export HF_HOME="$HOME/.cache/huggingface"
+hf auth login
+export HF_HOME="${HF_HOME:-$HOME/.cache/huggingface}"
 ```
 
-## What not to do
+Never commit the token or the Hugging Face cache.
 
-- Do not recreate legacy `trl/` / `verifiers/` / `inference/` single-project trees
-- Do not put the training loop in Docker
-- Do not use 128k–262k context defaults on this GPU
+## veRL uses a separate environment
 
-More: [workspace.md](./workspace.md) · [overview](../../overview.md).
+Do not add veRL to the root workspace environment. The supported veRL stack has
+different Transformers and vLLM constraints. A veRL training binding must name:
+
+- an absolute `backend_options.python_executable` inside the isolated veRL
+  environment;
+- an absolute `backend_options.working_directory` for the veRL checkout;
+- the checkout's complete `backend_options.source_revision`;
+- the isolated lock digest for lineage.
+
+Follow [`docs/tooling/verl/README.md`](../verl/README.md) for the qualified
+checkout and runtime contract. The framework launcher verifies the checkout
+revision before starting Ray.
+
+## Normal validation
+
+Run the smallest affected tests during development, then the repository ladder:
+
+```bash
+uv run ruff check .
+uv run ruff format --check .
+uv run pyright
+uv run lint-imports
+uv run pytest
+git diff --check
+```
+
+Tests that need GPU, network, or Docker are marked and remain separate release
+gates. A skipped integration test is not evidence that its backend is
+qualified. After installing a GPU profile, invoke its focused tests with
+`uv run --no-sync pytest ...`; rerun the desired `uv sync` command when
+switching profiles.
+
+## Common setup failures
+
+| Symptom | Check |
+| --- | --- |
+| Wrong Python or resolver churn | Run `mise install`, then sync with `--locked --python 3.12` |
+| `torch.cuda.is_available()` is false | Check `nvidia-smi`, driver/runtime compatibility, and that a GPU profile was installed |
+| `libcudart.so.13` is missing | Export the wheel CUDA library path shown above |
+| TRL/Transformers/Verifiers conflict | Remove hand-installed packages and resync the selected locked profile |
+| vLLM build or first-use kernel failure | Confirm the `gpu-posttrain` profile installed CUDA compiler packages and `ninja` |
+| veRL import conflict | Use the isolated veRL interpreter; never install veRL into `.venv` |
+
+More detail: [workspace layout](./workspace.md), [TRL](../trl/README.md),
+[veRL](../verl/README.md), [Verifiers](../verifiers/README.md), and
+[vLLM](../vllm/README.md).

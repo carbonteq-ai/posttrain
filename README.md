@@ -155,10 +155,10 @@ posttrain work-package validate .posttrain/work_packages/cpu_check.yaml
 
 The primary CLI owns initialization, diagnostics, catalog inspection,
 materialization, work-package validation/execution, and local Observatory
-bring-up. Standard SFT, DPO, GRPO, distillation, serve, evaluation, and model
-transform definitions come from `posttrain.jobs`; projects do not need a host
-or `posttrain-lab` on the common path. An optional project entry may add
-unshipped definitions without redefining standard ids.
+bring-up. Standard SFT, DPO, GRPO, DAPO, SAMPO, distillation, serve, evaluation,
+and model-transform definitions come from `posttrain.jobs`; projects do not
+need a host or `posttrain-lab` on the common path. An optional project entry may
+add unshipped definitions without redefining standard ids.
 
 ## Choose capabilities
 
@@ -236,6 +236,28 @@ uv run --package posttrain posttrain doctor
 uv run pytest -q tests/consumer
 ```
 
+That installs the framework, applications, and development tools without the
+large GPU backends. Select one workspace profile when working on training:
+
+```bash
+# Transformers + the pinned CarbonTeq TRL fork: SFT, DPO, and trainer tests
+uv sync --all-packages --extra gpu-train --locked --python 3.12
+
+# TRL + vLLM + Verifiers + AutomationBench: GRPO, DAPO, SAMPO, distillation
+uv sync --all-packages --extra gpu-posttrain --locked --python 3.12
+```
+
+Use `uv run --no-sync ...` for backend-specific commands after selecting one
+of these profiles so uv does not synchronize the environment back to the core
+dependency set.
+
+The complete agentic profile is Linux/NVIDIA-specific and uses the CUDA 13
+PyTorch index selected by the workspace lock. veRL intentionally lives in a
+separate environment because its Transformers/vLLM stack conflicts with the
+TRL environment. See [Developer environment setup](./docs/tooling/mise-uv/setup-environment.md)
+for prerequisites, verification commands, Hugging Face access, CUDA library
+setup, and the isolated veRL boundary.
+
 The repository is a Python 3.12 `uv` workspace:
 
 ```text
@@ -275,8 +297,7 @@ Read the documentation progressively:
 
 For release installation, remote-server use, package ordering, and known
 release gaps, see [Release and consumption](./docs/release-and-consumption.md).
-For a critical assessment of the current project-author journey and the
-recommended product priorities, see the
-[Developer experience audit](./docs/developer-experience-audit.md).
+For the project-author journey and configuration ownership, see
+[Developer experience](./docs/developer-experience.md).
 The smallest independent project is
 [`tests/consumer/fixture`](./tests/consumer/fixture).

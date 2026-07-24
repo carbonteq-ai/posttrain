@@ -1,39 +1,49 @@
 # uv workspace
 
-Root project `lab` is a **uv workspace** (Cargo-style monorepo).
+The root project is a Python 3.12 uv workspace containing every reusable
+package and application under `packages/*` and `apps/*`.
 
-## Members
+## Ownership
 
 ```text
-packages/common   # library
-packages/train    # reusable TRL training engine
-packages/eval     # reusable Verifiers/evaluation engine
-packages/serve    # reusable vLLM/SGLang inference engine
+packages/common       framework-neutral contracts
+packages/data         datasets and rollout data
+packages/train        SFT, DPO, GRPO, DAPO, SAMPO, and distillation
+packages/eval         endpoint-neutral Verifiers evaluation
+packages/serve        inference and serving adapters
+packages/jobs         standard job definitions
+packages/work         work-package composition
+apps/cli              primary posttrain CLI
+apps/lab              reference qualification application
+apps/observatory      read-only evidence product
 ```
 
-- One root `uv.lock` + `.venv`
-- Inter-package deps: `{ workspace = true }` on `common`
-- PyTorch CUDA wheels: index `pytorch-cu128` (explicit) in root + engine-package sources
-- Python: `>=3.12,<3.13` (pin with `--python 3.12`)
+The workspace has one root `.venv` and one `uv.lock`. Inter-package
+dependencies use `{ workspace = true }`. PyTorch and torchvision resolve from
+the explicit CUDA 13 index in the root configuration.
 
 ## Common commands
 
 ```bash
-uv sync --all-packages --python 3.12
-uv run --all-packages --group dev pytest -q
-uv run --all-packages --group dev lint-imports
+# Core framework and developer tools
+uv sync --all-packages --locked --python 3.12
+
+# TRL training dependencies
+uv sync --all-packages --extra gpu-train --locked --python 3.12
+
+# TRL + vLLM + Verifiers agentic training dependencies
+uv sync --all-packages --extra gpu-posttrain --locked --python 3.12
+
+uv run pytest
+uv run lint-imports
 ```
 
-Install heavy engine variants only when needed:
+Use `uv run --no-sync ...` for backend-specific commands after selecting an
+extra; otherwise uv may synchronize the environment back to the core profile.
 
-```bash
-uv sync --package serve --extra vllm --python 3.12
-uv sync --package serve --extra sglang --python 3.12
-uv sync --package eval --extra verifiers --python 3.12
-```
+Do not create per-application environments inside this checkout. veRL is the
+intentional exception: it runs from a separate checkout and interpreter because
+its backend dependency stack conflicts with the locked TRL environment.
 
-## Conflicts
-
-See root `pyproject.toml` `[tool.uv] conflicts`. Package-level conflicts are **experimental** in uv (may warn unless `--preview-features package-conflicts`).
-
-The prototype applications, task package, local catalog, executable config tree, and normalized result store were removed. They are not workspace members or compatibility surfaces.
+See [developer environment setup](./setup-environment.md) for prerequisites,
+profile selection, verification, and troubleshooting.
