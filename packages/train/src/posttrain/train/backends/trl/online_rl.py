@@ -10,7 +10,7 @@ from posttrain.common import ModelVariant
 
 from ...bindings import TrainingBinding
 from ...online_rl import PolicyTurnRequest, PolicyTurnResult
-from ...profiles import GRPOSettings, OnPolicyDistillationSettings
+from ...profiles import GRPOSettings, OnPolicyDistillationSettings, SAMPOSettings
 from ...rendering import create_renderer
 
 
@@ -22,7 +22,7 @@ class TrlPolicyGenerator:
         trainer: Any,
         tokenizer: Any,
         model: ModelVariant,
-        settings: GRPOSettings | OnPolicyDistillationSettings,
+        settings: GRPOSettings | SAMPOSettings | OnPolicyDistillationSettings,
         training: TrainingBinding,
     ) -> None:
         self._trainer = trainer

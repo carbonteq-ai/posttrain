@@ -12,6 +12,13 @@ import time
 from pathlib import Path
 from typing import Any
 
+from .contracts import (
+    VerlLaunchManifest,
+    VerlModel,
+    VerlPayload,
+    VerlTrainingSummary,
+    VerlWorkerResult,
+)
 from .metrics import read_verl_metric_records
 
 _METRIC = re.compile(r"'([^']+)':\s*(?:np\.float\d+\()?([-+0-9.eE]+)")
@@ -22,10 +29,10 @@ def main() -> None:
     if len(sys.argv) != 2:
         raise SystemExit("usage: python -m posttrain.train.backends.verl.worker MANIFEST.json")
     manifest_path = Path(sys.argv[1]).resolve()
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest = VerlLaunchManifest.read(manifest_path)
     _validate_runtime(manifest)
-    output_dir = Path(manifest["output_directory"])
-    payload = manifest["payload"]
+    output_dir = manifest.output_directory
+    payload = manifest.payload
     dataset_path = output_dir / "rollouts.parquet"
     agent_config_path = output_dir / "agent-loop.json"
     checkpoint_dir = output_dir / "checkpoints"
@@ -37,9 +44,18 @@ def main() -> None:
     os.environ["VERL_FILE_LOGGER_PATH"] = str(metrics_file.resolve())
     if _uses_turboquant(payload):
         os.environ["VERL_ENABLE_TURBOQUANT_COMPAT"] = "1"
+    trainer_module = "verl.trainer.main_ppo"
+    if manifest.recipe_working_directory is not None:
+        recipe_directory = manifest.recipe_working_directory
+        assert recipe_directory is not None
+        existing_pythonpath = os.environ.get("PYTHONPATH")
+        os.environ["PYTHONPATH"] = (
+            f"{recipe_directory}{os.pathsep}{existing_pythonpath}" if existing_pythonpath else str(recipe_directory)
+        )
+        trainer_module = "dapo.main_dapo"
     started = time.perf_counter()
     completed = _run_tee(
-        [sys.executable, "-m", "verl.trainer.main_ppo", *overrides],
+        [sys.executable, "-m", trainer_module, *overrides],
         native_log,
     )
     runtime = time.perf_counter() - started
@@ -62,7 +78,7 @@ def main() -> None:
         ],
         check=True,
     )
-    update_kind = payload["training"]["update"]["kind"]
+    update_kind = payload.training.update.kind
     materialized_model = model_dir / "lora_adapter" if update_kind == "lora" else model_dir
     records = read_verl_metric_records(metrics_file)
     metrics = records[-1].data
@@ -77,88 +93,81 @@ def main() -> None:
         train_loss = next(metrics[name] for name in loss_names if name in metrics)
     except StopIteration as error:
         raise RuntimeError(f"veRL completed without a recognized training loss metric; see {native_log}") from error
-    batch_size = int(payload["training"]["runtime"].get("global_batch_size", 1))
-    result = {
-        "schema_version": 1,
-        "summary": {
-            "global_step": steps,
-            "train_loss": train_loss,
-            "runtime_seconds": runtime,
-            "samples_per_second": steps * batch_size / runtime if runtime > 0 else 0.0,
-            "steps_per_second": steps / runtime if runtime > 0 else 0.0,
-        },
-        "model_dir": str(materialized_model.resolve()),
-        "recovery_checkpoint": str(latest.resolve()),
-        "metrics_file": str(metrics_file.resolve()),
-    }
-    Path(manifest["result_file"]).write_text(
-        json.dumps(result, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
+    if isinstance(train_loss, bool) or not isinstance(train_loss, int | float):
+        raise TypeError(f"veRL training loss metric must be numeric; see {native_log}")
+    batch_size = payload.training.runtime.global_batch_size or 1
+    result = VerlWorkerResult(
+        summary=VerlTrainingSummary(
+            global_step=steps,
+            train_loss=train_loss,
+            runtime_seconds=runtime,
+            samples_per_second=steps * batch_size / runtime if runtime > 0 else 0.0,
+            steps_per_second=steps / runtime if runtime > 0 else 0.0,
+        ),
+        model_dir=materialized_model.resolve(),
+        recovery_checkpoint=latest.resolve(),
+        metrics_file=metrics_file.resolve(),
     )
+    result.write(manifest.result_file)
 
 
 def build_hydra_overrides(
-    manifest: dict[str, Any],
+    manifest: VerlLaunchManifest,
     dataset_path: Path,
     agent_config_path: Path,
     checkpoint_dir: Path,
 ) -> list[str]:
-    payload = manifest["payload"]
-    algorithm = payload["algorithm"]
-    training = payload["training"]
-    loop = training["loop"]
-    rollout = payload["rollout"]
-    engine = rollout["engine"]
-    runtime_options = training["runtime"]
-    backend_options = training.get("backend_options", {})
-    model = payload["policy"] if manifest["operation"] == "grpo" else payload["student"]
+    payload = manifest.payload
+    algorithm = payload.algorithm
+    training = payload.training
+    loop = training.loop
+    engine = payload.rollout.engine
+    runtime_options = training.runtime
+    backend_options = training.backend_options
+    model = payload.policy if manifest.operation in {"grpo", "sampo"} else payload.student
+    assert model is not None
     model_path = _model_path(model)
-    world_size = int(training["target"].get("world_size", 1))
-    nnodes = int(runtime_options.get("nodes", runtime_options.get("nnodes", 1)))
-    n_gpus_per_node = int(
-        runtime_options.get("devices_per_node", runtime_options.get("n_gpus_per_node", world_size // nnodes))
-    )
+    world_size = training.target.world_size
+    nnodes = runtime_options.nodes
+    n_gpus_per_node = runtime_options.devices_per_node or world_size // nnodes
     if nnodes < 1 or n_gpus_per_node < 1 or nnodes * n_gpus_per_node != world_size:
         raise ValueError("veRL training nnodes multiplied by n_gpus_per_node must equal target world_size")
-    rollout_tp = int(engine.get("tensor_parallel_size", 1))
+    rollout_tp = _positive_int_option(engine.get("tensor_parallel_size"), "tensor_parallel_size", 1)
     kv_cache_dtype = engine.get("kv_cache_dtype")
     rollout_dtype = engine.get(
         "dtype",
         "float16" if str(kv_cache_dtype).startswith("turboquant_") else "bfloat16",
     )
-    actor_mini_batch = int(algorithm["num_prompts_per_step"])
+    actor_mini_batch = algorithm.num_prompts_per_step
     micro_batch = 1
-    update = training["update"]
-    rollout_load_format = engine.get("load_format", "safetensors" if update["kind"] == "lora" else "dummy")
+    update = training.update
+    resume_from = payload.resume_from
+    rollout_load_format = engine.get("load_format", "safetensors" if update.kind == "lora" else "dummy")
     attention_implementation = backend_options.get("attention_implementation")
-    parameter_offload = bool(
-        runtime_options.get("parameter_offload", runtime_options.get("actor_param_offload", False))
-    )
-    optimizer_offload = bool(
-        runtime_options.get("optimizer_offload", runtime_options.get("actor_optimizer_offload", False))
-    )
+    parameter_offload = runtime_options.parameter_offload
+    optimizer_offload = runtime_options.optimizer_offload
     overrides = [
-        "algorithm.adv_estimator=grpo",
+        f"algorithm.adv_estimator={algorithm.advantage_estimator}",
         "algorithm.use_kl_in_reward=False",
         f"data.train_files={dataset_path}",
         f"data.val_files={dataset_path}",
-        f"data.train_batch_size={algorithm['num_prompts_per_step']}",
-        f"data.max_prompt_length={algorithm['max_prompt_length']}",
-        f"data.max_response_length={algorithm['max_completion_length']}",
+        f"data.train_batch_size={algorithm.num_prompts_per_step}",
+        f"data.max_prompt_length={algorithm.max_prompt_length}",
+        f"data.max_response_length={algorithm.max_completion_length}",
         "data.filter_overlong_prompts=True",
         "data.truncation=error",
         "data.shuffle=False",
         f"actor_rollout_ref.model.path={model_path}",
         "actor_rollout_ref.model.use_remove_padding=False",
-        f"actor_rollout_ref.model.enable_gradient_checkpointing={str(loop['gradient_checkpointing']).lower()}",
-        f"actor_rollout_ref.actor.optim.lr={loop['learning_rate']}",
-        f"actor_rollout_ref.actor.optim.lr_warmup_steps={loop['warmup_steps']}",
-        f"actor_rollout_ref.actor.optim.clip_grad={loop['max_grad_norm']}",
+        f"actor_rollout_ref.model.enable_gradient_checkpointing={str(loop.gradient_checkpointing).lower()}",
+        f"actor_rollout_ref.actor.optim.lr={loop.learning_rate}",
+        f"actor_rollout_ref.actor.optim.lr_warmup_steps={loop.warmup_steps}",
+        f"actor_rollout_ref.actor.optim.clip_grad={loop.max_grad_norm}",
         f"actor_rollout_ref.actor.ppo_mini_batch_size={actor_mini_batch}",
         f"actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu={micro_batch}",
         "actor_rollout_ref.actor.strategy=fsdp2",
-        f"actor_rollout_ref.actor.use_kl_loss={str(float(algorithm.get('beta', 0.0)) > 0).lower()}",
-        f"actor_rollout_ref.actor.kl_loss_coef={float(algorithm.get('beta', 0.0))}",
+        f"actor_rollout_ref.actor.use_kl_loss={str((algorithm.beta or 0.0) > 0).lower()}",
+        f"actor_rollout_ref.actor.kl_loss_coef={algorithm.beta or 0.0}",
         "actor_rollout_ref.actor.kl_loss_type=low_var_kl",
         "actor_rollout_ref.actor.use_torch_compile=False",
         f"actor_rollout_ref.actor.fsdp_config.offload_policy={str(parameter_offload or optimizer_offload).lower()}",
@@ -172,34 +181,67 @@ def build_hydra_overrides(
         "actor_rollout_ref.rollout.calculate_log_probs=True",
         f"actor_rollout_ref.rollout.dtype={rollout_dtype}",
         f"actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu={micro_batch}",
-        f"actor_rollout_ref.rollout.prompt_length={algorithm['max_prompt_length']}",
-        f"actor_rollout_ref.rollout.response_length={algorithm['max_completion_length']}",
+        f"actor_rollout_ref.rollout.prompt_length={algorithm.max_prompt_length}",
+        f"actor_rollout_ref.rollout.response_length={algorithm.max_completion_length}",
         f"actor_rollout_ref.rollout.tensor_model_parallel_size={rollout_tp}",
         f"actor_rollout_ref.rollout.gpu_memory_utilization={engine.get('gpu_memory_utilization', 0.4)}",
-        f"actor_rollout_ref.rollout.max_model_len={engine.get('max_model_len', algorithm['max_prompt_length'] + algorithm['max_completion_length'])}",
-        f"actor_rollout_ref.rollout.max_num_batched_tokens={engine.get('max_num_batched_tokens', algorithm['max_prompt_length'] + algorithm['max_completion_length'])}",
-        f"actor_rollout_ref.rollout.max_num_seqs={engine.get('max_num_seqs', algorithm['num_generations'])}",
+        f"actor_rollout_ref.rollout.max_model_len={engine.get('max_model_len', algorithm.max_prompt_length + algorithm.max_completion_length)}",
+        f"actor_rollout_ref.rollout.max_num_batched_tokens={engine.get('max_num_batched_tokens', algorithm.max_prompt_length + algorithm.max_completion_length)}",
+        f"actor_rollout_ref.rollout.max_num_seqs={engine.get('max_num_seqs', algorithm.num_generations)}",
         f"actor_rollout_ref.rollout.free_cache_engine={str(bool(engine.get('free_cache_engine', True))).lower()}",
         "+actor_rollout_ref.rollout.enable_sleep_mode="
         f"{str(bool(engine.get('sleep_during_optimization', True))).lower()}",
         f"actor_rollout_ref.rollout.enforce_eager={str(bool(engine.get('enforce_eager', True))).lower()}",
         f"actor_rollout_ref.rollout.load_format={rollout_load_format}",
-        f"actor_rollout_ref.rollout.n={algorithm['num_generations']}",
+        f"actor_rollout_ref.rollout.n={algorithm.num_generations}",
         "actor_rollout_ref.rollout.enable_prefix_caching=False",
         f"actor_rollout_ref.rollout.agent.agent_loop_config_path={agent_config_path}",
         "actor_rollout_ref.rollout.agent.default_agent_loop=posttrain_verifiers",
         "reward.custom_reward_function.path=null",
         "trainer.logger=['console','file']",
         "trainer.project_name=posttrain",
-        f"trainer.experiment_name={manifest['operation']}-{training['binding_id'].replace('/', '-')}",
+        f"trainer.experiment_name={manifest.operation}-{training.binding_id.replace('/', '-')}",
         f"trainer.n_gpus_per_node={n_gpus_per_node}",
         f"trainer.nnodes={nnodes}",
         f"trainer.default_local_dir={checkpoint_dir}",
-        f"trainer.total_training_steps={loop['max_steps']}",
-        f"trainer.save_freq={loop['checkpoint_steps']}",
+        f"trainer.total_training_steps={loop.max_steps}",
+        f"trainer.save_freq={loop.checkpoint_steps}",
+        f"trainer.max_actor_ckpt_to_keep={loop.checkpoint_limit}",
+        f"trainer.max_critic_ckpt_to_keep={loop.checkpoint_limit}",
+        f"trainer.resume_mode={'resume_path' if resume_from is not None else 'disable'}",
         "trainer.test_freq=-1",
         "trainer.val_before_train=False",
     ]
+    if manifest.operation in {"grpo", "sampo"}:
+        loss_agg_mode = "token-mean" if algorithm.online_rl_algorithm == "dapo" else "seq-mean-token-mean"
+        overrides.extend(
+            [
+                f"actor_rollout_ref.actor.loss_agg_mode={loss_agg_mode}",
+                f"actor_rollout_ref.actor.clip_ratio_low={algorithm.clip_epsilon_low}",
+                f"actor_rollout_ref.actor.clip_ratio_high={algorithm.clip_epsilon_high}",
+            ]
+        )
+        if manifest.operation == "sampo":
+            overrides.extend(
+                [
+                    "actor_rollout_ref.actor.policy_loss.loss_mode=gspo",
+                    f"algorithm.gamma={algorithm.discount_gamma}",
+                    f"algorithm.sampo.discount_gamma={algorithm.discount_gamma}",
+                    f"algorithm.sampo.step_advantage_weight={algorithm.step_advantage_weight}",
+                    f"algorithm.sampo.advantage_normalization={algorithm.advantage_normalization}",
+                ]
+            )
+        if algorithm.dynamic_sampling:
+            overrides.extend(
+                [
+                    f"data.gen_batch_size={algorithm.num_prompts_per_step}",
+                    "algorithm.filter_groups.enable=true",
+                    "algorithm.filter_groups.metric=seq_reward",
+                    f"algorithm.filter_groups.max_num_gen_batches={algorithm.dynamic_sampling_max_candidate_batches}",
+                ]
+            )
+    if resume_from is not None:
+        overrides.append(f"trainer.resume_from_path={json.dumps(str(resume_from))}")
     if kv_cache_dtype is not None:
         overrides.append(f"+actor_rollout_ref.rollout.engine_kwargs.vllm.kv_cache_dtype={kv_cache_dtype}")
     if engine.get("kv_cache_memory_bytes") is not None:
@@ -243,33 +285,30 @@ def build_hydra_overrides(
                 "+actor_rollout_ref.rollout.engine_kwargs.vllm.skip_mm_profiling=true",
             ]
         )
-    if update["kind"] == "lora":
+    if update.kind == "lora":
         overrides.extend(
             [
-                f"actor_rollout_ref.model.lora_rank={update['rank']}",
-                f"actor_rollout_ref.model.lora_alpha={update['alpha']}",
-                f"actor_rollout_ref.model.target_modules={json.dumps(update['target_modules'])}",
+                f"actor_rollout_ref.model.lora_rank={update.rank}",
+                f"actor_rollout_ref.model.lora_alpha={update.alpha}",
+                f"actor_rollout_ref.model.target_modules={json.dumps(update.target_modules)}",
             ]
         )
-    if manifest["operation"] == "distill":
-        teacher = payload["teacher"]
-        teacher_engine = payload["teacher_scoring"]["engine"]
+    if manifest.operation == "distill":
+        teacher = payload.teacher
+        teacher_scoring = payload.teacher_scoring
+        assert teacher is not None and teacher_scoring is not None
+        teacher_engine = teacher_scoring.engine
         teacher_kv_cache_dtype = teacher_engine.get("kv_cache_dtype")
         teacher_dtype = teacher_engine.get(
             "dtype",
             "float16" if str(teacher_kv_cache_dtype).startswith("turboquant_") else "bfloat16",
         )
-        teacher_world_size = int(payload["teacher_scoring"]["target"].get("world_size", 1))
-        teacher_nnodes = int(runtime_options.get("teacher_nodes", runtime_options.get("teacher_nnodes", 1)))
-        teacher_gpus_per_node = int(
-            runtime_options.get(
-                "teacher_devices_per_node",
-                runtime_options.get("teacher_n_gpus_per_node", teacher_world_size // teacher_nnodes),
-            )
-        )
-        teacher_tp = int(teacher_engine.get("tensor_parallel_size", 1))
-        teacher_ep = int(teacher_engine.get("expert_parallel_size", 1))
-        teacher_dp = int(teacher_engine.get("data_parallel_size", 1))
+        teacher_world_size = teacher_scoring.target.world_size
+        teacher_nnodes = 1
+        teacher_gpus_per_node = teacher_world_size
+        teacher_tp = _positive_int_option(teacher_engine.get("tensor_parallel_size"), "tensor_parallel_size", 1)
+        teacher_ep = _positive_int_option(teacher_engine.get("expert_parallel_size"), "expert_parallel_size", 1)
+        teacher_dp = _positive_int_option(teacher_engine.get("data_parallel_size"), "data_parallel_size", 1)
         per_replica_world_size = teacher_tp * teacher_ep * teacher_dp
         if (
             teacher_nnodes < 1
@@ -294,14 +333,14 @@ def build_hydra_overrides(
                 "distillation.teacher_models.teacher_model.inference.gpu_memory_utilization="
                 f"{teacher_engine.get('gpu_memory_utilization', 0.4)}",
                 "distillation.teacher_models.teacher_model.inference.max_model_len="
-                f"{teacher_engine.get('max_model_len', algorithm['max_prompt_length'] + algorithm['max_completion_length'])}",
+                f"{teacher_engine.get('max_model_len', algorithm.max_prompt_length + algorithm.max_completion_length)}",
                 "distillation.teacher_models.teacher_model.inference.max_num_batched_tokens="
-                f"{teacher_engine.get('max_num_batched_tokens', algorithm['max_prompt_length'] + algorithm['max_completion_length'])}",
+                f"{teacher_engine.get('max_num_batched_tokens', algorithm.max_prompt_length + algorithm.max_completion_length)}",
                 "distillation.teacher_models.teacher_model.inference.max_num_seqs="
-                f"{teacher_engine.get('max_num_seqs', algorithm['num_generations'])}",
-                f"distillation.distillation_loss.loss_mode={algorithm['loss_mode']}",
-                f"distillation.distillation_loss.use_task_rewards={str(algorithm['use_task_rewards']).lower()}",
-                f"distillation.distillation_loss.use_policy_gradient={str(algorithm['use_policy_gradient']).lower()}",
+                f"{teacher_engine.get('max_num_seqs', algorithm.num_generations)}",
+                f"distillation.distillation_loss.loss_mode={algorithm.loss_mode}",
+                f"distillation.distillation_loss.use_task_rewards={str(algorithm.use_task_rewards).lower()}",
+                f"distillation.distillation_loss.use_policy_gradient={str(algorithm.use_policy_gradient).lower()}",
             ]
         )
         if teacher_kv_cache_dtype is not None:
@@ -318,10 +357,18 @@ def build_hydra_overrides(
     return overrides
 
 
-def _uses_turboquant(payload: dict[str, Any]) -> bool:
-    rollout_dtype = payload.get("rollout", {}).get("engine", {}).get("kv_cache_dtype", "")
-    teacher_dtype = payload.get("teacher_scoring", {}).get("engine", {}).get("kv_cache_dtype", "")
+def _uses_turboquant(payload: VerlPayload) -> bool:
+    rollout_dtype = payload.rollout.engine.get("kv_cache_dtype", "")
+    teacher_dtype = payload.teacher_scoring.engine.get("kv_cache_dtype", "") if payload.teacher_scoring else ""
     return str(rollout_dtype).startswith("turboquant_") or str(teacher_dtype).startswith("turboquant_")
+
+
+def _positive_int_option(value: object, name: str, default: int) -> int:
+    if value is None:
+        return default
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError(f"veRL engine option {name} must be a positive integer")
+    return value
 
 
 def _backend_hydra_overrides(options: dict[str, Any]) -> list[str]:
@@ -332,58 +379,80 @@ def _backend_hydra_overrides(options: dict[str, Any]) -> list[str]:
         "data.train_files=",
         "data.val_files=",
         "actor_rollout_ref.model.path=",
+        "actor_rollout_ref.actor.loss_agg_mode=",
+        "actor_rollout_ref.actor.clip_ratio_low=",
+        "actor_rollout_ref.actor.clip_ratio_high=",
+        "actor_rollout_ref.actor.policy_loss.loss_mode=",
+        "algorithm.adv_estimator=",
+        "algorithm.sampo.",
+        "data.gen_batch_size=",
+        "algorithm.filter_groups.",
         "actor_rollout_ref.rollout.agent.agent_loop_config_path=",
         "trainer.default_local_dir=",
+        "trainer.save_freq=",
+        "trainer.max_actor_ckpt_to_keep=",
+        "trainer.max_critic_ckpt_to_keep=",
+        "trainer.resume_mode=",
+        "trainer.resume_from_path=",
     )
     if any(value.startswith(protected) for value in raw):
-        raise ValueError("veRL backend overrides cannot replace selected data, model, agent, or artifact paths")
+        raise ValueError(
+            "veRL backend overrides cannot replace selected data, model, algorithm, checkpoint, or artifact policy"
+        )
     return list(raw)
 
 
-def _write_dataset(payload: dict[str, Any], path: Path) -> None:
+def _write_dataset(payload: VerlPayload, path: Path) -> None:
     try:
         from datasets import Dataset
     except ImportError as error:
         raise RuntimeError("the isolated veRL environment must include datasets") from error
-    model = payload.get("policy") or payload["student"]
+    model = payload.policy or payload.student
+    assert model is not None
     rows = [
         {
-            "prompt": [{"role": "user", "content": example["prompt"]}],
+            "prompt": [{"role": "user", "content": example.prompt}],
             "agent_name": "posttrain_verifiers",
-            "example_id": example["id"],
-            "model_id": model["id"],
-            **example["metadata"],
+            "example_id": example.id,
+            "model_id": model.id,
+            **example.metadata,
         }
-        for example in payload["environment"]["examples"]
+        for example in payload.environment.examples
     ]
     Dataset.from_list(rows).to_parquet(str(path))
 
 
-def _write_agent_config(payload: dict[str, Any], path: Path) -> None:
-    renderer = payload["training"]["renderer"]
+def _write_agent_config(payload: VerlPayload, path: Path) -> None:
+    renderer = payload.training.renderer
+    algorithm = payload.algorithm
     config = [
         {
             "name": "posttrain_verifiers",
             "_target_": "posttrain.train.backends.verl.agent_loop.PosttrainVerifiersAgentLoop",
-            "bridge_snapshot": payload["environment"]["bridge_snapshot"],
-            "enable_thinking": renderer["reasoning_mode"] == "thinking",
+            "bridge_snapshot": str(payload.environment.bridge_snapshot),
+            "enable_thinking": renderer.reasoning_mode == "thinking",
+            "mask_truncated_completions": algorithm.mask_truncated_completions,
+            "max_completion_tokens": algorithm.max_completion_length,
+            "overlong_buffer_tokens": algorithm.overlong_buffer_tokens,
+            "overlong_penalty_factor": algorithm.overlong_penalty_factor,
+            "emit_sampo_metadata": algorithm.advantage_estimator == "sampo",
         }
     ]
     path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
 
 
-def _model_path(model: dict[str, Any]) -> str:
-    artifact = model["artifact"]
-    if artifact["kind"] == "hub":
+def _model_path(model: VerlModel) -> str:
+    artifact = model.artifact
+    if artifact.kind == "hub":
         try:
             from huggingface_hub import snapshot_download
         except ImportError as error:
             raise RuntimeError("the isolated veRL environment must include huggingface-hub") from error
-        return snapshot_download(repo_id=artifact["repo_id"], revision=artifact["revision"])
-    return artifact["path"]
+        return snapshot_download(repo_id=artifact.repo_id, revision=artifact.revision)
+    return str(artifact.path)
 
 
-def _validate_runtime(manifest: dict[str, Any]) -> None:
+def _validate_runtime(manifest: VerlLaunchManifest) -> None:
     try:
         from importlib.metadata import version
 
@@ -392,7 +461,7 @@ def _validate_runtime(manifest: dict[str, Any]) -> None:
         raise RuntimeError("the selected isolated interpreter does not contain veRL") from error
     if not installed:
         raise RuntimeError("could not resolve the installed veRL version")
-    worktree = Path(manifest["working_directory"])
+    worktree = manifest.working_directory
     head = subprocess.run(
         ["git", "rev-parse", "HEAD"],
         cwd=worktree,
@@ -400,11 +469,34 @@ def _validate_runtime(manifest: dict[str, Any]) -> None:
         capture_output=True,
         text=True,
     ).stdout.strip()
-    if head != manifest["backend_source_revision"]:
+    if head != manifest.backend_source_revision:
         raise RuntimeError(
-            f"veRL worktree is at {head}, expected immutable revision {manifest['backend_source_revision']}"
+            f"veRL worktree is at {head}, expected immutable revision {manifest.backend_source_revision}"
         )
-    backend_options = manifest["payload"]["training"].get("backend_options", {})
+    if manifest.recipe_working_directory is not None:
+        assert manifest.recipe_source_revision is not None
+        recipe_head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=manifest.recipe_working_directory,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        if recipe_head != manifest.recipe_source_revision:
+            raise RuntimeError(
+                f"veRL recipe worktree is at {recipe_head}, expected immutable revision "
+                f"{manifest.recipe_source_revision}"
+            )
+        recipe_status = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=manifest.recipe_working_directory,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        if recipe_status:
+            raise RuntimeError("veRL dynamic-sampling recipe worktree must be clean")
+    backend_options = manifest.payload.training.backend_options
     expected_dirty = backend_options.get("source_dirty")
     expected_digest = backend_options.get("source_dirty_digest")
     if expected_dirty is not None:

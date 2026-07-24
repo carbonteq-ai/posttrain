@@ -2,6 +2,8 @@
 name = "posttrain-train"
 version = "0.1.0"
 description = "Reusable backend-neutral post-training engine"
+authors = [{ name = "CarbonTeq" }]
+license = "Apache-2.0"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "posttrain-common",
@@ -17,7 +19,7 @@ trl = [
     "torch>=2.11,<2.12",
     "torchvision>=0.26,<0.27",
     "transformers>=5.14,<5.15",
-    "trl @ git+https://github.com/carbonteq-ai/trl.git@5c50c69f2d9b25dc2ce729d030f7cabb144d8431",
+    "trl @ git+https://github.com/carbonteq-ai/trl.git@b43a0a3d622ab1547f4d2abbd1b25eab3c52a0b9",
     "peft>=0.19,<0.20",
     "datasets>=4.6.1,<4.7",
     "accelerate>=1.14,<1.15",
@@ -54,3 +56,8 @@ packages = ["src/posttrain"]
 
 [tool.hatch.metadata]
 allow-direct-references = true
+
+[project.urls]
+Documentation = "https://github.com/carbonteq-ai/posttrain#readme"
+Issues = "https://github.com/carbonteq-ai/posttrain/issues"
+Repository = "https://github.com/carbonteq-ai/posttrain"

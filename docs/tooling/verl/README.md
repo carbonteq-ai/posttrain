@@ -394,9 +394,12 @@ step, adapter synchronization, and a later rollout using updated weights.
 
 ## Fork-owned changes
 
-The qualified checkout is based on upstream veRL commit
-`a35908ca3c9632859c58d6a2855d858918ae21dc` and currently contains three generic
-runtime fixes:
+The maintained CarbonTeq fork is published at immutable candidate revision
+`553280b88afe4e7fbc4aefeff27bbf0a22e7c048` on
+`carbonteq-ai/verl:main`. It is based on upstream veRL
+commit `a35908ca3c9632859c58d6a2855d858918ae21dc` and contains three generic
+runtime fixes plus a candidate SAMPO extension. The SAMPO implementation itself
+is commit `8a718e5be7a107587f63967336ece333a5c160e1`:
 
 - `verl/workers/engine_workers.py`: stage LoRA adapter tensors before waking
   colocated rollout weights;
@@ -405,14 +408,50 @@ runtime fixes:
 - `verl/utils/vllm/turboquant_compat.py`: opt-in research guard for the pinned
   vLLM build when its TurboQuant cache spec reports no quantization mode. It is
   not release-qualified because the matched Qwen 3.5 recall gate fails.
+- `verl/trainer/ppo/core_algos.py` and
+  `verl/trainer/ppo/ray_trainer.py`: register SAMPO's GiGPO-style hierarchical
+  advantage estimator, validate token-aligned turn metadata, and combine the
+  result with the existing GSPO actor loss.
 
 Regression coverage lives in
 `tests/checkpoint_engine/test_global_steps_on_cpu.py` and
 `tests/models/test_fsdp_no_padding_on_gpu.py`, and
-`tests/utils/test_vllm_turboquant_compat.py`. The fork's root
-`CARBONTEQ_FORK.md` is the maintained delta ledger. Until these changes are
-committed and pushed to a CarbonTeq fork remote, the completed run is local
-qualification evidence rather than a reproducible production dependency pin.
+`tests/utils/test_vllm_turboquant_compat.py`. SAMPO coverage lives in
+`tests/trainer/ppo/test_sampo_advantage_on_cpu.py`. The fork's root
+`CARBONTEQ_FORK.md` is the maintained delta ledger. The immutable revision above
+makes the backend reproducible, but it remains a candidate until its SAMPO GPU
+qualification gate passes.
+
+### SAMPO operating configuration
+
+The framework's typed SAMPO manifest maps to:
+
+```text
+algorithm.adv_estimator=sampo
+algorithm.sampo.discount_gamma=<SAMPOSettings.discount_gamma>
+algorithm.sampo.step_advantage_weight=<SAMPOSettings.step_advantage_weight>
+algorithm.sampo.advantage_normalization=<mean|mean_std>
+actor_rollout_ref.actor.policy_loss.loss_mode=gspo
+actor_rollout_ref.actor.loss_agg_mode=seq-mean-token-mean
+```
+
+The Verifiers agent loop emits `sampo_turn_spans`,
+`sampo_anchor_state_keys`, and `sampo_step_rewards`. The fork computes
+episode-relative and anchor-relative advantages on the driver. The pinned
+`verl-recipe` dynamic trainer supplies bounded replacement sampling for
+reward-constant groups. A project training binding therefore supplies immutable
+`dynamic_sampling_recipe_working_directory` and
+`dynamic_sampling_recipe_source_revision` backend options in addition to the
+veRL interpreter, worktree, and source revision. Select
+`backend_options.source_revision` as
+`553280b88afe4e7fbc4aefeff27bbf0a22e7c048`; the interpreter and both checkout
+paths remain machine-local execution values rather than catalog defaults.
+
+This composition follows the official ARL-Arena SAMPO extension at
+`a25a2a229c85431b421ac785fa5f375a99b2072a`: hierarchical GiGPO advantages
+plus GSPO policy loss. The framework retains one complete Verifiers trajectory
+per optimizer row, so the sequence ratio covers all sampled policy tokens while
+turn spans receive their own anchor-relative credit.
 
 ## Status and release gate
 
@@ -428,8 +467,9 @@ non-zero elements. Focused validation passed 19 framework/environment tests and
 7 veRL lifecycle/FSDP tests.
 
 Production qualification still requires the 32K GRPO gate using the qualified
-normal FP16 KV path,
-publishing and pinning the fork delta, and completing the distillation GPU run.
+normal FP16 KV path, a multi-turn SAMPO GPU gate, and completing the
+distillation GPU run. The fork delta is published and immutably selected, but
+publication does not satisfy either GPU gate.
 Do not describe the backend as production-qualified until both commands below
 have been represented as catalog/work-package selections and completed:
 

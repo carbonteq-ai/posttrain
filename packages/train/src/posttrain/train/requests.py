@@ -10,7 +10,7 @@ from posttrain.data import PreferenceDataSource, SupervisedDataSource
 
 from .bindings import QuantizationAwareUpdate, QuantizationPlan, TrainingBinding, validate_parameter_update
 from .online_rl import EnvironmentRolloutBridge
-from .profiles import DPOSettings, GRPOSettings, OnPolicyDistillationSettings, SFTSettings, TrainingLoop
+from .profiles import DPOSettings, GRPOSettings, OnPolicyDistillationSettings, SAMPOSettings, SFTSettings, TrainingLoop
 
 
 class EnvironmentSelection(Protocol):
@@ -63,27 +63,71 @@ class GRPORequest:
     resume_from: LocalArtifactRef | None = None
 
     def __post_init__(self) -> None:
-        if not self.bridge.dataset.examples:
-            raise ValueError("GRPO requires at least one rollout example")
-        if self.inference.model.id != self.policy.id:
-            raise ValueError("GRPO inference binding must select the policy model variant")
-        if self.inference.renderer != self.policy.renderer_contract:
-            raise ValueError("GRPO inference renderer is incompatible with the policy model")
-        if "rollout" not in self.inference.purpose:
-            raise ValueError("GRPO inference binding must declare the rollout purpose")
-        _validate_training(self.policy, self.settings.loop, self.training, self.quantization)
-        sequence_length = self.settings.max_prompt_length + self.settings.max_completion_length
-        _validate_sequence_length(sequence_length, self.training)
-        engine_limit = self.inference.engine.get("max_model_len")
-        if isinstance(engine_limit, int) and sequence_length > engine_limit:
-            raise ValueError("rollout model length must cover prompt and completion limits")
-        expected_batch = self.settings.num_prompts_per_step * self.settings.num_generations
-        global_batch = self.training.runtime.get("global_batch_size")
-        if isinstance(global_batch, int) and global_batch != expected_batch:
-            raise ValueError("training global batch must equal prompt groups times generations")
-        plan_id = self.inference.engine.get("quantization_plan_id")
-        if plan_id is not None and (self.quantization is None or plan_id != self.quantization.id):
-            raise ValueError("rollout quantization mode must reference the selected quantization plan")
+        _validate_online_rl(
+            "GRPO",
+            self.policy,
+            self.bridge,
+            self.settings,
+            self.training,
+            self.inference,
+            self.quantization,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class SAMPORequest:
+    policy: ModelVariant
+    bridge: EnvironmentRolloutBridge
+    settings: SAMPOSettings
+    environment: EnvironmentSelection
+    training: TrainingBinding
+    inference: InferenceBinding
+    quantization: QuantizationPlan | None = None
+    reference: ModelVariant | None = None
+    resume_from: LocalArtifactRef | None = None
+
+    def __post_init__(self) -> None:
+        _validate_online_rl(
+            "SAMPO",
+            self.policy,
+            self.bridge,
+            self.settings,
+            self.training,
+            self.inference,
+            self.quantization,
+        )
+
+
+def _validate_online_rl(
+    technique: str,
+    policy: ModelVariant,
+    bridge: EnvironmentRolloutBridge,
+    settings: GRPOSettings | SAMPOSettings,
+    training: TrainingBinding,
+    inference: InferenceBinding,
+    quantization: QuantizationPlan | None,
+) -> None:
+    if not bridge.dataset.examples:
+        raise ValueError(f"{technique} requires at least one rollout example")
+    if inference.model.id != policy.id:
+        raise ValueError(f"{technique} inference binding must select the policy model variant")
+    if inference.renderer != policy.renderer_contract:
+        raise ValueError(f"{technique} inference renderer is incompatible with the policy model")
+    if "rollout" not in inference.purpose:
+        raise ValueError(f"{technique} inference binding must declare the rollout purpose")
+    _validate_training(policy, settings.loop, training, quantization)
+    sequence_length = settings.max_prompt_length + settings.max_completion_length
+    _validate_sequence_length(sequence_length, training)
+    engine_limit = inference.engine.get("max_model_len")
+    if isinstance(engine_limit, int) and sequence_length > engine_limit:
+        raise ValueError("rollout model length must cover prompt and completion limits")
+    expected_batch = settings.num_prompts_per_step * settings.num_generations
+    global_batch = training.runtime.global_batch_size
+    if isinstance(global_batch, int) and global_batch != expected_batch:
+        raise ValueError("training global batch must equal prompt groups times generations")
+    plan_id = inference.engine.get("quantization_plan_id")
+    if plan_id is not None and (quantization is None or plan_id != quantization.id):
+        raise ValueError("rollout quantization mode must reference the selected quantization plan")
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,7 +177,7 @@ class OnPolicyDistillationRequest:
             if isinstance(engine_limit, int) and sequence_length > engine_limit:
                 raise ValueError(f"{role} model length must cover distillation prompt and completion limits")
         expected_batch = self.settings.num_prompts_per_step * self.settings.num_generations
-        global_batch = self.training.runtime.get("global_batch_size")
+        global_batch = self.training.runtime.global_batch_size
         if isinstance(global_batch, int) and global_batch != expected_batch:
             raise ValueError("training global batch must equal distillation prompts times generations")
         plan_id = self.rollout_inference.engine.get("quantization_plan_id")
@@ -170,5 +214,6 @@ __all__ = [
     "EnvironmentSelection",
     "GRPORequest",
     "OnPolicyDistillationRequest",
+    "SAMPORequest",
     "SFTRequest",
 ]

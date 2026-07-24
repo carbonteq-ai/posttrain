@@ -8,13 +8,13 @@ import json
 from pathlib import Path
 from typing import Any
 
-import uvicorn
 from posttrain.tracking import RunQuery
 
 from .composition import create_service
 from .http import create_http_app
 from .mcp import create_mcp
 from .models import RunLocator, SemanticSummaryRequest
+from .server import serve
 from .settings import ObservatorySettings
 from .telemetry import DEFAULT_TELEMETRY_DEFINITIONS
 
@@ -115,7 +115,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "serve":
         host = args.host or settings.host
         port = args.port or settings.port
-        uvicorn.run(create_http_app(create_service(settings), settings), host=host, port=port)
+        serve(settings.model_copy(update={"host": host, "port": port}))
         return 0
     if args.command == "mcp":
         create_mcp(create_service(settings)).run(transport="stdio")

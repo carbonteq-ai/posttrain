@@ -17,9 +17,10 @@ workflow and primitives **importable, versioned, and replaceable at the
 backend** so Carbonteq AI (and other consumers) can repeat projects without
 rewriting glue.
 
-The local lab (`apps/lab`) is a **reference host**. It is not the product
-boundary. Another CLI, notebook, service, or repository should be able to import
-the same capability packages.
+The local lab (`apps/lab`) is the **reference project and qualification
+suite**. It is not the product boundary or a required dependency. Ordinary
+projects compose framework-shipped standard jobs through `posttrain`, while a
+notebook or service may still call the same capability packages directly.
 
 Normative API detail lives in [05 · APIs](./05-apis.md).
 This document is the DX and package map.
@@ -55,6 +56,10 @@ Framework-shared catalog          Project code (use case)
   baselines
                  │
                  ▼
+        Standard jobs (composition)
+          posttrain.jobs
+                 │
+                 ▼
         Capability packages (public APIs)
           posttrain.data
           posttrain.serve
@@ -67,7 +72,7 @@ Framework-shared catalog          Project code (use case)
           Hub/format adapters · vLLM · Verifiers · TRL · …
                  │
                  ▼
-        Tracking (injected by host)
+        Tracking (selected by job runtime)
           Trackio or W&B backend · lineage · metrics · traces
                  │
                  ▼
@@ -78,6 +83,11 @@ Framework-shared catalog          Project code (use case)
 ```mermaid
 flowchart TB
     Cat["Framework-shared catalog"] --> Proj["Project / work packages"]
+    Proj --> Jobs["posttrain.jobs standard definitions"]
+    Jobs --> Data
+    Jobs --> Serve
+    Jobs --> Eval
+    Jobs --> Train
     Proj --> Data["posttrain.data"]
     Proj --> Serve["posttrain.serve"]
     Proj --> Eval["posttrain.eval"]
@@ -87,7 +97,7 @@ flowchart TB
     Serve --> VA["Internal vLLM adapter"]
     Eval --> EA["Internal Verifiers adapter"]
     Train --> TA["Internal TRL adapters"]
-    Proj --> Obs["Host-injected observer"]
+    Jobs --> Obs["JobRuntime observer"]
     Serve -.-> Obs
     Eval -.-> Obs
     Train -.-> Obs
@@ -109,8 +119,9 @@ flowchart TB
 | `packages/tracking` | Provider-neutral run lifecycle, raw evidence read contracts, normalized evidence models | Provider SDKs, product presentation, execution policy, “winner” selection |
 | `packages/tracking-trackio` / `tracking-wandb` | Concrete writer and reader adapters | Job-specific view semantics |
 | `packages/work` | Recipe/work-package contracts, YAML loading, catalog resolution, preflight, and thin run execution | Concrete job definitions, backend policy, scheduling, project decisions |
-| `apps/cli` | Primary `posttrain` command host: project setup, diagnostics, catalog/work-package validation and execution | Capability semantics, provider storage logic, project decisions |
-| `apps/lab` | Reference host: discovery, scheduling helpers, tracking-backend injection, example projects | Becoming the only way to call train/eval/serve |
+| `packages/jobs` | Framework-shipped standard job definitions, dataset/environment wiring, and default `JobRuntime` construction | Project thresholds, scenario policy, or capability implementation |
+| `apps/cli` | Primary `posttrain` command: project initialization and install, diagnostics, catalog/work-package execution, and Observatory bring-up | Capability semantics, provider storage logic, project decisions |
+| `apps/lab` | Reference project and qualification suite: scenario policy, backend integration tests, and hardware release gates | Being imported by ordinary projects or owning the standard job contract |
 | `apps/observatory` | Dedicated read product: telemetry definitions, query/intelligence service, Python API, HTTP API, MCP, frontend, and materialized reports | Provider storage queries, execution, mutation of runs, or “winner” selection |
 | Env packages (e.g. AutomationBench) | Published Verifiers environments | Importing lab or train/serve packages |
 
@@ -136,9 +147,19 @@ flowchart TB
 8. **Observatory's frontend, MCP, HTTP, Python, and report exports use one query
    service and one set of job telemetry definitions.** They do not maintain
    separate metric lists or health rules.
-9. **`work` composes but does not define capability meaning.** It may depend on
-   selection and tracking contracts from capability packages, but concrete job
-   definitions and tracking-backend selection are injected by a host.
+9. **`work` composes but does not define capability meaning.** It owns
+   contracts, resolution, validation, and thin execution only.
+10. **`jobs` is the cross-capability composition layer.** It may depend on
+    `data`, `train`, `eval`, `serve`, `tracking`, and `work`; those capability
+    packages do not depend on it or on one another.
+11. **Standard jobs wire existing adapters and bridges.** Declarative dataset
+    selections resolve through `posttrain.data`; environment-backed GRPO,
+    distillation, and evaluation resolve through the existing Verifiers
+    integration. Projects change catalog bindings rather than rebuilding that
+    glue.
+12. **Standard definition ids cannot be shadowed.** A project entry may add a
+    new versioned definition or unshipped factory, but may not replace a
+    framework definition with different semantics under the same id.
 
 ### Observatory distribution boundary
 
@@ -173,11 +194,13 @@ secrets.
 | Layer | Developer writes / publishes | Example |
 | --- | --- | --- |
 | Framework core (`common` + contracts) | Rarely; extend carefully | Run status, artifact reference types |
-| Capability package | New job definition or adapter behind stable API | `trainers/trl-grpo@N`, vLLM binding helper |
+| Capability package | New operation or adapter behind stable API | TRL GRPO adapter, vLLM binding helper |
+| Standard jobs (`posttrain.jobs`) | Stable seats mapped to capability operations | `train/trl-grpo@1` |
 | Framework-shared catalog | Reusable variants, bindings, plans, recipes, baselines | `models/qwen-2b@bf16`, `inference/…`, `evals/general-compact@1` |
 | Published environment | Verifiers env package release | `automationbench_v1` |
 | Project | Work packages, bindings, thresholds, accept/revise/reject | `projects/background-memory-agent/...` |
-| Host | Observer, workspace, entrypoints | `apps/lab` Trackio context |
+| Project entry (optional) | Extra definitions or unshipped factories | `configure(runtime)` hook |
+| Job runtime | Standard definitions, observer, workspace, scratch | Trackio-backed project execution |
 
 Capability packages own **backend-native fields** inside their public configs
 when those fields matter to callers (e.g. vLLM engine options on an inference
@@ -288,19 +311,25 @@ Observatory        → run/package/stage/lineage views plus Python analysis,
 Views mark missing, failed, not-run, and reused-from-framework evidence. They
 do not invent winners.
 
-## Host versus library DX
+## Project versus direct-library DX
 
-| Concern | Library DX (`train`/`eval`/`serve`/`data`) | Host DX (`apps/cli`, `apps/lab`) |
+| Concern | Direct library DX (`train`/`eval`/`serve`/`data`) | Project DX (`posttrain`) |
 | --- | --- | --- |
-| Import | `uv add` / workspace member; no lab required | Runs projects, injects observer |
-| Observation | Optional protocol; no-op allowed | Trackio default; W&B selectable through the same tracking contract |
-| Discovery | Explicit Python imports | CLI discovers `.posttrain`; lab may discover reference modules |
-| Audience | Any Carbonteq (or external) consumer | Local iteration on this machine |
+| Import | Add only the capability package needed | Installed project includes `posttrain.jobs`; no lab dependency |
+| Composition | Caller builds typed requests explicitly | Standard definitions bind catalog seats to operations |
+| Observation | Optional protocol; no-op allowed | `JobRuntime` selects Trackio by default; W&B remains conforming |
+| Discovery | Explicit Python imports | CLI discovers `.posttrain` and an optional project entry |
+| Audience | Scripts, notebooks, embedded services | Ordinary project developers |
 
 `apps/cli` is distributed as `posttrain` and owns the stable command surface.
-It imports reusable framework packages but no reusable package imports it.
-`apps/lab` remains useful for code-defined reference jobs and backend
-qualification without becoming a compatibility requirement for other projects.
+`posttrain init --template sft|grpo` writes an installable project and installs
+its dependencies unless explicitly suppressed for nested automation.
+`posttrain work-package run ... --job ...` constructs a default `JobRuntime`;
+no `--host` is required. `posttrain observatory up` starts the read product for
+the discovered project's tracking configuration.
+
+`apps/lab` remains useful for code-defined qualification scenarios and backend
+release gates without becoming a compatibility requirement for other projects.
 
 A notebook that only needs serving benchmarks should depend on `posttrain.serve`
 (+ `common` protocols), not on the full lab application.
@@ -316,8 +345,20 @@ Portable repositories keep tracked project configuration under `.posttrain/`:
 `project.toml` declares project identity and paths, `catalog/` contains
 overlays, and `work_packages/` contains stage compositions. Ignored
 machine-local scratch, recovery, cache, and provider files live under
-`.posttrain/state/`. The framework base is loaded from the versioned
-`posttrain-catalog` distribution, not copied into each project.
+`.posttrain/state/`. The framework global catalog is loaded from the versioned
+`posttrain-catalog` distribution, not copied into each project. Project
+overlays may add proprietary entries or deliberately replace a global id.
+Publishing a new global entry requires a catalog package release.
+
+Global and project dataset/environment entries are pointers until first use.
+Validation or execution materializes them idempotently under
+`.posttrain/state/` or verifies the pinned environment package in the project
+environment. Dataset source kinds include immutable Hugging Face revisions,
+project-relative JSONL/Parquet sources, and NeMo JSONL via `source.kind: nemo`.
+Supervised format names are the adapter literals `auto`, `messages`,
+`prompt-completion`, `alpaca`, and `sharegpt`; preference formats use the
+literals already exposed by `posttrain.data` (`auto`, `trl`, `tulu`,
+`nemo-ranked`).
 
 Model serving is authored as **two catalog families** (plus target), not one
 profile:
@@ -368,11 +409,12 @@ Project DX:
 For `train.distill`, the reusable boundary is deliberate: Verifiers supplies a
 fresh exact-token environment trajectory; `packages/train` validates and
 projects it into a backend-neutral distillation batch; a private TRL adapter
-performs teacher scoring and optimization; `apps/lab` selects concrete student,
-teacher, environment, bindings, and targets; Observatory interprets the run
-evidence. PrimeRL is research input, not a framework backend. A future verl
-adapter consumes the same batch contract without importing TRL semantics into
-the public request.
+performs teacher scoring and optimization; a standard job resolves the
+project's student, teacher, environment, bindings, and targets; Observatory
+interprets the run evidence. `apps/lab` supplies qualification scenarios only.
+PrimeRL is research input, not a framework backend. A future verl adapter
+consumes the same batch contract without importing TRL semantics into the
+public request.
 
 ## Non-goals (DX)
 
@@ -380,7 +422,7 @@ The framework does not require developers to:
 
 - learn one mega-config that mixes trainer, env, and serve fields
 - open Trackio to define behavior
-- use the lab host as the only entrypoint
+- import the lab or author a host factory for standard jobs
 - accept automatic checkpoint promotion or automatic “winners”
 - put project thresholds inside shared eval plans
 - import `train` from `serve` or `eval` from `train`

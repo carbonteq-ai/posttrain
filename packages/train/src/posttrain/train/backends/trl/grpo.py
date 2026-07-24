@@ -14,7 +14,9 @@ from posttrain.common.cuda import TorchModule, activate_cuda_toolkit
 
 from ...grpo_observations import GRPOObservationFeatures, normalize_grpo_metrics
 from ...online_rl import RolloutBatch
-from ...requests import GRPORequest
+from ...profiles import SAMPOSettings, shape_online_reward
+from ...requests import GRPORequest, SAMPORequest
+from ...sampo_advantages import compute_sampo_advantages
 from .common import (
     BackendTrainingResult,
     callback_type,
@@ -33,6 +35,22 @@ from .common import (
 def run_grpo(
     context: RunContext,
     request: GRPORequest,
+    output_dir: Path,
+) -> BackendTrainingResult:
+    return _run_online_rl(context, request, output_dir)
+
+
+def run_sampo(
+    context: RunContext,
+    request: SAMPORequest,
+    output_dir: Path,
+) -> BackendTrainingResult:
+    return _run_online_rl(context, request, output_dir)
+
+
+def _run_online_rl(
+    context: RunContext,
+    request: GRPORequest | SAMPORequest,
     output_dir: Path,
 ) -> BackendTrainingResult:
     if request.inference.backend.split("@", 1)[0] == "vllm":
@@ -74,9 +92,18 @@ def run_grpo(
     dataset = imports["Dataset"].from_list(rows)
     emit_parameter_counts(context, model, request.training.update)
     _emit_parameter_counts(context, model, request.training.update.kind)
-    arguments = _grpo_arguments(request, output_dir, template_kwargs)
-    observation_features = GRPOObservationFeatures.from_request(request)
-    context.event("grpo_runtime_resolved", _grpo_runtime_attributes(request))
+    arguments = _online_rl_arguments(request, output_dir, template_kwargs)
+    observation_features = (
+        GRPOObservationFeatures.from_request(request)
+        if isinstance(request, GRPORequest)
+        else GRPOObservationFeatures(
+            reference_kl_enabled=request.settings.beta > 0,
+            decoupled_rollout=request.inference.backend.split("@", 1)[0] == "vllm",
+            tool_environment=True,
+        )
+    )
+    technique = request.settings.algorithm if isinstance(request, GRPORequest) else "sampo"
+    context.event("grpo_runtime_resolved", _online_rl_runtime_attributes(request))
 
     def normalize_metrics(step: int, native: Mapping[str, object]) -> Mapping[str, float]:
         return normalize_grpo_metrics(
@@ -107,7 +134,7 @@ def run_grpo(
                 train_output,
                 tokenizer,
                 output_dir.parent,
-                "grpo",
+                technique,
                 request.training.update,
                 imports,
             )
@@ -115,7 +142,7 @@ def run_grpo(
 
 def _rollout_function(
     context: RunContext,
-    request: GRPORequest,
+    request: GRPORequest | SAMPORequest,
     tokenizer: Any,
 ) -> Any:
     """Translate TRL generation batches into the public environment-rollout bridge contract."""
@@ -162,7 +189,7 @@ def _rollout_function(
             step=step,
         )
         attributes = {
-            "technique": "grpo",
+            "technique": request.settings.algorithm if isinstance(request, GRPORequest) else "sampo",
             "model_variant_id": request.policy.id,
             "training_settings_id": request.settings.id,
         }
@@ -176,15 +203,43 @@ def _rollout_function(
                     attributes={**trace.attributes, **attributes},
                 )
             )
-        return {
+        if isinstance(request, GRPORequest):
+            shaped_rewards = [
+                shape_online_reward(request.settings, rollout.reward, len(rollout.completion_ids))
+                for rollout in rollouts
+            ]
+        else:
+            shaped_rewards = [rollout.reward for rollout in rollouts]
+        result = {
             "prompt_ids": [list(rollout.prompt_ids) for rollout in rollouts],
             "completion_ids": [list(rollout.completion_ids) for rollout in rollouts],
             "logprobs": [list(rollout.sampling_logprobs) for rollout in rollouts],
             "env_mask": [list(rollout.env_mask) for rollout in rollouts],
-            "rollout_reward": [rollout.reward for rollout in rollouts],
+            "rollout_reward": shaped_rewards,
+            "task_reward": [rollout.reward for rollout in rollouts],
+            "algorithm_reward": shaped_rewards,
             "is_truncated": [rollout.is_truncated for rollout in rollouts],
             "rollout_trace_id": [rollout.trace.external_id for rollout in rollouts],
         }
+        if isinstance(request, SAMPORequest):
+            advantages = compute_sampo_advantages(request.settings, example_ids, rollouts)
+            result["precomputed_advantages"] = [list(values) for values in advantages.token_advantages]
+            flat_turn_advantages = [value for values in advantages.turn_advantages for value in values]
+            flat_group_sizes = [value for values in advantages.anchor_group_sizes for value in values]
+            context.metrics(
+                {
+                    "train/rl/episode_advantage_mean": (
+                        sum(advantages.episode_advantages) / len(advantages.episode_advantages)
+                    ),
+                    "train/rl/turn_advantage_mean": (sum(flat_turn_advantages) / len(flat_turn_advantages)),
+                    "train/rl/anchor_group_size_mean": sum(flat_group_sizes) / len(flat_group_sizes),
+                    "train/rl/sparse_reward_projection_fraction": (
+                        sum(advantages.used_sparse_rewards) / len(advantages.used_sparse_rewards)
+                    ),
+                },
+                step=step,
+            )
+        return result
 
     return run_rollouts
 
@@ -195,13 +250,32 @@ def _bridge_reward(rollout_reward: list[float], **_: Any) -> list[float]:
     return [float(value) for value in rollout_reward]
 
 
-def _grpo_arguments(request: GRPORequest, output_dir: Path, template_kwargs: dict[str, Any]) -> dict[str, Any]:
+def _online_rl_arguments(
+    request: GRPORequest | SAMPORequest,
+    output_dir: Path,
+    template_kwargs: dict[str, Any],
+) -> dict[str, Any]:
     arguments = trainer_arguments(request.settings.loop, output_dir)
     arguments.pop("max_length")
-    use_liger_kernel = request.training.runtime.get("use_liger_kernel", False)
+    settings = request.settings
+    if isinstance(settings, SAMPOSettings):
+        is_sampo = True
+        loss_type = "grpo"
+        epsilon_high = settings.clip_epsilon_high
+        importance_sampling_mode = "sequence_truncate"
+        importance_sampling_clip_min = 0.1
+        importance_sampling_clip_max = 3.0
+    else:
+        is_sampo = False
+        loss_type = settings.algorithm
+        epsilon_high = settings.resolved_clip_epsilon_high
+        importance_sampling_mode = settings.importance_sampling_mode
+        importance_sampling_clip_min = settings.importance_sampling_clip_min
+        importance_sampling_clip_max = settings.importance_sampling_clip_max
+    use_liger_kernel = request.training.backend_options.get("use_liger_kernel", False)
     if not isinstance(use_liger_kernel, bool):
         raise ValueError("TRL GRPO use_liger_kernel must be a boolean")
-    logits_chunk_size = request.training.runtime.get("logits_chunk_size")
+    logits_chunk_size = request.training.backend_options.get("logits_chunk_size")
     if logits_chunk_size is not None and (
         isinstance(logits_chunk_size, bool) or not isinstance(logits_chunk_size, int) or logits_chunk_size < 1
     ):
@@ -215,9 +289,20 @@ def _grpo_arguments(request: GRPORequest, output_dir: Path, template_kwargs: dic
             "max_completion_length": request.settings.max_completion_length,
             "chat_template_kwargs": template_kwargs,
             "beta": request.settings.beta,
-            "loss_type": "grpo",
+            "loss_type": loss_type,
+            "epsilon": request.settings.clip_epsilon_low,
+            "epsilon_high": epsilon_high,
             "scale_rewards": "group",
-            "mask_truncated_completions": True,
+            "dynamic_sampling": (request.settings.dynamic_sampling is not None if not is_sampo else True),
+            "dynamic_sampling_max_batches": (
+                request.settings.dynamic_sampling.max_candidate_batches
+                if request.settings.dynamic_sampling is not None
+                else 10
+            ),
+            "dynamic_sampling_reward_std_epsilon": (0.0),
+            "mask_truncated_completions": request.settings.mask_truncated_completions,
+            "importance_sampling_level": "sequence" if is_sampo else "token",
+            "use_precomputed_advantages": is_sampo,
             "use_liger_kernel": use_liger_kernel,
             "logits_chunk_size": logits_chunk_size,
             "use_vllm": request.inference.backend.split("@", 1)[0] == "vllm",
@@ -241,20 +326,26 @@ def _grpo_arguments(request: GRPORequest, output_dir: Path, template_kwargs: dic
                 "vllm_weight_sync_mode": rollout.get("weight_sync_mode", "full"),
                 "vllm_model_impl": "vllm",
                 "vllm_importance_sampling_correction": True,
-                "vllm_importance_sampling_mode": request.settings.importance_sampling_mode,
-                "vllm_importance_sampling_clip_min": request.settings.importance_sampling_clip_min,
-                "vllm_importance_sampling_clip_max": request.settings.importance_sampling_clip_max,
+                "vllm_importance_sampling_mode": importance_sampling_mode,
+                "vllm_importance_sampling_clip_min": importance_sampling_clip_min,
+                "vllm_importance_sampling_clip_max": importance_sampling_clip_max,
             }
         )
     return arguments
 
 
-def _sampling_number(request: GRPORequest, key: str, default: float) -> float:
+def _grpo_arguments(request: GRPORequest, output_dir: Path, template_kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Compatibility name for the GRPO-only argument translator."""
+
+    return _online_rl_arguments(request, output_dir, template_kwargs)
+
+
+def _sampling_number(request: GRPORequest | SAMPORequest, key: str, default: float) -> float:
     value = request.inference.sampling.get(key)
     return float(value) if isinstance(value, (int, float)) else default
 
 
-def _grpo_runtime_attributes(request: GRPORequest) -> dict[str, JsonValue]:
+def _online_rl_runtime_attributes(request: GRPORequest | SAMPORequest) -> dict[str, JsonValue]:
     """Describe selected GRPO runtime features without claiming observed performance."""
 
     engine = request.inference.engine
@@ -274,13 +365,40 @@ def _grpo_runtime_attributes(request: GRPORequest) -> dict[str, JsonValue]:
         "max_model_len": engine.get(
             "max_model_len", request.settings.max_prompt_length + request.settings.max_completion_length
         ),
-        "use_liger_kernel": request.training.runtime.get("use_liger_kernel", False),
-        "logits_chunk_size": request.training.runtime.get("logits_chunk_size"),
+        "use_liger_kernel": request.training.backend_options.get("use_liger_kernel", False),
+        "logits_chunk_size": request.training.backend_options.get("logits_chunk_size"),
+        "online_rl_algorithm": request.settings.algorithm if isinstance(request, GRPORequest) else "sampo",
+        "clip_epsilon_low": request.settings.clip_epsilon_low,
+        "clip_epsilon_high": (
+            request.settings.resolved_clip_epsilon_high
+            if isinstance(request, GRPORequest)
+            else request.settings.clip_epsilon_high
+        ),
+        "mask_truncated_completions": request.settings.mask_truncated_completions,
+        "dynamic_sampling": request.settings.dynamic_sampling is not None,
+        "dynamic_sampling_max_candidate_batches": (
+            request.settings.dynamic_sampling.max_candidate_batches
+            if request.settings.dynamic_sampling is not None
+            else None
+        ),
     }
+    if isinstance(request, GRPORequest):
+        attributes["overlong_buffer_tokens"] = request.settings.overlong_buffer_tokens
+        attributes["overlong_penalty_factor"] = request.settings.overlong_penalty_factor
+    else:
+        attributes["discount_gamma"] = request.settings.discount_gamma
+        attributes["step_advantage_weight"] = request.settings.step_advantage_weight
+        attributes["advantage_normalization"] = request.settings.advantage_normalization
     if isinstance(speculative, Mapping):
         attributes["speculative_method"] = speculative.get("method")
         attributes["num_speculative_tokens"] = speculative.get("num_speculative_tokens")
     return attributes
+
+
+def _grpo_runtime_attributes(request: GRPORequest) -> dict[str, JsonValue]:
+    """Compatibility name for the GRPO-only runtime evidence translator."""
+
+    return _online_rl_runtime_attributes(request)
 
 
 def _emit_parameter_counts(
@@ -301,4 +419,4 @@ def _emit_parameter_counts(
     )
 
 
-__all__ = ["run_grpo"]
+__all__ = ["run_grpo", "run_sampo"]

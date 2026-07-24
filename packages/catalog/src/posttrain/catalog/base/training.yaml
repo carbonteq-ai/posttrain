@@ -70,6 +70,42 @@ training:
       per_device_batch_size: 2
       learning_rate: 0.00001
     max_completion_length: 512
+  qwen3.5-2b/dapo-smoke-v1:
+    selection_type: grpo-settings
+    revision: "1"
+    loop:
+      max_steps: 1
+      per_device_batch_size: 2
+      learning_rate: 0.00001
+    algorithm: dapo
+    max_completion_length: 384
+    clip_epsilon_low: 0.2
+    clip_epsilon_high: 0.28
+    dynamic_sampling:
+      max_candidate_batches: 10
+    mask_truncated_completions: false
+    overlong_buffer_tokens: 64
+    overlong_penalty_factor: 1.0
+  qwen3.5-2b/sampo-smoke-v1:
+    selection_type: sampo-settings
+    revision: "1"
+    loop:
+      max_steps: 1
+      max_length: 640
+      per_device_batch_size: 2
+      learning_rate: 0.00001
+    num_prompts_per_step: 1
+    num_generations: 2
+    max_prompt_length: 256
+    max_completion_length: 384
+    discount_gamma: 0.95
+    step_advantage_weight: 1.0
+    advantage_normalization: mean
+    clip_epsilon_low: 0.003
+    clip_epsilon_high: 0.004
+    dynamic_sampling:
+      max_candidate_batches: 3
+    mask_truncated_completions: false
   lfm2.5-1.2b/sft-smoke-v2:
     selection_type: sft-settings
     revision: "1"
@@ -101,9 +137,10 @@ training:
       sequence_length_divisor: 2
     runtime:
       global_batch_size: 2
+    backend_options:
       use_liger_kernel: true
-      backend_source_revision: 5c50c69f2d9b25dc2ce729d030f7cabb144d8431
-      dependency_lock_sha256: d735d1a0721aa9731c34b870a8b629370bc37076a4adc5339f49efd0889aeae2
+      source_revision: b43a0a3d622ab1547f4d2abbd1b25eab3c52a0b9
+      dependency_lock_sha256: 1a24280c5e1db1536226f2958c1bd91a21e248f1c940d5598b1f64f27a6482cc
   training/qwen3.5-0.8b-trl-distill-lora@1:
     selection_type: training-binding
     revision: "1"
@@ -123,8 +160,9 @@ training:
       sequence_length_divisor: 2
     runtime:
       global_batch_size: 2
-      backend_source_revision: 5c50c69f2d9b25dc2ce729d030f7cabb144d8431
-      dependency_lock_sha256: d735d1a0721aa9731c34b870a8b629370bc37076a4adc5339f49efd0889aeae2
+    backend_options:
+      source_revision: b43a0a3d622ab1547f4d2abbd1b25eab3c52a0b9
+      dependency_lock_sha256: 1a24280c5e1db1536226f2958c1bd91a21e248f1c940d5598b1f64f27a6482cc
   training/qwen3.5-0.8b-trl-automationbench-lora-thinking@1:
     selection_type: training-binding
     revision: "1"
@@ -144,10 +182,11 @@ training:
       sequence_length_divisor: 2
     runtime:
       global_batch_size: 16
+    backend_options:
       use_liger_kernel: true
       logits_chunk_size: 128
-      backend_source_revision: 5c50c69f2d9b25dc2ce729d030f7cabb144d8431
-      dependency_lock_sha256: d735d1a0721aa9731c34b870a8b629370bc37076a4adc5339f49efd0889aeae2
+      source_revision: b43a0a3d622ab1547f4d2abbd1b25eab3c52a0b9
+      dependency_lock_sha256: 1a24280c5e1db1536226f2958c1bd91a21e248f1c940d5598b1f64f27a6482cc
   training/qwen3.5-trl-qlora@1:
     selection_type: training-binding
     revision: "1"
@@ -170,9 +209,10 @@ training:
       sequence_length_divisor: 2
     runtime:
       global_batch_size: 2
+    backend_options:
       use_liger_kernel: true
-      backend_source_revision: 5c50c69f2d9b25dc2ce729d030f7cabb144d8431
-      dependency_lock_sha256: d735d1a0721aa9731c34b870a8b629370bc37076a4adc5339f49efd0889aeae2
+      source_revision: b43a0a3d622ab1547f4d2abbd1b25eab3c52a0b9
+      dependency_lock_sha256: 1a24280c5e1db1536226f2958c1bd91a21e248f1c940d5598b1f64f27a6482cc
   training/lfm2.5-trl-lora@1:
     selection_type: training-binding
     revision: "1"
@@ -190,9 +230,9 @@ training:
     target: targets/local-cuda-8gb
     parallelism:
       sequence_length_divisor: 2
-    runtime:
-      backend_source_revision: 5c50c69f2d9b25dc2ce729d030f7cabb144d8431
-      dependency_lock_sha256: d735d1a0721aa9731c34b870a8b629370bc37076a4adc5339f49efd0889aeae2
+    backend_options:
+      source_revision: b43a0a3d622ab1547f4d2abbd1b25eab3c52a0b9
+      dependency_lock_sha256: 1a24280c5e1db1536226f2958c1bd91a21e248f1c940d5598b1f64f27a6482cc
   training/lfm2.5-trl-qlora@1:
     selection_type: training-binding
     revision: "1"
@@ -213,6 +253,6 @@ training:
     target: targets/local-cuda-8gb
     parallelism:
       sequence_length_divisor: 2
-    runtime:
-      backend_source_revision: 5c50c69f2d9b25dc2ce729d030f7cabb144d8431
-      dependency_lock_sha256: d735d1a0721aa9731c34b870a8b629370bc37076a4adc5339f49efd0889aeae2
+    backend_options:
+      source_revision: b43a0a3d622ab1547f4d2abbd1b25eab3c52a0b9
+      dependency_lock_sha256: 1a24280c5e1db1536226f2958c1bd91a21e248f1c940d5598b1f64f27a6482cc

@@ -9,7 +9,8 @@ from typing import Any, Literal, cast
 from uuid import uuid4
 
 from ...integrations.verifiers import load_verifiers_bridge_snapshot
-from ...online_rl import PolicyTurnRequest, PolicyTurnResult, RolloutBatch
+from ...online_rl import EnvironmentRollout, PolicyTurnRequest, PolicyTurnResult, RolloutBatch
+from ...profiles import shape_soft_overlong_reward
 
 try:
     from verl.experimental.agent_loop.agent_loop import (  # pyright: ignore[reportMissingImports]
@@ -112,7 +113,18 @@ class VerlPolicyGenerator:
 class PosttrainVerifiersAgentLoop(AgentLoopBase):
     """Run one native Verifiers trajectory for each veRL dataset row."""
 
-    def __init__(self, *args: Any, bridge_snapshot: str, enable_thinking: bool = False, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        *args: Any,
+        bridge_snapshot: str,
+        enable_thinking: bool = False,
+        mask_truncated_completions: bool | None = False,
+        max_completion_tokens: int,
+        overlong_buffer_tokens: int | None = None,
+        overlong_penalty_factor: float | None = None,
+        emit_sampo_metadata: bool = False,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(*args, **kwargs)
         self._bridge = load_verifiers_bridge_snapshot(Path(bridge_snapshot))
         self._generator = VerlPolicyGenerator(
@@ -120,6 +132,11 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
             self.tokenizer,
             enable_thinking=enable_thinking,
         )
+        self._mask_truncated_completions = bool(mask_truncated_completions)
+        self._max_completion_tokens = max_completion_tokens
+        self._overlong_buffer_tokens = overlong_buffer_tokens
+        self._overlong_penalty_factor = overlong_penalty_factor
+        self._emit_sampo_metadata = emit_sampo_metadata
 
     async def run(self, sampling_params: dict[str, Any], **kwargs: Any) -> Any:
         del sampling_params
@@ -140,22 +157,51 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
             raise ValueError("Verifiers trajectory prompt exceeds the selected veRL prompt length")
         if len(rollout.completion_ids) > self.rollout_config.response_length:
             raise ValueError("Verifiers trajectory response exceeds the selected veRL response length")
+        reward = rollout.reward
+        if self._overlong_buffer_tokens is not None:
+            if self._overlong_penalty_factor is None:
+                raise ValueError("veRL DAPO overlong shaping requires a penalty factor")
+            reward = shape_soft_overlong_reward(
+                reward,
+                len(rollout.completion_ids),
+                max_completion_tokens=self._max_completion_tokens,
+                buffer_tokens=self._overlong_buffer_tokens,
+                penalty_factor=self._overlong_penalty_factor,
+            )
+        response_mask = [int(value) for value in rollout.env_mask]
+        if rollout.is_truncated and self._mask_truncated_completions:
+            response_mask = [0] * len(response_mask)
+        extra_fields: dict[str, Any] = {
+            "rollout_trace_id": rollout.trace.external_id,
+            "example_id": rollout.example_id,
+            "is_truncated": rollout.is_truncated,
+            "task_reward": rollout.reward,
+            "algorithm_reward": reward,
+            "min_global_steps": step,
+            "max_global_steps": step,
+        }
+        if self._emit_sampo_metadata:
+            extra_fields.update(_sampo_metadata(rollout))
         return AgentLoopOutput(
             prompt_ids=list(rollout.prompt_ids),
             response_ids=list(rollout.completion_ids),
-            response_mask=[int(value) for value in rollout.env_mask],
+            response_mask=response_mask,
             response_logprobs=list(rollout.sampling_logprobs),
-            reward_score=rollout.reward,
+            reward_score=reward,
             num_turns=num_turns,
             metrics=AgentLoopMetrics(generate_sequences=perf_counter() - started),
-            extra_fields={
-                "rollout_trace_id": rollout.trace.external_id,
-                "example_id": rollout.example_id,
-                "is_truncated": rollout.is_truncated,
-                "min_global_steps": step,
-                "max_global_steps": step,
-            },
+            extra_fields=extra_fields,
         )
+
+
+def _sampo_metadata(rollout: EnvironmentRollout) -> dict[str, Any]:
+    if not rollout.turns:
+        raise RuntimeError("SAMPO requires sampled assistant-turn metadata")
+    return {
+        "sampo_turn_spans": [[turn.completion_start, turn.completion_end] for turn in rollout.turns],
+        "sampo_anchor_state_keys": [turn.anchor_state_key for turn in rollout.turns],
+        "sampo_step_rewards": [turn.step_reward for turn in rollout.turns],
+    }
 
 
 def _finish_reason(

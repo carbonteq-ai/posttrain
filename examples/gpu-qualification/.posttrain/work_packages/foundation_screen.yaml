@@ -1,0 +1,39 @@
+project_id: gpu-qualification
+work_package_id: screen/qwen3.5-2b-remote-gpu
+stage: screen
+description: Qualify the released framework wheelhouse on a clean remote NVIDIA GPU host.
+recipe:
+  type: inline
+  id: recipes/remote-gpu-screen@1
+  revision: "1"
+  stage: screen
+  seats:
+    model: model
+    screen_inference: inference
+    workload: workload
+    target: target
+  jobs:
+    - id: benchmark
+      kind: serve.benchmark
+      definition: serve/vllm-benchmark@1
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/qwen3.5-2b@bf16
+  screen_inference:
+    type: ref
+    family: inference
+    id: inference/qwen3.5-2b-vllm-screen@1
+  workload:
+    type: ref
+    family: workload
+    id: workloads/foundation-smoke-v1@1
+  target:
+    type: ref
+    family: target
+    id: targets/local-cuda-8gb
+enabled_optional_jobs: []
+metadata:
+  question: Can a clean remote GPU host install and execute this release?
+  release_gate: remote-gpu

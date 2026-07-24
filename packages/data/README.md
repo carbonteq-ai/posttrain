@@ -42,9 +42,12 @@ PreferenceExample(
   and ShareGPT rows.
 - `preferences_from_huggingface` accepts TRL, Tulu, and NeMo-ranked rows.
 - `supervised_from_nemo` and `to_nemo_*` make NeMo conversion explicit.
+- Catalog `source.kind: nemo` loads project-relative NeMo JSONL through those
+  adapters (`messages` / `nemo-ranked`, or `auto`) and materializes the same
+  canonical cache as other sources.
 - `supervised_from_verifiers` projects selected native trace branches into SFT
   examples; `supervised_from_verifiers_jsonl` validates a native trace artifact
-  before projection.
+  before projection (not yet a catalog source kind).
 
 Model chat templates, tokenization, packing, and token-level loss masks remain
 the responsibility of the consuming training engine.

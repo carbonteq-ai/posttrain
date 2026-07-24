@@ -83,7 +83,7 @@ def test_verl_grpo_binding_requires_and_records_immutable_local_runtime(tmp_path
     assert binding.backend_options["working_directory"] == str(worktree)
     assert binding.backend_options["source_revision"] == revision
     assert binding.backend_options["source_dirty"] is False
-    assert binding.runtime["dependency_lock_sha256"] == (
+    assert binding.backend_options["dependency_lock_sha256"] == (
         "dbab12665d98aef021ba64953c61b0ed8a908cfb56a1c01e2fcb4b052b71a2a1"
     )
     assert isinstance(binding.update, LoRAUpdate)

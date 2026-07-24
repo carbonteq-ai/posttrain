@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any
 
 from posttrain.common import InferenceBinding, ModelVariant, RunContext
@@ -12,10 +11,8 @@ from posttrain.train import (
     GRPORequest,
     LoRAUpdate,
     OnPolicyDistillationRequest,
-    OnPolicyDistillationSettings,
     QLoRAUpdate,
     SFTRequest,
-    TrainingBinding,
     TrainingResult,
     distill,
     dpo,
@@ -23,24 +20,12 @@ from posttrain.train import (
     sft,
 )
 
-from ..environments import VERIFIERS_REVISION, create_training_bridge
+from ..environments import VERIFIERS_REVISION
 
 JOB_ID = "posttraining/gsm8k"
 
 
-@dataclass(frozen=True, slots=True)
-class GSM8KDistillationJobRequest:
-    student: ModelVariant
-    teacher: ModelVariant
-    environment: EnvironmentBinding
-    settings: OnPolicyDistillationSettings
-    training: TrainingBinding
-    rollout_inference: InferenceBinding
-    teacher_inference: InferenceBinding
-
-    def __post_init__(self) -> None:
-        if self.student.family != self.training.renderer.model_family:
-            raise ValueError("distillation training binding is incompatible with the student family")
+GSM8KDistillationJobRequest = OnPolicyDistillationRequest
 
 
 def _training_environment() -> object:
@@ -137,29 +122,8 @@ def run_dpo_materialized(
     )
 
 
-def run_distillation(context: RunContext, request: GSM8KDistillationJobRequest) -> TrainingResult:
-    bridge = create_training_bridge(
-        request.environment,
-        context.workspace / "training" / "distill" / "verifiers-traces.jsonl",
-        context.run_id,
-        max_tokens=request.settings.max_completion_length,
-        temperature=_float_setting(request.rollout_inference, "temperature", request.settings.temperature),
-        top_p=_float_setting(request.rollout_inference, "top_p", 1.0),
-        purpose="distill",
-    )
-    return distill(
-        context,
-        OnPolicyDistillationRequest(
-            student=request.student,
-            teacher=request.teacher,
-            bridge=bridge,
-            settings=request.settings,
-            environment=request.environment,
-            training=request.training,
-            rollout_inference=request.rollout_inference,
-            teacher_inference=request.teacher_inference,
-        ),
-    )
+def run_distillation(context: RunContext, request: OnPolicyDistillationRequest) -> TrainingResult:
+    return distill(context, request)
 
 
 def training_inputs(request: SFTRequest | DPORequest | GRPORequest) -> dict[str, str | int | float | bool]:
@@ -206,6 +170,13 @@ def training_inputs(request: SFTRequest | DPORequest | GRPORequest) -> dict[str,
     if isinstance(request, GRPORequest):
         values["environment_id"] = request.environment.id
         values["environment_revision"] = request.environment.revision
+        values["online_rl_algorithm"] = request.settings.algorithm
+        values["clip_epsilon_low"] = request.settings.clip_epsilon_low
+        values["clip_epsilon_high"] = request.settings.resolved_clip_epsilon_high
+        values["mask_truncated_completions"] = request.settings.mask_truncated_completions
+        values["overlong_penalty_factor"] = request.settings.overlong_penalty_factor
+        if request.settings.overlong_buffer_tokens is not None:
+            values["overlong_buffer_tokens"] = request.settings.overlong_buffer_tokens
         values["grpo_beta"] = request.settings.beta
         values["grpo_num_generations"] = request.settings.num_generations
         values["grpo_max_prompt_length"] = request.settings.max_prompt_length

@@ -10,12 +10,22 @@ from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Protocol
+from random import Random
+from typing import Any, Literal, Protocol
 
 from posttrain.common import JsonValue, LocalArtifactRef, ProducedArtifact, TraceObservation
 from posttrain.data import RolloutDataset, RolloutExample
 
-from ..online_rl import EnvironmentRollout, PolicyGenerator, PolicySampling, PolicyTurnRequest, RolloutBatch
+from ..online_rl import (
+    AgenticTurn,
+    EnvironmentRollout,
+    PolicyGenerator,
+    PolicySampling,
+    PolicyTurnRequest,
+    RolloutBatch,
+)
+
+type OnlineRLTechnique = Literal["grpo", "dapo", "sampo", "distill"]
 
 
 class TraceEnricher(Protocol):
@@ -23,6 +33,50 @@ class TraceEnricher(Protocol):
 
 
 type EnvironmentFactory = Callable[[], Any]
+
+
+class EnvironmentSourceSelection(Protocol):
+    @property
+    def package(self) -> str: ...
+
+    @property
+    def revision(self) -> str: ...
+
+
+class VerifiersEnvironmentSelection(Protocol):
+    """Structural environment binding consumed without importing posttrain.eval."""
+
+    @property
+    def id(self) -> str: ...
+
+    @property
+    def source(self) -> EnvironmentSourceSelection: ...
+
+    @property
+    def factory(self) -> EnvironmentFactory: ...
+
+    @property
+    def num_tasks(self) -> int: ...
+
+    @property
+    def parameters(self) -> Mapping[str, JsonValue]: ...
+
+    @property
+    def revision(self) -> str: ...
+
+
+@dataclass(frozen=True, slots=True)
+class NativeVerifiersEnvironmentFactory:
+    """Pickle-safe reconstruction of a validated native Verifiers environment."""
+
+    config: Mapping[str, Any]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "config", dict(self.config))
+
+    def __call__(self) -> Any:
+        EnvConfig, Environment = _environment_imports()
+        return Environment(EnvConfig.model_validate(dict(self.config)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,6 +91,7 @@ class VerifiersBridgeSnapshot:
     environment_id: str
     run_id: str
     sampling: PolicySampling
+    technique: OnlineRLTechnique
     enrichers: tuple[TraceEnricher, ...]
 
     def create(self) -> VerifiersEnvironmentRolloutBridge:
@@ -49,6 +104,7 @@ class VerifiersBridgeSnapshot:
             environment_id=self.environment_id,
             run_id=self.run_id,
             sampling=self.sampling,
+            technique=self.technique,
             enrichers=self.enrichers,
         )
 
@@ -80,6 +136,122 @@ def _imports() -> tuple[Any, ...]:
         ChatDialect,
         parse_tools,
     )
+
+
+def _environment_imports() -> tuple[type[Any], type[Any]]:
+    try:
+        from verifiers.v1.env import EnvConfig, Environment  # pyright: ignore[reportMissingImports]
+    except ImportError as error:
+        raise RuntimeError("install the Verifiers integration dependencies") from error
+    return EnvConfig, Environment
+
+
+def preflight_verifiers_environment(environment: VerifiersEnvironmentSelection) -> Mapping[str, Any]:
+    """Check an installed environment binding and return portable native config."""
+
+    EnvConfig, Environment = _environment_imports()
+    base = environment.factory()
+    if isinstance(base, Environment):
+        base = base.config
+    if not isinstance(base, EnvConfig):
+        raise TypeError("Verifiers environment factories must return verifiers.v1.EnvConfig")
+    payload = base.model_dump(mode="python")
+    _apply_training_parameters(environment, payload)
+    config = EnvConfig.model_validate(payload)
+    Environment(config)
+    return config.model_dump(mode="python")
+
+
+def create_verifiers_training_bridge(
+    environment: VerifiersEnvironmentSelection,
+    trace_path: Path,
+    run_id: str,
+    *,
+    max_tokens: int,
+    temperature: float,
+    top_p: float,
+    purpose: OnlineRLTechnique = "grpo",
+    tasks: Mapping[int, Any] | None = None,
+) -> VerifiersEnvironmentRolloutBridge:
+    """Build the existing native bridge from a public environment selection."""
+
+    if not purpose or "/" in purpose:
+        raise ValueError("Verifiers bridge purpose must be one stable path segment")
+    config = preflight_verifiers_environment(environment)
+    native_factory = NativeVerifiersEnvironmentFactory(config)
+    selected = dict(tasks) if tasks is not None else _load_selected_tasks(environment, native_factory)
+    if not selected:
+        raise ValueError("Verifiers training bridge requires at least one selected task")
+    if len(selected) != environment.num_tasks:
+        raise ValueError(
+            f"environment {environment.id!r} requests {environment.num_tasks} tasks, "
+            f"but the bridge received {len(selected)}"
+        )
+    seed = _sampling_seed(environment)
+    return VerifiersEnvironmentRolloutBridge(
+        dataset_id=f"{environment.id}/{purpose}/seed-{seed}-limit-{len(selected)}",
+        revision=environment.source.revision,
+        tasks=selected,
+        environment_factory=native_factory,
+        trace_path=trace_path,
+        environment_id=environment.id,
+        run_id=run_id,
+        sampling=PolicySampling(max_tokens=max_tokens, temperature=temperature, top_p=top_p),
+        technique=purpose,
+    )
+
+
+def _apply_training_parameters(
+    environment: VerifiersEnvironmentSelection,
+    payload: dict[str, Any],
+) -> None:
+    parameters = environment.parameters
+    for key in ("max_turns", "max_total_tokens"):
+        value = parameters.get(key)
+        if isinstance(value, int) and not isinstance(value, bool):
+            payload[key] = value
+    rollout_timeout = parameters.get("rollout_timeout_seconds")
+    if isinstance(rollout_timeout, int | float) and not isinstance(rollout_timeout, bool):
+        timeout = payload.setdefault("timeout", {})
+        if isinstance(timeout, dict):
+            timeout["rollout"] = float(rollout_timeout)
+    if environment.source.package != "automationbench-v1":
+        return
+    taskset = payload.setdefault("taskset", {})
+    if not isinstance(taskset, dict):
+        raise TypeError("Verifiers taskset config must be an object")
+    domains = parameters.get("domains")
+    if isinstance(domains, (tuple, list)) and all(isinstance(value, str) for value in domains):
+        taskset["domains"] = list(domains)
+    task = taskset.setdefault("task", {})
+    if not isinstance(task, dict):
+        raise TypeError("AutomationBench task config must be an object")
+    for key in ("toolset", "search_top_k"):
+        value = parameters.get(key)
+        if isinstance(value, str | int) and not isinstance(value, bool):
+            task[key] = value
+
+
+def _sampling_seed(environment: VerifiersEnvironmentSelection) -> int:
+    seed = environment.parameters.get("sampling_seed", 0)
+    if not isinstance(seed, int) or isinstance(seed, bool) or seed < 0:
+        raise ValueError("environment sampling_seed must be a non-negative integer")
+    return seed
+
+
+def _load_selected_tasks(
+    environment: VerifiersEnvironmentSelection,
+    factory: NativeVerifiersEnvironmentFactory,
+) -> dict[int, Any]:
+    available = factory().taskset.load()
+    size = len(available)
+    if environment.num_tasks > size:
+        raise ValueError(
+            f"environment {environment.id!r} requests {environment.num_tasks} tasks, "
+            f"but the installed taskset exposes {size}"
+        )
+    indices = sorted(Random(_sampling_seed(environment)).sample(range(size), environment.num_tasks))
+    return {index: available[index] for index in indices}
 
 
 def _rollout_dataset(
@@ -188,6 +360,7 @@ class VerifiersEnvironmentRolloutBridge:
     environment_id: str
     run_id: str
     sampling: PolicySampling
+    technique: OnlineRLTechnique = "grpo"
     enrichers: tuple[TraceEnricher, ...] = ()
     _write_lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
     _trace_count: int = field(default=0, init=False)
@@ -274,6 +447,7 @@ class VerifiersEnvironmentRolloutBridge:
         if len(logprobs) != len(completion_ids):
             raise ValueError("Verifiers branch logprobs are not aligned to the training sequence")
         record = trace.to_record()
+        turns = _agentic_turns(branch, first_sampled) if self.technique == "sampo" else ()
         observation = TraceObservation(
             trace_type="verifiers",
             external_id=str(trace.id),
@@ -295,6 +469,7 @@ class VerifiersEnvironmentRolloutBridge:
             reward=float(trace.reward),
             is_truncated=bool(trace.is_truncated or trace.has_error),
             trace=observation,
+            turns=turns,
         )
 
     def _preserve(self, record: dict[str, Any]) -> None:
@@ -328,6 +503,7 @@ class VerifiersEnvironmentRolloutBridge:
             environment_id=self.environment_id,
             run_id=self.run_id,
             sampling=self.sampling,
+            technique=self.technique,
             enrichers=self.enrichers,
         )
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -345,7 +521,7 @@ class VerifiersEnvironmentRolloutBridge:
             kind="evaluation-traces",
             reference=LocalArtifactRef(self.trace_path.resolve(), digest),
             metadata={
-                "technique": "grpo",
+                "technique": self.technique,
                 "environment_id": self.environment_id,
                 "dataset_id": self.dataset.id,
                 "dataset_revision": self.dataset.revision,
@@ -366,9 +542,58 @@ def load_verifiers_bridge_snapshot(path: Path) -> VerifiersEnvironmentRolloutBri
     return snapshot.create()
 
 
+def _agentic_turns(branch: Any, first_sampled: int) -> tuple[AgenticTurn, ...]:
+    """Project sampled assistant nodes into flattened completion spans."""
+
+    turns: list[AgenticTurn] = []
+    offset = 0
+    latest_observation: Mapping[str, JsonValue] | None = None
+    for node in branch.nodes:
+        record = _record(node.message)
+        role = record.get("role")
+        node_ids = tuple(int(value) for value in node.token_ids)
+        node_mask = tuple(bool(value) for value in node.mask)
+        if len(node_ids) != len(node_mask):
+            raise ValueError("Verifiers message-node token ids and mask are misaligned")
+        sampled_positions = [index for index, selected in enumerate(node_mask) if selected]
+        if bool(getattr(node, "sampled", False)):
+            if role != "assistant" or not sampled_positions:
+                raise ValueError("SAMPO sampled nodes must be assistant turns with sampled tokens")
+            expected = list(range(sampled_positions[0], sampled_positions[-1] + 1))
+            if sampled_positions != expected:
+                raise ValueError("SAMPO requires each sampled assistant turn to be one contiguous token span")
+            if latest_observation is None:
+                raise ValueError("SAMPO sampled assistant turns require a preceding user or tool observation")
+            start = offset + sampled_positions[0] - first_sampled
+            end = offset + sampled_positions[-1] + 1 - first_sampled
+            turns.append(
+                AgenticTurn(
+                    completion_start=start,
+                    completion_end=end,
+                    anchor_state_key=_anchor_state_key(latest_observation),
+                )
+            )
+        elif role in {"user", "tool"}:
+            latest_observation = record
+        offset += len(node_ids)
+    if not turns:
+        raise ValueError("SAMPO Verifiers trace has no sampled assistant turns")
+    return tuple(turns)
+
+
+def _anchor_state_key(observation: Mapping[str, JsonValue]) -> str:
+    encoded = json.dumps(observation, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(encoded.encode()).hexdigest()
+
+
 __all__ = [
+    "EnvironmentSourceSelection",
+    "NativeVerifiersEnvironmentFactory",
     "TraceEnricher",
     "VerifiersBridgeSnapshot",
+    "VerifiersEnvironmentSelection",
     "VerifiersEnvironmentRolloutBridge",
+    "create_verifiers_training_bridge",
     "load_verifiers_bridge_snapshot",
+    "preflight_verifiers_environment",
 ]

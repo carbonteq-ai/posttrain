@@ -6,6 +6,8 @@ build-backend = "hatchling.build"
 name = "automationbench-v1"
 version = "0.1.0"
 description = "Native Verifiers v1 adapter for Zapier AutomationBench"
+authors = [{ name = "CarbonTeq" }]
+license = "Apache-2.0"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "carbonteq-automation-bench @ git+https://github.com/carbonteq-ai/AutomationBench.git@908db2abd4a868acc37ab0850474bff653bea25c",
@@ -20,3 +22,8 @@ packages = ["src/automationbench_v1"]
 
 [tool.hatch.metadata]
 allow-direct-references = true
+
+[project.urls]
+Documentation = "https://github.com/carbonteq-ai/posttrain#readme"
+Issues = "https://github.com/carbonteq-ai/posttrain/issues"
+Repository = "https://github.com/carbonteq-ai/posttrain"

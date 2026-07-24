@@ -1,0 +1,7 @@
+schema_version = 1
+project_id = "gpu-qualification"
+catalog_overlays = []
+work_packages = "work_packages"
+state = "state"
+tracking = "trackio"
+entry = "posttrain_lab.entry:configure"

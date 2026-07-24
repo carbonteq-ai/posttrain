@@ -6,15 +6,19 @@ import argparse
 import json
 import os
 import sys
-from dataclasses import dataclass
+from collections.abc import Mapping, Sequence
+from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 TRL_FORK = REPOSITORY.parent / "trl"
 SOURCE_ROOTS = (
     TRL_FORK,
     REPOSITORY / "packages" / "common" / "src",
+    REPOSITORY / "packages" / "catalog" / "src",
     REPOSITORY / "packages" / "data" / "src",
+    REPOSITORY / "packages" / "eval" / "src",
     REPOSITORY / "packages" / "train" / "src",
     REPOSITORY / "packages" / "tracking" / "src",
     REPOSITORY / "apps" / "lab" / "src",
@@ -22,8 +26,10 @@ SOURCE_ROOTS = (
 )
 sys.path[:0] = [str(path) for path in SOURCE_ROOTS]
 
-from posttrain.common import ExecutionTarget, InferenceBinding, RunContext  # noqa: E402
+from posttrain.catalog import open_catalog  # noqa: E402
+from posttrain.common import CatalogRef, ExecutionTarget, InferenceBinding, RunContext  # noqa: E402
 from posttrain.common.variants import QWEN_35_08B  # noqa: E402
+from posttrain.eval import EnvironmentBinding  # noqa: E402
 from posttrain.train import (  # noqa: E402
     QWEN35_RENDERER,
     GRPORequest,
@@ -31,20 +37,51 @@ from posttrain.train import (  # noqa: E402
     LoRAUpdate,
     TrainingBinding,
     TrainingLoop,
+    TrainingRuntime,
     grpo,
 )
-from posttrain_lab.environments import (  # noqa: E402
-    AUTOMATIONBENCH_REVISION,
-    create_automationbench_training_bridge,
+from posttrain.train.integrations import (  # noqa: E402
+    NativeVerifiersEnvironmentFactory,
+    create_verifiers_training_bridge,
+    preflight_verifiers_environment,
 )
 
 TRL_REVISION = "1e284c15717894e9ab2612e14251975512ec6c7c"
 
 
-@dataclass(frozen=True, slots=True)
-class AutomationBenchEnvironmentSelection:
-    id: str = "environments/automationbench-v1@a321764"
-    revision: str = AUTOMATIONBENCH_REVISION
+def _automationbench_bridge(
+    *,
+    task_indices: Sequence[int],
+    trace_path: Path,
+    run_id: str,
+    max_tokens: int,
+    temperature: float,
+    top_p: float,
+    parameters: Mapping[str, Any],
+) -> tuple[EnvironmentBinding, Any]:
+    catalog = open_catalog(scope="foundation-models")
+    base = catalog.resolve(CatalogRef("environment", "automationbench-zapier-simple-grpo")).value
+    if not isinstance(base, EnvironmentBinding):
+        raise TypeError("expected AutomationBench environment binding from the base catalog")
+    environment = replace(
+        base,
+        num_tasks=len(task_indices),
+        parameters={**dict(base.parameters), **dict(parameters)},
+    )
+    config = preflight_verifiers_environment(environment)
+    available = NativeVerifiersEnvironmentFactory(config)().taskset.load()
+    tasks = {index: available[index] for index in task_indices}
+    bridge = create_verifiers_training_bridge(
+        environment,
+        trace_path,
+        run_id,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        top_p=top_p,
+        purpose="grpo",
+        tasks=tasks,
+    )
+    return environment, bridge
 
 
 def main() -> None:
@@ -82,9 +119,9 @@ def main() -> None:
         renderer=QWEN35_RENDERER,
         update=LoRAUpdate(rank=8, alpha=16, target_modules="all-linear"),
         target=target,
-        runtime={
-            "global_batch_size": args.num_generations,
-            "backend_source_revision": TRL_REVISION,
+        runtime=TrainingRuntime(global_batch_size=args.num_generations),
+        backend_options={
+            "source_revision": TRL_REVISION,
         },
     )
     inference = InferenceBinding(
@@ -126,17 +163,19 @@ def main() -> None:
         max_completion_length=512,
     )
     trace_path = workspace / "training" / "grpo" / "verifiers-traces.jsonl"
-    bridge = create_automationbench_training_bridge(
-        args.task_index,
-        trace_path,
-        "automationbench-qwen35-08b-trl-mtp-qualification",
+    environment, bridge = _automationbench_bridge(
+        task_indices=(args.task_index,),
+        trace_path=trace_path,
+        run_id="automationbench-qwen35-08b-trl-mtp-qualification",
         max_tokens=512,
         temperature=1.0,
         top_p=0.95,
-        search_top_k=1,
-        max_turns=50,
-        max_total_tokens=32768,
-        toolset="limited_zapier",
+        parameters={
+            "search_top_k": 1,
+            "max_turns": 50,
+            "max_total_tokens": 32768,
+            "toolset": "limited_zapier",
+        },
     )
     context = RunContext(
         project_id="foundation-models",
@@ -152,7 +191,7 @@ def main() -> None:
             policy=QWEN_35_08B,
             bridge=bridge,
             settings=settings,
-            environment=AutomationBenchEnvironmentSelection(),
+            environment=environment,
             training=training,
             inference=inference,
         ),

@@ -1,0 +1,9 @@
+dataset:
+  datasets/posttrain-sft-smoke@1:
+    revision: "1"
+    kind: supervised
+    source:
+      kind: fixture
+      resource: posttrain.data.fixtures:sft_messages.jsonl
+    format:
+      kind: messages

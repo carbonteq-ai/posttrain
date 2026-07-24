@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Literal
 
-from .requests import GRPORequest
+from .requests import GRPORequest, SAMPORequest
 
 type GRPOBackendProduct = Literal["trl", "verl"]
 
@@ -28,7 +28,7 @@ class GRPOObservationFeatures:
     @classmethod
     def from_request(
         cls,
-        request: GRPORequest,
+        request: GRPORequest | SAMPORequest,
         *,
         tool_environment: bool = False,
     ) -> GRPOObservationFeatures:

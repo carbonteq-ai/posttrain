@@ -242,6 +242,13 @@ Includes SFT-like series plus:
 Per-rollout rewards also live on `VerifiersTrace`; do not require duplicating
 every rollout reward into `train/rl/*` unless the trainer only exposes aggregates.
 
+For `train.sampo`, the native rollout evidence additionally preserves sampled
+assistant-turn token spans, stable anchor-state keys, and whether sparse
+terminal reward projection was used. Step metrics record episode-advantage and
+turn-advantage summaries, anchor-group sizes, the sequence importance ratio,
+and dynamic-filter candidate/retained counts. These are evidence about the
+selected SAMPO semantics, not a second environment reward definition.
+
 ### Train metrics (on-policy distillation)
 
 Includes the common `train/*` step series plus:

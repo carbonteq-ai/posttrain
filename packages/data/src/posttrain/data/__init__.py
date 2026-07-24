@@ -15,6 +15,15 @@ from .adapters import (
     to_nemo_preference_rows,
     to_nemo_sft_rows,
 )
+from .catalog import (
+    DATA_CATALOG_DECODERS,
+    DatasetLoadPlan,
+    DatasetMaterialization,
+    decode_dataset_selection,
+    load_materialized_dataset,
+    materialize_dataset,
+    resolve_dataset_source,
+)
 from .models import (
     DatasetDescriptor,
     MessageRecord,
@@ -38,6 +47,8 @@ from .sources import PreferencePairSource, ScoredContinuation
 
 __all__ = [
     "DatasetDescriptor",
+    "DatasetLoadPlan",
+    "DatasetMaterialization",
     "MessageRecord",
     "PreferenceDataSource",
     "PreferenceDataset",
@@ -56,6 +67,11 @@ __all__ = [
     "SupervisedPartitionPlan",
     "ToolRecord",
     "TraceSelection",
+    "DATA_CATALOG_DECODERS",
+    "decode_dataset_selection",
+    "load_materialized_dataset",
+    "materialize_dataset",
+    "resolve_dataset_source",
     "preferences_from_huggingface",
     "preferences_from_nemo",
     "partition_supervised_dataset",

@@ -40,32 +40,45 @@ uv pip install \
   posttrain
 ```
 
-Initialize a project and inspect the generated configuration:
+Initialize and install an SFT starter. Point uv at the same wheelhouse so the
+generated project can resolve the unpublished team release:
 
 ```bash
-.venv/bin/posttrain init my-model-project --project-id my-model-project
+POSTTRAIN="$(pwd)/.venv/bin/posttrain"
+WHEELHOUSE="$(pwd)/posttrain-wheelhouse"
+
+UV_FIND_LINKS="$WHEELHOUSE" \
+UV_CONSTRAINT="$WHEELHOUSE/github-constraints.txt" \
+"$POSTTRAIN" init my-model-project --template sft --project-id my-model-project
 cd my-model-project
 
-../.venv/bin/posttrain doctor
-../.venv/bin/posttrain project show
-../.venv/bin/posttrain catalog validate
+.venv/bin/posttrain doctor
+.venv/bin/posttrain dataset validate datasets/posttrain-sft-smoke@1
+.venv/bin/posttrain work-package validate sft.yaml
+# CUDA release gate:
+.venv/bin/posttrain work-package run sft.yaml --job train
+.venv/bin/posttrain observatory up
 ```
 
-In a normal application repository, add Posttrain to that repository's locked
-environment rather than keeping the sibling virtual environment shown above.
-The wheelhouse constraints file is important: it pins the CarbonTeq Trackio and
-AutomationBench forks to immutable Git commits.
+`posttrain init` writes the project package and `.posttrain/` configuration,
+creates the project-local `.venv`, and installs the selected extras. There is
+no separate Posttrain sync command. The wheelhouse constraints file pins the
+CarbonTeq forks to immutable Git commits.
 
 ## Project structure
 
-`posttrain init` creates one portable control directory:
+`posttrain init --template sft` creates an installable project:
 
 ```text
 my-model-project/
+  pyproject.toml
+  uv.lock
   .posttrain/
     project.toml       project identity and path policy
-    catalog/           project-owned catalog overlays
-    work_packages/     screen, train, and qualify compositions
+    catalog/
+      settings.yaml    visible project-owned training settings
+    work_packages/
+      sft.yaml         standard train/trl-sft@1 composition
     state/             ignored caches, scratch, recovery, and local provider state
 ```
 
@@ -140,11 +153,12 @@ posttrain catalog show target targets/local-cpu
 posttrain work-package validate .posttrain/work_packages/cpu_check.yaml
 ```
 
-The primary CLI currently owns initialization, diagnostics, catalog inspection,
-and composition-level work-package validation. Concrete execution is supplied
-by a host because job definitions and backend wiring are project-specific.
-`posttrain-lab` is the included reference host; it is an example composition,
-not a required framework dependency.
+The primary CLI owns initialization, diagnostics, catalog inspection,
+materialization, work-package validation/execution, and local Observatory
+bring-up. Standard SFT, DPO, GRPO, DAPO, SAMPO, distillation, serve, evaluation,
+and model-transform definitions come from `posttrain.jobs`; projects do not
+need a host or `posttrain-lab` on the common path. An optional project entry may
+add unshipped definitions without redefining standard ids.
 
 ## Choose capabilities
 
@@ -159,7 +173,8 @@ Install only the packages a project needs from the same release wheelhouse:
 | `posttrain-tracking-trackio` | Default local tracking backend |
 | `posttrain-tracking-wandb` | W&B tracking backend |
 | `posttrain-observatory` | Read-only evidence queries, reports, HTTP, MCP, and UI |
-| `posttrain-lab` | Reference jobs and end-to-end compositions |
+| `posttrain-jobs` | Standard cross-capability job definitions and project runtime |
+| `posttrain-lab` | Framework qualification scenarios and backend release gates |
 
 Backend-specific extras are opt-in. For example:
 
@@ -178,10 +193,10 @@ Training, evaluation, serving, and tracking remain separate reusable
 capabilities. A project or host composes them through framework contracts;
 those packages do not import one another.
 
-## Run the reference host
+## Run the qualification suite
 
 Install `posttrain-lab` when developing the framework or adapting one of its
-reference workflows:
+qualification workflows. Product projects should use `posttrain init` instead.
 
 ```bash
 uv pip install \
@@ -191,6 +206,14 @@ uv pip install \
   posttrain-lab posttrain-observatory
 
 .venv/bin/posttrain-lab foundation-qwen-smoke --tracked
+```
+
+From a framework checkout, YAML qualification packages also run through the
+primary CLI with no `--host` (repo-root `.posttrain/project.toml` entry):
+
+```bash
+uv run --package posttrain posttrain work-package validate \
+  .posttrain/work_packages/foundation_screen.yaml
 ```
 
 `--tracked` uses local Trackio by default. W&B is available through
@@ -212,6 +235,28 @@ uv sync --all-packages --locked --python 3.12
 uv run --package posttrain posttrain doctor
 uv run pytest -q tests/consumer
 ```
+
+That installs the framework, applications, and development tools without the
+large GPU backends. Select one workspace profile when working on training:
+
+```bash
+# Transformers + the pinned CarbonTeq TRL fork: SFT, DPO, and trainer tests
+uv sync --all-packages --extra gpu-train --locked --python 3.12
+
+# TRL + vLLM + Verifiers + AutomationBench: GRPO, DAPO, SAMPO, distillation
+uv sync --all-packages --extra gpu-posttrain --locked --python 3.12
+```
+
+Use `uv run --no-sync ...` for backend-specific commands after selecting one
+of these profiles so uv does not synchronize the environment back to the core
+dependency set.
+
+The complete agentic profile is Linux/NVIDIA-specific and uses the CUDA 13
+PyTorch index selected by the workspace lock. veRL intentionally lives in a
+separate environment because its Transformers/vLLM stack conflicts with the
+TRL environment. See [Developer environment setup](./docs/tooling/mise-uv/setup-environment.md)
+for prerequisites, verification commands, Hugging Face access, CUDA library
+setup, and the isolated veRL boundary.
 
 The repository is a Python 3.12 `uv` workspace:
 
@@ -252,5 +297,7 @@ Read the documentation progressively:
 
 For release installation, remote-server use, package ordering, and known
 release gaps, see [Release and consumption](./docs/release-and-consumption.md).
+For the project-author journey and configuration ownership, see
+[Developer experience](./docs/developer-experience.md).
 The smallest independent project is
 [`tests/consumer/fixture`](./tests/consumer/fixture).

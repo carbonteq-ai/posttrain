@@ -28,31 +28,45 @@ from .runner import (
     ResolvedSeat,
     ResolvedWorkPackage,
     RunExecutor,
+    SeatResolver,
     WorkPackageContext,
+    WorkPackageHostFactory,
+    WorkPackageHostRequest,
     resolve_work_package,
     run_work_package,
+    run_work_package_job,
     validate_work_package,
 )
+
+JobRuntime = WorkPackageContext
+ProjectExecutionRequest = WorkPackageHostRequest
+ProjectEntry = WorkPackageHostFactory
 
 __all__ = [
     "ArtifactInput",
     "ArtifactMaterializer",
     "JobDefinition",
     "JobKind",
+    "JobRuntime",
     "JobOperation",
     "JobStatus",
     "Recipe",
     "RecipeJob",
+    "ProjectEntry",
+    "ProjectExecutionRequest",
     "ResolvedSeat",
     "ResolvedSeats",
     "ResolvedWorkPackage",
     "RunExecutor",
     "RunOperation",
     "RunSpec",
+    "SeatResolver",
     "SeatBinding",
     "Stage",
     "WorkPackage",
     "WorkPackageContext",
+    "WorkPackageHostFactory",
+    "WorkPackageHostRequest",
     "WorkPackageJobResult",
     "WorkPackageResult",
     "WorkPackageSchema",
@@ -61,5 +75,6 @@ __all__ = [
     "load_work_package",
     "resolve_work_package",
     "run_work_package",
+    "run_work_package_job",
     "validate_work_package",
 ]

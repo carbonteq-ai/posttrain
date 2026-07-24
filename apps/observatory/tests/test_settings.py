@@ -45,3 +45,31 @@ def test_multiple_source_ids_must_be_unique() -> None:
                 )
             }
         )
+
+
+def test_project_settings_select_trackio_project_and_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("POSTTRAIN_TRACKIO_SERVER_URL", "http://trackio:7860")
+
+    settings = ObservatorySettings.for_project("support-agent", "trackio", port=8787)
+
+    assert settings.source == "trackio"
+    assert settings.source_id == "trackio-support-agent"
+    assert settings.trackio_project == "support-agent"
+    assert settings.trackio_server_url == "http://trackio:7860"
+    assert settings.port == 8787
+
+
+def test_project_settings_select_wandb_project(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("WANDB_ENTITY", "carbonteq")
+    monkeypatch.setenv("WANDB_PROJECT", "shared-evidence")
+
+    settings = ObservatorySettings.for_project("support-agent", "wandb")
+
+    assert settings.source == "wandb"
+    assert settings.source_id == "wandb-support-agent"
+    assert settings.wandb_entity == "carbonteq"
+    assert settings.wandb_project == "shared-evidence"

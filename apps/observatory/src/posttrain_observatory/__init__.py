@@ -1,5 +1,6 @@
 """Dedicated post-training observability and analysis product."""
 
+from .composition import create_service
 from .fixtures import FixtureRunDataSource
 from .models import (
     ChartView,
@@ -42,7 +43,9 @@ from .semantic import (
     SemanticAnalysisService,
     SemanticSummaryProvider,
 )
+from .server import serve
 from .service import ObservatoryService, RunViewService
+from .settings import ObservatorySettings
 from .sources import RunSourceRegistry
 from .telemetry import (
     DEFAULT_TELEMETRY_DEFINITIONS,
@@ -89,6 +92,7 @@ __all__ = [
     "MetricSeriesQuery",
     "MetricSeriesSet",
     "ObservatoryService",
+    "ObservatorySettings",
     "OpenAICompatibleSemanticSummaryProvider",
     "RunAlert",
     "RunComparison",
@@ -118,5 +122,7 @@ __all__ = [
     "TraceEvaluationView",
     "TraceSectionDefinition",
     "WorkPackageView",
+    "create_service",
     "telemetry_registry",
+    "serve",
 ]

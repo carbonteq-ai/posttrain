@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 from typing import cast
 
 import pytest
@@ -70,10 +71,14 @@ def test_reference_yaml_runs_screen_and_skips_optional_eval() -> None:
 
 
 def test_distillation_yaml_resolves_every_seat_through_the_catalog() -> None:
+    pytest.importorskip("verifiers")
     package = load_work_package(WORK_PACKAGES / "gsm8k_distillation.yaml")
     catalog = open_catalog(scope=package.project_id)
     resolved = resolve_work_package(catalog, package)
-    definition = distillation_definition(lambda context, request: request)
+    definition = distillation_definition(
+        lambda context, request: request,
+        tasks={0: SimpleNamespace(data=SimpleNamespace(prompt="2 + 2"))},
+    )
 
     result = run_work_package(
         WorkPackageContext(catalog, {definition.id: definition}),
@@ -126,8 +131,15 @@ def test_distillation_yaml_resolves_every_seat_through_the_catalog() -> None:
 
 
 def test_grpo_definition_accepts_only_an_environment_population_seat() -> None:
+    pytest.importorskip("verifiers")
     catalog = open_catalog(scope="foundation-models")
-    definition = grpo_definition(lambda context, request: request)
+    definition = grpo_definition(
+        lambda context, request: request,
+        tasks={
+            0: SimpleNamespace(data=SimpleNamespace(prompt="task zero")),
+            1: SimpleNamespace(data=SimpleNamespace(prompt="task one")),
+        },
+    )
     environment_ref = CatalogRef("environment", "automationbench-zapier-simple-grpo")
     environment = catalog.resolve(environment_ref).value
     settings = catalog.resolve(CatalogRef("training", "automationbench/qwen3.5-0.8b/grpo-mtp-smoke-v1")).value

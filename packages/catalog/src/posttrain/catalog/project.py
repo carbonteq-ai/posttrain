@@ -7,6 +7,7 @@ import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from posttrain.common import ContractError
 from posttrain.common.selections import validate_selection_id
@@ -25,6 +26,8 @@ class _ProjectManifest(BaseModel):
     catalog_overlays: tuple[str, ...] = ("catalog",)
     work_packages: str = "work_packages"
     state: str = "state"
+    tracking: Literal["trackio", "wandb", "none"] = "trackio"
+    entry: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,6 +41,8 @@ class ProjectLayout:
     catalog_overlays: tuple[Path, ...]
     work_packages: Path
     state: Path
+    tracking: Literal["trackio", "wandb", "none"] = "trackio"
+    entry: str | None = None
     base_catalog: Path | None = None
 
     def __post_init__(self) -> None:
@@ -49,6 +54,8 @@ class ProjectLayout:
             raise ContractError("project layout catalog overlay paths must be absolute")
         if self.base_catalog is not None and not self.base_catalog.is_absolute():
             raise ContractError("project layout base catalog path must be absolute")
+        if self.entry is not None:
+            _validate_entry(self.entry)
 
     @classmethod
     def legacy(cls, repository: Path, project_id: str) -> ProjectLayout:
@@ -65,6 +72,7 @@ class ProjectLayout:
             catalog_overlays=(overlay,) if overlay.is_dir() else (),
             work_packages=root / "work_packages",
             state=root / ".posttrain" / "state",
+            tracking="trackio",
             base_catalog=catalog_root if (catalog_root / "base").is_dir() else None,
         )
 
@@ -137,6 +145,8 @@ def load_project_layout(root: Path) -> ProjectLayout:
         catalog_overlays=overlays,
         work_packages=work_packages,
         state=state,
+        tracking=manifest.tracking,
+        entry=_validate_entry(manifest.entry) if manifest.entry is not None else None,
     )
 
 
@@ -157,6 +167,15 @@ def _state_path(control_dir: Path, value: str) -> Path:
         raise ContractError("post-training project state path cannot be empty")
     configured = Path(value)
     return configured.resolve() if configured.is_absolute() else (control_dir / configured).resolve()
+
+
+def _validate_entry(value: str) -> str:
+    module, separator, attribute = value.partition(":")
+    if not separator or not module or not attribute or ":" in attribute:
+        raise ContractError("post-training project entry must use MODULE:CALLABLE syntax")
+    if not all(part.isidentifier() for part in module.split(".")) or not attribute.isidentifier():
+        raise ContractError("post-training project entry contains an invalid Python name")
+    return value
 
 
 __all__ = ["ProjectLayout", "discover_project", "load_project_layout"]

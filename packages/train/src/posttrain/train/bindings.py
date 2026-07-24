@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
@@ -77,6 +78,32 @@ class TrainingParallelism:
 
 
 @dataclass(frozen=True, slots=True)
+class TrainingRuntime:
+    """Backend-neutral resource and process policy for one training binding."""
+
+    global_batch_size: int | None = None
+    nodes: int = 1
+    devices_per_node: int | None = None
+    parameter_offload: bool = False
+    optimizer_offload: bool = False
+    timeout_seconds: float | None = None
+
+    def __post_init__(self) -> None:
+        counts = (self.global_batch_size, self.nodes, self.devices_per_node)
+        if any(
+            value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 1)
+            for value in counts
+        ):
+            raise ValueError("training runtime batch and topology values must be positive integers")
+        if self.timeout_seconds is not None and (
+            isinstance(self.timeout_seconds, bool)
+            or not math.isfinite(self.timeout_seconds)
+            or self.timeout_seconds <= 0
+        ):
+            raise ValueError("training runtime timeout_seconds must be a finite positive number")
+
+
+@dataclass(frozen=True, slots=True)
 class TrainingBinding:
     id: str
     revision: str
@@ -85,7 +112,7 @@ class TrainingBinding:
     update: ParameterUpdatePlan
     target: ExecutionTarget
     parallelism: TrainingParallelism = field(default_factory=TrainingParallelism)
-    runtime: Mapping[str, JsonValue] = field(default_factory=dict)
+    runtime: TrainingRuntime = field(default_factory=TrainingRuntime)
     backend_options: Mapping[str, JsonValue] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -93,7 +120,8 @@ class TrainingBinding:
         validate_revision(self.revision, "training binding revision")
         if "@" not in self.backend:
             raise ValueError("training backend must include a product and version")
-        object.__setattr__(self, "runtime", MappingProxyType(dict(self.runtime)))
+        if not isinstance(self.runtime, TrainingRuntime):
+            raise TypeError("training binding runtime must be a TrainingRuntime")
         object.__setattr__(self, "backend_options", MappingProxyType(dict(self.backend_options)))
 
 
@@ -202,6 +230,7 @@ __all__ = [
     "QuantizationPlan",
     "TrainingBinding",
     "TrainingParallelism",
+    "TrainingRuntime",
     "parameter_update_digest",
     "validate_parameter_update",
 ]

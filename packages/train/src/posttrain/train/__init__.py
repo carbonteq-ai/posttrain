@@ -1,6 +1,18 @@
 """Reusable, observer-neutral post-training operations."""
 
-from .api import DistillationBackend, DPOBackend, GRPOBackend, SFTBackend, TrainingContext, distill, dpo, grpo, sft
+from .api import (
+    DistillationBackend,
+    DPOBackend,
+    GRPOBackend,
+    SAMPOBackend,
+    SFTBackend,
+    TrainingContext,
+    distill,
+    dpo,
+    grpo,
+    sampo,
+    sft,
+)
 from .backends.quantization import run_llm_compressor
 from .bindings import (
     CalibrationSelection,
@@ -12,10 +24,11 @@ from .bindings import (
     QuantizationPlan,
     TrainingBinding,
     TrainingParallelism,
+    TrainingRuntime,
     parameter_update_digest,
     validate_parameter_update,
 )
-from .catalog_schema import TRAIN_CATALOG_DECODERS, QuantizationPlanSchema, TrainingBindingSchema
+from .catalog_schema import TRAIN_CATALOG_DECODERS, QuantizationPlanSchema, TrainingBindingSchema, TrainingRuntimeSchema
 from .distillation import DistillationBatch, DistillationBatchLedger, DistillationBatchSource
 from .grpo_observations import (
     GRPOEvidenceStatus,
@@ -26,6 +39,7 @@ from .grpo_observations import (
     required_grpo_metrics,
 )
 from .online_rl import (
+    AgenticTurn,
     EnvironmentRollout,
     EnvironmentRolloutBridge,
     PolicyGenerator,
@@ -45,16 +59,21 @@ from .profiles import (
     QWEN35_SFT_SMOKE,
     QWEN35_THINKING_RENDERER,
     DPOSettings,
+    DynamicGroupSampling,
     GRPOSettings,
     OnPolicyDistillationSettings,
+    SAMPOSettings,
     SFTSettings,
     SFTValidationSettings,
     TrainingLoop,
     TrainingRenderer,
+    shape_online_reward,
+    shape_soft_overlong_reward,
 )
 from .rendering import RenderedPreferenceExample, RenderedSFTExample, render_preferences, render_supervised
-from .requests import DPORequest, GRPORequest, OnPolicyDistillationRequest, SFTRequest
+from .requests import DPORequest, GRPORequest, OnPolicyDistillationRequest, SAMPORequest, SFTRequest
 from .results import TeacherScoringSummary, TrainingResult, TrainingSummary
+from .sampo_advantages import SAMPOAdvantages, compute_sampo_advantages
 from .transform import (
     TransformContext,
     TransformRequest,
@@ -62,18 +81,28 @@ from .transform import (
     TransformRunner,
     transform,
 )
+from .verifiers_requests import (
+    build_verifiers_distillation_request,
+    build_verifiers_grpo_request,
+    build_verifiers_sampo_request,
+)
 
 __all__ = [
     "DPOBackend",
     "DistillationBackend",
     "CalibrationSelection",
     "DPOSettings",
+    "DynamicGroupSampling",
     "DPORequest",
     "GRPOBackend",
+    "SAMPOBackend",
     "GRPOEvidenceStatus",
     "GRPOObservationFeatures",
     "GRPOSettings",
     "GRPORequest",
+    "SAMPORequest",
+    "SAMPOSettings",
+    "SAMPOAdvantages",
     "OnPolicyDistillationRequest",
     "OnPolicyDistillationSettings",
     "NormalizedGRPOStep",
@@ -96,7 +125,10 @@ __all__ = [
     "RenderedPreferenceExample",
     "RenderedSFTExample",
     "TrainingRenderer",
+    "shape_online_reward",
+    "shape_soft_overlong_reward",
     "EnvironmentRollout",
+    "AgenticTurn",
     "EnvironmentRolloutBridge",
     "DistillationBatch",
     "DistillationBatchLedger",
@@ -116,6 +148,8 @@ __all__ = [
     "TrainingBinding",
     "TrainingBindingSchema",
     "TrainingParallelism",
+    "TrainingRuntime",
+    "TrainingRuntimeSchema",
     "parameter_update_digest",
     "validate_parameter_update",
     "TrainingResult",
@@ -128,7 +162,12 @@ __all__ = [
     "dpo",
     "distill",
     "grpo",
+    "sampo",
     "assess_grpo_evidence",
+    "build_verifiers_distillation_request",
+    "build_verifiers_grpo_request",
+    "build_verifiers_sampo_request",
+    "compute_sampo_advantages",
     "normalize_grpo_metrics",
     "render_preferences",
     "render_supervised",

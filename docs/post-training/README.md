@@ -50,6 +50,45 @@ definitions and provider wiring are supplied by a host. Details:
 [04 · Framework](./04-framework.md),
 [05 · APIs](./05-apis.md), and the
 [release implementation plan](../plan/polished-framework-release.md).
+**Amendment — project developer experience and standard jobs (2026-07-23):**
+ordinary projects use the framework-published global catalog, project overlays,
+and standard job definitions from `posttrain.jobs`; they do not import
+`posttrain_lab` or author a composition host on the happy path.
+`posttrain.jobs` owns stable seat-to-operation definitions and default
+`JobRuntime` construction, while `posttrain.work` remains the
+recipe/work-package contract and runner layer. Standard jobs materialize
+declarative dataset and environment bindings on first use through the existing
+`posttrain.data` adapters and Verifiers bridges. The primary CLI initializes
+and installs project templates, runs jobs without a required host flag, and
+starts local Observatory. `ProjectExecutionRequest`, `ProjectEntry`, and
+`JobRuntime` are the preferred public composition names; existing
+`WorkPackageHost*` names remain compatibility aliases during migration.
+Details: [04 · Framework](./04-framework.md), [05 · APIs](./05-apis.md),
+[developer experience](../developer-experience.md), and the
+[implementation plan](../plan/project-developer-experience.md).
+**Amendment — DAPO algorithm selection (2026-07-24):**
+`train.grpo` keeps one request shape while `GRPOSettings.algorithm` selects
+`grpo` or `dapo`. DAPO owns token-level loss, asymmetric clipping, global
+active-token normalization, retained-group dynamic sampling, truncation
+handling, and optional soft-overlong shaping. Sampling-efficiency, memory,
+failure-bound, and observability improvements do not create a renamed DAPO
+variant. CISPO, GSPO, Dr. GRPO, ARPO, and SAMPO remain distinct algorithms.
+Details: [02 · Primitives](./02-primitives.md),
+[05 · APIs](./05-apis.md), and the
+[implementation plan](../plan/dapo-algorithm-backends.md).
+**Amendment — SAMPO agentic training (2026-07-24):**
+`train.sampo` is a separate multi-turn tool-agent operation. It combines
+sequence-level clipped policy updates, group-relative episode advantages,
+anchor-state-relative turn advantages, and bounded filtering of
+reward-constant trajectory groups. Its rollout contract records sampled
+assistant-turn token spans and stable preceding observation keys. TRL is the
+first qualified backend. The veRL adapter uses a maintained fork implementing
+the same hierarchical advantage contract and the existing GSPO loss; adapters
+without both pieces must reject the selection rather than approximate it with
+GSPO alone.
+Details: [02 · Primitives](./02-primitives.md),
+[05 · APIs](./05-apis.md), [06 · Observation and lineage](./06-observation-and-lineage.md),
+and the [implementation plan](../plan/sampo-agentic-training.md).
 
 These six documents are the **product/design authority** for the post-training
 framework. Do not expand or redesign them while building the implementation
@@ -114,6 +153,9 @@ Locked in at freeze time:
 | catalog base + overlay | dual catalogs / copy-paste engine YAML |
 | `work_package_id` (tracking group) | Provider group = old `job_id` alone |
 | `.posttrain/work_packages/` (project dir) | `packages/` for YAML work-package configs |
+| project entry / job runtime | host factory / host context on the project happy path |
+| `posttrain.jobs` standard definitions | copying definitions from `apps/lab` |
+| global catalog + project overlay | empty base catalog / project copies of shared entries |
 | async RL (deferred) | calling Trackio/background I/O “async RL” |
 
 ## Next (after freeze)

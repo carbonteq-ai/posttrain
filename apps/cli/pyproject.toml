@@ -2,13 +2,21 @@
 name = "posttrain"
 version = "0.1.0"
 description = "Command-line interface for portable post-training projects"
+authors = [{ name = "CarbonTeq" }]
+license = "Apache-2.0"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "posttrain-catalog",
+    "posttrain-data",
+    "posttrain-jobs",
     "posttrain-work",
+    "typer>=0.25.1",
 ]
 
 [project.optional-dependencies]
+observatory = [
+    "posttrain-observatory",
+]
 trackio = [
     "posttrain-tracking-trackio",
 ]
@@ -30,6 +38,9 @@ posttrain = "posttrain_cli.cli:main"
 
 [tool.uv.sources]
 posttrain-catalog = { workspace = true }
+posttrain-data = { workspace = true }
+posttrain-jobs = { workspace = true }
+posttrain-observatory = { workspace = true }
 posttrain-eval = { workspace = true }
 posttrain-serve = { workspace = true }
 posttrain-tracking-trackio = { workspace = true }
@@ -43,3 +54,8 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/posttrain_cli"]
+
+[project.urls]
+Documentation = "https://github.com/carbonteq-ai/posttrain#readme"
+Issues = "https://github.com/carbonteq-ai/posttrain/issues"
+Repository = "https://github.com/carbonteq-ai/posttrain"

@@ -2,6 +2,8 @@
 name = "posttrain-eval"
 version = "0.1.0"
 description = "Reusable Verifiers evaluation engine"
+authors = [{ name = "CarbonTeq" }]
+license = "Apache-2.0"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "posttrain-common",
@@ -36,3 +38,8 @@ packages = ["src/posttrain"]
 
 [tool.hatch.metadata]
 allow-direct-references = true
+
+[project.urls]
+Documentation = "https://github.com/carbonteq-ai/posttrain#readme"
+Issues = "https://github.com/carbonteq-ai/posttrain/issues"
+Repository = "https://github.com/carbonteq-ai/posttrain"

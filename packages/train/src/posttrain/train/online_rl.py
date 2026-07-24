@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Literal, Protocol
@@ -11,6 +12,24 @@ from posttrain.data import MessageRecord, RolloutDataset
 
 type ToolRecord = Mapping[str, JsonValue]
 type TokenSpan = tuple[int, int]
+
+
+@dataclass(frozen=True, slots=True)
+class AgenticTurn:
+    """One sampled assistant turn aligned to a flattened trajectory."""
+
+    completion_start: int
+    completion_end: int
+    anchor_state_key: str
+    step_reward: float | None = None
+
+    def __post_init__(self) -> None:
+        if self.completion_start < 0 or self.completion_end <= self.completion_start:
+            raise ValueError("agentic turn requires a positive half-open completion span")
+        if not self.anchor_state_key.strip():
+            raise ValueError("agentic turn anchor-state key cannot be empty")
+        if self.step_reward is not None and not math.isfinite(self.step_reward):
+            raise ValueError("agentic turn reward must be finite")
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,6 +129,7 @@ class EnvironmentRollout:
     reward: float
     is_truncated: bool
     trace: TraceObservation
+    turns: tuple[AgenticTurn, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.prompt_ids or not self.completion_ids:
@@ -120,6 +140,13 @@ class EnvironmentRollout:
             raise ValueError("sampling logprobs must align with completion ids")
         if not any(self.env_mask):
             raise ValueError("training rollouts require at least one model-sampled token")
+        previous_end = 0
+        for turn in self.turns:
+            if turn.completion_start < previous_end or turn.completion_end > len(self.completion_ids):
+                raise ValueError("agentic turn spans must be ordered, non-overlapping, and inside the completion")
+            if not all(self.env_mask[turn.completion_start : turn.completion_end]):
+                raise ValueError("agentic turn spans may contain only model-sampled tokens")
+            previous_end = turn.completion_end
 
 
 class EnvironmentRolloutBridge(Protocol):
@@ -134,6 +161,7 @@ class EnvironmentRolloutBridge(Protocol):
 
 
 __all__ = [
+    "AgenticTurn",
     "EnvironmentRolloutBridge",
     "EnvironmentRollout",
     "PolicyGenerator",

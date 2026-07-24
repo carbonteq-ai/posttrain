@@ -34,11 +34,15 @@ A developer can demonstrate the feature without a GPU by running adapter and dis
 - [x] (2026-07-22) Qualified Qwen 3.5 0.8B MTP-1 standalone at a 32K window: token-identical short outputs, successful 8K-through-32.7K recall, 88.67%-93.75% draft acceptance, and level-1 sleep/wake at a 0.65 rollout budget.
 - [x] (2026-07-22) Completed two Verifiers GRPO updates with MTP enabled: 32 trajectories, non-zero gradients, checkpoints, adapter export and synchronization, and a post-update MTP rollout using a 0.55 rollout budget with 4096-token chunked prefill.
 - [x] (2026-07-22) Added step-local aggregate MTP telemetry and qualified it across two complete GRPO steps: 79.03% acceptance before the first update and 81.67% after LoRA synchronization. Per-request attribution remains unavailable and is not required for the synchronous backend gate.
+- [x] (2026-07-24) Completed shared checkpoint-policy conformance: veRL now maps `checkpoint_limit` to actor and critic recovery retention, applies explicit `resume_from`, disables implicit auto-resume for fresh runs, and rejects backend overrides that replace the selected checkpoint policy.
 
 ## Surprises & Discoveries
 
 - Observation: Current upstream veRL already has extensive Qwen 3.5 support, including dense and MoE GRPO recipes, model-specific forward patches, vLLM synchronization handling, and a Qwen 3.5 on-policy-distillation recipe.
   Evidence: upstream commit `a35908ca3c9632859c58d6a2855d858918ae21dc` contains `examples/grpo_trainer/run_qwen3_5_2b_openr1_fsdp.sh`, `examples/on_policy_distillation_trainer/run_qwen3_5_4b_fsdp.sh`, and `verl/models/transformers/qwen3_5.py`.
+
+- Observation: veRL exposes the shared recovery behaviors through separate native fields and rotates actor/critic state rather than every file in an old `global_step_*` directory.
+  Evidence: `trainer.max_actor_ckpt_to_keep` and `trainer.max_critic_ckpt_to_keep` are passed to the checkpoint managers, while `trainer.resume_mode=resume_path` and `trainer.resume_from_path` load an explicit `global_step_*` directory. Old step metadata may remain after state rotation, but it is not a resumable model checkpoint.
 
 - Observation: The repository's TRL runtime and upstream veRL currently resolve incompatible Transformers and vLLM versions.
   Evidence: `packages/train/pyproject.toml` selects Transformers 5.14 and vLLM 0.25.1, while the inspected veRL recipes select an older Transformers revision and vLLM 0.18.0. The adapter therefore cannot safely import veRL into the main `uv` environment.
@@ -106,6 +110,10 @@ A developer can demonstrate the feature without a GPU by running adapter and dis
 - Decision: Preserve `GRPORequest`, `OnPolicyDistillationRequest`, and the Verifiers rollout contract instead of adding veRL-specific public operations.
   Rationale: The canonical baseline defines stable job meaning and explicitly requires a future veRL adapter to preserve it.
   Date/Author: 2026-07-22 / Codex.
+
+- Decision: Implement checkpoint cleanup as backend conformance to `TrainingLoop`, not as a veRL-specific knob or a destructive cross-run action.
+  Rationale: `checkpoint_steps`, `checkpoint_limit`, and `resume_from` already express within-run recovery policy. A fresh run must explicitly disable veRL auto-resume; deleting diagnostic state from other runs belongs to a separate workspace-retention lifecycle.
+  Date/Author: 2026-07-24 / Codex.
 
 - Decision: Launch veRL through an explicitly configured isolated Python interpreter and immutable source revision.
   Rationale: This avoids dependency contamination and makes the runtime reproducible. The host process owns logical observation and artifact ingestion; the isolated process owns veRL, Ray, Transformers, vLLM, and the GPU workers.
@@ -256,3 +264,5 @@ Revision note (2026-07-22): Added rollout-only MTP translation and standalone Qw
 Revision note (2026-07-22): Completed the two-step AutomationBench MTP GRPO lifecycle after adding the pinned Verifiers dependencies to the upgraded runtime, reducing the colocated rollout budget to 0.55 with 4096-token chunked prefill, and fixing Qwen 3.5 attention dispatch when FSDP2 drops the decoder's plain `layer_type` attribute. Acceptance telemetry remains open.
 
 Revision note (2026-07-22): Closed the synchronous MTP observability gate by enabling vLLM statistics, snapshotting aggregate speculative counters before rollout sleep, converting lifetime counters into per-step deltas, and qualifying non-zero acceptance before and after adapter synchronization in run `-06`.
+
+Revision note (2026-07-24): Wired the shared checkpoint limit and explicit resume selection into veRL Hydra configuration, made fresh launches opt out of veRL auto-resume, and protected checkpoint policy from backend-native override replacement. This is a backend-conformance correction and does not amend the frozen product baseline.

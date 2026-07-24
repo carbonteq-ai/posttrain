@@ -3,8 +3,8 @@
 from pathlib import Path
 
 import pytest
-from posttrain.catalog import load_catalog_layer, open_catalog
-from posttrain.common import ContractError
+from posttrain.catalog import environment_factory_registry, load_catalog_layer, open_catalog
+from posttrain.common import CatalogRef, ContractError
 
 
 def test_empty_overlay_is_valid_and_composes_with_packaged_base(tmp_path: Path) -> None:
@@ -18,7 +18,9 @@ def test_empty_overlay_is_valid_and_composes_with_packaged_base(tmp_path: Path) 
 
     assert layer == {"layer_id": "empty-project-v1"}
     assert catalog.overlay_ids == ("empty-project-v1",)
-    assert catalog.list()
+    assert CatalogRef("model", "models/qwen3.5-0.8b@bf16") in catalog.list("model")
+    assert CatalogRef("dataset", "datasets/posttrain-sft-smoke@1") in catalog.list("dataset")
+    assert CatalogRef("environment", "math-gsm8k") in catalog.list("environment")
 
 
 def test_catalog_manifest_still_rejects_duplicate_files(tmp_path: Path) -> None:
@@ -29,3 +31,21 @@ def test_catalog_manifest_still_rejects_duplicate_files(tmp_path: Path) -> None:
 
     with pytest.raises(ContractError, match="unique files"):
         load_catalog_layer(tmp_path)
+
+
+def test_environment_factory_registry_discovers_installed_package_entry_points(monkeypatch) -> None:
+    def factory():
+        return object()
+
+    class FakeEntryPoint:
+        name = "published-environment"
+
+        @staticmethod
+        def load():
+            return factory
+
+    monkeypatch.setattr("posttrain.catalog.entry_points", lambda **kwargs: (FakeEntryPoint(),))
+
+    registry = environment_factory_registry()
+
+    assert registry["published-environment"] is factory

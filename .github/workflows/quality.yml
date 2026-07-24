@@ -97,11 +97,11 @@ jobs:
           enable-cache: true
           python-version: "3.12"
       - name: Install the Verifiers integration
-        run: uv sync --package posttrain-train --extra verifiers --python 3.12
+        run: uv sync --all-packages --extra verifiers --python 3.12
       - name: Test the Verifiers bridge
         run: |
           uv run \
-            --package posttrain-train \
+            --all-packages \
             --extra verifiers \
             --with pytest \
             --with pytest-asyncio \
