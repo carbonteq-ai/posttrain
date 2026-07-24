@@ -152,7 +152,8 @@ def test_policy_client_preserves_exact_turn_tokens_and_response() -> None:
     assert response.raw == {"id": "response-1"}
 
 
-def test_native_bridge_projects_multiturn_masks_rewards_and_trace_artifact(tmp_path) -> None:
+@pytest.mark.parametrize("technique", ["grpo", "sampo", "distill"])
+def test_native_bridge_projects_multiturn_masks_rewards_and_trace_artifact(tmp_path, technique) -> None:
     task = SimpleNamespace(data=TaskData(idx=7, prompt="Arbitrary environment prompt"))
     bridge = VerifiersEnvironmentRolloutBridge(
         dataset_id="custom/train-v1",
@@ -163,6 +164,7 @@ def test_native_bridge_projects_multiturn_masks_rewards_and_trace_artifact(tmp_p
         environment_id="custom-v1",
         run_id="run-1",
         sampling=PolicySampling(max_tokens=32),
+        technique=technique,
         enrichers=(add_shaping,),
     )
 
@@ -186,11 +188,17 @@ def test_native_bridge_projects_multiturn_masks_rewards_and_trace_artifact(tmp_p
     assert rollouts[0].sampling_logprobs == (-0.1, -0.2, 0.0, 0.0, -0.3, -0.4)
     assert rollouts[0].reward == 1.05
     assert rollouts[0].is_truncated is False
+    if technique == "sampo":
+        assert tuple((turn.completion_start, turn.completion_end) for turn in rollouts[0].turns) == ((0, 2), (4, 6))
+        assert rollouts[0].turns[0].anchor_state_key != rollouts[0].turns[1].anchor_state_key
+    else:
+        assert rollouts[0].turns == ()
     assert rollouts[0].trace.payload["run"] == {"type": "train", "id": "run-1", "step": 3}
     info = cast(dict[str, object], rollouts[0].trace.payload["info"])
     assert info["example_id"] == "train/000007"
     assert len(artifacts) == 1
     assert artifacts[0].metadata["trace_count"] == 2
+    assert artifacts[0].metadata["technique"] == technique
 
 
 def test_native_bridge_portable_snapshot_reconstructs_without_live_environment_state(tmp_path) -> None:
@@ -204,6 +212,7 @@ def test_native_bridge_portable_snapshot_reconstructs_without_live_environment_s
         environment_id="custom-v1",
         run_id="run-1",
         sampling=PolicySampling(max_tokens=32),
+        technique="distill",
         enrichers=(add_shaping,),
     )
     snapshot = tmp_path / "bridge.pkl"
@@ -214,6 +223,7 @@ def test_native_bridge_portable_snapshot_reconstructs_without_live_environment_s
     assert restored.dataset == bridge.dataset
     assert restored.environment_id == bridge.environment_id
     assert restored.trace_path == bridge.trace_path
+    assert restored.technique == "distill"
 
 
 def test_catalog_environment_builds_public_grpo_and_distillation_requests(tmp_path) -> None:

@@ -13,7 +13,8 @@ from posttrain.data import DatasetDescriptor, PreferenceDataset, SupervisedDatas
 from .backends.common import BackendTrainingResult
 from .backends.trl import run_dpo, run_sft
 from .bindings import FullParameterUpdate, LoRAUpdate, QLoRAUpdate, parameter_update_digest
-from .requests import DPORequest, GRPORequest, OnPolicyDistillationRequest, SFTRequest
+from .online_rl import EnvironmentRolloutBridge
+from .requests import DPORequest, GRPORequest, OnPolicyDistillationRequest, SAMPORequest, SFTRequest
 from .results import TeacherScoringSummary, TrainingResult
 
 type TrainingContext = RunContext
@@ -23,6 +24,7 @@ type SFTBackend = Callable[
 ]
 type DPOBackend = Callable[[TrainingContext, DPORequest, PreferenceDataset, Path], BackendTrainingResult]
 type GRPOBackend = Callable[[TrainingContext, GRPORequest, Path], BackendTrainingResult]
+type SAMPOBackend = Callable[[TrainingContext, SAMPORequest, Path], BackendTrainingResult]
 type DistillationBackend = Callable[[TrainingContext, OnPolicyDistillationRequest, Path], BackendTrainingResult]
 
 
@@ -42,15 +44,18 @@ def _digest(path: Path) -> str:
 
 def _finish(
     context: TrainingContext,
-    request: SFTRequest | DPORequest | GRPORequest | OnPolicyDistillationRequest,
-    technique: Literal["sft", "dpo", "grpo", "distill"],
+    request: SFTRequest | DPORequest | GRPORequest | SAMPORequest | OnPolicyDistillationRequest,
+    technique: Literal["sft", "dpo", "grpo", "dapo", "sampo", "distill"],
     backend: BackendTrainingResult,
     dataset: SupervisedDataset | PreferenceDataset | None = None,
     validation_dataset: SupervisedDataset | None = None,
 ) -> TrainingResult:
+    backend.validate(context.workspace)
     model = _source_model(request)
     resolved_dataset = (
-        request.bridge.dataset if isinstance(request, GRPORequest | OnPolicyDistillationRequest) else dataset
+        request.bridge.dataset
+        if isinstance(request, GRPORequest | SAMPORequest | OnPolicyDistillationRequest)
+        else dataset
     )
     if resolved_dataset is None:
         raise AssertionError("materialized training data is required")
@@ -144,9 +149,12 @@ def _finish(
     if isinstance(request, OnPolicyDistillationRequest):
         teacher_scoring = TeacherScoringSummary(
             request.teacher,
-            "external-exact-token",
+            "exact-token",
             request.settings.temperature,
             1,
+            request.teacher_inference.id,
+            request.teacher_inference.revision,
+            request.teacher_inference.backend,
         )
     return TrainingResult(
         technique,
@@ -247,7 +255,7 @@ def grpo(
     selected_runner = runner or _grpo_backend(request.training.backend)
     dataset = request.bridge.dataset
     attributes = {
-        "technique": "grpo",
+        "technique": request.settings.algorithm,
         "model_variant_id": request.policy.id,
         "training_settings_id": request.settings.id,
         "training_settings_revision": request.settings.revision,
@@ -255,14 +263,41 @@ def grpo(
         **_seat_attributes(request),
     }
     context.event("training_started", attributes)
-    output_dir = context.workspace / "training" / "grpo" / "trainer"
+    output_dir = context.workspace / "training" / request.settings.algorithm / "trainer"
     output_dir.mkdir(parents=True, exist_ok=False)
-    try:
-        backend = selected_runner(context, request, output_dir)
-    finally:
-        for artifact in request.bridge.finalize():
-            context.artifact(artifact)
-    return _finish(context, request, "grpo", backend)
+    backend = _run_environment_backend(
+        context,
+        request.bridge,
+        lambda: selected_runner(context, request, output_dir),
+    )
+    return _finish(context, request, request.settings.algorithm, backend)
+
+
+def sampo(
+    context: TrainingContext,
+    request: SAMPORequest,
+    *,
+    runner: SAMPOBackend | None = None,
+) -> TrainingResult:
+    selected_runner = runner or _sampo_backend(request.training.backend)
+    dataset = request.bridge.dataset
+    attributes = {
+        "technique": "sampo",
+        "model_variant_id": request.policy.id,
+        "training_settings_id": request.settings.id,
+        "training_settings_revision": request.settings.revision,
+        "dataset_id": dataset.id,
+        **_seat_attributes(request),
+    }
+    context.event("training_started", attributes)
+    output_dir = context.workspace / "training" / "sampo" / "trainer"
+    output_dir.mkdir(parents=True, exist_ok=False)
+    backend = _run_environment_backend(
+        context,
+        request.bridge,
+        lambda: selected_runner(context, request, output_dir),
+    )
+    return _finish(context, request, "sampo", backend)
 
 
 def distill(
@@ -285,20 +320,44 @@ def distill(
     context.event("training_started", attributes)
     output_dir = context.workspace / "training" / "distill" / "trainer"
     output_dir.mkdir(parents=True, exist_ok=False)
-    try:
-        backend = selected_runner(context, request, output_dir)
-    finally:
-        for artifact in request.bridge.finalize():
-            context.artifact(artifact)
+    backend = _run_environment_backend(
+        context,
+        request.bridge,
+        lambda: selected_runner(context, request, output_dir),
+    )
     context.metrics(
         {
             "train/distill/loss": backend.summary.train_loss,
             "train/distill/reverse_kl": backend.summary.train_loss,
-            "train/distill/teacher_failures": 0,
         },
         attributes=attributes,
     )
     return _finish(context, request, "distill", backend)
+
+
+def _run_environment_backend(
+    context: TrainingContext,
+    bridge: EnvironmentRolloutBridge,
+    run: Callable[[], BackendTrainingResult],
+) -> BackendTrainingResult:
+    try:
+        result = run()
+    except BaseException as training_error:
+        try:
+            _publish_bridge_artifacts(context, bridge)
+        except BaseException as finalization_error:
+            training_error.add_note(
+                f"environment trace finalization also failed: {type(finalization_error).__name__}: {finalization_error}"
+            )
+        raise
+    result.validate(context.workspace)
+    _publish_bridge_artifacts(context, bridge)
+    return result
+
+
+def _publish_bridge_artifacts(context: TrainingContext, bridge: EnvironmentRolloutBridge) -> None:
+    for artifact in bridge.finalize():
+        context.artifact(artifact)
 
 
 def _grpo_backend(backend: str) -> GRPOBackend:
@@ -327,13 +386,26 @@ def _distillation_backend(backend: str) -> DistillationBackend:
     raise ValueError(f"unsupported distillation training backend {backend!r}")
 
 
+def _sampo_backend(backend: str) -> SAMPOBackend:
+    product = backend.split("@", 1)[0]
+    if product == "trl":
+        from .backends.trl import run_sampo
+
+        return run_sampo
+    if product == "verl":
+        raise ValueError("veRL SAMPO requires hierarchical GiGPO advantages; GSPO alone is insufficient")
+    raise ValueError(f"unsupported SAMPO training backend {backend!r}")
+
+
 def _validate_materialization(expected: DatasetDescriptor, actual: DatasetDescriptor) -> None:
     if actual != expected:
         raise ValueError(f"data source materialized {actual!r}, expected its declared descriptor {expected!r}")
 
 
-def _source_model(request: SFTRequest | DPORequest | GRPORequest | OnPolicyDistillationRequest) -> ModelVariant:
-    if isinstance(request, GRPORequest):
+def _source_model(
+    request: SFTRequest | DPORequest | GRPORequest | SAMPORequest | OnPolicyDistillationRequest,
+) -> ModelVariant:
+    if isinstance(request, GRPORequest | SAMPORequest):
         return request.policy
     if isinstance(request, OnPolicyDistillationRequest):
         return request.student
@@ -341,7 +413,7 @@ def _source_model(request: SFTRequest | DPORequest | GRPORequest | OnPolicyDisti
 
 
 def _seat_attributes(
-    request: SFTRequest | DPORequest | GRPORequest | OnPolicyDistillationRequest,
+    request: SFTRequest | DPORequest | GRPORequest | SAMPORequest | OnPolicyDistillationRequest,
 ) -> dict[str, JsonValue]:
     update = request.training.update
     attributes: dict[str, JsonValue] = {
@@ -354,14 +426,10 @@ def _seat_attributes(
         "base_model_repo_id": _source_model(request).base.repo_id,
         "base_model_revision": _source_model(request).base.revision,
     }
-    source_revision = request.training.backend_options.get(
-        "source_revision", request.training.runtime.get("backend_source_revision")
-    )
+    source_revision = request.training.backend_options.get("source_revision")
     if isinstance(source_revision, str):
         attributes["training_backend_source_revision"] = source_revision
-    lock_digest = request.training.backend_options.get(
-        "dependency_lock_sha256", request.training.runtime.get("dependency_lock_sha256")
-    )
+    lock_digest = request.training.backend_options.get("dependency_lock_sha256")
     if isinstance(lock_digest, str):
         attributes["dependency_lock_sha256"] = lock_digest
     if isinstance(update, LoRAUpdate | QLoRAUpdate):
@@ -383,11 +451,39 @@ def _seat_attributes(
             }
         )
     if isinstance(request, GRPORequest):
+        attributes["online_rl_algorithm"] = request.settings.algorithm
+        attributes["clip_epsilon_low"] = request.settings.clip_epsilon_low
+        attributes["clip_epsilon_high"] = request.settings.resolved_clip_epsilon_high
+        attributes["mask_truncated_completions"] = request.settings.mask_truncated_completions
+        attributes["overlong_penalty_factor"] = request.settings.overlong_penalty_factor
+        if request.settings.overlong_buffer_tokens is not None:
+            attributes["overlong_buffer_tokens"] = request.settings.overlong_buffer_tokens
         attributes["environment_id"] = request.environment.id
         attributes["environment_revision"] = request.environment.revision
         attributes["inference_id"] = request.inference.id
         attributes["inference_revision"] = request.inference.revision
         attributes["rollout_target_id"] = request.inference.target.id
+        if request.quantization is not None:
+            attributes["quantization_plan_id"] = request.quantization.id
+            attributes["quantization_recipe_digest"] = request.quantization.recipe_digest
+    if isinstance(request, SAMPORequest):
+        attributes.update(
+            {
+                "online_rl_algorithm": "sampo",
+                "clip_epsilon_low": request.settings.clip_epsilon_low,
+                "clip_epsilon_high": request.settings.clip_epsilon_high,
+                "discount_gamma": request.settings.discount_gamma,
+                "step_advantage_weight": request.settings.step_advantage_weight,
+                "advantage_normalization": request.settings.advantage_normalization,
+                "mask_truncated_completions": request.settings.mask_truncated_completions,
+                "dynamic_sampling_max_candidate_batches": (request.settings.dynamic_sampling.max_candidate_batches),
+                "environment_id": request.environment.id,
+                "environment_revision": request.environment.revision,
+                "inference_id": request.inference.id,
+                "inference_revision": request.inference.revision,
+                "rollout_target_id": request.inference.target.id,
+            }
+        )
         if request.quantization is not None:
             attributes["quantization_plan_id"] = request.quantization.id
             attributes["quantization_recipe_digest"] = request.quantization.recipe_digest

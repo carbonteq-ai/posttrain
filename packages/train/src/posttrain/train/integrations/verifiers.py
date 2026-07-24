@@ -11,12 +11,21 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from random import Random
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from posttrain.common import JsonValue, LocalArtifactRef, ProducedArtifact, TraceObservation
 from posttrain.data import RolloutDataset, RolloutExample
 
-from ..online_rl import EnvironmentRollout, PolicyGenerator, PolicySampling, PolicyTurnRequest, RolloutBatch
+from ..online_rl import (
+    AgenticTurn,
+    EnvironmentRollout,
+    PolicyGenerator,
+    PolicySampling,
+    PolicyTurnRequest,
+    RolloutBatch,
+)
+
+type OnlineRLTechnique = Literal["grpo", "dapo", "sampo", "distill"]
 
 
 class TraceEnricher(Protocol):
@@ -82,6 +91,7 @@ class VerifiersBridgeSnapshot:
     environment_id: str
     run_id: str
     sampling: PolicySampling
+    technique: OnlineRLTechnique
     enrichers: tuple[TraceEnricher, ...]
 
     def create(self) -> VerifiersEnvironmentRolloutBridge:
@@ -94,6 +104,7 @@ class VerifiersBridgeSnapshot:
             environment_id=self.environment_id,
             run_id=self.run_id,
             sampling=self.sampling,
+            technique=self.technique,
             enrichers=self.enrichers,
         )
 
@@ -159,7 +170,7 @@ def create_verifiers_training_bridge(
     max_tokens: int,
     temperature: float,
     top_p: float,
-    purpose: str = "grpo",
+    purpose: OnlineRLTechnique = "grpo",
     tasks: Mapping[int, Any] | None = None,
 ) -> VerifiersEnvironmentRolloutBridge:
     """Build the existing native bridge from a public environment selection."""
@@ -186,6 +197,7 @@ def create_verifiers_training_bridge(
         environment_id=environment.id,
         run_id=run_id,
         sampling=PolicySampling(max_tokens=max_tokens, temperature=temperature, top_p=top_p),
+        technique=purpose,
     )
 
 
@@ -348,6 +360,7 @@ class VerifiersEnvironmentRolloutBridge:
     environment_id: str
     run_id: str
     sampling: PolicySampling
+    technique: OnlineRLTechnique = "grpo"
     enrichers: tuple[TraceEnricher, ...] = ()
     _write_lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
     _trace_count: int = field(default=0, init=False)
@@ -434,6 +447,7 @@ class VerifiersEnvironmentRolloutBridge:
         if len(logprobs) != len(completion_ids):
             raise ValueError("Verifiers branch logprobs are not aligned to the training sequence")
         record = trace.to_record()
+        turns = _agentic_turns(branch, first_sampled) if self.technique == "sampo" else ()
         observation = TraceObservation(
             trace_type="verifiers",
             external_id=str(trace.id),
@@ -455,6 +469,7 @@ class VerifiersEnvironmentRolloutBridge:
             reward=float(trace.reward),
             is_truncated=bool(trace.is_truncated or trace.has_error),
             trace=observation,
+            turns=turns,
         )
 
     def _preserve(self, record: dict[str, Any]) -> None:
@@ -488,6 +503,7 @@ class VerifiersEnvironmentRolloutBridge:
             environment_id=self.environment_id,
             run_id=self.run_id,
             sampling=self.sampling,
+            technique=self.technique,
             enrichers=self.enrichers,
         )
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -505,7 +521,7 @@ class VerifiersEnvironmentRolloutBridge:
             kind="evaluation-traces",
             reference=LocalArtifactRef(self.trace_path.resolve(), digest),
             metadata={
-                "technique": "grpo",
+                "technique": self.technique,
                 "environment_id": self.environment_id,
                 "dataset_id": self.dataset.id,
                 "dataset_revision": self.dataset.revision,
@@ -524,6 +540,50 @@ def load_verifiers_bridge_snapshot(path: Path) -> VerifiersEnvironmentRolloutBri
     if not isinstance(snapshot, VerifiersBridgeSnapshot):
         raise TypeError("portable Verifiers bridge snapshot has an incompatible schema")
     return snapshot.create()
+
+
+def _agentic_turns(branch: Any, first_sampled: int) -> tuple[AgenticTurn, ...]:
+    """Project sampled assistant nodes into flattened completion spans."""
+
+    turns: list[AgenticTurn] = []
+    offset = 0
+    latest_observation: Mapping[str, JsonValue] | None = None
+    for node in branch.nodes:
+        record = _record(node.message)
+        role = record.get("role")
+        node_ids = tuple(int(value) for value in node.token_ids)
+        node_mask = tuple(bool(value) for value in node.mask)
+        if len(node_ids) != len(node_mask):
+            raise ValueError("Verifiers message-node token ids and mask are misaligned")
+        sampled_positions = [index for index, selected in enumerate(node_mask) if selected]
+        if bool(getattr(node, "sampled", False)):
+            if role != "assistant" or not sampled_positions:
+                raise ValueError("SAMPO sampled nodes must be assistant turns with sampled tokens")
+            expected = list(range(sampled_positions[0], sampled_positions[-1] + 1))
+            if sampled_positions != expected:
+                raise ValueError("SAMPO requires each sampled assistant turn to be one contiguous token span")
+            if latest_observation is None:
+                raise ValueError("SAMPO sampled assistant turns require a preceding user or tool observation")
+            start = offset + sampled_positions[0] - first_sampled
+            end = offset + sampled_positions[-1] + 1 - first_sampled
+            turns.append(
+                AgenticTurn(
+                    completion_start=start,
+                    completion_end=end,
+                    anchor_state_key=_anchor_state_key(latest_observation),
+                )
+            )
+        elif role in {"user", "tool"}:
+            latest_observation = record
+        offset += len(node_ids)
+    if not turns:
+        raise ValueError("SAMPO Verifiers trace has no sampled assistant turns")
+    return tuple(turns)
+
+
+def _anchor_state_key(observation: Mapping[str, JsonValue]) -> str:
+    encoded = json.dumps(observation, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(encoded.encode()).hexdigest()
 
 
 __all__ = [

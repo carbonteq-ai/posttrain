@@ -10,7 +10,7 @@ The lab's injected observation context maps those hooks to Trackio. Datasets,
 rewards, and Verifiers environment implementations remain independently owned.
 
 The workspace uses the `carbonteq-ai/trl` fork pinned to immutable commit
-`5c50c69f2d9b25dc2ce729d030f7cabb144d8431`. The fork preserves TRL 1.8.0 and
+`b43a0a3d622ab1547f4d2abbd1b25eab3c52a0b9`. The fork preserves TRL 1.8.0 and
 adds the upstream-validated vLLM 0.24/0.25 dependency support plus regression
 coverage. It also keeps the trainer runtime compatible with `datasets 4.6.1`
 so the application can install Verifiers v1 and TRL together. It does not
@@ -57,6 +57,22 @@ token-aligned log-probabilities and entropies. The focused fork regression
 compares chunked and unchunked numerical results. This control does not bound
 the differentiable train loss by itself; the current constrained profile pairs
 it with `use_liger_kernel=true`.
+
+## SAMPO candidate support
+
+The next fork candidate adds two generic runtime seams used by `train.sampo`:
+bounded retained-group dynamic sampling and finite token-aligned advantages
+returned by `rollout_func`. TRL still computes rewards and group variance for
+filtering and evidence, while the framework-owned rollout layer supplies the
+hierarchical episode/turn advantage used by the loss. The adapter selects one
+sequence-level geometric-mean importance ratio and the standard clipped
+PyTorch loss. Liger is rejected because it does not accept these precomputed
+advantages.
+
+This support is selected by the immutable workspace pin. The current veRL
+adapter rejects SAMPO because its GSPO kernel does not supply the required
+hierarchical GiGPO estimator. A real multi-turn GPU qualification is still
+required before SAMPO is described as quality-qualified.
 
 The fork's colocated vLLM path has been exercised on the local RTX 3070 Ti with
 a 0.5B Qwen smoke through engine creation, CUDA graph capture, weight sync,

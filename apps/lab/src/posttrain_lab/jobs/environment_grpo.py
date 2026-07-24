@@ -64,6 +64,11 @@ def grpo_job_inputs(request: GRPORequest) -> dict[str, str | int | float | bool]
         "parameter_update_kind": request.training.update.kind,
         "parameter_update_digest": parameter_update_digest(request.training.update),
         "grpo_beta": request.settings.beta,
+        "online_rl_algorithm": request.settings.algorithm,
+        "clip_epsilon_low": request.settings.clip_epsilon_low,
+        "clip_epsilon_high": request.settings.resolved_clip_epsilon_high,
+        "mask_truncated_completions": request.settings.mask_truncated_completions,
+        "overlong_penalty_factor": request.settings.overlong_penalty_factor,
         "grpo_num_generations": request.settings.num_generations,
         "grpo_max_prompt_length": request.settings.max_prompt_length,
         "grpo_max_completion_length": request.settings.max_completion_length,
@@ -74,6 +79,8 @@ def grpo_job_inputs(request: GRPORequest) -> dict[str, str | int | float | bool]
         "rollout_engine": request.inference.backend.split("@", 1)[0],
         "rollout_sleep_during_optimization": bool(request.inference.engine.get("sleep_during_optimization", False)),
     }
+    if request.settings.overlong_buffer_tokens is not None:
+        result["overlong_buffer_tokens"] = request.settings.overlong_buffer_tokens
     domains = environment.parameters.get("domains")
     if isinstance(domains, (list, tuple)):
         domain_names = tuple(item for item in domains if isinstance(item, str))

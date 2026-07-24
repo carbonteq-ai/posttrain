@@ -19,11 +19,14 @@ from .bindings import (
     QuantizationPlan,
     TrainingBinding,
     TrainingParallelism,
+    TrainingRuntime,
 )
 from .profiles import (
     DPOSettings,
+    DynamicGroupSampling,
     GRPOSettings,
     OnPolicyDistillationSettings,
+    SAMPOSettings,
     SFTSettings,
     SFTValidationSettings,
     TrainingLoop,
@@ -83,6 +86,17 @@ class ParallelismSchema(TrainCatalogSchema):
     sequence_length_divisor: int | None = Field(default=None, gt=0)
 
 
+class TrainingRuntimeSchema(TrainCatalogSchema):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    global_batch_size: int | None = Field(default=None, gt=0)
+    nodes: int = Field(default=1, gt=0)
+    devices_per_node: int | None = Field(default=None, gt=0)
+    parameter_offload: bool = False
+    optimizer_offload: bool = False
+    timeout_seconds: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+
+
 class TrainingLoopSchema(TrainCatalogSchema):
     max_steps: int = Field(gt=0)
     max_length: int = Field(default=512, gt=0)
@@ -107,7 +121,7 @@ class TrainingBindingSchema(TrainCatalogSchema):
     update: UpdateSchema
     target: str
     parallelism: ParallelismSchema = Field(default_factory=ParallelismSchema)
-    runtime: dict[str, JsonValue] = Field(default_factory=dict)
+    runtime: TrainingRuntimeSchema = Field(default_factory=TrainingRuntimeSchema)
     backend_options: dict[str, JsonValue] = Field(default_factory=dict)
 
 
@@ -135,6 +149,10 @@ class DPOSettingsSchema(TrainCatalogSchema):
     loss_kernel: Literal["liger", "torch"] = "torch"
 
 
+class DynamicGroupSamplingSchema(TrainCatalogSchema):
+    max_candidate_batches: int = Field(default=10, gt=0)
+
+
 class GRPOSettingsSchema(TrainCatalogSchema):
     selection_type: Literal["grpo-settings"]
     id: str
@@ -150,6 +168,13 @@ class GRPOSettingsSchema(TrainCatalogSchema):
     )
     importance_sampling_clip_min: float | None = Field(default=0.1, gt=0)
     importance_sampling_clip_max: float | None = Field(default=3.0, gt=0)
+    algorithm: Literal["grpo", "dapo"] = "grpo"
+    clip_epsilon_low: float = Field(default=0.2, gt=0, allow_inf_nan=False)
+    clip_epsilon_high: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    dynamic_sampling: DynamicGroupSamplingSchema | None = None
+    mask_truncated_completions: bool = False
+    overlong_buffer_tokens: int | None = Field(default=None, gt=0)
+    overlong_penalty_factor: float = Field(default=1.0, gt=0, allow_inf_nan=False)
 
 
 class OnPolicyDistillationSettingsSchema(TrainCatalogSchema):
@@ -164,11 +189,33 @@ class OnPolicyDistillationSettingsSchema(TrainCatalogSchema):
     max_completion_length: int = Field(default=128, gt=0)
 
 
+class SAMPOSettingsSchema(TrainCatalogSchema):
+    selection_type: Literal["sampo-settings"]
+    id: str
+    revision: str = "1"
+    loop: TrainingLoopSchema
+    num_prompts_per_step: int = Field(default=1, gt=0)
+    num_generations: int = Field(default=2, ge=2)
+    max_prompt_length: int = Field(default=256, gt=0)
+    max_completion_length: int = Field(default=128, gt=0)
+    beta: float = Field(default=0.0, ge=0)
+    discount_gamma: float = Field(default=0.95, gt=0, le=1, allow_inf_nan=False)
+    step_advantage_weight: float = Field(default=1.0, ge=0, allow_inf_nan=False)
+    advantage_normalization: Literal["mean", "mean_std"] = "mean"
+    clip_epsilon_low: float = Field(default=0.003, gt=0, allow_inf_nan=False)
+    clip_epsilon_high: float = Field(default=0.004, gt=0, allow_inf_nan=False)
+    dynamic_sampling: DynamicGroupSamplingSchema = Field(
+        default_factory=lambda: DynamicGroupSamplingSchema(max_candidate_batches=3)
+    )
+    mask_truncated_completions: bool = False
+
+
 type TrainingSelectionSchema = Annotated[
     TrainingBindingSchema
     | SFTSettingsSchema
     | DPOSettingsSchema
     | GRPOSettingsSchema
+    | SAMPOSettingsSchema
     | OnPolicyDistillationSettingsSchema,
     Field(discriminator="selection_type"),
 ]
@@ -227,6 +274,9 @@ def decode_training_selection(
         )
     if isinstance(payload, GRPOSettingsSchema):
         values = payload.model_dump(exclude={"selection_type", "id", "revision", "loop"})
+        dynamic_sampling = values.pop("dynamic_sampling")
+        if dynamic_sampling is not None:
+            values["dynamic_sampling"] = DynamicGroupSampling(**dynamic_sampling)
         return GRPOSettings(
             payload.id,
             TrainingLoop(**payload.loop.model_dump()),
@@ -236,6 +286,15 @@ def decode_training_selection(
     if isinstance(payload, OnPolicyDistillationSettingsSchema):
         values = payload.model_dump(exclude={"selection_type", "id", "revision", "loop"})
         return OnPolicyDistillationSettings(
+            payload.id,
+            TrainingLoop(**payload.loop.model_dump()),
+            revision=payload.revision,
+            **values,
+        )
+    if isinstance(payload, SAMPOSettingsSchema):
+        values = payload.model_dump(exclude={"selection_type", "id", "revision", "loop"})
+        values["dynamic_sampling"] = DynamicGroupSampling(**values["dynamic_sampling"])
+        return SAMPOSettings(
             payload.id,
             TrainingLoop(**payload.loop.model_dump()),
             revision=payload.revision,
@@ -262,7 +321,7 @@ def decode_training_selection(
         update=update,
         target=target,
         parallelism=TrainingParallelism(**payload.parallelism.model_dump()),
-        runtime=payload.runtime,
+        runtime=TrainingRuntime(**payload.runtime.model_dump()),
         backend_options=payload.backend_options,
     )
 
@@ -292,9 +351,11 @@ __all__ = [
     "GRPOSettingsSchema",
     "OnPolicyDistillationSettingsSchema",
     "QuantizationPlanSchema",
+    "SAMPOSettingsSchema",
     "SFTSettingsSchema",
     "TRAIN_CATALOG_DECODERS",
     "TrainingBindingSchema",
+    "TrainingRuntimeSchema",
     "TrainingLoopSchema",
     "decode_quantization_selection",
     "decode_training_selection",

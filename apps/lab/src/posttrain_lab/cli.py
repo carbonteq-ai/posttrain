@@ -37,6 +37,7 @@ from posttrain.train import (
     QuantizationPlan,
     TrainingBinding,
     TrainingResult,
+    TrainingRuntime,
     TransformResult,
 )
 from posttrain_tracking_trackio import TrackioBackend, TrackioSettings
@@ -297,22 +298,19 @@ def _grpo_training_binding(
             base.update,
             target_modules=r".*[.](o_proj|down_proj)$",
         ),
-        runtime={
-            **base.runtime,
-            "nodes": 1,
-            "devices_per_node": 1,
-            "parameter_offload": True,
-            "optimizer_offload": True,
-            "timeout_seconds": 900,
-            "backend_source_revision": source.revision,
-            "backend_source_dirty": source.dirty,
-            "dependency_lock_sha256": hashlib.sha256(lockfile.read_bytes()).hexdigest(),
-            **({"backend_source_dirty_digest": source.dirty_digest} if source.dirty_digest is not None else {}),
-        },
+        runtime=TrainingRuntime(
+            global_batch_size=base.runtime.global_batch_size,
+            nodes=1,
+            devices_per_node=1,
+            parameter_offload=True,
+            optimizer_offload=True,
+            timeout_seconds=900,
+        ),
         backend_options={
             "python_executable": args.verl_python_executable,
             "working_directory": str(worktree),
             "source_revision": source.revision,
+            "dependency_lock_sha256": hashlib.sha256(lockfile.read_bytes()).hexdigest(),
             "attention_implementation": "sdpa",
             **source_state,
             "hydra_overrides": [

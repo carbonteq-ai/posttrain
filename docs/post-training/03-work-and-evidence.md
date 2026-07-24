@@ -183,6 +183,7 @@ is `qualify/sft-bootstrap` (or a shared `qualify/finalists` package), not more
 | `train.sft` | Supervised fine-tuning | `train` |
 | `train.dpo` | Preference optimization | `train` |
 | `train.grpo` | Online RL with GRPO | `train` |
+| `train.sampo` | Multi-turn tool-agent RL with SAMPO | `train` |
 | `eval.general` | Broad capability or regression evaluation | `screen` and/or `qualify` (optional in `train`) |
 | `eval.domain` | Held-out domain / environment evaluation | `screen` and/or `qualify` (optional in `train`) |
 | `serve.benchmark` | Serving capacity and latency measurement | `screen` and/or `qualify` |

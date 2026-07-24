@@ -311,7 +311,7 @@ def finish_training(
     train_output: Any,
     tokenizer: Any,
     workspace: Path,
-    technique: Literal["sft", "dpo", "grpo", "distill"],
+    technique: Literal["sft", "dpo", "grpo", "dapo", "sampo", "distill"],
     update: ParameterUpdatePlan,
     imports: dict[str, Any],
 ) -> BackendTrainingResult:

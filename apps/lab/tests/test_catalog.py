@@ -10,11 +10,13 @@ from posttrain.catalog import load_catalog_layer, packaged_base_directory
 from posttrain.common import CatalogRef, ContractError, ExecutionTarget, ModelVariant
 from posttrain.eval import EnvironmentBinding, EvaluationPlan
 from posttrain.train import (
+    DynamicGroupSampling,
     GRPOSettings,
     LoRAUpdate,
     OnPolicyDistillationSettings,
     QLoRAUpdate,
     QuantizationPlan,
+    SAMPOSettings,
     SFTSettings,
     TrainingBinding,
 )
@@ -29,6 +31,8 @@ def test_slice_one_and_two_selections_load_from_the_base_filesystem_catalog() ->
     model = catalog.resolve(CatalogRef("model", "models/qwen3.5-2b@bf16"))
     plan = catalog.resolve(CatalogRef("evaluation", "general-smoke-v1"))
     environment = catalog.resolve(CatalogRef("environment", "math-gsm8k"))
+    dapo = catalog.resolve(CatalogRef("training", "qwen3.5-2b/dapo-smoke-v1"))
+    sampo = catalog.resolve(CatalogRef("training", "qwen3.5-2b/sampo-smoke-v1"))
 
     assert isinstance(model.value, ModelVariant)
     assert model.value.renderer.id == "qwen3.5-tools@1"
@@ -36,6 +40,12 @@ def test_slice_one_and_two_selections_load_from_the_base_filesystem_catalog() ->
     assert isinstance(plan.value, EvaluationPlan)
     assert plan.value.environment("math-gsm8k") is environment.value
     assert plan.source_layer == "base"
+    assert isinstance(dapo.value, GRPOSettings)
+    assert dapo.value.algorithm == "dapo"
+    assert dapo.value.dynamic_sampling == DynamicGroupSampling(max_candidate_batches=10)
+    assert isinstance(sampo.value, SAMPOSettings)
+    assert sampo.value.discount_gamma == 0.95
+    assert sampo.value.dynamic_sampling == DynamicGroupSampling(max_candidate_batches=3)
 
 
 def test_automationbench_grpo_environment_is_category_and_budget_driven() -> None:
@@ -64,7 +74,7 @@ def test_automationbench_grpo_environment_is_category_and_budget_driven() -> Non
     assert isinstance(training.update, LoRAUpdate)
     assert training.renderer.reasoning_mode == "thinking"
     assert training.update.target_modules == r".*[.](o_proj|down_proj)$"
-    assert training.runtime["global_batch_size"] == 16
+    assert training.runtime.global_batch_size == 16
 
 
 def test_project_overlay_directory_can_publish_a_new_selection() -> None:
@@ -104,7 +114,10 @@ def test_peft_bindings_settings_and_quantization_load_from_filesystem_catalog() 
     assert rtn.value.output_quantization["scope"] == "language_model"
     assert rtn.value.output_quantization["zero_point"] is False
     root = Path(__file__).resolve().parents[3]
-    assert lora.value.runtime["dependency_lock_sha256"] == hashlib.sha256((root / "uv.lock").read_bytes()).hexdigest()
+    assert (
+        lora.value.backend_options["dependency_lock_sha256"]
+        == hashlib.sha256((root / "uv.lock").read_bytes()).hexdigest()
+    )
     assert (
         quantization.value.dependency_lock_digest
         == hashlib.sha256((root / "tools" / "quantization" / "uv.lock").read_bytes()).hexdigest()

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import math
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 _ID = re.compile(r"^[a-z0-9][a-z0-9._/@:-]*$")
@@ -96,6 +97,17 @@ class DPOSettings:
 
 
 @dataclass(frozen=True, slots=True)
+class DynamicGroupSampling:
+    """Bounded DAPO replacement sampling for reward-constant prompt groups."""
+
+    max_candidate_batches: int = 10
+
+    def __post_init__(self) -> None:
+        if self.max_candidate_batches < 1:
+            raise ValueError("dynamic sampling max candidate batches must be positive")
+
+
+@dataclass(frozen=True, slots=True)
 class GRPOSettings:
     id: str
     loop: TrainingLoop
@@ -110,6 +122,13 @@ class GRPOSettings:
     importance_sampling_clip_min: float | None = 0.1
     importance_sampling_clip_max: float | None = 3.0
     revision: str = "1"
+    algorithm: Literal["grpo", "dapo"] = "grpo"
+    clip_epsilon_low: float = 0.2
+    clip_epsilon_high: float | None = None
+    dynamic_sampling: DynamicGroupSampling | None = None
+    mask_truncated_completions: bool = False
+    overlong_buffer_tokens: int | None = None
+    overlong_penalty_factor: float = 1.0
 
     def __post_init__(self) -> None:
         _validate_settings(self.id, self.revision)
@@ -130,6 +149,111 @@ class GRPOSettings:
             and self.importance_sampling_clip_min >= self.importance_sampling_clip_max
         ):
             raise ValueError("importance-sampling minimum must be smaller than maximum")
+        clip_high = self.resolved_clip_epsilon_high
+        if (
+            not math.isfinite(self.clip_epsilon_low)
+            or not math.isfinite(clip_high)
+            or self.clip_epsilon_low <= 0
+            or clip_high <= 0
+        ):
+            raise ValueError("policy clip epsilons must be finite positive numbers")
+        if self.algorithm == "grpo" and clip_high != self.clip_epsilon_low:
+            raise ValueError("GRPO requires symmetric policy clipping")
+        if self.algorithm == "dapo" and clip_high < self.clip_epsilon_low:
+            raise ValueError("DAPO upper clipping epsilon cannot be smaller than its lower epsilon")
+        if self.dynamic_sampling is not None and self.algorithm != "dapo":
+            raise ValueError("dynamic group sampling requires the DAPO algorithm")
+        if self.overlong_buffer_tokens is not None:
+            if self.algorithm != "dapo":
+                raise ValueError("soft overlong punishment requires the DAPO algorithm")
+            if self.overlong_buffer_tokens < 1 or self.overlong_buffer_tokens >= self.max_completion_length:
+                raise ValueError("DAPO overlong buffer must be positive and smaller than the completion limit")
+        if not math.isfinite(self.overlong_penalty_factor) or self.overlong_penalty_factor <= 0:
+            raise ValueError("DAPO overlong penalty factor must be a finite positive number")
+
+    @property
+    def resolved_clip_epsilon_high(self) -> float:
+        if self.clip_epsilon_high is not None:
+            return self.clip_epsilon_high
+        return 0.28 if self.algorithm == "dapo" else self.clip_epsilon_low
+
+
+@dataclass(frozen=True, slots=True)
+class SAMPOSettings:
+    """Hierarchical multi-turn policy-optimization settings."""
+
+    id: str
+    loop: TrainingLoop
+    num_prompts_per_step: int = 1
+    num_generations: int = 2
+    max_prompt_length: int = 256
+    max_completion_length: int = 128
+    beta: float = 0.0
+    discount_gamma: float = 0.95
+    step_advantage_weight: float = 1.0
+    advantage_normalization: Literal["mean", "mean_std"] = "mean"
+    clip_epsilon_low: float = 0.003
+    clip_epsilon_high: float = 0.004
+    dynamic_sampling: DynamicGroupSampling = field(default_factory=lambda: DynamicGroupSampling(3))
+    mask_truncated_completions: bool = False
+    revision: str = "1"
+
+    def __post_init__(self) -> None:
+        _validate_settings(self.id, self.revision)
+        if self.num_prompts_per_step < 1 or self.num_generations < 2:
+            raise ValueError("SAMPO requires positive prompt groups and at least two generations")
+        expected_batch = self.num_prompts_per_step * self.num_generations
+        effective_batch = self.loop.per_device_batch_size * self.loop.gradient_accumulation_steps
+        if effective_batch != expected_batch:
+            raise ValueError("SAMPO effective batch must equal prompts per step times generations")
+        if self.max_prompt_length < 1 or self.max_completion_length < 1 or self.beta < 0:
+            raise ValueError("invalid SAMPO length or KL settings")
+        if self.max_prompt_length + self.max_completion_length > self.loop.max_length:
+            raise ValueError("SAMPO loop max_length must cover prompt and completion limits")
+        values = (
+            self.discount_gamma,
+            self.step_advantage_weight,
+            self.clip_epsilon_low,
+            self.clip_epsilon_high,
+        )
+        if not all(math.isfinite(value) for value in values):
+            raise ValueError("SAMPO numeric settings must be finite")
+        if not 0 < self.discount_gamma <= 1:
+            raise ValueError("SAMPO discount gamma must be in (0, 1]")
+        if self.step_advantage_weight < 0:
+            raise ValueError("SAMPO step-advantage weight cannot be negative")
+        if self.clip_epsilon_low <= 0 or self.clip_epsilon_high <= 0:
+            raise ValueError("SAMPO clip epsilons must be positive")
+
+
+def shape_online_reward(settings: GRPOSettings, reward: float, completion_tokens: int) -> float:
+    """Apply the selected portable DAPO soft overlong punishment."""
+
+    buffer = settings.overlong_buffer_tokens
+    if settings.algorithm != "dapo" or buffer is None:
+        return reward
+    return shape_soft_overlong_reward(
+        reward,
+        completion_tokens,
+        max_completion_tokens=settings.max_completion_length,
+        buffer_tokens=buffer,
+        penalty_factor=settings.overlong_penalty_factor,
+    )
+
+
+def shape_soft_overlong_reward(
+    reward: float,
+    completion_tokens: int,
+    *,
+    max_completion_tokens: int,
+    buffer_tokens: int,
+    penalty_factor: float,
+) -> float:
+    """Apply a bounded linear penalty over the final completion-token buffer."""
+
+    threshold = max_completion_tokens - buffer_tokens
+    excess = min(max(completion_tokens - threshold, 0), buffer_tokens)
+    return reward - (excess / buffer_tokens) * penalty_factor
 
 
 @dataclass(frozen=True, slots=True)
@@ -196,8 +320,12 @@ QWEN35_GRPO_MTP_SMOKE = GRPOSettings(
 
 __all__ = [
     "DPOSettings",
+    "DynamicGroupSampling",
     "GRPOSettings",
+    "shape_online_reward",
+    "shape_soft_overlong_reward",
     "OnPolicyDistillationSettings",
+    "SAMPOSettings",
     "LFM25_DPO_SMOKE",
     "LFM25_RENDERER",
     "LFM25_SFT_SMOKE",

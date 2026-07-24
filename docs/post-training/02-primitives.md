@@ -427,7 +427,7 @@ QLoRA-as-default, vLLM topology, or a single forced train=rollout target.
 
 | Layer | Type | Owns |
 | --- | --- | --- |
-| Algorithm settings | `SFTSettings` \| `DPOSettings` \| `GRPOSettings` \| `OnPolicyDistillationSettings` | Generations, divergence semantics, advantages, reward **weights**, IS *learning* semantics, prompt/completion limits, opt schedule |
+| Algorithm settings | `SFTSettings` \| `DPOSettings` \| `GRPOSettings` \| `OnPolicyDistillationSettings` | Algorithm identity, generations, divergence semantics, advantages, reward **weights**, IS *learning* semantics, prompt/completion limits, opt schedule |
 | Parameter update | `ParameterUpdatePlan` | Full-parameter \| LoRA \| QLoRA \| quantization-aware (QAT) |
 | Training binding | `TrainingBinding` | Train backend, update plan, normalized train parallelism/runtime, backend-specific options, **training** `ExecutionTarget` |
 | Rollout inference | `InferenceBinding` | Rollout backend/`engine`/sampling, **rollout** `ExecutionTarget` |
@@ -471,7 +471,8 @@ bindings / quant plans.
 | --- | --- |
 | `train.sft` | Starting model, supervised data, `SFTSettings`, update plan, training binding/target |
 | `train.dpo` | Policy (+ reference semantics), preference data, `DPOSettings`, update plan, training binding/target |
-| `train.grpo` | Policy, versioned Verifiers environment, `GRPOSettings`, update plan, training binding, rollout inference binding |
+| `train.grpo` | Policy, versioned Verifiers environment, `GRPOSettings` selecting `grpo` or `dapo`, update plan, training binding, rollout inference binding |
+| `train.sampo` | Policy, versioned multi-turn Verifiers environment, `SAMPOSettings`, update plan, training binding, rollout inference binding |
 | `train.distill` | Student, frozen teacher, versioned Verifiers environment, `OnPolicyDistillationSettings`, update plan, training binding, student rollout inference binding, teacher-scoring inference binding |
 | `model.transform` | Source model, `QuantizationPlan` (or transform settings referencing it), target |
 
@@ -495,6 +496,33 @@ tasks at runtime and the run records their identities in native Verifiers
 traces, so researchers can replay what happened without coupling the public job
 contract to environment-internal row numbering. `GRPOSettings.loop.max_steps`
 and the rollout/group settings bound how much of that population is consumed.
+
+`GRPOSettings.algorithm` selects the group-relative update objective. `grpo`
+uses the existing sequence-normalized objective and symmetric clipping. `dapo`
+uses token-level policy loss, separately selected lower and upper clip
+epsilons, global active-token normalization, bounded retained-group dynamic
+sampling, truncation handling, and optional linear soft-overlong punishment.
+The sampler keeps prompt groups with reward variation and generates only enough
+replacement groups to fill the optimizer batch. Exhausting the configured
+candidate bound fails the run rather than silently changing the batch.
+
+The length punishment is algorithm-owned shaping added to the environment
+reward; the environment remains the authority for task reward meaning.
+Efficiency, memory, synchronization, and observability changes that preserve
+these semantics remain DAPO implementation improvements, not a new algorithm.
+CISPO, GSPO, and Dr. GRPO replace objective or normalization semantics and are
+not DAPO flags.
+
+SAMPO is a separate selection for multi-turn tool-using agents. It combines one
+sequence-level importance ratio per trajectory with a token-aligned advantage
+formed from a group-relative episode advantage and an anchor-state-relative
+turn advantage. An anchor state is the latest user or tool observation before a
+sampled assistant turn. The rollout records each sampled turn's half-open token
+span and a stable anchor-state key; environment/tool tokens remain outside the
+loss mask. Sparse environments assign the terminal trajectory reward to the
+final sampled turn and zero to earlier turns before discounted returns are
+computed. A backend without both sequence-level clipping and hierarchical
+agentic advantages rejects `train.sampo`; GSPO alone is not SAMPO.
 
 ```text
 train.distill seats

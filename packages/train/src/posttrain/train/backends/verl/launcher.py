@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import math
 import os
 import signal
 import subprocess
-from dataclasses import asdict, dataclass
+from collections.abc import Mapping
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Literal
 
@@ -25,37 +25,25 @@ from ...grpo_observations import GRPOObservationFeatures, normalize_grpo_metrics
 from ...requests import GRPORequest, OnPolicyDistillationRequest
 from ...results import TrainingSummary
 from ..common import BackendTrainingResult
+from .contracts import (
+    VerlEnvironment,
+    VerlEnvironmentExample,
+    VerlHubArtifact,
+    VerlInference,
+    VerlLaunchManifest,
+    VerlLocalArtifact,
+    VerlModel,
+    VerlPayload,
+    VerlTarget,
+    VerlWorkerResult,
+)
 from .metrics import VerlMetricRecord, read_verl_metric_records
 
 _SUPPORTED_MODEL_FAMILIES = frozenset({"qwen3.5"})
 _RESULT_FILE = "posttrain-result.json"
 
 
-@dataclass(frozen=True, slots=True)
-class VerlLaunchPlan:
-    """Deterministic input for the isolated posttrain veRL worker."""
-
-    schema_version: int
-    operation: Literal["grpo", "distill"]
-    backend: str
-    backend_source_revision: str
-    python_executable: str
-    working_directory: str
-    output_directory: str
-    result_file: str
-    payload: dict[str, Any]
-
-    def write(self, path: Path) -> None:
-        path.write_text(json.dumps(asdict(self), indent=2, sort_keys=True) + "\n", encoding="utf-8")
-
-    @property
-    def command(self) -> tuple[str, ...]:
-        return (
-            self.python_executable,
-            "-m",
-            "posttrain.train.backends.verl.worker",
-            str(Path(self.output_directory) / "posttrain-verl-launch.json"),
-        )
+VerlLaunchPlan = VerlLaunchManifest
 
 
 def build_grpo_launch_plan(request: GRPORequest, output_dir: Path) -> VerlLaunchPlan:
@@ -75,6 +63,18 @@ def build_grpo_launch_plan(request: GRPORequest, output_dir: Path) -> VerlLaunch
                 "num_generations": request.settings.num_generations,
                 "max_prompt_length": request.settings.max_prompt_length,
                 "max_completion_length": request.settings.max_completion_length,
+                "online_rl_algorithm": request.settings.algorithm,
+                "clip_epsilon_low": request.settings.clip_epsilon_low,
+                "clip_epsilon_high": request.settings.resolved_clip_epsilon_high,
+                "dynamic_sampling": request.settings.dynamic_sampling is not None,
+                "dynamic_sampling_max_candidate_batches": (
+                    request.settings.dynamic_sampling.max_candidate_batches
+                    if request.settings.dynamic_sampling is not None
+                    else None
+                ),
+                "mask_truncated_completions": request.settings.mask_truncated_completions,
+                "overlong_buffer_tokens": request.settings.overlong_buffer_tokens,
+                "overlong_penalty_factor": request.settings.overlong_penalty_factor,
             },
             "rollout": _inference(request.inference),
             "environment": _environment(request, output_dir),
@@ -130,25 +130,41 @@ def _plan(
     request: GRPORequest | OnPolicyDistillationRequest,
     output_dir: Path,
     operation: Literal["grpo", "distill"],
-    operation_payload: dict[str, Any],
+    operation_payload: dict[str, object],
 ) -> VerlLaunchPlan:
     runtime = request.training.runtime
     backend_options = request.training.backend_options
-    executable = backend_options.get("python_executable", runtime.get("python_executable"))
+    executable = backend_options.get("python_executable")
     if not isinstance(executable, str) or not executable.strip():
         raise ValueError("veRL training requires backend_options.python_executable")
     executable_path = Path(executable).expanduser()
     if not executable_path.is_absolute():
         raise ValueError("veRL backend_options.python_executable must be an absolute path")
-    working_directory = backend_options.get("working_directory", runtime.get("working_directory"))
+    working_directory = backend_options.get("working_directory")
     if not isinstance(working_directory, str) or not working_directory.strip():
         raise ValueError("veRL training requires backend_options.working_directory")
     worktree = Path(working_directory).expanduser()
     if not worktree.is_absolute():
         raise ValueError("veRL backend_options.working_directory must be an absolute path")
-    source_revision = backend_options.get("source_revision", runtime.get("backend_source_revision"))
+    source_revision = backend_options.get("source_revision")
     if not isinstance(source_revision, str) or len(source_revision) != 40:
         raise ValueError("veRL training requires a 40-character backend_options.source_revision")
+    recipe_worktree = None
+    recipe_source_revision = None
+    algorithm_payload = operation_payload.get("algorithm")
+    dynamic_sampling = (
+        bool(algorithm_payload.get("dynamic_sampling")) if isinstance(algorithm_payload, Mapping) else False
+    )
+    if dynamic_sampling:
+        recipe_directory = backend_options.get("dapo_recipe_working_directory")
+        if not isinstance(recipe_directory, str) or not recipe_directory.strip():
+            raise ValueError("veRL DAPO dynamic sampling requires backend_options.dapo_recipe_working_directory")
+        recipe_worktree = Path(recipe_directory).expanduser()
+        if not recipe_worktree.is_absolute():
+            raise ValueError("veRL dapo_recipe_working_directory must be an absolute path")
+        recipe_source_revision = backend_options.get("dapo_recipe_source_revision")
+        if not isinstance(recipe_source_revision, str) or len(recipe_source_revision) != 40:
+            raise ValueError("veRL DAPO dynamic sampling requires a 40-character dapo_recipe_source_revision")
     update = request.training.update
     if not isinstance(update, FullParameterUpdate | LoRAUpdate):
         raise ValueError("the qualified veRL slice supports full-parameter and LoRA updates")
@@ -163,51 +179,54 @@ def _plan(
             }
         )
     loop = request.settings.loop
-    payload = {
-        **operation_payload,
-        "training": {
-            "binding_id": request.training.id,
-            "renderer": {
-                "id": request.training.renderer.id,
-                "implementation": request.training.renderer.implementation,
-                "reasoning_mode": request.training.renderer.reasoning_mode,
+    payload = VerlPayload.model_validate(
+        {
+            **operation_payload,
+            "training": {
+                "binding_id": request.training.id,
+                "renderer": {
+                    "id": request.training.renderer.id,
+                    "implementation": request.training.renderer.implementation,
+                    "reasoning_mode": request.training.renderer.reasoning_mode,
+                },
+                "update": update_payload,
+                "loop": {
+                    "max_steps": loop.max_steps,
+                    "per_device_batch_size": loop.per_device_batch_size,
+                    "gradient_accumulation_steps": loop.gradient_accumulation_steps,
+                    "learning_rate": loop.learning_rate,
+                    "warmup_steps": math.ceil(loop.max_steps * loop.warmup_ratio),
+                    "max_grad_norm": loop.max_grad_norm,
+                    "checkpoint_steps": loop.checkpoint_steps,
+                    "checkpoint_limit": loop.checkpoint_limit,
+                    "seed": loop.seed,
+                    "gradient_checkpointing": loop.gradient_checkpointing,
+                },
+                "parallelism": {
+                    "tensor_parallel_size": request.training.parallelism.tensor_parallel_size,
+                    "context_parallel_size": request.training.parallelism.context_parallel_size,
+                    "expert_parallel_size": request.training.parallelism.expert_parallel_size,
+                },
+                "target": {
+                    "id": request.training.target.id,
+                    "world_size": request.training.target.placement.get("world_size", 1),
+                },
+                "runtime": {key: value for key, value in asdict(runtime).items() if key != "timeout_seconds"},
+                "backend_options": dict(backend_options),
             },
-            "update": update_payload,
-            "loop": {
-                "max_steps": loop.max_steps,
-                "per_device_batch_size": loop.per_device_batch_size,
-                "gradient_accumulation_steps": loop.gradient_accumulation_steps,
-                "learning_rate": loop.learning_rate,
-                "warmup_steps": math.ceil(loop.max_steps * loop.warmup_ratio),
-                "max_grad_norm": loop.max_grad_norm,
-                "checkpoint_steps": loop.checkpoint_steps,
-                "checkpoint_limit": loop.checkpoint_limit,
-                "seed": loop.seed,
-                "gradient_checkpointing": loop.gradient_checkpointing,
-            },
-            "parallelism": {
-                "tensor_parallel_size": request.training.parallelism.tensor_parallel_size,
-                "context_parallel_size": request.training.parallelism.context_parallel_size,
-                "expert_parallel_size": request.training.parallelism.expert_parallel_size,
-            },
-            "target": {
-                "id": request.training.target.id,
-                "world_size": request.training.target.placement.get("world_size", 1),
-            },
-            "runtime": dict(runtime),
-            "backend_options": dict(backend_options),
+            "resume_from": request.resume_from.path if request.resume_from is not None else None,
         },
-        "resume_from": str(request.resume_from.path) if request.resume_from is not None else None,
-    }
+    )
     return VerlLaunchPlan(
-        schema_version=1,
         operation=operation,
         backend=request.training.backend,
         backend_source_revision=source_revision,
-        python_executable=str(executable_path),
-        working_directory=str(worktree),
-        output_directory=str(output_dir.resolve()),
-        result_file=str((output_dir / _RESULT_FILE).resolve()),
+        recipe_source_revision=recipe_source_revision,
+        python_executable=executable_path,
+        working_directory=worktree,
+        recipe_working_directory=recipe_worktree,
+        output_directory=output_dir.resolve(),
+        result_file=(output_dir / _RESULT_FILE).resolve(),
         payload=payload,
     )
 
@@ -219,8 +238,7 @@ def _launch(
     output_dir: Path,
 ) -> BackendTrainingResult:
     manifest = output_dir / "posttrain-verl-launch.json"
-    snapshot_value = plan.payload["environment"]["bridge_snapshot"]
-    snapshot_path = Path(str(snapshot_value))
+    snapshot_path = plan.payload.environment.bridge_snapshot
     snapshot_writer = getattr(request.bridge, "write_portable_snapshot", None)
     if not callable(snapshot_writer):
         raise TypeError("veRL currently requires a portable Verifiers environment bridge")
@@ -233,7 +251,7 @@ def _launch(
         {
             "backend": plan.backend,
             "backend_source_revision": plan.backend_source_revision,
-            "isolated_python": plan.python_executable,
+            "isolated_python": str(plan.python_executable),
             "supported_model_families": ",".join(sorted(_SUPPORTED_MODEL_FAMILIES)),
         },
     )
@@ -246,7 +264,7 @@ def _launch(
         with log_file.open("w", encoding="utf-8") as stream:
             process = subprocess.Popen(
                 plan.command,
-                cwd=plan.working_directory,
+                cwd=str(plan.working_directory),
                 env=environment,
                 stdout=stream,
                 stderr=subprocess.STDOUT,
@@ -274,12 +292,12 @@ def _launch(
         raise RuntimeError(
             f"isolated veRL {plan.operation} process exited with code {returncode}; log tail follows:\n{log_tail}"
         )
-    result_path = Path(plan.result_file)
+    result_path = plan.result_file
     if not result_path.is_file():
         _record_failure_artifacts(context, plan, output_dir)
         raise RuntimeError(f"veRL process completed without its result contract: {result_path}")
-    result = json.loads(result_path.read_text(encoding="utf-8"))
-    backend, records = _backend_result(result, result_path, output_dir)
+    result = VerlWorkerResult.read(result_path)
+    backend, records = _backend_result(result, output_dir)
     if isinstance(request, GRPORequest):
         _replay_grpo_metrics(context, request, records)
     return backend
@@ -319,29 +337,24 @@ def _record_failure_artifacts(
 
 
 def _backend_result(
-    payload: Any,
-    result_path: Path,
+    payload: VerlWorkerResult,
     output_dir: Path,
 ) -> tuple[BackendTrainingResult, tuple[VerlMetricRecord, ...]]:
-    if not isinstance(payload, dict):
-        raise TypeError("veRL result contract must be a JSON object")
-    summary = payload.get("summary")
-    if not isinstance(summary, dict):
-        raise TypeError("veRL result contract requires a summary object")
-    try:
-        training_summary = TrainingSummary(
-            global_step=int(summary["global_step"]),
-            train_loss=float(summary["train_loss"]),
-            runtime_seconds=float(summary["runtime_seconds"]),
-            samples_per_second=float(summary["samples_per_second"]),
-            steps_per_second=float(summary["steps_per_second"]),
-        )
-        model_dir = Path(str(payload["model_dir"])).resolve()
-    except (KeyError, TypeError, ValueError) as error:
-        raise ValueError("veRL result contract contains invalid summary or model fields") from error
-    checkpoint_value = payload.get("recovery_checkpoint")
-    checkpoint = Path(str(checkpoint_value)).resolve() if checkpoint_value is not None else None
-    metrics_path = _output_file(payload.get("metrics_file"), output_dir, "metrics_file")
+    summary = payload.summary
+    training_summary = TrainingSummary(
+        global_step=summary.global_step,
+        train_loss=summary.train_loss,
+        runtime_seconds=summary.runtime_seconds,
+        samples_per_second=summary.samples_per_second,
+        steps_per_second=summary.steps_per_second,
+    )
+    model_dir = _output_path(payload.model_dir, output_dir, "model_dir")
+    checkpoint = (
+        _output_path(payload.recovery_checkpoint, output_dir, "recovery_checkpoint")
+        if payload.recovery_checkpoint is not None
+        else None
+    )
+    metrics_path = _output_file(payload.metrics_file, output_dir, "metrics_file")
     records = read_verl_metric_records(metrics_path)
     if not model_dir.is_dir():
         raise FileNotFoundError(model_dir)
@@ -350,15 +363,18 @@ def _backend_result(
     return BackendTrainingResult(training_summary, model_dir, checkpoint, metrics_path), records
 
 
-def _output_file(value: object, output_dir: Path, field: str) -> Path:
-    if not isinstance(value, str) or not value:
-        raise ValueError(f"veRL result contract requires {field}")
-    root = output_dir.resolve()
-    path = Path(value).resolve()
-    if not path.is_relative_to(root):
-        raise ValueError(f"veRL result {field} must remain inside the run output directory")
+def _output_file(value: Path, output_dir: Path, field: str) -> Path:
+    path = _output_path(value, output_dir, field)
     if not path.is_file():
         raise FileNotFoundError(path)
+    return path
+
+
+def _output_path(value: Path, output_dir: Path, field: str) -> Path:
+    root = output_dir.resolve()
+    path = value.resolve()
+    if not path.is_relative_to(root):
+        raise ValueError(f"veRL result {field} must remain inside the run output directory")
     return path
 
 
@@ -394,12 +410,7 @@ def _isolated_environment() -> dict[str, str]:
 
 
 def _runtime_timeout(request: GRPORequest | OnPolicyDistillationRequest) -> float | None:
-    raw = request.training.runtime.get("timeout_seconds")
-    if raw is None:
-        return None
-    if isinstance(raw, bool) or not isinstance(raw, int | float) or raw <= 0:
-        raise ValueError("veRL runtime timeout_seconds must be a positive number")
-    return float(raw)
+    return request.training.runtime.timeout_seconds
 
 
 def _grpo_runtime_attributes(request: GRPORequest, plan: VerlLaunchPlan) -> dict[str, Any]:
@@ -420,6 +431,12 @@ def _grpo_runtime_attributes(request: GRPORequest, plan: VerlLaunchPlan) -> dict
             "max_model_len",
             request.settings.max_prompt_length + request.settings.max_completion_length,
         ),
+        "online_rl_algorithm": request.settings.algorithm,
+        "clip_epsilon_low": request.settings.clip_epsilon_low,
+        "clip_epsilon_high": request.settings.resolved_clip_epsilon_high,
+        "mask_truncated_completions": request.settings.mask_truncated_completions,
+        "overlong_buffer_tokens": request.settings.overlong_buffer_tokens,
+        "overlong_penalty_factor": request.settings.overlong_penalty_factor,
     }
     if isinstance(speculative, dict):
         attributes["speculative_method"] = str(speculative.get("method"))
@@ -438,54 +455,53 @@ def _validate_model(model: ModelVariant, role: str) -> None:
         raise ValueError(f"veRL currently qualifies only {qualified}; {role} uses {model.family!r}")
 
 
-def _model(model: ModelVariant | None) -> dict[str, Any] | None:
+def _model(model: ModelVariant | None) -> VerlModel | None:
     if model is None:
         return None
-    artifact: dict[str, str]
     if isinstance(model.artifact, HubModelRef):
-        artifact = {"kind": "hub", "repo_id": model.artifact.repo_id, "revision": model.artifact.revision}
+        artifact = VerlHubArtifact(repo_id=model.artifact.repo_id, revision=model.artifact.revision)
     elif isinstance(model.artifact, LocalArtifactRef):
-        artifact = {"kind": "local", "path": str(model.artifact.path.resolve()), "digest": model.artifact.digest}
+        artifact = VerlLocalArtifact(path=model.artifact.path.resolve(), digest=model.artifact.digest)
     else:
         raise ValueError("veRL requires a HubModelRef or materialized LocalArtifactRef")
-    return {
-        "id": model.id,
-        "family": model.family,
-        "form": model.form,
-        "artifact": artifact,
-        "tokenizer_fingerprint": model.tokenizer_fingerprint,
-        "renderer_contract": model.renderer_contract,
-    }
+    return VerlModel(
+        id=model.id,
+        family=model.family,
+        form=model.form,
+        artifact=artifact,
+        tokenizer_fingerprint=model.tokenizer_fingerprint,
+        renderer_contract=model.renderer_contract,
+    )
 
 
-def _inference(binding: Any) -> dict[str, Any]:
-    return {
-        "id": binding.id,
-        "backend": binding.backend,
-        "engine": dict(binding.engine),
-        "sampling": dict(binding.sampling),
-        "target": {
-            "id": binding.target.id,
-            "world_size": binding.target.placement.get("world_size", 1),
-        },
-    }
+def _inference(binding: Any) -> VerlInference:
+    return VerlInference(
+        id=binding.id,
+        backend=binding.backend,
+        engine=dict(binding.engine),
+        sampling=dict(binding.sampling),
+        target=VerlTarget(
+            id=binding.target.id,
+            world_size=binding.target.placement.get("world_size", 1),
+        ),
+    )
 
 
 def _environment(
     request: GRPORequest | OnPolicyDistillationRequest,
     output_dir: Path,
-) -> dict[str, Any]:
-    return {
-        "id": request.environment.id,
-        "revision": request.environment.revision,
-        "dataset_id": request.bridge.dataset.id,
-        "dataset_revision": request.bridge.dataset.revision,
-        "bridge_snapshot": str((output_dir / "verifiers-bridge.pkl").resolve()),
-        "examples": [
-            {"id": example.id, "prompt": example.prompt, "metadata": dict(example.metadata)}
+) -> VerlEnvironment:
+    return VerlEnvironment(
+        id=request.environment.id,
+        revision=request.environment.revision,
+        dataset_id=request.bridge.dataset.id,
+        dataset_revision=request.bridge.dataset.revision,
+        bridge_snapshot=(output_dir / "verifiers-bridge.pkl").resolve(),
+        examples=tuple(
+            VerlEnvironmentExample(id=example.id, prompt=example.prompt, metadata=dict(example.metadata))
             for example in request.bridge.dataset.examples
-        ],
-    }
+        ),
+    )
 
 
 __all__ = [

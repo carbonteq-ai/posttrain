@@ -46,6 +46,7 @@ def test_standard_definition_registry_covers_every_technique() -> None:
         "train/trl-sft@1",
         "train/trl-dpo@1",
         "train/trl-grpo@1",
+        "train/trl-sampo@1",
         "train/trl-distill@1",
         "serve/vllm-benchmark@1",
         "serve/vllm-smoke@1",

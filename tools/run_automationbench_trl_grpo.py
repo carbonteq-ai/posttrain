@@ -37,6 +37,7 @@ from posttrain.train import (  # noqa: E402
     LoRAUpdate,
     TrainingBinding,
     TrainingLoop,
+    TrainingRuntime,
     grpo,
 )
 from posttrain.train.integrations import (  # noqa: E402
@@ -118,9 +119,9 @@ def main() -> None:
         renderer=QWEN35_RENDERER,
         update=LoRAUpdate(rank=8, alpha=16, target_modules="all-linear"),
         target=target,
-        runtime={
-            "global_batch_size": args.num_generations,
-            "backend_source_revision": TRL_REVISION,
+        runtime=TrainingRuntime(global_batch_size=args.num_generations),
+        backend_options={
+            "source_revision": TRL_REVISION,
         },
     )
     inference = InferenceBinding(

@@ -477,7 +477,7 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
                 "expert_parallel_size": value.parallelism.expert_parallel_size,
                 "sequence_length_divisor": value.parallelism.sequence_length_divisor,
             },
-            "runtime": dict(value.runtime),
+            "runtime": asdict(value.runtime),
         }
     if isinstance(value, (SFTSettings, DPOSettings, GRPOSettings, OnPolicyDistillationSettings)):
         loop = value.loop

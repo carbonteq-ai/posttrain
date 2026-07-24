@@ -140,10 +140,10 @@ def _observed_sft_trainer_type(parent: type[Any], context: RunContext) -> type[A
     return ObservedSFTTrainer
 
 
-def _runtime_bool(request: SFTRequest, name: str, default: bool) -> bool:
-    value = request.training.runtime.get(name, default)
+def _backend_option_bool(request: SFTRequest, name: str, default: bool) -> bool:
+    value = request.training.backend_options.get(name, default)
     if not isinstance(value, bool):
-        raise ValueError(f"SFT training runtime {name!r} must be a boolean")
+        raise ValueError(f"SFT backend option {name!r} must be a boolean")
     return value
 
 
@@ -156,7 +156,7 @@ def _sft_arguments(request: SFTRequest, output_dir: Path) -> dict[str, Any]:
             "assistant_only_loss": False,
             "packing": False,
             "shuffle_dataset": False,
-            "use_liger_kernel": _runtime_bool(request, "use_liger_kernel", False),
+            "use_liger_kernel": _backend_option_bool(request, "use_liger_kernel", False),
         }
     )
     validation = request.settings.validation

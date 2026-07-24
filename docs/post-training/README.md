@@ -66,6 +66,27 @@ starts local Observatory. `ProjectExecutionRequest`, `ProjectEntry`, and
 Details: [04 · Framework](./04-framework.md), [05 · APIs](./05-apis.md),
 [developer experience](../developer-experience.md), and the
 [implementation plan](../plan/project-developer-experience.md).
+**Amendment — DAPO algorithm selection (2026-07-24):**
+`train.grpo` keeps one request shape while `GRPOSettings.algorithm` selects
+`grpo` or `dapo`. DAPO owns token-level loss, asymmetric clipping, global
+active-token normalization, retained-group dynamic sampling, truncation
+handling, and optional soft-overlong shaping. Sampling-efficiency, memory,
+failure-bound, and observability improvements do not create a renamed DAPO
+variant. CISPO, GSPO, Dr. GRPO, ARPO, and SAMPO remain distinct algorithms.
+Details: [02 · Primitives](./02-primitives.md),
+[05 · APIs](./05-apis.md), and the
+[implementation plan](../plan/dapo-algorithm-backends.md).
+**Amendment — SAMPO agentic training (2026-07-24):**
+`train.sampo` is a separate multi-turn tool-agent operation. It combines
+sequence-level clipped policy updates, group-relative episode advantages,
+anchor-state-relative turn advantages, and bounded filtering of
+reward-constant trajectory groups. Its rollout contract records sampled
+assistant-turn token spans and stable preceding observation keys. TRL is the
+first supported backend; adapters without hierarchical agentic advantages must
+reject the selection rather than approximate it with GSPO alone.
+Details: [02 · Primitives](./02-primitives.md),
+[05 · APIs](./05-apis.md), [06 · Observation and lineage](./06-observation-and-lineage.md),
+and the [implementation plan](../plan/sampo-agentic-training.md).
 
 These six documents are the **product/design authority** for the post-training
 framework. Do not expand or redesign them while building the implementation

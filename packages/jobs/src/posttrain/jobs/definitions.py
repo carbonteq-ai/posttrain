@@ -42,6 +42,8 @@ from posttrain.train import (
     OnPolicyDistillationRequest,
     OnPolicyDistillationSettings,
     QuantizationPlan,
+    SAMPORequest,
+    SAMPOSettings,
     SFTRequest,
     SFTSettings,
     TrainingBinding,
@@ -49,10 +51,12 @@ from posttrain.train import (
     TransformResult,
     build_verifiers_distillation_request,
     build_verifiers_grpo_request,
+    build_verifiers_sampo_request,
     distill,
     dpo,
     grpo,
     run_llm_compressor,
+    sampo,
     sft,
     transform,
 )
@@ -75,9 +79,7 @@ def sft_definition(
                 data=_seat(seats, "dataset", SupervisedDataSource),
                 settings=_seat(seats, "settings", SFTSettings),
                 training=_seat(seats, "training", TrainingBinding),
-                validation_data=(
-                    _seat(seats, "validation_dataset", SupervisedDataSource) if with_validation else None
-                ),
+                validation_data=(_seat(seats, "validation_dataset", SupervisedDataSource) if with_validation else None),
             ),
         )
 
@@ -158,7 +160,7 @@ def grpo_definition(
             "rollout_inference": InferenceBinding,
         },
         run,
-        "Generate grouped Verifiers rollouts and update the selected policy with GRPO.",
+        "Generate grouped Verifiers rollouts and update the selected policy with the selected GRPO-family objective.",
     )
 
 
@@ -197,6 +199,40 @@ def distillation_definition(
         },
         run,
         "Generate fresh student rollouts, score with the teacher, and apply distillation.",
+    )
+
+
+def sampo_definition(
+    operation: Callable[[RunContext, SAMPORequest], object] = sampo,
+    *,
+    tasks: Mapping[int, Any] | None = None,
+    definition_id: str = "train/trl-sampo@1",
+) -> JobDefinition:
+    def run(context: RunContext, seats: ResolvedSeats) -> object:
+        request = build_verifiers_sampo_request(
+            policy=_seat(seats, "model", ModelVariant),
+            environment=_seat(seats, "environment", EnvironmentBinding),
+            settings=_seat(seats, "settings", SAMPOSettings),
+            training=_seat(seats, "training", TrainingBinding),
+            inference=_seat(seats, "rollout_inference", InferenceBinding),
+            trace_path=context.workspace / "training" / "sampo" / "verifiers-traces.jsonl",
+            run_id=context.run_id,
+            tasks=tasks,
+        )
+        return operation(context, request)
+
+    return JobDefinition(
+        definition_id,
+        "train.sampo",
+        {
+            "model": ModelVariant,
+            "environment": EnvironmentBinding,
+            "settings": SAMPOSettings,
+            "training": TrainingBinding,
+            "rollout_inference": InferenceBinding,
+        },
+        run,
+        "Train a multi-turn tool policy with sequence clipping and hierarchical episode/turn advantages.",
     )
 
 
@@ -349,6 +385,7 @@ def standard_definitions() -> dict[str, JobDefinition]:
         sft_definition(),
         dpo_definition(),
         grpo_definition(),
+        sampo_definition(),
         distillation_definition(),
         serve_benchmark_definition(),
         serve_smoke_definition(),
@@ -432,6 +469,7 @@ __all__ = [
     "dpo_definition",
     "general_evaluation_definition",
     "grpo_definition",
+    "sampo_definition",
     "managed_evaluation_definition",
     "model_transform_definition",
     "serve_benchmark_definition",

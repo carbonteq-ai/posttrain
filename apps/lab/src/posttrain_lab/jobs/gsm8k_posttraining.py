@@ -170,6 +170,13 @@ def training_inputs(request: SFTRequest | DPORequest | GRPORequest) -> dict[str,
     if isinstance(request, GRPORequest):
         values["environment_id"] = request.environment.id
         values["environment_revision"] = request.environment.revision
+        values["online_rl_algorithm"] = request.settings.algorithm
+        values["clip_epsilon_low"] = request.settings.clip_epsilon_low
+        values["clip_epsilon_high"] = request.settings.resolved_clip_epsilon_high
+        values["mask_truncated_completions"] = request.settings.mask_truncated_completions
+        values["overlong_penalty_factor"] = request.settings.overlong_penalty_factor
+        if request.settings.overlong_buffer_tokens is not None:
+            values["overlong_buffer_tokens"] = request.settings.overlong_buffer_tokens
         values["grpo_beta"] = request.settings.beta
         values["grpo_num_generations"] = request.settings.num_generations
         values["grpo_max_prompt_length"] = request.settings.max_prompt_length

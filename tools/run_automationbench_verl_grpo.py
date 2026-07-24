@@ -36,6 +36,7 @@ from posttrain.train import (  # noqa: E402
     LoRAUpdate,
     TrainingBinding,
     TrainingLoop,
+    TrainingRuntime,
     grpo,
 )
 from posttrain.train.integrations import (  # noqa: E402
@@ -129,13 +130,13 @@ def main() -> None:
             target_modules=r".*language_model.*[.](o_proj|down_proj)$",
         ),
         target=target,
-        runtime={
-            "global_batch_size": len(args.task_indices) * args.num_generations,
-            "devices_per_node": 1,
-            "nodes": 1,
-            "parameter_offload": True,
-            "optimizer_offload": True,
-        },
+        runtime=TrainingRuntime(
+            global_batch_size=len(args.task_indices) * args.num_generations,
+            devices_per_node=1,
+            nodes=1,
+            parameter_offload=True,
+            optimizer_offload=True,
+        ),
         backend_options={
             "python_executable": str(args.python_executable.absolute()),
             "working_directory": str(args.verl_worktree.resolve()),

@@ -40,6 +40,7 @@ from posttrain.train import (
     QWEN35_RENDERER,
     QWEN35_SFT_SMOKE,
     DPORequest,
+    DynamicGroupSampling,
     EnvironmentRollout,
     FullParameterUpdate,
     GRPOObservationFeatures,
@@ -56,6 +57,7 @@ from posttrain.train import (
     TrainingBinding,
     TrainingLoop,
     TrainingParallelism,
+    TrainingRuntime,
     TransformRequest,
     distill,
     dpo,
@@ -76,7 +78,9 @@ from posttrain.train.backends.trl.grpo import (
     _grpo_runtime_attributes,
     _rollout_function,
 )
+from posttrain.train.catalog_schema import TrainingRuntimeSchema
 from posttrain.train.results import TrainingSummary
+from pydantic import ValidationError
 
 
 @dataclass
@@ -190,6 +194,21 @@ class FakeRLBridge:
         return ()
 
 
+@dataclass
+class FailingFinalizeBridge(FakeRLBridge):
+    def finalize(self) -> tuple[ProducedArtifact, ...]:
+        raise RuntimeError("finalize failed")
+
+
+@dataclass
+class TrackingFinalizeBridge(FakeRLBridge):
+    finalized: bool = False
+
+    def finalize(self) -> tuple[ProducedArtifact, ...]:
+        self.finalized = True
+        return ()
+
+
 @dataclass(frozen=True)
 class FakeEnvironment:
     id: str = "gsm8k-train-candidates"
@@ -247,7 +266,7 @@ def _training(
         update or QLoRAUpdate(),
         target or _target(),
         TrainingParallelism(sequence_length_divisor=2),
-        {"global_batch_size": 2},
+        TrainingRuntime(global_batch_size=2),
     )
 
 
@@ -305,6 +324,17 @@ def _teacher_inference(model: ModelVariant) -> InferenceBinding:
     )
 
 
+def test_training_runtime_is_closed_and_validates_normalized_values() -> None:
+    with pytest.raises(ValueError, match="positive integers"):
+        TrainingRuntime(global_batch_size=0)
+    with pytest.raises(ValueError, match="finite positive number"):
+        TrainingRuntime(timeout_seconds=float("inf"))
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        TrainingRuntimeSchema.model_validate({"global_batch_size": 2, "use_liger_kernel": True})
+    with pytest.raises(ValidationError, match="int_type"):
+        TrainingRuntimeSchema.model_validate({"nodes": "1"})
+
+
 def _distillation_request() -> OnPolicyDistillationRequest:
     fingerprint = "f" * 64
     student = replace(QWEN_35_2B, tokenizer_fingerprint=fingerprint)
@@ -345,6 +375,38 @@ def _backend(_: RunContext, __: object, *args: object) -> BackendTrainingResult:
     summary_file = root / "training-summary.json"
     summary_file.write_text("{}")
     return BackendTrainingResult(TrainingSummary(2, 0.5, 1.0, 2.0, 2.0), adapter, checkpoint, summary_file)
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        (0, 0.5, 1.0, 2.0, 2.0),
+        (1, float("nan"), 1.0, 2.0, 2.0),
+        (1, 0.5, -1.0, 2.0, 2.0),
+        (1, 0.5, 1.0, -2.0, 2.0),
+    ],
+)
+def test_completed_training_summary_rejects_invalid_values(values: tuple[int, float, float, float, float]) -> None:
+    with pytest.raises(ValueError):
+        TrainingSummary(*values)
+
+
+def test_backend_result_requires_workspace_scoped_existing_outputs(tmp_path: Path) -> None:
+    workspace = (tmp_path / "workspace").resolve()
+    workspace.mkdir()
+    outside = (tmp_path / "outside").resolve()
+    outside.mkdir()
+    summary = workspace / "summary.json"
+    summary.write_text("{}")
+    result = BackendTrainingResult(TrainingSummary(1, 0.5, 1.0, 1.0, 1.0), outside, None, summary)
+
+    with pytest.raises(ValueError, match="inside the run workspace"):
+        result.validate(workspace)
+
+    missing_model = workspace / "missing-model"
+    result = replace(result, model_dir=missing_model)
+    with pytest.raises(FileNotFoundError, match="missing-model"):
+        result.validate(workspace)
 
 
 def test_trainer_lifecycle_closes_distributed_runtime_after_failure() -> None:
@@ -684,9 +746,56 @@ def test_distillation_operation_records_teacher_student_and_native_trace_contrac
     assert result.model.tokenizer_fingerprint == request.student.tokenizer_fingerprint
     assert result.teacher_scoring is not None
     assert result.teacher_scoring.teacher.id == request.teacher.id
-    assert result.teacher_scoring.mode == "external-exact-token"
+    assert result.teacher_scoring.mode == "exact-token"
+    assert result.teacher_scoring.inference_binding_id == request.teacher_inference.id
+    assert result.teacher_scoring.inference_binding_revision == request.teacher_inference.revision
+    assert result.teacher_scoring.backend == request.teacher_inference.backend
     assert observer.events[0].attributes["teacher_model_variant_id"] == request.teacher.id
     assert any("train/distill/loss" in batch.values for batch in observer.metrics_seen)
+    assert all("train/distill/teacher_failures" not in batch.values for batch in observer.metrics_seen)
+
+
+def test_online_training_preserves_backend_failure_when_trace_finalization_also_fails(tmp_path: Path) -> None:
+    request = GRPORequest(
+        policy=QWEN_35_2B,
+        bridge=FailingFinalizeBridge(),
+        settings=QWEN35_GRPO_SMOKE,
+        environment=FakeEnvironment(),
+        training=_training(),
+        inference=_inference(QWEN_35_2B),
+    )
+
+    def fail_backend(_: RunContext, __: GRPORequest, ___: Path) -> BackendTrainingResult:
+        raise RuntimeError("training failed")
+
+    with pytest.raises(RuntimeError, match="training failed") as captured:
+        grpo(_context(tmp_path, Observer()), request, runner=fail_backend)
+
+    assert captured.value.__notes__ == ["environment trace finalization also failed: RuntimeError: finalize failed"]
+
+
+def test_online_training_validates_backend_outputs_before_finalizing_traces(tmp_path: Path) -> None:
+    bridge = TrackingFinalizeBridge()
+    request = GRPORequest(
+        policy=QWEN_35_2B,
+        bridge=bridge,
+        settings=QWEN35_GRPO_SMOKE,
+        environment=FakeEnvironment(),
+        training=_training(),
+        inference=_inference(QWEN_35_2B),
+    )
+
+    def invalid_backend(_: RunContext, __: GRPORequest, output_dir: Path) -> BackendTrainingResult:
+        outside = output_dir.parents[3] / "outside-model"
+        outside.mkdir()
+        summary = output_dir.parent / "summary.json"
+        summary.write_text("{}")
+        return BackendTrainingResult(TrainingSummary(1, 0.5, 1.0, 1.0, 1.0), outside, None, summary)
+
+    with pytest.raises(ValueError, match="inside the run workspace"):
+        grpo(_context(tmp_path, Observer()), request, runner=invalid_backend)
+
+    assert bridge.finalized is False
 
 
 def test_distillation_request_rejects_missing_or_mismatched_tokenizer_fingerprints() -> None:
@@ -916,7 +1025,7 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
         FakeRLBridge(),
         multi_prompt_settings,
         FakeEnvironment(),
-        replace(_training(), runtime={"global_batch_size": 16}),
+        replace(_training(), runtime=TrainingRuntime(global_batch_size=16)),
         _inference(model),
     )
     multi_prompt_arguments = _grpo_arguments(
@@ -928,8 +1037,8 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
 
     optimized_training = replace(
         _training(),
-        runtime={
-            "global_batch_size": 2,
+        runtime=TrainingRuntime(global_batch_size=2),
+        backend_options={
             "use_liger_kernel": True,
             "logits_chunk_size": 128,
         },
@@ -962,6 +1071,23 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
     turboquant_arguments = _grpo_arguments(turboquant_request, tmp_path, {"enable_thinking": False})
     assert turboquant_arguments["vllm_engine_kwargs"]["kv_cache_dtype"] == "turboquant_k8v4"
     assert turboquant_arguments["vllm_engine_kwargs"]["dtype"] == "float16"
+
+    dapo_request = replace(
+        request,
+        settings=replace(
+            request.settings,
+            algorithm="dapo",
+            dynamic_sampling=DynamicGroupSampling(max_candidate_batches=4),
+            overlong_buffer_tokens=64,
+        ),
+    )
+    dapo_arguments = _grpo_arguments(dapo_request, tmp_path, {"enable_thinking": False})
+    assert dapo_arguments["loss_type"] == "dapo"
+    assert dapo_arguments["epsilon"] == 0.2
+    assert dapo_arguments["epsilon_high"] == 0.28
+    assert dapo_arguments["dynamic_sampling"] is True
+    assert dapo_arguments["dynamic_sampling_max_batches"] == 4
+    assert dapo_arguments["mask_truncated_completions"] is False
 
 
 def test_grpo_runtime_event_attributes_describe_selected_acceleration_without_claiming_results() -> None:
