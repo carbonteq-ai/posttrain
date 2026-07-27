@@ -1,0 +1,10 @@
+{
+  "content_sha256": "4737a55be2a5687d62acb2acd20f87da99e2dcdb41e6b75c8c7be3ff202f5843",
+  "data": "data.jsonl",
+  "dataset_revision": "1",
+  "examples": 1,
+  "schema_version": 1,
+  "selection_id": "datasets/fixture@1",
+  "selection_revision": "1",
+  "source_kind": "fixture"
+}

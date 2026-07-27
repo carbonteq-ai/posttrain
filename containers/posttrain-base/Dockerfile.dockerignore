@@ -1,0 +1,5 @@
+**
+!containers/
+!containers/posttrain-job-kinds/
+!containers/posttrain-job-kinds/locks/
+!containers/posttrain-job-kinds/locks/workspace.lock.txt

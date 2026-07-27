@@ -1,0 +1,48 @@
+{
+  "datasets": [
+    {
+      "dataset_revision": "1",
+      "digest": "4737a55be2a5687d62acb2acd20f87da99e2dcdb41e6b75c8c7be3ff202f5843",
+      "kind": "supervised",
+      "manifest_path": "datasets/fixture/manifest.json",
+      "num_records": 1,
+      "package_path": "datasets/fixture/data.jsonl",
+      "schema_version": 1,
+      "seat_name": "dataset",
+      "selection_id": "datasets/fixture@1",
+      "selection_revision": "1",
+      "size_bytes": 52
+    }
+  ],
+  "environment_activations": [],
+  "environment_packages": [
+    {
+      "package": "posttrain-job-context-fixture",
+      "repository": "https://github.com/carbonteq-ai/posttrain",
+      "revision": "1111111111111111111111111111111111111111",
+      "subdirectory": "containers/posttrain-job/fixtures/minimal-context/sources/project/fixture-package",
+      "tree_digest": "b551c6c1fb67971fcb5d23633da82cbd0c3f114d9bbf2cb03b7d900293e65b22",
+      "wheel_digest": "854369fc3730d5baf1e3a3f757f089917bf6921bcbc1723b997a773d27dfe1b9",
+      "wheel_filename": "posttrain_job_context_fixture-0.0.0-py3-none-any.whl",
+      "wheel_size_bytes": 1190
+    }
+  ],
+  "expected_artifact_roles": [],
+  "framework_source_digest": "83e0634ce623346f5beb268a98e19301fb3e7767683bb4e6152c947536199aa3",
+  "job_definition_id": "data/fixture@1",
+  "job_id": "fixture",
+  "job_kind": "data.prepare",
+  "kind_image": "python:3.12.11-slim-bookworm@sha256:519591d6871b7bc437060736b9f7456b8731f1499a57e22e6c285135ae657bf7",
+  "project_id": "fixture",
+  "project_source_digest": "000a11cd3e81ac4da975d913354e4323174076e41dd48b14adb6eb9584ef1934",
+  "project_config_digest": "3d5f0a72a03c3312800583181301fd3e43aa779916f154d178f2076372bb4fac",
+  "runtime_dependencies_digest": "2ade61ee6670161db7f2bc5bf1b89172474b2693e6158defd4865eece7446621",
+  "code_requirements_digest": "a6b9b44c41315865b0ff2d7a4f74c4104072bc533619c53bd69ee175d8ebc1c0",
+  "resolved_config_digest": "1fc87853155277bee558004a7de53694211f1e081e0803882994d26ba63027bb",
+  "resolved_inputs_digest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+  "runtime_variant": "supervised",
+  "schema": "posttrain.job-package.v1",
+  "universal_image": "registry.invalid/posttrain-base@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "work_package_id": "fixture/package",
+  "worker_contract_version": "1"
+}

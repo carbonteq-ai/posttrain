@@ -29,6 +29,10 @@ members = ["apps/*", "packages/*"]
 [tool.uv]
 package = false
 
+[tool.posttrain.pack]
+project_packages = ["apps/lab"]
+source_includes = ["apps/lab"]
+
 [[tool.uv.index]]
 name = "pytorch-cu130"
 url = "https://download.pytorch.org/whl/cu130"
@@ -44,10 +48,16 @@ testpaths = [
     "apps/cli/tests",
     "apps/lab/tests",
     "apps/observatory/tests",
+    "apps/runtime/tests",
     "packages/catalog/tests",
     "packages/common/tests",
     "packages/data/tests",
     "packages/eval/tests",
+    "packages/execution/tests",
+    "packages/execution-buildkit/tests",
+    "packages/execution-pack/tests",
+    "packages/execution-dstack/tests",
+    "packages/execution-local/tests",
     "packages/jobs/tests",
     "packages/serve/tests",
     "packages/tracking/tests",
@@ -100,7 +110,7 @@ precision = 1
 fail_under = 65
 
 [tool.importlinter]
-root_packages = ["posttrain", "posttrain_cli", "posttrain_lab", "posttrain_observatory"]
+root_packages = ["posttrain", "posttrain_cli", "posttrain_lab", "posttrain_observatory", "posttrain_runtime"]
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
