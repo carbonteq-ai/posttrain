@@ -32,11 +32,14 @@ imagined.
 
 ## Progress
 
-- [ ] Milestone 1 — Let the actual-job image install framework distributions
-  instead of copying framework source, so packing works without a checkout.
-- [ ] Milestone 2 — Produce a pre-release: build every wheel, publish or stage
-  them somewhere installable, and record the exact install command including
-  the Git-sourced dependency that cannot resolve implicitly.
+- [ ] Milestone 1 — Move the framework distributions into the job-kind image,
+  make the actual-job image install project code only, and keep staged
+  framework source as an explicit override that reinstalls over it. Requires
+  replacing `validate.py`'s dependency-only rule with one that asserts the
+  framework code present is exactly the release's.
+- [ ] Milestone 2 — Produce a pre-release on GitHub Releases: build every
+  wheel, attach them to a tagged release, and record the exact install command
+  including the Git-sourced dependency that cannot resolve implicitly.
 - [ ] Milestone 3 — Walk the consumer path end to end on real hardware:
   install, configure, `doctor`, then a serving benchmark, an SFT job, and a
   GRPO job whose model seat is the SFT output.
@@ -78,6 +81,33 @@ imagined.
   `_default_framework_source_root()` walks to the filesystem root and raises.
 
 ## Decision Log
+
+- Decision: the job-kind image carries the framework distributions; the
+  actual-job image carries only project code, configuration, datasets, and
+  selected environments.
+  Rationale: framework version is fixed per release, which is exactly the
+  cadence a job-kind image already publishes on, and those images are already
+  digest-pinned and verified. A consumer then configures nothing and stages
+  nothing: the framework arrives with the image they were told to pull.
+  Consequences: this reverses `validate.py`'s dependency-only rule for kind
+  images, which forbids `COPY packages/`, `COPY apps/`, `posttrain-runtime`,
+  and `from posttrain.` in that Dockerfile. That rule exists because kind
+  images are expensive and shared while actual-job images are cheap and
+  per-job, so moving framework code up a level makes every framework edit a
+  kind-image rebuild. The rule is not being weakened by accident; it is being
+  replaced by a different one, and the reason it existed has to be answered
+  rather than deleted.
+
+- Decision: keep source packing as an explicit developer override rather than
+  removing it.
+  Rationale: without it, testing a one-line framework change means rebuilding
+  six kind images. The actual-job image already installs from
+  `locks/code.requirements.txt`; when framework source is staged it can install
+  over the kind-provided copy with `--reinstall`, and when it is absent the
+  kind image's framework stands. Consumers get zero configuration, framework
+  developers keep a fast path, and both remain content-addressed: identity
+  comes from the kind image digest in the default case and from the staged
+  source digest when overridden.
 
 - Decision: treat this as a blocker for calling the framework consumable,
   rather than as a documentation gap to be papered over with "clone the repo
