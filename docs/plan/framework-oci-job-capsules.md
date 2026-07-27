@@ -92,11 +92,16 @@ through remote Trackio backed by Doris. The corrected Trackio post3 source and
 the newest Observatory projections have not yet been deployed, so source
 validation must not be described as production promotion.
 
-Two algorithm/provider gates remain deliberately open. Distillation has not
-yet completed the required realistic ten-backward-pass live qualification.
-The missing TRL LoRA/vLLM synchronization mode was implemented and its exact
-combined-order source gate passed 153 tests with 60 skips, but the fork still
-needs immutable publication, a pinned framework image, and the live run.
+One algorithm/provider gate remains deliberately open. Distillation is now
+closed: run `339100a5-a4c2-4ae6-aa5a-1b080513b50e` completed ten real optimizer
+updates on the RTX PRO workstation with finite loss and gradient norms on every
+step, reconciled consistently without recovery, and resolved through deployed
+Observatory. The blocker was not numerics. The base `Trainer` counts
+`num_items_in_batch` from the raw pre-generation dataloader batch, whose labels
+are prompt-only for on-policy rows, so a fully on-policy window counted zero and
+the divergence loss divided by it; `logging_nan_inf_filter` then hid the
+non-finite loss and exposed only `grad_norm=nan`, which misdirected four prior
+attempts. See execution-log sequence 91.
 Graceful cancellation before submission is qualified; graceful cancellation
 of a running job is not. The bounded dstack `stop_duration` propagation patch
 passed its Python and Go source gates, but the server, runner, and shim must be
@@ -570,15 +575,38 @@ point is reached.
   checks passed. The repository pins Node 24.18.0; this host currently has Node
   22.19.0, which passed the frontend gates but remains a release-environment
   alignment item.
+- [x] (2026-07-27 12:42Z) Close the workstation-only ten-update on-policy
+  distillation gate. Run `339100a5-a4c2-4ae6-aa5a-1b080513b50e` performed ten
+  real LoRA optimizer updates in 136 seconds under the required LoRA student,
+  vLLM `weight_sync_mode=lora`, and colocated bf16 teacher; loss stayed in
+  0.0639–0.0970 and grad norm in 0.962–1.732 on every step. Reconciliation was
+  `consistent` with `recovery_used=false`, four artifacts were retained
+  (adapter, recovery checkpoint, summary, Verifiers traces), deployed
+  Observatory returned HTTP 200 with `job_kind=train.distill` and zero alerts,
+  and exact-worker cleanup reclaimed only the 4,411-byte run workspace.
+  The root cause was `num_items_in_batch=0`, fixed in the TRL fork at
+  `6e7739b8ec741d21ecd79c0c212694cd15ff20d8` with a regression test.
+  Two supply-chain notes: TRL is installed by the job-kind image and is absent
+  from the actual-job runtime requirements, so re-pinning the framework alone
+  could not have changed the executed TRL — `posttrain-kind-online-rl-trl-py312`
+  had to be rebuilt and republished (`sha256:3c793f8c…`) and its in-image
+  `trl` commit verified directly. `posttrain-base` was deliberately not rebuilt
+  because it copies `workspace.lock.txt` but installs only the locked CUDA
+  PyTorch, which a TRL git revision cannot affect.
 - [ ] Qualify graceful running cancellation after the dstack task stop path
   propagates the selected `stop_duration` through runner and shim termination
   instead of using a fixed ten-second runner delay followed by a zero-second
-  shim timeout. Current-capsule SAMPO run
-  `6f999e81-e048-4182-81e5-d9c6883bd65c` was cancelled after two retained
-  Verifiers traces proved active rollout execution, but dstack terminated the
-  container before Trackio could finalize. The explicit audited recovery,
-  read-only reconciliation, and exact cleanup then completed; cleanup removed
-  the 95,885-byte workspace and retained no job artifacts.
+  shim timeout. Zero-grace baseline run `6f999e81-e048-4182-81e5-d9c6883bd65c`
+  on the RTX PRO workstation required audited recovery. After dstack release
+  `371ff53b1d67f254bc6cc4259aae8653c3916b7d` deployed, pop-os gate attempts on
+  `targets/pop-os-rtx4090-24gb` showed provider grace is live (~304–316s) but
+  Trackio still does not finalize as `cancelled` without recovery: SAMPO run
+  `ed9147ca-9efe-47c5-a5ff-c5181968fed1` completed during grace (Trackio
+  `succeeded`, provider `cancelled`); GRPO run
+  `37d2f98d-9d77-4b37-b78e-06d58a0a0cfa` retained eight traces at cancel,
+  continued rollouts during grace, and left Trackio `running` after hard kill.
+  Workstation cancel-gate attempts and any distill-owned runs on
+  `carbonteq-ai-workstation.lan` are out of scope for this item.
 - [x] (2026-07-26 23:32Z) Qualify the target-specific packed SFT capsule on
   `carbonteq-ai-workstation.lan`. dstack placed digest
   `sha256:e55522efb9d6aab6d642e2359ba226489afc52f52e8fcb05b55de2e7729b0799`
@@ -609,6 +637,34 @@ point is reached.
   after parity is proven.
 
 ## Surprises & Discoveries
+
+- Observation: a non-finite training metric can be reported for the gradient
+  norm while the logged loss looks healthy, which sends diagnosis in the wrong
+  direction.
+  Evidence: the distillation gate failed four times as `grad_norm=nan` with a
+  finite logged loss, so three of those attempts changed loss numerics
+  (`use_liger_kernel`, `bf16`, an fp32 local-teacher log-softmax patch, padding
+  neutralization) and none helped. The loss was in fact `inf`/`nan`, but
+  `transformers` sets `logging_nan_inf_filter=True` by default and substitutes
+  the running average for a non-finite step loss before the callback observes
+  it. Only `grad_norm`, which bypasses that filter, revealed the failure.
+  Implication: when a framework guard rejects one non-finite metric, treat the
+  other logged metrics as unreliable rather than as evidence of locality.
+
+- Observation: re-pinning a dependency in the framework does not change what a
+  job actually executes when that dependency lives in the job-kind image.
+  Evidence: TRL is installed by `containers/posttrain-job-kinds/profiles/`
+  `supervised.txt` under the `workspace.lock.txt` constraint, and it is absent
+  from the actual-job `runtime.requirements.txt`, which only carries hash-locked
+  external dependencies plus framework source. Updating
+  `packages/train/pyproject.toml` and `uv.lock` therefore left the published
+  `posttrain-kind-online-rl-trl-py312` image running the pre-fix TRL commit. The
+  drift was detected only by manually inspecting the published image's
+  `org.carbonteq.posttrain.lock-digest` label and then reading `direct_url.json`
+  inside the image.
+  Implication: nothing in the framework reconciles a published kind image
+  against current dependency pins, so a stale kind image can silently invalidate
+  any GPU qualification. A drift check belongs in `posttrain doctor`.
 
 - Observation: recording two virtual environments in profile metadata did not
   make the actual-job capsule a two-environment runtime.

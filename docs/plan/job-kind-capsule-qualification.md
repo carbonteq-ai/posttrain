@@ -45,10 +45,18 @@ lifecycle is the only qualification path.
 - [x] (2026-07-27 03:32Z) Reconcile and clean every completed SFT, DPO, SAMPO,
   and serving-smoke workspace after current-source Observatory and direct
   Doris readback.
-- [ ] Complete ten-step on-policy distillation. Three characterization runs
-  have now rejected an invalid generation-batch relation, an undeclared
-  teacher sidecar, and finally TRL distillation's missing LoRA-to-vLLM
-  synchronization selection before any backward pass.
+- [x] (2026-07-27 12:42Z) Complete ten-step on-policy distillation. Run
+  `339100a5-a4c2-4ae6-aa5a-1b080513b50e` performed ten real LoRA optimizer
+  updates on `carbonteq-ai-workstation.lan` in 136 seconds with finite loss and
+  gradient norms on every step, reconciled `consistent` without recovery,
+  retained four artifacts, resolved through deployed Observatory with zero
+  alerts, and cleaned up to 4,411 reclaimed bytes. Earlier characterization
+  runs had rejected an invalid generation-batch relation, an undeclared teacher
+  sidecar, and TRL distillation's missing LoRA-to-vLLM synchronization
+  selection; the final blocker was a zero `num_items_in_batch` on fully
+  on-policy steps, fixed in the TRL fork at
+  `6e7739b8ec741d21ecd79c0c212694cd15ff20d8`. See
+  `framework-oci-job-capsules-execution-log.jsonl` sequence 91.
 - [x] (2026-07-27 06:23Z) Add the generic TRL distillation
   `vllm_weight_sync_mode` selection and close its order-dependent source-test
   failure. The failure was not a trainer defect: one vLLM-generation test
@@ -78,7 +86,11 @@ lifecycle is the only qualification path.
   restored consistent cancellation before exact workspace cleanup.
 - [ ] Re-run running graceful cancellation after dstack propagates a non-zero
   selected stop duration through runner and shim termination; acceptance
-  forbids tracking recovery.
+  forbids tracking recovery. Pop-os attempts after release
+  `371ff53b1d67f254bc6cc4259aae8653c3916b7d` confirm dstack grace (~5m) but not
+  Trackio finalization: `ed9147ca-9efe-47c5-a5ff-c5181968fed1` (SAMPO,
+  inconsistent succeeded/cancelled) and
+  `37d2f98d-9d77-4b37-b78e-06d58a0a0cfa` (GRPO, Trackio stuck `running`).
 - [ ] Remove the legacy directory-bundle and superseded operator-script path
   only after all qualification commands use the normal CLI.
 - [x] (2026-07-27 03:58Z) Run the repository validation ladder: locked sync,
@@ -249,9 +261,11 @@ not qualified: three failed runs have progressively removed two framework
 configuration defects and isolated one missing generic TRL configuration
 surface. That source surface and its order-dependent test isolation are now
 corrected but remain unpublished and have not run the live ten-step gate.
-Durable queued cancellation is qualified. Running cancellation has a
-reproducible dstack zero-grace defect and therefore remains unqualified until
-it completes without Trackio recovery. The final repository/deployment gates
+Durable queued cancellation is qualified. Running cancellation remains
+unqualified: the pre-release zero-grace shim defect is replaced by a
+post-release split where dstack honors `stop_duration` (~304–316s on pop-os)
+but Trackio either completes as `succeeded` during grace or stays `running`
+after hard kill unless recovery is used. The final repository/deployment gates
 also remain.
 
 ## Context and Orientation
