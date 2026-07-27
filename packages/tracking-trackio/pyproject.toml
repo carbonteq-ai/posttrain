@@ -1,13 +1,13 @@
 [project]
 name = "posttrain-tracking-trackio"
-version = "0.1.8"
+version = "0.1.9"
 description = "Trackio tracking backend for posttrain"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-    "posttrain-common==0.1.8",
-    "posttrain-tracking==0.1.8",
+    "posttrain-common==0.1.9",
+    "posttrain-tracking==0.1.9",
     "carbonteq-trackio @ git+https://github.com/carbonteq-ai/trackio.git@9b0c4af0414cbd5264fa1012d81c494e46c1150d",
 ]
 

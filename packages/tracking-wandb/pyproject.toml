@@ -1,13 +1,13 @@
 [project]
 name = "posttrain-tracking-wandb"
-version = "0.1.8"
+version = "0.1.9"
 description = "Weights & Biases tracking backend for posttrain"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-    "posttrain-common==0.1.8",
-    "posttrain-tracking==0.1.8",
+    "posttrain-common==0.1.9",
+    "posttrain-tracking==0.1.9",
     "pydantic>=2.12,<3",
     "wandb>=0.28.1,<0.29",
 ]

@@ -1,26 +1,26 @@
 [project]
 name = "posttrain-runtime"
-version = "0.1.8"
+version = "0.1.9"
 description = "Stable worker entrypoint for verified posttrain job manifests"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "posttrain-catalog==0.2.0",
-    "posttrain-common==0.1.8",
-    "posttrain-data==0.1.8",
-    "posttrain-eval==0.1.8",
-    "posttrain-execution==0.1.8",
-    "posttrain-jobs==0.1.8",
-    "posttrain-work==0.1.8",
+    "posttrain-common==0.1.9",
+    "posttrain-data==0.1.9",
+    "posttrain-eval==0.1.9",
+    "posttrain-execution==0.1.9",
+    "posttrain-jobs==0.1.9",
+    "posttrain-work==0.1.9",
 ]
 
 [project.optional-dependencies]
 trackio = [
-    "posttrain-tracking-trackio==0.1.8",
+    "posttrain-tracking-trackio==0.1.9",
 ]
 wandb = [
-    "posttrain-tracking-wandb==0.1.8",
+    "posttrain-tracking-wandb==0.1.9",
 ]
 
 [project.scripts]

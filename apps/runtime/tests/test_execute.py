@@ -670,7 +670,7 @@ def test_worker_loads_the_verified_packaged_dataset_without_rematerializing(
     [
         (
             "sources/framework/runtime/__init__.py",
-            "packaged framework source differs",
+            "packaged framework code differs",
         ),
         (
             "config/project/.posttrain/catalog/layer.yaml",

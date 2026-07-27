@@ -362,8 +362,8 @@ def _verify_package(path: Path) -> _VerifiedPackage:
         manifest.resolved_config_digest,
         "resolved job config",
     )
-    if _tree_digest(root / "sources" / "framework") != (manifest.framework_source_digest):
-        raise ContractError("packaged framework source differs from its manifest digest")
+    if _staged_framework_digest(root) != manifest.framework_source_digest:
+        raise ContractError("packaged framework code differs from its manifest digest")
     if _tree_digest(root / "sources" / "project") != (manifest.project_source_digest):
         raise ContractError("packaged project source differs from its manifest digest")
 
@@ -1044,6 +1044,27 @@ def _semantic_digest(value: object) -> str:
             sort_keys=True,
         ).encode()
     )
+
+
+def _staged_framework_digest(root: Path) -> str:
+    """Digest whichever way framework code was packaged.
+
+    A checkout is copied in as a source tree; an installed framework is
+    packaged as the built distributions it was installed from. The two are
+    alternatives, so a package carrying both has no single identity and is
+    rejected rather than resolved by preference.
+    """
+    wheels = tuple(sorted(path for path in (root / "wheels" / "framework").glob("*.whl") if path.is_file()))
+    source = root / "sources" / "framework"
+    has_source = source.is_dir() and any(path.is_file() for path in source.rglob("*"))
+    if wheels and has_source:
+        raise ContractError("packaged framework code is both a source tree and built distributions")
+    if wheels:
+        entries = [{"name": wheel.name, "sha256": _bytes_digest(wheel.read_bytes())} for wheel in wheels]
+        return _semantic_digest(entries)
+    if has_source:
+        return _tree_digest(source)
+    raise ContractError("package contains no framework code")
 
 
 def _bytes_digest(value: bytes) -> str:

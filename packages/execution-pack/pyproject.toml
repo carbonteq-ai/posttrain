@@ -1,16 +1,16 @@
 [project]
 name = "posttrain-execution-pack"
-version = "0.1.8"
+version = "0.1.9"
 description = "Provider-neutral semantic planning for immutable posttrain job packages"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-    "posttrain-common==0.1.8",
-    "posttrain-data==0.1.8",
-    "posttrain-eval==0.1.8",
-    "posttrain-execution==0.1.8",
-    "posttrain-work==0.1.8",
+    "posttrain-common==0.1.9",
+    "posttrain-data==0.1.9",
+    "posttrain-eval==0.1.9",
+    "posttrain-execution==0.1.9",
+    "posttrain-work==0.1.9",
 ]
 
 [tool.uv]

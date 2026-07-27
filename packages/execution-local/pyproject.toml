@@ -1,13 +1,13 @@
 [project]
 name = "posttrain-execution-local"
-version = "0.1.8"
+version = "0.1.9"
 description = "Local Docker execution provider for posttrain"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-  "posttrain-common==0.1.8",
-  "posttrain-execution==0.1.8",
+  "posttrain-common==0.1.9",
+  "posttrain-execution==0.1.9",
 ]
 
 [tool.uv]
