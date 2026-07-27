@@ -283,3 +283,43 @@ async def test_reconcile_does_not_require_success_outputs_after_cancellation(
     assert result.outcome == "cancelled"
     assert result.required_artifact_roles == ("model", "summary")
     assert result.missing_artifact_roles == ()
+
+
+@pytest.mark.asyncio
+async def test_a_failed_run_settles_even_though_its_evidence_never_arrives(
+    tmp_path: Path,
+) -> None:
+    """Admission holds a machine's placement until a run settles.
+
+    A run can die before it opens a tracking run at all, so its evidence never
+    arrives and reconciliation stays pending forever. Treating that as
+    unsettled wedges the host: every later run queues behind evidence that
+    cannot exist. A failed run owes no artifacts, which is already how a run
+    with tracking disabled is judged.
+    """
+    service, _ = _service(tmp_path, provider_state="failed")
+
+    result = await reconcile_execution(
+        service,
+        _Source(unavailable=True),  # type: ignore[arg-type]
+        "run-reconcile-1",
+    )
+
+    assert result.state == "pending", "the observation is still only the provider's word"
+    assert result.settled, "but nothing further can change it, so the placement must release"
+
+
+@pytest.mark.asyncio
+async def test_a_successful_run_does_not_settle_until_its_evidence_arrives(
+    tmp_path: Path,
+) -> None:
+    """Transient tracking unavailability must not discard a real result."""
+    service, _ = _service(tmp_path)
+
+    result = await reconcile_execution(
+        service,
+        _Source(unavailable=True),  # type: ignore[arg-type]
+        "run-reconcile-1",
+    )
+
+    assert not result.settled

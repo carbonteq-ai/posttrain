@@ -64,6 +64,20 @@ class ExecutionReconciliation:
     def complete(self) -> bool:
         return self.state == "consistent"
 
+    @property
+    def settled(self) -> bool:
+        """Whether any further observation could change this run's evidence.
+
+        A run the provider reports as failed or cancelled owes no artifacts,
+        which is already how a run with tracking disabled is judged. Such a run
+        can die before it ever opens a tracking run, so its evidence never
+        arrives and reconciliation stays pending forever. That is only a label
+        until it reaches admission, which holds the machine's placement until
+        the run settles: one crashed run would otherwise queue every later run
+        on that host behind evidence that cannot exist.
+        """
+        return self.complete or self.provider_record.state in {"failed", "cancelled"}
+
 
 async def reconcile_execution(
     service: JobExecutionService,

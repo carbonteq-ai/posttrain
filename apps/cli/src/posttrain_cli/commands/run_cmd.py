@@ -350,7 +350,7 @@ def register(app: typer.Typer) -> None:
         )
         save_reconciliation(ExecutionSubmissionStore(layout.state), result)
         next_admission = None
-        if result.state == "consistent":
+        if result.settled:
             try:
                 admission = execution_admission_service(layout)
                 admission.status(run_id)
