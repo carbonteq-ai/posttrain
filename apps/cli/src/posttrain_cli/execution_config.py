@@ -215,7 +215,11 @@ def load_local_execution_config(
     _reject_unknown(providers, {"local", "dstack"}, "providers")
     local = _parse_local(providers.get("local"), base=configured.parent)
     dstack = _parse_dstack(providers.get("dstack"), base=configured.parent)
-    registry = _parse_registry(payload.get("registry"), base=configured.parent)
+    # A file that says nothing about the registry is not a file that says there
+    # is no registry. Writing execution.toml for an unrelated setting, such as
+    # the local provider's hostname, otherwise discards POSTTRAIN_REGISTRY and
+    # reports the project as having nowhere to publish.
+    registry = _parse_registry(payload.get("registry"), base=configured.parent) or derived_registry()
     return LocalExecutionConfig(
         path=configured,
         defaults=defaults,

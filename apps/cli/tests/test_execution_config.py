@@ -830,3 +830,31 @@ def test_release_blocked_variant_is_never_derived(
     loaded = load_local_execution_config(layout)
     assert loaded.registry is not None
     assert "online-rl-verl-py313" not in loaded.registry.kind_images
+
+
+def test_an_execution_file_without_a_registry_still_uses_the_environment(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Writing execution.toml for one setting must not drop another.
+
+    The registry is configured through POSTTRAIN_REGISTRY. A project that adds
+    execution.toml for an unrelated reason, such as the local provider's
+    canonical hostname, previously lost it: the environment was consulted only
+    when no execution configuration existed at all.
+    """
+    layout = _layout(tmp_path)
+    layout.state.mkdir(parents=True, exist_ok=True)
+    configured = layout.state / "execution.toml"
+    configured.write_text(
+        'schema_version = 1\n\n[providers.local]\ncanonical_hostname = "example-host"\n',
+        encoding="utf-8",
+    )
+    configured.chmod(0o600)
+    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.example.invalid/team")
+
+    loaded = load_local_execution_config(layout)
+
+    assert loaded.local is not None
+    assert loaded.local.canonical_hostname == "example-host"
+    assert loaded.registry is not None

@@ -1,45 +1,45 @@
 [project]
 name = "posttrain"
-version = "0.1.6"
+version = "0.1.7"
 description = "Command-line interface for portable post-training projects"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "posttrain-catalog==0.2.0",
-    "posttrain-data==0.1.6",
-    "posttrain-execution==0.1.6",
-    "posttrain-execution-buildkit==0.1.6",
-    "posttrain-execution-pack==0.1.6",
-    "posttrain-execution-local==0.1.6",
-    "posttrain-jobs==0.1.6",
-    "posttrain-runtime-images==0.1.6",
-    "posttrain-tracking==0.1.6",
-    "posttrain-work==0.1.6",
+    "posttrain-data==0.1.7",
+    "posttrain-execution==0.1.7",
+    "posttrain-execution-buildkit==0.1.7",
+    "posttrain-execution-pack==0.1.7",
+    "posttrain-execution-local==0.1.7",
+    "posttrain-jobs==0.1.7",
+    "posttrain-runtime-images==0.1.7",
+    "posttrain-tracking==0.1.7",
+    "posttrain-work==0.1.7",
     "typer>=0.25.1",
 ]
 
 [project.optional-dependencies]
 observatory = [
-    "posttrain-observatory==0.1.6",
+    "posttrain-observatory==0.1.7",
 ]
 trackio = [
-    "posttrain-tracking-trackio==0.1.6",
+    "posttrain-tracking-trackio==0.1.7",
 ]
 wandb = [
-    "posttrain-tracking-wandb==0.1.6",
+    "posttrain-tracking-wandb==0.1.7",
 ]
 dstack = [
-    "posttrain-execution-dstack==0.1.6",
+    "posttrain-execution-dstack==0.1.7",
 ]
 trl = [
-    "posttrain-train[trl]==0.1.6",
+    "posttrain-train[trl]==0.1.7",
 ]
 verifiers = [
-    "posttrain-eval[verifiers]==0.1.6",
+    "posttrain-eval[verifiers]==0.1.7",
 ]
 vllm = [
-    "posttrain-serve[vllm]==0.1.6",
+    "posttrain-serve[vllm]==0.1.7",
 ]
 
 [project.scripts]
