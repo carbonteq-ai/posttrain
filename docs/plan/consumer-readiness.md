@@ -118,7 +118,39 @@ imagined.
   interpreter that no longer existed. The resolution digest feeds job package
   identity, so this was recorded identity rather than a stray comment.
 
+- Observation: the actual-job image never resolves the framework's
+  dependencies, so the fix is far smaller than "make posttrain resolve as a
+  dependency".
+  Evidence: a retained `locks/runtime.control.requirements.txt` holds 103
+  requirements and contains `datasets` but not `typer`, `pydantic`, `trl`,
+  `torch`, or `verifiers`. That lock is compiled from the selected
+  environments' dependencies alone, constrained by the workspace lock with
+  kind-provided packages excluded. The framework's own dependencies and the
+  entire ML stack are already installed in the job-kind image.
+  Consequence: the actual-job image needs framework *code* and nothing else.
+  It does not need resolution, an index at build time, or a change to the
+  runtime lock. Installing the framework distributions with `--no-deps` is
+  sufficient, which is the same shape as the environment wheels already staged
+  beside them.
+
 ## Decision Log
+
+- Decision: when no framework checkout is configured, stage the framework
+  distributions as wheels into the job context and install them with
+  `--no-deps --require-hashes`, exactly as selected environments are handled.
+  Rationale: the consumer already installed those distributions from
+  `pypi.lan`, so the wheels are obtainable at pack time on the machine that is
+  packing. Staging them keeps the image build free of index access and network
+  policy, and makes identity a digest over real bytes rather than a version
+  string that an index could later re-resolve.
+  Consequences: `framework_source_digest` becomes a digest over the staged
+  framework wheel set rather than over a source tree. `plan_job_pack` already
+  accepts that value as an opaque string, so the plan contract is unchanged.
+  `code.requirements.txt` names the staged wheels instead of
+  `./sources/framework/...`, and `sources/framework` is omitted entirely.
+  Framework developers keep source packing through `framework_source_root`,
+  which stays the override it already is.
+
 
 - Decision: the framework reaches the job image as an ordinary project
   dependency, not through any framework-specific path.
