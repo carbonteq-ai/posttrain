@@ -101,7 +101,7 @@ def test_distillation_yaml_resolves_every_seat_through_the_catalog() -> None:
     assert training["resolved"]["backend_options"] == {  # type: ignore[index]
         "source_revision": "6e7739b8ec741d21ecd79c0c212694cd15ff20d8",
         "dependency_lock_sha256": (
-            "888a04ebdbf874ee0c0da50d1cf59175b531a32d4e9953e706627424de0ca0df"
+            "1ed56b8325f4cf1217d71095275448831aa09faec1c4d32e1df58673f12803d1"
         ),
     }
     execution_targets = resolved.snapshot["execution_targets"]

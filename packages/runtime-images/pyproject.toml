@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Shipped container definitions and the per-release published image manifest"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.13,<3.14"
 dependencies = []
 
 [tool.uv]

@@ -4,7 +4,7 @@ version = "0.2.0"
 description = "Versioned framework catalog assets and composed catalog loader"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.13,<3.14"
 dependencies = [
     "posttrain-common",
     "posttrain-data",

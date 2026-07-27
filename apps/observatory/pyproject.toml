@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Dedicated post-training observability and analysis product"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.13,<3.14"
 dependencies = [
     "fastapi>=0.136.3,<0.137",
     "httpx>=0.28,<1",

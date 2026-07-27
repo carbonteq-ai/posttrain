@@ -38,7 +38,7 @@ def register(app: typer.Typer) -> None:
         checks: list[dict[str, str]] = [
             {
                 "name": "python",
-                "status": "ok" if sys.version_info[:2] == (3, 12) else "error",
+                "status": "ok" if sys.version_info[:2] == (3, 13) else "error",
                 "message": f"Python {sys.version_info.major}.{sys.version_info.minor}",
             }
         ]
