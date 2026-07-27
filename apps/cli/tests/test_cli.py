@@ -29,6 +29,7 @@ from posttrain.execution import (
 )
 from posttrain.execution_pack import PackedJobContext, PublishedJobImage
 from posttrain.jobs import build_job_runtime
+from posttrain.runtime_images.manifest import load_manifest
 from posttrain.tracking import RunSpec
 from posttrain.work import (
     JobDefinition,
@@ -929,10 +930,15 @@ def test_grpo_plan_is_static_and_selects_online_rl_runtime(
         capsys.readouterr().err
     )
 
+    # Naming one variant no longer removes the rest. Every published job-kind
+    # image is pinned by the release, so a partial machine binding overrides
+    # only what it names and the remainder resolves from the installed
+    # manifest. This is what removes the second hand transcription.
     _write_exact_execution_config(project, variants=("supervised",))
     assert (
         main(
             [
+                "--json",
                 "--project-root",
                 str(project),
                 "job",
@@ -942,11 +948,11 @@ def test_grpo_plan_is_static_and_selects_online_rl_runtime(
                 "train",
             ]
         )
-        == 1
+        == 0
     )
-    missing_variant = capsys.readouterr().err
-    assert "runtime variant online-rl-trl-py312 is not published" in missing_variant
-    assert "available: supervised" in missing_variant
+    derived = json.loads(capsys.readouterr().out)
+    manifest = load_manifest()
+    assert derived["images"]["job_kind"] == manifest.reference("online-rl-trl-py312")
 
 
 def test_work_package_run_rejects_invalid_host(tmp_path: Path, capsys) -> None:

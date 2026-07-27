@@ -12,7 +12,9 @@ from posttrain.execution import (
     ExecutionSubmission,
     ExecutionSubmissionStore,
 )
+from posttrain.runtime_images.manifest import load_manifest
 from posttrain_cli.execution_config import (
+    REGISTRY_ENVIRONMENT_VARIABLE,
     ExecutionOverrides,
     load_local_execution_config,
     provider_binding_fingerprint,
@@ -286,7 +288,16 @@ def test_registry_accepts_an_incremental_exact_runtime_variant_set(
 
     loaded = load_local_execution_config(layout)
     assert loaded.registry is not None
-    assert set(loaded.registry.kind_images) == {"supervised"}
+    manifest = load_manifest()
+
+    # The declared entry overrides only itself.
+    assert loaded.registry.kind_images["supervised"].value == (
+        f"registry.lan/kind@sha256:{'2' * 64}"
+    )
+    # Every other published variant still resolves, from the release manifest
+    # rather than from this file.
+    assert set(loaded.registry.kind_images) == set(manifest.kinds)
+    assert loaded.registry.kind_images["eval"].value == manifest.reference("eval")
 
 
 def test_registry_constraint_profile_provided_packages_are_validated_and_digest_bound(
@@ -361,8 +372,9 @@ def test_registry_requires_matching_image_and_constraint_variant_keys(
                 f'universal_image = "{image}"',
                 "",
                 "[registry.kind_images]",
-                f'supervised = "{image}"',
-                f'eval = "{image}"',
+                # A variant the release does not publish has nothing to inherit
+                # a constraint profile from, so it must declare its own.
+                f'custom-backend = "{image}"',
                 "",
                 "[registry.constraint_profiles.supervised]",
                 'path = "constraints.txt"',
@@ -692,3 +704,146 @@ def test_provider_binding_fingerprint_ignores_secret_rotation_but_not_identity(
 
     assert rotated == first
     assert changed != first
+
+
+def test_registry_resolves_from_the_environment_with_no_configuration_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A project with no machine binding is still fully usable.
+
+    The release pins every framework image, so the only thing a consumer must
+    supply is the registry for their own actual-job images.
+    """
+    layout = _layout(tmp_path)
+    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.internal/team")
+
+    loaded = load_local_execution_config(layout)
+    assert not loaded.path.exists()
+    assert loaded.registry is not None
+
+    manifest = load_manifest()
+    assert loaded.registry.repository == "registry.internal/team/posttrain-job"
+    assert set(loaded.registry.kind_images) == set(manifest.kinds)
+    assert loaded.registry.universal_image.value == manifest.base.reference(
+        manifest.default_prefix
+    )
+    for variant, image in manifest.kinds.items():
+        assert loaded.registry.kind_images[variant].value == image.reference(
+            manifest.default_prefix
+        )
+
+
+def test_framework_images_do_not_follow_the_project_registry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """POSTTRAIN_REGISTRY is the project's registry, not a mirror by default.
+
+    A site that can reach the public registry must keep pulling framework
+    images from it even when its own job images go somewhere private.
+    """
+    layout = _layout(tmp_path)
+    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.internal/team")
+
+    loaded = load_local_execution_config(layout)
+    assert loaded.registry is not None
+    assert loaded.registry.kind_images["supervised"].value.startswith(
+        load_manifest().default_prefix + "/"
+    )
+
+
+def test_trailing_slashes_in_the_environment_prefix_are_ignored(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    layout = _layout(tmp_path)
+    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "  registry.internal/team/  ")
+
+    loaded = load_local_execution_config(layout)
+    assert loaded.registry is not None
+    assert loaded.registry.repository == "registry.internal/team/posttrain-job"
+
+
+def test_no_registry_anywhere_yields_no_binding_rather_than_a_guess(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    layout = _layout(tmp_path)
+    monkeypatch.delenv(REGISTRY_ENVIRONMENT_VARIABLE, raising=False)
+
+    loaded = load_local_execution_config(layout)
+    assert loaded.registry is None
+
+
+def test_declared_registry_without_repository_names_both_remedies(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    layout = _layout(tmp_path)
+    monkeypatch.delenv(REGISTRY_ENVIRONMENT_VARIABLE, raising=False)
+    path = layout.state / "execution.toml"
+    path.parent.mkdir(parents=True)
+    path.write_text("schema_version = 1\n\n[registry]\n", encoding="utf-8")
+    path.chmod(0o600)
+
+    with pytest.raises(ContractError) as raised:
+        load_local_execution_config(layout)
+    message = str(raised.value)
+    assert REGISTRY_ENVIRONMENT_VARIABLE in message
+    assert "[registry].repository" in message
+
+
+def test_mirror_prefix_moves_framework_images_without_changing_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Mirroring is a prefix change only; digests are content-addressed."""
+    layout = _layout(tmp_path)
+    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.internal/team")
+    path = layout.state / "execution.toml"
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        "schema_version = 1\n\n[registry]\nmirror_prefix = \"registry.internal/mirror\"\n",
+        encoding="utf-8",
+    )
+    path.chmod(0o600)
+
+    loaded = load_local_execution_config(layout)
+    assert loaded.registry is not None
+    manifest = load_manifest()
+    for variant, image in manifest.kinds.items():
+        resolved = loaded.registry.kind_images[variant].value
+        assert resolved.startswith("registry.internal/mirror/")
+        assert resolved.rsplit("@", 1)[1] == image.digest
+    assert loaded.registry.universal_image.value.rsplit("@", 1)[1] == manifest.base.digest
+
+
+def test_derived_constraint_profiles_carry_published_provided_packages(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    layout = _layout(tmp_path)
+    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.internal/team")
+
+    loaded = load_local_execution_config(layout)
+    assert loaded.registry is not None
+    profiles = loaded.registry.constraint_profiles
+    assert profiles["online-rl-trl-py312"].provided_packages == ("verifiers",)
+    assert profiles["supervised"].provided_packages == ()
+    assert profiles["supervised"].contents_digest == load_manifest().kinds[
+        "supervised"
+    ].lock_digest
+
+
+def test_release_blocked_variant_is_never_derived(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The guard that refuses an unpublished variant must stay reachable."""
+    layout = _layout(tmp_path)
+    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.internal/team")
+
+    loaded = load_local_execution_config(layout)
+    assert loaded.registry is not None
+    assert "online-rl-verl-py313" not in loaded.registry.kind_images

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shlex
 import tomllib
@@ -16,7 +17,23 @@ from typing import Literal
 from posttrain.catalog import ProjectExecutionDefaults, ProjectLayout
 from posttrain.common import ContractError
 from posttrain.execution import RuntimeImageRef
+from posttrain.runtime_images import cached_definition_root
+from posttrain.runtime_images.manifest import (
+    ManifestError,
+    PublishedManifest,
+    load_manifest,
+)
 from posttrain_execution_buildkit import KindDependencyConstraints
+
+REGISTRY_ENVIRONMENT_VARIABLE = "POSTTRAIN_REGISTRY"
+"""Names the registry a project pushes its own actual-job images to.
+
+This is the project's registry, not the framework's. The framework publishes
+its base and job-kind images to the prefix recorded in the shipped manifest;
+that location is a property of the release and is never configured here.
+"""
+
+_JOB_REPOSITORY_SUFFIX = "posttrain-job"
 
 type SettingSource = Literal["cli", "local", "project", "job"]
 
@@ -95,6 +112,7 @@ class RegistryBinding:
     universal_image: RuntimeImageRef
     kind_images: Mapping[str, RuntimeImageRef]
     constraint_profiles: Mapping[str, ConstraintProfileBinding]
+    mirror_prefix: str | None = None
     buildx_builder: str | None = None
     receipt_root: Path | None = None
     bake_file: Path | None = None
@@ -150,7 +168,10 @@ def load_local_execution_config(
 
     configured = (path or layout.state / _DEFAULT_LOCAL_NAME).expanduser().resolve()
     if not configured.exists():
-        return LocalExecutionConfig(configured)
+        # A project with no machine binding is still fully usable: the release
+        # pins every framework image, so only the project's own registry is
+        # missing, and the environment can supply it.
+        return LocalExecutionConfig(configured, registry=derived_registry())
     if not configured.is_file():
         raise ContractError(f"execution configuration is not a file: {configured}")
     if configured.stat().st_mode & 0o077:
@@ -451,6 +472,83 @@ def _parse_dstack(value: object, *, base: Path) -> DstackBinding | None:
     )
 
 
+def configured_registry_prefix() -> str | None:
+    """Return the project's registry prefix from the environment, if set."""
+    raw = os.environ.get(REGISTRY_ENVIRONMENT_VARIABLE, "").strip().rstrip("/")
+    return raw or None
+
+
+def _published_manifest() -> PublishedManifest:
+    try:
+        return load_manifest()
+    except ManifestError as error:
+        raise ContractError(f"installed runtime image manifest is unusable: {error}") from error
+
+
+def _derived_kind_images(
+    manifest: PublishedManifest,
+    *,
+    mirror_prefix: str | None,
+) -> dict[str, RuntimeImageRef]:
+    """Resolve every published variant to a digest-pinned reference.
+
+    A mirror preserves image digests, so mirroring only changes the prefix.
+    Without one, images resolve to the framework's own release registry.
+    """
+    prefix = mirror_prefix or manifest.default_prefix
+    return {
+        variant: RuntimeImageRef(image.reference(prefix))
+        for variant, image in manifest.kinds.items()
+    }
+
+
+def _derived_constraint_profiles(
+    manifest: PublishedManifest,
+) -> dict[str, ConstraintProfileBinding]:
+    """Bind each published variant to the lock its image was built from.
+
+    The digest is not read back from the manifest: `load_manifest` has already
+    checked each recorded lock digest against the shipped bytes, so a lock
+    edited without republishing cannot reach this point.
+    """
+    root = cached_definition_root()
+    profiles: dict[str, ConstraintProfileBinding] = {}
+    for variant, image in manifest.kinds.items():
+        path = root / image.constraint_lock
+        constraints = KindDependencyConstraints(
+            variant,
+            path.read_text(encoding="utf-8"),
+            image.provided_packages,
+        )
+        profiles[variant] = ConstraintProfileBinding(
+            path,
+            image.lock_digest,
+            constraints.provided_packages,
+            constraints.digest,
+        )
+    return profiles
+
+
+def _resolved_repository(declared: object, *, context: str) -> str:
+    if declared is not None:
+        return _required_config_string(declared, context)
+    prefix = configured_registry_prefix()
+    if prefix is None:
+        raise ContractError(
+            "job packing needs a registry for this project's actual-job images: "
+            f"set {REGISTRY_ENVIRONMENT_VARIABLE} to an OCI registry prefix you can "
+            f"push to, or declare [registry].repository in the execution configuration"
+        )
+    return f"{prefix}/{_JOB_REPOSITORY_SUFFIX}"
+
+
+def derived_registry() -> RegistryBinding | None:
+    """Build a registry binding with no execution configuration file at all."""
+    if configured_registry_prefix() is None:
+        return None
+    return _parse_registry({}, base=Path.cwd())
+
+
 def _parse_registry(value: object, *, base: Path) -> RegistryBinding | None:
     if value is None:
         return None
@@ -462,6 +560,7 @@ def _parse_registry(value: object, *, base: Path) -> RegistryBinding | None:
             "universal_image",
             "kind_images",
             "constraint_profiles",
+            "mirror_prefix",
             "buildx_builder",
             "receipt_root",
             "bake_file",
@@ -472,29 +571,48 @@ def _parse_registry(value: object, *, base: Path) -> RegistryBinding | None:
     receipt_value = payload.get("receipt_root")
     bake_value = payload.get("bake_file")
     framework_source_value = payload.get("framework_source_root")
-    kind_images = _runtime_image_mapping(
-        payload.get("kind_images"),
-        context="registry.kind_images",
+    mirror_prefix = _optional_config_string(
+        payload.get("mirror_prefix"),
+        "registry.mirror_prefix",
     )
-    constraint_profiles = _constraint_profile_mapping(
-        payload.get("constraint_profiles"),
-        base=base,
-    )
+    manifest = _published_manifest()
+
+    # Explicit declarations win per variant; everything else comes from the
+    # installed manifest. This is what removes the hand transcription: a
+    # consumer no longer restates digests or lock hashes the release already
+    # fixed.
+    kind_images = dict(_derived_kind_images(manifest, mirror_prefix=mirror_prefix))
+    if payload.get("kind_images") is not None:
+        kind_images.update(
+            _runtime_image_mapping(
+                payload.get("kind_images"),
+                context="registry.kind_images",
+            )
+        )
+    constraint_profiles = dict(_derived_constraint_profiles(manifest))
+    if payload.get("constraint_profiles") is not None:
+        constraint_profiles.update(
+            _constraint_profile_mapping(
+                payload.get("constraint_profiles"),
+                base=base,
+            )
+        )
     if set(kind_images) != set(constraint_profiles):
         raise ContractError(
             "execution configuration registry kind_images and constraint_profiles "
             "must define the same runtime variants"
         )
+    universal_value = payload.get("universal_image")
     return RegistryBinding(
-        repository=_required_config_string(payload.get("repository"), "registry.repository"),
+        repository=_resolved_repository(payload.get("repository"), context="registry.repository"),
         universal_image=RuntimeImageRef(
-            _required_config_string(
-                payload.get("universal_image"),
-                "registry.universal_image",
-            )
+            _required_config_string(universal_value, "registry.universal_image")
+            if universal_value is not None
+            else manifest.base.reference(mirror_prefix or manifest.default_prefix)
         ),
-        kind_images=kind_images,
-        constraint_profiles=constraint_profiles,
+        kind_images=MappingProxyType(kind_images),
+        constraint_profiles=MappingProxyType(constraint_profiles),
+        mirror_prefix=mirror_prefix,
         buildx_builder=_optional_config_string(
             payload.get("buildx_builder"),
             "registry.buildx_builder",
