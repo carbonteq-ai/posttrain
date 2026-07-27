@@ -21,8 +21,8 @@ from posttrain_cli.execution_config import (
     resolve_execution_settings,
 )
 from posttrain_cli.execution_provider import (
-    evidence_source_for_project,
     create_execution_provider,
+    evidence_source_for_project,
     evidence_source_for_run,
 )
 

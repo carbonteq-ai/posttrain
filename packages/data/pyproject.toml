@@ -1,12 +1,12 @@
 [project]
 name = "posttrain-data"
-version = "0.1.11"
+version = "0.1.12"
 description = "Trainer-neutral post-training dataset contracts and adapters"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-    "posttrain-common==0.1.11",
+    "posttrain-common==0.1.12",
 ]
 
 [project.optional-dependencies]

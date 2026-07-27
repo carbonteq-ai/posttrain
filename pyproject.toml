@@ -1,12 +1,12 @@
 [project]
 name = "lab"
-version = "0.1.11"
+version = "0.1.12"
 description = "Local post-training lab (uv workspace)"
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-    "posttrain-common==0.1.11",
-    "posttrain-data==0.1.11",
+    "posttrain-common==0.1.12",
+    "posttrain-data==0.1.12",
 ]
 
 [dependency-groups]
@@ -102,7 +102,7 @@ branch = true
 source = [
     "posttrain_cli",
     "posttrain_lab",
-    "posttrain==0.1.11",
+    "posttrain==0.1.12",
 ]
 
 [tool.coverage.report]
