@@ -61,6 +61,8 @@ from .execution_config import (
     resolve_execution_settings,
 )
 from .execution_provider import create_execution_provider, evidence_source_for_project
+from .framework_distributions import FrameworkDistributions
+from .framework_distributions import materialize as materialize_framework_distributions
 from .pack_config import load_project_pack_config
 from .work_runtime import load_work_package_bundle, runtime_context
 
@@ -94,7 +96,8 @@ class PlannedJobPackage:
     prepared: PreparedWorkPackageJob
     local_config: LocalExecutionConfig
     pack_plan: JobPackPlan
-    framework_source_request: SourceSnapshotRequest
+    framework_source_request: SourceSnapshotRequest | None
+    framework_distributions: FrameworkDistributions | None
     project_source_request: SourceSnapshotRequest
     target: ExecutionTarget
     runtime_profile: str
@@ -107,10 +110,19 @@ class PlannedJobPackage:
         registry = _registry(self.local_config)
         source_root = (self.layout.state / "pack" / "sources").resolve()
         snapshotter = ImmutableSourceSnapshotter(cache_root=source_root)
-        framework_source = snapshotter.materialize(self.framework_source_request)
         project_source = snapshotter.materialize(self.project_source_request)
+        if self.framework_source_request is not None:
+            framework_source = snapshotter.materialize(self.framework_source_request)
+            framework_package = framework_source.package
+            framework_wheels: tuple[Path, ...] = ()
+            framework_digest = framework_source.digest
+        else:
+            assert self.framework_distributions is not None
+            framework_package = None
+            framework_wheels = self.framework_distributions.wheels
+            framework_digest = self.framework_distributions.digest
         if (
-            framework_source.digest != self.pack_plan.spec.framework_source_digest
+            framework_digest != self.pack_plan.spec.framework_source_digest
             or project_source.digest != self.pack_plan.spec.project_source_digest
         ):
             raise ContractError("source bytes changed after planning; run job plan again")
@@ -147,7 +159,8 @@ class PlannedJobPackage:
         context = pack_service.pack(
             self.pack_plan,
             JobPackInputs(
-                framework_source=framework_source.package,
+                framework_source=framework_package,
+                framework_wheels=framework_wheels,
                 project_source=project_source.package,
                 resolved_inputs=dict(self.prepared.spec.resolved_inputs),
                 project_config=_project_config_bundle(
@@ -401,7 +414,16 @@ def _plan_job_package(
     project_source_request = project_config.source_request(layout.root)
     framework_source_request = _framework_source_request(registry.framework_source_root)
     inspector = ImmutableSourceSnapshotter(cache_root=(layout.state / "pack" / "sources").resolve())
-    framework_digest = inspector.inspect(framework_source_request)
+    if framework_source_request is not None:
+        framework_digest = inspector.inspect(framework_source_request)
+        framework_distributions = None
+    else:
+        # No checkout: the framework is installed, so its own distributions are
+        # the code that goes into the image, and their bytes are its identity.
+        framework_distributions = materialize_framework_distributions(
+            (layout.state / "pack" / "framework-wheels").resolve()
+        )
+        framework_digest = framework_distributions.digest
     project_digest = inspector.inspect(project_source_request)
     runtime_variant = _runtime_variant(
         inferred_variant,
@@ -427,6 +449,7 @@ def _plan_job_package(
         local_config=local_config,
         pack_plan=pack_plan,
         framework_source_request=framework_source_request,
+        framework_distributions=framework_distributions,
         project_source_request=project_source_request,
         target=target,
         runtime_profile=settings.runtime_profile,
@@ -483,22 +506,23 @@ def _registry(local_config: LocalExecutionConfig) -> RegistryBinding:
     return registry
 
 
-def _default_framework_source_root() -> Path:
-    """Discover the framework checkout whose source gets packed into a job image.
+def _discover_framework_source_root() -> Path | None:
+    """Return a framework checkout if one encloses this installation.
 
-    Unlike the image definitions, framework *source* is not package data: the
-    actual-job image installs it from real package roots. An installed
-    distribution therefore still needs `registry.framework_source_root` to
-    point at a checkout.
+    Absence is not an error. A checkout means framework source is packed, which
+    is what a framework developer wants; without one the framework is installed
+    as distributions and those are staged instead.
     """
     for candidate in Path(__file__).resolve().parents:
         if all((candidate / relative / "pyproject.toml").is_file() for relative in _FRAMEWORK_INSTALL_ROOTS):
             return candidate
-    raise ContractError("framework source checkout could not be discovered; configure registry.framework_source_root")
+    return None
 
 
-def _framework_source_request(configured_root: Path | None) -> SourceSnapshotRequest:
-    root = configured_root or _default_framework_source_root()
+def _framework_source_request(configured_root: Path | None) -> SourceSnapshotRequest | None:
+    root = configured_root or _discover_framework_source_root()
+    if root is None:
+        return None
     missing = [relative for relative in _FRAMEWORK_INSTALL_ROOTS if not (root / relative / "pyproject.toml").is_file()]
     if missing:
         raise ContractError("framework source root does not contain required packages: " + ", ".join(missing))

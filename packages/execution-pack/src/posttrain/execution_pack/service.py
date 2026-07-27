@@ -150,10 +150,14 @@ class ProjectConfigBundle:
 class JobPackInputs:
     """Local source and configuration inputs for an already-derived plan."""
 
-    framework_source: SourcePackage
+    framework_source: SourcePackage | None
     project_source: SourcePackage
     resolved_inputs: Mapping[str, JsonValue]
     project_config: ProjectConfigBundle
+    # Set when the framework is installed rather than checked out. The job-kind
+    # image already holds the framework's dependencies, so these install with
+    # --no-deps and no resolution happens inside the image build.
+    framework_wheels: tuple[Path, ...] = ()
 
     def __post_init__(self) -> None:
         selected = dict(self.resolved_inputs)
@@ -217,10 +221,13 @@ class JobPackService:
         resolved_inputs_digest = _semantic_digest(resolved_inputs)
         if resolved_inputs_digest != plan.spec.resolved_inputs_digest:
             raise ContractError("resolved configuration differs from the planned inputs")
-        framework_digest = digest_source_package(inputs.framework_source)
+        if inputs.framework_source is not None:
+            framework_digest = digest_source_package(inputs.framework_source)
+        else:
+            framework_digest = _framework_wheel_digest(inputs.framework_wheels)
         project_digest = digest_source_package(inputs.project_source)
         if framework_digest != plan.spec.framework_source_digest:
-            raise ContractError("framework source tree differs from the job-pack plan")
+            raise ContractError("framework code differs from the job-pack plan")
         if project_digest != plan.spec.project_source_digest:
             raise ContractError("project source tree differs from the job-pack plan")
         project_payload = tomllib.loads(inputs.project_config.files[inputs.project_config.project_manifest].decode())
@@ -232,10 +239,13 @@ class JobPackService:
         work = Path(tempfile.mkdtemp(prefix=".job-context-work-", dir=self._output_root))
         try:
             _create_layout(stage)
-            _copy_source_package(
-                inputs.framework_source,
-                stage / "sources" / "framework",
-            )
+            if inputs.framework_source is not None:
+                _copy_source_package(
+                    inputs.framework_source,
+                    stage / "sources" / "framework",
+                )
+            else:
+                _stage_framework_wheels(inputs.framework_wheels, stage)
             _copy_source_package(
                 inputs.project_source,
                 stage / "sources" / "project",
@@ -283,6 +293,12 @@ class JobPackService:
             )
             control_lock = next(lock for lock in runtime_dependency_locks if lock.role == "control")
             _validate_environment_selection(plan, environment_locks)
+            if plan.spec.runtime_variant == "online-rl-verl-py313" and inputs.framework_source is None:
+                raise ContractError(
+                    "the veRL capsule projects framework source into its backend "
+                    "environment, so it cannot be packed from installed "
+                    "distributions; configure registry.framework_source_root"
+                )
             backend_runtime = _backend_runtime_lock(
                 runtime_variant=plan.spec.runtime_variant,
                 resolved_inputs=resolved_inputs,
@@ -398,6 +414,7 @@ def _create_layout(root: Path) -> None:
     for relative in (
         "locks",
         "wheels/environments",
+        "wheels/framework",
         "sources/framework",
         "sources/project",
         "config",
@@ -597,10 +614,12 @@ def _copy_entry(source: Path, destination: Path) -> None:
 
 def _code_requirements(inputs: JobPackInputs) -> bytes:
     requirements: list[str] = []
-    for namespace, source in (
-        ("framework", inputs.framework_source),
-        ("project", inputs.project_source),
-    ):
+    sources: list[tuple[str, SourcePackage]] = [("project", inputs.project_source)]
+    if inputs.framework_source is not None:
+        sources.insert(0, ("framework", inputs.framework_source))
+    else:
+        requirements.extend(f"./wheels/framework/{wheel.name}" for wheel in inputs.framework_wheels)
+    for namespace, source in sources:
         for install_root in source.install_roots:
             suffix = "" if install_root == "." else f"/{install_root}"
             requirements.append(f"./sources/{namespace}{suffix}")
@@ -608,6 +627,27 @@ def _code_requirements(inputs: JobPackInputs) -> bytes:
     if not ordered:
         raise ContractError("at least one framework or project source package must be installed")
     return ("".join(f"{requirement}\n" for requirement in ordered)).encode()
+
+
+def _framework_wheel_digest(wheels: tuple[Path, ...]) -> str:
+    """Digest the framework wheels that will be installed into the image.
+
+    Mirrors the CLI-side computation so the plan and the pack agree on identity
+    without either trusting the other's arithmetic.
+    """
+    if not wheels:
+        raise ContractError("framework code requires either a source tree or built wheels")
+    entries = [
+        {"name": wheel.name, "sha256": _file_digest(wheel)} for wheel in sorted(wheels, key=lambda path: path.name)
+    ]
+    return hashlib.sha256(json.dumps(entries, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def _stage_framework_wheels(wheels: tuple[Path, ...], stage: Path) -> None:
+    destination = stage / "wheels" / "framework"
+    destination.mkdir(parents=True, exist_ok=True)
+    for wheel in wheels:
+        shutil.copy2(wheel, destination / wheel.name)
 
 
 def _stage_environment_packages(
@@ -696,11 +736,15 @@ def _backend_runtime_lock(
     *,
     runtime_variant: str,
     resolved_inputs: Mapping[str, JsonValue],
-    framework_source: SourcePackage,
+    framework_source: SourcePackage | None,
     work: Path,
 ) -> BackendRuntimeLock | None:
     if runtime_variant != "online-rl-verl-py313":
         return None
+    if framework_source is None:
+        # Guarded by the caller; restated here so the projection below can never
+        # be reached without the source it reads.
+        raise ContractError("the veRL capsule requires packed framework source")
     training = resolved_inputs.get("training")
     if not isinstance(training, Mapping):
         raise ContractError("veRL capsule requires a resolved training selection")

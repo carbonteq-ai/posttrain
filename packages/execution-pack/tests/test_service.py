@@ -40,6 +40,11 @@ BASE = RuntimeImageRef(f"registry.lan/posttrain/base@sha256:{'b' * 64}")
 KIND = RuntimeImageRef(f"registry.lan/posttrain/supervised@sha256:{'c' * 64}")
 
 
+def _framework_digest(inputs: JobPackInputs) -> str:
+    assert inputs.framework_source is not None
+    return digest_source_package(inputs.framework_source)
+
+
 def _digest_json(value: object) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
@@ -162,7 +167,7 @@ def _plan(
             kind_profile="supervised",
             runtime_variant="supervised",
             resolved_inputs_digest=_digest_json(resolved),
-            framework_source_digest=digest_source_package(inputs.framework_source),
+            framework_source_digest=_framework_digest(inputs),
             project_source_digest=digest_source_package(inputs.project_source),
             universal_image=BASE,
             kind_image=KIND,
@@ -474,11 +479,12 @@ def test_rejects_plan_source_or_resolved_input_drift_before_materialization(
         dataset_packager=_dataset_packager(tmp_path),
         environment_packager=environment_packager,
     )
+    assert inputs.framework_source is not None
     (
         inputs.framework_source.root / "posttrain-runtime-fixture" / "src" / "posttrain_runtime_fixture" / "__init__.py"
     ).write_text("# drift\n", encoding="utf-8")
 
-    with pytest.raises(ContractError, match="framework source tree differs"):
+    with pytest.raises(ContractError, match="framework code differs"):
         service.pack(plan, inputs)
 
     assert environment_packager.calls == 0

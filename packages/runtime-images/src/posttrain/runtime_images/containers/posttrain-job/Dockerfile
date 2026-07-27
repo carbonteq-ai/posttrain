@@ -37,7 +37,7 @@ RUN test -n "${PACKAGE_KEY}"
 # before project/framework source, configuration, and datasets so those
 # frequently changing inputs do not invalidate this expensive layer.
 COPY --from=job-context /locks/ locks/
-COPY --from=job-context /wheels/environments/ wheels/environments/
+COPY --from=job-context /wheels/ wheels/
 RUN --mount=type=cache,id=posttrain-job-uv,target=/root/.cache/uv,sharing=locked \
     uv pip install \
       --python "${VIRTUAL_ENV}" \
@@ -65,8 +65,7 @@ RUN if [ "${RUNTIME_VARIANT}" = "online-rl-verl-py313" ]; then \
 # lock contains only deterministic local paths under sources/framework or
 # sources/project, so installing it without dependency resolution cannot
 # silently fetch or select another package version.
-COPY --from=job-context /sources/framework/ sources/framework/
-COPY --from=job-context /sources/project/ sources/project/
+COPY --from=job-context /sources/ sources/
 
 # Framework distributions are deliberately never installed into the backend
 # environment: doing so would drag their dependencies in, and those conflict
@@ -103,6 +102,10 @@ for raw in requirements:
     requirement = raw.strip()
     if not requirement or requirement.startswith("#"):
         continue
+    if requirement.startswith("./wheels/framework/"):
+        if not Path(requirement.removeprefix("./")).is_file():
+            raise SystemExit(f"staged framework wheel is missing: {requirement!r}")
+        continue
     if not requirement.startswith("./sources/") or any(
         character.isspace() for character in requirement
     ):
@@ -113,11 +116,16 @@ for raw in requirements:
     members.append(member)
 if not members or len(members) != len(set(members)):
     raise SystemExit("code workspace members must be non-empty and unique")
+# The framework contributes its uv index configuration only when packed as
+# source. Installed distributions carry no workspace and need none.
+framework_manifest = Path("sources/framework/pyproject.toml")
 document = "[tool.uv.workspace]\nmembers = [\n"
 document += "".join(f'  "{member}",\n' for member in sorted(members))
 document += "]\n"
-framework = tomllib.loads(
-    Path("sources/framework/pyproject.toml").read_text(encoding="utf-8")
+framework = (
+    tomllib.loads(framework_manifest.read_text(encoding="utf-8"))
+    if framework_manifest.is_file()
+    else {}
 )
 indexes = framework.get("tool", {}).get("uv", {}).get("index", [])
 if not isinstance(indexes, list):
@@ -286,8 +294,26 @@ for lock in manifest.runtime_dependency_locks:
         raise SystemExit(
             f"staged {lock.role} runtime dependency lock differs from the manifest"
         )
-if tree_digest(Path("sources/framework")) != manifest.framework_source_digest:
-    raise SystemExit("staged framework source differs from the package manifest")
+# Framework code arrives either as a source tree or as built distributions.
+# Whichever route was used, its digest must be the one the manifest records.
+framework_wheels = sorted(
+    path for path in Path("wheels/framework").glob("*.whl") if path.is_file()
+)
+framework_source_files = [
+    path for path in Path("sources/framework").rglob("*") if path.is_file()
+]
+if framework_wheels and framework_source_files:
+    raise SystemExit("framework code was staged both as source and as wheels")
+if framework_wheels:
+    observed_framework = semantic_digest(
+        [{"name": path.name, "sha256": file_digest(path)} for path in framework_wheels]
+    )
+elif framework_source_files:
+    observed_framework = tree_digest(Path("sources/framework"))
+else:
+    raise SystemExit("no framework code was staged")
+if observed_framework != manifest.framework_source_digest:
+    raise SystemExit("staged framework code differs from the package manifest")
 if tree_digest(Path("sources/project")) != manifest.project_source_digest:
     raise SystemExit("staged project source differs from the package manifest")
 

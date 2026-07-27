@@ -92,18 +92,20 @@ def _validate_definition() -> None:
     ):
         _require(required in dockerfile, f"Dockerfile is missing {required}")
     runtime_lock_copy = "COPY --from=job-context /locks/ locks/"
-    framework_source_copy = "COPY --from=job-context /sources/framework/ sources/framework/"
+    # Framework code is copied either as a source tree or as staged wheels, so
+    # the ordering assertion anchors on the code copy rather than on one route.
+    code_copy = "COPY --from=job-context /sources/ sources/"
     _require(
-        dockerfile.index(runtime_lock_copy) < dockerfile.index(framework_source_copy),
+        dockerfile.index(runtime_lock_copy) < dockerfile.index(code_copy),
         "external dependencies must be installed before source code",
     )
-    runtime_install = dockerfile[dockerfile.index(runtime_lock_copy) : dockerfile.index(framework_source_copy)]
+    runtime_install = dockerfile[dockerfile.index(runtime_lock_copy) : dockerfile.index(code_copy)]
     _require(
         "--require-hashes" in runtime_install and "--no-deps" in runtime_install,
         "the complete runtime lock must install explicitly with hashes and without metadata re-resolution",
     )
     _require(
-        dockerfile.index("/sources/framework/") < dockerfile.index("/datasets/"),
+        dockerfile.index("/sources/") < dockerfile.index("/datasets/"),
         "source code must precede datasets in the cache graph",
     )
     for forbidden in ("--mount=type=secret", "--mount=type=ssh"):
@@ -203,7 +205,7 @@ def _validate_locks(root: Path) -> None:
     for requirement in code_lock:
         _require(
             requirement in {"./sources/framework", "./sources/project"}
-            or requirement.startswith(("./sources/framework/", "./sources/project/")),
+            or requirement.startswith(("./sources/framework/", "./sources/project/", "./wheels/framework/")),
             f"code requirement escapes staged source roots: {requirement}",
         )
         _require(
