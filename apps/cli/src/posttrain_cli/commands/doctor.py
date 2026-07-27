@@ -10,6 +10,7 @@ import typer
 from posttrain.catalog import open_catalog
 from posttrain.common import ContractError
 
+from ..checks import registry_check, runtime_images_check
 from ..context import CliState
 from ..errors import error_message
 from ..materialize import materialize_project_references
@@ -105,7 +106,11 @@ def register(app: typer.Typer) -> None:
                 except (ContractError, KeyError, OSError, RuntimeError, TypeError, ValueError) as error:
                     checks.append({"name": "materialize", "status": "error", "message": error_message(error)})
 
-        succeeded = all(check["status"] == "ok" for check in checks)
+        if layout is not None:
+            checks.append(registry_check(state).as_dict())
+            checks.append(runtime_images_check(state).as_dict())
+
+        succeeded = all(check["status"] != "error" for check in checks)
         if state.json_output:
             payload: dict[str, object] = {"ok": succeeded, "checks": checks}
             if fix:

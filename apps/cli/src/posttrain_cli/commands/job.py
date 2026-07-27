@@ -210,6 +210,13 @@ def register(app: typer.Typer) -> None:
                 help="override [tool.posttrain.pack].source_includes; repeatable",
             ),
         ] = None,
+        build_missing: Annotated[
+            bool,
+            typer.Option(
+                "--build-missing",
+                help="rebuild absent or drifted job-kind images from the shipped definitions",
+            ),
+        ] = False,
     ) -> None:
         state: CliState = ctx.obj
         pack_work_package_cmd(
@@ -228,6 +235,7 @@ def register(app: typer.Typer) -> None:
             source_includes=(
                 tuple(source_includes) if source_includes is not None else None
             ),
+            build_missing=build_missing,
         )
 
     @job_app.command("run", help="pack if needed and submit one selected job")
@@ -335,6 +343,13 @@ def register(app: typer.Typer) -> None:
                 help="override [tool.posttrain.pack].source_includes; repeatable",
             ),
         ] = None,
+        build_missing: Annotated[
+            bool,
+            typer.Option(
+                "--build-missing",
+                help="rebuild absent or drifted job-kind images from the shipped definitions",
+            ),
+        ] = False,
     ) -> None:
         state: CliState = ctx.obj
         run_work_package_cmd(
@@ -360,4 +375,5 @@ def register(app: typer.Typer) -> None:
             source_includes=(
                 tuple(source_includes) if source_includes is not None else None
             ),
+            build_missing=build_missing,
         )

@@ -581,7 +581,19 @@ def test_doctor_reports_readiness_and_missing_project(
     assert main(["--json", "--project-root", str(project), "doctor"]) == 0
     ready = json.loads(capsys.readouterr().out)
     assert ready["ok"] is True
-    assert {check["status"] for check in ready["checks"]} == {"ok"}
+    statuses = {check["name"]: check["status"] for check in ready["checks"]}
+
+    # A fresh project has nowhere to publish job images yet. That blocks
+    # submission but leaves validation entirely usable, so it is reportable
+    # without being fatal.
+    assert statuses["registry"] == "warn"
+    assert {name: status for name, status in statuses.items() if name != "registry"} == {
+        "python": "ok",
+        "project": "ok",
+        "catalog": "ok",
+        "work_packages": "ok",
+        "runtime_images": "warn",
+    }
 
     assert main(["--json", "--project-root", str(tmp_path / "missing"), "doctor"]) == 1
     missing = json.loads(capsys.readouterr().out)
@@ -1403,6 +1415,13 @@ bindings:
                 False,
             )
 
+    # The registry in this fixture holds no real images. Kind-image verification
+    # is exercised directly in test_runtime_images.py; here it is stubbed so the
+    # test stays about packing.
+    monkeypatch.setattr(
+        "posttrain_cli.commands.work_package.ensure_kind_image_ready",
+        lambda *_args, **_kwargs: None,
+    )
     monkeypatch.setattr(
         "posttrain_cli.execution_planning.JobPackService",
         FakePackService,

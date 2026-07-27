@@ -25,6 +25,7 @@ from ..execution_provider import (
     execution_admission_service,
 )
 from ..output import emit, json_value
+from ..runtime_images import ensure_kind_image_ready
 from ..work_runtime import load_work_package_bundle, runtime_context
 
 _EMPTY_OVERRIDES = ExecutionOverrides()
@@ -136,6 +137,7 @@ def pack_work_package_cmd(
     entry: str | None = None,
     project_packages: tuple[str, ...] | None = None,
     source_includes: tuple[str, ...] | None = None,
+    build_missing: bool = False,
 ) -> PackedJobPackage:
     """Pack and publish one job without submitting it to a provider."""
 
@@ -149,6 +151,7 @@ def pack_work_package_cmd(
         project_packages=project_packages,
         source_includes=source_includes,
     )
+    _require_verified_kind_image(planned, build_missing=build_missing)
     packed = planned.pack()
     emit(
         state,
@@ -178,6 +181,7 @@ def run_work_package_cmd(
     run_id: str | None = None,
     project_packages: tuple[str, ...] | None = None,
     source_includes: tuple[str, ...] | None = None,
+    build_missing: bool = False,
 ) -> None:
     if not in_process:
         planned = plan_job_execution(
@@ -191,6 +195,7 @@ def run_work_package_cmd(
             project_packages=project_packages,
             source_includes=source_includes,
         )
+        _require_verified_kind_image(planned, build_missing=build_missing)
         packed = planned.pack()
         prepared_submission = packed.prepare_submission()
         admission = execution_admission_service(planned.package.layout)
@@ -267,6 +272,28 @@ def run_work_package_cmd(
         for job_result in result.jobs
     )
     emit(state, payload, "\n".join(lines))
+
+
+
+def _require_verified_kind_image(
+    planned: PlannedJobPackage | PlannedJobExecution,
+    *,
+    build_missing: bool,
+) -> None:
+    """Confirm the job-kind image is this release's before anything is packed.
+
+    This runs before packing and before any provider object exists, so a
+    drifted image costs nothing but a clear error.
+    """
+    package = planned.package if isinstance(planned, PlannedJobExecution) else planned
+    registry = package.local_config.registry
+    if registry is None:
+        raise RuntimeError("planned job is missing its registry configuration")
+    ensure_kind_image_ready(
+        registry,
+        package.pack_plan.spec.runtime_variant,
+        build_missing=build_missing,
+    )
 
 
 def _package_plan_payload(planned: PlannedJobPackage) -> dict[str, object]:

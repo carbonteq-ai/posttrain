@@ -177,8 +177,62 @@ def verify_registry(
     )
 
 
+def ensure_kind_image_ready(
+    registry: RegistryBinding,
+    variant: str,
+    *,
+    build_missing: bool = False,
+    manifest: PublishedManifest | None = None,
+    inspector: ImageInspector | None = None,
+) -> VariantVerification:
+    """Refuse to pack against a job-kind image that is absent or has drifted.
+
+    Failing closed is the point. A stale job-kind image does not announce
+    itself: the run succeeds, produces evidence, and that evidence silently
+    describes different software than the framework claims to be running.
+    """
+    result = verify_variant(
+        variant,
+        expected_images(registry).get(variant, ""),
+        manifest=manifest or load_manifest(),
+        inspector=inspector or RuntimeImageInspector(),
+    )
+    if result.ok:
+        return result
+
+    if result.status == "unreachable":
+        raise ContractError(
+            f"the registry holding job-kind image {result.reference} could not be "
+            f"queried, so its identity cannot be confirmed: {result.detail}"
+        )
+
+    if not build_missing:
+        remedy = (
+            "posttrain runtime images mirror --registry <your-registry>"
+            if result.status == "missing"
+            else "republish the job-kind images for this framework release"
+        )
+        raise ContractError(
+            f"job-kind image for {variant} is {result.status}: {result.detail}. "
+            f"Refusing to pack, because evidence produced against it would not "
+            f"describe this framework. Remedy: {remedy}, or pass --build-missing "
+            f"to rebuild from the shipped definitions."
+        )
+
+    from .runtime_image_builds import build_runtime_images
+
+    build_runtime_images(registry, variants=[variant])
+    return verify_variant(
+        variant,
+        expected_images(registry).get(variant, ""),
+        manifest=manifest or load_manifest(),
+        inspector=inspector or RuntimeImageInspector(),
+    )
+
+
 __all__ = [
     "VariantVerification",
+    "ensure_kind_image_ready",
     "VerificationStatus",
     "expected_images",
     "verify_registry",

@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from posttrain.common import ContractError
 from posttrain.runtime_images.manifest import load_manifest
+from posttrain_cli.checks import runtime_images_check
 from posttrain_cli.cli import main
 from posttrain_cli.context import CliState
 from posttrain_cli.execution_config import (
@@ -16,6 +17,7 @@ from posttrain_cli.execution_config import (
     load_local_execution_config,
 )
 from posttrain_cli.runtime_images import (
+    ensure_kind_image_ready,
     verify_registry,
     verify_variant,
 )
@@ -178,6 +180,129 @@ def test_verify_registry_rejects_unknown_variants(
             manifest=_MANIFEST,
             inspector=_FakeInspector(),
         )
+
+
+def test_packing_refuses_a_drifted_image_and_names_the_remedy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    registry = _registry(tmp_path, monkeypatch)
+    stale = hashlib.sha256(b"an older workspace lock").hexdigest()
+    with pytest.raises(ContractError) as raised:
+        ensure_kind_image_ready(
+            registry,
+            "supervised",
+            manifest=_MANIFEST,
+            inspector=_FakeInspector(lock_digest=stale),
+        )
+    message = str(raised.value)
+    assert "supervised" in message
+    assert stale in message
+    assert _EXPECTED_LOCK in message
+    assert "--build-missing" in message
+
+
+def test_packing_refuses_a_missing_image_and_suggests_mirroring(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    registry = _registry(tmp_path, monkeypatch)
+    with pytest.raises(ContractError, match="runtime images mirror"):
+        ensure_kind_image_ready(
+            registry,
+            "supervised",
+            manifest=_MANIFEST,
+            inspector=_FakeInspector(missing=True),
+        )
+
+
+def test_an_unreachable_registry_never_silently_proceeds(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """--build-missing must not turn a network failure into a rebuild."""
+    registry = _registry(tmp_path, monkeypatch)
+    with pytest.raises(ContractError, match="could not be queried"):
+        ensure_kind_image_ready(
+            registry,
+            "supervised",
+            build_missing=True,
+            manifest=_MANIFEST,
+            inspector=_UnreachableInspector(),
+        )
+
+
+def test_verified_image_passes_without_building(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    registry = _registry(tmp_path, monkeypatch)
+    result = ensure_kind_image_ready(
+        registry,
+        "supervised",
+        build_missing=True,
+        manifest=_MANIFEST,
+        inspector=_FakeInspector(),
+    )
+    assert result.ok
+
+
+def test_doctor_fails_when_a_configured_image_is_not_this_release(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys,
+) -> None:
+    """A pinned older image must stop the command, not warn quietly."""
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.internal/team")
+
+    older = "sha256:" + "9" * 64
+    config = project / ".posttrain" / "state" / "execution.toml"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text(
+        "schema_version = 1\n\n[registry]\n\n[registry.kind_images]\n"
+        f'supervised = "registry.internal/team/posttrain-kind-supervised@{older}"\n',
+        encoding="utf-8",
+    )
+    config.chmod(0o600)
+
+    assert main(["--json", "--project-root", str(project), "doctor"]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    check = next(c for c in payload["checks"] if c["name"] == "runtime_images")
+    assert check["status"] == "error"
+    assert "supervised" in check["message"]
+    assert "9" * 64 in check["message"]
+    assert _MANIFEST.kinds["supervised"].digest.removeprefix("sha256:") in check["message"]
+
+
+def test_runtime_images_check_ignores_unpublished_variants(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A release-blocked variant has nothing in the release to disagree with."""
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.internal/team")
+    lock = Path(__file__).resolve().parents[3] / (
+        "packages/runtime-images/src/posttrain/runtime_images/containers/"
+        "posttrain-job-kinds/locks/workspace.lock.txt"
+    )
+    config = project / ".posttrain" / "state" / "execution.toml"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text(
+        "schema_version = 1\n\n[registry]\n\n[registry.kind_images]\n"
+        f'custom-backend = "registry.internal/team/custom@sha256:{"7" * 64}"\n\n'
+        "[registry.constraint_profiles.custom-backend]\n"
+        f'path = "{lock}"\n'
+        f'sha256 = "{hashlib.sha256(lock.read_bytes()).hexdigest()}"\n',
+        encoding="utf-8",
+    )
+    config.chmod(0o600)
+
+    check = runtime_images_check(CliState(project_root=project))
+    assert check.status == "ok"
 
 
 def test_list_works_offline(tmp_path: Path, capsys) -> None:
