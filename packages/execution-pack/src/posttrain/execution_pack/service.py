@@ -643,6 +643,25 @@ def _framework_wheel_digest(wheels: tuple[Path, ...]) -> str:
     return hashlib.sha256(json.dumps(entries, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
+def _staged_framework_digest(root: Path) -> str:
+    """Digest whichever way framework code was staged into the context.
+
+    A source tree and a set of wheels are alternatives, never both, so finding
+    both staged means the context was assembled twice over and its identity
+    would depend on which route the reader happened to check.
+    """
+    wheels = tuple(sorted(path for path in (root / "wheels/framework").glob("*.whl") if path.is_file()))
+    source = root / "sources/framework"
+    has_source = source.is_dir() and any(path.is_file() for path in source.rglob("*"))
+    if wheels and has_source:
+        raise ContractError("framework code is staged both as a source tree and as wheels")
+    if wheels:
+        return _framework_wheel_digest(wheels)
+    if has_source:
+        return _tree_digest(source)
+    raise ContractError("no framework code is staged in the job context")
+
+
 def _stage_framework_wheels(wheels: tuple[Path, ...], stage: Path) -> None:
     destination = stage / "wheels" / "framework"
     destination.mkdir(parents=True, exist_ok=True)
@@ -935,9 +954,9 @@ def _verify_staged_context(
             "resolved configuration",
         ),
         (
-            _tree_digest(root / "sources/framework"),
+            _staged_framework_digest(root),
             manifest.framework_source_digest,
-            "framework source",
+            "framework code",
         ),
         (
             _tree_digest(root / "sources/project"),

@@ -12,8 +12,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import subprocess
+from collections.abc import Mapping
 from dataclasses import dataclass
 from importlib import metadata
 from pathlib import Path
@@ -85,18 +87,58 @@ def _digest(wheels: tuple[Path, ...]) -> str:
     return hashlib.sha256(json.dumps(entries, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
-def materialize(destination: Path, *, uv: str = "uv") -> FrameworkDistributions:
+def _index_arguments(environ: Mapping[str, str]) -> list[str]:
+    """Forward the consumer's index to pip, which reads different variables.
+
+    uv is configured through `UV_INDEX_URL`, and pip through `PIP_INDEX_URL`. A
+    consumer who configured only uv, which is what the framework's own
+    documentation tells them to do, would otherwise have their private index
+    silently ignored here and fall back to PyPI, where these distributions do
+    not exist.
+    """
+    if environ.get("PIP_INDEX_URL"):
+        return []
+    index = environ.get("UV_INDEX_URL") or environ.get("UV_DEFAULT_INDEX")
+    return ["--index-url", index] if index else []
+
+
+def materialize(
+    destination: Path,
+    *,
+    uv: str = "uv",
+    environ: Mapping[str, str] | None = None,
+) -> FrameworkDistributions:
     """Download the installed framework distributions as wheels.
 
     Resolution uses whatever index the environment already configures, so a site
     with a private index needs no framework-specific setting: the wheels come
     from wherever the consumer installed them.
+
+    uv has no download command, so this borrows pip through an ephemeral uv
+    environment rather than requiring the consumer's own environment to carry
+    pip, which a uv-created virtual environment does not.
     """
+    environ = os.environ if environ is None else environ
     destination.mkdir(parents=True, exist_ok=True)
     versions = installed_versions()
     requirements = [f"{name}=={version}" for name, version in sorted(versions.items())]
     result = subprocess.run(
-        [uv, "pip", "download", "--no-deps", "--dest", str(destination), *requirements],
+        [
+            uv,
+            "run",
+            "--no-project",
+            "--with",
+            "pip",
+            "python",
+            "-m",
+            "pip",
+            "download",
+            "--no-deps",
+            "--dest",
+            str(destination),
+            *_index_arguments(environ),
+            *requirements,
+        ],
         capture_output=True,
         text=True,
         check=False,
