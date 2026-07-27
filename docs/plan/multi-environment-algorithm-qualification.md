@@ -79,15 +79,16 @@ artifact, and observation contracts.
 
 ## Surprises & Discoveries
 
-- Observation: the existing AutomationBench qualification scripts are useful
-  research probes but are not a reusable job interface.
-  Evidence: `tools/run_automationbench_trl_grpo.py` and
-  `tools/run_automationbench_verl_grpo.py` hard-code run IDs, source paths,
-  model bindings, execution targets, and environment-specific assertions.
+- Observation: the old AutomationBench `tools/` qualification helpers were
+  useful research probes but were not a reusable job interface, so they were
+  removed in favor of `posttrain job run` work packages.
+  Evidence: those scripts hard-coded run IDs, source paths, model bindings,
+  execution targets, and environment-specific assertions.
 
 - Observation: previous online-RL infrastructure jobs completed 15 backward
   passes but used a synthetic REINFORCE loss rather than Verifiers rollouts.
-  Evidence: `docs/plan/ambient-agent-autoresearch-runbook.md` explicitly marks
+  Evidence: `../ambient-agent/docs/plan/ambient-agent-autoresearch-runbook.md`
+  (outside this repository commit boundary) explicitly marks
   the online-RL row as optimizer/observation plumbing only and leaves actual
   GRPO, DAPO, and SAMPO unqualified.
 
@@ -264,7 +265,8 @@ result contracts live in `packages/train/src/posttrain/train`. The
 Verifiers-to-training bridge lives in
 `packages/train/src/posttrain/train/integrations/verifiers.py`. The TRL and
 veRL adapters live under `packages/train/src/posttrain/train/backends/`.
-Existing scenario-specific GPU probes live in `tools/`.
+Scenario launches use `posttrain job run` against `.posttrain/work_packages/`.
+Ephemeral `tools/` job helpers were removed.
 
 `packages/execution` owns provider-neutral submission, status, cancellation,
 and result contracts. `packages/execution-local` runs a package on the current
@@ -309,12 +311,12 @@ Keep `scripts/qualification/run_algorithm_scenario.py` temporarily to compare
 the resulting `ExecutionRequest`, native provider state, Trackio evidence, and
 retained artifacts. Remove it once the CLI path passes that parity check.
 
-Move environment-specific construction out of the two `tools/` programs into
-small adapters under `scripts/qualification/scenarios/`. The AutomationBench
-adapter selects categories and deterministic sampling policy through its
-`EnvironmentBinding`; it must not expose raw task indices as the ordinary
-operator interface. The GSM8K adapter selects a bounded train split and seed
-through its environment binding. Both adapters use
+Environment-specific construction belongs in work-package bindings and small
+scenario adapters under `scripts/qualification/`, not ephemeral `tools/`
+helpers. The AutomationBench adapter selects categories and deterministic
+sampling policy through its `EnvironmentBinding`; it must not expose raw task
+indices as the ordinary operator interface. The GSM8K adapter selects a bounded
+train split and seed through its environment binding. Both adapters use
 `create_verifiers_training_bridge`, preserving native trace payloads.
 
 Add `scripts/qualification/validate_algorithm_run.py`. It reads the

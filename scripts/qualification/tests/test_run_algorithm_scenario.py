@@ -6,7 +6,7 @@ from scripts.qualification.algorithm_scenarios import scenario_by_id
 from scripts.qualification.run_algorithm_scenario import render_launch
 
 
-def test_automationbench_launch_hides_raw_task_selection_from_operator() -> None:
+def test_automationbench_launch_uses_posttrain_job_cli() -> None:
     scenario = scenario_by_id("automationbench-qwen35-08b-grpo-10")
 
     launch = render_launch(
@@ -19,15 +19,16 @@ def test_automationbench_launch_hides_raw_task_selection_from_operator() -> None
         trackio_server_url="https://trackio.lan",
     )
 
-    assert launch.command[-2:] == ("--max-steps", "10")
-    assert launch.command[launch.command.index("--num-generations") + 1] == "4"
-    assert launch.command[launch.command.index("--task-indices") + 1 : -4] == (
-        "194",
-        "198",
+    assert launch.command[:5] == ("uv", "run", "posttrain", "job", "run")
+    assert launch.command[5] == (
+        ".posttrain/work_packages/automationbench_zapier_grpo.yaml"
     )
+    assert launch.command[launch.command.index("--job") + 1] == "grpo"
+    assert launch.command[launch.command.index("--provider") + 1] == "local"
+    assert launch.command[launch.command.index("--run-id") + 1] == "run-1"
 
 
-def test_dstack_launch_uses_container_runtime_and_run_workspace() -> None:
+def test_dstack_launch_uses_container_run_workspace() -> None:
     scenario = scenario_by_id("automationbench-qwen35-08b-grpo-10")
 
     launch = render_launch(
@@ -40,15 +41,14 @@ def test_dstack_launch_uses_container_runtime_and_run_workspace() -> None:
         trackio_server_url="https://trackio.lan",
     )
 
-    assert launch.command[0] == "/opt/venv/bin/python"
-    assert launch.command[1] == "tools/run_verl_grpo_qualification.py"
+    assert launch.command[launch.command.index("--provider") + 1] == "dstack"
+    assert launch.command[launch.command.index("--target") + 1] == (
+        "carbonteq-ai-workstation.lan"
+    )
     assert launch.job_workspace == Path("/opt/posttrain/run")
-    assert launch.command[
-        launch.command.index("--verl-worktree") + 1
-    ] == "/workspace/verl-upstream"
 
 
-def test_gsm8k_launch_uses_the_same_trainer_with_a_math_environment_adapter() -> None:
+def test_gsm8k_launch_uses_the_same_cli_with_its_work_package() -> None:
     scenario = scenario_by_id("gsm8k-qwen35-08b-grpo-15")
 
     launch = render_launch(
@@ -61,13 +61,10 @@ def test_gsm8k_launch_uses_the_same_trainer_with_a_math_environment_adapter() ->
         trackio_server_url="https://trackio.lan",
     )
 
-    assert launch.command[1].endswith("run_verl_grpo_qualification.py")
-    assert launch.command[launch.command.index("--environment") + 1] == "gsm8k"
-    assert launch.command[launch.command.index("--max-steps") + 1] == "15"
-    assert launch.command[launch.command.index("--task-indices") + 1 : -4] == (
-        "0",
-        "1",
+    assert launch.command[5] == (
+        ".posttrain/work_packages/gsm8k_qwen08b_grpo_qualification.yaml"
     )
+    assert launch.command[launch.command.index("--job") + 1] == "grpo"
 
 
 def test_cli_default_preserves_virtual_environment_entrypoint() -> None:

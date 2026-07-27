@@ -16,28 +16,18 @@ The coordinator requires `gh`, `ssh`, `scp`, and `sha256sum`. The remote host
 requires `uv`, Python 3.12, a compatible NVIDIA driver, access to Python package
 indexes and model weights, and enough disk space for the model and vLLM.
 
+Use the primary CLI on a clean remote host after installing the tagged
+wheelhouse. Do not rely on ephemeral `tools/` helpers.
+
 ```bash
-uv run python tools/qualify_remote_gpu.py \
-  --host <ssh-host> \
-  --release <release-tag>
+# On the remote host, after installing the release wheelhouse:
+uv run --package posttrain posttrain work-package run \
+  examples/gpu-qualification/.posttrain/work_packages/<gate>.yaml \
+  --job <job-id>
 ```
 
-The coordinator:
-
-1. Downloads and verifies the tagged GitHub wheelhouse.
-2. Creates a new `/tmp/posttrain-gpu-qualification.*` directory remotely.
-3. Installs the release into a clean Python 3.12 environment.
-4. Records the GPU model, memory, and driver.
-5. Validates and executes the bounded Qwen 3.5 2B serving screen.
-6. Records a terminal Trackio run and retrieves the same run through
-   Observatory.
-7. Writes a local evidence summary under
-   `.posttrain/state/qualification/`.
-
-The remote directory is intentionally retained for diagnosis. It contains the
-environment, logs, downloaded release, local Trackio state, and JSON output.
-Remove that specific temporary directory only after the release evidence is
-accepted or copied to the release record.
+Retain the remote evidence directory until the release checklist accepts or
+copies the summary under `.posttrain/state/qualification/`.
 
 ## Acceptance
 

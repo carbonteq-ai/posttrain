@@ -182,10 +182,10 @@ Therefore the qualified 8 GiB profile uses `kv_cache_memory_bytes=671088640`,
 Do not lower the context target or call a constructor-only run a substitute.
 
 The exact qualification entrypoint is
-`tools/run_automationbench_trl_grpo.py`. On-policy distillation accepts the same
-MTP and engine settings in code and unit coverage, but still requires its own
-real student-rollout plus teacher-score GPU qualification before it is marked
-released.
+`uv run posttrain job run` against the matching AutomationBench work package.
+On-policy distillation accepts the same MTP and engine settings in code and
+unit coverage, but still requires its own real student-rollout plus
+teacher-score GPU qualification before it is marked released.
 
 ### Current 8 GiB, large-group optimization
 

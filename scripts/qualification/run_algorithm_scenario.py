@@ -41,10 +41,17 @@ from scripts.qualification.validate_algorithm_run import (  # noqa: E402
 )
 
 DEFAULT_GPU_PYTHON = Path("/home/hammad/projects/verl/.venv313/bin/python")
-REMOTE_GPU_PYTHON = Path("/opt/venv/bin/python")
-REMOTE_VERL_WORKTREE = Path("/workspace/verl-upstream")
 REMOTE_WORKSPACE_ROOT = Path("/opt/posttrain/run")
-_VERL_REVISION = "a35908ca3c9632859c58d6a2855d858918ae21dc"
+_SCENARIO_WORK_PACKAGES: dict[str, tuple[str, str]] = {
+    "automationbench-qwen35-08b-grpo-10": (
+        ".posttrain/work_packages/automationbench_zapier_grpo.yaml",
+        "grpo",
+    ),
+    "gsm8k-qwen35-08b-grpo-15": (
+        ".posttrain/work_packages/gsm8k_qwen08b_grpo_qualification.yaml",
+        "grpo",
+    ),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,63 +75,32 @@ def render_launch(
     python_executable: Path,
     trackio_server_url: str,
 ) -> ScenarioLaunch:
-    environments = {
-        "automationbench-qwen35-08b-grpo-10": ("automationbench", ("194", "198")),
-        "gsm8k-qwen35-08b-grpo-15": ("gsm8k", ("0", "1")),
-    }
-    if scenario.id not in environments:
+    del python_executable, trackio_server_url
+    if scenario.id not in _SCENARIO_WORK_PACKAGES:
         raise NotImplementedError(
-            f"local adapter is not implemented for scenario {scenario.id!r}"
+            f"CLI launch is not mapped for scenario {scenario.id!r}"
         )
-    runtime_python = (
-        python_executable if provider == "local" else REMOTE_GPU_PYTHON
-    )
-    job_workspace = (
-        workspace
-        if provider == "local"
-        else REMOTE_WORKSPACE_ROOT
-    )
-    verl_worktree = (
-        Path("/home/hammad/projects/verl-upstream")
-        if provider == "local"
-        else REMOTE_VERL_WORKTREE
-    )
-    script = (
-        REPOSITORY / "tools" / "run_verl_grpo_qualification.py"
-        if provider == "local"
-        else Path("tools/run_verl_grpo_qualification.py")
-    )
-    if not runtime_python.is_absolute():
-        raise ValueError("qualification Python executable must be absolute")
     if not workspace.is_absolute():
         raise ValueError("qualification workspace must be absolute")
-    if not trackio_server_url.startswith(("http://", "https://")):
-        raise ValueError("Trackio server URL must be an absolute HTTP URL")
     if scenario.update_budget is None:
         raise ValueError("training scenario is missing its update budget")
-    environment, task_indices = environments[scenario.id]
-    if scenario.task_budget != len(task_indices) or scenario.rollouts_per_task is None:
-        raise ValueError("scenario task budget conflicts with its environment adapter")
+    work_package, job_id = _SCENARIO_WORK_PACKAGES[scenario.id]
+    job_workspace = workspace if provider == "local" else REMOTE_WORKSPACE_ROOT
     command = (
-        str(runtime_python),
-        str(script),
-        str(job_workspace),
-        "--environment",
-        environment,
+        "uv",
+        "run",
+        "posttrain",
+        "job",
+        "run",
+        work_package,
+        "--job",
+        job_id,
+        "--provider",
+        provider,
+        "--target",
+        target,
         "--run-id",
         run_id,
-        "--trackio-server-url",
-        trackio_server_url,
-        "--python-executable",
-        str(runtime_python),
-        "--verl-worktree",
-        str(verl_worktree),
-        "--task-indices",
-        *task_indices,
-        "--num-generations",
-        str(scenario.rollouts_per_task),
-        "--max-steps",
-        str(scenario.update_budget),
     )
     return ScenarioLaunch(
         scenario_id=scenario.id,
@@ -148,11 +124,7 @@ def _bundle_inputs() -> dict[str, Path]:
         REPOSITORY / "packages" / "tracking" / "src",
         REPOSITORY / "packages" / "tracking-trackio" / "src",
         REPOSITORY / "apps" / "lab" / "src",
-    )
-    files = (
-        REPOSITORY / "tools" / "run_verl_grpo_qualification.py",
-        REPOSITORY / "tools" / "run_automationbench_verl_grpo.py",
-        REPOSITORY / "tools" / "run_workspace.py",
+        REPOSITORY / "apps" / "cli" / "src",
     )
     inputs: dict[str, Path] = {}
     for root in roots:
@@ -163,8 +135,6 @@ def _bundle_inputs() -> dict[str, Path]:
                 and path.suffix not in {".pyc", ".pyo"}
             ):
                 inputs[path.relative_to(REPOSITORY).as_posix()] = path
-    for path in files:
-        inputs[path.relative_to(REPOSITORY).as_posix()] = path
     return inputs
 
 
@@ -329,7 +299,7 @@ def _run_dstack(
         source_metadata={
             "framework_source_digest": bundle.digest,
             "runtime_image_digest": image.value.rsplit("@sha256:", 1)[1],
-            "verl_revision": _VERL_REVISION,
+            "submission_surface": "posttrain-job-cli",
         },
         required_artifact_roles=(
             "trained_model",
