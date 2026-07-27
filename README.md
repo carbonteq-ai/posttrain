@@ -193,6 +193,44 @@ Training, evaluation, serving, and tracking remain separate reusable
 capabilities. A project or host composes them through framework contracts;
 those packages do not import one another.
 
+## Screen serving capacity
+
+Serving capacity is measured as one bounded concurrency sweep per model,
+inference binding, workload, and execution target. Product constraints stay in
+the project brief; backend search settings stay in the inference binding. The
+benchmark records direct request/run evidence and a versioned
+`serving-result.json`, while Observatory derives throughput, latency
+percentiles, eligibility, and the cross-contender Pareto frontier.
+
+The repository example uses the audited `general-serving-v1` population: 128
+deterministically selected GSM8K reasoning prompts, HumanEval code prompts, and
+reviewed first-party chat, extraction, structured-output, and tool-use
+messages. It fixes decode work at 128 output tokens and never treats systems
+throughput as task correctness.
+
+```bash
+uv run --package posttrain posttrain work-package validate \
+  .posttrain/work_packages/foundation_screen.yaml
+
+# GPU execution gate
+uv run --no-sync --package posttrain-lab posttrain-lab foundation-qwen-smoke --tracked
+
+# Read the run and work-package evidence
+uv run --package posttrain posttrain observatory up
+```
+
+The Overview shows every concurrency point, response length and request
+coverage, TTFT/TPOT, memory and KV-cache pressure, runtime settings, and the
+constraint-relative operating point. The work-package view keeps eligible,
+constrained, failed, unsaturated, and incomparable contenders visible; only
+eligible results with an identical requirements/workload/corpus/target
+comparison basis can enter the strict Pareto set.
+
+For the small real-vLLM release gate, set
+`POSTTRAIN_RUN_SERVE_GPU_INTEGRATION=1` and optionally choose
+`POSTTRAIN_SERVE_GPU_VARIANT=standard|mtp|turboquant|mtp-turboquant`, then run
+`uv run --no-sync pytest packages/serve/tests/test_vllm_capacity_integration.py -q`.
+
 ## Run the qualification suite
 
 Install `posttrain-lab` when developing the framework or adapting one of its

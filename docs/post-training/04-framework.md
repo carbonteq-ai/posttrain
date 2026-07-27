@@ -120,6 +120,10 @@ flowchart TB
 | `packages/tracking-trackio` / `tracking-wandb` | Concrete writer and reader adapters | Job-specific view semantics |
 | `packages/work` | Recipe/work-package contracts, YAML loading, catalog resolution, preflight, and thin run execution | Concrete job definitions, backend policy, scheduling, project decisions |
 | `packages/jobs` | Framework-shipped standard job definitions, dataset/environment wiring, and default `JobRuntime` construction | Project thresholds, scenario policy, or capability implementation |
+| `packages/execution` | Provider-neutral launch contracts, immutable job-package identity, lifecycle, reconciliation, and cleanup | dstack SDK calls, Docker commands, job semantics |
+| `packages/execution-pack` | Framework job-package planning and materialization across project code, environment sources, datasets, and image levels | Provider scheduling, registry operation, environment semantics |
+| `packages/execution-buildkit` | BuildKit adapter, immutable image publication, qualification, and protected receipts | Choosing job inputs or owning infrastructure services |
+| `packages/execution-local` / `execution-dstack` | Local Docker and dstack launch adapters over the same digest-pinned actual-job image | A second code/data upload protocol |
 | `apps/cli` | Primary `posttrain` command: project initialization and install, diagnostics, catalog/work-package execution, and Observatory bring-up | Capability semantics, provider storage logic, project decisions |
 | `apps/lab` | Reference project and qualification suite: scenario policy, backend integration tests, and hardware release gates | Being imported by ordinary projects or owning the standard job contract |
 | `apps/observatory` | Dedicated read product: telemetry definitions, query/intelligence service, Python API, HTTP API, MCP, frontend, materialized reports, and versioned serving-capacity interpretation | Provider storage queries, execution, mutation of runs, or “winner” selection |
@@ -160,6 +164,20 @@ flowchart TB
 12. **Standard definition ids cannot be shadowed.** A project entry may add a
     new versioned definition or unshipped factory, but may not replace a
     framework definition with different semantics under the same id.
+13. **The framework owns all job-image semantics.** It publishes a universal
+    base, job-kind images, and actual-job images. Infrastructure operates
+    BuildKit, the OCI registry, dstack, workers, credentials, caches, and
+    retention; it does not choose or build framework job contents.
+14. **The actual-job OCI image is the normal distribution unit.** It contains
+    exact framework/project code, resolved configuration, materialized
+    datasets, and every selected environment package. Providers receive its
+    digest and a launch envelope; they do not receive a parallel code/data
+    bundle.
+15. **Environment activation is a worker concern.** Catalog loading retains a
+    serializable source plus declarative activation or, when required, a real
+    package-exported factory reference. Packing may combine several
+    full-commit Git sources, and the runtime activates each environment only
+    after its locked wheel is installed in the actual-job image.
 
 ### Observatory distribution boundary
 
@@ -182,7 +200,7 @@ secrets.
 | --- | --- | --- |
 | Model variant | `common` refs + catalog modules; materialization via `train` / `model.transform` | Identity is cross-cutting; weights produced by train/transform jobs |
 | Dataset selection | `data` | Train consumes; does not own |
-| Environment binding | Published env packages + `eval`/`train` bindings | Env package owns task semantics |
+| Environment binding | Published env packages + `eval`/`train` bindings; packed by `execution-pack` | Env package owns task semantics; framework owns immutable delivery |
 | Inference binding | `serve` | Eval/train may *consume* a generation endpoint without owning vLLM |
 | Training selection | `train` | Algorithm-specific seats stay here |
 | Evaluation plan | `eval` | Plans reference envs; model under test is a run input |
@@ -357,9 +375,14 @@ overlays may add proprietary entries or deliberately replace a global id.
 Publishing a new global entry requires a catalog package release.
 
 Global and project dataset/environment entries are pointers until first use.
-Validation or execution materializes them idempotently under
-`.posttrain/state/` or verifies the pinned environment package in the project
-environment. Dataset source kinds include immutable Hugging Face revisions,
+Static work-package validation and detached planning check their immutable
+source metadata, seat types, and compatibility without importing the selected
+runtime package. Dataset inputs needed for a bounded execution bundle
+materialize idempotently under `.posttrain/state/`. Explicit local
+materialization commands verify an installed pinned environment package, while
+detached local or remote execution performs native environment preflight inside
+the selected runtime image immediately before the operation starts. Dataset
+source kinds include immutable Hugging Face revisions,
 project-relative JSONL/Parquet sources, and NeMo JSONL via `source.kind: nemo`.
 Supervised format names are the adapter literals `auto`, `messages`,
 `prompt-completion`, `alpaca`, and `sharegpt`; preference formats use the

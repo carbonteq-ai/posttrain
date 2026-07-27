@@ -280,6 +280,20 @@ see [Verifiers-backed eval evidence](#verifiers-backed-eval-evidence).
 | Verification | Deterministic checks, judges, rubrics, **raw** reward signals (`@reward` / `@metric`) |
 | Environment parameters | Task-meaningful timeouts, limits, configurable behavior |
 | Compatibility | Required modalities, tool protocol, renderer behavior, sandbox needs |
+| Source | Secret-free repository URL, full commit SHA, and installable package subdirectory |
+| Activation | Serializable Verifiers config, or an importable `module:callable` only when the package truly requires a custom factory |
+
+The source and activation are values, not locally activated Python objects.
+Static catalog resolution and detached job planning must therefore
+work without the environment package installed on the developer machine.
+Packing fetches the exact Git commit, verifies the selected subdirectory,
+builds and locks its wheel, and qualifies activation inside the resulting job
+image. Declarative Verifiers configuration is the normal path; a Python factory
+reference is reserved for an environment package that actually exports one. A
+job may select several environments. The packer fetches a shared repository
+revision once and retains one source-tree/wheel lock per installed package plus
+one activation lock per selected binding. Train and test bindings may therefore
+reuse one wheel without collapsing their distinct activation identities.
 
 ### Ownership split (critical)
 
@@ -312,6 +326,8 @@ envs/memory-agent-v2@<revision>
 - Putting GRPO group size or KL coef into the environment
 - Treating the environment as the evaluation plan
 - Changing verification silently without bumping environment revision
+- Naming a Git branch or tag instead of a full commit
+- Activating the environment during catalog loading
 
 ---
 

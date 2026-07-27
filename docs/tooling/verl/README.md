@@ -394,33 +394,52 @@ step, adapter synchronization, and a later rollout using updated weights.
 
 ## Fork-owned changes
 
-The maintained CarbonTeq fork is published at immutable candidate revision
+The maintained CarbonTeq fork is published at immutable SAMPO candidate
+revision
 `553280b88afe4e7fbc4aefeff27bbf0a22e7c048` on
 `carbonteq-ai/verl:main`. It is based on upstream veRL
-commit `a35908ca3c9632859c58d6a2855d858918ae21dc` and contains three generic
-runtime fixes plus a candidate SAMPO extension. The SAMPO implementation itself
-is commit `8a718e5be7a107587f63967336ece333a5c160e1`:
+commit `a35908ca3c9632859c58d6a2855d858918ae21dc`, contains the previously
+published Qwen 3.5 QLoRA and runtime-counter work, and adds the SAMPO
+extension. The SAMPO implementation itself is commit
+`8a718e5be7a107587f63967336ece333a5c160e1`.
 
+A published runtime-delta candidate has been reconstructed from that exact
+published revision as commit
+`1dcdf67e9473db5297c98c9c88cf4dae6c4a8932` on branch
+`codex/runtime-release-qwen35`. It adds:
+
+- compatible `orjson`, Transformers `<5.15`, and vLLM `>=0.18,<0.26`
+  dependency ranges for the separately locked runtime;
 - `verl/workers/engine_workers.py`: stage LoRA adapter tensors before waking
   colocated rollout weights;
 - `verl/workers/engine/fsdp/transformer_impl.py`: honor chunked entropy for
   dense no-remove-padding inputs;
-- `verl/utils/vllm/turboquant_compat.py`: opt-in research guard for the pinned
-  vLLM build when its TurboQuant cache spec reports no quantization mode. It is
-  not release-qualified because the matched Qwen 3.5 recall gate fails.
+- `verl/models/transformers/qwen3_5.py`: retain attention dispatch through the
+  generated FSDP2 wrapper;
+- `verl/trainer/ppo/metric_utils.py`: retain the raw response-token total;
+- the synchronous vLLM/trainer boundary: emit step-local MTP counters instead
+  of process-lifetime totals.
+
+The published SAMPO revision adds:
+
 - `verl/trainer/ppo/core_algos.py` and
   `verl/trainer/ppo/ray_trainer.py`: register SAMPO's GiGPO-style hierarchical
   advantage estimator, validate token-aligned turn metadata, and combine the
   result with the existing GSPO actor loss.
 
-Regression coverage lives in
-`tests/checkpoint_engine/test_global_steps_on_cpu.py` and
-`tests/models/test_fsdp_no_padding_on_gpu.py`, and
-`tests/utils/test_vllm_turboquant_compat.py`. SAMPO coverage lives in
-`tests/trainer/ppo/test_sampo_advantage_on_cpu.py`. The fork's root
-`CARBONTEQ_FORK.md` is the maintained delta ledger. The immutable revision above
-makes the backend reproducible, but it remains a candidate until its SAMPO GPU
-qualification gate passes.
+The runtime candidate passed 42 focused CPU tests, the existing 34-test
+SAMPO/core regression, focused Ruff and format checks, dependency metadata
+assertions, source compilation, and an exclusion audit. It contains no
+`runtime/` environment, `sitecustomize`, TurboQuant bootstrap or compatibility
+code, TurboQuant test, packaging hook, or TurboQuant-only vLLM server change.
+TurboQuant remains failed research because the matched Qwen 3.5 recall gate
+failed. The candidate now has its immutable commit, but still needs the
+dependency-only Python 3.13.12 lock, image smoke, and bounded end-to-end run
+before it can replace the published revision.
+
+The fork's root `CARBONTEQ_FORK.md` is the maintained delta ledger. The
+published revision makes current SAMPO experiments reproducible, but it remains
+a candidate until its independent SAMPO GPU qualification passes.
 
 ### SAMPO operating configuration
 
@@ -444,7 +463,7 @@ reward-constant groups. A project training binding therefore supplies immutable
 `dynamic_sampling_recipe_source_revision` backend options in addition to the
 veRL interpreter, worktree, and source revision. Select
 `backend_options.source_revision` as
-`553280b88afe4e7fbc4aefeff27bbf0a22e7c048`; the interpreter and both checkout
+`1dcdf67e9473db5297c98c9c88cf4dae6c4a8932`; the interpreter and both checkout
 paths remain machine-local execution values rather than catalog defaults.
 
 This composition follows the official ARL-Arena SAMPO extension at

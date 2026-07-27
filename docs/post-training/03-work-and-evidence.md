@@ -212,6 +212,40 @@ A **run** is one observed execution of a job. Every run should record:
 Repeating a job creates another run. Do not overwrite previous evidence in
 place.
 
+### Execution admission
+
+Detached execution may apply an admission policy before a provider receives a
+run. Admission is framework lifecycle state, not a scheduler replacement:
+local Docker or dstack still owns placement, startup, and provider-native
+queuing after submission.
+
+The default research policy admits at most one active run for one exact worker
+placement. Different physical workers may execute independently. A waiting run
+retains its immutable execution plan and evidence destination, can be inspected
+or cancelled by canonical `run_id`, and must not contact a provider until its
+placement is admitted. Terminal provider state does not release the placement;
+consistent retained-evidence reconciliation is the release barrier. When a
+project explicitly selects the no-op observer, terminal provider evidence is
+the admission barrier and the reconciliation must say that no durable evidence
+was asserted. Cleanup must preserve a successful untracked workspace whenever
+the run declares required output roles.
+
+Admission state is machine-local control evidence under `.posttrain/state`.
+Run observations and artifacts remain durable through the selected tracking
+provider. A CLI restart must be able to restore waiting plans without
+replanning or changing their package, provider, target, or evidence identity.
+A provider submission exception retains the worker placement in quarantine
+with an ambiguous `submission_failed` entry and the original submit intent.
+This is necessary because the provider may have accepted the deterministic run
+before its response was lost. A process-scoped submission claim prevents
+concurrent provider calls and is released automatically if the CLI process
+dies; recovery then retries the same run and idempotency key explicitly.
+Read-only status and unrelated enqueue operations never recover or submit work
+as a side effect. The active admission snapshot may retain only a bounded
+terminal window, but pruning must first write a compact mode-protected receipt
+containing the run, placement, provider, image, timestamp, and terminal
+admission state.
+
 ### Run role
 
 **Job kind** answers *what executed*. **Run role** answers *why this run exists

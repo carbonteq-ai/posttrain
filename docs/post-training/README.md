@@ -66,6 +66,17 @@ starts local Observatory. `ProjectExecutionRequest`, `ProjectEntry`, and
 Details: [04 · Framework](./04-framework.md), [05 · APIs](./05-apis.md),
 [developer experience](../developer-experience.md), and the
 [implementation plan](../plan/project-developer-experience.md).
+**Amendment — detached planning and runtime activation (2026-07-26):**
+work-package composition and detached execution planning validate immutable
+references, seat types, and cross-seat compatibility without importing or
+activating the selected ML backend or environment package on the developer
+machine. Explicit local materialization commands may install and verify those
+dependencies. The packaged execution runtime performs native backend and
+environment preflight immediately before an operation starts. Dataset
+materialization needed to construct a bounded execution bundle remains part of
+planning. Details: [04 · Framework](./04-framework.md),
+[05 · APIs](./05-apis.md), and the
+[execution-provider plan](../plan/dstack-execution-provider.md).
 **Amendment — DAPO algorithm selection (2026-07-24):**
 `train.grpo` keeps one request shape while `GRPOSettings.algorithm` selects
 `grpo` or `dapo`. DAPO owns token-level loss, asymmetric clipping, global

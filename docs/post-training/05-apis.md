@@ -128,6 +128,18 @@ posttrain catalog validate
 posttrain dataset validate DATASET_ID
 posttrain work-package validate PATH
 posttrain work-package run PATH --job JOB_ID
+posttrain job plan WORK_PACKAGE --job JOB_ID
+posttrain job pack WORK_PACKAGE --job JOB_ID
+posttrain job run WORK_PACKAGE --job JOB_ID [--provider local|dstack]
+posttrain run list
+posttrain run status RUN_ID
+posttrain run wait RUN_ID
+posttrain run logs RUN_ID
+posttrain run cancel RUN_ID
+posttrain run retry-submit RUN_ID
+posttrain run reconcile RUN_ID
+posttrain run cleanup RUN_ID
+posttrain run show RUN_ID
 posttrain observatory up [--port PORT]
 ```
 
@@ -139,6 +151,11 @@ and two for invalid command syntax. The primary CLI is built with Typer; that is
 an implementation detail and does not change the public noun surface. Readable
 terminal output is the default; `--json` provides deterministic automation
 output.
+
+`job` owns immutable planning, packing, and submission. Once a canonical
+`run_id` exists, `run` owns provider lifecycle, admission state, retained
+evidence reconciliation, and cleanup. This noun split supersedes the earlier
+draft spelling of lifecycle commands under `posttrain job`.
 
 Initialization writes the project layout and an installable project package,
 then creates the project environment and installs dependencies. There is no
@@ -191,7 +208,9 @@ not on the dataset.
 | Field | Role |
 | --- | --- |
 | `id` / `revision` | Env/taskset identity |
-| `package` | Published Verifiers (or compatible) package |
+| `package` | Installable Verifiers (or compatible) package name |
+| `repository` / `source_revision` / `subdirectory` | Secret-free Git URL, full commit SHA, and package root |
+| `activation` | Declarative Verifiers config by default; optional real `module:callable` for custom packages |
 | `split` / subset | Task selection for this binding |
 | `parameters` | Task-meaningful timeouts/limits |
 | `reward_components` | Declared raw signal names (meanings owned by env) |
@@ -376,10 +395,14 @@ entries use format `nemo-ranked` (or `auto`). Materialization routes through
 `supervised_from_nemo` / `preferences_from_nemo` and caches the same canonical
 HF-normalized JSONL used by other sources.
 
-Environment entries bind a pinned Verifiers package and factory. Standard
-GRPO, distillation, and evaluation definitions build the existing environment
-bridges from the resolved `EnvironmentBinding`; projects do not supply a
-parallel dataset seat for environment-only GRPO.
+Environment entries bind a pinned Verifiers package source and serializable
+activation. Catalog loading does not import that package. `job pack`
+fetches the full Git commit, may build several selected environment
+subdirectories from one checkout, records each tree and wheel digest, and
+qualifies every activation in the actual-job image. Standard GRPO, distillation,
+and evaluation definitions build the existing environment bridges from the
+resolved `EnvironmentBinding`; projects do not supply a parallel dataset seat
+for environment-only GRPO.
 
 ## RunContext
 
@@ -732,7 +755,7 @@ of raw provider rows.
       train_sft_bootstrap.yaml
       qualify_sft.yaml
     state/                 # ignored scratch/cache/recovery/provider state
-  pyproject.toml           # installed project and pinned environment packages
+  pyproject.toml           # installed project, dependency pins, and optional [tool.posttrain.pack] source selection
   project_entry.py         # optional escape hatch; absent on the happy path
 ```
 
@@ -742,9 +765,29 @@ resource; `.posttrain/catalog/` contains project overlays only. Durable
 artifacts remain observer/backend values and do not derive identity from
 `.posttrain/state/`.
 
+`[tool.posttrain.pack]` may declare sorted `project_packages` and
+`source_includes`. The normal single-package project defaults to installing
+`.` and snapshots `pyproject.toml`, `src/`, and a declared readme. Monorepos
+declare package roots explicitly. These values select code only; the framework
+always adds the selected work package, project manifest, overlays, and project
+brief as a closed configuration bundle. Repeatable CLI source options may
+override the committed values for an experiment, and their selected bytes
+become a different package identity. The packer never implicitly copies
+`.git/`, `.posttrain/state/`, credentials, model weights, or unrelated
+repository contents.
+
 ## Validation
 
-Before side effects, operations (or the resolver) check:
+Composition validation and detached planning perform only checks that are safe
+on the developer machine: immutable references, required seats, selection
+types, and cross-seat compatibility. They do not import CUDA backends,
+Verifiers, or independently packaged environments. Explicit materialization
+commands may install and validate local dependencies. The selected execution
+runtime performs native backend and environment activation immediately before
+the operation starts.
+
+Before operation side effects, the composition layer or execution runtime
+checks:
 
 - required seats present for the job kind
 - renderer/tokenizer alignment across model, dataset, inference, env

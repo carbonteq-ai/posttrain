@@ -10,7 +10,7 @@ The lab's injected observation context maps those hooks to Trackio. Datasets,
 rewards, and Verifiers environment implementations remain independently owned.
 
 The workspace uses the `carbonteq-ai/trl` fork pinned to immutable commit
-`b43a0a3d622ab1547f4d2abbd1b25eab3c52a0b9`. The fork preserves TRL 1.8.0 and
+`6828a84716e0b9e29c3aedb40df3d28b81770e5b`. The fork preserves TRL 1.8.0 and
 adds the upstream-validated vLLM 0.24/0.25 dependency support plus regression
 coverage. It also keeps the trainer runtime compatible with `datasets 4.6.1`
 so the application can install Verifiers v1 and TRL together. It does not
@@ -41,6 +41,27 @@ bitsandbytes checkpoint in place, native-LoRA mode uses level-1 sleep. This
 CPU-backs the quantized base while still releasing its GPU allocation; full
 weight synchronization retains level 2. The lifecycle correction was merged
 in [`carbonteq-ai/trl#9`](https://github.com/carbonteq-ai/trl/pull/9).
+The current pinned fork also exposes that same generic
+`VLLMGeneration` synchronization choice through experimental
+`DistillationConfig`. This is required when an on-policy distillation student
+uses a PEFT update: full synchronization attempts to merge and push the
+adapter-shaped parameter set, while native LoRA synchronization keeps vLLM's
+base immutable and refreshes the adapter. It is part of the framework's
+immutable TRL pin, but still requires the retained ten-backward-pass
+distillation qualification before the overall release can be called complete.
+The candidate configuration and trainer wiring pass their focused tests. An
+order-dependent CPU failure was traced to a vLLM-generation test leaking
+distributed-launch environment variables: a later GRPO test initialized NCCL,
+and the distillation test inherited that process group. The test module now
+restores `RANK`, `LOCAL_RANK`, `WORLD_SIZE`, `MASTER_ADDR`, and `MASTER_PORT`
+after every case. The exact failing three-test order and the broader
+vLLM-generation/GRPO/distillation selection pass after the isolation fix;
+production trainer behavior was not changed. The complete repository release
+gate that previously failed now reports 153 passed and 60 skipped with
+distillation executing after vLLM and GRPO in the same interpreter. It leaves
+no process group, CUDA context, distributed environment, Ray process, or GPU
+client behind. Immutable fork publication and the live ten-backward-pass
+distillation run remain required.
 DPO kernel choice is model-specific and recorded as `dpo_loss_kernel`. Liger's
 fused DPO loss can reduce projection memory for moderate vocabularies, but its
 current backward path creates a full FP32 LM-head gradient even when that head
