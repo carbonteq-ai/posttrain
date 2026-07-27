@@ -97,6 +97,7 @@ def transform(
         kind="model-weights",
         reference=reference,
         metadata=attributes,
+        role="model",
     )
     child = ModelVariant(
         id=request.output_id,

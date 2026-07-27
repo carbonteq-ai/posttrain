@@ -1,0 +1,181 @@
+inference:
+  inference/qwen3.5-0.8b-vllm-screen-standard@1:
+    revision: "1"
+    model: models/qwen3.5-0.8b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools@1
+    engine:
+      max_model_len: 32768
+      gpu_memory_utilization: 0.80
+      dtype: float16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 4
+      max_num_batched_tokens: 4096
+      kv_cache_dtype: auto
+      text_only: true
+      skip_mm_profiling: true
+    sampling:
+      max_tokens: 128
+      temperature: 0.0
+    target: targets/local-cuda-8gb
+    purpose: [screen]
+
+  inference/qwen3.5-0.8b-vllm-screen-mtp@1:
+    revision: "1"
+    model: models/qwen3.5-0.8b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools@1
+    engine:
+      max_model_len: 32768
+      gpu_memory_utilization: 0.80
+      dtype: float16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 4
+      max_num_batched_tokens: 4096
+      kv_cache_dtype: auto
+      text_only: true
+      skip_mm_profiling: true
+      speculative_config:
+        method: mtp
+        num_speculative_tokens: 1
+    sampling:
+      max_tokens: 128
+      temperature: 0.0
+    target: targets/local-cuda-8gb
+    purpose: [screen]
+
+  inference/qwen3.5-0.8b-vllm-screen-turboquant@1:
+    revision: "1"
+    model: models/qwen3.5-0.8b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools@1
+    engine:
+      max_model_len: 32768
+      gpu_memory_utilization: 0.80
+      dtype: float16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 4
+      max_num_batched_tokens: 4096
+      kv_cache_dtype: turboquant_k8v4
+      text_only: true
+      skip_mm_profiling: true
+      flash_attn_version: 2
+    sampling:
+      max_tokens: 128
+      temperature: 0.0
+    target: targets/local-cuda-8gb
+    purpose: [screen]
+
+  inference/qwen3.5-0.8b-vllm-screen-mtp-turboquant@1:
+    revision: "1"
+    model: models/qwen3.5-0.8b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools@1
+    engine:
+      max_model_len: 32768
+      gpu_memory_utilization: 0.80
+      dtype: float16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 4
+      max_num_batched_tokens: 4096
+      kv_cache_dtype: turboquant_k8v4
+      text_only: true
+      skip_mm_profiling: true
+      flash_attn_version: 2
+      speculative_config:
+        method: mtp
+        num_speculative_tokens: 1
+    sampling:
+      max_tokens: 128
+      temperature: 0.0
+    target: targets/local-cuda-8gb
+    purpose: [screen]
+
+  inference/qwen3.5-0.8b-vllm-screen-mtp-capacity64@1:
+    revision: "1"
+    model: models/qwen3.5-0.8b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools@1
+    engine:
+      max_model_len: 32768
+      gpu_memory_utilization: 0.75
+      dtype: float16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 64
+      max_num_batched_tokens: 4096
+      kv_cache_dtype: auto
+      text_only: true
+      skip_mm_profiling: true
+      speculative_config:
+        method: mtp
+        num_speculative_tokens: 1
+    sampling:
+      max_tokens: 128
+      temperature: 0.0
+    target: targets/local-cuda-8gb
+    purpose: [screen]
+
+  inference/qwen3.5-2b-vllm-screen-capacity8@1:
+    revision: "1"
+    model: models/qwen3.5-2b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools@1
+    engine:
+      max_model_len: 32768
+      gpu_memory_utilization: 0.75
+      dtype: float16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 8
+      max_num_batched_tokens: 4096
+      kv_cache_dtype: auto
+      text_only: true
+      skip_mm_profiling: true
+    sampling:
+      max_tokens: 128
+      temperature: 0.0
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [screen]
+
+workload:
+  workloads/qwen3.5-2b-bounded-capacity8@1:
+    revision: "1"
+    requests:
+      suite_id: qwen3.5-2b-bounded-capacity8-v1
+      shape_id: controlled-1024in-128out
+      context_window: 32768
+      input_tokens: 1024
+      output_tokens: 128
+      cohort: controlled
+      saturation_state: unknown
+    concurrency: [1, 2, 4, 8]
+    warmup_repetitions: 1
+    measured_repetitions: 2
+    plateau_improvement_ratio: 0.05
+    plateau_intervals: 2
+    max_consecutive_point_failures: 1
+    required_measures:
+      - serve/run/requests_attempted
+      - serve/run/requests_measured
+      - serve/run/output_tokens_measured
+      - serve/run/measurement_duration_s
+      - serve/request/ttft_seconds
+      - serve/request/tpot_seconds
+      - serve/backend/peak_vram_bytes

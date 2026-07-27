@@ -68,7 +68,6 @@ def run_dpo(
             ]
         )
     emit_parameter_counts(context, model, request.training.update)
-    _emit_parameter_counts(context, model)
     arguments = trainer_arguments(request.settings.loop, output_dir)
     arguments.update(
         {
@@ -114,20 +113,6 @@ def run_dpo(
                 request.training.update,
                 imports,
             )
-
-
-def _emit_parameter_counts(context: RunContext, model: Any) -> None:
-    total = sum(parameter.numel() for parameter in model.parameters())
-    trainable = sum(parameter.numel() for parameter in model.parameters() if parameter.requires_grad)
-    if trainable < 1 or trainable >= total:
-        raise RuntimeError(f"invalid PEFT parameter selection: trainable={trainable}, total={total}")
-    context.metrics(
-        {
-            "train/parameters_total": total,
-            "train/parameters_trainable": trainable,
-            "train/parameters_trainable_fraction": trainable / total,
-        }
-    )
 
 
 def _emit_preference_profile(

@@ -8,15 +8,13 @@ from functools import partial
 from typing import Literal, cast
 
 from posttrain.data import DatasetLoadPlan, resolve_dataset_source
-from posttrain.eval import EnvironmentBinding
-from posttrain.train.integrations import preflight_verifiers_environment
 from posttrain.work import (
     JobDefinition,
     JobRuntime,
     ProjectExecutionRequest,
     ResolvedSeat,
     execute_run,
-    execute_run_tracked,
+    execute_run_tracked_finalized,
 )
 
 from .definitions import standard_definitions
@@ -37,7 +35,6 @@ def build_job_runtime(
         raise ValueError(f"extra job definitions cannot shadow standard ids: {', '.join(sorted(shadowed))}")
     definitions.update(extras)
     scratch_root = request.state_dir / "scratch"
-    scratch_root.mkdir(parents=True, exist_ok=True)
     selected_tracking = tracking or "trackio"
     if selected_tracking == "none":
         executor = partial(execute_run, scratch_root=scratch_root)
@@ -52,7 +49,11 @@ def build_job_runtime(
                 auto_log_cpu=True,
             )
         )
-        executor = partial(execute_run_tracked, backend=backend, scratch_root=scratch_root)
+        executor = partial(
+            execute_run_tracked_finalized,
+            backend=backend,
+            scratch_root=scratch_root,
+        )
     elif selected_tracking == "wandb":
         from posttrain_tracking_wandb import WandbBackend, WandbSettings
 
@@ -70,7 +71,11 @@ def build_job_runtime(
                 mode=cast(Literal["online", "offline"], mode),
             )
         )
-        executor = partial(execute_run_tracked, backend=backend, scratch_root=scratch_root)
+        executor = partial(
+            execute_run_tracked_finalized,
+            backend=backend,
+            scratch_root=scratch_root,
+        )
     else:
         raise ValueError(f"unknown tracking backend: {selected_tracking}")
 
@@ -82,8 +87,6 @@ def build_job_runtime(
                 state_dir=request.state_dir,
                 project_root=request.project_root,
             )
-        if isinstance(value, EnvironmentBinding):
-            preflight_verifiers_environment(value)
         return value
 
     return JobRuntime(

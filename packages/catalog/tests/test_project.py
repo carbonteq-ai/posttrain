@@ -77,3 +77,70 @@ project_brief = "project.yaml"
 
     with pytest.raises(ContractError, match="requires project schema_version 2"):
         load_project_layout(tmp_path)
+
+
+def test_project_loads_non_secret_execution_defaults(tmp_path: Path) -> None:
+    _write_manifest(
+        tmp_path,
+        """
+schema_version = 1
+project_id = "execution-project"
+catalog_overlays = []
+
+[execution]
+provider = "dstack"
+target = "targets/rtx-pro-6000@1"
+runtime_profile = "training/verl@1"
+timeout_seconds = 7200
+max_attempts = 2
+priority = 5
+environment_names = ["TRACKIO_SERVER_URL", "TRACKIO_WRITE_TOKEN"]
+""",
+    )
+
+    layout = load_project_layout(tmp_path)
+
+    assert layout.execution.provider == "dstack"
+    assert layout.execution.target == "targets/rtx-pro-6000@1"
+    assert layout.execution.runtime_profile == "training/verl@1"
+    assert layout.execution.timeout_seconds == 7200
+    assert layout.execution.max_attempts == 2
+    assert layout.execution.priority == 5
+    assert layout.execution.environment_names == (
+        "TRACKIO_SERVER_URL",
+        "TRACKIO_WRITE_TOKEN",
+    )
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("provider", '"Dstack"', "lowercase identifier"),
+        ("timeout_seconds", "0", "greater than or equal to 1"),
+        (
+            "environment_names",
+            '["TRACKIO_WRITE_TOKEN=secret"]',
+            "must be variable names",
+        ),
+    ],
+)
+def test_project_rejects_invalid_execution_defaults(
+    tmp_path: Path,
+    field: str,
+    value: str,
+    message: str,
+) -> None:
+    _write_manifest(
+        tmp_path,
+        f"""
+schema_version = 1
+project_id = "execution-project"
+catalog_overlays = []
+
+[execution]
+{field} = {value}
+""",
+    )
+
+    with pytest.raises(ContractError, match=message):
+        load_project_layout(tmp_path)

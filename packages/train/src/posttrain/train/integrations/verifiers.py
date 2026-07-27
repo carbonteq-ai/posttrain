@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import pickle
+import statistics
 import threading
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
@@ -13,12 +14,19 @@ from pathlib import Path
 from random import Random
 from typing import Any, Literal, Protocol
 
-from posttrain.common import JsonValue, LocalArtifactRef, ProducedArtifact, TraceObservation
+from posttrain.common import (
+    JsonValue,
+    LocalArtifactRef,
+    MetricBatchObservation,
+    ProducedArtifact,
+    TraceObservation,
+)
 from posttrain.data import RolloutDataset, RolloutExample
 
 from ..online_rl import (
     AgenticTurn,
     EnvironmentRollout,
+    EnvironmentRolloutEvidence,
     PolicyGenerator,
     PolicySampling,
     PolicyTurnRequest,
@@ -52,8 +60,7 @@ class VerifiersEnvironmentSelection(Protocol):
     @property
     def source(self) -> EnvironmentSourceSelection: ...
 
-    @property
-    def factory(self) -> EnvironmentFactory: ...
+    def activate(self) -> Any: ...
 
     @property
     def num_tasks(self) -> int: ...
@@ -150,7 +157,7 @@ def preflight_verifiers_environment(environment: VerifiersEnvironmentSelection) 
     """Check an installed environment binding and return portable native config."""
 
     EnvConfig, Environment = _environment_imports()
-    base = environment.factory()
+    base = environment.activate()
     if isinstance(base, Environment):
         base = base.config
     if not isinstance(base, EnvConfig):
@@ -243,7 +250,36 @@ def _load_selected_tasks(
     environment: VerifiersEnvironmentSelection,
     factory: NativeVerifiersEnvironmentFactory,
 ) -> dict[int, Any]:
-    available = factory().taskset.load()
+    taskset = factory().taskset
+    if bool(getattr(type(taskset), "INFINITE", False)):
+        selected = tuple(
+            taskset.select(
+                num_tasks=environment.num_tasks,
+                shuffle=False,
+            )
+        )
+        if len(selected) != environment.num_tasks:
+            raise ValueError(
+                f"environment {environment.id!r} requests {environment.num_tasks} tasks, "
+                f"but its infinite taskset selected {len(selected)}"
+            )
+        indexed: dict[int, Any] = {}
+        for task in selected:
+            index = getattr(getattr(task, "data", None), "idx", None)
+            if (
+                not isinstance(index, int)
+                or isinstance(index, bool)
+                or index < 0
+                or index in indexed
+            ):
+                raise ValueError(
+                    "infinite Verifiers tasksets must select tasks with unique "
+                    "non-negative integer data.idx values"
+                )
+            indexed[index] = task
+        return dict(sorted(indexed.items()))
+
+    available = taskset.load()
     size = len(available)
     if environment.num_tasks > size:
         raise ValueError(
@@ -530,6 +566,144 @@ class VerifiersEnvironmentRolloutBridge:
             },
         )
         return (artifact,)
+
+    def evidence(self) -> EnvironmentRolloutEvidence:
+        """Replay native trace records and trace-derived metrics in the host process."""
+
+        if not self.trace_path.is_file():
+            return EnvironmentRolloutEvidence()
+        records = [
+            json.loads(line)
+            for line in self.trace_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        traces: list[TraceObservation] = []
+        records_by_step: dict[int, list[dict[str, Any]]] = {}
+        for record in records:
+            if not isinstance(record, dict):
+                raise TypeError("preserved Verifiers traces must be JSON objects")
+            run = record.get("run")
+            if not isinstance(run, dict) or not isinstance(run.get("step"), int):
+                raise ValueError("preserved Verifiers traces require an integer run step")
+            info = record.get("info")
+            info = info if isinstance(info, dict) else {}
+            traces.append(
+                TraceObservation(
+                    trace_type="verifiers",
+                    external_id=str(record.get("id") or ""),
+                    payload=record,
+                    attributes={
+                        "environment_id": str(info.get("environment_id") or self.environment_id),
+                        "task_index": int(info.get("task_index", -1)),
+                        "example_id": str(info.get("example_id") or ""),
+                        "is_truncated": _trace_is_truncated(record),
+                        "model": _trace_model(record),
+                    },
+                )
+            )
+            records_by_step.setdefault(run["step"], []).append(record)
+        if any(not trace.external_id for trace in traces):
+            raise ValueError("preserved Verifiers traces require stable trace ids")
+        metrics = tuple(
+            MetricBatchObservation(
+                _trace_metrics(step_records),
+                step=step,
+                attributes={"observation_source": "verifiers"},
+            )
+            for step, step_records in sorted(records_by_step.items())
+        )
+        return EnvironmentRolloutEvidence(metrics=metrics, traces=tuple(traces))
+
+
+def _trace_model(record: Mapping[str, Any]) -> str:
+    agent = record.get("agent")
+    return str(agent.get("model") or "") if isinstance(agent, Mapping) else ""
+
+
+def _trace_reward(record: Mapping[str, Any]) -> float | None:
+    rewards = record.get("rewards")
+    if not isinstance(rewards, Mapping):
+        return None
+    values = [
+        float(value)
+        for value in rewards.values()
+        if isinstance(value, int | float) and not isinstance(value, bool)
+    ]
+    return sum(values) if values else None
+
+
+def _trace_is_truncated(record: Mapping[str, Any]) -> bool:
+    return not bool(record.get("is_completed")) and not bool(record.get("errors"))
+
+
+def _trace_has_tool_call(record: Mapping[str, Any]) -> bool:
+    nodes = record.get("nodes")
+    if not isinstance(nodes, list):
+        return False
+    return any(
+        isinstance(node, Mapping)
+        and bool(node.get("sampled"))
+        and isinstance((message := node.get("message")), Mapping)
+        and bool(message.get("tool_calls"))
+        for node in nodes
+    )
+
+
+def _trace_has_tool_failure(record: Mapping[str, Any]) -> bool:
+    nodes = record.get("nodes")
+    if not isinstance(nodes, list):
+        return False
+    for node in nodes:
+        if not isinstance(node, Mapping) or bool(node.get("sampled")):
+            continue
+        message = node.get("message")
+        if not isinstance(message, Mapping) or message.get("role") != "tool":
+            continue
+        content = message.get("content")
+        if not isinstance(content, str):
+            continue
+        try:
+            value = json.loads(content)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, Mapping) and value.get("success") is False:
+            return True
+    return False
+
+
+def _trace_metrics(records: Sequence[Mapping[str, Any]]) -> dict[str, float]:
+    attempted = len(records)
+    if attempted == 0:
+        raise ValueError("cannot derive rollout evidence from an empty step")
+    rewards = [reward for record in records if (reward := _trace_reward(record)) is not None]
+    grouped_rewards: dict[str, list[float]] = {}
+    for record in records:
+        reward = _trace_reward(record)
+        info = record.get("info")
+        example_id = str(info.get("example_id") or "") if isinstance(info, Mapping) else ""
+        if reward is not None:
+            grouped_rewards.setdefault(example_id, []).append(reward)
+    grouped = [values for values in grouped_rewards.values() if len(values) > 1]
+    zero_variance_groups = sum(statistics.pstdev(values) == 0 for values in grouped)
+    return {
+        "train/rl/reward_std": statistics.pstdev(rewards) if len(rewards) > 1 else 0.0,
+        "train/rl/group_zero_variance_fraction": (
+            zero_variance_groups / len(grouped) if grouped else 0.0
+        ),
+        "train/rl/rollouts_attempted": float(attempted),
+        "train/rl/rollouts_completed": float(
+            sum(bool(record.get("is_completed")) for record in records)
+        ),
+        "train/rl/rollouts_failed": float(sum(bool(record.get("errors")) for record in records)),
+        "train/rl/rollouts_truncated": float(sum(_trace_is_truncated(record) for record in records)),
+        "train/rl/rollouts_unscorable": float(attempted - len(rewards)),
+        "train/rl/tool_call_frequency": sum(_trace_has_tool_call(record) for record in records)
+        / attempted,
+        "train/rl/tool_failure_frequency": sum(
+            _trace_has_tool_failure(record) for record in records
+        )
+        / attempted,
+    }
 
 
 def load_verifiers_bridge_snapshot(path: Path) -> VerifiersEnvironmentRolloutBridge:

@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import hashlib
+import importlib
 import json
 import os
 import re
+import site
 import subprocess
 import sys
 import time
 from pathlib import Path
 from typing import Any
 
+from ..retention import finalize_training_outputs
 from .contracts import (
     VerlLaunchManifest,
     VerlModel,
@@ -79,7 +82,6 @@ def main() -> None:
         check=True,
     )
     update_kind = payload.training.update.kind
-    materialized_model = model_dir / "lora_adapter" if update_kind == "lora" else model_dir
     records = read_verl_metric_records(metrics_file)
     metrics = records[-1].data
     observed_step = metrics.get("training/global_step")
@@ -95,6 +97,15 @@ def main() -> None:
         raise RuntimeError(f"veRL completed without a recognized training loss metric; see {native_log}") from error
     if isinstance(train_loss, bool) or not isinstance(train_loss, int | float):
         raise TypeError(f"veRL training loss metric must be numeric; see {native_log}")
+    retention = finalize_training_outputs(
+        workspace=output_dir,
+        model_dir=model_dir,
+        checkpoint_root=checkpoint_dir,
+        recovery_checkpoint=latest,
+        update_kind=update_kind,
+        checkpoint_limit=payload.training.loop.checkpoint_limit,
+        manifest_path=output_dir / "retention-manifest.json",
+    )
     batch_size = payload.training.runtime.global_batch_size or 1
     result = VerlWorkerResult(
         summary=VerlTrainingSummary(
@@ -104,9 +115,10 @@ def main() -> None:
             samples_per_second=steps * batch_size / runtime if runtime > 0 else 0.0,
             steps_per_second=steps / runtime if runtime > 0 else 0.0,
         ),
-        model_dir=materialized_model.resolve(),
-        recovery_checkpoint=latest.resolve(),
+        model_dir=retention.model_dir,
+        recovery_checkpoint=retention.recovery_checkpoint,
         metrics_file=metrics_file.resolve(),
+        retention_manifest=retention.manifest_path,
     )
     result.write(manifest.result_file)
 
@@ -453,6 +465,33 @@ def _model_path(model: VerlModel) -> str:
 
 
 def _validate_runtime(manifest: VerlLaunchManifest) -> None:
+    projection_value = os.environ.get("POSTTRAIN_VERL_PYTHONPATH")
+    if projection_value is not None:
+        projection = Path(projection_value)
+        if (
+            projection != Path("/opt/posttrain-verl/projection")
+            or os.environ.get("PYTHONPATH") != projection_value
+            or site.ENABLE_USER_SITE
+        ):
+            raise RuntimeError(
+                "veRL capsule worker must use only its packaged projection"
+            )
+        modules = tuple(
+            importlib.import_module(name)
+            for name in (
+                "posttrain.common",
+                "posttrain.data",
+                "posttrain.train",
+                "posttrain.train.backends.verl.worker",
+            )
+        )
+        root = projection.resolve()
+        for module in modules:
+            origin = getattr(module, "__file__", None)
+            if origin is None or not Path(origin).resolve().is_relative_to(root):
+                raise RuntimeError(
+                    f"veRL worker module escaped packaged projection: {module.__name__}"
+                )
     try:
         from importlib.metadata import version
 

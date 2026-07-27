@@ -44,6 +44,7 @@ from posttrain.train.backends.verl.launcher import (
     _record_failure_artifacts,
     _replay_grpo_metrics,
     _runtime_timeout,
+    _start_isolated_worker,
     build_distillation_launch_plan,
     build_grpo_launch_plan,
     build_sampo_launch_plan,
@@ -683,12 +684,14 @@ def test_verl_result_uses_validated_structured_metrics_as_native_summary(tmp_pat
     model = output / "model"
     checkpoint = output / "checkpoints" / "global_step_1"
     metrics = output / "verl-metrics.jsonl"
+    retention = output / "retention-manifest.json"
     model.mkdir(parents=True)
     checkpoint.mkdir(parents=True)
     metrics.write_text(
         json.dumps({"step": 1, "data": {"actor/pg_loss": -0.1}}) + "\n",
         encoding="utf-8",
     )
+    retention.write_text('{"schema_version": 1, "status": "completed"}\n', encoding="utf-8")
     payload = VerlWorkerResult.model_validate(
         {
             "summary": {
@@ -701,18 +704,22 @@ def test_verl_result_uses_validated_structured_metrics_as_native_summary(tmp_pat
             "model_dir": model,
             "recovery_checkpoint": checkpoint,
             "metrics_file": metrics,
+            "retention_manifest": retention,
         }
     )
 
     backend, records = _backend_result(payload, output)
 
     assert backend.summary_file == metrics
+    assert backend.retention_manifest == retention
     assert records[0].data == {"actor/pg_loss": -0.1}
 
     outside = tmp_path / "outside.jsonl"
     outside.write_text(metrics.read_text(encoding="utf-8"), encoding="utf-8")
     with pytest.raises(ValueError, match="inside the run output"):
         _backend_result(payload.model_copy(update={"metrics_file": outside}), output)
+    with pytest.raises(ValueError, match="inside the run output"):
+        _backend_result(payload.model_copy(update={"retention_manifest": outside}), output)
 
 
 def test_verl_failure_preserves_native_diagnostics(tmp_path: Path) -> None:
@@ -809,17 +816,94 @@ def test_verl_mtp_partial_runtime_counters_fail_closed(tmp_path: Path) -> None:
 
 def test_verl_isolated_environment_does_not_forward_tracking_credentials(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     monkeypatch.setenv("WANDB_API_KEY", "secret")
     monkeypatch.setenv("TRACKIO_API_KEY", "secret")
     monkeypatch.setenv("POSTTRAIN_KEEP", "yes")
+    monkeypatch.setenv("VIRTUAL_ENV", "/opt/posttrain/venv")
+    monkeypatch.setenv("UV_PROJECT_ENVIRONMENT", "/opt/posttrain/venv")
+    monkeypatch.setenv("PATH", "/opt/posttrain/venv/bin:/usr/bin")
+    projection = tmp_path / "projection"
+    projection.mkdir()
+    monkeypatch.setenv("POSTTRAIN_VERL_PYTHONPATH", str(projection))
+    monkeypatch.setenv("PYTHONPATH", "/existing/pythonpath")
 
-    environment = _isolated_environment()
+    environment = _isolated_environment(
+        Path("/opt/posttrain-verl/bin/python")
+    )
 
     assert "WANDB_API_KEY" not in environment
     assert "TRACKIO_API_KEY" not in environment
+    assert "VIRTUAL_ENV" not in environment
+    assert "UV_PROJECT_ENVIRONMENT" not in environment
     assert environment["POSTTRAIN_KEEP"] == "yes"
+    assert environment["PATH"] == (
+        "/opt/posttrain-verl/bin:"
+        "/opt/posttrain/venv/bin:/usr/bin"
+    )
     assert environment["RAY_ENABLE_UV_RUN_RUNTIME_ENV"] == "0"
+    assert environment["PYTHONPATH"] == str(projection)
+    assert environment["PYTHONNOUSERSITE"] == "1"
+    assert environment["PYTHONSAFEPATH"] == "1"
+    assert "/existing/pythonpath" not in environment["PYTHONPATH"]
+
+
+def test_verl_isolated_environment_rejects_missing_worker_projection(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv(
+        "POSTTRAIN_VERL_PYTHONPATH",
+        str(tmp_path / "missing"),
+    )
+
+    with pytest.raises(RuntimeError, match="packaged absolute"):
+        _isolated_environment(Path("/opt/posttrain-verl/bin/python"))
+
+
+def test_verl_popen_receives_only_the_selected_interpreter_environment(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    plan = build_grpo_launch_plan(_grpo_request(), tmp_path)
+    manifest = tmp_path / "posttrain-verl-launch.json"
+    captured: dict[str, object] = {}
+
+    class Process:
+        pass
+
+    def popen(command, **kwargs):
+        captured["command"] = command
+        captured.update(kwargs)
+        return Process()
+
+    monkeypatch.setenv("VIRTUAL_ENV", "/opt/posttrain/venv")
+    monkeypatch.setenv("UV_PROJECT_ENVIRONMENT", "/opt/posttrain/venv")
+    monkeypatch.setenv("PATH", "/opt/posttrain/venv/bin:/usr/bin")
+    monkeypatch.setattr(
+        "posttrain.train.backends.verl.launcher.subprocess.Popen",
+        popen,
+    )
+    with (tmp_path / "worker.log").open("w", encoding="utf-8") as stream:
+        process = _start_isolated_worker(
+            plan,
+            manifest=manifest,
+            stdout=stream,
+        )
+
+    assert isinstance(process, Process)
+    assert captured["command"] == plan.command
+    assert captured["cwd"] == str(plan.working_directory)
+    environment = captured["env"]
+    assert isinstance(environment, dict)
+    assert "VIRTUAL_ENV" not in environment
+    assert "UV_PROJECT_ENVIRONMENT" not in environment
+    assert environment["PATH"].startswith(
+        "/opt/posttrain-verl/bin:"
+    )
+    assert environment["POSTTRAIN_VERL_MANIFEST"] == str(manifest)
+    assert captured["start_new_session"] is True
 
 
 def test_verl_runtime_deadline_is_explicit_and_positive() -> None:

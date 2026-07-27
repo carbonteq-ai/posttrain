@@ -1,0 +1,18 @@
+quantization:
+  qwen3.5-0.8b/rtn-w4a16-qualification@1:
+    revision: "1"
+    method: rtn
+    recipe: tools/quantization/recipes/rtn-language-w4a16-group128-v3.yaml
+    recipe_digest: 0cd2afe95009f6a7e518745ae6347c61d678b0c97e2f569bc47e1ac2c841c8c4
+    weight_format: int4-group128
+    backend: llmcompressor@655b83d1240c37920a603b747bbfb6c218f66383
+    dependency_lock_digest: 71e46d45842db55609aaa194a3aebb5f2a338d922c01d53fe25eab94af5fe9ff
+    excluded_modules:
+      - model.visual
+    output_weight_precision: int4
+    output_quantization:
+      bits: 4
+      group_size: 128
+      scope: language_model
+      zero_point: false
+      scheme: W4A16

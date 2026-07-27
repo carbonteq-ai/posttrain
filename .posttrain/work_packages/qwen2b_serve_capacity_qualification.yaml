@@ -1,0 +1,44 @@
+project_id: foundation-models
+work_package_id: qualify/qwen3.5-2b-serving-capacity8
+stage: screen
+description: Run a bounded four-point Qwen 3.5 2B serving-capacity qualification on the RTX PRO 6000 worker.
+recipe:
+  type: inline
+  id: recipes/qwen3.5-2b-serving-capacity8@1
+  revision: "1"
+  stage: screen
+  seats:
+    model: model
+    screen_inference: inference
+    workload: workload
+    target: target
+  jobs:
+    - id: benchmark
+      kind: serve.benchmark
+      definition: serve/vllm-benchmark@1
+  expected_artifacts:
+    - serving-result
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/qwen3.5-2b@bf16
+  screen_inference:
+    type: ref
+    family: inference
+    id: inference/qwen3.5-2b-vllm-screen-capacity8@1
+  workload:
+    type: ref
+    family: workload
+    id: workloads/qwen3.5-2b-bounded-capacity8@1
+  target:
+    type: ref
+    family: target
+    id: targets/carbonteq-rtx-pro-6000-96gb
+enabled_optional_jobs: []
+metadata:
+  question: What bounded operating curve does Qwen 3.5 2B achieve through concurrency eight on the RTX PRO 6000?
+  labels:
+    - qualification
+    - serving-capacity
+    - bounded

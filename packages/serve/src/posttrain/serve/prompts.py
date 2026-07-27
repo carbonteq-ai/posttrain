@@ -196,8 +196,7 @@ def _parse_manifest(raw: dict[str, Any], source: str) -> PromptCorpusManifest:
         raise PromptError(f"prompt corpus manifest scalar fields are invalid: {source}")
     category_counts = raw["category_counts"]
     if not isinstance(category_counts, dict) or any(
-        not isinstance(key, str) or not isinstance(value, int) or value < 1
-        for key, value in category_counts.items()
+        not isinstance(key, str) or not isinstance(value, int) or value < 1 for key, value in category_counts.items()
     ):
         raise PromptError(f"prompt corpus manifest category_counts are invalid: {source}")
     raw_sources = raw["sources"]
@@ -247,7 +246,7 @@ def render_prompt(
     model: ModelVariant,
     *,
     tools: Sequence[Mapping[str, Any]] | None = None,
-) -> Sequence[int]:
+) -> tuple[int, ...]:
     """Render canonical messages through the model tokenizer's native template."""
 
     kwargs = reasoning_template_kwargs(model, record.reasoning_mode)
@@ -257,13 +256,31 @@ def render_prompt(
     unsupported_roles = {str(message["role"]) for message in record.messages} - set(model.conversation.roles)
     if unsupported_roles:
         raise PromptError(f"model does not support message roles: {', '.join(sorted(unsupported_roles))}")
-    return tokenizer.apply_chat_template(
+    rendered = tokenizer.apply_chat_template(
         list(record.messages),
         tokenize=True,
         add_generation_prompt=True,
         tools=list(tools if tools is not None else record.tools) or None,
         **kwargs,
     )
+    if isinstance(rendered, Mapping):
+        rendered = rendered.get("input_ids")
+    if (
+        isinstance(rendered, Sequence)
+        and not isinstance(rendered, (str, bytes))
+        and len(rendered) == 1
+        and isinstance(rendered[0], Sequence)
+        and not isinstance(rendered[0], (str, bytes))
+    ):
+        rendered = rendered[0]
+    if (
+        not isinstance(rendered, Sequence)
+        or isinstance(rendered, (str, bytes))
+        or not rendered
+        or any(not isinstance(token, int) or isinstance(token, bool) for token in rendered)
+    ):
+        raise PromptError("model chat template did not return one integer token sequence")
+    return tuple(rendered)
 
 
 __all__ = [

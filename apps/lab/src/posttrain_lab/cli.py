@@ -29,7 +29,7 @@ from posttrain.data import (
     partition_supervised_dataset,
 )
 from posttrain.eval import EnvironmentBinding, EvaluationBudget, EvaluationPlan, EvaluationResult
-from posttrain.serve import BenchmarkResult, GenerationResult
+from posttrain.serve import BenchmarkSweepResult, GenerationResult
 from posttrain.tracking import TrackingBackend
 from posttrain.train import (
     GRPOSettings,
@@ -936,7 +936,7 @@ def main() -> None:
         )
 
     result = _execute_package(args, package, definition, layout=layout)
-    if isinstance(result, BenchmarkResult):
+    if isinstance(result, BenchmarkSweepResult):
         print(json.dumps(result.as_json(), indent=2, sort_keys=True))
     elif isinstance(result, GenerationResult):
         print(json.dumps(result.summary(), indent=2, sort_keys=True))

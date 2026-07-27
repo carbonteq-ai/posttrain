@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -11,11 +12,47 @@ from typing import Literal
 
 from posttrain.common import ContractError
 from posttrain.common.selections import validate_selection_id
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 _CONTROL_DIRECTORY = ".posttrain"
 _MANIFEST = "project.toml"
 _PROJECT_ROOT_ENV = "POSTTRAIN_PROJECT_ROOT"
+_PROVIDER = re.compile(r"^[a-z][a-z0-9-]*$")
+
+
+class _ExecutionDefaultsManifest(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    provider: str | None = None
+    target: str | None = None
+    runtime_profile: str | None = None
+    timeout_seconds: int | None = Field(default=None, ge=1)
+    max_attempts: int | None = Field(default=None, ge=1)
+    priority: int | None = None
+    environment_names: tuple[str, ...] = ()
+
+    @field_validator("provider")
+    @classmethod
+    def _validate_provider(cls, value: str | None) -> str | None:
+        if value is not None and not _PROVIDER.fullmatch(value):
+            raise ValueError("provider must be a lowercase identifier")
+        return value
+
+    @field_validator("target", "runtime_profile")
+    @classmethod
+    def _validate_optional_identity(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("execution identity cannot be empty")
+        return value
+
+    @field_validator("environment_names")
+    @classmethod
+    def _validate_environment_names(cls, values: tuple[str, ...]) -> tuple[str, ...]:
+        if len(set(values)) != len(values):
+            raise ValueError("execution environment names must be unique")
+        if any(not value.strip() or "=" in value for value in values):
+            raise ValueError("execution environment entries must be variable names")
+        return values
 
 
 class _ProjectManifest(BaseModel):
@@ -29,6 +66,20 @@ class _ProjectManifest(BaseModel):
     tracking: Literal["trackio", "wandb", "none"] = "trackio"
     entry: str | None = None
     project_brief: str | None = None
+    execution: _ExecutionDefaultsManifest = _ExecutionDefaultsManifest()
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectExecutionDefaults:
+    """Committed non-secret defaults for planning one project execution."""
+
+    provider: str | None = None
+    target: str | None = None
+    runtime_profile: str | None = None
+    timeout_seconds: int | None = None
+    max_attempts: int | None = None
+    priority: int | None = None
+    environment_names: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,6 +97,7 @@ class ProjectLayout:
     tracking: Literal["trackio", "wandb", "none"] = "trackio"
     entry: str | None = None
     base_catalog: Path | None = None
+    execution: ProjectExecutionDefaults = ProjectExecutionDefaults()
 
     def __post_init__(self) -> None:
         validate_selection_id(self.project_id, "project id")
@@ -165,6 +217,15 @@ def load_project_layout(root: Path) -> ProjectLayout:
         project_brief=project_brief,
         tracking=manifest.tracking,
         entry=_validate_entry(manifest.entry) if manifest.entry is not None else None,
+        execution=ProjectExecutionDefaults(
+            provider=manifest.execution.provider,
+            target=manifest.execution.target,
+            runtime_profile=manifest.execution.runtime_profile,
+            timeout_seconds=manifest.execution.timeout_seconds,
+            max_attempts=manifest.execution.max_attempts,
+            priority=manifest.execution.priority,
+            environment_names=manifest.execution.environment_names,
+        ),
     )
 
 
@@ -196,4 +257,9 @@ def _validate_entry(value: str) -> str:
     return value
 
 
-__all__ = ["ProjectLayout", "discover_project", "load_project_layout"]
+__all__ = [
+    "ProjectExecutionDefaults",
+    "ProjectLayout",
+    "discover_project",
+    "load_project_layout",
+]

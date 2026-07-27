@@ -7,7 +7,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
-from posttrain.common import JsonValue, ProducedArtifact, TraceObservation
+from posttrain.common import JsonValue, MetricBatchObservation, ProducedArtifact, TraceObservation
 from posttrain.data import MessageRecord, RolloutDataset
 
 type ToolRecord = Mapping[str, JsonValue]
@@ -160,8 +160,17 @@ class EnvironmentRolloutBridge(Protocol):
     def finalize(self) -> tuple[ProducedArtifact, ...]: ...
 
 
+@dataclass(frozen=True, slots=True)
+class EnvironmentRolloutEvidence:
+    """Provider-neutral observations recovered from an isolated rollout runtime."""
+
+    metrics: tuple[MetricBatchObservation, ...] = ()
+    traces: tuple[TraceObservation, ...] = ()
+
+
 __all__ = [
     "AgenticTurn",
+    "EnvironmentRolloutEvidence",
     "EnvironmentRolloutBridge",
     "EnvironmentRollout",
     "PolicyGenerator",

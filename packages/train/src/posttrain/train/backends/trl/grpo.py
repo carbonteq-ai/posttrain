@@ -31,6 +31,13 @@ from .common import (
     vllm_rollout_options,
 )
 
+_TRACE_REPLAY_METRICS = frozenset(
+    {
+        "train/rl/reward_std",
+        "train/rl/group_zero_variance_fraction",
+    }
+)
+
 
 def run_grpo(
     context: RunContext,
@@ -91,7 +98,6 @@ def _run_online_rl(
         rows.append({"prompt": prompt, "example_id": example.id, **dict(example.metadata)})
     dataset = imports["Dataset"].from_list(rows)
     emit_parameter_counts(context, model, request.training.update)
-    _emit_parameter_counts(context, model, request.training.update.kind)
     arguments = _online_rl_arguments(request, output_dir, template_kwargs)
     observation_features = (
         GRPOObservationFeatures.from_request(request)
@@ -106,12 +112,21 @@ def _run_online_rl(
     context.event("grpo_runtime_resolved", _online_rl_runtime_attributes(request))
 
     def normalize_metrics(step: int, native: Mapping[str, object]) -> Mapping[str, float]:
-        return normalize_grpo_metrics(
-            backend="trl",
-            step=step,
-            native=native,
-            features=observation_features,
-        ).metrics
+        metrics = dict(
+            normalize_grpo_metrics(
+                backend="trl",
+                step=step,
+                native=native,
+                features=observation_features,
+            ).metrics
+        )
+        # Verifiers trace replay owns reward-population evidence. The common
+        # callback owns wall-clock step duration. Native TRL records can
+        # contain both, but emitting them again creates two logical points per
+        # optimizer step.
+        for name in (*_TRACE_REPLAY_METRICS, "train/step_time_seconds"):
+            metrics.pop(name, None)
+        return metrics
 
     with context.phase("runtime_initialization", {"backend": "trl"}):
         trainer = GRPOTrainer(
@@ -175,14 +190,17 @@ def _rollout_function(
         if len(rollouts) != len(inputs):
             raise ValueError("online-RL bridge returned a rollout count that does not match the trainer batch")
         completion_tokens = sum(len(rollout.completion_ids) for rollout in rollouts)
-        unscorable = sum(not math.isfinite(rollout.reward) for rollout in rollouts)
         context.metrics(
             {
                 "train/rl/rollouts_attempted": len(inputs),
                 "train/rl/rollouts_completed": len(rollouts),
                 "train/rl/rollouts_failed": 0,
-                "train/rl/rollouts_truncated": sum(rollout.is_truncated for rollout in rollouts),
-                "train/rl/rollouts_unscorable": unscorable,
+                "train/rl/rollouts_truncated": sum(
+                    rollout.is_truncated for rollout in rollouts
+                ),
+                "train/rl/rollouts_unscorable": sum(
+                    not math.isfinite(rollout.reward) for rollout in rollouts
+                ),
                 "train/rl/time/rollout_seconds": elapsed,
                 "train/rl/rollout_tokens_per_second": completion_tokens / elapsed if elapsed > 0 else 0.0,
             },
@@ -399,24 +417,6 @@ def _grpo_runtime_attributes(request: GRPORequest) -> dict[str, JsonValue]:
     """Compatibility name for the GRPO-only runtime evidence translator."""
 
     return _online_rl_runtime_attributes(request)
-
-
-def _emit_parameter_counts(
-    context: RunContext,
-    model: Any,
-    update_kind: str,
-) -> None:
-    total = sum(parameter.numel() for parameter in model.parameters())
-    trainable = sum(parameter.numel() for parameter in model.parameters() if parameter.requires_grad)
-    if trainable < 1 or (update_kind != "full" and trainable >= total):
-        raise RuntimeError(f"invalid PEFT parameter selection: trainable={trainable}, total={total}")
-    context.metrics(
-        {
-            "train/parameters_total": total,
-            "train/parameters_trainable": trainable,
-            "train/parameters_trainable_fraction": trainable / total,
-        }
-    )
 
 
 __all__ = ["run_grpo", "run_sampo"]

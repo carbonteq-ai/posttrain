@@ -37,7 +37,7 @@ class BenchmarkCell:
     shape_id: str
     context_window: int
     concurrency: int
-    input_tokens: int
+    input_tokens: int | None
     output_tokens: int
     warmup_iterations: int
     iterations: int

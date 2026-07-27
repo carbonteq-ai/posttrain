@@ -7,19 +7,25 @@ import json
 import os
 import re
 import sys
+import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 REPOSITORY = Path(__file__).resolve().parents[1]
+TRACKIO_FORK = REPOSITORY.parent / "trackio"
 SOURCE_ROOTS = (
+    TRACKIO_FORK,
     REPOSITORY / "packages" / "common" / "src",
     REPOSITORY / "packages" / "catalog" / "src",
     REPOSITORY / "packages" / "data" / "src",
     REPOSITORY / "packages" / "eval" / "src",
+    REPOSITORY / "packages" / "serve" / "src",
     REPOSITORY / "packages" / "train" / "src",
     REPOSITORY / "packages" / "tracking" / "src",
+    REPOSITORY / "packages" / "tracking-trackio" / "src",
     REPOSITORY / "apps" / "lab" / "src",
     REPOSITORY / "environments" / "automationbench_v1" / "src",
 )
@@ -29,6 +35,7 @@ from posttrain.catalog import open_catalog  # noqa: E402
 from posttrain.common import CatalogRef, ExecutionTarget, InferenceBinding, RunContext  # noqa: E402
 from posttrain.common.variants import QWEN_35_08B  # noqa: E402
 from posttrain.eval import EnvironmentBinding  # noqa: E402
+from posttrain.tracking import RunError, RunOutcome, RunSpec  # noqa: E402
 from posttrain.train import (  # noqa: E402
     QWEN35_RENDERER,
     GRPORequest,
@@ -44,6 +51,9 @@ from posttrain.train.integrations import (  # noqa: E402
     create_verifiers_training_bridge,
     preflight_verifiers_environment,
 )
+from posttrain_lab.jobs import GSM8K_TRAINING_ROLLOUTS, grpo_job_inputs  # noqa: E402
+from posttrain_tracking_trackio import TrackioBackend, TrackioSettings  # noqa: E402
+from run_workspace import prepare_run_workspace  # noqa: E402
 
 VERL_REVISION = "a35908ca3c9632859c58d6a2855d858918ae21dc"
 _INLINE_METRIC = re.compile(
@@ -52,8 +62,9 @@ _INLINE_METRIC = re.compile(
 )
 
 
-def _automationbench_bridge(
+def _environment_bridge(
     *,
+    environment_kind: str,
     task_indices: Sequence[int],
     trace_path: Path,
     run_id: str,
@@ -62,15 +73,29 @@ def _automationbench_bridge(
     top_p: float,
     parameters: Mapping[str, Any],
 ) -> tuple[EnvironmentBinding, Any]:
-    catalog = open_catalog(scope="foundation-models")
-    base = catalog.resolve(CatalogRef("environment", "automationbench-zapier-simple-grpo")).value
-    if not isinstance(base, EnvironmentBinding):
-        raise TypeError("expected AutomationBench environment binding from the base catalog")
-    environment = replace(
-        base,
-        num_tasks=len(task_indices),
-        parameters={**dict(base.parameters), **dict(parameters)},
-    )
+    if environment_kind == "automationbench":
+        catalog = open_catalog(scope="foundation-models")
+        base = catalog.resolve(
+            CatalogRef("environment", "automationbench-zapier-simple-grpo")
+        ).value
+        if not isinstance(base, EnvironmentBinding):
+            raise TypeError(
+                "expected AutomationBench environment binding from the base catalog"
+            )
+        environment = replace(
+            base,
+            num_tasks=len(task_indices),
+            parameters={**dict(base.parameters), **dict(parameters)},
+        )
+    elif environment_kind == "gsm8k":
+        environment = replace(
+            GSM8K_TRAINING_ROLLOUTS.environment("gsm8k-train-candidates"),
+            num_tasks=len(task_indices),
+            num_rollouts=1,
+            parameters={"sampling_seed": 17},
+        )
+    else:
+        raise ValueError(f"unsupported qualification environment {environment_kind!r}")
     config = preflight_verifiers_environment(environment)
     available = NativeVerifiersEnvironmentFactory(config)().taskset.load()
     tasks = {index: available[index] for index in task_indices}
@@ -91,6 +116,11 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("output", type=Path)
     parser.add_argument(
+        "--environment",
+        choices=("automationbench", "gsm8k"),
+        default="automationbench",
+    )
+    parser.add_argument(
         "--python-executable",
         type=Path,
         default=Path("/home/hammad/projects/verl/.venv313/bin/python"),
@@ -100,18 +130,37 @@ def main() -> None:
         type=Path,
         default=Path("/home/hammad/projects/verl-upstream"),
     )
-    parser.add_argument("--task-indices", type=int, nargs="+", default=[194, 198])
+    parser.add_argument("--task-indices", type=int, nargs="+")
     parser.add_argument("--num-generations", type=int, default=8)
     parser.add_argument("--max-steps", type=int, default=2)
+    parser.add_argument(
+        "--run-id",
+        default=None,
+        help="Canonical framework run ID; a UUID is generated when omitted.",
+    )
+    parser.add_argument(
+        "--trackio-server-url",
+        default=os.environ.get("TRACKIO_SERVER_URL"),
+        help="Remote Trackio base URL. TRACKIO_WRITE_TOKEN supplies write access.",
+    )
+    parser.add_argument("--framework-revision")
+    parser.add_argument("--framework-source-digest")
+    parser.add_argument("--trackio-revision")
+    parser.add_argument("--trackio-source-digest")
+    parser.add_argument("--runtime-image-digest")
     parser.add_argument(
         "--mtp",
         action="store_true",
         help="Enable native Qwen 3.5 MTP-1 for rollout acceleration only.",
     )
     args = parser.parse_args()
+    run_id = args.run_id or str(uuid.uuid4())
+    task_indices = args.task_indices or (
+        [194, 198] if args.environment == "automationbench" else [0, 1]
+    )
 
     workspace = args.output.resolve()
-    workspace.mkdir(parents=True, exist_ok=False)
+    prepare_run_workspace(workspace)
     python_path = os.pathsep.join(str(path) for path in SOURCE_ROOTS)
     existing_python_path = os.environ.get("PYTHONPATH")
     os.environ["PYTHONPATH"] = (
@@ -131,7 +180,7 @@ def main() -> None:
         ),
         target=target,
         runtime=TrainingRuntime(
-            global_batch_size=len(args.task_indices) * args.num_generations,
+            global_batch_size=len(task_indices) * args.num_generations,
             devices_per_node=1,
             nodes=1,
             parameter_offload=True,
@@ -187,22 +236,23 @@ def main() -> None:
         purpose=("rollout",),
     )
     settings = GRPOSettings(
-        id="qwen3.5-0.8b/automationbench-grpo-qualification@1",
+        id=f"qwen3.5-0.8b/{args.environment}-grpo-qualification@1",
         loop=TrainingLoop(
             max_steps=args.max_steps,
             max_length=8192,
-            per_device_batch_size=len(args.task_indices) * args.num_generations,
+            per_device_batch_size=len(task_indices) * args.num_generations,
             learning_rate=1e-5,
         ),
-        num_prompts_per_step=len(args.task_indices),
+        num_prompts_per_step=len(task_indices),
         num_generations=args.num_generations,
         max_prompt_length=2048,
         max_completion_length=6144,
     )
-    environment, bridge = _automationbench_bridge(
-        task_indices=tuple(args.task_indices),
+    environment, bridge = _environment_bridge(
+        environment_kind=args.environment,
+        task_indices=tuple(task_indices),
         trace_path=workspace / "training" / "grpo" / "verifiers-traces.jsonl",
-        run_id="automationbench-qwen35-08b-qualification",
+        run_id=run_id,
         max_tokens=512,
         temperature=1.0,
         top_p=0.95,
@@ -213,36 +263,101 @@ def main() -> None:
             "toolset": "limited_zapier",
         },
     )
-    context = RunContext(
+    request = GRPORequest(
+        policy=QWEN_35_08B,
+        bridge=bridge,
+        settings=settings,
+        environment=environment,
+        training=training,
+        inference=inference,
+    )
+    source_metadata = {
+        "framework_revision": args.framework_revision
+        or _git_revision(REPOSITORY),
+        "verl_revision": VERL_REVISION,
+        "trackio_revision": args.trackio_revision
+        or _git_revision(TRACKIO_FORK),
+    }
+    for name, value in (
+        ("framework_source_digest", args.framework_source_digest),
+        ("trackio_source_digest", args.trackio_source_digest),
+        ("runtime_image_digest", args.runtime_image_digest),
+    ):
+        if value:
+            source_metadata[name] = value
+    run_spec = RunSpec(
         project_id="foundation-models",
-        work_package_id="train/qwen3.5-0.8b/automationbench-grpo-qualification",
-        run_id="automationbench-qwen35-08b-qualification",
+        work_package_id=f"train/qwen3.5-0.8b/{args.environment}-grpo-qualification",
+        stage="train",
+        run_id=run_id,
         job_kind="train.grpo",
         job_definition_version="1",
+        resolved_inputs=grpo_job_inputs(request),
+        source_metadata=source_metadata,
+        required_artifact_roles=("trained_model", "training_summary", "verifiers_traces"),
+    )
+    tracked_run = TrackioBackend(
+        TrackioSettings(
+            project="foundation-models",
+            server_url=args.trackio_server_url,
+            auto_log_gpu=True,
+            auto_log_cpu=True,
+        )
+    ).start_run(run_spec)
+    context = RunContext(
+        project_id=run_spec.project_id,
+        work_package_id=run_spec.work_package_id,
+        run_id=run_spec.run_id,
+        job_kind=run_spec.job_kind,
+        job_definition_version=run_spec.job_definition_version,
         workspace=workspace,
+        observer=tracked_run,
+        source_metadata=run_spec.source_metadata,
     )
-    result = grpo(
-        context,
-        GRPORequest(
-            policy=QWEN_35_08B,
-            bridge=bridge,
-            settings=settings,
-            environment=environment,
-            training=training,
-            inference=inference,
-        ),
+    started_at = datetime.now(UTC)
+    try:
+        result = grpo(
+            context,
+            request,
+        )
+        _assert_qualification(
+            workspace,
+            expected_steps=args.max_steps,
+            expected_trajectories=len(task_indices)
+            * args.num_generations
+            * args.max_steps,
+            expected_mtp=args.mtp,
+            require_tool_continuation=args.environment == "automationbench",
+        )
+    except BaseException as error:
+        tracked_run.finish(
+            RunOutcome(
+                status="failed",
+                started_at=started_at,
+                finished_at=datetime.now(UTC),
+                error=RunError(type=type(error).__name__, message=_safe_error(error)),
+            )
+        )
+        _write_terminal_marker(workspace, run_id=run_id, status="failed")
+        raise
+    tracked_run.finish(
+        RunOutcome(
+            status="succeeded",
+            started_at=started_at,
+            finished_at=datetime.now(UTC),
+        )
     )
-    _assert_qualification(
-        workspace,
-        expected_steps=args.max_steps,
-        expected_trajectories=len(args.task_indices) * args.num_generations * args.max_steps,
-        expected_mtp=args.mtp,
-    )
+    _write_terminal_marker(workspace, run_id=run_id, status="succeeded")
     print(result)
 
 
 def _assert_qualification(
-    workspace: Path, *, expected_steps: int, expected_trajectories: int, expected_mtp: bool = False
+    workspace: Path,
+    *,
+    expected_steps: int,
+    expected_trajectories: int,
+    expected_mtp: bool = False,
+    require_tool_continuation: bool = False,
 ) -> None:
     trainer = workspace / "training" / "grpo" / "trainer"
     traces_path = workspace / "training" / "grpo" / "verifiers-traces.jsonl"
@@ -256,7 +371,9 @@ def _assert_qualification(
         grouped_rewards.setdefault((step, example_id), set()).add(float(sum(trace["rewards"].values())))
     if not any(len(rewards) > 1 for rewards in grouped_rewards.values()):
         raise RuntimeError("GRPO qualification requires reward variance within at least one rollout group")
-    if not any(_continued_after_tool_call(trace) for trace in traces):
+    if require_tool_continuation and not any(
+        _continued_after_tool_call(trace) for trace in traces
+    ):
         raise RuntimeError("GRPO qualification requires a tool call followed by another sampled model turn")
 
     metric_series: dict[str, list[float]] = {}
@@ -297,6 +414,44 @@ def _continued_after_tool_call(trace: dict[str, object]) -> bool:
     return any(
         isinstance(node.get("message"), dict) and bool(node["message"].get("tool_calls")) for node in sampled[:-1]
     )
+
+
+def _git_revision(repository: Path) -> str:
+    import subprocess
+
+    return subprocess.check_output(
+        ["git", "-C", str(repository), "rev-parse", "HEAD"],
+        text=True,
+    ).strip()
+
+
+def _safe_error(error: BaseException) -> str:
+    message = str(error).strip().replace("\n", " ")
+    return message[:500] or type(error).__name__
+
+
+def _write_terminal_marker(
+    workspace: Path,
+    *,
+    run_id: str,
+    status: Literal["succeeded", "failed"],
+) -> None:
+    marker = workspace / ".posttrain-terminal.json"
+    temporary = marker.with_suffix(".tmp")
+    temporary.write_text(
+        json.dumps(
+            {
+                "schema": "carbonteq.posttrain-run-terminal.v1",
+                "run_id": run_id,
+                "status": status,
+                "finished_at": datetime.now(UTC).isoformat(),
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    temporary.replace(marker)
 
 
 if __name__ == "__main__":

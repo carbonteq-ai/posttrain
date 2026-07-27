@@ -2,88 +2,76 @@
 
 from __future__ import annotations
 
-from typing import Any
+from posttrain.common import JsonValue
 
 from ..requests import (
     EnvironmentBinding,
     EnvironmentSource,
     EvaluationPlan,
     SamplingPolicy,
+    VerifiersV1ConfigActivation,
 )
 
 VERIFIERS_REVISION = "284a868d6a9022109b749710672a0460e8a996d4"
 VERIFIERS_REPOSITORY = "https://github.com/PrimeIntellect-ai/verifiers"
 
 
-def _environment(config: dict[str, Any]) -> object:
-    try:
-        from verifiers.v1.env import EnvConfig  # pyright: ignore[reportMissingImports]
-    except ImportError as error:
-        raise RuntimeError("install posttrain-eval with the verifiers extra") from error
-    return EnvConfig.model_validate(config)
+def _activation(config: dict[str, JsonValue]) -> VerifiersV1ConfigActivation:
+    return VerifiersV1ConfigActivation(config)
 
 
-def _gsm8k() -> object:
-    return _environment(
-        {
-            "taskset": {"id": "gsm8k-v1", "split": "test"},
-            "harness": {"id": "null", "runtime": {"type": "subprocess"}},
-            "timeout": {"setup": 120, "rollout": 180, "finalize": 60, "scoring": 120},
-        }
-    )
+GSM8K_ACTIVATION = _activation(
+    {
+        "taskset": {"id": "gsm8k-v1", "split": "test"},
+        "harness": {"id": "null", "runtime": {"type": "subprocess"}},
+        "timeout": {"setup": 120, "rollout": 180, "finalize": 60, "scoring": 120},
+    }
+)
 
+GSM8K_TRAIN_ACTIVATION = _activation(
+    {
+        "taskset": {"id": "gsm8k-v1", "split": "train"},
+        "harness": {"id": "null", "runtime": {"type": "subprocess"}},
+        "timeout": {"setup": 120, "rollout": 180, "finalize": 60, "scoring": 120},
+    }
+)
 
-def _gsm8k_train() -> object:
-    return _environment(
-        {
-            "taskset": {"id": "gsm8k-v1", "split": "train"},
-            "harness": {"id": "null", "runtime": {"type": "subprocess"}},
-            "timeout": {"setup": 120, "rollout": 180, "finalize": 60, "scoring": 120},
-        }
-    )
+REVERSE_TEXT_ACTIVATION = _activation(
+    {
+        "taskset": {
+            "id": "reverse-text-v1",
+            "dataset_name": "PrimeIntellect/Reverse-Text-RL",
+            "dataset_split": "train",
+        },
+        "harness": {"id": "null", "runtime": {"type": "subprocess"}},
+        "timeout": {"setup": 120, "rollout": 180, "finalize": 60, "scoring": 120},
+    }
+)
 
+CODE_GOLF_ACTIVATION = _activation(
+    {
+        "taskset": {"id": "code-golf-v1"},
+        "harness": {
+            "id": "null",
+            "runtime": {"type": "docker", "image": "lab/verifiers-runtime:vf-284a868d"},
+        },
+        "timeout": {"setup": 120, "rollout": 180, "finalize": 60, "scoring": 120},
+    }
+)
 
-def _reverse_text() -> object:
-    return _environment(
-        {
-            "taskset": {
-                "id": "reverse-text-v1",
-                "dataset_name": "PrimeIntellect/Reverse-Text-RL",
-                "dataset_split": "train",
-            },
-            "harness": {"id": "null", "runtime": {"type": "subprocess"}},
-            "timeout": {"setup": 120, "rollout": 180, "finalize": 60, "scoring": 120},
-        }
-    )
-
-
-def _code_golf() -> object:
-    return _environment(
-        {
-            "taskset": {"id": "code-golf-v1"},
-            "harness": {
-                "id": "null",
-                "runtime": {"type": "docker", "image": "lab/verifiers-runtime:vf-284a868d"},
-            },
-            "timeout": {"setup": 120, "rollout": 180, "finalize": 60, "scoring": 120},
-        }
-    )
-
-
-def _alphabet_sort() -> object:
-    return _environment(
-        {
-            "taskset": {
-                "id": "alphabet-sort-v1",
-                "min_turns": 2,
-                "max_turns": 3,
-                "min_names_per_turn": 2,
-                "max_names_per_turn": 4,
-            },
-            "harness": {"id": "null", "runtime": {"type": "subprocess"}},
-            "timeout": {"setup": 120, "rollout": 180, "finalize": 60, "scoring": 120},
-        }
-    )
+ALPHABET_SORT_ACTIVATION = _activation(
+    {
+        "taskset": {
+            "id": "alphabet-sort-v1",
+            "min_turns": 2,
+            "max_turns": 3,
+            "min_names_per_turn": 2,
+            "max_names_per_turn": 4,
+        },
+        "harness": {"id": "null", "runtime": {"type": "subprocess"}},
+        "timeout": {"setup": 120, "rollout": 180, "finalize": 60, "scoring": 120},
+    }
+)
 
 
 def _source(package: str, subdirectory: str) -> EnvironmentSource:
@@ -103,7 +91,7 @@ GENERAL_SMOKE = EvaluationPlan(
             id="math-gsm8k",
             category="math-reasoning",
             source=_source("gsm8k-v1", "environments/gsm8k_v1"),
-            factory=_gsm8k,
+            activation=GSM8K_ACTIVATION,
             sampling=SamplingPolicy(max_tokens=4_096),
             num_tasks=8,
         ),
@@ -111,7 +99,7 @@ GENERAL_SMOKE = EvaluationPlan(
             id="instruction-reverse-text",
             category="instruction-following",
             source=_source("reverse-text-v1", "environments/reverse_text_v1"),
-            factory=_reverse_text,
+            activation=REVERSE_TEXT_ACTIVATION,
             sampling=SamplingPolicy(max_tokens=1_024),
             num_tasks=8,
         ),
@@ -119,7 +107,7 @@ GENERAL_SMOKE = EvaluationPlan(
             id="code-execution",
             category="code-generation",
             source=_source("code-golf-v1", "environments/code_golf_v1"),
-            factory=_code_golf,
+            activation=CODE_GOLF_ACTIVATION,
             sampling=SamplingPolicy(max_tokens=4_096),
             num_tasks=3,
             num_rollouts=2,
@@ -129,24 +117,33 @@ GENERAL_SMOKE = EvaluationPlan(
             id="multi-turn-alphabet-sort",
             category="multi-turn-state",
             source=_source("alphabet-sort-v1", "environments/alphabet_sort_v1"),
-            factory=_alphabet_sort,
+            activation=ALPHABET_SORT_ACTIVATION,
             sampling=SamplingPolicy(max_tokens=2_048),
             num_tasks=4,
         ),
     ),
 )
 
-GENERAL_ENVIRONMENT_FACTORIES = {
-    "math-gsm8k": _gsm8k,
-    "math-gsm8k-train": _gsm8k_train,
-    "instruction-reverse-text": _reverse_text,
-    "code-execution": _code_golf,
-    "multi-turn-alphabet-sort": _alphabet_sort,
+# Compatibility aliases for one catalog migration window. Values are inert,
+# serializable activations; loading the catalog does not import Verifiers.
+GENERAL_ENVIRONMENT_ACTIVATIONS = {
+    "math-gsm8k": GSM8K_ACTIVATION,
+    "math-gsm8k-train": GSM8K_TRAIN_ACTIVATION,
+    "instruction-reverse-text": REVERSE_TEXT_ACTIVATION,
+    "code-execution": CODE_GOLF_ACTIVATION,
+    "multi-turn-alphabet-sort": ALPHABET_SORT_ACTIVATION,
 }
+GENERAL_ENVIRONMENT_FACTORIES = GENERAL_ENVIRONMENT_ACTIVATIONS
 
 __all__ = [
+    "ALPHABET_SORT_ACTIVATION",
+    "CODE_GOLF_ACTIVATION",
+    "GENERAL_ENVIRONMENT_ACTIVATIONS",
     "GENERAL_ENVIRONMENT_FACTORIES",
     "GENERAL_SMOKE",
+    "GSM8K_ACTIVATION",
+    "GSM8K_TRAIN_ACTIVATION",
+    "REVERSE_TEXT_ACTIVATION",
     "VERIFIERS_REPOSITORY",
     "VERIFIERS_REVISION",
 ]

@@ -27,6 +27,11 @@ class RecordingTokenizer:
         return [1, 2, 3]
 
 
+class StructuredTokenizer:
+    def apply_chat_template(self, messages: list[dict[str, Any]], **kwargs: Any) -> dict[str, list[int]]:
+        return {"input_ids": [4, 5, 6], "attention_mask": [1, 1, 1]}
+
+
 class InferencePromptTest(unittest.TestCase):
     def test_loads_canonical_messages_without_rendered_model_text(self) -> None:
         records = representative_prompt_records()
@@ -93,10 +98,19 @@ class InferencePromptTest(unittest.TestCase):
             tools=tools,
         )
 
-        self.assertEqual(ids, [1, 2, 3])
+        self.assertEqual(ids, (1, 2, 3))
         self.assertEqual(tokenizer.kwargs["tools"], tools)
         self.assertTrue(tokenizer.kwargs["enable_thinking"])
         self.assertTrue(tokenizer.kwargs["add_generation_prompt"])
+
+    def test_render_normalizes_structured_tokenizer_output(self) -> None:
+        ids = render_prompt(
+            StructuredTokenizer(),
+            PromptRecord("chat", ({"role": "user", "content": "Hello"},), ()),
+            QWEN_35_2B,
+        )
+
+        self.assertEqual(ids, (4, 5, 6))
 
 
 if __name__ == "__main__":

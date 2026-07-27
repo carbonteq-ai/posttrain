@@ -1,0 +1,45 @@
+project_id: foundation-models
+work_package_id: train/qwen3.5-2b/sft-cli-qualification
+stage: train
+description: Qualify the detached CLI and runtime image with two realistic Qwen 3.5 2B SFT optimizer steps.
+recipe:
+  type: inline
+  id: recipes/qwen3.5-2b-sft-cli-qualification@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    dataset: dataset
+    settings: training
+    training: training
+  jobs:
+    - id: train
+      kind: train.sft
+      definition: train/trl-sft@1
+  expected_artifacts:
+    - trained adapter
+    - training summary
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/qwen3.5-2b@bf16
+  dataset:
+    type: ref
+    family: dataset
+    id: datasets/posttrain-sft-smoke@1
+  settings:
+    type: ref
+    family: training
+    id: qwen3.5-2b/sft-smoke-v2
+  training:
+    type: ref
+    family: training
+    id: training/qwen3.5-trl-lora@1
+enabled_optional_jobs: []
+metadata:
+  question: Does the immutable framework image execute a tracked SFT job through the detached CLI path?
+  labels:
+    - qualification
+    - cli
+    - sft

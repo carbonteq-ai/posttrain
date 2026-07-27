@@ -10,7 +10,7 @@ from posttrain.work import ProjectExecutionRequest
 from posttrain_lab.entry import configure
 
 
-def test_configure_uses_standard_definitions_and_git_metadata(
+def test_configure_is_side_effect_free_and_uses_standard_definitions_and_git_metadata(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -47,4 +47,4 @@ def test_configure_uses_standard_definitions_and_git_metadata(
     assert set(runtime.definitions) == set(standard_definitions())
     assert runtime.source_metadata["git_revision"] == "test-revision"
     assert runtime.source_metadata["tracking_backend"] == "trackio"
-    assert (state / "scratch").is_dir()
+    assert not (state / "scratch").exists()

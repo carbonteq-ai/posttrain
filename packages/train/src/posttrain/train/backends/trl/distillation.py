@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 from typing import Any, cast
 
-from posttrain.common import RunContext, TraceObservation
+from posttrain.common import HubModelRef, RunContext, TraceObservation
 
 from ...distillation import DistillationBatch, DistillationBatchLedger
 from ...online_rl import RolloutBatch
@@ -35,11 +35,20 @@ def run_distillation(
 ) -> BackendTrainingResult:
     if request.rollout_inference.backend.split("@", 1)[0] != "vllm":
         raise ValueError("the first TRL distillation adapter requires a vLLM student rollout binding")
-    if request.teacher_inference.backend.split("@", 1)[0] != "vllm":
-        raise ValueError("the first TRL distillation adapter requires a vLLM teacher-score binding")
+    teacher_product = request.teacher_inference.backend.split("@", 1)[0]
+    if teacher_product not in {"transformers", "vllm"}:
+        raise ValueError(
+            "TRL distillation requires a transformers or vLLM teacher-score binding"
+        )
     teacher_url = request.teacher_inference.engine.get("base_url")
-    if not isinstance(teacher_url, str) or not teacher_url.strip():
-        raise ValueError("the teacher-score binding must provide engine.base_url")
+    if teacher_product == "vllm" and (
+        not isinstance(teacher_url, str) or not teacher_url.strip()
+    ):
+        raise ValueError("the vLLM teacher-score binding must provide engine.base_url")
+    if not isinstance(request.teacher.artifact, HubModelRef):
+        raise ValueError(
+            "TRL distillation currently requires a Hugging Face teacher model"
+        )
 
     try:
         from trl.experimental.distillation import (  # pyright: ignore[reportMissingImports]
@@ -68,20 +77,58 @@ def run_distillation(
     if policy_revision is None:
         raise AssertionError("validated student variants require an immutable revision")
     ledger = DistillationBatchLedger(policy_revision)
-    arguments = _distillation_arguments(request, output_dir, teacher_url)
+    arguments = _distillation_arguments(
+        request,
+        output_dir,
+        teacher_url if isinstance(teacher_url, str) else None,
+    )
+
+    class ObservedDistillationTrainer(DistillationTrainer):
+        def _get_teacher_logits(self, inputs: dict[str, Any]) -> Any:
+            started_at = time.perf_counter()
+            with context.phase("teacher_scoring", {"backend": "trl"}):
+                try:
+                    result = super()._get_teacher_logits(inputs)
+                except Exception:
+                    context.metric("train/distill/teacher_failures", 1)
+                    raise
+                else:
+                    context.metric("train/distill/teacher_failures", 0)
+                    return result
+                finally:
+                    context.metric(
+                        "train/distill/teacher_latency_ms",
+                        (time.perf_counter() - started_at) * 1_000,
+                    )
+
     with context.phase("runtime_initialization", {"backend": "trl"}):
-        trainer = DistillationTrainer(
+        trainer = ObservedDistillationTrainer(
             model=model,
-            teacher_model=cast(Any, None),
+            teacher_model=cast(
+                Any,
+                (
+                    None
+                    if teacher_product == "vllm"
+                    else request.teacher.artifact.repo_id
+                ),
+            ),
             args=DistillationConfig(**arguments),
             train_dataset=dataset,
             processing_class=tokenizer,
             callbacks=[callback_type(context, imports)()],
             rollout_func=cast(Any, _rollout_function(context, request, tokenizer, ledger)),
         )
-    if trainer.teacher_client is None:
-        raise RuntimeError("TRL did not initialize the configured teacher scoring client")
-    trainer.teacher_client = cast(Any, _ObservedTeacherClient(context, trainer.teacher_client))
+    if teacher_product == "vllm":
+        if trainer.teacher_client is None:
+            raise RuntimeError(
+                "TRL did not initialize the configured teacher scoring client"
+            )
+        trainer.teacher_client = cast(
+            Any,
+            _ObservedTeacherClient(context, trainer.teacher_client),
+        )
+    elif trainer.teacher_model is None:
+        raise RuntimeError("TRL did not initialize the colocated teacher model")
     resume = str(request.resume_from.path) if request.resume_from is not None else None
     with trainer_lifecycle(trainer):
         with context.phase("actor_update", {"backend": "trl"}):
@@ -224,11 +271,18 @@ class _ObservedTeacherClient:
 def _distillation_arguments(
     request: OnPolicyDistillationRequest,
     output_dir: Path,
-    teacher_url: str,
+    teacher_url: str | None,
 ) -> dict[str, Any]:
+    teacher_artifact = request.teacher.artifact
+    if not isinstance(teacher_artifact, HubModelRef):
+        raise ValueError(
+            "TRL distillation currently requires a Hugging Face teacher model"
+        )
     arguments = trainer_arguments(request.settings.loop, output_dir)
     rollout = request.rollout_inference.engine
     speculative_config, engine_kwargs = vllm_rollout_options(request.student, rollout)
+    teacher_product = request.teacher_inference.backend.split("@", 1)[0]
+    teacher_engine = request.teacher_inference.engine
     arguments.update(
         {
             "remove_unused_columns": False,
@@ -238,12 +292,20 @@ def _distillation_arguments(
             "loss_top_k": 1,
             "temperature": request.settings.temperature,
             "num_generations": request.settings.num_generations,
-            "generation_batch_size": request.settings.loop.per_device_batch_size
-            * request.settings.loop.gradient_accumulation_steps,
+            "generation_batch_size": request.settings.num_prompts_per_step,
             "max_prompt_length": request.settings.max_prompt_length,
             "max_completion_length": request.settings.max_completion_length,
-            "use_teacher_server": True,
+            "use_teacher_server": teacher_product == "vllm",
             "teacher_model_server_url": teacher_url,
+            "teacher_model_revision": teacher_artifact.revision,
+            "teacher_model_init_kwargs": (
+                {
+                    "revision": teacher_artifact.revision,
+                    "dtype": teacher_engine.get("dtype", "bfloat16"),
+                }
+                if teacher_product == "transformers"
+                else None
+            ),
             "use_vllm": True,
             "vllm_mode": rollout.get("mode", "colocate"),
             "vllm_server_base_url": rollout.get("base_url"),
@@ -251,6 +313,7 @@ def _distillation_arguments(
             "vllm_tensor_parallel_size": rollout.get("tensor_parallel_size", 1),
             "vllm_max_model_length": rollout.get("max_model_len"),
             "vllm_enable_sleep_mode": rollout.get("sleep_during_optimization", False),
+            "vllm_weight_sync_mode": rollout.get("weight_sync_mode", "full"),
             "vllm_speculative_config": speculative_config,
             "vllm_engine_kwargs": engine_kwargs,
             "top_p": _sampling_number(request, "top_p", 1.0),

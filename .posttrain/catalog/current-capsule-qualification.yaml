@@ -1,0 +1,102 @@
+dataset:
+  datasets/posttrain-dpo-qualification@1:
+    revision: "1"
+    kind: preference
+    source:
+      kind: jsonl
+      path: .posttrain/datasets/dpo_qualification.jsonl
+    format:
+      kind: trl
+
+training:
+  qwen3.5-2b/sft-10-step-qualification-v1:
+    selection_type: sft-settings
+    revision: "1"
+    loop:
+      max_steps: 10
+      max_length: 192
+      per_device_batch_size: 2
+      gradient_accumulation_steps: 1
+      learning_rate: 0.0002
+      logging_steps: 1
+      checkpoint_steps: 5
+      checkpoint_limit: 1
+  qwen3.5-2b/dpo-10-step-qualification-v1:
+    selection_type: dpo-settings
+    revision: "1"
+    loop:
+      max_steps: 10
+      max_length: 448
+      per_device_batch_size: 2
+      gradient_accumulation_steps: 1
+      learning_rate: 0.0001
+      logging_steps: 1
+      checkpoint_steps: 5
+      checkpoint_limit: 1
+    beta: 0.1
+    loss_kernel: torch
+  qwen3.5-0.8b/sampo-10-step-qualification-v1:
+    selection_type: sampo-settings
+    revision: "1"
+    loop:
+      max_steps: 10
+      max_length: 640
+      per_device_batch_size: 2
+      gradient_accumulation_steps: 1
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 5
+      checkpoint_limit: 1
+    num_prompts_per_step: 1
+    num_generations: 2
+    max_prompt_length: 256
+    max_completion_length: 384
+    discount_gamma: 0.95
+    step_advantage_weight: 1.0
+    advantage_normalization: mean
+    clip_epsilon_low: 0.003
+    clip_epsilon_high: 0.004
+    dynamic_sampling:
+      max_candidate_batches: 3
+    mask_truncated_completions: false
+  qwen3.5-0.8b/on-policy-distill-10-step-qualification-v1:
+    selection_type: on-policy-distillation-settings
+    revision: "1"
+    loop:
+      max_steps: 10
+      max_length: 640
+      per_device_batch_size: 2
+      gradient_accumulation_steps: 1
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 5
+      checkpoint_limit: 1
+    temperature: 1.0
+    num_prompts_per_step: 1
+    num_generations: 2
+    max_prompt_length: 256
+    max_completion_length: 384
+  training/qwen3.5-0.8b-trl-sampo-qualification-lora@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.8.0
+    renderer:
+      id: qwen3.5-off-v1
+      model_family: qwen3.5
+      implementation: qwen3.5
+      reasoning_mode: "off"
+    update:
+      kind: lora
+      rank: 8
+      alpha: 16
+      target_modules: all-linear
+    target: targets/local-cuda-8gb
+    parallelism:
+      sequence_length_divisor: 2
+    runtime:
+      global_batch_size: 2
+    backend_options:
+      use_liger_kernel: false
+      logits_chunk_size: 128
+      source_revision: 6828a84716e0b9e29c3aedb40df3d28b81770e5b
+      dependency_lock_sha256: 726a43246b4e2b40a59b8bd6f1f134563f72ded26f5b77a7ba8aa01dbaea32b2

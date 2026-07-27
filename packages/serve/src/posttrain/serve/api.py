@@ -6,6 +6,7 @@ import hashlib
 import json
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from dataclasses import asdict
 from pathlib import Path
 from time import time_ns
 from typing import Protocol
@@ -16,6 +17,7 @@ from posttrain.common import LocalArtifactRef, ModelVariant, ProducedArtifact, R
 from .backends.vllm import VllmServer, run_offline_benchmark
 from .backends.vllm.bindings import VllmBenchmarkConfig
 from .backends.vllm.bindings import benchmark_config as vllm_benchmark_config
+from .backends.vllm.offline import BenchmarkMetric, BenchmarkPhase
 from .online import (
     Endpoint,
     GenerationRequest,
@@ -30,9 +32,17 @@ from .online import (
     probe as run_probe,
 )
 from .requests import ServeBenchmarkRequest
-from .results import BenchmarkResult
+from .results import BenchmarkSweepResult
 
-type BenchmarkRunner = Callable[[VllmBenchmarkConfig], BenchmarkResult]
+
+class BenchmarkRunner(Protocol):
+    def __call__(
+        self,
+        request: VllmBenchmarkConfig,
+        *,
+        phase: BenchmarkPhase,
+        metric: BenchmarkMetric,
+    ) -> BenchmarkSweepResult: ...
 
 
 class ManagedServer(Protocol):
@@ -49,8 +59,8 @@ def benchmark(
     request: ServeBenchmarkRequest,
     *,
     runner: BenchmarkRunner = run_offline_benchmark,
-) -> BenchmarkResult:
-    """Run one benchmark cell and emit only direct observations."""
+) -> BenchmarkSweepResult:
+    """Run one ordered concurrency sweep and emit only direct observations."""
 
     adapter_request = vllm_benchmark_config(request)
     attributes = _benchmark_attributes(request, adapter_request)
@@ -58,51 +68,140 @@ def benchmark(
         "serve_benchmark_started",
         attributes,
     )
-    result = runner(adapter_request)
-    metric_attributes = attributes
-    context.metrics(result.metrics(), attributes=metric_attributes)
-    for index, sample in enumerate(result.samples):
-        context.trace(
-            TraceObservation(
-                trace_type="inference",
-                external_id=f"{context.run_id}:{adapter_request.cell.id}:{index}",
-                payload={
-                    "messages": [{"role": "assistant", "content": sample}],
-                    "model": result.model,
-                    "revision": result.revision,
-                    "target_input_tokens": result.target_input_tokens,
-                    "target_output_tokens": result.target_output_tokens,
-                },
-                attributes=metric_attributes,
+
+    def observe_backend_metrics(
+        values: dict[str, float],
+        runtime_attributes: dict[str, str | int],
+    ) -> None:
+        context.metrics(values, attributes={**attributes, **runtime_attributes})
+
+    sweep = runner(adapter_request, phase=context.phase, metric=observe_backend_metrics)
+    for sweep_index, result in enumerate(sweep.points):
+        metric_attributes = {
+            **attributes,
+            "cell_id": result.cell_id,
+            "sweep_index": sweep_index,
+            "concurrency": result.concurrency,
+        }
+        context.metrics(result.metrics(), step=sweep_index, attributes=metric_attributes)
+        for index, request_result in enumerate(result.request_results):
+            context.trace(
+                TraceObservation(
+                    trace_type="inference",
+                    external_id=f"{context.run_id}:{result.cell_id}:request:{index}",
+                    payload={
+                        "model": result.model,
+                        "revision": result.revision,
+                        "backend_request_id": request_result.request_id,
+                        "record_id": request_result.record_id,
+                        "cohort": result.cohort,
+                        "sweep_index": sweep_index,
+                        "concurrency": result.concurrency,
+                        "warmup": False,
+                        "input_tokens": request_result.input_tokens,
+                        "output_tokens": request_result.output_tokens,
+                        "queue_seconds": request_result.queue_seconds,
+                        "prefill_seconds": request_result.prefill_seconds,
+                        "decode_seconds": request_result.decode_seconds,
+                        "engine_e2e_seconds": request_result.engine_e2e_seconds,
+                        "ttft_seconds": request_result.ttft_seconds,
+                        "tpot_seconds": request_result.tpot_seconds,
+                        "truncated": False,
+                        "error_class": None,
+                    },
+                    attributes=metric_attributes,
+                )
+            )
+    for failure in sweep.point_failures:
+        failure_attributes = {
+            **attributes,
+            "sweep_index": failure.sweep_index,
+            "concurrency": failure.concurrency,
+            "point_status": failure.status,
+        }
+        context.metrics(
+            {
+                "serve/run/concurrency": failure.concurrency,
+                "serve/run/requests_attempted": 0,
+                "serve/run/requests_measured": 0,
+                "serve/run/requests_failed": int(failure.status == "failed"),
+                "serve/run/requests_unsupported": int(failure.status == "unsupported"),
+                "serve/run/point_resource_exhausted": int(failure.status == "resource_exhausted"),
+                "serve/run/point_unsupported": int(failure.status == "unsupported"),
+                "serve/run/point_failed": int(failure.status == "failed"),
+            },
+            step=failure.sweep_index,
+            attributes=failure_attributes,
+        )
+        context.event(
+            "serve_benchmark_point_failed",
+            {
+                **failure_attributes,
+                "error_class": failure.error_class,
+                "message": failure.message,
+                "recoverable": failure.recoverable,
+            },
+        )
+    with context.phase("artifact_export", {"backend": sweep.points[0].backend}):
+        artifact_payload = sweep.as_json(
+            runtime_configuration={
+                "engine": asdict(adapter_request.engine),
+                "sampling": asdict(adapter_request.sampling),
+                "cohort": adapter_request.cohort,
+            }
+        )
+        artifact_payload.update(
+            {
+                "model_variant_id": request.inference.model.id,
+                "inference_binding_id": request.inference.id,
+                "workload_id": request.workload.id,
+                "execution_target_id": request.resolved_target.id,
+            }
+        )
+        encoded = (json.dumps(artifact_payload, indent=2, sort_keys=True) + "\n").encode()
+        output = context.workspace / "serving-result.json"
+        output.write_bytes(encoded)
+        context.artifact(
+            ProducedArtifact(
+                name=f"serving/{request.inference.model.id}/{adapter_request.cells[0].suite_id}",
+                kind="serving-result",
+                reference=LocalArtifactRef(output, hashlib.sha256(encoded).hexdigest()),
+                metadata={**attributes, "schema_version": sweep.schema_version},
+                role="benchmark",
             )
         )
-    encoded = (json.dumps(result.as_json(), indent=2, sort_keys=True) + "\n").encode()
-    output = context.workspace / "benchmark.json"
-    output.write_bytes(encoded)
-    context.artifact(
-        ProducedArtifact(
-            name=f"serving/{request.inference.model.id}/{adapter_request.cell.id}",
-            kind="serving-benchmark",
-            reference=LocalArtifactRef(output, hashlib.sha256(encoded).hexdigest()),
-            metadata=metric_attributes,
-        )
+    context.event(
+        "serve_benchmark_completed",
+        {
+            "measured_points": len(sweep.points),
+            "failed_points": len(sweep.point_failures),
+            "termination_reason": sweep.termination_reason,
+        },
     )
-    context.event("serve_benchmark_completed", {"cell_id": adapter_request.cell.id})
-    return result
+    return sweep
 
 
 def _benchmark_attributes(
     request: ServeBenchmarkRequest,
     adapter: VllmBenchmarkConfig,
 ) -> dict[str, str]:
-    return {
+    attributes = {
         "model_variant_id": request.inference.model.id,
         "inference_binding_id": request.inference.id,
         "workload_id": request.workload.id,
         "execution_target_id": request.resolved_target.id,
-        "suite_id": adapter.cell.suite_id,
-        "cell_id": adapter.cell.id,
+        "suite_id": adapter.cells[0].suite_id,
+        "cohort": adapter.cohort,
     }
+    if adapter.corpus is not None:
+        attributes.update(
+            {
+                "corpus_id": adapter.corpus.manifest.id,
+                "corpus_revision": adapter.corpus.manifest.revision,
+                "corpus_digest": adapter.corpus.manifest.digest,
+            }
+        )
+    return attributes
 
 
 @contextmanager
