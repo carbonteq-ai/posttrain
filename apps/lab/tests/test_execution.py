@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import trackio
 from posttrain.common import (
     CatalogRef,
     LocalArtifactRef,
@@ -35,8 +36,6 @@ from posttrain_tracking_trackio import (
     TrackioSettings,
 )
 from posttrain_tracking_wandb import WandbBackend, WandbSettings
-
-import trackio
 
 REVISION = "a" * 40
 

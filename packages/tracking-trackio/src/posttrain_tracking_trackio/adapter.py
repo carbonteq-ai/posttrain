@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal, cast
 
+import trackio
 from posttrain.common import (
     ContractError,
     EventObservation,
@@ -45,8 +46,6 @@ from posttrain.tracking import (
 from trackio.remote_client import RemoteClient
 from trackio.run import Run as TrackioSDKRun
 from trackio.utils import parse_trackio_server_url
-
-import trackio
 
 _RESERVED_HISTORY_KEYS = {"step", "timestamp"}
 _SYSTEM_METRICS: dict[str, tuple[str, float]] = {

@@ -48,6 +48,7 @@ testpaths = [
     "apps/cli/tests",
     "apps/lab/tests",
     "apps/observatory/tests",
+    "apps/release/tests",
     "apps/runtime/tests",
     "packages/catalog/tests",
     "packages/common/tests",
@@ -59,6 +60,7 @@ testpaths = [
     "packages/execution-dstack/tests",
     "packages/execution-local/tests",
     "packages/jobs/tests",
+    "packages/runtime-images/tests",
     "packages/serve/tests",
     "packages/tracking/tests",
     "packages/tracking-trackio/tests",
@@ -85,7 +87,7 @@ select = ["E4", "E7", "E9", "F", "I", "UP", "B"]
 "**/tests/**/*.py" = ["B017"]
 
 [tool.ruff.lint.isort]
-known-third-party = ["wandb"]
+known-third-party = ["trackio", "wandb"]
 
 [tool.pyright]
 pythonVersion = "3.12"
@@ -110,7 +112,7 @@ precision = 1
 fail_under = 65
 
 [tool.importlinter]
-root_packages = ["posttrain", "posttrain_cli", "posttrain_lab", "posttrain_observatory", "posttrain_runtime"]
+root_packages = ["posttrain", "posttrain_cli", "posttrain_lab", "posttrain_observatory", "posttrain_release", "posttrain_runtime"]
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
