@@ -60,14 +60,20 @@ qualification run reproduces its 3.12 result.
   carries `lock-digest = ac0f21a8...`, so its machine-local binding was
   restored from a label read back from the registry rather than by assertion.
   The release is mirrored to `ghcr.io/carbonteq-ai`.
-- [~] Milestone 5 — Run a GPU qualification on 3.13. GRPO PASSED on
+- [x] Milestone 5 — Run a GPU qualification on 3.13. GRPO PASSED on
   `targets/pop-os-rtx4090-24gb` as run `py313-grpo-222749`: fifteen real
   optimizer updates, every recorded loss and gradient norm finite, no nan or
   inf, `train_runtime` 865.7s, reconciled `consistent` with four artifacts
   retained and no missing roles. vLLM initialised and captured CUDA graphs on
   3.13 (10/10 PIECEWISE mixed prefill-decode, 8/8 FULL decode), and rewards
-  were live throughout, so the rollout to reward to update loop closed. The
-  distillation qualification on the 96GB host is still outstanding.
+  were live throughout, so the rollout to reward to update loop closed.
+  Distillation PASSED on `targets/carbonteq-rtx-pro-6000-96gb` as run
+  `py313-distill-r2-223539`: ten real optimizer updates, every loss and
+  gradient norm finite, loss descending 0.06496 to 0.05151 and gradient norms
+  1.167 to 0.5701, reconciled `consistent` with four artifacts and no missing
+  roles. `train_runtime` was 146.3s against the recorded 3.12 gate's 136s, so
+  the comparison against the earlier evidence exists after all and is within
+  noise. This is the scenario that originally failed with `grad_norm=nan`.
 
 ## Surprises & Discoveries
 
@@ -235,7 +241,24 @@ qualification run reproduces its 3.12 result.
 
 ## Outcomes & Retrospective
 
-To be completed as milestones land.
+The move is qualified. Both GPU gates pass on Python 3.13 with finite loss and
+gradient norms throughout, and the distillation gate — the one that originally
+failed with `grad_norm=nan` — completes in 146.3s against the 3.12 record of
+136s.
+
+The expensive part was not the interpreter. Dependency resolution needed no
+version movement at all, every package already shipped a cp313 wheel, and the
+test suite passed unchanged. What cost time was everything around the images:
+an undocumented lock-generation procedure, a Bake variable contract inherited
+from a deleted image level, a wall-clock timestamp that silently destroyed
+build-key idempotence, and a mirror that could neither name its source nor
+address its destination correctly. Every one of those surfaced only by
+building and pushing against a real registry; none was reachable from ruff,
+pyright, import-linter, or pytest.
+
+One belief was wrong and is retracted rather than buried: this bump does not
+let the veRL bridge be deleted. The second environment is dependency
+isolation, and unifying the interpreter leaves that reason intact.
 
 ## Context and Orientation
 
