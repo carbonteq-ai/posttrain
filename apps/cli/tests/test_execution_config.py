@@ -21,6 +21,7 @@ from posttrain_cli.execution_config import (
     resolve_execution_settings,
 )
 from posttrain_cli.execution_provider import (
+    evidence_source_for_project,
     create_execution_provider,
     evidence_source_for_run,
 )
@@ -858,3 +859,24 @@ def test_an_execution_file_without_a_registry_still_uses_the_environment(
     assert loaded.local is not None
     assert loaded.local.canonical_hostname == "example-host"
     assert loaded.registry is not None
+
+
+def test_tracking_endpoint_is_recorded_from_the_process_environment(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Evidence must be read back from where the job actually wrote it.
+
+    The job container receives POSTTRAIN_TRACKIO_SERVER_URL from the process
+    environment, so a run configured through the shell writes to the remote
+    server. Recording no endpoint made reconciliation read a local store
+    instead, where the run does not exist, and a succeeded run could never
+    produce retained evidence.
+    """
+    layout = _layout(tmp_path)
+    monkeypatch.setenv("POSTTRAIN_TRACKIO_SERVER_URL", "https://tracking.example.invalid")
+
+    source = evidence_source_for_project(layout)
+
+    assert source is not None
+    assert source.endpoint == "https://tracking.example.invalid"

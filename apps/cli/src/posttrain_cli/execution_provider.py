@@ -174,12 +174,20 @@ def evidence_source_for_project(
 
     environment = project_tracking_environment(layout)
     if layout.tracking == "trackio":
-        project = environment.get("POSTTRAIN_TRACKIO_PROJECT", layout.project_id)
+        # The process environment counts as much as the execution environment
+        # file, because it is what reaches the job: a run configured through the
+        # shell writes to a remote server while the recorded endpoint stays
+        # empty, and reconciliation then looks for that run in a local store and
+        # reports the project as nonexistent. The W&B branch below already
+        # consults both.
+        project = (
+            environment.get("POSTTRAIN_TRACKIO_PROJECT") or os.getenv("POSTTRAIN_TRACKIO_PROJECT") or layout.project_id
+        )
         return ExecutionEvidenceSource(
             provider="trackio",
             source_id=f"trackio-{layout.project_id}",
             project=project,
-            endpoint=environment.get("POSTTRAIN_TRACKIO_SERVER_URL"),
+            endpoint=environment.get("POSTTRAIN_TRACKIO_SERVER_URL") or os.getenv("POSTTRAIN_TRACKIO_SERVER_URL"),
         )
     if layout.tracking == "wandb":
         entity = environment.get("WANDB_ENTITY") or os.getenv("WANDB_ENTITY")

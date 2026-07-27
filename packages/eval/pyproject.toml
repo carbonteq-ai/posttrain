@@ -1,12 +1,12 @@
 [project]
 name = "posttrain-eval"
-version = "0.1.10"
+version = "0.1.11"
 description = "Reusable Verifiers evaluation engine"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-    "posttrain-common==0.1.10",
+    "posttrain-common==0.1.11",
     "pydantic>=2.12,<3",
 ]
 

@@ -6,10 +6,10 @@ authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-    "posttrain-common==0.1.10",
-    "posttrain-data==0.1.10",
-    "posttrain-eval==0.1.10",
-    "posttrain-train==0.1.10",
+    "posttrain-common==0.1.11",
+    "posttrain-data==0.1.11",
+    "posttrain-eval==0.1.11",
+    "posttrain-train==0.1.11",
     "pyyaml>=6.0,<7",
 ]
 
