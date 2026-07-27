@@ -50,8 +50,21 @@ qualification run reproduces its 3.12 result.
   it. See Surprises. What remains of this milestone is narrower: the capsule
   keeps its separate environment and its source projection, and only the
   interpreter mismatch goes away.
-- [ ] Milestone 5 — Run a GPU qualification on 3.13 and compare it against the
-  retained 3.12 evidence before treating the move as proven.
+- [x] Milestone 3 — Rebuild and requalify the job-kind images on the new base,
+  regenerating `published.toml` from real registry state. Landed: all six
+  images rebuilt and pushed, the manifest regenerated from what the registry
+  reported, and `runtime images verify` passing against the live registry with
+  every variant's published lock-digest label matching the shipped lock. The
+  release-blocked veRL variant correctly reports as unverifiable rather than
+  passing. The veRL kind image was rebuilt separately on the new base and
+  carries `lock-digest = ac0f21a8...`, so its machine-local binding was
+  restored from a label read back from the registry rather than by assertion.
+  The release is mirrored to `ghcr.io/carbonteq-ai`.
+- [ ] Milestone 5 — Run a GPU qualification on 3.13. The project's own gate is
+  absolute rather than comparative — ten real optimizer updates with finite
+  loss and gradient norms on every step, reconciled consistent without
+  recovery, artifacts retained, zero alerts — so this does not depend on
+  first reproducing a 3.12 baseline.
 
 ## Surprises & Discoveries
 
