@@ -30,7 +30,14 @@ def register(app: typer.Typer) -> None:
         ctx: typer.Context,
         selection_id: Annotated[str, typer.Option("--id")],
         package: Annotated[str, typer.Option("--package")],
-        factory: Annotated[str, typer.Option("--factory")],
+        factory_ref: Annotated[
+            str,
+            typer.Option(
+                "--factory-ref",
+                "--factory",
+                help="importable module:callable reference; --factory is a compatibility alias",
+            ),
+        ],
         repository: Annotated[str, typer.Option("--repository")],
         revision: Annotated[str, typer.Option("--revision", help="immutable commit SHA")],
         subdirectory: Annotated[str | None, typer.Option("--subdirectory")] = None,
@@ -53,7 +60,10 @@ def register(app: typer.Typer) -> None:
         entry = {
             "category": category,
             "source": source,
-            "factory": factory,
+            "activation": {
+                "kind": "python-factory",
+                "reference": factory_ref,
+            },
             "sampling": {
                 "max_tokens": max_tokens,
                 "temperature": temperature,
@@ -75,6 +85,6 @@ def register(app: typer.Typer) -> None:
             "source_layer": resolved.source_layer,
             "overlay_id": resolved.overlay_id,
             "package": resolved.value.source.package,
-            "factory": factory,
+            "activation": resolved.value.activation.to_payload(),
         }
         emit(state, payload, f"Added environment {validated_id} to {path}")

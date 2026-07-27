@@ -38,6 +38,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         ContractError,
         FileExistsError,
         KeyError,
+        LookupError,
         OSError,
         RuntimeError,
         subprocess.CalledProcessError,

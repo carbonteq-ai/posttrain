@@ -102,6 +102,10 @@ def starter_pyproject(project_id: str, template: str) -> str:
         "",
         "[tool.hatch.metadata]",
         "allow-direct-references = true",
+        "",
+        "[tool.posttrain.pack]",
+        'project_packages = ["."]',
+        'source_includes = ["pyproject.toml", "src"]',
     ]
 
     workspace = workspace_root()

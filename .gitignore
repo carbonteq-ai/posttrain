@@ -39,6 +39,8 @@ trackio/
 # Local agent tooling
 .agents/
 .codex/
+ops/ops-server.txt
+ops/remote-server.txt
 
 # OS
 .DS_Store

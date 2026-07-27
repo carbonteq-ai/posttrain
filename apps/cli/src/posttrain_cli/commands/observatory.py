@@ -10,6 +10,7 @@ from posttrain.common import ContractError
 
 from ..context import CliState
 from ..output import emit
+from ..tracking_config import project_observatory_settings
 
 
 def register(app: typer.Typer) -> None:
@@ -48,9 +49,9 @@ def register(app: typer.Typer) -> None:
         serve = getattr(observatory, "serve", None)
         if settings_type is None or not callable(serve):
             raise RuntimeError("installed Observatory does not expose its server API; upgrade posttrain-observatory")
-        settings = settings_type.for_project(
-            layout.project_id,
-            layout.tracking,
+        settings = project_observatory_settings(
+            layout,
+            settings_type,
             host=host,
             port=port,
         )

@@ -8,7 +8,12 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "posttrain-catalog",
     "posttrain-data",
+    "posttrain-execution",
+    "posttrain-execution-buildkit",
+    "posttrain-execution-pack",
+    "posttrain-execution-local",
     "posttrain-jobs",
+    "posttrain-tracking",
     "posttrain-work",
     "typer>=0.25.1",
 ]
@@ -22,6 +27,9 @@ trackio = [
 ]
 wandb = [
     "posttrain-tracking-wandb",
+]
+dstack = [
+    "posttrain-execution-dstack",
 ]
 trl = [
     "posttrain-train[trl]",
@@ -39,7 +47,13 @@ posttrain = "posttrain_cli.cli:main"
 [tool.uv.sources]
 posttrain-catalog = { workspace = true }
 posttrain-data = { workspace = true }
+posttrain-execution = { workspace = true }
+posttrain-execution-buildkit = { workspace = true }
+posttrain-execution-pack = { workspace = true }
+posttrain-execution-dstack = { workspace = true }
+posttrain-execution-local = { workspace = true }
 posttrain-jobs = { workspace = true }
+posttrain-tracking = { workspace = true }
 posttrain-observatory = { workspace = true }
 posttrain-eval = { workspace = true }
 posttrain-serve = { workspace = true }
