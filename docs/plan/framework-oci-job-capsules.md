@@ -177,11 +177,12 @@ point is reached.
   and stale training lock digests; after correcting those pin-driven
   expectations, locked sync, Ruff, Pyright, all eight import contracts, 664
   passing tests with 16 skips, and `git diff --check` all passed.
-- [ ] Publish the validated scoped fork/framework/ai-infra release series
-  (completed: repository creation, maintained-fork publication, immutable
-  framework pinning, and a passing source gate; remaining: push the scoped
-  framework series and publish the ai-infra initial commit). Stop before
-  deployment.
+- [x] (2026-07-27 07:24Z) Push the scoped framework series on
+  `carbonteq-ai/posttrain:codex/serving-capacity-observatory` and publish the
+  private `carbonteq-ai/ai-infra` initial commit on `main` at
+  `46c6f76e5823c7889b834aaadf133e7d1b86a8b5`. The framework branch now carries
+  the ordered release series and `ai-infra` remains source-only; no images were
+  built and no deployment or live qualification command was run.
 - [x] (2026-07-26 18:20Z) Selected the three-level framework-owned image
   hierarchy and rejected dstack file upload as the normal job-distribution
   mechanism.
