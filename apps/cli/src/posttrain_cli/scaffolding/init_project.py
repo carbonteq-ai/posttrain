@@ -88,7 +88,7 @@ def starter_pyproject(project_id: str, template: str) -> str:
         f'name = "{distribution_name}"',
         'version = "0.1.0"',
         f'description = "Posttrain {template.upper()} starter project"',
-        'requires-python = ">=3.12,<3.13"',
+        'requires-python = ">=3.13,<3.14"',
         "dependencies = [",
         *(f"  {json.dumps(dependency)}," for dependency in dependencies),
         "]",
@@ -388,7 +388,7 @@ def install_starter(project_root: Path, *, json_output: bool = False) -> None:
     stream = cli_module.sys.stderr if json_output else cli_module.sys.stdout
     print("Installing dependencies...", file=stream)
     cli_module.subprocess.run(
-        [uv, "sync", "--python", "3.12"],
+        [uv, "sync", "--python", "3.13"],
         cwd=project_root,
         check=True,
         stdout=stream if json_output else None,

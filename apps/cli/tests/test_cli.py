@@ -393,7 +393,7 @@ def test_init_template_installs_with_uv(
     assert main(["init", str(project), "--template", "sft"]) == 0
     captured = capsys.readouterr()
 
-    assert calls == [(["/usr/bin/uv", "sync", "--python", "3.12"], project.resolve())]
+    assert calls == [(["/usr/bin/uv", "sync", "--python", "3.13"], project.resolve())]
     assert captured.out.index("Initialized post-training project") < captured.out.index("Installing dependencies...")
     assert f"Environment ready: {project.resolve() / '.venv'}" in captured.out
 
