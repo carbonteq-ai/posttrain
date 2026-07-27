@@ -60,11 +60,14 @@ qualification run reproduces its 3.12 result.
   carries `lock-digest = ac0f21a8...`, so its machine-local binding was
   restored from a label read back from the registry rather than by assertion.
   The release is mirrored to `ghcr.io/carbonteq-ai`.
-- [ ] Milestone 5 — Run a GPU qualification on 3.13. The project's own gate is
-  absolute rather than comparative — ten real optimizer updates with finite
-  loss and gradient norms on every step, reconciled consistent without
-  recovery, artifacts retained, zero alerts — so this does not depend on
-  first reproducing a 3.12 baseline.
+- [~] Milestone 5 — Run a GPU qualification on 3.13. GRPO PASSED on
+  `targets/pop-os-rtx4090-24gb` as run `py313-grpo-222749`: fifteen real
+  optimizer updates, every recorded loss and gradient norm finite, no nan or
+  inf, `train_runtime` 865.7s, reconciled `consistent` with four artifacts
+  retained and no missing roles. vLLM initialised and captured CUDA graphs on
+  3.13 (10/10 PIECEWISE mixed prefill-decode, 8/8 FULL decode), and rewards
+  were live throughout, so the rollout to reward to update loop closed. The
+  distillation qualification on the 96GB host is still outstanding.
 
 ## Surprises & Discoveries
 
@@ -182,6 +185,30 @@ qualification run reproduces its 3.12 result.
   image as providing it. It is now derived from the variant's own profile,
   where `verifiers` appears exactly for those two variants, which removes yet
   another value that was being restated by hand.
+
+- Observation: the 3.13 move is qualified on GPU for online RL, which is the
+  claim a green test suite could not support.
+  Evidence: run `py313-grpo-222749` on an RTX 4090 recorded, among fifteen
+  updates, `loss=-1.863e-09 grad_norm=0.1702`, `loss=9.313e-10
+  grad_norm=0.07958`, and `loss=1.863e-09 grad_norm=0.0377`, with gradient
+  norms decaying as the learning rate annealed. `nan` gradient norms are the
+  exact signature of the TRL defect that motivated this work, and none
+  appeared. The final step recorded `loss=0 grad_norm=0` with
+  `frac_reward_zero_std=1`, which is an absent advantage signal on a small
+  batch rather than a numerical failure.
+
+- Observation: a run that fails before emitting tracking evidence permanently
+  occupies its target host's admission slot.
+  Evidence: `py313-distill-222946` failed with dstack reporting `instance
+  unreachable`, before any container started. Its admission entry stayed at
+  `terminal_pending_evidence`, because evidence is what advances an entry to
+  terminal, and `active_by_key` still named it as the occupant of
+  `host:carbonteq-ai-workstation.lan`. `run cleanup` reclaimed the workspace
+  and `run reconcile` could not resolve evidence that was never produced, so
+  every later run targeting that host queued forever at position 1. Unblocked
+  by editing machine-local admission state, which is a workaround and not a
+  fix: the deadlock is reachable from any transient provider failure and
+  belongs to `packages/execution` rather than to this plan.
 
 ## Decision Log
 
