@@ -40,16 +40,14 @@ qualification run reproduces its 3.12 result.
   3.13.12. The full ladder passes with 744 tests, the same count as on 3.12,
   and no assertion was relaxed to get there. `posttrain doctor` reports Python
   3.13 with every check green.
-- [ ] Milestone 2 — Move the universal base image to a 3.13 interpreter,
-  including the hardcoded cp312 Triton wheel, and republish the base.
-- [ ] Milestone 3 — Rebuild and requalify the job-kind images on the new base,
-  regenerating `published.toml` from real registry state.
-- [~] Milestone 4 — Collapse the veRL two-interpreter capsule. ABANDONED: the
-  premise was wrong. The second environment is not only an interpreter bridge,
-  it is dependency isolation, and unifying Python does not remove the need for
-  it. See Surprises. What remains of this milestone is narrower: the capsule
-  keeps its separate environment and its source projection, and only the
-  interpreter mismatch goes away.
+- [x] Milestone 2 — Move the universal base image to a 3.13 interpreter,
+  including the hardcoded cp312 Triton wheel, and republish the base. Landed:
+  `PYTHON_IMAGE` is `python:3.13.12-slim-bookworm@sha256:a58daefb...` and the
+  pinned Triton wheel is its cp313 build. All three dependency locks were
+  regenerated for 3.13 — the workspace and transform constraint locks and the
+  hash-locked build-tools lock — using a reconstructed procedure that had never
+  been written down, and `validate.py` rejected two attempts for genuine
+  environment leaks before accepting one.
 - [x] Milestone 3 — Rebuild and requalify the job-kind images on the new base,
   regenerating `published.toml` from real registry state. Landed: all six
   images rebuilt and pushed, the manifest regenerated from what the registry
@@ -60,6 +58,12 @@ qualification run reproduces its 3.12 result.
   carries `lock-digest = ac0f21a8...`, so its machine-local binding was
   restored from a label read back from the registry rather than by assertion.
   The release is mirrored to `ghcr.io/carbonteq-ai`.
+- [~] Milestone 4 — Collapse the veRL two-interpreter capsule. ABANDONED: the
+  premise was wrong. The second environment is not only an interpreter bridge,
+  it is dependency isolation, and unifying Python does not remove the need for
+  it. See Surprises. What remains of this milestone is narrower: the capsule
+  keeps its separate environment and its source projection, and only the
+  interpreter mismatch goes away.
 - [x] Milestone 5 — Run a GPU qualification on 3.13. GRPO PASSED on
   `targets/pop-os-rtx4090-24gb` as run `py313-grpo-222749`: fifteen real
   optimizer updates, every recorded loss and gradient norm finite, no nan or
@@ -215,6 +219,15 @@ qualification run reproduces its 3.12 result.
   by editing machine-local admission state, which is a workaround and not a
   fix: the deadlock is reachable from any transient provider failure and
   belongs to `packages/execution` rather than to this plan.
+
+- Observation: Cloudflare WARP, not the wireless link, was throttling the
+  release mirror to the public registry.
+  Evidence: `ip route get` showed ghcr traffic leaving via `dev CloudflareWARP`,
+  and outbound throughput measured 900 KiB/s, implying 6.2 hours for the
+  release's 20.21 GB. With WARP disconnected the same mirror sustained
+  4338 KiB/s, about 4.8 times faster, bringing the upload to roughly 1.3 hours.
+  The initial suspicion that the wireless interface was at fault was wrong: the
+  link is well above the observed rate either way.
 
 ## Decision Log
 
