@@ -58,19 +58,20 @@ def _trackio_requirement() -> str:
 
 
 def _build_wheelhouse(uv: str, root: Path) -> Path:
+    """Build every workspace wheel, not a list of the ones we remembered.
+
+    This previously enumerated packages by hand and fell six behind: the five
+    execution distributions and posttrain-runtime-images. A consumer install
+    then failed to resolve, which is exactly the failure this suite exists to
+    detect, hidden by the suite's own stale list.
+    """
     wheelhouse = root / "wheelhouse"
     wheelhouse.mkdir()
-    for package in FRAMEWORK_PACKAGES:
-        _run(
-            uv,
-            "build",
-            "--package",
-            package,
-            "--wheel",
-            "--out-dir",
-            str(wheelhouse),
-            cwd=WORKSPACE,
-        )
+    _run(uv, "build", "--all-packages", "--wheel", "--out-dir", str(wheelhouse), cwd=WORKSPACE)
+    built = {path.name.split("-")[0].replace("_", "-") for path in wheelhouse.glob("*.whl")}
+    missing = sorted(set(FRAMEWORK_PACKAGES) - built)
+    if missing:
+        raise RuntimeError(f"workspace build did not produce: {', '.join(missing)}")
     return wheelhouse
 
 
@@ -91,7 +92,7 @@ def test_installed_wheels_discover_external_project_and_compose_catalog(
     wheelhouse = _build_wheelhouse(uv, tmp_path)
 
     environment = tmp_path / "environment"
-    _run(uv, "venv", str(environment), "--python", "3.12", cwd=tmp_path)
+    _run(uv, "venv", str(environment), "--python", "3.13", cwd=tmp_path)
     python = environment / "bin" / "python"
     _run(
         uv,
@@ -170,6 +171,10 @@ def test_installed_wheels_discover_external_project_and_compose_catalog(
         "cpu_check.yaml",
         "--job",
         "validate",
+        # This suite proves an installed wheel can discover a project and
+        # execute a job. Packing is a separate concern needing a registry and
+        # published images, which this environment deliberately has neither of.
+        "--in-process",
         cwd=project,
         env=clean_environment,
     )
@@ -206,7 +211,9 @@ def test_installed_wheels_discover_external_project_and_compose_catalog(
     assert evidence["overlay_target"] == "targets/external-cpu"
     assert evidence["tracking_status"] == "succeeded"
     assert "data/train_examples" in evidence["tracking_metrics"]
-    assert evidence["observatory_mode"] == "generic"
+    # A run that carries job identity is classified job-aware, not generic.
+    # This assertion predates the job-aware Observatory views on this branch.
+    assert evidence["observatory_mode"] == "job"
     assert evidence["observatory_run_id"] == run_id
 
     validated = _run(
@@ -239,7 +246,7 @@ def test_installed_wheels_discover_external_project_and_compose_catalog(
     assert package["work_package_id"] == "screen/cpu-check"
     assert package["resolved_seats"] == ["target"]
     assert package["validation_level"] == "project"
-    assert package["job_definition_preflight"] == "complete"
+    assert package["composition_validation"] == "complete"
 
 
 def test_wheel_starters_cover_sft_and_environment_backed_paths(
@@ -252,7 +259,7 @@ def test_wheel_starters_cover_sft_and_environment_backed_paths(
 
     wheelhouse = _build_wheelhouse(uv, tmp_path)
     bootstrap = tmp_path / "bootstrap"
-    _run(uv, "venv", str(bootstrap), "--python", "3.12", cwd=tmp_path)
+    _run(uv, "venv", str(bootstrap), "--python", "3.13", cwd=tmp_path)
     python = bootstrap / "bin" / "python"
     _run(
         uv,
@@ -317,7 +324,7 @@ def test_wheel_starters_cover_sft_and_environment_backed_paths(
         cwd=sft,
         env=clean_environment,
     )
-    assert json.loads(sft_preflight.stdout)["job_definition_preflight"] == "complete"
+    assert json.loads(sft_preflight.stdout)["composition_validation"] == "complete"
     sft_import = _run(
         str(sft / ".venv" / "bin" / "python"),
         "-c",
@@ -353,7 +360,7 @@ def test_wheel_starters_cover_sft_and_environment_backed_paths(
         cwd=grpo,
         env=clean_environment,
     )
-    assert json.loads(grpo_preflight.stdout)["job_definition_preflight"] == "complete"
+    assert json.loads(grpo_preflight.stdout)["composition_validation"] == "complete"
     bridge = _run(
         str(grpo / ".venv" / "bin" / "python"),
         "-c",
