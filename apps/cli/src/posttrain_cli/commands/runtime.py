@@ -117,6 +117,13 @@ def register(app: typer.Typer) -> None:
             str,
             typer.Option("--registry", help="destination registry prefix"),
         ],
+        source_prefix: Annotated[
+            str | None,
+            typer.Option(
+                "--from",
+                help="source registry prefix; defaults to the release registry",
+            ),
+        ] = None,
         variant: Annotated[
             list[str] | None,
             typer.Option("--variant", help="limit to one or more runtime variants"),
@@ -134,11 +141,15 @@ def register(app: typer.Typer) -> None:
                 + ", ".join(sorted(manifest.kinds))
             )
 
+        # A release is normally mirrored out of the framework's own registry,
+        # but a release that was staged elsewhere has to be mirrored into it.
+        # Both directions copy by digest, so identity is preserved either way.
+        origin = (source_prefix or manifest.default_prefix).rstrip("/")
         inspector = RuntimeImageInspector()
         copied: list[dict[str, str]] = []
         images = [("base", manifest.base)] + [(name, manifest.kinds[name]) for name in selected]
         for name, image in images:
-            source = image.reference(manifest.default_prefix)
+            source = image.reference(origin)
             destination = image.reference(registry_prefix)
             observed = inspector.copy(source, destination)
             if observed != image.digest:
@@ -148,7 +159,7 @@ def register(app: typer.Typer) -> None:
                 )
             copied.append({"variant": name, "source": source, "destination": destination})
 
-        payload = {"mirrored": copied, "registry": registry_prefix}
+        payload = {"mirrored": copied, "registry": registry_prefix, "source": origin}
         if state.json_output:
             emit(state, payload, "")
             return
