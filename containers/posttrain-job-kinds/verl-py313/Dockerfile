@@ -7,12 +7,32 @@ ARG DEPENDENCY_LOCK_SHA256
 ARG FORK_REVISION
 ARG SOURCE_REPOSITORY
 
+# The Python 3.12 control environment must match other kind images for
+# actual-job source installs (--no-build-isolation) and framework imports
+# (pydantic/pyyaml/trackio). The Python 3.13 worker remains separately locked.
+COPY containers/posttrain-job-kinds/locks/workspace.lock.txt /opt/posttrain/locks/workspace.lock.txt
+COPY containers/posttrain-job-kinds/locks/build-tools.lock.txt /opt/posttrain/locks/build-tools.lock.txt
+COPY containers/posttrain-job-kinds/profiles/common.txt /opt/posttrain/profiles/common.txt
+RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locked \
+    uv pip install \
+      --python "${VIRTUAL_ENV}" \
+      --require-hashes \
+      --requirement /opt/posttrain/locks/build-tools.lock.txt
+COPY containers/posttrain-job-kinds/profiles/online-rl-verl-py313-control.txt \
+     /opt/posttrain/profiles/online-rl-verl-py313-control.txt
+RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locked \
+    SKIP_FRONTEND_BUILD=1 uv pip install \
+      --python "${VIRTUAL_ENV}" \
+      --index-strategy unsafe-best-match \
+      --constraint /opt/posttrain/locks/workspace.lock.txt \
+      --requirement /opt/posttrain/profiles/common.txt \
+      --requirement /opt/posttrain/profiles/online-rl-verl-py313-control.txt
+
 COPY containers/posttrain-job-kinds/verl-py313/profile.toml /opt/posttrain-verl-build/profile.toml
 COPY containers/posttrain-job-kinds/verl-py313/release/ /opt/posttrain-verl-build/release/
 
-# This stage is intentionally dormant while profile.toml is blocked. Once the
-# fork and dependency-only Python 3.13 lock are published, the release gate
-# builds this exact stage rather than accepting a source-text assertion.
+# This stage remains blocked from the production Bake graph while profile.toml
+# is release_status=blocked. The dedicated smoke target still builds it.
 RUN test -n "${DEPENDENCY_LOCK_SHA256}" && \
     test -n "${FORK_REVISION}" && \
     test -n "${SOURCE_REPOSITORY}" && \
@@ -48,4 +68,7 @@ LABEL org.carbonteq.posttrain.image-level="job-kind" \
 FROM online-rl-verl-py313 AS online-rl-verl-py313-smoke
 RUN PYTHONNOUSERSITE=1 PYTHONSAFEPATH=1 \
     /opt/posttrain-verl/bin/python -I -c \
-    "import sys; import ray, torch, transformers, tensordict, verl, verifiers, vllm; assert sys.version_info[:3] == (3, 13, 12)"
+    "import sys; import ray, torch, transformers, tensordict, verl, verifiers, vllm; assert sys.version_info[:3] == (3, 13, 12)" && \
+    PYTHONNOUSERSITE=1 PYTHONSAFEPATH=1 \
+    "${VIRTUAL_ENV}/bin/python" -c \
+    "import sys, hatchling, pydantic, yaml, verifiers; assert sys.version_info[:2] == (3, 12)"

@@ -6,3 +6,4 @@ files:
   - execution-targets.yaml
   - serving-capacity.yaml
   - transform-qualification.yaml
+  - verl-capsule-qualification.yaml

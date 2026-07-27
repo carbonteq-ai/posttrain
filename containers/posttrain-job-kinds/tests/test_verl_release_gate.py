@@ -104,7 +104,7 @@ def test_actual_job_definition_projects_worker_into_backend_environment() -> Non
         in contents
     )
     assert 'PYTHONPATH="${POSTTRAIN_VERL_PYTHONPATH}"' in contents
-    assert '"/opt/posttrain-verl/bin/python" -s -c' in contents
+    assert '"/opt/posttrain-verl/bin/python" -s -B -c' in contents
     assert (
         "import posttrain.common, posttrain.data, posttrain.train, "
         "posttrain.train.backends.verl.worker"

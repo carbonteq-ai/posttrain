@@ -486,13 +486,17 @@ def _verify_backend_runtime(root: Path, manifest: JobPackageManifest) -> None:
     locks = {lock.role: lock for lock in manifest.runtime_dependency_locks}
     control = locks["control"]
     worker = locks["backend"]
-    if Path(sys.executable).resolve() != Path(control.python_executable):
+    control_python = Path(control.python_executable)
+    # uv/venv interpreters are often symlinks to a managed CPython. Compare the
+    # resolved targets so a capsule shebang like .../bin/python3 still matches
+    # the locked .../bin/python path.
+    if Path(sys.executable).resolve() != control_python.resolve():
         raise ContractError("veRL control process uses a non-capsule interpreter")
     backend_python = Path(worker.python_executable)
     if (
-        not backend_python.is_file()
-        or backend_python.is_symlink()
+        not backend_python.exists()
         or not os.access(backend_python, os.X_OK)
+        or not backend_python.resolve().is_file()
     ):
         raise ContractError("veRL backend interpreter is not executable")
     dependency_lock = Path(backend.dependency_lock_path)
