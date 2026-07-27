@@ -240,3 +240,29 @@ def test_publication_requires_attestations() -> None:
             "registry.lan/carbonteq/posttrain-job",
             provenance=False,
         )
+
+
+def test_every_bake_call_may_read_the_context_and_the_definitions(tmp_path: Path) -> None:
+    """Build definitions ship as package data, outside the project directory.
+
+    buildx refuses to read outside the working directory without an explicit
+    entitlement. A checkout hides this, because the definitions sit under the
+    same tree as everything else; a wheel install puts them in site-packages,
+    where every bake call fails until both directories are granted.
+    """
+    bake = _definition(tmp_path)
+    request = _request(tmp_path)
+    gateway = FakeBuildx()
+    publisher = BuildKitJobImagePublisher(
+        bake_file=bake,
+        receipt_root=tmp_path / "receipts",
+        gateway=gateway,
+    )
+    publisher.publish(request)
+
+    bakes = [call for call in gateway.calls if call and call[0] == "bake"]
+    assert bakes, "no bake call was made"
+    for call in bakes:
+        granted = {call[index + 1] for index, item in enumerate(call) if item == "--allow"}
+        assert f"fs.read={request.staged_context}" in granted
+        assert f"fs.read={bake.parent}" in granted

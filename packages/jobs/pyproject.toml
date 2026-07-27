@@ -1,20 +1,20 @@
 [project]
 name = "posttrain-jobs"
-version = "0.1.3"
+version = "0.1.4"
 description = "Standard post-training job definitions and project runtime composition"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-    "posttrain-common==0.1.3",
-    "posttrain-data==0.1.3",
-    "posttrain-eval==0.1.3",
-    "posttrain-serve==0.1.3",
-    "posttrain-tracking==0.1.3",
-    "posttrain-tracking-trackio==0.1.3",
-    "posttrain-tracking-wandb==0.1.3",
-    "posttrain-train==0.1.3",
-    "posttrain-work==0.1.3",
+    "posttrain-common==0.1.4",
+    "posttrain-data==0.1.4",
+    "posttrain-eval==0.1.4",
+    "posttrain-serve==0.1.4",
+    "posttrain-tracking==0.1.4",
+    "posttrain-tracking-trackio==0.1.4",
+    "posttrain-tracking-wandb==0.1.4",
+    "posttrain-train==0.1.4",
+    "posttrain-work==0.1.4",
 ]
 
 [tool.uv]

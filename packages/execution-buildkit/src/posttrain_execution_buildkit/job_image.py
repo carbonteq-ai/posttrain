@@ -124,8 +124,7 @@ class BuildKitJobImagePublisher:
                     "bake",
                     "--file",
                     str(self._bake_file),
-                    "--allow",
-                    f"fs.read={request.staged_context}",
+                    *self._entitlement_arguments(request),
                     *self._builder_arguments(),
                     *self._context_arguments(),
                     *self._variable_arguments(request),
@@ -151,8 +150,7 @@ class BuildKitJobImagePublisher:
             "bake",
             "--file",
             str(self._bake_file),
-            "--allow",
-            f"fs.read={request.staged_context}",
+            *self._entitlement_arguments(request),
             *self._builder_arguments(),
             "--progress",
             "plain",
@@ -176,6 +174,21 @@ class BuildKitJobImagePublisher:
 
     def _builder_arguments(self) -> list[str]:
         return ["--builder", self._builder] if self._builder is not None else []
+
+    def _entitlement_arguments(self, request: JobImagePublicationRequest) -> list[str]:
+        """Grant read access to both directories the build reads from.
+
+        The staged context holds the job. The build definitions ship as package
+        data, so when the framework is installed rather than checked out they
+        sit outside the project entirely, and buildx refuses to read them
+        without being told to.
+        """
+        return [
+            "--allow",
+            f"fs.read={request.staged_context}",
+            "--allow",
+            f"fs.read={self._definition_root}",
+        ]
 
     def _context_arguments(self) -> list[str]:
         return [
