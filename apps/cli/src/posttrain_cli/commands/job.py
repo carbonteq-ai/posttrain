@@ -12,6 +12,7 @@ from ..context import CliState
 from ..execution_config import PackageOverrides
 from .work_package import (
     _overrides,
+    diff_work_package_cmd,
     pack_work_package_cmd,
     plan_work_package_cmd,
     run_work_package_cmd,
@@ -152,6 +153,37 @@ def register(app: typer.Typer) -> None:
             source_includes=(
                 tuple(source_includes) if source_includes is not None else None
             ),
+        )
+
+    @job_app.command(
+        "diff",
+        help="explain why two packed job packages have different identities",
+    )
+    def job_diff_cmd(
+        ctx: typer.Context,
+        path: Annotated[
+            Path,
+            typer.Argument(help="work-package file or project-relative work-package path"),
+        ],
+        job: Annotated[
+            str,
+            typer.Option("--job", help="the recipe job id to compare packages for"),
+        ],
+        from_key: Annotated[
+            str | None,
+            typer.Option("--from", help="earlier package key, or an unambiguous prefix"),
+        ] = None,
+        to_key: Annotated[
+            str | None,
+            typer.Option("--to", help="later package key, or an unambiguous prefix"),
+        ] = None,
+    ) -> None:
+        diff_work_package_cmd(
+            ctx.obj,
+            path,
+            job=job,
+            from_key=from_key,
+            to_key=to_key,
         )
 
     @job_app.command("pack", help="materialize and publish one actual-job OCI image")

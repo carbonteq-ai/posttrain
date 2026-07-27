@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from posttrain.common import ContractError
+from posttrain.execution import compare_job_packages, unchanged_fields
 from posttrain.work import resolve_work_package, run_work_package_job, validate_work_package
 
 from ..context import CliState
@@ -25,6 +27,7 @@ from ..execution_provider import (
     execution_admission_service,
 )
 from ..output import emit, json_value
+from ..package_history import packages_for, resolve_package
 from ..runtime_images import ensure_kind_image_ready
 from ..work_runtime import load_work_package_bundle, runtime_context
 
@@ -273,6 +276,62 @@ def run_work_package_cmd(
     )
     emit(state, payload, "\n".join(lines))
 
+
+
+def diff_work_package_cmd(
+    state: CliState,
+    path: Path,
+    *,
+    job: str,
+    from_key: str | None = None,
+    to_key: str | None = None,
+) -> None:
+    """Report which inputs differ between two packed job packages."""
+
+    layout, _catalog, _resolved_path, package = load_work_package_bundle(state, path)
+    work_package_id = package.work_package_id
+
+    if from_key is not None or to_key is not None:
+        if from_key is None or to_key is None:
+            raise ContractError("--from and --to must be given together")
+        earlier = resolve_package(layout, from_key)
+        later = resolve_package(layout, to_key)
+    else:
+        history = packages_for(layout, work_package_id=work_package_id, job_id=job)
+        if len(history) < 2:
+            raise ContractError(
+                f"{work_package_id} job {job!r} has {len(history)} retained package(s); "
+                "two are needed to compare. Pack it again after a change, or name "
+                "two package keys with --from and --to."
+            )
+        later, earlier = history[0], history[1]
+
+    changes = compare_job_packages(earlier.payload, later.payload)
+    identical = unchanged_fields(earlier.payload, later.payload)
+    payload = {
+        "work_package_id": work_package_id,
+        "job_id": job,
+        "from": earlier.package_key,
+        "to": later.package_key,
+        "identical_field_count": len(identical),
+        "changes": [
+            {
+                "field": change.field,
+                "kind": change.kind,
+                "previous": change.previous,
+                "current": change.current,
+                "explanation": change.explanation,
+            }
+            for change in changes
+        ],
+    }
+    lines = [f"{earlier.package_key[:12]} -> {later.package_key[:12]}"]
+    if not changes:
+        lines.append("  identical inputs: these packages share one identity")
+    else:
+        lines.extend(f"  {change.describe()}" for change in changes)
+        lines.append(f"  {len(identical)} other input(s) unchanged")
+    emit(state, payload, "\n".join(lines))
 
 
 def _require_verified_kind_image(

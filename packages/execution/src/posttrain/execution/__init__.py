@@ -47,6 +47,12 @@ from .job_package import (
     JobPackageManifest,
     RuntimeDependencyLock,
 )
+from .job_package_diff import (
+    ChangeKind,
+    FieldChange,
+    compare_job_packages,
+    unchanged_fields,
+)
 from .lifecycle import wait_for_terminal
 from .manifest import (
     BUNDLE_MANIFEST_PATH,
@@ -124,7 +130,11 @@ __all__ = [
     "WORKER_MANIFEST_PATH",
     "ManifestMount",
     "resolved_inputs_digest",
+    "ChangeKind",
+    "FieldChange",
     "RuntimeImageRef",
+    "compare_job_packages",
+    "unchanged_fields",
     "TrackingCancellationRecovery",
     "TrackingRecoveryDisposition",
     "ProviderCleanupDisposition",
