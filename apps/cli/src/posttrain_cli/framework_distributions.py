@@ -45,6 +45,10 @@ FRAMEWORK_DISTRIBUTIONS = (
     "posttrain-work",
 )
 
+# Provides the actual-job image's entry point, so it must be in every job image
+# even though nothing on a developer's machine imports it.
+IMAGE_ONLY_DISTRIBUTION = "posttrain-runtime"
+
 _WHEEL = re.compile(r"^[A-Za-z0-9._]+-[^-]+-.*\.whl$")
 
 
@@ -61,7 +65,15 @@ class FrameworkDistributions:
 
 
 def installed_versions() -> dict[str, str]:
-    """Return the installed version of every framework distribution present."""
+    """Return the framework distributions to stage, at the versions to stage.
+
+    Most are read from the environment doing the packing, which is what makes
+    the job image agree with the developer who built it. `posttrain-runtime` is
+    the exception: it provides the image's entry point but runs only inside the
+    image, so a consumer has no reason to install it and normally has not. It is
+    therefore requested at the framework's own version rather than skipped,
+    which would produce an image whose entry point does not exist.
+    """
     found: dict[str, str] = {}
     for name in FRAMEWORK_DISTRIBUTIONS:
         try:
@@ -72,6 +84,7 @@ def installed_versions() -> dict[str, str]:
         raise ContractError(
             "the posttrain distribution is not installed, so its framework code cannot be packed into a job image"
         )
+    found.setdefault(IMAGE_ONLY_DISTRIBUTION, found["posttrain"])
     return found
 
 
@@ -178,6 +191,7 @@ def materialize(
 
 __all__ = [
     "FRAMEWORK_DISTRIBUTIONS",
+    "IMAGE_ONLY_DISTRIBUTION",
     "FrameworkDistributions",
     "installed_versions",
     "materialize",
