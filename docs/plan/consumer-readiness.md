@@ -81,6 +81,18 @@ imagined.
   `--no-build-isolation`. None exist in a wheel install, so
   `_default_framework_source_root()` walks to the filesystem root and raises.
 
+- Observation: a CI job named `external-consumer` already existed and did not
+  catch the blocker, because it stops exactly where the blocker starts.
+  Evidence: `.github/workflows/quality.yml` runs `pytest -q tests/consumer`,
+  and `tests/consumer/test_wheel_project.py` builds a wheelhouse, installs it
+  outside the workspace, and asserts
+  `test_installed_wheels_discover_external_project_and_compose_catalog`. That
+  covers discovery and catalog composition, which work. Nothing in it plans or
+  packs a job. `tests/consumer` is also absent from `testpaths`, so a local
+  `uv run pytest` never runs it either.
+  Consequence: extending that suite to plan and pack is the cheapest way to
+  keep this class of gap from reappearing, and it belongs with Milestone 2.
+
 ## Decision Log
 
 - Decision: the framework reaches the job image as an ordinary project

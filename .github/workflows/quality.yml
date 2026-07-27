@@ -16,11 +16,11 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-          python-version: "3.12"
+          python-version: "3.13"
       - name: Verify lockfile
         run: uv lock --check
       - name: Install workspace and quality tools
-        run: uv sync --all-packages --group dev --python 3.12
+        run: uv sync --all-packages --group dev --python 3.13
       - name: Test
         run: uv run pytest --cov --cov-report=term-missing
       - name: Lint
@@ -69,9 +69,9 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-          python-version: "3.12"
+          python-version: "3.13"
       - name: Install package
-        run: uv sync --package ${{ matrix.package }} --python 3.12
+        run: uv sync --package ${{ matrix.package }} --python 3.13
       - name: Import package
         run: uv run --package ${{ matrix.package }} python -c "import ${{ matrix.import_name }}"
 
@@ -82,9 +82,9 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-          python-version: "3.12"
+          python-version: "3.13"
       - name: Install workspace and test tools
-        run: uv sync --all-packages --group dev --python 3.12
+        run: uv sync --all-packages --group dev --python 3.13
       - name: Build wheels and run outside the workspace
         run: uv run pytest -q tests/consumer
 
@@ -95,9 +95,9 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-          python-version: "3.12"
+          python-version: "3.13"
       - name: Install the Verifiers integration
-        run: uv sync --all-packages --extra verifiers --python 3.12
+        run: uv sync --all-packages --extra verifiers --python 3.13
       - name: Test the Verifiers bridge
         run: |
           uv run \
