@@ -8,7 +8,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "posttrain-common",
     "posttrain-tracking",
-    "carbonteq-trackio @ git+https://github.com/carbonteq-ai/trackio.git@c5072198b3b1556d31ed96ffc246a03f65418ab8",
+    "carbonteq-trackio @ git+https://github.com/carbonteq-ai/trackio.git@9b0c4af0414cbd5264fa1012d81c494e46c1150d",
 ]
 
 [tool.uv.sources]

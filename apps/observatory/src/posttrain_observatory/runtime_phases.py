@@ -27,8 +27,12 @@ from .models import (
 _PHASE_LABELS = {
     "operation": "Operation",
     "model_loading": "Model loading",
+    "model_offloading": "Model offloading",
     "data_preparation": "Data preparation",
     "runtime_initialization": "Runtime initialization",
+    "benchmark_warmup": "Warmup",
+    "benchmark_measurement": "Measured inference",
+    "runtime_cleanup": "Runtime cleanup",
     "rollout": "Rollout generation",
     "reward_scoring": "Reward scoring",
     "teacher_scoring": "Teacher scoring",
@@ -37,6 +41,25 @@ _PHASE_LABELS = {
     "artifact_export": "Artifact export",
     "backend_execution": "Backend execution",
     "unclassified": "Unclassified",
+}
+
+_PHASE_GROUPS = {
+    "operation": ("run", "Run"),
+    "model_loading": ("startup", "Startup"),
+    "model_offloading": ("finalization", "Finalization"),
+    "data_preparation": ("startup", "Startup"),
+    "runtime_initialization": ("startup", "Startup"),
+    "benchmark_warmup": ("inference", "Inference"),
+    "benchmark_measurement": ("inference", "Inference"),
+    "runtime_cleanup": ("finalization", "Finalization"),
+    "rollout": ("training", "Training"),
+    "reward_scoring": ("training", "Training"),
+    "teacher_scoring": ("training", "Training"),
+    "actor_update": ("training", "Training"),
+    "evaluation": ("evaluation", "Evaluation"),
+    "artifact_export": ("finalization", "Finalization"),
+    "backend_execution": ("execution", "Execution"),
+    "unclassified": ("unclassified", "Unclassified"),
 }
 
 _PHASE_METRICS = {
@@ -71,6 +94,10 @@ class _Segment:
 
 def _phase_label(phase: str) -> str:
     return _PHASE_LABELS.get(phase, phase.replace("_", " ").title())
+
+
+def _phase_group(phase: str) -> tuple[str, str]:
+    return _PHASE_GROUPS.get(phase, ("other", "Other"))
 
 
 def _effective_segments(
@@ -189,6 +216,8 @@ def project_runtime_phases(
             phase=interval.phase,
             phase_id=interval.phase_id,
             label=_phase_label(interval.phase),
+            group=_phase_group(interval.phase)[0],
+            group_label=_phase_group(interval.phase)[1],
             status=interval.status,
             started_at=max(interval.started_at, detail.summary.started_at),
             finished_at=min(interval.finished_at or finished_at, finished_at),
@@ -235,6 +264,8 @@ def project_runtime_phases(
             phase=segment.phase,
             phase_id=segment.phase_id,
             label=_phase_label(segment.phase),
+            group=_phase_group(segment.phase)[0],
+            group_label=_phase_group(segment.phase)[1],
             status=segment.status,  # type: ignore[arg-type]
             started_at=segment.started_at,
             finished_at=segment.finished_at,
@@ -266,6 +297,8 @@ def project_runtime_phases(
             RuntimePhaseSummary(
                 phase=phase,
                 label=_phase_label(phase),
+                group=_phase_group(phase)[0],
+                group_label=_phase_group(phase)[1],
                 duration_s=float(sum(projected[index].duration_s for index in indices)),
                 occurrences=len({segments[index].phase_id for index in indices}),
                 sample_count=len(sample_times),

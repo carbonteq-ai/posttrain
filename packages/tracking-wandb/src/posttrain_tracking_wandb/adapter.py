@@ -23,6 +23,8 @@ from posttrain.common import (
     MetricBatchObservation,
     MetricObservation,
     ProducedArtifact,
+    PublishedArtifact,
+    StoredArtifactRef,
     TraceObservation,
 )
 from posttrain.tracking import (
@@ -204,6 +206,9 @@ class WandbTrackedRun:
         self._sequence = 0
         self._trace_dir = tempfile.TemporaryDirectory(prefix="posttrain-wandb-")
         self._trace_path = Path(self._trace_dir.name) / "traces.jsonl"
+        self._published_artifact_handles: list[
+            tuple[ProducedArtifact, str, Any]
+        ] = []
 
     @property
     def run_id(self) -> str:
@@ -288,17 +293,64 @@ class WandbTrackedRun:
     def artifact(self, artifact: ProducedArtifact) -> None:
         if not isinstance(artifact.reference, LocalArtifactRef):
             raise ContractError("W&B output artifacts must be local before promotion")
+        artifact_name = wandb_artifact_name(artifact.name, self._spec.run_id)
         logged = wandb.Artifact(
-            wandb_artifact_name(artifact.name, self._spec.run_id),
+            artifact_name,
             type=artifact.kind,
-            metadata={"logical_name": artifact.name, **dict(artifact.metadata)},
+            metadata={
+                "logical_name": artifact.name,
+                **({"posttrain_role": artifact.role} if artifact.role is not None else {}),
+                **dict(artifact.metadata),
+            },
         )
         path = artifact.reference.path
         if path.is_dir():
             logged.add_dir(str(path))
         else:
             logged.add_file(str(path))
-        self._run.log_artifact(logged)
+        committed = self._run.log_artifact(logged)
+        self._published_artifact_handles.append(
+            (artifact, artifact_name, committed or logged)
+        )
+
+    def published_artifacts(self) -> tuple[PublishedArtifact, ...]:
+        """Wait for W&B to assign exact immutable versions before cleanup."""
+
+        published: list[PublishedArtifact] = []
+        for produced, artifact_name, handle in self._published_artifact_handles:
+            wait = getattr(handle, "wait", None)
+            committed = wait() if callable(wait) else handle
+            version = getattr(committed, "version", None)
+            digest = getattr(committed, "digest", None)
+            if not isinstance(version, str) or not version:
+                raise ContractError(
+                    f"W&B did not return a committed version for {produced.name}"
+                )
+            if not isinstance(digest, str) or not digest:
+                raise ContractError(
+                    f"W&B did not return a committed digest for {produced.name}"
+                )
+            size = getattr(committed, "size", None)
+            size_bytes = size if isinstance(size, int) and size >= 0 else None
+            published.append(
+                PublishedArtifact(
+                    logical_name=produced.name,
+                    kind=produced.kind,
+                    reference=StoredArtifactRef(
+                        provider="wandb",
+                        namespace=f"{self._settings.entity}/{self._settings.project}",
+                        name=artifact_name,
+                        version=version,
+                        digest=digest,
+                        provider_metadata={"size_bytes": size_bytes},
+                    ),
+                    required=produced.required,
+                    size_bytes=size_bytes,
+                    metadata=produced.metadata,
+                    role=produced.role,
+                )
+            )
+        return tuple(published)
 
     def finish(self, outcome: RunOutcome) -> None:
         if self._outcome is not None:

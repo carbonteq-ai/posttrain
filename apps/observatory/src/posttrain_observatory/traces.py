@@ -18,6 +18,17 @@ from .models import (
 )
 from .redaction import RedactionPolicy
 
+_TRUNCATED_STOP_CONDITIONS = frozenset(
+    {
+        "max_turns",
+        "max_input_tokens",
+        "max_output_tokens",
+        "max_total_tokens",
+        "context_length",
+        "harness_timeout",
+    }
+)
+
 
 def _number(value: object) -> float | None:
     if isinstance(value, int | float) and not isinstance(value, bool):
@@ -31,32 +42,158 @@ def _integer(value: object) -> int | None:
     return None
 
 
+def _wire_reward(payload: Mapping[str, JsonValue]) -> float | None:
+    reward = _number(payload.get("reward"))
+    if reward is None:
+        reward = _number(payload.get("score"))
+    if reward is not None:
+        return reward
+    components = payload.get("rewards")
+    if not isinstance(components, Mapping):
+        return None
+    values = [_number(value) for value in components.values()]
+    numbers = [value for value in values if value is not None]
+    return sum(numbers) if numbers else None
+
+
+def _wire_success(payload: Mapping[str, JsonValue]) -> bool | None:
+    success = payload.get("success")
+    if isinstance(success, bool):
+        return success
+    for container_name in ("metrics", "rewards"):
+        container = payload.get(container_name)
+        if not isinstance(container, Mapping):
+            continue
+        for field in ("success", "correct"):
+            value = container.get(field)
+            if isinstance(value, bool):
+                return value
+            number = _number(value)
+            if number is not None:
+                return number > 0
+    return None
+
+
+def _wire_error(payload: Mapping[str, JsonValue]) -> str | None:
+    error = payload.get("error")
+    if error not in (None, False, ""):
+        return str(error)
+    errors = payload.get("errors")
+    if not isinstance(errors, list) or not errors:
+        return None
+    latest = errors[-1]
+    if isinstance(latest, Mapping):
+        error_type = latest.get("type")
+        return str(error_type) if error_type else "trace reported an error"
+    return "trace reported an error"
+
+
+def _wire_truncated(payload: Mapping[str, JsonValue]) -> bool:
+    explicit = payload.get("truncated")
+    if isinstance(explicit, bool):
+        return explicit
+    explicit = payload.get("is_truncated")
+    if isinstance(explicit, bool):
+        return explicit
+    if payload.get("stop_condition") in _TRUNCATED_STOP_CONDITIONS:
+        return True
+    calls = payload.get("calls")
+    if not isinstance(calls, list):
+        return False
+    for call in reversed(calls):
+        if not isinstance(call, Mapping) or call.get("error") not in (None, False, ""):
+            continue
+        return call.get("finish_reason") == "length"
+    return False
+
+
+def _wire_tool_calls(payload: Mapping[str, JsonValue]) -> int | None:
+    direct = _integer(payload.get("num_tool_calls"))
+    if direct is not None:
+        return direct
+    calls = payload.get("tool_calls")
+    if isinstance(calls, list):
+        return len(calls)
+    nodes = payload.get("nodes")
+    if not isinstance(nodes, list):
+        return None
+    count = 0
+    for node in nodes:
+        if not isinstance(node, Mapping):
+            continue
+        message = node.get("message")
+        if not isinstance(message, Mapping):
+            continue
+        nested_calls = message.get("tool_calls")
+        if isinstance(nested_calls, list):
+            count += len(nested_calls)
+    return count
+
+
+def _task_scalar(value: object) -> str | None:
+    if isinstance(value, str) and value:
+        return value
+    if isinstance(value, int) and not isinstance(value, bool):
+        return str(value)
+    return None
+
+
+def _task_from_record(value: object) -> str | None:
+    scalar = _task_scalar(value)
+    if scalar is not None:
+        return scalar
+    if not isinstance(value, Mapping):
+        return None
+    task_type = _task_scalar(value.get("type"))
+    data = value.get("data")
+    data = data if isinstance(data, Mapping) else value
+    identity = next(
+        (
+            scalar
+            for field in ("id", "task_id", "example_id", "name", "idx")
+            if (scalar := _task_scalar(data.get(field))) is not None
+        ),
+        None,
+    )
+    if task_type is not None and identity is not None:
+        return f"{task_type}:{identity}"
+    return identity or task_type
+
+
+def _wire_task(
+    payload: Mapping[str, JsonValue],
+    metadata: Mapping[str, JsonValue],
+    info: Mapping[str, JsonValue],
+) -> str | None:
+    for value in (
+        payload.get("task_id"),
+        info.get("example_id"),
+        info.get("task_id"),
+        metadata.get("task_id"),
+        metadata.get("task"),
+        payload.get("task"),
+        info.get("task"),
+    ):
+        if (task := _task_from_record(value)) is not None:
+            return task
+    return None
+
+
 def _summary(record: TraceRecord) -> TraceSummary:
     payload = record.payload
     metadata = payload.get("metadata")
     metadata = metadata if isinstance(metadata, Mapping) else {}
-    reward = _number(payload.get("reward"))
-    if reward is None:
-        reward = _number(payload.get("score"))
-    success = payload.get("success")
-    if not isinstance(success, bool):
-        success = None
-    error = payload.get("error")
-    error_text = str(error) if error not in (None, False, "") else None
-    task = payload.get("task") or payload.get("task_id") or metadata.get("task")
-    tool_calls = _integer(payload.get("num_tool_calls"))
-    if tool_calls is None:
-        calls = payload.get("tool_calls")
-        tool_calls = len(calls) if isinstance(calls, list) else None
+    info = payload.get("info")
+    info = info if isinstance(info, Mapping) else {}
     return TraceSummary(
         external_id=record.external_id,
         trace_type=record.trace_type,
-        task=str(task) if task is not None else None,
-        reward=reward,
-        success=success,
-        truncated=bool(payload.get("truncated", False)),
-        error=error_text,
-        tool_calls=tool_calls,
+        task=_wire_task(payload, metadata, info),
+        reward=_wire_reward(payload),
+        success=_wire_success(payload),
+        truncated=_wire_truncated(payload),
+        error=_wire_error(payload),
+        tool_calls=_wire_tool_calls(payload),
         latency_ms=_number(payload.get("latency_ms")),
         tokens=_integer(payload.get("tokens")),
     )

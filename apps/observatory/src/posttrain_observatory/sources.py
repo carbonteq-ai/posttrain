@@ -91,6 +91,32 @@ class RunSourceRegistry:
         merged.sort(key=lambda item: item.run.started_at, reverse=True)
         return tuple(merged[: query.limit])
 
+    async def locate_run(self, run_id: str) -> tuple[LocatedRunSummary, ...]:
+        """Resolve one canonical run identity without scanning source histories."""
+
+        async def load(
+            source_id: str,
+            source: RunDataSource,
+        ) -> LocatedRunSummary | None:
+            try:
+                detail = await source.get_run(run_id)
+            except Exception:
+                return None
+            locator = RunLocator(source_id=source_id, run_id=run_id)
+            return LocatedRunSummary(
+                locator=locator,
+                run_key=locator.key,
+                run=detail.summary,
+            )
+
+        values = await asyncio.gather(
+            *(
+                load(source_id, source)
+                for source_id, source in sorted(self._sources.items())
+            )
+        )
+        return tuple(item for item in values if item is not None)
+
     async def work_package_view(
         self,
         work_package_id: str,

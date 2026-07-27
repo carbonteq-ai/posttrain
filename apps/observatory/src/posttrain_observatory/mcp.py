@@ -33,6 +33,21 @@ def create_mcp(service: ObservatoryService) -> FastMCP:
         )
 
     @server.tool()
+    async def get_serving_capacity_view(
+        work_package_id: str,
+        project_id: str | None = None,
+        source_id: str | None = None,
+    ) -> dict[str, object]:
+        """Compare serving contenders and return the strict Pareto frontier when evidence is comparable."""
+        return (
+            await service.get_serving_capacity_view(
+                work_package_id,
+                project_id=project_id,
+                source_id=source_id,
+            )
+        ).model_dump(mode="json")
+
+    @server.tool()
     async def list_run_metrics(source_id: str, run_id: str) -> dict[str, object]:
         """List metric namespaces and names without fetching all points."""
         return (await service.list_run_metrics(RunLocator(source_id=source_id, run_id=run_id))).model_dump(mode="json")

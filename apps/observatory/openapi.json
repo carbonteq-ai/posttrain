@@ -58,6 +58,186 @@
         "title": "ArtifactSet",
         "type": "object"
       },
+      "BenchmarkPopulationView": {
+        "additionalProperties": false,
+        "properties": {
+          "cohort": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cohort"
+          },
+          "corpus_digest": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corpus Digest"
+          },
+          "corpus_id": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corpus Id"
+          },
+          "corpus_revision": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corpus Revision"
+          },
+          "correctness_scored": {
+            "const": false,
+            "default": false,
+            "title": "Correctness Scored",
+            "type": "boolean"
+          },
+          "input_tokens_mean": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Tokens Mean"
+          },
+          "input_tokens_p95": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Tokens P95"
+          },
+          "measured_records": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measured Records"
+          },
+          "output_length_policy": {
+            "default": "unknown",
+            "enum": [
+              "fixed",
+              "maximum",
+              "unknown"
+            ],
+            "title": "Output Length Policy",
+            "type": "string"
+          },
+          "output_target_hit_rate": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Target Hit Rate"
+          },
+          "output_token_budget": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Token Budget"
+          },
+          "renderer": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Renderer"
+          },
+          "requested_records": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested Records"
+          },
+          "shape_id": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shape Id"
+          },
+          "suite_id": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suite Id"
+          }
+        },
+        "title": "BenchmarkPopulationView",
+        "type": "object"
+      },
       "ChartView": {
         "additionalProperties": false,
         "properties": {
@@ -542,9 +722,40 @@
             "title": "Format",
             "type": "string"
           },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
           "run_keys": {
             "$ref": "#/components/schemas/StringTuple",
             "default": []
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "view": {
+            "default": "runs",
+            "enum": [
+              "runs",
+              "serving_capacity"
+            ],
+            "title": "View",
+            "type": "string"
           },
           "work_package_id": {
             "anyOf": [
@@ -1353,7 +1564,8 @@
           "mapping": {
             "generic": "#/components/schemas/GenericRunView",
             "job.evaluation": "#/components/schemas/EvaluationRunView",
-            "job.metrics": "#/components/schemas/RunView"
+            "job.metrics": "#/components/schemas/RunView",
+            "job.serving": "#/components/schemas/ServingBenchmarkRunView"
           },
           "propertyName": "view_kind"
         },
@@ -1365,9 +1577,96 @@
             "$ref": "#/components/schemas/EvaluationRunView"
           },
           {
+            "$ref": "#/components/schemas/ServingBenchmarkRunView"
+          },
+          {
             "$ref": "#/components/schemas/GenericRunView"
           }
         ]
+      },
+      "RuntimeSettingGroup": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "minLength": 1,
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "settings": {
+            "items": {
+              "$ref": "#/components/schemas/RuntimeSettingValue"
+            },
+            "title": "Settings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "settings"
+        ],
+        "title": "RuntimeSettingGroup",
+        "type": "object"
+      },
+      "RuntimeSettingValue": {
+        "additionalProperties": false,
+        "properties": {
+          "importance": {
+            "default": "advanced",
+            "enum": [
+              "primary",
+              "advanced",
+              "additional"
+            ],
+            "title": "Importance",
+            "type": "string"
+          },
+          "key": {
+            "minLength": 1,
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "available",
+              "missing",
+              "redacted"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "value": {
+            "$ref": "#/components/schemas/JsonPayload"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "state"
+        ],
+        "title": "RuntimeSettingValue",
+        "type": "object"
       },
       "SafeRunError": {
         "additionalProperties": false,
@@ -1421,6 +1720,612 @@
           }
         },
         "title": "SemanticSummaryRequest",
+        "type": "object"
+      },
+      "ServingBenchmarkRunView": {
+        "additionalProperties": false,
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/RunAlert"
+            },
+            "title": "Alerts",
+            "type": "array"
+          },
+          "artifacts": {
+            "$ref": "#/components/schemas/ArtifactSet"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/TrackingCapabilities"
+          },
+          "eligibility": {
+            "$ref": "#/components/schemas/ServingEligibility"
+          },
+          "execution_target_id": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Target Id"
+          },
+          "execution_targets": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ExecutionTargetContext"
+            },
+            "title": "Execution Targets",
+            "type": "array"
+          },
+          "inference_backend": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inference Backend"
+          },
+          "inference_binding_id": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inference Binding Id"
+          },
+          "locator": {
+            "$ref": "#/components/schemas/RunLocator"
+          },
+          "model_variant_id": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Variant Id"
+          },
+          "operating_points": {
+            "items": {
+              "$ref": "#/components/schemas/ServingOperatingPoint"
+            },
+            "title": "Operating Points",
+            "type": "array"
+          },
+          "population": {
+            "$ref": "#/components/schemas/BenchmarkPopulationView"
+          },
+          "question": {
+            "minLength": 1,
+            "title": "Question",
+            "type": "string"
+          },
+          "requirements": {
+            "items": {
+              "$ref": "#/components/schemas/ServingRequirementView"
+            },
+            "title": "Requirements",
+            "type": "array"
+          },
+          "resolved_inputs": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonPayload"
+            },
+            "title": "Resolved Inputs",
+            "type": "object"
+          },
+          "run": {
+            "$ref": "#/components/schemas/RunSummary"
+          },
+          "runtime_settings": {
+            "items": {
+              "$ref": "#/components/schemas/RuntimeSettingGroup"
+            },
+            "title": "Runtime Settings",
+            "type": "array"
+          },
+          "schema_version": {
+            "minimum": 1.0,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "selected_point": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ServingOperatingPoint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_metadata": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonPayload"
+            },
+            "title": "Source Metadata",
+            "type": "object"
+          },
+          "trace_count": {
+            "minimum": 0.0,
+            "title": "Trace Count",
+            "type": "integer"
+          },
+          "trace_evaluation_enabled": {
+            "default": false,
+            "title": "Trace Evaluation Enabled",
+            "type": "boolean"
+          },
+          "view_kind": {
+            "const": "job.serving",
+            "default": "job.serving",
+            "title": "View Kind",
+            "type": "string"
+          },
+          "workload_id": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workload Id"
+          }
+        },
+        "required": [
+          "schema_version",
+          "locator",
+          "run",
+          "question",
+          "eligibility",
+          "requirements",
+          "operating_points",
+          "runtime_settings",
+          "population",
+          "alerts",
+          "artifacts",
+          "trace_count",
+          "capabilities"
+        ],
+        "title": "ServingBenchmarkRunView",
+        "type": "object"
+      },
+      "ServingEligibility": {
+        "additionalProperties": false,
+        "properties": {
+          "calculator_version": {
+            "const": "serving-capacity-v1",
+            "default": "serving-capacity-v1",
+            "title": "Calculator Version",
+            "type": "string"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "requirements_digest": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requirements Digest"
+          },
+          "saturation_state": {
+            "enum": [
+              "saturated",
+              "unsaturated",
+              "unknown"
+            ],
+            "title": "Saturation State",
+            "type": "string"
+          },
+          "selected_sweep_index": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected Sweep Index"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ServingEligibilityState"
+          }
+        },
+        "required": [
+          "state",
+          "label",
+          "reason",
+          "saturation_state"
+        ],
+        "title": "ServingEligibility",
+        "type": "object"
+      },
+      "ServingEligibilityState": {
+        "enum": [
+          "eligible",
+          "below_capacity",
+          "latency_constrained",
+          "reliability_constrained",
+          "context_failed",
+          "unsaturated",
+          "insufficient_evidence"
+        ],
+        "type": "string"
+      },
+      "ServingOperatingPoint": {
+        "additionalProperties": false,
+        "properties": {
+          "aggregate_output_tps": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aggregate Output Tps"
+          },
+          "attempted_requests": {
+            "minimum": 0.0,
+            "title": "Attempted Requests",
+            "type": "integer"
+          },
+          "completed_requests": {
+            "minimum": 0.0,
+            "title": "Completed Requests",
+            "type": "integer"
+          },
+          "concurrency": {
+            "minimum": 1.0,
+            "title": "Concurrency",
+            "type": "integer"
+          },
+          "context_tokens": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context Tokens"
+          },
+          "evidence_state": {
+            "enum": [
+              "complete",
+              "partial",
+              "legacy_single_point"
+            ],
+            "title": "Evidence State",
+            "type": "string"
+          },
+          "failed_requests": {
+            "minimum": 0.0,
+            "title": "Failed Requests",
+            "type": "integer"
+          },
+          "failure_rate": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Rate"
+          },
+          "input_tokens_mean": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Tokens Mean"
+          },
+          "input_tokens_p95": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Tokens P95"
+          },
+          "kv_cache_peak_usage_ratio": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kv Cache Peak Usage Ratio"
+          },
+          "measurement_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measurement Seconds"
+          },
+          "output_tokens": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Tokens"
+          },
+          "output_tokens_mean": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Tokens Mean"
+          },
+          "output_tokens_p95": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Tokens P95"
+          },
+          "p50_tpot_ms": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P50 Tpot Ms"
+          },
+          "p50_ttft_ms": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P50 Ttft Ms"
+          },
+          "p95_tpot_ms": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P95 Tpot Ms"
+          },
+          "p95_ttft_ms": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P95 Ttft Ms"
+          },
+          "peak_vram_bytes": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Peak Vram Bytes"
+          },
+          "sweep_index": {
+            "minimum": 0.0,
+            "title": "Sweep Index",
+            "type": "integer"
+          },
+          "terminal_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "resource_exhausted",
+                  "unsupported",
+                  "failed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Terminal Status"
+          },
+          "valid": {
+            "title": "Valid",
+            "type": "boolean"
+          },
+          "violations": {
+            "$ref": "#/components/schemas/StringTuple",
+            "default": []
+          }
+        },
+        "required": [
+          "sweep_index",
+          "concurrency",
+          "attempted_requests",
+          "completed_requests",
+          "failed_requests",
+          "evidence_state",
+          "valid"
+        ],
+        "title": "ServingOperatingPoint",
+        "type": "object"
+      },
+      "ServingRequirementState": {
+        "enum": [
+          "pass",
+          "fail",
+          "unavailable"
+        ],
+        "type": "string"
+      },
+      "ServingRequirementView": {
+        "additionalProperties": false,
+        "properties": {
+          "explanation": {
+            "minLength": 1,
+            "title": "Explanation",
+            "type": "string"
+          },
+          "key": {
+            "minLength": 1,
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "margin": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Margin"
+          },
+          "measured": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measured"
+          },
+          "operator": {
+            "enum": [
+              "gte",
+              "lte"
+            ],
+            "title": "Operator",
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ServingRequirementState"
+          },
+          "threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threshold"
+          },
+          "unit": {
+            "minLength": 1,
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "operator",
+          "unit",
+          "state",
+          "explanation"
+        ],
+        "title": "ServingRequirementView",
         "type": "object"
       },
       "Stage": {
@@ -2091,6 +2996,51 @@
         "summary": "Compare"
       }
     },
+    "/api/v1/runs/locate": {
+      "get": {
+        "operationId": "locate_run_api_v1_runs_locate_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Locate Run Api V1 Runs Locate Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Locate Run"
+      }
+    },
     "/api/v1/runs/{run_key}/alerts": {
       "get": {
         "operationId": "alerts_api_v1_runs__run_key__alerts_get",
@@ -2532,6 +3482,79 @@
           }
         },
         "summary": "Run View"
+      }
+    },
+    "/api/v1/serving-capacity/work-packages/{work_package_id}": {
+      "get": {
+        "operationId": "serving_capacity_work_package_api_v1_serving_capacity_work_packages__work_package_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_package_id",
+            "required": true,
+            "schema": {
+              "title": "Work Package Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "project_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Serving Capacity Work Package Api V1 Serving Capacity Work Packages  Work Package Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Serving Capacity Work Package"
       }
     },
     "/api/v1/sources": {

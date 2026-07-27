@@ -22,6 +22,7 @@ from posttrain_observatory import (
     ChartDefinition,
     EvidenceRequirementDefinition,
     JobTelemetryDefinition,
+    MetricSeriesQuery,
     ObservatoryService,
     SummaryFieldDefinition,
 )
@@ -95,6 +96,52 @@ def _source(*, include_loss: bool = True) -> FakeRunDataSource:
     return FakeRunDataSource(details, {run_id: values})
 
 
+@pytest.mark.asyncio
+async def test_metric_series_uses_replay_source_steps_and_collapses_equivalent_duplicates() -> None:
+    run_id = "runs/replayed"
+    details = {
+        run_id: RunDetail(
+            summary=_summary(run_id, "train.sampo"),
+            metric_names=("train/rl/reward_std", "train/step_time_seconds"),
+        )
+    }
+    replay_attributes = {"observation_source": "verifiers", "source_step": 0}
+    series = {
+        "train/rl/reward_std": MetricSeries(
+            name="train/rl/reward_std",
+            points=(
+                MetricPoint(value=0.2, step=1),
+                MetricPoint(value=0.1, step=56, attributes=replay_attributes),
+                MetricPoint(
+                    value=0.3,
+                    step=57,
+                    attributes={"observation_source": "verifiers", "source_step": 1},
+                ),
+            ),
+        ),
+        "train/step_time_seconds": MetricSeries(
+            name="train/step_time_seconds",
+            points=(
+                MetricPoint(value=10.0, step=1),
+                MetricPoint(value=10.01, step=1),
+            ),
+        ),
+    }
+
+    result = await ObservatoryService(
+        FakeRunDataSource(details, {run_id: series})
+    ).get_metric_series(
+        run_id,
+        MetricSeriesQuery(
+            names=("train/rl/reward_std", "train/step_time_seconds")
+        ),
+    )
+
+    assert [point.step for point in result.series[0].points] == [0, 1]
+    assert [point.value for point in result.series[0].points] == [0.1, 0.3]
+    assert [point.value for point in result.series[1].points] == [10.0]
+
+
 def test_telemetry_models_reject_surface_specific_drift() -> None:
     with pytest.raises(ValidationError, match="extra_forbidden"):
         SummaryFieldDefinition.model_validate(
@@ -148,6 +195,97 @@ def test_distillation_telemetry_is_strict_and_trace_aware() -> None:
             metric_help=(DEFAULT_TELEMETRY_DEFINITIONS["train.sft"].metric_help[0],),
             comparison_keys=("unknown",),
         )
+
+
+def test_sampo_smoke_and_data_prepare_telemetry_match_framework_emissions() -> None:
+    sampo = DEFAULT_TELEMETRY_DEFINITIONS["train.sampo"]
+    smoke = DEFAULT_TELEMETRY_DEFINITIONS["serve.smoke"]
+    prepare = DEFAULT_TELEMETRY_DEFINITIONS["data.prepare"]
+
+    assert {
+        "train/rl/episode_advantage_mean",
+        "train/rl/turn_advantage_mean",
+        "train/rl/anchor_group_size_mean",
+        "train/rl/sparse_reward_projection_fraction",
+    }.issubset(sampo.metric_names)
+    assert tuple(section.trace_type for section in sampo.trace_sections) == ("verifiers",)
+    assert smoke.metric_names == {
+        "serve/probe_latency_seconds",
+        "serve/probe_healthy",
+        "serve/probe_model_available",
+    }
+    assert {role.kind for role in smoke.artifact_roles} == {"serving-log"}
+    assert prepare.metric_names == {"data/examples", "data/bytes"}
+    assert {role.kind for role in prepare.artifact_roles} == {"dataset"}
+    for definition in (sampo, smoke, prepare):
+        assert {item.metric for item in definition.metric_help} == definition.metric_names
+
+
+def _registered_job_source(
+    job_kind: str,
+    values: dict[str, float],
+    *,
+    trace_count: int = 0,
+) -> FakeRunDataSource:
+    run_id = f"runs/{job_kind.replace('.', '-')}"
+    series = {
+        name: MetricSeries(name=name, points=(MetricPoint(value=value, step=1),))
+        for name, value in values.items()
+    }
+    return FakeRunDataSource(
+        {
+            run_id: RunDetail(
+                summary=_summary(run_id, job_kind),
+                metric_names=tuple(series),
+                trace_count=trace_count,
+            )
+        },
+        {run_id: series},
+    )
+
+
+@pytest.mark.parametrize(
+    ("job_kind", "trace_count"),
+    (("train.sampo", 2), ("train.distill", 2), ("serve.smoke", 0), ("data.prepare", 0)),
+)
+@pytest.mark.asyncio
+async def test_registered_job_kinds_resolve_to_first_class_metric_views(
+    job_kind: str,
+    trace_count: int,
+) -> None:
+    definition = DEFAULT_TELEMETRY_DEFINITIONS[job_kind]
+    values = {metric: 1.0 for metric in definition.metric_names}
+    values["train/rl/rollouts_failed"] = 0.0
+    values["train/rl/rollouts_unscorable"] = 0.0
+    values["train/distill/teacher_failures"] = 0.0
+    source = _registered_job_source(job_kind, values, trace_count=trace_count)
+    run_id = f"runs/{job_kind.replace('.', '-')}"
+
+    response = await ObservatoryService(source).get_run_view_response(run_id, mode="job")
+
+    assert response.resolved_mode == "job"
+    assert response.fallback_reason is None
+    assert response.view.view_kind == "job.metrics"
+    assert response.view.completeness.state == "complete"
+    assert {item.metric for item in response.view.summary} == {
+        field.metric for field in definition.summary_fields
+    }
+    assert response.view.trace_evaluation_enabled is bool(definition.trace_sections)
+
+
+@pytest.mark.asyncio
+async def test_distillation_projection_requires_traces_and_surfaces_teacher_failures() -> None:
+    definition = DEFAULT_TELEMETRY_DEFINITIONS["train.distill"]
+    values = {metric: 1.0 for metric in definition.metric_names}
+    source = _registered_job_source("train.distill", values)
+
+    view = await ObservatoryService(source).get_run_view("runs/train-distill")
+
+    assert view.completeness.state == "complete"
+    assert view.completeness.research_ready is False
+    assert {"distill-teacher-failures", "missing-distill-traces"}.issubset(
+        {alert.id for alert in view.alerts}
+    )
 
 
 def test_dpo_telemetry_answers_pair_policy_stability_and_data_questions() -> None:
@@ -270,6 +408,26 @@ async def test_grpo_projection_exposes_population_and_selection_aware_completene
     assert view.completeness.state == "complete"
     assert view.completeness.research_ready is True
     assert next(item for item in view.completeness.requirements if item.key == "mtp_runtime").state == "not_applicable"
+
+
+@pytest.mark.asyncio
+async def test_grpo_tool_environment_category_activates_tool_evidence() -> None:
+    source = FixtureRunDataSource()
+    run_id = "runs/grpo-silver-pine"
+    baseline = await ObservatoryService(source).get_run_view(run_id)
+    detail = source._details[run_id]  # noqa: SLF001 - deterministic fixture mutation
+    source._details[run_id] = detail.model_copy(  # noqa: SLF001
+        update={"resolved_inputs": {**detail.resolved_inputs, "environment_category": "agentic-tool-use"}}
+    )
+
+    view = await ObservatoryService(source).get_run_view(run_id)
+
+    tool_requirement = next(
+        item for item in view.completeness.requirements if item.key == "tool_behavior"
+    )
+    assert tool_requirement.state == "missing"
+    assert view.completeness.conditional_active == baseline.completeness.conditional_active + 1
+    assert view.completeness.research_ready is False
 
 
 @pytest.mark.asyncio

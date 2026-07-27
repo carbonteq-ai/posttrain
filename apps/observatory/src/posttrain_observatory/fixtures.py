@@ -45,13 +45,18 @@ def _series(
 
 def _summary(run_id: str, job_kind: str, stage: str, index: int, status: str = "succeeded") -> RunSummary:
     started = NOW - timedelta(minutes=index * 17)
+    work_package_id = {
+        "train": "train/reward-v2",
+        "screen": "screen/serving-capacity-v1",
+        "qualify": "qualify/reward-v2",
+    }[stage]
     return RunSummary(
         provider="fixture",
         provider_run_id=f"fixture-{run_id}",
         run_id=run_id,
         display_name=run_id.rsplit("/", 1)[-1].replace("-", " ").title(),
         project_id="projects/automation-agent",
-        work_package_id=("train/reward-v2" if stage == "train" else "qualify/reward-v2"),
+        work_package_id=work_package_id,
         stage=stage,  # type: ignore[arg-type]
         job_kind=job_kind,
         job_definition_version=f"{job_kind}@1",
@@ -181,6 +186,7 @@ class FixtureRunDataSource(RunDataSource):
             ("runs/dpo-amber-field", "train.dpo", "train"),
             ("runs/grpo-silver-pine", "train.grpo", "train"),
             ("runs/eval-violet-river", "eval.domain", "qualify"),
+            ("runs/serve-cedar-point", "serve.benchmark", "screen"),
             ("runs/custom-orbit", "custom.team_job", "train"),
         )
         self._details: dict[str, RunDetail] = {}
@@ -240,6 +246,23 @@ class FixtureRunDataSource(RunDataSource):
                 "eval/run/rollouts_truncated": (2.0,),
                 "eval/trace_sync_complete": (1.0,),
             },
+            "serve.benchmark": {
+                "serve/requests": (4,),
+                "serve/output_tokens": (232,),
+                "serve/elapsed_seconds": (4,),
+                "serve/output_token_throughput": (58,),
+                "serve/p50_ttft": (0.42,),
+                "serve/p95_ttft": (0.70,),
+                "serve/p50_tpot": (0.018,),
+                "serve/p95_tpot": (0.024,),
+                "serve/context_window": (32_768,),
+                "serve/concurrency": (4,),
+                "serve/peak_gpu_memory_gib": (7.2,),
+                "serve/corpus_records_measured": (4,),
+                "serve/input_tokens_mean": (612,),
+                "serve/input_tokens_p95": (944,),
+                "serve/backend/kv_cache_peak_usage_ratio": (0.78,),
+            },
             "custom.team_job": {
                 "custom/quality": (0.41, 0.49, 0.53, 0.59),
                 "custom/latency_ms": (940, 870, 815, 790),
@@ -285,7 +308,13 @@ class FixtureRunDataSource(RunDataSource):
                 for name, points in values.items()
             }
             self._metrics[run_id] = metrics
-            traces = self._evaluation_traces() if job_kind in {"eval.domain", "train.grpo"} else ()
+            traces = (
+                self._evaluation_traces()
+                if job_kind in {"eval.domain", "train.grpo"}
+                else self._serving_traces()
+                if job_kind == "serve.benchmark"
+                else ()
+            )
             self._traces[run_id] = traces
             self._details[run_id] = RunDetail(
                 summary=summary,
@@ -296,11 +325,15 @@ class FixtureRunDataSource(RunDataSource):
                         "schema_version": 1,
                         "targets": [
                             {
-                                "selection_id": "targets/fixture-cuda-24gb",
+                                "selection_id": (
+                                    "targets/fixture-cuda-8gb"
+                                    if job_kind == "serve.benchmark"
+                                    else "targets/fixture-cuda-24gb"
+                                ),
                                 "revision": "1",
-                                "roles": ["training"],
+                                "roles": ["screen_inference"] if job_kind == "serve.benchmark" else ["training"],
                                 "device_class": "nvidia-cuda",
-                                "memory_gb": 24,
+                                "memory_gb": 8 if job_kind == "serve.benchmark" else 24,
                                 "placement": {"world_size": 1},
                                 "host_constraints": {},
                             }
@@ -315,6 +348,71 @@ class FixtureRunDataSource(RunDataSource):
                             },
                         }
                         if job_kind == "train.grpo"
+                        else {}
+                    ),
+                    **(
+                        {
+                            "screen_inference": {
+                                "selection_id": "inference/qwen3.5-0.8b-vllm@1",
+                                "revision": "1",
+                                "resolved": {
+                                    "backend": "vllm@0.25.1",
+                                    "renderer": "qwen3.5-tools@1",
+                                    "engine": {
+                                        "dtype": "float16",
+                                        "max_model_len": 32_768,
+                                        "gpu_memory_utilization": 0.85,
+                                        "max_num_seqs": 8,
+                                        "max_num_batched_tokens": 4_096,
+                                        "kv_cache_dtype": "fp8",
+                                        "enable_chunked_prefill": True,
+                                        "enforce_eager": False,
+                                        "experimental_scheduler": "async",
+                                    },
+                                },
+                            },
+                            "workload": {
+                                "selection_id": "workloads/representative-serving@1",
+                                "revision": "1",
+                                "resolved": {
+                                    "requests": {
+                                        "suite_id": "general-serving-v1",
+                                        "shape_id": "representative-128out",
+                                        "context_window": 32_768,
+                                        "output_tokens": 58,
+                                        "cohort": "representative",
+                                        "corpus": {
+                                            "id": "general-serving-v1",
+                                            "revision": "1",
+                                            "digest": "sha256:fixture-corpus",
+                                        },
+                                    },
+                                    "concurrency": [1, 2, 4],
+                                    "saturation_state": "saturated",
+                                },
+                            },
+                            "target": {
+                                "selection_id": "targets/fixture-cuda-8gb",
+                                "revision": "1",
+                                "resolved": {
+                                    "device_class": "nvidia-cuda",
+                                    "memory_gb": 8,
+                                    "placement": {"world_size": 1},
+                                },
+                            },
+                            "project_brief": {
+                                "digest": "sha256:fixture-requirements",
+                                "schema_version": 1,
+                                "serving": {
+                                    "required_context_tokens": 32_768,
+                                    "min_sustained_output_tokens_per_second": 50,
+                                    "max_p95_ttft_ms": 1_000,
+                                    "max_p95_tpot_ms": 30,
+                                    "max_failure_rate": 0.01,
+                                },
+                            },
+                        }
+                        if job_kind == "serve.benchmark"
                         else {}
                     ),
                     "work_package": {
@@ -333,6 +431,7 @@ class FixtureRunDataSource(RunDataSource):
                             "train.dpo": "Optimize preference ordering over selected chosen and rejected completions.",
                             "train.grpo": "Generate grouped rollouts and optimize the policy from verifier rewards.",
                             "eval.domain": "Measure held-out domain behavior through the selected Verifiers environment.",
+                            "serve.benchmark": "Measure a bounded serving workload on the selected execution target.",
                             "custom.team_job": "Run the team-owned custom evidence probe.",
                         }[job_kind],
                     },
@@ -409,6 +508,34 @@ class FixtureRunDataSource(RunDataSource):
                 attributes={"split": "held-out"},
             )
             for index in range(1, 13)
+        )
+
+    @staticmethod
+    def _serving_traces() -> tuple[TraceRecord, ...]:
+        ttft = (0.32, 0.42, 0.55, 0.70)
+        tpot = (0.015, 0.018, 0.021, 0.024)
+        return tuple(
+            TraceRecord(
+                trace_type="inference",
+                external_id=f"request-{index}",
+                payload={
+                    "record_id": f"fixture-{index}",
+                    "sweep_index": 2,
+                    "concurrency": 4,
+                    "warmup": False,
+                    "input_tokens": 500 + index * 75,
+                    "output_tokens": 58,
+                    "ttft_seconds": ttft[index],
+                    "tpot_seconds": tpot[index],
+                    "queue_seconds": 0.001,
+                    "prefill_seconds": ttft[index] - 0.001,
+                    "decode_seconds": tpot[index] * 57,
+                    "engine_e2e_seconds": ttft[index] + tpot[index] * 57,
+                    "error_class": None,
+                },
+                attributes={"cohort": "representative"},
+            )
+            for index in range(4)
         )
 
     async def list_runs(self, query: RunQuery) -> tuple[RunSummary, ...]:

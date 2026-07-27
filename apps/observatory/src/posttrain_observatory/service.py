@@ -12,10 +12,18 @@ from statistics import fmean
 from typing import Any, cast
 
 from posttrain.common import JsonValue
-from posttrain.tracking import EventRecord, MetricSeries, RunDataSource, RunQuery
+from posttrain.tracking import (
+    EventRecord,
+    MetricPoint,
+    MetricSeries,
+    RunDataSource,
+    RunQuery,
+    TraceQuery,
+)
 
 from .execution_targets import execution_target_capacity, execution_target_contexts
 from .models import (
+    BackendRuntimeSummary,
     ChartView,
     ComparisonRow,
     EvaluationRunView,
@@ -25,6 +33,8 @@ from .models import (
     GRPOAccelerationEvidence,
     GRPOProjection,
     GRPORolloutPopulation,
+    InferenceTimingStageSummary,
+    InferenceTimingSummary,
     LocatedRunSummary,
     MetricCatalog,
     MetricNamespace,
@@ -39,6 +49,11 @@ from .models import (
     SemanticSummaryRequest,
     SemanticSummaryResult,
     SeriesTip,
+    ServingBenchmarkRunView,
+    ServingCapacityRunRow,
+    ServingCapacityWorkPackageView,
+    ServingContenderView,
+    ServingParetoPoint,
     SourceSummary,
     SummaryChange,
     SummaryValue,
@@ -53,6 +68,7 @@ from .models import (
 from .redaction import RedactionPolicy
 from .runtime_phases import project_runtime_phases
 from .semantic import SemanticAnalysisService, SemanticSummaryProvider
+from .serving_capacity import project_serving_benchmark
 from .sources import RunSourceRegistry
 from .telemetry import (
     DEFAULT_TELEMETRY_DEFINITIONS,
@@ -79,6 +95,109 @@ def _reduce(series: MetricSeries, reducer: str) -> float | None:
         return reducers[reducer]()
     except KeyError as error:
         raise ValueError(f"unsupported telemetry reducer: {reducer}") from error
+
+
+def _logical_metric_series(series: MetricSeries) -> MetricSeries:
+    """Project replayed evidence onto its source step without double plotting.
+
+    Isolated environments replay trace-derived metrics during finalization.
+    Their provider step is append-only storage position, while ``source_step``
+    is the optimizer step they describe. Replay is authoritative when present.
+    For ordinary same-step measurements, collapse only numerically equivalent
+    duplicates and preserve meaningfully different observations.
+    """
+
+    replay: list[tuple[MetricPoint, int]] = []
+    for point in series.points:
+        source_step = point.attributes.get("source_step")
+        if (
+            point.attributes.get("observation_source") == "verifiers"
+            and isinstance(source_step, int)
+            and not isinstance(source_step, bool)
+            and source_step >= 0
+        ):
+            replay.append((point, source_step))
+    if replay:
+        return MetricSeries(
+            name=series.name,
+            points=tuple(
+                point.model_copy(update={"step": source_step})
+                for point, source_step in replay
+            ),
+        )
+
+    retained: list[MetricPoint] = []
+    for point in series.points:
+        if point.step is not None and any(
+            existing.step == point.step
+            and math.isclose(
+                existing.value,
+                point.value,
+                rel_tol=0.02,
+                abs_tol=1e-12,
+            )
+            for existing in retained
+        ):
+            continue
+        retained.append(point)
+    return MetricSeries(name=series.name, points=tuple(retained))
+
+
+def _percentile(values: list[float], percentile: float) -> float:
+    ordered = sorted(values)
+    index = max(0, min(len(ordered) - 1, int((len(ordered) - 1) * percentile + 0.5)))
+    return ordered[index]
+
+
+async def _inference_timing_summary(
+    source: RunDataSource,
+    run_id: str,
+) -> InferenceTimingSummary | None:
+    values: dict[str, list[float]] = {
+        "queue": [],
+        "prefill": [],
+        "decode": [],
+        "engine_e2e": [],
+    }
+    cursor: str | None = None
+    requests = 0
+    while True:
+        page = await source.traces(
+            run_id,
+            TraceQuery(trace_type="inference", cursor=cursor, limit=1000),
+        )
+        for trace in page.items:
+            request_has_timing = False
+            for stage in values:
+                value = trace.payload.get(f"{stage}_seconds")
+                if isinstance(value, (int, float)) and not isinstance(value, bool) and value >= 0:
+                    values[stage].append(float(value) * 1000)
+                    request_has_timing = True
+            requests += int(request_has_timing)
+        if page.next_cursor is None:
+            break
+        cursor = page.next_cursor
+    if requests == 0:
+        return None
+    labels = {
+        "queue": "Queue",
+        "prefill": "Prefill",
+        "decode": "Decode",
+        "engine_e2e": "Engine end-to-end",
+    }
+    stages = tuple(
+        InferenceTimingStageSummary(
+            stage=stage,  # type: ignore[arg-type]
+            label=labels[stage],
+            samples=len(stage_values),
+            mean_ms=fmean(stage_values),
+            p50_ms=_percentile(stage_values, 0.50),
+            p95_ms=_percentile(stage_values, 0.95),
+        )
+        for stage, stage_values in values.items()
+        if stage_values
+    )
+    return InferenceTimingSummary(requests=requests, stages=stages)
 
 
 def _metric_summary(
@@ -288,8 +407,14 @@ def _condition_active(
             for value in _config_values(dict(resolved_inputs), "kv_cache_dtype")
         )
     if condition == "tool_environment":
-        return any(bool(value) for value in _config_values(dict(resolved_inputs), "tools")) or any(
-            value is True for value in _config_values(dict(resolved_inputs), "tool_environment")
+        categories = _config_values(dict(resolved_inputs), "environment_category")
+        return (
+            any(bool(value) for value in _config_values(dict(resolved_inputs), "tools"))
+            or any(value is True for value in _config_values(dict(resolved_inputs), "tool_environment"))
+            or any(
+                isinstance(value, str) and "tool" in value.lower().split("-")
+                for value in categories
+            )
         )
     raise ValueError(f"unknown evidence condition: {condition}")
 
@@ -356,7 +481,7 @@ def _evidence_completeness(
     missing_conditional = any(item.state == "missing" for item in conditional)
     state = "insufficient" if missing_required else "partial" if missing_conditional else "complete"
     validation = next((item for item in requirements if item.key == "held_out_preferences"), None)
-    if definition.job_kind == "train.grpo":
+    if definition.job_kind in {"train.grpo", "train.sampo", "train.distill"}:
         research_ready = state == "complete" and trace_count > 0
     else:
         research_ready = state == "complete" and validation is not None and validation.state == "available"
@@ -409,6 +534,9 @@ class ObservatoryService:
     async def list_runs(self, query: RunQuery | None = None) -> tuple[LocatedRunSummary, ...]:
         return await self.registry.list_runs(query or RunQuery())
 
+    async def locate_run(self, run_id: str) -> tuple[LocatedRunSummary, ...]:
+        return await self.registry.locate_run(run_id)
+
     async def get_run_view(
         self,
         run: str | RunLocator,
@@ -448,28 +576,36 @@ class ObservatoryService:
                 fallback_reason=reason,
                 view=generic,
             )
-        metric_view = await self._metric_job_view(locator, definition)
-        if detail.summary.job_kind.startswith("eval."):
-            evaluation = await trace_evaluation_view(source, locator.run_id, expected=detail.trace_count or None)
-            view: RunView | EvaluationRunView = EvaluationRunView(
-                schema_version=metric_view.schema_version,
-                locator=locator,
-                run=metric_view.run,
-                summary=metric_view.summary,
-                charts=metric_view.charts,
-                metric_help=metric_view.metric_help,
-                completeness=metric_view.completeness,
-                alerts=metric_view.alerts,
-                evaluation=evaluation,
-                artifacts=metric_view.artifacts,
-                execution_targets=metric_view.execution_targets,
-                resolved_inputs=metric_view.resolved_inputs,
-                source_metadata=metric_view.source_metadata,
-                trace_evaluation_enabled=metric_view.trace_evaluation_enabled,
-                capabilities=metric_view.capabilities,
+        if detail.summary.job_kind == "serve.benchmark":
+            view: RunView | EvaluationRunView | ServingBenchmarkRunView = await project_serving_benchmark(
+                locator,
+                source,
+                detail,
+                self._redaction,
             )
         else:
-            view = metric_view
+            metric_view = await self._metric_job_view(locator, definition)
+            if detail.summary.job_kind.startswith("eval."):
+                evaluation = await trace_evaluation_view(source, locator.run_id, expected=detail.trace_count or None)
+                view = EvaluationRunView(
+                    schema_version=metric_view.schema_version,
+                    locator=locator,
+                    run=metric_view.run,
+                    summary=metric_view.summary,
+                    charts=metric_view.charts,
+                    metric_help=metric_view.metric_help,
+                    completeness=metric_view.completeness,
+                    alerts=metric_view.alerts,
+                    evaluation=evaluation,
+                    artifacts=metric_view.artifacts,
+                    execution_targets=metric_view.execution_targets,
+                    resolved_inputs=metric_view.resolved_inputs,
+                    source_metadata=metric_view.source_metadata,
+                    trace_evaluation_enabled=metric_view.trace_evaluation_enabled,
+                    capabilities=metric_view.capabilities,
+                )
+            else:
+                view = metric_view
         return RunViewResponse(requested_mode=mode, resolved_mode="job", view=view)
 
     async def _metric_job_view(self, locator: RunLocator, definition: JobTelemetryDefinition) -> RunView:
@@ -479,6 +615,7 @@ class ObservatoryService:
         series_values, artifacts = await asyncio.gather(
             source.metric_series(locator.run_id, names), source.artifacts(locator.run_id)
         )
+        series_values = tuple(_logical_metric_series(series) for series in series_values)
         by_name = {series.name: series for series in series_values}
         summary = tuple(
             SummaryValue(
@@ -651,12 +788,17 @@ class ObservatoryService:
         requested = tuple(
             sorted(
                 {
-                    *(name for name in detail.metric_names if name.startswith(("system/", "tracking/"))),
+                    *(
+                        name
+                        for name in detail.metric_names
+                        if name.startswith(("system/", "tracking/", "serve/backend/"))
+                    ),
                     *(metric for _, _, metric, *_ in cards),
                 }
             )
         )
         series_values = await source.metric_series(locator.run_id, requested)
+        series_values = tuple(_logical_metric_series(series) for series in series_values)
         by_name = {series.name: series for series in series_values}
         sample_count = max(
             (len(series.points) for name, series in by_name.items() if name.startswith("system/")),
@@ -693,6 +835,15 @@ class ObservatoryService:
                 "Runtime and observer health",
                 ("system/wall_time_s", "tracking/traces_written", "tracking/traces_dropped"),
             ),
+            (
+                "inference_backend",
+                "Inference backend pressure",
+                (
+                    "serve/backend/kv_cache_usage_ratio",
+                    "serve/backend/running_requests",
+                    "serve/backend/waiting_requests",
+                ),
+            ),
         ):
             group_series = tuple(by_name[name] for name in names if name in by_name)
             if group_series:
@@ -700,6 +851,37 @@ class ObservatoryService:
         execution_targets = execution_target_contexts(detail.resolved_inputs)
         capacity_state, capacity_bytes = execution_target_capacity(execution_targets)
         phase_projection = project_runtime_phases(detail, by_name)
+        kv_usage = by_name.get("serve/backend/kv_cache_usage_ratio")
+        kv_capacity = _reduce(
+            by_name.get(
+                "serve/backend/kv_cache_capacity_tokens",
+                MetricSeries(name="serve/backend/kv_cache_capacity_tokens"),
+            ),
+            "last",
+        )
+        kv_peak = _reduce(
+            by_name.get(
+                "serve/backend/kv_cache_peak_usage_ratio",
+                MetricSeries(name="serve/backend/kv_cache_peak_usage_ratio"),
+            ),
+            "max",
+        )
+        if kv_peak is None and kv_usage is not None:
+            kv_peak = _reduce(kv_usage, "max")
+        backend_runtime = (
+            BackendRuntimeSummary(
+                kv_cache_capacity_tokens=kv_capacity,
+                kv_cache_peak_usage_ratio=kv_peak,
+                kv_cache_samples=len(kv_usage.points) if kv_usage is not None else 0,
+            )
+            if kv_capacity is not None or kv_peak is not None or kv_usage is not None
+            else None
+        )
+        inference_timing = (
+            await _inference_timing_summary(source, locator.run_id)
+            if detail.summary.job_kind == "serve.benchmark" and detail.trace_count
+            else None
+        )
         return SystemMetricsView(
             locator=locator,
             state="available" if sample_count else "unavailable",
@@ -719,6 +901,8 @@ class ObservatoryService:
             vram_capacity_state=capacity_state,
             vram_capacity_bytes=capacity_bytes,
             vram_observed_peak_bytes=phase_projection.vram_observed_peak_bytes,
+            inference_timing=inference_timing,
+            backend_runtime=backend_runtime,
             capabilities=source.capabilities,
         )
 
@@ -729,7 +913,10 @@ class ObservatoryService:
         unknown = set(query.names) - set(detail.metric_names)
         if unknown:
             raise ValueError(f"unknown metric names: {', '.join(sorted(unknown))}")
-        raw = await source.metric_series(locator.run_id, query.names)
+        raw = tuple(
+            _logical_metric_series(series)
+            for series in await source.metric_series(locator.run_id, query.names)
+        )
         filtered = []
         requested = 0
         changed = False
@@ -864,6 +1051,220 @@ class ObservatoryService:
             source_id=source_id,
         )
 
+    async def get_serving_capacity_view(
+        self,
+        work_package_id: str,
+        *,
+        project_id: str | None = None,
+        source_id: str | None = None,
+    ) -> ServingCapacityWorkPackageView:
+        located = await self.registry.list_runs(
+            RunQuery(
+                project_id=project_id,
+                work_package_id=work_package_id,
+                job_kinds=("serve.benchmark",),
+                limit=1000,
+            )
+        )
+        if source_id is not None:
+            self.registry.resolve(RunLocator(source_id=source_id, run_id="source-probe"))
+            located = tuple(item for item in located if item.locator.source_id == source_id)
+
+        async def project(item: LocatedRunSummary) -> ServingBenchmarkRunView:
+            source = self.registry.resolve(item.locator)
+            detail = await source.get_run(item.locator.run_id)
+            return await project_serving_benchmark(
+                item.locator,
+                source,
+                detail,
+                self._redaction,
+                include_request_traces=detail.trace_count > 0,
+                include_artifacts=False,
+            )
+
+        views = await asyncio.gather(*(project(item) for item in located))
+        strict_candidates = [
+            (item, view)
+            for item, view in zip(located, views, strict=True)
+            if len(view.operating_points) > 1
+            and view.population.cohort == "representative"
+            and view.eligibility.requirements_digest is not None
+            and view.execution_target_id is not None
+            and view.workload_id is not None
+            and view.population.corpus_digest is not None
+        ]
+        reference = strict_candidates[0] if strict_candidates else None
+        reference_view = reference[1] if reference is not None else None
+
+        contenders: list[ServingContenderView] = []
+        for item, view in zip(located, views, strict=True):
+            mismatch: list[str] = []
+            if reference_view is None:
+                mismatch.append("no decision-grade multi-point representative sweep is available")
+            else:
+                comparisons = (
+                    (
+                        "requirements",
+                        view.eligibility.requirements_digest,
+                        reference_view.eligibility.requirements_digest,
+                    ),
+                    ("execution target", view.execution_target_id, reference_view.execution_target_id),
+                    ("workload", view.workload_id, reference_view.workload_id),
+                    (
+                        "corpus",
+                        view.population.corpus_digest,
+                        reference_view.population.corpus_digest,
+                    ),
+                    (
+                        "calculator",
+                        view.eligibility.calculator_version,
+                        reference_view.eligibility.calculator_version,
+                    ),
+                    ("cohort", view.population.cohort, "representative"),
+                )
+                mismatch.extend(
+                    label for label, actual, expected in comparisons if actual is None or actual != expected
+                )
+                if len(view.operating_points) < 2:
+                    mismatch.append("run contains only one operating point")
+            contenders.append(
+                ServingContenderView(
+                    locator=item.locator,
+                    run_key=item.run_key,
+                    display_name=item.run.display_name,
+                    started_at=item.run.started_at,
+                    model_variant_id=view.model_variant_id,
+                    inference_binding_id=view.inference_binding_id,
+                    inference_backend=view.inference_backend,
+                    workload_id=view.workload_id,
+                    corpus_digest=view.population.corpus_digest,
+                    execution_target_id=view.execution_target_id,
+                    requirements_digest=view.eligibility.requirements_digest,
+                    calculator_version=view.eligibility.calculator_version,
+                    comparable=not mismatch,
+                    comparability_reason=(
+                        None if not mismatch else "Incomparable: " + ", ".join(dict.fromkeys(mismatch)) + "."
+                    ),
+                    selected_point=view.selected_point,
+                    eligibility=view.eligibility,
+                )
+            )
+
+        pareto_candidates = [
+            contender
+            for contender in contenders
+            if contender.comparable
+            and contender.eligibility.state == "eligible"
+            and contender.selected_point is not None
+            and contender.selected_point.aggregate_output_tps is not None
+            and contender.selected_point.p95_ttft_ms is not None
+            and contender.selected_point.peak_vram_bytes is not None
+        ]
+
+        def dominates(left: ServingContenderView, right: ServingContenderView) -> bool:
+            left_point = cast(Any, left.selected_point)
+            right_point = cast(Any, right.selected_point)
+            no_worse = (
+                left_point.aggregate_output_tps >= right_point.aggregate_output_tps
+                and left_point.p95_ttft_ms <= right_point.p95_ttft_ms
+                and left_point.peak_vram_bytes <= right_point.peak_vram_bytes
+            )
+            strictly_better = (
+                left_point.aggregate_output_tps > right_point.aggregate_output_tps
+                or left_point.p95_ttft_ms < right_point.p95_ttft_ms
+                or left_point.peak_vram_bytes < right_point.peak_vram_bytes
+            )
+            return no_worse and strictly_better
+
+        pareto_keys = {
+            contender.run_key
+            for contender in pareto_candidates
+            if not any(
+                other.run_key != contender.run_key and dominates(other, contender) for other in pareto_candidates
+            )
+        }
+        contenders = [
+            contender.model_copy(update={"pareto_member": contender.run_key in pareto_keys}) for contender in contenders
+        ]
+        pareto = tuple(
+            ServingParetoPoint(
+                run_key=contender.run_key,
+                model_variant_id=contender.model_variant_id,
+                inference_binding_id=contender.inference_binding_id,
+                aggregate_output_tps=cast(float, contender.selected_point.aggregate_output_tps),
+                p95_ttft_ms=cast(float, contender.selected_point.p95_ttft_ms),
+                peak_vram_bytes=int(cast(float, contender.selected_point.peak_vram_bytes)),
+            )
+            for contender in contenders
+            if contender.pareto_member and contender.selected_point is not None
+        )
+        rows = []
+        for item, view in zip(located, views, strict=True):
+            for point in view.operating_points:
+                rows.append(
+                    ServingCapacityRunRow(
+                        locator=item.locator,
+                        run_key=item.run_key,
+                        display_name=item.run.display_name,
+                        started_at=item.run.started_at,
+                        model_variant_id=view.model_variant_id,
+                        inference_binding_id=view.inference_binding_id,
+                        inference_backend=view.inference_backend,
+                        workload_id=view.workload_id,
+                        execution_target_id=view.execution_target_id,
+                        requirements_digest=view.eligibility.requirements_digest,
+                        point=point,
+                        point_state=(
+                            "incomplete"
+                            if point.evidence_state != "complete"
+                            else "valid"
+                            if point.valid
+                            else "constraint_failed"
+                        ),
+                        point_label=(
+                            f"{point.terminal_status.replace('_', ' ').title()} boundary"
+                            if point.terminal_status is not None
+                            else "Incomplete evidence"
+                            if point.evidence_state != "complete"
+                            else "Valid point"
+                            if point.valid
+                            else "Constraint missed"
+                        ),
+                        eligibility=view.eligibility,
+                    )
+                )
+        rows.sort(
+            key=lambda row: (
+                row.inference_binding_id or "",
+                row.point.concurrency,
+                row.started_at,
+            )
+        )
+        projects = {item.run.project_id for item in located}
+        return ServingCapacityWorkPackageView(
+            project_id=project_id or (next(iter(projects)) if len(projects) == 1 else None),
+            work_package_id=work_package_id,
+            methodology="strict_pareto" if reference_view is not None else "cross_run_compatibility",
+            explanation=(
+                "Comparable contenders use the same representative workload, corpus, project requirements, "
+                "execution target, and calculator. Ineligible and incomparable runs remain visible."
+                if reference_view is not None
+                else "Compatibility projection across historical single-point runs. "
+                "Rows are grouped by inference binding and are not treated as one decision-grade sweep."
+            ),
+            requirements=reference_view.requirements if reference_view is not None else (),
+            execution_target_id=reference_view.execution_target_id if reference_view is not None else None,
+            workload_id=reference_view.workload_id if reference_view is not None else None,
+            corpus_digest=reference_view.population.corpus_digest if reference_view is not None else None,
+            requirements_digest=(
+                reference_view.eligibility.requirements_digest if reference_view is not None else None
+            ),
+            calculator_version=(reference_view.eligibility.calculator_version if reference_view is not None else None),
+            contenders=tuple(contenders),
+            pareto=pareto,
+            rows=tuple(rows),
+        )
+
     async def summarize_run(self, run: str | RunLocator, request: SemanticSummaryRequest) -> SemanticSummaryResult:
         response = await self.get_run_view_response(
             run,
@@ -889,12 +1290,16 @@ class ObservatoryService:
             alerts.append(
                 RunAlert(id=f"run-{status}", severity="warning", message=f"The run finished with status {status}.")
             )
-        if definition.job_kind == "train.grpo" and trace_count == 0:
+        if definition.job_kind in {"train.grpo", "train.sampo", "train.distill"} and trace_count == 0:
+            technique = definition.job_kind.removeprefix("train.")
             alerts.append(
                 RunAlert(
-                    id="missing-grpo-traces",
+                    id=f"missing-{technique}-traces",
                     severity="error",
-                    message="GRPO rollout traces are missing, so reward aggregates cannot be audited.",
+                    message=(
+                        f"{definition.display_name} rollout traces are missing, "
+                        "so aggregate training evidence cannot be audited."
+                    ),
                     field="traces",
                 )
             )

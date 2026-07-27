@@ -22,6 +22,7 @@ from .models import (
     SemanticSummary,
     SemanticSummaryRequest,
     SemanticSummaryResult,
+    ServingBenchmarkRunView,
 )
 
 PROMPT_VERSION = "observatory-semantic-v1"
@@ -162,6 +163,46 @@ def build_evidence_bundle(
                             value={"value": point.value, "step": point.step},
                         )
                     )
+    elif isinstance(view, ServingBenchmarkRunView):
+        job_kind = view.run.job_kind
+        completeness = (
+            "complete" if view.eligibility.state not in {"insufficient_evidence", "unsaturated"} else "partial"
+        )
+        items.append(
+            SemanticEvidenceItem(
+                evidence_id="serving:eligibility",
+                kind="serving",
+                label="Serving capacity decision",
+                value=view.eligibility.model_dump(mode="json"),
+            )
+        )
+        for requirement in view.requirements:
+            items.append(
+                SemanticEvidenceItem(
+                    evidence_id=f"serving:requirement:{requirement.key}",
+                    kind="constraint",
+                    label=requirement.label,
+                    value=requirement.model_dump(mode="json"),
+                )
+            )
+        if view.selected_point is not None:
+            items.append(
+                SemanticEvidenceItem(
+                    evidence_id=f"serving:point:{view.selected_point.sweep_index}",
+                    kind="operating_point",
+                    label="Selected serving operating point",
+                    value=view.selected_point.model_dump(mode="json"),
+                )
+            )
+        for alert in view.alerts:
+            items.append(
+                SemanticEvidenceItem(
+                    evidence_id=f"alert:{alert.id}",
+                    kind="alert",
+                    label=alert.message,
+                    value={"severity": alert.severity, "field": alert.field},
+                )
+            )
     else:
         job_kind = view.run.job_kind
         for value in view.summary:

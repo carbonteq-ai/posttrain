@@ -10,8 +10,10 @@ import pytest
 from posttrain.common import (
     ContractError,
     EventObservation,
+    LocalArtifactRef,
     MetricBatchObservation,
     MetricObservation,
+    ProducedArtifact,
     TraceObservation,
 )
 from posttrain.tracking import RunOutcome, RunQuery, RunSpec, TraceQuery
@@ -27,13 +29,20 @@ class FakeArtifact:
         self.metadata = metadata or {}
         self.files: list[tuple[str, str | None]] = []
         self.contents: str | None = None
+        self.version = "v0"
+        self.digest = "a" * 64
+        self.size = 0
 
     def add_file(self, path: str, name: str | None = None) -> None:
         self.files.append((path, name))
         self.contents = Path(path).read_text()
+        self.size += Path(path).stat().st_size
 
     def add_dir(self, path: str) -> None:
         self.files.append((path, None))
+
+    def wait(self) -> FakeArtifact:
+        return self
 
 
 class FakeWriterRun:
@@ -51,8 +60,9 @@ class FakeWriterRun:
     def log(self, values: dict[str, Any]) -> None:
         self.logs.append(values)
 
-    def log_artifact(self, artifact: FakeArtifact) -> None:
+    def log_artifact(self, artifact: FakeArtifact) -> FakeArtifact:
         self.artifacts.append(artifact)
+        return artifact
 
     def finish(self, *, exit_code: int) -> None:
         self.finished.append(exit_code)
@@ -110,6 +120,41 @@ def test_wandb_writer_maps_logical_steps_traces_and_finish(monkeypatch: pytest.M
 
     with pytest.raises(ContractError, match="different outcome"):
         tracked.finish(RunOutcome("cancelled", STARTED, STARTED + timedelta(seconds=4)))
+
+
+def test_wandb_writer_resolves_published_artifact_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run = FakeWriterRun()
+    monkeypatch.setattr(
+        "posttrain_tracking_wandb.adapter.wandb.init",
+        lambda **kwargs: run,
+    )
+    monkeypatch.setattr(
+        "posttrain_tracking_wandb.adapter.wandb.Artifact",
+        FakeArtifact,
+    )
+    output = tmp_path / "model.bin"
+    output.write_text("weights")
+    tracked = WandbBackend(
+        WandbSettings(entity="team", project="tests")
+    ).start_run(_spec())
+
+    tracked.artifact(
+        ProducedArtifact(
+            "model/final",
+            "model",
+            LocalArtifactRef(output.resolve(), "b" * 64),
+        )
+    )
+    published = tracked.published_artifacts()
+
+    assert published[0].logical_name == "model/final"
+    assert published[0].reference.provider == "wandb"
+    assert published[0].reference.namespace == "team/tests"
+    assert published[0].reference.version == "v0"
+    assert published[0].reference.digest == "a" * 64
 
 
 class FakePublicArtifact:

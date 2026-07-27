@@ -10,8 +10,12 @@ import type {
 
 const phaseColors: Record<string, string> = {
   model_loading: '#6557d2',
+  model_offloading: '#7c6371',
   data_preparation: '#2f7d73',
   runtime_initialization: '#3b82a0',
+  benchmark_warmup: '#c47a28',
+  benchmark_measurement: '#28745c',
+  runtime_cleanup: '#8b6977',
   rollout: '#d66a45',
   reward_scoring: '#b45f8c',
   teacher_scoring: '#9b6a34',
@@ -76,9 +80,11 @@ function targetSummary(system: SystemMetrics): string {
 
 function segmentTitle(segment: RuntimePhaseSegment): string {
   const vram = metric(segment.metrics, 'system/gpu_vram_used_bytes');
+  const utilization = metric(segment.metrics, 'system/gpu_utilization');
   return [
     segment.label,
     formatDuration(segment.duration_s),
+    utilization ? `GPU active ${utilization.mean.toFixed(1)}%` : 'GPU utilization not sampled',
     vram ? `average ${formatBytes(vram.mean)}` : 'VRAM not sampled',
     vram ? `peak ${formatBytes(vram.peak)}` : null,
     `${segment.sample_count} host sample${segment.sample_count === 1 ? '' : 's'}`,
@@ -165,19 +171,87 @@ function CapacityView({ system }: { system: SystemMetrics }) {
 function phaseLanes(intervals: RuntimePhaseInterval[]): Array<{
   phase: string;
   label: string;
+  group: string;
+  groupLabel: string;
   intervals: RuntimePhaseInterval[];
 }> {
-  const lanes = new Map<string, { phase: string; label: string; intervals: RuntimePhaseInterval[] }>();
+  const lanes = new Map<string, {
+    phase: string;
+    label: string;
+    group: string;
+    groupLabel: string;
+    intervals: RuntimePhaseInterval[];
+  }>();
   intervals.forEach((interval) => {
     const lane = lanes.get(interval.phase) ?? {
       phase: interval.phase,
       label: interval.label,
+      group: interval.group ?? 'other',
+      groupLabel: interval.group_label ?? 'Other',
       intervals: [],
     };
     lane.intervals.push(interval);
     lanes.set(interval.phase, lane);
   });
   return [...lanes.values()];
+}
+
+function phaseGroups(phases: RuntimePhaseSummary[]): Array<{
+  group: string;
+  label: string;
+  phases: RuntimePhaseSummary[];
+}> {
+  const groups = new Map<string, { group: string; label: string; phases: RuntimePhaseSummary[] }>();
+  phases.forEach((phase) => {
+    const groupKey = phase.group ?? 'other';
+    const item = groups.get(groupKey) ?? {
+      group: groupKey,
+      label: phase.group_label ?? 'Other',
+      phases: [],
+    };
+    item.phases.push(phase);
+    groups.set(groupKey, item);
+  });
+  return [...groups.values()];
+}
+
+function InferenceDetails({ system }: { system: SystemMetrics }) {
+  const timing = system.inference_timing;
+  const runtime = system.backend_runtime;
+  if (!timing && !runtime) return null;
+  const peak = runtime?.kv_cache_peak_usage_ratio ?? null;
+  return <section aria-label="Inference details" className="border-b border-divider bg-[#fbfaf8] px-4 py-4">
+    <div className="flex flex-wrap items-baseline justify-between gap-2">
+      <div>
+        <h3 className="text-[12px] font-medium text-ink">Inference details</h3>
+        <p className="mt-1 text-[10px] text-muted">Per-request timings overlap at concurrency and do not sum to measured run wall time.</p>
+      </div>
+      {timing && <span className="text-[10px] text-muted">{timing.requests} measured requests</span>}
+    </div>
+    <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(220px,1fr)]">
+      {timing && <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {timing.stages.map((stage) => <article key={stage.stage} className="rounded-[4px] border border-divider bg-surface p-3">
+          <div className="flex items-baseline justify-between gap-2">
+            <h4 className="text-[11px] font-medium">{stage.label}</h4>
+            <span className="text-[9px] text-muted">{stage.samples} samples</span>
+          </div>
+          <strong className="mt-2 block font-serif text-xl font-normal">{stage.p50_ms.toFixed(stage.p50_ms < 10 ? 1 : 0)} ms</strong>
+          <p className="mt-1 text-[9px] text-muted">p50 · p95 {stage.p95_ms.toFixed(stage.p95_ms < 10 ? 1 : 0)} ms · mean {stage.mean_ms.toFixed(stage.mean_ms < 10 ? 1 : 0)} ms</p>
+        </article>)}
+      </div>}
+      {runtime && <article className="rounded-[4px] border border-divider bg-surface p-3">
+        <div className="flex items-baseline justify-between gap-2">
+          <h4 className="text-[11px] font-medium">KV-cache pressure</h4>
+          <span className="text-[9px] text-muted">{runtime.kv_cache_samples} samples</span>
+        </div>
+        <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#e8e3dd]">
+          <div className="h-full rounded-full bg-violet-600" style={{ width: `${Math.min((peak ?? 0) * 100, 100)}%` }} />
+        </div>
+        <p className="mt-2 text-[10px] text-secondary">{peak == null ? 'Peak not recorded' : `${(peak * 100).toFixed(1)}% peak scheduler usage`}</p>
+        <p className="mt-1 text-[9px] text-muted">{runtime.kv_cache_capacity_tokens == null ? 'Capacity not reported by backend' : `${Math.round(runtime.kv_cache_capacity_tokens).toLocaleString()} token group-aware capacity`}</p>
+      </article>}
+    </div>
+  </section>;
 }
 
 function TimelineView({ system }: { system: SystemMetrics }) {
@@ -189,6 +263,12 @@ function TimelineView({ system }: { system: SystemMetrics }) {
   const memory = system.groups
     .flatMap((group) => group.series)
     .find((series) => series.name === 'system/gpu_vram_used_bytes');
+  const utilization = system.groups
+    .flatMap((group) => group.series)
+    .find((series) => series.name === 'system/gpu_utilization');
+  const kvCache = system.groups
+    .flatMap((group) => group.series)
+    .find((series) => series.name === 'serve/backend/kv_cache_usage_ratio');
   const observedPeak = system.vram_observed_peak_bytes;
   const memoryReference = Math.max(system.vram_capacity_bytes ?? 0, observedPeak ?? 0, 1);
   const runStartedAt = Date.parse(system.window_started_at);
@@ -198,44 +278,114 @@ function TimelineView({ system }: { system: SystemMetrics }) {
     if (!Number.isFinite(offset) || offset < 0 || offset > totalSeconds) return [];
     return [{ offset, value: point.value }];
   }) ?? [];
+  const utilizationPoints = utilization?.points.flatMap((point) => {
+    if (!point.observed_at) return [];
+    const offset = (Date.parse(point.observed_at) - runStartedAt) / 1000;
+    if (!Number.isFinite(offset) || offset < 0 || offset > totalSeconds) return [];
+    return [{ offset, value: Math.max(0, Math.min(point.value, 100)) }];
+  }) ?? [];
+  const kvCachePoints = kvCache?.points.flatMap((point) => {
+    if (!point.observed_at) return [];
+    const offset = (Date.parse(point.observed_at) - runStartedAt) / 1000;
+    if (!Number.isFinite(offset) || offset < 0 || offset > totalSeconds) return [];
+    return [{ offset, value: Math.max(0, Math.min(point.value, 1)) }];
+  }) ?? [];
   const lanes = phaseLanes(system.phase_intervals);
   const chartX = 190;
   const chartWidth = 770;
-  const memoryTop = 30;
-  const memoryHeight = 72;
-  const laneTop = 130;
+  const utilizationTop = 30;
+  const utilizationHeight = 58;
+  const memoryTop = 115;
+  const memoryHeight = 58;
+  const kvCacheTop = 200;
+  const kvCacheHeight = 58;
+  const laneTop = kvCachePoints.length ? 285 : 205;
   const laneHeight = 30;
-  const height = laneTop + lanes.length * laneHeight + 40;
-  const polyline = memoryPoints.map((point) => {
+  const laneGroups = [...new Map(lanes.map((lane) => [lane.group, lane.groupLabel])).entries()];
+  const laneRows: Array<
+    | { kind: 'group'; key: string; label: string; y: number }
+    | { kind: 'lane'; key: string; lane: (typeof lanes)[number]; y: number }
+  > = [];
+  let nextLaneY = laneTop;
+  laneGroups.forEach(([group, groupLabel]) => {
+    laneRows.push({ kind: 'group', key: group, label: groupLabel, y: nextLaneY });
+    nextLaneY += 22;
+    lanes.filter((lane) => lane.group === group).forEach((lane) => {
+      laneRows.push({ kind: 'lane', key: lane.phase, lane, y: nextLaneY });
+      nextLaneY += laneHeight;
+    });
+  });
+  const height = nextLaneY + 40;
+  const memoryPolyline = memoryPoints.map((point) => {
     const x = chartX + (point.offset / totalSeconds) * chartWidth;
     const y = memoryTop + memoryHeight - Math.min(point.value / memoryReference, 1) * memoryHeight;
+    return `${x},${y}`;
+  }).join(' ');
+  const utilizationPolyline = utilizationPoints.map((point) => {
+    const x = chartX + (point.offset / totalSeconds) * chartWidth;
+    const y = utilizationTop + utilizationHeight - (point.value / 100) * utilizationHeight;
+    return `${x},${y}`;
+  }).join(' ');
+  const kvCachePolyline = kvCachePoints.map((point) => {
+    const x = chartX + (point.offset / totalSeconds) * chartWidth;
+    const y = kvCacheTop + kvCacheHeight - point.value * kvCacheHeight;
     return `${x},${y}`;
   }).join(' ');
 
   return <div className="border-b border-divider px-4 py-3">
     <svg
       role="img"
-      aria-label="Runtime phase overlap and GPU memory timeline"
+      aria-label="Runtime phase and GPU utilization timeline"
       className="block h-auto w-full"
       viewBox={`0 0 1000 ${height}`}
     >
-      <desc>Allocated GPU memory is plotted over elapsed time. Phase intervals occupy aligned lanes; overlapping horizontal spans indicate nested or concurrent work.</desc>
+      <desc>GPU utilization, allocated memory, and backend KV-cache pressure are plotted over elapsed time when available. Semantic phase lanes are grouped so one-time startup and finalization costs remain distinct from inference or training execution.</desc>
+      <rect x={chartX} y={utilizationTop} width={chartWidth} height={utilizationHeight} fill="#edf5f1" rx="3" />
+      {[0.25, 0.5, 0.75].map((ratio) => <line key={`utilization-${ratio}`} x1={chartX} x2={chartX + chartWidth} y1={utilizationTop + utilizationHeight * (1 - ratio)} y2={utilizationTop + utilizationHeight * (1 - ratio)} stroke="#d7e6df" strokeDasharray="2 4" />)}
+      <text x="0" y={utilizationTop + 14} fill="#332f35" fontSize="11" fontWeight="500">GPU utilization</text>
+      <text x="0" y={utilizationTop + 30} fill="#827b85" fontSize="9">{utilizationPoints.length} timestamped samples</text>
+      {utilizationPolyline && <polyline points={utilizationPolyline} fill="none" stroke="#28745c" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />}
+      {utilizationPoints.map((point) => {
+        const x = chartX + (point.offset / totalSeconds) * chartWidth;
+        const y = utilizationTop + utilizationHeight - (point.value / 100) * utilizationHeight;
+        return <circle key={`utilization-${point.offset}:${point.value}`} cx={x} cy={y} r="2.5" fill="#fff" stroke="#28745c"><title>{formatDuration(point.offset)} · {point.value.toFixed(1)}% GPU utilization</title></circle>;
+      })}
+      <text x={chartX + chartWidth} y={utilizationTop - 8} fill="#827b85" fontSize="9" textAnchor="end">100% busy</text>
       <rect x={chartX} y={memoryTop} width={chartWidth} height={memoryHeight} fill="#f3f1ee" rx="3" />
-      {[0.25, 0.5, 0.75].map((ratio) => <line key={ratio} x1={chartX} x2={chartX + chartWidth} y1={memoryTop + memoryHeight * (1 - ratio)} y2={memoryTop + memoryHeight * (1 - ratio)} stroke="#ded9d3" strokeDasharray="2 4" />)}
+      {[0.25, 0.5, 0.75].map((ratio) => <line key={`memory-${ratio}`} x1={chartX} x2={chartX + chartWidth} y1={memoryTop + memoryHeight * (1 - ratio)} y2={memoryTop + memoryHeight * (1 - ratio)} stroke="#ded9d3" strokeDasharray="2 4" />)}
       <text x="0" y={memoryTop + 14} fill="#332f35" fontSize="11" fontWeight="500">Allocated VRAM</text>
       <text x="0" y={memoryTop + 30} fill="#827b85" fontSize="9">{memoryPoints.length} timestamped samples</text>
-      {polyline && <polyline points={polyline} fill="none" stroke="#6557d2" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />}
+      {memoryPolyline && <polyline points={memoryPolyline} fill="none" stroke="#6557d2" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />}
       {memoryPoints.map((point) => {
         const x = chartX + (point.offset / totalSeconds) * chartWidth;
         const y = memoryTop + memoryHeight - Math.min(point.value / memoryReference, 1) * memoryHeight;
         return <circle key={`${point.offset}:${point.value}`} cx={x} cy={y} r="2.5" fill="#fff" stroke="#6557d2"><title>{formatDuration(point.offset)} · {formatBytes(point.value)}</title></circle>;
       })}
       <text x={chartX + chartWidth} y={memoryTop - 8} fill="#827b85" fontSize="9" textAnchor="end">{system.vram_capacity_bytes ? `capacity ${formatBytes(system.vram_capacity_bytes)}` : `observed peak ${formatBytes(observedPeak)}`}</text>
-      {lanes.map((lane, index) => {
-        const y = laneTop + index * laneHeight;
+      {kvCachePoints.length > 0 && <>
+        <rect x={chartX} y={kvCacheTop} width={chartWidth} height={kvCacheHeight} fill="#f3effa" rx="3" />
+        {[0.25, 0.5, 0.75].map((ratio) => <line key={`kv-${ratio}`} x1={chartX} x2={chartX + chartWidth} y1={kvCacheTop + kvCacheHeight * (1 - ratio)} y2={kvCacheTop + kvCacheHeight * (1 - ratio)} stroke="#e0d8ef" strokeDasharray="2 4" />)}
+        <text x="0" y={kvCacheTop + 14} fill="#332f35" fontSize="11" fontWeight="500">KV-cache pressure</text>
+        <text x="0" y={kvCacheTop + 30} fill="#827b85" fontSize="9">{kvCachePoints.length} scheduler samples</text>
+        <polyline points={kvCachePolyline} fill="none" stroke="#7654b3" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+        {kvCachePoints.map((point) => {
+          const x = chartX + (point.offset / totalSeconds) * chartWidth;
+          const y = kvCacheTop + kvCacheHeight - point.value * kvCacheHeight;
+          return <circle key={`kv-${point.offset}:${point.value}`} cx={x} cy={y} r="2.5" fill="#fff" stroke="#7654b3"><title>{formatDuration(point.offset)} · {(point.value * 100).toFixed(1)}% KV-cache usage</title></circle>;
+        })}
+        <text x={chartX + chartWidth} y={kvCacheTop - 8} fill="#827b85" fontSize="9" textAnchor="end">100% scheduler capacity</text>
+      </>}
+      {laneRows.map((row) => {
+        if (row.kind === 'group') {
+          return <g key={`group-${row.key}`}>
+            <text x="0" y={row.y + 13} fill="#332f35" fontSize="10" fontWeight="600" letterSpacing="0.4">{row.label.toUpperCase()}</text>
+            <line x1={chartX} x2={chartX + chartWidth} y1={row.y + 9} y2={row.y + 9} stroke="#cbc4ce" strokeDasharray="3 4" />
+          </g>;
+        }
+        const { lane, y } = row;
         const color = phaseColor(lane.phase);
-        return <g key={lane.phase}>
-          <text x="0" y={y + 16} fill="#57515e" fontSize="10">{lane.label}</text>
+        return <g key={row.key}>
+          <text x="12" y={y + 16} fill="#57515e" fontSize="10">{lane.label}</text>
           <line x1={chartX} x2={chartX + chartWidth} y1={y + 11} y2={y + 11} stroke="#e7e2dd" />
           {lane.intervals.map((interval) => {
             const x = chartX + (interval.start_offset_s / totalSeconds) * chartWidth;
@@ -289,8 +439,14 @@ export function PhaseMemoryTimeline({ system }: { system: SystemMetrics }) {
       </div>
     </div>
     {view === 'capacity' ? <CapacityView system={system} /> : <TimelineView system={system} />}
-    <div className="grid gap-x-5 gap-y-4 px-4 py-4 sm:grid-cols-2 xl:grid-cols-4">
-      {system.phase_summary.map((phase) => <PhaseSummaryCard key={phase.phase} phase={phase} capacity={system.vram_capacity_bytes} />)}
+    <InferenceDetails system={system} />
+    <div className="space-y-5 px-4 py-4">
+      {phaseGroups(system.phase_summary).map((group) => <section key={group.group} aria-label={`${group.label} phases`}>
+        <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">{group.label}</h3>
+        <div className="grid gap-x-5 gap-y-4 sm:grid-cols-2 xl:grid-cols-4">
+          {group.phases.map((phase) => <PhaseSummaryCard key={phase.phase} phase={phase} capacity={system.vram_capacity_bytes} />)}
+        </div>
+      </section>)}
     </div>
     {(system.unclassified_sample_count > 0 || system.phase_issues.length > 0) && <p className="border-t border-divider px-4 py-2.5 text-[10px] text-amber-700">{system.unclassified_sample_count} unclassified sample{system.unclassified_sample_count === 1 ? '' : 's'}{system.phase_issues.length ? ` · ${system.phase_issues[0]}` : ''}</p>}
   </section>;

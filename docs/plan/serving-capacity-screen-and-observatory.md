@@ -23,16 +23,37 @@ The first demonstrable scenario uses a project requirement of at least 50 sustai
 - [x] (2026-07-24 15:15Z) Created branch `codex/serving-capacity-observatory` from `main` while preserving the unrelated dirty Observatory design file.
 - [x] (2026-07-24 15:15Z) Amended the frozen canonical baseline narrowly to formalize project serving requirements, representative and controlled saturation workloads, point-level capacity evidence, and Observatory-owned interpretation.
 - [x] (2026-07-24 15:20Z) Added a strict portable project brief, stable digest and run snapshot, schema-version-1 compatibility, schema-version-2 discovery, CLI/scaffold integration, root project requirements, and serving context preflight.
-- [ ] (2026-07-24 15:25Z) Replace the naive prompt population and refactor `serve.benchmark` into one bounded representative capacity sweep (completed: strict corpus contracts, deterministic 128-record GSM8K/HumanEval/first-party materialization, checked-in digest/manifest, native tool metadata, ordered unique concurrency and saturation fields; remaining: request/result contract, one-engine sweep, canonical metrics/traces, point failures, artifact).
-- [ ] Add the `serve.benchmark` telemetry definition, backend-runtime configuration projection, specialized run view, and deterministic eligibility calculator to Observatory.
-- [ ] Add the screen work-package serving-capacity/Pareto query and expose it through Python, HTTP, MCP, exports, and the frontend.
-- [ ] Update project scaffolding, the base catalog, the foundation screen example, developer documentation, generated schemas, and fixtures.
-- [ ] Run package tests, provider conformance tests, frontend tests/build, a real vLLM GPU integration gate, the full repository validation ladder, and `git diff --check`.
+- [x] (2026-07-25) Replaced the naive prompt population and refactored `serve.benchmark` into one bounded representative capacity sweep, including strict corpus contracts, deterministic 128-record GSM8K/HumanEval/first-party materialization, native rendering, ordered one-engine execution, complete timing traces, canonical direct counters, typed terminal point failures, and the schema-version-2 `serving-result` artifact.
+- [x] (2026-07-25 00:49Z) Ran the real Qwen3.5-0.8B vLLM comparison and MTP capacity search on the local RTX 3070 Ti 8 GiB target using all 128 `general-serving-v1` records per point; retained the successful and failed attempts in Trackio and opened the winning C64 run in Observatory.
+- [x] (2026-07-25) Reduced the serving experiment set from 35 exploratory runs to 10 decision-quality runs: four C4 backend comparisons, the selected-binding C16–C64 curve, and one latency-boundary result. Training/evaluation evidence in the shared Trackio project was not modified.
+- [x] (2026-07-25) Added serving runtime phases for model loading, initialization, warmup, measured inference, cleanup, and artifact export; changed Trackio host sampling to 1 second for GPU and 5 seconds for CPU; extended Observatory's SVG timeline to align GPU utilization, VRAM, and stage durations.
+- [x] (2026-07-25) Re-ran the representative MTP C64 point with fine-grained telemetry and verified 44 host samples, including five samples during measured inference.
+- [x] (2026-07-25) Grouped the shared runtime timeline into startup, inference/training execution, and finalization; added 128 timing-only request traces with queue/prefill/decode/engine timing plus group-aware vLLM KV-cache capacity, peak, and nine timestamped scheduler-pressure samples; verified the result on real C64 hardware and in the live Observatory UI.
+- [x] (2026-07-25) Added the `serve.benchmark` telemetry definition, `serving-capacity-v1` projector, strict serving run models, constraint-relative single-point/legacy interpretation, curated plus additional backend-runtime settings, benchmark-population projection, generated transport schemas, and a dedicated frontend Overview. The live C64 run now reports `job.serving`, five passing constraints, and `unsaturated` instead of the generic fallback.
+- [x] (2026-07-25) Added a transitional server-owned work-package capacity projection and Overview table for the ten retained single-point runs. It groups rows by recorded inference binding and exposes concurrency, aggregate TPS, mean response length, p95 TTFT/TPOT, request coverage, duration, failures, peak VRAM, and evidence state without pretending those historical runs are one canonical sweep.
+- [x] (2026-07-25) Extended `serving-capacity-v1` from compatibility single-point evidence to canonical multi-point sweeps, typed resource/unsupported/failure boundaries, terminal saturation, complete decision-state fixtures, and accessible throughput/latency operating curves.
+- [x] (2026-07-25) Added the strict screen work-package capacity/Pareto query through Python, HTTP, MCP, exports, and the frontend; all contenders remain visible and only equivalent eligible runs enter the frontier.
+- [x] (2026-07-25) Updated the base workload catalog, foundation screen, Qwen 0.8B runner, developer documentation, generated OpenAPI/MCP/TypeScript schemas, deterministic fixtures, and an opt-in three-point real-vLLM integration gate.
+- [x] (2026-07-25) Ran focused serve/Trackio/Observatory tests, frontend tests and production build, the representative vLLM GPU integration, `uv sync --all-packages --locked --python 3.12`, Ruff, Pyright, all eight import contracts, the full 337-pass/15-skip pytest suite, and `git diff --check`.
+- [x] (2026-07-25) Re-ran the complete validation ladder after the serving Overview slice: Ruff and Pyright passed, all eight import contracts remained intact, pytest reported 339 passed and 15 skipped, Vitest reported 14 passed, the production frontend build passed, generated schemas were refreshed, and the rebuilt live Observatory returned `job.serving` for `serve.benchmark-00483a03`.
+- [x] (2026-07-25) Verified the complete researcher-facing Overview in the in-app Observatory: response shape, sample size, duration, failures, memory, constraints, runtime settings, benchmark population, and all ten compatibility rows render from server-owned values. Reusing Trackio provider run handles reduced the live capacity-table request from about 16 seconds to about 3 seconds without changing normalized evidence.
+- [x] (2026-07-25) Replaced the selected binding's cross-run reconstruction with one canonical `serve.benchmark` job that loads vLLM once and measures C4, C8, C12, C16, C24, C32, C48, and C64 in order. The live `serve.benchmark-0a15b893` Overview renders all eight points side by side directly from that run and labels the still-rising curve `unsaturated`.
+- [x] (2026-07-25) Re-ran the complete validation ladder after the multi-point sweep slice: Ruff and Pyright passed, all eight import contracts remained intact, pytest reported 342 passed and 15 skipped, Vitest reported 14 passed, the production frontend build passed, generated schemas were refreshed, and `git diff --check` passed.
+- [x] (2026-07-25) Re-audited this plan against all six canonical post-training documents and the current branch. The ownership model remains correct; the remaining gaps are typed point failures and canonical versioned serving-result evidence, complete decision-state transport fixtures, the strict contender/Pareto work-package view, operating-curve and Pareto visualizations, and final developer/release documentation.
+- [x] (2026-07-25) Closed the re-audit gaps: canonical writers now persist only direct point evidence; resource boundaries remain typed and visible; the run and work-package views share one calculator; strict Pareto comparison is available through every transport; and frontend component tests cover the concurrency curves, all decision states, and incomparable evidence.
+- [x] (2026-07-25) Completed the release validation: locked workspace sync, Ruff lint, Pyright, all eight import contracts, 348 passing Python tests with 16 expected skips, 15 passing Vitest tests, the production frontend build, three passing Playwright flows at desktop and narrow widths, catalog/work-package validation, corpus reproducibility, generated schemas, and `git diff --check`.
+- [x] (2026-07-25) Rebuilt the local Observatory stack and verified the live Trackio-backed run `serve.benchmark-0a15b893`: the benchmark-specific Overview renders eight concurrency points and both operating curves, while the parent work package renders the strict comparison basis, one comparable unsaturated run, ten visible incomparable historical runs, and an empty frontier rather than falsely promoting an unsaturated contender.
 
 ## Surprises & Discoveries
 
 - Observation: The public `Workload` already permits several concurrency values, but `ServeBenchmarkRequest` rejects every workload containing more than one, so the current API cannot represent a hardware-saturation run.
   Evidence: `packages/common/src/posttrain/common/selections.py` defines `Workload.concurrency: tuple[int, ...]`, while `packages/serve/src/posttrain/serve/requests.py` raises unless its length is exactly one.
+
+- Observation: The public workload contract was already shaped for an ordered concurrency sweep; the vLLM adapter collapsed it into a single cell and the request layer rejected the remaining values.
+  Evidence: The corrected adapter constructs one cell per ordered workload concurrency, initializes vLLM once, and the live run records eight metric/trace point indices under one run id.
+
+- Observation: Reaching the serving binding's `max_num_seqs` is not proof that the hardware or product envelope saturated. The selected C64 point still passed every constraint while aggregate throughput increased from C48.
+  Evidence: `serve.benchmark-0a15b893` measured 3,413.4 aggregate output TPS at C48 and 3,745.8 at C64, with 400.6 ms p95 TTFT, 14.3 ms p95 TPOT, no failures, and 90.9% peak KV-cache scheduler usage at C64.
 
 - Observation: The packaged representative corpus contains only four prompts, and the offline vLLM capacity path does not use it. Instead, `_controlled_prompt_ids` repeats and rotates a few synthetic sentences until it reaches the target token length.
   Evidence: `packages/serve/src/posttrain/serve/benchmarks/resources/corpora/representative-v1.jsonl` has four records; `packages/serve/src/posttrain/serve/backends/vllm/offline.py` builds every request through `_controlled_prompt_ids` and never calls `representative_prompt_records`.
@@ -51,6 +72,9 @@ The first demonstrable scenario uses a project requirement of at least 50 sustai
 
 - Observation: Observatory has no `serve.benchmark` telemetry definition and its run Overview is training-specific. The Run config page does preserve unknown resolved inputs, which provides a safe fallback during migration.
   Evidence: `DEFAULT_TELEMETRY_DEFINITIONS` in `apps/observatory/src/posttrain_observatory/telemetry.py` contains training and evaluation definitions only; `apps/observatory/frontend/src/App.tsx` branches explicitly for SFT, DPO, and GRPO and has no serving overview.
+
+- Observation: Observatory's original redaction expression treated every key containing `token` as a credential. It therefore hid product requirements and ordinary runtime fields such as `required_context_tokens`, `max_tokens`, and `max_num_batched_tokens`.
+  Evidence: the live serving run returned `[REDACTED]` for those numeric fields even though they are necessary to explain the benchmark. The redaction policy now matches credential-shaped token keys such as access/auth/bearer/refresh/session tokens while preserving token-count fields; `api_key`, secrets, and passwords remain redacted.
 
 - Observation: Backend-specific inference settings are already retained in the resolved `InferenceBinding.engine` snapshot. Observatory can curate and label them without importing `posttrain.serve` or duplicating backend validation.
   Evidence: `packages/work/src/posttrain/work/runner.py` snapshots resolved seats, and `apps/observatory` is intentionally forbidden from importing execution backends.
@@ -79,6 +103,97 @@ The first demonstrable scenario uses a project requirement of at least 50 sustai
   Evidence: The rebuild check succeeds from the immutable revisions; field
   inspection finds no GSM8K `answer` or HumanEval `canonical_solution`,
   `test`, or `entry_point` fields.
+
+- Observation: Qwen3.5's tokenizer returns a `BatchEncoding` containing
+  `input_ids` from `apply_chat_template`, while some processors return one
+  nested token sequence. Treating either value as a flat sequence passes
+  dictionary keys or a nested list to vLLM.
+  Evidence: The first representative GPU run failed before warmup with string
+  token ids; direct inspection of the pinned tokenizer returned
+  `BatchEncoding({"input_ids": ..., "attention_mask": ...})`. The shared
+  renderer now normalizes and validates both structured forms, and the focused
+  serving suite covers the regression.
+
+- Observation: `gpu_memory_utilization` is an engine allocation budget, not
+  model-weight memory. At 0.85, vLLM requested 6.49 GiB of the GPU's 7.63 GiB
+  usable capacity while only 6.22 GiB was free; the model weights themselves
+  occupied about 1.53 GiB.
+  Evidence: vLLM rejected the 0.85 binding before model load. The 0.80 binding
+  loaded the same pinned model and reported the distinct weight and KV-cache
+  allocations.
+
+- Observation: MTP high-concurrency warmup needs workspace outside the KV-cache
+  budget. A 0.80 binding with `max_num_seqs` 32 or 64 exhausts memory in the
+  rejection sampler, while 0.75 with `max_num_seqs` 64 loads and performs
+  substantially better than a 0.70/128-sequence binding at the same C64 point.
+  Evidence: the 0.75/64 binding measured 3,365.67 output TPS, 449.77 ms p95
+  TTFT, and 15.78 ms p95 TPOT at C64. The 0.70/128 binding measured 2,378.40
+  output TPS and 1,996.02 ms p95 TTFT at C64, violating the project latency
+  requirement.
+
+- Observation: Observatory receives the Trackio runs and exposes all raw serving
+  metrics, but still has no registered `serve.benchmark` summary or capacity
+  calculator.
+  Evidence: before experiment cleanup, the local UI listed 35 runs under
+  `screen/qwen3.5-0.8b-serving-capacity`, shows the representative artifact and
+  metrics for `serve.benchmark-7c3592ac`, and explicitly renders “No job view is
+  registered for serve.benchmark.”
+
+- Observation: Trackio's upstream 10-second automatic GPU sampling default is
+  too coarse for short serving stages. It can record a correct 4.8-second
+  measured-inference phase with no GPU sample inside that interval.
+  Evidence: the first phase-instrumented C64 run recorded only seven host
+  samples and none during measured inference. After the framework Trackio
+  adapter selected a 1-second GPU interval, the replacement run recorded 44
+  samples overall and five during measured inference.
+
+- Observation: The telemetry-complete representative C64 run spent 29.45
+  seconds loading the engine, 2.84 seconds warming up, 4.80 seconds measuring
+  inference, and 1.67 seconds cleaning up. Measured inference averaged 82.2%
+  GPU utilization and reached 100%; warmup averaged 81.7% and reached 100%.
+  Evidence: Observatory's provider-neutral runtime-phase projection over
+  `serve.benchmark-622e3b2b` reports the phase durations and per-phase
+  aggregates from 44 timestamped Trackio host samples.
+
+- Observation: Queue, prefill, and decode are request-grain intervals and
+  overlap across concurrent requests, so rendering them as child run phases
+  would imply a false additive wall-clock decomposition.
+  Evidence: vLLM 0.25.1 exposes `queued_ts`, `scheduled_ts`,
+  `first_token_ts`, and `last_token_ts` on each `RequestOutput.metrics`, while
+  scheduler KV-cache usage is emitted independently for each engine step.
+
+- Observation: The Trackio adapter previously required every non-Verifiers
+  trace to contain conversational messages, even though the framework trace
+  contract also permits timing-only inference evidence.
+  Evidence: the first live request-trace run completed inference and then
+  failed at persistence with `generic Trackio traces require a JSON messages
+  list`; allowing an absent message list to normalize to an empty display
+  transcript preserved the complete payload and passed a provider round-trip
+  regression test.
+
+- Observation: The first serving projector accidentally included the minimum
+  throughput threshold in point validity. That made a below-capacity point
+  invalid before eligibility could distinguish product capacity from operating
+  safety.
+  Evidence: point validity now uses context, latency, reliability, and complete
+  evidence only; `output_tps` remains a recorded requirement violation and is
+  applied by the eligibility calculator after the best valid point is chosen.
+
+- Observation: A canonical resource-exhausted point has no request traces, so
+  inferring a terminal boundary only from request denominators loses its
+  meaning.
+  Evidence: new writers emit typed
+  `serve/run/point_resource_exhausted`, `point_unsupported`, or `point_failed`
+  evidence and schema-version-2 artifacts retain the safe failure class and
+  message. Observatory renders the boundary as a partial terminal point and can
+  select the valid lower-concurrency point.
+
+- Observation: A strict cross-run frontier needs a comparison basis, not just a
+  shared work-package id.
+  Evidence: the work-package service compares the requirements digest,
+  execution target, workload, corpus digest, representative cohort, and
+  calculator version against the newest decision-grade multi-point run.
+  Mismatches are retained as incomparable instead of being filtered out.
 
 ## Decision Log
 
@@ -118,9 +233,30 @@ The first demonstrable scenario uses a project requirement of at least 50 sustai
   Rationale: Representative prompts exercise the tokenizer, native chat template, role support, and realistic prefill distribution. Exact-token prompts isolate backend performance. Combining their measurements would create a number with no coherent population.
   Date/Author: 2026-07-24 / Codex
 
+- Decision: Label the current offline capacity method as fixed-length generation and report output-target attainment beside mean and p95 response length.
+  Rationale: The runner sets minimum and maximum generation length to the selected target and ignores EOS. Researchers must not read the resulting response-length distribution as natural model stopping behavior; it describes controlled decode work for a systems comparison.
+  Date/Author: 2026-07-25 / Codex
+
+- Decision: Publish the tested MTP capacity binding with
+  `gpu_memory_utilization: 0.75` and `max_num_seqs: 64` for the local 8 GiB
+  target.
+  Rationale: The larger 0.80 reservation prevents high-concurrency MTP warmup,
+  while the 0.70/128-sequence alternative makes the same C64 workload both
+  slower and latency-ineligible. The selected binding is the highest measured
+  valid operating boundary on this hardware and representative population.
+  Date/Author: 2026-07-25 / Codex
+
 - Decision: One `serve.benchmark` run measures one model variant, inference binding, execution target, context allocation, and workload across the complete configured concurrency sweep.
   Rationale: The user needs one capacity curve and one operating-point explanation per contender. Separate runs per concurrency make run-level evidence fragmentary and force the UI to reconstruct one logical benchmark from unrelated attempts.
   Date/Author: 2026-07-24 / Codex
+
+- Decision: Until the canonical one-engine sweep replaces retained single-cell runs, Observatory may present a `cross_run_compatibility` table for those rows, but must group them by inference binding and explicitly state that it is not one decision-grade sweep.
+  Rationale: Researchers need access to existing concurrency evidence now, while target, binding, corpus, and requirement differences must remain visible instead of being silently merged into one curve.
+  Date/Author: 2026-07-25 / Codex
+
+- Decision: A canonical multi-point run renders its concurrency table directly from that run. The work-package `cross_run_compatibility` projection is used only for historical single-point evidence and is not fetched for a multi-point Overview.
+  Rationale: Side-by-side points must share one run identity, model load, resolved binding, corpus, target, and requirement snapshot. Reconstructing the table from separate runs would weaken comparability and repeat run-level decisions on point rows.
+  Date/Author: 2026-07-25 / Codex and user
 
 - Decision: The serving operation emits measurements and point outcomes but never applies project thresholds. Observatory computes the best valid operating point and eligibility from the snapshotted requirements.
   Rationale: `packages/serve` must not own project thresholds, and Observatory is the established read-only interpretation layer. This also allows requirements to change without rewriting raw evidence, while preserving the exact requirement snapshot used for each historical view.
@@ -146,6 +282,78 @@ The first demonstrable scenario uses a project requirement of at least 50 sustai
   Rationale: Dual writes violate the rule to record evidence once. Read-time normalization keeps existing runs useful during the migration window without making legacy names permanent.
   Date/Author: 2026-07-24 / Codex
 
+- Decision: Serving adapters emit provider-neutral runtime phase events while
+  Trackio remains the owner of timestamped host/GPU sampling. Observatory
+  aligns those two evidence streams at read time and renders both utilization
+  and memory in the shared SVG runtime timeline.
+  Rationale: Capability code should describe semantic stages without importing
+  a tracking backend. Reusing `RunContext.phase` and `system/*` avoids a second
+  serving-only telemetry schema and gives all job kinds one interpretation
+  path.
+  Date/Author: 2026-07-25 / Codex
+
+- Decision: The default Trackio adapter samples GPU telemetry every 1 second
+  and CPU telemetry every 5 seconds, with both intervals validated and
+  configurable through `TrackioSettings`.
+  Rationale: A 10-second GPU interval misses ordinary 3–5-second serving
+  measurement windows. One-second NVML sampling is sufficiently fine for stage
+  attribution without coupling vLLM to Trackio; CPU sampling can remain coarser
+  to limit long-run storage.
+  Date/Author: 2026-07-25 / Codex
+
+- Decision: Group semantic run phases as startup, inference or training
+  execution, evaluation, and finalization, but keep request queue, prefill, and
+  decode timings in a separate inference-detail projection.
+  Rationale: Model loading and cleanup are one-time run costs. Request stages
+  overlap under concurrency and must be compared as distributions rather than
+  summed as a second run timeline.
+  Date/Author: 2026-07-25 / Codex and user
+
+- Decision: Record KV-cache usage as backend scheduler evidence and distinguish
+  its group-aware token capacity and scheduler-reported usage ratio from
+  process-wide allocated VRAM.
+  Rationale: KV cache is one consumer inside the vLLM memory budget. Overall
+  GPU memory cannot be relabeled as cache memory, and
+  `num_gpu_blocks * block_size` is not correct for every hybrid-cache model.
+  Date/Author: 2026-07-25 / Codex and user
+
+- Decision: Capacity-screening inference traces may be timing-only. Tracking
+  adapters must preserve their complete payload and may project an empty
+  display transcript rather than inventing user or assistant messages.
+  Rationale: ordinary serving traces intentionally omit prompt and response
+  text under the benchmark retention policy. Requiring chat content would
+  either reject valid evidence or force fabricated transcript data.
+  Date/Author: 2026-07-25 / Codex
+
+- Decision: Keep only decision-quality serving runs in the active Trackio
+  project. Preserve the four representative backend comparisons, the chosen
+  binding's C16–C64 capacity curve, and the higher-capacity latency boundary;
+  remove failed/cancelled attempts, controlled synthetic diagnostics,
+  superseded capacity searches, and replaced instrumentation runs.
+  Rationale: Observatory should present the evidence used for product
+  decisions, while transient debugging attempts make comparisons harder to
+  scan. Cleanup is restricted to `serve.benchmark`; unrelated training and
+  evaluation evidence remains intact.
+  Date/Author: 2026-07-25 / Codex and user
+
+- Decision: Persist only irreducible serving counters and complete request
+  traces from new runs. Direct Python results may expose convenience rates and
+  percentiles, but Trackio and the serving artifact do not make them a second
+  source of truth.
+  Rationale: aggregate TPS, failure rate, and latency percentiles are
+  deterministic projections of token counts, measurement duration,
+  denominators, and the complete measured request population.
+  Date/Author: 2026-07-25 / Codex
+
+- Decision: Define strict Pareto dominance as higher aggregate output TPS,
+  lower p95 TTFT, and lower peak VRAM, with at least one strict improvement.
+  Only comparable eligible contenders participate; all other states remain in
+  the response and UI.
+  Rationale: the three dimensions expose useful serving trade-offs without
+  manufacturing a single winner or hiding constrained and incomparable
+  evidence.
+  Date/Author: 2026-07-25 / Codex
+
 ## Outcomes & Retrospective
 
 Milestones 1 and 2 are complete on `codex/serving-capacity-observatory`. The six
@@ -157,13 +365,76 @@ schema version 2, while schema-version-1 projects remain compatible. The
 standard runtime snapshots the brief and digest and rejects serving workloads
 or models below required context before opening a run.
 
-Milestone 3 is in progress. Its benchmark-population portion is complete: the
-runtime verifies a checked-in 128-record corpus and manifest, tool-use records
-carry native tool schemas, and the maintainer rebuild is deterministic. The
-benchmark still uses its legacy single-cell controlled-token adapter until the
-next slice replaces the request, result, trace, and sweep contracts together.
+Milestones 3 through 6 are complete. The benchmark supports two explicit and
+non-interchangeable cohorts. Representative runs verify the checked-in
+128-record corpus digest, deterministically schedule every record before
+cycling, render through the model-native chat template, force an equal
+128-output-token budget, avoid retaining generated text, and record corpus and
+natural input-length evidence. Controlled exact-token runs remain available as
+diagnostics. One operation now executes every ordered concurrency point under
+one engine, retains point-indexed metrics and complete request timing traces,
+and emits one schema-version-2 `serving-result` artifact. Higher-concurrency
+resource, unsupported, and failure boundaries are typed, stop unsafe continued
+execution, and preserve valid lower-concurrency evidence.
 
-At completion, update this section with the final project-brief schema, canonical metric/result versions, tested real-hardware profile, screenshots or recorded view evidence, compatibility behavior for pre-change runs, and any limitations left for additional inference backends.
+The first real hardware qualification used Qwen3.5-0.8B revision
+`2fc06364715b967f1860aea9cf38778875588b17`, vLLM 0.25.1, and the local RTX
+3070 Ti 8 GiB GPU. At C4, standard, MTP, TurboQuant, and MTP plus TurboQuant
+measured 274.60, 365.97, 280.27, and 333.06 aggregate output TPS respectively
+over all 128 representative records. The selected MTP 0.75/64 capacity binding
+rose from 1,326.40 TPS at C16 to 3,603.40 TPS at the telemetry-complete C64
+rerun, with 403.26 ms p95 TTFT and 14.80 ms p95 TPOT, while remaining below
+the 1,000 ms p95 TTFT and 30 ms p95 TPOT requirements. A 0.70/128-sequence binding
+was slower at the same C64 point and violated p95 TTFT at 1,996.02 ms, providing
+the next-configuration product boundary. Trackio now retains only the ten
+decision-quality serving runs. Observatory's dedicated serving Overview
+computes the current C64 run's five constraint checks from the snapshotted
+project brief and complete request traces. All five pass, but the run remains
+`unsaturated` because it retained one operating point rather than the terminal
+multi-point sweep required for a final eligibility claim.
+
+Serving runtime stages now use the shared provider-neutral phase contract.
+Trackio samples GPU metrics every second and CPU metrics every five seconds,
+and Observatory's System Metrics timeline aligns GPU utilization, VRAM,
+KV-cache pressure, and grouped phase spans. The replacement C64 proof
+`serve.benchmark-00483a03` recorded 44 host samples and 128 request traces:
+model loading took 29.89 seconds, warmup 3.12 seconds, measured inference 4.55
+seconds, and cleanup 1.73 seconds. Measured inference averaged 94.6% GPU
+utilization, with 7.66 GiB peak observed VRAM against the declared 8 GiB
+target. The backend reported 241,113 tokens of group-aware KV-cache capacity,
+91.1% peak scheduler usage, and nine timestamped usage samples. Request p50
+queue, prefill, decode, and engine end-to-end timings were 0.1, 291, 1,707,
+and 2,032 milliseconds respectively; Observatory labels these as overlapping
+request distributions rather than additive run phases.
+
+The canonical real-hardware proof is now `serve.benchmark-0a15b893`. It loaded
+Qwen3.5-0.8B and the selected MTP binding once, then measured C4, C8, C12, C16,
+C24, C32, C48, and C64 over the representative corpus. Every point passed the
+recorded product constraints; C64 was the best observed point at 3,745.8
+aggregate output TPS, 400.6 ms p95 TTFT, 14.3 ms p95 TPOT, zero failures, and
+7.60 GiB peak observed VRAM. Observatory correctly reports the run as
+`unsaturated`, because throughput was still rising at the binding's configured
+C64 ceiling. Historical single-point runs remain available through the
+explicitly labeled compatibility projection, while canonical multi-point runs
+render their own side-by-side table without a cross-run fetch.
+
+The researcher-facing product is complete for the first vLLM backend.
+`serving-capacity-v1` derives all constraints and rates from canonical counters
+and request traces. The run Overview explains requirements, population,
+response length, every concurrency point, operating curves, runtime settings,
+phase timing, GPU/VRAM/KV pressure, and terminal boundaries. The work-package
+view exposes the strict comparison basis, all contender states, and the
+throughput/TTFT/VRAM Pareto frontier through the same Python service used by
+HTTP, MCP, exports, and React. Legacy single-point runs remain inspectable via
+bounded read aliases and are never promoted into a strict frontier.
+
+The checked-in integration test is an opt-in, three-point Qwen3.5-0.8B real
+vLLM gate and supports standard, MTP, TurboQuant, and MTP plus TurboQuant
+variants. The broader real-hardware release evidence above was already run on
+the local RTX 3070 Ti and remains visible in Observatory. The current
+limitation is deliberate: only vLLM has a qualified execution adapter; future
+serving backends must emit the same provider-neutral evidence before joining
+the calculator.
 
 ## Context and Orientation
 
@@ -175,9 +446,19 @@ The new term “serving requirements” means project-owned product constraints 
 
 “Prompt corpus” means the immutable model-visible message population referenced by a workload. Each record has a stable id, messages, category tags, reasoning mode, source identity, source revision, source record key, and license identifier. A corpus manifest has its own schema version and content digest. The prompt corpus is not a ninth primitive: it is a versioned resource owned by the serving workload. It is also not an evaluation plan, because `serve.benchmark` does not inspect answers or assign rewards.
 
-`packages/common/src/posttrain/common/selections.py` and `catalog_schema.py` contain the backend-neutral `Workload`, `ExecutionTarget`, and `InferenceBinding` selections. `packages/serve/src/posttrain/serve/requests.py`, `results.py`, `api.py`, and `backends/vllm/offline.py` implement the current single-cell benchmark. `packages/serve/src/posttrain/serve/benchmarks/workloads.py` contains a code-defined concurrency matrix. `packages/jobs/src/posttrain/jobs/definitions.py` maps the standard `serve.benchmark` seats to the operation.
+`packages/common/src/posttrain/common/selections.py` and `catalog_schema.py`
+contain the backend-neutral `Workload`, `ExecutionTarget`, and
+`InferenceBinding` selections. `packages/serve/src/posttrain/serve/requests.py`,
+`results.py`, `api.py`, and `backends/vllm/offline.py` implement the one-engine,
+ordered concurrency sweep.
+`packages/serve/src/posttrain/serve/benchmarks/workloads.py` contains
+code-defined workload helpers. `packages/jobs/src/posttrain/jobs/definitions.py`
+maps the standard `serve.benchmark` seats to the operation.
 
-`packages/serve/src/posttrain/serve/prompts.py` already parses and renders packaged message records through model-native chat templates. `packages/serve/src/posttrain/serve/benchmarks/resources/corpora/representative-v1.jsonl` contains only four hand-authored records. The offline benchmark currently bypasses both and builds synthetic token-id prompts in `packages/serve/src/posttrain/serve/backends/vllm/offline.py`. The implementation must converge these paths without deleting the controlled diagnostic capability.
+`packages/serve/src/posttrain/serve/prompts.py` parses and renders the packaged
+`general-serving-v1` messages through model-native chat templates. The offline
+benchmark uses that corpus for representative work and retains synthetic
+token-id prompts only for the explicitly separate controlled diagnostic cohort.
 
 Portable project discovery lives in `packages/catalog/src/posttrain/catalog/project.py`. Work-package contracts and resolved run snapshots live in `packages/work/src/posttrain/work/contracts.py` and `runner.py`. The current `.posttrain/project.toml` has no project-brief path. The current `.posttrain/work_packages/foundation_screen.yaml` and `packages/catalog/src/posttrain/catalog/base/workloads.yaml` demonstrate a single-concurrency serving smoke benchmark.
 
@@ -299,7 +580,7 @@ The exact Python names may be adjusted during implementation only if the canonic
 
 Refactor `packages/serve/src/posttrain/serve/backends/vllm/offline.py` so the vLLM engine loads once with the required context allocation and the adapter measures every configured concurrency point. Warm up each point according to the workload. A resource-exhausted or unsupported higher-concurrency point is a measured boundary, not automatically an operation failure; stop safely if the engine cannot be trusted after the error. An infrastructure error before any usable point fails the run.
 
-For every measured request, emit an `InferenceTrace` containing concurrency, sweep index, warmup/measured phase, input tokens, output tokens, TTFT milliseconds, time-per-output-token milliseconds when defined, end-to-end milliseconds, truncation, and error class. Do not retain generated prompt or response text by default for capacity screening. If diagnostic samples are retained, honor the project trace retention/redaction policy.
+For every measured request, emit an `InferenceTrace` containing concurrency, sweep index, warmup/measured phase, input tokens, output tokens, queue milliseconds, prefill milliseconds, decode milliseconds, TTFT milliseconds, time-per-output-token milliseconds when defined, engine end-to-end milliseconds, truncation, and error class. Queue is `scheduled_ts - queued_ts`, prefill is `first_token_ts - scheduled_ts`, decode is `last_token_ts - first_token_ts`, and engine end-to-end is `last_token_ts - queued_ts` when the pinned backend exposes valid monotonic timestamps. These request intervals overlap across concurrency lanes and are distributions, not additive run phases. Do not retain generated prompt or response text by default for capacity screening. If diagnostic samples are retained, honor the project trace retention/redaction policy.
 
 Emit canonical irreducible point evidence as one metric batch per sweep point with attributes `sweep_index`, `concurrency`, `workload_id`, `inference_binding_id`, and `execution_target_id`. At minimum record:
 
@@ -311,7 +592,7 @@ Emit canonical irreducible point evidence as one metric batch per sweep point wi
     serve/run/measurement_duration_s
     serve/backend/peak_vram_bytes
 
-The adapter may emit backend scheduler, cache, speculative-decoding, and utilization counters when available. Do not persist output TPS, failure rate, or p95 latency as a second source of truth; Observatory calculates them from counts, duration, and the full measured trace population. The serving telemetry definition must declare full request-trace retention as required evidence for a decision-grade benchmark. If a provider cannot return the complete population, eligibility is `insufficient_evidence`.
+The adapter may emit backend scheduler, cache, speculative-decoding, and utilization counters when available. For vLLM, retain the group-aware `kv_cache_size_tokens`, the measured peak of `SchedulerStats.kv_cache_usage`, and a bounded timestamped usage-ratio series during measured inference. Do not derive KV-cache bytes from process VRAM. Do not persist output TPS, failure rate, or p95 latency as a second source of truth; Observatory calculates them from counts, duration, and the full measured trace population. The serving telemetry definition must declare full request-trace retention as required evidence for a decision-grade benchmark. If a provider cannot return the complete population, eligibility is `insufficient_evidence`.
 
 Write one versioned `serving-result` artifact containing the result, safe point failures, backend/version, calculator input counts, and the redacted resolved runtime configuration. Retain the existing artifact only through an explicit compatibility reader; new artifacts use one canonical kind and schema.
 
@@ -437,9 +718,9 @@ Run the real backend integration after documenting the immutable model revision 
 
     uv run --with 'datasets>=4.6.1,<4.7' python scripts/materialize_serving_corpus.py --check
 
-    POSTTRAIN_GPU_BENCHMARK_MODEL=<repo-id> \
-    POSTTRAIN_GPU_BENCHMARK_REVISION=<immutable-revision> \
-    uv run pytest packages/serve/tests/test_vllm_capacity_integration.py -m "gpu and network" -q -s
+    POSTTRAIN_RUN_SERVE_GPU_INTEGRATION=1 \
+    POSTTRAIN_SERVE_GPU_VARIANT=mtp \
+    uv run --no-sync pytest packages/serve/tests/test_vllm_capacity_integration.py -m "gpu and network" -q -s
 
 Before completion, run the repository validation ladder:
 
@@ -563,7 +844,18 @@ In `packages/catalog/src/posttrain/catalog/project.py`, extend `ProjectLayout` w
 
 In `packages/common/src/posttrain/common/selections.py`, retain `Workload` as the public selection and add only backend-neutral saturation methodology fields. Do not add project thresholds or a new selection family.
 
-In `packages/serve/src/posttrain/serve/prompts.py`, define the strict prompt-record and corpus-manifest contracts and keep native renderer resolution. In `scripts/materialize_serving_corpus.py`, implement deterministic corpus materialization and `--check`. In `packages/serve/src/posttrain/serve/results.py`, define `BenchmarkPointResult` and `ServeBenchmarkResult`. In `requests.py`, accept ordered multi-concurrency workloads and validate corpus identity. In `api.py`, emit canonical point evidence, corpus-aware request traces, lifecycle events, and the versioned artifact. In `backends/vllm/offline.py`, load one engine and execute the representative or controlled sweep without mixing them.
+In `packages/serve/src/posttrain/serve/prompts.py`, define the strict
+prompt-record and corpus-manifest contracts and keep native renderer resolution.
+In `scripts/materialize_serving_corpus.py`, implement deterministic corpus
+materialization and `--check`. In
+`packages/serve/src/posttrain/serve/results.py`, define `BenchmarkResult` for
+one measured point, `BenchmarkPointFailure` for a safe terminal boundary, and
+`BenchmarkSweepResult` for the ordered schema-version-2 result. In
+`requests.py`, accept ordered multi-concurrency workloads and validate corpus
+identity. In `api.py`, emit canonical point evidence, corpus-aware request
+traces, lifecycle events, and the versioned artifact. In
+`backends/vllm/offline.py`, load one engine and execute the representative or
+controlled sweep without mixing them.
 
 In `apps/observatory/src/posttrain_observatory/telemetry.py`, define `SERVE_BENCHMARK_TELEMETRY` and the data-only runtime configuration presentation fields. In a focused module such as `apps/observatory/src/posttrain_observatory/serving_capacity.py`, implement `serving-capacity-v1`. Keep all interpretation pure and deterministic so fixtures can invoke it without a provider.
 
@@ -582,3 +874,27 @@ Revision note (2026-07-24): Started implementation on `codex/serving-capacity-ob
 Revision note (2026-07-24): Completed the typed project-brief slice, including portable discovery, compatibility, scaffold and CLI presentation, run snapshot propagation, and serving context preflight.
 
 Revision note (2026-07-24): Completed the representative corpus and workload-saturation contract portion of Milestone 3, recorded the actual reproducible `uv --with` materialization command, and left the single-cell benchmark replacement explicitly in progress.
+
+Revision note (2026-07-25): Implemented and validated representative single-cell execution, fixed structured Qwen chat-template output normalization, ran the real 128-record standard/MTP/TurboQuant comparison and MTP capacity search on the local 8 GiB GPU, and recorded the tested 0.75/64 binding plus the higher-capacity latency boundary without marking the one-engine sweep or Observatory calculator complete.
+
+Revision note (2026-07-25): Cleaned the Trackio serving experiments to ten decision-quality runs, added provider-neutral serving phase events and one-second GPU sampling, extended the shared Observatory SVG timeline with utilization, and verified the result on a new representative MTP C64 run.
+
+Revision note (2026-07-25): Refined runtime reporting into grouped one-time phases, overlapping per-request queue/prefill/decode distributions, and backend KV-cache pressure so the timeline does not imply false sequential work at concurrency.
+
+Revision note (2026-07-25): Implemented and live-validated the grouped timeline, timing-only inference trace round trip, and vLLM KV-cache series on `serve.benchmark-00483a03`; replaced the older C64 instrumentation run while keeping the curated serving set at ten runs.
+
+Revision note (2026-07-25): Closed the generic serving-Overview gap with a strict `job.serving` response and dedicated UI. The current complete-trace C64 point passes context, TPS, TTFT, TPOT, and failure-rate constraints, while the calculator deliberately reports `unsaturated` because the retained run contains one operating point rather than a terminal bounded sweep.
+
+Revision note (2026-07-25): Added the cross-run compatibility table requested during live review and expanded workload-shape evidence with mean/p95 input and response lengths, output budget, request counts, and measurement duration. The table is a migration aid; the planned one-run, multi-point artifact remains the decision-grade destination.
+
+Revision note (2026-07-25): Clarified response-length semantics in the Overview. The benchmark population now reports fixed-length policy and output-target hit rate, and the UI explains that these lengths measure controlled decode work rather than natural stopping behavior.
+
+Revision note (2026-07-25): Re-audited the living plan after converting the benchmark to a one-engine, multi-concurrency job. The product boundary did not change; the remaining implementation work was narrowed to typed partial-point evidence, strict Pareto comparison, missing product visualizations and states, transport parity, documentation, and release gates.
+
+Revision note (2026-07-25): Completed the re-audited scope. Added typed terminal
+point evidence and schema-version-2 artifacts, corrected operating validity
+versus throughput eligibility, implemented the strict work-package comparison
+basis and Pareto frontier across all transports, added accessible run and
+work-package visualizations plus desktop/narrow browser coverage, updated
+catalog and developer guidance, and added the opt-in three-point Qwen 0.8B
+vLLM gate without touching the user's existing `obseratory.pen` changes.

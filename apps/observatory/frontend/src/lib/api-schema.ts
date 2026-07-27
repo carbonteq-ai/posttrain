@@ -89,6 +89,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/runs/locate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Locate Run */
+        get: operations["locate_run_api_v1_runs_locate_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs/{run_key}/alerts": {
         parameters: {
             query?: never;
@@ -242,6 +259,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/serving-capacity/work-packages/{work_package_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Serving Capacity Work Package */
+        get: operations["serving_capacity_work_package_api_v1_serving_capacity_work_packages__work_package_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sources": {
         parameters: {
             query?: never;
@@ -353,6 +387,47 @@ export interface components {
              * @default []
              */
             items: components["schemas"]["ArtifactLink"][];
+        };
+        /** BenchmarkPopulationView */
+        BenchmarkPopulationView: {
+            /** Cohort */
+            cohort?: string | null;
+            /** Corpus Digest */
+            corpus_digest?: string | null;
+            /** Corpus Id */
+            corpus_id?: string | null;
+            /** Corpus Revision */
+            corpus_revision?: string | null;
+            /**
+             * Correctness Scored
+             * @default false
+             * @constant
+             */
+            correctness_scored: false;
+            /** Input Tokens Mean */
+            input_tokens_mean?: number | null;
+            /** Input Tokens P95 */
+            input_tokens_p95?: number | null;
+            /** Measured Records */
+            measured_records?: number | null;
+            /**
+             * Output Length Policy
+             * @default unknown
+             * @enum {string}
+             */
+            output_length_policy: "fixed" | "maximum" | "unknown";
+            /** Output Target Hit Rate */
+            output_target_hit_rate?: number | null;
+            /** Output Token Budget */
+            output_token_budget?: number | null;
+            /** Renderer */
+            renderer?: string | null;
+            /** Requested Records */
+            requested_records?: number | null;
+            /** Shape Id */
+            shape_id?: string | null;
+            /** Suite Id */
+            suite_id?: string | null;
         };
         /** ChartView */
         ChartView: {
@@ -516,8 +591,18 @@ export interface components {
              * @enum {string}
              */
             format: "json" | "csv";
+            /** Project Id */
+            project_id?: string | null;
             /** @default [] */
             run_keys: components["schemas"]["StringTuple"];
+            /** Source Id */
+            source_id?: string | null;
+            /**
+             * View
+             * @default runs
+             * @enum {string}
+             */
+            view: "runs" | "serving_capacity";
             /** Work Package Id */
             work_package_id?: string | null;
         };
@@ -790,7 +875,37 @@ export interface components {
             resolved_mode: "job" | "generic";
             view: components["schemas"]["RunViewVariant"];
         };
-        RunViewVariant: components["schemas"]["RunView"] | components["schemas"]["EvaluationRunView"] | components["schemas"]["GenericRunView"];
+        RunViewVariant: components["schemas"]["RunView"] | components["schemas"]["EvaluationRunView"] | components["schemas"]["ServingBenchmarkRunView"] | components["schemas"]["GenericRunView"];
+        /** RuntimeSettingGroup */
+        RuntimeSettingGroup: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Settings */
+            settings: components["schemas"]["RuntimeSettingValue"][];
+        };
+        /** RuntimeSettingValue */
+        RuntimeSettingValue: {
+            /**
+             * Importance
+             * @default advanced
+             * @enum {string}
+             */
+            importance: "primary" | "advanced" | "additional";
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "available" | "missing" | "redacted";
+            /** Unit */
+            unit?: string | null;
+            value?: components["schemas"]["JsonPayload"];
+        };
         /** SafeRunError */
         SafeRunError: {
             /** Message */
@@ -810,6 +925,167 @@ export interface components {
             scope: "run" | "metrics" | "evaluation" | "trace";
             /** Trace Id */
             trace_id?: string | null;
+        };
+        /** ServingBenchmarkRunView */
+        ServingBenchmarkRunView: {
+            /** Alerts */
+            alerts: components["schemas"]["RunAlert"][];
+            artifacts: components["schemas"]["ArtifactSet"];
+            capabilities: components["schemas"]["TrackingCapabilities"];
+            eligibility: components["schemas"]["ServingEligibility"];
+            /** Execution Target Id */
+            execution_target_id?: string | null;
+            /**
+             * Execution Targets
+             * @default []
+             */
+            execution_targets: components["schemas"]["ExecutionTargetContext"][];
+            /** Inference Backend */
+            inference_backend?: string | null;
+            /** Inference Binding Id */
+            inference_binding_id?: string | null;
+            locator: components["schemas"]["RunLocator"];
+            /** Model Variant Id */
+            model_variant_id?: string | null;
+            /** Operating Points */
+            operating_points: components["schemas"]["ServingOperatingPoint"][];
+            population: components["schemas"]["BenchmarkPopulationView"];
+            /** Question */
+            question: string;
+            /** Requirements */
+            requirements: components["schemas"]["ServingRequirementView"][];
+            /** Resolved Inputs */
+            resolved_inputs?: {
+                [key: string]: components["schemas"]["JsonPayload"];
+            };
+            run: components["schemas"]["RunSummary"];
+            /** Runtime Settings */
+            runtime_settings: components["schemas"]["RuntimeSettingGroup"][];
+            /** Schema Version */
+            schema_version: number;
+            selected_point?: components["schemas"]["ServingOperatingPoint"] | null;
+            /** Source Metadata */
+            source_metadata?: {
+                [key: string]: components["schemas"]["JsonPayload"];
+            };
+            /** Trace Count */
+            trace_count: number;
+            /**
+             * Trace Evaluation Enabled
+             * @default false
+             */
+            trace_evaluation_enabled: boolean;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            view_kind: "job.serving";
+            /** Workload Id */
+            workload_id?: string | null;
+        };
+        /** ServingEligibility */
+        ServingEligibility: {
+            /**
+             * Calculator Version
+             * @default serving-capacity-v1
+             * @constant
+             */
+            calculator_version: "serving-capacity-v1";
+            /** Label */
+            label: string;
+            /** Reason */
+            reason: string;
+            /** Requirements Digest */
+            requirements_digest?: string | null;
+            /**
+             * Saturation State
+             * @enum {string}
+             */
+            saturation_state: "saturated" | "unsaturated" | "unknown";
+            /** Selected Sweep Index */
+            selected_sweep_index?: number | null;
+            state: components["schemas"]["ServingEligibilityState"];
+        };
+        /** @enum {string} */
+        ServingEligibilityState: "eligible" | "below_capacity" | "latency_constrained" | "reliability_constrained" | "context_failed" | "unsaturated" | "insufficient_evidence";
+        /** ServingOperatingPoint */
+        ServingOperatingPoint: {
+            /** Aggregate Output Tps */
+            aggregate_output_tps?: number | null;
+            /** Attempted Requests */
+            attempted_requests: number;
+            /** Completed Requests */
+            completed_requests: number;
+            /** Concurrency */
+            concurrency: number;
+            /** Context Tokens */
+            context_tokens?: number | null;
+            /**
+             * Evidence State
+             * @enum {string}
+             */
+            evidence_state: "complete" | "partial" | "legacy_single_point";
+            /** Failed Requests */
+            failed_requests: number;
+            /** Failure Rate */
+            failure_rate?: number | null;
+            /** Input Tokens Mean */
+            input_tokens_mean?: number | null;
+            /** Input Tokens P95 */
+            input_tokens_p95?: number | null;
+            /** Kv Cache Peak Usage Ratio */
+            kv_cache_peak_usage_ratio?: number | null;
+            /** Measurement Seconds */
+            measurement_seconds?: number | null;
+            /** Output Tokens */
+            output_tokens?: number | null;
+            /** Output Tokens Mean */
+            output_tokens_mean?: number | null;
+            /** Output Tokens P95 */
+            output_tokens_p95?: number | null;
+            /** P50 Tpot Ms */
+            p50_tpot_ms?: number | null;
+            /** P50 Ttft Ms */
+            p50_ttft_ms?: number | null;
+            /** P95 Tpot Ms */
+            p95_tpot_ms?: number | null;
+            /** P95 Ttft Ms */
+            p95_ttft_ms?: number | null;
+            /** Peak Vram Bytes */
+            peak_vram_bytes?: number | null;
+            /** Sweep Index */
+            sweep_index: number;
+            /** Terminal Status */
+            terminal_status?: ("resource_exhausted" | "unsupported" | "failed") | null;
+            /** Valid */
+            valid: boolean;
+            /** @default [] */
+            violations: components["schemas"]["StringTuple"];
+        };
+        /** @enum {string} */
+        ServingRequirementState: "pass" | "fail" | "unavailable";
+        /** ServingRequirementView */
+        ServingRequirementView: {
+            /** Explanation */
+            explanation: string;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Margin */
+            margin?: number | null;
+            /** Measured */
+            measured?: number | null;
+            /**
+             * Operator
+             * @enum {string}
+             */
+            operator: "gte" | "lte";
+            state: components["schemas"]["ServingRequirementState"];
+            /** Threshold */
+            threshold?: number | null;
+            /** Unit */
+            unit: string;
         };
         /** @enum {string} */
         Stage: "screen" | "train" | "qualify";
@@ -1124,6 +1400,39 @@ export interface operations {
             };
         };
     };
+    locate_run_api_v1_runs_locate_get: {
+        parameters: {
+            query: {
+                run_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     alerts_api_v1_runs__run_key__alerts_get: {
         parameters: {
             query?: never;
@@ -1420,6 +1729,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunViewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    serving_capacity_work_package_api_v1_serving_capacity_work_packages__work_package_id__get: {
+        parameters: {
+            query?: {
+                project_id?: string | null;
+                source_id?: string | null;
+            };
+            header?: never;
+            path: {
+                work_package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
