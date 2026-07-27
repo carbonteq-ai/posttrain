@@ -1,6 +1,6 @@
 [project]
 name = "posttrain-observatory"
-version = "0.1.5"
+version = "0.1.6"
 description = "Dedicated post-training observability and analysis product"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
@@ -9,10 +9,10 @@ dependencies = [
     "fastapi>=0.136.3,<0.137",
     "httpx>=0.28,<1",
     "mcp>=1.28,<2",
-    "posttrain-common==0.1.5",
-    "posttrain-tracking==0.1.5",
-    "posttrain-tracking-trackio==0.1.5",
-    "posttrain-tracking-wandb==0.1.5",
+    "posttrain-common==0.1.6",
+    "posttrain-tracking==0.1.6",
+    "posttrain-tracking-trackio==0.1.6",
+    "posttrain-tracking-wandb==0.1.6",
     "pydantic>=2.12,<3",
     "uvicorn>=0.51,<0.52",
 ]
