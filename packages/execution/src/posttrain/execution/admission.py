@@ -321,15 +321,21 @@ class ExecutionAdmissionService:
                     if active["state"] == "submitting":
                         active["state"] = "submission_failed"
                         active["message"] = (
-                            f"{type(error).__name__}: provider submission outcome "
-                            "is unresolved; retry explicitly with the same run identity"
+                            f"{type(error).__name__}: {error}; provider submission "
+                            "outcome is unresolved, so retry explicitly with the "
+                            "same run identity once the cause is addressed"
                         )
                         # A provider can accept the deterministic run before
                         # the response is lost. Preserve the worker reservation
                         # until an idempotent retry resolves that ambiguity.
                         self._persist(payload)
+                # Carry the cause into the message. Without it a deterministic
+                # failure, such as an unset environment variable, reads as an
+                # ambiguous provider response and the advice to retry loops
+                # forever with nothing to act on.
                 raise RuntimeError(
-                    f"provider submission is unresolved for run {entry.run_id}; "
+                    f"provider submission is unresolved for run {entry.run_id}: "
+                    f"{type(error).__name__}: {error}. Once that is addressed, "
                     f"retry with `posttrain run retry-submit {entry.run_id}`"
                 ) from error
             with self._locked() as payload:

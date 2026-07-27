@@ -257,12 +257,16 @@ def test_submission_failure_quarantines_worker_until_retry_resolves_it(
         "worker-a.lan",
     )
 
-    with pytest.raises(RuntimeError, match="provider submission is unresolved for run"):
+    with pytest.raises(RuntimeError, match="provider unavailable"):
         admission.enqueue(first, evidence_source=None)
 
     failed = admission.get(first.request.run_spec.run_id)
     assert failed.state == "submission_failed"
     assert failed.message is not None
+    # The cause must survive. A deterministic failure, such as an unset
+    # environment variable, otherwise reads as an ambiguous provider response
+    # and the advice to retry loops with nothing to act on.
+    assert "provider unavailable" in failed.message
 
     failing.fail_submissions = False
     second = _on_worker(

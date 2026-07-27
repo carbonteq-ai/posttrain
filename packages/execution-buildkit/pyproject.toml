@@ -1,14 +1,14 @@
 [project]
 name = "posttrain-execution-buildkit"
-version = "0.1.7"
+version = "0.1.8"
 description = "BuildKit image publication adapter for posttrain job runtimes"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-    "posttrain-common==0.1.7",
-    "posttrain-execution==0.1.7",
-    "posttrain-execution-pack==0.1.7",
+    "posttrain-common==0.1.8",
+    "posttrain-execution==0.1.8",
+    "posttrain-execution-pack==0.1.8",
 ]
 
 [tool.uv]
