@@ -1,0 +1,26 @@
+"""Command-line entrypoint installed in every framework job image."""
+
+from __future__ import annotations
+
+import argparse
+import json
+from dataclasses import asdict
+from pathlib import Path
+
+from .execute import execute_manifest
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(prog="posttrain-runtime")
+    commands = parser.add_subparsers(dest="command", required=True)
+    execute = commands.add_parser("execute")
+    execute.add_argument("--manifest", type=Path, required=True)
+    arguments = parser.parse_args()
+
+    if arguments.command == "execute":
+        result = execute_manifest(arguments.manifest)
+        print(json.dumps(asdict(result), sort_keys=True, separators=(",", ":")))
+
+
+if __name__ == "__main__":
+    main()

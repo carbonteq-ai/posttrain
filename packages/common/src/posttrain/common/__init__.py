@@ -6,6 +6,7 @@ from .artifacts import (
     JsonValue,
     LocalArtifactRef,
     ProducedArtifact,
+    PublishedArtifact,
     StoredArtifactRef,
     TrackioArtifactRef,
 )
@@ -59,6 +60,7 @@ __all__ = [
     "OperationCancelled",
     "PostTrainError",
     "ProducedArtifact",
+    "PublishedArtifact",
     "Resolved",
     "RunContext",
     "StoredArtifactRef",

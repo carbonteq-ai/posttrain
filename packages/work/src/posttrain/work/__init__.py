@@ -1,5 +1,13 @@
 """Recipe and work-package composition independent of any concrete host."""
 
+from .admission import (
+    GIB,
+    StorageAdmission,
+    StorageCapacity,
+    StorageRequirement,
+    assess_storage,
+    require_storage,
+)
 from .contracts import (
     JobDefinition,
     JobKind,
@@ -19,10 +27,12 @@ from .contracts import (
 from .execution import (
     ArtifactInput,
     ArtifactMaterializer,
+    FinalizedRunResult,
     RunOperation,
     RunSpec,
     execute_run,
     execute_run_tracked,
+    execute_run_tracked_finalized,
 )
 from .project_brief import (
     ProjectBrief,
@@ -32,6 +42,7 @@ from .project_brief import (
     project_brief_snapshot,
 )
 from .runner import (
+    PreparedWorkPackageJob,
     ResolvedSeat,
     ResolvedWorkPackage,
     RunExecutor,
@@ -39,6 +50,8 @@ from .runner import (
     WorkPackageContext,
     WorkPackageHostFactory,
     WorkPackageHostRequest,
+    override_job_execution_target,
+    prepare_work_package_job,
     resolve_work_package,
     run_work_package,
     run_work_package_job,
@@ -52,6 +65,8 @@ ProjectEntry = WorkPackageHostFactory
 __all__ = [
     "ArtifactInput",
     "ArtifactMaterializer",
+    "GIB",
+    "FinalizedRunResult",
     "JobDefinition",
     "JobKind",
     "JobRuntime",
@@ -62,6 +77,7 @@ __all__ = [
     "ProjectEntry",
     "ProjectBrief",
     "ProjectExecutionRequest",
+    "PreparedWorkPackageJob",
     "ResolvedSeat",
     "ResolvedSeats",
     "ResolvedWorkPackage",
@@ -72,6 +88,9 @@ __all__ = [
     "ServingRequirements",
     "SeatBinding",
     "Stage",
+    "StorageAdmission",
+    "StorageCapacity",
+    "StorageRequirement",
     "WorkPackage",
     "WorkPackageContext",
     "WorkPackageHostFactory",
@@ -81,11 +100,16 @@ __all__ = [
     "WorkPackageSchema",
     "execute_run",
     "execute_run_tracked",
+    "execute_run_tracked_finalized",
+    "assess_storage",
     "load_work_package",
     "load_project_brief",
     "project_brief_digest",
     "project_brief_snapshot",
+    "override_job_execution_target",
+    "prepare_work_package_job",
     "resolve_work_package",
+    "require_storage",
     "run_work_package",
     "run_work_package_job",
     "validate_work_package",

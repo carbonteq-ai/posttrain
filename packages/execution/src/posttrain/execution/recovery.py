@@ -1,0 +1,158 @@
+"""Explicit, audited repair of interrupted tracking finalization."""
+
+from __future__ import annotations
+
+import json
+import os
+import uuid
+from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Literal, Protocol
+
+from posttrain.common import ContractError
+from posttrain.tracking import RunDataSource, RunSummary
+
+from .service import ExecutionSubmissionStore, JobExecutionService
+
+type TrackingRecoveryDisposition = Literal["recovered", "already-cancelled"]
+
+_SCHEMA = "posttrain.tracking-cancellation-recovery.v1"
+
+
+class CancelledTrackingWriter(Protocol):
+    """Writer that rechecks and finalizes one exact retained tracking run."""
+
+    def recover_cancelled(
+        self,
+        expected: RunSummary,
+        *,
+        finished_at: datetime,
+    ) -> TrackingRecoveryDisposition: ...
+
+
+@dataclass(frozen=True, slots=True)
+class TrackingCancellationRecovery:
+    """Auditable result of one tightly guarded cancellation repair."""
+
+    run_id: str
+    disposition: TrackingRecoveryDisposition
+    execution_provider: str
+    execution_provider_id: str
+    tracking_provider: str
+    tracking_provider_run_id: str
+    tracking_started_at: datetime
+    recovered_at: datetime
+
+
+async def recover_cancelled_tracking(
+    service: JobExecutionService,
+    source: RunDataSource,
+    writer: CancelledTrackingWriter,
+    run_id: str,
+    *,
+    project_id: str,
+) -> TrackingCancellationRecovery:
+    """Finalize one exact interrupted tracking run after provider cancellation."""
+
+    submission = service.submission(run_id)
+    provider = service.collect(run_id)
+    if provider.record.state != "cancelled":
+        raise ContractError(
+            "tracking cancellation recovery requires a terminal cancelled "
+            f"provider run, observed {provider.record.state!r}"
+        )
+
+    detail = await source.get_run(run_id)
+    summary = detail.summary
+    if summary.provider != "trackio":
+        raise ContractError(
+            "tracking cancellation recovery currently supports Trackio only"
+        )
+    if summary.run_id != run_id:
+        raise ContractError(
+            "tracking cancellation recovery resolved a different canonical run"
+        )
+    if summary.project_id != project_id:
+        raise ContractError(
+            "tracking cancellation recovery project identity does not match"
+        )
+    if summary.provider_run_id is None:
+        raise ContractError(
+            "tracking cancellation recovery requires an exact provider run id"
+        )
+    if summary.status not in {"running", "cancelled"}:
+        raise ContractError(
+            "tracking cancellation recovery requires tracking to be running "
+            f"or already cancelled, observed {summary.status!r}"
+        )
+
+    recovered_at = datetime.now(UTC)
+    disposition = writer.recover_cancelled(
+        summary,
+        finished_at=recovered_at,
+    )
+    return TrackingCancellationRecovery(
+        run_id=run_id,
+        disposition=disposition,
+        execution_provider=submission.provider,
+        execution_provider_id=submission.provider_id,
+        tracking_provider=summary.provider,
+        tracking_provider_run_id=summary.provider_run_id,
+        tracking_started_at=summary.started_at,
+        recovered_at=recovered_at,
+    )
+
+
+def save_tracking_recovery(
+    store: ExecutionSubmissionStore,
+    recovery: TrackingCancellationRecovery,
+) -> Path:
+    """Append an audit record and atomically replace its protected snapshot."""
+
+    root = store.run_root(recovery.run_id)
+    root.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema": _SCHEMA,
+        **asdict(recovery),
+        "tracking_started_at": recovery.tracking_started_at.isoformat(),
+        "recovered_at": recovery.recovered_at.isoformat(),
+    }
+    encoded = (
+        json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n"
+    ).encode()
+    journal = root / "tracking-recovery.jsonl"
+    descriptor = os.open(
+        journal,
+        os.O_APPEND | os.O_CREAT | os.O_WRONLY,
+        0o600,
+    )
+    try:
+        os.write(descriptor, encoded)
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+    snapshot = root / "tracking-recovery.json"
+    temporary = root / f".tracking-recovery-{uuid.uuid4().hex}.tmp"
+    descriptor = os.open(
+        temporary,
+        os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+        0o600,
+    )
+    try:
+        os.write(descriptor, encoded)
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+    os.replace(temporary, snapshot)
+    return snapshot
+
+
+__all__ = [
+    "CancelledTrackingWriter",
+    "TrackingCancellationRecovery",
+    "TrackingRecoveryDisposition",
+    "recover_cancelled_tracking",
+    "save_tracking_recovery",
+]
