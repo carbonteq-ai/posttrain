@@ -29,8 +29,16 @@ from posttrain_execution_buildkit import (
     RemoteImageNotFoundError,
 )
 
-_MANIFEST = load_manifest()
-_EXPECTED_LOCK = _MANIFEST.expected_lock_digest("supervised")
+
+# Resolved lazily. Loading at import time makes a stale manifest a collection
+# error for the whole suite rather than a failure of the tests that depend on
+# it, which hides every unrelated result behind one problem.
+def _manifest():
+    return load_manifest()
+
+
+def _expected_lock() -> str:
+    return _manifest().expected_lock_digest("supervised")
 
 
 class _FakeInspector:
@@ -39,12 +47,12 @@ class _FakeInspector:
     def __init__(
         self,
         *,
-        lock_digest: str | None = _EXPECTED_LOCK,
+        lock_digest: str | None = "",
         missing: bool = False,
         image_level: str | None = "job-kind",
         revision: str | None = None,
     ) -> None:
-        self._lock_digest = lock_digest
+        self._lock_digest = _expected_lock() if lock_digest == "" else lock_digest
         self._missing = missing
         self._image_level = image_level
         self._revision = revision
@@ -88,7 +96,7 @@ def test_matching_lock_digest_verifies(tmp_path: Path, monkeypatch: pytest.Monke
     result = verify_variant(
         "supervised",
         registry.kind_images["supervised"].value,
-        manifest=_MANIFEST,
+        manifest=_manifest(),
         inspector=_FakeInspector(),
     )
     assert result.status == "ok"
@@ -110,12 +118,12 @@ def test_a_stale_image_is_reported_as_drift(
     result = verify_variant(
         "supervised",
         registry.kind_images["supervised"].value,
-        manifest=_MANIFEST,
+        manifest=_manifest(),
         inspector=_FakeInspector(lock_digest=stale),
     )
     assert result.status == "drifted"
     assert stale in result.detail
-    assert _EXPECTED_LOCK in result.detail
+    assert _expected_lock() in result.detail
     assert "must be republished" in result.detail
 
 
@@ -127,7 +135,7 @@ def test_an_unlabelled_image_is_drift_not_success(
     result = verify_variant(
         "supervised",
         registry.kind_images["supervised"].value,
-        manifest=_MANIFEST,
+        manifest=_manifest(),
         inspector=_FakeInspector(lock_digest=None),
     )
     assert result.status == "drifted"
@@ -143,12 +151,12 @@ def test_absent_and_unreachable_are_distinguished(
     reference = registry.kind_images["supervised"].value
 
     absent = verify_variant(
-        "supervised", reference, manifest=_MANIFEST, inspector=_FakeInspector(missing=True)
+        "supervised", reference, manifest=_manifest(), inspector=_FakeInspector(missing=True)
     )
     assert absent.status == "missing"
 
     unreachable = verify_variant(
-        "supervised", reference, manifest=_MANIFEST, inspector=_UnreachableInspector()
+        "supervised", reference, manifest=_manifest(), inspector=_UnreachableInspector()
     )
     assert unreachable.status == "unreachable"
 
@@ -159,13 +167,13 @@ def test_verify_registry_covers_every_published_variant(
 ) -> None:
     registry = _registry(tmp_path, monkeypatch)
     inspector = _FakeInspector()
-    results = verify_registry(registry, manifest=_MANIFEST, inspector=inspector)
-    assert {result.variant for result in results} == set(_MANIFEST.kinds)
+    results = verify_registry(registry, manifest=_manifest(), inspector=inspector)
+    assert {result.variant for result in results} == set(_manifest().kinds)
     # transform is constrained by a different lock, so a single expected digest
     # would have silently passed it; each variant must be checked on its own.
     transform = next(r for r in results if r.variant == "transform")
-    assert transform.expected_lock_digest == _MANIFEST.expected_lock_digest("transform")
-    assert transform.expected_lock_digest != _EXPECTED_LOCK
+    assert transform.expected_lock_digest == _manifest().expected_lock_digest("transform")
+    assert transform.expected_lock_digest != _expected_lock()
 
 
 def test_verify_registry_rejects_unknown_variants(
@@ -177,7 +185,7 @@ def test_verify_registry_rejects_unknown_variants(
         verify_registry(
             registry,
             variants=["nope"],
-            manifest=_MANIFEST,
+            manifest=_manifest(),
             inspector=_FakeInspector(),
         )
 
@@ -192,13 +200,13 @@ def test_packing_refuses_a_drifted_image_and_names_the_remedy(
         ensure_kind_image_ready(
             registry,
             "supervised",
-            manifest=_MANIFEST,
+            manifest=_manifest(),
             inspector=_FakeInspector(lock_digest=stale),
         )
     message = str(raised.value)
     assert "supervised" in message
     assert stale in message
-    assert _EXPECTED_LOCK in message
+    assert _expected_lock() in message
     assert "--build-missing" in message
 
 
@@ -211,7 +219,7 @@ def test_packing_refuses_a_missing_image_and_suggests_mirroring(
         ensure_kind_image_ready(
             registry,
             "supervised",
-            manifest=_MANIFEST,
+            manifest=_manifest(),
             inspector=_FakeInspector(missing=True),
         )
 
@@ -227,7 +235,7 @@ def test_an_unreachable_registry_never_silently_proceeds(
             registry,
             "supervised",
             build_missing=True,
-            manifest=_MANIFEST,
+            manifest=_manifest(),
             inspector=_UnreachableInspector(),
         )
 
@@ -241,7 +249,7 @@ def test_verified_image_passes_without_building(
         registry,
         "supervised",
         build_missing=True,
-        manifest=_MANIFEST,
+        manifest=_manifest(),
         inspector=_FakeInspector(),
     )
     assert result.ok
@@ -274,7 +282,7 @@ def test_doctor_fails_when_a_configured_image_is_not_this_release(
     assert check["status"] == "error"
     assert "supervised" in check["message"]
     assert "9" * 64 in check["message"]
-    assert _MANIFEST.kinds["supervised"].digest.removeprefix("sha256:") in check["message"]
+    assert _manifest().kinds["supervised"].digest.removeprefix("sha256:") in check["message"]
 
 
 def test_runtime_images_check_ignores_unpublished_variants(
@@ -309,8 +317,8 @@ def test_list_works_offline(tmp_path: Path, capsys) -> None:
     """`list` is a local read and must not require a registry."""
     assert main(["--json", "runtime", "images", "list"]) == 0
     payload = json.loads(capsys.readouterr().out)
-    assert {row["variant"] for row in payload["kinds"]} == set(_MANIFEST.kinds)
-    assert payload["default_prefix"] == _MANIFEST.default_prefix
+    assert {row["variant"] for row in payload["kinds"]} == set(_manifest().kinds)
+    assert payload["default_prefix"] == _manifest().default_prefix
 
 
 def test_a_base_image_pinned_into_a_kind_slot_is_rejected(
@@ -325,14 +333,14 @@ def test_a_base_image_pinned_into_a_kind_slot_is_rejected(
     perfectly while producing an image that cannot run a job at all.
     """
     registry = _registry(tmp_path, monkeypatch)
-    assert _MANIFEST.base.lock_digest == _MANIFEST.kinds["supervised"].lock_digest
+    assert _manifest().base.lock_digest == _manifest().kinds["supervised"].lock_digest
 
     result = verify_variant(
         "supervised",
         registry.kind_images["supervised"].value,
-        manifest=_MANIFEST,
+        manifest=_manifest(),
         # A real base image: correct lock digest, wrong level.
-        inspector=_FakeInspector(lock_digest=_EXPECTED_LOCK, image_level="base"),
+        inspector=_FakeInspector(lock_digest=_expected_lock(), image_level="base"),
     )
     assert result.status == "drifted"
     assert "job-kind" in result.detail
@@ -347,7 +355,7 @@ def test_an_actual_job_image_is_also_rejected_in_a_kind_slot(
     result = verify_variant(
         "supervised",
         registry.kind_images["supervised"].value,
-        manifest=_MANIFEST,
+        manifest=_manifest(),
         inspector=_FakeInspector(image_level="actual-job"),
     )
     assert result.status == "drifted"
@@ -365,7 +373,7 @@ def test_verification_reports_the_framework_revision_that_built_the_image(
     verified = verify_variant(
         "supervised",
         reference,
-        manifest=_MANIFEST,
+        manifest=_manifest(),
         inspector=_FakeInspector(revision="abc123def456"),
     )
     assert verified.status == "ok"
@@ -374,7 +382,7 @@ def test_verification_reports_the_framework_revision_that_built_the_image(
     drifted = verify_variant(
         "supervised",
         reference,
-        manifest=_MANIFEST,
+        manifest=_manifest(),
         inspector=_FakeInspector(lock_digest="f" * 64, revision="abc123def456"),
     )
     assert drifted.status == "drifted"

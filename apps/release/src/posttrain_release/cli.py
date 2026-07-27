@@ -5,6 +5,7 @@ Not shipped to consumers: `posttrain` does not depend on this distribution.
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 from typing import Annotated
@@ -37,6 +38,13 @@ def publish_cmd(
         Path,
         typer.Option("--receipt-root", help="directory retaining build receipts"),
     ],
+    default_prefix: Annotated[
+        str | None,
+        typer.Option(
+            "--default-prefix",
+            help="registry recorded in the manifest, when staging through another",
+        ),
+    ] = None,
     repository_root: Annotated[
         Path,
         typer.Option("--repository-root", help="framework checkout to rewrite"),
@@ -46,9 +54,26 @@ def publish_cmd(
         typer.Option("--dry-run", help="print the manifest instead of writing it"),
     ] = False,
 ) -> None:
+    def _git(*arguments: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(repository_root), *arguments],
+            capture_output=True, text=True, check=False,
+        ).stdout.strip()
+
+    revision = _git("rev-parse", "HEAD")
+    if not revision:
+        raise typer.BadParameter(f"not a git checkout: {repository_root}")
+    # The commit's own timestamp, never wall clock. CREATED is a build variable
+    # and therefore part of the build key, so a clock reading would give every
+    # publish a fresh key, defeat the receipt cache, and rebuild every image on
+    # each run. Deriving it from the revision keeps publishing idempotent.
+    created = _git("show", "-s", "--format=%cI", revision)
     rendered = publish_release(
         prefix=registry,
         framework_version=framework_version,
+        created=created,
+        revision=revision,
+        default_prefix=default_prefix,
         builder=BuildKitRuntimeBuilder(receipt_root=receipt_root.resolve()),
     )
     if dry_run:

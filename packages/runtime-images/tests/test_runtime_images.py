@@ -70,11 +70,16 @@ def test_lock_digest_is_computed_from_the_shipped_bytes() -> None:
     assert lock_digest(TRANSFORM_LOCK) != lock_digest(WORKSPACE_LOCK)
 
 
-def test_lock_digest_matches_the_published_image_identity() -> None:
-    """Guards the transcription that let a stale kind image go undetected.
+def test_every_shipped_lock_has_a_distinct_stable_digest() -> None:
+    """Identity comes from the bytes, never from a value restated in a test.
 
-    The published `org.carbonteq.posttrain.lock-digest` label is the SHA-256 of
-    the shipped workspace lock. If this value changes, the job-kind images must
-    be republished; a fixed framework pin alone is not sufficient.
+    An earlier version of this test asserted one hardcoded digest. That is the
+    same hand transcription this package exists to remove: it has to be edited
+    by a human every time a lock legitimately changes, and a wrong edit makes
+    it agree with nothing. Whether a published image still matches its lock is
+    checked against the manifest in test_manifest.py, from the shipped bytes.
     """
-    assert lock_digest() == "e8a833bf24f5fe5459ee69eb04d26a9ea5cfc49bd0b6dd8dc3b678c310fcfbbd"
+    digests = {lock_digest(WORKSPACE_LOCK), lock_digest(TRANSFORM_LOCK)}
+    assert len(digests) == 2
+    assert all(len(d) == 64 and d == d.lower() for d in digests)
+    assert lock_digest(WORKSPACE_LOCK) == lock_digest(WORKSPACE_LOCK)
