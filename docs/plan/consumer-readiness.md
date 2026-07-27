@@ -32,14 +32,15 @@ imagined.
 
 ## Progress
 
-- [ ] Milestone 1 — Move the framework distributions into the job-kind image,
-  make the actual-job image install project code only, and keep staged
-  framework source as an explicit override that reinstalls over it. Requires
-  replacing `validate.py`'s dependency-only rule with one that asserts the
-  framework code present is exactly the release's.
-- [ ] Milestone 2 — Produce a pre-release on GitHub Releases: build every
+- [ ] Milestone 1 — Produce a pre-release on GitHub Releases: build every
   wheel, attach them to a tagged release, and record the exact install command
-  including the Git-sourced dependency that cannot resolve implicitly.
+  including the Git-sourced dependency that cannot resolve implicitly. This is
+  what unblocks packing, because the framework then resolves as an ordinary
+  project dependency rather than needing a checkout to copy.
+- [ ] Milestone 2 — Confirm a consumer can pack and run with no framework
+  checkout: the project's resolved lock names the published `posttrain`, the
+  actual-job image installs it as a dependency, and `framework_source_root` is
+  needed only by framework developers overriding with a working tree.
 - [ ] Milestone 3 — Walk the consumer path end to end on real hardware:
   install, configure, `doctor`, then a serving benchmark, an SFT job, and a
   GRPO job whose model seat is the SFT output.
@@ -82,32 +83,30 @@ imagined.
 
 ## Decision Log
 
-- Decision: the job-kind image carries the framework distributions; the
-  actual-job image carries only project code, configuration, datasets, and
-  selected environments.
-  Rationale: framework version is fixed per release, which is exactly the
-  cadence a job-kind image already publishes on, and those images are already
-  digest-pinned and verified. A consumer then configures nothing and stages
-  nothing: the framework arrives with the image they were told to pull.
-  Consequences: this reverses `validate.py`'s dependency-only rule for kind
-  images, which forbids `COPY packages/`, `COPY apps/`, `posttrain-runtime`,
-  and `from posttrain.` in that Dockerfile. That rule exists because kind
-  images are expensive and shared while actual-job images are cheap and
-  per-job, so moving framework code up a level makes every framework edit a
-  kind-image rebuild. The rule is not being weakened by accident; it is being
-  replaced by a different one, and the reason it existed has to be answered
-  rather than deleted.
+- Decision: the framework reaches the job image as an ordinary project
+  dependency, not through any framework-specific path.
+  Rationale: `posttrain init` already scaffolds
+  `dependencies = ["posttrain[observatory,trackio,trl]==0.1.0", ...]`, and the
+  project's resolved lock already becomes what the actual-job image installs.
+  Once those wheels are installable from an index, the framework lands in that
+  lock like any other package and needs no staging, no extra image level, and
+  no rule change. Source packing exists only because the wheels are not
+  published, so the framework falls back to copying itself.
+  Consequences: the blocker is not the mechanism but the pre-release. Milestone
+  2 therefore comes first and Milestone 1 largely dissolves into it. Framework
+  developers keep source packing as an explicit override, which is unchanged
+  from today rather than a new mode.
 
-- Decision: keep source packing as an explicit developer override rather than
-  removing it.
-  Rationale: without it, testing a one-line framework change means rebuilding
-  six kind images. The actual-job image already installs from
-  `locks/code.requirements.txt`; when framework source is staged it can install
-  over the kind-provided copy with `--reinstall`, and when it is absent the
-  kind image's framework stands. Consumers get zero configuration, framework
-  developers keep a fast path, and both remain content-addressed: identity
-  comes from the kind image digest in the default case and from the staged
-  source digest when overridden.
+- Decision: REVERSED — an earlier entry decided the job-kind image would carry
+  the framework distributions. That is retracted.
+  Rationale: it was chosen as the zero-configuration option before noticing the
+  project template had already solved the same problem with a plain versioned
+  dependency. Compared against that, baking into kind buys no consumer benefit
+  while making every framework edit a rebuild of six shared images and
+  reversing `validate.py`'s dependency-only rule. A fourth image level between
+  kind and actual-job was also considered and rejected for the same reason;
+  it is what `containers/posttrain-job-runtime/` was, and it was superseded
+  once already.
 
 - Decision: treat this as a blocker for calling the framework consumable,
   rather than as a documentation gap to be papered over with "clone the repo
