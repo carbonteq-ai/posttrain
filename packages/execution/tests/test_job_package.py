@@ -128,7 +128,7 @@ def test_verl_runtime_identity_is_interpreter_specific_and_package_bound() -> No
         ),
         RuntimeDependencyLock(
             role="control",
-            python_version="3.12",
+            python_version="3.13.12",
             python_executable="/opt/posttrain/venv/bin/python",
             requirements_path="locks/runtime.control.requirements.txt",
             requirements_digest="3" * 64,

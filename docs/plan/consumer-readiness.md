@@ -93,6 +93,31 @@ imagined.
   Consequence: extending that suite to plan and pack is the cheapest way to
   keep this class of gap from reappearing, and it belongs with Milestone 2.
 
+- Observation: the framework cannot resolve as an ordinary dependency without a
+  package index, so a GitHub Releases pre-release does not reach that design on
+  its own.
+  Evidence: environment dependencies are resolved by
+  `ImmutableEnvironmentDependencyCompiler` through `uv pip compile`, which
+  queries a package index. A wheelhouse tarball attached to a GitHub release is
+  not an index, so `posttrain==0.1.0` declared by a scaffolded project has
+  nothing to resolve against at pack time. The earlier reversal to "the
+  framework is just a dependency" is therefore correct in shape but blocked in
+  practice until the wheels sit on PyPI or a private index.
+  Consequence: with GitHub Releases as the channel, the framework must be
+  staged into the job context from a wheelhouse the consumer already has, which
+  is the same mechanism selected environments already use. Awkward compared to
+  an index, and workable without one.
+
+- Observation: the interpreter bump left the control dependency lock claiming
+  Python 3.12 in three places, one of them a contract assertion.
+  Evidence: `execution_pack/service.py` wrote `python_version="3.12"` into the
+  control `RuntimeDependencyLock` and into its resolution digest, and
+  `execution/job_package.py` asserted `control.python_version != "3.12"` for
+  veRL capsules. The images run 3.13.12 and `verl-py313/profile.toml` already
+  declares `control_python = "3.13.12"`, so the manifest described an
+  interpreter that no longer existed. The resolution digest feeds job package
+  identity, so this was recorded identity rather than a stray comment.
+
 ## Decision Log
 
 - Decision: the framework reaches the job image as an ordinary project

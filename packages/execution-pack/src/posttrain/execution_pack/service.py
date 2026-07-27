@@ -650,14 +650,14 @@ def _stage_runtime_dependencies(
                 path=environments.runtime_requirements,
                 lock=RuntimeDependencyLock(
                     role="control",
-                    python_version="3.12",
+                    python_version="3.13.12",
                     python_executable="/opt/posttrain/venv/bin/python",
                     requirements_path="locks/runtime.control.requirements.txt",
                     requirements_digest=digest,
                     resolution_digest=_semantic_digest(
                         {
                             "role": "control",
-                            "python_version": "3.12",
+                            "python_version": "3.13.12",
                             "requirements_digest": digest,
                         }
                     ),

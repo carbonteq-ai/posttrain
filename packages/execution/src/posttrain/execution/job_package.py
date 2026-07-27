@@ -351,7 +351,7 @@ class JobPackageManifest:
             control = by_role["control"]
             backend = by_role["backend"]
             if (
-                control.python_version != "3.12"
+                control.python_version != "3.13.12"
                 or control.python_executable != "/opt/posttrain/venv/bin/python"
                 or backend.python_version != "3.13.12"
                 or backend.python_executable != "/opt/posttrain-verl/bin/python"
