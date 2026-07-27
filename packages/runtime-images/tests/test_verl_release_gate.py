@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[1] / "src" / "posttrain" / "runtime_images"
 PROFILE_ROOT = ROOT / "containers" / "posttrain-job-kinds" / "verl-py313"
 MODULE_PATH = PROFILE_ROOT / "release_gate.py"
 SPEC = importlib.util.spec_from_file_location("posttrain_verl_release_gate", MODULE_PATH)
@@ -38,7 +38,7 @@ def test_candidate_definition_preserves_two_python_environments() -> None:
     assert profile.worker_projection_packages == ("common", "data", "train")
 
 
-def test_unpublished_candidate_fails_release_closed(tmp_path: Path) -> None:
+def test_blocked_candidate_fails_release_closed(tmp_path: Path) -> None:
     profile = release_gate.ReleaseProfile.read(PROFILE_ROOT / "profile.toml")
 
     blockers = release_gate.release_blockers(
@@ -49,10 +49,14 @@ def test_unpublished_candidate_fails_release_closed(tmp_path: Path) -> None:
     )
 
     assert "profile release_status is not ready" in blockers
-    assert "published CarbonTeq veRL fork_revision is missing" in blockers
     assert any("uv.lock is missing" in blocker for blocker in blockers)
     assert "a clean veRL source checkout is required for release" in blockers
     assert "release requires remote reachability verification" in blockers
+    # Fork revision and lock digest may already be recorded while the profile
+    # remains blocked pending image smoke and GPU qualification.
+    assert profile.fork_revision
+    assert profile.dependency_lock_sha256
+    assert (PROFILE_ROOT / "release" / "uv.lock").is_file()
 
 
 def test_research_lock_is_rejected_as_kind_image_input() -> None:

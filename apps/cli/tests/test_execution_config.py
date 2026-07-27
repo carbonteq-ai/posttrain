@@ -144,7 +144,7 @@ def test_local_configuration_is_mode_checked_and_parsed(tmp_path: Path) -> None:
                 f'universal_image = "{image}"',
                 'buildx_builder = "posttrain-builder"',
                 'receipt_root = "runtime-builds"',
-                'bake_file = "../../../containers/posttrain-job/docker-bake.hcl"',
+                'bake_file = "../../../packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job/docker-bake.hcl"',
                 'framework_source_root = "../../.."',
                 "",
                 "[registry.kind_images]",

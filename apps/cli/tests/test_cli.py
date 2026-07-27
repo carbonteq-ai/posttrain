@@ -156,7 +156,6 @@ def _write_exact_execution_config(
         'repository = "registry.lan/carbonteq/posttrain-job"',
         f'universal_image = "{image}"',
         f'framework_source_root = "{repository}"',
-        f'bake_file = "{repository / "containers/posttrain-job/docker-bake.hcl"}"',
         "",
         "[registry.kind_images]",
         *(

@@ -25,6 +25,7 @@ members = [
     "posttrain-lab",
     "posttrain-observatory",
     "posttrain-runtime",
+    "posttrain-runtime-images",
     "posttrain-serve",
     "posttrain-tracking",
     "posttrain-tracking-trackio",
@@ -2425,6 +2426,7 @@ dependencies = [
     { name = "posttrain-execution-local" },
     { name = "posttrain-execution-pack" },
     { name = "posttrain-jobs" },
+    { name = "posttrain-runtime-images" },
     { name = "posttrain-tracking" },
     { name = "posttrain-work" },
     { name = "typer" },
@@ -2465,6 +2467,7 @@ requires-dist = [
     { name = "posttrain-execution-pack", editable = "packages/execution-pack" },
     { name = "posttrain-jobs", editable = "packages/jobs" },
     { name = "posttrain-observatory", marker = "extra == 'observatory'", editable = "apps/observatory" },
+    { name = "posttrain-runtime-images", editable = "packages/runtime-images" },
     { name = "posttrain-serve", extras = ["vllm"], marker = "extra == 'vllm'", editable = "packages/serve" },
     { name = "posttrain-tracking", editable = "packages/tracking" },
     { name = "posttrain-tracking-trackio", marker = "extra == 'trackio'", editable = "packages/tracking-trackio" },
@@ -2803,6 +2806,11 @@ requires-dist = [
     { name = "posttrain-work", editable = "packages/work" },
 ]
 provides-extras = ["trackio", "wandb"]
+
+[[package]]
+name = "posttrain-runtime-images"
+version = "0.1.0"
+source = { editable = "packages/runtime-images" }
 
 [[package]]
 name = "posttrain-serve"

@@ -6,9 +6,29 @@ import re
 import tomllib
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-BASE = ROOT / "containers" / "posttrain-base"
-KINDS = ROOT / "containers" / "posttrain-job-kinds"
+DEFINITIONS = Path(__file__).resolve().parents[2]
+BASE = DEFINITIONS / "containers" / "posttrain-base"
+KINDS = DEFINITIONS / "containers" / "posttrain-job-kinds"
+
+
+def _workspace_root() -> Path:
+    """Locate the framework checkout that owns the resolved workspace locks.
+
+    These definitions ship inside an installed wheel, where no workspace lock
+    exists. Profile validation compares pins against those locks, so it is a
+    framework-repo check by construction and must fail loudly rather than
+    silently skip when run from an installed distribution.
+    """
+    for candidate in Path(__file__).resolve().parents:
+        if (candidate / "uv.lock").is_file() and (candidate / "pyproject.toml").is_file():
+            return candidate
+    raise AssertionError(
+        "runtime profile validation requires a framework checkout with a resolved "
+        "uv.lock; it cannot run against an installed distribution"
+    )
+
+
+ROOT = _workspace_root()
 
 RUNTIME_VARIANTS = (
     "supervised",

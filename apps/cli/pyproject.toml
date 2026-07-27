@@ -13,6 +13,7 @@ dependencies = [
     "posttrain-execution-pack",
     "posttrain-execution-local",
     "posttrain-jobs",
+    "posttrain-runtime-images",
     "posttrain-tracking",
     "posttrain-work",
     "typer>=0.25.1",
@@ -53,6 +54,7 @@ posttrain-execution-pack = { workspace = true }
 posttrain-execution-dstack = { workspace = true }
 posttrain-execution-local = { workspace = true }
 posttrain-jobs = { workspace = true }
+posttrain-runtime-images = { workspace = true }
 posttrain-tracking = { workspace = true }
 posttrain-observatory = { workspace = true }
 posttrain-eval = { workspace = true }

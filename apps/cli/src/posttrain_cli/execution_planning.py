@@ -33,6 +33,7 @@ from posttrain.execution_pack import (
     SourceSnapshotRequest,
     plan_job_pack,
 )
+from posttrain.runtime_images import JOB_BAKE_FILE, cached_definition_root
 from posttrain.tracking import RunSpec
 from posttrain.work import (
     PreparedWorkPackageJob,
@@ -500,8 +501,28 @@ def _registry(local_config: LocalExecutionConfig) -> RegistryBinding:
     return registry
 
 
+def _default_framework_source_root() -> Path:
+    """Discover the framework checkout whose source gets packed into a job image.
+
+    Unlike the image definitions, framework *source* is not package data: the
+    actual-job image installs it from real package roots. An installed
+    distribution therefore still needs `registry.framework_source_root` to
+    point at a checkout.
+    """
+    for candidate in Path(__file__).resolve().parents:
+        if all(
+            (candidate / relative / "pyproject.toml").is_file()
+            for relative in _FRAMEWORK_INSTALL_ROOTS
+        ):
+            return candidate
+    raise ContractError(
+        "framework source checkout could not be discovered; configure "
+        "registry.framework_source_root"
+    )
+
+
 def _framework_source_request(configured_root: Path | None) -> SourceSnapshotRequest:
-    root = configured_root or _default_framework_root()
+    root = configured_root or _default_framework_source_root()
     missing = [
         relative
         for relative in _FRAMEWORK_INSTALL_ROOTS
@@ -519,26 +540,19 @@ def _framework_source_request(configured_root: Path | None) -> SourceSnapshotReq
     )
 
 
-def _default_framework_root() -> Path:
-    for candidate in Path(__file__).resolve().parents:
-        if (
-            (candidate / "containers/posttrain-job/docker-bake.hcl").is_file()
-            and (candidate / "packages/execution/pyproject.toml").is_file()
-        ):
-            return candidate
-    raise ContractError(
-        "framework source checkout could not be discovered; configure "
-        "registry.framework_source_root"
-    )
-
-
 def _bake_file(registry: RegistryBinding) -> Path:
+    """Locate the actual-job BuildKit definition.
+
+    The framework ships this definition as package data, so an installed
+    distribution carries it and no source checkout has to be discovered.
+    `registry.framework_source_root` is deliberately not consulted here: it
+    selects which framework *source* gets packed into the job image, which is
+    a separate question from where the image definition itself lives.
+    `registry.bake_file` remains the explicit override.
+    """
     selected = registry.bake_file
     if selected is None:
-        selected = (
-            (registry.framework_source_root or _default_framework_root())
-            / "containers/posttrain-job/docker-bake.hcl"
-        ).resolve()
+        selected = (cached_definition_root() / JOB_BAKE_FILE).resolve()
     if not selected.is_file():
         raise ContractError(f"actual-job BuildKit definition is missing: {selected}")
     return selected
