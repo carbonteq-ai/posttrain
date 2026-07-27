@@ -1,0 +1,31 @@
+[project]
+name = "posttrain-release"
+version = "0.1.0"
+description = "Framework-owner tooling that publishes runtime images and pins the release manifest"
+authors = [{ name = "CarbonTeq" }]
+license = "Apache-2.0"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "posttrain-execution",
+    "posttrain-execution-buildkit",
+    "posttrain-runtime-images",
+    "typer>=0.25.1",
+]
+
+[project.scripts]
+posttrain-release = "posttrain_release.cli:main"
+
+[tool.uv]
+package = true
+
+[tool.uv.sources]
+posttrain-execution = { workspace = true }
+posttrain-execution-buildkit = { workspace = true }
+posttrain-runtime-images = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/posttrain_release"]

@@ -207,6 +207,15 @@ class BuildKitRuntimeBuilder:
         self._gateway = gateway or BuildxCli()
         self._root = receipt_root
 
+    def check(self, request: RuntimeBuildRequest) -> None:
+        """Validate a definition without producing an image.
+
+        A runtime image has no identity until it is published, so this is the
+        only meaningful operation short of a real build: it resolves the Bake
+        graph and evaluates the Dockerfile without emitting layers.
+        """
+        self._gateway.invoke(self._outline_arguments(request))
+
     def build(self, request: RuntimeBuildRequest) -> RuntimeBuildResult:
         receipt = self._root / f"{request.build_key}.json"
         if receipt.is_file():

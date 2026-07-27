@@ -24,6 +24,7 @@ members = [
     "posttrain-jobs",
     "posttrain-lab",
     "posttrain-observatory",
+    "posttrain-release",
     "posttrain-runtime",
     "posttrain-runtime-images",
     "posttrain-serve",
@@ -2769,6 +2770,25 @@ requires-dist = [
     { name = "posttrain-tracking-wandb", editable = "packages/tracking-wandb" },
     { name = "pydantic", specifier = ">=2.12,<3" },
     { name = "uvicorn", specifier = ">=0.51,<0.52" },
+]
+
+[[package]]
+name = "posttrain-release"
+version = "0.1.0"
+source = { editable = "apps/release" }
+dependencies = [
+    { name = "posttrain-execution" },
+    { name = "posttrain-execution-buildkit" },
+    { name = "posttrain-runtime-images" },
+    { name = "typer" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "posttrain-execution", editable = "packages/execution" },
+    { name = "posttrain-execution-buildkit", editable = "packages/execution-buildkit" },
+    { name = "posttrain-runtime-images", editable = "packages/runtime-images" },
+    { name = "typer", specifier = ">=0.25.1" },
 ]
 
 [[package]]

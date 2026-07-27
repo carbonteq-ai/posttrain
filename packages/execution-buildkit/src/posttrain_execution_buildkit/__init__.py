@@ -42,12 +42,28 @@ from .git_sources import (
     MaterializedGitSource,
     MaterializedGitSources,
 )
+from .image_inspection import (
+    IMAGE_LEVEL_LABEL,
+    LOCK_DIGEST_LABEL,
+    REVISION_LABEL,
+    VERSION_LABEL,
+    ImageInspector,
+    RemoteImageFacts,
+    RuntimeImageInspector,
+)
 from .job_image import BuildKitJobImagePublisher
 
 __all__ = [
+    "IMAGE_LEVEL_LABEL",
+    "LOCK_DIGEST_LABEL",
+    "REVISION_LABEL",
+    "VERSION_LABEL",
     "BuildKitRuntimeBuilder",
     "BuildKitJobImagePublisher",
     "BuildxCli",
+    "ImageInspector",
+    "RemoteImageFacts",
+    "RuntimeImageInspector",
     "DependencyCompileGateway",
     "DependencyResolutionError",
     "EnvironmentDependencyLock",

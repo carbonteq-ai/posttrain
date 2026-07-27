@@ -18,6 +18,7 @@ from .commands import (
     observatory,
     project_cmd,
     run_cmd,
+    runtime,
     version,
     work_package,
 )
@@ -63,6 +64,7 @@ def create_app(*, json_stream: TextIO | None = None) -> typer.Typer:
     work_package.register(app)
     job.register(app)
     run_cmd.register(app)
+    runtime.register(app)
     observatory.register(app)
 
     return app

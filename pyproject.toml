@@ -48,6 +48,7 @@ testpaths = [
     "apps/cli/tests",
     "apps/lab/tests",
     "apps/observatory/tests",
+    "apps/release/tests",
     "apps/runtime/tests",
     "packages/catalog/tests",
     "packages/common/tests",
@@ -111,7 +112,7 @@ precision = 1
 fail_under = 65
 
 [tool.importlinter]
-root_packages = ["posttrain", "posttrain_cli", "posttrain_lab", "posttrain_observatory", "posttrain_runtime"]
+root_packages = ["posttrain", "posttrain_cli", "posttrain_lab", "posttrain_observatory", "posttrain_release", "posttrain_runtime"]
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
