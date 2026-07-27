@@ -7,6 +7,7 @@ import json
 import os
 import re
 import subprocess
+import tempfile
 import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -119,8 +120,22 @@ class BuildxCli:
                 raise RemoteImageNotFoundError(
                     f"published image is absent: {detail}"
                 )
+            # Buildx echoes the whole failing RUN script in its own error, which
+            # crowds the actual failure message out of any bounded tail. Retain
+            # the full output so a diagnosis does not depend on guessing.
+            transcript = Path(tempfile.gettempdir()) / f"posttrain-buildx-{uuid.uuid4().hex[:12]}.log"
+            try:
+                transcript.write_text(
+                    f"$ docker buildx {' '.join(arguments)}\n\n"
+                    f"--- stdout ---\n{result.stdout}\n--- stderr ---\n{result.stderr}",
+                    encoding="utf-8",
+                )
+                location = f" Full output: {transcript}"
+            except OSError:
+                location = ""
             raise RuntimeError(
-                f"docker buildx {arguments[0] if arguments else 'command'} failed: {detail}"
+                f"docker buildx {arguments[0] if arguments else 'command'} failed: "
+                f"{detail}.{location}"
             )
         return result.stdout
 
