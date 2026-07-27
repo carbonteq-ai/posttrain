@@ -159,6 +159,7 @@ def _runtime(
     *,
     with_dataset: bool = False,
     terminate: bool = False,
+    terminate_signal: int = signal.SIGTERM,
     fail: bool = False,
 ) -> WorkPackageContext:
     def execute(context, seats):
@@ -170,7 +171,7 @@ def _runtime(
         if source_metadata is not None:
             source_metadata.append(dict(context.source_metadata))
         if terminate:
-            signal.raise_signal(signal.SIGTERM)
+            signal.raise_signal(terminate_signal)
         if fail:
             raise RuntimeError("expected worker failure")
         return {"checked": True}
@@ -191,6 +192,8 @@ def _runtime(
 
 
 class _TrackedRun:
+    repeat_signal: int = signal.SIGTERM
+
     def __init__(self, run_id: str) -> None:
         self.run_id = run_id
         self.outcomes: list[RunOutcome] = []
@@ -222,16 +225,18 @@ class _TrackedRun:
         return ()
 
     def finish(self, outcome: RunOutcome) -> None:
-        signal.raise_signal(signal.SIGTERM)
+        signal.raise_signal(self.repeat_signal)
         self.outcomes.append(outcome)
 
 
 class _TrackingBackend:
-    def __init__(self) -> None:
+    def __init__(self, repeat_signal: int = signal.SIGTERM) -> None:
         self.tracked: _TrackedRun | None = None
+        self._repeat_signal = repeat_signal
 
     def start_run(self, spec: RunSpec) -> _TrackedRun:
         self.tracked = _TrackedRun(spec.run_id)
+        self.tracked.repeat_signal = self._repeat_signal
         return self.tracked
 
 
@@ -484,13 +489,22 @@ def test_worker_executes_verified_actual_job_with_launch_attempt(
     )
 
 
-def test_worker_sigterm_durably_cancels_tracking_before_exit(
+@pytest.mark.parametrize(
+    "cancel_signal",
+    [signal.SIGTERM, signal.SIGINT],
+    ids=["sigterm", "sigint"],
+)
+def test_worker_cancel_signal_durably_cancels_tracking_before_exit(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    cancel_signal: int,
 ) -> None:
+    """Container runtimes cancel with SIGTERM; the dstack runner interrupts the
+    job with SIGINT. Both must finalize tracking as cancelled before exit."""
+
     manifest_path, manifest = _actual_job(tmp_path / "job")
-    backend = _TrackingBackend()
-    previous = signal.getsignal(signal.SIGTERM)
+    backend = _TrackingBackend(repeat_signal=cancel_signal)
+    previous = signal.getsignal(cancel_signal)
     monkeypatch.setenv("POSTTRAIN_EXECUTION", _launch(manifest))
     monkeypatch.setattr(
         "posttrain_runtime.execute._RUN_ROOT",
@@ -499,7 +513,12 @@ def test_worker_sigterm_durably_cancels_tracking_before_exit(
 
     def build(request, tracking):
         del tracking
-        runtime = _runtime(request.catalog, [], terminate=True)
+        runtime = _runtime(
+            request.catalog,
+            [],
+            terminate=True,
+            terminate_signal=cancel_signal,
+        )
         return replace(
             runtime,
             executor=partial(
@@ -517,8 +536,8 @@ def test_worker_sigterm_durably_cancels_tracking_before_exit(
     with pytest.raises(SystemExit) as captured:
         execute_manifest(manifest_path)
 
-    assert captured.value.code == 128 + signal.SIGTERM
-    assert signal.getsignal(signal.SIGTERM) == previous
+    assert captured.value.code == 128 + cancel_signal
+    assert signal.getsignal(cancel_signal) == previous
     assert backend.tracked is not None
     assert [outcome.status for outcome in backend.tracked.outcomes] == [
         "cancelled"

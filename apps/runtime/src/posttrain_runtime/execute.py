@@ -131,7 +131,7 @@ class _VerifiedPackage:
 def execute_manifest(path: Path) -> WorkerExecutionResult:
     """Run exactly the verified registered job embedded in an actual-job image."""
 
-    with _graceful_sigterm():
+    with _graceful_cancellation():
         return _execute_manifest(path)
 
 
@@ -305,19 +305,28 @@ def _write_terminal_marker(
         raise
 
 
-@contextmanager
-def _graceful_sigterm() -> Iterator[None]:
-    """Let tracked execution durably finalize before a worker exits on SIGTERM.
+_CANCELLATION_SIGNALS = (signal.SIGTERM, signal.SIGINT)
 
-    dstack and local container runtimes use SIGTERM for ordinary cancellation.
+
+@contextmanager
+def _graceful_cancellation() -> Iterator[None]:
+    """Let tracked execution durably finalize before a worker exits on cancel.
+
+    Container runtimes cancel with SIGTERM, but the dstack runner interrupts the
+    job with SIGINT (``os.Interrupt``), so both must reach the same finalizing
+    path. SIGINT is handled explicitly rather than left to Python's default
+    handler because backends initialized inside this scope, such as vLLM and
+    Torch, may install their own SIGINT handler and silently swallow the
+    cancellation.
+
     Raising ``SystemExit`` transfers control through the tracked-run cancellation
-    path while preserving the conventional ``128 + SIGTERM`` process exit code.
-    A repeated SIGTERM is ignored during unwinding so it cannot interrupt the
+    path while preserving the conventional ``128 + signal`` process exit code.
+    A repeated signal is ignored during unwinding so it cannot interrupt the
     bounded tracking finalizer; the provider may still enforce its hard-kill
     timeout with SIGKILL.
     """
 
-    previous = signal.getsignal(signal.SIGTERM)
+    previous = {number: signal.getsignal(number) for number in _CANCELLATION_SIGNALS}
     terminating = False
 
     def request_termination(
@@ -331,11 +340,13 @@ def _graceful_sigterm() -> Iterator[None]:
         terminating = True
         raise SystemExit(128 + signum)
 
-    signal.signal(signal.SIGTERM, request_termination)
+    for number in _CANCELLATION_SIGNALS:
+        signal.signal(number, request_termination)
     try:
         yield
     finally:
-        signal.signal(signal.SIGTERM, previous)
+        for number, handler in previous.items():
+            signal.signal(number, handler)
 
 
 def _verify_package(path: Path) -> _VerifiedPackage:
