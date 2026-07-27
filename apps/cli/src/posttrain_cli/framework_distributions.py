@@ -120,6 +120,11 @@ def materialize(
     """
     environ = os.environ if environ is None else environ
     destination.mkdir(parents=True, exist_ok=True)
+    # The destination is reused between packs. Wheels left by a previously
+    # installed framework would otherwise be staged alongside the current ones,
+    # and the image would be asked to install two versions of every package.
+    for stale in destination.glob("*.whl"):
+        stale.unlink()
     versions = installed_versions()
     requirements = [f"{name}=={version}" for name, version in sorted(versions.items())]
     result = subprocess.run(
@@ -153,11 +158,19 @@ def materialize(
     wheels = tuple(sorted(path for path in destination.glob("*.whl") if _WHEEL.match(path.name)))
     if not wheels:
         raise ContractError(f"no framework wheels were produced in {destination}")
-    missing = [
-        name
-        for name in versions
-        if not any(path.name.lower().startswith(name.replace("-", "_").lower() + "-") for path in wheels)
-    ]
+    missing = []
+    for name in versions:
+        prefix = name.replace("-", "_").lower() + "-"
+        matched = [path for path in wheels if path.name.lower().startswith(prefix)]
+        if not matched:
+            missing.append(name)
+        elif len(matched) > 1:
+            # One distribution resolving to several wheels means the image would
+            # be told to install more than one version of the same package.
+            raise ContractError(
+                f"framework distribution {name} produced more than one wheel: "
+                + ", ".join(sorted(path.name for path in matched))
+            )
     if missing:
         raise ContractError("framework wheels are missing for: " + ", ".join(sorted(missing)))
     return FrameworkDistributions(wheels=wheels, digest=_digest(wheels))
