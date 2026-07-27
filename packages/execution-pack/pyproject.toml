@@ -1,6 +1,6 @@
 [project]
 name = "posttrain-execution-pack"
-version = "0.1.0"
+version = "0.1.1"
 description = "Provider-neutral semantic planning for immutable posttrain job packages"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"

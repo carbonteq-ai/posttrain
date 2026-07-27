@@ -1,6 +1,6 @@
 [project]
 name = "posttrain-execution-local"
-version = "0.1.0"
+version = "0.1.1"
 description = "Local Docker execution provider for posttrain"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"

@@ -1,6 +1,6 @@
 [project]
 name = "posttrain-execution-buildkit"
-version = "0.1.0"
+version = "0.1.1"
 description = "BuildKit image publication adapter for posttrain job runtimes"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"

@@ -1,6 +1,6 @@
 [project]
 name = "posttrain-tracking-trackio"
-version = "0.1.0"
+version = "0.1.1"
 description = "Trackio tracking backend for posttrain"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"

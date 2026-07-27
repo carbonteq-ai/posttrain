@@ -1,6 +1,6 @@
 [project]
 name = "posttrain-jobs"
-version = "0.1.0"
+version = "0.1.1"
 description = "Standard post-training job definitions and project runtime composition"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"

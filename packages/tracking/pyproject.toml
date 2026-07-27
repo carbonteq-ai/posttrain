@@ -1,6 +1,6 @@
 [project]
 name = "posttrain-tracking"
-version = "0.1.0"
+version = "0.1.1"
 description = "Provider-neutral tracking contracts and job-aware run views"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
