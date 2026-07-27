@@ -121,6 +121,10 @@ does not introduce new selection, work, run, artifact, or evidence types.
 posttrain init [PATH] --template sft|grpo [--project-id ID] [--no-install]
 posttrain version
 posttrain doctor
+posttrain runtime images list
+posttrain runtime images verify [--variant VARIANT]
+posttrain runtime images build [--variant VARIANT] [--push]
+posttrain runtime images mirror --registry PREFIX [--variant VARIANT]
 posttrain project show
 posttrain catalog list [--family FAMILY]
 posttrain catalog show FAMILY ID
@@ -130,7 +134,8 @@ posttrain work-package validate PATH
 posttrain work-package run PATH --job JOB_ID
 posttrain job plan WORK_PACKAGE --job JOB_ID
 posttrain job pack WORK_PACKAGE --job JOB_ID
-posttrain job run WORK_PACKAGE --job JOB_ID [--provider local|dstack]
+posttrain job run WORK_PACKAGE --job JOB_ID [--provider local|dstack] [--build-missing]
+posttrain job diff WORK_PACKAGE --job JOB_ID [--from KEY] [--to KEY]
 posttrain run list
 posttrain run status RUN_ID
 posttrain run wait RUN_ID
@@ -156,6 +161,50 @@ output.
 `run_id` exists, `run` owns provider lifecycle, admission state, retained
 evidence reconciliation, and cleanup. This noun split supersedes the earlier
 draft spelling of lifecycle commands under `posttrain job`.
+
+An actual-job image is identified by content, not by a declared version. The
+package key is a digest over resolved catalog selections, resolved
+configuration, project configuration, project and framework source, the
+dependency closure, every materialized dataset, and the job-kind image. Any
+change to any of those produces a different package key and therefore a
+different published image, so a job image is never overwritten and never needs
+a version bump; two different configurations cannot share an identity. `job
+diff` reports which of those inputs differ between two packages, because a
+digest alone states that something changed without saying what, and the honest
+answer is often narrower than a reader assumes.
+
+`runtime` owns the framework-published image levels that exist before any
+project: the universal base and the job-kind images. The framework publishes
+these once per release and pins their digests in the distribution, so an
+installed wheel already knows the exact image identity it requires. `list`
+reports those pinned digests, `verify` compares them against a registry,
+`build` reproduces them from the shipped definitions for a site that can reach
+neither the public registry nor a mirror, and `mirror` copies already-published
+digests into a site's own registry without rebuilding. Every one of these is a
+consumer operation. Publishing the release itself — pushing base and kind
+images to the framework's public registry and rewriting the pinned manifest —
+is a framework-owner operation and is deliberately absent from this surface.
+`runtime` never touches actual-job images; those remain owned by `job pack`.
+
+Two registries are in play and they are not the same thing. The framework
+publishes its base and job-kind images to one public registry per release; that
+location is a property of the framework, is identical for every consumer, and
+is recorded in the distribution rather than configured. A project publishes its
+own actual-job images somewhere else entirely, usually a private registry, and
+that location is per-site configuration. Conflating them makes a project's
+private registry look like a framework release channel.
+
+The `POSTTRAIN_REGISTRY` environment variable names the second one: the OCI
+registry prefix a project pushes its own actual-job images to. A site that
+cannot reach the public registry may also mirror the framework's base and kind
+images into it; because image digests are content-addressed, mirroring
+preserves image identity exactly, so a mirrored image satisfies the same digest
+the distribution pins. `POSTTRAIN_REGISTRY` is a location, not a credential;
+registry authentication stays in the environment's own Docker or OCI credential
+store. When it is unset, `job pack` and `job run` fail with a project contract
+error rather than defaulting to a registry. `doctor` reports its presence and
+reachability, and fails when a reachable kind image does not carry the lock
+digest the installed framework expects.
 
 Initialization writes the project layout and an installable project package,
 then creates the project environment and installs dependencies. There is no

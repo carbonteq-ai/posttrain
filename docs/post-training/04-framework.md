@@ -123,10 +123,12 @@ flowchart TB
 | `packages/execution` | Provider-neutral launch contracts, immutable job-package identity, lifecycle, reconciliation, and cleanup | dstack SDK calls, Docker commands, job semantics |
 | `packages/execution-pack` | Framework job-package planning and materialization across project code, environment sources, datasets, and image levels | Provider scheduling, registry operation, environment semantics |
 | `packages/execution-buildkit` | BuildKit adapter, immutable image publication, qualification, and protected receipts | Choosing job inputs or owning infrastructure services |
+| `packages/runtime-images` | Shipped container definitions (base, job-kind, actual-job), runtime profiles and locks, and the per-release manifest pinning published base/kind digests | Building or pushing images, registry credentials, project or job selection |
 | `packages/execution-local` / `execution-dstack` | Local Docker and dstack launch adapters over the same digest-pinned actual-job image | A second code/data upload protocol |
 | `apps/cli` | Primary `posttrain` command: project initialization and install, diagnostics, catalog/work-package execution, and Observatory bring-up | Capability semantics, provider storage logic, project decisions |
 | `apps/lab` | Reference project and qualification suite: scenario policy, backend integration tests, and hardware release gates | Being imported by ordinary projects or owning the standard job contract |
 | `apps/observatory` | Dedicated read product: telemetry definitions, query/intelligence service, Python API, HTTP API, MCP, frontend, materialized reports, and versioned serving-capacity interpretation | Provider storage queries, execution, mutation of runs, or “winner” selection |
+| `apps/release` | Framework-owner release tooling: building the base and job-kind images, publishing them to the framework's public registry, and regenerating the pinned image manifest | Being a dependency of `posttrain`, project or job semantics, site registry policy |
 | Env packages (e.g. AutomationBench) | Published Verifiers environments | Importing lab or train/serve packages |
 
 ### Dependency rules (DX contracts)
@@ -167,7 +169,19 @@ flowchart TB
 13. **The framework owns all job-image semantics.** It publishes a universal
     base, job-kind images, and actual-job images. Infrastructure operates
     BuildKit, the OCI registry, dstack, workers, credentials, caches, and
-    retention; it does not choose or build framework job contents.
+    retention; it does not choose or build framework job contents. The
+    universal base and job-kind images are published once per framework
+    release and their digests ship inside the distribution, so an installed
+    framework carries both the definitions that produced those images and the
+    exact identity it expects to find. Consumers pull them; they build only
+    when a published digest is unreachable and they opt in explicitly. A
+    kind image whose recorded lock digest disagrees with the installed
+    framework's own lock is drift, and the framework must fail rather than
+    run on it. Publishing a release is an owner operation and is not reachable
+    from the consumer CLI; consumers may pull, mirror, or — only where neither
+    is reachable — rebuild from the shipped definitions, and a rebuilt image
+    that does not match the pinned digest must be reported as unverified
+    rather than silently accepted.
 14. **The actual-job OCI image is the normal distribution unit.** It contains
     exact framework/project code, resolved configuration, materialized
     datasets, and every selected environment package. Providers receive its
