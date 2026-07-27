@@ -473,9 +473,7 @@ def _validate_runtime(manifest: VerlLaunchManifest) -> None:
             or os.environ.get("PYTHONPATH") != projection_value
             or site.ENABLE_USER_SITE
         ):
-            raise RuntimeError(
-                "veRL capsule worker must use only its packaged projection"
-            )
+            raise RuntimeError("veRL capsule worker must use only its packaged projection")
         modules = tuple(
             importlib.import_module(name)
             for name in (
@@ -489,9 +487,7 @@ def _validate_runtime(manifest: VerlLaunchManifest) -> None:
         for module in modules:
             origin = getattr(module, "__file__", None)
             if origin is None or not Path(origin).resolve().is_relative_to(root):
-                raise RuntimeError(
-                    f"veRL worker module escaped packaged projection: {module.__name__}"
-                )
+                raise RuntimeError(f"veRL worker module escaped packaged projection: {module.__name__}")
     try:
         from importlib.metadata import version
 

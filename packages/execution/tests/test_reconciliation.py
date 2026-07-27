@@ -98,9 +98,7 @@ class _Source:
                 started_at=started,
                 finished_at=None if self.status == "running" else started,
                 error=(
-                    SafeRunError(type="TrainingError", message="training failed")
-                    if self.status == "failed"
-                    else None
+                    SafeRunError(type="TrainingError", message="training failed") if self.status == "failed" else None
                 ),
             )
         )

@@ -29,12 +29,8 @@ def test_candidate_definition_preserves_two_python_environments() -> None:
     assert profile.backend_projection_path == "/opt/posttrain-verl/projection"
     assert profile.backend_pythonpath_variable == "POSTTRAIN_VERL_PYTHONPATH"
     assert profile.backend_worker_module == "posttrain.train.backends.verl.worker"
-    assert profile.control_environment_lock_path == (
-        "locks/runtime.control.requirements.txt"
-    )
-    assert profile.backend_environment_lock_path == (
-        "locks/runtime.backend.requirements.txt"
-    )
+    assert profile.control_environment_lock_path == ("locks/runtime.control.requirements.txt")
+    assert profile.backend_environment_lock_path == ("locks/runtime.backend.requirements.txt")
     assert profile.worker_projection_packages == ("common", "data", "train")
 
 
@@ -88,30 +84,27 @@ def test_blocked_verl_variant_is_not_publishable_but_trl_variant_is_explicit() -
 
 def test_actual_job_definition_projects_worker_into_backend_environment() -> None:
     profile = release_gate.ReleaseProfile.read(PROFILE_ROOT / "profile.toml")
-    dockerfile = (
-        ROOT / "containers" / "posttrain-job" / "Dockerfile"
-    )
+    dockerfile = ROOT / "containers" / "posttrain-job" / "Dockerfile"
     bake = ROOT / "containers" / "posttrain-job-kinds" / "docker-bake.hcl"
-    assert release_gate.validate_repository_integration(
-        profile,
-        actual_job_dockerfile=dockerfile,
-        kind_bake_file=bake,
-    ) == ()
+    assert (
+        release_gate.validate_repository_integration(
+            profile,
+            actual_job_dockerfile=dockerfile,
+            kind_bake_file=bake,
+        )
+        == ()
+    )
     contents = dockerfile.read_text(encoding="utf-8")
 
     assert 'POSTTRAIN_VERL_PYTHONPATH="/opt/posttrain-verl/projection"' in contents
     assert 'test -x "/opt/posttrain-verl/bin/python"' in contents
     assert '--python "/opt/posttrain-verl/bin/python"' in contents
     assert "for package in common data train" in contents
-    assert (
-        'source="sources/framework/packages/${package}/src/posttrain/${package}"'
-        in contents
-    )
+    assert 'source="sources/framework/packages/${package}/src/posttrain/${package}"' in contents
     assert 'PYTHONPATH="${POSTTRAIN_VERL_PYTHONPATH}"' in contents
     assert '"/opt/posttrain-verl/bin/python" -s -B -c' in contents
     assert (
-        "import posttrain.common, posttrain.data, posttrain.train, "
-        "posttrain.train.backends.verl.worker"
+        "import posttrain.common, posttrain.data, posttrain.train, posttrain.train.backends.verl.worker"
     ) in contents
 
 
@@ -125,16 +118,11 @@ def test_ready_profile_requires_a_publication_target(tmp_path: Path) -> None:
 
     errors = release_gate.validate_repository_integration(
         profile,
-        actual_job_dockerfile=(
-            ROOT / "containers" / "posttrain-job" / "Dockerfile"
-        ),
+        actual_job_dockerfile=(ROOT / "containers" / "posttrain-job" / "Dockerfile"),
         kind_bake_file=bake,
     )
 
-    assert (
-        "ready veRL profile is absent from the job-kind publication graph"
-        in errors
-    )
+    assert "ready veRL profile is absent from the job-kind publication graph" in errors
 
 
 def test_ready_profile_requires_real_container_smoke_not_definition_strings(

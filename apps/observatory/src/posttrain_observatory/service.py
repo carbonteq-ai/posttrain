@@ -120,10 +120,7 @@ def _logical_metric_series(series: MetricSeries) -> MetricSeries:
     if replay:
         return MetricSeries(
             name=series.name,
-            points=tuple(
-                point.model_copy(update={"step": source_step})
-                for point, source_step in replay
-            ),
+            points=tuple(point.model_copy(update={"step": source_step}) for point, source_step in replay),
         )
 
     retained: list[MetricPoint] = []
@@ -411,10 +408,7 @@ def _condition_active(
         return (
             any(bool(value) for value in _config_values(dict(resolved_inputs), "tools"))
             or any(value is True for value in _config_values(dict(resolved_inputs), "tool_environment"))
-            or any(
-                isinstance(value, str) and "tool" in value.lower().split("-")
-                for value in categories
-            )
+            or any(isinstance(value, str) and "tool" in value.lower().split("-") for value in categories)
         )
     raise ValueError(f"unknown evidence condition: {condition}")
 
@@ -914,8 +908,7 @@ class ObservatoryService:
         if unknown:
             raise ValueError(f"unknown metric names: {', '.join(sorted(unknown))}")
         raw = tuple(
-            _logical_metric_series(series)
-            for series in await source.metric_series(locator.run_id, query.names)
+            _logical_metric_series(series) for series in await source.metric_series(locator.run_id, query.names)
         )
         filtered = []
         requested = 0

@@ -72,9 +72,7 @@ class EnvironmentBindingSchema(EvalCatalogSchema):
     @model_validator(mode="after")
     def require_one_activation(self) -> EnvironmentBindingSchema:
         if (self.activation is None) == (self.factory is None):
-            raise ValueError(
-                "environment binding requires exactly one of activation or legacy factory"
-            )
+            raise ValueError("environment binding requires exactly one of activation or legacy factory")
         return self
 
 
@@ -94,10 +92,7 @@ def evaluation_catalog_decoders(
 ) -> Mapping[SelectionFamily, SelectionDecoder]:
     """Build detached decoders without importing environment implementations."""
 
-    aliases = {
-        name: _normalize_activation(value)
-        for name, value in (factories or {}).items()
-    }
+    aliases = {name: _normalize_activation(value) for name, value in (factories or {}).items()}
 
     def decode_environment(
         ref: CatalogRef,
@@ -168,9 +163,7 @@ def _legacy_activation(
     try:
         return aliases[name]
     except KeyError as error:
-        raise ContractError(
-            f"legacy environment factory alias is not registered: {name}"
-        ) from error
+        raise ContractError(f"legacy environment factory alias is not registered: {name}") from error
 
 
 def _normalize_activation(

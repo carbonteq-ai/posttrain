@@ -26,14 +26,10 @@ from posttrain.execution import (
     RuntimeImageRef,
 )
 
-TRUST_BUNDLE_CONTAINER_PATH = Path(
-    "/opt/posttrain/trust/ca-certificates.crt"
-)
+TRUST_BUNDLE_CONTAINER_PATH = Path("/opt/posttrain/trust/ca-certificates.crt")
 _TRUST_ENVIRONMENT = ("SSL_CERT_FILE", "REQUESTS_CA_BUNDLE")
 _RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
-_HOSTNAME = re.compile(
-    r"^(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$"
-)
+_HOSTNAME = re.compile(r"^(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
 
 _STATE: dict[str, ExecutionState] = {
     "pending": "queued",
@@ -69,21 +65,14 @@ class DstackSdkBridge:
         self._python = python.absolute()
         self._bridge = (bridge or Path(__file__).with_name("sdk_bridge.py")).resolve()
         self._environment_file = environment_file.resolve() if environment_file else None
-        self._job_environment_file = (
-            job_environment_file.resolve()
-            if job_environment_file
-            else None
-        )
+        self._job_environment_file = job_environment_file.resolve() if job_environment_file else None
         if not self._python.is_file():
             raise FileNotFoundError(self._python)
         if not self._bridge.is_file():
             raise FileNotFoundError(self._bridge)
         if self._environment_file is not None and not self._environment_file.is_file():
             raise FileNotFoundError(self._environment_file)
-        if (
-            self._job_environment_file is not None
-            and not self._job_environment_file.is_file()
-        ):
+        if self._job_environment_file is not None and not self._job_environment_file.is_file():
             raise FileNotFoundError(self._job_environment_file)
 
     def _environment(self) -> dict[str, str]:
@@ -116,9 +105,7 @@ class DstackSdkBridge:
         if result.returncode != 0:
             error_lines = [line.strip() for line in result.stderr.splitlines() if line.strip()]
             detail = error_lines[-1][:500] if error_lines else "no diagnostic was returned"
-            raise RuntimeError(
-                f"dstack SDK bridge {action} failed with exit code {result.returncode}: {detail}"
-            )
+            raise RuntimeError(f"dstack SDK bridge {action} failed with exit code {result.returncode}: {detail}")
         value = json.loads(result.stdout)
         if not isinstance(value, dict):
             raise RuntimeError("dstack SDK bridge returned a non-object response")
@@ -188,8 +175,7 @@ class DstackExecutionProvider:
     ) -> dict[str, Any]:
         if request.bundle is not None and not allow_legacy_bundle:
             raise RuntimeError(
-                "dstack no longer accepts execution bundles; "
-                "pack and submit an immutable actual-job image"
+                "dstack no longer accepts execution bundles; pack and submit an immutable actual-job image"
             )
         placement = request.target.placement
         gpu: dict[str, Any] = {"count": _integer(placement.get("gpu_count"), 1)}
@@ -204,18 +190,12 @@ class DstackExecutionProvider:
                 maximum_memory = _integer(maximum_memory_value, 0)
                 if maximum_memory < minimum_memory:
                     raise ValueError(
-                        "dstack maximum GPU memory must be greater than or equal to "
-                        "the execution target minimum"
+                        "dstack maximum GPU memory must be greater than or equal to the execution target minimum"
                     )
                 gpu["memory"] = f"{minimum_memory}GB..{maximum_memory}GB"
         launch_environment = request.launch_environment(provider="dstack")
         if self._trust_bundle is not None:
-            launch_environment.update(
-                {
-                    name: str(TRUST_BUNDLE_CONTAINER_PATH)
-                    for name in _TRUST_ENVIRONMENT
-                }
-            )
+            launch_environment.update({name: str(TRUST_BUNDLE_CONTAINER_PATH) for name in _TRUST_ENVIRONMENT})
         configuration: dict[str, Any] = {
             "name": _run_name(request.idempotency_key),
             "image": request.image.value,
@@ -261,9 +241,7 @@ class DstackExecutionProvider:
                     "optional": False,
                 }
             )
-            configuration["setup"] = [
-                f"test -f {shlex.quote(str(TRUST_BUNDLE_CONTAINER_PATH))}"
-            ]
+            configuration["setup"] = [f"test -f {shlex.quote(str(TRUST_BUNDLE_CONTAINER_PATH))}"]
         return configuration
 
     def plan(self, request: ExecutionRequest) -> ExecutionPlan:
@@ -363,19 +341,13 @@ class DstackExecutionProvider:
             or run_workspace.parent == Path("/")
             or ".." in run_workspace.parts
         ):
-            raise RuntimeError(
-                "dstack cleanup workspace must be one exact absolute run directory"
-            )
+            raise RuntimeError("dstack cleanup workspace must be one exact absolute run directory")
         record = self.status(handle)
         if record.state not in {"succeeded", "failed", "cancelled"}:
-            raise RuntimeError(
-                "dstack run must be terminal and provider-visible before cleanup"
-            )
+            raise RuntimeError("dstack run must be terminal and provider-visible before cleanup")
         hostname = record.target_id
         if hostname != "unassigned" and not _HOSTNAME.fullmatch(hostname):
-            raise RuntimeError(
-                "dstack cleanup requires the terminal run's observed worker hostname"
-            )
+            raise RuntimeError("dstack cleanup requires the terminal run's observed worker hostname")
         response = self._gateway.invoke(
             "cleanup_workspace",
             {
@@ -411,19 +383,14 @@ class DstackExecutionProvider:
             or response.get("workspace") != str(run_workspace)
             or response.get("emptied") is not True
         ):
-            raise RuntimeError(
-                "dstack cleanup task did not verify the exact worker workspace"
-            )
+            raise RuntimeError("dstack cleanup task did not verify the exact worker workspace")
         reclaimed = response.get("reclaimed_bytes")
         if isinstance(reclaimed, bool) or not isinstance(reclaimed, int) or reclaimed < 0:
             raise RuntimeError("dstack cleanup task returned invalid reclaimed bytes")
         return ProviderCleanupResult(
             handle,
             "provider-managed",
-            (
-                "dstack retained run history and emptied the exact run workspace "
-                f"on {hostname}"
-            ),
+            (f"dstack retained run history and emptied the exact run workspace on {hostname}"),
             workspace_disposition="removed",
             workspace_reclaimed_bytes=reclaimed,
         )

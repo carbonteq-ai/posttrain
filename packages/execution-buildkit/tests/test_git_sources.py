@@ -75,9 +75,7 @@ def _gateway() -> FakeGitGateway:
                 "README.md": "verifiers",
                 "environments/gsm8k/pyproject.toml": "[project]\nname='gsm8k'",
                 "environments/gsm8k/gsm8k/__init__.py": "def load(): ...",
-                "environments/reverse_text/pyproject.toml": (
-                    "[project]\nname='reverse-text'"
-                ),
+                "environments/reverse_text/pyproject.toml": ("[project]\nname='reverse-text'"),
             }
         }
     )
@@ -110,14 +108,12 @@ def test_materializes_deduplicated_sources_and_emits_deterministic_lock(
     assert len(result.sources) == 1
     assert result.lock == repeated.lock
     assert result.lock.digest == repeated.lock.digest
-    assert [
-        item.path for item in result.lock.sources[0].subdirectories
-    ] == ["environments/gsm8k", "environments/reverse_text"]
+    assert [item.path for item in result.lock.sources[0].subdirectories] == [
+        "environments/gsm8k",
+        "environments/reverse_text",
+    ]
     assert len(result.lock.sources[0].source_tree_digest) == 64
-    assert all(
-        len(item.tree_digest) == 64
-        for item in result.lock.sources[0].subdirectories
-    )
+    assert all(len(item.tree_digest) == 64 for item in result.lock.sources[0].subdirectories)
     assert str(tmp_path) not in result.lock.to_json()
     assert result.lock.as_dict()["schema"] == "posttrain.git-source-lock.v1"
     assert sum(call[2] == "fetch" for call in gateway.calls if call[0] == "-C") == 1
@@ -272,11 +268,7 @@ def test_rejects_unlocked_submodules(tmp_path: Path) -> None:
     gateway = FakeGitGateway(
         {
             (_REPOSITORY, _REVISION): {
-                ".gitmodules": (
-                    "[submodule \"shared\"]\n"
-                    "\tpath = shared\n"
-                    "\turl = https://github.com/example/shared\n"
-                ),
+                ".gitmodules": ('[submodule "shared"]\n\tpath = shared\n\turl = https://github.com/example/shared\n'),
                 "environment/pyproject.toml": "[project]",
             }
         }

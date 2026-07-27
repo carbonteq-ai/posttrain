@@ -261,9 +261,7 @@ def main() -> int:
         "base_models": _base_models(),
         "credentials": {
             "trackio_write_token_present": bool(os.environ.get("TRACKIO_WRITE_TOKEN")),
-            "hugging_face_token_present": bool(
-                os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
-            ),
+            "hugging_face_token_present": bool(os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")),
         },
     }
     _write_atomic(args.output, payload)

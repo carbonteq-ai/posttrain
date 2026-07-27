@@ -46,9 +46,7 @@ _CANCEL_SCHEMA = "posttrain.execution-cancel-intent.v1"
 _SUBMIT_INTENT_SCHEMA = "posttrain.execution-submit-intent.v1"
 _CLEANUP_SCHEMA = "posttrain.execution-cleanup.v1"
 _RECONCILIATION_SCHEMA = "posttrain.execution-reconciliation.v1"
-_TERMINAL_EXECUTION_STATES = frozenset(
-    {"succeeded", "failed", "cancelled", "lost"}
-)
+_TERMINAL_EXECUTION_STATES = frozenset({"succeeded", "failed", "cancelled", "lost"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,9 +79,7 @@ class ExecutionEvidenceSource:
                 or parsed.query
                 or parsed.fragment
             ):
-                raise ContractError(
-                    "execution evidence endpoint must be a credential-free HTTP(S) base URL"
-                )
+                raise ContractError("execution evidence endpoint must be a credential-free HTTP(S) base URL")
 
     def _identity(self) -> tuple[str, ...]:
         return (
@@ -119,13 +115,8 @@ class ExecutionSubmission:
         if not self.idempotency_key.strip():
             raise ContractError("execution submission idempotency key cannot be empty")
         RuntimeImageRef(self.job_image)
-        if (
-            self.legacy_bundle_digest is not None
-            and not _SHA256.fullmatch(self.legacy_bundle_digest)
-        ):
-            raise ContractError(
-                "legacy execution submission bundle digest must be SHA-256"
-            )
+        if self.legacy_bundle_digest is not None and not _SHA256.fullmatch(self.legacy_bundle_digest):
+            raise ContractError("legacy execution submission bundle digest must be SHA-256")
         if self.submitted_at.tzinfo is None or self.submitted_at.utcoffset() is None:
             raise ContractError("execution submission timestamp must be timezone-aware")
         if any(not role.strip() for role in self.required_artifact_roles):
@@ -136,13 +127,9 @@ class ExecutionSubmission:
             if not self.run_workspace.is_absolute():
                 raise ContractError("execution submission run workspace must be absolute")
             if self.run_workspace.name != self.run_id:
-                raise ContractError(
-                    "execution submission run workspace must end with its run id"
-                )
+                raise ContractError("execution submission run workspace must end with its run id")
         if self.evidence_source is not None and not self.evidence_source_recorded:
-            raise ContractError(
-                "execution evidence source cannot be present when its locator was not recorded"
-            )
+            raise ContractError("execution evidence source cannot be present when its locator was not recorded")
 
     @property
     def handle(self) -> ExecutionHandle:
@@ -238,15 +225,11 @@ class ExecutionSubmissionStore:
                 or payload.get("run_id") != run_id
                 or payload.get("identity") != identity
             ):
-                raise ContractError(
-                    f"execution submit intent conflicts with run {run_id}"
-                )
+                raise ContractError(f"execution submit intent conflicts with run {run_id}")
             try:
                 return datetime.fromisoformat(str(payload["requested_at"]))
             except (KeyError, ValueError) as error:
-                raise ContractError(
-                    f"execution submit intent is invalid for run {run_id}"
-                ) from error
+                raise ContractError(f"execution submit intent is invalid for run {run_id}") from error
 
         requested_at = datetime.now(UTC)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -293,52 +276,34 @@ class ExecutionSubmissionStore:
             receipt_path,
             label=f"execution cleanup receipt for run {run_id}",
         )
-        if (
-            receipt.get("schema") != _CLEANUP_SCHEMA
-            or receipt.get("run_id") != run_id
-        ):
-            raise ContractError(
-                f"execution cleanup receipt is invalid for run {run_id}"
-            )
+        if receipt.get("schema") != _CLEANUP_SCHEMA or receipt.get("run_id") != run_id:
+            raise ContractError(f"execution cleanup receipt is invalid for run {run_id}")
         submission = self.load(run_id)
-        if (
-            receipt.get("provider") != submission.provider
-            or receipt.get("provider_id") != submission.provider_id
-        ):
-            raise ContractError(
-                f"execution cleanup receipt conflicts with run {run_id}"
-            )
+        if receipt.get("provider") != submission.provider or receipt.get("provider_id") != submission.provider_id:
+            raise ContractError(f"execution cleanup receipt conflicts with run {run_id}")
         try:
             completed_at = datetime.fromisoformat(str(receipt["completed_at"]))
         except (KeyError, ValueError) as error:
-            raise ContractError(
-                f"execution cleanup receipt is invalid for run {run_id}"
-            ) from error
+            raise ContractError(f"execution cleanup receipt is invalid for run {run_id}") from error
         if completed_at.tzinfo is None or completed_at.utcoffset() is None:
-            raise ContractError(
-                f"execution cleanup receipt is invalid for run {run_id}"
-            )
+            raise ContractError(f"execution cleanup receipt is invalid for run {run_id}")
 
         journal_path = root / "reconciliation.jsonl"
         try:
             lines = journal_path.read_text(encoding="utf-8").splitlines()
         except FileNotFoundError:
-            raise ContractError(
-                f"execution cleanup has no retained reconciliation for run {run_id}"
-            ) from None
+            raise ContractError(f"execution cleanup has no retained reconciliation for run {run_id}") from None
         candidates: list[tuple[datetime, ExecutionResult]] = []
         for line_number, line in enumerate(lines, start=1):
             try:
                 payload = json.loads(line)
             except json.JSONDecodeError as error:
                 raise ContractError(
-                    "execution reconciliation journal is invalid for "
-                    f"run {run_id} at line {line_number}"
+                    f"execution reconciliation journal is invalid for run {run_id} at line {line_number}"
                 ) from error
             if not isinstance(payload, dict):
                 raise ContractError(
-                    "execution reconciliation journal is invalid for "
-                    f"run {run_id} at line {line_number}"
+                    f"execution reconciliation journal is invalid for run {run_id} at line {line_number}"
                 )
             if (
                 payload.get("schema") != _RECONCILIATION_SCHEMA
@@ -362,9 +327,7 @@ class ExecutionSubmissionStore:
             if result.record.observed_at <= completed_at:
                 candidates.append((result.record.observed_at, result))
         if not candidates:
-            raise ContractError(
-                f"execution cleanup has no matching terminal reconciliation for run {run_id}"
-            )
+            raise ContractError(f"execution cleanup has no matching terminal reconciliation for run {run_id}")
         return max(candidates, key=lambda item: item[0])[1]
 
     def record_cancel_intent(self, run_id: str) -> datetime:
@@ -381,12 +344,8 @@ class ExecutionSubmissionStore:
                 ):
                     return datetime.fromisoformat(str(payload["requested_at"]))
             except (json.JSONDecodeError, KeyError, ValueError) as error:
-                raise ContractError(
-                    f"execution cancellation intent is invalid for run {run_id}"
-                ) from error
-            raise ContractError(
-                f"execution cancellation intent is invalid for run {run_id}"
-            )
+                raise ContractError(f"execution cancellation intent is invalid for run {run_id}") from error
+            raise ContractError(f"execution cancellation intent is invalid for run {run_id}")
 
         requested_at = datetime.now(UTC)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -445,9 +404,7 @@ class ExecutionSubmissionStore:
         submissions: list[ExecutionSubmission] = []
         for run_root in sorted(self._root.iterdir(), key=lambda path: path.name):
             if not run_root.is_dir():
-                raise ContractError(
-                    f"unexpected execution state entry is not a directory: {run_root}"
-                )
+                raise ContractError(f"unexpected execution state entry is not a directory: {run_root}")
             submissions.append(self.load(run_root.name))
         return tuple(
             sorted(
@@ -479,11 +436,7 @@ class ExecutionSubmissionStore:
                     "job_image": submission.job_image,
                     "submitted_at": submission.submitted_at.isoformat(),
                     "required_artifact_roles": submission.required_artifact_roles,
-                    "run_workspace": (
-                        str(submission.run_workspace)
-                        if submission.run_workspace is not None
-                        else None
-                    ),
+                    "run_workspace": (str(submission.run_workspace) if submission.run_workspace is not None else None),
                     "evidence_source_recorded": submission.evidence_source_recorded,
                     "evidence_source": (
                         {
@@ -544,34 +497,24 @@ class JobExecutionService:
     def plan(self, request: ExecutionRequest) -> ExecutionPlan:
         plan = self._provider.plan(request)
         if plan.provider != self._provider_name:
-            raise ContractError(
-                f"execution provider planned as {plan.provider!r}, expected {self._provider_name!r}"
-            )
+            raise ContractError(f"execution provider planned as {plan.provider!r}, expected {self._provider_name!r}")
         if plan.request != request:
             raise ContractError("execution provider changed the canonical request while planning")
         return plan
 
     def submit(self, plan: ExecutionPlan) -> ExecutionSubmission:
         if plan.provider != self._provider_name:
-            raise ContractError(
-                f"execution plan provider {plan.provider!r} does not match {self._provider_name!r}"
-            )
+            raise ContractError(f"execution plan provider {plan.provider!r} does not match {self._provider_name!r}")
         if plan.request.bundle is not None:
             raise ContractError(
-                "legacy execution bundles are planning-only; "
-                "pack and submit an immutable actual-job image"
+                "legacy execution bundles are planning-only; pack and submit an immutable actual-job image"
             )
         run_id = plan.request.run_spec.run_id
         existing = self._store.load_optional(run_id)
         if existing is not None:
             _validate_plan_identity(existing, plan)
-            if (
-                existing.evidence_source_recorded
-                and existing.evidence_source != self._evidence_source
-            ):
-                raise ContractError(
-                    f"execution run {run_id} already has a conflicting evidence source"
-                )
+            if existing.evidence_source_recorded and existing.evidence_source != self._evidence_source:
+                raise ContractError(f"execution run {run_id} already has a conflicting evidence source")
             return existing
 
         self._store.record_submit_intent(plan, self._evidence_source)
@@ -660,10 +603,7 @@ class JobExecutionService:
         result = self._provider.cleanup(
             submission.handle,
             run_id=run_id,
-            run_workspace=(
-                submission.run_workspace
-                or self._store.default_run_workspace(run_id)
-            ),
+            run_workspace=(submission.run_workspace or self._store.default_run_workspace(run_id)),
             runtime_image=RuntimeImageRef(submission.job_image),
         )
         if result.handle != submission.handle:
@@ -678,9 +618,7 @@ class JobExecutionService:
     def _submission(self, run_id: str) -> ExecutionSubmission:
         submission = self._store.load(run_id)
         if submission.provider != self._provider_name:
-            raise ContractError(
-                f"execution run uses provider {submission.provider!r}, not {self._provider_name!r}"
-            )
+            raise ContractError(f"execution run uses provider {submission.provider!r}, not {self._provider_name!r}")
         return submission
 
 
@@ -699,34 +637,18 @@ def _submission_from_payload(payload: dict[str, Any]) -> ExecutionSubmission:
         )
         recorded_payload = payload.get("evidence_source_recorded")
         if schema == _SCHEMA and recorded_payload is not True:
-            raise ContractError(
-                "execution submission v5 must record whether tracking was configured"
-            )
+            raise ContractError("execution submission v5 must record whether tracking was configured")
         evidence_source_recorded = schema == _SCHEMA
         evidence_payload = payload.get("evidence_source")
-        if (
-            schema == _SCHEMA
-            and evidence_payload is not None
-            and not isinstance(evidence_payload, dict)
-        ):
-            raise ContractError(
-                "execution submission evidence source must be an object or null"
-            )
+        if schema == _SCHEMA and evidence_payload is not None and not isinstance(evidence_payload, dict):
+            raise ContractError("execution submission evidence source must be an object or null")
         evidence_source = (
             ExecutionEvidenceSource(
                 provider=str(evidence_payload["provider"]),
                 source_id=str(evidence_payload["source_id"]),
                 project=str(evidence_payload["project"]),
-                endpoint=(
-                    str(evidence_payload["endpoint"])
-                    if evidence_payload.get("endpoint") is not None
-                    else None
-                ),
-                scope=(
-                    str(evidence_payload["scope"])
-                    if evidence_payload.get("scope") is not None
-                    else None
-                ),
+                endpoint=(str(evidence_payload["endpoint"]) if evidence_payload.get("endpoint") is not None else None),
+                scope=(str(evidence_payload["scope"]) if evidence_payload.get("scope") is not None else None),
             )
             if schema == _SCHEMA and isinstance(evidence_payload, dict)
             else None
@@ -738,32 +660,18 @@ def _submission_from_payload(payload: dict[str, Any]) -> ExecutionSubmission:
             idempotency_key=str(payload["idempotency_key"]),
             job_image=str(payload[job_image_field]),
             submitted_at=submitted_at,
-            required_artifact_roles=tuple(
-                str(role) for role in payload.get("required_artifact_roles", ())
-            ),
-            run_workspace=(
-                Path(str(payload["run_workspace"]))
-                if payload.get("run_workspace") is not None
-                else None
-            ),
+            required_artifact_roles=tuple(str(role) for role in payload.get("required_artifact_roles", ())),
+            run_workspace=(Path(str(payload["run_workspace"])) if payload.get("run_workspace") is not None else None),
             evidence_source=evidence_source,
             evidence_source_recorded=evidence_source_recorded,
-            legacy_bundle_digest=(
-                str(payload["bundle_digest"])
-                if payload.get("bundle_digest") is not None
-                else None
-            ),
+            legacy_bundle_digest=(str(payload["bundle_digest"]) if payload.get("bundle_digest") is not None else None),
         )
     except (KeyError, TypeError, ValueError) as error:
         raise ContractError("execution submission fields are invalid") from error
 
 
 def _run_workspace(request: ExecutionRequest) -> Path | None:
-    workspaces = tuple(
-        mount.instance_path
-        for mount in request.mounts
-        if mount.purpose == "run-workspace"
-    )
+    workspaces = tuple(mount.instance_path for mount in request.mounts if mount.purpose == "run-workspace")
     if len(workspaces) > 1:
         raise ContractError("execution request has multiple run workspaces")
     return workspaces[0] if workspaces else None
@@ -774,9 +682,7 @@ def _same_or_conflict(
     candidate: ExecutionSubmission,
 ) -> ExecutionSubmission:
     if existing._identity() != candidate._identity():
-        raise ContractError(
-            f"execution run {candidate.run_id} already names a different provider submission"
-        )
+        raise ContractError(f"execution run {candidate.run_id} already names a different provider submission")
     return existing
 
 
@@ -790,9 +696,7 @@ def _validate_plan_identity(
         or submission.idempotency_key != request.idempotency_key
         or submission.job_image != request.image.value
     ):
-        raise ContractError(
-            f"execution run {submission.run_id} already has a conflicting immutable submission"
-        )
+        raise ContractError(f"execution run {submission.run_id} already has a conflicting immutable submission")
 
 
 def _validate_record_handle(
@@ -820,10 +724,7 @@ def _execution_result_from_reconciliation(
     run_id: str,
     line_number: int,
 ) -> ExecutionResult:
-    label = (
-        f"execution reconciliation journal for run {run_id} "
-        f"at line {line_number}"
-    )
+    label = f"execution reconciliation journal for run {run_id} at line {line_number}"
     try:
         record_payload = payload["provider_record"]
         if not isinstance(record_payload, dict):
@@ -852,11 +753,7 @@ def _execution_result_from_reconciliation(
             target_id=str(record_payload["target_id"]),
             observed_at=observed_at,
             native_state=str(record_payload["native_state"]),
-            message=(
-                str(record_payload["message"])
-                if record_payload.get("message") is not None
-                else None
-            ),
+            message=(str(record_payload["message"]) if record_payload.get("message") is not None else None),
         )
     except (KeyError, TypeError, ValueError) as error:
         raise ContractError(f"{label} is invalid") from error

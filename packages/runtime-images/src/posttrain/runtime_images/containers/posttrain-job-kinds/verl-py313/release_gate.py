@@ -165,18 +165,12 @@ def validate_definition(profile: ReleaseProfile) -> tuple[str, ...]:
         errors.append("control and veRL backend virtual environments must be separate")
     if not profile.backend_working_directory.startswith(f"{profile.backend_virtual_env}/"):
         errors.append("veRL working directory must remain below its backend virtual environment")
-    if not profile.backend_projection_path.startswith(
-        f"{profile.backend_virtual_env}/"
-    ):
-        errors.append(
-            "veRL worker projection must remain below its backend virtual environment"
-        )
+    if not profile.backend_projection_path.startswith(f"{profile.backend_virtual_env}/"):
+        errors.append("veRL worker projection must remain below its backend virtual environment")
     if profile.backend_working_directory == profile.backend_projection_path:
         errors.append("veRL worktree and worker projection must be separate")
     if profile.worker_projection_packages != REQUIRED_PROJECTION_PACKAGES:
-        errors.append(
-            "veRL worker projection packages must be common, data, and train"
-        )
+        errors.append("veRL worker projection packages must be common, data, and train")
     if not profile.source_repository.startswith("https://github.com/"):
         errors.append("veRL source repository must be a secret-free HTTPS GitHub URL")
     if FULL_REVISION.fullmatch(profile.upstream_revision) is None:
@@ -263,27 +257,16 @@ def validate_repository_integration(
         if not path.is_file():
             errors.append(f"{label} is missing: {path}")
     if profile.release_status == "ready" and not DEFAULT_RELEASE_PROJECT.is_file():
-        errors.append(
-            f"ready veRL profile lacks dependency-only pyproject: {DEFAULT_RELEASE_PROJECT}"
-        )
+        errors.append(f"ready veRL profile lacks dependency-only pyproject: {DEFAULT_RELEASE_PROJECT}")
     if not actual_job_dockerfile.is_file():
-        errors.append(
-            f"actual-job Dockerfile is missing: {actual_job_dockerfile}"
-        )
+        errors.append(f"actual-job Dockerfile is missing: {actual_job_dockerfile}")
     else:
         dockerfile = actual_job_dockerfile.read_text(encoding="utf-8")
         required_fragments = {
             "runtime variant": f'"{profile.profile_id}"',
-            "backend interpreter": (
-                f'"{profile.backend_virtual_env}/bin/python"'
-            ),
-            "worker projection path": (
-                f'{profile.backend_pythonpath_variable}='
-                f'"{profile.backend_projection_path}"'
-            ),
-            "worker projection environment": (
-                f'PYTHONPATH="${{{profile.backend_pythonpath_variable}}}"'
-            ),
+            "backend interpreter": (f'"{profile.backend_virtual_env}/bin/python"'),
+            "worker projection path": (f'{profile.backend_pythonpath_variable}="{profile.backend_projection_path}"'),
+            "worker projection environment": (f'PYTHONPATH="${{{profile.backend_pythonpath_variable}}}"'),
             "worker module": profile.backend_worker_module,
             "control Python 3.12 closure": "locks/runtime.control.requirements.txt",
             "backend Python 3.13 closure": "locks/runtime.backend.requirements.txt",
@@ -291,23 +274,14 @@ def validate_repository_integration(
         }
         for label, fragment in required_fragments.items():
             if fragment not in dockerfile:
-                errors.append(
-                    f"actual-job Dockerfile omits veRL {label}: {fragment}"
-                )
-        package_loop = "for package in " + " ".join(
-            profile.worker_projection_packages
-        )
+                errors.append(f"actual-job Dockerfile omits veRL {label}: {fragment}")
+        package_loop = "for package in " + " ".join(profile.worker_projection_packages)
         if package_loop not in dockerfile:
-            errors.append(
-                "actual-job Dockerfile differs from the veRL worker projection"
-            )
-        backend_install = (
-            f'--python "{profile.backend_virtual_env}/bin/python"'
-        )
+            errors.append("actual-job Dockerfile differs from the veRL worker projection")
+        backend_install = f'--python "{profile.backend_virtual_env}/bin/python"'
         if backend_install not in dockerfile:
             errors.append(
-                "actual-job Dockerfile does not install selected runtime wheels "
-                "into the veRL backend environment"
+                "actual-job Dockerfile does not install selected runtime wheels into the veRL backend environment"
             )
 
     target = f'target "posttrain-kind-{profile.profile_id}"'
@@ -316,13 +290,9 @@ def validate_repository_integration(
     else:
         bake = kind_bake_file.read_text(encoding="utf-8")
         if profile.release_status == "ready" and target not in bake:
-            errors.append(
-                "ready veRL profile is absent from the job-kind publication graph"
-            )
+            errors.append("ready veRL profile is absent from the job-kind publication graph")
         if profile.release_status == "blocked" and target in bake:
-            errors.append(
-                "blocked veRL profile is present in the job-kind publication graph"
-            )
+            errors.append("blocked veRL profile is present in the job-kind publication graph")
     return tuple(errors)
 
 
@@ -507,17 +477,11 @@ def _integer(payload: dict[str, Any], key: str) -> int:
 
 def _string_tuple(payload: dict[str, Any], key: str) -> tuple[str, ...]:
     value = payload.get(key)
-    if not isinstance(value, list) or not all(
-        isinstance(item, str) for item in value
-    ):
-        raise ValueError(
-            f"veRL profile field {key!r} must be an array of strings"
-        )
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise ValueError(f"veRL profile field {key!r} must be an array of strings")
     parsed = tuple(value)
     if len(set(parsed)) != len(parsed) or tuple(sorted(parsed)) != parsed:
-        raise ValueError(
-            f"veRL profile field {key!r} must be unique and sorted"
-        )
+        raise ValueError(f"veRL profile field {key!r} must be unique and sorted")
     return parsed
 
 

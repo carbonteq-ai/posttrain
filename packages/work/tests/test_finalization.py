@@ -168,17 +168,13 @@ def test_cooperative_cancellation_finishes_tracking_as_cancelled(
     with pytest.raises(OperationCancelled, match="stop requested"):
         execute_run_tracked_finalized(
             _spec(),
-            lambda context: (_ for _ in ()).throw(
-                OperationCancelled("stop requested")
-            ),
+            lambda context: (_ for _ in ()).throw(OperationCancelled("stop requested")),
             backend=backend,
             scratch_root=tmp_path,
         )
 
     assert backend.tracked is not None
-    assert [outcome.status for outcome in backend.tracked.outcomes] == [
-        "cancelled"
-    ]
+    assert [outcome.status for outcome in backend.tracked.outcomes] == ["cancelled"]
 
 
 def test_required_role_must_be_published_once(tmp_path: Path) -> None:

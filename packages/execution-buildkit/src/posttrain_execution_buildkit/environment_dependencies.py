@@ -27,9 +27,7 @@ _PINNED_REQUIREMENT = re.compile(
     r"(?:\[[A-Za-z0-9,._-]+\])?"
     r"==[^\s;\\]+(?:\s*;\s*.+)?$"
 )
-_FULL_GIT_REVISION = re.compile(
-    r"git\+https://[^@\s]+@[0-9a-f]{40}(?:#[^\s]+)?$"
-)
+_FULL_GIT_REVISION = re.compile(r"git\+https://[^@\s]+@[0-9a-f]{40}(?:#[^\s]+)?$")
 _URL_USERINFO = re.compile(r"https?://[^/\s:@]+(?::[^@/\s]*)?@")
 _SENSITIVE_QUERY = re.compile(
     r"[?&](?:access[_-]?token|api[_-]?key|auth|credential|password|secret|token)=",
@@ -137,9 +135,7 @@ class UvDependencyCompileCli:
             check=False,
         )
         if result.returncode != 0:
-            raise DependencyResolutionError(
-                f"uv dependency resolution failed with exit code {result.returncode}"
-            )
+            raise DependencyResolutionError(f"uv dependency resolution failed with exit code {result.returncode}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -171,13 +167,8 @@ class KindDependencyConstraints:
             raise ContractError("kind dependency Python version is invalid")
         if not re.fullmatch(r"[A-Za-z0-9._-]+", self.python_platform):
             raise ContractError("kind dependency Python platform is invalid")
-        if (
-            not self.python_executable.startswith("/opt/")
-            or not self.python_executable.endswith("/bin/python")
-        ):
-            raise ContractError(
-                "kind dependency interpreter must be a capsule-owned Python path"
-            )
+        if not self.python_executable.startswith("/opt/") or not self.python_executable.endswith("/bin/python"):
+            raise ContractError("kind dependency interpreter must be a capsule-owned Python path")
         if self.requirements_filename != _LOCK_FILENAME and (
             re.fullmatch(
                 r"runtime[.][a-z]+[.]requirements[.]txt",
@@ -186,9 +177,7 @@ class KindDependencyConstraints:
             is None
             or self.role not in self.requirements_filename
         ):
-            raise ContractError(
-                "kind dependency requirements filename must identify its role"
-            )
+            raise ContractError("kind dependency requirements filename must identify its role")
 
     @property
     def constraints_sha256(self) -> str:
@@ -282,11 +271,7 @@ class ImmutableEnvironmentDependencyCompiler:
     ) -> None:
         if not output_root.is_absolute():
             raise ContractError("environment dependency output root must be absolute")
-        if (
-            max_constraint_bytes < 1
-            or max_lock_bytes < 1
-            or max_requirements < 1
-        ):
+        if max_constraint_bytes < 1 or max_lock_bytes < 1 or max_requirements < 1:
             raise ContractError("environment dependency limits must be positive")
         self._output_root = output_root
         self._gateway = gateway or UvDependencyCompileCli()
@@ -300,14 +285,10 @@ class ImmutableEnvironmentDependencyCompiler:
         constraints: KindDependencyConstraints,
     ) -> MaterializedEnvironmentDependencyLock:
         if len(constraints.contents.encode()) > self._max_constraint_bytes:
-            raise ContractError(
-                "kind dependency constraints exceed the configured byte limit"
-            )
+            raise ContractError("kind dependency constraints exceed the configured byte limit")
         selected = _verify_wheels(wheels)
         if len(selected) > self._max_requirements:
-            raise ContractError(
-                "environment wheel selection exceeds the requirement limit"
-            )
+            raise ContractError("environment wheel selection exceeds the requirement limit")
 
         self._output_root.mkdir(parents=True, exist_ok=True)
         temporary = Path(
@@ -324,10 +305,7 @@ class ImmutableEnvironmentDependencyCompiler:
 
             requirements = temporary / "environment-wheels.in"
             requirements.write_text(
-                "".join(
-                    f"./{_WHEEL_DIRECTORY}/{wheel.lock.wheel_filename}\n"
-                    for wheel in selected
-                ),
+                "".join(f"./{_WHEEL_DIRECTORY}/{wheel.lock.wheel_filename}\n" for wheel in selected),
                 encoding="utf-8",
             )
             constraint_file = temporary / "kind-constraints.txt"
@@ -380,14 +358,8 @@ class ImmutableEnvironmentDependencyCompiler:
         destination_root.mkdir(parents=True, exist_ok=True)
         destination = destination_root / filename
         if destination.exists():
-            if (
-                not destination.is_file()
-                or destination.is_symlink()
-                or destination.read_bytes() != contents
-            ):
-                raise ContractError(
-                    "retained environment dependency lock contains dirty drift"
-                )
+            if not destination.is_file() or destination.is_symlink() or destination.read_bytes() != contents:
+                raise ContractError("retained environment dependency lock contains dirty drift")
         else:
             descriptor, staging_name = tempfile.mkstemp(
                 prefix=f".{filename}.",
@@ -413,11 +385,7 @@ def _normalize_constraints(contents: str) -> str:
     for line in normalized.splitlines():
         stripped = line.strip()
         lowered = stripped.lower()
-        if (
-            _URL_USERINFO.search(stripped)
-            or _SENSITIVE_QUERY.search(stripped)
-            or _SENSITIVE_OPTION.search(stripped)
-        ):
+        if _URL_USERINFO.search(stripped) or _SENSITIVE_QUERY.search(stripped) or _SENSITIVE_OPTION.search(stripped):
             raise ContractError("kind dependency constraints must not contain secrets")
         if (
             lowered.startswith(("-r ", "--requirement ", "-c ", "--constraint "))
@@ -425,13 +393,9 @@ def _normalize_constraints(contents: str) -> str:
             or stripped.startswith(("/", "\\"))
             or "${" in stripped
         ):
-            raise ContractError(
-                "kind dependency constraints must be expanded and portable"
-            )
+            raise ContractError("kind dependency constraints must be expanded and portable")
         if "git+" in lowered and not _FULL_GIT_REVISION.search(stripped):
-            raise ContractError(
-                "kind dependency Git constraints require a full immutable commit"
-            )
+            raise ContractError("kind dependency Git constraints require a full immutable commit")
     return normalized
 
 
@@ -441,15 +405,11 @@ def _normalize_provided_packages(
     normalized: list[str] = []
     for package in packages:
         if not isinstance(package, str) or not _PACKAGE_NAME.fullmatch(package):
-            raise ContractError(
-                "kind dependency provided packages must be plain package names"
-            )
+            raise ContractError("kind dependency provided packages must be plain package names")
         canonical = re.sub(r"[-_.]+", "-", package).lower()
         normalized.append(canonical)
     if len(normalized) != len(set(normalized)):
-        raise ContractError(
-            "kind dependency provided packages must be unique after normalization"
-        )
+        raise ContractError("kind dependency provided packages must be unique after normalization")
     return tuple(sorted(normalized))
 
 
@@ -462,11 +422,7 @@ def _verify_wheels(wheels: MaterializedEnvironmentWheels):
 
     filenames: set[str] = set()
     for wheel in wheels.wheels:
-        if (
-            not wheel.path.is_absolute()
-            or not wheel.path.is_file()
-            or wheel.path.is_symlink()
-        ):
+        if not wheel.path.is_absolute() or not wheel.path.is_file() or wheel.path.is_symlink():
             raise ContractError("environment wheel must be an absolute regular file")
         if wheel.path.name != wheel.lock.wheel_filename:
             raise ContractError("environment wheel filename does not match its lock")
@@ -491,13 +447,9 @@ def _verify_wheels(wheels: MaterializedEnvironmentWheels):
 
 def _read_bounded_regular_file(path: Path, limit: int) -> bytes:
     if not path.is_file() or path.is_symlink():
-        raise DependencyResolutionError(
-            "dependency compiler did not emit one regular lock file"
-        )
+        raise DependencyResolutionError("dependency compiler did not emit one regular lock file")
     if path.stat().st_size > limit:
-        raise DependencyResolutionError(
-            "compiled environment dependency lock exceeds the byte limit"
-        )
+        raise DependencyResolutionError("compiled environment dependency lock exceeds the byte limit")
     return path.read_bytes()
 
 
@@ -510,51 +462,34 @@ def _canonicalize_lock(
     try:
         text = raw.decode("utf-8")
     except UnicodeDecodeError as error:
-        raise DependencyResolutionError(
-            "compiled environment dependency lock is not UTF-8"
-        ) from error
+        raise DependencyResolutionError("compiled environment dependency lock is not UTF-8") from error
     if "\x00" in text:
-        raise DependencyResolutionError(
-            "compiled environment dependency lock contains a NUL byte"
-        )
+        raise DependencyResolutionError("compiled environment dependency lock contains a NUL byte")
 
     blocks = _logical_blocks(text)
     if not blocks or len(blocks) > max_requirements:
-        raise DependencyResolutionError(
-            "compiled environment dependency lock has an invalid requirement count"
-        )
+        raise DependencyResolutionError("compiled environment dependency lock has an invalid requirement count")
 
-    selected_wheels = {
-        f"./{_WHEEL_DIRECTORY}/{wheel.lock.wheel_filename}": wheel.lock.wheel_sha256
-        for wheel in wheels
-    }
+    selected_wheels = {f"./{_WHEEL_DIRECTORY}/{wheel.lock.wheel_filename}": wheel.lock.wheel_sha256 for wheel in wheels}
     observed_wheels: set[str] = set()
     canonical_blocks: list[tuple[str, tuple[str, ...]]] = []
     heads: set[str] = set()
     for block in blocks:
         head, hashes = _validate_block(block)
         if head in heads:
-            raise DependencyResolutionError(
-                "compiled environment dependency lock contains a duplicate requirement"
-            )
+            raise DependencyResolutionError("compiled environment dependency lock contains a duplicate requirement")
         heads.add(head)
         expected_wheel_hash = selected_wheels.get(head)
         if head.startswith(f"./{_WHEEL_DIRECTORY}/"):
             if expected_wheel_hash is None:
-                raise DependencyResolutionError(
-                    "compiled dependency lock references an unselected wheel"
-                )
+                raise DependencyResolutionError("compiled dependency lock references an unselected wheel")
             if hashes != (expected_wheel_hash,):
-                raise DependencyResolutionError(
-                    "compiled dependency lock wheel hash does not match its source lock"
-                )
+                raise DependencyResolutionError("compiled dependency lock wheel hash does not match its source lock")
             observed_wheels.add(head)
         canonical_blocks.append((head, hashes))
 
     if observed_wheels != set(selected_wheels):
-        raise DependencyResolutionError(
-            "compiled dependency lock omitted a selected environment wheel"
-        )
+        raise DependencyResolutionError("compiled dependency lock omitted a selected environment wheel")
 
     lines: list[str] = []
     for head, hashes in sorted(canonical_blocks, key=lambda item: item[0].casefold()):
@@ -574,9 +509,7 @@ def _logical_blocks(text: str) -> tuple[tuple[str, ...], ...]:
         line = raw_line.strip()
         if not line or line.startswith("#"):
             if continuing:
-                raise DependencyResolutionError(
-                    "compiled dependency lock has a malformed continuation"
-                )
+                raise DependencyResolutionError("compiled dependency lock has a malformed continuation")
             continue
         current.append(line[:-1].rstrip() if line.endswith("\\") else line)
         continuing = line.endswith("\\")
@@ -584,60 +517,34 @@ def _logical_blocks(text: str) -> tuple[tuple[str, ...], ...]:
             blocks.append(tuple(current))
             current = []
     if continuing or current:
-        raise DependencyResolutionError(
-            "compiled dependency lock has a dangling continuation"
-        )
+        raise DependencyResolutionError("compiled dependency lock has a dangling continuation")
     return tuple(blocks)
 
 
 def _validate_block(block: tuple[str, ...]) -> tuple[str, tuple[str, ...]]:
     if len(block) < 2:
-        raise DependencyResolutionError(
-            "every compiled dependency must have a sha256 hash"
-        )
+        raise DependencyResolutionError("every compiled dependency must have a sha256 hash")
     head, *options = block
-    if (
-        "@" in head
-        or "://" in head
-        or "${" in head
-        or head.startswith(("/", "\\", "-"))
-    ):
-        raise DependencyResolutionError(
-            "compiled dependency lock contains a mutable or non-portable source"
-        )
+    if "@" in head or "://" in head or "${" in head or head.startswith(("/", "\\", "-")):
+        raise DependencyResolutionError("compiled dependency lock contains a mutable or non-portable source")
     if head.startswith(f"./{_WHEEL_DIRECTORY}/"):
         filename = head.removeprefix(f"./{_WHEEL_DIRECTORY}/")
-        if (
-            not filename
-            or "/" in filename
-            or "\\" in filename
-            or not filename.endswith(".whl")
-        ):
-            raise DependencyResolutionError(
-                "compiled dependency lock contains an invalid wheel reference"
-            )
+        if not filename or "/" in filename or "\\" in filename or not filename.endswith(".whl"):
+            raise DependencyResolutionError("compiled dependency lock contains an invalid wheel reference")
     else:
         if "/" in head or "\\" in head:
-            raise DependencyResolutionError(
-                "compiled dependency lock contains a non-portable path"
-            )
+            raise DependencyResolutionError("compiled dependency lock contains a non-portable path")
         if not _PINNED_REQUIREMENT.fullmatch(head):
-            raise DependencyResolutionError(
-                "compiled dependency lock contains an unpinned requirement"
-            )
+            raise DependencyResolutionError("compiled dependency lock contains an unpinned requirement")
 
     hashes: list[str] = []
     for option in options:
         match = _HASH.fullmatch(option)
         if match is None:
-            raise DependencyResolutionError(
-                "compiled dependency lock contains an unsupported or unhashed option"
-            )
+            raise DependencyResolutionError("compiled dependency lock contains an unsupported or unhashed option")
         hashes.append(match.group(1))
     if not hashes:
-        raise DependencyResolutionError(
-            "every compiled dependency must have a sha256 hash"
-        )
+        raise DependencyResolutionError("every compiled dependency must have a sha256 hash")
     return head, tuple(sorted(set(hashes)))
 
 

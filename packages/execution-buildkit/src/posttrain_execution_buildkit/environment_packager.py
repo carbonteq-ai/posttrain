@@ -42,22 +42,16 @@ class EnvironmentPackagerCacheRoots:
     def __post_init__(self) -> None:
         roots = (self.git_sources, self.wheels, self.dependencies)
         if any(not root.is_absolute() for root in roots):
-            raise ContractError(
-                "environment packager cache roots must be absolute"
-            )
+            raise ContractError("environment packager cache roots must be absolute")
         if len({root.resolve() for root in roots}) != len(roots):
-            raise ContractError(
-                "environment packager cache roots must be distinct"
-            )
+            raise ContractError("environment packager cache roots must be distinct")
         resolved = tuple(root.resolve() for root in roots)
         if any(
             first.is_relative_to(second) or second.is_relative_to(first)
             for index, first in enumerate(resolved)
             for second in resolved[index + 1 :]
         ):
-            raise ContractError(
-                "environment packager cache roots must not overlap"
-            )
+            raise ContractError("environment packager cache roots must not overlap")
 
 
 class ImmutableEnvironmentPackager:
@@ -75,14 +69,10 @@ class ImmutableEnvironmentPackager:
         selected_constraints: dict[str, KindDependencyConstraints] = {}
         for profile, constraints in sorted(kind_constraints.items()):
             if profile != constraints.profile:
-                raise ContractError(
-                    "kind dependency constraint key must match its profile"
-                )
+                raise ContractError("kind dependency constraint key must match its profile")
             selected_constraints[profile] = constraints
         if not selected_constraints:
-            raise ContractError(
-                "environment packager requires at least one kind constraint profile"
-            )
+            raise ContractError("environment packager requires at least one kind constraint profile")
 
         self._kind_constraints = MappingProxyType(selected_constraints)
         self._cache_roots = cache_roots
@@ -110,19 +100,12 @@ class ImmutableEnvironmentPackager:
         """Build every selected environment and resolve them as one dependency set."""
 
         if not output_root.is_absolute():
-            raise ContractError(
-                "environment package output root must be absolute"
-            )
+            raise ContractError("environment package output root must be absolute")
         constraints = self._kind_constraints.get(kind_profile)
         if constraints is None:
-            raise ContractError(
-                f"environment package kind profile has no exact constraints: "
-                f"{kind_profile}"
-            )
+            raise ContractError(f"environment package kind profile has no exact constraints: {kind_profile}")
         if not git_sources or not wheel_requests:
-            raise ContractError(
-                "environment packaging requires Git sources and wheel requests"
-            )
+            raise ContractError("environment packaging requires Git sources and wheel requests")
         output = output_root.resolve()
         for cache in (
             self._cache_roots.git_sources.resolve(),
@@ -130,9 +113,7 @@ class ImmutableEnvironmentPackager:
             self._cache_roots.dependencies.resolve(),
         ):
             if output.is_relative_to(cache) or cache.is_relative_to(output):
-                raise ContractError(
-                    "environment package work root must not overlap persistent caches"
-                )
+                raise ContractError("environment package work root must not overlap persistent caches")
         _validate_source_closure(git_sources, wheel_requests)
 
         # The service owns this per-pack work root. Persistent, content-addressed
@@ -141,10 +122,7 @@ class ImmutableEnvironmentPackager:
         sources = self._source_packer.materialize(git_sources)
         wheels = self._wheel_builder.build(sources, wheel_requests)
         closures = _runtime_closure_constraints(constraints)
-        dependencies = tuple(
-            self._dependency_compiler.compile(wheels, closure)
-            for closure in closures
-        )
+        dependencies = tuple(self._dependency_compiler.compile(wheels, closure) for closure in closures)
 
         packages = tuple(
             MaterializedEnvironmentPackage(
@@ -164,13 +142,9 @@ class ImmutableEnvironmentPackager:
         )
         runtime_dependencies: list[MaterializedRuntimeDependency] = []
         for dependency in dependencies:
-            requirements_digest = hashlib.sha256(
-                dependency.path.read_bytes()
-            ).hexdigest()
+            requirements_digest = hashlib.sha256(dependency.path.read_bytes()).hexdigest()
             if requirements_digest != dependency.lock.requirements_sha256:
-                raise ContractError(
-                    "materialized dependency lock differs from its portable identity"
-                )
+                raise ContractError("materialized dependency lock differs from its portable identity")
             runtime_dependencies.append(
                 MaterializedRuntimeDependency(
                     path=dependency.path,
@@ -181,24 +155,18 @@ class ImmutableEnvironmentPackager:
                         ),
                         python_version=dependency.lock.python_version,
                         python_executable=dependency.lock.python_executable,
-                        requirements_path=(
-                            f"locks/{dependency.lock.requirements_filename}"
-                        ),
+                        requirements_path=(f"locks/{dependency.lock.requirements_filename}"),
                         requirements_digest=requirements_digest,
                         resolution_digest=dependency.lock.digest,
                     ),
                 )
             )
-        control = next(
-            item for item in runtime_dependencies if item.lock.role == "control"
-        )
+        control = next(item for item in runtime_dependencies if item.lock.role == "control")
         return MaterializedEnvironments(
             packages=packages,
             runtime_requirements=control.path,
             runtime_dependencies_digest=control.lock.requirements_digest,
-            runtime_dependencies=tuple(
-                sorted(runtime_dependencies, key=lambda item: item.lock.role)
-            ),
+            runtime_dependencies=tuple(sorted(runtime_dependencies, key=lambda item: item.lock.role)),
         )
 
 
@@ -211,14 +179,9 @@ def _validate_source_closure(
         for source in git_sources
         for subdirectory in source.subdirectories
     }
-    requested_roots = {
-        (wheel.repository, wheel.revision, wheel.subdirectory)
-        for wheel in wheel_requests
-    }
+    requested_roots = {(wheel.repository, wheel.revision, wheel.subdirectory) for wheel in wheel_requests}
     if selected_roots != requested_roots:
-        raise ContractError(
-            "environment Git sources must exactly cover selected package roots"
-        )
+        raise ContractError("environment Git sources must exactly cover selected package roots")
 
 
 def _runtime_closure_constraints(

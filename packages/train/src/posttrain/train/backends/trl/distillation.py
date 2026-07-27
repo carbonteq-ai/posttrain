@@ -43,18 +43,12 @@ def run_distillation(
         raise ValueError("the first TRL distillation adapter requires a vLLM student rollout binding")
     teacher_product = request.teacher_inference.backend.split("@", 1)[0]
     if teacher_product not in {"transformers", "vllm"}:
-        raise ValueError(
-            "TRL distillation requires a transformers or vLLM teacher-score binding"
-        )
+        raise ValueError("TRL distillation requires a transformers or vLLM teacher-score binding")
     teacher_url = request.teacher_inference.engine.get("base_url")
-    if teacher_product == "vllm" and (
-        not isinstance(teacher_url, str) or not teacher_url.strip()
-    ):
+    if teacher_product == "vllm" and (not isinstance(teacher_url, str) or not teacher_url.strip()):
         raise ValueError("the vLLM teacher-score binding must provide engine.base_url")
     if not isinstance(request.teacher.artifact, HubModelRef):
-        raise ValueError(
-            "TRL distillation currently requires a Hugging Face teacher model"
-        )
+        raise ValueError("TRL distillation currently requires a Hugging Face teacher model")
 
     try:
         from trl.experimental.distillation import (  # pyright: ignore[reportMissingImports]
@@ -114,11 +108,7 @@ def run_distillation(
                 model=model,
                 teacher_model=cast(
                     Any,
-                    (
-                        None
-                        if teacher_product == "vllm"
-                        else request.teacher.artifact.repo_id
-                    ),
+                    (None if teacher_product == "vllm" else request.teacher.artifact.repo_id),
                 ),
                 args=DistillationConfig(**arguments),
                 train_dataset=dataset,
@@ -128,9 +118,7 @@ def run_distillation(
             )
         if teacher_product == "vllm":
             if trainer.teacher_client is None:
-                raise RuntimeError(
-                    "TRL did not initialize the configured teacher scoring client"
-                )
+                raise RuntimeError("TRL did not initialize the configured teacher scoring client")
             trainer.teacher_client = cast(
                 Any,
                 _ObservedTeacherClient(context, trainer.teacher_client),
@@ -200,9 +188,7 @@ def _teacher_server_lifecycle(
             returncode = process.poll()
             if returncode is not None:
                 tail = log_path.read_text(encoding="utf-8", errors="replace")[-16_000:]
-                raise RuntimeError(
-                    f"teacher vLLM server exited with code {returncode}:\n{tail}"
-                )
+                raise RuntimeError(f"teacher vLLM server exited with code {returncode}:\n{tail}")
             try:
                 response = httpx.get(health_url, timeout=1.0)
                 if response.is_success:
@@ -442,9 +428,7 @@ def _distillation_arguments(
 ) -> dict[str, Any]:
     teacher_artifact = request.teacher.artifact
     if not isinstance(teacher_artifact, HubModelRef):
-        raise ValueError(
-            "TRL distillation currently requires a Hugging Face teacher model"
-        )
+        raise ValueError("TRL distillation currently requires a Hugging Face teacher model")
     arguments = trainer_arguments(request.settings.loop, output_dir)
     rollout = request.rollout_inference.engine
     speculative_config, engine_kwargs = vllm_rollout_options(request.student, rollout)

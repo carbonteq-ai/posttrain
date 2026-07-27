@@ -33,6 +33,7 @@ REVISION_LABEL = "org.opencontainers.image.revision"
 VERSION_LABEL = "org.opencontainers.image.version"
 """Composite `rev-<revision>-lock-<lock digest>` identity."""
 
+
 @dataclass(frozen=True, slots=True)
 class RemoteImageFacts:
     """What the registry reports about one published image."""
@@ -110,21 +111,15 @@ class RuntimeImageInspector:
         try:
             digest = json.loads(digest_output)
         except json.JSONDecodeError as error:
-            raise RuntimeError(
-                f"Buildx returned invalid remote-image metadata for {reference}"
-            ) from error
+            raise RuntimeError(f"Buildx returned invalid remote-image metadata for {reference}") from error
         if not isinstance(digest, str) or not digest.startswith("sha256:"):
             raise RuntimeError(f"Buildx reported no manifest digest for {reference}")
 
-        label_output = self._gateway.invoke(
-            ("imagetools", "inspect", reference, "--format", "{{json .Image}}")
-        )
+        label_output = self._gateway.invoke(("imagetools", "inspect", reference, "--format", "{{json .Image}}"))
         try:
             image_payload = json.loads(label_output)
         except json.JSONDecodeError as error:
-            raise RuntimeError(
-                f"Buildx returned invalid image configuration for {reference}"
-            ) from error
+            raise RuntimeError(f"Buildx returned invalid image configuration for {reference}") from error
 
         return RemoteImageFacts(
             reference=reference,
@@ -143,9 +138,7 @@ class RuntimeImageInspector:
         is what makes the copy verifiable.
         """
         if "@" in destination_tag:
-            raise ValueError(
-                f"mirror destination must be a tag, not a digest: {destination_tag}"
-            )
+            raise ValueError(f"mirror destination must be a tag, not a digest: {destination_tag}")
         self._gateway.invoke(("imagetools", "create", "--tag", destination_tag, source))
         return self.inspect(destination_tag).digest
 

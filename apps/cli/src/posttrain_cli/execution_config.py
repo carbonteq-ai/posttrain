@@ -159,6 +159,8 @@ _DEFAULT_JOB_SETTINGS = ExecutionOverrides(
 )
 _DEFAULT_LOCAL_NAME = "execution.toml"
 _DEFAULT_KEYS = {field.name for field in fields(ExecutionOverrides)}
+
+
 def load_local_execution_config(
     layout: ProjectLayout,
     *,
@@ -175,9 +177,7 @@ def load_local_execution_config(
     if not configured.is_file():
         raise ContractError(f"execution configuration is not a file: {configured}")
     if configured.stat().st_mode & 0o077:
-        raise ContractError(
-            f"execution configuration must not be accessible by group or others: {configured}"
-        )
+        raise ContractError(f"execution configuration must not be accessible by group or others: {configured}")
     try:
         payload = tomllib.loads(configured.read_text(encoding="utf-8"))
     except tomllib.TOMLDecodeError as error:
@@ -314,17 +314,11 @@ def provider_binding_fingerprint(
         binding = config.local
         payload = {
             "provider": provider,
-            "canonical_hostname": (
-                binding.canonical_hostname if binding is not None else None
-            ),
+            "canonical_hostname": (binding.canonical_hostname if binding is not None else None),
             "trust_bundle": (
-                str(binding.trust_bundle)
-                if binding is not None and binding.trust_bundle is not None
-                else None
+                str(binding.trust_bundle) if binding is not None and binding.trust_bundle is not None else None
             ),
-            "storage": _storage_identity(
-                binding.storage if binding is not None else None
-            ),
+            "storage": _storage_identity(binding.storage if binding is not None else None),
         }
     elif provider == "dstack":
         binding = config.dstack
@@ -336,16 +330,8 @@ def provider_binding_fingerprint(
             "python": str(binding.python),
             # Secret values may rotate; the protected file path is stable
             # provider identity, while its contents remain launch-only.
-            "environment_file": (
-                str(binding.environment_file)
-                if binding.environment_file is not None
-                else None
-            ),
-            "trust_bundle": (
-                str(binding.trust_bundle)
-                if binding.trust_bundle is not None
-                else None
-            ),
+            "environment_file": (str(binding.environment_file) if binding.environment_file is not None else None),
+            "trust_bundle": (str(binding.trust_bundle) if binding.trust_bundle is not None else None),
             "storage": _storage_identity(binding.storage),
         }
     else:
@@ -361,14 +347,8 @@ def _storage_identity(binding: ExecutionStorageBinding | None) -> object:
         return None
     return {
         "run_root": str(binding.run_root),
-        "model_cache": (
-            str(binding.model_cache) if binding.model_cache is not None else None
-        ),
-        "compile_cache": (
-            str(binding.compile_cache)
-            if binding.compile_cache is not None
-            else None
-        ),
+        "model_cache": (str(binding.model_cache) if binding.model_cache is not None else None),
+        "compile_cache": (str(binding.compile_cache) if binding.compile_cache is not None else None),
     }
 
 
@@ -496,10 +476,7 @@ def _derived_kind_images(
     Without one, images resolve to the framework's own release registry.
     """
     prefix = mirror_prefix or manifest.default_prefix
-    return {
-        variant: RuntimeImageRef(image.reference(prefix))
-        for variant, image in manifest.kinds.items()
-    }
+    return {variant: RuntimeImageRef(image.reference(prefix)) for variant, image in manifest.kinds.items()}
 
 
 def _derived_constraint_profiles(
@@ -599,8 +576,7 @@ def _parse_registry(value: object, *, base: Path) -> RegistryBinding | None:
         )
     if set(kind_images) != set(constraint_profiles):
         raise ContractError(
-            "execution configuration registry kind_images and constraint_profiles "
-            "must define the same runtime variants"
+            "execution configuration registry kind_images and constraint_profiles must define the same runtime variants"
         )
     universal_value = payload.get("universal_image")
     return RegistryBinding(
@@ -618,15 +594,9 @@ def _parse_registry(value: object, *, base: Path) -> RegistryBinding | None:
             "registry.buildx_builder",
         ),
         receipt_root=(
-            _configured_path(receipt_value, base, "registry.receipt_root")
-            if receipt_value is not None
-            else None
+            _configured_path(receipt_value, base, "registry.receipt_root") if receipt_value is not None else None
         ),
-        bake_file=(
-            _configured_path(bake_value, base, "registry.bake_file")
-            if bake_value is not None
-            else None
-        ),
+        bake_file=(_configured_path(bake_value, base, "registry.bake_file") if bake_value is not None else None),
         framework_source_root=(
             _configured_path(
                 framework_source_value,
@@ -648,9 +618,7 @@ def _runtime_image_mapping(
     _require_profile_keys(payload, context)
     return MappingProxyType(
         {
-            profile: RuntimeImageRef(
-                _required_config_string(payload[profile], f"{context}.{profile}")
-            )
+            profile: RuntimeImageRef(_required_config_string(payload[profile], f"{context}.{profile}"))
             for profile in sorted(payload)
         }
     )
@@ -673,14 +641,10 @@ def _constraint_profile_mapping(
             raise ContractError(f"execution configuration {context}.path is missing: {path}")
         expected = _required_config_string(item.get("sha256"), f"{context}.sha256")
         if len(expected) != 64 or any(character not in "0123456789abcdef" for character in expected):
-            raise ContractError(
-                f"execution configuration {context}.sha256 must be lowercase SHA-256"
-            )
+            raise ContractError(f"execution configuration {context}.sha256 must be lowercase SHA-256")
         observed = sha256(path.read_bytes()).hexdigest()
         if observed != expected:
-            raise ContractError(
-                f"execution configuration {context} differs from its exact digest"
-            )
+            raise ContractError(f"execution configuration {context} differs from its exact digest")
         provided_packages = (
             _string_tuple(
                 item.get("provided_packages"),
@@ -706,19 +670,10 @@ def _constraint_profile_mapping(
 def _require_profile_keys(payload: Mapping[str, object], context: str) -> None:
     observed = set(payload)
     if not observed:
-        raise ContractError(
-            f"execution configuration {context} must define at least one runtime variant"
-        )
-    invalid = sorted(
-        value
-        for value in observed
-        if re.fullmatch(r"[a-z0-9][a-z0-9-]*", value) is None
-    )
+        raise ContractError(f"execution configuration {context} must define at least one runtime variant")
+    invalid = sorted(value for value in observed if re.fullmatch(r"[a-z0-9][a-z0-9-]*", value) is None)
     if invalid:
-        raise ContractError(
-            f"execution configuration {context} has invalid runtime variants: "
-            + ", ".join(invalid)
-        )
+        raise ContractError(f"execution configuration {context} has invalid runtime variants: " + ", ".join(invalid))
 
 
 def _parse_storage(
@@ -737,14 +692,10 @@ def _parse_storage(
     return ExecutionStorageBinding(
         run_root=run_root,
         model_cache=(
-            _configured_path(model_value, base, f"{context}.model_cache")
-            if model_value is not None
-            else None
+            _configured_path(model_value, base, f"{context}.model_cache") if model_value is not None else None
         ),
         compile_cache=(
-            _configured_path(compile_value, base, f"{context}.compile_cache")
-            if compile_value is not None
-            else None
+            _configured_path(compile_value, base, f"{context}.compile_cache") if compile_value is not None else None
         ),
     )
 
@@ -768,9 +719,7 @@ def _reject_unknown(
     context: str,
 ) -> None:
     if unknown := sorted(set(payload) - allowed):
-        raise ContractError(
-            f"execution configuration {context} has unknown fields: {', '.join(unknown)}"
-        )
+        raise ContractError(f"execution configuration {context} has unknown fields: {', '.join(unknown)}")
 
 
 def _required_config_string(value: object, context: str) -> str:
@@ -793,20 +742,15 @@ def _optional_hostname(value: object, context: str) -> str | None:
     if parsed is None:
         return None
     hostname = parsed.strip().lower().rstrip(".")
-    if (
-        len(hostname) > 253
-        or any(
-            not label
-            or len(label) > 63
-            or label.startswith("-")
-            or label.endswith("-")
-            or re.fullmatch(r"[a-z0-9-]+", label) is None
-            for label in hostname.split(".")
-        )
+    if len(hostname) > 253 or any(
+        not label
+        or len(label) > 63
+        or label.startswith("-")
+        or label.endswith("-")
+        or re.fullmatch(r"[a-z0-9-]+", label) is None
+        for label in hostname.split(".")
     ):
-        raise ContractError(
-            f"execution configuration {context} must be a canonical hostname"
-        )
+        raise ContractError(f"execution configuration {context} must be a canonical hostname")
     return hostname
 
 
@@ -858,9 +802,7 @@ def _string_tuple(
         raise ContractError(f"execution configuration {context} must be a string array")
     parsed = tuple(value)
     if len(set(parsed)) != len(parsed) or any(not item.strip() or "=" in item for item in parsed):
-        raise ContractError(
-            f"execution configuration {context} must contain unique variable names"
-        )
+        raise ContractError(f"execution configuration {context} must contain unique variable names")
     return parsed
 
 

@@ -106,17 +106,10 @@ def test_translation_and_submit_have_no_secret_values(tmp_path: Path) -> None:
     assert plan.details["offers"] == 2
     assert handle.provider_id == plan.native_plan_id
     configurations = [
-        (action, payload["configuration"])
-        for action, payload in gateway.calls
-        if action in {"plan", "submit"}
+        (action, payload["configuration"]) for action, payload in gateway.calls if action in {"plan", "submit"}
     ]
-    assert all(
-        config["env"] == ["TRACKIO_URL", "TRACKIO_WRITE_TOKEN"]
-        for _, config in configurations
-    )
-    launch = json.loads(
-        configurations[0][1]["_posttrain_launch_env"]["POSTTRAIN_EXECUTION"]
-    )
+    assert all(config["env"] == ["TRACKIO_URL", "TRACKIO_WRITE_TOKEN"] for _, config in configurations)
+    launch = json.loads(configurations[0][1]["_posttrain_launch_env"]["POSTTRAIN_EXECUTION"])
     assert launch["schema"] == "posttrain.execution-launch.v1"
     assert launch["run"]["run_id"] == plan.request.run_spec.run_id
     assert launch["provider"] == "dstack"
@@ -124,9 +117,7 @@ def test_translation_and_submit_have_no_secret_values(tmp_path: Path) -> None:
     assert launch["job_image"] == plan.request.image.value
     assert launch["target"]["id"] == plan.request.target.id
     plan_config = next(config for action, config in configurations if action == "plan")
-    submit_config = next(
-        config for action, config in configurations if action == "submit"
-    )
+    submit_config = next(config for action, config in configurations if action == "submit")
     assert "files" not in plan_config
     assert "files" not in submit_config
     assert plan.details["job_image"] == plan.request.image.value
@@ -147,31 +138,15 @@ def test_translation_and_submit_have_no_secret_values(tmp_path: Path) -> None:
         ]
         for _, config in configurations
     )
+    assert all(config["resources"]["gpu"]["memory"] == "24GB..30GB" for _, config in configurations)
+    assert all(config["instances"] == [{"hostname": "remote.lan"}] for _, config in configurations)
     assert all(
-        config["resources"]["gpu"]["memory"] == "24GB..30GB"
-        for _, config in configurations
-    )
-    assert all(
-        config["instances"] == [{"hostname": "remote.lan"}]
-        for _, config in configurations
-    )
-    assert all(
-        config["commands"]
-        == [
-            "posttrain-runtime execute --manifest "
-            "/opt/posttrain/job/package.json"
-        ]
+        config["commands"] == ["posttrain-runtime execute --manifest /opt/posttrain/job/package.json"]
         for _, config in configurations
     )
     assert all(config["working_dir"] == "/opt/posttrain/job" for _, config in configurations)
-    assert all(
-        config["tags"]["posttrain_job_image_digest"] == "b" * 64
-        for _, config in configurations
-    )
-    assert all(
-        config["tags"]["posttrain_attempt"] == "1"
-        for _, config in configurations
-    )
+    assert all(config["tags"]["posttrain_job_image_digest"] == "b" * 64 for _, config in configurations)
+    assert all(config["tags"]["posttrain_attempt"] == "1" for _, config in configurations)
     assert "secret" not in str(configurations)
 
 
@@ -197,10 +172,7 @@ def test_dstack_maps_mandatory_instance_trust_bundle_and_sets_tls_environment(
     }
     assert configuration["setup"] == [f"test -f {stable_path}"]
     assert configuration["_posttrain_launch_env"]["SSL_CERT_FILE"] == stable_path
-    assert (
-        configuration["_posttrain_launch_env"]["REQUESTS_CA_BUNDLE"]
-        == stable_path
-    )
+    assert configuration["_posttrain_launch_env"]["REQUESTS_CA_BUNDLE"] == stable_path
     assert "test certificate bundle" not in str(configuration).lower()
 
 
@@ -399,9 +371,7 @@ def test_native_assignment_classifier_requires_complete_empty_history() -> None:
         jobs=[
             _Native(
                 job_connection_info=None,
-                job_submissions=[
-                    _Native(job_provisioning_data=None, job_runtime_data=None)
-                ],
+                job_submissions=[_Native(job_provisioning_data=None, job_runtime_data=None)],
             )
         ]
     )
@@ -422,14 +392,7 @@ def test_native_assignment_classifier_requires_complete_empty_history() -> None:
     assert assignment_state(never_assigned) == "never-assigned"
     assert assignment_state(assigned_without_hostname) == "assigned"
     assert assignment_state(_Native(jobs=[])) == "ambiguous"
-    assert (
-        assignment_state(
-            _Native(
-                jobs=[_Native(job_connection_info=None, job_submissions=[])]
-            )
-        )
-        == "ambiguous"
-    )
+    assert assignment_state(_Native(jobs=[_Native(job_connection_info=None, job_submissions=[])])) == "ambiguous"
 
 
 def test_dstack_legacy_bundle_is_plan_only_and_never_uploaded(

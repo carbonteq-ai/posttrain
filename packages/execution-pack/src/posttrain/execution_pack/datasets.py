@@ -41,9 +41,7 @@ class ImmutableDatasetPackager:
         materializer: DatasetMaterializer | None = None,
     ) -> None:
         if not state_dir.is_absolute() or not project_root.is_absolute():
-            raise ContractError(
-                "dataset packager state and project roots must be absolute"
-            )
+            raise ContractError("dataset packager state and project roots must be absolute")
         self._state_dir = state_dir
         self._project_root = project_root
         self._materializer = materializer or _materialize
@@ -68,11 +66,7 @@ class ImmutableDatasetPackager:
                 self._project_root,
             )
             _verify_materialization(request.selection, materialized)
-            relative_root = (
-                Path("datasets")
-                / _dataset_slug(request)
-                / materialized.content_sha256
-            )
+            relative_root = Path("datasets") / _dataset_slug(request) / materialized.content_sha256
             destination = output_root / relative_root
             destination.mkdir(parents=True, exist_ok=False)
             data_path = destination / "data.jsonl"
@@ -88,9 +82,7 @@ class ImmutableDatasetPackager:
                     selection_revision=request.selection.revision,
                     dataset_revision=request.selection.dataset_revision,
                     kind=request.selection.kind,
-                    schema_version=_positive_int(
-                        manifest.get("schema_version"), "dataset schema version"
-                    ),
+                    schema_version=_positive_int(manifest.get("schema_version"), "dataset schema version"),
                     digest=materialized.content_sha256,
                     package_path=(relative_root / "data.jsonl").as_posix(),
                     manifest_path=(relative_root / "manifest.json").as_posix(),
@@ -123,10 +115,7 @@ def _verify_materialization(
         or materialized.source_kind != plan.source_kind
     ):
         raise ContractError("dataset materialization conflicts with its selection")
-    if (
-        not materialized.path.is_file()
-        or not materialized.manifest_path.is_file()
-    ):
+    if not materialized.path.is_file() or not materialized.manifest_path.is_file():
         raise ContractError("dataset materialization files are missing")
     _verify_copy(materialized.path, materialized.content_sha256)
     manifest = _read_manifest(materialized.manifest_path)
@@ -141,9 +130,7 @@ def _verify_materialization(
     }
     for key, value in expected.items():
         if manifest.get(key) != value:
-            raise ContractError(
-                f"dataset materialization manifest has invalid {key}"
-            )
+            raise ContractError(f"dataset materialization manifest has invalid {key}")
     _positive_int(manifest.get("schema_version"), "dataset schema version")
 
 
@@ -175,12 +162,6 @@ def _verify_copy(path: Path, expected: str) -> None:
 def _dataset_slug(request: DatasetPackRequest) -> str:
     seat = re.sub(r"[^A-Za-z0-9._-]+", "-", request.seat_name).strip("-")
     identity = hashlib.sha256(
-        (
-            request.seat_name
-            + "\0"
-            + request.selection.id
-            + "\0"
-            + request.selection.revision
-        ).encode()
+        (request.seat_name + "\0" + request.selection.id + "\0" + request.selection.revision).encode()
     ).hexdigest()[:16]
     return f"{seat}-{identity}"

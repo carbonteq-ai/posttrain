@@ -61,11 +61,7 @@ def _project(
         if enabled
     ]
     (catalog / "layer.yaml").write_text(
-        (
-            "schema_version: 1\n"
-            "layer_id: runtime-test-overlay\n"
-            f"files: [{', '.join(overlay_files)}]\n"
-        ),
+        (f"schema_version: 1\nlayer_id: runtime-test-overlay\nfiles: [{', '.join(overlay_files)}]\n"),
         encoding="utf-8",
     )
     if with_dataset:
@@ -245,9 +241,7 @@ def _digest(value: bytes) -> str:
 
 
 def _semantic_digest(value: object) -> str:
-    return _digest(
-        json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
-    )
+    return _digest(json.dumps(value, sort_keys=True, separators=(",", ":")).encode())
 
 
 def _actual_job(
@@ -264,12 +258,8 @@ def _actual_job(
     (job / "wheels/environments").mkdir(parents=True)
     (job / "datasets").mkdir()
     (job / "config/project").mkdir(parents=True)
-    (job / "sources/framework/runtime/__init__.py").write_text(
-        '"""runtime."""\n', encoding="utf-8"
-    )
-    (job / "sources/project/project_pkg/__init__.py").write_text(
-        '"""project."""\n', encoding="utf-8"
-    )
+    (job / "sources/framework/runtime/__init__.py").write_text('"""runtime."""\n', encoding="utf-8")
+    (job / "sources/project/project_pkg/__init__.py").write_text('"""project."""\n', encoding="utf-8")
     project_manifest, work_package = _project(
         job / "config/project",
         with_dataset=with_dataset,
@@ -289,9 +279,7 @@ def _actual_job(
     package = load_work_package(work_package)
     runtime = _runtime(catalog, [], with_dataset=with_dataset)
     if target_override:
-        remote = catalog.resolve(
-            CatalogRef("target", "targets/remote-24gb")
-        ).value
+        remote = catalog.resolve(CatalogRef("target", "targets/remote-24gb")).value
         assert isinstance(remote, ExecutionTarget)
         package = override_job_execution_target(
             runtime,
@@ -315,23 +303,16 @@ def _actual_job(
         "runtime_variant": "supervised",
         "project_root": "project",
         "project_manifest": "project/.posttrain/project.toml",
-        "selected_work_package": (
-            "project/.posttrain/work_packages/check.yaml"
-        ),
+        "selected_work_package": ("project/.posttrain/work_packages/check.yaml"),
         "resolved_inputs": resolved_inputs,
     }
-    resolved_bytes = (
-        json.dumps(resolved, indent=2, sort_keys=True) + "\n"
-    ).encode()
+    resolved_bytes = (json.dumps(resolved, indent=2, sort_keys=True) + "\n").encode()
     (job / "config/resolved.json").write_bytes(resolved_bytes)
     dataset_locks: tuple[DatasetPackageLock, ...] = ()
     if with_dataset:
         dataset_root = job / "datasets/sft/locked"
         dataset_root.mkdir(parents=True)
-        data = (
-            b'{"messages":[{"content":"hello","role":"user"},'
-            b'{"content":"world","role":"assistant"}]}\n'
-        )
+        data = b'{"messages":[{"content":"hello","role":"user"},{"content":"world","role":"assistant"}]}\n'
         data_digest = _digest(data)
         (dataset_root / "data.jsonl").write_bytes(data)
         dataset_manifest = {
@@ -380,12 +361,8 @@ def _actual_job(
             project_manifest=project_manifest.resolve(),
             selected_work_package=work_package.resolve(),
         ),
-        universal_image=RuntimeImageRef(
-            f"registry.lan/posttrain/base@sha256:{'a' * 64}"
-        ),
-        kind_image=RuntimeImageRef(
-            f"registry.lan/posttrain/data@sha256:{'b' * 64}"
-        ),
+        universal_image=RuntimeImageRef(f"registry.lan/posttrain/base@sha256:{'a' * 64}"),
+        kind_image=RuntimeImageRef(f"registry.lan/posttrain/data@sha256:{'b' * 64}"),
         runtime_variant="supervised",
         datasets=dataset_locks,
     )
@@ -414,9 +391,7 @@ def _launch(
             },
             "attempt": 2,
             "provider": "local-docker",
-            "job_image": (
-                f"registry.lan/posttrain/jobs@sha256:{'c' * 64}"
-            ),
+            "job_image": (f"registry.lan/posttrain/jobs@sha256:{'c' * 64}"),
             "target": {
                 "id": target_id,
                 "revision": "1",
@@ -424,11 +399,7 @@ def _launch(
                 "memory_gb": memory_gb,
                 "placement": {
                     "world_size": 1,
-                    **(
-                        {"instances": ["remote.lan"]}
-                        if target_id == "targets/remote-24gb"
-                        else {}
-                    ),
+                    **({"instances": ["remote.lan"]} if target_id == "targets/remote-24gb" else {}),
                 },
                 "host_constraints": {},
             },
@@ -450,9 +421,7 @@ def test_worker_executes_verified_actual_job_with_launch_attempt(
     monkeypatch.setattr("posttrain_runtime.execute._RUN_ROOT", run_root)
     monkeypatch.setattr(
         "posttrain_runtime.execute.build_job_runtime",
-        lambda request, tracking: _runtime(
-            request.catalog, seen, source_metadata
-        ),
+        lambda request, tracking: _runtime(request.catalog, seen, source_metadata),
     )
 
     result = execute_manifest(manifest_path)
@@ -462,9 +431,7 @@ def test_worker_executes_verified_actual_job_with_launch_attempt(
     assert seen == ["run-runtime-1"]
     workspace = run_root / "run-runtime-1"
     assert workspace.is_dir()
-    marker = json.loads(
-        (workspace / ".posttrain-terminal.json").read_text(encoding="utf-8")
-    )
+    marker = json.loads((workspace / ".posttrain-terminal.json").read_text(encoding="utf-8"))
     assert marker == {
         "schema": "posttrain.worker-terminal.v1",
         "run_id": "run-runtime-1",
@@ -484,9 +451,7 @@ def test_worker_executes_verified_actual_job_with_launch_attempt(
     package = source_metadata[0]["job_package"]
     assert isinstance(package, dict)
     assert package["package_key"] == manifest.package_key
-    assert package["framework_source_digest"] == (
-        manifest.framework_source_digest
-    )
+    assert package["framework_source_digest"] == (manifest.framework_source_digest)
 
 
 @pytest.mark.parametrize(
@@ -539,17 +504,8 @@ def test_worker_cancel_signal_durably_cancels_tracking_before_exit(
     assert captured.value.code == 128 + cancel_signal
     assert signal.getsignal(cancel_signal) == previous
     assert backend.tracked is not None
-    assert [outcome.status for outcome in backend.tracked.outcomes] == [
-        "cancelled"
-    ]
-    marker = json.loads(
-        (
-            tmp_path
-            / "runs"
-            / "run-runtime-1"
-            / ".posttrain-terminal.json"
-        ).read_text(encoding="utf-8")
-    )
+    assert [outcome.status for outcome in backend.tracked.outcomes] == ["cancelled"]
+    marker = json.loads((tmp_path / "runs" / "run-runtime-1" / ".posttrain-terminal.json").read_text(encoding="utf-8"))
     assert marker["status"] == "cancelled"
 
 
@@ -569,13 +525,7 @@ def test_worker_failure_writes_terminal_marker_after_unwind(
     with pytest.raises(RuntimeError, match="expected worker failure"):
         execute_manifest(manifest_path)
 
-    marker = json.loads(
-        (
-            run_root
-            / "run-runtime-1"
-            / ".posttrain-terminal.json"
-        ).read_text(encoding="utf-8")
-    )
+    marker = json.loads((run_root / "run-runtime-1" / ".posttrain-terminal.json").read_text(encoding="utf-8"))
     assert marker["schema"] == "posttrain.worker-terminal.v1"
     assert marker["run_id"] == "run-runtime-1"
     assert marker["status"] == "failed"
@@ -740,9 +690,7 @@ def test_worker_rejects_package_drift_before_runtime_construction(
 ) -> None:
     manifest_path, manifest = _actual_job(tmp_path / "job")
     monkeypatch.setenv("POSTTRAIN_EXECUTION", _launch(manifest))
-    manifest_path.parent.joinpath(relative).write_text(
-        "tampered\n", encoding="utf-8"
-    )
+    manifest_path.parent.joinpath(relative).write_text("tampered\n", encoding="utf-8")
     called = False
 
     def build(*args, **kwargs):

@@ -92,18 +92,12 @@ def _validate_definition() -> None:
     ):
         _require(required in dockerfile, f"Dockerfile is missing {required}")
     runtime_lock_copy = "COPY --from=job-context /locks/ locks/"
-    framework_source_copy = (
-        "COPY --from=job-context /sources/framework/ sources/framework/"
-    )
+    framework_source_copy = "COPY --from=job-context /sources/framework/ sources/framework/"
     _require(
-        dockerfile.index(runtime_lock_copy)
-        < dockerfile.index(framework_source_copy),
+        dockerfile.index(runtime_lock_copy) < dockerfile.index(framework_source_copy),
         "external dependencies must be installed before source code",
     )
-    runtime_install = dockerfile[
-        dockerfile.index(runtime_lock_copy) :
-        dockerfile.index(framework_source_copy)
-    ]
+    runtime_install = dockerfile[dockerfile.index(runtime_lock_copy) : dockerfile.index(framework_source_copy)]
     _require(
         "--require-hashes" in runtime_install and "--no-deps" in runtime_install,
         "the complete runtime lock must install explicitly with hashes and without metadata re-resolution",
@@ -124,8 +118,7 @@ def _validate_definition() -> None:
     package_barrier = 'RUN test -n "${PACKAGE_KEY}"'
     first_context_copy = "COPY --from=job-context"
     _require(
-        package_barrier in dockerfile
-        and dockerfile.index(package_barrier) < dockerfile.index(first_context_copy),
+        package_barrier in dockerfile and dockerfile.index(package_barrier) < dockerfile.index(first_context_copy),
         "actual-job layers must bind PACKAGE_KEY before copying mutable context",
     )
     for required in (
@@ -210,9 +203,7 @@ def _validate_locks(root: Path) -> None:
     for requirement in code_lock:
         _require(
             requirement in {"./sources/framework", "./sources/project"}
-            or requirement.startswith(
-                ("./sources/framework/", "./sources/project/")
-            ),
+            or requirement.startswith(("./sources/framework/", "./sources/project/")),
             f"code requirement escapes staged source roots: {requirement}",
         )
         _require(
@@ -259,9 +250,7 @@ def _tree_digest(root: Path) -> str:
                 }
             )
         else:
-            raise AssertionError(
-                f"tree contains a special file: {relative}"
-            )
+            raise AssertionError(f"tree contains a special file: {relative}")
     _require(bool(entries), f"tree cannot be empty: {root}")
     return hashlib.sha256(
         json.dumps(
@@ -295,8 +284,7 @@ def _validate_manifest(root: Path) -> None:
             f"package manifest {field} must be a SHA-256 digest",
         )
     expected_file_digests = {
-        "runtime_dependencies_digest": root
-        / "locks/runtime.requirements.txt",
+        "runtime_dependencies_digest": root / "locks/runtime.requirements.txt",
         "code_requirements_digest": root / "locks/code.requirements.txt",
         "resolved_config_digest": root / "config/resolved.json",
     }
@@ -382,9 +370,7 @@ def _validate_manifest(root: Path) -> None:
         _require(isinstance(package, dict), "environment lock must be an object")
         filename = package.get("wheel_filename")
         _require(
-            isinstance(filename, str)
-            and PurePosixPath(filename).name == filename
-            and filename.endswith(".whl"),
+            isinstance(filename, str) and PurePosixPath(filename).name == filename and filename.endswith(".whl"),
             "environment wheel filename is invalid",
         )
         expected_wheels.add(filename)
@@ -405,9 +391,7 @@ def _validate_manifest(root: Path) -> None:
             f"environment wheel digest differs from its lock: {filename}",
         )
     observed_wheels = {
-        path.name
-        for path in (root / "wheels/environments").iterdir()
-        if path.is_file() and path.name != ".keep"
+        path.name for path in (root / "wheels/environments").iterdir() if path.is_file() and path.name != ".keep"
     }
     _require(
         observed_wheels == expected_wheels,
@@ -420,8 +404,7 @@ def _validate_manifest(root: Path) -> None:
     )
     _require(
         all(
-            isinstance(activation, dict)
-            and activation.get("package") in installed_packages
+            isinstance(activation, dict) and activation.get("package") in installed_packages
             for activation in activations
         ),
         "environment activation references a missing package",

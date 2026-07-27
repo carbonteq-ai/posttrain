@@ -142,13 +142,9 @@ def _execute_manifest(path: Path) -> WorkerExecutionResult:
 
     layout = load_project_layout(package.project_root)
     if layout.manifest != package.project_manifest:
-        raise ContractError(
-            "resolved job project path conflicts with the packaged project"
-        )
+        raise ContractError("resolved job project path conflicts with the packaged project")
     if layout.project_id != package.manifest.project_id:
-        raise ContractError(
-            "job package project id conflicts with the packaged project"
-        )
+        raise ContractError("job package project id conflicts with the packaged project")
 
     run_root = _run_workspace(launch.run_id)
     with _terminal_workspace(run_root, launch):
@@ -159,14 +155,10 @@ def _execute_manifest(path: Path) -> WorkerExecutionResult:
             catalog_root=layout.base_catalog,
         )
         if not package.selected_work_package.is_relative_to(layout.work_packages):
-            raise ContractError(
-                "resolved job work package is outside the project work-package directory"
-            )
+            raise ContractError("resolved job work package is outside the project work-package directory")
         work_package = load_work_package(package.selected_work_package)
         if work_package.work_package_id != package.manifest.work_package_id:
-            raise ContractError(
-                "job package work-package id conflicts with the packaged project"
-            )
+            raise ContractError("job package work-package id conflicts with the packaged project")
 
         request = ProjectExecutionRequest(
             project_id=layout.project_id,
@@ -174,11 +166,7 @@ def _execute_manifest(path: Path) -> WorkerExecutionResult:
             state_dir=layout.state,
             work_package_path=package.selected_work_package,
             catalog=catalog,
-            project_brief=(
-                load_project_brief(layout.project_brief)
-                if layout.project_brief is not None
-                else None
-            ),
+            project_brief=(load_project_brief(layout.project_brief) if layout.project_brief is not None else None),
         )
         runtime = _build_runtime(request, layout.entry, layout.tracking)
         runtime = _configure_runtime(runtime, package, launch)
@@ -213,9 +201,7 @@ def _execute_manifest(path: Path) -> WorkerExecutionResult:
             job_definition_id=package.manifest.job_definition_id,
             status=job.status,
             published_artifact_roles=tuple(
-                artifact.role
-                for artifact in job.published_artifacts
-                if artifact.role is not None
+                artifact.role for artifact in job.published_artifacts if artifact.role is not None
             ),
         )
 
@@ -258,10 +244,7 @@ def _write_terminal_marker_preserving_error(
     try:
         _write_terminal_marker(run_root, launch, status)
     except BaseException as marker_error:
-        error.add_note(
-            "post-training terminal workspace marker failed: "
-            f"{type(marker_error).__name__}"
-        )
+        error.add_note(f"post-training terminal workspace marker failed: {type(marker_error).__name__}")
 
 
 def _write_terminal_marker(
@@ -282,9 +265,7 @@ def _write_terminal_marker(
         "provider": launch.provider,
         "job_image": launch.job_image.value,
     }
-    encoded = (
-        json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n"
-    ).encode()
+    encoded = (json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n").encode()
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW
@@ -351,21 +332,13 @@ def _graceful_cancellation() -> Iterator[None]:
 
 def _verify_package(path: Path) -> _VerifiedPackage:
     manifest_path = path.resolve()
-    if (
-        path.is_symlink()
-        or manifest_path.name != "package.json"
-        or not manifest_path.is_file()
-    ):
-        raise ContractError(
-            f"job package manifest is not a regular package.json: {path}"
-        )
+    if path.is_symlink() or manifest_path.name != "package.json" or not manifest_path.is_file():
+        raise ContractError(f"job package manifest is not a regular package.json: {path}")
     root = manifest_path.parent
     manifest_bytes = manifest_path.read_bytes()
     manifest = JobPackageManifest.from_bytes(manifest_bytes)
     if manifest.worker_contract_version != "1":
-        raise ContractError(
-            "job package worker contract version is unsupported"
-        )
+        raise ContractError("job package worker contract version is unsupported")
 
     _verify_digest_file(
         root / "locks" / "runtime.requirements.txt",
@@ -389,30 +362,18 @@ def _verify_package(path: Path) -> _VerifiedPackage:
         manifest.resolved_config_digest,
         "resolved job config",
     )
-    if _tree_digest(root / "sources" / "framework") != (
-        manifest.framework_source_digest
-    ):
-        raise ContractError(
-            "packaged framework source differs from its manifest digest"
-        )
-    if _tree_digest(root / "sources" / "project") != (
-        manifest.project_source_digest
-    ):
-        raise ContractError(
-            "packaged project source differs from its manifest digest"
-        )
+    if _tree_digest(root / "sources" / "framework") != (manifest.framework_source_digest):
+        raise ContractError("packaged framework source differs from its manifest digest")
+    if _tree_digest(root / "sources" / "project") != (manifest.project_source_digest):
+        raise ContractError("packaged project source differs from its manifest digest")
 
     resolved = _load_json_object(resolved_bytes, "resolved job config")
     if resolved.get("schema") != _RESOLVED_SCHEMA:
         raise ContractError("resolved job config schema is unsupported")
     if unknown := sorted(set(resolved) - _RESOLVED_FIELDS):
-        raise ContractError(
-            "resolved job config has unknown fields: " + ", ".join(unknown)
-        )
+        raise ContractError("resolved job config has unknown fields: " + ", ".join(unknown))
     if missing := sorted(_RESOLVED_FIELDS - set(resolved)):
-        raise ContractError(
-            "resolved job config is missing fields: " + ", ".join(missing)
-        )
+        raise ContractError("resolved job config is missing fields: " + ", ".join(missing))
     for field, expected in (
         ("project_id", manifest.project_id),
         ("work_package_id", manifest.work_package_id),
@@ -421,23 +382,15 @@ def _verify_package(path: Path) -> _VerifiedPackage:
         ("runtime_variant", manifest.runtime_variant),
     ):
         if resolved.get(field) != expected:
-            raise ContractError(
-                f"resolved job {field} conflicts with the package manifest"
-            )
+            raise ContractError(f"resolved job {field} conflicts with the package manifest")
     if resolved.get("project_root") != _PROJECT_ROOT.as_posix():
-        raise ContractError(
-            "resolved job project root must be config/project"
-        )
+        raise ContractError("resolved job project root must be config/project")
     resolved_inputs = resolved.get("resolved_inputs")
     if not isinstance(resolved_inputs, dict):
         raise ContractError("resolved job inputs must be a JSON object")
     typed_resolved_inputs = cast(Mapping[str, JsonValue], resolved_inputs)
-    if resolved_inputs_digest(typed_resolved_inputs) != (
-        manifest.resolved_inputs_digest
-    ):
-        raise ContractError(
-            "resolved job inputs differ from the package manifest"
-        )
+    if resolved_inputs_digest(typed_resolved_inputs) != (manifest.resolved_inputs_digest):
+        raise ContractError("resolved job inputs differ from the package manifest")
 
     config_root = root / "config"
     project_root = config_root / _PROJECT_ROOT.as_posix()
@@ -459,9 +412,7 @@ def _verify_package(path: Path) -> _VerifiedPackage:
         selected_work_package=selected_work_package,
     )
     if observed_project_digest != manifest.project_config_digest:
-        raise ContractError(
-            "packaged project configuration differs from its manifest digest"
-        )
+        raise ContractError("packaged project configuration differs from its manifest digest")
 
     _verify_environment_wheels(root, manifest)
     _verify_backend_runtime(root, manifest)
@@ -493,11 +444,7 @@ def _verify_backend_runtime(root: Path, manifest: JobPackageManifest) -> None:
     if Path(sys.executable).resolve() != control_python.resolve():
         raise ContractError("veRL control process uses a non-capsule interpreter")
     backend_python = Path(worker.python_executable)
-    if (
-        not backend_python.exists()
-        or not os.access(backend_python, os.X_OK)
-        or not backend_python.resolve().is_file()
-    ):
+    if not backend_python.exists() or not os.access(backend_python, os.X_OK) or not backend_python.resolve().is_file():
         raise ContractError("veRL backend interpreter is not executable")
     dependency_lock = Path(backend.dependency_lock_path)
     _verify_digest_file(
@@ -532,9 +479,7 @@ def _load_launch() -> _ExecutionLaunch:
     try:
         raw = os.environ[EXECUTION_LAUNCH_ENVIRONMENT]
     except KeyError as error:
-        raise ContractError(
-            f"execution environment is missing {EXECUTION_LAUNCH_ENVIRONMENT}"
-        ) from error
+        raise ContractError(f"execution environment is missing {EXECUTION_LAUNCH_ENVIRONMENT}") from error
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError as error:
@@ -550,32 +495,22 @@ def _load_launch() -> _ExecutionLaunch:
     if not isinstance(target, dict):
         raise ContractError("execution launch target is invalid")
     attempt = payload.get("attempt")
-    if (
-        not isinstance(attempt, int)
-        or isinstance(attempt, bool)
-        or attempt < 1
-    ):
+    if not isinstance(attempt, int) or isinstance(attempt, bool) or attempt < 1:
         raise ContractError("execution launch attempt must be positive")
     provider = _required_string(payload.get("provider"), "launch provider")
     if not provider.strip():
         raise ContractError("execution launch provider cannot be empty")
     try:
-        image = RuntimeImageRef(
-            _required_string(payload.get("job_image"), "launch job image")
-        )
+        image = RuntimeImageRef(_required_string(payload.get("job_image"), "launch job image"))
     except ContractError as error:
         raise ContractError("execution launch job image is invalid") from error
     return _ExecutionLaunch(
         run_id=_required_string(run.get("run_id"), "launch run id"),
         project_id=_required_string(run.get("project_id"), "launch project id"),
-        work_package_id=_required_string(
-            run.get("work_package_id"), "launch work-package id"
-        ),
+        work_package_id=_required_string(run.get("work_package_id"), "launch work-package id"),
         stage=_required_string(run.get("stage"), "launch stage"),
         job_kind=_required_string(run.get("job_kind"), "launch job kind"),
-        job_definition_id=_required_string(
-            run.get("job_definition_id"), "launch job definition"
-        ),
+        job_definition_id=_required_string(run.get("job_definition_id"), "launch job definition"),
         attempt=attempt,
         provider=provider,
         job_image=image,
@@ -598,9 +533,7 @@ def _verify_launch_identity(
         ),
     ):
         if observed != expected:
-            raise ContractError(
-                f"execution launch {label} conflicts with the job package"
-            )
+            raise ContractError(f"execution launch {label} conflicts with the job package")
 
 
 def _build_runtime(
@@ -620,44 +553,29 @@ def _build_runtime(
     factory = _load_project_entry(entry)
     runtime = factory(request)
     if not isinstance(runtime, WorkPackageContext):
-        raise ContractError(
-            f"project entry {entry!r} must return a JobRuntime"
-        )
+        raise ContractError(f"project entry {entry!r} must return a JobRuntime")
     if runtime.catalog is not request.catalog:
-        raise ContractError(
-            "project entry must use the catalog supplied in ProjectExecutionRequest"
-        )
+        raise ContractError("project entry must use the catalog supplied in ProjectExecutionRequest")
     if runtime.project_brief is None and request.project_brief is not None:
         return replace(runtime, project_brief=request.project_brief)
     if runtime.project_brief != request.project_brief:
-        raise ContractError(
-            "project entry project brief conflicts with the packaged project"
-        )
+        raise ContractError("project entry project brief conflicts with the packaged project")
     return runtime
 
 
 def _load_project_entry(spec: str) -> ProjectEntry:
     module_name, separator, attribute = spec.partition(":")
-    if (
-        not separator
-        or not module_name
-        or not attribute
-        or ":" in attribute
-    ):
+    if not separator or not module_name or not attribute or ":" in attribute:
         raise ContractError("project entry must use MODULE:CALLABLE syntax")
     try:
         resolved: object = importlib.import_module(module_name)
     except (ImportError, ValueError) as error:
-        raise ContractError(
-            f"cannot import project entry module {module_name!r}: {error}"
-        ) from error
+        raise ContractError(f"cannot import project entry module {module_name!r}: {error}") from error
     for part in attribute.split("."):
         try:
             resolved = getattr(resolved, part)
         except AttributeError as error:
-            raise ContractError(
-                f"project entry module has no callable {attribute!r}"
-            ) from error
+            raise ContractError(f"project entry module has no callable {attribute!r}") from error
     if not callable(resolved):
         raise ContractError(f"project entry {spec!r} is not callable")
     return cast(ProjectEntry, resolved)
@@ -676,19 +594,11 @@ def _configure_runtime(
             try:
                 lock, dataset_manifest = package.datasets[seat.name]
             except KeyError as error:
-                raise ContractError(
-                    f"job package has no dataset for seat {seat.name!r}"
-                ) from error
+                raise ContractError(f"job package has no dataset for seat {seat.name!r}") from error
             _verify_dataset_selection(value, lock, dataset_manifest)
             examples = dataset_manifest.get("examples")
-            if (
-                not isinstance(examples, int)
-                or isinstance(examples, bool)
-                or examples < 1
-            ):
-                raise ContractError(
-                    f"packaged dataset {seat.name!r} has invalid example count"
-                )
+            if not isinstance(examples, int) or isinstance(examples, bool) or examples < 1:
+                raise ContractError(f"packaged dataset {seat.name!r} has invalid example count")
             return load_materialized_dataset(
                 value,
                 DatasetMaterialization(
@@ -696,9 +606,7 @@ def _configure_runtime(
                     selection_revision=lock.selection_revision,
                     source_kind=value.source_kind,
                     path=package.root.joinpath(*PurePosixPath(lock.package_path).parts),
-                    manifest_path=package.root.joinpath(
-                        *PurePosixPath(lock.manifest_path).parts
-                    ),
+                    manifest_path=package.root.joinpath(*PurePosixPath(lock.manifest_path).parts),
                     content_sha256=lock.digest,
                     examples=examples,
                     created=False,
@@ -721,12 +629,8 @@ def _configure_runtime(
         "runtime_dependencies_digest": manifest.runtime_dependencies_digest,
         "code_requirements_digest": manifest.code_requirements_digest,
         "resolved_config_digest": manifest.resolved_config_digest,
-        "environment_packages": [
-            item.to_payload() for item in manifest.environment_packages
-        ],
-        "environment_activations": [
-            item.to_payload() for item in manifest.environment_activations
-        ],
+        "environment_packages": [item.to_payload() for item in manifest.environment_packages],
+        "environment_activations": [item.to_payload() for item in manifest.environment_activations],
         "datasets": [item.to_payload() for item in manifest.datasets],
     }
     return replace(
@@ -760,44 +664,24 @@ def _verify_prepared_job(
         raise TypeError("prepared job")
     manifest = package.manifest
     if prepared.spec.run_id != launch.run_id:
-        raise ContractError(
-            "registered job run id conflicts with the execution launch"
-        )
+        raise ContractError("registered job run id conflicts with the execution launch")
     if prepared.spec.stage != launch.stage:
-        raise ContractError(
-            "registered job stage conflicts with the execution launch"
-        )
+        raise ContractError("registered job stage conflicts with the execution launch")
     if prepared.recipe_job.kind != manifest.job_kind:
-        raise ContractError(
-            "job package kind conflicts with the registered work-package job"
-        )
+        raise ContractError("job package kind conflicts with the registered work-package job")
     if prepared.definition.id != manifest.job_definition_id:
-        raise ContractError(
-            "job package definition conflicts with the registered work-package job"
-        )
-    if resolved_inputs_digest(prepared.spec.resolved_inputs) != (
-        manifest.resolved_inputs_digest
-    ):
-        raise ContractError(
-            "registered job resolved selections differ from the job package"
-        )
-    if tuple(sorted(prepared.definition.required_artifact_roles)) != (
-        manifest.expected_artifact_roles
-    ):
-        raise ContractError(
-            "job package expected artifacts conflict with the registered job"
-        )
+        raise ContractError("job package definition conflicts with the registered work-package job")
+    if resolved_inputs_digest(prepared.spec.resolved_inputs) != (manifest.resolved_inputs_digest):
+        raise ContractError("registered job resolved selections differ from the job package")
+    if tuple(sorted(prepared.definition.required_artifact_roles)) != (manifest.expected_artifact_roles):
+        raise ContractError("job package expected artifacts conflict with the registered job")
     _verify_environment_selections(prepared, manifest)
     _verify_execution_target(prepared, launch.target)
     selected_datasets = {
-        name: seat.value
-        for name, seat in prepared.resolved.seats.items()
-        if isinstance(seat.value, DatasetLoadPlan)
+        name: seat.value for name, seat in prepared.resolved.seats.items() if isinstance(seat.value, DatasetLoadPlan)
     }
     if set(selected_datasets) != set(package.datasets):
-        raise ContractError(
-            "job package datasets differ from the registered job selections"
-        )
+        raise ContractError("job package datasets differ from the registered job selections")
     for name, plan in selected_datasets.items():
         lock, dataset_manifest = package.datasets[name]
         _verify_dataset_selection(plan, lock, dataset_manifest)
@@ -821,11 +705,7 @@ def _verify_execution_target(
     }
     if set(launch_target) != expected_fields:
         raise ContractError("execution launch target fields are invalid")
-    direct = [
-        value
-        for value in prepared.seats.values()
-        if isinstance(value, ExecutionTarget)
-    ]
+    direct = [value for value in prepared.seats.values() if isinstance(value, ExecutionTarget)]
     training = [
         target
         for name, value in prepared.seats.items()
@@ -850,15 +730,11 @@ def _verify_execution_target(
         if candidate not in unique:
             unique.append(candidate)
     if len(unique) != 1:
-        raise ContractError(
-            "registered job has no unambiguous primary execution target"
-        )
+        raise ContractError("registered job has no unambiguous primary execution target")
     selected = unique[0]
     expected = _execution_target_payload(selected)
     if dict(launch_target) != expected:
-        raise ContractError(
-            "execution launch target conflicts with the registered job"
-        )
+        raise ContractError("execution launch target conflicts with the registered job")
 
 
 def _resolve_launch_target(
@@ -871,13 +747,9 @@ def _resolve_launch_target(
     )
     resolved = catalog.resolve(CatalogRef("target", target_id)).value
     if not isinstance(resolved, ExecutionTarget):
-        raise ContractError(
-            "execution launch target did not resolve to an ExecutionTarget"
-        )
+        raise ContractError("execution launch target did not resolve to an ExecutionTarget")
     if dict(launch_target) != _execution_target_payload(resolved):
-        raise ContractError(
-            "execution launch target differs from its packaged catalog selection"
-        )
+        raise ContractError("execution launch target differs from its packaged catalog selection")
     return resolved
 
 
@@ -913,22 +785,13 @@ def _verify_environment_selections(
         for binding in bindings:
             previous = selected.get(binding.id)
             if previous is not None and previous != binding:
-                raise ContractError(
-                    f"registered job selects conflicting environment {binding.id!r}"
-                )
+                raise ContractError(f"registered job selects conflicting environment {binding.id!r}")
             selected[binding.id] = binding
 
-    locks = {
-        item.environment_id: item
-        for item in manifest.environment_activations
-    }
+    locks = {item.environment_id: item for item in manifest.environment_activations}
     if set(selected) != set(locks):
-        raise ContractError(
-            "job package environment activations differ from registered selections"
-        )
-    package_locks = {
-        item.package: item for item in manifest.environment_packages
-    }
+        raise ContractError("job package environment activations differ from registered selections")
+    package_locks = {item.package: item for item in manifest.environment_packages}
     selected_packages: set[str] = set()
     for environment_id, binding in selected.items():
         activation = locks[environment_id]
@@ -936,29 +799,21 @@ def _verify_environment_selections(
         selected_packages.add(source.package)
         package_lock = package_locks.get(source.package)
         if package_lock is None:
-            raise ContractError(
-                f"job package omits environment package {source.package!r}"
-            )
+            raise ContractError(f"job package omits environment package {source.package!r}")
         if (
             package_lock.repository != source.repository
             or package_lock.revision != source.revision
             or package_lock.subdirectory != (source.subdirectory or ".")
         ):
-            raise ContractError(
-                f"job package environment source differs for {environment_id!r}"
-            )
+            raise ContractError(f"job package environment source differs for {environment_id!r}")
         if (
             activation.package != source.package
             or activation.kind != binding.activation.kind
             or activation.digest != binding.activation.digest
         ):
-            raise ContractError(
-                f"job package environment activation differs for {environment_id!r}"
-            )
+            raise ContractError(f"job package environment activation differs for {environment_id!r}")
     if selected_packages != set(package_locks):
-        raise ContractError(
-            "job package environment wheels differ from registered selections"
-        )
+        raise ContractError("job package environment wheels differ from registered selections")
 
 
 def _verify_dataset_selection(
@@ -972,13 +827,9 @@ def _verify_dataset_selection(
         or plan.dataset_revision != lock.dataset_revision
         or plan.kind != lock.kind
     ):
-        raise ContractError(
-            f"packaged dataset differs from selection for seat {lock.seat_name!r}"
-        )
+        raise ContractError(f"packaged dataset differs from selection for seat {lock.seat_name!r}")
     if dataset_manifest.get("source_kind") != plan.source_kind:
-        raise ContractError(
-            f"packaged dataset source differs for seat {lock.seat_name!r}"
-        )
+        raise ContractError(f"packaged dataset source differs for seat {lock.seat_name!r}")
 
 
 def _verify_environment_wheels(
@@ -992,24 +843,15 @@ def _verify_environment_wheels(
     observed: set[str] = set()
     for path in directory.iterdir():
         if path.is_symlink() or not path.is_file():
-            raise ContractError(
-                "job package environment wheels must be regular files"
-            )
+            raise ContractError("job package environment wheels must be regular files")
         observed.add(path.name)
     if observed != expected:
-        raise ContractError(
-            "job package environment wheel files differ from the manifest"
-        )
+        raise ContractError("job package environment wheel files differ from the manifest")
     for lock in manifest.environment_packages:
         path = directory / lock.wheel_filename
         contents = path.read_bytes()
-        if (
-            len(contents) != lock.wheel_size_bytes
-            or _bytes_digest(contents) != lock.wheel_digest
-        ):
-            raise ContractError(
-                f"environment wheel differs from its lock: {lock.package}"
-            )
+        if len(contents) != lock.wheel_size_bytes or _bytes_digest(contents) != lock.wheel_digest:
+            raise ContractError(f"environment wheel differs from its lock: {lock.package}")
 
 
 def _verify_datasets(
@@ -1019,31 +861,21 @@ def _verify_datasets(
     dataset_root = root / "datasets"
     if not dataset_root.is_dir() or dataset_root.is_symlink():
         raise ContractError("job package dataset directory is missing")
-    expected_files = {
-        relative
-        for lock in manifest.datasets
-        for relative in (lock.package_path, lock.manifest_path)
-    }
+    expected_files = {relative for lock in manifest.datasets for relative in (lock.package_path, lock.manifest_path)}
     observed_files: set[str] = set()
     for path in dataset_root.rglob("*"):
         if path.is_symlink() or (not path.is_dir() and not path.is_file()):
-            raise ContractError(
-                "job package datasets contain a symlink or special file"
-            )
+            raise ContractError("job package datasets contain a symlink or special file")
         if path.is_file():
             observed_files.add(path.relative_to(root).as_posix())
     if observed_files != expected_files:
-        raise ContractError(
-            "job package dataset files differ from the manifest"
-        )
+        raise ContractError("job package dataset files differ from the manifest")
     verified: dict[
         str,
         tuple[DatasetPackageLock, Mapping[str, object]],
     ] = {}
     for lock in manifest.datasets:
-        data_path = _package_path(
-            root, lock.package_path, "dataset data", prefix="datasets"
-        )
+        data_path = _package_path(root, lock.package_path, "dataset data", prefix="datasets")
         dataset_manifest_path = _package_path(
             root,
             lock.manifest_path,
@@ -1051,13 +883,8 @@ def _verify_datasets(
             prefix="datasets",
         )
         contents = data_path.read_bytes()
-        if (
-            len(contents) != lock.size_bytes
-            or _bytes_digest(contents) != lock.digest
-        ):
-            raise ContractError(
-                f"packaged dataset differs from its lock: {lock.seat_name}"
-            )
+        if len(contents) != lock.size_bytes or _bytes_digest(contents) != lock.digest:
+            raise ContractError(f"packaged dataset differs from its lock: {lock.seat_name}")
         dataset_manifest = _load_json_object(
             dataset_manifest_path.read_bytes(),
             f"dataset manifest {lock.seat_name}",
@@ -1072,22 +899,15 @@ def _verify_datasets(
         }
         for field, value in expected.items():
             if dataset_manifest.get(field) != value:
-                raise ContractError(
-                    f"packaged dataset manifest has invalid {field}: {lock.seat_name}"
-                )
+                raise ContractError(f"packaged dataset manifest has invalid {field}: {lock.seat_name}")
         examples = dataset_manifest.get("examples")
         if (
             not isinstance(examples, int)
             or isinstance(examples, bool)
             or examples < 1
-            or (
-                lock.num_records is not None
-                and examples != lock.num_records
-            )
+            or (lock.num_records is not None and examples != lock.num_records)
         ):
-            raise ContractError(
-                f"packaged dataset manifest has invalid examples: {lock.seat_name}"
-            )
+            raise ContractError(f"packaged dataset manifest has invalid examples: {lock.seat_name}")
         verified[lock.seat_name] = (lock, dataset_manifest)
     return verified
 
@@ -1116,15 +936,11 @@ def _project_config_digest(
     entries: list[dict[str, JsonValue]] = []
     for path in sorted(project_root.rglob("*")):
         if path.is_symlink():
-            raise ContractError(
-                "packaged project configuration cannot contain symlinks"
-            )
+            raise ContractError("packaged project configuration cannot contain symlinks")
         if path.is_dir():
             continue
         if not path.is_file():
-            raise ContractError(
-                "packaged project configuration contains a special file"
-            )
+            raise ContractError("packaged project configuration contains a special file")
         entries.append(
             {
                 "path": path.relative_to(project_root).as_posix(),
@@ -1134,12 +950,8 @@ def _project_config_digest(
         )
     payload = {
         "files": entries,
-        "project_manifest": project_manifest.relative_to(
-            project_root
-        ).as_posix(),
-        "selected_work_package": selected_work_package.relative_to(
-            project_root
-        ).as_posix(),
+        "project_manifest": project_manifest.relative_to(project_root).as_posix(),
+        "selected_work_package": selected_work_package.relative_to(project_root).as_posix(),
     }
     return _semantic_digest(payload)
 
@@ -1165,9 +977,7 @@ def _tree_digest(root: Path) -> str:
                 }
             )
         else:
-            raise ContractError(
-                f"packaged source contains a special file: {relative}"
-            )
+            raise ContractError(f"packaged source contains a special file: {relative}")
     if not entries:
         raise ContractError("packaged source tree cannot be empty")
     return _semantic_digest({"entries": entries})
@@ -1189,9 +999,7 @@ def _resolved_path(
         or any(part in {"", ".", ".."} for part in relative.parts)
         or not relative.is_relative_to(prefix)
     ):
-        raise ContractError(
-            f"resolved job {label} must stay below config/{prefix}"
-        )
+        raise ContractError(f"resolved job {label} must stay below config/{prefix}")
     path = root.joinpath(*relative.parts)
     if path.is_symlink() or not path.is_file():
         raise ContractError(f"resolved job {label} is missing")
@@ -1291,12 +1099,7 @@ def _worker_context() -> dict[str, JsonValue]:
 
 
 def _run_workspace(run_id: str) -> Path:
-    if (
-        not run_id
-        or run_id in {".", ".."}
-        or "/" in run_id
-        or "\\" in run_id
-    ):
+    if not run_id or run_id in {".", ".."} or "/" in run_id or "\\" in run_id:
         raise ContractError("execution launch run id is invalid")
     root = _RUN_ROOT.resolve()
     workspace = (root / run_id).resolve()

@@ -3003,6 +3003,7 @@ name = "posttrain-train"
 version = "0.1.0"
 source = { editable = "packages/train" }
 dependencies = [
+    { name = "httpx" },
     { name = "posttrain-common" },
     { name = "posttrain-data" },
     { name = "pydantic" },
@@ -3040,6 +3041,7 @@ requires-dist = [
     { name = "accelerate", marker = "extra == 'trl'", specifier = ">=1.14,<1.15" },
     { name = "bitsandbytes", marker = "extra == 'trl'", specifier = ">=0.49,<0.50" },
     { name = "datasets", marker = "extra == 'trl'", specifier = ">=4.6.1,<4.7" },
+    { name = "httpx", specifier = ">=0.28,<0.29" },
     { name = "huggingface-hub", marker = "extra == 'trl'", specifier = ">=1.24,<1.25" },
     { name = "liger-kernel", marker = "extra == 'trl'", specifier = ">=0.8,<0.9" },
     { name = "nvidia-cuda-cccl", marker = "sys_platform == 'linux' and extra == 'trl-vllm'", specifier = "==13.0.85" },

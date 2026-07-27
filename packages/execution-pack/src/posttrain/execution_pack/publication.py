@@ -26,13 +26,8 @@ class JobImagePublicationRequest:
     publication: ImagePublicationSpec
 
     def __post_init__(self) -> None:
-        if (
-            not self.staged_context.is_absolute()
-            or not self.staged_context.is_dir()
-        ):
-            raise ContractError(
-                "job image staged context must be an existing absolute directory"
-            )
+        if not self.staged_context.is_absolute() or not self.staged_context.is_dir():
+            raise ContractError("job image staged context must be an existing absolute directory")
 
     @property
     def package_key(self) -> str:

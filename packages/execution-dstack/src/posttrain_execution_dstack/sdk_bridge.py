@@ -40,12 +40,7 @@ def _configuration(payload):
         configured_environment = configuration.setdefault("env", {})
         if not isinstance(configured_environment, dict):
             raise RuntimeError("invalid dstack execution environment")
-        configured_environment.update(
-            {
-                str(name): str(value)
-                for name, value in launch_environment.items()
-            }
-        )
+        configured_environment.update({str(name): str(value) for name, value in launch_environment.items()})
     return Task(**configuration)
 
 
@@ -131,21 +126,11 @@ def _cleanup_command():
         (
             "set -eu",
             (
-                "before=$(find "
-                + cleanup_path
-                + " -mindepth 1 -printf '%s\\n' "
+                "before=$(find " + cleanup_path + " -mindepth 1 -printf '%s\\n' "
                 "| awk '{total += $1} END {print total + 0}')"
             ),
-            (
-                "find "
-                + cleanup_path
-                + " -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +"
-            ),
-            (
-                "test -z \"$(find "
-                + cleanup_path
-                + " -mindepth 1 -print -quit)\""
-            ),
+            ("find " + cleanup_path + " -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +"),
+            ('test -z "$(find ' + cleanup_path + ' -mindepth 1 -print -quit)"'),
             'printf "' + _RECLAIMED_PREFIX + '%s\\n" "$before"',
         )
     )
@@ -175,13 +160,9 @@ def cleanup_workspace(payload):
     except (AttributeError, RuntimeError, ValueError):
         observed_hostname = None
     if not observed_hostname:
-        if (
-            native not in {"failed", "terminated"}
-            or assignment_state(source._run) != "never-assigned"
-        ):
+        if native not in {"failed", "terminated"} or assignment_state(source._run) != "never-assigned":
             raise RuntimeError(
-                "cleanup source run has no worker hostname but assignment "
-                "history is not conclusively empty"
+                "cleanup source run has no worker hostname but assignment history is not conclusively empty"
             )
         return {
             "cleanup_run_name": None,
@@ -191,10 +172,7 @@ def cleanup_workspace(payload):
             "emptied": False,
             "reclaimed_bytes": 0,
         }
-    if (
-        not isinstance(expected_hostname, str)
-        or observed_hostname != expected_hostname
-    ):
+    if not isinstance(expected_hostname, str) or observed_hostname != expected_hostname:
         raise RuntimeError("cleanup source run worker does not match")
 
     base_configuration = {
@@ -240,9 +218,7 @@ def cleanup_workspace(payload):
                 repo=VirtualRepo(),
             )
         if not any(job.offers for job in plan.job_plans):
-            raise RuntimeError(
-                "exact-worker cleanup task has no matching dstack offer"
-            )
+            raise RuntimeError("exact-worker cleanup task has no matching dstack offer")
         cleanup_run = client.runs.apply_plan(
             run_plan=plan,
             repo=VirtualRepo(),
@@ -255,10 +231,7 @@ def cleanup_workspace(payload):
         time.sleep(2)
         cleanup_status = _native_status(cleanup_run)
     if cleanup_status != "done":
-        raise RuntimeError(
-            "exact-worker cleanup task did not succeed "
-            f"(status={cleanup_status})"
-        )
+        raise RuntimeError(f"exact-worker cleanup task did not succeed (status={cleanup_status})")
 
     reclaimed = None
     for value in cleanup_run.logs(replica_num=0, job_num=0):

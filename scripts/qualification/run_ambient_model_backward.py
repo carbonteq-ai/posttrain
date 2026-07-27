@@ -27,16 +27,13 @@ PROJECT = Path("/home/hammad/projects/ambient-agent")
 
 def _report_transition(record) -> None:
     print(
-        f"[posttrain] {record.handle.provider_id}: "
-        f"{record.state} on {record.target_id} ({record.native_state})",
+        f"[posttrain] {record.handle.provider_id}: {record.state} on {record.target_id} ({record.native_state})",
         flush=True,
     )
 
 
 def _runtime_image() -> str:
-    return latest_runtime_image(
-        INFRA / ".state/artifacts/posttrain-runtime"
-    ).value
+    return latest_runtime_image(INFRA / ".state/artifacts/posttrain-runtime").value
 
 
 def _tracking_environment() -> None:

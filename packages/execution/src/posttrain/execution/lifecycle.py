@@ -52,8 +52,5 @@ def wait_for_terminal(
         if remaining <= 0:
             if cancel_on_timeout:
                 provider.cancel(handle)
-            raise TimeoutError(
-                f"execution {handle.provider_id} exceeded {timeout_seconds:g}s "
-                f"while {record.state}"
-            )
+            raise TimeoutError(f"execution {handle.provider_id} exceeded {timeout_seconds:g}s while {record.state}")
         _sleep(min(poll_interval_seconds, remaining))

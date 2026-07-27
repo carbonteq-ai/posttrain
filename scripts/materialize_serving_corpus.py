@@ -115,11 +115,27 @@ FIRST_PARTY_PROMPTS: dict[str, tuple[str, ...]] = {
 
 TOOL_SPECS = (
     _tool("get_weather", "Read a weather forecast.", {"location": {"type": "string"}, "date": {"type": "string"}}),
-    _tool("find_calendar_slot", "Find calendar availability.", {"after": {"type": "string"}, "duration_minutes": {"type": "integer"}}),
+    _tool(
+        "find_calendar_slot",
+        "Find calendar availability.",
+        {"after": {"type": "string"}, "duration_minutes": {"type": "integer"}},
+    ),
     _tool("get_inventory", "Read inventory for a SKU.", {"sku": {"type": "string"}}),
-    _tool("create_ticket", "Create a support ticket.", {"account": {"type": "string"}, "priority": {"type": "string"}, "summary": {"type": "string"}}),
-    _tool("convert_currency", "Convert between currencies.", {"amount": {"type": "number"}, "from": {"type": "string"}, "to": {"type": "string"}}),
-    _tool("get_route", "Find a driving route.", {"origin": {"type": "string"}, "destination": {"type": "string"}, "departure": {"type": "string"}}),
+    _tool(
+        "create_ticket",
+        "Create a support ticket.",
+        {"account": {"type": "string"}, "priority": {"type": "string"}, "summary": {"type": "string"}},
+    ),
+    _tool(
+        "convert_currency",
+        "Convert between currencies.",
+        {"amount": {"type": "number"}, "from": {"type": "string"}, "to": {"type": "string"}},
+    ),
+    _tool(
+        "get_route",
+        "Find a driving route.",
+        {"origin": {"type": "string"}, "destination": {"type": "string"}, "departure": {"type": "string"}},
+    ),
     _tool("lookup_crm", "Read a CRM account.", {"account": {"type": "string"}}),
     _tool("search_knowledge_base", "Search internal documentation.", {"query": {"type": "string"}}),
 )
@@ -220,8 +236,7 @@ def build() -> tuple[str, str]:
             first_party_index += 1
 
     records_text = "".join(
-        json.dumps(record, ensure_ascii=False, separators=(",", ":"), sort_keys=True) + "\n"
-        for record in records
+        json.dumps(record, ensure_ascii=False, separators=(",", ":"), sort_keys=True) + "\n" for record in records
     )
     category_counts: dict[str, int] = {}
     for record in records:

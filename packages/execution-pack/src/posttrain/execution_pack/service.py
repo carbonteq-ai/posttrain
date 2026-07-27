@@ -114,46 +114,28 @@ class ProjectConfigBundle:
         ordered: dict[str, bytes] = {}
         total_bytes = 0
         if len(files) > _MAX_PROJECT_CONFIG_FILES:
-            raise ContractError(
-                "project configuration exceeds its file-count limit"
-            )
+            raise ContractError("project configuration exceeds its file-count limit")
         for path, contents in sorted(files.items()):
             normalized = _relative_config_path(path)
             if normalized != path:
-                raise ContractError(
-                    "project configuration paths must be normalized"
-                )
+                raise ContractError("project configuration paths must be normalized")
             if not isinstance(contents, bytes):
-                raise ContractError(
-                    "project configuration contents must be bytes"
-                )
+                raise ContractError("project configuration contents must be bytes")
             if PurePosixPath(path).name.lower() in _FORBIDDEN_SOURCE_NAMES:
-                raise ContractError(
-                    f"project configuration contains a forbidden file: {path}"
-                )
-            if not PurePosixPath(path).is_relative_to(
-                PurePosixPath(".posttrain")
-            ):
-                raise ContractError(
-                    "project configuration files must stay below .posttrain"
-                )
+                raise ContractError(f"project configuration contains a forbidden file: {path}")
+            if not PurePosixPath(path).is_relative_to(PurePosixPath(".posttrain")):
+                raise ContractError("project configuration files must stay below .posttrain")
             total_bytes += len(contents)
             if total_bytes > _MAX_PROJECT_CONFIG_BYTES:
-                raise ContractError(
-                    "project configuration exceeds its byte limit"
-                )
+                raise ContractError("project configuration exceeds its byte limit")
             _reject_secret_config_file(path, contents)
             ordered[path] = contents
         manifest = _relative_config_path(self.project_manifest)
         work_package = _relative_config_path(self.selected_work_package)
         if manifest not in ordered:
-            raise ContractError(
-                "project configuration does not contain its project manifest"
-            )
+            raise ContractError("project configuration does not contain its project manifest")
         if work_package not in ordered:
-            raise ContractError(
-                "project configuration does not contain the selected work package"
-            )
+            raise ContractError("project configuration does not contain the selected work package")
         _validate_project_config_closure(
             ordered,
             project_manifest=manifest,
@@ -234,36 +216,20 @@ class JobPackService:
         )
         resolved_inputs_digest = _semantic_digest(resolved_inputs)
         if resolved_inputs_digest != plan.spec.resolved_inputs_digest:
-            raise ContractError(
-                "resolved configuration differs from the planned inputs"
-            )
+            raise ContractError("resolved configuration differs from the planned inputs")
         framework_digest = digest_source_package(inputs.framework_source)
         project_digest = digest_source_package(inputs.project_source)
         if framework_digest != plan.spec.framework_source_digest:
-            raise ContractError(
-                "framework source tree differs from the job-pack plan"
-            )
+            raise ContractError("framework source tree differs from the job-pack plan")
         if project_digest != plan.spec.project_source_digest:
-            raise ContractError(
-                "project source tree differs from the job-pack plan"
-            )
-        project_payload = tomllib.loads(
-            inputs.project_config.files[
-                inputs.project_config.project_manifest
-            ].decode()
-        )
+            raise ContractError("project source tree differs from the job-pack plan")
+        project_payload = tomllib.loads(inputs.project_config.files[inputs.project_config.project_manifest].decode())
         if project_payload.get("project_id") != plan.spec.project_id:
-            raise ContractError(
-                "project manifest identity differs from the job-pack plan"
-            )
+            raise ContractError("project manifest identity differs from the job-pack plan")
 
         self._output_root.mkdir(parents=True, exist_ok=True)
-        stage = Path(
-            tempfile.mkdtemp(prefix=".job-context-stage-", dir=self._output_root)
-        )
-        work = Path(
-            tempfile.mkdtemp(prefix=".job-context-work-", dir=self._output_root)
-        )
+        stage = Path(tempfile.mkdtemp(prefix=".job-context-stage-", dir=self._output_root))
+        work = Path(tempfile.mkdtemp(prefix=".job-context-work-", dir=self._output_root))
         try:
             _create_layout(stage)
             _copy_source_package(
@@ -289,12 +255,8 @@ class JobPackService:
                 "job_definition_id": plan.spec.job_definition_id,
                 "runtime_variant": plan.spec.runtime_variant,
                 "project_root": "project",
-                "project_manifest": (
-                    f"project/{inputs.project_config.project_manifest}"
-                ),
-                "selected_work_package": (
-                    f"project/{inputs.project_config.selected_work_package}"
-                ),
+                "project_manifest": (f"project/{inputs.project_config.project_manifest}"),
+                "selected_work_package": (f"project/{inputs.project_config.selected_work_package}"),
                 "resolved_inputs": resolved_inputs,
             }
             config_bytes = _json_bytes(resolved_config, pretty=True)
@@ -306,30 +268,20 @@ class JobPackService:
                 output_root=stage,
             )
             if datasets.root.resolve() != stage.resolve():
-                raise ContractError(
-                    "dataset packager returned a different context root"
-                )
-            dataset_locks = tuple(
-                sorted(datasets.locks, key=lambda lock: lock.seat_name)
-            )
+                raise ContractError("dataset packager returned a different context root")
+            dataset_locks = tuple(sorted(datasets.locks, key=lambda lock: lock.seat_name))
             _validate_dataset_packages(stage, dataset_locks)
 
             environments = self._materialize_environments(plan, work)
             _stage_environment_packages(environments, stage)
-            environment_locks = tuple(
-                package.lock for package in environments.packages
-            )
+            environment_locks = tuple(package.lock for package in environments.packages)
             runtime_dependency_locks = _stage_runtime_dependencies(
                 environments,
                 stage,
                 runtime_variant=plan.spec.runtime_variant,
                 environment_locks=environment_locks,
             )
-            control_lock = next(
-                lock
-                for lock in runtime_dependency_locks
-                if lock.role == "control"
-            )
+            control_lock = next(lock for lock in runtime_dependency_locks if lock.role == "control")
             _validate_environment_selection(plan, environment_locks)
             backend_runtime = _backend_runtime_lock(
                 runtime_variant=plan.spec.runtime_variant,
@@ -401,9 +353,7 @@ class JobPackService:
                 runtime_dependencies_digest=_bytes_digest(b""),
             )
         if self._environment_packager is None:
-            raise ContractError(
-                "selected environments require an environment packager"
-            )
+            raise ContractError("selected environments require an environment packager")
         return self._environment_packager.package(
             git_sources=plan.spec.git_sources,
             wheel_requests=plan.spec.environment_wheels,
@@ -486,18 +436,10 @@ def _project_config_digest(config: ProjectConfigBundle) -> str:
 
 def _relative_config_path(value: str) -> str:
     if not value or value != value.strip() or "\\" in value:
-        raise ContractError(
-            "project configuration path must be a normalized relative path"
-        )
+        raise ContractError("project configuration path must be a normalized relative path")
     path = PurePosixPath(value)
-    if (
-        path.is_absolute()
-        or path.as_posix() != value
-        or any(part in {"", ".", ".."} for part in path.parts)
-    ):
-        raise ContractError(
-            "project configuration path must stay inside the staged project"
-        )
+    if path.is_absolute() or path.as_posix() != value or any(part in {"", ".", ".."} for part in path.parts):
+        raise ContractError("project configuration path must stay inside the staged project")
     return value
 
 
@@ -508,9 +450,7 @@ def _validate_project_config_closure(
     selected_work_package: str,
 ) -> None:
     if project_manifest != ".posttrain/project.toml":
-        raise ContractError(
-            "project manifest must retain the .posttrain/project.toml layout"
-        )
+        raise ContractError("project manifest must retain the .posttrain/project.toml layout")
     try:
         payload = tomllib.loads(files[project_manifest].decode())
     except (UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
@@ -520,9 +460,7 @@ def _validate_project_config_closure(
     _reject_secret_config(payload)
     schema_version = payload.get("schema_version")
     if schema_version not in {1, 2}:
-        raise ContractError(
-            "project manifest schema_version must be 1 or 2"
-        )
+        raise ContractError("project manifest schema_version must be 1 or 2")
     control = PurePosixPath(".posttrain")
 
     configured_work_packages = payload.get("work_packages", "work_packages")
@@ -534,31 +472,15 @@ def _validate_project_config_closure(
         "work_packages",
     )
     selected = PurePosixPath(selected_work_package)
-    if (
-        selected == work_package_root
-        or not selected.is_relative_to(work_package_root)
-    ):
-        raise ContractError(
-            "selected work package must be a file below the declared work_packages path"
-        )
-    packed_work_packages = tuple(
-        path
-        for path in files
-        if PurePosixPath(path).is_relative_to(work_package_root)
-    )
+    if selected == work_package_root or not selected.is_relative_to(work_package_root):
+        raise ContractError("selected work package must be a file below the declared work_packages path")
+    packed_work_packages = tuple(path for path in files if PurePosixPath(path).is_relative_to(work_package_root))
     if packed_work_packages != (selected_work_package,):
-        raise ContractError(
-            "project configuration must contain only the selected work package"
-        )
+        raise ContractError("project configuration must contain only the selected work package")
 
     configured_overlays = payload.get("catalog_overlays", ["catalog"])
-    if (
-        not isinstance(configured_overlays, list)
-        or not all(isinstance(value, str) for value in configured_overlays)
-    ):
-        raise ContractError(
-            "project catalog_overlays must be a string list"
-        )
+    if not isinstance(configured_overlays, list) or not all(isinstance(value, str) for value in configured_overlays):
+        raise ContractError("project catalog_overlays must be a string list")
     overlay_roots: list[PurePosixPath] = []
     for configured in configured_overlays:
         overlay = _manifest_source_path(
@@ -567,24 +489,14 @@ def _validate_project_config_closure(
             "catalog overlay",
         )
         overlay_roots.append(overlay)
-        if not any(
-            PurePosixPath(path).is_relative_to(overlay)
-            and PurePosixPath(path) != overlay
-            for path in files
-        ):
-            raise ContractError(
-                f"project configuration omits declared catalog overlay {configured}"
-            )
+        if not any(PurePosixPath(path).is_relative_to(overlay) and PurePosixPath(path) != overlay for path in files):
+            raise ContractError(f"project configuration omits declared catalog overlay {configured}")
 
     project_brief = payload.get("project_brief")
     if schema_version == 1 and project_brief is not None:
-        raise ContractError(
-            "project schema_version 1 cannot declare project_brief"
-        )
+        raise ContractError("project schema_version 1 cannot declare project_brief")
     if schema_version == 2 and project_brief is None:
-        raise ContractError(
-            "project schema_version 2 requires project_brief"
-        )
+        raise ContractError("project schema_version 2 requires project_brief")
     brief_path: PurePosixPath | None = None
     if project_brief is not None:
         if not isinstance(project_brief, str):
@@ -595,9 +507,7 @@ def _validate_project_config_closure(
             "project brief",
         )
         if brief_path.as_posix() not in files:
-            raise ContractError(
-                "project configuration omits its declared project brief"
-            )
+            raise ContractError("project configuration omits its declared project brief")
 
     configured_state = payload.get("state", "state")
     if not isinstance(configured_state, str):
@@ -605,17 +515,9 @@ def _validate_project_config_closure(
     reserved_state_root = control / "state"
     state_roots = [reserved_state_root]
     if not PurePosixPath(configured_state).is_absolute():
-        state_roots.append(
-            _manifest_source_path(control, configured_state, "state")
-        )
-    if any(
-        PurePosixPath(path).is_relative_to(state_root)
-        for path in files
-        for state_root in state_roots
-    ):
-        raise ContractError(
-            "machine-local project state cannot be packed as configuration"
-        )
+        state_roots.append(_manifest_source_path(control, configured_state, "state"))
+    if any(PurePosixPath(path).is_relative_to(state_root) for path in files for state_root in state_roots):
+        raise ContractError("machine-local project state cannot be packed as configuration")
 
     exact_files = {PurePosixPath(project_manifest), selected}
     if brief_path is not None:
@@ -624,16 +526,11 @@ def _validate_project_config_closure(
         path
         for path in files
         if PurePosixPath(path) not in exact_files
-        and not any(
-            PurePosixPath(path).is_relative_to(root)
-            and PurePosixPath(path) != root
-            for root in overlay_roots
-        )
+        and not any(PurePosixPath(path).is_relative_to(root) and PurePosixPath(path) != root for root in overlay_roots)
     )
     if unexpected:
         raise ContractError(
-            "project configuration contains files outside its declared closure: "
-            + ", ".join(unexpected)
+            "project configuration contains files outside its declared closure: " + ", ".join(unexpected)
         )
 
 
@@ -646,39 +543,25 @@ def _manifest_source_path(
         raise ContractError(f"project {label} path must be normalized")
     path = PurePosixPath(configured)
     if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
-        raise ContractError(
-            f"project {label} path must remain relative to .posttrain"
-        )
+        raise ContractError(f"project {label} path must remain relative to .posttrain")
     return control / path
 
 
 def _validate_source_package(source: SourcePackage) -> None:
-    if (
-        not source.root.is_dir()
-        or source.root.is_symlink()
-        or not any(source.root.iterdir())
-    ):
+    if not source.root.is_dir() or source.root.is_symlink() or not any(source.root.iterdir()):
         raise ContractError("source package root must be a non-empty directory")
     _tree_digest(source.root)
     for configured in source.install_roots:
-        selected = (
-            source.root
-            if configured == "."
-            else source.root.joinpath(*configured.split("/"))
-        )
+        selected = source.root if configured == "." else source.root.joinpath(*configured.split("/"))
         if (
             not selected.is_dir()
             or selected.is_symlink()
             or not (selected / "pyproject.toml").is_file()
             or (selected / "pyproject.toml").is_symlink()
         ):
-            raise ContractError(
-                f"source install root has no regular pyproject.toml: {configured}"
-            )
+            raise ContractError(f"source install root has no regular pyproject.toml: {configured}")
         if any(character.isspace() for character in configured):
-            raise ContractError(
-                "source install roots cannot contain whitespace"
-            )
+            raise ContractError("source install roots cannot contain whitespace")
 
 
 def _copy_source_package(source: SourcePackage, destination: Path) -> None:
@@ -695,16 +578,12 @@ def _copy_entry(source: Path, destination: Path) -> None:
     if source.is_symlink():
         raise ContractError(f"source packages do not accept symlinks: {source}")
     if relative_name in _FORBIDDEN_SOURCE_NAMES:
-        raise ContractError(
-            f"source package contains a forbidden filename: {source.name}"
-        )
+        raise ContractError(f"source package contains a forbidden filename: {source.name}")
     if source.suffix.lower() in _FORBIDDEN_WEIGHT_SUFFIXES or relative_name in {
         "model.bin",
         "pytorch_model.bin",
     }:
-        raise ContractError(
-            f"source package contains model weights: {source.name}"
-        )
+        raise ContractError(f"source package contains model weights: {source.name}")
     if stat.S_ISDIR(mode):
         destination.mkdir()
         for child in sorted(source.iterdir(), key=lambda path: path.name):
@@ -713,9 +592,7 @@ def _copy_entry(source: Path, destination: Path) -> None:
         shutil.copyfile(source, destination)
         destination.chmod(0o755 if mode & 0o111 else 0o644)
     else:
-        raise ContractError(
-            f"source package contains a special file: {source.name}"
-        )
+        raise ContractError(f"source package contains a special file: {source.name}")
 
 
 def _code_requirements(inputs: JobPackInputs) -> bytes:
@@ -729,9 +606,7 @@ def _code_requirements(inputs: JobPackInputs) -> bytes:
             requirements.append(f"./sources/{namespace}{suffix}")
     ordered = sorted(set(requirements))
     if not ordered:
-        raise ContractError(
-            "at least one framework or project source package must be installed"
-        )
+        raise ContractError("at least one framework or project source package must be installed")
     return ("".join(f"{requirement}\n" for requirement in ordered)).encode()
 
 
@@ -744,19 +619,13 @@ def _stage_environment_packages(
     for package in environments.packages:
         lock = package.lock
         if lock.wheel_filename in seen:
-            raise ContractError(
-                f"environment wheel filename collides: {lock.wheel_filename}"
-            )
+            raise ContractError(f"environment wheel filename collides: {lock.wheel_filename}")
         seen.add(lock.wheel_filename)
         contents = _read_regular_file(package.path, "environment wheel")
         if len(contents) != lock.wheel_size_bytes:
-            raise ContractError(
-                f"environment wheel size differs from its lock: {lock.package}"
-            )
+            raise ContractError(f"environment wheel size differs from its lock: {lock.package}")
         if _bytes_digest(contents) != lock.wheel_digest:
-            raise ContractError(
-                f"environment wheel digest differs from its lock: {lock.package}"
-            )
+            raise ContractError(f"environment wheel digest differs from its lock: {lock.package}")
         (destination / lock.wheel_filename).write_bytes(contents)
 
 
@@ -775,9 +644,7 @@ def _stage_runtime_dependencies(
         )
         digest = _bytes_digest(contents)
         if digest != environments.runtime_dependencies_digest:
-            raise ContractError(
-                "runtime requirements differ from their dependency digest"
-            )
+            raise ContractError("runtime requirements differ from their dependency digest")
         dependencies = (
             MaterializedRuntimeDependency(
                 path=environments.runtime_requirements,
@@ -799,32 +666,21 @@ def _stage_runtime_dependencies(
         )
     locks = tuple(item.lock for item in dependencies)
     roles = tuple(lock.role for lock in locks)
-    required_roles = (
-        ("backend", "control")
-        if runtime_variant == "online-rl-verl-py313"
-        else ("control",)
-    )
+    required_roles = ("backend", "control") if runtime_variant == "online-rl-verl-py313" else ("control",)
     if roles != required_roles:
-        raise ContractError(
-            f"runtime variant {runtime_variant} requires dependency roles "
-            + ", ".join(required_roles)
-        )
+        raise ContractError(f"runtime variant {runtime_variant} requires dependency roles " + ", ".join(required_roles))
     for dependency in dependencies:
         contents = _read_regular_file(
             dependency.path,
             f"{dependency.lock.role} runtime requirements",
         )
         if _bytes_digest(contents) != dependency.lock.requirements_digest:
-            raise ContractError(
-                f"{dependency.lock.role} runtime requirements differ from their digest"
-            )
+            raise ContractError(f"{dependency.lock.role} runtime requirements differ from their digest")
         _validate_runtime_requirements(
             contents,
             environment_locks=environment_locks,
         )
-        destination = context.joinpath(
-            *PurePosixPath(dependency.lock.requirements_path).parts
-        )
+        destination = context.joinpath(*PurePosixPath(dependency.lock.requirements_path).parts)
         destination.write_bytes(contents)
     # Keep the established control-lock path during the manifest-v1 migration.
     control = next(item for item in dependencies if item.lock.role == "control")
@@ -864,36 +720,21 @@ def _backend_runtime_lock(
     for field, expected in required.items():
         value = options.get(field)
         if value != expected:
-            raise ContractError(
-                f"veRL {field} must use capsule-owned path {expected}"
-            )
+            raise ContractError(f"veRL {field} must use capsule-owned path {expected}")
     if options.get("source_dirty") not in {None, False}:
         raise ContractError("veRL capsule cannot select a dirty source worktree")
     source_revision = options.get("source_revision")
     dependency_digest = options.get("dependency_lock_sha256")
-    if not isinstance(source_revision, str) or re.fullmatch(
-        r"[0-9a-f]{40}", source_revision
-    ) is None:
+    if not isinstance(source_revision, str) or re.fullmatch(r"[0-9a-f]{40}", source_revision) is None:
         raise ContractError("veRL capsule requires a full source revision")
-    if not isinstance(dependency_digest, str) or re.fullmatch(
-        r"[0-9a-f]{64}", dependency_digest
-    ) is None:
+    if not isinstance(dependency_digest, str) or re.fullmatch(r"[0-9a-f]{64}", dependency_digest) is None:
         raise ContractError("veRL capsule requires a dependency lock digest")
     projection = work / "verl-worker-projection"
     (projection / "posttrain").mkdir(parents=True)
     for package in ("common", "data", "train"):
-        source = (
-            framework_source.root
-            / "packages"
-            / package
-            / "src"
-            / "posttrain"
-            / package
-        )
+        source = framework_source.root / "packages" / package / "src" / "posttrain" / package
         if not source.is_dir() or source.is_symlink():
-            raise ContractError(
-                f"framework snapshot lacks veRL worker projection package: {package}"
-            )
+            raise ContractError(f"framework snapshot lacks veRL worker projection package: {package}")
         _copy_entry(source, projection / "posttrain" / package)
     _normalize_tree_metadata(projection)
     return BackendRuntimeLock(
@@ -932,9 +773,7 @@ def _validate_environment_selection(
         for request in plan.spec.environment_wheels
     )
     if observed != expected:
-        raise ContractError(
-            "materialized environment packages differ from the job-pack plan"
-        )
+        raise ContractError("materialized environment packages differ from the job-pack plan")
 
 
 def _validate_runtime_requirements(
@@ -947,10 +786,7 @@ def _validate_runtime_requirements(
     except UnicodeDecodeError as error:
         raise ContractError("runtime requirements must be UTF-8") from error
     current = ""
-    expected_wheels = {
-        f"./wheels/environments/{lock.wheel_filename}"
-        for lock in environment_locks
-    }
+    expected_wheels = {f"./wheels/environments/{lock.wheel_filename}" for lock in environment_locks}
     observed_wheels: set[str] = set()
     for raw in lines:
         stripped = raw.strip()
@@ -961,19 +797,13 @@ def _validate_runtime_requirements(
             current = current[:-1].rstrip()
             continue
         if "--hash=sha256:" not in current:
-            raise ContractError(
-                "every runtime requirement must be hash locked"
-            )
+            raise ContractError("every runtime requirement must be hash locked")
         if "git+" in current or "://" in current:
-            raise ContractError(
-                "runtime requirements cannot fetch remote source URLs"
-            )
+            raise ContractError("runtime requirements cannot fetch remote source URLs")
         head = current.partition(" --hash=sha256:")[0].strip()
         if head.startswith("./"):
             if head not in expected_wheels:
-                raise ContractError(
-                    "runtime requirements reference an unselected local wheel"
-                )
+                raise ContractError("runtime requirements reference an unselected local wheel")
             observed_wheels.add(head)
         elif (
             "/" in head
@@ -987,18 +817,12 @@ def _validate_runtime_requirements(
             )
             is None
         ):
-            raise ContractError(
-                "runtime requirements must use pinned packages or selected wheels"
-            )
+            raise ContractError("runtime requirements must use pinned packages or selected wheels")
         current = ""
     if current:
-        raise ContractError(
-            "runtime requirements end with an unterminated continuation"
-        )
+        raise ContractError("runtime requirements end with an unterminated continuation")
     if observed_wheels != expected_wheels:
-        raise ContractError(
-            "runtime requirements omit one or more selected environment wheels"
-        )
+        raise ContractError("runtime requirements omit one or more selected environment wheels")
 
 
 def _validate_dataset_packages(
@@ -1015,37 +839,22 @@ def _validate_dataset_packages(
             or package_path == PurePosixPath("datasets")
             or manifest_path == PurePosixPath("datasets")
         ):
-            raise ContractError(
-                "dataset package paths must stay below datasets/"
-            )
+            raise ContractError("dataset package paths must stay below datasets/")
         if package_path in expected_files or manifest_path in expected_files:
             raise ContractError("dataset package paths must be unique")
         expected_files.update((package_path, manifest_path))
         data = root.joinpath(*package_path.parts)
         manifest = root.joinpath(*manifest_path.parts)
-        if (
-            not data.is_file()
-            or data.is_symlink()
-            or not manifest.is_file()
-            or manifest.is_symlink()
-        ):
+        if not data.is_file() or data.is_symlink() or not manifest.is_file() or manifest.is_symlink():
             raise ContractError("dataset package files are missing")
         if data.stat().st_size != value.size_bytes:
             raise ContractError("dataset package size differs from its lock")
         if _file_digest(data) != value.digest:
             raise ContractError("dataset package digest differs from its lock")
 
-    observed_files = {
-        path.relative_to(root)
-        for path in (root / "datasets").rglob("*")
-        if path.is_file()
-    }
-    if observed_files != {
-        Path(*relative.parts) for relative in expected_files
-    }:
-        raise ContractError(
-            "dataset packager emitted files outside its declared locks"
-        )
+    observed_files = {path.relative_to(root) for path in (root / "datasets").rglob("*") if path.is_file()}
+    if observed_files != {Path(*relative.parts) for relative in expected_files}:
+        raise ContractError("dataset packager emitted files outside its declared locks")
 
 
 def _verify_staged_context(
@@ -1061,12 +870,8 @@ def _verify_staged_context(
         "wheels",
     }
     if {path.name for path in root.iterdir()} != expected_top_level:
-        raise ContractError(
-            "staged job context top-level layout differs from the contract"
-        )
-    retained = JobPackageManifest.from_bytes(
-        _read_regular_file(root / "package.json", "job package manifest")
-    )
+        raise ContractError("staged job context top-level layout differs from the contract")
+    retained = JobPackageManifest.from_bytes(_read_regular_file(root / "package.json", "job package manifest"))
     if retained != manifest:
         raise ContractError("staged job package manifest differs from memory")
     for observed, expected, label in (
@@ -1100,14 +905,10 @@ def _verify_staged_context(
             raise ContractError(f"staged {label} differs from its digest")
 
     try:
-        resolved = json.loads(
-            (root / "config/resolved.json").read_text(encoding="utf-8")
-        )
+        resolved = json.loads((root / "config/resolved.json").read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
         raise ContractError("resolved job configuration is invalid") from error
-    if not isinstance(resolved, dict) or resolved.get("schema") != (
-        "posttrain.resolved-job.v1"
-    ):
+    if not isinstance(resolved, dict) or resolved.get("schema") != ("posttrain.resolved-job.v1"):
         raise ContractError("resolved job configuration schema is unsupported")
     expected_identities = {
         "project_id": manifest.project_id,
@@ -1116,23 +917,14 @@ def _verify_staged_context(
         "job_definition_id": manifest.job_definition_id,
         "runtime_variant": manifest.runtime_variant,
     }
-    if any(
-        resolved.get(field) != expected
-        for field, expected in expected_identities.items()
-    ):
-        raise ContractError(
-            "resolved job configuration identities differ from the package"
-        )
+    if any(resolved.get(field) != expected for field, expected in expected_identities.items()):
+        raise ContractError("resolved job configuration identities differ from the package")
     resolved_inputs = resolved.get("resolved_inputs")
     if not isinstance(resolved_inputs, dict):
-        raise ContractError(
-            "resolved job configuration inputs must be an object"
-        )
+        raise ContractError("resolved job configuration inputs must be an object")
     _reject_secret_config(resolved_inputs)
     if _semantic_digest(resolved_inputs) != manifest.resolved_inputs_digest:
-        raise ContractError(
-            "resolved job configuration inputs differ from their digest"
-        )
+        raise ContractError("resolved job configuration inputs differ from their digest")
 
     project_manifest = _resolved_project_path(
         resolved.get("project_manifest"),
@@ -1154,38 +946,21 @@ def _verify_staged_context(
         selected_work_package=selected_work_package,
     )
     if _project_config_digest(config) != manifest.project_config_digest:
-        raise ContractError(
-            "staged project configuration differs from its digest"
-        )
+        raise ContractError("staged project configuration differs from its digest")
     expected_config_files = {
         Path("config/resolved.json"),
-        *(
-            Path("config/project").joinpath(*PurePosixPath(path).parts)
-            for path in config_files
-        ),
+        *(Path("config/project").joinpath(*PurePosixPath(path).parts) for path in config_files),
     }
-    observed_config_files = {
-        path.relative_to(root)
-        for path in (root / "config").rglob("*")
-        if path.is_file()
-    }
+    observed_config_files = {path.relative_to(root) for path in (root / "config").rglob("*") if path.is_file()}
     if observed_config_files != expected_config_files:
-        raise ContractError(
-            "staged configuration contains files outside its declared closure"
-        )
+        raise ContractError("staged configuration contains files outside its declared closure")
 
     _validate_dataset_packages(root, manifest.datasets)
-    expected_wheels = {
-        package.wheel_filename for package in manifest.environment_packages
-    }
+    expected_wheels = {package.wheel_filename for package in manifest.environment_packages}
     wheel_root = root / "wheels" / "environments"
-    observed_wheels = {
-        path.name for path in wheel_root.iterdir() if path.is_file()
-    }
+    observed_wheels = {path.name for path in wheel_root.iterdir() if path.is_file()}
     if observed_wheels != expected_wheels:
-        raise ContractError(
-            "staged environment wheels differ from the package manifest"
-        )
+        raise ContractError("staged environment wheels differ from the package manifest")
     for package in manifest.environment_packages:
         wheel = wheel_root / package.wheel_filename
         if (
@@ -1193,10 +968,7 @@ def _verify_staged_context(
             or wheel.stat().st_size != package.wheel_size_bytes
             or _file_digest(wheel) != package.wheel_digest
         ):
-            raise ContractError(
-                f"staged environment wheel differs from its lock: "
-                f"{package.package}"
-            )
+            raise ContractError(f"staged environment wheel differs from its lock: {package.package}")
     _validate_runtime_requirements(
         (root / "locks/runtime.requirements.txt").read_bytes(),
         environment_locks=manifest.environment_packages,
@@ -1208,9 +980,7 @@ def _verify_staged_context(
             f"{lock.role} runtime requirements",
         )
         if _bytes_digest(contents) != lock.requirements_digest:
-            raise ContractError(
-                f"staged {lock.role} runtime requirements differ from manifest"
-            )
+            raise ContractError(f"staged {lock.role} runtime requirements differ from manifest")
         _validate_runtime_requirements(
             contents,
             environment_locks=manifest.environment_packages,
@@ -1219,9 +989,7 @@ def _verify_staged_context(
 
 def _resolved_project_path(value: object, label: str) -> str:
     if not isinstance(value, str) or not value.startswith("project/"):
-        raise ContractError(
-            f"resolved job {label} must stay below config/project"
-        )
+        raise ContractError(f"resolved job {label} must stay below config/project")
     return _relative_config_path(value.removeprefix("project/"))
 
 
@@ -1231,21 +999,11 @@ def _verify_retained_context(
     package_key: str,
     context_digest: str,
 ) -> None:
-    if (
-        not destination.is_dir()
-        or destination.is_symlink()
-        or _tree_digest(destination) != context_digest
-    ):
-        raise ContractError(
-            "retained job context contains dirty filesystem drift"
-        )
-    retained = JobPackageManifest.from_bytes(
-        (destination / "package.json").read_bytes()
-    )
+    if not destination.is_dir() or destination.is_symlink() or _tree_digest(destination) != context_digest:
+        raise ContractError("retained job context contains dirty filesystem drift")
+    retained = JobPackageManifest.from_bytes((destination / "package.json").read_bytes())
     if retained.package_key != package_key:
-        raise ContractError(
-            "retained job context has a conflicting package manifest"
-        )
+        raise ContractError("retained job context has a conflicting package manifest")
 
 
 def _read_regular_file(path: Path, label: str) -> bytes:
@@ -1283,9 +1041,7 @@ def _tree_digest(root: Path) -> str:
         elif stat.S_ISREG(mode):
             name = path.name.lower()
             if name in _FORBIDDEN_SOURCE_NAMES:
-                raise ContractError(
-                    f"tree contains a forbidden filename: {relative}"
-                )
+                raise ContractError(f"tree contains a forbidden filename: {relative}")
             entries.append(
                 {
                     "path": relative,
@@ -1321,9 +1077,7 @@ def _reject_secret_config(
             normalized = key.lower().replace("-", "_")
             if normalized in _SECRET_CONFIG_KEYS:
                 location = (path / key).as_posix()
-                raise ContractError(
-                    f"resolved configuration cannot contain secret field {location}"
-                )
+                raise ContractError(f"resolved configuration cannot contain secret field {location}")
             _reject_secret_config(child, path / key)
     elif isinstance(value, list | tuple):
         for index, child in enumerate(value):
@@ -1335,65 +1089,44 @@ def _reject_secret_config(
             or "-----BEGIN PRIVATE KEY-----" in value
         ):
             location = path.as_posix() or "<root>"
-            raise ContractError(
-                f"resolved configuration contains secret material at {location}"
-            )
+            raise ContractError(f"resolved configuration contains secret material at {location}")
 
 
 def _reject_secret_config_file(path: str, contents: bytes) -> None:
     try:
         text = contents.decode("utf-8")
     except UnicodeDecodeError as error:
-        raise ContractError(
-            f"project configuration must be UTF-8 text: {path}"
-        ) from error
+        raise ContractError(f"project configuration must be UTF-8 text: {path}") from error
     if (
         _URL_USERINFO.search(text)
         or "-----BEGIN OPENSSH PRIVATE KEY-----" in text
         or "-----BEGIN PRIVATE KEY-----" in text
     ):
-        raise ContractError(
-            f"project configuration contains secret material: {path}"
-        )
+        raise ContractError(f"project configuration contains secret material: {path}")
     suffix = PurePosixPath(path).suffix.lower()
     if suffix in {".yaml", ".yml"} and any(
-        _SECRET_TEXT_KEY.match(line)
-        for line in text.splitlines()
-        if not line.lstrip().startswith("#")
+        _SECRET_TEXT_KEY.match(line) for line in text.splitlines() if not line.lstrip().startswith("#")
     ):
-        raise ContractError(
-            f"project configuration contains a secret field: {path}"
-        )
+        raise ContractError(f"project configuration contains a secret field: {path}")
     if suffix == ".json":
         try:
             payload = json.loads(text)
         except json.JSONDecodeError as error:
-            raise ContractError(
-                f"project configuration contains invalid JSON: {path}"
-            ) from error
+            raise ContractError(f"project configuration contains invalid JSON: {path}") from error
         _reject_secret_config(payload)
     elif suffix == ".toml":
         try:
             payload = tomllib.loads(text)
         except tomllib.TOMLDecodeError as error:
-            raise ContractError(
-                f"project configuration contains invalid TOML: {path}"
-            ) from error
+            raise ContractError(f"project configuration contains invalid TOML: {path}") from error
         _reject_secret_config(payload)
 
 
 def _freeze_json(value: object) -> object:
     if isinstance(value, Mapping):
         if not all(isinstance(key, str) for key in value):
-            raise ContractError(
-                "resolved configuration keys must be strings"
-            )
-        return _FrozenDict(
-            {
-                str(key): _freeze_json(child)
-                for key, child in value.items()
-            }
-        )
+            raise ContractError("resolved configuration keys must be strings")
+        return _FrozenDict({str(key): _freeze_json(child) for key, child in value.items()})
     if isinstance(value, list | tuple):
         return _FrozenList(_freeze_json(child) for child in value)
     return value
@@ -1401,10 +1134,7 @@ def _freeze_json(value: object) -> object:
 
 def _thaw_json(value: object) -> object:
     if isinstance(value, Mapping):
-        return {
-            str(key): _thaw_json(child)
-            for key, child in value.items()
-        }
+        return {str(key): _thaw_json(child) for key, child in value.items()}
     if isinstance(value, list | tuple):
         return [_thaw_json(child) for child in value]
     return value
@@ -1430,9 +1160,7 @@ def _json_bytes(value: object, *, pretty: bool) -> bytes:
                 separators=(",", ":"),
             )
     except (TypeError, ValueError) as error:
-        raise ContractError(
-            "resolved configuration must contain only JSON values"
-        ) from error
+        raise ContractError("resolved configuration must contain only JSON values") from error
     return encoded.encode()
 
 

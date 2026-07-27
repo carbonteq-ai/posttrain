@@ -26,9 +26,7 @@ type ReconciledOutcome = Literal[
 ]
 
 _SCHEMA = "posttrain.execution-reconciliation.v1"
-_TERMINAL_TRACKING_STATES = frozenset(
-    {"succeeded", "partial", "failed", "cancelled", "unsupported"}
-)
+_TERMINAL_TRACKING_STATES = frozenset({"succeeded", "partial", "failed", "cancelled", "unsupported"})
 _SUCCESS_TRACKING_STATES = frozenset({"succeeded", "partial", "unsupported"})
 
 
@@ -89,14 +87,11 @@ async def reconcile_execution(
             required_artifact_roles=submission.required_artifact_roles,
             retained_artifacts=(),
             missing_artifact_roles=(
-                ()
-                if provider.record.state in {"failed", "cancelled"}
-                else submission.required_artifact_roles
+                () if provider.record.state in {"failed", "cancelled"} else submission.required_artifact_roles
             ),
             observed_at=observed_at,
             message=(
-                "provider is terminal; durable tracking was explicitly disabled, "
-                "so no retained evidence was asserted"
+                "provider is terminal; durable tracking was explicitly disabled, so no retained evidence was asserted"
             ),
         )
     try:
@@ -142,9 +137,7 @@ async def reconcile_execution(
         tracking.status,
         missing,
     )
-    state: ReconciliationState = (
-        "consistent" if consistency_message is None else "inconsistent"
-    )
+    state: ReconciliationState = "consistent" if consistency_message is None else "inconsistent"
     return ExecutionReconciliation(
         run_id=run_id,
         state=state,
@@ -170,9 +163,7 @@ def save_reconciliation(
     root = store.run_root(result.run_id)
     root.mkdir(parents=True, exist_ok=True)
     payload = _payload(result)
-    encoded = (
-        json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n"
-    ).encode()
+    encoded = (json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n").encode()
     journal = root / "reconciliation.jsonl"
     descriptor = os.open(journal, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600)
     try:
@@ -242,11 +233,7 @@ def _missing_roles(
 ) -> tuple[str, ...]:
     missing = []
     for role in required:
-        matches = tuple(
-            artifact
-            for artifact in artifacts
-            if artifact.role == role and artifact.digest is not None
-        )
+        matches = tuple(artifact for artifact in artifacts if artifact.role == role and artifact.digest is not None)
         if len(matches) != 1:
             missing.append(role)
     return tuple(missing)
@@ -258,21 +245,15 @@ def _consistency_message(
     missing_roles: tuple[str, ...],
 ) -> str | None:
     if provider_state == "succeeded" and tracking_status not in _SUCCESS_TRACKING_STATES:
-        return (
-            f"provider succeeded but retained tracking outcome is {tracking_status}"
-        )
+        return f"provider succeeded but retained tracking outcome is {tracking_status}"
     if provider_state == "failed" and tracking_status != "failed":
         return f"provider failed but retained tracking outcome is {tracking_status}"
     if provider_state == "cancelled" and tracking_status != "cancelled":
-        return (
-            f"provider cancelled but retained tracking outcome is {tracking_status}"
-        )
+        return f"provider cancelled but retained tracking outcome is {tracking_status}"
     if provider_state == "lost":
         return "provider execution was lost"
     if missing_roles:
-        return "required retained artifact roles are missing or ambiguous: " + ", ".join(
-            missing_roles
-        )
+        return "required retained artifact roles are missing or ambiguous: " + ", ".join(missing_roles)
     return None
 
 

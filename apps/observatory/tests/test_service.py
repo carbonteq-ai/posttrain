@@ -128,13 +128,9 @@ async def test_metric_series_uses_replay_source_steps_and_collapses_equivalent_d
         ),
     }
 
-    result = await ObservatoryService(
-        FakeRunDataSource(details, {run_id: series})
-    ).get_metric_series(
+    result = await ObservatoryService(FakeRunDataSource(details, {run_id: series})).get_metric_series(
         run_id,
-        MetricSeriesQuery(
-            names=("train/rl/reward_std", "train/step_time_seconds")
-        ),
+        MetricSeriesQuery(names=("train/rl/reward_std", "train/step_time_seconds")),
     )
 
     assert [point.step for point in result.series[0].points] == [0, 1]
@@ -229,8 +225,7 @@ def _registered_job_source(
 ) -> FakeRunDataSource:
     run_id = f"runs/{job_kind.replace('.', '-')}"
     series = {
-        name: MetricSeries(name=name, points=(MetricPoint(value=value, step=1),))
-        for name, value in values.items()
+        name: MetricSeries(name=name, points=(MetricPoint(value=value, step=1),)) for name, value in values.items()
     }
     return FakeRunDataSource(
         {
@@ -267,9 +262,7 @@ async def test_registered_job_kinds_resolve_to_first_class_metric_views(
     assert response.fallback_reason is None
     assert response.view.view_kind == "job.metrics"
     assert response.view.completeness.state == "complete"
-    assert {item.metric for item in response.view.summary} == {
-        field.metric for field in definition.summary_fields
-    }
+    assert {item.metric for item in response.view.summary} == {field.metric for field in definition.summary_fields}
     assert response.view.trace_evaluation_enabled is bool(definition.trace_sections)
 
 
@@ -283,9 +276,7 @@ async def test_distillation_projection_requires_traces_and_surfaces_teacher_fail
 
     assert view.completeness.state == "complete"
     assert view.completeness.research_ready is False
-    assert {"distill-teacher-failures", "missing-distill-traces"}.issubset(
-        {alert.id for alert in view.alerts}
-    )
+    assert {"distill-teacher-failures", "missing-distill-traces"}.issubset({alert.id for alert in view.alerts})
 
 
 def test_dpo_telemetry_answers_pair_policy_stability_and_data_questions() -> None:
@@ -422,9 +413,7 @@ async def test_grpo_tool_environment_category_activates_tool_evidence() -> None:
 
     view = await ObservatoryService(source).get_run_view(run_id)
 
-    tool_requirement = next(
-        item for item in view.completeness.requirements if item.key == "tool_behavior"
-    )
+    tool_requirement = next(item for item in view.completeness.requirements if item.key == "tool_behavior")
     assert tool_requirement.state == "missing"
     assert view.completeness.conditional_active == baseline.completeness.conditional_active + 1
     assert view.completeness.research_ready is False

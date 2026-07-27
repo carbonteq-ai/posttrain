@@ -64,13 +64,8 @@ class EnvironmentPackageLock:
         if self.subdirectory != ".":
             _relative_path(self.subdirectory, "environment subdirectory")
         _digest(self.tree_digest, "environment tree")
-        if (
-            PurePosixPath(self.wheel_filename).name != self.wheel_filename
-            or not self.wheel_filename.endswith(".whl")
-        ):
-            raise ContractError(
-                "environment wheel filename must be a portable wheel filename"
-            )
+        if PurePosixPath(self.wheel_filename).name != self.wheel_filename or not self.wheel_filename.endswith(".whl"):
+            raise ContractError("environment wheel filename must be a portable wheel filename")
         _digest(self.wheel_digest, "environment wheel")
         if self.wheel_size_bytes < 1:
             raise ContractError("environment wheel size must be positive")
@@ -106,13 +101,9 @@ class EnvironmentActivationLock:
             raise ContractError("environment activation package is invalid")
         if self.kind == "verifiers-config":
             if self.reference is not None:
-                raise ContractError(
-                    "declarative Verifiers activation cannot name a Python factory"
-                )
+                raise ContractError("declarative Verifiers activation cannot name a Python factory")
             if self.config is None:
-                raise ContractError(
-                    "declarative Verifiers activation requires its JSON config"
-                )
+                raise ContractError("declarative Verifiers activation requires its JSON config")
             config = _freeze_json(dict(self.config))
             _json_bytes(
                 _thaw_json(config),
@@ -128,9 +119,7 @@ class EnvironmentActivationLock:
             or ":" not in self.reference
             or any(character.isspace() for character in self.reference)
         ):
-            raise ContractError(
-                "environment factory ref must be an import reference such as module:callable"
-            )
+            raise ContractError("environment factory ref must be an import reference such as module:callable")
         if self.kind == "python-factory" and self.config is not None:
             raise ContractError("Python factory activation cannot include config")
         activation_payload: dict[str, JsonValue] = {"kind": self.kind}
@@ -141,13 +130,9 @@ class EnvironmentActivationLock:
                 JsonValue,
                 _thaw_json(self.config or {}),
             )
-        observed = hashlib.sha256(_json_bytes(
-            activation_payload, "environment activation"
-        )).hexdigest()
+        observed = hashlib.sha256(_json_bytes(activation_payload, "environment activation")).hexdigest()
         if self.digest != observed:
-            raise ContractError(
-                "environment activation digest does not match its payload"
-            )
+            raise ContractError("environment activation digest does not match its payload")
 
     def to_payload(self) -> dict[str, JsonValue]:
         return {
@@ -156,11 +141,7 @@ class EnvironmentActivationLock:
             "kind": self.kind,
             "digest": self.digest,
             "reference": self.reference,
-            "config": (
-                None
-                if self.config is None
-                else cast(JsonValue, _thaw_json(self.config))
-            ),
+            "config": (None if self.config is None else cast(JsonValue, _thaw_json(self.config))),
         }
 
 
@@ -234,20 +215,13 @@ class RuntimeDependencyLock:
             or not executable.is_relative_to(PurePosixPath("/opt"))
             or executable.name != "python"
         ):
-            raise ContractError(
-                "runtime dependency interpreter must be a normalized capsule path"
-            )
+            raise ContractError("runtime dependency interpreter must be a normalized capsule path")
         requirements = _relative_path(
             self.requirements_path,
             "runtime dependency requirements path",
         )
-        if (
-            not requirements.is_relative_to(PurePosixPath("locks"))
-            or requirements.suffix != ".txt"
-        ):
-            raise ContractError(
-                "runtime dependency requirements must be a lock file below locks"
-            )
+        if not requirements.is_relative_to(PurePosixPath("locks")) or requirements.suffix != ".txt":
+            raise ContractError("runtime dependency requirements must be a lock file below locks")
         _digest(self.requirements_digest, "runtime dependency requirements")
         _digest(self.resolution_digest, "runtime dependency resolution")
 
@@ -292,9 +266,7 @@ class BackendRuntimeLock:
                 or path.as_posix() != value
                 or not path.is_relative_to(PurePosixPath("/opt/posttrain-verl"))
             ):
-                raise ContractError(
-                    f"backend runtime {label} must be a normalized capsule path"
-                )
+                raise ContractError(f"backend runtime {label} must be a normalized capsule path")
         if self.dependency_lock_path != "/opt/posttrain-verl/release/uv.lock":
             raise ContractError("veRL dependency lock must use the capsule release path")
         if self.working_directory != "/opt/posttrain-verl/workdir":
@@ -360,13 +332,8 @@ class JobPackageManifest:
             if not _IDENTITY.fullmatch(value):
                 raise ContractError(f"job package {label} is invalid")
         profile = _KIND_PROFILES.get(self.job_kind)
-        if profile is None or not (
-            self.runtime_variant == profile
-            or self.runtime_variant.startswith(f"{profile}-")
-        ):
-            raise ContractError(
-                "job package runtime variant must refine its logical kind profile"
-            )
+        if profile is None or not (self.runtime_variant == profile or self.runtime_variant.startswith(f"{profile}-")):
+            raise ContractError("job package runtime variant must refine its logical kind profile")
         _digest(self.resolved_inputs_digest, "resolved inputs")
         _digest(self.framework_source_digest, "framework source")
         _digest(self.project_source_digest, "project source")
@@ -376,14 +343,10 @@ class JobPackageManifest:
         _digest(self.project_config_digest, "project config")
         roles = tuple(lock.role for lock in self.runtime_dependency_locks)
         if len(set(roles)) != len(roles) or roles != tuple(sorted(roles)):
-            raise ContractError(
-                "runtime dependency locks must have unique, canonical roles"
-            )
+            raise ContractError("runtime dependency locks must have unique, canonical roles")
         if self.runtime_variant.startswith("online-rl-verl-"):
             if roles != ("backend", "control"):
-                raise ContractError(
-                    "veRL runtime requires backend and control dependency locks"
-                )
+                raise ContractError("veRL runtime requires backend and control dependency locks")
             by_role = {lock.role: lock for lock in self.runtime_dependency_locks}
             control = by_role["control"]
             backend = by_role["backend"]
@@ -393,43 +356,26 @@ class JobPackageManifest:
                 or backend.python_version != "3.13.12"
                 or backend.python_executable != "/opt/posttrain-verl/bin/python"
             ):
-                raise ContractError(
-                    "veRL runtime dependency locks target the wrong interpreters"
-                )
+                raise ContractError("veRL runtime dependency locks target the wrong interpreters")
             if self.backend_runtime is None:
                 raise ContractError("veRL runtime requires capsule backend identity")
         elif self.backend_runtime is not None:
-            raise ContractError(
-                "backend runtime identity is only valid for the veRL runtime variant"
-            )
-        if len({item.package for item in self.environment_packages}) != len(
-            self.environment_packages
-        ):
+            raise ContractError("backend runtime identity is only valid for the veRL runtime variant")
+        if len({item.package for item in self.environment_packages}) != len(self.environment_packages):
             raise ContractError("job package environment names must be unique")
-        if len(
-            {item.environment_id for item in self.environment_activations}
-        ) != len(self.environment_activations):
+        if len({item.environment_id for item in self.environment_activations}) != len(self.environment_activations):
             raise ContractError("job package environment activation ids must be unique")
-        installed_packages = {
-            item.package for item in self.environment_packages
-        }
+        installed_packages = {item.package for item in self.environment_packages}
         missing_packages = sorted(
-            {
-                item.package
-                for item in self.environment_activations
-                if item.package not in installed_packages
-            }
+            {item.package for item in self.environment_activations if item.package not in installed_packages}
         )
         if missing_packages:
             raise ContractError(
-                "job package environment activations reference missing packages: "
-                + ", ".join(missing_packages)
+                "job package environment activations reference missing packages: " + ", ".join(missing_packages)
             )
         if len({item.seat_name for item in self.datasets}) != len(self.datasets):
             raise ContractError("job package dataset seat names must be unique")
-        if len(set(self.expected_artifact_roles)) != len(
-            self.expected_artifact_roles
-        ):
+        if len(set(self.expected_artifact_roles)) != len(self.expected_artifact_roles):
             raise ContractError("job package artifact roles must be unique")
         if any(not role.strip() for role in self.expected_artifact_roles):
             raise ContractError("job package artifact roles cannot be empty")
@@ -462,29 +408,17 @@ class JobPackageManifest:
             "universal_image": self.universal_image.value,
             "kind_image": self.kind_image.value,
             "runtime_variant": self.runtime_variant,
-            "runtime_dependency_locks": [
-                item.to_payload() for item in self.runtime_dependency_locks
-            ],
-            "backend_runtime": (
-                self.backend_runtime.to_payload()
-                if self.backend_runtime is not None
-                else None
-            ),
-            "environment_packages": [
-                item.to_payload() for item in self.environment_packages
-            ],
-            "environment_activations": [
-                item.to_payload() for item in self.environment_activations
-            ],
+            "runtime_dependency_locks": [item.to_payload() for item in self.runtime_dependency_locks],
+            "backend_runtime": (self.backend_runtime.to_payload() if self.backend_runtime is not None else None),
+            "environment_packages": [item.to_payload() for item in self.environment_packages],
+            "environment_activations": [item.to_payload() for item in self.environment_activations],
             "datasets": [item.to_payload() for item in self.datasets],
             "expected_artifact_roles": list(self.expected_artifact_roles),
             "worker_contract_version": self.worker_contract_version,
         }
 
     def to_bytes(self) -> bytes:
-        return (
-            json.dumps(self.to_payload(), indent=2, sort_keys=True) + "\n"
-        ).encode()
+        return (json.dumps(self.to_payload(), indent=2, sort_keys=True) + "\n").encode()
 
     @classmethod
     def from_payload(cls, payload: object) -> JobPackageManifest:
@@ -516,9 +450,7 @@ class JobPackageManifest:
             "worker_contract_version",
         }
         if unknown := sorted(set(payload) - allowed):
-            raise ContractError(
-                f"job package manifest has unknown fields: {', '.join(unknown)}"
-            )
+            raise ContractError(f"job package manifest has unknown fields: {', '.join(unknown)}")
         try:
             environment_packages = payload.get("environment_packages", [])
             runtime_dependency_locks = payload.get("runtime_dependency_locks", [])
@@ -533,9 +465,7 @@ class JobPackageManifest:
                 raise TypeError("environment activations")
             if not isinstance(datasets, list):
                 raise TypeError("datasets")
-            if not isinstance(roles, list) or not all(
-                isinstance(role, str) for role in roles
-            ):
+            if not isinstance(roles, list) or not all(isinstance(role, str) for role in roles):
                 raise TypeError("artifact roles")
             return cls(
                 project_id=str(payload["project_id"]),
@@ -546,30 +476,17 @@ class JobPackageManifest:
                 resolved_inputs_digest=str(payload["resolved_inputs_digest"]),
                 framework_source_digest=str(payload["framework_source_digest"]),
                 project_source_digest=str(payload["project_source_digest"]),
-                runtime_dependencies_digest=str(
-                    payload["runtime_dependencies_digest"]
-                ),
+                runtime_dependencies_digest=str(payload["runtime_dependencies_digest"]),
                 code_requirements_digest=str(payload["code_requirements_digest"]),
                 resolved_config_digest=str(payload["resolved_config_digest"]),
                 project_config_digest=str(payload["project_config_digest"]),
                 universal_image=RuntimeImageRef(str(payload["universal_image"])),
                 kind_image=RuntimeImageRef(str(payload["kind_image"])),
                 runtime_variant=str(payload["runtime_variant"]),
-                runtime_dependency_locks=tuple(
-                    _runtime_dependency_lock(item)
-                    for item in runtime_dependency_locks
-                ),
-                backend_runtime=_backend_runtime_lock(
-                    payload.get("backend_runtime")
-                ),
-                environment_packages=tuple(
-                    _environment_package_lock(item)
-                    for item in environment_packages
-                ),
-                environment_activations=tuple(
-                    _environment_activation_lock(item)
-                    for item in environment_activations
-                ),
+                runtime_dependency_locks=tuple(_runtime_dependency_lock(item) for item in runtime_dependency_locks),
+                backend_runtime=_backend_runtime_lock(payload.get("backend_runtime")),
+                environment_packages=tuple(_environment_package_lock(item) for item in environment_packages),
+                environment_activations=tuple(_environment_activation_lock(item) for item in environment_activations),
                 datasets=tuple(_dataset_lock(item) for item in datasets),
                 expected_artifact_roles=tuple(roles),
                 worker_contract_version=str(payload["worker_contract_version"]),
@@ -588,11 +505,7 @@ class JobPackageManifest:
 
 def _relative_path(value: str, label: str) -> PurePosixPath:
     path = PurePosixPath(value)
-    if (
-        path.is_absolute()
-        or not path.parts
-        or any(part in {"", ".", ".."} for part in path.parts)
-    ):
+    if path.is_absolute() or not path.parts or any(part in {"", ".", ".."} for part in path.parts):
         raise ContractError(f"{label} must be a normalized relative path")
     return path
 
@@ -617,9 +530,7 @@ def _freeze_json(value: object) -> object:
     if isinstance(value, dict):
         if not all(isinstance(key, str) for key in value):
             raise ContractError("JSON object keys must be strings")
-        return MappingProxyType(
-            {key: _freeze_json(child) for key, child in value.items()}
-        )
+        return MappingProxyType({key: _freeze_json(child) for key, child in value.items()})
     if isinstance(value, list | tuple):
         return tuple(_freeze_json(child) for child in value)
     return value
@@ -650,13 +561,9 @@ def _environment_package_lock(value: object) -> EnvironmentPackageLock:
         package=_required_string(package, "environment package"),
         repository=_required_string(repository, "environment repository"),
         revision=_required_string(revision, "environment revision"),
-        subdirectory=_required_string(
-            subdirectory, "environment subdirectory"
-        ),
+        subdirectory=_required_string(subdirectory, "environment subdirectory"),
         tree_digest=_required_string(tree_digest, "environment tree digest"),
-        wheel_filename=_required_string(
-            wheel_filename, "environment wheel filename"
-        ),
+        wheel_filename=_required_string(wheel_filename, "environment wheel filename"),
         wheel_digest=_required_string(wheel_digest, "environment wheel digest"),
         wheel_size_bytes=wheel_size_bytes,
     )
@@ -675,16 +582,10 @@ def _environment_activation_lock(value: object) -> EnvironmentActivationLock:
     if config is not None and not isinstance(config, dict):
         raise TypeError("environment activation config")
     return EnvironmentActivationLock(
-        environment_id=_required_string(
-            value.get("environment_id"), "environment activation id"
-        ),
-        package=_required_string(
-            value.get("package"), "environment activation package"
-        ),
+        environment_id=_required_string(value.get("environment_id"), "environment activation id"),
+        package=_required_string(value.get("package"), "environment activation package"),
         kind=kind,
-        digest=_required_string(
-            value.get("digest"), "environment activation digest"
-        ),
+        digest=_required_string(value.get("digest"), "environment activation digest"),
         reference=reference,
         config=config,
     )
@@ -767,24 +668,14 @@ def _dataset_lock(value: object) -> DatasetPackageLock:
     if not isinstance(value, dict):
         raise TypeError("dataset lock")
     seat_name = _required_string(value.get("seat_name"), "dataset seat name")
-    selection_id = _required_string(
-        value.get("selection_id"), "dataset selection id"
-    )
-    selection_revision = _required_string(
-        value.get("selection_revision"), "dataset selection revision"
-    )
-    dataset_revision = _required_string(
-        value.get("dataset_revision"), "dataset revision"
-    )
+    selection_id = _required_string(value.get("selection_id"), "dataset selection id")
+    selection_revision = _required_string(value.get("selection_revision"), "dataset selection revision")
+    dataset_revision = _required_string(value.get("dataset_revision"), "dataset revision")
     kind = value.get("kind")
     schema_version = value.get("schema_version")
     digest = value.get("digest")
-    package_path = _required_string(
-        value.get("package_path"), "dataset package path"
-    )
-    manifest_path = _required_string(
-        value.get("manifest_path"), "dataset manifest path"
-    )
+    package_path = _required_string(value.get("package_path"), "dataset package path")
+    manifest_path = _required_string(value.get("manifest_path"), "dataset manifest path")
     size_bytes = value.get("size_bytes")
     num_records = value.get("num_records")
     if kind not in {"supervised", "preference"}:
@@ -795,9 +686,7 @@ def _dataset_lock(value: object) -> DatasetPackageLock:
         raise TypeError("dataset digest")
     if not isinstance(size_bytes, int) or isinstance(size_bytes, bool):
         raise TypeError("dataset lock size")
-    if num_records is not None and (
-        not isinstance(num_records, int) or isinstance(num_records, bool)
-    ):
+    if num_records is not None and (not isinstance(num_records, int) or isinstance(num_records, bool)):
         raise TypeError("dataset lock record count")
     return DatasetPackageLock(
         seat_name=seat_name,

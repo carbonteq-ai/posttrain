@@ -23,9 +23,7 @@ from posttrain.execution import (
     RuntimeImageRef,
 )
 
-TRUST_BUNDLE_CONTAINER_PATH = Path(
-    "/opt/posttrain/trust/ca-certificates.crt"
-)
+TRUST_BUNDLE_CONTAINER_PATH = Path("/opt/posttrain/trust/ca-certificates.crt")
 _TRUST_ENVIRONMENT = ("SSL_CERT_FILE", "REQUESTS_CA_BUNDLE")
 
 
@@ -92,17 +90,13 @@ class DockerCli:
                 arguments.extend(("--label", f"{key}={value}"))
             for environment_name in cast_sequence(payload.get("environment_names")):
                 arguments.extend(("--env", str(environment_name)))
-            for key, value in cast_mapping(
-                payload.get("launch_environment")
-            ).items():
+            for key, value in cast_mapping(payload.get("launch_environment")).items():
                 arguments.extend(("--env", f"{key}={value}"))
             for volume in cast_sequence(payload.get("volumes")):
                 arguments.extend(("--volume", str(volume)))
             if bool(payload.get("gpu")):
                 arguments.extend(("--gpus", "all"))
-            command = tuple(
-                str(value) for value in cast_sequence(payload.get("command"))
-            )
+            command = tuple(str(value) for value in cast_sequence(payload.get("command")))
             if not command:
                 raise ValueError("local Docker submission command cannot be empty")
             arguments.extend(
@@ -153,10 +147,7 @@ class DockerCli:
                 f"{payload['workspace']}:/opt/posttrain/cleanup",
                 str(payload["image"]),
                 "-c",
-                (
-                    "find /opt/posttrain/cleanup -mindepth 1 -maxdepth 1 "
-                    "-exec rm -rf -- {} +"
-                ),
+                ("find /opt/posttrain/cleanup -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +"),
             )
             return {"emptied": True}
         raise ValueError(f"unsupported Docker gateway action: {action}")
@@ -188,40 +179,27 @@ class LocalDockerExecutionProvider:
             self._environment.update(environment)
         self._gateway = gateway or DockerCli(environment=self._environment)
         self._state_root = state_root.resolve()
-        self._trust_bundle = (
-            trust_bundle.expanduser().resolve() if trust_bundle is not None else None
-        )
+        self._trust_bundle = trust_bundle.expanduser().resolve() if trust_bundle is not None else None
 
     def _cancel_marker(self, provider_id: str) -> Path:
         return self._state_root / "cancelled" / provider_id
 
     def _volumes(self, request: ExecutionRequest) -> list[str]:
-        volumes = [
-            f"{mount.instance_path}:{mount.container_path}"
-            for mount in request.mounts
-        ]
+        volumes = [f"{mount.instance_path}:{mount.container_path}" for mount in request.mounts]
         if self._trust_bundle is not None:
-            volumes.append(
-                f"{self._trust_bundle}:{TRUST_BUNDLE_CONTAINER_PATH}:ro"
-            )
+            volumes.append(f"{self._trust_bundle}:{TRUST_BUNDLE_CONTAINER_PATH}:ro")
         return volumes
 
     def _launch_environment(self, request: ExecutionRequest) -> dict[str, str]:
         environment = request.launch_environment(provider="local-docker")
         if self._trust_bundle is not None:
-            environment.update(
-                {
-                    name: str(TRUST_BUNDLE_CONTAINER_PATH)
-                    for name in _TRUST_ENVIRONMENT
-                }
-            )
+            environment.update({name: str(TRUST_BUNDLE_CONTAINER_PATH) for name in _TRUST_ENVIRONMENT})
         return environment
 
     def _payload(self, request: ExecutionRequest) -> dict[str, Any]:
         if request.bundle is not None:
             raise RuntimeError(
-                "local Docker no longer accepts execution bundles; "
-                "pack and submit an immutable actual-job image"
+                "local Docker no longer accepts execution bundles; pack and submit an immutable actual-job image"
             )
         return {
             "name": _container_name(request.idempotency_key),
@@ -254,25 +232,16 @@ class LocalDockerExecutionProvider:
         request = plan.request
         if request.bundle is not None:
             raise RuntimeError(
-                "local Docker no longer accepts execution bundles; "
-                "pack and submit an immutable actual-job image"
+                "local Docker no longer accepts execution bundles; pack and submit an immutable actual-job image"
             )
-        missing = [
-            name
-            for name in request.environment_names
-            if name not in self._environment
-        ]
+        missing = [name for name in request.environment_names if name not in self._environment]
         if missing:
             raise RuntimeError(f"local Docker execution is missing environment names: {', '.join(missing)}")
         if self._trust_bundle is not None and not self._trust_bundle.is_file():
-            raise RuntimeError(
-                f"local execution trust bundle is missing: {self._trust_bundle}"
-            )
+            raise RuntimeError(f"local execution trust bundle is missing: {self._trust_bundle}")
         for mount in request.mounts:
             if mount.instance_path.exists() and not mount.instance_path.is_dir():
-                raise RuntimeError(
-                    f"local execution mount is not a directory: {mount.instance_path}"
-                )
+                raise RuntimeError(f"local execution mount is not a directory: {mount.instance_path}")
             mount.instance_path.mkdir(parents=True, exist_ok=True)
         payload = self._payload(request)
         name = str(payload["name"])
@@ -286,13 +255,9 @@ class LocalDockerExecutionProvider:
             identity = self._gateway.invoke("identity", {"name": name})
             expected_labels = cast_mapping(payload["labels"])
             actual_labels = cast_mapping(identity.get("labels"))
-            if any(
-                actual_labels.get(key) != value
-                for key, value in expected_labels.items()
-            ):
+            if any(actual_labels.get(key) != value for key, value in expected_labels.items()):
                 raise RuntimeError(
-                    "existing Docker execution conflicts with the idempotent "
-                    f"submission identity: {name}"
+                    f"existing Docker execution conflicts with the idempotent submission identity: {name}"
                 )
         return ExecutionHandle("local-docker", name, request.idempotency_key)
 
@@ -382,9 +347,7 @@ class LocalDockerExecutionProvider:
                 or run_workspace.is_symlink()
                 or not run_workspace.is_dir()
             ):
-                raise RuntimeError(
-                    "local Docker cleanup workspace is not an exact run directory"
-                )
+                raise RuntimeError("local Docker cleanup workspace is not an exact run directory")
             self._gateway.invoke(
                 "cleanup_workspace",
                 {
@@ -395,8 +358,5 @@ class LocalDockerExecutionProvider:
         return ProviderCleanupResult(
             handle,
             container_disposition,
-            (
-                "released the exact local Docker container and emptied its "
-                "run-scoped workspace"
-            ),
+            ("released the exact local Docker container and emptied its run-scoped workspace"),
         )

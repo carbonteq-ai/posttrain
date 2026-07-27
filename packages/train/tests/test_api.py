@@ -795,11 +795,7 @@ def test_grpo_replays_trace_evidence_after_training_without_decreasing_metric_st
 
     grpo(_context(tmp_path, observer), request, runner=backend)
 
-    replay = next(
-        batch
-        for batch in observer.metrics_seen
-        if "train/rl/reward_std" in batch.values
-    )
+    replay = next(batch for batch in observer.metrics_seen if "train/rl/reward_std" in batch.values)
     assert "train/rl/rollouts_completed" not in replay.values
     assert replay.step is None
     assert replay.attributes["source_step"] == 3

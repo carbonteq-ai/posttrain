@@ -346,9 +346,7 @@ def test_runtime_validation_does_not_materialize_remote_environment(
             repository="https://example.com/remote-only.git",
             revision="a" * 40,
         ),
-        activation=PythonFactoryActivation(
-            "remote_environment_that_is_not_installed:create_environment"
-        ),
+        activation=PythonFactoryActivation("remote_environment_that_is_not_installed:create_environment"),
         sampling=SamplingPolicy(max_tokens=64),
         num_tasks=1,
     )

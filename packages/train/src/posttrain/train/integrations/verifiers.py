@@ -266,15 +266,9 @@ def _load_selected_tasks(
         indexed: dict[int, Any] = {}
         for task in selected:
             index = getattr(getattr(task, "data", None), "idx", None)
-            if (
-                not isinstance(index, int)
-                or isinstance(index, bool)
-                or index < 0
-                or index in indexed
-            ):
+            if not isinstance(index, int) or isinstance(index, bool) or index < 0 or index in indexed:
                 raise ValueError(
-                    "infinite Verifiers tasksets must select tasks with unique "
-                    "non-negative integer data.idx values"
+                    "infinite Verifiers tasksets must select tasks with unique non-negative integer data.idx values"
                 )
             indexed[index] = task
         return dict(sorted(indexed.items()))
@@ -573,9 +567,7 @@ class VerifiersEnvironmentRolloutBridge:
         if not self.trace_path.is_file():
             return EnvironmentRolloutEvidence()
         records = [
-            json.loads(line)
-            for line in self.trace_path.read_text(encoding="utf-8").splitlines()
-            if line.strip()
+            json.loads(line) for line in self.trace_path.read_text(encoding="utf-8").splitlines() if line.strip()
         ]
         traces: list[TraceObservation] = []
         records_by_step: dict[int, list[dict[str, Any]]] = {}
@@ -625,9 +617,7 @@ def _trace_reward(record: Mapping[str, Any]) -> float | None:
     if not isinstance(rewards, Mapping):
         return None
     values = [
-        float(value)
-        for value in rewards.values()
-        if isinstance(value, int | float) and not isinstance(value, bool)
+        float(value) for value in rewards.values() if isinstance(value, int | float) and not isinstance(value, bool)
     ]
     return sum(values) if values else None
 
@@ -687,22 +677,14 @@ def _trace_metrics(records: Sequence[Mapping[str, Any]]) -> dict[str, float]:
     zero_variance_groups = sum(statistics.pstdev(values) == 0 for values in grouped)
     return {
         "train/rl/reward_std": statistics.pstdev(rewards) if len(rewards) > 1 else 0.0,
-        "train/rl/group_zero_variance_fraction": (
-            zero_variance_groups / len(grouped) if grouped else 0.0
-        ),
+        "train/rl/group_zero_variance_fraction": (zero_variance_groups / len(grouped) if grouped else 0.0),
         "train/rl/rollouts_attempted": float(attempted),
-        "train/rl/rollouts_completed": float(
-            sum(bool(record.get("is_completed")) for record in records)
-        ),
+        "train/rl/rollouts_completed": float(sum(bool(record.get("is_completed")) for record in records)),
         "train/rl/rollouts_failed": float(sum(bool(record.get("errors")) for record in records)),
         "train/rl/rollouts_truncated": float(sum(_trace_is_truncated(record) for record in records)),
         "train/rl/rollouts_unscorable": float(attempted - len(rewards)),
-        "train/rl/tool_call_frequency": sum(_trace_has_tool_call(record) for record in records)
-        / attempted,
-        "train/rl/tool_failure_frequency": sum(
-            _trace_has_tool_failure(record) for record in records
-        )
-        / attempted,
+        "train/rl/tool_call_frequency": sum(_trace_has_tool_call(record) for record in records) / attempted,
+        "train/rl/tool_failure_frequency": sum(_trace_has_tool_failure(record) for record in records) / attempted,
     }
 
 

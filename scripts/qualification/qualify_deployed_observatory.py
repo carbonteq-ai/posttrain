@@ -73,19 +73,13 @@ class ObservatoryHttpClient:
             raise QualificationError("credentials must not be embedded in the Observatory URL")
         if not parsed.netloc or parsed.query or parsed.fragment:
             raise QualificationError("the deployed Observatory URL is invalid")
-        self.base_url = urllib.parse.urlunsplit(
-            (parsed.scheme, parsed.netloc, parsed.path, "", "")
-        ).rstrip("/")
+        self.base_url = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", "")).rstrip("/")
         token = base64.b64encode(f"{username}:{password}".encode()).decode()
         self._authorization = f"Basic {token}"
         try:
-            self._context = ssl.create_default_context(
-                cafile=str(ca_file) if ca_file else None
-            )
+            self._context = ssl.create_default_context(cafile=str(ca_file) if ca_file else None)
         except OSError:
-            raise QualificationError(
-                "the Observatory CA bundle could not be loaded"
-            ) from None
+            raise QualificationError("the Observatory CA bundle could not be loaded") from None
         self._timeout_seconds = timeout_seconds
 
     def get_json(self, path: str) -> object:
@@ -106,14 +100,10 @@ class ObservatoryHttpClient:
                 timeout=self._timeout_seconds,
             ) as response:
                 if response.status != 200:
-                    raise QualificationError(
-                        f"Observatory request {path} returned HTTP {response.status}"
-                    )
+                    raise QualificationError(f"Observatory request {path} returned HTTP {response.status}")
                 return json.load(response)
         except urllib.error.HTTPError as error:
-            raise QualificationError(
-                f"Observatory request {path} returned HTTP {error.code}"
-            ) from None
+            raise QualificationError(f"Observatory request {path} returned HTTP {error.code}") from None
         except (urllib.error.URLError, TimeoutError, ssl.SSLError, json.JSONDecodeError):
             raise QualificationError(f"Observatory request {path} failed") from None
 
@@ -171,10 +161,7 @@ def _require_output_artifact(view: JsonObject, kind: str, issues: list[str]) -> 
     artifacts = _object(view.get("artifacts"), "run view artifacts")
     items = _items(artifacts.get("items"), "run view artifact items")
     if not any(
-        isinstance(item, Mapping)
-        and item.get("direction") == "output"
-        and item.get("kind") == kind
-        for item in items
+        isinstance(item, Mapping) and item.get("direction") == "output" and item.get("kind") == kind for item in items
     ):
         issues.append(f"no retained output artifact has kind {kind}")
 
@@ -269,9 +256,7 @@ def _qualify_view(
         raise AssertionError(f"unhandled qualification job kind: {job_kind}")
 
     if issues:
-        raise QualificationError(
-            f"{job_kind} run {run_id} failed qualification: " + "; ".join(issues)
-        )
+        raise QualificationError(f"{job_kind} run {run_id} failed qualification: " + "; ".join(issues))
     return QualifiedRun(
         run_id=run_id,
         job_kind=job_kind,
@@ -291,9 +276,7 @@ def qualify_retained_runs(
 
     missing_kinds = set(RUN_ID_ENVIRONMENTS).difference(run_ids)
     if missing_kinds:
-        raise QualificationError(
-            "run IDs are missing for " + ", ".join(sorted(missing_kinds))
-        )
+        raise QualificationError("run IDs are missing for " + ", ".join(sorted(missing_kinds)))
     qualified: list[QualifiedRun] = []
     for job_kind, expected_status in (
         ("data.prepare", "succeeded"),
@@ -307,16 +290,11 @@ def qualify_retained_runs(
             get_json(f"/api/v1/runs/locate?run_id={encoded_run_id}"),
             "located runs",
         )
-        matches = [
-            _object(item, f"located run item {index}")
-            for index, item in enumerate(located)
-        ]
+        matches = [_object(item, f"located run item {index}") for index, item in enumerate(located)]
         if not matches:
             raise QualificationError(f"{job_kind} retained run {run_id} is not visible")
         if len(matches) != 1:
-            raise QualificationError(
-                f"{job_kind} retained run {run_id} is ambiguous across Observatory sources"
-            )
+            raise QualificationError(f"{job_kind} retained run {run_id} is ambiguous across Observatory sources")
         located = matches[0]
         run_key = _string(located.get("run_key"), "run key")
         encoded_key = urllib.parse.quote(run_key, safe="")
@@ -353,11 +331,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--ca-file",
         type=Path,
-        default=(
-            Path(value)
-            if (value := os.environ.get("POSTTRAIN_OBSERVATORY_CA_FILE"))
-            else None
-        ),
+        default=(Path(value) if (value := os.environ.get("POSTTRAIN_OBSERVATORY_CA_FILE")) else None),
         help="private CA bundle; defaults to POSTTRAIN_OBSERVATORY_CA_FILE",
     )
     parser.add_argument("--timeout-seconds", type=float, default=15.0)
@@ -368,14 +342,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         if not args.url:
-            raise QualificationError(
-                "set POSTTRAIN_OBSERVATORY_URL or pass --url"
-            )
+            raise QualificationError("set POSTTRAIN_OBSERVATORY_URL or pass --url")
         username = _required_environment("POSTTRAIN_OBSERVATORY_USERNAME")
         password = _required_environment("POSTTRAIN_OBSERVATORY_PASSWORD")
         run_ids = {
-            job_kind: _required_environment(environment)
-            for job_kind, environment in RUN_ID_ENVIRONMENTS.items()
+            job_kind: _required_environment(environment) for job_kind, environment in RUN_ID_ENVIRONMENTS.items()
         }
         client = ObservatoryHttpClient(
             args.url,

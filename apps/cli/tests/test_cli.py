@@ -91,9 +91,7 @@ def _cli_execution_plan(run_id: str) -> ExecutionPlan:
                 job_definition_version="train/sft@1",
             ),
             job_definition_id="train/sft@1",
-            image=RuntimeImageRef(
-                f"registry.lan/posttrain@sha256:{'b' * 64}"
-            ),
+            image=RuntimeImageRef(f"registry.lan/posttrain@sha256:{'b' * 64}"),
             target=ExecutionTarget("targets/local", "1", "cuda", 24),
             command=(
                 "posttrain-runtime",
@@ -159,10 +157,7 @@ def _write_exact_execution_config(
         f'framework_source_root = "{repository}"',
         "",
         "[registry.kind_images]",
-        *(
-            f'{profile} = "{image}"'
-            for profile in variants
-        ),
+        *(f'{profile} = "{image}"' for profile in variants),
         "",
     ]
     for profile in variants:
@@ -938,9 +933,7 @@ def test_grpo_plan_is_static_and_selects_online_rl_runtime(
         )
         == 1
     )
-    assert "conflicts with the resolved backend variant online-rl-trl-py312" in (
-        capsys.readouterr().err
-    )
+    assert "conflicts with the resolved backend variant online-rl-trl-py312" in (capsys.readouterr().err)
 
     # Naming one variant no longer removes the rest. Every published job-kind
     # image is pinned by the release, so a partial machine binding overrides
@@ -1735,24 +1728,10 @@ def test_run_lifecycle_commands_use_the_canonical_run_id(
         ("reconcile", "run-1"),
         ("cleanup", "run-1"),
     ]
-    reconciliation = (
-        project
-        / ".posttrain"
-        / "state"
-        / "executions"
-        / "run-1"
-        / "reconciliation.json"
-    )
+    reconciliation = project / ".posttrain" / "state" / "executions" / "run-1" / "reconciliation.json"
     assert reconciliation.is_file()
     assert reconciliation.stat().st_mode & 0o777 == 0o600
-    recovery = (
-        project
-        / ".posttrain"
-        / "state"
-        / "executions"
-        / "run-1"
-        / "tracking-recovery.json"
-    )
+    recovery = project / ".posttrain" / "state" / "executions" / "run-1" / "tracking-recovery.json"
     assert recovery.is_file()
     assert recovery.stat().st_mode & 0o777 == 0o600
 

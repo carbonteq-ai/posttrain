@@ -79,10 +79,7 @@ async def cleanup_execution(
         # dstack receipts written before exact-worker workspace cleanup existed
         # are incomplete, not a terminal idempotency result. Reuse their
         # evidence-gated plan and upgrade the receipt after native cleanup.
-        if not (
-            existing_receipt.provider == "dstack"
-            and existing_receipt.workspace_disposition == "provider-managed"
-        ):
+        if not (existing_receipt.provider == "dstack" and existing_receipt.workspace_disposition == "provider-managed"):
             return existing_receipt
 
     plan_path = root / "cleanup-plan.json"
@@ -141,10 +138,7 @@ async def cleanup_execution(
         }
         _write_atomic(plan_path, plan)
 
-    if (
-        plan["provider"] != submission.provider
-        or plan["provider_id"] != submission.provider_id
-    ):
+    if plan["provider"] != submission.provider or plan["provider_id"] != submission.provider_id:
         raise ContractError("cleanup plan conflicts with the persisted provider handle")
 
     provider_cleanup = service.cleanup(run_id)
@@ -202,9 +196,7 @@ def _retain_diagnostic(
             "diagnostic_truncated": False,
         }
     page = service.logs(run_id, limit=limit)
-    encoded = (
-        ("\n".join(page.lines) + ("\n" if page.lines else "")).encode()
-    )
+    encoded = ("\n".join(page.lines) + ("\n" if page.lines else "")).encode()
     path = root / "diagnostic.log"
     _write_bytes_atomic(path, encoded)
     return {
@@ -238,22 +230,13 @@ def _cleanup_workspace(
 def _workspace_bytes_before(provider: str, workspace: Path, run_id: str) -> int:
     if provider != "local-docker" or not workspace.exists():
         return 0
-    if (
-        not workspace.is_absolute()
-        or workspace.name != run_id
-        or workspace.is_symlink()
-        or not workspace.is_dir()
-    ):
+    if not workspace.is_absolute() or workspace.name != run_id or workspace.is_symlink() or not workspace.is_dir():
         raise ContractError("cleanup workspace is not scoped to the canonical run id")
     return _logical_bytes(workspace)
 
 
 def _logical_bytes(path: Path) -> int:
-    return sum(
-        child.lstat().st_size
-        for child in path.rglob("*")
-        if child.is_file() or child.is_symlink()
-    )
+    return sum(child.lstat().st_size for child in path.rglob("*") if child.is_file() or child.is_symlink())
 
 
 def _load_receipt(path: Path, run_id: str) -> ExecutionCleanupReceipt:
@@ -265,12 +248,8 @@ def _load_receipt(path: Path, run_id: str) -> ExecutionCleanupReceipt:
             evidence_state=_evidence_state(payload["evidence_state"]),
             provider=str(payload["provider"]),
             provider_id=str(payload["provider_id"]),
-            provider_disposition=_provider_disposition(
-                payload["provider_disposition"]
-            ),
-            workspace_disposition=_workspace_disposition(
-                payload["workspace_disposition"]
-            ),
+            provider_disposition=_provider_disposition(payload["provider_disposition"]),
+            workspace_disposition=_workspace_disposition(payload["workspace_disposition"]),
             workspace_reclaimed_bytes=int(payload["workspace_reclaimed_bytes"]),
             reconciliation_file=str(payload["reconciliation_file"]),
             retained_artifact_count=int(payload["retained_artifact_count"]),
@@ -289,11 +268,7 @@ def _load_payload(path: Path, schema: str, run_id: str) -> dict[str, Any]:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as error:
         raise ContractError(f"execution cleanup state is invalid for run {run_id}") from error
-    if (
-        not isinstance(payload, dict)
-        or payload.get("schema") != schema
-        or payload.get("run_id") != run_id
-    ):
+    if not isinstance(payload, dict) or payload.get("schema") != schema or payload.get("run_id") != run_id:
         raise ContractError(f"execution cleanup state is invalid for run {run_id}")
     return payload
 

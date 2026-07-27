@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import tomllib
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -40,6 +41,20 @@ def _run(*command: str, cwd: Path, env: dict[str, str] | None = None) -> subproc
         text=True,
         capture_output=True,
     )
+
+
+def _trackio_requirement() -> str:
+    """Return the Trackio pin declared by the package that depends on it.
+
+    Restating the commit here is the same drift this suite exists to catch: the
+    hardcoded value silently fell behind the workspace and broke the install it
+    was meant to prove.
+    """
+    pyproject = Path(__file__).resolve().parents[2] / "packages" / "tracking-trackio" / "pyproject.toml"
+    for requirement in tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]["dependencies"]:
+        if requirement.startswith("carbonteq-trackio"):
+            return requirement
+    raise RuntimeError("posttrain-tracking-trackio no longer declares carbonteq-trackio")
 
 
 def _build_wheelhouse(uv: str, root: Path) -> Path:
@@ -96,7 +111,7 @@ def test_installed_wheels_discover_external_project_and_compose_catalog(
         str(python),
         "--find-links",
         str(wheelhouse),
-        "carbonteq-trackio @ git+https://github.com/carbonteq-ai/trackio.git@c5072198b3b1556d31ed96ffc246a03f65418ab8",
+        _trackio_requirement(),
         "posttrain-catalog",
         "posttrain-data",
         "posttrain-observatory",
@@ -247,7 +262,7 @@ def test_wheel_starters_cover_sft_and_environment_backed_paths(
         str(python),
         "--find-links",
         str(wheelhouse),
-        "carbonteq-trackio @ git+https://github.com/carbonteq-ai/trackio.git@c5072198b3b1556d31ed96ffc246a03f65418ab8",
+        _trackio_requirement(),
         "posttrain[observatory]",
         cwd=tmp_path,
     )

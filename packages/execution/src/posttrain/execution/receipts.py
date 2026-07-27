@@ -54,9 +54,7 @@ def latest_runtime_image(
         if profile is None or payload.get("profile") == profile:
             candidates.append((receipt, payload))
     if not candidates:
-        raise FileNotFoundError(
-            f"runtime image receipt for profile {profile!r} is missing under {receipt_root}"
-        )
+        raise FileNotFoundError(f"runtime image receipt for profile {profile!r} is missing under {receipt_root}")
     receipt, payload = max(
         candidates,
         key=lambda item: (item[0].stat().st_mtime_ns, item[0].name),

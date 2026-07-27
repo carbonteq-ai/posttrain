@@ -74,9 +74,7 @@ class UvWheelBuildCli:
             check=False,
         )
         if result.returncode != 0:
-            raise RuntimeError(
-                f"uv build --wheel failed with exit code {result.returncode}"
-            )
+            raise RuntimeError(f"uv build --wheel failed with exit code {result.returncode}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -160,32 +158,22 @@ class ImmutableEnvironmentWheelBuilder:
         requests: Sequence[EnvironmentWheelRequest],
     ) -> MaterializedEnvironmentWheels:
         selected = _normalize_requests(requests, max_packages=self._max_packages)
-        source_index = {
-            (source.lock.repository, source.lock.revision): source
-            for source in sources.sources
-        }
+        source_index = {(source.lock.repository, source.lock.revision): source for source in sources.sources}
 
         wheels: list[MaterializedEnvironmentWheel] = []
         for request in selected:
             source = source_index.get((request.repository, request.revision))
             if source is None:
-                raise ContractError(
-                    f"environment package source was not materialized: {request.package}"
-                )
+                raise ContractError(f"environment package source was not materialized: {request.package}")
             selected_lock = _selected_subdirectory(source, request)
             _verify_materialized_source(source)
             package_root = (
-                source.root
-                if request.subdirectory == "."
-                else source.root.joinpath(*request.subdirectory.split("/"))
+                source.root if request.subdirectory == "." else source.root.joinpath(*request.subdirectory.split("/"))
             )
             _verify_selected_source(package_root, selected_lock)
             pyproject = package_root / "pyproject.toml"
             if not pyproject.is_file() or pyproject.is_symlink():
-                raise ContractError(
-                    f"environment package root has no regular pyproject.toml: "
-                    f"{request.package}"
-                )
+                raise ContractError(f"environment package root has no regular pyproject.toml: {request.package}")
             _verify_project_name(pyproject, request.package)
             wheel = self._build_one(package_root)
             try:
@@ -195,10 +183,7 @@ class ImmutableEnvironmentWheelBuilder:
                 wheel_size = wheel.stat().st_size
                 _verify_wheel_filename(wheel.name, request.package)
                 if wheel_size > self._max_wheel_bytes:
-                    raise ContractError(
-                        f"environment wheel exceeds {self._max_wheel_bytes} bytes: "
-                        f"{request.package}"
-                    )
+                    raise ContractError(f"environment wheel exceeds {self._max_wheel_bytes} bytes: {request.package}")
                 retained = self._retain_wheel(wheel, wheel_digest)
                 lock = LockedEnvironmentWheel(
                     package=request.package,
@@ -223,9 +208,7 @@ class ImmutableEnvironmentWheelBuilder:
 
     def _build_one(self, package_root: Path) -> Path:
         self._output_root.mkdir(parents=True, exist_ok=True)
-        temporary = Path(
-            tempfile.mkdtemp(prefix=".environment-wheel-build-", dir=self._output_root)
-        )
+        temporary = Path(tempfile.mkdtemp(prefix=".environment-wheel-build-", dir=self._output_root))
         try:
             staged_source = temporary / package_root.name
             shutil.copytree(package_root, staged_source)
@@ -233,21 +216,15 @@ class ImmutableEnvironmentWheelBuilder:
             build_output.mkdir()
             self._gateway.build(staged_source, build_output)
             entries = list(build_output.iterdir())
-            meaningful_entries = [
-                path for path in entries if not _is_uv_output_marker(path)
-            ]
+            meaningful_entries = [path for path in entries if not _is_uv_output_marker(path)]
             wheels = [
                 path
                 for path in meaningful_entries
                 if path.suffix == ".whl" and path.is_file() and not path.is_symlink()
             ]
             if len(meaningful_entries) != 1 or len(wheels) != 1:
-                raise ContractError(
-                    "environment wheel build must emit exactly one regular wheel"
-                )
-            retention_root = Path(
-                tempfile.mkdtemp(prefix=".environment-wheel-retain-", dir=self._output_root)
-            )
+                raise ContractError("environment wheel build must emit exactly one regular wheel")
+            retention_root = Path(tempfile.mkdtemp(prefix=".environment-wheel-retain-", dir=self._output_root))
             retained_staging = retention_root / wheels[0].name
             wheels[0].replace(retained_staging)
             return retained_staging
@@ -260,11 +237,7 @@ class ImmutableEnvironmentWheelBuilder:
         destination_root.mkdir(parents=True, exist_ok=True)
         destination = destination_root / staged.name
         if destination.exists():
-            if (
-                not destination.is_file()
-                or destination.is_symlink()
-                or _file_digest(destination) != digest
-            ):
+            if not destination.is_file() or destination.is_symlink() or _file_digest(destination) != digest:
                 raise ContractError("retained environment wheel contains dirty drift")
         else:
             staged.replace(destination)
@@ -287,22 +260,15 @@ def _normalize_requests(
     for request in requests:
         existing = by_package.get(request.package)
         if existing is not None and existing != request:
-            raise ContractError(
-                f"environment package identity selects multiple source roots: "
-                f"{request.package}"
-            )
+            raise ContractError(f"environment package identity selects multiple source roots: {request.package}")
         normalized_package = _normalized_package(request.package)
         spelling = by_normalized_package.get(normalized_package)
         if spelling is not None and spelling != request.package:
-            raise ContractError(
-                "environment package identities collide after normalization"
-            )
+            raise ContractError("environment package identities collide after normalization")
         source_root = (request.repository, request.revision, request.subdirectory)
         other_package = by_source_root.get(source_root)
         if other_package is not None and other_package != request.package:
-            raise ContractError(
-                "environment source root has conflicting package identities"
-            )
+            raise ContractError("environment source root has conflicting package identities")
         by_package[request.package] = request
         by_normalized_package[normalized_package] = request.package
         by_source_root[source_root] = request.package
@@ -325,14 +291,11 @@ def _selected_subdirectory(
     source: MaterializedGitSource,
     request: EnvironmentWheelRequest,
 ) -> LockedGitSubdirectory:
-    selected = {
-        subdirectory.path: subdirectory for subdirectory in source.lock.subdirectories
-    }.get(request.subdirectory)
+    selected = {subdirectory.path: subdirectory for subdirectory in source.lock.subdirectories}.get(
+        request.subdirectory
+    )
     if selected is None:
-        raise ContractError(
-            f"environment package root was not selected in the Git lock: "
-            f"{request.package}"
-        )
+        raise ContractError(f"environment package root was not selected in the Git lock: {request.package}")
     return selected
 
 
@@ -359,12 +322,7 @@ def _file_digest(path: Path) -> str:
 
 
 def _is_uv_output_marker(path: Path) -> bool:
-    return (
-        path.name == ".gitignore"
-        and path.is_file()
-        and not path.is_symlink()
-        and path.read_bytes() == b"*"
-    )
+    return path.name == ".gitignore" and path.is_file() and not path.is_symlink() and path.read_bytes() == b"*"
 
 
 def _verify_project_name(pyproject: Path, expected: str) -> None:
@@ -372,25 +330,15 @@ def _verify_project_name(pyproject: Path, expected: str) -> None:
         document = tomllib.loads(pyproject.read_text())
         observed = document["project"]["name"]
     except (KeyError, TypeError, tomllib.TOMLDecodeError) as error:
-        raise ContractError(
-            "environment pyproject must declare a static project.name"
-        ) from error
-    if not isinstance(observed, str) or _normalized_package(observed) != _normalized_package(
-        expected
-    ):
-        raise ContractError(
-            f"environment package identity does not match pyproject: {expected}"
-        )
+        raise ContractError("environment pyproject must declare a static project.name") from error
+    if not isinstance(observed, str) or _normalized_package(observed) != _normalized_package(expected):
+        raise ContractError(f"environment package identity does not match pyproject: {expected}")
 
 
 def _verify_wheel_filename(filename: str, expected: str) -> None:
     distribution, separator, _remainder = filename.partition("-")
-    if separator != "-" or _normalized_package(distribution) != _normalized_package(
-        expected
-    ):
-        raise ContractError(
-            f"environment wheel filename does not match package identity: {expected}"
-        )
+    if separator != "-" or _normalized_package(distribution) != _normalized_package(expected):
+        raise ContractError(f"environment wheel filename does not match package identity: {expected}")
 
 
 def _normalized_package(value: str) -> str:

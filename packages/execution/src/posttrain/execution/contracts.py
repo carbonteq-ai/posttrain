@@ -121,13 +121,8 @@ class ExecutionRequest:
             raise ContractError("execution job definition conflicts with RunSpec")
         if not self.command or any(not part for part in self.command):
             raise ContractError("execution command cannot be empty")
-        if (
-            self.bundle is None
-            and self.command[: len(_ACTUAL_JOB_COMMAND)] != _ACTUAL_JOB_COMMAND
-        ):
-            raise ContractError(
-                "actual-job execution must use the stable packaged worker entrypoint"
-            )
+        if self.bundle is None and self.command[: len(_ACTUAL_JOB_COMMAND)] != _ACTUAL_JOB_COMMAND:
+            raise ContractError("actual-job execution must use the stable packaged worker entrypoint")
         if not self.idempotency_key.strip():
             raise ContractError("execution idempotency key cannot be empty")
         if self.attempt < 1:
@@ -140,13 +135,8 @@ class ExecutionRequest:
         if len(set(container_paths)) != len(container_paths):
             raise ContractError("execution mount container paths must be unique")
         for mount in self.mounts:
-            if (
-                mount.purpose == "run-workspace"
-                and self.run_spec.run_id not in mount.instance_path.parts
-            ):
-                raise ContractError(
-                    "run workspace mount must contain the run id as one path component"
-                )
+            if mount.purpose == "run-workspace" and self.run_spec.run_id not in mount.instance_path.parts:
+                raise ContractError("run workspace mount must contain the run id as one path component")
 
     def launch_environment(self, *, provider: str) -> dict[str, str]:
         """Encode non-secret run context separately from the packaged job."""

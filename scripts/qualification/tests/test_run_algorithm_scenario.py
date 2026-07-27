@@ -20,9 +20,7 @@ def test_automationbench_launch_uses_posttrain_job_cli() -> None:
     )
 
     assert launch.command[:5] == ("uv", "run", "posttrain", "job", "run")
-    assert launch.command[5] == (
-        ".posttrain/work_packages/automationbench_zapier_grpo.yaml"
-    )
+    assert launch.command[5] == (".posttrain/work_packages/automationbench_zapier_grpo.yaml")
     assert launch.command[launch.command.index("--job") + 1] == "grpo"
     assert launch.command[launch.command.index("--provider") + 1] == "local"
     assert launch.command[launch.command.index("--run-id") + 1] == "run-1"
@@ -42,9 +40,7 @@ def test_dstack_launch_uses_container_run_workspace() -> None:
     )
 
     assert launch.command[launch.command.index("--provider") + 1] == "dstack"
-    assert launch.command[launch.command.index("--target") + 1] == (
-        "carbonteq-ai-workstation.lan"
-    )
+    assert launch.command[launch.command.index("--target") + 1] == ("carbonteq-ai-workstation.lan")
     assert launch.job_workspace == Path("/opt/posttrain/run")
 
 
@@ -61,9 +57,7 @@ def test_gsm8k_launch_uses_the_same_cli_with_its_work_package() -> None:
         trackio_server_url="https://trackio.lan",
     )
 
-    assert launch.command[5] == (
-        ".posttrain/work_packages/gsm8k_qwen08b_grpo_qualification.yaml"
-    )
+    assert launch.command[5] == (".posttrain/work_packages/gsm8k_qwen08b_grpo_qualification.yaml")
     assert launch.command[launch.command.index("--job") + 1] == "grpo"
 
 

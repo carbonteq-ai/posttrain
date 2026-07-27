@@ -141,20 +141,18 @@ def test_compiles_all_wheels_together_into_a_portable_deterministic_lock(
     assert first.lock.as_dict() == {
         "schema": "posttrain.environment-dependency-lock.v2",
         "kind_profile": "online-rl",
-        "kind_constraints_sha256": hashlib.sha256(
-            b"urllib3==2.6.3\n"
-        ).hexdigest(),
+        "kind_constraints_sha256": hashlib.sha256(b"urllib3==2.6.3\n").hexdigest(),
         "constraint_profile_sha256": KindDependencyConstraints(
             "online-rl",
             "urllib3==2.6.3\n",
             ("verifiers",),
         ).digest,
-            "provided_packages": ["verifiers"],
-            "role": "control",
-            "environment_wheel_lock_sha256": wheels.lock.digest,
-            "python_version": "3.12",
-            "python_platform": "x86_64-unknown-linux-gnu",
-            "python_executable": "/opt/posttrain/venv/bin/python",
+        "provided_packages": ["verifiers"],
+        "role": "control",
+        "environment_wheel_lock_sha256": wheels.lock.digest,
+        "python_version": "3.12",
+        "python_platform": "x86_64-unknown-linux-gnu",
+        "python_executable": "/opt/posttrain/venv/bin/python",
         "wheel_directory": "wheels/environments",
         "requirements_filename": "environment-dependencies.lock.txt",
         "requirements_sha256": hashlib.sha256(first.path.read_bytes()).hexdigest(),
@@ -192,29 +190,23 @@ def test_propagates_combined_resolution_conflicts_without_retaining_a_lock(
     [
         ("unsafe==1.0\n", "sha256 hash"),
         (
-            "unsafe>=1.0 \\\n"
-            f"    --hash=sha256:{'a' * 64}\n",
+            f"unsafe>=1.0 \\\n    --hash=sha256:{'a' * 64}\n",
             "unpinned",
         ),
         (
-            "unsafe @ git+https://github.com/example/unsafe@"
-            + "a" * 40
-            + "\n",
+            "unsafe @ git+https://github.com/example/unsafe@" + "a" * 40 + "\n",
             "sha256 hash|mutable",
         ),
         (
-            "/tmp/unsafe.whl \\\n"
-            f"    --hash=sha256:{'a' * 64}\n",
+            f"/tmp/unsafe.whl \\\n    --hash=sha256:{'a' * 64}\n",
             "mutable or non-portable",
         ),
         (
-            'unsafe==1.0 ; implementation_name == "/tmp/python" \\\n'
-            f"    --hash=sha256:{'a' * 64}\n",
+            f'unsafe==1.0 ; implementation_name == "/tmp/python" \\\n    --hash=sha256:{"a" * 64}\n',
             "non-portable path",
         ),
         (
-            "unsafe==1.0 \\\n"
-            "    --index-url=https://user:password@example.test/simple\n",
+            "unsafe==1.0 \\\n    --index-url=https://user:password@example.test/simple\n",
             "unsupported or unhashed",
         ),
     ],
@@ -295,10 +287,13 @@ def test_provided_packages_are_normalized_validated_and_digest_bound() -> None:
 
     assert selected.provided_packages == ("typing-extensions", "verifiers")
     assert selected.constraints_sha256 == hashlib.sha256(b"foo==1\n").hexdigest()
-    assert selected.digest != KindDependencyConstraints(
-        "online-rl",
-        "foo==1\n",
-    ).digest
+    assert (
+        selected.digest
+        != KindDependencyConstraints(
+            "online-rl",
+            "foo==1\n",
+        ).digest
+    )
 
     for packages in (
         ("verifiers[dev]",),
@@ -328,8 +323,7 @@ def test_rejects_wheel_drift_before_and_after_resolution(tmp_path: Path) -> None
     )
     wheel = wheels.wheels[0]
     gateway = FakeCompileGateway(
-        f"./wheels/environments/{wheel.lock.wheel_filename} \\\n"
-        f"    --hash=sha256:{wheel.lock.wheel_sha256}\n"
+        f"./wheels/environments/{wheel.lock.wheel_filename} \\\n    --hash=sha256:{wheel.lock.wheel_sha256}\n"
     )
     gateway.mutate = wheel.path
     with pytest.raises(ContractError, match="digest|size"):
@@ -376,15 +370,11 @@ def test_uv_gateway_uses_one_non_shell_compile_with_fixed_safety_flags(
     assert "--no-config" in arguments
     assert arguments[arguments.index("--index-strategy") + 1] == "unsafe-best-match"
     assert arguments[arguments.index("--python-version") + 1] == "3.12"
-    assert (
-        arguments[arguments.index("--python-platform") + 1]
-        == "x86_64-unknown-linux-gnu"
-    )
-    assert [
-        arguments[index + 1]
-        for index, argument in enumerate(arguments)
-        if argument == "--no-emit-package"
-    ] == ["datasets", "verifiers"]
+    assert arguments[arguments.index("--python-platform") + 1] == "x86_64-unknown-linux-gnu"
+    assert [arguments[index + 1] for index, argument in enumerate(arguments) if argument == "--no-emit-package"] == [
+        "datasets",
+        "verifiers",
+    ]
     kwargs = observed["kwargs"]
     assert isinstance(kwargs, dict)
     assert "shell" not in kwargs

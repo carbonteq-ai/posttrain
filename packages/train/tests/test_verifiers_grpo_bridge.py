@@ -156,10 +156,7 @@ class FiniteTaskset:
     INFINITE = False
 
     def __init__(self) -> None:
-        self.tasks = [
-            SimpleNamespace(data=SimpleNamespace(idx=index, prompt=f"task-{index}"))
-            for index in range(6)
-        ]
+        self.tasks = [SimpleNamespace(data=SimpleNamespace(idx=index, prompt=f"task-{index}")) for index in range(6)]
 
     def load(self):
         return self.tasks

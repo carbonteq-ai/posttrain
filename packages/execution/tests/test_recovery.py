@@ -94,9 +94,7 @@ class _Source:
                 job_definition_version="train/sft@1",
                 status=self.status,  # type: ignore[arg-type]
                 started_at=STARTED,
-                finished_at=(
-                    STARTED if self.status == "cancelled" else None
-                ),
+                finished_at=(STARTED if self.status == "cancelled" else None),
             )
         )
 
@@ -107,9 +105,7 @@ class _Writer:
         disposition: Literal["recovered", "already-cancelled"] = "recovered",
         error: Exception | None = None,
     ) -> None:
-        self.disposition: Literal[
-            "recovered", "already-cancelled"
-        ] = disposition
+        self.disposition: Literal["recovered", "already-cancelled"] = disposition
         self.error = error
         self.expected: RunSummary | None = None
 
@@ -148,9 +144,7 @@ def _service(
             job_definition_version="train/sft@1",
         ),
         job_definition_id="train/sft@1",
-        image=RuntimeImageRef(
-            f"registry.lan/posttrain@sha256:{'a' * 64}"
-        ),
+        image=RuntimeImageRef(f"registry.lan/posttrain@sha256:{'a' * 64}"),
         target=ExecutionTarget("targets/test", "1", "cuda", 24),
         command=JOB_PACKAGE_WORKER_COMMAND,
         idempotency_key="run-recovery-1-attempt-1",
@@ -183,9 +177,7 @@ async def test_recovery_requires_exact_cancelled_provider_and_writes_audit(
     assert writer.expected.started_at == STARTED
     assert receipt.stat().st_mode & 0o777 == 0o600
     payload = json.loads(receipt.read_text(encoding="utf-8"))
-    assert payload["schema"] == (
-        "posttrain.tracking-cancellation-recovery.v1"
-    )
+    assert payload["schema"] == ("posttrain.tracking-cancellation-recovery.v1")
     assert payload["disposition"] == "recovered"
 
 
@@ -263,9 +255,7 @@ async def test_recovery_propagates_writer_ambiguity_without_receipt(
     tmp_path: Path,
 ) -> None:
     service, store = _service(tmp_path)
-    writer = _Writer(
-        error=ContractError("ambiguous canonical tracking run")
-    )
+    writer = _Writer(error=ContractError("ambiguous canonical tracking run"))
 
     with pytest.raises(ContractError, match="ambiguous"):
         await recover_cancelled_tracking(
@@ -276,6 +266,4 @@ async def test_recovery_propagates_writer_ambiguity_without_receipt(
             project_id="tests",
         )
 
-    assert not (
-        store.run_root("run-recovery-1") / "tracking-recovery.json"
-    ).exists()
+    assert not (store.run_root("run-recovery-1") / "tracking-recovery.json").exists()

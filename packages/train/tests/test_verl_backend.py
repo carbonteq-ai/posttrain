@@ -829,19 +829,14 @@ def test_verl_isolated_environment_does_not_forward_tracking_credentials(
     monkeypatch.setenv("POSTTRAIN_VERL_PYTHONPATH", str(projection))
     monkeypatch.setenv("PYTHONPATH", "/existing/pythonpath")
 
-    environment = _isolated_environment(
-        Path("/opt/posttrain-verl/bin/python")
-    )
+    environment = _isolated_environment(Path("/opt/posttrain-verl/bin/python"))
 
     assert "WANDB_API_KEY" not in environment
     assert "TRACKIO_API_KEY" not in environment
     assert "VIRTUAL_ENV" not in environment
     assert "UV_PROJECT_ENVIRONMENT" not in environment
     assert environment["POSTTRAIN_KEEP"] == "yes"
-    assert environment["PATH"] == (
-        "/opt/posttrain-verl/bin:"
-        "/opt/posttrain/venv/bin:/usr/bin"
-    )
+    assert environment["PATH"] == ("/opt/posttrain-verl/bin:/opt/posttrain/venv/bin:/usr/bin")
     assert environment["RAY_ENABLE_UV_RUN_RUNTIME_ENV"] == "0"
     assert environment["PYTHONPATH"] == str(projection)
     assert environment["PYTHONNOUSERSITE"] == "1"
@@ -899,9 +894,7 @@ def test_verl_popen_receives_only_the_selected_interpreter_environment(
     assert isinstance(environment, dict)
     assert "VIRTUAL_ENV" not in environment
     assert "UV_PROJECT_ENVIRONMENT" not in environment
-    assert environment["PATH"].startswith(
-        "/opt/posttrain-verl/bin:"
-    )
+    assert environment["PATH"].startswith("/opt/posttrain-verl/bin:")
     assert environment["POSTTRAIN_VERL_MANIFEST"] == str(manifest)
     assert captured["start_new_session"] is True
 

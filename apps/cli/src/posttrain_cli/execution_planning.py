@@ -113,9 +113,7 @@ class PlannedJobPackage:
             framework_source.digest != self.pack_plan.spec.framework_source_digest
             or project_source.digest != self.pack_plan.spec.project_source_digest
         ):
-            raise ContractError(
-                "source bytes changed after planning; run job plan again"
-            )
+            raise ContractError("source bytes changed after planning; run job plan again")
 
         cache_root = (self.layout.state / "pack" / "cache").resolve()
         constraints = {
@@ -128,13 +126,8 @@ class PlannedJobPackage:
         }
         for profile, selected in constraints.items():
             binding = registry.constraint_profiles[profile]
-            if (
-                selected.constraints_sha256 != binding.contents_digest
-                or selected.digest != binding.digest
-            ):
-                raise ContractError(
-                    f"job-kind constraint profile changed after configuration load: {profile}"
-                )
+            if selected.constraints_sha256 != binding.contents_digest or selected.digest != binding.digest:
+                raise ContractError(f"job-kind constraint profile changed after configuration load: {profile}")
         environment_packager = ImmutableEnvironmentPackager(
             cache_roots=EnvironmentPackagerCacheRoots(
                 git_sources=cache_root / "git",
@@ -165,10 +158,7 @@ class PlannedJobPackage:
         )
         publisher = BuildKitJobImagePublisher(
             bake_file=_bake_file(registry),
-            receipt_root=(
-                registry.receipt_root
-                or (self.layout.state / "pack" / "publications").resolve()
-            ),
+            receipt_root=(registry.receipt_root or (self.layout.state / "pack" / "publications").resolve()),
             builder=registry.buildx_builder,
         )
         image = publisher.publish(
@@ -179,9 +169,7 @@ class PlannedJobPackage:
             )
         )
         if image.publication_key != context.publication_key:
-            raise ContractError(
-                "published image identity conflicts with the retained job context"
-            )
+            raise ContractError("published image identity conflicts with the retained job context")
         return PackedJobPackage(self, context, image)
 
 
@@ -391,10 +379,7 @@ def _plan_job_package(
     if settings.target is not None:
         resolved_target = catalog.resolve(CatalogRef("target", settings.target)).value
         if not isinstance(resolved_target, ExecutionTarget):
-            raise ContractError(
-                f"execution target override did not resolve to an ExecutionTarget: "
-                f"{settings.target}"
-            )
+            raise ContractError(f"execution target override did not resolve to an ExecutionTarget: {settings.target}")
         package = override_job_execution_target(
             context,
             package,
@@ -415,9 +400,7 @@ def _plan_job_package(
     )
     project_source_request = project_config.source_request(layout.root)
     framework_source_request = _framework_source_request(registry.framework_source_root)
-    inspector = ImmutableSourceSnapshotter(
-        cache_root=(layout.state / "pack" / "sources").resolve()
-    )
+    inspector = ImmutableSourceSnapshotter(cache_root=(layout.state / "pack" / "sources").resolve())
     framework_digest = inspector.inspect(framework_source_request)
     project_digest = inspector.inspect(project_source_request)
     runtime_variant = _runtime_variant(
@@ -495,8 +478,7 @@ def _registry(local_config: LocalExecutionConfig) -> RegistryBinding:
     registry = local_config.registry
     if registry is None:
         raise ContractError(
-            f"job packing requires [registry] with exact image and constraint "
-            f"identities in {local_config.path}"
+            f"job packing requires [registry] with exact image and constraint identities in {local_config.path}"
         )
     return registry
 
@@ -510,29 +492,16 @@ def _default_framework_source_root() -> Path:
     point at a checkout.
     """
     for candidate in Path(__file__).resolve().parents:
-        if all(
-            (candidate / relative / "pyproject.toml").is_file()
-            for relative in _FRAMEWORK_INSTALL_ROOTS
-        ):
+        if all((candidate / relative / "pyproject.toml").is_file() for relative in _FRAMEWORK_INSTALL_ROOTS):
             return candidate
-    raise ContractError(
-        "framework source checkout could not be discovered; configure "
-        "registry.framework_source_root"
-    )
+    raise ContractError("framework source checkout could not be discovered; configure registry.framework_source_root")
 
 
 def _framework_source_request(configured_root: Path | None) -> SourceSnapshotRequest:
     root = configured_root or _default_framework_source_root()
-    missing = [
-        relative
-        for relative in _FRAMEWORK_INSTALL_ROOTS
-        if not (root / relative / "pyproject.toml").is_file()
-    ]
+    missing = [relative for relative in _FRAMEWORK_INSTALL_ROOTS if not (root / relative / "pyproject.toml").is_file()]
     if missing:
-        raise ContractError(
-            "framework source root does not contain required packages: "
-            + ", ".join(missing)
-        )
+        raise ContractError("framework source root does not contain required packages: " + ", ".join(missing))
     return SourceSnapshotRequest(
         root=root.resolve(),
         includes=tuple(sorted(_FRAMEWORK_SOURCE_INCLUDES)),
@@ -569,10 +538,7 @@ def _project_config_bundle(
         if not overlay.is_dir():
             raise ContractError(f"project catalog overlay is missing: {overlay}")
         selected.update(path for path in overlay.rglob("*") if path.is_file())
-    files = {
-        _project_relative(layout, path): path.read_bytes()
-        for path in sorted(selected)
-    }
+    files = {_project_relative(layout, path): path.read_bytes() for path in sorted(selected)}
     return ProjectConfigBundle(
         files=files,
         selected_work_package=_project_relative(layout, work_package_path),
@@ -618,9 +584,7 @@ def _runtime_profile_for_job_kind(
     *,
     runtime_variant: str | None = None,
 ) -> str:
-    selected = runtime_variant or (
-        _kind_profile(job_kind) if job_kind is not None else "supervised"
-    )
+    selected = runtime_variant or (_kind_profile(job_kind) if job_kind is not None else "supervised")
     return f"framework/{selected}@1"
 
 
@@ -645,17 +609,13 @@ def _runtime_variant_from_backend(
     training = prepared.seats.get("training")
     backend = getattr(training, "backend", None)
     if not isinstance(backend, str):
-        raise ContractError(
-            "online-RL job packing requires a resolved training backend"
-        )
+        raise ContractError("online-RL job packing requires a resolved training backend")
     product = backend.partition("@")[0].lower()
     if product == "trl":
         return "online-rl-trl-py312"
     if product == "verl":
         return "online-rl-verl-py313"
-    raise ContractError(
-        f"online-RL backend has no qualified runtime variant: {backend}"
-    )
+    raise ContractError(f"online-RL backend has no qualified runtime variant: {backend}")
 
 
 def _runtime_variant(
@@ -668,23 +628,12 @@ def _runtime_variant(
     prefix = "framework/"
     suffix = "@1"
     if not runtime_profile.startswith(prefix) or not runtime_profile.endswith(suffix):
-        raise ContractError(
-            "runtime profile must name a framework runtime variant such as "
-            "framework/online-rl-trl@1"
-        )
+        raise ContractError("runtime profile must name a framework runtime variant such as framework/online-rl-trl@1")
     selected = runtime_profile[len(prefix) : -len(suffix)]
-    if not (
-        selected == kind_profile
-        or selected.startswith(f"{kind_profile}-")
-    ):
-        raise ContractError(
-            f"runtime profile {runtime_profile} does not implement {kind_profile}"
-        )
+    if not (selected == kind_profile or selected.startswith(f"{kind_profile}-")):
+        raise ContractError(f"runtime profile {runtime_profile} does not implement {kind_profile}")
     if selected != inferred:
-        raise ContractError(
-            f"runtime profile {runtime_profile} conflicts with the resolved "
-            f"backend variant {inferred}"
-        )
+        raise ContractError(f"runtime profile {runtime_profile} conflicts with the resolved backend variant {inferred}")
     return selected
 
 
@@ -703,14 +652,11 @@ def _kind_image(
 
 
 def _execution_target(prepared: PreparedWorkPackageJob) -> ExecutionTarget:
-    direct = [
-        value for value in prepared.seats.values() if isinstance(value, ExecutionTarget)
-    ]
+    direct = [value for value in prepared.seats.values() if isinstance(value, ExecutionTarget)]
     training = [
         target
         for name, value in prepared.seats.items()
-        if name == "training"
-        and isinstance((target := getattr(value, "target", None)), ExecutionTarget)
+        if name == "training" and isinstance((target := getattr(value, "target", None)), ExecutionTarget)
     ]
     candidates = training or direct
     if not candidates:
@@ -724,9 +670,7 @@ def _execution_target(prepared: PreparedWorkPackageJob) -> ExecutionTarget:
         if candidate not in unique:
             unique.append(candidate)
     if len(unique) != 1:
-        raise ContractError(
-            "detached execution requires one unambiguous primary ExecutionTarget"
-        )
+        raise ContractError("detached execution requires one unambiguous primary ExecutionTarget")
     return unique[0]
 
 
@@ -745,19 +689,14 @@ def _storage(
     if provider == "dstack":
         configured = local_config.dstack.storage if local_config.dstack is not None else None
         if configured is None:
-            raise ContractError(
-                f"dstack execution requires [providers.dstack.storage] in "
-                f"{local_config.path}"
-            )
+            raise ContractError(f"dstack execution requires [providers.dstack.storage] in {local_config.path}")
         return configured
     raise ContractError(f"unsupported execution provider: {provider}")
 
 
 def _mounts(run_id: str, storage: ExecutionStorageBinding) -> tuple[ExecutionMount, ...]:
     run_container = Path("/opt/posttrain/run") / run_id
-    mounts = [
-        ExecutionMount(storage.run_root / run_id, run_container, "run-workspace")
-    ]
+    mounts = [ExecutionMount(storage.run_root / run_id, run_container, "run-workspace")]
     if storage.model_cache is not None:
         mounts.append(
             ExecutionMount(

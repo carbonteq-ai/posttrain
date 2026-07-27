@@ -147,12 +147,8 @@ def register(app: typer.Typer) -> None:
             run_id=run_id,
             host=host,
             entry=entry,
-            project_packages=(
-                tuple(project_packages) if project_packages is not None else None
-            ),
-            source_includes=(
-                tuple(source_includes) if source_includes is not None else None
-            ),
+            project_packages=(tuple(project_packages) if project_packages is not None else None),
+            source_includes=(tuple(source_includes) if source_includes is not None else None),
         )
 
     @job_app.command(
@@ -261,12 +257,8 @@ def register(app: typer.Typer) -> None:
             ),
             host=host,
             entry=entry,
-            project_packages=(
-                tuple(project_packages) if project_packages is not None else None
-            ),
-            source_includes=(
-                tuple(source_includes) if source_includes is not None else None
-            ),
+            project_packages=(tuple(project_packages) if project_packages is not None else None),
+            source_includes=(tuple(source_includes) if source_includes is not None else None),
             build_missing=build_missing,
         )
 
@@ -401,11 +393,7 @@ def register(app: typer.Typer) -> None:
                 environment_names=environment_names,
             ),
             run_id=run_id,
-            project_packages=(
-                tuple(project_packages) if project_packages is not None else None
-            ),
-            source_includes=(
-                tuple(source_includes) if source_includes is not None else None
-            ),
+            project_packages=(tuple(project_packages) if project_packages is not None else None),
+            source_includes=(tuple(source_includes) if source_includes is not None else None),
             build_missing=build_missing,
         )

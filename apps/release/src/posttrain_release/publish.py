@@ -44,6 +44,8 @@ def _provided_packages(variant: str, root: Path) -> tuple[str, ...]:
             continue
         installed.add(entry.split()[0].split("==")[0].split("@")[0].strip().lower())
     return tuple(name for name in _PROVIDABLE if name in installed)
+
+
 _KIND_REPOSITORY_PREFIX = "posttrain-kind-"
 
 
@@ -106,9 +108,7 @@ def publish_release(
             source_digest=source_digest,
             lock_digest=lock_digest(),
             base_image=RuntimeImageRef(f"scratch@sha256:{'0' * 64}"),
-            variables=_bake_variables(
-                created=created, revision=revision, version=framework_version
-            ),
+            variables=_bake_variables(created=created, revision=revision, version=framework_version),
         )
     )
     base_image = PublishedImage(

@@ -208,9 +208,7 @@ def test_full_update_retains_weights_but_rotates_recovery_state(tmp_path: Path) 
     assert not old.exists()
     assert latest.is_dir()
     manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
-    assert [entry["reason"] for entry in manifest["planned_removals"]] == [
-        "superseded-recovery-checkpoint"
-    ]
+    assert [entry["reason"] for entry in manifest["planned_removals"]] == ["superseded-recovery-checkpoint"]
 
 
 def test_retention_finalizer_rejects_paths_outside_workspace(tmp_path: Path) -> None:

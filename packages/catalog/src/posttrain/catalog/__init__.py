@@ -41,12 +41,12 @@ BASE_CATALOG_RELEASE = "framework-v1"
 
 AUTOMATIONBENCH_TRAINING_ACTIVATION = VerifiersV1ConfigActivation(
     {
-            "taskset": {"id": "automationbench-v1"},
-            "harness": {"id": "null", "runtime": {"type": "subprocess"}},
-            "timeout": {"setup": 120, "rollout": 1800, "finalize": 60, "scoring": 120},
-            "max_turns": 50,
-            "max_total_tokens": 8192,
-        }
+        "taskset": {"id": "automationbench-v1"},
+        "harness": {"id": "null", "runtime": {"type": "subprocess"}},
+        "timeout": {"setup": 120, "rollout": 1800, "finalize": 60, "scoring": 120},
+        "max_turns": 50,
+        "max_total_tokens": 8192,
+    }
 )
 
 
@@ -62,9 +62,7 @@ def environment_factory_registry(
     for entry_point in entry_points(group="posttrain.environment_factories"):
         if entry_point.name in activations:
             raise RuntimeError(f"duplicate environment factory entry point: {entry_point.name}")
-        activations[entry_point.name] = PythonFactoryActivation(
-            _entry_point_reference(entry_point)
-        )
+        activations[entry_point.name] = PythonFactoryActivation(_entry_point_reference(entry_point))
     for name, activation in (extras or {}).items():
         activations[name] = (
             activation
@@ -84,9 +82,7 @@ def _entry_point_reference(entry_point: Any) -> str:
         return f"{module}:{attribute}"
     value = getattr(entry_point, "value", None)
     if not isinstance(value, str):
-        raise RuntimeError(
-            f"environment factory entry point {entry_point.name!r} has no import reference"
-        )
+        raise RuntimeError(f"environment factory entry point {entry_point.name!r} has no import reference")
     return value.partition(" ")[0]
 
 

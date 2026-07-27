@@ -61,9 +61,7 @@ class PublishedManifest:
             return self.kinds[variant]
         except KeyError:
             known = ", ".join(sorted(self.kinds))
-            raise ManifestError(
-                f"no published job-kind image for variant {variant!r}; published: {known}"
-            ) from None
+            raise ManifestError(f"no published job-kind image for variant {variant!r}; published: {known}") from None
 
     def reference(self, variant: str, *, prefix: str | None = None) -> str:
         return self.image(variant).reference(prefix or self.default_prefix)
@@ -109,8 +107,7 @@ def _verify(image: PublishedImage) -> None:
         actual = lock_digest(image.constraint_lock)
     except (FileNotFoundError, OSError) as error:
         raise ManifestError(
-            f"{image.name}: constraint lock {image.constraint_lock} is not shipped "
-            f"in this distribution"
+            f"{image.name}: constraint lock {image.constraint_lock} is not shipped in this distribution"
         ) from error
     if actual != image.lock_digest:
         raise ManifestError(
@@ -133,26 +130,17 @@ def load_manifest() -> PublishedManifest:
 
     schema = document.get("schema_version")
     if schema != _SUPPORTED_SCHEMA:
-        raise ManifestError(
-            f"unsupported manifest schema_version {schema!r}; expected {_SUPPORTED_SCHEMA}"
-        )
+        raise ManifestError(f"unsupported manifest schema_version {schema!r}; expected {_SUPPORTED_SCHEMA}")
 
     base = _image("base", document.get("base", {}))
-    kinds = {
-        variant: _image(f"kinds.{variant}", payload)
-        for variant, payload in document.get("kinds", {}).items()
-    }
+    kinds = {variant: _image(f"kinds.{variant}", payload) for variant, payload in document.get("kinds", {}).items()}
 
     missing = set(RUNTIME_VARIANTS) - set(kinds)
     if missing:
-        raise ManifestError(
-            "published.toml is missing job-kind images for: " + ", ".join(sorted(missing))
-        )
+        raise ManifestError("published.toml is missing job-kind images for: " + ", ".join(sorted(missing)))
     unexpected = set(kinds) - set(RUNTIME_VARIANTS)
     if unexpected:
-        raise ManifestError(
-            "published.toml publishes unreleased variants: " + ", ".join(sorted(unexpected))
-        )
+        raise ManifestError("published.toml publishes unreleased variants: " + ", ".join(sorted(unexpected)))
 
     _verify(base)
     for image in kinds.values():

@@ -92,31 +92,21 @@ class QualificationScenario:
                 raise ValueError(f"{name} must be positive when selected")
         if self.job_kind in _ONLINE_JOBS:
             if self.environment_ref is None or self.dataset_ref is not None:
-                raise ValueError(
-                    f"{self.job_kind} requires one environment and no dataset"
-                )
+                raise ValueError(f"{self.job_kind} requires one environment and no dataset")
             if self.inference_ref is None:
                 raise ValueError(f"{self.job_kind} requires rollout inference")
             if self.task_budget is None or self.rollouts_per_task is None:
-                raise ValueError(
-                    f"{self.job_kind} requires task and rollout budgets"
-                )
+                raise ValueError(f"{self.job_kind} requires task and rollout budgets")
         if self.job_kind in _DATASET_JOBS:
             if self.dataset_ref is None or self.environment_ref is not None:
-                raise ValueError(
-                    f"{self.job_kind} requires one dataset and no environment"
-                )
+                raise ValueError(f"{self.job_kind} requires one dataset and no environment")
         if self.job_kind in _TRAINING_JOBS:
             if self.update_budget is None:
                 raise ValueError(f"{self.job_kind} requires an update budget")
             if self.update_budget < self.acceptance.minimum_optimizer_updates:
-                raise ValueError(
-                    "update budget cannot be below the acceptance minimum"
-                )
+                raise ValueError("update budget cannot be below the acceptance minimum")
             if self.acceptance.minimum_optimizer_updates < 10:
-                raise ValueError(
-                    "algorithm qualification requires at least ten optimizer updates"
-                )
+                raise ValueError("algorithm qualification requires at least ten optimizer updates")
         elif self.update_budget is not None:
             raise ValueError("evaluation scenarios cannot select optimizer updates")
         if self.job_kind in _EVALUATION_JOBS and self.task_budget is None:
@@ -230,9 +220,7 @@ def scenario_by_id(scenario_id: str) -> QualificationScenario:
         return SCENARIOS[scenario_id]
     except KeyError as error:
         choices = ", ".join(sorted(SCENARIOS))
-        raise ValueError(
-            f"unknown qualification scenario {scenario_id!r}; choose {choices}"
-        ) from error
+        raise ValueError(f"unknown qualification scenario {scenario_id!r}; choose {choices}") from error
 
 
 __all__ = [

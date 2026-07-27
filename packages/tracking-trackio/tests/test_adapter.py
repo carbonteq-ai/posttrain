@@ -199,9 +199,7 @@ def test_trackio_backend_resumes_without_replacing_config_or_starting_monitors(
         return StubRun()
 
     monkeypatch.setattr("posttrain_tracking_trackio.adapter.trackio.init", fake_init)
-    backend = TrackioBackend(
-        TrackioSettings(project="monitoring", auto_log_gpu=True, auto_log_cpu=True)
-    )
+    backend = TrackioBackend(TrackioSettings(project="monitoring", auto_log_gpu=True, auto_log_cpu=True))
 
     tracked = backend.resume_run(
         _spec("00000000-0000-4000-8000-000000000099"),
@@ -567,10 +565,7 @@ async def test_trackio_write_read_conformance(trackio_dir: Path) -> None:
     assert published[0].reference.version == "v0"
     assert published[0].reference.digest is not None
     assert published[0].reference.provider_metadata["posttrain_content_digest"] == digest
-    assert (
-        published[0].reference.provider_metadata["posttrain_content_digest_kind"]
-        == "file"
-    )
+    assert published[0].reference.provider_metadata["posttrain_content_digest_kind"] == "file"
     outcome = RunOutcome("succeeded", STARTED, STARTED + timedelta(seconds=5))
     tracked.finish(outcome)
     tracked.finish(outcome)

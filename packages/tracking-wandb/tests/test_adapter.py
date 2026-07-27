@@ -137,9 +137,7 @@ def test_wandb_writer_resolves_published_artifact_identity(
     )
     output = tmp_path / "model.bin"
     output.write_text("weights")
-    tracked = WandbBackend(
-        WandbSettings(entity="team", project="tests")
-    ).start_run(_spec())
+    tracked = WandbBackend(WandbSettings(entity="team", project="tests")).start_run(_spec())
 
     tracked.artifact(
         ProducedArtifact(

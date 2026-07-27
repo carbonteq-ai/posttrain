@@ -43,9 +43,7 @@ class FakeBuildx:
             if self.image_missing:
                 self.image_missing = False
                 raise RemoteImageNotFoundError("manifest unknown")
-            return json.dumps(
-                f"sha256:{self.observed_digest or self.digest}"
-            )
+            return json.dumps(f"sha256:{self.observed_digest or self.digest}")
         return ""
 
 
@@ -63,12 +61,8 @@ def _manifest() -> JobPackageManifest:
         code_requirements_digest="2" * 64,
         resolved_config_digest="3" * 64,
         project_config_digest="6" * 64,
-        universal_image=RuntimeImageRef(
-            f"registry.lan/posttrain/base@sha256:{'4' * 64}"
-        ),
-        kind_image=RuntimeImageRef(
-            f"registry.lan/posttrain/online-rl@sha256:{'5' * 64}"
-        ),
+        universal_image=RuntimeImageRef(f"registry.lan/posttrain/base@sha256:{'4' * 64}"),
+        kind_image=RuntimeImageRef(f"registry.lan/posttrain/online-rl@sha256:{'5' * 64}"),
         runtime_variant="online-rl-trl-py312",
         expected_artifact_roles=("model", "summary"),
     )
@@ -119,9 +113,7 @@ def test_publisher_checks_smokes_pushes_verifies_and_reuses_receipt(
     assert not first.cache_hit
     assert second.cache_hit
     assert first.image == second.image
-    assert first.image.value == (
-        f"{request.publication.repository}@sha256:{gateway.digest}"
-    )
+    assert first.image.value == (f"{request.publication.repository}@sha256:{gateway.digest}")
     assert first.receipt.stat().st_mode & 0o777 == 0o600
     build_calls = [call for call in gateway.calls if "--metadata-file" in call]
     assert len(build_calls) == 1
@@ -151,9 +143,7 @@ def test_publisher_checks_smokes_pushes_verifies_and_reuses_receipt(
         "PROJECT_CONFIG_DIGEST=" + "6" * 64,
     ):
         assert variable in build
-    assert sum(
-        call[:2] == ("imagetools", "inspect") for call in gateway.calls
-    ) == 2
+    assert sum(call[:2] == ("imagetools", "inspect") for call in gateway.calls) == 2
 
 
 def test_publication_identity_excludes_local_context_and_bake_paths(
@@ -180,10 +170,7 @@ def test_missing_cached_remote_image_is_rebuilt(tmp_path: Path) -> None:
     rebuilt = publisher.publish(request)
 
     assert not rebuilt.cache_hit
-    assert (
-        sum("--metadata-file" in call for call in gateway.calls)
-        == 2
-    )
+    assert sum("--metadata-file" in call for call in gateway.calls) == 2
     assert rebuilt.receipt.is_file()
 
 
@@ -219,9 +206,7 @@ def test_remote_digest_mismatch_never_writes_a_receipt(
     with pytest.raises(RuntimeError, match="digest mismatch"):
         publisher.publish(request)
 
-    assert not (
-        tmp_path / "receipts" / f"{request.publication_key}.json"
-    ).exists()
+    assert not (tmp_path / "receipts" / f"{request.publication_key}.json").exists()
 
 
 def test_changed_build_definition_cannot_reuse_receipt(

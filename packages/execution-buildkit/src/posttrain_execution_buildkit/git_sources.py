@@ -39,9 +39,7 @@ class GitCli:
             check=False,
         )
         if result.returncode != 0:
-            detail = (result.stderr.strip() or result.stdout.strip() or "no diagnostic")[
-                -3000:
-            ]
+            detail = (result.stderr.strip() or result.stdout.strip() or "no diagnostic")[-3000:]
             raise RuntimeError(f"git {arguments[0] if arguments else 'command'} failed: {detail}")
         return result.stdout
 
@@ -120,33 +118,24 @@ class ImmutableGitSourcePacker:
         self._cache_root = cache_root
         self._gateway = gateway or GitCli()
 
-    def materialize(
-        self, requests: Sequence[GitSourceRequest]
-    ) -> MaterializedGitSources:
+    def materialize(self, requests: Sequence[GitSourceRequest]) -> MaterializedGitSources:
         if not requests:
             raise ContractError("at least one Git source is required")
 
         revisions_by_repository: dict[str, set[str]] = {}
         for request in requests:
-            revisions_by_repository.setdefault(request.repository, set()).add(
-                request.revision
-            )
+            revisions_by_repository.setdefault(request.repository, set()).add(request.revision)
         conflicting = sorted(
-            repository
-            for repository, revisions in revisions_by_repository.items()
-            if len(revisions) > 1
+            repository for repository, revisions in revisions_by_repository.items() if len(revisions) > 1
         )
         if conflicting:
             raise ContractError(
-                "one job package cannot select multiple revisions of the same Git "
-                f"repository: {', '.join(conflicting)}"
+                f"one job package cannot select multiple revisions of the same Git repository: {', '.join(conflicting)}"
             )
 
         selections: dict[tuple[str, str], set[str]] = {}
         for request in requests:
-            selections.setdefault((request.repository, request.revision), set()).update(
-                request.subdirectories
-            )
+            selections.setdefault((request.repository, request.revision), set()).update(request.subdirectories)
 
         materialized: list[MaterializedGitSource] = []
         for (repository, revision), subdirectories in sorted(selections.items()):
@@ -171,14 +160,10 @@ class ImmutableGitSourcePacker:
 
     def _fetch_checkout(self, destination: Path, repository: str, revision: str) -> None:
         self._cache_root.mkdir(parents=True, exist_ok=True)
-        temporary = Path(
-            tempfile.mkdtemp(prefix=f".{destination.name}-", dir=self._cache_root)
-        )
+        temporary = Path(tempfile.mkdtemp(prefix=f".{destination.name}-", dir=self._cache_root))
         try:
             self._gateway.invoke(["init", "--quiet", str(temporary)])
-            self._gateway.invoke(
-                ["-C", str(temporary), "remote", "add", "origin", repository]
-            )
+            self._gateway.invoke(["-C", str(temporary), "remote", "add", "origin", repository])
             self._gateway.invoke(
                 [
                     "-C",
@@ -213,13 +198,9 @@ class ImmutableGitSourcePacker:
     def _verify_checkout(self, root: Path, revision: str) -> None:
         if not root.is_absolute() or not root.is_dir():
             raise ContractError("Git source cache entry must be an absolute directory")
-        observed = self._gateway.invoke(
-            ["-C", str(root), "rev-parse", "--verify", "HEAD"]
-        ).strip()
+        observed = self._gateway.invoke(["-C", str(root), "rev-parse", "--verify", "HEAD"]).strip()
         if observed != revision:
-            raise ContractError(
-                f"Git source HEAD mismatch: expected {revision}, observed {observed or 'none'}"
-            )
+            raise ContractError(f"Git source HEAD mismatch: expected {revision}, observed {observed or 'none'}")
         status = self._gateway.invoke(
             [
                 "-C",
@@ -243,16 +224,12 @@ class ImmutableGitSourcePacker:
         subdirectories: Sequence[str],
     ) -> LockedGitSource:
         if (root / ".gitmodules").exists():
-            raise ContractError(
-                "Git sources with submodules require an explicit immutable submodule lock"
-            )
+            raise ContractError("Git sources with submodules require an explicit immutable submodule lock")
         locked: list[LockedGitSubdirectory] = []
         for configured in subdirectories:
             selected = root if configured == "." else root.joinpath(*configured.split("/"))
             if not selected.is_dir():
-                raise ContractError(
-                    f"Git source subdirectory does not exist: {configured}"
-                )
+                raise ContractError(f"Git source subdirectory does not exist: {configured}")
             resolved = selected.resolve()
             if not resolved.is_relative_to(root.resolve()):
                 raise ContractError("Git source subdirectory escapes its checkout")
@@ -283,15 +260,9 @@ def _tree_digest(root: Path) -> str:
         for child in children:
             if relative == PurePosixPath(".") and child.name == ".git":
                 continue
-            child_relative = (
-                PurePosixPath(child.name)
-                if relative == PurePosixPath(".")
-                else relative / child.name
-            )
+            child_relative = PurePosixPath(child.name) if relative == PurePosixPath(".") else relative / child.name
             if child.is_symlink():
-                raise ContractError(
-                    f"Git sources do not accept symlinks: {child_relative.as_posix()}"
-                )
+                raise ContractError(f"Git sources do not accept symlinks: {child_relative.as_posix()}")
             if child.is_dir(follow_symlinks=False):
                 entries.append({"path": child_relative.as_posix(), "type": "directory"})
                 visit(Path(child.path), child_relative)
@@ -307,16 +278,13 @@ def _tree_digest(root: Path) -> str:
                 )
             else:
                 raise ContractError(
-                    f"Git sources only accept regular files and directories: "
-                    f"{child_relative.as_posix()}"
+                    f"Git sources only accept regular files and directories: {child_relative.as_posix()}"
                 )
 
     visit(root, PurePosixPath("."))
     if not entries:
         raise ContractError("Git source tree cannot be empty")
-    return hashlib.sha256(
-        json.dumps(entries, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()
+    return hashlib.sha256(json.dumps(entries, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
 def _file_digest(path: Path) -> str:

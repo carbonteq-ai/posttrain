@@ -22,9 +22,7 @@ def test_empty_overlay_is_valid_and_composes_with_packaged_base(tmp_path: Path) 
     assert CatalogRef("model", "models/qwen3.5-0.8b@bf16") in catalog.list("model")
     assert CatalogRef("dataset", "datasets/posttrain-sft-smoke@1") in catalog.list("dataset")
     assert CatalogRef("environment", "math-gsm8k") in catalog.list("environment")
-    environment = catalog.resolve(
-        CatalogRef("environment", "math-gsm8k")
-    ).value
+    environment = catalog.resolve(CatalogRef("environment", "math-gsm8k")).value
     assert isinstance(environment, EnvironmentBinding)
     assert environment.activation.kind == "verifiers-config"
 
@@ -53,6 +51,4 @@ def test_environment_factory_registry_does_not_load_package_entry_points(monkeyp
 
     registry = environment_factory_registry()
 
-    assert registry["published-environment"] == PythonFactoryActivation(
-        "published_environment:create_environment"
-    )
+    assert registry["published-environment"] == PythonFactoryActivation("published_environment:create_environment")

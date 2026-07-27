@@ -42,12 +42,8 @@ _STATES = frozenset(
         "cancelled",
     }
 )
-_ACTIVE_MAPPING_STATES = frozenset(
-    {"submitting", "submission_failed", "submitted", "terminal_pending_evidence"}
-)
-_REQUIRES_RESERVATION = frozenset(
-    {"submitting", "submitted", "terminal_pending_evidence"}
-)
+_ACTIVE_MAPPING_STATES = frozenset({"submitting", "submission_failed", "submitted", "terminal_pending_evidence"})
+_REQUIRES_RESERVATION = frozenset({"submitting", "submitted", "terminal_pending_evidence"})
 type AdmissionState = Literal[
     "waiting",
     "submitting",
@@ -120,9 +116,7 @@ class ExecutionAdmissionService:
                     or existing.get("evidence_source") != encoded_evidence
                     or existing.get("provider_binding") != provider_binding
                 ):
-                    raise ContractError(
-                        f"admission run {run_id} already names a different execution"
-                    )
+                    raise ContractError(f"admission run {run_id} already names a different execution")
             else:
                 payload["entries"].append(
                     {
@@ -167,13 +161,9 @@ class ExecutionAdmissionService:
                 self._persist(payload)
             return self.get(run_id)
         if entry.state == "submitting":
-            raise ContractError(
-                "provider submission is in progress; inspect status before cancelling"
-            )
+            raise ContractError("provider submission is in progress; inspect status before cancelling")
         if entry.state == "submission_failed":
-            raise ContractError(
-                "provider submission outcome is unresolved; retry submission before cancelling"
-            )
+            raise ContractError("provider submission outcome is unresolved; retry submission before cancelling")
         if entry.state == "submitted":
             service = self._service_factory(entry.plan.provider, entry.evidence_source)
             service.cancel(run_id)
@@ -185,15 +175,11 @@ class ExecutionAdmissionService:
         with self._locked() as payload:
             entry = _required(payload, run_id)
             if entry["state"] not in {"submitting", "submission_failed"}:
-                raise ContractError(
-                    "only an unresolved provider submission can be retried"
-                )
+                raise ContractError("only an unresolved provider submission can be retried")
             admission_key = str(entry["admission_key"])
             active_run_id = payload["active_by_key"].get(admission_key)
             if active_run_id not in {None, run_id}:
-                raise ContractError(
-                    "the execution placement is occupied by another admitted run"
-                )
+                raise ContractError("the execution placement is occupied by another admitted run")
             payload["active_by_key"][admission_key] = run_id
             if entry["state"] == "submission_failed":
                 entry["state"] = "submitting"
@@ -207,9 +193,7 @@ class ExecutionAdmissionService:
             if entry["state"] == "completed":
                 return None
             if entry["state"] != "terminal_pending_evidence":
-                raise ContractError(
-                    "admission can release only after terminal provider evidence"
-                )
+                raise ContractError("admission can release only after terminal provider evidence")
             entry["state"] = "completed"
             entry["terminal_at"] = datetime.now(UTC).isoformat()
             admission_key = str(entry["admission_key"])
@@ -220,14 +204,11 @@ class ExecutionAdmissionService:
                 (
                     item
                     for item in payload["entries"]
-                    if item.get("state") == "waiting"
-                    and item.get("admission_key") == admission_key
+                    if item.get("state") == "waiting" and item.get("admission_key") == admission_key
                 ),
                 None,
             )
-            next_run_id = (
-                cast(str, next_entry["run_id"]) if next_entry is not None else None
-            )
+            next_run_id = cast(str, next_entry["run_id"]) if next_entry is not None else None
             self._persist(payload)
         if next_run_id is None:
             return None
@@ -258,32 +239,17 @@ class ExecutionAdmissionService:
     ) -> AdmissionResult:
         with self._locked() as payload:
             owns_transition = False
-            requested = (
-                _required(payload, requested_run_id)
-                if requested_run_id is not None
-                else None
-            )
-            admission_key = (
-                str(requested["admission_key"])
-                if requested is not None
-                else None
-            )
+            requested = _required(payload, requested_run_id) if requested_run_id is not None else None
+            admission_key = str(requested["admission_key"]) if requested is not None else None
             active_by_key = payload["active_by_key"]
-            active_id = (
-                active_by_key.get(admission_key)
-                if admission_key is not None
-                else None
-            )
+            active_id = active_by_key.get(admission_key) if admission_key is not None else None
             if active_id is None:
                 waiting = next(
                     (
                         item
                         for item in payload["entries"]
                         if item.get("state") == "waiting"
-                        and (
-                            admission_key is None
-                            or item.get("admission_key") == admission_key
-                        )
+                        and (admission_key is None or item.get("admission_key") == admission_key)
                     ),
                     None,
                 )
@@ -319,18 +285,13 @@ class ExecutionAdmissionService:
             with self._locked() as payload:
                 active = _required(payload, entry.run_id)
                 admission_key = str(active["admission_key"])
-                if (
-                    active["state"] != "submitting"
-                    or payload["active_by_key"].get(admission_key) != entry.run_id
-                ):
+                if active["state"] != "submitting" or payload["active_by_key"].get(admission_key) != entry.run_id:
                     requested = _required(
                         payload,
                         requested_run_id or entry.run_id,
                     )
                     entries = list(payload["entries"])
-                    return AdmissionResult(
-                        _decode_entry(dict(requested), entries)
-                    )
+                    return AdmissionResult(_decode_entry(dict(requested), entries))
                 active_copy = dict(active)
 
             entry = _decode_entry(active_copy, [active_copy])
@@ -342,15 +303,12 @@ class ExecutionAdmissionService:
                     if active["state"] == "submitting":
                         active["state"] = "submission_failed"
                         active["message"] = (
-                            "provider binding changed after admission; restore the "
-                            "original binding or create a new run"
+                            "provider binding changed after admission; restore the original binding or create a new run"
                         )
                         # Keep the placement quarantined. This can be a retry
                         # after an earlier ambiguous provider response.
                         self._persist(payload)
-                raise ContractError(
-                    "execution provider binding changed after admission"
-                )
+                raise ContractError("execution provider binding changed after admission")
             service = initial_service or self._service_factory(
                 entry.plan.provider,
                 entry.evidence_source,
@@ -488,18 +446,12 @@ class ExecutionAdmissionService:
                 try:
                     existing = json.loads(path.read_text(encoding="utf-8"))
                 except json.JSONDecodeError as error:
-                    raise ContractError(
-                        f"terminal admission receipt is invalid for run {run_id}"
-                    ) from error
+                    raise ContractError(f"terminal admission receipt is invalid for run {run_id}") from error
                 if existing != receipt:
-                    raise ContractError(
-                        f"terminal admission receipt conflicts for run {run_id}"
-                    )
+                    raise ContractError(f"terminal admission receipt conflicts for run {run_id}")
                 continue
             temporary = root / f".{digest}-{uuid.uuid4().hex}.tmp"
-            encoded = (
-                json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\n"
-            ).encode()
+            encoded = (json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\n").encode()
             descriptor = os.open(
                 temporary,
                 os.O_CREAT | os.O_EXCL | os.O_WRONLY,
@@ -526,11 +478,7 @@ class ExecutionAdmissionService:
         return binding
 
     def _admission_key(self, plan: ExecutionPlan) -> str:
-        configured_host = (
-            self._physical_host_factory(plan)
-            if self._physical_host_factory is not None
-            else None
-        )
+        configured_host = self._physical_host_factory(plan) if self._physical_host_factory is not None else None
         return _admission_key(
             plan,
             configured_local_hostname=configured_host,
@@ -563,13 +511,9 @@ def _admission_key(
         if len(hostnames) == 1 and len(instances) == 1:
             return "host:" + _normalized_hostname(hostnames[0])
         if plan.provider == "dstack":
-            raise ContractError(
-                "singular dstack admission requires exactly one canonical hostname"
-            )
+            raise ContractError("singular dstack admission requires exactly one canonical hostname")
     if plan.provider == "dstack":
-        raise ContractError(
-            "singular dstack admission requires one canonical hostname"
-        )
+        raise ContractError("singular dstack admission requires one canonical hostname")
     if plan.provider in {"local", "local-docker"}:
         if configured_local_hostname is not None:
             return "host:" + _normalized_hostname(configured_local_hostname)
@@ -644,9 +588,7 @@ def _validate_payload(payload: dict[str, Any]) -> None:
     for entry in entries:
         if entry["state"] in _REQUIRES_RESERVATION:
             if active_by_key.get(entry["admission_key"]) != entry["run_id"]:
-                raise ContractError(
-                    "execution admission active entry has no placement reservation"
-                )
+                raise ContractError("execution admission active entry has no placement reservation")
 
 
 def _prune_terminal(
@@ -654,11 +596,7 @@ def _prune_terminal(
     *,
     keep: int,
 ) -> tuple[dict[str, Any], ...]:
-    terminal = [
-        entry
-        for entry in payload["entries"]
-        if entry.get("state") in {"completed", "cancelled"}
-    ]
+    terminal = [entry for entry in payload["entries"] if entry.get("state") in {"completed", "cancelled"}]
     if len(terminal) <= keep:
         return ()
     retained_ids = {
@@ -672,14 +610,12 @@ def _prune_terminal(
     removed = tuple(
         entry
         for entry in payload["entries"]
-        if entry.get("state") in {"completed", "cancelled"}
-        and entry.get("run_id") not in retained_ids
+        if entry.get("state") in {"completed", "cancelled"} and entry.get("run_id") not in retained_ids
     )
     payload["entries"] = [
         entry
         for entry in payload["entries"]
-        if entry.get("state") not in {"completed", "cancelled"}
-        or entry.get("run_id") in retained_ids
+        if entry.get("state") not in {"completed", "cancelled"} or entry.get("run_id") in retained_ids
     ]
     return removed
 
@@ -688,8 +624,7 @@ def _decode_entry(raw: dict[str, Any], entries: list[dict[str, Any]]) -> Admissi
     waiting = [
         item["run_id"]
         for item in entries
-        if item.get("state") == "waiting"
-        and item.get("admission_key") == raw.get("admission_key")
+        if item.get("state") == "waiting" and item.get("admission_key") == raw.get("admission_key")
     ]
     run_id = str(raw["run_id"])
     position = waiting.index(run_id) + 1 if run_id in waiting else None
@@ -703,11 +638,7 @@ def _decode_entry(raw: dict[str, Any], entries: list[dict[str, Any]]) -> Admissi
         evidence_source=_decode_evidence(raw.get("evidence_source")),
         queued_at=queued_at,
         position=position,
-        message=(
-            str(raw["message"])
-            if isinstance(raw.get("message"), str)
-            else None
-        ),
+        message=(str(raw["message"]) if isinstance(raw.get("message"), str) else None),
     )
 
 
@@ -758,9 +689,7 @@ def _encode_plan(plan: ExecutionPlan) -> dict[str, Any]:
                             "name": item.reference.name,
                             "version": item.reference.version,
                             "digest": item.reference.digest,
-                            "provider_metadata": _json_value(
-                                item.reference.provider_metadata
-                            ),
+                            "provider_metadata": _json_value(item.reference.provider_metadata),
                         },
                     }
                     for name, item in spec.artifacts.items()

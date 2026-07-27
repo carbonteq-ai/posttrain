@@ -407,11 +407,7 @@ def _publish_bridge_artifacts(
         if not isinstance(evidence, EnvironmentRolloutEvidence):
             raise TypeError("environment bridge evidence must use EnvironmentRolloutEvidence")
         for observation in evidence.metrics:
-            values = {
-                name: value
-                for name, value in observation.values.items()
-                if name not in replay_exclusions
-            }
+            values = {name: value for name, value in observation.values.items() if name not in replay_exclusions}
             if not values:
                 continue
             attributes = dict(observation.attributes)

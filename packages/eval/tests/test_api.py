@@ -162,21 +162,15 @@ def test_general_smoke_is_code_defined_and_category_selectable() -> None:
 
 
 def test_python_factory_activation_is_lazy_until_runtime() -> None:
-    activation = PythonFactoryActivation(
-        "package_that_is_not_installed_for_detached_planning:create_environment"
-    )
+    activation = PythonFactoryActivation("package_that_is_not_installed_for_detached_planning:create_environment")
 
     with pytest.raises(RuntimeError, match="module is not installed"):
         activation.activate()
 
 
 def test_verifiers_activation_digest_is_canonical() -> None:
-    first = VerifiersV1ConfigActivation(
-        {"taskset": {"id": "example", "split": "train"}, "max_turns": 4}
-    )
-    second = VerifiersV1ConfigActivation(
-        {"max_turns": 4, "taskset": {"split": "train", "id": "example"}}
-    )
+    first = VerifiersV1ConfigActivation({"taskset": {"id": "example", "split": "train"}, "max_turns": 4})
+    second = VerifiersV1ConfigActivation({"max_turns": 4, "taskset": {"split": "train", "id": "example"}})
 
     assert first.digest == second.digest
     assert first.to_payload()["kind"] == "verifiers-config"

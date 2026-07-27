@@ -82,8 +82,7 @@ def resolve_package(
     candidates = [
         package
         for package in retained_packages(layout)
-        if package.package_key == package_key
-        or package.package_key.startswith(package_key)
+        if package.package_key == package_key or package.package_key.startswith(package_key)
     ]
     if not candidates:
         raise ContractError(f"no retained job package matches {package_key!r}")

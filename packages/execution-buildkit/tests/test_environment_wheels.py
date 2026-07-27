@@ -45,9 +45,7 @@ def _sources(tmp_path: Path) -> MaterializedGitSources:
     ):
         package_root = root / subdirectory
         package_root.mkdir(parents=True)
-        (package_root / "pyproject.toml").write_text(
-            f"[project]\nname = '{name}'\nversion = '1.0.0'\n"
-        )
+        (package_root / "pyproject.toml").write_text(f"[project]\nname = '{name}'\nversion = '1.0.0'\n")
         (package_root / "environment.py").write_text("def load(): ...\n")
     locked_subdirectories = tuple(
         LockedGitSubdirectory(
@@ -96,9 +94,7 @@ def test_builds_multiple_wheels_from_one_checkout_with_deterministic_lock(
     gateway = FakeWheelGateway(
         {
             "gsm8k_v1": {"gsm8k_v1-1.0.0-py3-none-any.whl": b"gsm8k-wheel"},
-            "reverse_text_v1": {
-                "reverse_text_v1-1.0.0-py3-none-any.whl": b"reverse-wheel"
-            },
+            "reverse_text_v1": {"reverse_text_v1-1.0.0-py3-none-any.whl": b"reverse-wheel"},
         }
     )
     builder = ImmutableEnvironmentWheelBuilder(
@@ -146,9 +142,7 @@ def test_accepts_uv_generated_output_gitignore(tmp_path: Path) -> None:
                 ".gitignore": b"*",
                 "gsm8k_v1-1.0.0-py3-none-any.whl": b"wheel",
             },
-            "reverse_text_v1": {
-                "reverse_text_v1-1.0.0-py3-none-any.whl": b"unused"
-            },
+            "reverse_text_v1": {"reverse_text_v1-1.0.0-py3-none-any.whl": b"unused"},
         }
     )
 
@@ -230,9 +224,7 @@ def test_rejects_unselected_or_missing_package_root(tmp_path: Path) -> None:
             subdirectories=(
                 LockedGitSubdirectory(
                     path="environments/gsm8k_v1",
-                    tree_digest=_tree_digest(
-                        sources.sources[0].root / "environments/gsm8k_v1"
-                    ),
+                    tree_digest=_tree_digest(sources.sources[0].root / "environments/gsm8k_v1"),
                 ),
             ),
         ),
@@ -250,9 +242,7 @@ def test_rejects_unselected_or_missing_package_root(tmp_path: Path) -> None:
 
 def test_rejects_source_drift_before_build(tmp_path: Path) -> None:
     sources = _sources(tmp_path)
-    (
-        sources.sources[0].root / "environments/gsm8k_v1/environment.py"
-    ).write_text("changed")
+    (sources.sources[0].root / "environments/gsm8k_v1/environment.py").write_text("changed")
     gateway = FakeWheelGateway(
         {
             "gsm8k_v1": {"gsm8k_v1-1.0.0-py3-none-any.whl": b"wheel"},
@@ -330,9 +320,7 @@ def test_rejects_oversized_wheel_and_isolates_source_from_build_mutation(
     ).build(sources, [_requests()[1]])
 
     assert len(result.wheels) == 1
-    assert not (
-        sources.sources[0].root / "environments/gsm8k_v1/generated.txt"
-    ).exists()
+    assert not (sources.sources[0].root / "environments/gsm8k_v1/generated.txt").exists()
 
 
 def test_rejects_invalid_limits_and_package_identity(tmp_path: Path) -> None:
@@ -361,9 +349,7 @@ def test_rejects_declared_and_built_package_name_mismatches(
     selected = tuple(
         LockedGitSubdirectory(
             path=item.path,
-            tree_digest=_tree_digest(
-                sources.sources[0].root.joinpath(*item.path.split("/"))
-            ),
+            tree_digest=_tree_digest(sources.sources[0].root.joinpath(*item.path.split("/"))),
         )
         for item in locked.subdirectories
     )
@@ -374,9 +360,7 @@ def test_rejects_declared_and_built_package_name_mismatches(
         subdirectories=selected,
     )
     relocked_sources = MaterializedGitSources(
-        sources=(
-            MaterializedGitSource(root=sources.sources[0].root, lock=relocked),
-        ),
+        sources=(MaterializedGitSource(root=sources.sources[0].root, lock=relocked),),
         lock=GitSourceLock(sources=(relocked,)),
     )
     with pytest.raises(ContractError, match="does not match pyproject"):

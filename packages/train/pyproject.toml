@@ -6,6 +6,7 @@ authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
+    "httpx>=0.28,<0.29",
     "posttrain-common",
     "posttrain-data",
     "pydantic>=2.12,<3",

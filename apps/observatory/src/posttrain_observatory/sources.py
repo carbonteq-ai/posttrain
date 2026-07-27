@@ -109,12 +109,7 @@ class RunSourceRegistry:
                 run=detail.summary,
             )
 
-        values = await asyncio.gather(
-            *(
-                load(source_id, source)
-                for source_id, source in sorted(self._sources.items())
-            )
-        )
+        values = await asyncio.gather(*(load(source_id, source) for source_id, source in sorted(self._sources.items())))
         return tuple(item for item in values if item is not None)
 
     async def work_package_view(

@@ -133,9 +133,7 @@ def test_submission_store_is_idempotent_and_rejects_conflicts(tmp_path: Path) ->
     assert store.save(submission) == submission
     assert store.load(submission.run_id) == submission
     assert store.submission_path(submission.run_id).stat().st_mode & 0o777 == 0o600
-    payload = json.loads(
-        store.submission_path(submission.run_id).read_text(encoding="utf-8")
-    )
+    payload = json.loads(store.submission_path(submission.run_id).read_text(encoding="utf-8"))
     assert payload["schema"] == "posttrain.execution-submission.v5"
     assert payload["evidence_source_recorded"] is True
     assert payload["evidence_source"] is None

@@ -33,11 +33,7 @@ def register(app: typer.Typer) -> None:
                     f"Project brief digest: {payload['project_brief_digest'] or '(none)'}",
                     (
                         "Serving requirements: "
-                        + (
-                            "configured"
-                            if payload["serving_requirements"] == "configured"
-                            else "not configured"
-                        )
+                        + ("configured" if payload["serving_requirements"] == "configured" else "not configured")
                     ),
                 )
             ),

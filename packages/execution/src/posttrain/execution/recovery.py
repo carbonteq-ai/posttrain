@@ -66,21 +66,13 @@ async def recover_cancelled_tracking(
     detail = await source.get_run(run_id)
     summary = detail.summary
     if summary.provider != "trackio":
-        raise ContractError(
-            "tracking cancellation recovery currently supports Trackio only"
-        )
+        raise ContractError("tracking cancellation recovery currently supports Trackio only")
     if summary.run_id != run_id:
-        raise ContractError(
-            "tracking cancellation recovery resolved a different canonical run"
-        )
+        raise ContractError("tracking cancellation recovery resolved a different canonical run")
     if summary.project_id != project_id:
-        raise ContractError(
-            "tracking cancellation recovery project identity does not match"
-        )
+        raise ContractError("tracking cancellation recovery project identity does not match")
     if summary.provider_run_id is None:
-        raise ContractError(
-            "tracking cancellation recovery requires an exact provider run id"
-        )
+        raise ContractError("tracking cancellation recovery requires an exact provider run id")
     if summary.status not in {"running", "cancelled"}:
         raise ContractError(
             "tracking cancellation recovery requires tracking to be running "
@@ -118,9 +110,7 @@ def save_tracking_recovery(
         "tracking_started_at": recovery.tracking_started_at.isoformat(),
         "recovered_at": recovery.recovered_at.isoformat(),
     }
-    encoded = (
-        json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n"
-    ).encode()
+    encoded = (json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n").encode()
     journal = root / "tracking-recovery.jsonl"
     descriptor = os.open(
         journal,

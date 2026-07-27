@@ -47,10 +47,7 @@ def _environment(
             revision=revision,
             subdirectory=subdirectory,
         ),
-        activation=activation
-        or VerifiersV1ConfigActivation(
-            {"taskset": {"id": environment_id, "split": "train"}}
-        ),
+        activation=activation or VerifiersV1ConfigActivation({"taskset": {"id": environment_id, "split": "train"}}),
         sampling=SamplingPolicy(max_tokens=64),
         num_tasks=4,
     )
@@ -97,9 +94,7 @@ def test_extracts_direct_and_nested_environments_without_duplicates() -> None:
         environments=(reverse, gsm8k),
     )
 
-    selected = environment_bindings(
-        cast(ResolvedSeats, {"direct": gsm8k, "plan": plan})
-    )
+    selected = environment_bindings(cast(ResolvedSeats, {"direct": gsm8k, "plan": plan}))
 
     assert [binding.id for binding in selected] == [
         "math-gsm8k",
@@ -245,9 +240,7 @@ def test_input_or_build_semantics_change_plan_key() -> None:
         framework_source_digest=DIGEST,
         project_source_digest="d" * 64,
         universal_image=BASE,
-        kind_image=RuntimeImageRef(
-            f"registry.lan/posttrain/online-rl-verl@sha256:{'e' * 64}"
-        ),
+        kind_image=RuntimeImageRef(f"registry.lan/posttrain/online-rl-verl@sha256:{'e' * 64}"),
         publication=PUBLICATION,
         runtime_variant="online-rl-verl-two-venv",
     )

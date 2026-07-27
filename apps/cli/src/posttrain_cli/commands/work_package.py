@@ -213,9 +213,7 @@ def run_work_package_cmd(
             **_packed_job_payload(packed),
             "status": admission_entry.state,
             "queue_position": admission_entry.position,
-            "submission": (
-                json_value(submission) if submission is not None else None
-            ),
+            "submission": (json_value(submission) if submission is not None else None),
         }
         provider_detail = (
             f"Provider run: {submission.provider_id}"
@@ -275,7 +273,6 @@ def run_work_package_cmd(
         for job_result in result.jobs
     )
     emit(state, payload, "\n".join(lines))
-
 
 
 def diff_work_package_cmd(
@@ -383,9 +380,7 @@ def _package_plan_payload(planned: PlannedJobPackage) -> dict[str, object]:
             "constraint_profile_digest": constraint.digest,
             "provided_packages": list(constraint.provided_packages),
             "publication_repository": planned.pack_plan.publication.repository,
-            "datasets": [
-                request.to_payload() for request in planned.pack_plan.spec.datasets
-            ],
+            "datasets": [request.to_payload() for request in planned.pack_plan.spec.datasets],
             "environment_sources": [
                 {
                     "repository": source.repository,
@@ -438,9 +433,7 @@ def _packed_job_payload(
 ) -> dict[str, object]:
     planned = packed.planned
     payload = (
-        _execution_plan_payload(planned)
-        if isinstance(planned, PlannedJobExecution)
-        else _package_plan_payload(planned)
+        _execution_plan_payload(planned) if isinstance(planned, PlannedJobExecution) else _package_plan_payload(planned)
     )
     payload["images"] = {
         "universal": packed.context.manifest.universal_image.value,
@@ -475,11 +468,7 @@ def _overrides(
         timeout_seconds=timeout_seconds,
         max_attempts=max_attempts,
         priority=priority,
-        environment_names=(
-            tuple(environment_names)
-            if environment_names is not None
-            else None
-        ),
+        environment_names=(tuple(environment_names) if environment_names is not None else None),
     )
 
 

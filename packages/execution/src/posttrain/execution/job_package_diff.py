@@ -90,9 +90,7 @@ def _summarize(field: str, value: object) -> str:
         if not value:
             return "nothing"
         labels = [_entry_label(field, entry) for entry in value]
-        return f"{len(labels)} entr{'y' if len(labels) == 1 else 'ies'}: " + ", ".join(
-            sorted(labels)
-        )
+        return f"{len(labels)} entr{'y' if len(labels) == 1 else 'ies'}: " + ", ".join(sorted(labels))
     if isinstance(value, dict):
         return "{" + ", ".join(sorted(str(key) for key in value)) + "}"
     return _abbreviate(field, value)

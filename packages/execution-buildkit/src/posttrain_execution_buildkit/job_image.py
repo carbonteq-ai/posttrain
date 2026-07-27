@@ -59,9 +59,7 @@ class BuildKitJobImagePublisher:
         builder: str | None = None,
     ) -> None:
         if not bake_file.is_absolute() or not bake_file.is_file():
-            raise ValueError(
-                "job image Bake file must be an existing absolute path"
-            )
+            raise ValueError("job image Bake file must be an existing absolute path")
         if not (bake_file.parent / "Dockerfile").is_file():
             raise ValueError("job image Bake file must be beside a Dockerfile")
         if not receipt_root.is_absolute():
@@ -98,10 +96,7 @@ class BuildKitJobImagePublisher:
         metadata = self._receipt_root / f".metadata-{uuid.uuid4().hex}.json"
         try:
             self._gateway.invoke(self._build_arguments(request, metadata))
-            image = RuntimeImageRef(
-                f"{request.publication.repository}@sha256:"
-                f"{_metadata_digest(metadata)}"
-            )
+            image = RuntimeImageRef(f"{request.publication.repository}@sha256:{_metadata_digest(metadata)}")
             self._verify_remote(image)
             receipt = _PublicationReceipt(
                 package_key=request.package_key,
@@ -207,9 +202,7 @@ class BuildKitJobImagePublisher:
             "PROJECT_SOURCE_DIGEST": manifest.project_source_digest,
             "RESOLVED_CONFIG_DIGEST": manifest.resolved_config_digest,
             "RESOLVED_INPUTS_DIGEST": manifest.resolved_inputs_digest,
-            "RUNTIME_DEPENDENCIES_DIGEST": (
-                manifest.runtime_dependencies_digest
-            ),
+            "RUNTIME_DEPENDENCIES_DIGEST": (manifest.runtime_dependencies_digest),
             "RUNTIME_VARIANT": manifest.runtime_variant,
             "STAGED_CONTEXT": str(request.staged_context),
         }
@@ -231,15 +224,10 @@ class BuildKitJobImagePublisher:
         try:
             observed = json.loads(output)
         except json.JSONDecodeError as error:
-            raise RuntimeError(
-                "Buildx returned invalid remote actual-job image metadata"
-            ) from error
+            raise RuntimeError("Buildx returned invalid remote actual-job image metadata") from error
         expected = image.value.rsplit("@", 1)[1]
         if observed != expected:
-            raise RuntimeError(
-                "published actual-job digest mismatch: "
-                f"expected {expected}, observed {observed}"
-            )
+            raise RuntimeError(f"published actual-job digest mismatch: expected {expected}, observed {observed}")
 
     def _write_receipt(self, receipt: _PublicationReceipt) -> None:
         payload: dict[str, JsonValue] = {
@@ -257,9 +245,7 @@ class BuildKitJobImagePublisher:
             "build_definition_digest": receipt.build_definition_digest,
         }
         encoded = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode()
-        temporary = (
-            self._receipt_root / f".receipt-{uuid.uuid4().hex}.tmp"
-        )
+        temporary = self._receipt_root / f".receipt-{uuid.uuid4().hex}.tmp"
         descriptor = os.open(
             temporary,
             os.O_CREAT | os.O_EXCL | os.O_WRONLY,
@@ -275,25 +261,17 @@ class BuildKitJobImagePublisher:
         except FileExistsError:
             existing = self._load_receipt(receipt.path)
             if existing != receipt:
-                raise ContractError(
-                    "job image publication receipt conflicts with an existing "
-                    "publication"
-                ) from None
+                raise ContractError("job image publication receipt conflicts with an existing publication") from None
         finally:
             temporary.unlink(missing_ok=True)
 
     def _load_receipt(self, path: Path) -> _PublicationReceipt:
         if path.stat().st_mode & 0o077:
-            raise ContractError(
-                "job image publication receipt must not be accessible by "
-                f"group or other: {path}"
-            )
+            raise ContractError(f"job image publication receipt must not be accessible by group or other: {path}")
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as error:
-            raise ContractError(
-                f"job image publication receipt is invalid: {path}"
-            ) from error
+            raise ContractError(f"job image publication receipt is invalid: {path}") from error
         fields = {
             "schema",
             "package_key",
@@ -308,19 +286,11 @@ class BuildKitJobImagePublisher:
             "sbom",
             "build_definition_digest",
         }
-        if (
-            not isinstance(payload, dict)
-            or set(payload) != fields
-            or payload.get("schema") != _SCHEMA
-        ):
-            raise ContractError(
-                f"job image publication receipt schema is unsupported: {path}"
-            )
+        if not isinstance(payload, dict) or set(payload) != fields or payload.get("schema") != _SCHEMA:
+            raise ContractError(f"job image publication receipt schema is unsupported: {path}")
         try:
             platforms = payload["platforms"]
-            if not isinstance(platforms, list) or not all(
-                isinstance(value, str) for value in platforms
-            ):
+            if not isinstance(platforms, list) or not all(isinstance(value, str) for value in platforms):
                 raise TypeError("platforms")
             receipt = _PublicationReceipt(
                 package_key=str(payload["package_key"]),
@@ -333,23 +303,17 @@ class BuildKitJobImagePublisher:
                 compression_level=int(payload["compression_level"]),
                 provenance=_exact_bool(payload["provenance"]),
                 sbom=_exact_bool(payload["sbom"]),
-                build_definition_digest=str(
-                    payload["build_definition_digest"]
-                ),
+                build_definition_digest=str(payload["build_definition_digest"]),
                 path=path,
             )
         except (KeyError, TypeError, ValueError) as error:
-            raise ContractError(
-                f"job image publication receipt fields are invalid: {path}"
-            ) from error
+            raise ContractError(f"job image publication receipt fields are invalid: {path}") from error
         if (
             not _SHA256.fullmatch(receipt.package_key)
             or not _SHA256.fullmatch(receipt.publication_key)
             or not _SHA256.fullmatch(receipt.build_definition_digest)
         ):
-            raise ContractError(
-                f"job image publication receipt digests are invalid: {path}"
-            )
+            raise ContractError(f"job image publication receipt digests are invalid: {path}")
         return receipt
 
     def _ensure_receipt_matches(
@@ -403,18 +367,12 @@ def _metadata_digest(path: Path) -> str:
         TypeError,
         json.JSONDecodeError,
     ) as error:
-        raise RuntimeError(
-            "Buildx did not return a published actual-job image digest"
-        ) from error
+        raise RuntimeError("Buildx did not return a published actual-job image digest") from error
     if not isinstance(digest, str) or not digest.startswith("sha256:"):
-        raise RuntimeError(
-            "Buildx returned an invalid actual-job image digest"
-        )
+        raise RuntimeError("Buildx returned an invalid actual-job image digest")
     value = digest.removeprefix("sha256:")
     if not _SHA256.fullmatch(value):
-        raise RuntimeError(
-            "Buildx returned an invalid actual-job image digest"
-        )
+        raise RuntimeError("Buildx returned an invalid actual-job image digest")
     return value
 
 
@@ -428,9 +386,7 @@ def _build_definition_digest(root: Path) -> str:
                 "sha256": hashlib.sha256(content).hexdigest(),
             }
         )
-    return hashlib.sha256(
-        json.dumps(entries, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()
+    return hashlib.sha256(json.dumps(entries, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
 def _exact_bool(value: object) -> bool:

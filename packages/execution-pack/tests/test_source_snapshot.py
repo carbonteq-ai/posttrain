@@ -37,9 +37,7 @@ def test_snapshot_is_content_addressed_and_selective(tmp_path: Path) -> None:
         includes=("packages/example",),
         install_roots=("packages/example",),
     )
-    snapshotter = ImmutableSourceSnapshotter(
-        cache_root=(tmp_path / "cache").resolve()
-    )
+    snapshotter = ImmutableSourceSnapshotter(cache_root=(tmp_path / "cache").resolve())
 
     first = snapshotter.materialize(request)
     second = snapshotter.materialize(request)
@@ -49,9 +47,7 @@ def test_snapshot_is_content_addressed_and_selective(tmp_path: Path) -> None:
     assert second.created is False
     assert first.digest == second.digest
     assert first.package.root == second.package.root
-    assert (
-        first.package.root / "packages/example/src/example/__init__.py"
-    ).is_file()
+    assert (first.package.root / "packages/example/src/example/__init__.py").is_file()
     assert not (first.package.root / ".posttrain").exists()
 
 
@@ -66,9 +62,7 @@ def test_snapshot_digest_changes_with_selected_working_tree_bytes(
         includes=("packages/example",),
         install_roots=("packages/example",),
     )
-    snapshotter = ImmutableSourceSnapshotter(
-        cache_root=(tmp_path / "cache").resolve()
-    )
+    snapshotter = ImmutableSourceSnapshotter(cache_root=(tmp_path / "cache").resolve())
     first = snapshotter.materialize(request)
 
     (source / "packages/example/src/example/__init__.py").write_text(
@@ -89,9 +83,7 @@ def test_snapshot_ignores_generated_python_cache_files(tmp_path: Path) -> None:
         includes=("packages/example",),
         install_roots=("packages/example",),
     )
-    snapshotter = ImmutableSourceSnapshotter(
-        cache_root=(tmp_path / "cache").resolve()
-    )
+    snapshotter = ImmutableSourceSnapshotter(cache_root=(tmp_path / "cache").resolve())
     before = snapshotter.inspect(request)
     cache = source / "packages/example/src/example/__pycache__"
     cache.mkdir()
@@ -120,6 +112,4 @@ def test_snapshot_rejects_overlap_and_secret_files(tmp_path: Path) -> None:
         install_roots=("packages/example",),
     )
     with pytest.raises(ValueError, match="forbidden filename"):
-        ImmutableSourceSnapshotter(
-            cache_root=(tmp_path / "cache").resolve()
-        ).materialize(request)
+        ImmutableSourceSnapshotter(cache_root=(tmp_path / "cache").resolve()).materialize(request)

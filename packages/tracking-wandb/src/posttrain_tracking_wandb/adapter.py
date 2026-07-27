@@ -206,9 +206,7 @@ class WandbTrackedRun:
         self._sequence = 0
         self._trace_dir = tempfile.TemporaryDirectory(prefix="posttrain-wandb-")
         self._trace_path = Path(self._trace_dir.name) / "traces.jsonl"
-        self._published_artifact_handles: list[
-            tuple[ProducedArtifact, str, Any]
-        ] = []
+        self._published_artifact_handles: list[tuple[ProducedArtifact, str, Any]] = []
 
     @property
     def run_id(self) -> str:
@@ -309,9 +307,7 @@ class WandbTrackedRun:
         else:
             logged.add_file(str(path))
         committed = self._run.log_artifact(logged)
-        self._published_artifact_handles.append(
-            (artifact, artifact_name, committed or logged)
-        )
+        self._published_artifact_handles.append((artifact, artifact_name, committed or logged))
 
     def published_artifacts(self) -> tuple[PublishedArtifact, ...]:
         """Wait for W&B to assign exact immutable versions before cleanup."""
@@ -323,13 +319,9 @@ class WandbTrackedRun:
             version = getattr(committed, "version", None)
             digest = getattr(committed, "digest", None)
             if not isinstance(version, str) or not version:
-                raise ContractError(
-                    f"W&B did not return a committed version for {produced.name}"
-                )
+                raise ContractError(f"W&B did not return a committed version for {produced.name}")
             if not isinstance(digest, str) or not digest:
-                raise ContractError(
-                    f"W&B did not return a committed digest for {produced.name}"
-                )
+                raise ContractError(f"W&B did not return a committed digest for {produced.name}")
             size = getattr(committed, "size", None)
             size_bytes = size if isinstance(size, int) and size >= 0 else None
             published.append(

@@ -56,9 +56,7 @@ def register(app: typer.Typer) -> None:
         submissions = ExecutionSubmissionStore(layout.state).list_submissions()
         admission = execution_admission_service(layout)
         admission_entries = {entry.run_id: entry for entry in admission.list()}
-        submission_by_run = {
-            submission.run_id: submission for submission in submissions
-        }
+        submission_by_run = {submission.run_id: submission for submission in submissions}
         admission_priority = {
             "waiting": 0,
             "submitting": 1,
@@ -82,27 +80,17 @@ def register(app: typer.Typer) -> None:
             payload.append(
                 {
                     "run_id": run_id,
-                    "submitted_at": (
-                        submission.submitted_at.isoformat()
-                        if submission is not None
-                        else None
-                    ),
-                    "queued_at": (
-                        entry.queued_at.isoformat() if entry is not None else None
-                    ),
+                    "submitted_at": (submission.submitted_at.isoformat() if submission is not None else None),
+                    "queued_at": (entry.queued_at.isoformat() if entry is not None else None),
                     "provider": provider,
-                    "provider_id": (
-                        submission.provider_id if submission is not None else None
-                    ),
+                    "provider_id": (submission.provider_id if submission is not None else None),
                     "job_image": job_image,
                     "tracking": (
                         submission.evidence_source.provider
-                        if submission is not None
-                        and submission.evidence_source is not None
+                        if submission is not None and submission.evidence_source is not None
                         else (
                             entry.evidence_source.provider
-                            if entry is not None
-                            and entry.evidence_source is not None
+                            if entry is not None and entry.evidence_source is not None
                             else None
                         )
                     ),
@@ -119,11 +107,7 @@ def register(app: typer.Typer) -> None:
             ),
             reverse=True,
         )
-        payload.sort(
-            key=lambda item: (
-                admission_priority.get(item["admission_state"], 7),
-            )
-        )
+        payload.sort(key=lambda item: (admission_priority.get(item["admission_state"], 7),))
         payload = payload[:limit]
         lines = [
             (
@@ -172,9 +156,7 @@ def register(app: typer.Typer) -> None:
             return
         payload = {
             **json_value(record),
-            "admission_state": (
-                admission_entry.state if admission_entry is not None else None
-            ),
+            "admission_state": (admission_entry.state if admission_entry is not None else None),
         }
         emit(
             state,
@@ -304,11 +286,7 @@ def register(app: typer.Typer) -> None:
             {
                 "run_id": run_id,
                 "state": result.entry.state,
-                "provider_id": (
-                    result.submission.provider_id
-                    if result.submission is not None
-                    else None
-                ),
+                "provider_id": (result.submission.provider_id if result.submission is not None else None),
             },
             f"Submission retry: {result.entry.state} ({run_id})",
         )
@@ -405,11 +383,7 @@ def register(app: typer.Typer) -> None:
         ]
         if next_admission is not None:
             detail = next_admission.entry.message or "none"
-            lines.append(
-                "Next admission: "
-                f"{next_admission.entry.run_id} "
-                f"({next_admission.entry.state}; {detail})"
-            )
+            lines.append(f"Next admission: {next_admission.entry.run_id} ({next_admission.entry.state}; {detail})")
         emit(
             state,
             payload,

@@ -179,10 +179,7 @@ class JobDefinition:
         if len(set(self.required_artifact_roles)) != len(self.required_artifact_roles):
             raise ContractError("required artifact roles must be unique")
         if unknown := sorted(set(self.selection_seats) - set(self.seats)):
-            raise ContractError(
-                "job-definition selection seats are not runtime seats: "
-                + ", ".join(unknown)
-            )
+            raise ContractError("job-definition selection seats are not runtime seats: " + ", ".join(unknown))
         if self.static_validator is not None and not callable(self.static_validator):
             raise ContractError("job-definition static validator must be callable")
         if self.description is not None:

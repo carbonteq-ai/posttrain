@@ -50,20 +50,14 @@ def create_execution_provider(
         provider = provider_type(
             state_root=layout.state,
             environment=load_execution_environment(local_config),
-            trust_bundle=(
-                local_config.local.trust_bundle
-                if local_config.local is not None
-                else None
-            ),
+            trust_bundle=(local_config.local.trust_bundle if local_config.local is not None else None),
         )
         return "local-docker", cast(ExecutionProvider, provider)
 
     if settings.provider == "dstack":
         binding = local_config.dstack
         if binding is None:
-            raise RuntimeError(
-                f"dstack execution requires [providers.dstack] in {local_config.path}"
-            )
+            raise RuntimeError(f"dstack execution requires [providers.dstack] in {local_config.path}")
         _require_file(binding.python, "dstack Python")
         if binding.environment_file is not None:
             _require_file(binding.environment_file, "dstack environment file")
@@ -98,9 +92,7 @@ def execution_service_for_run(
     try:
         configured_provider = providers[submission.provider]
     except KeyError as error:
-        raise RuntimeError(
-            f"execution run uses unsupported provider {submission.provider!r}"
-        ) from error
+        raise RuntimeError(f"execution run uses unsupported provider {submission.provider!r}") from error
     local = load_local_execution_config(layout)
     settings = resolve_execution_settings(
         layout.execution,
@@ -109,10 +101,7 @@ def execution_service_for_run(
     )
     provider_name, provider = create_execution_provider(layout, settings, local)
     if provider_name != submission.provider:
-        raise RuntimeError(
-            f"execution provider resolved as {provider_name!r}, expected "
-            f"{submission.provider!r}"
-        )
+        raise RuntimeError(f"execution provider resolved as {provider_name!r}, expected {submission.provider!r}")
     return JobExecutionService(provider, store, provider_name=provider_name)
 
 
@@ -129,9 +118,7 @@ def execution_admission_service(
         try:
             provider_override = configured[provider_name]
         except KeyError as error:
-            raise RuntimeError(
-                f"execution admission uses unsupported provider {provider_name!r}"
-            ) from error
+            raise RuntimeError(f"execution admission uses unsupported provider {provider_name!r}") from error
         local = load_local_execution_config(layout)
         settings = resolve_execution_settings(
             layout.execution,
@@ -140,10 +127,7 @@ def execution_admission_service(
         )
         resolved_name, provider = create_execution_provider(layout, settings, local)
         if resolved_name != provider_name:
-            raise RuntimeError(
-                f"execution provider resolved as {resolved_name!r}, expected "
-                f"{provider_name!r}"
-            )
+            raise RuntimeError(f"execution provider resolved as {resolved_name!r}, expected {provider_name!r}")
         return JobExecutionService(
             provider,
             ExecutionSubmissionStore(layout.state),
@@ -202,9 +186,7 @@ def evidence_source_for_project(
         if not entity:
             raise RuntimeError("W&B execution requires WANDB_ENTITY")
         project = (
-            environment.get("POSTTRAIN_WANDB_PROJECT")
-            or os.getenv("POSTTRAIN_WANDB_PROJECT")
-            or layout.project_id
+            environment.get("POSTTRAIN_WANDB_PROJECT") or os.getenv("POSTTRAIN_WANDB_PROJECT") or layout.project_id
         )
         return ExecutionEvidenceSource(
             provider="wandb",
@@ -227,9 +209,7 @@ def evidence_source_for_run(
     submission = ExecutionSubmissionStore(layout.state).load(run_id)
     if submission.evidence_source_recorded:
         if submission.evidence_source is None:
-            raise RuntimeError(
-                f"execution run {run_id} was submitted with tracking disabled"
-            )
+            raise RuntimeError(f"execution run {run_id} was submitted with tracking disabled")
         return submission.evidence_source
     warnings.warn(
         f"execution run {run_id} predates durable evidence locators; "
@@ -240,8 +220,7 @@ def evidence_source_for_run(
     source = evidence_source_for_project(layout)
     if source is None:
         raise RuntimeError(
-            f"execution run {run_id} has no recorded evidence locator and "
-            "project tracking is currently disabled"
+            f"execution run {run_id} has no recorded evidence locator and project tracking is currently disabled"
         )
     return source
 
@@ -317,9 +296,7 @@ def cancelled_tracking_writer_for_project(
     """Construct the explicit Trackio cancellation-recovery writer."""
 
     if layout.tracking != "trackio":
-        raise RuntimeError(
-            "tracking cancellation recovery currently requires Trackio"
-        )
+        raise RuntimeError("tracking cancellation recovery currently requires Trackio")
     environment = project_tracking_environment(layout)
     module = _import_provider(
         "posttrain_tracking_trackio",
@@ -328,9 +305,7 @@ def cancelled_tracking_writer_for_project(
     writer_type = getattr(module, "TrackioCancelledRunRecovery", None)
     settings_type = getattr(module, "TrackioSettings", None)
     if writer_type is None or settings_type is None:
-        raise RuntimeError(
-            "installed Trackio package has no cancellation recovery writer"
-        )
+        raise RuntimeError("installed Trackio package has no cancellation recovery writer")
     project = environment.get(
         "POSTTRAIN_TRACKIO_PROJECT",
         layout.project_id,
@@ -356,9 +331,7 @@ def cancelled_tracking_writer_for_run(
 
     source = evidence_source_for_run(layout, run_id)
     if source.provider != "trackio":
-        raise RuntimeError(
-            "tracking cancellation recovery currently requires Trackio"
-        )
+        raise RuntimeError("tracking cancellation recovery currently requires Trackio")
     environment = project_tracking_environment(layout)
     module = _import_provider(
         "posttrain_tracking_trackio",
@@ -367,9 +340,7 @@ def cancelled_tracking_writer_for_run(
     writer_type = getattr(module, "TrackioCancelledRunRecovery", None)
     settings_type = getattr(module, "TrackioSettings", None)
     if writer_type is None or settings_type is None:
-        raise RuntimeError(
-            "installed Trackio package has no cancellation recovery writer"
-        )
+        raise RuntimeError("installed Trackio package has no cancellation recovery writer")
     return cast(
         CancelledTrackingWriter,
         writer_type(

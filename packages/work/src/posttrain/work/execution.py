@@ -172,33 +172,21 @@ def execute_run_tracked_finalized[ResultT](
         nonlocal published
         resolver = getattr(tracked, "published_artifacts", None)
         if not callable(resolver):
-            raise ContractError(
-                "tracking backend cannot resolve committed output artifacts"
-            )
-        resolved = tuple(
-            cast(_PublishedArtifactSource, tracked).published_artifacts()
-        )
+            raise ContractError("tracking backend cannot resolve committed output artifacts")
+        resolved = tuple(cast(_PublishedArtifactSource, tracked).published_artifacts())
         names: set[str] = set()
         for artifact in resolved:
             if artifact.logical_name in names:
-                raise ContractError(
-                    f"run published duplicate logical artifact name: {artifact.logical_name}"
-                )
+                raise ContractError(f"run published duplicate logical artifact name: {artifact.logical_name}")
             names.add(artifact.logical_name)
             if artifact.required and artifact.reference.digest is None:
-                raise ContractError(
-                    f"required artifact has no committed digest: {artifact.logical_name}"
-                )
+                raise ContractError(f"required artifact has no committed digest: {artifact.logical_name}")
         for role in spec.required_artifact_roles:
             matches = tuple(artifact for artifact in resolved if artifact.role == role)
             if len(matches) != 1:
-                raise ContractError(
-                    f"required artifact role {role!r} resolved {len(matches)} outputs; expected 1"
-                )
+                raise ContractError(f"required artifact role {role!r} resolved {len(matches)} outputs; expected 1")
             if matches[0].reference.digest is None:
-                raise ContractError(
-                    f"required artifact role has no committed digest: {role}"
-                )
+                raise ContractError(f"required artifact role has no committed digest: {role}")
         published = resolved
 
     try:

@@ -54,9 +54,7 @@ def test_request_carries_only_environment_names() -> None:
         environment_names=("TRACKIO_URL", "TRACKIO_WRITE_TOKEN"),
     )
     assert request.environment_names == ("TRACKIO_URL", "TRACKIO_WRITE_TOKEN")
-    launch = json.loads(
-        request.launch_environment(provider="local-docker")["POSTTRAIN_EXECUTION"]
-    )
+    launch = json.loads(request.launch_environment(provider="local-docker")["POSTTRAIN_EXECUTION"])
     assert launch["run"]["run_id"] == request.run_spec.run_id
     assert launch["provider"] == "local-docker"
     assert launch["attempt"] == 1

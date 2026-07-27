@@ -19,9 +19,7 @@ app = typer.Typer(help="publish framework runtime images and pin the release man
 images_app = typer.Typer(help="runtime image release operations")
 app.add_typer(images_app, name="images")
 
-_MANIFEST_RELATIVE = Path(
-    "packages/runtime-images/src/posttrain/runtime_images/published.toml"
-)
+_MANIFEST_RELATIVE = Path("packages/runtime-images/src/posttrain/runtime_images/published.toml")
 
 
 @images_app.command("publish", help="build, push, and pin every image in this release")
@@ -57,7 +55,9 @@ def publish_cmd(
     def _git(*arguments: str) -> str:
         return subprocess.run(
             ["git", "-C", str(repository_root), *arguments],
-            capture_output=True, text=True, check=False,
+            capture_output=True,
+            text=True,
+            check=False,
         ).stdout.strip()
 
     revision = _git("rev-parse", "HEAD")

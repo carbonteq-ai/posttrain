@@ -27,8 +27,7 @@ PROJECT = Path("/home/hammad/projects/ambient-agent")
 
 def _report_transition(record) -> None:
     print(
-        f"[posttrain] {record.handle.provider_id}: "
-        f"{record.state} on {record.target_id} ({record.native_state})",
+        f"[posttrain] {record.handle.provider_id}: {record.state} on {record.target_id} ({record.native_state})",
         flush=True,
     )
 
@@ -67,9 +66,7 @@ def main() -> None:
         python=INFRA / ".venv/bin/python",
         environment_file=INFRA / ".state/dstack/client.env",
     )
-    image = latest_runtime_image(
-        INFRA / ".state/artifacts/posttrain-serving-runtime"
-    )
+    image = latest_runtime_image(INFRA / ".state/artifacts/posttrain-serving-runtime")
     with tempfile.TemporaryDirectory(prefix="ambient-serving-") as temporary:
         bundle = build_bundle(
             {"job.py": PROJECT / "src/ambient_agent/limited_serve.py"},

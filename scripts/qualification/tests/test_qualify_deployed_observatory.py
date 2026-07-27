@@ -173,21 +173,17 @@ def test_qualifies_retained_job_views_without_provider_storage_knowledge() -> No
             "job-aware",
         ),
         (
-            lambda payload: payload["/api/v1/runs/opaque-1/view?mode=job"]["view"][
-                "completeness"
-            ].update({"research_ready": False}),
+            lambda payload: payload["/api/v1/runs/opaque-1/view?mode=job"]["view"]["completeness"].update(
+                {"research_ready": False}
+            ),
             "not research-ready",
         ),
         (
-            lambda payload: payload["/api/v1/runs/opaque-2/view?mode=job"]["view"][
-                "summary"
-            ][0].update({"value": 0.0}),
+            lambda payload: payload["/api/v1/runs/opaque-2/view?mode=job"]["view"]["summary"][0].update({"value": 0.0}),
             "did not pass",
         ),
         (
-            lambda payload: payload["/api/v1/runs/opaque-3/view?mode=job"]["view"].update(
-                {"alerts": []}
-            ),
+            lambda payload: payload["/api/v1/runs/opaque-3/view?mode=job"]["view"].update({"alerts": []}),
             "failed run alert",
         ),
     ],

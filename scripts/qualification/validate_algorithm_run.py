@@ -62,11 +62,7 @@ class RemoteAlgorithmEvidence:
 def _json_lines(path: Path) -> list[dict[str, Any]]:
     if not path.is_file():
         raise FileNotFoundError(path)
-    records = [
-        json.loads(line)
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
+    records = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
     if not all(isinstance(record, dict) for record in records):
         raise TypeError(f"{path} must contain JSON objects")
     return records
@@ -91,9 +87,7 @@ def _reward(record: Mapping[str, Any]) -> float | None:
     if not isinstance(rewards, Mapping):
         return None
     values = [
-        float(value)
-        for value in rewards.values()
-        if isinstance(value, int | float) and not isinstance(value, bool)
+        float(value) for value in rewards.values() if isinstance(value, int | float) and not isinstance(value, bool)
     ]
     return sum(values) if values else None
 
@@ -102,14 +96,9 @@ def _continued_after_tool_call(record: Mapping[str, Any]) -> bool:
     nodes = record.get("nodes")
     if not isinstance(nodes, list):
         return False
-    sampled = [
-        node
-        for node in nodes
-        if isinstance(node, Mapping) and node.get("sampled") is True
-    ]
+    sampled = [node for node in nodes if isinstance(node, Mapping) and node.get("sampled") is True]
     return len(sampled) > 1 and any(
-        isinstance((message := node.get("message")), Mapping)
-        and bool(message.get("tool_calls"))
+        isinstance((message := node.get("message")), Mapping) and bool(message.get("tool_calls"))
         for node in sampled[:-1]
     )
 
@@ -146,32 +135,22 @@ def collect_local_evidence(
             and isinstance(info, Mapping)
             and reward is not None
         ):
-            grouped_rewards[(run["step"], str(info.get("example_id") or ""))].append(
-                reward
-            )
+            grouped_rewards[(run["step"], str(info.get("example_id") or ""))].append(reward)
     adapter = root / "trainer" / "model" / "lora_adapter"
-    checkpoint = root / "trainer" / "checkpoints" / (
-        f"global_step_{max(steps)}" if steps else "missing"
-    )
+    checkpoint = root / "trainer" / "checkpoints" / (f"global_step_{max(steps)}" if steps else "missing")
     runtimes = [
         float(record["data"]["perf/time_per_step"])
         for record in metric_records
-        if isinstance(record.get("data"), Mapping)
-        and isinstance(record["data"].get("perf/time_per_step"), int | float)
+        if isinstance(record.get("data"), Mapping) and isinstance(record["data"].get("perf/time_per_step"), int | float)
     ]
     return LocalAlgorithmEvidence(
         optimizer_updates=len(steps),
         trace_count=len(trace_records),
-        completed_trace_count=sum(
-            record.get("is_completed") is True for record in trace_records
-        ),
+        completed_trace_count=sum(record.get("is_completed") is True for record in trace_records),
         reward_variant_group_observed=any(
-            len(values) > 1 and statistics.pstdev(values) > 0
-            for values in grouped_rewards.values()
+            len(values) > 1 and statistics.pstdev(values) > 0 for values in grouped_rewards.values()
         ),
-        continued_after_tool_call_observed=any(
-            _continued_after_tool_call(record) for record in trace_records
-        ),
+        continued_after_tool_call_observed=any(_continued_after_tool_call(record) for record in trace_records),
         nonzero_gradient_observed=any(value > 0 for value in gradients),
         adapter_digest=_tree_digest(adapter) if adapter.is_dir() else None,
         checkpoint_digest=_tree_digest(checkpoint) if checkpoint.is_dir() else None,
@@ -195,50 +174,33 @@ async def collect_remote_evidence(
         "train/rl/rollouts_completed",
     )
     series = {item.name: item for item in await source.metric_series(run_id, names)}
-    response = await ObservatoryService({"shared-trackio": source}).get_run_view_response(
-        run_id
-    )
+    response = await ObservatoryService({"shared-trackio": source}).get_run_view_response(run_id)
     completeness = getattr(response.view, "completeness", None)
     tool_state = None
     if completeness is not None:
         tool = next(
-            (
-                requirement
-                for requirement in completeness.requirements
-                if requirement.key == "tool_behavior"
-            ),
+            (requirement for requirement in completeness.requirements if requirement.key == "tool_behavior"),
             None,
         )
         tool_state = tool.state if tool is not None else None
     gradient_points = len(series["train/grad_norm"].points)
-    gradient_values = [
-        point.value for point in series["train/grad_norm"].points
-    ]
-    reward_std_values = [
-        point.value for point in series["train/rl/reward_std"].points
-    ]
+    gradient_values = [point.value for point in series["train/grad_norm"].points]
+    reward_std_values = [point.value for point in series["train/rl/reward_std"].points]
     return RemoteAlgorithmEvidence(
         status=detail.summary.status,
         trace_count=len(traces.items),
         optimizer_updates=gradient_points,
         gradient_points=gradient_points,
         reward_std_points=len(series["train/rl/reward_std"].points),
-        rollout_population_points=len(
-            series["train/rl/rollouts_completed"].points
-        ),
+        rollout_population_points=len(series["train/rl/rollouts_completed"].points),
         nonzero_gradient_observed=any(value > 0 for value in gradient_values),
         reward_variance_observed=any(value > 0 for value in reward_std_values),
         model_artifact_observed=any(
-            item.direction == "output" and item.kind in {"model", "model-adapter"}
-            for item in artifacts.items
+            item.direction == "output" and item.kind in {"model", "model-adapter"} for item in artifacts.items
         ),
         observatory_mode=response.resolved_mode,
-        observatory_complete=(
-            completeness is not None and completeness.state == "complete"
-        ),
-        observatory_research_ready=(
-            completeness is not None and completeness.research_ready
-        ),
+        observatory_complete=(completeness is not None and completeness.state == "complete"),
+        observatory_research_ready=(completeness is not None and completeness.research_ready),
         tool_evidence_state=tool_state,
         provider_run_id=detail.summary.provider_run_id,
     )
@@ -263,16 +225,12 @@ def acceptance_failures(
         failures.append("no within-group reward variance was observed")
     if required.require_nonzero_gradient and not local.nonzero_gradient_observed:
         failures.append("no non-zero gradient was observed")
-    if required.require_model_artifact and (
-        local.adapter_digest is None or not remote.model_artifact_observed
-    ):
+    if required.require_model_artifact and (local.adapter_digest is None or not remote.model_artifact_observed):
         failures.append("the trained model artifact is incomplete")
     if remote.status != "succeeded":
         failures.append(f"remote run status is {remote.status!r}")
     if required.require_remote_observatory and not (
-        remote.observatory_mode == "job"
-        and remote.observatory_complete
-        and remote.observatory_research_ready
+        remote.observatory_mode == "job" and remote.observatory_complete and remote.observatory_research_ready
     ):
         failures.append("remote Observatory is not complete and research-ready")
     return tuple(failures)

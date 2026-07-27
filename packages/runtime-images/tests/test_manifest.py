@@ -38,8 +38,7 @@ def test_recorded_lock_digest_matches_the_shipped_lock_bytes() -> None:
     manifest = load_manifest()
     for image in (manifest.base, *manifest.kinds.values()):
         assert image.lock_digest == lock_digest(image.constraint_lock), (
-            f"{image.name} records a lock digest that no longer matches "
-            f"{image.constraint_lock}"
+            f"{image.name} records a lock digest that no longer matches {image.constraint_lock}"
         )
 
 
@@ -80,12 +79,9 @@ def test_reference_is_digest_pinned_and_prefix_overridable() -> None:
     # A site that cannot reach the public registry mirrors into its own.
     mirrored = manifest.reference("supervised", prefix="registry.internal/team/")
     assert mirrored == (
-        f"registry.internal/team/{manifest.image('supervised').repository}"
-        f"@{manifest.image('supervised').digest}"
+        f"registry.internal/team/{manifest.image('supervised').repository}@{manifest.image('supervised').digest}"
     )
-    assert mirrored.rsplit("@", 1)[1] == default.rsplit("@", 1)[1], (
-        "a digest-level mirror must preserve image identity"
-    )
+    assert mirrored.rsplit("@", 1)[1] == default.rsplit("@", 1)[1], "a digest-level mirror must preserve image identity"
 
 
 def test_provided_packages_are_carried_from_the_published_image() -> None:

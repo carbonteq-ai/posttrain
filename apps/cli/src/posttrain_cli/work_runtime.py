@@ -81,11 +81,7 @@ def host_context(
         state_dir=layout.state,
         work_package_path=path,
         catalog=catalog,
-        project_brief=(
-            load_project_brief(layout.project_brief)
-            if layout.project_brief is not None
-            else None
-        ),
+        project_brief=(load_project_brief(layout.project_brief) if layout.project_brief is not None else None),
     )
     context = factory(request)
     if not isinstance(context, WorkPackageContext):
@@ -111,11 +107,7 @@ def execution_request(
         state_dir=layout.state,
         work_package_path=path,
         catalog=catalog,
-        project_brief=(
-            load_project_brief(layout.project_brief)
-            if layout.project_brief is not None
-            else None
-        ),
+        project_brief=(load_project_brief(layout.project_brief) if layout.project_brief is not None else None),
     )
 
 

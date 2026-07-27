@@ -33,13 +33,10 @@ def _render_all() -> str:
             repository="posttrain-base",
             digest="sha256:" + "a" * 64,
             lock_digest=lock_digest(),
-            constraint_lock=PurePosixPath(
-                "containers/posttrain-job-kinds/locks/workspace.lock.txt"
-            ),
+            constraint_lock=PurePosixPath("containers/posttrain-job-kinds/locks/workspace.lock.txt"),
         ),
         kinds={
-            variant: _image(f"kinds.{variant}", variant, str(index))
-            for index, variant in enumerate(RUNTIME_VARIANTS)
+            variant: _image(f"kinds.{variant}", variant, str(index)) for index, variant in enumerate(RUNTIME_VARIANTS)
         },
     )
 
@@ -63,10 +60,7 @@ def test_transform_keeps_its_own_constraint_lock() -> None:
     document = tomllib.loads(_render_all())
     assert document["kinds"]["transform"]["constraint_lock"].endswith("transform.lock.txt")
     assert document["kinds"]["supervised"]["constraint_lock"].endswith("workspace.lock.txt")
-    assert (
-        document["kinds"]["transform"]["lock_digest"]
-        != document["kinds"]["supervised"]["lock_digest"]
-    )
+    assert document["kinds"]["transform"]["lock_digest"] != document["kinds"]["supervised"]["lock_digest"]
 
 
 def test_provided_packages_survive_rendering() -> None:
@@ -139,8 +133,6 @@ def test_the_consumer_distribution_does_not_depend_on_release_tooling() -> None:
     consumer = tomllib.loads((root / "apps/cli/pyproject.toml").read_text(encoding="utf-8"))
     declared = consumer["project"]["dependencies"]
     optional = [
-        dependency
-        for extra in consumer["project"].get("optional-dependencies", {}).values()
-        for dependency in extra
+        dependency for extra in consumer["project"].get("optional-dependencies", {}).values() for dependency in extra
     ]
     assert not any("posttrain-release" in item for item in [*declared, *optional])

@@ -39,9 +39,7 @@ def load_project_pack_config(
     try:
         document = tomllib.loads(pyproject.read_text(encoding="utf-8"))
     except FileNotFoundError as error:
-        raise ContractError(
-            f"job packing requires a project pyproject.toml: {pyproject}"
-        ) from error
+        raise ContractError(f"job packing requires a project pyproject.toml: {pyproject}") from error
     except tomllib.TOMLDecodeError as error:
         raise ContractError(f"invalid project pyproject.toml: {error}") from error
     tool = document.get("tool", {})
@@ -54,10 +52,7 @@ def load_project_pack_config(
     if not isinstance(pack, dict):
         raise ContractError("pyproject [tool.posttrain.pack] must be a table")
     if unknown := sorted(set(pack) - {"project_packages", "source_includes"}):
-        raise ContractError(
-            "pyproject [tool.posttrain.pack] has unknown fields: "
-            + ", ".join(unknown)
-        )
+        raise ContractError("pyproject [tool.posttrain.pack] has unknown fields: " + ", ".join(unknown))
 
     configured_packages = (
         project_packages
@@ -81,21 +76,11 @@ def load_project_pack_config(
     packages = _normalized_paths(configured_packages, "project package")
     includes = _normalized_paths(configured_includes, "source include")
     for package in packages:
-        root = (
-            layout.root
-            if package == "."
-            else layout.root.joinpath(*package.split("/"))
-        )
+        root = layout.root if package == "." else layout.root.joinpath(*package.split("/"))
         if not root.is_dir() or not (root / "pyproject.toml").is_file():
-            raise ContractError(
-                f"project package has no pyproject.toml: {package}"
-            )
+            raise ContractError(f"project package has no pyproject.toml: {package}")
     for included in includes:
-        path = (
-            layout.root
-            if included == "."
-            else layout.root.joinpath(*included.split("/"))
-        )
+        path = layout.root if included == "." else layout.root.joinpath(*included.split("/"))
         if not path.exists():
             raise ContractError(f"project source include does not exist: {included}")
     return ProjectPackConfig(pyproject, packages, includes)
@@ -125,12 +110,8 @@ def _default_includes(
 
 
 def _string_tuple(value: object, field: str) -> tuple[str, ...]:
-    if not isinstance(value, list) or not all(
-        isinstance(item, str) for item in value
-    ):
-        raise ContractError(
-            f"pyproject [tool.posttrain.pack].{field} must be a string array"
-        )
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise ContractError(f"pyproject [tool.posttrain.pack].{field} must be a string array")
     return tuple(value)
 
 
@@ -148,9 +129,7 @@ def _normalized_paths(values: tuple[str, ...], label: str) -> tuple[str, ...]:
             or ".git" in path.parts
             or ".posttrain" in path.parts
         ):
-            raise ContractError(
-                f"{label} must be a project source path outside control state"
-            )
+            raise ContractError(f"{label} must be a project source path outside control state")
         normalized.append(value)
     result = tuple(sorted(normalized))
     if not result or len(set(result)) != len(result):

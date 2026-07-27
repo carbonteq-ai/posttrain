@@ -53,9 +53,7 @@ def _registry_prefix(registry: RegistryBinding) -> str:
         return registry.mirror_prefix.rstrip("/")
     prefix = registry.repository.rsplit("/", 1)[0]
     if not prefix:
-        raise ContractError(
-            f"cannot derive a registry prefix from repository {registry.repository!r}"
-        )
+        raise ContractError(f"cannot derive a registry prefix from repository {registry.repository!r}")
     return prefix
 
 
@@ -63,8 +61,7 @@ def _receipt_root(registry: RegistryBinding) -> Path:
     root = registry.receipt_root
     if root is None:
         raise ContractError(
-            "rebuilding runtime images needs [registry].receipt_root so a build "
-            "receipt can be retained"
+            "rebuilding runtime images needs [registry].receipt_root so a build receipt can be retained"
         )
     return root.resolve()
 
@@ -128,9 +125,7 @@ def check_runtime_images(
     source_digest = _source_digest(root)
     resolved = builder or BuildKitRuntimeBuilder(receipt_root=_receipt_root(registry))
     for variant in variants:
-        resolved.check(
-            _request(variant, registry=registry, root=root, source_digest=source_digest)
-        )
+        resolved.check(_request(variant, registry=registry, root=root, source_digest=source_digest))
     return tuple(variants)
 
 
@@ -153,9 +148,7 @@ def build_runtime_images(
                 f"this release does not publish runtime variant {variant!r}; "
                 "published variants are " + ", ".join(sorted(manifest.kinds))
             )
-        result = resolved.build(
-            _request(variant, registry=registry, root=root, source_digest=source_digest)
-        )
+        result = resolved.build(_request(variant, registry=registry, root=root, source_digest=source_digest))
         published = manifest.kinds[variant].digest
         observed = result.image.value.rsplit("@", 1)[1]
         built.append(

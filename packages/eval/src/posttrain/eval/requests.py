@@ -23,9 +23,7 @@ from posttrain.common import (
 
 _ID = re.compile(r"^[a-z0-9][a-z0-9._/-]*$")
 _COMMIT_SHA = re.compile(r"^[0-9a-f]{40}$")
-_PYTHON_PATH = re.compile(
-    r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$"
-)
+_PYTHON_PATH = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$")
 
 type EnvironmentFactory = Callable[[], object]
 
@@ -43,14 +41,8 @@ class PythonFactoryActivation:
 
     def __post_init__(self) -> None:
         module, separator, attribute = self.reference.partition(":")
-        if (
-            separator != ":"
-            or not _PYTHON_PATH.fullmatch(module)
-            or not _PYTHON_PATH.fullmatch(attribute)
-        ):
-            raise ValueError(
-                "environment factory reference must use module:callable syntax"
-            )
+        if separator != ":" or not _PYTHON_PATH.fullmatch(module) or not _PYTHON_PATH.fullmatch(attribute):
+            raise ValueError("environment factory reference must use module:callable syntax")
 
     @property
     def module(self) -> str:
@@ -81,14 +73,10 @@ class PythonFactoryActivation:
         module = getattr(factory, "__module__", "")
         attribute = getattr(factory, "__qualname__", "")
         if not module or not attribute or "<locals>" in attribute:
-            raise ValueError(
-                "environment factories must be importable module-level callables"
-            )
+            raise ValueError("environment factories must be importable module-level callables")
         activation = cls(f"{module}:{attribute}")
         if _resolve_environment_factory(activation.reference) is not factory:
-            raise ValueError(
-                "environment factory callable does not resolve to its declared import path"
-            )
+            raise ValueError("environment factory callable does not resolve to its declared import path")
         return activation
 
 
@@ -103,9 +91,7 @@ class VerifiersV1ConfigActivation:
         try:
             json.dumps(config, sort_keys=True)
         except (TypeError, ValueError) as error:
-            raise ValueError(
-                "Verifiers activation config must contain only JSON values"
-            ) from error
+            raise ValueError("Verifiers activation config must contain only JSON values") from error
         object.__setattr__(self, "config", MappingProxyType(config))
 
     @property
@@ -123,9 +109,7 @@ class VerifiersV1ConfigActivation:
         try:
             from verifiers.v1.env import EnvConfig  # pyright: ignore[reportMissingImports]
         except ImportError as error:
-            raise RuntimeError(
-                "install the Verifiers integration dependencies"
-            ) from error
+            raise RuntimeError("install the Verifiers integration dependencies") from error
         return EnvConfig.model_validate(dict(self.config))
 
 
@@ -147,16 +131,12 @@ def _resolve_environment_factory(value: str) -> EnvironmentFactory:
     try:
         resolved: object = importlib.import_module(module_name)
     except ImportError as error:
-        raise RuntimeError(
-            f"environment factory module is not installed: {module_name}"
-        ) from error
+        raise RuntimeError(f"environment factory module is not installed: {module_name}") from error
     for part in attribute.split("."):
         try:
             resolved = getattr(resolved, part)
         except AttributeError as error:
-            raise RuntimeError(
-                f"environment factory is not available: {value}"
-            ) from error
+            raise RuntimeError(f"environment factory is not available: {value}") from error
     if not callable(resolved):
         raise TypeError(f"environment factory reference is not callable: {value}")
     return resolved
@@ -191,9 +171,7 @@ class EnvironmentSource:
             or any(not part or part in {".", ".."} for part in segments)
             or parsed.path.endswith("/")
         ):
-            raise ValueError(
-                "environment repository must be a secret-free canonical HTTPS URL"
-            )
+            raise ValueError("environment repository must be a secret-free canonical HTTPS URL")
         if not _COMMIT_SHA.fullmatch(self.revision):
             raise ValueError("environment source revision must be a full commit SHA")
         if self.subdirectory is not None:
@@ -205,9 +183,7 @@ class EnvironmentSource:
                 or path.as_posix() != self.subdirectory
                 or any(part in {"", ".", "..", ".git"} for part in path.parts)
             ):
-                raise ValueError(
-                    "environment subdirectory must be a normalized relative path"
-                )
+                raise ValueError("environment subdirectory must be a normalized relative path")
 
 
 @dataclass(frozen=True, slots=True)
@@ -252,9 +228,7 @@ class EnvironmentBinding:
             self.activation,
             (PythonFactoryActivation, VerifiersV1ConfigActivation),
         ):
-            raise TypeError(
-                "environment activation must be a supported serializable activation"
-            )
+            raise TypeError("environment activation must be a supported serializable activation")
         if self.num_tasks < 1 or self.num_rollouts < 1 or self.max_concurrent < 1:
             raise ValueError("evaluation task, rollout, and concurrency counts must be positive")
         if any(not value.strip() for value in self.reward_components):

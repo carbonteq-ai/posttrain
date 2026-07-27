@@ -138,9 +138,7 @@ def test_waiting_cancel_never_contacts_any_provider(request_factory, tmp_path) -
 
     assert cancelled.state == "cancelled"
     assert len(providers["dstack"].submitted) == 1
-    assert providers["dstack"].submitted[0].request.run_spec.run_id == (
-        first.request.run_spec.run_id
-    )
+    assert providers["dstack"].submitted[0].request.run_spec.run_id == (first.request.run_spec.run_id)
     assert not providers["dstack"].cancelled
 
 
@@ -447,9 +445,7 @@ def test_restored_waiter_rejects_provider_binding_drift(
     admission = ExecutionAdmissionService(
         tmp_path.resolve(),
         factory,
-        provider_binding_factory=lambda provider_name: (
-            f"{provider_name}:{binding[0]}"
-        ),
+        provider_binding_factory=lambda provider_name: f"{provider_name}:{binding[0]}",
     )
     first = _on_worker(
         ExecutionPlan("dstack", request_factory("binding-active")),
@@ -565,9 +561,7 @@ def test_local_and_dstack_providers_share_configured_physical_host_admission(
     admission = _admission(
         tmp_path,
         providers,
-        physical_host_factory=lambda plan: (
-            "POP-OS.LAN." if plan.provider == "local-docker" else None
-        ),
+        physical_host_factory=lambda plan: "POP-OS.LAN." if plan.provider == "local-docker" else None,
     )
     local = ExecutionPlan(
         "local-docker",

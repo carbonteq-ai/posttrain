@@ -79,9 +79,7 @@ def _validate_profiles() -> None:
                 continue
             match = version_pin.match(stripped)
             if match is None:
-                raise AssertionError(
-                    f"{profile}: direct dependency must be exactly pinned: {stripped}"
-                )
+                raise AssertionError(f"{profile}: direct dependency must be exactly pinned: {stripped}")
             name, version = match.groups()
             locked = expected_versions.get(name.lower(), set())
             _require(version in locked, f"{profile}: {name}=={version} is not present in its authoritative uv.lock")
@@ -122,8 +120,7 @@ def _validate_boundaries() -> None:
     kind_dockerfile = (KINDS / "Dockerfile").read_text()
     _require("ARG POSTTRAIN_BASE_IMAGE" in kind_dockerfile, "kind images need an explicit parent image")
     _require(
-        "locks/build-tools.lock.txt" in kind_dockerfile
-        and "--require-hashes" in kind_dockerfile,
+        "locks/build-tools.lock.txt" in kind_dockerfile and "--require-hashes" in kind_dockerfile,
         "kind images must install the hash-locked source build backend",
     )
     _require(
@@ -169,8 +166,7 @@ def _validate_boundaries() -> None:
         "veRL candidate must preserve separate control and backend environments",
     )
     _require(
-        verl_profile.get("control_python") == "3.13.12"
-        and verl_profile.get("backend_python") == "3.13.12",
+        verl_profile.get("control_python") == "3.13.12" and verl_profile.get("backend_python") == "3.13.12",
         "veRL control and backend must both run the qualified interpreter",
     )
 

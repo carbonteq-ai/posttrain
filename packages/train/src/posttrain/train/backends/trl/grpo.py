@@ -195,12 +195,8 @@ def _rollout_function(
                 "train/rl/rollouts_attempted": len(inputs),
                 "train/rl/rollouts_completed": len(rollouts),
                 "train/rl/rollouts_failed": 0,
-                "train/rl/rollouts_truncated": sum(
-                    rollout.is_truncated for rollout in rollouts
-                ),
-                "train/rl/rollouts_unscorable": sum(
-                    not math.isfinite(rollout.reward) for rollout in rollouts
-                ),
+                "train/rl/rollouts_truncated": sum(rollout.is_truncated for rollout in rollouts),
+                "train/rl/rollouts_unscorable": sum(not math.isfinite(rollout.reward) for rollout in rollouts),
                 "train/rl/time/rollout_seconds": elapsed,
                 "train/rl/rollout_tokens_per_second": completion_tokens / elapsed if elapsed > 0 else 0.0,
             },

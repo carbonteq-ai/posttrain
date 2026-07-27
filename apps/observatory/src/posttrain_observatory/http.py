@@ -115,10 +115,7 @@ def create_http_app(
 
     @app.get("/api/v1/runs/locate")
     async def locate_run(run_id: str = Query(min_length=1)) -> list[dict[str, object]]:
-        return [
-            run.model_dump(mode="json")
-            for run in await service.locate_run(run_id)
-        ]
+        return [run.model_dump(mode="json") for run in await service.locate_run(run_id)]
 
     @app.get("/api/v1/runs/{run_key}/view")
     async def run_view(

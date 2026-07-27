@@ -32,20 +32,12 @@ class GitSourceRequest:
     def __post_init__(self) -> None:
         _validate_repository(self.repository)
         if not _FULL_COMMIT.fullmatch(self.revision):
-            raise ContractError(
-                "Git source revision must be a full lowercase commit SHA"
-            )
+            raise ContractError("Git source revision must be a full lowercase commit SHA")
         if not self.subdirectories:
-            raise ContractError(
-                "Git source must select at least one subdirectory"
-            )
-        normalized = tuple(
-            _validate_subdirectory(value) for value in self.subdirectories
-        )
+            raise ContractError("Git source must select at least one subdirectory")
+        normalized = tuple(_validate_subdirectory(value) for value in self.subdirectories)
         if normalized != self.subdirectories:
-            raise ContractError(
-                "Git source subdirectories must be normalized"
-            )
+            raise ContractError("Git source subdirectories must be normalized")
         if len(set(normalized)) != len(normalized):
             raise ContractError("Git source subdirectories must be unique")
 
@@ -105,18 +97,11 @@ class SourcePackage:
     def __post_init__(self) -> None:
         if not self.root.is_absolute():
             raise ContractError("source package root must be absolute")
-        normalized = tuple(
-            _validate_subdirectory(value) for value in self.install_roots
-        )
+        normalized = tuple(_validate_subdirectory(value) for value in self.install_roots)
         if normalized != self.install_roots:
             raise ContractError("source install roots must be normalized")
-        if (
-            len(set(normalized)) != len(normalized)
-            or tuple(sorted(normalized)) != normalized
-        ):
-            raise ContractError(
-                "source install roots must be unique and canonically ordered"
-            )
+        if len(set(normalized)) != len(normalized) or tuple(sorted(normalized)) != normalized:
+            raise ContractError("source install roots must be unique and canonically ordered")
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,9 +125,7 @@ class MaterializedRuntimeDependency:
 
     def __post_init__(self) -> None:
         if not self.path.is_absolute():
-            raise ContractError(
-                "materialized runtime dependency path must be absolute"
-            )
+            raise ContractError("materialized runtime dependency path must be absolute")
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,24 +139,14 @@ class MaterializedEnvironments:
 
     def __post_init__(self) -> None:
         if not self.runtime_requirements.is_absolute():
-            raise ContractError(
-                "runtime requirements path must be absolute"
-            )
+            raise ContractError("runtime requirements path must be absolute")
         if not re.fullmatch(r"[0-9a-f]{64}", self.runtime_dependencies_digest):
-            raise ContractError(
-                "runtime dependencies digest must be SHA-256"
-            )
-        if tuple(
-            sorted(self.packages, key=lambda package: package.lock.package)
-        ) != self.packages:
-            raise ContractError(
-                "materialized environment packages must be canonically ordered"
-            )
+            raise ContractError("runtime dependencies digest must be SHA-256")
+        if tuple(sorted(self.packages, key=lambda package: package.lock.package)) != self.packages:
+            raise ContractError("materialized environment packages must be canonically ordered")
         roles = tuple(item.lock.role for item in self.runtime_dependencies)
         if len(set(roles)) != len(roles) or roles != tuple(sorted(roles)):
-            raise ContractError(
-                "materialized runtime dependencies must have canonical unique roles"
-            )
+            raise ContractError("materialized runtime dependencies must have canonical unique roles")
 
 
 class EnvironmentPackager(Protocol):
@@ -221,9 +194,7 @@ def _validate_repository(value: str) -> None:
         or parsed.fragment
         or unquote(parsed.path) != parsed.path
     ):
-        raise ContractError(
-            "Git source repository must be a secret-free canonical HTTPS URL"
-        )
+        raise ContractError("Git source repository must be a secret-free canonical HTTPS URL")
     expected_netloc = parsed.hostname
     if parsed.port is not None:
         expected_netloc = f"{expected_netloc}:{parsed.port}"
@@ -239,19 +210,13 @@ def _validate_repository(value: str) -> None:
 
 def _validate_subdirectory(value: str) -> str:
     if not value or "\\" in value or value != value.strip():
-        raise ContractError(
-            "Git source subdirectory must be a normalized POSIX path"
-        )
+        raise ContractError("Git source subdirectory must be a normalized POSIX path")
     path = PurePosixPath(value)
     if path.is_absolute() or any(part in {"", ".."} for part in path.parts):
-        raise ContractError(
-            "Git source subdirectory must remain inside its repository"
-        )
+        raise ContractError("Git source subdirectory must remain inside its repository")
     normalized = path.as_posix()
     if normalized != value or (normalized != "." and "." in path.parts):
         raise ContractError("Git source subdirectory must be normalized")
     if ".git" in path.parts:
-        raise ContractError(
-            "Git metadata cannot be selected as a source subdirectory"
-        )
+        raise ContractError("Git metadata cannot be selected as a source subdirectory")
     return normalized

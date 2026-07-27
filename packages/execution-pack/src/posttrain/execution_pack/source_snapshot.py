@@ -50,26 +50,15 @@ class SourceSnapshotRequest:
 
     def __post_init__(self) -> None:
         if not self.root.is_absolute() or not self.root.is_dir():
-            raise ContractError(
-                "source snapshot root must be an existing absolute directory"
-            )
+            raise ContractError("source snapshot root must be an existing absolute directory")
         includes = tuple(_relative_path(item, "source include") for item in self.includes)
-        installs = tuple(
-            _relative_path(item, "source install root")
-            for item in self.install_roots
-        )
+        installs = tuple(_relative_path(item, "source install root") for item in self.install_roots)
         for label, values in (
             ("includes", includes),
             ("install roots", installs),
         ):
-            if (
-                not values
-                or len(set(values)) != len(values)
-                or tuple(sorted(values)) != values
-            ):
-                raise ContractError(
-                    f"source snapshot {label} must be non-empty, unique, and sorted"
-                )
+            if not values or len(set(values)) != len(values) or tuple(sorted(values)) != values:
+                raise ContractError(f"source snapshot {label} must be non-empty, unique, and sorted")
         _reject_overlapping_includes(includes)
 
 
@@ -103,18 +92,12 @@ class ImmutableSourceSnapshotter:
         request: SourceSnapshotRequest,
     ) -> MaterializedSourceSnapshot:
         self._cache_root.mkdir(parents=True, exist_ok=True)
-        staging = Path(
-            tempfile.mkdtemp(prefix=".source-snapshot-", dir=self._cache_root)
-        )
+        staging = Path(tempfile.mkdtemp(prefix=".source-snapshot-", dir=self._cache_root))
         try:
             budget = _CopyBudget(self._max_files, self._max_bytes)
             for configured in request.includes:
                 source = _selected_path(request.root, configured)
-                destination = (
-                    staging
-                    if configured == "."
-                    else staging.joinpath(*configured.split("/"))
-                )
+                destination = staging if configured == "." else staging.joinpath(*configured.split("/"))
                 if configured == ".":
                     for child in sorted(
                         source.iterdir(),
@@ -130,18 +113,14 @@ class ImmutableSourceSnapshotter:
             if destination.exists():
                 existing = SourcePackage(destination, request.install_roots)
                 if digest_source_package(existing) != digest:
-                    raise ContractError(
-                        "retained source snapshot contains filesystem drift"
-                    )
+                    raise ContractError("retained source snapshot contains filesystem drift")
                 return MaterializedSourceSnapshot(existing, digest, False)
             try:
                 staging.replace(destination)
             except FileExistsError:
                 existing = SourcePackage(destination, request.install_roots)
                 if digest_source_package(existing) != digest:
-                    raise ContractError(
-                        "retained source snapshot contains filesystem drift"
-                    ) from None
+                    raise ContractError("retained source snapshot contains filesystem drift") from None
                 return MaterializedSourceSnapshot(existing, digest, False)
             retained = SourcePackage(destination, request.install_roots)
             return MaterializedSourceSnapshot(retained, digest, True)
@@ -168,9 +147,7 @@ class ImmutableSourceSnapshotter:
                 ancestors = tuple(reversed(parent.parents)) + (parent,)
                 for ancestor in ancestors:
                     if ancestor.as_posix() != ".":
-                        entries.append(
-                            {"path": ancestor.as_posix(), "type": "directory"}
-                        )
+                        entries.append({"path": ancestor.as_posix(), "type": "directory"})
                 _inspect_entry(
                     source,
                     relative=configured,
@@ -182,12 +159,7 @@ class ImmutableSourceSnapshotter:
         by_path = {str(entry["path"]): entry for entry in entries}
         return hashlib.sha256(
             json.dumps(
-                {
-                    "entries": [
-                        by_path[path]
-                        for path in sorted(by_path, key=PurePosixPath)
-                    ]
-                },
+                {"entries": [by_path[path] for path in sorted(by_path, key=PurePosixPath)]},
                 sort_keys=True,
                 separators=(",", ":"),
             ).encode()
@@ -226,9 +198,7 @@ def _copy_entry(source: Path, destination: Path, budget: _CopyBudget) -> None:
     if source.is_symlink():
         raise ContractError(f"source snapshots do not accept symlinks: {source}")
     if name in _FORBIDDEN_NAMES:
-        raise ContractError(
-            f"source snapshot contains a forbidden filename: {source.name}"
-        )
+        raise ContractError(f"source snapshot contains a forbidden filename: {source.name}")
     if source.suffix.lower() in _FORBIDDEN_SUFFIXES or name in {
         "model.bin",
         "pytorch_model.bin",
@@ -264,9 +234,7 @@ def _inspect_entry(
     if source.is_symlink():
         raise ContractError(f"source snapshots do not accept symlinks: {source}")
     if name in _FORBIDDEN_NAMES:
-        raise ContractError(
-            f"source snapshot contains a forbidden filename: {source.name}"
-        )
+        raise ContractError(f"source snapshot contains a forbidden filename: {source.name}")
     if source.suffix.lower() in _FORBIDDEN_SUFFIXES or name in {
         "model.bin",
         "pytorch_model.bin",
@@ -317,8 +285,6 @@ def _reject_overlapping_includes(includes: tuple[str, ...]) -> None:
     for index, path in enumerate(paths):
         for other in paths[index + 1 :]:
             if path == PurePosixPath(".") or other == PurePosixPath("."):
-                raise ContractError(
-                    "source snapshot root include cannot be combined with other paths"
-                )
+                raise ContractError("source snapshot root include cannot be combined with other paths")
             if path in other.parents or other in path.parents:
                 raise ContractError("source snapshot includes cannot overlap")

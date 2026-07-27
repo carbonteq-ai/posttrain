@@ -145,10 +145,7 @@ def _validate_loaded_descriptor(
         or source.schema_version != loaded.schema_version
     ):
         raise ValueError("loaded dataset conflicts with its source descriptor")
-    if (
-        source.num_examples is not None
-        and source.num_examples != loaded.num_examples
-    ):
+    if source.num_examples is not None and source.num_examples != loaded.num_examples:
         raise ValueError("loaded dataset example count conflicts with its source descriptor")
 
 

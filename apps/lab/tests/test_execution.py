@@ -303,27 +303,18 @@ async def test_finalized_trackio_artifact_is_consumed_by_exact_version(
             run_id="00000000-0000-4000-8000-000000000402",
             artifacts={"model": ArtifactInput(reference, "model")},
         ),
-        lambda context: next(
-            context.input_artifact("model").path.rglob("model.bin")
-        ).read_bytes(),
+        lambda context: next(context.input_artifact("model").path.rglob("model.bin")).read_bytes(),
         backend=backend,
         scratch_root=tmp_path,
     )
 
     assert consumer.value == b"durable-weights"
     source = TrackioDataSource(project)
-    producer_artifacts = await source.artifacts(
-        "00000000-0000-4000-8000-000000000401"
-    )
-    consumer_artifacts = await source.artifacts(
-        "00000000-0000-4000-8000-000000000402"
-    )
+    producer_artifacts = await source.artifacts("00000000-0000-4000-8000-000000000401")
+    consumer_artifacts = await source.artifacts("00000000-0000-4000-8000-000000000402")
     assert producer_artifacts.outputs[0].artifact.version == "v0"
     assert consumer_artifacts.inputs[0].artifact.version == "v0"
-    assert (
-        consumer_artifacts.inputs[0].artifact.digest
-        == producer_artifacts.outputs[0].artifact.digest
-    )
+    assert consumer_artifacts.inputs[0].artifact.digest == producer_artifacts.outputs[0].artifact.digest
 
 
 def test_lab_executes_synthetic_job_through_wandb_backend(

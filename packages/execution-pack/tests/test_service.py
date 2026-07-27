@@ -41,9 +41,7 @@ KIND = RuntimeImageRef(f"registry.lan/posttrain/supervised@sha256:{'c' * 64}")
 
 
 def _digest_json(value: object) -> str:
-    return hashlib.sha256(
-        json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()
+    return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
 def _source(root: Path, package: str) -> SourcePackage:
@@ -86,9 +84,7 @@ def _project_config(*, overlay: bytes = b"models: []\n") -> ProjectConfigBundle:
                 b'project_brief = "project.yaml"\n'
             ),
             ".posttrain/project.yaml": b"objective: qualify\n",
-            ".posttrain/work_packages/train.yaml": (
-                b"id: train/sft\nproject_id: project\nstage: train\n"
-            ),
+            ".posttrain/work_packages/train.yaml": (b"id: train/sft\nproject_id: project\nstage: train\n"),
         },
         selected_work_package=".posttrain/work_packages/train.yaml",
     )
@@ -166,17 +162,11 @@ def _plan(
             kind_profile="supervised",
             runtime_variant="supervised",
             resolved_inputs_digest=_digest_json(resolved),
-            framework_source_digest=digest_source_package(
-                inputs.framework_source
-            ),
+            framework_source_digest=digest_source_package(inputs.framework_source),
             project_source_digest=digest_source_package(inputs.project_source),
             universal_image=BASE,
             kind_image=KIND,
-            datasets=(
-                (DatasetPackRequest("dataset", dataset),)
-                if dataset is not None
-                else ()
-            ),
+            datasets=((DatasetPackRequest("dataset", dataset),) if dataset is not None else ()),
             git_sources=git_sources,
             environment_wheels=wheel_requests,
             environment_activations=activations,
@@ -264,9 +254,7 @@ class _FakeEnvironmentPackager:
         for index, request in enumerate(wheel_requests):
             contents = f"{request.package}-wheel".encode()
             digest = hashlib.sha256(contents).hexdigest()
-            filename = (
-                f"{request.package.replace('-', '_')}-1.0.0-py3-none-any.whl"
-            )
+            filename = f"{request.package.replace('-', '_')}-1.0.0-py3-none-any.whl"
             path = output_root / filename
             path.write_bytes(contents)
             packages.append(
@@ -291,8 +279,7 @@ class _FakeEnvironmentPackager:
                 )
             )
         requirements.append(
-            "typing-extensions==4.15.0 \\\n"
-            f"    --hash=sha256:{hashlib.sha256(self.salt or b'typing').hexdigest()}"
+            f"typing-extensions==4.15.0 \\\n    --hash=sha256:{hashlib.sha256(self.salt or b'typing').hexdigest()}"
         )
         lock_contents = ("\n".join(requirements) + "\n").encode()
         lock_path = output_root / "runtime.requirements.txt"
@@ -327,22 +314,13 @@ def test_packs_and_reuses_one_deterministic_provider_neutral_context(
         "sources",
         "wheels",
     }
-    assert (
-        first.root / "config/project/.posttrain/project.toml"
-    ).is_file()
-    resolved = json.loads(
-        (first.root / "config/resolved.json").read_text(encoding="utf-8")
-    )
+    assert (first.root / "config/project/.posttrain/project.toml").is_file()
+    resolved = json.loads((first.root / "config/resolved.json").read_text(encoding="utf-8"))
     assert resolved["schema"] == "posttrain.resolved-job.v1"
     assert resolved["runtime_variant"] == "supervised"
-    assert (
-        resolved["selected_work_package"]
-        == "project/.posttrain/work_packages/train.yaml"
-    )
+    assert resolved["selected_work_package"] == "project/.posttrain/work_packages/train.yaml"
     assert first.manifest.job_kind == "train.sft"
-    assert first.manifest.runtime_dependencies_digest == hashlib.sha256(
-        b""
-    ).hexdigest()
+    assert first.manifest.runtime_dependencies_digest == hashlib.sha256(b"").hexdigest()
     publication = JobImagePublicationRequest(
         manifest=first.manifest,
         staged_context=first.root,
@@ -375,9 +353,7 @@ def test_packs_multiple_environment_wheels_and_activation_configs(
         activation_ids.append(taskset["id"])
     assert activation_ids == ["math-train", "text-train"]
     for lock in result.manifest.environment_packages:
-        assert (
-            result.root / "wheels/environments" / lock.wheel_filename
-        ).is_file()
+        assert (result.root / "wheels/environments" / lock.wheel_filename).is_file()
 
 
 def test_verl_backend_identity_rejects_host_paths_and_digests_projection(
@@ -499,11 +475,7 @@ def test_rejects_plan_source_or_resolved_input_drift_before_materialization(
         environment_packager=environment_packager,
     )
     (
-        inputs.framework_source.root
-        / "posttrain-runtime-fixture"
-        / "src"
-        / "posttrain_runtime_fixture"
-        / "__init__.py"
+        inputs.framework_source.root / "posttrain-runtime-fixture" / "src" / "posttrain_runtime_fixture" / "__init__.py"
     ).write_text("# drift\n", encoding="utf-8")
 
     with pytest.raises(ContractError, match="framework source tree differs"):
@@ -564,9 +536,7 @@ def test_job_pack_inputs_snapshot_nested_json_and_reject_non_finite_values(
     )
     values.append(3)
 
-    assert dict(inputs.resolved_inputs) == {
-        "nested": {"values": [1, 2]}
-    }
+    assert dict(inputs.resolved_inputs) == {"nested": {"values": [1, 2]}}
     nested = inputs.resolved_inputs["nested"]
     assert isinstance(nested, dict)
     with pytest.raises(TypeError, match="immutable"):

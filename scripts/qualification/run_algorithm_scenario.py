@@ -77,9 +77,7 @@ def render_launch(
 ) -> ScenarioLaunch:
     del python_executable, trackio_server_url
     if scenario.id not in _SCENARIO_WORK_PACKAGES:
-        raise NotImplementedError(
-            f"CLI launch is not mapped for scenario {scenario.id!r}"
-        )
+        raise NotImplementedError(f"CLI launch is not mapped for scenario {scenario.id!r}")
     if not workspace.is_absolute():
         raise ValueError("qualification workspace must be absolute")
     if scenario.update_budget is None:
@@ -129,11 +127,7 @@ def _bundle_inputs() -> dict[str, Path]:
     inputs: dict[str, Path] = {}
     for root in roots:
         for path in sorted(root.rglob("*")):
-            if (
-                path.is_file()
-                and "__pycache__" not in path.parts
-                and path.suffix not in {".pyc", ".pyo"}
-            ):
+            if path.is_file() and "__pycache__" not in path.parts and path.suffix not in {".pyc", ".pyo"}:
                 inputs[path.relative_to(REPOSITORY).as_posix()] = path
     return inputs
 
@@ -168,32 +162,18 @@ def _remote_failures(
         failures.append(f"Trackio status is {evidence.status!r}")
     if evidence.optimizer_updates < acceptance.minimum_optimizer_updates:
         failures.append(
-            f"optimizer updates {evidence.optimizer_updates} are below "
-            f"{acceptance.minimum_optimizer_updates}"
+            f"optimizer updates {evidence.optimizer_updates} are below {acceptance.minimum_optimizer_updates}"
         )
     if evidence.trace_count < acceptance.minimum_complete_traces:
-        failures.append(
-            f"remote traces {evidence.trace_count} are below "
-            f"{acceptance.minimum_complete_traces}"
-        )
-    if (
-        acceptance.require_nonzero_gradient
-        and not evidence.nonzero_gradient_observed
-    ):
+        failures.append(f"remote traces {evidence.trace_count} are below {acceptance.minimum_complete_traces}")
+    if acceptance.require_nonzero_gradient and not evidence.nonzero_gradient_observed:
         failures.append("no non-zero gradient was observed remotely")
-    if (
-        acceptance.require_reward_variance
-        and not evidence.reward_variance_observed
-    ):
+    if acceptance.require_reward_variance and not evidence.reward_variance_observed:
         failures.append("no non-zero reward standard deviation was observed remotely")
     if acceptance.require_model_artifact and not evidence.model_artifact_observed:
         failures.append("no model artifact was observed remotely")
-    if (
-        acceptance.require_remote_observatory
-        and (
-            not evidence.observatory_complete
-            or not evidence.observatory_research_ready
-        )
+    if acceptance.require_remote_observatory and (
+        not evidence.observatory_complete or not evidence.observatory_research_ready
     ):
         failures.append("Observatory evidence is incomplete or not research-ready")
     return tuple(failures)
@@ -229,9 +209,7 @@ def _write_receipt(
     try:
         os.write(
             descriptor,
-            (
-                json.dumps(payload, indent=2, sort_keys=True) + "\n"
-            ).encode("utf-8"),
+            (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8"),
         )
         os.fsync(descriptor)
     finally:
@@ -283,10 +261,7 @@ def _run_dstack(
     launch = replace(launch, command=command)
     run_spec = RunSpec(
         project_id="foundation-models",
-        work_package_id=(
-            f"train/qwen3.5-0.8b/"
-            f"{scenario.environment_ref}-qualification"
-        ),
+        work_package_id=(f"train/qwen3.5-0.8b/{scenario.environment_ref}-qualification"),
         stage="train",
         run_id=launch.run_id,
         job_kind=scenario.job_kind,
@@ -336,9 +311,7 @@ def _run_dstack(
         image=image,
         target=target,
         command=launch.command,
-        idempotency_key=(
-            f"qualification:{scenario.id}:{launch.run_id}:attempt-{attempt}"
-        ),
+        idempotency_key=(f"qualification:{scenario.id}:{launch.run_id}:attempt-{attempt}"),
         policy=ExecutionPolicy(
             timeout_seconds=scenario.maximum_duration_seconds,
             max_attempts=1,
@@ -380,23 +353,16 @@ def _run_dstack(
     plan = provider.plan(request)
     offers_value = plan.details.get("offers", 0)
     offers = (
-        int(offers_value)
-        if isinstance(offers_value, (str, int, float))
-        and not isinstance(offers_value, bool)
-        else 0
+        int(offers_value) if isinstance(offers_value, (str, int, float)) and not isinstance(offers_value, bool) else 0
     )
     if offers < 1:
-        raise RuntimeError(
-            f"dstack found no offer for target {launch.target!r}"
-        )
+        raise RuntimeError(f"dstack found no offer for target {launch.target!r}")
     print(f"bundle_digest={bundle.digest}")
     print(f"runtime_image={image.value}")
     print(f"dstack_offers={offers}")
     handle = provider.submit(plan)
     print(f"provider_id={handle.provider_id}")
-    journal = ExecutionJournal(
-        (launch.workspace / "execution-journal.jsonl").resolve()
-    )
+    journal = ExecutionJournal((launch.workspace / "execution-journal.jsonl").resolve())
     terminal = wait_for_terminal(
         provider,
         handle,
@@ -404,18 +370,14 @@ def _run_dstack(
         journal=journal,
         poll_interval_seconds=5,
         on_transition=lambda record: print(
-            f"state={record.state} native={record.native_state} "
-            f"target={record.target_id}"
+            f"state={record.state} native={record.native_state} target={record.target_id}"
         ),
     )
     if terminal.state != "succeeded":
         page = provider.logs(handle, limit=40)
         for line in page.lines[-40:]:
             print(f"remote_log={line}", file=sys.stderr)
-        raise RuntimeError(
-            f"dstack execution ended in {terminal.state}: "
-            f"{terminal.message or terminal.native_state}"
-        )
+        raise RuntimeError(f"dstack execution ended in {terminal.state}: {terminal.message or terminal.native_state}")
     provider.collect(handle)
     evidence = asyncio.run(
         collect_remote_evidence(
@@ -426,9 +388,7 @@ def _run_dstack(
     )
     failures = _remote_failures(scenario, evidence)
     if failures:
-        raise RuntimeError(
-            "remote qualification failed: " + "; ".join(failures)
-        )
+        raise RuntimeError("remote qualification failed: " + "; ".join(failures))
     receipt = launch.workspace / "qualification-receipt.json"
     _write_receipt(
         receipt,
@@ -487,23 +447,13 @@ def main() -> None:
     workspace = (
         args.workspace.resolve()
         if args.workspace is not None
-        else (
-            REPOSITORY
-            / ".posttrain"
-            / "state"
-            / "qualification"
-            / f"{scenario.id}-{run_id}"
-        ).resolve()
+        else (REPOSITORY / ".posttrain" / "state" / "qualification" / f"{scenario.id}-{run_id}").resolve()
     )
     trackio_url = args.trackio_url
     if not trackio_url:
-        raise SystemExit(
-            "TRACKIO_SERVER_URL or --trackio-url is required for qualification"
-        )
+        raise SystemExit("TRACKIO_SERVER_URL or --trackio-url is required for qualification")
     if "TRACKIO_WRITE_TOKEN" not in os.environ and not args.print_plan:
-        raise SystemExit(
-            "TRACKIO_WRITE_TOKEN must be injected by the execution environment"
-        )
+        raise SystemExit("TRACKIO_WRITE_TOKEN must be injected by the execution environment")
     launch = render_launch(
         scenario,
         run_id=run_id,
@@ -532,9 +482,7 @@ def main() -> None:
             if value is None
         ]
         if missing:
-            raise SystemExit(
-                "dstack qualification requires " + ", ".join(missing)
-            )
+            raise SystemExit("dstack qualification requires " + ", ".join(missing))
         if args.attempt < 1:
             raise SystemExit("--attempt must be positive")
         _run_dstack(

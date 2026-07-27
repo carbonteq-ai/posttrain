@@ -73,9 +73,7 @@ def test_cli_source_override_wins_and_unsafe_paths_fail(tmp_path: Path) -> None:
     package = tmp_path / "package"
     package.mkdir()
     (package / "pyproject.toml").write_text("[project]\nname='example'\n")
-    (tmp_path / "pyproject.toml").write_text(
-        "[tool.posttrain.pack]\nproject_packages=['missing']\n"
-    )
+    (tmp_path / "pyproject.toml").write_text("[tool.posttrain.pack]\nproject_packages=['missing']\n")
 
     config = load_project_pack_config(
         layout,

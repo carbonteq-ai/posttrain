@@ -150,14 +150,10 @@ def test_absent_and_unreachable_are_distinguished(
     registry = _registry(tmp_path, monkeypatch)
     reference = registry.kind_images["supervised"].value
 
-    absent = verify_variant(
-        "supervised", reference, manifest=_manifest(), inspector=_FakeInspector(missing=True)
-    )
+    absent = verify_variant("supervised", reference, manifest=_manifest(), inspector=_FakeInspector(missing=True))
     assert absent.status == "missing"
 
-    unreachable = verify_variant(
-        "supervised", reference, manifest=_manifest(), inspector=_UnreachableInspector()
-    )
+    unreachable = verify_variant("supervised", reference, manifest=_manifest(), inspector=_UnreachableInspector())
     assert unreachable.status == "unreachable"
 
 
@@ -294,8 +290,7 @@ def test_runtime_images_check_ignores_unpublished_variants(
     assert main(["init", str(project)]) == 0
     monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.internal/team")
     lock = Path(__file__).resolve().parents[3] / (
-        "packages/runtime-images/src/posttrain/runtime_images/containers/"
-        "posttrain-job-kinds/locks/workspace.lock.txt"
+        "packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/workspace.lock.txt"
     )
     config = project / ".posttrain" / "state" / "execution.toml"
     config.parent.mkdir(parents=True, exist_ok=True)

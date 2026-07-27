@@ -88,11 +88,7 @@ def evaluate(
         },
         attributes=attributes,
     )
-    evaluation_status = (
-        "complete"
-        if sync.complete and backend.population.coverage_missing == 0
-        else "partial"
-    )
+    evaluation_status = "complete" if sync.complete and backend.population.coverage_missing == 0 else "partial"
     context.event(
         "evaluation_completed",
         {

@@ -557,9 +557,7 @@ def _validate_supervised_dataset_seats(seats: ResolvedSeats) -> None:
 def _validate_supervised_prepare_seats(seats: ResolvedSeats) -> None:
     plan = seats.get("dataset")
     if isinstance(plan, DatasetLoadPlan) and plan.kind != "supervised":
-        raise ContractError(
-            "supervised data.prepare seat 'dataset' requires a supervised dataset plan"
-        )
+        raise ContractError("supervised data.prepare seat 'dataset' requires a supervised dataset plan")
 
 
 def _validate_preference_dataset_seats(seats: ResolvedSeats) -> None:
@@ -571,9 +569,7 @@ def _validate_preference_dataset_seats(seats: ResolvedSeats) -> None:
 def _validate_preference_prepare_seats(seats: ResolvedSeats) -> None:
     plan = seats.get("dataset")
     if isinstance(plan, DatasetLoadPlan) and plan.kind != "preference":
-        raise ContractError(
-            "preference data.prepare seat 'dataset' requires a preference dataset plan"
-        )
+        raise ContractError("preference data.prepare seat 'dataset' requires a preference dataset plan")
 
 
 def _validate_online_rl_batch_seats(seats: ResolvedSeats) -> None:
@@ -582,9 +578,7 @@ def _validate_online_rl_batch_seats(seats: ResolvedSeats) -> None:
     expected_batch = settings.num_prompts_per_step * settings.num_generations
     global_batch = training.runtime.global_batch_size
     if isinstance(global_batch, int) and global_batch != expected_batch:
-        raise ContractError(
-            "training global batch must equal prompt groups times generations"
-        )
+        raise ContractError("training global batch must equal prompt groups times generations")
 
 
 def _seat[SelectionT: object](

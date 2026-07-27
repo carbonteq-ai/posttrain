@@ -439,8 +439,7 @@ def _replay_grpo_metrics(
     environment_category = getattr(request.environment, "category", "")
     features = GRPOObservationFeatures.from_request(
         request,
-        tool_environment=isinstance(environment_category, str)
-        and "tool" in environment_category.split("-"),
+        tool_environment=isinstance(environment_category, str) and "tool" in environment_category.split("-"),
     )
     for record in records:
         normalized = normalize_grpo_metrics(
@@ -490,11 +489,7 @@ def _isolated_environment(python_executable: Path) -> dict[str, str]:
     }
     isolated_bin = str(python_executable.parent)
     inherited_path = environment.get("PATH")
-    environment["PATH"] = (
-        f"{isolated_bin}{os.pathsep}{inherited_path}"
-        if inherited_path
-        else isolated_bin
-    )
+    environment["PATH"] = f"{isolated_bin}{os.pathsep}{inherited_path}" if inherited_path else isolated_bin
     # The isolated interpreter already owns an exact environment. Ray must not
     # rediscover the parent host's `uv run` command and replace worker startup
     # with the host workspace environment.
@@ -505,10 +500,7 @@ def _isolated_environment(python_executable: Path) -> dict[str, str]:
     if projection:
         projection_path = Path(projection)
         if not projection_path.is_absolute() or not projection_path.is_dir():
-            raise RuntimeError(
-                "POSTTRAIN_VERL_PYTHONPATH must name the packaged absolute "
-                "veRL worker projection"
-            )
+            raise RuntimeError("POSTTRAIN_VERL_PYTHONPATH must name the packaged absolute veRL worker projection")
         environment["PYTHONPATH"] = projection
     return environment
 

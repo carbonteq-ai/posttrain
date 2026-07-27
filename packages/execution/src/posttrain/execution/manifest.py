@@ -150,9 +150,7 @@ class ExecutionJobManifest:
             "retention",
         }
         if unknown := sorted(set(payload) - allowed):
-            raise ContractError(
-                f"execution job manifest has unknown fields: {', '.join(unknown)}"
-            )
+            raise ContractError(f"execution job manifest has unknown fields: {', '.join(unknown)}")
         try:
             mounts_payload = payload.get("mounts", [])
             if not isinstance(mounts_payload, list):

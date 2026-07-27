@@ -338,21 +338,9 @@ def override_job_execution_target(
     """Replace the selected job's one unambiguous primary execution target."""
 
     prepared = prepare_work_package_job(context, package, job_id)
-    training_roles = {
-        name: value
-        for name, value in prepared.seats.items()
-        if isinstance(value, TrainingBinding)
-    }
-    direct_roles = {
-        name: value
-        for name, value in prepared.seats.items()
-        if isinstance(value, ExecutionTarget)
-    }
-    inference_roles = {
-        name: value
-        for name, value in prepared.seats.items()
-        if isinstance(value, InferenceBinding)
-    }
+    training_roles = {name: value for name, value in prepared.seats.items() if isinstance(value, TrainingBinding)}
+    direct_roles = {name: value for name, value in prepared.seats.items() if isinstance(value, ExecutionTarget)}
+    inference_roles = {name: value for name, value in prepared.seats.items() if isinstance(value, InferenceBinding)}
 
     replacements: dict[str, Selection]
     if training_roles:
@@ -362,10 +350,7 @@ def override_job_execution_target(
             (value.target for value in training_roles.values()),
             "training bindings",
         )
-        replacements = {
-            name: replace(value, target=target)
-            for name, value in training_roles.items()
-        }
+        replacements = {name: replace(value, target=target) for name, value in training_roles.items()}
     elif direct_roles:
         # Eval and serve definitions expose an explicit target and a colocated
         # inference binding. Preserve that equality when changing the target.
@@ -373,11 +358,7 @@ def override_job_execution_target(
             direct_roles.values(),
             "explicit target seats",
         )
-        conflicting_inference = [
-            name
-            for name, value in inference_roles.items()
-            if value.target != primary
-        ]
+        conflicting_inference = [name for name, value in inference_roles.items() if value.target != primary]
         if conflicting_inference:
             raise ContractError(
                 "execution-target override is ambiguous: explicit target seats "
@@ -385,32 +366,21 @@ def override_job_execution_target(
                 f"({', '.join(sorted(conflicting_inference))})"
             )
         replacements = {name: target for name in direct_roles}
-        replacements.update(
-            {
-                name: replace(value, target=target)
-                for name, value in inference_roles.items()
-            }
-        )
+        replacements.update({name: replace(value, target=target) for name, value in inference_roles.items()})
     elif inference_roles:
         primary = _one_override_target(
             (value.target for value in inference_roles.values()),
             "inference bindings",
         )
-        replacements = {
-            name: replace(value, target=target)
-            for name, value in inference_roles.items()
-        }
+        replacements = {name: replace(value, target=target) for name, value in inference_roles.items()}
     else:
-        raise ContractError(
-            "selected job does not expose a supported execution target to override"
-        )
+        raise ContractError("selected job does not expose a supported execution target to override")
 
     if target == primary:
         if allow_unchanged:
             return package
         raise ContractError(
-            "execution-target override is a no-op: selected job already uses "
-            f"{target.id}@{target.revision}"
+            f"execution-target override is a no-op: selected job already uses {target.id}@{target.revision}"
         )
 
     return replace(
@@ -428,9 +398,7 @@ def _one_override_target(
         if target not in unique:
             unique.append(target)
     if len(unique) != 1:
-        raise ContractError(
-            f"execution-target override is ambiguous across {role}"
-        )
+        raise ContractError(f"execution-target override is ambiguous across {role}")
     return unique[0]
 
 
@@ -512,13 +480,9 @@ def _preflight_job(
     if not isinstance(context_window, int) or isinstance(context_window, bool) or context_window < 1:
         raise ContractError("serve.benchmark workload context_window must be a positive integer")
     if context_window < requirements.required_context_tokens:
-        raise ContractError(
-            "serve.benchmark workload context_window is below the project serving requirement"
-        )
+        raise ContractError("serve.benchmark workload context_window is below the project serving requirement")
     if inference.model.capabilities.native_context_window < requirements.required_context_tokens:
-        raise ContractError(
-            "serve.benchmark model native context window is below the project serving requirement"
-        )
+        raise ContractError("serve.benchmark model native context window is below the project serving requirement")
 
 
 def _resolve_recipe(catalog: Catalog, selection: CatalogRef | Recipe) -> tuple[Recipe, JsonValue]:
@@ -563,11 +527,7 @@ def _job_seats(
             raise ContractError(f"enabled job definition {definition.id!r} requires unbound seat {name!r}") from error
         value = resolver(seat) if resolver is not None else seat.value
         static_expected = definition.selection_seats.get(name, expected)
-        accepted = (
-            expected
-            if resolver is not None or static_expected is expected
-            else (expected, static_expected)
-        )
+        accepted = expected if resolver is not None or static_expected is expected else (expected, static_expected)
         if not isinstance(value, accepted):
             raise ContractError(f"enabled job definition {definition.id!r} received the wrong type for seat {name!r}")
         result[name] = value

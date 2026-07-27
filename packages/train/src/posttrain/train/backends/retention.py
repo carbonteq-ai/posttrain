@@ -69,9 +69,7 @@ def finalize_training_outputs(
             retained_model = _manifest_path(root, existing["retained_model"])
             retained_recovery_value = existing.get("retained_recovery_checkpoint")
             retained_recovery = (
-                _manifest_path(root, retained_recovery_value)
-                if isinstance(retained_recovery_value, str)
-                else None
+                _manifest_path(root, retained_recovery_value) if isinstance(retained_recovery_value, str) else None
             )
             _validate_retained_output(retained_model, update_kind)
             retained_digest = existing.get("retained_model_digest")
@@ -109,9 +107,7 @@ def finalize_training_outputs(
         raise ValueError("checkpoint directories exist without a selected recovery checkpoint")
 
     removals: list[tuple[Path, str]] = [
-        (path, "superseded-recovery-checkpoint")
-        for path in checkpoints
-        if path not in retained_checkpoints
+        (path, "superseded-recovery-checkpoint") for path in checkpoints if path not in retained_checkpoints
     ]
     if update_kind == "lora":
         removals.extend(
@@ -132,9 +128,7 @@ def finalize_training_outputs(
         "checkpoint_root": _relative(root, checkpoints_root),
         "retained_model": _relative(root, retained_model),
         "retained_model_digest": _digest_tree(retained_model),
-        "retained_recovery_checkpoint": (
-            _relative(root, retained_recovery) if retained_recovery is not None else None
-        ),
+        "retained_recovery_checkpoint": (_relative(root, retained_recovery) if retained_recovery is not None else None),
         "planned_removals": [
             {
                 "path": _relative(root, path),

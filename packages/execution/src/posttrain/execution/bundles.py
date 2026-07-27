@@ -42,8 +42,7 @@ def _relative_path(value: str) -> PurePosixPath:
     if str(path) in {_MANIFEST, str(JOB_MANIFEST_PATH)}:
         raise ContractError("bundle payload cannot write framework metadata")
     if path.parts[0] == ".posttrain" and (
-        len(path.parts) < 2
-        or path.parts[1] not in {"project.toml", "project.yaml", "catalog", "work_packages"}
+        len(path.parts) < 2 or path.parts[1] not in {"project.toml", "project.yaml", "catalog", "work_packages"}
     ):
         raise ContractError("bundle payload can include only tracked posttrain project configuration")
     return path

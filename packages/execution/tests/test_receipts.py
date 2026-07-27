@@ -12,26 +12,8 @@ def test_latest_runtime_image_uses_write_time_not_digest_filename(
 ) -> None:
     older = tmp_path / f"{'f' * 64}.json"
     newer = tmp_path / f"{'0' * 64}.json"
-    older.write_text(
-        json.dumps(
-            {
-                "image": (
-                    "registry.lan/posttrain@sha256:"
-                    f"{'a' * 64}"
-                )
-            }
-        )
-    )
-    newer.write_text(
-        json.dumps(
-            {
-                "image": (
-                    "registry.lan/posttrain@sha256:"
-                    f"{'b' * 64}"
-                )
-            }
-        )
-    )
+    older.write_text(json.dumps({"image": (f"registry.lan/posttrain@sha256:{'a' * 64}")}))
+    newer.write_text(json.dumps({"image": (f"registry.lan/posttrain@sha256:{'b' * 64}")}))
     os.utime(older, ns=(1_000_000_000, 1_000_000_000))
     os.utime(newer, ns=(2_000_000_000, 2_000_000_000))
 

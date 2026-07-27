@@ -66,9 +66,7 @@ def digest_runtime_sources(root: Path, includes: Sequence[Path]) -> str:
     if not entries:
         raise ContractError("runtime source selection cannot be empty")
     entries.sort(key=lambda entry: str(entry["path"]))
-    return hashlib.sha256(
-        json.dumps(entries, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()
+    return hashlib.sha256(json.dumps(entries, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
 class BuildxGateway(Protocol):
@@ -89,24 +87,14 @@ class BuildxCli:
             check=False,
         )
         if result.returncode != 0:
-            lines = [
-                line.strip()
-                for line in (result.stderr + "\n" + result.stdout).splitlines()
-                if line.strip()
-            ]
+            lines = [line.strip() for line in (result.stderr + "\n" + result.stdout).splitlines() if line.strip()]
             errors = [
                 line
                 for line in lines
-                if line.lower().startswith("error:")
-                or " error:" in line.lower()
-                or line.startswith("ERROR")
+                if line.lower().startswith("error:") or " error:" in line.lower() or line.startswith("ERROR")
             ]
             tail = "\n".join(lines[-20:])
-            detail = (
-                f"{errors[-1]}\n{tail}"
-                if errors
-                else (tail or "no diagnostic was returned")
-            )[-3000:]
+            detail = (f"{errors[-1]}\n{tail}" if errors else (tail or "no diagnostic was returned"))[-3000:]
             if arguments[:2] == ("imagetools", "inspect") and any(
                 marker in detail.lower()
                 for marker in (
@@ -117,9 +105,7 @@ class BuildxCli:
                     "no such manifest",
                 )
             ):
-                raise RemoteImageNotFoundError(
-                    f"published image is absent: {detail}"
-                )
+                raise RemoteImageNotFoundError(f"published image is absent: {detail}")
             # Buildx echoes the whole failing RUN script in its own error, which
             # crowds the actual failure message out of any bounded tail. Retain
             # the full output so a diagnosis does not depend on guessing.
@@ -133,10 +119,7 @@ class BuildxCli:
                 location = f" Full output: {transcript}"
             except OSError:
                 location = ""
-            raise RuntimeError(
-                f"docker buildx {arguments[0] if arguments else 'command'} failed: "
-                f"{detail}.{location}"
-            )
+            raise RuntimeError(f"docker buildx {arguments[0] if arguments else 'command'} failed: {detail}.{location}")
         return result.stdout
 
 
@@ -190,9 +173,7 @@ class RuntimeBuildRequest:
             "base_image": self.base_image.value,
             "variables": dict(sorted(self.variables.items())),
         }
-        return hashlib.sha256(
-            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
-        ).hexdigest()
+        return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
     @property
     def tag(self) -> str:
@@ -244,9 +225,7 @@ class BuildKitRuntimeBuilder:
         metadata = self._root / f".metadata-{uuid.uuid4().hex}.json"
         try:
             self._gateway.invoke(self._build_arguments(request, metadata))
-            image = RuntimeImageRef(
-                f"{request.repository}@sha256:{_metadata_digest(metadata, request.target)}"
-            )
+            image = RuntimeImageRef(f"{request.repository}@sha256:{_metadata_digest(metadata, request.target)}")
             self._verify_remote(image)
             result = RuntimeBuildResult(
                 profile=request.profile,
@@ -336,9 +315,7 @@ class BuildKitRuntimeBuilder:
             raise RuntimeError("Buildx returned invalid remote-image metadata") from error
         expected = image.value.rsplit("@", 1)[1]
         if observed != expected:
-            raise RuntimeError(
-                f"published runtime digest mismatch: expected {expected}, observed {observed}"
-            )
+            raise RuntimeError(f"published runtime digest mismatch: expected {expected}, observed {observed}")
 
     def _write_receipt(self, result: RuntimeBuildResult) -> None:
         payload = {
@@ -363,17 +340,13 @@ class BuildKitRuntimeBuilder:
         except FileExistsError:
             existing = self._load_receipt(result.receipt)
             if existing != result:
-                raise ContractError(
-                    "runtime build receipt conflicts with an existing build"
-                ) from None
+                raise ContractError("runtime build receipt conflicts with an existing build") from None
         finally:
             temporary.unlink(missing_ok=True)
 
     def _load_receipt(self, path: Path) -> RuntimeBuildResult:
         if path.stat().st_mode & 0o077:
-            raise ContractError(
-                f"runtime build receipt must not be accessible by group or other: {path}"
-            )
+            raise ContractError(f"runtime build receipt must not be accessible by group or other: {path}")
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as error:
@@ -406,9 +379,7 @@ class BuildKitRuntimeBuilder:
             or result.base_image != request.base_image
             or result.image.value.rsplit("@", 1)[0] != request.repository
         ):
-            raise ContractError(
-                "runtime build receipt does not match the requested build"
-            )
+            raise ContractError("runtime build receipt does not match the requested build")
 
 
 def _metadata_digest(path: Path, target: str) -> str:

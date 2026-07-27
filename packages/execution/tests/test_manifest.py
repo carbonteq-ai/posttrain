@@ -49,9 +49,7 @@ def test_execution_manifest_round_trips_without_secret_values(tmp_path: Path) ->
 
 
 def test_resolved_input_digest_is_order_independent() -> None:
-    assert resolved_inputs_digest({"a": 1, "b": {"c": True}}) == resolved_inputs_digest(
-        {"b": {"c": True}, "a": 1}
-    )
+    assert resolved_inputs_digest({"a": 1, "b": {"c": True}}) == resolved_inputs_digest({"b": {"c": True}, "a": 1})
 
 
 def test_execution_bundle_covers_job_manifest_bytes(tmp_path: Path) -> None:

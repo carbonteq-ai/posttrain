@@ -139,10 +139,7 @@ def test_prepare_emits_deterministic_supervised_dataset_artifact(
         "size_bytes": first.size_bytes,
         "data": "data.jsonl",
     }
-    rows = [
-        json.loads(line)
-        for line in (reference.path / "data.jsonl").read_text().splitlines()
-    ]
+    rows = [json.loads(line) for line in (reference.path / "data.jsonl").read_text().splitlines()]
     assert rows[0]["id"] == "example-1"
     assert rows[0]["trainable_message_indices"] == [1]
     assert [event.name for event in first_observer.events] == [

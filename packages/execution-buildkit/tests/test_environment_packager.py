@@ -76,9 +76,7 @@ class FakeWheelGateway:
         package = document.split("name = '", maxsplit=1)[1].split("'", maxsplit=1)[0]
         distribution = package.replace("-", "_")
         self.calls.append(package)
-        (output_directory / f"{distribution}-1.0.0-py3-none-any.whl").write_bytes(
-            f"{package}-wheel".encode()
-        )
+        (output_directory / f"{distribution}-1.0.0-py3-none-any.whl").write_bytes(f"{package}-wheel".encode())
 
 
 class FakeDependencyGateway:
@@ -101,16 +99,10 @@ class FakeDependencyGateway:
         assert isinstance(requirements, Path)
         assert isinstance(output, Path)
         assert isinstance(working_directory, Path)
-        blocks: list[str] = [
-            "shared-runtime==1.0.0 \\\n"
-            f"    --hash=sha256:{'f' * 64}\n"
-        ]
+        blocks: list[str] = [f"shared-runtime==1.0.0 \\\n    --hash=sha256:{'f' * 64}\n"]
         for relative in requirements.read_text(encoding="utf-8").splitlines():
             wheel = working_directory / relative.removeprefix("./")
-            blocks.append(
-                f"{relative} \\\n"
-                f"    --hash=sha256:{_file_digest(wheel)}\n"
-            )
+            blocks.append(f"{relative} \\\n    --hash=sha256:{_file_digest(wheel)}\n")
         output.write_text("".join(blocks), encoding="utf-8")
 
 
@@ -133,21 +125,15 @@ def _git_gateway(
     trees: dict[tuple[str, str], Mapping[str, str]] = {
         (_REPOSITORY, _REVISION): {
             "README.md": "environment monorepo",
-            "environments/math/pyproject.toml": (
-                "[project]\nname = 'math-env'\nversion = '1.0.0'\n"
-            ),
+            "environments/math/pyproject.toml": ("[project]\nname = 'math-env'\nversion = '1.0.0'\n"),
             "environments/math/environment.py": "def load(): ...\n",
-            "environments/text/pyproject.toml": (
-                "[project]\nname = 'text-env'\nversion = '1.0.0'\n"
-            ),
+            "environments/text/pyproject.toml": ("[project]\nname = 'text-env'\nversion = '1.0.0'\n"),
             "environments/text/environment.py": "def load(): ...\n",
         }
     }
     if include_other_repository:
         trees[(_OTHER_REPOSITORY, _REVISION)] = {
-            "pyproject.toml": (
-                "[project]\nname = 'other-env'\nversion = '1.0.0'\n"
-            ),
+            "pyproject.toml": ("[project]\nname = 'other-env'\nversion = '1.0.0'\n"),
             "environment.py": "def load(): ...\n",
         }
     return FakeGitGateway(trees)
@@ -227,15 +213,9 @@ def test_packages_two_environments_from_one_checkout_with_portable_locks(
         "text-env",
     ]
     assert wheel_gateway.calls == ["math-env", "text-env"]
-    assert sum(
-        call[2] == "fetch"
-        for call in git_gateway.calls
-        if call[0] == "-C"
-    ) == 1
+    assert sum(call[2] == "fetch" for call in git_gateway.calls if call[0] == "-C") == 1
     assert dependency_gateway.constraints == ["shared-runtime==1.0.0\n"]
-    assert result.runtime_dependencies_digest == _file_digest(
-        result.runtime_requirements
-    )
+    assert result.runtime_dependencies_digest == _file_digest(result.runtime_requirements)
     requirements = result.runtime_requirements.read_text(encoding="utf-8")
     assert "./wheels/environments/math_env-1.0.0-py3-none-any.whl" in requirements
     assert "./wheels/environments/text_env-1.0.0-py3-none-any.whl" in requirements
@@ -300,8 +280,7 @@ def test_verl_profile_resolves_distinct_python312_and_python313_closures(
         "3.12",
     ]
     assert (
-        result.runtime_dependencies[0].lock.resolution_digest
-        != result.runtime_dependencies[1].lock.resolution_digest
+        result.runtime_dependencies[0].lock.resolution_digest != result.runtime_dependencies[1].lock.resolution_digest
     )
 
 
@@ -358,19 +337,13 @@ def test_packages_environments_from_multiple_repositories(tmp_path: Path) -> Non
         "other-env",
         "text-env",
     ]
-    assert sum(
-        call[2] == "fetch"
-        for call in git_gateway.calls
-        if call[0] == "-C"
-    ) == 2
+    assert sum(call[2] == "fetch" for call in git_gateway.calls if call[0] == "-C") == 2
 
 
 def test_propagates_combined_dependency_conflict_without_a_runtime_lock(
     tmp_path: Path,
 ) -> None:
-    gateway = FakeDependencyGateway(
-        DependencyResolutionError("selected environments are incompatible")
-    )
+    gateway = FakeDependencyGateway(DependencyResolutionError("selected environments are incompatible"))
     sources, wheels = _one_repository_requests()
 
     with pytest.raises(
@@ -389,11 +362,7 @@ def test_propagates_combined_dependency_conflict_without_a_runtime_lock(
         )
 
     assert len(gateway.calls) == 1
-    assert not list(
-        (tmp_path / "cache/dependencies").glob(
-            "*/environment-dependencies.lock.txt"
-        )
-    )
+    assert not list((tmp_path / "cache/dependencies").glob("*/environment-dependencies.lock.txt"))
 
 
 def test_rejects_unknown_or_mismatched_profiles_before_fetch(

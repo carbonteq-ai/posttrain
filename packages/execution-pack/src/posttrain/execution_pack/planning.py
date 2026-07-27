@@ -67,31 +67,21 @@ class ImagePublicationSpec:
     sbom: bool = True
 
     def __post_init__(self) -> None:
-        if (
-            not _OCI_REPOSITORY.fullmatch(self.repository)
-            or "@" in self.repository
-            or "://" in self.repository
-        ):
-            raise ContractError(
-                "publication repository must be a credential-free OCI repository"
-            )
+        if not _OCI_REPOSITORY.fullmatch(self.repository) or "@" in self.repository or "://" in self.repository:
+            raise ContractError("publication repository must be a credential-free OCI repository")
         if (
             not self.platforms
             or len(set(self.platforms)) != len(self.platforms)
             or tuple(sorted(self.platforms)) != self.platforms
             or any(not _PLATFORM.fullmatch(value) for value in self.platforms)
         ):
-            raise ContractError(
-                "publication platforms must be unique, sorted Linux OCI platforms"
-            )
+            raise ContractError("publication platforms must be unique, sorted Linux OCI platforms")
         if self.compression != "zstd":
             raise ContractError("job image publication currently requires zstd")
         if not 1 <= self.compression_level <= 22:
             raise ContractError("zstd compression level must be between 1 and 22")
         if not self.provenance or not self.sbom:
-            raise ContractError(
-                "job image publication requires provenance and an SBOM"
-            )
+            raise ContractError("job image publication requires provenance and an SBOM")
 
     def to_payload(self) -> dict[str, JsonValue]:
         return {
@@ -139,20 +129,11 @@ class JobPackSpec:
             if not _IDENTITY.fullmatch(value):
                 raise ContractError(f"job pack {label} is invalid")
         if _KIND_PROFILES.get(self.job_kind) != self.kind_profile:
-            raise ContractError(
-                f"job kind {self.job_kind!r} requires profile "
-                f"{_KIND_PROFILES.get(self.job_kind)!r}"
-            )
-        if (
-            not _IDENTITY.fullmatch(self.runtime_variant)
-            or not (
-                self.runtime_variant == self.kind_profile
-                or self.runtime_variant.startswith(f"{self.kind_profile}-")
-            )
+            raise ContractError(f"job kind {self.job_kind!r} requires profile {_KIND_PROFILES.get(self.job_kind)!r}")
+        if not _IDENTITY.fullmatch(self.runtime_variant) or not (
+            self.runtime_variant == self.kind_profile or self.runtime_variant.startswith(f"{self.kind_profile}-")
         ):
-            raise ContractError(
-                "job pack runtime variant must refine its logical kind profile"
-            )
+            raise ContractError("job pack runtime variant must refine its logical kind profile")
         for label, digest in (
             ("resolved inputs", self.resolved_inputs_digest),
             ("framework source", self.framework_source_digest),
@@ -195,33 +176,23 @@ class JobPackSpec:
         )
         if self.datasets != expected_datasets:
             raise ContractError("job pack datasets must be canonically ordered")
-        if len({request.seat_name for request in self.datasets}) != len(
-            self.datasets
-        ):
+        if len({request.seat_name for request in self.datasets}) != len(self.datasets):
             raise ContractError("job pack dataset seat names must be unique")
         if self.git_sources != expected_sources:
             raise ContractError("job pack Git sources must be canonically ordered")
         if self.environment_wheels != expected_wheels:
-            raise ContractError(
-                "job pack environment wheels must be canonically ordered"
-            )
+            raise ContractError("job pack environment wheels must be canonically ordered")
         if self.environment_activations != expected_activations:
-            raise ContractError(
-                "job pack environment activations must be canonically ordered"
-            )
-        if len(
-            {activation.environment_id for activation in self.environment_activations}
-        ) != len(self.environment_activations):
+            raise ContractError("job pack environment activations must be canonically ordered")
+        if len({activation.environment_id for activation in self.environment_activations}) != len(
+            self.environment_activations
+        ):
             raise ContractError("job pack environment activation ids must be unique")
         if (
-            len(set(self.expected_artifact_roles))
-            != len(self.expected_artifact_roles)
-            or tuple(sorted(self.expected_artifact_roles))
-            != self.expected_artifact_roles
+            len(set(self.expected_artifact_roles)) != len(self.expected_artifact_roles)
+            or tuple(sorted(self.expected_artifact_roles)) != self.expected_artifact_roles
         ):
-            raise ContractError(
-                "expected artifact roles must be unique and sorted"
-            )
+            raise ContractError("expected artifact roles must be unique and sorted")
         if any(not role.strip() for role in self.expected_artifact_roles):
             raise ContractError("expected artifact roles cannot be empty")
 
@@ -264,10 +235,7 @@ class JobPackSpec:
                 }
                 for wheel in self.environment_wheels
             ],
-            "environment_activations": [
-                activation.to_payload()
-                for activation in self.environment_activations
-            ],
+            "environment_activations": [activation.to_payload() for activation in self.environment_activations],
             "expected_artifact_roles": list(self.expected_artifact_roles),
             "worker_contract_version": self.worker_contract_version,
         }
@@ -308,9 +276,7 @@ def environment_bindings(seats: ResolvedSeats) -> tuple[EnvironmentBinding, ...]
     for binding in selected:
         previous = by_id.get(binding.id)
         if previous is not None and previous != binding:
-            raise ContractError(
-                f"environment id selects conflicting bindings: {binding.id}"
-            )
+            raise ContractError(f"environment id selects conflicting bindings: {binding.id}")
         by_id[binding.id] = binding
     return tuple(sorted(by_id.values(), key=lambda binding: binding.id))
 
@@ -339,9 +305,7 @@ def plan_job_pack(
     resolved_inputs_digest = _digest(dict(prepared.spec.resolved_inputs))
     profile = _KIND_PROFILES.get(prepared.recipe_job.kind)
     if profile is None:
-        raise ContractError(
-            f"job kind has no framework image profile: {prepared.recipe_job.kind}"
-        )
+        raise ContractError(f"job kind has no framework image profile: {prepared.recipe_job.kind}")
     spec = JobPackSpec(
         project_id=prepared.spec.project_id,
         work_package_id=prepared.spec.work_package_id,
@@ -359,9 +323,7 @@ def plan_job_pack(
         git_sources=git_sources,
         environment_wheels=wheels,
         environment_activations=activations,
-        expected_artifact_roles=tuple(
-            sorted(prepared.definition.required_artifact_roles)
-        ),
+        expected_artifact_roles=tuple(sorted(prepared.definition.required_artifact_roles)),
         worker_contract_version=worker_contract_version,
     )
     return JobPackPlan(spec=spec, publication=publication)
@@ -386,9 +348,7 @@ def _environment_source_requests(
                 f"environment repository: {source.repository}"
             )
         revisions[source.repository] = source.revision
-        subdirectories.setdefault(
-            (source.repository, source.revision), set()
-        ).add(subdirectory)
+        subdirectories.setdefault((source.repository, source.revision), set()).add(subdirectory)
 
         wheel = EnvironmentWheelRequest(
             package=source.package,
@@ -398,29 +358,19 @@ def _environment_source_requests(
         )
         previous_wheel = wheels_by_package.get(source.package)
         if previous_wheel is not None and previous_wheel != wheel:
-            raise ContractError(
-                "environment package identity selects multiple source roots: "
-                f"{source.package}"
-            )
+            raise ContractError(f"environment package identity selects multiple source roots: {source.package}")
         normalized_package = re.sub(
             r"[-_.]+",
             "-",
             source.package,
         ).lower()
         previous_spelling = package_spellings.get(normalized_package)
-        if (
-            previous_spelling is not None
-            and previous_spelling != source.package
-        ):
-            raise ContractError(
-                "environment package identities collide after normalization"
-            )
+        if previous_spelling is not None and previous_spelling != source.package:
+            raise ContractError("environment package identities collide after normalization")
         root = (source.repository, source.revision, subdirectory)
         previous_package = package_by_root.get(root)
         if previous_package is not None and previous_package != source.package:
-            raise ContractError(
-                "environment source root has conflicting package identities"
-            )
+            raise ContractError("environment source root has conflicting package identities")
         wheels_by_package[source.package] = wheel
         package_spellings[normalized_package] = source.package
         package_by_root[root] = source.package
@@ -448,16 +398,8 @@ def _environment_source_requests(
 
 
 def _activation_lock(binding: EnvironmentBinding) -> EnvironmentActivationLock:
-    reference = (
-        binding.activation.reference
-        if isinstance(binding.activation, PythonFactoryActivation)
-        else None
-    )
-    config = (
-        dict(binding.activation.config)
-        if not isinstance(binding.activation, PythonFactoryActivation)
-        else None
-    )
+    reference = binding.activation.reference if isinstance(binding.activation, PythonFactoryActivation) else None
+    config = dict(binding.activation.config) if not isinstance(binding.activation, PythonFactoryActivation) else None
     return EnvironmentActivationLock(
         environment_id=binding.id,
         package=binding.source.package,
@@ -477,7 +419,5 @@ def _digest(payload: Mapping[str, JsonValue]) -> str:
             separators=(",", ":"),
         ).encode()
     except (TypeError, ValueError) as error:
-        raise ContractError(
-            "job pack identity must contain only finite JSON values"
-        ) from error
+        raise ContractError("job pack identity must contain only finite JSON values") from error
     return hashlib.sha256(encoded).hexdigest()

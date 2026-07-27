@@ -24,16 +24,13 @@ INFRA = Path("/home/hammad/projects/ai-infra")
 
 def _report_transition(record) -> None:
     print(
-        f"[posttrain] {record.handle.provider_id}: "
-        f"{record.state} on {record.target_id} ({record.native_state})",
+        f"[posttrain] {record.handle.provider_id}: {record.state} on {record.target_id} ({record.native_state})",
         flush=True,
     )
 
 
 def _runtime_image() -> str:
-    return latest_runtime_image(
-        INFRA / ".state/artifacts/posttrain-runtime"
-    ).value
+    return latest_runtime_image(INFRA / ".state/artifacts/posttrain-runtime").value
 
 
 def main() -> None:
@@ -71,9 +68,7 @@ def main() -> None:
             policy=ExecutionPolicy(args.timeout_seconds),
         )
         handle = provider.submit(provider.plan(request))
-        journal = ExecutionJournal(
-            (ROOT / ".posttrain/state/execution.jsonl").resolve()
-        )
+        journal = ExecutionJournal((ROOT / ".posttrain/state/execution.jsonl").resolve())
         wait_for_terminal(
             provider,
             handle,
@@ -94,9 +89,7 @@ def main() -> None:
         }
         print(json.dumps(output, indent=2, sort_keys=True))
         if result.record.state != "succeeded":
-            raise RuntimeError(
-                f"local Docker runtime smoke failed: {result.record.message}"
-            )
+            raise RuntimeError(f"local Docker runtime smoke failed: {result.record.message}")
         provider.cleanup(handle)
 
 

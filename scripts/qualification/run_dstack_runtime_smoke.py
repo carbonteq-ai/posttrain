@@ -24,21 +24,14 @@ INFRA = Path("/home/hammad/projects/ai-infra")
 
 def _report_transition(record) -> None:
     print(
-        f"[posttrain] {record.handle.provider_id}: "
-        f"{record.state} on {record.target_id} ({record.native_state})",
+        f"[posttrain] {record.handle.provider_id}: {record.state} on {record.target_id} ({record.native_state})",
         flush=True,
     )
 
 
 def _runtime_image(profile: str) -> str:
-    state_name = (
-        "posttrain-serving-runtime"
-        if profile == "serve"
-        else "posttrain-runtime"
-    )
-    return latest_runtime_image(
-        INFRA / f".state/artifacts/{state_name}"
-    ).value
+    state_name = "posttrain-serving-runtime" if profile == "serve" else "posttrain-runtime"
+    return latest_runtime_image(INFRA / f".state/artifacts/{state_name}").value
 
 
 def main() -> None:

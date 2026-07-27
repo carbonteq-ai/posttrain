@@ -29,12 +29,8 @@ def _manifest() -> JobPackageManifest:
         code_requirements_digest="4" * 64,
         resolved_config_digest="5" * 64,
         project_config_digest="7" * 64,
-        universal_image=RuntimeImageRef(
-            f"registry.lan/posttrain-base@sha256:{'9' * 64}"
-        ),
-        kind_image=RuntimeImageRef(
-            f"registry.lan/posttrain-kind-online-rl@sha256:{'c' * 64}"
-        ),
+        universal_image=RuntimeImageRef(f"registry.lan/posttrain-base@sha256:{'9' * 64}"),
+        kind_image=RuntimeImageRef(f"registry.lan/posttrain-kind-online-rl@sha256:{'c' * 64}"),
         runtime_variant="online-rl-trl-py312",
         environment_packages=(
             EnvironmentPackageLock(
@@ -102,9 +98,7 @@ def test_job_package_key_changes_with_meaning_but_not_a_run() -> None:
 
     changed = replace(
         manifest,
-        datasets=(
-            replace(manifest.datasets[0], digest="2" * 64),
-        ),
+        datasets=(replace(manifest.datasets[0], digest="2" * 64),),
     )
 
     assert changed.package_key != manifest.package_key
@@ -160,13 +154,16 @@ def test_verl_runtime_identity_is_interpreter_specific_and_package_bound() -> No
     )
 
     assert JobPackageManifest.from_bytes(manifest.to_bytes()) == manifest
-    assert replace(
-        manifest,
-        runtime_dependency_locks=(
-            replace(locks[0], requirements_digest="8" * 64),
-            locks[1],
-        ),
-    ).package_key != manifest.package_key
+    assert (
+        replace(
+            manifest,
+            runtime_dependency_locks=(
+                replace(locks[0], requirements_digest="8" * 64),
+                locks[1],
+            ),
+        ).package_key
+        != manifest.package_key
+    )
 
     with pytest.raises(ContractError, match="capsule"):
         replace(backend, working_directory="/home/user/verl")
@@ -185,9 +182,7 @@ def test_job_package_rejects_duplicate_environment_packages() -> None:
     with pytest.raises(ContractError, match="environment names"):
         replace(
             manifest,
-            environment_packages=(
-                manifest.environment_packages + manifest.environment_packages
-            ),
+            environment_packages=(manifest.environment_packages + manifest.environment_packages),
         )
 
 

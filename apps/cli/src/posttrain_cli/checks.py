@@ -99,17 +99,14 @@ def runtime_images_check(state: CliState) -> Check:
             continue
         configured_digest = image.value.rsplit("@", 1)[1]
         if configured_digest != published.digest:
-            drifted.append(
-                f"{variant}: configured {configured_digest}, release pins {published.digest}"
-            )
+            drifted.append(f"{variant}: configured {configured_digest}, release pins {published.digest}")
 
     if drifted:
         return Check(
             "runtime_images",
             "error",
             "configured job-kind images disagree with this framework release; "
-            "qualification evidence produced on them is not comparable. "
-            + "; ".join(drifted),
+            "qualification evidence produced on them is not comparable. " + "; ".join(drifted),
         )
     return Check(
         "runtime_images",

@@ -66,8 +66,7 @@ def test_run_evidence_locator_survives_project_configuration_drift(
         )
     )
     layout.manifest.write_text(
-        layout.manifest.read_text(encoding="utf-8")
-        + '\ntracking = "none"\n',
+        layout.manifest.read_text(encoding="utf-8") + '\ntracking = "none"\n',
         encoding="utf-8",
     )
     changed_layout = load_project_layout(layout.root)
@@ -176,11 +175,7 @@ def test_local_configuration_is_mode_checked_and_parsed(tmp_path: Path) -> None:
                         f"[registry.constraint_profiles.{profile}]",
                         'path = "constraints.txt"',
                         f'sha256 = "{constraints_digest}"',
-                        *(
-                            ('provided_packages = ["verifiers"]',)
-                            if profile in {"online-rl-trl-py312", "eval"}
-                            else ()
-                        ),
+                        *(('provided_packages = ["verifiers"]',) if profile in {"online-rl-trl-py312", "eval"} else ()),
                         "",
                     )
                 ),
@@ -205,9 +200,7 @@ def test_local_configuration_is_mode_checked_and_parsed(tmp_path: Path) -> None:
     assert configuration.local.trust_bundle == local_trust_bundle.resolve()
     assert configuration.dstack.storage is not None
     assert configuration.dstack.storage.run_root == Path("/var/lib/posttrain/runs")
-    assert configuration.dstack.trust_bundle == Path(
-        "/etc/posttrain/trust/internal-ca.pem"
-    )
+    assert configuration.dstack.trust_bundle == Path("/etc/posttrain/trust/internal-ca.pem")
     assert configuration.registry is not None
     assert configuration.registry.repository == "registry.lan/carbonteq/posttrain"
     assert configuration.registry.universal_image.value == image
@@ -291,9 +284,7 @@ def test_registry_accepts_an_incremental_exact_runtime_variant_set(
     manifest = load_manifest()
 
     # The declared entry overrides only itself.
-    assert loaded.registry.kind_images["supervised"].value == (
-        f"registry.lan/kind@sha256:{'2' * 64}"
-    )
+    assert loaded.registry.kind_images["supervised"].value == (f"registry.lan/kind@sha256:{'2' * 64}")
     # Every other published variant still resolves, from the release manifest
     # rather than from this file.
     assert set(loaded.registry.kind_images) == set(manifest.kinds)
@@ -725,13 +716,9 @@ def test_registry_resolves_from_the_environment_with_no_configuration_file(
     manifest = load_manifest()
     assert loaded.registry.repository == "registry.internal/team/posttrain-job"
     assert set(loaded.registry.kind_images) == set(manifest.kinds)
-    assert loaded.registry.universal_image.value == manifest.base.reference(
-        manifest.default_prefix
-    )
+    assert loaded.registry.universal_image.value == manifest.base.reference(manifest.default_prefix)
     for variant, image in manifest.kinds.items():
-        assert loaded.registry.kind_images[variant].value == image.reference(
-            manifest.default_prefix
-        )
+        assert loaded.registry.kind_images[variant].value == image.reference(manifest.default_prefix)
 
 
 def test_framework_images_do_not_follow_the_project_registry(
@@ -748,9 +735,7 @@ def test_framework_images_do_not_follow_the_project_registry(
 
     loaded = load_local_execution_config(layout)
     assert loaded.registry is not None
-    assert loaded.registry.kind_images["supervised"].value.startswith(
-        load_manifest().default_prefix + "/"
-    )
+    assert loaded.registry.kind_images["supervised"].value.startswith(load_manifest().default_prefix + "/")
 
 
 def test_trailing_slashes_in_the_environment_prefix_are_ignored(
@@ -804,7 +789,7 @@ def test_mirror_prefix_moves_framework_images_without_changing_identity(
     path = layout.state / "execution.toml"
     path.parent.mkdir(parents=True)
     path.write_text(
-        "schema_version = 1\n\n[registry]\nmirror_prefix = \"registry.internal/mirror\"\n",
+        'schema_version = 1\n\n[registry]\nmirror_prefix = "registry.internal/mirror"\n',
         encoding="utf-8",
     )
     path.chmod(0o600)
@@ -831,9 +816,7 @@ def test_derived_constraint_profiles_carry_published_provided_packages(
     profiles = loaded.registry.constraint_profiles
     assert profiles["online-rl-trl-py312"].provided_packages == ("verifiers",)
     assert profiles["supervised"].provided_packages == ()
-    assert profiles["supervised"].contents_digest == load_manifest().kinds[
-        "supervised"
-    ].lock_digest
+    assert profiles["supervised"].contents_digest == load_manifest().kinds["supervised"].lock_digest
 
 
 def test_release_blocked_variant_is_never_derived(
