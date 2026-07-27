@@ -10,7 +10,7 @@ The lab's injected observation context maps those hooks to Trackio. Datasets,
 rewards, and Verifiers environment implementations remain independently owned.
 
 The workspace uses the `carbonteq-ai/trl` fork pinned to immutable commit
-`6828a84716e0b9e29c3aedb40df3d28b81770e5b`. The fork preserves TRL 1.8.0 and
+`6e7739b8ec741d21ecd79c0c212694cd15ff20d8`. The fork preserves TRL 1.8.0 and
 adds the upstream-validated vLLM 0.24/0.25 dependency support plus regression
 coverage. It also keeps the trainer runtime compatible with `datasets 4.6.1`
 so the application can install Verifiers v1 and TRL together. It does not
@@ -49,6 +49,18 @@ adapter-shaped parameter set, while native LoRA synchronization keeps vLLM's
 base immutable and refreshes the adapter. It is part of the framework's
 immutable TRL pin, but still requires the retained ten-backward-pass
 distillation qualification before the overall release can be called complete.
+Every prior real training attempt died on step one with
+`FloatingPointError: grad_norm=nan`. The root cause was not numerics: the base
+`Trainer` counts `num_items_in_batch` from the raw, pre-generation dataloader
+batch, whose labels are prompt-only for on-policy rows (the completion does
+not exist until generation fills the buffer). That always counted to zero for
+a fully on-policy accumulation window, so the divergence loss divided a finite
+JSD sum by zero. The fork's `DistillationTrainer` now recomputes the count
+from the post-generation buffered labels and stamps it onto every
+micro-slice — the same pattern `GRPOTrainer` already used for its own
+post-generation count — and `compute_loss` prefers that value over the
+Trainer-level parameter. See `CARBONTEQ_FORK.md` in the fork for the full
+rationale and the added regression test.
 The candidate configuration and trainer wiring pass their focused tests. An
 order-dependent CPU failure was traced to a vLLM-generation test leaking
 distributed-launch environment variables: a later GRPO test initialized NCCL,

@@ -99,9 +99,9 @@ def test_distillation_yaml_resolves_every_seat_through_the_catalog() -> None:
         "kind": "lora",
     }
     assert training["resolved"]["backend_options"] == {  # type: ignore[index]
-        "source_revision": "6828a84716e0b9e29c3aedb40df3d28b81770e5b",
+        "source_revision": "6e7739b8ec741d21ecd79c0c212694cd15ff20d8",
         "dependency_lock_sha256": (
-            "726a43246b4e2b40a59b8bd6f1f134563f72ded26f5b77a7ba8aa01dbaea32b2"
+            "6ac044566e07715fe707c3f3fce2e4b3b1ecfb3d43c15a9ebf2568f609eca147"
         ),
     }
     execution_targets = resolved.snapshot["execution_targets"]
