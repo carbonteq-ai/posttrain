@@ -57,7 +57,7 @@ Before a registry release, use the workspace lock:
 
 ```bash
 mise install
-uv sync --all-packages --locked --python 3.12
+uv sync --all-packages --locked --python 3.13
 uv run --package posttrain posttrain doctor
 uv run --package posttrain posttrain catalog validate
 uv run --package posttrain posttrain work-package validate foundation_screen.yaml
@@ -95,7 +95,7 @@ gh release download <release-tag> \
   --pattern 'posttrain-wheelhouse-*.tar.gz'
 mkdir posttrain-wheelhouse
 tar -xzf posttrain-wheelhouse-*.tar.gz -C posttrain-wheelhouse
-uv venv --python 3.12
+uv venv --python 3.13
 uv pip install --python .venv/bin/python \
   --constraint ./posttrain-wheelhouse/github-constraints.txt \
   --find-links ./posttrain-wheelhouse \
@@ -115,7 +115,7 @@ tag and use the checked-in lock:
 git clone --branch <release-tag> --depth 1 \
   https://github.com/carbonteq-ai/posttrain.git
 cd posttrain
-uv sync --all-packages --locked --python 3.12
+uv sync --all-packages --locked --python 3.13
 ```
 
 ## Release artifact graph
@@ -165,7 +165,7 @@ monorepo:
 ```bash
 git clone <carbonteq-project>
 cd <carbonteq-project>
-uv sync --locked --python 3.12
+uv sync --locked --python 3.13
 uv run posttrain doctor
 uv run posttrain catalog validate
 uv run posttrain work-package validate <name>.yaml
