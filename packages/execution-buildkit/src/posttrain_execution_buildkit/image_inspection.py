@@ -132,15 +132,22 @@ class RuntimeImageInspector:
             labels=MappingProxyType(_config_labels(image_payload)),
         )
 
-    def copy(self, source: str, destination: str) -> str:
-        """Copy an image between registries by digest, without pulling layers.
+    def copy(self, source: str, destination_tag: str) -> str:
+        """Copy an image between registries, returning the destination digest.
 
-        Digests are content-addressed, so the destination carries the same
-        identity as the source; the returned digest is re-read from the
-        destination rather than assumed.
+        `destination_tag` must be a `repository:tag` reference. A digest cannot
+        be pushed to: it is derived from content, not chosen, so naming the
+        destination by digest is rejected. Content addressing still does the
+        real work here — the copied image keeps the source's digest — but that
+        digest is read back from the destination rather than requested, which
+        is what makes the copy verifiable.
         """
-        self._gateway.invoke(("imagetools", "create", "--tag", destination, source))
-        return self.inspect(destination).digest
+        if "@" in destination_tag:
+            raise ValueError(
+                f"mirror destination must be a tag, not a digest: {destination_tag}"
+            )
+        self._gateway.invoke(("imagetools", "create", "--tag", destination_tag, source))
+        return self.inspect(destination_tag).digest
 
 
 __all__ = [

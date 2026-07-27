@@ -155,3 +155,20 @@ def test_shipped_manifest_declares_the_supported_schema() -> None:
     document = tomllib.loads(read_resource(PurePosixPath("published.toml")).decode())
     assert document["schema_version"] == 1
     assert load_manifest().schema_version == 1
+
+
+def test_a_digest_cannot_be_a_mirror_destination() -> None:
+    """A digest is derived from content, so it cannot be pushed to.
+
+    Naming a mirror destination by digest is silently wrong: it looks correct
+    because the source is addressed that way, and the registry rejects it only
+    after auth succeeds and blob upload begins.
+    """
+    from posttrain_execution_buildkit import RuntimeImageInspector
+
+    manifest = load_manifest()
+    digest_reference = manifest.base.reference("ghcr.io/example")
+    assert "@sha256:" in digest_reference
+
+    with pytest.raises(ValueError, match="must be a tag, not a digest"):
+        RuntimeImageInspector().copy("source:tag", digest_reference)

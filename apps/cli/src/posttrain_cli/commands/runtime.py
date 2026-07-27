@@ -148,16 +148,26 @@ def register(app: typer.Typer) -> None:
         inspector = RuntimeImageInspector()
         copied: list[dict[str, str]] = []
         images = [("base", manifest.base)] + [(name, manifest.kinds[name]) for name in selected]
+        # The destination is a tag because a digest cannot be pushed to. The
+        # tag is derived from the release so it is stable and meaningful, and
+        # the digest is then read back to confirm identity survived the copy.
+        tag = f"v{manifest.framework_version}"
         for name, image in images:
             source = image.reference(origin)
-            destination = image.reference(registry_prefix)
+            destination = f"{registry_prefix.rstrip('/')}/{image.repository}:{tag}"
             observed = inspector.copy(source, destination)
             if observed != image.digest:
                 raise ContractError(
                     f"mirroring {name} changed its identity: expected {image.digest}, "
                     f"the destination reports {observed}"
                 )
-            copied.append({"variant": name, "source": source, "destination": destination})
+            copied.append(
+                {
+                    "variant": name,
+                    "source": source,
+                    "destination": f"{destination} ({image.digest})",
+                }
+            )
 
         payload = {"mirrored": copied, "registry": registry_prefix, "source": origin}
         if state.json_output:
