@@ -87,7 +87,7 @@ ARG LOCK_DIGEST
 ARG SOURCE_REVISION
 ARG VERSION
 LABEL org.opencontainers.image.created="${CREATED}" \
-      org.opencontainers.image.description="Python 3.12 TRL runtime for online reinforcement-learning jobs" \
+      org.opencontainers.image.description="Python 3.13 TRL runtime for online reinforcement-learning jobs" \
       org.opencontainers.image.revision="${SOURCE_REVISION}" \
       org.opencontainers.image.source="https://github.com/carbonteq-ai/posttrain" \
       org.opencontainers.image.title="posttrain-kind-online-rl-trl-py312" \

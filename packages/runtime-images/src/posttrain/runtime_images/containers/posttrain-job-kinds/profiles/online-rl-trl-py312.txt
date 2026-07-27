@@ -1,4 +1,4 @@
-# Python 3.12 TRL/Verifiers online-RL dependency profile.
+# Python 3.13 TRL/Verifiers online-RL dependency profile.
 -r supervised.txt
 nvidia-cuda-cccl==13.0.85
 nvidia-cuda-crt==13.0.88

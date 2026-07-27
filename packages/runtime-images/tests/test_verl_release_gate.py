@@ -24,7 +24,7 @@ def test_candidate_definition_preserves_two_python_environments() -> None:
     assert release_gate.validate_definition(profile) == ()
     assert profile.control_virtual_env == "/opt/posttrain/venv"
     assert profile.backend_virtual_env == "/opt/posttrain-verl"
-    assert profile.control_python == "3.12"
+    assert profile.control_python == "3.13.12"
     assert profile.backend_python == "3.13.12"
     assert profile.backend_projection_path == "/opt/posttrain-verl/projection"
     assert profile.backend_pythonpath_variable == "POSTTRAIN_VERL_PYTHONPATH"

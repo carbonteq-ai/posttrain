@@ -7,7 +7,7 @@ ARG DEPENDENCY_LOCK_SHA256
 ARG FORK_REVISION
 ARG SOURCE_REPOSITORY
 
-# The Python 3.12 control environment must match other kind images for
+# The control environment must match other kind images for
 # actual-job source installs (--no-build-isolation) and framework imports
 # (pydantic/pyyaml/trackio). The Python 3.13 worker remains separately locked.
 COPY containers/posttrain-job-kinds/locks/workspace.lock.txt /opt/posttrain/locks/workspace.lock.txt

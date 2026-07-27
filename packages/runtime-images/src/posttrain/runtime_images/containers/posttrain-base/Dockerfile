@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-ARG PYTHON_IMAGE=python:3.12.11-slim-bookworm@sha256:519591d6871b7bc437060736b9f7456b8731f1499a57e22e6c285135ae657bf7
+ARG PYTHON_IMAGE=python:3.13.12-slim-bookworm@sha256:a58daefb915e1e03ad48f3ca4df8832065412c5c35cacb9d39f4229184de12b6
 FROM ${PYTHON_IMAGE} AS runtime
 
 COPY --from=ghcr.io/astral-sh/uv:0.11.30@sha256:93b61e21202b1dab861092748e46bbd6e0e41dd84f59b9174efd2353186e1b47 /uv /uvx /bin/
@@ -34,7 +34,7 @@ RUN --mount=type=cache,id=posttrain-base-uv,target=/root/.cache/uv,sharing=locke
     # first so unsafe-best-match cannot substitute the CUDA-index artifact.
     uv pip install \
       --python "${VIRTUAL_ENV}" \
-      "triton @ https://files.pythonhosted.org/packages/ab/a8/cdf8b3e4c98132f965f88c2313a4b493266832ad47fb52f23d14d4f86bb5/triton-3.6.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl#sha256=74caf5e34b66d9f3a429af689c1c7128daba1d8208df60e81106b115c00d6fca" && \
+      "triton @ https://files.pythonhosted.org/packages/f9/0b/37d991d8c130ce81a8728ae3c25b6e60935838e9be1b58791f5997b24a54/triton-3.6.0-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl#sha256=10c7f76c6e72d2ef08df639e3d0d30729112f47a56b0c81672edc05ee5116ac9" && \
     uv pip install \
       --python "${VIRTUAL_ENV}" \
       --index-strategy unsafe-best-match \
@@ -46,7 +46,7 @@ ARG LOCK_DIGEST
 ARG SOURCE_REVISION
 ARG VERSION
 LABEL org.opencontainers.image.created="${CREATED}" \
-      org.opencontainers.image.description="Universal Python 3.12, CUDA-enabled PyTorch base for posttrain jobs" \
+      org.opencontainers.image.description="Universal Python 3.13, CUDA-enabled PyTorch base for posttrain jobs" \
       org.opencontainers.image.revision="${SOURCE_REVISION}" \
       org.opencontainers.image.source="https://github.com/carbonteq-ai/posttrain" \
       org.opencontainers.image.title="posttrain-base" \

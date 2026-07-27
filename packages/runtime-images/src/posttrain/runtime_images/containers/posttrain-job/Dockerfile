@@ -20,9 +20,9 @@ ENV POSTTRAIN_JOB_ROOT="/opt/posttrain/job" \
 
 WORKDIR ${POSTTRAIN_JOB_ROOT}
 
-# The digest-pinned kind image owns the Python 3.12 control environment used by
-# framework, project, and environment code. A backend such as veRL may expose a
-# separately qualified interpreter for its worker process, but actual-job
+# The digest-pinned kind image owns the control environment used by framework,
+# project, and environment code. A backend such as veRL may expose a separate,
+# independently locked environment for its worker process, but actual-job
 # layers never install framework packages into that backend environment.
 RUN test -n "${VIRTUAL_ENV}" && test -x "${VIRTUAL_ENV}/bin/python"
 
@@ -45,11 +45,13 @@ RUN --mount=type=cache,id=posttrain-job-uv,target=/root/.cache/uv,sharing=locked
       --require-hashes \
       --requirement locks/runtime.control.requirements.txt
 
-# A veRL capsule has two independently qualified interpreters. The Python 3.12
-# control process needs the selected environment to resolve the job and produce
-# the portable bridge snapshot. The Python 3.13 backend process needs the same
-# exact wheel closure to reconstruct that snapshot inside Ray. The shared kind
-# image already owns veRL/Torch/vLLM and the rest of its locked backend stack.
+# A veRL capsule has two independently locked environments on one interpreter.
+# The control process needs the selected environment to resolve the job and
+# produce the portable bridge snapshot. The backend process needs the same exact
+# wheel closure to reconstruct that snapshot inside Ray. They stay separate
+# because their closures conflict, not because their interpreters differ: veRL
+# requires liger-kernel>=0.7,<0.8 while the control side pins 0.8.0. The shared
+# kind image already owns veRL/Torch/vLLM and the rest of its locked stack.
 RUN if [ "${RUNTIME_VARIANT}" = "online-rl-verl-py313" ]; then \
       test -x "/opt/posttrain-verl/bin/python"; \
       uv pip install \
@@ -66,12 +68,13 @@ RUN if [ "${RUNTIME_VARIANT}" = "online-rl-verl-py313" ]; then \
 COPY --from=job-context /sources/framework/ sources/framework/
 COPY --from=job-context /sources/project/ sources/project/
 
-# Framework distributions intentionally remain Python 3.12-only. The isolated
-# veRL process nevertheless needs the backend-neutral contracts, portable
-# Verifiers bridge, agent loop, and finalizer. Project those three namespace
-# packages as source into the Python 3.13 process instead of installing a
-# second, misleading copy of the framework distribution. Project code remains
-# control-only; selected external environments arrive as immutable wheels.
+# Framework distributions are deliberately never installed into the backend
+# environment: doing so would drag their dependencies in, and those conflict
+# with veRL's. The isolated veRL process nevertheless needs the backend-neutral
+# contracts, portable Verifiers bridge, agent loop, and finalizer. Project those
+# three namespace packages as source instead of installing a second, misleading
+# copy of the framework distribution. Project code remains control-only;
+# selected external environments arrive as immutable wheels.
 RUN if [ "${RUNTIME_VARIANT}" = "online-rl-verl-py313" ]; then \
       install -d "${POSTTRAIN_VERL_PYTHONPATH}/posttrain"; \
       for package in common data train; do \

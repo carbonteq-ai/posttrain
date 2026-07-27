@@ -169,9 +169,9 @@ def _validate_boundaries() -> None:
         "veRL candidate must preserve separate control and backend environments",
     )
     _require(
-        verl_profile.get("control_python") == "3.12"
+        verl_profile.get("control_python") == "3.13.12"
         and verl_profile.get("backend_python") == "3.13.12",
-        "veRL candidate must retain its qualified Python split",
+        "veRL control and backend must both run the qualified interpreter",
     )
 
 

@@ -44,8 +44,12 @@ qualification run reproduces its 3.12 result.
   including the hardcoded cp312 Triton wheel, and republish the base.
 - [ ] Milestone 3 — Rebuild and requalify the job-kind images on the new base,
   regenerating `published.toml` from real registry state.
-- [ ] Milestone 4 — Collapse the veRL two-interpreter capsule into a single
-  interpreter and delete the projection bridge.
+- [~] Milestone 4 — Collapse the veRL two-interpreter capsule. ABANDONED: the
+  premise was wrong. The second environment is not only an interpreter bridge,
+  it is dependency isolation, and unifying Python does not remove the need for
+  it. See Surprises. What remains of this milestone is narrower: the capsule
+  keeps its separate environment and its source projection, and only the
+  interpreter mismatch goes away.
 - [ ] Milestone 5 — Run a GPU qualification on 3.13 and compare it against the
   retained 3.12 evidence before treating the move as proven.
 
@@ -90,6 +94,81 @@ qualification run reproduces its 3.12 result.
   suffix is constant across every variant and no longer separates anything.
   The decision to keep the interpreter in the name was taken before this
   experiment and should be revisited once the bump lands.
+
+- Observation: the veRL capsule's second environment is dependency isolation,
+  not merely a bridge across Python versions, so raising the interpreter floor
+  does not let it be deleted.
+  Evidence: the backend requires `liger-kernel>=0.7,<0.8` while the control
+  environment pins `liger-kernel==0.8.0` through `posttrain-train[trl]`.
+  Compiling the union of both closures at Python 3.13 fails outright: "Because
+  you require liger-kernel>=0.7,<0.8 and liger-kernel==0.8.0, we can conclude
+  that your requirements are unsatisfiable." The same reasoning applies to the
+  worker source projection, which exists so the backend environment never
+  installs framework distributions and therefore never inherits their
+  conflicting dependencies.
+  Consequence: the claim that this bump lets the bridge be deleted was wrong
+  and is retracted here rather than quietly dropped. The bump's benefit is
+  narrower: one interpreter ABI instead of two.
+
+- Observation: `BuildKitRuntimeBuilder` was orphaned because it targeted a
+  superseded image level, not merely because nobody had wired it up, and
+  reusing it against the current Bake files was wrong until its variable
+  contract was corrected.
+  Evidence: it emits `BASE_IMAGE` and `SOURCE_DIGEST`, which are the variables
+  the deleted `containers/posttrain-job-runtime/docker-bake.hcl` declared. The
+  shipped base and job-kind Bake files declare `POSTTRAIN_BASE_IMAGE` and
+  `SOURCE_REVISION` instead. Bake ignores undeclared variables silently, so the
+  first real publish failed on every job-kind image with "base name
+  (${POSTTRAIN_BASE_IMAGE}) should not be blank" after the base image had built
+  successfully. Both the release path and the consumer `runtime images build`
+  path now pass the variables these files actually declare.
+  Consequence: a static ladder cannot catch this class of defect. It surfaced
+  only on a real build against a real registry.
+
+- Observation: the profiles and Dockerfile comments encoded the reason for the
+  veRL split as a Python-version difference, which was never the whole reason
+  and is now simply wrong.
+  Evidence: `profile.toml` declared `control_python = "3.12"`, and the
+  actual-job Dockerfile described "two independently qualified interpreters"
+  with a 3.12 control process and a 3.13 backend. Both interpreters are now
+  3.13.12, and the true reason for the split is the conflicting dependency
+  closures recorded above. The profile, the release gate constant, the
+  validator assertion, its message, and the Dockerfile rationale were all
+  corrected rather than left describing a world that no longer exists.
+
+- Observation: the 3.12 baseline that Milestone 5 is meant to compare against
+  is not held locally, so acquiring it is part of that milestone rather than a
+  precondition already satisfied.
+  Evidence: `.posttrain/state/qualification/` retains five entries; only two
+  carry an execution journal and both end in `failed`. The passed ten-update
+  distillation gate is recorded in commit 32ca1389 as run
+  339100a5-a4c2-4ae6-aa5a-1b080513b50e on carbonteq-ai-workstation.lan, with
+  its evidence resolved through the deployed Observatory rather than retained
+  in this working tree.
+  Consequence: Milestone 5 must either re-run the 3.12 gate to capture a local
+  baseline, or compare against Observatory evidence for that run. Comparing a
+  fresh 3.13 run against nothing would prove only that it did not crash.
+
+- Observation: putting a wall-clock timestamp into a build variable silently
+  destroyed the idempotence the receipt mechanism is supposed to provide.
+  Evidence: `RuntimeBuildRequest.build_key` hashes `variables`, and the release
+  path passed `CREATED=datetime.now(...)`. Every invocation therefore produced
+  a different build key, no receipt ever matched, and the second publish
+  rebuilt all six images from scratch instead of reusing the first. `CREATED`
+  is now the commit timestamp of the revision being built, which is
+  deterministic per revision and keeps repeated publishes cheap.
+  Consequence: any future build variable must be a property of the inputs, not
+  of the moment the command ran, or it will defeat the cache in the same way.
+
+- Observation: `provided_packages` was about to be dropped from the regenerated
+  manifest, because the release path never supplied it.
+  Evidence: the first successful publish wrote a `published.toml` with no
+  `provided_packages` for `eval` or `online-rl-trl-py312`, where the previous
+  manifest recorded `["verifiers"]`. Losing it would make environment
+  dependency compiles resolve Verifiers again instead of treating the kind
+  image as providing it. It is now derived from the variant's own profile,
+  where `verifiers` appears exactly for those two variants, which removes yet
+  another value that was being restated by hand.
 
 ## Decision Log
 
@@ -154,10 +233,12 @@ Milestone 3 rebuilds each job-kind image on the new base and regenerates
 `published.toml` from what the registry reports, using the release tooling
 rather than by hand.
 
-Milestone 4 collapses the veRL capsule. With one interpreter, the projection
-path, the `POSTTRAIN_VERL_PYTHONPATH` variable, the worker projection package
-list, and the actual-job Dockerfile bridge are removed, and the release gate is
-updated to assert their absence rather than their correctness.
+Milestone 4 was planned as collapsing the veRL capsule and was abandoned once
+the dependency closures were actually tested. The separate backend environment
+and the source projection both survive on dependency-isolation grounds. The
+only thing the bump removes here is the interpreter mismatch itself, which
+means `control_python` and `backend_python` become the same version and the
+capsule no longer spans two Python ABIs.
 
 Milestone 5 qualifies on hardware. A GRPO or distillation qualification runs on
 the 3.13 images and its evidence is compared against the retained 3.12 run.
