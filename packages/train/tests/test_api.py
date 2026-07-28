@@ -71,6 +71,7 @@ from posttrain.train import (
 from posttrain.train.backends.trl.common import BackendTrainingResult, callback_type, trainer_lifecycle
 from posttrain.train.backends.trl.distillation import (
     _distillation_arguments,
+    _generate_with_expanded_rollout_func,
     _normalize_distillation_metrics,
     _observed_distillation_trainer_type,
     _validate_rollout_token_budget,
@@ -197,6 +198,30 @@ class FakeRLBridge:
 
     def finalize(self) -> tuple[ProducedArtifact, ...]:
         return ()
+
+
+@dataclass
+class ExpandedRLBridge(FakeRLBridge):
+    async def run(self, batch, generator) -> tuple[EnvironmentRollout, ...]:
+        del generator
+        return tuple(
+            EnvironmentRollout(
+                example_id=batch.example_ids[0],
+                prompt_ids=(1, 2, 20 + branch_index),
+                completion_ids=(30 + branch_index,),
+                sampling_logprobs=(-0.1,),
+                env_mask=(True,),
+                reward=0.0,
+                is_truncated=False,
+                trace=TraceObservation(
+                    "test",
+                    f"trace-0/branch-{branch_index}",
+                    {"example_id": batch.example_ids[0], "step": batch.step},
+                    {"source_batch_position": 0, "branch_index": branch_index},
+                ),
+            )
+            for branch_index in range(3)
+        )
 
 
 @dataclass
@@ -1079,12 +1104,86 @@ def test_distillation_rollout_adapter_preserves_fresh_identity_masks_and_traces(
     assert output["completion_loss_mask"] == [[True, True, True]]
     assert output["logprobs"] == [[-0.1, -0.2, -0.3]]
     assert output["rollout_ids"] == ["trace-0"]
+    assert output["source_indices"] == [0]
     assert observer.traces[0].attributes["technique"] == "distill"
     assert observer.events[-1].name == "distillation_batch_consumed"
     assert any(batch.values.get("train/distill/scored_tokens") == 3 for batch in observer.metrics_seen)
 
     with pytest.raises(ValueError, match="already been consumed"):
         rollout([[{"role": "user", "content": "What is 2 + 2?"}]], trainer, inputs=inputs)
+
+
+def test_distillation_rollout_adapter_expands_independent_environment_branches(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    observer = Observer()
+    context = _context(tmp_path.resolve(), observer)
+    request = replace(_distillation_request(), bridge=ExpandedRLBridge())
+    monkeypatch.setattr("posttrain.train.backends.trl.online_rl.TrlPolicyGenerator", lambda *args: object())
+    from posttrain.train import DistillationBatchLedger
+
+    assert request.student.revision is not None
+    rollout = _distillation_rollout_function(
+        context,
+        request,
+        object(),
+        DistillationBatchLedger(request.student.revision),
+    )
+    output = rollout(
+        [[{"role": "user", "content": "What is 2 + 2?"}]],
+        SimpleNamespace(state=SimpleNamespace(global_step=3)),
+        inputs=[{"example_id": "gsm8k/train/0"}],
+    )
+
+    assert output["prompt_ids"] == [[1, 2, 20], [1, 2, 21], [1, 2, 22]]
+    assert output["completion_ids"] == [[30], [31], [32]]
+    assert output["source_indices"] == [0, 0, 0]
+    assert len(output["rollout_ids"]) == 3
+
+
+def test_distillation_trainer_packs_expanded_branches_as_independent_rows() -> None:
+    torch = pytest.importorskip("torch")
+
+    class Tokenizer:
+        pad_token_id = 0
+
+        @staticmethod
+        def decode(token_ids, *, skip_special_tokens):
+            del skip_special_tokens
+            return ",".join(str(value) for value in token_ids)
+
+    trainer = SimpleNamespace(
+        processing_class=Tokenizer(),
+        accelerator=SimpleNamespace(device=torch.device("cpu")),
+        generation_config=SimpleNamespace(max_new_tokens=4),
+        rollout_func=lambda prompts, trainer, inputs: {
+            "prompt_ids": [[1, 2, 20], [1, 2, 21], [1, 2, 22]],
+            "prompt_lengths": [3, 3, 3],
+            "completion_ids": [[30], [31], [32]],
+            "completion_loss_mask": [[True], [True], [True]],
+            "logprobs": [[-0.1], [-0.2], [-0.3]],
+            "rollout_ids": ["trace/branch-0", "trace/branch-1", "trace/branch-2"],
+            "source_indices": [0, 0, 0],
+        },
+        _buffered_inputs=[None],
+        _buffered_text_logs=[None],
+    )
+    slices = [
+        {
+            "prompts": torch.tensor([[1, 2]], dtype=torch.long),
+            "prompt_attention_mask": torch.tensor([[1, 1]], dtype=torch.long),
+            "messages": [[{"role": "user", "content": "source"}]],
+            "rollout_inputs": [{"example_id": "train/0"}],
+        }
+    ]
+
+    _generate_with_expanded_rollout_func(trainer, slices, [0])
+
+    buffered = trainer._buffered_inputs[0]
+    assert buffered["input_ids"].tolist() == [[1, 2, 20, 30], [1, 2, 21, 31], [1, 2, 22, 32]]
+    assert buffered["labels"].tolist() == [[-100, -100, -100, 30], [-100, -100, -100, 31], [-100, -100, -100, 32]]
+    assert buffered["rollout_ids"] == ["trace/branch-0", "trace/branch-1", "trace/branch-2"]
 
 
 def test_grpo_rollout_adapter_emits_population_and_throughput_evidence(

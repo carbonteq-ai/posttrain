@@ -1,0 +1,59 @@
+project_id: foundation-models
+work_package_id: train/gemma4-e4b/policy-prism-scope-distill-pilot
+stage: train
+description: Run the 64-step Policy Prism scope distillation pilot.
+recipe:
+  type: inline
+  id: recipes/policy-prism-scope-on-policy-distillation@1
+  revision: "1"
+  stage: train
+  seats:
+    student: model
+    teacher: model
+    environment: environment
+    settings: training
+    training: training
+    rollout_inference: inference
+    teacher_inference: inference
+  jobs:
+    - id: distill
+      kind: train.distill
+      definition: train/trl-distill@1
+  expected_artifacts:
+    - trained scope adapter
+    - native Policy Prism Verifiers trajectories
+    - training summary
+bindings:
+  student:
+    type: ref
+    family: model
+    id: models/gemma4-e4b-it@bf16
+  teacher:
+    type: ref
+    family: model
+    id: models/gemma4-31b-it@bf16
+  environment:
+    type: ref
+    family: environment
+    id: policy-prism-scope-pilot-distill
+  settings:
+    type: ref
+    family: training
+    id: gemma4-e4b/policy-prism-distill-pilot-v1
+  training:
+    type: ref
+    family: training
+    id: training/gemma4-e4b-trl-policy-prism-distill-lora@1
+  rollout_inference:
+    type: ref
+    family: inference
+    id: inference/gemma4-e4b-vllm-policy-prism-rollout@1
+  teacher_inference:
+    type: ref
+    family: inference
+    id: inference/gemma4-31b-transformers-teacher-score@1
+enabled_optional_jobs: []
+metadata:
+  tangent: scope
+  gate: pilot
+  labels: [distillation, on-policy, policy-prism, gemma4]

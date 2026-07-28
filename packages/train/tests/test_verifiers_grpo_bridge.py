@@ -231,6 +231,28 @@ def test_policy_client_preserves_exact_turn_tokens_and_response() -> None:
     assert response.raw == {"id": "response-1"}
 
 
+def test_policy_client_preserves_environment_turn_token_cap() -> None:
+    generator = FakeGenerator()
+    client = _PolicyClient(generator)
+
+    asyncio.run(
+        client.get_response(
+            ChatDialect(),
+            {
+                "messages": [{"role": "user", "content": "recover the rules"}],
+                "max_tokens": 12,
+            },
+            "model-profile-v1",
+            Sampling(temperature=1.0, top_p=1.0, max_tokens=32),
+        )
+    )
+
+    request = generator.requests[0]
+    assert request.sampling.max_tokens == 12
+    assert request.sampling.temperature == 1.0
+    assert request.sampling.top_p == 1.0
+
+
 @pytest.mark.parametrize("subsequent_turn", [False, True])
 def test_policy_client_preserves_json_schema_on_every_staged_turn(subsequent_turn) -> None:
     generator = FakeGenerator()

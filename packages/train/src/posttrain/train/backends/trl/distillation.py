@@ -219,6 +219,13 @@ def _validate_gemma4_distillation_topology(request: OnPolicyDistillationRequest)
 
 def _observed_distillation_trainer_type(context: RunContext, parent: type[Any]) -> type[Any]:
     class ObservedDistillationTrainer(parent):
+        def _generate_with_rollout_func(
+            self,
+            slices: list[dict[str, Any]],
+            on_policy_indices: list[int],
+        ) -> None:
+            _generate_with_expanded_rollout_func(self, slices, on_policy_indices)
+
         def _get_teacher_logits(self, inputs: dict[str, Any]) -> Any:
             started_at = time.perf_counter()
             step = int(self.state.global_step)
@@ -244,6 +251,179 @@ def _observed_distillation_trainer_type(context: RunContext, parent: type[Any]) 
                 super()._save_checkpoint(model, trial)
 
     return ObservedDistillationTrainer
+
+
+def _generate_with_expanded_rollout_func(
+    trainer: Any,
+    slices: list[dict[str, Any]],
+    on_policy_indices: list[int],
+) -> None:
+    """Preserve one independently conditioned training row per environment branch."""
+
+    import torch
+
+    prompts: list[Any] = []
+    rollout_inputs: list[dict[str, Any]] = []
+    local_slice_indices: list[int] = []
+    pad_token_id = trainer.processing_class.pad_token_id
+
+    for slice_idx in on_policy_indices:
+        slice_inputs = slices[slice_idx]
+        messages = slice_inputs.get("messages")
+        source_inputs = slice_inputs.get("rollout_inputs")
+        prompt_mask = slice_inputs.get("prompt_attention_mask")
+        for row_idx, prompt in enumerate(slice_inputs["prompts"]):
+            if prompt_mask is not None:
+                prompt = prompt[prompt_mask[row_idx].bool()]
+            elif pad_token_id is not None:
+                prompt = prompt[prompt != pad_token_id]
+            prompt_ids = prompt.tolist()
+            structured_prompt = messages[row_idx] if messages is not None else prompt_ids
+            prompts.append(structured_prompt)
+            rollout_input = dict(source_inputs[row_idx]) if source_inputs is not None else {}
+            rollout_input.update({"prompt_ids": prompt_ids, "input": structured_prompt})
+            rollout_inputs.append(rollout_input)
+            local_slice_indices.append(slice_idx)
+
+    output = trainer.rollout_func(prompts, trainer, inputs=rollout_inputs)
+    required_keys = {
+        "prompt_ids",
+        "prompt_lengths",
+        "completion_ids",
+        "completion_loss_mask",
+        "logprobs",
+    }
+    missing_keys = required_keys - output.keys()
+    if missing_keys:
+        raise ValueError(f"rollout_func must return keys {sorted(missing_keys)} in its output dict")
+
+    item_count = len(output["prompt_ids"])
+    for key in required_keys:
+        if len(output[key]) != item_count:
+            raise ValueError(f"rollout_func field {key!r} must contain {item_count} items")
+    raw_source_indices = output.get("source_indices")
+    if raw_source_indices is None:
+        if item_count != len(prompts):
+            raise ValueError("expanded rollout_func output requires source_indices")
+        source_indices = list(range(item_count))
+    else:
+        source_indices = list(raw_source_indices)
+    if len(source_indices) != item_count:
+        raise ValueError("rollout_func source_indices must align with generated items")
+    if any(
+        isinstance(value, bool) or not isinstance(value, int) or value < 0 or value >= len(prompts)
+        for value in source_indices
+    ):
+        raise ValueError("rollout_func source_indices contain an invalid prompt position")
+    if set(source_indices) != set(range(len(prompts))):
+        raise ValueError("rollout_func source_indices must cover every prompt")
+    expanded_slice_indices = [local_slice_indices[value] for value in source_indices]
+
+    rollout_ids = output.get("rollout_ids")
+    if rollout_ids is not None:
+        if len(rollout_ids) != item_count:
+            raise ValueError("rollout_func rollout_ids must align with generated items")
+        if len(set(rollout_ids)) != len(rollout_ids):
+            raise ValueError("rollout_func rollout_ids must be unique")
+
+    normalized: list[dict[str, Any]] = []
+    for idx in range(item_count):
+        prompt_ids = list(output["prompt_ids"][idx])
+        completion_ids = list(output["completion_ids"][idx])
+        completion_loss_mask = [bool(value) for value in output["completion_loss_mask"][idx]]
+        logprobs = list(output["logprobs"][idx])
+        prompt_length = output["prompt_lengths"][idx]
+        if not isinstance(prompt_length, int) or prompt_length <= 0:
+            raise ValueError("rollout_func prompt_lengths must contain positive integers")
+        if prompt_length != len(prompt_ids):
+            raise ValueError("rollout_func prompt_lengths must equal the corresponding prompt_ids length")
+        if not prompt_ids or not completion_ids:
+            raise ValueError("rollout_func must return non-empty prompt_ids and completion_ids")
+        if len(completion_ids) > trainer.generation_config.max_new_tokens:
+            raise ValueError("rollout_func completion_ids exceed max_completion_length")
+        if len(completion_loss_mask) != len(completion_ids):
+            raise ValueError("rollout_func completion_loss_mask must align with completion_ids")
+        if len(logprobs) != len(completion_ids):
+            raise ValueError("rollout_func logprobs must align with completion_ids")
+        if not any(completion_loss_mask):
+            raise ValueError("rollout_func completion_loss_mask must select at least one token")
+        normalized.append(
+            {
+                "prompt_ids": prompt_ids,
+                "completion_ids": completion_ids,
+                "completion_loss_mask": completion_loss_mask,
+                "logprobs": logprobs,
+            }
+        )
+
+    device = trainer.accelerator.device
+    pad_id = pad_token_id if pad_token_id is not None else 0
+    for slice_idx in on_policy_indices:
+        items = [
+            item
+            for item, owner in zip(normalized, expanded_slice_indices, strict=True)
+            if owner == slice_idx
+        ]
+        prompt_width = max(len(item["prompt_ids"]) for item in items)
+        completion_width = max(len(item["completion_ids"]) for item in items)
+        input_rows = []
+        attention_rows = []
+        label_rows = []
+        prompt_mask_rows = []
+        logprob_rows = []
+        loss_mask_rows = []
+        prompt_texts = []
+        completion_texts = []
+
+        for item in items:
+            prompt_padding = prompt_width - len(item["prompt_ids"])
+            completion_padding = completion_width - len(item["completion_ids"])
+            prompt_row = [pad_id] * prompt_padding + item["prompt_ids"]
+            completion_row = item["completion_ids"] + [pad_id] * completion_padding
+            loss_mask = item["completion_loss_mask"] + [False] * completion_padding
+            labels = [-100] * prompt_width + [
+                token if keep else -100
+                for token, keep in zip(completion_row, loss_mask, strict=True)
+            ]
+            input_rows.append(prompt_row + completion_row)
+            attention_rows.append(
+                [0] * prompt_padding
+                + [1] * len(item["prompt_ids"])
+                + [1] * len(item["completion_ids"])
+                + [0] * completion_padding
+            )
+            label_rows.append(labels)
+            prompt_mask_rows.append([0] * prompt_padding + [1] * len(item["prompt_ids"]))
+            logprob_rows.append(item["logprobs"] + [0.0] * completion_padding)
+            loss_mask_rows.append(loss_mask)
+            prompt_texts.append(
+                trainer.processing_class.decode(item["prompt_ids"], skip_special_tokens=False)
+            )
+            completion_texts.append(
+                trainer.processing_class.decode(item["completion_ids"], skip_special_tokens=False)
+            )
+
+        updated = dict(slices[slice_idx])
+        updated["input_ids"] = torch.tensor(input_rows, dtype=torch.long, device=device)
+        updated["attention_mask"] = torch.tensor(attention_rows, dtype=torch.long, device=device)
+        updated["labels"] = torch.tensor(label_rows, dtype=torch.long, device=device)
+        updated["prompts"] = updated["input_ids"][:, :prompt_width]
+        updated["prompt_attention_mask"] = torch.tensor(
+            prompt_mask_rows,
+            dtype=torch.long,
+            device=device,
+        )
+        updated["prompt_length"] = prompt_width
+        updated["sampling_logprobs"] = torch.tensor(logprob_rows, dtype=torch.float32, device=device)
+        updated["completion_loss_mask"] = torch.tensor(loss_mask_rows, dtype=torch.bool, device=device)
+        if rollout_ids is not None:
+            updated["rollout_ids"] = [
+                rollout_id
+                for rollout_id, owner in zip(rollout_ids, expanded_slice_indices, strict=True)
+                if owner == slice_idx
+            ]
+        trainer._buffered_inputs[slice_idx] = updated
+        trainer._buffered_text_logs[slice_idx] = (prompt_texts, completion_texts)
 
 
 def _teacher_server_command(
@@ -375,8 +555,16 @@ def _rollout_function(
                     )
                 )
             )
-        if len(rollouts) != len(inputs):
-            raise ValueError("environment rollout count does not match the distillation trainer batch")
+        source_indices: list[int] = []
+        for rollout in rollouts:
+            value = rollout.trace.attributes.get("source_batch_position")
+            if value is None and len(rollouts) == len(inputs):
+                value = len(source_indices)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0 or value >= len(inputs):
+                raise ValueError("environment rollout has no valid source batch position")
+            source_indices.append(value)
+        if set(source_indices) != set(range(len(inputs))):
+            raise ValueError("environment rollouts do not cover every distillation trainer input")
         for rollout in rollouts:
             _validate_rollout_token_budget(request, rollout)
         trace_ids = tuple(rollout.trace.external_id for rollout in rollouts)
@@ -418,6 +606,7 @@ def _rollout_function(
             {
                 **attributes,
                 "step": step,
+                "source_prompts": len(inputs),
                 "rollouts": len(consumed),
                 "scored_tokens": scored_tokens,
             },
@@ -429,6 +618,7 @@ def _rollout_function(
             "completion_loss_mask": [list(rollout.env_mask) for rollout in consumed],
             "logprobs": [list(rollout.sampling_logprobs) for rollout in consumed],
             "rollout_ids": list(trace_ids),
+            "source_indices": source_indices,
         }
 
     return run_rollouts

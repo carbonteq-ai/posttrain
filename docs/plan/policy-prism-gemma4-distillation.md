@@ -7,7 +7,7 @@ This ExecPlan is a living document. Keep `Progress`, `Surprises & Discoveries`,
 
 ## Purpose / Big Picture
 
-Extend the existing `train.distill` path so a project can train two independent
+Extend the existing `train.distill` path so a project can train independent
 BF16 LoRA adapters for `google/gemma-4-E4B-it` from an unquantized local
 `google/gemma-4-31B-it` teacher on one H200. Policy Prism owns prompt-only task
 selection, staged JSON schemas, native Verifiers traces, and sealed before/after
@@ -19,8 +19,9 @@ The shortest supported route is a standard `train.distill` job using
 plan does not add a custom Lab trainer, a RunPod provider, offline teacher
 answers, or any quantization.
 
-Scope and recovery never share an adapter. Each tangent has a one-step smoke,
-an eight-step qualification, and a 64-step pilot.
+Scope and recovery never share an adapter. The first paid experiment is scope
+only: a one-step smoke, an eight-step qualification, and a 64-step pilot.
+Recovery remains CPU-qualified but its catalog packages and GPU run are deferred.
 
 ## Progress
 
@@ -48,8 +49,9 @@ an eight-step qualification, and a 64-step pilot.
 - [x] (2026-07-28 18:25Z) Added independent project selections for both Gemma
   models, one H200 target, colocated E4B vLLM rollout, local BF16 31B teacher,
   text-only rank-8 LoRA, and shared 1/8/64-step settings.
-- [ ] Add six Policy Prism environment bindings and six standard work packages
-  after the verifier package has a final immutable commit.
+- [x] (2026-07-29 00:25Z) Added and validated the three scope Policy Prism environment bindings and
+  standard work packages pinned to Policy Prism commit
+  `bfa7802f4e8250803f11fdba242608fb419acc8d`.
 - [x] (2026-07-28 17:14Z) Extended per-step distillation telemetry,
   checkpoint runtime phases, and Observatory charts, evidence groups, and
   health alerts. Focused validation has 84 common/train tests with Verifiers
@@ -58,7 +60,16 @@ an eight-step qualification, and a 64-step pilot.
 - [x] (2026-07-28 19:05Z) Completed focused common, train, Verifiers bridge,
   Observatory, catalog, work-package, Ruff, changed-file Pyright,
   import-boundary, and diff validation.
-- [ ] Commit and push the independent PostTrain support.
+- [x] (2026-07-28 19:20Z) Committed and pushed the independent PostTrain
+  support as `b5396d0f58113d85f48be8db61ed795313c10cd5`.
+- [x] (2026-07-29 00:25Z) Clean-built Policy Prism 0.4.0 and verified exact
+  catalog equality, 1/8/64 scope task counts, source-only fields, native JSON
+  Schema, stage limits, and independently conditioned scope/recovery rows.
+- [x] (2026-07-29 00:25Z) Passed 168 common/train tests, 12 catalog tests, 45
+  focused Observatory tests, 13 work-package tests, three static package
+  validations, changed-file Ruff/Pyright, all import contracts, project doctor,
+  and diff checks.
+- [ ] Commit and push the scope integration support.
 - [ ] Run the H200 smoke and qualification gates; no local CPU result can claim
   GPU readiness.
 
@@ -125,6 +136,19 @@ an eight-step qualification, and a 64-step pilot.
   Evidence: 69 Verifiers/TRL tests and eight focused work-package tests pass;
   one GSM8K and one AutomationBench activation test are explicitly deselected.
 
+- Observation: Policy Prism's staged program issues each stage as an
+  independent model call, so Verifiers exposes three disjoint trace branches
+  for scope and two for recovery rather than one conversational branch.
+  Evidence: the real `bfa7802...` smoke environments and the cross-repository
+  bridge test.
+
+- Observation: Verifiers supplies the rollout-level sampling cap separately
+  from the harness request. PostTrain must preserve a smaller positive
+  per-call `max_tokens` from the staged request while keeping the rollout cap
+  authoritative.
+  Evidence: the real Policy Prism bridge requests 512/1536/768 tokens for
+  scope and 512/2048 for recovery.
+
 ## Decision Log
 
 - Decision: No frozen product-baseline amendment is required.
@@ -159,6 +183,25 @@ an eight-step qualification, and a 64-step pilot.
   independently; combining them would obscure which policy improved.
   Date/Author: 2026-07-28 / Codex.
 
+- Decision: Run paid GPU qualification for scope only in this execution.
+  Rationale: one retained adapter and a roughly USD 20 Community H200 cap are
+  the current goal; recovery remains a separate future experiment.
+  Date/Author: 2026-07-29 / Codex.
+
+- Decision: For distillation only, project independent root branches as
+  separate exact-token training rows and expand each trainer input through an
+  explicit source-index mapping. Continue rejecting multi-branch GRPO/SAMPO
+  and forked rather than independent distillation traces.
+  Rationale: every Policy Prism stage must contribute trainable tokens while
+  teacher and student logits retain that stage's actual prompt conditioning.
+  Date/Author: 2026-07-29 / Codex.
+
+- Decision: Accept Policy Prism's approximately 14-token dependency-label
+  budgeting undercount for the selected source data.
+  Rationale: the selected rows have headroom and PostTrain enforces the actual
+  rendered-token limits before teacher scoring.
+  Date/Author: 2026-07-29 / User and Codex.
+
 - Decision: Keep only identities required for correct execution: exact model
   revisions, shared tokenizer token-ID fingerprint, final Policy Prism commit,
   and the automatically emitted adapter identity.
@@ -169,13 +212,13 @@ an eight-step qualification, and a 64-step pilot.
 
 ## Outcomes & Retrospective
 
-The reusable framework slice and independent catalog are implemented and their
-focused CPU gates pass: 16 common tests, 138 train tests, 69 Verifiers/TRL
-tests, 45 Observatory tests, 13 Gemma/catalog tests, and eight work-package
-tests. Ruff, changed-file Pyright, all eight import contracts, catalog
-validation, and diff checks also pass. Final environment/work-package
-activation, wheel installation, and the H200 qualification remain gated on a
-committed Policy Prism environment and gated Gemma model-weight access.
+The reusable framework slice, independently conditioned staged-row bridge,
+scope catalog, and three scope work packages are implemented. The final CPU
+gate passes: 168 common/train tests, five clean-wheel Policy Prism tests, 12
+catalog tests, 45 Observatory tests, and 13 work-package tests. Ruff,
+changed-file Pyright, all eight import contracts, static package validation,
+project doctor, and diff checks pass. H200 execution and local adapter export
+remain.
 
 ## Context and Orientation
 
@@ -216,9 +259,10 @@ example, tangent, three observed lengths, and their limits.
 
 The project overlay independently selects exact Gemma variants, BF16 rank-8
 LoRA, local BF16 teacher, a 2-GiB colocated vLLM KV cache, and an H200 141-GB
-target. After Policy Prism publishes its final commit, copy its exact serialized
-environment activations and add scope and recovery smoke, qualification, and
-pilot work packages using the existing 1/8/64-step settings.
+target. Copy Policy Prism's exact serialized environment activations and add
+scope smoke, qualification, and pilot work packages using the existing
+1/8/64-step settings. Recovery packages are deferred, while its real bridge
+remains CPU-tested.
 
 Finally expose objective, optimizer, supervision/runtime, and teacher metric
 groups in Observatory. Treat non-finite objectives, teacher failures, zero
@@ -244,9 +288,9 @@ After focused tests pass, run package-scoped Ruff, Pyright over changed files,
 Do not expand into long unrelated suites unless focused validation exposes a
 cross-package risk.
 
-On the H200, validate selections, run both one-step smokes, inspect a Verifiers
-trace and adapter artifact from each, then run both eight-step qualifications
-before the two independent 64-step pilots. Stop if teacher failures are
+On the H200, validate selections, run the scope one-step smoke, inspect its
+Verifiers trace and adapter artifact, then run the scope eight-step
+qualification before one independent 64-step pilot. Stop if teacher failures are
 non-zero, scored tokens are zero, an
 objective is non-finite, or available VRAM drops below the qualification
 headroom gate.
@@ -258,11 +302,11 @@ selection/fallback, multimodal LoRA exclusion, first/subsequent-turn schema
 preservation, temporary generation-state restoration, pre-teacher overlength
 failure, normalized per-step metrics, and deterministic health alerts.
 
-GPU acceptance requires a successful H200 smoke with one native Verifiers
+GPU acceptance requires a successful H200 scope smoke with one native Verifiers
 trace, finite loss/reverse-KL/gradient norm, non-zero scored tokens, zero
 teacher failures, and retained adapter plus summary. Qualification requires
-eight training tasks per tangent. Pilot acceptance requires 64 training tasks
-per tangent and no error alert. Improvement is determined only by Policy Prism sealed
+eight scope training tasks. Pilot acceptance requires 64 scope training tasks
+and no error alert. Improvement is determined only by Policy Prism sealed
 before/after evaluation, not monotonic training loss.
 
 ## Idempotence and Recovery
@@ -317,3 +361,9 @@ Plan update note (2026-07-28): completed the independent CPU validation ladder.
 The two deselected work-package activations require unrelated external GSM8K
 and AutomationBench taskset packages; no Policy Prism or changed-code failure
 remains.
+
+Plan update note (2026-07-29): pinned Policy Prism `bfa7802...`, added the three
+scope packages, and changed staged distillation projection from an unsafe
+synthetic concatenation to independently conditioned rows. The clean wheel and
+all CPU release gates pass; only commit/push and the budget-capped H200 run
+remain.

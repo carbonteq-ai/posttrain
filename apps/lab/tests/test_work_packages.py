@@ -100,7 +100,7 @@ def test_distillation_yaml_resolves_every_seat_through_the_catalog() -> None:
     }
     assert training["resolved"]["backend_options"] == {  # type: ignore[index]
         "source_revision": "6e7739b8ec741d21ecd79c0c212694cd15ff20d8",
-        "dependency_lock_sha256": ("52d60597911137495302b63d84754eb8256f588714e7e07f35602fbbbb6ded83"),
+        "dependency_lock_sha256": ("b9509725d75d3e5e89abae269354fdd04584bf4f6e2bd347df01d22d1424686f"),
     }
     execution_targets = resolved.snapshot["execution_targets"]
     assert isinstance(execution_targets, dict)
@@ -132,6 +132,60 @@ def test_distillation_yaml_resolves_every_seat_through_the_catalog() -> None:
         "rollout_inference",
         "teacher_inference",
     }
+
+
+@pytest.mark.parametrize(
+    ("filename", "environment_id", "settings_id", "task_count", "max_steps"),
+    [
+        (
+            "policy_prism_scope_distillation_smoke.yaml",
+            "policy-prism-scope-smoke-distill",
+            "gemma4-e4b/policy-prism-distill-smoke-v1",
+            1,
+            1,
+        ),
+        (
+            "policy_prism_scope_distillation_qualification.yaml",
+            "policy-prism-scope-qualification-distill",
+            "gemma4-e4b/policy-prism-distill-qualification-v1",
+            8,
+            8,
+        ),
+        (
+            "policy_prism_scope_distillation_pilot.yaml",
+            "policy-prism-scope-pilot-distill",
+            "gemma4-e4b/policy-prism-distill-pilot-v1",
+            64,
+            64,
+        ),
+    ],
+)
+def test_policy_prism_scope_distillation_work_packages_resolve(
+    filename: str,
+    environment_id: str,
+    settings_id: str,
+    task_count: int,
+    max_steps: int,
+) -> None:
+    package = load_work_package(WORK_PACKAGES / filename)
+    catalog = open_catalog(
+        scope=package.project_id,
+        overlays=(WORKSPACE / ".posttrain" / "catalog",),
+    )
+    resolved = resolve_work_package(catalog, package)
+
+    assert package.work_package_id.startswith("train/gemma4-e4b/policy-prism-scope-")
+    assert package.bindings["environment"] == CatalogRef("environment", environment_id)
+    assert package.bindings["settings"] == CatalogRef("training", settings_id)
+    environment = cast(dict[str, object], resolved.snapshot["environment"])
+    environment_value = cast(dict[str, object], environment["resolved"])
+    assert environment_value["num_tasks"] == task_count
+    assert environment_value["reward_components"] == []
+    settings = cast(dict[str, object], resolved.snapshot["settings"])
+    settings_value = cast(dict[str, object], settings["resolved"])
+    assert settings_value["max_steps"] == max_steps
+    assert resolved.snapshot["student"]["selection_id"] == "models/gemma4-e4b-it@bf16"  # type: ignore[index]
+    assert resolved.snapshot["teacher"]["selection_id"] == "models/gemma4-31b-it@bf16"  # type: ignore[index]
 
 
 def test_grpo_definition_accepts_only_an_environment_population_seat() -> None:

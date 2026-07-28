@@ -9,7 +9,7 @@ import statistics
 import threading
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from random import Random
 from typing import Any, Literal, Protocol
@@ -335,10 +335,18 @@ class _PolicyClient:
             tail_start = turn.tail_start
         if sampling_args.max_tokens is None:
             raise ValueError("environment policy turns require an explicit max_tokens value")
+        max_tokens = int(sampling_args.max_tokens)
+        requested_max_tokens = body.get("max_completion_tokens", body.get("max_tokens"))
+        if requested_max_tokens is not None:
+            if isinstance(requested_max_tokens, bool) or not isinstance(requested_max_tokens, int):
+                raise TypeError("environment turn max_tokens must be an integer")
+            if requested_max_tokens <= 0:
+                raise ValueError("environment turn max_tokens must be positive")
+            max_tokens = min(max_tokens, requested_max_tokens)
         request = PolicyTurnRequest(
             messages=tuple(_record(message) for message in messages),
             sampling=PolicySampling(
-                max_tokens=int(sampling_args.max_tokens),
+                max_tokens=max_tokens,
                 temperature=1.0 if sampling_args.temperature is None else float(sampling_args.temperature),
                 top_p=1.0 if sampling_args.top_p is None else float(sampling_args.top_p),
             ),
@@ -456,7 +464,7 @@ class VerifiersEnvironmentRolloutBridge:
                 top_p=self.sampling.top_p,
             ),
         )
-        by_id: dict[str, list[EnvironmentRollout]] = {}
+        by_id: dict[str, list[tuple[EnvironmentRollout, ...]]] = {}
         async with self._environment.serving():
             for example_id in order:
                 try:
@@ -464,7 +472,7 @@ class VerifiersEnvironmentRolloutBridge:
                 except KeyError as error:
                     raise ValueError(f"unknown rollout example {example_id!r}") from error
                 traces = await self._environment.episode(task, context, n=counts[example_id]).run()
-                projected: list[EnvironmentRollout] = []
+                projected: list[tuple[EnvironmentRollout, ...]] = []
                 for trace in traces:
                     trace.stamp(
                         run=TrainRunInfo(id=self.run_id, step=batch.step),
@@ -479,58 +487,74 @@ class VerifiersEnvironmentRolloutBridge:
                 by_id[example_id] = projected
         positions = {identifier: 0 for identifier in by_id}
         aligned: list[EnvironmentRollout] = []
-        for example_id in batch.example_ids:
+        for batch_position, example_id in enumerate(batch.example_ids):
             position = positions[example_id]
-            aligned.append(by_id[example_id][position])
+            for rollout in by_id[example_id][position]:
+                observation = replace(
+                    rollout.trace,
+                    attributes={**rollout.trace.attributes, "source_batch_position": batch_position},
+                )
+                aligned.append(replace(rollout, trace=observation))
             positions[example_id] = position + 1
         return aligned
 
-    def _project(self, trace: Any, example_id: str, task_index: int) -> EnvironmentRollout:
+    def _project(self, trace: Any, example_id: str, task_index: int) -> tuple[EnvironmentRollout, ...]:
         branches = trace.branches
-        if len(branches) != 1:
+        root_count = sum(node.parent is None for node in trace.nodes)
+        independent_distillation_stages = (
+            self.technique == "distill" and len(branches) > 1 and root_count == len(branches)
+        )
+        if len(branches) != 1 and not independent_distillation_stages:
             error = trace.error
             detail = f"; trace error={error.type}: {error.message}" if error is not None else ""
             raise ValueError(f"online-RL MVP requires one trainable trace branch, got {len(branches)}{detail}")
-        branch = branches[0]
-        token_ids = tuple(int(value) for value in branch.token_ids)
-        sampled_mask = tuple(bool(value) for value in branch.sampled_mask)
-        if len(token_ids) != len(sampled_mask):
-            raise ValueError("Verifiers branch token ids and sampled mask are misaligned")
-        try:
-            first_sampled = sampled_mask.index(True)
-        except ValueError as error:
-            raise ValueError("Verifiers trace has no model-sampled tokens") from error
-        prompt_ids = token_ids[:first_sampled]
-        completion_ids = token_ids[first_sampled:]
-        env_mask = sampled_mask[first_sampled:]
-        logprobs = tuple(float(value) for value in branch.logprobs[first_sampled:])
-        if len(logprobs) != len(completion_ids):
-            raise ValueError("Verifiers branch logprobs are not aligned to the training sequence")
         record = trace.to_record()
-        turns = _agentic_turns(branch, first_sampled) if self.technique == "sampo" else ()
-        observation = TraceObservation(
-            trace_type="verifiers",
-            external_id=str(trace.id),
-            payload=record,
-            attributes={
-                "environment_id": self.environment_id,
-                "task_index": task_index,
-                "example_id": example_id,
-                "is_truncated": trace.is_truncated,
-                "model": trace.agent.model if trace.agent is not None else "",
-            },
-        )
-        return EnvironmentRollout(
-            example_id=example_id,
-            prompt_ids=prompt_ids,
-            completion_ids=completion_ids,
-            sampling_logprobs=logprobs,
-            env_mask=env_mask,
-            reward=float(trace.reward),
-            is_truncated=bool(trace.is_truncated or trace.has_error),
-            trace=observation,
-            turns=turns,
-        )
+        projected: list[EnvironmentRollout] = []
+        for branch_index, branch in enumerate(branches):
+            token_ids = tuple(int(value) for value in branch.token_ids)
+            sampled_mask = tuple(bool(value) for value in branch.sampled_mask)
+            if len(token_ids) != len(sampled_mask):
+                raise ValueError("Verifiers branch token ids and sampled mask are misaligned")
+            try:
+                first_sampled = sampled_mask.index(True)
+            except ValueError as error:
+                raise ValueError("Verifiers trace has a branch with no model-sampled tokens") from error
+            prompt_ids = token_ids[:first_sampled]
+            completion_ids = token_ids[first_sampled:]
+            env_mask = sampled_mask[first_sampled:]
+            logprobs = tuple(float(value) for value in branch.logprobs[first_sampled:])
+            if len(logprobs) != len(completion_ids):
+                raise ValueError("Verifiers branch logprobs are not aligned to the training sequence")
+            external_id = str(trace.id) if len(branches) == 1 else f"{trace.id}/branch-{branch_index}"
+            observation = TraceObservation(
+                trace_type="verifiers",
+                external_id=external_id,
+                payload=record,
+                attributes={
+                    "environment_id": self.environment_id,
+                    "task_index": task_index,
+                    "example_id": example_id,
+                    "original_trace_id": str(trace.id),
+                    "branch_index": branch_index,
+                    "branch_count": len(branches),
+                    "is_truncated": trace.is_truncated,
+                    "model": trace.agent.model if trace.agent is not None else "",
+                },
+            )
+            projected.append(
+                EnvironmentRollout(
+                    example_id=example_id,
+                    prompt_ids=prompt_ids,
+                    completion_ids=completion_ids,
+                    sampling_logprobs=logprobs,
+                    env_mask=env_mask,
+                    reward=float(trace.reward),
+                    is_truncated=bool(trace.is_truncated or trace.has_error),
+                    trace=observation,
+                    turns=_agentic_turns(branch, first_sampled) if self.technique == "sampo" else (),
+                )
+            )
+        return tuple(projected)
 
     def _preserve(self, record: dict[str, Any]) -> None:
         encoded = json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n"

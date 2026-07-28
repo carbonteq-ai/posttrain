@@ -42,6 +42,185 @@ target:
     placement:
       world_size: 1
 
+environment:
+  policy-prism-scope-smoke-distill:
+    category: normative-scope-distillation
+    source:
+      package: policy-prism-normative-verifiers
+      repository: https://github.com/alisafdar-carbonteq/policy-prism-monorepo.git
+      revision: bfa7802f4e8250803f11fdba242608fb419acc8d
+      subdirectory: packages/normative-verifiers
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: policy-prism-normative-distill-train
+          task:
+            judges: []
+          tangent: scope
+          selection_id: smoke
+        harness:
+          id: policy-prism-normative-distill-train
+          runtime:
+            type: subprocess
+          env: {}
+          forward_env: []
+          disabled_tools: null
+          mode: distill_train
+        timeout:
+          setup: 120.0
+          rollout: 1800.0
+          finalize: 120.0
+          scoring: 120.0
+        retries:
+          rollout:
+            max_retries: 0
+            include: []
+            exclude: []
+        max_turns: 3
+        max_input_tokens: null
+        max_output_tokens: null
+        max_total_tokens: 16384
+        interception:
+          type: elastic
+          multiplex: 32
+        id: null
+        args: {}
+        extra_env_kwargs: {}
+    sampling:
+      max_tokens: 1536
+      temperature: 1.0
+      top_p: 1.0
+    num_tasks: 1
+    num_rollouts: 1
+    max_concurrent: 2
+    parameters:
+      max_turns: 3
+      max_total_tokens: 16384
+      rollout_timeout_seconds: 1800
+      sampling_seed: 20260710
+      selection_id: smoke
+      tangent: scope
+    reward_components: []
+  policy-prism-scope-qualification-distill:
+    category: normative-scope-distillation
+    source:
+      package: policy-prism-normative-verifiers
+      repository: https://github.com/alisafdar-carbonteq/policy-prism-monorepo.git
+      revision: bfa7802f4e8250803f11fdba242608fb419acc8d
+      subdirectory: packages/normative-verifiers
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: policy-prism-normative-distill-train
+          task:
+            judges: []
+          tangent: scope
+          selection_id: qualification
+        harness:
+          id: policy-prism-normative-distill-train
+          runtime:
+            type: subprocess
+          env: {}
+          forward_env: []
+          disabled_tools: null
+          mode: distill_train
+        timeout:
+          setup: 120.0
+          rollout: 1800.0
+          finalize: 120.0
+          scoring: 120.0
+        retries:
+          rollout:
+            max_retries: 0
+            include: []
+            exclude: []
+        max_turns: 3
+        max_input_tokens: null
+        max_output_tokens: null
+        max_total_tokens: 16384
+        interception:
+          type: elastic
+          multiplex: 32
+        id: null
+        args: {}
+        extra_env_kwargs: {}
+    sampling:
+      max_tokens: 1536
+      temperature: 1.0
+      top_p: 1.0
+    num_tasks: 8
+    num_rollouts: 1
+    max_concurrent: 2
+    parameters:
+      max_turns: 3
+      max_total_tokens: 16384
+      rollout_timeout_seconds: 1800
+      sampling_seed: 20260710
+      selection_id: qualification
+      tangent: scope
+    reward_components: []
+  policy-prism-scope-pilot-distill:
+    category: normative-scope-distillation
+    source:
+      package: policy-prism-normative-verifiers
+      repository: https://github.com/alisafdar-carbonteq/policy-prism-monorepo.git
+      revision: bfa7802f4e8250803f11fdba242608fb419acc8d
+      subdirectory: packages/normative-verifiers
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: policy-prism-normative-distill-train
+          task:
+            judges: []
+          tangent: scope
+          selection_id: pilot
+        harness:
+          id: policy-prism-normative-distill-train
+          runtime:
+            type: subprocess
+          env: {}
+          forward_env: []
+          disabled_tools: null
+          mode: distill_train
+        timeout:
+          setup: 120.0
+          rollout: 1800.0
+          finalize: 120.0
+          scoring: 120.0
+        retries:
+          rollout:
+            max_retries: 0
+            include: []
+            exclude: []
+        max_turns: 3
+        max_input_tokens: null
+        max_output_tokens: null
+        max_total_tokens: 16384
+        interception:
+          type: elastic
+          multiplex: 32
+        id: null
+        args: {}
+        extra_env_kwargs: {}
+    sampling:
+      max_tokens: 1536
+      temperature: 1.0
+      top_p: 1.0
+    num_tasks: 64
+    num_rollouts: 1
+    max_concurrent: 2
+    parameters:
+      max_turns: 3
+      max_total_tokens: 16384
+      rollout_timeout_seconds: 1800
+      sampling_seed: 20260710
+      selection_id: pilot
+      tangent: scope
+    reward_components: []
+
 inference:
   inference/gemma4-e4b-vllm-policy-prism-rollout@1:
     revision: "1"
