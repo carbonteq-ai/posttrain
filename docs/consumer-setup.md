@@ -35,9 +35,11 @@ optional.
 uv venv --python 3.13 .venv
 ```
 
-```bash
-curl -sSLO https://pypi.lan/carbonteq/stable/+f/github-constraints.txt
-```
+Obtain `github-constraints.txt` from the framework release you are installing.
+It is `release/github-constraints.txt` in the framework repository, and the
+release workflow attaches it to the published wheelhouse. There is currently no
+way to fetch it from the index, which is a gap: the constraints are required to
+install, so they should travel with the distributions rather than beside them.
 
 ```bash
 VIRTUAL_ENV=.venv uv pip install --system-certs --index-url https://pypi.lan/carbonteq/stable/+simple/ --constraint github-constraints.txt "posttrain[observatory,trackio,trl]"
