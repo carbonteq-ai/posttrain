@@ -27,7 +27,7 @@ def _image(name: str, variant: str, digest_char: str) -> PublishedImage:
 def _render_all() -> str:
     return render_manifest(
         framework_version="9.9.9",
-        default_prefix="ghcr.io/carbonteq-ai",
+        default_prefix="registry.lan/carbonteq",
         base=PublishedImage(
             name="base",
             repository="posttrain-base",
@@ -45,7 +45,7 @@ def test_rendered_manifest_parses_and_round_trips() -> None:
     document = tomllib.loads(_render_all())
     assert document["schema_version"] == 1
     assert document["framework_version"] == "9.9.9"
-    assert document["default_prefix"] == "ghcr.io/carbonteq-ai"
+    assert document["default_prefix"] == "registry.lan/carbonteq"
     assert set(document["kinds"]) == set(RUNTIME_VARIANTS)
 
 
@@ -67,7 +67,7 @@ def test_provided_packages_survive_rendering() -> None:
     lock = constraint_lock("eval")
     rendered = render_manifest(
         framework_version="1.0.0",
-        default_prefix="ghcr.io/carbonteq-ai",
+        default_prefix="registry.lan/carbonteq",
         base=PublishedImage(
             name="base",
             repository="posttrain-base",
@@ -94,7 +94,7 @@ def test_an_empty_release_is_rejected() -> None:
     with pytest.raises(ValueError, match="at least one job-kind image"):
         render_manifest(
             framework_version="1.0.0",
-            default_prefix="ghcr.io/carbonteq-ai",
+            default_prefix="registry.lan/carbonteq",
             base=PublishedImage(
                 name="base",
                 repository="posttrain-base",
@@ -121,7 +121,18 @@ def test_the_shipped_manifest_matches_what_the_renderer_would_produce() -> None:
         assert rendered["kinds"][variant]["lock_digest"] == image.lock_digest
 
 
-def test_the_consumer_distribution_does_not_depend_on_release_tooling() -> None:
+def test_unknown_variant_is_rejected() -> None:
+    from posttrain_release.publish import _normalize_variants
+
+    with pytest.raises(ValueError, match="unknown runtime variant"):
+        _normalize_variants(["nope"])
+
+
+def test_variant_subset_preserves_canonical_order() -> None:
+    from posttrain_release.publish import _normalize_variants
+
+    assert _normalize_variants(["transform", "eval"]) == ("eval", "transform")
+
     """Publishing must be unreachable from a consumer environment.
 
     `posttrain` is what a project developer installs. If it depended on this

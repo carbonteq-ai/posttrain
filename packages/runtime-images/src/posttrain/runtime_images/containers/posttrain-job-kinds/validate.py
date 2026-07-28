@@ -176,12 +176,17 @@ def _validate_bake() -> None:
         contents = bake.read_text()
         for required in (
             "compression=zstd",
-            "force-compression=true",
+            "compression-level=1",
+            "force-compression=false",
             "oci-mediatypes=true",
-            "type=provenance,mode=max",
-            "type=sbom",
         ):
             _require(required in contents, f"{bake}: missing {required}")
+        for forbidden in (
+            "type=provenance,mode=max",
+            "type=sbom",
+            "force-compression=true",
+        ):
+            _require(forbidden not in contents, f"{bake}: unexpected {forbidden}")
 
     kind_bake = (KINDS / "docker-bake.hcl").read_text()
     for variant in RUNTIME_VARIANTS:

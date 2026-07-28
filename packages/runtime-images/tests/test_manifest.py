@@ -67,13 +67,13 @@ def test_framework_publishes_to_a_public_registry_by_default() -> None:
     A project's own registry is configured per site via POSTTRAIN_REGISTRY and
     must never leak into the shipped manifest.
     """
-    assert load_manifest().default_prefix == "ghcr.io/carbonteq-ai"
+    assert load_manifest().default_prefix == "registry.lan/carbonteq"
 
 
 def test_reference_is_digest_pinned_and_prefix_overridable() -> None:
     manifest = load_manifest()
     default = manifest.reference("supervised")
-    assert default.startswith("ghcr.io/carbonteq-ai/")
+    assert default.startswith("registry.lan/carbonteq/")
     assert "@sha256:" in default
 
     # A site that cannot reach the public registry mirrors into its own.

@@ -56,12 +56,8 @@ target "_common" {
 
 target "_published" {
   inherits = ["_common"]
-  attest = [
-    "type=provenance,mode=max",
-    "type=sbom"
-  ]
   output = [
-    "type=image,push=true,compression=zstd,compression-level=3,force-compression=true,oci-mediatypes=true"
+    "type=image,push=true,compression=zstd,compression-level=1,force-compression=false,oci-mediatypes=true"
   ]
 }
 

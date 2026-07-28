@@ -7,6 +7,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import tempfile
 import uuid
 from collections.abc import Mapping, Sequence
@@ -80,14 +81,25 @@ class BuildxCli:
         self._executable = executable
 
     def invoke(self, arguments: Sequence[str]) -> str:
-        result = subprocess.run(
+        # Stream progress live (bake --progress=plain) while retaining a full
+        # transcript for failure diagnosis. Capturing alone hid multi-hour hangs.
+        process = subprocess.Popen(
             [self._executable, "buildx", *arguments],
             text=True,
-            capture_output=True,
-            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            bufsize=1,
         )
-        if result.returncode != 0:
-            lines = [line.strip() for line in (result.stderr + "\n" + result.stdout).splitlines() if line.strip()]
+        chunks: list[str] = []
+        assert process.stdout is not None
+        for line in process.stdout:
+            chunks.append(line)
+            sys.stderr.write(line)
+            sys.stderr.flush()
+        returncode = process.wait()
+        output = "".join(chunks)
+        if returncode != 0:
+            lines = [line.strip() for line in output.splitlines() if line.strip()]
             errors = [
                 line
                 for line in lines
@@ -112,15 +124,14 @@ class BuildxCli:
             transcript = Path(tempfile.gettempdir()) / f"posttrain-buildx-{uuid.uuid4().hex[:12]}.log"
             try:
                 transcript.write_text(
-                    f"$ docker buildx {' '.join(arguments)}\n\n"
-                    f"--- stdout ---\n{result.stdout}\n--- stderr ---\n{result.stderr}",
+                    f"$ docker buildx {' '.join(arguments)}\n\n{output}",
                     encoding="utf-8",
                 )
                 location = f" Full output: {transcript}"
             except OSError:
                 location = ""
             raise RuntimeError(f"docker buildx {arguments[0] if arguments else 'command'} failed: {detail}.{location}")
-        return result.stdout
+        return output
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,6 +146,15 @@ class RuntimeBuildRequest:
     base_image: RuntimeImageRef
     builder: str | None = None
     variables: Mapping[str, str] = field(default_factory=dict)
+    # Registry refs (tag or digest) whose layers seed the build after a local
+    # cache wipe. Not part of build_key: they must not change the published
+    # result, only how quickly BuildKit reaches it.
+    cache_from: tuple[str, ...] = ()
+    # Provenance/SBOM attestation manifests dominate push time for multi-GB
+    # images. Off by default; pass attestations=True when policy requires them.
+    attestations: bool = False
+    compression_level: int = 1
+    force_compression: bool = False
 
     def __post_init__(self) -> None:
         if not self.bake_file.is_absolute() or not self.bake_file.is_file():
@@ -161,6 +181,11 @@ class RuntimeBuildRequest:
             for name, value in self.variables.items()
         ):
             raise ContractError("runtime build variables must be non-secret named values")
+        if self.compression_level < 0 or self.compression_level > 22:
+            raise ContractError("runtime build compression_level must be between 0 and 22")
+        for ref in self.cache_from:
+            if not ref or any(token in ref.upper() for token in ("TOKEN", "PASSWORD", "SECRET")):
+                raise ContractError("runtime build cache_from refs must be non-secret image references")
 
     @property
     def build_key(self) -> str:
@@ -172,6 +197,9 @@ class RuntimeBuildRequest:
             "lock_digest": self.lock_digest,
             "base_image": self.base_image.value,
             "variables": dict(sorted(self.variables.items())),
+            "attestations": self.attestations,
+            "compression_level": self.compression_level,
+            "force_compression": self.force_compression,
         }
         return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
@@ -213,7 +241,7 @@ class BuildKitRuntimeBuilder:
         self._gateway.invoke(self._outline_arguments(request))
 
     def build(self, request: RuntimeBuildRequest) -> RuntimeBuildResult:
-        receipt = self._root / f"{request.build_key}.json"
+        receipt = self.receipt_path(request)
         if receipt.is_file():
             result = self._load_receipt(receipt)
             self._ensure_matches(request, result)
@@ -241,6 +269,12 @@ class BuildKitRuntimeBuilder:
         finally:
             metadata.unlink(missing_ok=True)
 
+    def receipt_path(self, request: RuntimeBuildRequest) -> Path:
+        return self._root / f"{request.build_key}.json"
+
+    def has_receipt(self, request: RuntimeBuildRequest) -> bool:
+        return self.receipt_path(request).is_file()
+
     def _outline_arguments(self, request: RuntimeBuildRequest) -> list[str]:
         return [
             "bake",
@@ -266,6 +300,12 @@ class BuildKitRuntimeBuilder:
         request: RuntimeBuildRequest,
         metadata: Path,
     ) -> list[str]:
+        compression = (
+            "type=image,push=true,"
+            f"compression=zstd,compression-level={request.compression_level},"
+            f"force-compression={'true' if request.force_compression else 'false'},"
+            "oci-mediatypes=true"
+        )
         arguments = [
             "bake",
             "--file",
@@ -277,17 +317,23 @@ class BuildKitRuntimeBuilder:
             "plain",
             "--push",
             "--provenance",
-            "mode=max",
+            "mode=max" if request.attestations else "false",
             "--sbom",
-            "true",
+            "true" if request.attestations else "false",
             "--metadata-file",
             str(metadata),
             "--set",
             f"{request.target}.context={request.context}",
             "--set",
             f"{request.target}.tags={request.repository}:{request.tag}",
-            *self._variable_arguments(request),
+            "--set",
+            f"{request.target}.output={compression}",
         ]
+        if not request.attestations:
+            arguments.extend(("--set", f"{request.target}.attest="))
+        for ref in request.cache_from:
+            arguments.extend(("--set", f"{request.target}.cache-from=type=registry,ref={ref}"))
+        arguments.extend(self._variable_arguments(request))
         arguments.append(request.target)
         return arguments
 
@@ -306,6 +352,9 @@ class BuildKitRuntimeBuilder:
         for name, value in sorted(request.variables.items()):
             arguments.extend(("--var", f"{name}={value}"))
         return arguments
+
+    def verify_remote(self, image: RuntimeImageRef) -> None:
+        self._verify_remote(image)
 
     def _verify_remote(self, image: RuntimeImageRef) -> None:
         output = self._gateway.invoke(("imagetools", "inspect", image.value, "--format", "{{json .Manifest.Digest}}"))

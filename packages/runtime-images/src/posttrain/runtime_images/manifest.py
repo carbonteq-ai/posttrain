@@ -119,8 +119,14 @@ def _verify(image: PublishedImage) -> None:
 
 
 @cache
-def load_manifest() -> PublishedManifest:
-    """Load and integrity-check the shipped manifest."""
+def load_manifest(*, verify_locks: bool = True) -> PublishedManifest:
+    """Load the shipped manifest.
+
+    When `verify_locks` is true (the consumer default), every recorded lock
+    digest must still match the shipped lock bytes. Release tooling passes
+    `verify_locks=False` so it can read prior digests for cache-from and
+    selective reuse while the committed manifest is intentionally stale.
+    """
     try:
         raw = read_resource(PurePosixPath(_MANIFEST))
     except (FileNotFoundError, OSError) as error:
@@ -142,9 +148,10 @@ def load_manifest() -> PublishedManifest:
     if unexpected:
         raise ManifestError("published.toml publishes unreleased variants: " + ", ".join(sorted(unexpected)))
 
-    _verify(base)
-    for image in kinds.values():
-        _verify(image)
+    if verify_locks:
+        _verify(base)
+        for image in kinds.values():
+            _verify(image)
 
     return PublishedManifest(
         schema_version=schema,

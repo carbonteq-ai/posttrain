@@ -58,6 +58,33 @@ def _request(tmp_path: Path) -> RuntimeBuildRequest:
     )
 
 
+def test_default_push_skips_attestations(tmp_path: Path) -> None:
+    gateway = FakeBuildx()
+    builder = BuildKitRuntimeBuilder(
+        gateway,
+        receipt_root=(tmp_path / "receipts").resolve(),
+    )
+    request = _request(tmp_path)
+    builder.build(request)
+    build_calls = [call for call in gateway.calls if "--metadata-file" in call]
+    call = build_calls[0]
+    assert ("--provenance", "false") == (call[call.index("--provenance")], call[call.index("--provenance") + 1])
+    assert ("--sbom", "false") == (call[call.index("--sbom")], call[call.index("--sbom") + 1])
+    assert any("compression-level=1" in item for item in call)
+    assert any("force-compression=false" in item for item in call)
+
+
+def test_attestations_opt_in_and_change_the_build_key(tmp_path: Path) -> None:
+    request = _request(tmp_path)
+    attested = replace(request, attestations=True, compression_level=3, force_compression=True)
+    assert request.build_key != attested.build_key
+    gateway = FakeBuildx()
+    builder = BuildKitRuntimeBuilder(gateway, receipt_root=(tmp_path / "receipts").resolve())
+    builder.build(attested)
+    call = [c for c in gateway.calls if "--metadata-file" in c][0]
+    assert ("--provenance", "mode=max") == (call[call.index("--provenance")], call[call.index("--provenance") + 1])
+
+
 def test_builder_checks_pushes_verifies_and_reuses_receipt(tmp_path: Path) -> None:
     gateway = FakeBuildx()
     builder = BuildKitRuntimeBuilder(
