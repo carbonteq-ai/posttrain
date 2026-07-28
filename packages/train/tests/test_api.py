@@ -74,6 +74,7 @@ from posttrain.train.backends.trl.distillation import (
     _generate_with_expanded_rollout_func,
     _normalize_distillation_metrics,
     _observed_distillation_trainer_type,
+    _validate_distillation_rollout,
     _validate_rollout_token_budget,
 )
 from posttrain.train.backends.trl.distillation import (
@@ -1035,6 +1036,33 @@ def test_distillation_rejects_overlength_trajectory_before_teacher_scoring(
     assert "example_id='train/000007'" in str(captured.value)
     assert "tangent='normative_statements.exhaustive_recall'" in str(captured.value)
     assert expected in str(captured.value)
+
+
+@pytest.mark.parametrize(
+    ("attributes", "payload"),
+    [
+        ({"is_completed": True, "error_type": "HarnessError", "stop_condition": "error"}, {}),
+        ({"is_completed": False}, {}),
+        ({"is_completed": True}, {"errors": [{"type": "HarnessError"}]}),
+    ],
+)
+def test_distillation_rejects_failed_environment_rollout_before_teacher_scoring(
+    attributes: dict[str, JsonValue],
+    payload: dict[str, JsonValue],
+) -> None:
+    rollout = EnvironmentRollout(
+        example_id="train/000007",
+        prompt_ids=(1,),
+        completion_ids=(2,),
+        sampling_logprobs=(0.0,),
+        env_mask=(True,),
+        reward=0.0,
+        is_truncated=False,
+        trace=TraceObservation("verifiers", "trace-failed", payload, attributes=attributes),
+    )
+
+    with pytest.raises(ValueError, match="failed.*before teacher scoring"):
+        _validate_distillation_rollout(rollout)
 
 
 def test_distillation_backend_translates_mtp_and_turboquant_rollout_options(tmp_path: Path) -> None:

@@ -69,9 +69,13 @@ Recovery remains CPU-qualified but its catalog packages and GPU run are deferred
   focused Observatory tests, 13 work-package tests, three static package
   validations, changed-file Ruff/Pyright, all import contracts, project doctor,
   and diff checks.
-- [ ] Commit and push the scope integration support.
-- [ ] Run the H200 smoke and qualification gates; no local CPU result can claim
-  GPU readiness.
+- [x] (2026-07-29 00:35Z) Committed and pushed the scope integration support as
+  `8f91a333b62ca2f9a851dd9a3216a89e0dfb8682`.
+- [x] (2026-07-29 00:55Z) Provisioned a USD 3.59/hour Community H200, installed
+  the locked Python 3.13/Torch 2.11/CUDA 13 stack, verified real H200 compute,
+  cached both exact Gemma revisions, and loaded 1/8/64 scope tasks.
+- [ ] Rerun the one-step H200 smoke after the runtime-discovered XGrammar and
+  failed-rollout guards; qualification remains blocked until that gate passes.
 
 ## Surprises & Discoveries
 
@@ -149,6 +153,14 @@ Recovery remains CPU-qualified but its catalog packages and GPU run are deferred
   Evidence: the real Policy Prism bridge requests 512/1536/768 tokens for
   scope and 512/2048 for recovery.
 
+- Observation: vLLM 0.25.1's XGrammar backend rejects semantic JSON-Schema
+  keywords including `uniqueItems`. The first real smoke therefore produced a
+  completed Verifiers trace whose stop condition was `error`; the prior
+  distillation adapter still consumed its sampled error tokens.
+  Evidence: H200 smoke run `c3813db3-9451-4d7f-b075-690ba5ff0f76` reported a
+  `HarnessError` with `Grammar error: Unimplemented keys: ["uniqueItems"]`,
+  one failed rollout, and 123 scored tokens.
+
 ## Decision Log
 
 - Decision: No frozen product-baseline amendment is required.
@@ -210,6 +222,15 @@ Recovery remains CPU-qualified but its catalog packages and GPU run are deferred
   contracts.
   Date/Author: 2026-07-28 / Codex.
 
+- Decision: Strip XGrammar's documented unsupported semantic constraints only
+  from the temporary vLLM generation copy, while retaining Policy Prism's
+  canonical schema for its local Draft 2020-12 validation. Reject any rollout
+  with an explicit error, incomplete state, or truncation before teacher
+  scoring.
+  Rationale: constrained generation must compile, but an infrastructure error
+  must never become distillation supervision or a successful job.
+  Date/Author: 2026-07-29 / Codex.
+
 ## Outcomes & Retrospective
 
 The reusable framework slice, independently conditioned staged-row bridge,
@@ -217,8 +238,10 @@ scope catalog, and three scope work packages are implemented. The final CPU
 gate passes: 168 common/train tests, five clean-wheel Policy Prism tests, 12
 catalog tests, 45 Observatory tests, and 13 work-package tests. Ruff,
 changed-file Pyright, all eight import contracts, static package validation,
-project doctor, and diff checks pass. H200 execution and local adapter export
-remain.
+project doctor, and diff checks pass. The first H200 smoke correctly exposed
+an XGrammar incompatibility and a failed-rollout admission gap; their focused
+regressions pass locally. A clean GPU smoke, qualification, pilot, and local
+adapter export remain.
 
 ## Context and Orientation
 

@@ -566,6 +566,7 @@ def _rollout_function(
         if set(source_indices) != set(range(len(inputs))):
             raise ValueError("environment rollouts do not cover every distillation trainer input")
         for rollout in rollouts:
+            _validate_distillation_rollout(rollout)
             _validate_rollout_token_budget(request, rollout)
         trace_ids = tuple(rollout.trace.external_id for rollout in rollouts)
         digest = hashlib.sha256()
@@ -622,6 +623,31 @@ def _rollout_function(
         }
 
     return run_rollouts
+
+
+def _validate_distillation_rollout(rollout: EnvironmentRollout) -> None:
+    """Reject failed environment episodes before they can reach the teacher."""
+
+    attributes = rollout.trace.attributes
+    payload = rollout.trace.payload
+    errors = payload.get("errors")
+    error_type = attributes.get("error_type")
+    stop_condition = attributes.get("stop_condition")
+    explicitly_incomplete = attributes.get("is_completed") is False
+    explicitly_truncated = attributes.get("is_truncated") is True
+    if (
+        rollout.is_truncated
+        or explicitly_incomplete
+        or explicitly_truncated
+        or (isinstance(error_type, str) and bool(error_type.strip()))
+        or stop_condition == "error"
+        or (isinstance(errors, list) and bool(errors))
+    ):
+        raise ValueError(
+            "failed distillation environment rollout rejected before teacher scoring: "
+            f"example_id={rollout.example_id!r}, trace_id={rollout.trace.external_id!r}, "
+            f"error_type={error_type!r}, stop_condition={stop_condition!r}"
+        )
 
 
 def _validate_rollout_token_budget(

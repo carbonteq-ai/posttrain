@@ -114,6 +114,37 @@ class TrlPolicyGenerator:
 
 _MISSING = object()
 _GEMMA_JSON_WHITESPACE_PATTERN = r" ?"
+_XGRAMMAR_UNSUPPORTED_JSON_SCHEMA_KEYS = frozenset(
+    {
+        "multipleOf",
+        "uniqueItems",
+        "contains",
+        "minContains",
+        "maxContains",
+        "patternProperties",
+        "propertyNames",
+    }
+)
+
+
+def _xgrammar_json_schema(value: Any) -> Any:
+    """Remove constraints that vLLM's XGrammar backend cannot compile.
+
+    The environment retains and validates its canonical schema.  This copy is
+    used only for constrained token generation, so removing semantic
+    constraints such as array uniqueness does not bypass environment-owned
+    validation.
+    """
+
+    if isinstance(value, list):
+        return [_xgrammar_json_schema(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    return {
+        key: _xgrammar_json_schema(item)
+        for key, item in value.items()
+        if key not in _XGRAMMAR_UNSUPPORTED_JSON_SCHEMA_KEYS
+    }
 
 
 @contextmanager
@@ -139,7 +170,9 @@ def _turn_generation_config(trainer: Any, request: PolicyTurnRequest, model_fami
             overrides = dict(prior_generation_kwargs)
             overrides["max_tokens"] = request.sampling.max_tokens
             if request.response_format is not None:
-                structured_outputs: dict[str, Any] = {"json": dict(request.response_format.schema)}
+                structured_outputs: dict[str, Any] = {
+                    "json": _xgrammar_json_schema(dict(request.response_format.schema))
+                }
                 if model_family == "gemma4":
                     structured_outputs["whitespace_pattern"] = _GEMMA_JSON_WHITESPACE_PATTERN
                 overrides["structured_outputs"] = structured_outputs

@@ -142,7 +142,7 @@ def test_trl_policy_generator_applies_and_restores_staged_json_schema(monkeypatc
             name="rules",
             schema={
                 "type": "object",
-                "properties": {"rules": {"type": "array"}},
+                "properties": {"rules": {"type": "array", "uniqueItems": True}},
                 "required": ["rules"],
             },
             strict=True,
@@ -155,6 +155,11 @@ def test_trl_policy_generator_applies_and_restores_staged_json_schema(monkeypatc
     else:
         result = asyncio.run(generator.generate(request))
         assert result.completion_ids == (3, 4)
+    assert request.response_format.schema == {
+        "type": "object",
+        "properties": {"rules": {"type": "array", "uniqueItems": True}},
+        "required": ["rules"],
+    }
     assert trainer.generation_config.max_new_tokens == 99
     assert trainer.vllm_generation.generation_kwargs == {"baseline": "kept"}
 
