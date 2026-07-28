@@ -84,8 +84,23 @@ Recovery remains CPU-qualified but its catalog packages and GPU run are deferred
   environment-owned token cap. Narrowed distillation admission so this explicit
   environment-success state is trainable while provider errors, incomplete
   episodes, and framework-limit truncations remain blocked.
-- [ ] Rerun and pass the eight-step H200 qualification, then apply the measured
-  timing/budget admission gate before starting the 64-step pilot.
+- [x] (2026-07-29 02:48Z) Passed the eight-step H200 qualification as framework
+  run `83f9816e-00a0-4c50-8da7-778628e2ae09`: all eight loss/reverse-KL and
+  gradient-norm values were finite, every update scored nonzero tokens, teacher
+  failures stayed zero, peak memory retained roughly 49 GiB headroom, and the
+  adapter, checkpoint, summary, and 31 traces were published to Trackio.
+- [x] (2026-07-29 02:50Z) Applied the mandatory pilot admission formula. The
+  qualification took 3,187 seconds (3,110 trainer seconds), or 388.75 seconds
+  per update. Including the measured 77-second load overhead, 25% safety, and
+  20-minute export reserve projects the 64-step pilot at 32,377 seconds
+  (8.99 hours, about USD 32.29). This exceeds both remaining thresholds, so the
+  pilot was not started.
+- [x] (2026-07-29 02:54Z) Materialized and checksum-verified the successful
+  qualification-only adapter, traces, summary, and log under
+  `.posttrain/state/exports/policy-prism-scope/qualification-83f9816e/`.
+  Verified 516 Safetensors entries and the exact E4B base revision, then
+  terminated only Pod `3ihzap4046ujf7`. Estimated experiment compute spend was
+  USD 6.62; the RunPod API now returns `404 pod not found` for that exact ID.
 
 ## Surprises & Discoveries
 
@@ -190,6 +205,13 @@ Recovery remains CPU-qualified but its catalog packages and GPU run are deferred
   native Trackio traces, and
   `PolicyPrismDistillTask.finalize` at Policy Prism `bfa7802...`.
 
+- Observation: the eight-step qualification required 53.12 wall-clock minutes
+  because the initial E4B policy frequently approached the 512/1536/768 stage
+  caps under constrained decoding. Memory was healthy throughout; sequential
+  autoregressive rollout latency, not H200 capacity, is the limiting resource.
+  Evidence: run `83f9816e-00a0-4c50-8da7-778628e2ae09`, trainer runtime 3,110
+  seconds, and roughly 49 GiB free VRAM during generation.
+
 ## Decision Log
 
 - Decision: No frozen product-baseline amendment is required.
@@ -270,17 +292,32 @@ Recovery remains CPU-qualified but its catalog packages and GPU run are deferred
   identity; otherwise the tracking backend legitimately deduplicates them.
   Date/Author: 2026-07-29 / Codex.
 
+- Decision: Do not launch the 64-step pilot under the current H200 and USD 20
+  experiment envelope.
+  Rationale: the plan's conservative admission formula projects 8.99 additional
+  hours and about USD 32.29 from measured qualification timing, while only about
+  3.65 hours remained before the USD 19.50 and 5-hour-25-minute thresholds.
+  Starting it would knowingly violate the user-approved budget gate.
+  Date/Author: 2026-07-29 / Codex.
+
 ## Outcomes & Retrospective
 
 The reusable framework slice, independently conditioned staged-row bridge,
 scope catalog, and three scope work packages are implemented. The final CPU
 gate passes: 168 common/train tests, five clean-wheel Policy Prism tests, 12
-catalog tests, 45 Observatory tests, and 13 work-package tests. Ruff,
-changed-file Pyright, all eight import contracts, static package validation,
-project doctor, and diff checks pass. The first H200 smoke correctly exposed
-an XGrammar incompatibility and a failed-rollout admission gap; their focused
-regressions pass locally. A clean GPU smoke, qualification, pilot, and local
-adapter export remain.
+catalog tests, 45 Observatory tests, and 13 work-package tests. The final
+runtime admission change passes 157 train tests with seven expected skips, plus
+Ruff, changed-file Pyright, import contracts, and diff checks.
+
+A clean one-step H200 smoke and eight-step qualification both passed with
+finite optimization metrics, zero teacher failures, expected Policy Prism
+traces, adapters, and ample memory headroom. Qualification revealed that
+sequential constrained rollout generation is too slow for the requested
+64-step pilot under the fixed cost/deadline envelope. The required budget gate
+therefore stopped before pilot launch. The eight-step adapter is preserved
+locally and explicitly labelled `qualification_only_not_final_pilot`; no final
+64-step adapter was claimed. The dedicated Pod was terminated after transfer
+verification at an estimated USD 6.62 compute cost.
 
 ## Context and Orientation
 
