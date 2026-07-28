@@ -1,6 +1,6 @@
 # uv workspace
 
-The root project is a Python 3.12 uv workspace containing every reusable
+The root project is a Python 3.13 uv workspace containing every reusable
 package and application under `packages/*` and `apps/*`.
 
 ## Ownership
