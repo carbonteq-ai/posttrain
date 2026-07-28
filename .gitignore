@@ -30,7 +30,7 @@ outputs/
 checkpoints/
 artifacts/
 wandb/
-trackio/
+/trackio/
 .posttrain/state/
 *.pt
 *.safetensors

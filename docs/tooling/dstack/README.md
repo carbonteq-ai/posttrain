@@ -1,5 +1,14 @@
 # dstack
 
+## Consumer path
+
+Developers submitting remote GPU jobs should follow
+[consumer-setup.md](../../consumer-setup.md) § “Run on dstack”: install
+`posttrain[dstack]`, bind the client interpreter and worker storage paths in
+`.posttrain/state/execution.toml`, and use
+`posttrain job run --provider dstack --target …`. This page is the fork/ops
+ledger, not that walkthrough.
+
 ## Selection
 
 The local AI infrastructure uses dstack `0.20.29` for SSH-fleet GPU placement

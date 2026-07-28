@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import os
 import re
@@ -48,6 +49,16 @@ from trackio.run import Run as TrackioSDKRun
 from trackio.utils import parse_trackio_server_url
 
 _RESERVED_HISTORY_KEYS = {"step", "timestamp"}
+
+# A run records its status and timings as ordinary metrics rather than as
+# run-level fields, so these are the keys that describe its lifecycle.
+_LIFECYCLE_KEYS = (
+    "run/status",
+    "run/started_at",
+    "run/finished_at",
+    "run/error_type",
+    "run/error_message",
+)
 _SYSTEM_METRICS: dict[str, tuple[str, float]] = {
     "system/gpu_utilization": ("gpu/mean_utilization", 1.0),
     "system/gpu_vram_used_bytes": ("gpu/total_allocated_memory", 1024**3),
@@ -553,36 +564,53 @@ class TrackioDataSource:
     def _summary(self, run: Any) -> RunSummary:
         raw = run.summary()
         config = raw.get("config")
+        lifecycle: dict[str, Any] = {}
+        for row in run.history(keys=list(_LIFECYCLE_KEYS)):
+            if "run/status" in row:
+                lifecycle = row
+        return self._compose_summary(
+            run_id=run.id,
+            display_name=run.name,
+            config=config,
+            lifecycle=lifecycle,
+        )
+
+    def _compose_summary(
+        self,
+        *,
+        run_id: str,
+        display_name: str,
+        config: Any,
+        lifecycle: Mapping[str, Any],
+    ) -> RunSummary:
+        """Shape one run from its configuration and its lifecycle values.
+
+        Both the per-run and the bulk listing paths land here, so a run cannot
+        be described one way when read alone and another way when read with its
+        neighbours.
+        """
         if not isinstance(config, dict) or config.get("schema_version") != 4:
-            raise ContractError(f"Trackio run {run.id!r} is not a canonical posttrain run")
+            raise ContractError(f"Trackio run {run_id!r} is not a canonical posttrain run")
         status = "running"
         started_at = _datetime(config["started_at"], field="started_at")
         finished_at = None
         error = None
-        for row in run.history(
-            keys=[
-                "run/status",
-                "run/started_at",
-                "run/finished_at",
-                "run/error_type",
-                "run/error_message",
-            ]
-        ):
-            if "run/status" not in row:
-                continue
-            status = row["run/status"]
-            started_at = _datetime(row["run/started_at"], field="started_at")
-            finished_at = _datetime(row["run/finished_at"], field="finished_at")
+        # A run that never recorded a status is still running as far as anyone
+        # can tell, and keeps the start its configuration recorded.
+        if "run/status" in lifecycle:
+            status = lifecycle["run/status"]
+            started_at = _datetime(lifecycle["run/started_at"], field="started_at")
+            finished_at = _datetime(lifecycle["run/finished_at"], field="finished_at")
             if status == "failed":
                 error = SafeRunError(
-                    type=str(row.get("run/error_type") or "RunFailed"),
-                    message=str(row.get("run/error_message") or "run failed"),
+                    type=str(lifecycle.get("run/error_type") or "RunFailed"),
+                    message=str(lifecycle.get("run/error_message") or "run failed"),
                 )
         return RunSummary(
             provider="trackio",
-            provider_run_id=run.id,
+            provider_run_id=run_id,
             run_id=str(config["run_id"]),
-            display_name=run.name,
+            display_name=display_name,
             project_id=str(config["project_id"]),
             work_package_id=str(config["work_package_id"]),
             stage=config["stage"],
@@ -595,16 +623,43 @@ class TrackioDataSource:
         )
 
     async def list_runs(self, query: RunQuery) -> tuple[RunSummary, ...]:
+        # The Trackio client is synchronous. Awaiting it directly blocks the
+        # event loop, so a caller listing several projects concurrently gets
+        # them one after another instead.
+        return await asyncio.to_thread(self._list_runs, query)
+
+    def _list_runs(self, query: RunQuery) -> tuple[RunSummary, ...]:
+        """Describe at most ``query.limit`` runs, newest first.
+
+        Describing one run costs several round trips, so the listing is walked
+        newest-first using the timestamp it already carries and stops as soon as
+        enough runs match. Describing every run in the project before applying
+        the limit made the cost of asking for one run proportional to the whole
+        project's history: a four-project deployment spent fifty seconds
+        answering a question about four.
+        """
+        provider_runs = sorted(
+            self._api.runs(self.project),
+            key=lambda run: str(getattr(run, "created_at", "") or ""),
+            reverse=True,
+        )
+        # Two requests describe every run in the project. Reading each run
+        # separately cost one request for its configuration and another for its
+        # lifecycle, so listing was proportional to how many runs existed
+        # rather than to how many were asked for.
+        configs = self._api.run_configs(self.project)
+        lifecycles = self._api.run_lifecycles(self.project)
         summaries: list[RunSummary] = []
-        provider_runs = tuple(self._api.runs(self.project))
-        self._provider_runs_by_id = {
-            str(config["run_id"]): run
-            for run in provider_runs
-            if isinstance((config := run.config), dict) and isinstance(config.get("run_id"), str)
-        }
         for run in provider_runs:
+            if len(summaries) >= query.limit:
+                break
             try:
-                summary = self._summary(run)
+                summary = self._compose_summary(
+                    run_id=run.id,
+                    display_name=run.name,
+                    config=configs.get(run.id),
+                    lifecycle=lifecycles.get(run.id) or {},
+                )
             except ContractError:
                 continue
             if query.project_id is not None and summary.project_id != query.project_id:
@@ -615,9 +670,12 @@ class TrackioDataSource:
                 continue
             if query.statuses and summary.status not in query.statuses:
                 continue
+            # Remember only what was described anyway; _provider_run resolves
+            # anything else on demand.
+            self._provider_runs_by_id.setdefault(summary.run_id, run)
             summaries.append(summary)
         summaries.sort(key=lambda item: item.started_at, reverse=True)
-        return tuple(summaries[: query.limit])
+        return tuple(summaries)
 
     async def get_run(self, run_id: str) -> RunDetail:
         provider_run = self._provider_run(run_id)

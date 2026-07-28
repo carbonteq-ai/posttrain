@@ -11,6 +11,7 @@ Knowledge base for this lab. Runtime is a **uv workspace** with
 | Area | Purpose |
 | --- | --- |
 | [overview.md](./overview.md) | Project goal, implementation orientation, and setup |
+| [consumer-setup.md](./consumer-setup.md) | Install from the internal index, trust the CA, run local or dstack jobs |
 | [tooling/mise-uv/setup-environment.md](./tooling/mise-uv/setup-environment.md) | Developer checkout setup, GPU profiles, verification, and backend isolation |
 | [post-training/01-workflow.md](./post-training/01-workflow.md) | Mental model: framework-shared assets, screen → train → qualify |
 | [post-training/02-primitives.md](./post-training/02-primitives.md) | Exact model, data, environment, inference, training, evaluation, workload, and execution selections |

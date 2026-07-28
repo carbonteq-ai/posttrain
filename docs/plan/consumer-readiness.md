@@ -182,15 +182,16 @@ imagined.
   are all one version, and the definitions are inside the project.
 
 - Observation: two settings are traps whose failures surface far from their
-  cause, and both remain traps after this work.
-  Evidence: `providers.local.trust_bundle` becomes the container's
-  `SSL_CERT_FILE`, replacing the image's certificate authorities instead of
-  adding to them. Supplying only the internal CA made every public TLS
-  connection fail, which surfaced as `Can't load the configuration of
-  'Qwen/Qwen3.5-2B'` rather than as a trust problem. It must be the complete
-  set of authorities the job should trust. Separately, `posttrain job run`
-  requires `providers.local.canonical_hostname`, which no template writes and
-  no documentation mentions.
+  cause. One was fixed in 0.2.1; the other remains an operator cost.
+  Evidence (historical, pre-0.2.1): `providers.local.trust_bundle` used to become
+  the container's `SSL_CERT_FILE`, **replacing** the image's certificate
+  authorities. Supplying only the internal CA made every public TLS connection
+  fail, which surfaced as `Can't load the configuration of 'Qwen/Qwen3.5-2B'`
+  rather than as a trust problem. Current behavior mounts the internal CA as
+  `POSTTRAIN_EXTRA_CA_BUNDLE` and merges it with the image roots at job start;
+  do not resurrect the replace-semantics recipe. Separately, `posttrain job run`
+  still requires `providers.local.canonical_hostname` for local Docker;
+  `posttrain init` now scaffolds it.
 
 - Observation: the framework's verification refused to publish an image whose
   staged contents did not match its manifest, and was right to.

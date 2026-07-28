@@ -306,7 +306,7 @@ def test_init_sft_template_writes_installable_project_and_valid_standard_job(
     settings = (project / ".posttrain" / "catalog" / "settings.yaml").read_text(encoding="utf-8")
     work_package = (project / ".posttrain" / "work_packages" / "sft.yaml").read_text(encoding="utf-8")
     assert '"posttrain[observatory,trackio,trl]' in pyproject
-    assert "carbonteq-ai/trackio.git@9b0c4af0" in pyproject
+    assert "carbonteq-ai/trackio.git@dc55020d" in pyproject
     assert "carbonteq-ai/trl.git@6e7739b8" in pyproject
     assert "selection_type: sft-settings" in settings
     assert "datasets/posttrain-sft-smoke@1" in work_package

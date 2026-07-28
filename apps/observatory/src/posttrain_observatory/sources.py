@@ -51,6 +51,9 @@ class RunSourceRegistry:
     async def sources(self) -> tuple[SourceSummary, ...]:
         async def probe(source_id: str, source: RunDataSource) -> SourceSummary:
             try:
+                # One run is enough to prove the provider answers. Trackio's
+                # bulk list path makes that cheap; do not raise the limit here
+                # or /api/v1/sources pays for a full project inventory again.
                 await source.list_runs(RunQuery(limit=1))
             except Exception as error:  # source isolation is deliberate at this boundary
                 return SourceSummary(

@@ -129,10 +129,65 @@ found automatically. Override it only for a one-off, either with
 `[providers.local]`; a path named that way must exist, because silently
 substituting a different authority would be worse than refusing.
 
-For dstack, add `[providers.dstack]` (project, python, storage paths) — see
-the living plan notes or a qualified project. Hostname affinity is optional;
-dstack places from `device_class` / `memory_gb` unless you pin `instances`.
-## 6. Check readiness
+## 6. Run on dstack
+
+Remote GPU jobs use dstack as the placer. posttrain submits a resource ask;
+dstack owns offers, placement, startup, and cancellation. Local Docker still
+uses the machine admission ledger (`posttrain workers`); dstack runs do not
+take a host lock inside posttrain.
+
+Install with the `dstack` extra (step 2). Then extend
+`.posttrain/state/execution.toml`:
+
+```toml
+[providers.dstack]
+project = "main"
+python = "/absolute/path/to/dstack-venv/bin/python"
+# environment_file = "/absolute/path/to/dstack.env"   # optional
+
+[providers.dstack.storage]
+run_root = "/var/lib/posttrain/runs"
+model_cache = "/var/lib/posttrain/cache/huggingface"
+# compile_cache = "/var/lib/posttrain/cache/compile"  # optional
+```
+
+`python` is the **client** interpreter that talks to the dstack server, not the
+job image. Storage paths are what the **workers** mount; Ansible usually owns
+those directories and the well-known CA at `/etc/posttrain/trust/internal-ca.pem`.
+Your laptop only needs the system CA (step 1) plus this client binding.
+`trust_bundle` under `[providers.dstack]` is rarely required when workers
+already have the well-known path.
+
+Targets declare capacity (`device_class` / `memory_gb`). Optional `instances`
+pins are affinity, not a second scheduler. If a VPN captures DNS, `.lan` names
+will not resolve and placement fails — check with `getent hosts` before
+debugging dstack itself.
+
+```bash
+posttrain job plan .posttrain/work_packages/sft.yaml --provider dstack --target <target-id>
+posttrain job pack .posttrain/work_packages/sft.yaml --provider dstack --target <target-id>
+posttrain job run  .posttrain/work_packages/sft.yaml --provider dstack --target <target-id>
+```
+
+`--target foo@1` is accepted when the catalog revision is `1`. After submit:
+
+```bash
+posttrain run status --last
+posttrain run logs --last --follow
+posttrain run reconcile --last
+posttrain run cleanup --last
+```
+
+`reconcile` joins provider state to retained tracking evidence. A failed or
+cancelled run settles without waiting for artifacts that will never arrive, so
+admission (for local) or the next dstack submit is not blocked forever.
+`cleanup` releases provider resources after evidence is retained.
+`cancel` asks the provider to stop; use `recover-cancelled-tracking` when
+tracking was left open by a hard cancel.
+
+Fork and ops notes live under [tooling/dstack](./tooling/dstack/README.md).
+
+## 7. Check readiness
 
 ```bash
 posttrain doctor
@@ -147,7 +202,7 @@ You can confirm the framework's published images independently:
 posttrain runtime images verify
 ```
 
-## 7. Run a job
+## 8. Run a job
 
 `plan` resolves without building. `pack` builds and publishes the actual-job
 image. `run` does both and submits.
@@ -186,4 +241,7 @@ roles: none`. Use `posttrain workers` to see who holds a local GPU placement.
 - **A failed run holds its machine's admission slot** until you run
   `posttrain run reconcile <run-id>` (or `--last`). Later local runs sit at
   queue position 1 until you do. `posttrain workers` names the holder.
+- **Cancel does not finish tracking by itself.** After
+  `posttrain run cancel --last`, run `recover-cancelled-tracking` when needed,
+  then `reconcile`, then `cleanup` once evidence is retained.
 - Use `--traceback` when an `error:` line is not enough.

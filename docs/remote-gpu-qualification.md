@@ -1,41 +1,42 @@
 # Remote GPU qualification
 
 Every stable Posttrain release must install and execute from its published
-wheelhouse on a clean remote NVIDIA GPU host. A local source checkout or
+artifacts on a clean remote NVIDIA GPU host. A local source checkout or
 workspace environment does not satisfy this gate.
 
-The gate uses the project under `examples/gpu-qualification`, the primary
-`posttrain work-package run` command, the lab qualification project entry
-(`posttrain_lab.entry:configure` from `project.toml`), local Trackio storage on
-the remote machine, and Observatory readback. No `--host` factory flag is
-required for the work package; SSH `--host` below is only the remote machine.
+The supported consumer path is documented in
+[consumer-setup.md](./consumer-setup.md): install from the internal index with
+`github-constraints.txt`, trust the private CA, configure dstack storage, and
+submit with `posttrain job run --provider dstack`. The gate uses a project under
+`examples/` (or an equivalent consumer project), remote Trackio for evidence,
+and Observatory readback.
 
 ## Run the gate
 
 The coordinator requires `gh`, `ssh`, `scp`, and `sha256sum`. The remote host
-requires `uv`, Python 3.12, a compatible NVIDIA driver, access to Python package
-indexes and model weights, and enough disk space for the model and vLLM.
+requires `uv`, **Python 3.13**, a compatible NVIDIA driver, access to the
+internal index / OCI registry / tracking service, and enough disk for the model
+and runtime images. Workers must already have `/etc/posttrain/trust/internal-ca.pem`
+and the storage paths named in `[providers.dstack.storage]`.
 
-Use the primary CLI on a clean remote host after installing the tagged
-wheelhouse. Do not rely on ephemeral `tools/` helpers.
+On the remote host, after installing the release (see consumer-setup):
 
 ```bash
-# On the remote host, after installing the release wheelhouse:
-uv run --package posttrain posttrain work-package run \
-  examples/gpu-qualification/.posttrain/work_packages/<gate>.yaml \
-  --job <job-id>
+posttrain job run .posttrain/work_packages/<gate>.yaml \
+  --provider dstack \
+  --target <target-id>
+posttrain run reconcile --last
 ```
 
-Retain the remote evidence directory until the release checklist accepts or
-copies the summary under `.posttrain/state/qualification/`.
+Retain the remote evidence until the release checklist accepts or copies a
+summary under `.posttrain/state/qualification/`.
 
 ## Acceptance
 
-The gate passes only when the wheelhouse and every wheel checksum validate, the
-work package and its benchmark job succeed, a run ID is present, and
-Observatory returns that same run ID. The evidence summary must be attached to
-the release or referenced by the release checklist before removing the remote
-state.
+The gate passes only when the installed distributions match the release, the
+job succeeds, a run ID is present, `run reconcile` reports consistent retained
+evidence, and Observatory returns that same run ID. Attach or reference the
+evidence summary on the release checklist before removing remote state.
 
 ## Local merge gate (no remote GPU)
 
