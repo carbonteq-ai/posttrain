@@ -3,11 +3,14 @@
 The platform uses [`carbonteq-ai/trackio`](https://github.com/carbonteq-ai/trackio),
 an additive fork of upstream Trackio. Workspace packages keep the normal
 `import trackio` API. The current workspace pin is immutable commit
-`dc55020d779147612b32c0aced34a8868b91aa71` (`carbonteq-trackio==0.31.5.post4`),
-which adds project-scoped `Api.run_configs` / `Api.run_lifecycles` so Observatory
-can list runs without an N+1 history fetch. Kind images that embed Trackio must
-be rebuilt after this pin; updating lock text alone does not refresh already
-published digests.
+`703be3808cb6cac52259cb15e614cad971978d2e` (`carbonteq-trackio==0.31.5.post5`),
+which keeps the project-scoped `Api.run_configs` / `Api.run_lifecycles` APIs and
+aligns `trackio.__version__` with the distribution metadata. `0.31.5.post4` on
+`pypi.lan` is permanently skewed (metadata post4, import post3) — do not install
+it. The corrected wheel is on `pypi.lan` as `0.31.5.post5`; public PyPI Trusted
+Publishing is not configured yet (`invalid-publisher`), so the framework still
+pins the Git commit rather than a registry version. Kind images that embed
+Trackio must be rebuilt after this pin.
 
 ## Distribution transition
 
