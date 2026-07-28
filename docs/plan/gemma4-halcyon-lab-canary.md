@@ -14,7 +14,7 @@ After this change, a developer with Hugging Face access can run one bounded, val
 - [x] (2026-07-28 07:25Z) Composed the validation-aware SFT scenario in the lab CLI.
 - [x] (2026-07-28 07:41Z) Added synthetic CPU tests and credential-gated tokenizer, corpus, rendering, architecture, and PEFT tests.
 - [x] (2026-07-28 08:22Z) Passed focused and lab test suites, Ruff, targeted Pyright, import-linter, and diff checks. Repository-wide Pyright exposes pre-existing compatibility-module errors, and the full pytest run stalled in an unrelated long-running portion after the lab suite had passed.
-- [ ] Run the one-step GPU/W&B canary; this remains a hardware release gate.
+- [x] (2026-07-28 08:05Z) Completed the one-step GPU/W&B canary and a separate adapter reload/generation probe.
 
 ## Surprises & Discoveries
 
@@ -27,6 +27,10 @@ After this change, a developer with Hugging Face access can run one bounded, val
   Evidence: two guarded tests passed with the pinned tokenizer/config cache; live private-corpus materialization could not run because the environment had no network-capable Hugging Face credential.
 - Observation: the prescribed repository-wide Pyright invocation reports 93 errors in existing compatibility re-export modules and optional integrations, while targeted Pyright over every changed Python module reports zero errors.
   Evidence: `uv run pyright packages/common/src/posttrain/common/models.py apps/lab/src/posttrain_lab/gemma4_halcyon.py apps/lab/src/posttrain_lab/data/halcyon_graphql.py apps/lab/tests/test_gemma4_halcyon_sft.py apps/lab/tests/test_halcyon_graphql_data.py` completed with zero errors.
+- Observation: the GPU canary completed with 28.49 GiB peak allocated VRAM, zero supervised-token truncation, and a validation loss change from 2.64068 to 2.48794.
+  Evidence: W&B run `369fff7c-8434-4b5e-8979-7b675d90a598` finished with `posttrain/status=succeeded` and committed adapter, checkpoint, summary, and history artifacts.
+- Observation: the exported adapter reloads over `Gemma4UnifiedForConditionalGeneration`, attaches 328 language-model-only LoRA modules, and performs finite text-only generation.
+  Evidence: W&B run `0hyffszz` consumed the adapter artifact and recorded `reload/status=succeeded`.
 
 ## Decision Log
 
@@ -42,7 +46,7 @@ After this change, a developer with Hugging Face access can run one bounded, val
 
 ## Outcomes & Retrospective
 
-The lab-local implementation is CPU-validated. The focused tests pass with 9 passed and 3 credential-gated skips; the complete `apps/lab` suite passes with 64 passed and 5 skips. Ruff, import contracts, targeted Pyright, and whitespace checks pass. Cached tokenizer/rendering and metadata-only architecture/PEFT integration checks also pass. A live private-corpus materialization and the one-step 96 GB GPU/W&B run remain release gates, so the experiment is not yet integration-complete.
+The lab-local canary is complete. CPU checks passed, the live private corpus materialized as 392 train and 31 validation examples, the one-step 96 GB GPU run finished without OOM or truncation, and W&B holds its adapter, tokenizer, checkpoint, summary, metrics, and reload lineage. The standalone reload probe generated beyond `<tool_call|>` because it did not use that delimiter as a stop token; this is a probe configuration issue and is corrected in the full-run acceptance procedure.
 
 ## Context and Orientation
 
