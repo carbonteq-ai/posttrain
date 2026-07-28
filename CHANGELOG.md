@@ -6,6 +6,19 @@ version across first-party distributions.
 
 ## Unreleased
 
+## 0.2.2 - 2026-07-28
+
+Republish the runtime-image manifest after the Trackio workspace-lock refresh.
+`0.2.1` on the index and tag still carried the previous GHCR digests and lock
+hash, which the manifest loader correctly refused. This release pins
+`registry.lan/carbonteq` images against lock digest `c93d274e…`.
+
+### Changed
+
+- `published.toml` records LAN kind digests and the current workspace lock
+  digest; publish tooling streams Buildx progress and defaults to fast push
+  settings.
+
 ## 0.2.1 - 2026-07-28
 
 The framework was qualified from a library consumer's seat for the first
