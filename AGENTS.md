@@ -155,7 +155,7 @@ and tests use the new contract.
 
 From the repository root, the normal validation ladder is:
 
-    uv sync --all-packages --locked --python 3.12
+    uv sync --all-packages --locked --python 3.13
     uv run ruff check .
     uv run pyright
     uv run lint-imports
