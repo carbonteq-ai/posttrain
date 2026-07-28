@@ -62,8 +62,13 @@ from .catalog import (
     QWEN35_TRL_QLORA,
     open_project_catalog,
 )
-from .data import GSM8KSupervisedSource, SmolSmolTalkSupervisedSource
+from .data import GSM8KSupervisedSource, HalcyonGraphQLSupervisedSource, SmolSmolTalkSupervisedSource
 from .execution import execute_run, execute_run_tracked
+from .gemma4_halcyon import (
+    GEMMA4_HALCYON_CANARY,
+    GEMMA4_HALCYON_LORA,
+    GEMMA_4_12B_IT,
+)
 from .jobs import (
     GSM8K_LFM_TRAINING_ROLLOUTS,
     GSM8K_TRAINING_ROLLOUTS,
@@ -112,6 +117,7 @@ def _parser() -> argparse.ArgumentParser:
             "foundation-qwen-gsm8k",
             "foundation-lfm-gsm8k",
             "gsm8k-qwen-sft-smoke",
+            "gemma4-halcyon-graphql-sft-canary",
             "smoltalk-qwen-sft-validated-smoke",
             "gsm8k-lfm-sft-smoke",
             "gsm8k-qwen-preference-rollouts",
@@ -212,6 +218,43 @@ def _one_job_package(
         ),
         bindings={name: value for name, (_, value) in bindings.items()},
         description=definition.description,
+    )
+
+
+def _gemma4_halcyon_canary(project_id: str) -> tuple[WorkPackage, JobDefinition]:
+    """Compose the fixed lab-only Gemma 4 GraphQL SFT canary."""
+
+    train = HalcyonGraphQLSupervisedSource("train")
+    validation = HalcyonGraphQLSupervisedSource("test")
+    definition = sft_definition(
+        run_sft,
+        definition_id="train/trl-sft-gemma4-halcyon-canary@1",
+        with_validation=True,
+    )
+    package = _one_job_package(
+        project_id=project_id,
+        work_package_id="train/gemma4-12b/halcyon-graphql-sft-canary",
+        stage="train",
+        job_id="sft",
+        definition=definition,
+        bindings={
+            "model": ("model", GEMMA_4_12B_IT),
+            "dataset": ("dataset", train),
+            "validation_dataset": ("dataset", validation),
+            "settings": ("training", GEMMA4_HALCYON_CANARY),
+            "training": ("training", GEMMA4_HALCYON_LORA),
+        },
+    )
+    return (
+        replace(
+            package,
+            metadata={
+                "corpus_stage": "query_generation",
+                "dataset_revision": train.revision,
+                "labels": ["gemma4", "graphql", "sft", "tool-use", "stage1", "canary"],
+            },
+        ),
+        definition,
     )
 
 
@@ -460,6 +503,8 @@ def main() -> None:
             definition=definition,
             bindings={"target": ("target", target)},
         )
+    elif args.job == "gemma4-halcyon-graphql-sft-canary":
+        package, definition = _gemma4_halcyon_canary(project)
     elif args.job in {"gsm8k-qwen-sft-smoke", "gsm8k-lfm-sft-smoke"}:
         model, settings, lora, qlora = (
             (qwen, QWEN35_SFT_PEFT_COMPARISON, QWEN35_TRL_LORA, QWEN35_TRL_QLORA)
