@@ -6,17 +6,18 @@ version across first-party distributions.
 
 ## Unreleased
 
-### Added
+### Documentation
 
-- Developer how-to for handing a trained model to a later work package:
-  publish to Trackio, pin `artifact.kind: trackio` in a project overlay, bind
-  that catalog id on the next package
-  ([consumer-setup §9](docs/consumer-setup.md#9-pass-one-jobs-model-into-the-next)).
+- Produce → pin → rebind how-to for trained model handoff between work
+  packages
+  ([consumer-setup §9](docs/consumer-setup.md#9-pass-one-jobs-model-into-the-next),
+  [developer-experience](docs/developer-experience.md#trained-model-handoff-produce--pin--rebind),
+  [tooling/trackio](docs/tooling/trackio/README.md#project-developers-artifact-handoff)).
 
 ## 0.2.2 - 2026-07-28
 
 Machine-scoped local GPU admission, Observatory/Trackio listing performance,
-consumer and ops documentation, then a required runtime-image republish so
+public developer documentation, then a required runtime-image republish so
 LAN digests match the Trackio workspace lock.
 
 ### Added
@@ -29,8 +30,24 @@ LAN digests match the Trackio workspace lock.
   friction for `job plan|pack|run` and run inspection.
 - Trackio `0.31.5.post4` (`dc55020d…`) with bulk `run_configs` /
   `run_lifecycles` so Observatory can list runs without an N+1 history fetch.
-- Consumer and ops docs: trust as a machine property, dstack affinity,
-  contributing, publishing, and service ownership (`ai-infra` vs this repo).
+
+### Documentation
+
+Public developer-facing guides (no private ops required to start):
+
+- [consumer-setup](docs/consumer-setup.md) — trust, index install, local and
+  dstack providers, doctor, plan/pack/run, workers
+- [developer-experience](docs/developer-experience.md) — project layout,
+  catalog overlays, standard jobs, datasets/envs
+- [tooling/dstack](docs/tooling/dstack/README.md) — client binding, soft
+  affinity, placement vs local admission
+- [tooling/trackio](docs/tooling/trackio/README.md) — fork pin and project
+  artifact ownership boundary
+- [contributing](docs/contributing.md) — framework checkout validation ladder
+- [publishing](docs/publishing.md) — cutting a release without drifting images
+- Trust as a **machine** property (well-known CA path), not project config;
+  service ownership (`ai-infra` operates `.lan` services; this repo is the
+  framework)
 
 ### Changed
 
@@ -72,11 +89,24 @@ First stable line after `v0.1.0-rc.2`. Requires **Python 3.13**.
 - `docs/consumer-setup.md`, written from steps that were executed rather
   than imagined.
 - Primary-CLI work-package execution through an explicit project host.
-- Apache-2.0 licensing, private security reporting, compatibility policy, and
-  upgrade guidance.
 - A reproducible remote GPU release-gate workflow.
 - Durable execution lifecycle, deterministic job packing, provider adapters,
   and job capsule CLI paths needed for pack/run without a checkout.
+
+### Documentation
+
+Public project-developer surfaces introduced with the consumer path:
+
+- [consumer-setup](docs/consumer-setup.md) — install from the internal index,
+  trust the CA, run local or dstack jobs (executed steps, not aspirational)
+- [release-and-consumption](docs/release-and-consumption.md) — how releases
+  are consumed and gated
+- [remote-gpu-qualification](docs/remote-gpu-qualification.md) — remote GPU
+  release-gate workflow
+- [UPGRADING](UPGRADING.md), [COMPATIBILITY](COMPATIBILITY.md),
+  [SECURITY](SECURITY.md), Apache-2.0 [LICENSE](LICENSE)
+- Frozen product baseline under [docs/post-training/](docs/post-training/README.md)
+  (workflow → primitives → work/evidence → framework → APIs → observation)
 
 ### Changed
 
