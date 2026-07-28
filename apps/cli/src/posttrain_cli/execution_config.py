@@ -468,6 +468,15 @@ pin the job to whatever the machine that submitted it happened to trust.
 
 TRUST_BUNDLE_ENVIRONMENT_VARIABLE = "POSTTRAIN_TRUST_BUNDLE"
 
+ADMISSION_ROOT_ENVIRONMENT_VARIABLE = "POSTTRAIN_ADMISSION_ROOT"
+"""Absolute directory whose `admission/` child holds the machine-scoped ledger.
+
+Unset, the CLI prefers `/var/lib/posttrain` when writable (worker layout), else
+`$XDG_STATE_HOME/posttrain` so two projects on one laptop share host placements.
+"""
+
+_WORKER_ADMISSION_ROOT = Path("/var/lib/posttrain")
+
 
 @dataclass(frozen=True, slots=True)
 class ResolvedTrustBundle:
@@ -503,6 +512,31 @@ def resolve_trust_bundle(configured: Path | None) -> ResolvedTrustBundle:
         return ResolvedTrustBundle(WELL_KNOWN_TRUST_BUNDLE, "convention")
 
     return ResolvedTrustBundle(None, "none")
+
+
+def resolve_admission_state_root() -> Path:
+    """Return the absolute root that owns the machine admission ledger.
+
+    The service stores state under ``<root>/admission``. Project
+    ``.posttrain/state`` still holds submission receipts; only the cross-project
+    host lock lives here.
+    """
+    declared = os.environ.get(ADMISSION_ROOT_ENVIRONMENT_VARIABLE, "").strip()
+    if declared:
+        root = Path(declared).expanduser()
+        if not root.is_absolute():
+            raise ContractError(
+                f"{ADMISSION_ROOT_ENVIRONMENT_VARIABLE} must be an absolute path: {root}"
+            )
+        return root.resolve()
+
+    if _WORKER_ADMISSION_ROOT.is_dir() and os.access(_WORKER_ADMISSION_ROOT, os.W_OK):
+        return _WORKER_ADMISSION_ROOT.resolve()
+
+    xdg = os.environ.get("XDG_STATE_HOME", "").strip()
+    if xdg:
+        return (Path(xdg).expanduser() / "posttrain").resolve()
+    return (Path.home() / ".local" / "state" / "posttrain").resolve()
 
 
 def configured_registry_prefix() -> str | None:

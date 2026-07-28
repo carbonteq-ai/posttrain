@@ -600,6 +600,63 @@ def test_doctor_reports_readiness_and_missing_project(
     assert any(check["name"] == "project" and check["status"] == "error" for check in missing["checks"])
 
 
+def test_workers_names_the_holder_and_who_waits(
+    tmp_path: Path,
+    capsys,
+    monkeypatch,
+) -> None:
+    from posttrain.execution import Placement
+
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+    now = datetime.now(UTC)
+
+    class FakeAdmission:
+        def placements(self):
+            return (
+                Placement(
+                    key="host:pop-os.lan",
+                    provider="local-docker",
+                    holder="active-run",
+                    holder_state="submitted",
+                    holder_since=now,
+                    waiting=("waiting-run",),
+                ),
+            )
+
+    monkeypatch.setattr(
+        "posttrain_cli.commands.workers.execution_admission_service",
+        lambda layout: FakeAdmission(),
+    )
+    monkeypatch.setattr(
+        "posttrain_cli.commands.workers.resolve_admission_state_root",
+        lambda: tmp_path / "machine-admission",
+    )
+
+    assert main(["--json", "--project-root", str(project), "workers"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["admission_root"] == str(tmp_path / "machine-admission")
+    assert payload["placements"] == [
+        {
+            "key": "host:pop-os.lan",
+            "provider": "local-docker",
+            "holder": "active-run",
+            "holder_state": "submitted",
+            "holder_since": now.isoformat(),
+            "holder_message": None,
+            "waiting": ["waiting-run"],
+        }
+    ]
+    assert payload["orphaned_project_ledger"] is None
+
+    assert main(["--project-root", str(project), "workers"]) == 0
+    human = capsys.readouterr().out
+    assert "host:pop-os.lan" in human
+    assert "holder=active-run" in human
+    assert "waiting-run" in human
+
+
 def test_expected_errors_do_not_print_tracebacks(tmp_path: Path, capsys) -> None:
     assert (
         main(

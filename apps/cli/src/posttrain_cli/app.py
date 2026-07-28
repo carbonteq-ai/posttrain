@@ -21,6 +21,7 @@ from .commands import (
     runtime,
     version,
     work_package,
+    workers,
 )
 from .context import CliState
 
@@ -64,6 +65,7 @@ def create_app(*, json_stream: TextIO | None = None) -> typer.Typer:
     work_package.register(app)
     job.register(app)
     run_cmd.register(app)
+    workers.register(app)
     runtime.register(app)
     observatory.register(app)
 

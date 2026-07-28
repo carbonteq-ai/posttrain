@@ -5,6 +5,7 @@ from .admission import (
     AdmissionResult,
     AdmissionState,
     ExecutionAdmissionService,
+    Placement,
 )
 from .bundles import (
     ExecutionBundlePlan,
@@ -98,6 +99,7 @@ __all__ = [
     "CancelledTrackingWriter",
     "ExecutionHandle",
     "ExecutionAdmissionService",
+    "Placement",
     "ExecutionBundlePlan",
     "ExecutionCleanupReceipt",
     "ExecutionMount",

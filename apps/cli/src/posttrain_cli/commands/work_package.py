@@ -26,6 +26,7 @@ from ..execution_provider import (
     evidence_source_for_project,
     execution_admission_service,
 )
+from ..job_resolve import resolve_job_id
 from ..output import emit, json_value
 from ..package_history import packages_for, resolve_package
 from ..runtime_images import ensure_kind_image_ready
@@ -92,7 +93,7 @@ def plan_work_package_cmd(
     state: CliState,
     path: Path,
     *,
-    job: str,
+    job: str | None,
     overrides: ExecutionOverrides = _EMPTY_OVERRIDES,
     run_id: str | None = None,
     host: str | None = None,
@@ -100,6 +101,8 @@ def plan_work_package_cmd(
     project_packages: tuple[str, ...] | None = None,
     source_includes: tuple[str, ...] | None = None,
 ) -> PlannedJobExecution:
+    _layout, catalog, _resolved_path, package = load_work_package_bundle(state, path)
+    job = resolve_job_id(catalog, package, job)
     planned = plan_job_execution(
         state,
         path,

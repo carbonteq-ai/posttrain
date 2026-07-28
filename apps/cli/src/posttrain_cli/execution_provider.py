@@ -27,6 +27,7 @@ from .execution_config import (
     load_execution_environment,
     load_local_execution_config,
     provider_binding_fingerprint,
+    resolve_admission_state_root,
     resolve_execution_settings,
     resolve_trust_bundle,
 )
@@ -151,7 +152,7 @@ def execution_admission_service(
         return local.canonical_hostname if local is not None else None
 
     return ExecutionAdmissionService(
-        layout.state,
+        resolve_admission_state_root(),
         service_factory,
         provider_binding_factory=provider_binding_factory,
         physical_host_factory=physical_host_factory,

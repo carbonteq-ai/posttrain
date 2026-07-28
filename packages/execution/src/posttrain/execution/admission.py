@@ -70,6 +70,25 @@ class AdmissionEntry:
 
 
 @dataclass(frozen=True, slots=True)
+class Placement:
+    """One execution placement and whatever currently occupies it.
+
+    A placement is held from admission until the run reconciles, so a run that
+    finished but has not been reconciled still occupies its machine. Without a
+    way to see that, a queued run reports only its position and nothing
+    explains what it is behind.
+    """
+
+    key: str
+    provider: str
+    holder: str | None = None
+    holder_state: AdmissionState | None = None
+    holder_since: datetime | None = None
+    holder_message: str | None = None
+    waiting: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class AdmissionResult:
     entry: AdmissionEntry
     submission: ExecutionSubmission | None = None
@@ -224,6 +243,50 @@ class ExecutionAdmissionService:
             raw = dict(_required(payload, run_id))
             entries = list(payload["entries"])
         return _decode_entry(raw, entries)
+
+    def placements(self) -> tuple[Placement, ...]:
+        """Report every known placement, who holds it, and who waits behind it."""
+        payload = self._load()
+        entries = list(payload["entries"])
+        active = dict(payload.get("active_by_key") or {})
+        keys = {str(key) for key in active}
+        keys.update(
+            str(entry["admission_key"]) for entry in entries if entry.get("state") in _ACTIVE_MAPPING_STATES
+        )
+        keys.update(str(entry["admission_key"]) for entry in entries if entry.get("state") == "waiting")
+
+        placements: list[Placement] = []
+        for key in sorted(keys):
+            holder_id = active.get(key)
+            holder = next(
+                (entry for entry in entries if entry.get("run_id") == holder_id),
+                None,
+            )
+            waiting = tuple(
+                str(entry["run_id"])
+                for entry in entries
+                if entry.get("state") == "waiting" and entry.get("admission_key") == key
+            )
+            provider = ""
+            if holder is not None:
+                provider = str(_decode_plan(holder["plan"]).provider)
+            elif waiting:
+                first = next(entry for entry in entries if entry.get("run_id") == waiting[0])
+                provider = str(_decode_plan(first["plan"]).provider)
+            placements.append(
+                Placement(
+                    key=key,
+                    provider=provider,
+                    holder=str(holder_id) if holder_id else None,
+                    holder_state=(cast(AdmissionState, holder["state"]) if holder is not None else None),
+                    holder_since=(datetime.fromisoformat(str(holder["queued_at"])) if holder is not None else None),
+                    holder_message=(
+                        str(holder["message"]) if holder is not None and isinstance(holder.get("message"), str) else None
+                    ),
+                    waiting=waiting,
+                )
+            )
+        return tuple(placements)
 
     def list(self) -> tuple[AdmissionEntry, ...]:
         with self._locked() as payload:
@@ -501,12 +564,28 @@ def _find(payload: dict[str, Any], run_id: str | None) -> dict[str, Any] | None:
     )
 
 
+SELF_SCHEDULING_PROVIDERS = frozenset({"dstack"})
+"""Providers that decide placement themselves.
+
+Admission exists to keep two runs off one machine when nothing else will. A
+provider with its own scheduler already does that, and does it across every
+client rather than only this one, so competing with it would be both redundant
+and wrong.
+"""
+
+
 def _admission_key(
     plan: ExecutionPlan,
     *,
     configured_local_hostname: str | None = None,
     require_configured_local_hostname: bool = False,
 ) -> str:
+    if plan.provider in SELF_SCHEDULING_PROVIDERS:
+        # This provider places runs on its own fleet, across clients this
+        # process cannot see. Holding an exclusive key here would arbitrate
+        # nothing while still forcing a target to name a specific machine, so
+        # each run holds only itself and nothing ever queues behind it.
+        return f"run:{plan.request.run_spec.run_id}"
     instances = plan.request.target.placement.get("instances")
     if isinstance(instances, list):
         hostnames = tuple(
@@ -516,10 +595,6 @@ def _admission_key(
         )
         if len(hostnames) == 1 and len(instances) == 1:
             return "host:" + _normalized_hostname(hostnames[0])
-        if plan.provider == "dstack":
-            raise ContractError("singular dstack admission requires exactly one canonical hostname")
-    if plan.provider == "dstack":
-        raise ContractError("singular dstack admission requires one canonical hostname")
     if plan.provider in {"local", "local-docker"}:
         if configured_local_hostname is not None:
             return "host:" + _normalized_hostname(configured_local_hostname)

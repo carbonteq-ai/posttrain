@@ -14,11 +14,13 @@ from posttrain.execution import (
 )
 from posttrain.runtime_images.manifest import load_manifest
 from posttrain_cli.execution_config import (
+    ADMISSION_ROOT_ENVIRONMENT_VARIABLE,
     REGISTRY_ENVIRONMENT_VARIABLE,
     TRUST_BUNDLE_ENVIRONMENT_VARIABLE,
     ExecutionOverrides,
     load_local_execution_config,
     provider_binding_fingerprint,
+    resolve_admission_state_root,
     resolve_execution_settings,
     resolve_trust_bundle,
 )
@@ -938,3 +940,38 @@ def test_a_named_bundle_that_does_not_exist_is_refused(
     monkeypatch.setenv(TRUST_BUNDLE_ENVIRONMENT_VARIABLE, str(tmp_path / "also-absent.pem"))
     with pytest.raises(ContractError, match="does not name a file"):
         resolve_trust_bundle(None)
+
+
+def test_admission_root_prefers_an_explicit_absolute_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "ledger"
+    monkeypatch.setenv(ADMISSION_ROOT_ENVIRONMENT_VARIABLE, str(root))
+
+    assert resolve_admission_state_root() == root.resolve()
+
+
+def test_admission_root_rejects_a_relative_override(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(ADMISSION_ROOT_ENVIRONMENT_VARIABLE, "relative/ledger")
+
+    with pytest.raises(ContractError, match="must be an absolute path"):
+        resolve_admission_state_root()
+
+
+def test_admission_root_falls_back_to_xdg_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(ADMISSION_ROOT_ENVIRONMENT_VARIABLE, raising=False)
+    monkeypatch.setattr(
+        "posttrain_cli.execution_config._WORKER_ADMISSION_ROOT",
+        tmp_path / "missing-worker",
+    )
+    xdg = tmp_path / "xdg-state"
+    monkeypatch.setenv("XDG_STATE_HOME", str(xdg))
+
+    assert resolve_admission_state_root() == (xdg / "posttrain").resolve()

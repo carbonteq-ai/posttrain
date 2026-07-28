@@ -216,21 +216,34 @@ place.
 
 Detached execution may apply an admission policy before a provider receives a
 run. Admission is framework lifecycle state, not a scheduler replacement:
-local Docker or dstack still owns placement, startup, and provider-native
-queuing after submission.
+providers still own placement, startup, and provider-native queuing after
+submission.
 
-The default research policy admits at most one active run for one exact worker
-placement. Different physical workers may execute independently. A waiting run
-retains its immutable execution plan and evidence destination, can be inspected
-or cancelled by canonical `run_id`, and must not contact a provider until its
-placement is admitted. Terminal provider state does not release the placement;
-consistent retained-evidence reconciliation is the release barrier. When a
-project explicitly selects the no-op observer, terminal provider evidence is
-the admission barrier and the reconciliation must say that no durable evidence
-was asserted. Cleanup must preserve a successful untracked workspace whenever
-the run declares required output roles.
+For providers that do not schedule across clients themselves (local Docker),
+the research policy admits at most one active run for one exact worker
+placement (`host:<canonical hostname>`). Different physical workers may
+execute independently. That singular ledger is **machine-scoped** so two
+projects on the same laptop share one placement map; project
+`.posttrain/state` still owns submission and run receipts, not the
+cross-project lock.
 
-Admission state is machine-local control evidence under `.posttrain/state`.
+Self-scheduling providers (today: dstack) already decide exclusivity across
+every client. Posttrain does not hold a host placement for them: each run
+keys only itself (`run:<run_id>`), so nothing queues behind another posttrain
+process while the provider's own scheduler remains authoritative.
+
+A waiting run retains its immutable execution plan and evidence destination,
+can be inspected or cancelled by canonical `run_id`, and must not contact a
+provider until its placement is admitted. Terminal provider state does not
+release a host placement; consistent retained-evidence reconciliation is the
+release barrier. When a project explicitly selects the no-op observer,
+terminal provider evidence is the admission barrier and the reconciliation
+must say that no durable evidence was asserted. Cleanup must preserve a
+successful untracked workspace whenever the run declares required output
+roles.
+
+The admission ledger lives under a machine root (`POSTTRAIN_ADMISSION_ROOT`,
+else `/var/lib/posttrain` when writable, else `$XDG_STATE_HOME/posttrain`).
 Run observations and artifacts remain durable through the selected tracking
 provider. A CLI restart must be able to restore waiting plans without
 replanning or changing their package, provider, target, or evidence identity.

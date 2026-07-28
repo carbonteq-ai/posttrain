@@ -118,14 +118,14 @@ def _on_worker(plan: ExecutionPlan, hostname: str) -> ExecutionPlan:
 
 
 def test_waiting_cancel_never_contacts_any_provider(request_factory, tmp_path) -> None:
-    providers = {"dstack": FakeProvider("dstack")}
+    providers = {"local-docker": FakeProvider("local-docker")}
     admission = _admission(tmp_path, providers)
     first = _on_worker(
-        ExecutionPlan("dstack", request_factory("first")),
+        ExecutionPlan("local-docker", request_factory("first")),
         "worker-a.lan",
     )
     second = _on_worker(
-        ExecutionPlan("dstack", request_factory("second")),
+        ExecutionPlan("local-docker", request_factory("second")),
         "worker-a.lan",
     )
 
@@ -137,23 +137,25 @@ def test_waiting_cancel_never_contacts_any_provider(request_factory, tmp_path) -
     cancelled = admission.cancel(second.request.run_spec.run_id)
 
     assert cancelled.state == "cancelled"
-    assert len(providers["dstack"].submitted) == 1
-    assert providers["dstack"].submitted[0].request.run_spec.run_id == (first.request.run_spec.run_id)
-    assert not providers["dstack"].cancelled
+    assert len(providers["local-docker"].submitted) == 1
+    assert providers["local-docker"].submitted[0].request.run_spec.run_id == (
+        first.request.run_spec.run_id
+    )
+    assert not providers["local-docker"].cancelled
 
 
 def test_reconciled_terminal_run_releases_exactly_one_waiter(
     request_factory,
     tmp_path,
 ) -> None:
-    providers = {"dstack": FakeProvider("dstack")}
+    providers = {"local-docker": FakeProvider("local-docker")}
     admission = _admission(tmp_path, providers)
     first = _on_worker(
-        ExecutionPlan("dstack", request_factory("first")),
+        ExecutionPlan("local-docker", request_factory("first")),
         "worker-a.lan",
     )
     second = _on_worker(
-        ExecutionPlan("dstack", request_factory("second")),
+        ExecutionPlan("local-docker", request_factory("second")),
         "worker-a.lan",
     )
     first_run_id = first.request.run_spec.run_id
@@ -161,12 +163,12 @@ def test_reconciled_terminal_run_releases_exactly_one_waiter(
     admission.enqueue(first, evidence_source=None)
     admission.enqueue(second, evidence_source=None)
     first_handle = ExecutionHandle(
-        "dstack",
-        f"dstack-{first_run_id}",
+        "local-docker",
+        f"local-docker-{first_run_id}",
         first.request.idempotency_key,
     )
-    providers["dstack"].records[first_handle.provider_id] = replace(
-        providers["dstack"].records[first_handle.provider_id],
+    providers["local-docker"].records[first_handle.provider_id] = replace(
+        providers["local-docker"].records[first_handle.provider_id],
         state="succeeded",
         native_state="done",
     )
@@ -175,14 +177,14 @@ def test_reconciled_terminal_run_releases_exactly_one_waiter(
 
     assert record is not None and record.state == "succeeded"
     assert entry.state == "terminal_pending_evidence"
-    assert len(providers["dstack"].submitted) == 1
+    assert len(providers["local-docker"].submitted) == 1
 
     admitted = admission.acknowledge_reconciled(first_run_id)
 
     assert admitted is not None
     assert admitted.entry.run_id == second_run_id
     assert admitted.entry.state == "submitted"
-    assert len(providers["dstack"].submitted) == 2
+    assert len(providers["local-docker"].submitted) == 2
     assert admission.get(first_run_id).state == "completed"
 
     assert admission.acknowledge_reconciled(first_run_id) is None
@@ -214,7 +216,7 @@ def test_independent_worker_placements_are_admitted_concurrently(
     request_factory,
     tmp_path,
 ) -> None:
-    providers = {"dstack": FakeProvider("dstack")}
+    providers = {"local-docker": FakeProvider("local-docker")}
     admission = _admission(tmp_path, providers)
     first_request = replace(
         request_factory("worker-a"),
@@ -237,11 +239,32 @@ def test_independent_worker_placements_are_admitted_concurrently(
         ),
     )
 
-    first = admission.enqueue(ExecutionPlan("dstack", first_request), evidence_source=None)
-    second = admission.enqueue(ExecutionPlan("dstack", second_request), evidence_source=None)
+    first = admission.enqueue(ExecutionPlan("local-docker", first_request), evidence_source=None)
+    second = admission.enqueue(ExecutionPlan("local-docker", second_request), evidence_source=None)
 
     assert first.entry.state == "submitted"
     assert second.entry.state == "submitted"
+    assert len(providers["local-docker"].submitted) == 2
+
+
+def test_dstack_runs_do_not_queue_behind_each_other(
+    request_factory,
+    tmp_path,
+) -> None:
+    """dstack schedules across clients; posttrain must not invent a host lock."""
+    providers = {"dstack": FakeProvider("dstack")}
+    admission = _admission(tmp_path, providers)
+    first = _on_worker(
+        ExecutionPlan("dstack", request_factory("first")),
+        "worker-a.lan",
+    )
+    second = _on_worker(
+        ExecutionPlan("dstack", request_factory("second")),
+        "worker-a.lan",
+    )
+
+    assert admission.enqueue(first, evidence_source=None).entry.state == "submitted"
+    assert admission.enqueue(second, evidence_source=None).entry.state == "submitted"
     assert len(providers["dstack"].submitted) == 2
 
 
@@ -249,11 +272,11 @@ def test_submission_failure_quarantines_worker_until_retry_resolves_it(
     request_factory,
     tmp_path,
 ) -> None:
-    failing = FakeProvider("dstack", fail_submissions=True)
-    providers = {"dstack": failing}
+    failing = FakeProvider("local-docker", fail_submissions=True)
+    providers = {"local-docker": failing}
     admission = _admission(tmp_path, providers)
     first = _on_worker(
-        ExecutionPlan("dstack", request_factory("first-fails")),
+        ExecutionPlan("local-docker", request_factory("first-fails")),
         "worker-a.lan",
     )
 
@@ -270,7 +293,7 @@ def test_submission_failure_quarantines_worker_until_retry_resolves_it(
 
     failing.fail_submissions = False
     second = _on_worker(
-        ExecutionPlan("dstack", request_factory("second-runs")),
+        ExecutionPlan("local-docker", request_factory("second-runs")),
         "worker-a.lan",
     )
     waiting = admission.enqueue(second, evidence_source=None)
@@ -321,14 +344,14 @@ def test_process_death_during_submit_is_recoverable_without_releasing_worker(
                 raise SystemExit(137)
             return handle
 
-    provider = CrashingProvider("dstack")
-    admission = _admission(tmp_path, {"dstack": provider})
+    provider = CrashingProvider("local-docker")
+    admission = _admission(tmp_path, {"local-docker": provider})
     first = _on_worker(
-        ExecutionPlan("dstack", request_factory("submitter-dies")),
+        ExecutionPlan("local-docker", request_factory("submitter-dies")),
         "worker-a.lan",
     )
     second = _on_worker(
-        ExecutionPlan("dstack", request_factory("must-remain-waiting")),
+        ExecutionPlan("local-docker", request_factory("must-remain-waiting")),
         "worker-a.lan",
     )
 
@@ -397,22 +420,22 @@ def test_next_submission_failure_does_not_undo_completed_reconciliation(
     request_factory,
     tmp_path,
 ) -> None:
-    provider = FakeProvider("dstack")
-    admission = _admission(tmp_path, {"dstack": provider})
+    provider = FakeProvider("local-docker")
+    admission = _admission(tmp_path, {"local-docker": provider})
     first = _on_worker(
-        ExecutionPlan("dstack", request_factory("first-completes")),
+        ExecutionPlan("local-docker", request_factory("first-completes")),
         "worker-a.lan",
     )
     second = _on_worker(
-        ExecutionPlan("dstack", request_factory("next-fails")),
+        ExecutionPlan("local-docker", request_factory("next-fails")),
         "worker-a.lan",
     )
     first_run_id = first.request.run_spec.run_id
     admission.enqueue(first, evidence_source=None)
     admission.enqueue(second, evidence_source=None)
     handle = ExecutionHandle(
-        "dstack",
-        f"dstack-{first_run_id}",
+        "local-docker",
+        f"local-docker-{first_run_id}",
         first.request.idempotency_key,
     )
     provider.records[handle.provider_id] = replace(
@@ -434,7 +457,7 @@ def test_restored_waiter_rejects_provider_binding_drift(
     request_factory,
     tmp_path,
 ) -> None:
-    provider = FakeProvider("dstack")
+    provider = FakeProvider("local-docker")
     store = ExecutionSubmissionStore(tmp_path.resolve())
     binding = ["binding-a"]
 
@@ -452,19 +475,19 @@ def test_restored_waiter_rejects_provider_binding_drift(
         provider_binding_factory=lambda provider_name: f"{provider_name}:{binding[0]}",
     )
     first = _on_worker(
-        ExecutionPlan("dstack", request_factory("binding-active")),
+        ExecutionPlan("local-docker", request_factory("binding-active")),
         "worker-a.lan",
     )
     second = _on_worker(
-        ExecutionPlan("dstack", request_factory("binding-waiter")),
+        ExecutionPlan("local-docker", request_factory("binding-waiter")),
         "worker-a.lan",
     )
     first_run_id = first.request.run_spec.run_id
     admission.enqueue(first, evidence_source=None)
     admission.enqueue(second, evidence_source=None)
     handle = ExecutionHandle(
-        "dstack",
-        f"dstack-{first_run_id}",
+        "local-docker",
+        f"local-docker-{first_run_id}",
         first.request.idempotency_key,
     )
     provider.records[handle.provider_id] = replace(
@@ -487,22 +510,22 @@ def test_queue_positions_are_scoped_to_one_worker(
     request_factory,
     tmp_path,
 ) -> None:
-    provider = FakeProvider("dstack")
-    admission = _admission(tmp_path, {"dstack": provider})
+    provider = FakeProvider("local-docker")
+    admission = _admission(tmp_path, {"local-docker": provider})
     active_a = _on_worker(
-        ExecutionPlan("dstack", request_factory("active-a")),
+        ExecutionPlan("local-docker", request_factory("active-a")),
         "worker-a.lan",
     )
     active_b = _on_worker(
-        ExecutionPlan("dstack", request_factory("active-b")),
+        ExecutionPlan("local-docker", request_factory("active-b")),
         "worker-b.lan",
     )
     waiting_a = _on_worker(
-        ExecutionPlan("dstack", request_factory("waiting-a")),
+        ExecutionPlan("local-docker", request_factory("waiting-a")),
         "worker-a.lan",
     )
     waiting_b = _on_worker(
-        ExecutionPlan("dstack", request_factory("waiting-b")),
+        ExecutionPlan("local-docker", request_factory("waiting-b")),
         "worker-b.lan",
     )
     admission.enqueue(active_a, evidence_source=None)
@@ -512,20 +535,20 @@ def test_queue_positions_are_scoped_to_one_worker(
     assert admission.enqueue(waiting_b, evidence_source=None).entry.position == 1
 
 
-def test_dstack_admission_requires_one_canonical_hostname(
+def test_dstack_admission_does_not_require_a_canonical_hostname(
     request_factory,
     tmp_path,
 ) -> None:
-    admission = _admission(tmp_path, {"dstack": FakeProvider("dstack")})
+    providers = {"dstack": FakeProvider("dstack")}
+    admission = _admission(tmp_path, providers)
 
-    with pytest.raises(
-        ContractError,
-        match="exactly one canonical hostname|requires one canonical hostname",
-    ):
-        admission.enqueue(
-            ExecutionPlan("dstack", request_factory("ambiguous-worker")),
-            evidence_source=None,
-        )
+    result = admission.enqueue(
+        ExecutionPlan("dstack", request_factory("fleet-selected")),
+        evidence_source=None,
+    )
+
+    assert result.entry.state == "submitted"
+    assert len(providers["dstack"].submitted) == 1
 
 
 def test_local_target_aliases_share_one_physical_worker_admission(
@@ -554,7 +577,7 @@ def test_local_target_aliases_share_one_physical_worker_admission(
     assert len(provider.submitted) == 1
 
 
-def test_local_and_dstack_providers_share_configured_physical_host_admission(
+def test_local_and_dstack_providers_do_not_share_host_placements(
     request_factory,
     tmp_path,
 ) -> None:
@@ -580,10 +603,75 @@ def test_local_and_dstack_providers_share_configured_physical_host_admission(
     )
 
     assert admission.enqueue(local, evidence_source=None).entry.state == "submitted"
-    queued = admission.enqueue(remote, evidence_source=None).entry
-    assert queued.state == "waiting"
-    assert queued.position == 1
-    assert len(providers["dstack"].submitted) == 0
+    assert admission.enqueue(remote, evidence_source=None).entry.state == "submitted"
+    assert len(providers["dstack"].submitted) == 1
+
+
+def test_shared_admission_root_serializes_two_project_factories(
+    request_factory,
+    tmp_path,
+) -> None:
+    """Host placements are machine-scoped: two services, one ledger root."""
+    ledger = tmp_path / "machine"
+    project_a = tmp_path / "project-a"
+    project_b = tmp_path / "project-b"
+    provider_a = FakeProvider("local-docker")
+    provider_b = FakeProvider("local-docker")
+    store_a = ExecutionSubmissionStore(project_a.resolve())
+    store_b = ExecutionSubmissionStore(project_b.resolve())
+
+    def factory_a(provider_name, evidence_source):
+        return JobExecutionService(
+            provider_a,
+            store_a,
+            provider_name=provider_name,
+            evidence_source=evidence_source,
+        )
+
+    def factory_b(provider_name, evidence_source):
+        return JobExecutionService(
+            provider_b,
+            store_b,
+            provider_name=provider_name,
+            evidence_source=evidence_source,
+        )
+
+    admission_a = ExecutionAdmissionService(
+        ledger.resolve(),
+        factory_a,
+        physical_host_factory=lambda plan: "pop-os.lan",
+    )
+    admission_b = ExecutionAdmissionService(
+        ledger.resolve(),
+        factory_b,
+        physical_host_factory=lambda plan: "pop-os.lan",
+    )
+    first = ExecutionPlan(
+        "local-docker",
+        replace(
+            request_factory("project-a-run"),
+            target=ExecutionTarget("targets/local", "1", "cuda", 24),
+        ),
+    )
+    second = ExecutionPlan(
+        "local-docker",
+        replace(
+            request_factory("project-b-run"),
+            target=ExecutionTarget("targets/local", "1", "cuda", 24),
+        ),
+    )
+
+    assert admission_a.enqueue(first, evidence_source=None).entry.state == "submitted"
+    waiting = admission_b.enqueue(second, evidence_source=None).entry
+    assert waiting.state == "waiting"
+    assert waiting.position == 1
+    assert len(provider_b.submitted) == 0
+
+    placements = admission_a.placements()
+    assert len(placements) == 1
+    assert placements[0].key == "host:pop-os.lan"
+    assert placements[0].holder == first.request.run_spec.run_id
+    assert placements[0].waiting == (second.request.run_spec.run_id,)
 
 
 def test_snapshot_rejects_dangling_active_placement(

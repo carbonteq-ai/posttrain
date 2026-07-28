@@ -25,3 +25,14 @@ def _isolate_machine_trust(
     absent = tmp_path_factory.mktemp("no-machine-trust") / "internal-ca.pem"
     monkeypatch.setattr(execution_config, "WELL_KNOWN_TRUST_BUNDLE", Path(absent))
     monkeypatch.delenv(execution_config.TRUST_BUNDLE_ENVIRONMENT_VARIABLE, raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_machine_admission(
+    tmp_path_factory: pytest.TempPathFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Keep host-placement ledgers out of the developer's real state directory."""
+    root = tmp_path_factory.mktemp("admission-root")
+    monkeypatch.setenv(execution_config.ADMISSION_ROOT_ENVIRONMENT_VARIABLE, str(root))
+    monkeypatch.setattr(execution_config, "_WORKER_ADMISSION_ROOT", root / "absent-worker-root")
