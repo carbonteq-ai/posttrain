@@ -40,9 +40,12 @@ def register(app: typer.Typer) -> None:
             typer.Argument(help="work-package file or project-relative work-package path"),
         ],
         job: Annotated[
-            str,
-            typer.Option("--job", help="plan exactly this enabled recipe job id"),
-        ],
+            str | None,
+            typer.Option(
+                "--job",
+                help="enabled recipe job id; omit when the package has exactly one",
+            ),
+        ] = None,
         provider: Annotated[
             _ProviderChoice | None,
             typer.Option(
@@ -162,9 +165,12 @@ def register(app: typer.Typer) -> None:
             typer.Argument(help="work-package file or project-relative work-package path"),
         ],
         job: Annotated[
-            str,
-            typer.Option("--job", help="the recipe job id to compare packages for"),
-        ],
+            str | None,
+            typer.Option(
+                "--job",
+                help="enabled recipe job id; omit when the package has exactly one",
+            ),
+        ] = None,
         from_key: Annotated[
             str | None,
             typer.Option("--from", help="earlier package key, or an unambiguous prefix"),
@@ -190,9 +196,12 @@ def register(app: typer.Typer) -> None:
             typer.Argument(help="work-package file or project-relative work-package path"),
         ],
         job: Annotated[
-            str,
-            typer.Option("--job", help="package exactly this enabled recipe job id"),
-        ],
+            str | None,
+            typer.Option(
+                "--job",
+                help="enabled recipe job id; omit when the package has exactly one",
+            ),
+        ] = None,
         target: Annotated[
             str | None,
             typer.Option(
@@ -270,9 +279,12 @@ def register(app: typer.Typer) -> None:
             typer.Argument(help="work-package file or project-relative work-package path"),
         ],
         job: Annotated[
-            str,
-            typer.Option("--job", help="execute exactly this enabled recipe job id"),
-        ],
+            str | None,
+            typer.Option(
+                "--job",
+                help="enabled recipe job id; omit when the package has exactly one",
+            ),
+        ] = None,
         provider: Annotated[
             _ProviderChoice | None,
             typer.Option(

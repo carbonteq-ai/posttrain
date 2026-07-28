@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+import yaml
 from posttrain.common import ContractError
 from posttrain.runtime_images.manifest import ManifestError, load_manifest
 
@@ -179,4 +180,51 @@ def runtime_images_check(state: CliState) -> Check:
     )
 
 
-__all__ = ["Check", "CheckStatus", "registry_check", "runtime_images_check"]
+def catalog_overlay_check(state: CliState) -> Check:
+    """Warn when YAML files under a catalog overlay are missing from layer.yaml."""
+    try:
+        layout = state.layout()
+    except (ContractError, OSError) as error:
+        return Check("catalog_overlays", "error", str(error))
+
+    orphaned: list[str] = []
+    for overlay in layout.catalog_overlays:
+        if not overlay.is_dir():
+            continue
+        manifest = overlay / "layer.yaml"
+        if not manifest.is_file():
+            orphaned.append(f"{overlay}: missing layer.yaml")
+            continue
+        try:
+            payload = yaml.safe_load(manifest.read_text(encoding="utf-8"))
+        except (OSError, yaml.YAMLError):
+            orphaned.append(f"{overlay}: unreadable layer.yaml")
+            continue
+        declared = set()
+        if isinstance(payload, dict) and isinstance(payload.get("files"), list):
+            declared = {str(name) for name in payload["files"]}
+        on_disk = {
+            path.name
+            for path in overlay.iterdir()
+            if path.is_file() and path.suffix in {".yaml", ".yml"} and path.name != "layer.yaml"
+        }
+        missing = sorted(on_disk - declared)
+        if missing:
+            orphaned.append(f"{overlay.name}: {', '.join(missing)} not listed in layer.yaml")
+    if orphaned:
+        return Check(
+            "catalog_overlays",
+            "warn",
+            "overlay YAML must be listed in layer.yaml or it is ignored: " + "; ".join(orphaned),
+        )
+    return Check("catalog_overlays", "ok", "overlay files match layer.yaml")
+
+
+__all__ = [
+    "Check",
+    "CheckStatus",
+    "catalog_overlay_check",
+    "registry_check",
+    "runtime_images_check",
+    "trust_check",
+]

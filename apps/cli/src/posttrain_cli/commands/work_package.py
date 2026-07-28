@@ -137,7 +137,7 @@ def pack_work_package_cmd(
     state: CliState,
     path: Path,
     *,
-    job: str,
+    job: str | None,
     overrides: PackageOverrides = _EMPTY_PACKAGE_OVERRIDES,
     host: str | None = None,
     entry: str | None = None,
@@ -147,6 +147,8 @@ def pack_work_package_cmd(
 ) -> PackedJobPackage:
     """Pack and publish one job without submitting it to a provider."""
 
+    _layout, catalog, _resolved_path, package = load_work_package_bundle(state, path)
+    job = resolve_job_id(catalog, package, job)
     planned = plan_job_package(
         state,
         path,
@@ -179,7 +181,7 @@ def run_work_package_cmd(
     state: CliState,
     path: Path,
     *,
-    job: str,
+    job: str | None,
     host: str | None = None,
     entry: str | None = None,
     in_process: bool = False,
@@ -189,6 +191,8 @@ def run_work_package_cmd(
     source_includes: tuple[str, ...] | None = None,
     build_missing: bool = False,
 ) -> None:
+    layout, catalog, resolved_path, package = load_work_package_bundle(state, path)
+    job = resolve_job_id(catalog, package, job)
     if not in_process:
         planned = plan_job_execution(
             state,
@@ -238,7 +242,6 @@ def run_work_package_cmd(
         )
         return
 
-    layout, catalog, resolved_path, package = load_work_package_bundle(state, path)
     output_redirect = redirect_stdout(sys.stderr) if state.json_output else nullcontext()
     with output_redirect:
         context = runtime_context(
@@ -282,13 +285,14 @@ def diff_work_package_cmd(
     state: CliState,
     path: Path,
     *,
-    job: str,
+    job: str | None,
     from_key: str | None = None,
     to_key: str | None = None,
 ) -> None:
     """Report which inputs differ between two packed job packages."""
 
-    layout, _catalog, _resolved_path, package = load_work_package_bundle(state, path)
+    layout, catalog, _resolved_path, package = load_work_package_bundle(state, path)
+    job = resolve_job_id(catalog, package, job)
     work_package_id = package.work_package_id
 
     if from_key is not None or to_key is not None:
@@ -512,7 +516,13 @@ def register(app: typer.Typer) -> None:
     def work_package_plan_cmd(
         ctx: typer.Context,
         path: Annotated[Path, typer.Argument()],
-        job: Annotated[str, typer.Option("--job", help="plan exactly this enabled job id")],
+        job: Annotated[
+            str | None,
+            typer.Option(
+                "--job",
+                help="enabled recipe job id; omit when the package has exactly one",
+            ),
+        ] = None,
         provider: Annotated[str | None, typer.Option("--provider")] = None,
         target: Annotated[str | None, typer.Option("--target")] = None,
         runtime_profile: Annotated[
@@ -580,9 +590,12 @@ def register(app: typer.Typer) -> None:
         ctx: typer.Context,
         path: Annotated[Path, typer.Argument()],
         job: Annotated[
-            str,
-            typer.Option("--job", help="execute exactly this enabled recipe job id"),
-        ],
+            str | None,
+            typer.Option(
+                "--job",
+                help="enabled recipe job id; omit when the package has exactly one",
+            ),
+        ] = None,
         host: Annotated[
             str | None,
             typer.Option(

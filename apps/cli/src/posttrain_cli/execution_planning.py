@@ -8,7 +8,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from posttrain.catalog import ProjectLayout
-from posttrain.common import CatalogRef, ContractError, ExecutionTarget
+from posttrain.common import ContractError, ExecutionTarget
 from posttrain.execution import (
     JOB_PACKAGE_WORKER_COMMAND,
     ExecutionMount,
@@ -64,6 +64,7 @@ from .execution_provider import create_execution_provider, evidence_source_for_p
 from .framework_distributions import FrameworkDistributions
 from .framework_distributions import materialize as materialize_framework_distributions
 from .pack_config import load_project_pack_config
+from .selection_resolve import resolve_selection
 from .work_runtime import load_work_package_bundle, runtime_context
 
 _EMPTY_OVERRIDES = ExecutionOverrides()
@@ -390,7 +391,7 @@ def _plan_job_package(
         ),
     )
     if settings.target is not None:
-        resolved_target = catalog.resolve(CatalogRef("target", settings.target)).value
+        resolved_target = resolve_selection(catalog, "target", settings.target).value
         if not isinstance(resolved_target, ExecutionTarget):
             raise ContractError(f"execution target override did not resolve to an ExecutionTarget: {settings.target}")
         package = override_job_execution_target(

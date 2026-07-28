@@ -592,6 +592,7 @@ def test_doctor_reports_readiness_and_missing_project(
         # jobs trust public authorities only. That is a complete answer, not a
         # missing one.
         "trust": "ok",
+        "catalog_overlays": "ok",
     }
 
     assert main(["--json", "--project-root", str(tmp_path / "missing"), "doctor"]) == 1

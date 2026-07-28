@@ -20,13 +20,14 @@ job container inherits nothing from the host and is given the authority
 separately.
 
 ```bash
-sudo cp internal-ca.pem /usr/local/share/ca-certificates/internal-ca.crt && sudo update-ca-certificates
+sudo cp /path/to/ai-infra/.state/certs/caddy-local-root.crt \
+  /usr/local/share/ca-certificates/internal-ca.crt && sudo update-ca-certificates
 ```
 
 ```bash
-sudo install -D -m 644 internal-ca.pem /etc/posttrain/trust/internal-ca.pem
+sudo install -D -m 644 /path/to/ai-infra/.state/certs/caddy-local-root.crt \
+  /etc/posttrain/trust/internal-ca.pem
 ```
-
 The second path is where the framework looks by default, so a machine prepared
 this way needs no trust configuration in any project. That file holds the
 internal authority **alone** — never a hand-assembled union with the system
@@ -62,6 +63,14 @@ install, so they should travel with the distributions rather than beside them.
 VIRTUAL_ENV=.venv uv pip install --system-certs --index-url https://pypi.lan/carbonteq/stable/+simple/ --constraint github-constraints.txt "posttrain[observatory,trackio,trl]"
 ```
 
+For remote GPU through dstack, include the extra:
+
+```bash
+VIRTUAL_ENV=.venv uv pip install --system-certs --index-url https://pypi.lan/carbonteq/stable/+simple/ --constraint github-constraints.txt "posttrain[observatory,trackio,trl,dstack]"
+```
+
+Job images need **posttrain ≥ 0.2.1** for the trust merge. Re-run
+`posttrain job pack` for any image packed before that release.
 ## 3. Set the environment
 
 Write `posttrain.env` and source it before every command. Keep it `chmod 600`:
@@ -107,24 +116,12 @@ available templates are `sft` and `grpo`.
 posttrain init my-project --template sft
 ```
 
-## 5. Configure the local execution provider
+## 5. Local execution provider
 
-One setting is required before any job can run locally, and it is not
-scaffolded. It lives in `<project>/.posttrain/state/execution.toml`, which
-must not be readable by group or others.
-
-```bash
-cat > my-project/.posttrain/state/execution.toml <<EOF
-schema_version = 1
-
-[providers.local]
-# Identifies this physical machine so the admission controller can hold one
-# lease per host across local and dstack access paths.
-canonical_hostname = "$(hostname)"
-
-EOF
-chmod 600 my-project/.posttrain/state/execution.toml
-```
+`posttrain init` writes `.posttrain/state/execution.toml` (mode 0600) with
+`providers.local.canonical_hostname` set from this machine's hostname. That
+identity is how the admission ledger serializes local Docker jobs across
+projects on the same GPU. Edit it only if the hostname is wrong.
 
 Nothing about certificates belongs here. The authority installed in step 1 is
 found automatically. Override it only for a one-off, either with
@@ -132,6 +129,9 @@ found automatically. Override it only for a one-off, either with
 `[providers.local]`; a path named that way must exist, because silently
 substituting a different authority would be worse than refusing.
 
+For dstack, add `[providers.dstack]` (project, python, storage paths) — see
+the living plan notes or a qualified project. Hostname affinity is optional;
+dstack places from `device_class` / `memory_gb` unless you pin `instances`.
 ## 6. Check readiness
 
 ```bash
@@ -153,31 +153,37 @@ posttrain runtime images verify
 image. `run` does both and submits.
 
 ```bash
-posttrain job run .posttrain/work_packages/sft.yaml --job train
+posttrain job run .posttrain/work_packages/sft.yaml
 ```
 
-Then follow it, and join the provider's result to the retained evidence:
+`--job` is optional when the package has exactly one enabled job. Then follow
+it and join the provider's result to the retained evidence:
 
 ```bash
-posttrain run status <run-id>
+posttrain run status --last
+# or: posttrain run status <run-id-or-prefix>
 ```
 
 ```bash
-posttrain run reconcile <run-id>
+posttrain run logs --last --follow
+```
+
+```bash
+posttrain run reconcile --last
 ```
 
 A finished job reads `Reconciliation: consistent` with `Missing required
-roles: none`.
+roles: none`. Use `posttrain workers` to see who holds a local GPU placement.
 
 ## Things that will bite you
 
-- **`--job` is required** even when the recipe has exactly one job.
-- **Unknown subcommands print a traceback** rather than a usage error, and
-  there is no flag to get a traceback when you actually want one.
+- **Hand-authored catalog YAML must be listed in `layer.yaml`** or
+  `doctor` warns and the selection is invisible.
 - **A pack can fail with `package manifest key differs from PACKAGE_KEY`.**
-  This is a stale build cache, not a real mismatch. Retry the pack; if it
-  persists, run `docker buildx prune -af`.
+  This is usually a stale BuildKit cache. Retry the pack; if it persists, run
+  `docker buildx prune -af`.
 - **A newly mirrored package can 404 once** before the index caches it. Retry.
 - **A failed run holds its machine's admission slot** until you run
-  `posttrain run reconcile <run-id>`. Later runs sit at queue position 1 until
-  you do.
+  `posttrain run reconcile <run-id>` (or `--last`). Later local runs sit at
+  queue position 1 until you do. `posttrain workers` names the holder.
+- Use `--traceback` when an `error:` line is not enough.

@@ -10,7 +10,7 @@ import typer
 from posttrain.catalog import open_catalog
 from posttrain.common import ContractError
 
-from ..checks import registry_check, runtime_images_check, trust_check
+from ..checks import catalog_overlay_check, registry_check, runtime_images_check, trust_check
 from ..context import CliState
 from ..errors import error_message
 from ..materialize import materialize_project_references
@@ -110,6 +110,7 @@ def register(app: typer.Typer) -> None:
             checks.append(registry_check(state).as_dict())
             checks.append(runtime_images_check(state).as_dict())
             checks.append(trust_check(state).as_dict())
+            checks.append(catalog_overlay_check(state).as_dict())
 
         succeeded = all(check["status"] != "error" for check in checks)
         if state.json_output:

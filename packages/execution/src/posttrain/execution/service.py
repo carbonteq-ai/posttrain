@@ -397,7 +397,12 @@ class ExecutionSubmissionStore:
             return None
 
     def list_submissions(self) -> tuple[ExecutionSubmission, ...]:
-        """List durable submissions newest first and fail closed on corrupt state."""
+        """List durable submissions newest first and fail closed on corrupt state.
+
+        Run roots may exist for sidecar receipts (tracking recovery, reconciliation)
+        without a submission yet; those directories are skipped. A present but unreadable
+        or schema-invalid ``submission.json`` still fails closed.
+        """
 
         if not self._root.exists():
             return ()
@@ -405,6 +410,8 @@ class ExecutionSubmissionStore:
         for run_root in sorted(self._root.iterdir(), key=lambda path: path.name):
             if not run_root.is_dir():
                 raise ContractError(f"unexpected execution state entry is not a directory: {run_root}")
+            if not self.submission_path(run_root.name).is_file():
+                continue
             submissions.append(self.load(run_root.name))
         return tuple(
             sorted(

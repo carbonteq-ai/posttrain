@@ -320,9 +320,18 @@ def test_submission_store_lists_newest_first_and_fails_on_corrupt_state(
         "older-run",
     ]
 
+    sidecar_only = store.run_root("recovery-only")
+    sidecar_only.mkdir()
+    (sidecar_only / "tracking-recovery.json").write_text("{}", encoding="utf-8")
+    assert [submission.run_id for submission in store.list_submissions()] == [
+        "newer-run",
+        "older-run",
+    ]
+
     corrupt = store.run_root("corrupt-run")
     corrupt.mkdir()
-    with pytest.raises(FileNotFoundError, match="corrupt-run"):
+    (corrupt / "submission.json").write_text("{", encoding="utf-8")
+    with pytest.raises(ContractError, match="corrupt-run"):
         store.list_submissions()
 
 

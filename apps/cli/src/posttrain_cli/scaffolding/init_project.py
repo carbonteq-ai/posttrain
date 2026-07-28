@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import socket
 from importlib.metadata import PackageNotFoundError, requires, version
 from pathlib import Path
 
@@ -296,6 +297,21 @@ def initialize(
     catalog.mkdir(parents=True, exist_ok=True)
     work_packages.mkdir(parents=True, exist_ok=True)
     (control / "state").mkdir(parents=True, exist_ok=True)
+    hostname = socket.gethostname().strip().lower().rstrip(".")
+    execution_toml = control / "state" / "execution.toml"
+    execution_toml.write_text(
+        "\n".join(
+            (
+                "schema_version = 1",
+                "",
+                "[providers.local]",
+                f'canonical_hostname = "{hostname}"',
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    execution_toml.chmod(0o600)
     manifest.write_text(
         "\n".join(
             (
@@ -365,7 +381,8 @@ def initialize(
             (
                 "# Work packages\n\n"
                 f"Validate with `posttrain work-package validate {work_package_name}` and run the "
-                f"`train` job with `posttrain work-package run {work_package_name} --job train`.\n\n"
+                f"`train` job with `posttrain job run {work_package_name}` "
+                "(omit `--job` when the package has exactly one).\n\n"
                 "Validation and catalog materialization are CPU-safe. The generated training job is a "
                 "CUDA release gate; run it only on a compatible target."
                 + (

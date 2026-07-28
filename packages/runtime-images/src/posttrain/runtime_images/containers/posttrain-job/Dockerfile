@@ -210,7 +210,11 @@ manifest = JobPackageManifest.from_bytes(Path("package.json").read_bytes())
 if manifest.kind_image.value != kind_image:
     raise SystemExit("package manifest kind image differs from the build parent")
 if manifest.package_key != expected_package_key:
-    raise SystemExit("package manifest key differs from PACKAGE_KEY")
+    raise SystemExit(
+        "package manifest key differs from PACKAGE_KEY; "
+        "usually a stale BuildKit cache — retry the pack, or run "
+        "`docker buildx prune -af` if it persists"
+    )
 if manifest.job_kind != job_kind:
     raise SystemExit("job kind differs from the package manifest")
 if manifest.framework_source_digest != framework_source_digest:

@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from posttrain.common import Catalog, CatalogRef, ContractError
+from posttrain.common.selections import SelectionFamily
 
 
-def resolve_selection(catalog: Catalog, family: str, selection_id: str):
+def resolve_selection(catalog: Catalog, family: SelectionFamily, selection_id: str):
     """Resolve ``family/selection_id``, accepting an optional ``@revision`` suffix.
 
     Catalog YAML keys for targets (and some other families) omit ``@revision``;

@@ -55,11 +55,17 @@ def resolve_run_id(
     run_id: str | None,
     *,
     last: bool = False,
+    known: tuple[str, ...] | None = None,
 ) -> str:
-    """Resolve a run id from ``--last``, an exact id, or an unambiguous prefix."""
+    """Resolve a run id from ``--last``, an exact id, or an unambiguous prefix.
+
+    An exact id that is not yet in the shared ledger still passes through so
+    submission-only and mocked admission paths keep working; downstream loaders
+    report a precise missing-run error when it truly does not exist.
+    """
     if last and run_id is not None:
         raise ContractError("pass either a run id or --last, not both")
-    ids = known_run_ids(layout)
+    ids = known if known is not None else known_run_ids(layout)
     if last:
         if not ids:
             raise ContractError("no submitted runs to select with --last")
@@ -71,10 +77,10 @@ def resolve_run_id(
     matches = [item for item in ids if item.startswith(run_id)]
     if len(matches) == 1:
         return matches[0]
-    if not matches:
-        raise ContractError(f"no run matches {run_id!r}")
-    preview = ", ".join(match[:16] for match in matches[:5])
-    raise ContractError(f"{run_id!r} matches several runs: {preview}")
+    if len(matches) > 1:
+        preview = ", ".join(match[:16] for match in matches[:5])
+        raise ContractError(f"{run_id!r} matches several runs: {preview}")
+    return run_id
 
 
 __all__ = ["known_run_ids", "resolve_run_id"]
