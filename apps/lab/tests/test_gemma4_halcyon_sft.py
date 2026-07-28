@@ -1,17 +1,20 @@
-"""Tests for the lab-local Gemma 4 Halcyon GraphQL SFT canary."""
+"""Tests for the lab-local Gemma 4 Halcyon GraphQL SFT runs."""
 
 from __future__ import annotations
 
+import math
 import os
 
 import pytest
 from posttrain.common import Catalog
 from posttrain.data import SupervisedDataset, supervised_from_huggingface
 from posttrain.train import SFTRequest, render_supervised
-from posttrain_lab.cli import _gemma4_halcyon_canary
+from posttrain_lab.cli import _gemma4_halcyon_canary, _gemma4_halcyon_full_sft, _parser
 from posttrain_lab.gemma4_halcyon import (
     GEMMA4_HALCYON_CANARY,
     GEMMA4_HALCYON_LORA,
+    GEMMA4_HALCYON_LORA_FULL,
+    GEMMA4_HALCYON_SFT,
     GEMMA4_MODEL_REVISION,
     GEMMA4_TARGET_MODULES,
     GEMMA_4_12B_IT,
@@ -71,7 +74,7 @@ def test_lab_selections_are_pinned_and_language_model_scoped() -> None:
     protocol = GEMMA_4_12B_IT.conversation.tool_calls
     assert GEMMA_4_12B_IT.base.repo_id == "google/gemma-4-12B-it"
     assert GEMMA_4_12B_IT.base.revision == GEMMA4_MODEL_REVISION
-    assert GEMMA_4_12B_IT.parameters == 11_959_730_224
+    assert GEMMA_4_12B_IT.parameters == 11_959_730_176
     assert GEMMA_4_12B_IT.capabilities.modalities == ("text", "image", "audio")
     assert GEMMA_4_12B_IT.capabilities.native_context_window == 262_144
     assert GEMMA_4_12B_IT.default_reasoning_mode == "thinking"
@@ -85,6 +88,47 @@ def test_lab_selections_are_pinned_and_language_model_scoped() -> None:
     assert GEMMA4_HALCYON_CANARY.loop.max_length == 2_048
     assert GEMMA4_HALCYON_CANARY.validation is not None
     assert GEMMA4_HALCYON_CANARY.validation.on_start is True
+
+
+def test_full_profile_is_two_deterministic_passes_and_keeps_canary_distinct() -> None:
+    loop = GEMMA4_HALCYON_SFT.loop
+    validation = GEMMA4_HALCYON_SFT.validation
+
+    assert loop.max_steps == 98
+    assert loop.max_length == 2_048
+    assert loop.per_device_batch_size == 1
+    assert loop.gradient_accumulation_steps == 8
+    assert loop.per_device_batch_size * loop.gradient_accumulation_steps == 8
+    assert 392 // (loop.per_device_batch_size * loop.gradient_accumulation_steps) == 49
+    assert loop.max_steps == 2 * 49
+    assert loop.learning_rate == 0.0001
+    assert loop.warmup_ratio == 0.05
+    assert math.ceil(loop.max_steps * loop.warmup_ratio) == 5
+    assert loop.max_grad_norm == 1.0
+    assert loop.logging_steps == 1
+    assert loop.checkpoint_steps == 49
+    assert loop.checkpoint_limit == 2
+    assert loop.seed == 42
+    assert loop.gradient_checkpointing is True
+    assert validation is not None
+    assert validation.steps == 49
+    assert validation.per_device_batch_size == 1
+    assert validation.on_start is True
+    assert validation.at_end is True
+    assert GEMMA4_HALCYON_LORA_FULL.runtime.global_batch_size == 8
+    assert GEMMA4_HALCYON_LORA_FULL.update is GEMMA4_HALCYON_LORA.update
+    assert GEMMA4_HALCYON_LORA_FULL.renderer is GEMMA4_HALCYON_LORA.renderer
+    assert GEMMA4_HALCYON_LORA_FULL.id != GEMMA4_HALCYON_LORA.id
+    assert GEMMA4_HALCYON_SFT.id != GEMMA4_HALCYON_CANARY.id
+    assert GEMMA4_HALCYON_CANARY.loop.max_steps == 1
+    assert GEMMA4_HALCYON_LORA.runtime.global_batch_size == 1
+
+
+def test_cli_accepts_full_and_canary_scenarios() -> None:
+    parser = _parser()
+
+    assert parser.parse_args(["gemma4-halcyon-graphql-sft"]).job == "gemma4-halcyon-graphql-sft"
+    assert parser.parse_args(["gemma4-halcyon-graphql-sft-canary"]).job == "gemma4-halcyon-graphql-sft-canary"
 
 
 def test_canary_composes_five_explicit_sft_seats() -> None:
@@ -109,6 +153,32 @@ def test_canary_composes_five_explicit_sft_seats() -> None:
     assert request.validation_data.descriptor.id == "halcyon-graphql-stage1/validation-v2"
     assert request.settings is GEMMA4_HALCYON_CANARY
     assert request.training is GEMMA4_HALCYON_LORA
+
+
+def test_full_sft_composes_five_explicit_seats_from_foundation() -> None:
+    package, concrete = _gemma4_halcyon_full_sft("halcyon-graphql-sft")
+    echo = sft_definition(
+        lambda context, request: request,
+        definition_id=concrete.id,
+        with_validation=True,
+    )
+
+    result = run_work_package(
+        WorkPackageContext(Catalog.open({}, scope="halcyon-graphql-sft"), {echo.id: echo}),
+        package,
+    )
+
+    request = result.jobs[0].value
+    assert isinstance(request, SFTRequest)
+    assert package.work_package_id == "train/gemma4-12b/halcyon-graphql-sft"
+    assert set(concrete.seats) == {"model", "dataset", "validation_dataset", "settings", "training"}
+    assert request.model is GEMMA_4_12B_IT
+    assert request.model.form == "foundation"
+    assert request.data.descriptor.id == "halcyon-graphql-stage1/train-v2"
+    assert request.validation_data is not None
+    assert request.validation_data.descriptor.id == "halcyon-graphql-stage1/validation-v2"
+    assert request.settings is GEMMA4_HALCYON_SFT
+    assert request.training is GEMMA4_HALCYON_LORA_FULL
 
 
 def _tokenizer():

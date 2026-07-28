@@ -1,4 +1,6 @@
-"""Lab-local selections for the Gemma 4 Halcyon GraphQL SFT canary."""
+"""Lab-local selections for Gemma 4 Halcyon GraphQL SFT runs."""
+
+from dataclasses import replace
 
 from posttrain.common import (
     ChatTemplate,
@@ -55,7 +57,7 @@ GEMMA_4_12B_IT = ModelVariant(
     form="foundation",
     weight_precision="bf16",
     family="gemma4",
-    parameters=11_959_730_224,
+    parameters=11_959_730_176,
     instruction_tuned=True,
     renderer=GEMMA4_RENDERER_CONTRACT,
     capabilities=ModelCapabilities(
@@ -124,9 +126,42 @@ GEMMA4_HALCYON_CANARY = SFTSettings(
     ),
 )
 
+GEMMA4_HALCYON_LORA_FULL = replace(
+    GEMMA4_HALCYON_LORA,
+    id="training/gemma4-12b-trl-halcyon-graphql-lora-full@lab-v1",
+    runtime=TrainingRuntime(global_batch_size=8, nodes=1, devices_per_node=1),
+)
+
+GEMMA4_HALCYON_SFT = SFTSettings(
+    id="gemma4-12b/graphql-stage1-sft-lab-v1",
+    revision="1",
+    loop=TrainingLoop(
+        max_steps=98,
+        max_length=2_048,
+        per_device_batch_size=1,
+        gradient_accumulation_steps=8,
+        learning_rate=0.0001,
+        warmup_ratio=0.05,
+        max_grad_norm=1.0,
+        logging_steps=1,
+        checkpoint_steps=49,
+        checkpoint_limit=2,
+        seed=42,
+        gradient_checkpointing=True,
+    ),
+    validation=SFTValidationSettings(
+        steps=49,
+        per_device_batch_size=1,
+        on_start=True,
+        at_end=True,
+    ),
+)
+
 __all__ = [
     "GEMMA4_HALCYON_CANARY",
     "GEMMA4_HALCYON_LORA",
+    "GEMMA4_HALCYON_LORA_FULL",
+    "GEMMA4_HALCYON_SFT",
     "GEMMA4_MODEL_REVISION",
     "GEMMA4_RENDERER_CONTRACT",
     "GEMMA4_TARGET_MODULES",
