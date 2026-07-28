@@ -155,6 +155,7 @@ def test_policy_prism_smoke_rollout_preserves_every_trainable_stage(
     assert len(rollouts) == len(expected_stages)
     assert len({rollout.trace.external_id for rollout in rollouts}) == len(expected_stages)
     for rollout in rollouts:
+        assert rollout.trace.payload["id"] == rollout.trace.external_id
         assert rollout.is_truncated is False
         assert len(rollout.completion_ids) == len(rollout.env_mask)
         assert len(rollout.completion_ids) == len(rollout.sampling_logprobs)

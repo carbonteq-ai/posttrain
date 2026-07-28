@@ -526,10 +526,12 @@ class VerifiersEnvironmentRolloutBridge:
             if len(logprobs) != len(completion_ids):
                 raise ValueError("Verifiers branch logprobs are not aligned to the training sequence")
             external_id = str(trace.id) if len(branches) == 1 else f"{trace.id}/branch-{branch_index}"
+            branch_record = dict(record)
+            branch_record["id"] = external_id
             observation = TraceObservation(
                 trace_type="verifiers",
                 external_id=external_id,
-                payload=record,
+                payload=branch_record,
                 attributes={
                     "environment_id": self.environment_id,
                     "task_index": task_index,

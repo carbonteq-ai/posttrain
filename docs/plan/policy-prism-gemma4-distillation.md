@@ -161,6 +161,14 @@ Recovery remains CPU-qualified but its catalog packages and GPU run are deferred
   `HarnessError` with `Grammar error: Unimplemented keys: ["uniqueItems"]`,
   one failed rollout, and 123 scored tokens.
 
+- Observation: the corrected smoke produced three healthy independently
+  conditioned stage rows, but their copied Verifiers payloads retained one
+  original trace ID. Trackio uses that payload ID as its storage identity and
+  therefore retained only one of the three observations.
+  Evidence: smoke run `85505897-7f83-4780-aa72-c461690c0db5` optimized 198
+  scored tokens with zero teacher failures, while Trackio stored one trace
+  whose metadata reported `branch_count=3`.
+
 ## Decision Log
 
 - Decision: No frozen product-baseline amendment is required.
@@ -229,6 +237,13 @@ Recovery remains CPU-qualified but its catalog packages and GPU run are deferred
   scoring.
   Rationale: constrained generation must compile, but an infrastructure error
   must never become distillation supervision or a successful job.
+  Date/Author: 2026-07-29 / Codex.
+
+- Decision: Give each independently projected stage branch a payload ID equal
+  to its unique framework external ID while retaining `original_trace_id` in
+  attributes and the native JSONL replay.
+  Rationale: training rows and Observatory traces must have the same one-to-one
+  identity; otherwise the tracking backend legitimately deduplicates them.
   Date/Author: 2026-07-29 / Codex.
 
 ## Outcomes & Retrospective
