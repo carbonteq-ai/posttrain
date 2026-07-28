@@ -8,7 +8,10 @@ qualification remain pending.
 Use Trackio as the internal research artifact registry. Training and evaluation
 code logs final model directories, retained checkpoints, native traces, and
 other outputs as versioned Trackio artifacts. Later jobs consume a pinned
-`TrackioArtifactRef`.
+`TrackioArtifactRef`. Project developers register that version as a catalog
+`ModelVariant` (`artifact.kind: trackio`) and bind it on the next work package
+— see
+[consumer-setup §9](../../docs/consumer-setup.md#9-pass-one-jobs-model-into-the-next).
 
 Trackio owns:
 

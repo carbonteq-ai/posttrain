@@ -94,12 +94,13 @@ point at them from the work package.
 
 | Concern | Where | Notes |
 | --- | --- | --- |
-| Register model / dataset / env / GPU | `.posttrain/catalog/` overlay YAML | Dataset entries declare source (HF/JSONL/…) and mapping; env entries declare Verifiers package + factory + sampling. Filenames are free; **family** matters |
+| Register model / dataset / env / GPU | `.posttrain/catalog/` overlay YAML | Dataset entries declare source (HF/JSONL/…) and mapping; env entries declare Verifiers package + factory + sampling. Filenames are free; **family** matters. Trained descendants use `artifact.kind: trackio` — see **Trained model handoff** below |
 | LR, steps, batch, LoRA / update plan | Catalog entries in family `training` | Prefer clear names like `sft_settings.yaml` |
 | “Run SFT / GRPO with these picks” | `.posttrain/work_packages/*.yaml` bindings | Refs to catalog ids + standard definition id |
 | Load HF/JSONL → trainer examples | **Inside** standard SFT/DPO jobs via `posttrain.data` | Not project Python |
 | Env → rollouts / distill trajectories | **Inside** standard GRPO/distill/eval jobs via Verifiers bridges | Not lab bridges |
 | How seats map to `train.sft` / `train.grpo` | Standard job id (framework) | Rarely edited by projects |
+| Feed job A’s weights into job B | Overlay `ModelVariant` + new work package binding | Not an in-YAML `from_job` wire; see handoff below |
 
 Prefer versioned catalog ids so runs stay comparable. Inline selections are
 allowed for one-offs.
@@ -278,6 +279,56 @@ Rules:
 - **Implement** new envs as Verifiers packages, not as ad-hoc project scripts.
 - Standard GRPO/distill/eval jobs load the binding and apply the framework
   Verifiers bridge automatically.
+
+### Trained model handoff (produce → pin → rebind)
+
+There is **no** work-package field that says “take the output of job `train`.”
+Jobs in one recipe share **input** seats. To run eval/GRPO/qualify on a
+trained descendant:
+
+1. Run the producer package; retain the Trackio artifact `name` + immutable
+   `version` (`vN`) from the run evidence.
+2. Add a project catalog model with `artifact.kind: trackio` and a pinned Hub
+   `base` (required today even for adapters).
+3. List that YAML file in `.posttrain/catalog/layer.yaml`.
+4. Bind `models/…@…` on a **new** work package and run that package.
+
+```yaml
+# .posttrain/catalog/models.yaml
+model:
+  models/my-agent-2b@sft-v3:
+    artifact:
+      kind: trackio
+      project: my-trackio-project
+      name: ambient-agent-2b-sft
+      version: v3
+    form: peft-adapter
+    weight_precision: bf16
+    family: qwen3.5
+    parameters: 2000000000
+    instruction_tuned: true
+    renderer_contract: qwen3.5-tools@1
+    base:
+      kind: hub
+      repo_id: Qwen/Qwen3.5-2B
+      revision: 15852e8c16360a2fea060d615a32b45270f8a8fc
+    capabilities:
+      modalities: [text, image]
+      native_context_window: 262144
+      mtp: true
+    parent: models/qwen3.5-2b@bf16
+```
+
+```yaml
+# consumer work package
+bindings:
+  model: { type: ref, family: model, id: models/my-agent-2b@sft-v3 }
+```
+
+Step-by-step with CLI commands:
+[consumer-setup §9](./consumer-setup.md#9-pass-one-jobs-model-into-the-next).
+Storage and alias rules:
+[ops/dstack-trackio/object-storage.md](../ops/dstack-trackio/object-storage.md).
 
 ### Full layout (datasets + envs + knobs)
 

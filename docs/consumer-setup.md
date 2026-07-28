@@ -271,10 +271,95 @@ posttrain run reconcile --last
 A finished job reads `Reconciliation: consistent` with `Missing required
 roles: none`. Use `posttrain workers` to see who holds a local GPU placement.
 
+## 9. Pass one job's model into the next
+
+Jobs do **not** auto-wire outputs. Two jobs in the same recipe share the same
+catalog bindings; the eval job does not see the train job's new weights unless
+you pin those weights as a catalog model and bind them on a later package.
+
+Do this today:
+
+1. **Run the producer** (for example SFT). It should publish a loadable model
+   directory to Trackio and record a produced-artifact edge on the run.
+2. **Copy the immutable identity** from the run / Observatory / Trackio UI:
+   project, artifact name, and version (`vN`). Aliases such as `candidate` are
+   planning helpers only — bind a concrete `vN`, never `latest`.
+3. **Register a project overlay** `ModelVariant` that points at that Trackio
+   artifact. List the file in `.posttrain/catalog/layer.yaml`.
+4. **Author a consumer work package** whose `bindings.model` uses the new
+   catalog id, then `plan` / `run` that package.
+
+```yaml
+# .posttrain/catalog/models.yaml
+model:
+  models/my-agent-2b@sft-v3:
+    artifact:
+      kind: trackio
+      project: my-trackio-project
+      name: ambient-agent-2b-sft
+      version: v3
+    form: peft-adapter          # or merged / full-finetuned — match the files
+    weight_precision: bf16
+    family: qwen3.5
+    parameters: 2000000000
+    instruction_tuned: true
+    renderer_contract: qwen3.5-tools@1
+    # Required today: Hub base the adapter/descendant was trained from
+    base:
+      kind: hub
+      repo_id: Qwen/Qwen3.5-2B
+      revision: 15852e8c16360a2fea060d615a32b45270f8a8fc
+    capabilities:
+      modalities: [text, image]
+      native_context_window: 262144
+      mtp: true
+    parent: models/qwen3.5-2b@bf16   # optional catalog lineage pointer
+    provenance:
+      producer_run: "<run-id>"
+```
+
+```yaml
+# .posttrain/catalog/layer.yaml  (must list the overlay file)
+schema_version: 1
+layer_id: my-project-v1
+files:
+  - settings.yaml
+  - models.yaml
+```
+
+```yaml
+# .posttrain/work_packages/qualify-eval.yaml  (consumer)
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/my-agent-2b@sft-v3
+```
+
+```bash
+posttrain doctor
+posttrain job plan .posttrain/work_packages/qualify-eval.yaml --job eval
+posttrain job run  .posttrain/work_packages/qualify-eval.yaml --job eval
+```
+
+After a gate passes, move a Trackio alias such as `qualified` to that exact
+`vN` if your team uses aliases for humans. The next work package still binds
+the versioned catalog id (or a new overlay pinned to the same `vN`).
+
+Lineage is the run's consumed/produced edges (and optional `parent`), not the
+order of work-package files. Product rules:
+[03 · Work and evidence](./post-training/03-work-and-evidence.md),
+[06 · Observation](./post-training/06-observation-and-lineage.md).
+Ops detail for Trackio blob storage:
+[ops/dstack-trackio/object-storage.md](../ops/dstack-trackio/object-storage.md).
+
 ## Things that will bite you
 
 - **Hand-authored catalog YAML must be listed in `layer.yaml`** or
   `doctor` warns and the selection is invisible.
+- **Passing train → eval/GRPO is not automatic.** Pin the Trackio `vN` as a
+  project overlay model (`kind: trackio`) and bind that id on the next package
+  (see §9). Same-recipe jobs share seats; they do not chain outputs.
 - **A pack can fail with `package manifest key differs from PACKAGE_KEY`.**
   This is usually a stale BuildKit cache. Retry the pack; if it persists, run
   `docker buildx prune -af`.
