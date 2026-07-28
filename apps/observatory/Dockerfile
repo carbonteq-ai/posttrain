@@ -9,7 +9,7 @@ COPY apps/observatory/frontend/ ./
 COPY apps/observatory/openapi.json ../openapi.json
 RUN npm run build
 
-FROM python:3.12.11-slim-bookworm AS python-builder
+FROM python:3.13.12-slim-bookworm@sha256:a58daefb915e1e03ad48f3ca4df8832065412c5c35cacb9d39f4229184de12b6 AS python-builder
 
 COPY --from=ghcr.io/astral-sh/uv:0.11.30 /uv /uvx /bin/
 COPY --from=frontend /usr/local/bin/node /usr/local/bin/node
@@ -31,9 +31,10 @@ COPY apps/ ./apps/
 COPY packages/ ./packages/
 COPY --from=frontend /workspace/apps/observatory/frontend/dist/ ./apps/observatory/frontend/dist/
 
+ENV UV_PYTHON_DOWNLOADS=never
 RUN uv sync --frozen --no-dev --package posttrain-observatory
 
-FROM python:3.12.11-slim-bookworm AS runtime
+FROM python:3.13.12-slim-bookworm@sha256:a58daefb915e1e03ad48f3ca4df8832065412c5c35cacb9d39f4229184de12b6 AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
