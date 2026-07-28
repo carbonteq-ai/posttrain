@@ -15,6 +15,10 @@ The local AI infrastructure uses dstack `0.20.29` for SSH-fleet GPU placement
 and provider lifecycle. The framework does not recreate its scheduler: durable
 framework admission owns research concurrency and retained-evidence release,
 while dstack owns offers, placement, startup, cancellation, and worker state.
+Optional catalog `placement.instances: [{hostname: …}]` is a soft pin passed
+through to dstack; it is not a posttrain admission lock. Prefer capacity-only
+targets (`device_class` / `memory_gb`) unless you need a specific worker — see
+[consumer-setup.md](../../consumer-setup.md) § “Run on dstack”.
 
 Production still runs the upstream image
 `dstackai/dstack:0.20.29@sha256:6d57647be04cad42dff2343f4f50d41a3b8bb438ebc67165bc56aa92858e69ce`.

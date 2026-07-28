@@ -158,10 +158,44 @@ Your laptop only needs the system CA (step 1) plus this client binding.
 `trust_bundle` under `[providers.dstack]` is rarely required when workers
 already have the well-known path.
 
-Targets declare capacity (`device_class` / `memory_gb`). Optional `instances`
-pins are affinity, not a second scheduler. If a VPN captures DNS, `.lan` names
-will not resolve and placement fails — check with `getent hosts` before
-debugging dstack itself.
+Targets declare capacity (`device_class` / `memory_gb`). That is enough for
+dstack to place the run on any matching worker. posttrain does **not** lock a
+hostname for dstack jobs; affinity is optional and lives only in the catalog
+target’s `placement`, which is forwarded to dstack as a soft pin.
+
+**Default (no pin)** — capacity only:
+
+```yaml
+target:
+  targets/any-cuda-24gb:
+    revision: "1"
+    device_class: nvidia-cuda
+    memory_gb: 24
+    placement:
+      world_size: 1
+```
+
+**Optional soft pin** — prefer one known worker when you care which box runs
+the job (debug, local qualification, a machine with a warm cache). Use a list
+of objects with `hostname`, not bare strings (dstack treats a string as a
+different selector shape and will not pin the host you meant):
+
+```yaml
+target:
+  targets/carbonteq-rtx-pro-6000-96gb:
+    revision: "1"
+    device_class: nvidia-cuda
+    memory_gb: 96
+    placement:
+      world_size: 1
+      instances:
+        - hostname: carbonteq-ai-workstation.lan
+```
+
+Omit `instances` unless you need that pin. `fleets` may be listed the same way
+when you want a fleet selector instead of a single host. If a VPN captures DNS,
+`.lan` names will not resolve and placement fails — check with
+`getent hosts` before debugging dstack itself.
 
 ```bash
 posttrain job plan .posttrain/work_packages/sft.yaml --provider dstack --target <target-id>
