@@ -1,14 +1,14 @@
 [project]
 name = "posttrain-train"
-version = "0.1.12"
+version = "0.1.13"
 description = "Reusable backend-neutral post-training engine"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "httpx>=0.28,<0.29",
-    "posttrain-common==0.1.12",
-    "posttrain-data==0.1.12",
+    "posttrain-common==0.1.13",
+    "posttrain-data==0.1.13",
     "pydantic>=2.12,<3",
 ]
 

@@ -1,22 +1,22 @@
 [project]
 name = "posttrain-lab"
-version = "0.1.12"
+version = "0.1.13"
 description = "Qualification project and scenario CLI for post-training jobs"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-    "posttrain-common==0.1.12",
+    "posttrain-common==0.1.13",
     "posttrain-catalog==0.2.0",
-    "posttrain-data==0.1.12",
-    "posttrain-eval==0.1.12",
-    "posttrain-jobs==0.1.12",
-    "posttrain-serve==0.1.12",
-    "posttrain-tracking==0.1.12",
-    "posttrain-tracking-trackio==0.1.12",
-    "posttrain-tracking-wandb==0.1.12",
-    "posttrain-train==0.1.12",
-    "posttrain-work==0.1.12",
+    "posttrain-data==0.1.13",
+    "posttrain-eval==0.1.13",
+    "posttrain-jobs==0.1.13",
+    "posttrain-serve==0.1.13",
+    "posttrain-tracking==0.1.13",
+    "posttrain-tracking-trackio==0.1.13",
+    "posttrain-tracking-wandb==0.1.13",
+    "posttrain-train==0.1.13",
+    "posttrain-work==0.1.13",
     "pydantic>=2.12,<3",
     "pyyaml>=6.0,<7",
     "carbonteq-trackio @ git+https://github.com/carbonteq-ai/trackio.git@9b0c4af0414cbd5264fa1012d81c494e46c1150d",
@@ -24,16 +24,16 @@ dependencies = [
 
 [project.optional-dependencies]
 gpu-eval = [
-    "posttrain-eval[verifiers]==0.1.12",
-    "posttrain-serve[vllm]==0.1.12",
+    "posttrain-eval[verifiers]==0.1.13",
+    "posttrain-serve[vllm]==0.1.13",
 ]
 gpu-train = [
-    "posttrain-train[trl]==0.1.12",
+    "posttrain-train[trl]==0.1.13",
 ]
 gpu-posttrain = [
     "automationbench-v1",
-    "posttrain-eval[verifiers]==0.1.12",
-    "posttrain-train[trl,trl-vllm]==0.1.12",
+    "posttrain-eval[verifiers]==0.1.13",
+    "posttrain-train[trl,trl-vllm]==0.1.13",
 ]
 
 [project.scripts]

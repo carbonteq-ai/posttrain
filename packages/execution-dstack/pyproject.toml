@@ -1,13 +1,13 @@
 [project]
 name = "posttrain-execution-dstack"
-version = "0.1.12"
+version = "0.1.13"
 description = "dstack execution provider for posttrain"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-  "posttrain-common==0.1.12",
-  "posttrain-execution==0.1.12",
+  "posttrain-common==0.1.13",
+  "posttrain-execution==0.1.13",
 ]
 
 [tool.uv]
