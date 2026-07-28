@@ -63,13 +63,25 @@ inference:
       temperature: 1.0
     target: targets/local-cuda-teacher-8gb
     purpose: [teacher-score]
+  inference/qwen3.5-2b-transformers-teacher-score@1:
+    revision: "1"
+    model: models/qwen3.5-2b@bf16
+    backend: transformers@4.57.6
+    renderer: qwen3.5-tools@1
+    engine:
+      mode: colocate
+      dtype: bfloat16
+    sampling:
+      temperature: 1.0
+    target: targets/local-cuda-teacher-8gb
+    purpose: [teacher-score]
   inference/qwen3.5-2b-vllm-screen@1:
     revision: "1"
     model: models/qwen3.5-2b@bf16
     backend: vllm@0.25.1
     renderer: qwen3.5-tools@1
     engine:
-      max_model_len: 4096
+      max_model_len: 32768
       gpu_memory_utilization: 0.75
       dtype: float16
       load_format: auto

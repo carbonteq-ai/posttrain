@@ -1,7 +1,8 @@
-schema_version = 1
+schema_version = 2
 project_id = "foundation-models"
-catalog_overlays = []
+catalog_overlays = ["catalog"]
 work_packages = "work_packages"
 state = "state"
 tracking = "trackio"
 entry = "posttrain_lab.entry:configure"
+project_brief = "project.yaml"

@@ -1,3 +1,9 @@
 # Immutable maintained-fork sources used by GitHub-first framework releases.
-carbonteq-trackio @ git+https://github.com/carbonteq-ai/trackio.git@c5072198b3b1556d31ed96ffc246a03f65418ab8
+carbonteq-trackio @ git+https://github.com/carbonteq-ai/trackio.git@dc55020d779147612b32c0aced34a8868b91aa71
+trl @ git+https://github.com/carbonteq-ai/trl.git@6e7739b8ec741d21ecd79c0c212694cd15ff20d8
+verifiers @ git+https://github.com/PrimeIntellect-ai/verifiers.git@284a868d6a9022109b749710672a0460e8a996d4
 carbonteq-automation-bench @ git+https://github.com/carbonteq-ai/AutomationBench.git@908db2abd4a868acc37ab0850474bff653bea25c
+alphabet-sort-v1 @ git+https://github.com/PrimeIntellect-ai/verifiers.git@284a868d6a9022109b749710672a0460e8a996d4#subdirectory=environments/alphabet_sort_v1
+code-golf-v1 @ git+https://github.com/PrimeIntellect-ai/verifiers.git@284a868d6a9022109b749710672a0460e8a996d4#subdirectory=environments/code_golf_v1
+gsm8k-v1 @ git+https://github.com/PrimeIntellect-ai/verifiers.git@284a868d6a9022109b749710672a0460e8a996d4#subdirectory=environments/gsm8k_v1
+reverse-text-v1 @ git+https://github.com/PrimeIntellect-ai/verifiers.git@284a868d6a9022109b749710672a0460e8a996d4#subdirectory=environments/reverse_text_v1

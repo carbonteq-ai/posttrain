@@ -1,0 +1,69 @@
+# Candidate-only veRL capsule selections. Keep release_status blocked in
+# profile.toml and omit the Bake publication graph until live GPU evidence
+# exists; these overlays only enable local packing against the candidate kind.
+
+training:
+  qwen3.5-0.8b/verl-grpo-2-step-capsule-v1:
+    selection_type: grpo-settings
+    revision: "1"
+    loop:
+      max_steps: 2
+      max_length: 640
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 8
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 2
+      checkpoint_limit: 1
+    num_prompts_per_step: 2
+    num_generations: 4
+    max_prompt_length: 256
+    max_completion_length: 384
+  training/qwen3.5-0.8b-verl-grpo-capsule-lora@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: verl@1dcdf67e9473db5297c98c9c88cf4dae6c4a8932
+    renderer:
+      id: qwen3.5-off-v1
+      model_family: qwen3.5
+      implementation: qwen3.5
+      reasoning_mode: "off"
+    update:
+      kind: lora
+      rank: 8
+      alpha: 16
+      target_modules: ".*language_model.*[.](o_proj|down_proj)$"
+    target: targets/pop-os-rtx4090-24gb
+    parallelism:
+      sequence_length_divisor: 2
+    runtime:
+      global_batch_size: 8
+      nodes: 1
+      devices_per_node: 1
+      parameter_offload: true
+      optimizer_offload: true
+    backend_options:
+      python_executable: /opt/posttrain-verl/bin/python
+      working_directory: /opt/posttrain-verl/workdir
+      source_revision: 1dcdf67e9473db5297c98c9c88cf4dae6c4a8932
+      dependency_lock_sha256: 0e293b1d7beadc0e9548481236117c8fe6a888b7806029f054ee68935362f8f8
+      source_dirty: false
+      # Candidate kind does not ship FlashAttention; use SDPA for Qwen3.5 load.
+      attention_implementation: sdpa
+      hydra_overrides:
+        - actor_rollout_ref.model.use_remove_padding=false
+        - actor_rollout_ref.model.enable_gradient_checkpointing=true
+        - actor_rollout_ref.model.use_fused_kernels=true
+        - actor_rollout_ref.model.fused_kernel_options.impl_backend=torch
+        - actor_rollout_ref.actor.strategy=fsdp2
+        - actor_rollout_ref.actor.entropy_from_logits_with_chunking=true
+        - actor_rollout_ref.actor.entropy_from_logits_chunk_size=256
+        - actor_rollout_ref.actor.fsdp_config.use_torch_compile=false
+        # Keep rollout lengths inside the 640-token qualification envelope so
+        # the colocated vLLM KV budget (inference seat) can initialize.
+        - actor_rollout_ref.rollout.gpu_memory_utilization=0.55
+        - actor_rollout_ref.rollout.max_model_len=640
+        - actor_rollout_ref.rollout.max_num_batched_tokens=640
+        - actor_rollout_ref.rollout.max_num_seqs=4
+        - actor_rollout_ref.rollout.free_cache_engine=true
+        - actor_rollout_ref.rollout.enable_sleep_mode=true

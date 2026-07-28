@@ -574,11 +574,19 @@ These land with the DX CLI:
 - `posttrain doctor --fix` → readiness plus the same materialize/preflight pass
 - `posttrain job plan PATH` → alias for `work-package validate`
 - `posttrain job run PATH --job ID` → alias for `work-package run`
+- `posttrain run recover-cancelled-tracking RUN_ID` → narrowly repair a Trackio
+  run stranded as `running` after its exact framework submission is already
+  provider-terminal `cancelled`; writes a protected audit receipt, then requires
+  an ordinary `run reconcile`
 - `posttrain run show RUN_ID [--source SOURCE_ID]` → Observatory run view for the
   project’s tracking source (defaults to `{tracking}-{project_id}`)
 
 Canonical nouns remain `work-package` and Observatory. The `job` / `run` commands
 are thin aliases only; they do not introduce a second product vocabulary.
+Recovery is not part of ordinary cancellation or reconciliation. It fails
+closed unless provider handle, canonical run, project, Trackio provider run id,
+and original start time all match, and it is idempotent only for an already
+cancelled exact Trackio run.
 
 ## Code extension ladder
 
@@ -624,6 +632,79 @@ install; do not add a second Posttrain install verb.
 prints the URL, and does not require a separate `posttrain-observatory`
 incantation on the happy path. Remote/shared Observatory URLs remain
 configurable; `up` is the local default.
+
+### Serving-capacity project
+
+A serving screen has three independent configuration surfaces:
+
+| Concern | Project location | Examples |
+| --- | --- | --- |
+| Product acceptance envelope | `.posttrain/project.yaml` | required context, minimum sustained aggregate output TPS, p95 TTFT/TPOT, failure rate |
+| Comparable request population | catalog `workload` | representative corpus digest, fixed output budget, concurrency sweep, warmup/repetition and saturation policy |
+| Backend and hardware search point | catalog `inference` + `target` | vLLM scheduler, MTP, KV-cache format, memory reservation, maximum sequences, GPU profile |
+
+Do not put the 50 TPS example threshold into a workload or vLLM binding. It is
+project policy. Conversely, concurrency is not a product threshold: the
+workload sweeps it to find how a specific inference binding uses a specific
+target.
+
+The framework-shared `workloads/general-serving-32k-sweep@1` workload identifies
+the checked-in `general-serving-v1` corpus by revision and content digest. It
+contains GSM8K questions, HumanEval prompts, and reviewed first-party chat,
+extraction, structured-output, and tool-use messages. Public answers, canonical
+solutions, tests, and rewards are excluded because `serve.benchmark` measures
+capacity rather than correctness. Exact-token synthetic requests remain a
+separate controlled diagnostic cohort and are not merged into representative
+capacity evidence.
+
+One `serve.benchmark` job:
+
+1. loads the selected inference engine once;
+2. warms and measures each configured concurrency in order;
+3. records per-request token and timing traces plus direct run/backend
+   counters;
+4. retains a typed terminal resource, unsupported, or failure boundary after
+   successful lower points; and
+5. writes one schema-versioned `serving-result` artifact without eligibility or
+   a selected winner.
+
+Observatory owns the calculator. Its run view chooses the highest-throughput
+point satisfying context, latency, reliability, and evidence-completeness
+constraints, then checks that point against the project throughput minimum. A
+final valid point whose throughput is still rising is `unsaturated`, not
+eligible. The work-package view only compares runs with the same requirements
+digest, execution target, workload, corpus digest, cohort, and calculator
+version. Mismatched runs remain visible as incomparable. Strict Pareto
+membership maximizes aggregate output TPS while minimizing p95 TTFT and peak
+VRAM among comparable eligible contenders.
+
+The repository example is validated and opened with:
+
+```bash
+posttrain work-package validate .posttrain/work_packages/foundation_screen.yaml
+posttrain work-package run .posttrain/work_packages/foundation_screen.yaml --job benchmark
+posttrain observatory up
+```
+
+The run Overview is the place to inspect the full concurrency table, average
+and p95 response length, request coverage, failure boundary, TTFT/TPOT,
+throughput curves, GPU/VRAM/KV-cache telemetry, phase timing, and redacted
+backend-native settings. Open the parent work package to compare contender
+states and the strict Pareto frontier. Historical single-point runs are labeled
+as compatibility evidence and never silently reconstructed into a canonical
+multi-point sweep.
+
+For a small Qwen 3.5 0.8B real-vLLM release gate:
+
+```bash
+POSTTRAIN_RUN_SERVE_GPU_INTEGRATION=1 \
+POSTTRAIN_SERVE_GPU_VARIANT=mtp \
+uv run --no-sync pytest packages/serve/tests/test_vllm_capacity_integration.py -q
+```
+
+The variant may be `standard`, `mtp`, `turboquant`, or `mtp-turboquant`.
+The gate requires CUDA, the vLLM extra, and access to the immutable model
+revision; it skips with a reason during the ordinary CPU test suite.
 
 Properties:
 

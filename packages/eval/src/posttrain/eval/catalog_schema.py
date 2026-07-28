@@ -3,19 +3,22 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Literal, cast
+from typing import Annotated, Literal, cast
 
 from posttrain.common import CatalogRef, ContractError, JsonValue
 from posttrain.common.catalog import SelectionDecoder
 from posttrain.common.selections import Selection, SelectionFamily
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .requests import (
+    EnvironmentActivation,
     EnvironmentBinding,
     EnvironmentFactory,
     EnvironmentSource,
     EvaluationPlan,
+    PythonFactoryActivation,
     SamplingPolicy,
+    VerifiersV1ConfigActivation,
 )
 
 
@@ -37,17 +40,40 @@ class SamplingPolicySchema(EvalCatalogSchema):
     reasoning_effort: str | None = None
 
 
+class VerifiersV1ConfigActivationSchema(EvalCatalogSchema):
+    kind: Literal["verifiers-config"]
+    config: dict[str, JsonValue]
+
+
+class PythonFactoryActivationSchema(EvalCatalogSchema):
+    kind: Literal["python-factory"]
+    reference: str
+
+
+EnvironmentActivationSchema = Annotated[
+    VerifiersV1ConfigActivationSchema | PythonFactoryActivationSchema,
+    Field(discriminator="kind"),
+]
+
+
 class EnvironmentBindingSchema(EvalCatalogSchema):
     id: str
     category: str
     source: EnvironmentSourceSchema
-    factory: str
+    activation: EnvironmentActivationSchema | None = None
+    factory: str | None = None
     sampling: SamplingPolicySchema
     num_tasks: int = Field(gt=0)
     num_rollouts: int = Field(default=1, gt=0)
     max_concurrent: int = Field(default=4, gt=0)
     parameters: dict[str, JsonValue] = Field(default_factory=dict)
     reward_components: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def require_one_activation(self) -> EnvironmentBindingSchema:
+        if (self.activation is None) == (self.factory is None):
+            raise ValueError("environment binding requires exactly one of activation or legacy factory")
+        return self
 
 
 class EvaluationPlanSchema(EvalCatalogSchema):
@@ -62,9 +88,11 @@ class EvaluationPlanSchema(EvalCatalogSchema):
 
 
 def evaluation_catalog_decoders(
-    factories: Mapping[str, EnvironmentFactory],
+    factories: Mapping[str, EnvironmentActivation | EnvironmentFactory] | None = None,
 ) -> Mapping[SelectionFamily, SelectionDecoder]:
-    """Build host-bound decoders without serializing Python callables into YAML."""
+    """Build detached decoders without importing environment implementations."""
+
+    aliases = {name: _normalize_activation(value) for name, value in (factories or {}).items()}
 
     def decode_environment(
         ref: CatalogRef,
@@ -73,15 +101,16 @@ def evaluation_catalog_decoders(
     ) -> Selection:
         del ref, known
         payload = EnvironmentBindingSchema.model_validate(data)
-        try:
-            factory = factories[payload.factory]
-        except KeyError as error:
-            raise ContractError(f"environment factory is not registered: {payload.factory}") from error
+        activation = (
+            _activation_from_schema(payload.activation)
+            if payload.activation is not None
+            else _legacy_activation(payload.factory, aliases)
+        )
         return EnvironmentBinding(
             id=payload.id,
             category=payload.category,
             source=EnvironmentSource(**payload.source.model_dump()),
-            factory=factory,
+            activation=activation,
             sampling=SamplingPolicy(**payload.sampling.model_dump()),
             num_tasks=payload.num_tasks,
             num_rollouts=payload.num_rollouts,
@@ -115,8 +144,41 @@ def evaluation_catalog_decoders(
     )
 
 
+def _activation_from_schema(
+    payload: VerifiersV1ConfigActivationSchema | PythonFactoryActivationSchema,
+) -> EnvironmentActivation:
+    if isinstance(payload, VerifiersV1ConfigActivationSchema):
+        return VerifiersV1ConfigActivation(payload.config)
+    return PythonFactoryActivation(payload.reference)
+
+
+def _legacy_activation(
+    name: str | None,
+    aliases: Mapping[str, EnvironmentActivation],
+) -> EnvironmentActivation:
+    if name is None:
+        raise AssertionError("validated environment binding has no activation")
+    if ":" in name:
+        return PythonFactoryActivation(name)
+    try:
+        return aliases[name]
+    except KeyError as error:
+        raise ContractError(f"legacy environment factory alias is not registered: {name}") from error
+
+
+def _normalize_activation(
+    value: EnvironmentActivation | EnvironmentFactory,
+) -> EnvironmentActivation:
+    if isinstance(value, (VerifiersV1ConfigActivation, PythonFactoryActivation)):
+        return value
+    return PythonFactoryActivation.from_callable(value)
+
+
 __all__ = [
+    "EnvironmentActivationSchema",
     "EnvironmentBindingSchema",
     "EvaluationPlanSchema",
+    "PythonFactoryActivationSchema",
+    "VerifiersV1ConfigActivationSchema",
     "evaluation_catalog_decoders",
 ]

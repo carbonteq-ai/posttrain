@@ -67,7 +67,7 @@ def test_reference_yaml_runs_screen_and_skips_optional_eval() -> None:
     assert resolved_package.snapshot["work_package"]["description"] == package.description  # type: ignore[index]
     inference_snapshot = resolved_package.snapshot["screen_inference"]
     assert isinstance(inference_snapshot, dict)
-    assert inference_snapshot["resolved"]["engine"]["max_model_len"] == 4_096  # type: ignore[index]
+    assert inference_snapshot["resolved"]["engine"]["max_model_len"] == 32_768  # type: ignore[index]
 
 
 def test_distillation_yaml_resolves_every_seat_through_the_catalog() -> None:
@@ -97,6 +97,10 @@ def test_distillation_yaml_resolves_every_seat_through_the_catalog() -> None:
         "dropout": 0.0,
         "target_modules": "all-linear",
         "kind": "lora",
+    }
+    assert training["resolved"]["backend_options"] == {  # type: ignore[index]
+        "source_revision": "6e7739b8ec741d21ecd79c0c212694cd15ff20d8",
+        "dependency_lock_sha256": ("52d60597911137495302b63d84754eb8256f588714e7e07f35602fbbbb6ded83"),
     }
     execution_targets = resolved.snapshot["execution_targets"]
     assert isinstance(execution_targets, dict)

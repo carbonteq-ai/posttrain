@@ -25,7 +25,10 @@ from posttrain.eval import (
     EvaluationBudget,
     EvaluationEndpoint,
     EvaluationPlan,
+    EvaluationPopulation,
+    PythonFactoryActivation,
     SamplingPolicy,
+    VerifiersV1ConfigActivation,
     domain,
     evaluate,
     general,
@@ -82,7 +85,7 @@ def request(*, context_window: int = 8_192) -> EvaluateRequest:
                 "math",
                 "math-reasoning",
                 source,
-                lambda: object(),
+                PythonFactoryActivation("builtins:object"),
                 SamplingPolicy(max_tokens=512),
                 num_tasks=2,
             ),
@@ -111,6 +114,30 @@ def request(*, context_window: int = 8_192) -> EvaluateRequest:
     )
 
 
+@pytest.mark.parametrize(
+    ("repository", "subdirectory"),
+    [
+        ("ssh://git@github.com/org/env", "environment"),
+        ("https://user:secret@github.com/org/env", "environment"),
+        ("https://github.com/org/env?token=secret", "environment"),
+        ("https://GitHub.com/org/env", "environment"),
+        ("https://github.com/org/env", "../environment"),
+        ("https://github.com/org/env", "environment/./nested"),
+    ],
+)
+def test_environment_source_rejects_nonportable_git_identity(
+    repository: str,
+    subdirectory: str,
+) -> None:
+    with pytest.raises(ValueError):
+        EnvironmentSource(
+            "fake-env",
+            repository,
+            REVISION,
+            subdirectory,
+        )
+
+
 def canonical_request() -> EvaluateRequest:
     return request()
 
@@ -128,6 +155,25 @@ def test_general_smoke_is_code_defined_and_category_selectable() -> None:
     }
     assert all(len(item.source.revision) == 40 for item in GENERAL_SMOKE.environments)
     assert GENERAL_SMOKE.select("math-gsm8k")[0].source.package == "gsm8k-v1"
+    assert isinstance(
+        GENERAL_SMOKE.select("math-gsm8k")[0].activation,
+        VerifiersV1ConfigActivation,
+    )
+
+
+def test_python_factory_activation_is_lazy_until_runtime() -> None:
+    activation = PythonFactoryActivation("package_that_is_not_installed_for_detached_planning:create_environment")
+
+    with pytest.raises(RuntimeError, match="module is not installed"):
+        activation.activate()
+
+
+def test_verifiers_activation_digest_is_canonical() -> None:
+    first = VerifiersV1ConfigActivation({"taskset": {"id": "example", "split": "train"}, "max_turns": 4})
+    second = VerifiersV1ConfigActivation({"max_turns": 4, "taskset": {"split": "train", "id": "example"}})
+
+    assert first.digest == second.digest
+    assert first.to_payload()["kind"] == "verifiers-config"
 
 
 def test_agentic_and_domain_programs_share_the_native_port() -> None:
@@ -173,17 +219,30 @@ def test_evaluate_emits_direct_sync_metrics_and_native_artifact(tmp_path: Path) 
         return VerifiersRunResult(
             ("trace-1",),
             TraceSyncStats(observed_records=1, emitted_records=1),
+            EvaluationPopulation(
+                attempted=1,
+                complete=1,
+                failed=0,
+                truncated=0,
+                coverage_missing=1,
+            ),
         )
 
     result = evaluate(context(tmp_path, observer), request(), runner=fake_runner)
 
     assert result.trace_ids == ("trace-1",)
     assert result.synchronization.complete
+    assert result.status == "partial"
     assert result.native_artifact.reference.path.name == "math"  # type: ignore[union-attr]
     assert observer.artifacts[0].name == result.native_artifact.name
     assert observer.artifacts[0].reference == result.native_artifact.reference
     assert observer.artifacts[0].metadata["work_package_id"] == "qualify/eval"
     values = observer.metrics_log[0].values
+    assert values["eval/run/rollouts_attempted"] == 1
+    assert values["eval/run/rollouts_complete"] == 1
+    assert values["eval/run/rollouts_failed"] == 0
+    assert values["eval/run/rollouts_truncated"] == 0
+    assert values["eval/run/coverage_missing"] == 1
     assert values["eval/traces_observed"] == 1
     assert "eval/mean_reward" not in values
     assert observer.events[-1].name == "evaluation_completed"
@@ -212,6 +271,13 @@ def test_general_uses_canonical_seats_and_marks_partial_trace_sync(tmp_path: Pat
         return VerifiersRunResult(
             ("trace-1",),
             TraceSyncStats(observed_records=1, unsynchronized_records=1),
+            EvaluationPopulation(
+                attempted=1,
+                complete=0,
+                failed=1,
+                truncated=1,
+                coverage_missing=1,
+            ),
         )
 
     result = general(run_context, canonical, runner=fake_runner)
@@ -221,6 +287,11 @@ def test_general_uses_canonical_seats_and_marks_partial_trace_sync(tmp_path: Pat
     assert result.status == "partial"
     assert result.native_artifact.kind == "verifiers-evaluation"
     values = observer.metrics_log[0].values
+    assert values["eval/run/rollouts_attempted"] == 1
+    assert values["eval/run/rollouts_complete"] == 0
+    assert values["eval/run/rollouts_failed"] == 1
+    assert values["eval/run/rollouts_truncated"] == 1
+    assert values["eval/run/coverage_missing"] == 1
     assert values["eval/trace_sync_complete"] == 0
     assert "eval/mean_reward" not in values
     attributes = observer.metrics_log[0].attributes
@@ -252,7 +323,7 @@ def test_program_rejects_unknown_environment() -> None:
 
 def test_general_program_factories_return_native_configs_when_extra_is_installed() -> None:
     pytest.importorskip("verifiers.v1")
-    config: Any = GENERAL_SMOKE.environment("math-gsm8k").factory()
+    config: Any = GENERAL_SMOKE.environment("math-gsm8k").activate()
     assert config.taskset.id == "gsm8k-v1"
     assert config.harness.id == "null"
     assert config.timeout.rollout == 180

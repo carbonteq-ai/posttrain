@@ -122,7 +122,7 @@ def test_rejects_unknown_manifest_fields(tmp_path: Path) -> None:
         load_project_layout(root)
 
 
-def test_rejects_unsupported_schema_version(tmp_path: Path) -> None:
+def test_schema_version_two_requires_project_brief(tmp_path: Path) -> None:
     root = _project(tmp_path)
     manifest = root / ".posttrain" / "project.toml"
     manifest.write_text(
@@ -130,7 +130,7 @@ def test_rejects_unsupported_schema_version(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    with pytest.raises(ContractError, match="unsupported post-training project schema_version 2"):
+    with pytest.raises(ContractError, match="schema_version 2 requires project_brief"):
         load_project_layout(root)
 
 

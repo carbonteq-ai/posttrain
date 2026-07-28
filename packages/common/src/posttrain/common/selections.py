@@ -80,14 +80,25 @@ class Workload:
     warmup_repetitions: int = 0
     measured_repetitions: int = 1
     required_measures: tuple[str, ...] = ()
+    plateau_improvement_ratio: float = 0.05
+    plateau_intervals: int = 2
+    max_consecutive_point_failures: int = 1
 
     def __post_init__(self) -> None:
         validate_selection_id(self.id, "workload id")
         validate_revision(self.revision, "workload revision")
         if not self.concurrency or any(value < 1 for value in self.concurrency):
             raise ContractError("workload concurrency values must be positive")
+        if len(set(self.concurrency)) != len(self.concurrency):
+            raise ContractError("workload concurrency values must be unique")
+        if tuple(sorted(self.concurrency)) != self.concurrency:
+            raise ContractError("workload concurrency values must be strictly increasing")
         if self.warmup_repetitions < 0 or self.measured_repetitions < 1:
             raise ContractError("workload repetitions are invalid")
+        if not 0 < self.plateau_improvement_ratio < 1:
+            raise ContractError("workload plateau improvement ratio must be between zero and one")
+        if self.plateau_intervals < 1 or self.max_consecutive_point_failures < 1:
+            raise ContractError("workload saturation bounds must be positive")
         if any(not value.strip() for value in self.required_measures):
             raise ContractError("workload required measure names cannot be empty")
         object.__setattr__(self, "requests", immutable_json_mapping(self.requests))

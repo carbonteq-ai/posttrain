@@ -10,7 +10,15 @@ from posttrain.common import JsonValue
 
 
 class RedactionPolicy:
-    def __init__(self, patterns: tuple[str, ...] = ("token", "secret", "password", "api[_-]?key")) -> None:
+    def __init__(
+        self,
+        patterns: tuple[str, ...] = (
+            r"(^|[_-])(access|auth|bearer|refresh|session)?[_-]?token($|[_-])",
+            "secret",
+            "password",
+            "api[_-]?key",
+        ),
+    ) -> None:
         self._patterns = tuple(re.compile(pattern, re.IGNORECASE) for pattern in patterns)
 
     def apply(self, value: JsonValue) -> JsonValue:

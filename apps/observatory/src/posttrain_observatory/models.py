@@ -25,6 +25,16 @@ type ViewMode = Literal["auto", "job", "generic"]
 type EvidenceRequirementLevel = Literal["required", "conditional", "diagnostic"]
 type EvidenceRequirementState = Literal["available", "missing", "not_applicable"]
 type EvidenceCompletenessState = Literal["complete", "partial", "insufficient"]
+type ServingRequirementState = Literal["pass", "fail", "unavailable"]
+type ServingEligibilityState = Literal[
+    "eligible",
+    "below_capacity",
+    "latency_constrained",
+    "reliability_constrained",
+    "context_failed",
+    "unsaturated",
+    "insufficient_evidence",
+]
 
 
 def _tuple_from_json(value: object) -> object:
@@ -243,6 +253,182 @@ class GenericRunView(ObservatoryModel):
     capabilities: TrackingCapabilities
 
 
+class ServingRequirementView(ObservatoryModel):
+    key: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    operator: Literal["gte", "lte"]
+    threshold: float | None = None
+    measured: float | None = None
+    margin: float | None = None
+    unit: str = Field(min_length=1)
+    state: ServingRequirementState
+    explanation: str = Field(min_length=1)
+
+
+class ServingOperatingPoint(ObservatoryModel):
+    sweep_index: int = Field(ge=0)
+    concurrency: int = Field(ge=1)
+    context_tokens: int | None = Field(default=None, ge=1)
+    attempted_requests: int = Field(ge=0)
+    completed_requests: int = Field(ge=0)
+    failed_requests: int = Field(ge=0)
+    output_tokens: int | None = Field(default=None, ge=0)
+    input_tokens_mean: float | None = Field(default=None, ge=0)
+    input_tokens_p95: float | None = Field(default=None, ge=0)
+    output_tokens_mean: float | None = Field(default=None, ge=0)
+    output_tokens_p95: float | None = Field(default=None, ge=0)
+    measurement_seconds: float | None = Field(default=None, gt=0)
+    aggregate_output_tps: float | None = Field(default=None, ge=0)
+    failure_rate: float | None = Field(default=None, ge=0, le=1)
+    p50_ttft_ms: float | None = Field(default=None, ge=0)
+    p95_ttft_ms: float | None = Field(default=None, ge=0)
+    p50_tpot_ms: float | None = Field(default=None, ge=0)
+    p95_tpot_ms: float | None = Field(default=None, ge=0)
+    peak_vram_bytes: float | None = Field(default=None, ge=0)
+    kv_cache_peak_usage_ratio: float | None = Field(default=None, ge=0, le=1)
+    evidence_state: Literal["complete", "partial", "legacy_single_point"]
+    terminal_status: Literal["resource_exhausted", "unsupported", "failed"] | None = None
+    valid: bool
+    violations: StringTuple = ()
+
+
+class ServingEligibility(ObservatoryModel):
+    state: ServingEligibilityState
+    label: str = Field(min_length=1)
+    reason: str = Field(min_length=1)
+    calculator_version: Literal["serving-capacity-v1"] = "serving-capacity-v1"
+    requirements_digest: str | None = Field(default=None, min_length=1)
+    saturation_state: Literal["saturated", "unsaturated", "unknown"]
+    selected_sweep_index: int | None = Field(default=None, ge=0)
+
+
+class RuntimeSettingValue(ObservatoryModel):
+    key: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    value: JsonPayload = None
+    unit: str | None = None
+    state: Literal["available", "missing", "redacted"]
+    importance: Literal["primary", "advanced", "additional"] = "advanced"
+
+
+class RuntimeSettingGroup(ObservatoryModel):
+    key: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    settings: tuple[RuntimeSettingValue, ...]
+
+
+class BenchmarkPopulationView(ObservatoryModel):
+    cohort: str | None = Field(default=None, min_length=1)
+    corpus_id: str | None = Field(default=None, min_length=1)
+    corpus_revision: str | None = Field(default=None, min_length=1)
+    corpus_digest: str | None = Field(default=None, min_length=1)
+    suite_id: str | None = Field(default=None, min_length=1)
+    shape_id: str | None = Field(default=None, min_length=1)
+    renderer: str | None = Field(default=None, min_length=1)
+    requested_records: int | None = Field(default=None, ge=0)
+    measured_records: int | None = Field(default=None, ge=0)
+    input_tokens_mean: float | None = Field(default=None, ge=0)
+    input_tokens_p95: float | None = Field(default=None, ge=0)
+    output_token_budget: int | None = Field(default=None, ge=1)
+    output_length_policy: Literal["fixed", "maximum", "unknown"] = "unknown"
+    output_target_hit_rate: float | None = Field(default=None, ge=0, le=1)
+    correctness_scored: Literal[False] = False
+
+
+class ServingBenchmarkRunView(ObservatoryModel):
+    view_kind: Literal["job.serving"] = "job.serving"
+    schema_version: int = Field(ge=1)
+    locator: RunLocator
+    run: RunSummary
+    question: str = Field(min_length=1)
+    eligibility: ServingEligibility
+    requirements: tuple[ServingRequirementView, ...]
+    operating_points: tuple[ServingOperatingPoint, ...]
+    selected_point: ServingOperatingPoint | None = None
+    model_variant_id: str | None = Field(default=None, min_length=1)
+    inference_binding_id: str | None = Field(default=None, min_length=1)
+    inference_backend: str | None = Field(default=None, min_length=1)
+    workload_id: str | None = Field(default=None, min_length=1)
+    execution_target_id: str | None = Field(default=None, min_length=1)
+    runtime_settings: tuple[RuntimeSettingGroup, ...]
+    population: BenchmarkPopulationView
+    alerts: tuple[RunAlert, ...]
+    artifacts: ArtifactSet
+    execution_targets: tuple[ExecutionTargetContext, ...] = ()
+    resolved_inputs: dict[str, JsonPayload] = Field(default_factory=dict)
+    source_metadata: dict[str, JsonPayload] = Field(default_factory=dict)
+    trace_count: int = Field(ge=0)
+    trace_evaluation_enabled: bool = False
+    capabilities: TrackingCapabilities
+
+
+class ServingCapacityRunRow(ObservatoryModel):
+    locator: RunLocator
+    run_key: str = Field(min_length=1)
+    display_name: str = Field(min_length=1)
+    started_at: datetime
+    model_variant_id: str | None = Field(default=None, min_length=1)
+    inference_binding_id: str | None = Field(default=None, min_length=1)
+    inference_backend: str | None = Field(default=None, min_length=1)
+    workload_id: str | None = Field(default=None, min_length=1)
+    execution_target_id: str | None = Field(default=None, min_length=1)
+    requirements_digest: str | None = Field(default=None, min_length=1)
+    point: ServingOperatingPoint
+    point_state: Literal["valid", "constraint_failed", "incomplete"]
+    point_label: str = Field(min_length=1)
+    eligibility: ServingEligibility
+
+
+class ServingContenderView(ObservatoryModel):
+    locator: RunLocator
+    run_key: str = Field(min_length=1)
+    display_name: str = Field(min_length=1)
+    started_at: datetime
+    model_variant_id: str | None = Field(default=None, min_length=1)
+    inference_binding_id: str | None = Field(default=None, min_length=1)
+    inference_backend: str | None = Field(default=None, min_length=1)
+    workload_id: str | None = Field(default=None, min_length=1)
+    corpus_digest: str | None = Field(default=None, min_length=1)
+    execution_target_id: str | None = Field(default=None, min_length=1)
+    requirements_digest: str | None = Field(default=None, min_length=1)
+    calculator_version: str = Field(min_length=1)
+    comparable: bool
+    comparability_reason: str | None = None
+    selected_point: ServingOperatingPoint | None = None
+    eligibility: ServingEligibility
+    pareto_member: bool = False
+
+
+class ServingParetoPoint(ObservatoryModel):
+    run_key: str = Field(min_length=1)
+    model_variant_id: str | None = Field(default=None, min_length=1)
+    inference_binding_id: str | None = Field(default=None, min_length=1)
+    aggregate_output_tps: float = Field(ge=0)
+    p95_ttft_ms: float = Field(ge=0)
+    peak_vram_bytes: int = Field(ge=0)
+
+
+class ServingCapacityWorkPackageView(ObservatoryModel):
+    schema_version: int = 1
+    project_id: str | None = None
+    work_package_id: str = Field(min_length=1)
+    methodology: Literal[
+        "strict_pareto",
+        "single_run_sweep",
+        "cross_run_compatibility",
+    ] = "cross_run_compatibility"
+    explanation: str = Field(min_length=1)
+    requirements: tuple[ServingRequirementView, ...] = ()
+    execution_target_id: str | None = Field(default=None, min_length=1)
+    workload_id: str | None = Field(default=None, min_length=1)
+    corpus_digest: str | None = Field(default=None, min_length=1)
+    requirements_digest: str | None = Field(default=None, min_length=1)
+    calculator_version: str | None = Field(default=None, min_length=1)
+    contenders: tuple[ServingContenderView, ...] = ()
+    pareto: tuple[ServingParetoPoint, ...] = ()
+    rows: tuple[ServingCapacityRunRow, ...]
+
+
 class RewardComponent(ObservatoryModel):
     name: str = Field(min_length=1)
     value: float
@@ -324,6 +510,8 @@ class RuntimePhaseSegment(ObservatoryModel):
     phase: str = Field(min_length=1)
     phase_id: str = Field(min_length=1)
     label: str = Field(min_length=1)
+    group: str = Field(min_length=1)
+    group_label: str = Field(min_length=1)
     status: Literal["running", "completed", "failed", "incomplete", "unclassified"]
     started_at: datetime
     finished_at: datetime
@@ -338,6 +526,8 @@ class RuntimePhaseIntervalView(ObservatoryModel):
     phase: str = Field(min_length=1)
     phase_id: str = Field(min_length=1)
     label: str = Field(min_length=1)
+    group: str = Field(min_length=1)
+    group_label: str = Field(min_length=1)
     status: Literal["running", "completed", "failed", "incomplete"]
     started_at: datetime
     finished_at: datetime
@@ -349,10 +539,32 @@ class RuntimePhaseIntervalView(ObservatoryModel):
 class RuntimePhaseSummary(ObservatoryModel):
     phase: str = Field(min_length=1)
     label: str = Field(min_length=1)
+    group: str = Field(min_length=1)
+    group_label: str = Field(min_length=1)
     duration_s: float = Field(ge=0)
     occurrences: int = Field(ge=1)
     sample_count: int = Field(ge=0)
     metrics: tuple[PhaseMetricAggregate, ...] = ()
+
+
+class InferenceTimingStageSummary(ObservatoryModel):
+    stage: Literal["queue", "prefill", "decode", "engine_e2e"]
+    label: str = Field(min_length=1)
+    samples: int = Field(ge=1)
+    mean_ms: float = Field(ge=0)
+    p50_ms: float = Field(ge=0)
+    p95_ms: float = Field(ge=0)
+
+
+class InferenceTimingSummary(ObservatoryModel):
+    requests: int = Field(ge=1)
+    stages: tuple[InferenceTimingStageSummary, ...]
+
+
+class BackendRuntimeSummary(ObservatoryModel):
+    kv_cache_capacity_tokens: float | None = Field(default=None, gt=0)
+    kv_cache_peak_usage_ratio: float | None = Field(default=None, ge=0, le=1)
+    kv_cache_samples: int = Field(default=0, ge=0)
 
 
 class SystemMetricsView(ObservatoryModel):
@@ -374,6 +586,8 @@ class SystemMetricsView(ObservatoryModel):
     vram_capacity_state: Literal["available", "ambiguous", "unavailable"] = "unavailable"
     vram_capacity_bytes: float | None = Field(default=None, gt=0)
     vram_observed_peak_bytes: float | None = Field(default=None, gt=0)
+    inference_timing: InferenceTimingSummary | None = None
+    backend_runtime: BackendRuntimeSummary | None = None
     capabilities: TrackingCapabilities
 
 
@@ -396,7 +610,10 @@ class EvaluationRunView(ObservatoryModel):
     capabilities: TrackingCapabilities
 
 
-type RunViewVariant = Annotated[RunView | EvaluationRunView | GenericRunView, Field(discriminator="view_kind")]
+type RunViewVariant = Annotated[
+    RunView | EvaluationRunView | ServingBenchmarkRunView | GenericRunView,
+    Field(discriminator="view_kind"),
+]
 
 
 class RunViewResponse(ObservatoryModel):
@@ -470,6 +687,9 @@ class WorkPackageView(ObservatoryModel):
 class ExportRequest(ObservatoryModel):
     run_keys: StringTuple = ()
     work_package_id: str | None = None
+    project_id: str | None = None
+    source_id: str | None = None
+    view: Literal["runs", "serving_capacity"] = "runs"
     format: Literal["json", "csv"] = "json"
 
 
@@ -534,6 +754,8 @@ class ErrorResponse(ObservatoryModel):
 
 __all__ = [
     "AlertSeverity",
+    "BackendRuntimeSummary",
+    "BenchmarkPopulationView",
     "ChartView",
     "ComparisonRow",
     "ErrorResponse",
@@ -553,6 +775,8 @@ __all__ = [
     "GRPORolloutPopulation",
     "JobDefinitionSummary",
     "JobKindGroup",
+    "InferenceTimingStageSummary",
+    "InferenceTimingSummary",
     "LocatedRunSummary",
     "MetricCatalog",
     "MetricNamespace",
@@ -560,6 +784,8 @@ __all__ = [
     "MetricSeriesSet",
     "ObservatoryModel",
     "RewardComponent",
+    "RuntimeSettingGroup",
+    "RuntimeSettingValue",
     "RunAlert",
     "RunComparison",
     "RunDelta",
@@ -575,6 +801,14 @@ __all__ = [
     "SemanticSummaryRequest",
     "SemanticSummaryResult",
     "SeriesTip",
+    "ServingBenchmarkRunView",
+    "ServingCapacityRunRow",
+    "ServingCapacityWorkPackageView",
+    "ServingEligibility",
+    "ServingEligibilityState",
+    "ServingOperatingPoint",
+    "ServingRequirementState",
+    "ServingRequirementView",
     "SourceSummary",
     "SummaryChange",
     "SummaryValue",

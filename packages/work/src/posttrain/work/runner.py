@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
-from dataclasses import asdict, dataclass, field
+from collections.abc import Callable, Iterable, Mapping
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from types import MappingProxyType
 
@@ -45,7 +45,8 @@ from .contracts import (
     WorkPackageJobResult,
     WorkPackageResult,
 )
-from .execution import ArtifactInput, RunSpec, execute_run
+from .execution import ArtifactInput, FinalizedRunResult, RunSpec, execute_run
+from .project_brief import ProjectBrief, project_brief_snapshot
 
 type RunExecutor = Callable[[RunSpec, Callable[[RunContext], object]], object]
 type SeatResolver = Callable[[ResolvedSeat], Selection]
@@ -82,9 +83,21 @@ class ResolvedWorkPackage:
 
 
 @dataclass(frozen=True, slots=True)
+class PreparedWorkPackageJob:
+    """Statically validated job meaning ready for local or remote activation."""
+
+    resolved: ResolvedWorkPackage
+    recipe_job: RecipeJob
+    definition: JobDefinition
+    seats: ResolvedSeats
+    spec: RunSpec
+
+
+@dataclass(frozen=True, slots=True)
 class WorkPackageContext:
     catalog: Catalog
     definitions: Mapping[str, JobDefinition]
+    project_brief: ProjectBrief | None = None
     source_metadata: Mapping[str, JsonValue] = field(default_factory=dict)
     executor: RunExecutor = execute_run
     seat_resolver: SeatResolver | None = None
@@ -108,6 +121,7 @@ class WorkPackageHostRequest:
     state_dir: Path
     work_package_path: Path
     catalog: Catalog
+    project_brief: ProjectBrief | None = None
 
     def __post_init__(self) -> None:
         if self.catalog.scope != self.project_id:
@@ -187,7 +201,7 @@ def run_work_package(context: WorkPackageContext, package: WorkPackage) -> WorkP
             results.append(WorkPackageJobResult(job.id, job.kind, job.definition, "not_run"))
             continue
         _, definition, seats = prepared[job.id]
-        resolved_inputs = dict(resolved.snapshot)
+        resolved_inputs = _run_snapshot(resolved, context.project_brief)
         resolved_inputs["job_definition"] = {
             "id": definition.id,
             "kind": definition.kind,
@@ -202,11 +216,18 @@ def run_work_package(context: WorkPackageContext, package: WorkPackage) -> WorkP
             resolved_inputs=resolved_inputs,
             source_metadata=context.source_metadata,
             artifacts=_artifact_inputs(seats),
+            required_artifact_roles=definition.required_artifact_roles,
         )
-        value = context.executor(
+        execution_value = context.executor(
             spec,
             lambda run_context, operation=definition.operation, bound=seats: operation(run_context, bound),
         )
+        if isinstance(execution_value, FinalizedRunResult):
+            value = execution_value.value
+            published_artifacts = execution_value.published_artifacts
+        else:
+            value = execution_value
+            published_artifacts = ()
         results.append(
             WorkPackageJobResult(
                 job.id,
@@ -215,6 +236,7 @@ def run_work_package(context: WorkPackageContext, package: WorkPackage) -> WorkP
                 "succeeded",
                 spec.run_id,
                 value,
+                published_artifacts,
             )
         )
     return WorkPackageResult(package.project_id, package.work_package_id, tuple(results))
@@ -224,8 +246,47 @@ def run_work_package_job(
     context: WorkPackageContext,
     package: WorkPackage,
     job_id: str,
+    *,
+    run_id: str | None = None,
 ) -> WorkPackageResult:
-    """Run exactly one enabled job without replaying the rest of its work package."""
+    """Run one enabled job, optionally preserving a preallocated run identity."""
+
+    prepared = prepare_work_package_job(
+        context,
+        package,
+        job_id,
+        run_id=run_id,
+    )
+    execution_value = context.executor(
+        prepared.spec,
+        lambda run_context: prepared.definition.operation(run_context, prepared.seats),
+    )
+    if isinstance(execution_value, FinalizedRunResult):
+        value = execution_value.value
+        published_artifacts = execution_value.published_artifacts
+    else:
+        value = execution_value
+        published_artifacts = ()
+    result = WorkPackageJobResult(
+        prepared.recipe_job.id,
+        prepared.recipe_job.kind,
+        prepared.recipe_job.definition,
+        "succeeded",
+        prepared.spec.run_id,
+        value,
+        published_artifacts,
+    )
+    return WorkPackageResult(package.project_id, package.work_package_id, (result,))
+
+
+def prepare_work_package_job(
+    context: WorkPackageContext,
+    package: WorkPackage,
+    job_id: str,
+    *,
+    run_id: str | None = None,
+) -> PreparedWorkPackageJob:
+    """Resolve and statically validate one job without activating its runtime."""
 
     resolved = resolve_work_package(context.catalog, package)
     enabled = {job.id: job for job in _enabled_jobs(resolved.recipe, package.enabled_optional_jobs)}
@@ -242,7 +303,10 @@ def run_work_package_job(
             f"recipe job {job.id!r} kind {job.kind!r} conflicts with definition kind {definition.kind!r}"
         )
     seats = _job_seats(resolved, definition, context.seat_resolver)
-    resolved_inputs = dict(resolved.snapshot)
+    if context.seat_resolver is None and definition.static_validator is not None:
+        definition.static_validator(seats)
+    _preflight_job(context.project_brief, job, seats)
+    resolved_inputs = _run_snapshot(resolved, context.project_brief)
     resolved_inputs["job_definition"] = {
         "id": definition.id,
         "kind": definition.kind,
@@ -252,32 +316,97 @@ def run_work_package_job(
         project_id=package.project_id,
         work_package_id=package.work_package_id,
         stage=package.stage,
+        **({"run_id": run_id} if run_id is not None else {}),
         job_kind=job.kind,
         job_definition_version=definition.id,
         resolved_inputs=resolved_inputs,
         source_metadata=context.source_metadata,
         artifacts=_artifact_inputs(seats),
+        required_artifact_roles=definition.required_artifact_roles,
     )
-    value = context.executor(
-        spec,
-        lambda run_context: definition.operation(run_context, seats),
+    return PreparedWorkPackageJob(resolved, job, definition, seats, spec)
+
+
+def override_job_execution_target(
+    context: WorkPackageContext,
+    package: WorkPackage,
+    job_id: str,
+    target: ExecutionTarget,
+    *,
+    allow_unchanged: bool = False,
+) -> WorkPackage:
+    """Replace the selected job's one unambiguous primary execution target."""
+
+    prepared = prepare_work_package_job(context, package, job_id)
+    training_roles = {name: value for name, value in prepared.seats.items() if isinstance(value, TrainingBinding)}
+    direct_roles = {name: value for name, value in prepared.seats.items() if isinstance(value, ExecutionTarget)}
+    inference_roles = {name: value for name, value in prepared.seats.items() if isinstance(value, InferenceBinding)}
+
+    replacements: dict[str, Selection]
+    if training_roles:
+        # Training and rollout targets may intentionally differ. The training
+        # binding is the scheduler-facing primary target for a training job.
+        primary = _one_override_target(
+            (value.target for value in training_roles.values()),
+            "training bindings",
+        )
+        replacements = {name: replace(value, target=target) for name, value in training_roles.items()}
+    elif direct_roles:
+        # Eval and serve definitions expose an explicit target and a colocated
+        # inference binding. Preserve that equality when changing the target.
+        primary = _one_override_target(
+            direct_roles.values(),
+            "explicit target seats",
+        )
+        conflicting_inference = [name for name, value in inference_roles.items() if value.target != primary]
+        if conflicting_inference:
+            raise ContractError(
+                "execution-target override is ambiguous: explicit target seats "
+                "conflict with nested inference targets "
+                f"({', '.join(sorted(conflicting_inference))})"
+            )
+        replacements = {name: target for name in direct_roles}
+        replacements.update({name: replace(value, target=target) for name, value in inference_roles.items()})
+    elif inference_roles:
+        primary = _one_override_target(
+            (value.target for value in inference_roles.values()),
+            "inference bindings",
+        )
+        replacements = {name: replace(value, target=target) for name, value in inference_roles.items()}
+    else:
+        raise ContractError("selected job does not expose a supported execution target to override")
+
+    if target == primary:
+        if allow_unchanged:
+            return package
+        raise ContractError(
+            f"execution-target override is a no-op: selected job already uses {target.id}@{target.revision}"
+        )
+
+    return replace(
+        package,
+        bindings={**package.bindings, **replacements},
     )
-    result = WorkPackageJobResult(
-        job.id,
-        job.kind,
-        job.definition,
-        "succeeded",
-        spec.run_id,
-        value,
-    )
-    return WorkPackageResult(package.project_id, package.work_package_id, (result,))
+
+
+def _one_override_target(
+    targets: Iterable[ExecutionTarget],
+    role: str,
+) -> ExecutionTarget:
+    unique: list[ExecutionTarget] = []
+    for target in targets:
+        if target not in unique:
+            unique.append(target)
+    if len(unique) != 1:
+        raise ContractError(f"execution-target override is ambiguous across {role}")
+    return unique[0]
 
 
 def validate_work_package(
     context: WorkPackageContext,
     package: WorkPackage,
 ) -> ResolvedWorkPackage:
-    """Resolve and preflight every enabled job without starting a run."""
+    """Resolve and statically validate every enabled job without starting a run."""
 
     resolved, _, _ = _prepare_work_package(context, package)
     return resolved
@@ -303,9 +432,57 @@ def _prepare_work_package(
             raise ContractError(
                 f"recipe job {job.id!r} kind {job.kind!r} conflicts with definition kind {definition.kind!r}"
             )
-        prepared[job.id] = (job, definition, _job_seats(resolved, definition, context.seat_resolver))
+        seats = _job_seats(resolved, definition, context.seat_resolver)
+        if context.seat_resolver is None and definition.static_validator is not None:
+            definition.static_validator(seats)
+        _preflight_job(context.project_brief, job, seats)
+        prepared[job.id] = (job, definition, seats)
 
     return resolved, enabled, prepared
+
+
+def _run_snapshot(
+    resolved: ResolvedWorkPackage,
+    project_brief: ProjectBrief | None,
+) -> dict[str, JsonValue]:
+    snapshot = dict(resolved.snapshot)
+    if project_brief is not None:
+        snapshot["project_brief"] = project_brief_snapshot(project_brief)
+    return snapshot
+
+
+def _preflight_job(
+    project_brief: ProjectBrief | None,
+    job: RecipeJob,
+    seats: ResolvedSeats,
+) -> None:
+    """Apply project policy only at the composition boundary."""
+
+    requirements = project_brief.serving if project_brief is not None else None
+    if job.kind != "serve.benchmark" or requirements is None:
+        return
+
+    inferences = [value for value in seats.values() if isinstance(value, InferenceBinding)]
+    workloads = [value for value in seats.values() if isinstance(value, Workload)]
+    targets = [value for value in seats.values() if isinstance(value, ExecutionTarget)]
+    models = [value for value in seats.values() if isinstance(value, ModelVariant)]
+    if len(inferences) != 1 or len(workloads) != 1:
+        raise ContractError("serve.benchmark preflight requires one inference binding and one workload")
+
+    inference = inferences[0]
+    workload = workloads[0]
+    if targets and any(target != inference.target for target in targets):
+        raise ContractError("serve.benchmark target conflicts with its inference binding")
+    if models and any(model != inference.model for model in models):
+        raise ContractError("serve.benchmark model conflicts with its inference binding")
+
+    context_window = workload.requests.get("context_window")
+    if not isinstance(context_window, int) or isinstance(context_window, bool) or context_window < 1:
+        raise ContractError("serve.benchmark workload context_window must be a positive integer")
+    if context_window < requirements.required_context_tokens:
+        raise ContractError("serve.benchmark workload context_window is below the project serving requirement")
+    if inference.model.capabilities.native_context_window < requirements.required_context_tokens:
+        raise ContractError("serve.benchmark model native context window is below the project serving requirement")
 
 
 def _resolve_recipe(catalog: Catalog, selection: CatalogRef | Recipe) -> tuple[Recipe, JsonValue]:
@@ -349,7 +526,9 @@ def _job_seats(
         except KeyError as error:
             raise ContractError(f"enabled job definition {definition.id!r} requires unbound seat {name!r}") from error
         value = resolver(seat) if resolver is not None else seat.value
-        if not isinstance(value, expected):
+        static_expected = definition.selection_seats.get(name, expected)
+        accepted = expected if resolver is not None or static_expected is expected else (expected, static_expected)
+        if not isinstance(value, accepted):
             raise ContractError(f"enabled job definition {definition.id!r} received the wrong type for seat {name!r}")
         result[name] = value
     return MappingProxyType(result)
@@ -466,6 +645,7 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
     if isinstance(value, TrainingBinding):
         return {
             "backend": value.backend,
+            "backend_options": dict(value.backend_options),
             "renderer": value.renderer.id,
             "parameter_update_kind": value.update.kind,
             "parameter_update": asdict(value.update),
@@ -526,6 +706,8 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
             "package": value.source.package,
             "repository": value.source.repository,
             "source_revision": value.source.revision,
+            "activation": value.activation.to_payload(),
+            "activation_digest": value.activation.digest,
             "sampling": {
                 "max_tokens": value.sampling.max_tokens,
                 "temperature": value.sampling.temperature,
@@ -552,6 +734,9 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
             "warmup_repetitions": value.warmup_repetitions,
             "measured_repetitions": value.measured_repetitions,
             "required_measures": list(value.required_measures),
+            "plateau_improvement_ratio": value.plateau_improvement_ratio,
+            "plateau_intervals": value.plateau_intervals,
+            "max_consecutive_point_failures": value.max_consecutive_point_failures,
         }
     return {}
 
@@ -595,6 +780,8 @@ __all__ = [
     "WorkPackageContext",
     "WorkPackageHostFactory",
     "WorkPackageHostRequest",
+    "override_job_execution_target",
+    "prepare_work_package_job",
     "resolve_work_package",
     "run_work_package",
     "run_work_package_job",

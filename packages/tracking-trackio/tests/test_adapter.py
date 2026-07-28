@@ -4,6 +4,7 @@ import hashlib
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import pytest
 import trackio.context_vars as context_vars
@@ -23,10 +24,17 @@ from posttrain.tracking import (
     RunOutcomeStatus,
     RunQuery,
     RunSpec,
+    RunSummary,
     StoredArtifactRef,
     TraceQuery,
 )
-from posttrain_tracking_trackio import TrackioBackend, TrackioDataSource, TrackioSettings
+from posttrain_tracking_trackio import (
+    TrackioBackend,
+    TrackioCancelledRunRecovery,
+    TrackioDataSource,
+    TrackioSettings,
+    require_remote_trackio_ready,
+)
 from trackio.sqlite_storage import SQLiteStorage
 
 from packages.tracking.tests.conformance import (
@@ -70,6 +78,296 @@ def _spec(run_id: str, artifacts: dict[str, ArtifactInput] | None = None) -> Run
     )
 
 
+def test_trackio_settings_require_positive_monitor_intervals() -> None:
+    with pytest.raises(ValueError, match="GPU log interval"):
+        TrackioSettings(gpu_log_interval=0)
+    with pytest.raises(ValueError, match="CPU log interval"):
+        TrackioSettings(cpu_log_interval=-1)
+
+
+def test_required_remote_trackio_probe_checks_authenticated_storage_readiness(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    class StubClient:
+        def __init__(self, source: str, **kwargs: object) -> None:
+            captured["source"] = source
+            captured["client"] = kwargs
+
+        def predict(self, **kwargs: object) -> object:
+            captured["probe"] = kwargs
+            return {"present": []}
+
+    monkeypatch.setattr(
+        "posttrain_tracking_trackio.adapter.RemoteClient",
+        StubClient,
+    )
+    monkeypatch.setenv("TRACKIO_WRITE_TOKEN", "not-serialized")
+
+    require_remote_trackio_ready(
+        project="posttrain",
+        server_url="https://trackio.example",
+    )
+
+    assert captured["source"] == "https://trackio.example"
+    client = captured["client"]
+    assert isinstance(client, dict)
+    assert client["write_token"] == "not-serialized"
+    assert client["httpx_kwargs"] == {"timeout": 10.0}
+    assert captured["probe"] == {
+        "api_name": "/check_artifact_blobs",
+        "project": "posttrain",
+        "digests": [],
+        "hf_token": None,
+    }
+
+
+def test_required_remote_trackio_probe_rejects_missing_destination_or_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("TRACKIO_WRITE_TOKEN", raising=False)
+
+    with pytest.raises(ContractError, match="SERVER_URL"):
+        require_remote_trackio_ready(project="posttrain", server_url=None)
+    with pytest.raises(ContractError, match="WRITE_TOKEN"):
+        require_remote_trackio_ready(
+            project="posttrain",
+            server_url="https://trackio.example",
+        )
+
+
+def test_required_remote_trackio_probe_sanitizes_connectivity_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FailingClient:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            raise RuntimeError("response included secret-token")
+
+    monkeypatch.setattr(
+        "posttrain_tracking_trackio.adapter.RemoteClient",
+        FailingClient,
+    )
+    monkeypatch.setenv("TRACKIO_WRITE_TOKEN", "secret-token")
+
+    with pytest.raises(ContractError, match="TLS trust") as raised:
+        require_remote_trackio_ready(
+            project="posttrain",
+            server_url="https://trackio.example",
+        )
+
+    assert "secret-token" not in str(raised.value)
+
+
+def test_trackio_backend_forwards_monitor_intervals(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    class StubRun:
+        id = "provider-run"
+
+    def fake_init(**kwargs: object) -> Any:
+        captured.update(kwargs)
+        return StubRun()
+
+    monkeypatch.setattr("posttrain_tracking_trackio.adapter.trackio.init", fake_init)
+    backend = TrackioBackend(
+        TrackioSettings(
+            project="monitoring",
+            auto_log_gpu=True,
+            auto_log_cpu=True,
+            gpu_log_interval=0.5,
+            cpu_log_interval=3.0,
+        )
+    )
+
+    backend.start_run(_spec("00000000-0000-4000-8000-000000000099"))
+
+    assert captured["gpu_log_interval"] == 0.5
+    assert captured["cpu_log_interval"] == 3.0
+
+
+def test_trackio_backend_resumes_without_replacing_config_or_starting_monitors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    class StubRun:
+        id = "provider-run"
+
+    def fake_init(**kwargs: object) -> Any:
+        captured.update(kwargs)
+        return StubRun()
+
+    monkeypatch.setattr("posttrain_tracking_trackio.adapter.trackio.init", fake_init)
+    backend = TrackioBackend(TrackioSettings(project="monitoring", auto_log_gpu=True, auto_log_cpu=True))
+
+    tracked = backend.resume_run(
+        _spec("00000000-0000-4000-8000-000000000099"),
+        started_at=STARTED,
+    )
+
+    assert tracked.provider_run_id == "provider-run"
+    assert captured["resume"] == "must"
+    config = captured["config"]
+    assert isinstance(config, dict)
+    assert config["started_at"] == STARTED.isoformat()
+    assert captured["auto_log_gpu"] is False
+    assert captured["auto_log_cpu"] is False
+
+
+def test_exact_cancelled_recovery_rechecks_identity_and_provider_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_id = "00000000-0000-4000-8000-000000000099"
+    history: list[dict[str, object]] = []
+    config = {
+        "schema_version": 4,
+        "provider": "trackio",
+        "project_id": "conformance",
+        "work_package_id": "train/qwen",
+        "stage": "train",
+        "run_id": run_id,
+        "job_kind": "train.sft",
+        "job_definition_version": "train/sft@1",
+        "started_at": STARTED.isoformat(),
+    }
+
+    class ProviderRun:
+        id = "provider-exact"
+        name = "train.sft-00000000"
+
+        @property
+        def config(self) -> dict[str, object]:
+            return config
+
+        def summary(self) -> dict[str, object]:
+            return {"config": config, "last_step": 7}
+
+        def history(self, keys=None):
+            del keys
+            return history
+
+    provider_run = ProviderRun()
+
+    class Api:
+        def __init__(self, server_url=None) -> None:
+            del server_url
+
+        def runs(self, project: str):
+            assert project == "conformance"
+            return [provider_run]
+
+    created: dict[str, object] = {}
+
+    class ExactRun:
+        def __init__(self, **kwargs: object) -> None:
+            created.update(kwargs)
+            self.id = str(kwargs["run_id"])
+
+        def log(self, values: dict[str, object]) -> None:
+            history.append(values)
+
+        def finish(self) -> None:
+            created["finished"] = True
+
+    monkeypatch.setattr(
+        "posttrain_tracking_trackio.adapter.trackio.Api",
+        Api,
+    )
+    monkeypatch.setattr(
+        "posttrain_tracking_trackio.adapter.TrackioSDKRun",
+        ExactRun,
+    )
+    monkeypatch.setattr(
+        "posttrain_tracking_trackio.adapter.require_remote_trackio_ready",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setenv("TRACKIO_WRITE_TOKEN", "secret")
+    expected = RunSummary(
+        provider="trackio",
+        provider_run_id="provider-exact",
+        run_id=run_id,
+        display_name="train.sft-00000000",
+        project_id="conformance",
+        work_package_id="train/qwen",
+        stage="train",
+        job_kind="train.sft",
+        job_definition_version="train/sft@1",
+        status="running",
+        started_at=STARTED,
+    )
+
+    disposition = TrackioCancelledRunRecovery(
+        TrackioSettings(
+            project="conformance",
+            server_url="https://trackio.example",
+        )
+    ).recover_cancelled(
+        expected,
+        finished_at=STARTED + timedelta(seconds=10),
+    )
+
+    assert disposition == "recovered"
+    assert created["run_id"] == "provider-exact"
+    assert created["config"] == {}
+    assert created["initial_last_step"] == 7
+    assert created["finished"] is True
+    assert history[-1]["run/status"] == "cancelled"
+
+
+def test_exact_cancelled_recovery_fails_closed_on_ambiguous_canonical_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_id = "00000000-0000-4000-8000-000000000099"
+
+    class ProviderRun:
+        def __init__(self, provider_id: str) -> None:
+            self.id = provider_id
+            self.name = "train.sft-00000000"
+            self.config = {"run_id": run_id}
+
+    class Api:
+        def __init__(self, server_url=None) -> None:
+            del server_url
+
+        def runs(self, project: str):
+            del project
+            return [ProviderRun("provider-exact"), ProviderRun("duplicate")]
+
+    monkeypatch.setattr(
+        "posttrain_tracking_trackio.adapter.trackio.Api",
+        Api,
+    )
+    monkeypatch.setattr(
+        "posttrain_tracking_trackio.adapter.require_remote_trackio_ready",
+        lambda **kwargs: None,
+    )
+    expected = RunSummary(
+        provider="trackio",
+        provider_run_id="provider-exact",
+        run_id=run_id,
+        display_name="train.sft-00000000",
+        project_id="conformance",
+        work_package_id="train/qwen",
+        stage="train",
+        job_kind="train.sft",
+        job_definition_version="train/sft@1",
+        status="running",
+        started_at=STARTED,
+    )
+
+    with pytest.raises(ContractError, match="exactly one"):
+        TrackioCancelledRunRecovery(
+            TrackioSettings(
+                project="conformance",
+                server_url="https://trackio.example",
+            )
+        ).recover_cancelled(
+            expected,
+            finished_at=STARTED + timedelta(seconds=10),
+        )
+
+
 def _verifiers_trace() -> dict:
     return {
         "id": "rollout-1",
@@ -87,6 +385,69 @@ def _verifiers_trace() -> dict:
         "stop_condition": "agent_completed",
         "is_completed": True,
     }
+
+
+@pytest.mark.asyncio
+async def test_trackio_round_trips_timing_only_inference_trace(trackio_dir: Path) -> None:
+    backend = TrackioBackend(TrackioSettings(project="trackio-inference-timing"))
+    tracked = backend.start_run(_spec("00000000-0000-4000-8000-000000000102"))
+    tracked.trace(
+        TraceObservation(
+            "inference",
+            "request-1",
+            {
+                "queue_seconds": 0.001,
+                "prefill_seconds": 0.010,
+                "decode_seconds": 0.200,
+            },
+        )
+    )
+    tracked.finish(RunOutcome("succeeded", STARTED, STARTED + timedelta(seconds=1)))
+
+    source = TrackioDataSource("trackio-inference-timing")
+    traces = await source.traces(tracked.run_id, TraceQuery(trace_type="inference"))
+
+    assert len(traces.items) == 1
+    assert traces.items[0].external_id == "request-1"
+    assert traces.items[0].payload["messages"] == []
+    assert traces.items[0].payload["prefill_seconds"] == 0.010
+
+
+@pytest.mark.asyncio
+async def test_trackio_trace_reader_pages_beyond_provider_batch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    records = [
+        {
+            "id": f"trace-{index}",
+            "messages": [],
+            "metadata": {
+                "external_id": f"request-{index}",
+                "observation_type": "inference",
+                "posttrain_payload_extra": {"queue_seconds": index / 1000},
+            },
+        }
+        for index in range(1001)
+    ]
+
+    class ProviderRun:
+        def traces(self, *, limit: int, offset: int, sort: str) -> list[dict[str, Any]]:
+            assert sort == "step_asc"
+            return records[offset : offset + limit]
+
+    source = TrackioDataSource("trackio-trace-pages")
+    monkeypatch.setattr(source, "_provider_run", lambda _run_id: ProviderRun())
+
+    first = await source.traces("run-1", TraceQuery(trace_type="inference", limit=1000))
+    second = await source.traces(
+        "run-1",
+        TraceQuery(trace_type="inference", cursor=first.next_cursor, limit=1000),
+    )
+
+    assert len(first.items) == 1000
+    assert first.next_cursor == "1000"
+    assert len(second.items) == 1
+    assert second.items[0].external_id == "request-1000"
 
 
 @pytest.mark.asyncio
@@ -150,7 +511,14 @@ async def test_trackio_write_read_conformance(trackio_dir: Path) -> None:
     backend = TrackioBackend(TrackioSettings(project="trackio-conformance"))
     tracked = backend.start_run(_spec("00000000-0000-4000-8000-000000000101"))
     tracked.event(EventObservation("operation_started", STARTED, {"phase": "train"}))
-    tracked.metric(MetricObservation("train/loss", 2.0, 0))
+    tracked.metric(
+        MetricObservation(
+            "train/loss",
+            2.0,
+            0,
+            attributes={"observation_source": "verifiers", "source_step": 0},
+        )
+    )
     tracked.metrics(MetricBatchObservation({"train/loss": 1.0, "train/tokens_per_s": 42.0}, 1))
     SQLiteStorage.bulk_log_system(
         "trackio-conformance",
@@ -190,6 +558,14 @@ async def test_trackio_write_read_conformance(trackio_dir: Path) -> None:
             metadata={"format": "peft"},
         )
     )
+    published = tracked.published_artifacts()
+    assert len(published) == 1
+    assert published[0].logical_name == "training/qwen-adapter"
+    assert published[0].reference.provider == "trackio"
+    assert published[0].reference.version == "v0"
+    assert published[0].reference.digest is not None
+    assert published[0].reference.provider_metadata["posttrain_content_digest"] == digest
+    assert published[0].reference.provider_metadata["posttrain_content_digest_kind"] == "file"
     outcome = RunOutcome("succeeded", STARTED, STARTED + timedelta(seconds=5))
     tracked.finish(outcome)
     tracked.finish(outcome)
@@ -217,6 +593,10 @@ async def test_trackio_write_read_conformance(trackio_dir: Path) -> None:
     series = await source.metric_series(tracked.run_id, ("train/loss", "missing"))
     assert [point.value for point in series[0].points] == [2.0, 1.0]
     assert [point.step for point in series[0].points] == [0, 1]
+    assert series[0].points[0].attributes == {
+        "observation_source": "verifiers",
+        "source_step": 0,
+    }
     assert series[1].points == ()
 
     system = await source.metric_series(
@@ -243,6 +623,26 @@ async def test_trackio_write_read_conformance(trackio_dir: Path) -> None:
 
     with pytest.raises(ContractError, match="different outcome"):
         tracked.finish(RunOutcome("cancelled", STARTED, STARTED + timedelta(seconds=6)))
+
+
+@pytest.mark.asyncio
+async def test_direct_canonical_system_metric_precedes_sampler_fallback(
+    trackio_dir: Path,
+) -> None:
+    del trackio_dir
+    project = "trackio-direct-system-metric"
+    run_id = "00000000-0000-4000-8000-000000000109"
+    tracked = TrackioBackend(TrackioSettings(project=project)).start_run(_spec(run_id))
+    tracked.metric(MetricObservation("system/gpu_vram_used_bytes", 12_345.0, 0))
+    tracked.finish(RunOutcome("succeeded", STARTED, STARTED + timedelta(seconds=1)))
+
+    source = TrackioDataSource(project)
+    detail = await source.get_run(run_id)
+    assert "system/gpu_vram_used_bytes" in detail.metric_names
+    (series,) = await source.metric_series(run_id, ("system/gpu_vram_used_bytes",))
+
+    assert [point.value for point in series.points] == [12_345.0]
+    assert [point.step for point in series.points] == [0]
 
 
 @pytest.mark.asyncio
@@ -299,3 +699,48 @@ async def test_trackio_failure_steps_and_input_materialization(trackio_dir: Path
     assert detail.summary.error is not None
     assert detail.summary.error.message == "safe failure"
     assert (await source.artifacts(consumer.run_id)).inputs[0].logical_name == "model/final"
+
+
+@pytest.mark.asyncio
+async def test_trackio_rejects_materialized_input_with_wrong_expected_digest(
+    trackio_dir: Path,
+) -> None:
+    backend = TrackioBackend(TrackioSettings(project="trackio-input-integrity"))
+    producer = backend.start_run(_spec("00000000-0000-4000-8000-000000000211"))
+    output_path = trackio_dir / "integrity-model.bin"
+    output_path.write_bytes(b"model")
+    producer.artifact(
+        ProducedArtifact(
+            "model/final",
+            "model",
+            LocalArtifactRef(
+                output_path.resolve(),
+                hashlib.sha256(output_path.read_bytes()).hexdigest(),
+            ),
+        )
+    )
+    published = producer.published_artifacts()[0]
+    producer.finish(RunOutcome("succeeded", STARTED, STARTED + timedelta(seconds=1)))
+    wrong_digest = "0" * 64
+    artifact_input = ArtifactInput(
+        StoredArtifactRef(
+            published.reference.provider,
+            published.reference.namespace,
+            published.reference.name,
+            published.reference.version,
+            published.reference.digest,
+            {"posttrain_content_digest": wrong_digest},
+        ),
+        "model",
+    )
+    consumer = backend.start_run(
+        _spec(
+            "00000000-0000-4000-8000-000000000212",
+            {"base_model": artifact_input},
+        )
+    )
+    with pytest.raises(ContractError, match="content digest does not match"):
+        consumer.materialize_inputs(
+            {"base_model": artifact_input},
+            trackio_dir / "integrity-inputs",
+        )

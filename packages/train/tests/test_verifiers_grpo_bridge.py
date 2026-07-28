@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
+from itertools import count, islice
 from types import SimpleNamespace
 from typing import Any, TypeVar, cast
 
@@ -27,7 +28,11 @@ from posttrain.train.integrations import (
     VerifiersEnvironmentRolloutBridge,
     preflight_verifiers_environment,
 )
-from posttrain.train.integrations.verifiers import _PolicyClient, load_verifiers_bridge_snapshot
+from posttrain.train.integrations.verifiers import (
+    _load_selected_tasks,
+    _PolicyClient,
+    load_verifiers_bridge_snapshot,
+)
 
 pytest.importorskip("verifiers")
 
@@ -125,8 +130,82 @@ class FakeEnvironment:
         return FakeEpisode(task, n)
 
 
+class InfiniteAlphabetStyleTaskset:
+    INFINITE = True
+
+    def __init__(self) -> None:
+        self.select_calls: list[tuple[int | None, bool]] = []
+
+    def load(self):
+        for index in count(41, 2):
+            yield SimpleNamespace(
+                data=SimpleNamespace(
+                    idx=index,
+                    prompt=None,
+                    info={"num_turns": 3},
+                )
+            )
+
+    def select(self, num_tasks: int | None = None, shuffle: bool = False):
+        self.select_calls.append((num_tasks, shuffle))
+        assert num_tasks is not None
+        return list(islice(self.load(), num_tasks))
+
+
+class FiniteTaskset:
+    INFINITE = False
+
+    def __init__(self) -> None:
+        self.tasks = [SimpleNamespace(data=SimpleNamespace(idx=index, prompt=f"task-{index}")) for index in range(6)]
+
+    def load(self):
+        return self.tasks
+
+    def select(self, *_args, **_kwargs):
+        raise AssertionError("finite tasksets must retain seeded index sampling")
+
+
 def add_shaping(trace: Trace) -> None:
     trace.record_reward("shape", 0.5, 0.1)
+
+
+def test_infinite_taskset_uses_bounded_selection_and_native_task_identities() -> None:
+    taskset = InfiniteAlphabetStyleTaskset()
+    environment = SimpleNamespace(
+        id="multi-turn-alphabet-sort",
+        num_tasks=3,
+        parameters={"sampling_seed": 17},
+    )
+
+    selected = _load_selected_tasks(
+        cast(Any, environment),
+        cast(Any, lambda: SimpleNamespace(taskset=taskset)),
+    )
+
+    assert taskset.select_calls == [(3, False)]
+    assert tuple(selected) == (41, 43, 45)
+    assert [task.data.info["num_turns"] for task in selected.values()] == [3, 3, 3]
+
+
+def test_finite_taskset_preserves_seeded_position_sampling() -> None:
+    taskset = FiniteTaskset()
+    environment = SimpleNamespace(
+        id="finite",
+        num_tasks=3,
+        parameters={"sampling_seed": 17},
+    )
+
+    selected = _load_selected_tasks(
+        cast(Any, environment),
+        cast(Any, lambda: SimpleNamespace(taskset=taskset)),
+    )
+
+    assert tuple(selected) == (2, 3, 4)
+    assert [task.data.prompt for task in selected.values()] == [
+        "task-2",
+        "task-3",
+        "task-4",
+    ]
 
 
 def test_policy_client_preserves_exact_turn_tokens_and_response() -> None:
@@ -179,6 +258,7 @@ def test_native_bridge_projects_multiturn_masks_rewards_and_trace_artifact(tmp_p
         )
     )
     artifacts = bridge.finalize()
+    evidence = bridge.evidence()
 
     assert bridge.dataset.examples[0].prompt == "Arbitrary environment prompt"
     assert len(rollouts) == 2
@@ -199,6 +279,14 @@ def test_native_bridge_projects_multiturn_masks_rewards_and_trace_artifact(tmp_p
     assert len(artifacts) == 1
     assert artifacts[0].metadata["trace_count"] == 2
     assert artifacts[0].metadata["technique"] == technique
+    assert len(evidence.traces) == 2
+    assert evidence.traces[0].external_id == rollouts[0].trace.external_id
+    assert evidence.traces[0].attributes["environment_id"] == "custom-v1"
+    assert len(evidence.metrics) == 1
+    assert evidence.metrics[0].step == 3
+    assert evidence.metrics[0].values["train/rl/rollouts_attempted"] == 2
+    assert evidence.metrics[0].values["train/rl/rollouts_completed"] == 2
+    assert evidence.metrics[0].values["train/rl/reward_std"] == pytest.approx(0.0)
 
 
 def test_native_bridge_portable_snapshot_reconstructs_without_live_environment_state(tmp_path) -> None:

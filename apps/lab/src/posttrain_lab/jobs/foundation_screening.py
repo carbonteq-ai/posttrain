@@ -14,10 +14,10 @@ from posttrain.serve import (
     launch,
     probe,
 )
-from posttrain.serve.results import BenchmarkResult
+from posttrain.serve.results import BenchmarkSweepResult
 
 
-def run_screen_benchmark(context: RunContext, request: ServeBenchmarkRequest) -> BenchmarkResult:
+def run_screen_benchmark(context: RunContext, request: ServeBenchmarkRequest) -> BenchmarkSweepResult:
     return benchmark(context, request)
 
 

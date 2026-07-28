@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -11,11 +12,47 @@ from typing import Literal
 
 from posttrain.common import ContractError
 from posttrain.common.selections import validate_selection_id
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 _CONTROL_DIRECTORY = ".posttrain"
 _MANIFEST = "project.toml"
 _PROJECT_ROOT_ENV = "POSTTRAIN_PROJECT_ROOT"
+_PROVIDER = re.compile(r"^[a-z][a-z0-9-]*$")
+
+
+class _ExecutionDefaultsManifest(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    provider: str | None = None
+    target: str | None = None
+    runtime_profile: str | None = None
+    timeout_seconds: int | None = Field(default=None, ge=1)
+    max_attempts: int | None = Field(default=None, ge=1)
+    priority: int | None = None
+    environment_names: tuple[str, ...] = ()
+
+    @field_validator("provider")
+    @classmethod
+    def _validate_provider(cls, value: str | None) -> str | None:
+        if value is not None and not _PROVIDER.fullmatch(value):
+            raise ValueError("provider must be a lowercase identifier")
+        return value
+
+    @field_validator("target", "runtime_profile")
+    @classmethod
+    def _validate_optional_identity(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("execution identity cannot be empty")
+        return value
+
+    @field_validator("environment_names")
+    @classmethod
+    def _validate_environment_names(cls, values: tuple[str, ...]) -> tuple[str, ...]:
+        if len(set(values)) != len(values):
+            raise ValueError("execution environment names must be unique")
+        if any(not value.strip() or "=" in value for value in values):
+            raise ValueError("execution environment entries must be variable names")
+        return values
 
 
 class _ProjectManifest(BaseModel):
@@ -28,6 +65,21 @@ class _ProjectManifest(BaseModel):
     state: str = "state"
     tracking: Literal["trackio", "wandb", "none"] = "trackio"
     entry: str | None = None
+    project_brief: str | None = None
+    execution: _ExecutionDefaultsManifest = _ExecutionDefaultsManifest()
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectExecutionDefaults:
+    """Committed non-secret defaults for planning one project execution."""
+
+    provider: str | None = None
+    target: str | None = None
+    runtime_profile: str | None = None
+    timeout_seconds: int | None = None
+    max_attempts: int | None = None
+    priority: int | None = None
+    environment_names: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,9 +93,11 @@ class ProjectLayout:
     catalog_overlays: tuple[Path, ...]
     work_packages: Path
     state: Path
+    project_brief: Path | None = None
     tracking: Literal["trackio", "wandb", "none"] = "trackio"
     entry: str | None = None
     base_catalog: Path | None = None
+    execution: ProjectExecutionDefaults = ProjectExecutionDefaults()
 
     def __post_init__(self) -> None:
         validate_selection_id(self.project_id, "project id")
@@ -54,6 +108,8 @@ class ProjectLayout:
             raise ContractError("project layout catalog overlay paths must be absolute")
         if self.base_catalog is not None and not self.base_catalog.is_absolute():
             raise ContractError("project layout base catalog path must be absolute")
+        if self.project_brief is not None and not self.project_brief.is_absolute():
+            raise ContractError("project layout project brief path must be absolute")
         if self.entry is not None:
             _validate_entry(self.entry)
 
@@ -121,8 +177,14 @@ def load_project_layout(root: Path) -> ProjectLayout:
         manifest = _ProjectManifest.model_validate(payload)
     except ValidationError as error:
         raise ContractError(f"invalid post-training project manifest {manifest_path}: {error}") from error
-    if manifest.schema_version != 1:
-        raise ContractError(f"unsupported post-training project schema_version {manifest.schema_version}; expected 1")
+    if manifest.schema_version not in {1, 2}:
+        raise ContractError(
+            f"unsupported post-training project schema_version {manifest.schema_version}; expected 1 or 2"
+        )
+    if manifest.schema_version == 1 and manifest.project_brief is not None:
+        raise ContractError("post-training project_brief requires project schema_version 2")
+    if manifest.schema_version == 2 and manifest.project_brief is None:
+        raise ContractError("post-training project schema_version 2 requires project_brief")
     validate_selection_id(manifest.project_id, "project id")
     if len(set(manifest.catalog_overlays)) != len(manifest.catalog_overlays):
         raise ContractError("post-training project catalog overlays must be unique")
@@ -137,6 +199,13 @@ def load_project_layout(root: Path) -> ProjectLayout:
         "work_packages",
     )
     state = _state_path(control_dir, manifest.state)
+    project_brief = (
+        _project_source_path(project_root, control_dir, manifest.project_brief, "project_brief")
+        if manifest.project_brief is not None
+        else None
+    )
+    if project_brief is not None and not project_brief.is_file():
+        raise ContractError(f"post-training project brief not found: {project_brief}")
     return ProjectLayout(
         project_id=manifest.project_id,
         root=project_root,
@@ -145,8 +214,18 @@ def load_project_layout(root: Path) -> ProjectLayout:
         catalog_overlays=overlays,
         work_packages=work_packages,
         state=state,
+        project_brief=project_brief,
         tracking=manifest.tracking,
         entry=_validate_entry(manifest.entry) if manifest.entry is not None else None,
+        execution=ProjectExecutionDefaults(
+            provider=manifest.execution.provider,
+            target=manifest.execution.target,
+            runtime_profile=manifest.execution.runtime_profile,
+            timeout_seconds=manifest.execution.timeout_seconds,
+            max_attempts=manifest.execution.max_attempts,
+            priority=manifest.execution.priority,
+            environment_names=manifest.execution.environment_names,
+        ),
     )
 
 
@@ -178,4 +257,9 @@ def _validate_entry(value: str) -> str:
     return value
 
 
-__all__ = ["ProjectLayout", "discover_project", "load_project_layout"]
+__all__ = [
+    "ProjectExecutionDefaults",
+    "ProjectLayout",
+    "discover_project",
+    "load_project_layout",
+]

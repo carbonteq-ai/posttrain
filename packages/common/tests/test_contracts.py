@@ -23,6 +23,7 @@ from posttrain.common import (
     ProducedArtifact,
     RunContext,
     TraceObservation,
+    Workload,
 )
 from posttrain.common.variants import FOUNDATION_VARIANTS
 
@@ -79,6 +80,15 @@ class IdentityContractTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ContractError, "pinned base artifact"):
             replace(foundation, artifact=HubModelRef("Qwen/Qwen3.5-2B", "b" * 40))
+
+    def test_workload_requires_an_ordered_unique_concurrency_sweep(self) -> None:
+        workload = Workload("workloads/capacity", "1", {"context_window": 32_768}, (1, 2, 4, 8))
+
+        self.assertEqual(workload.concurrency, (1, 2, 4, 8))
+        with self.assertRaisesRegex(ContractError, "unique"):
+            replace(workload, concurrency=(1, 2, 2))
+        with self.assertRaisesRegex(ContractError, "strictly increasing"):
+            replace(workload, concurrency=(1, 4, 2))
 
 
 class CanonicalRunContextTests(unittest.TestCase):

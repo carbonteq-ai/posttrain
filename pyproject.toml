@@ -1,12 +1,12 @@
 [project]
 name = "lab"
-version = "0.1.0"
+version = "0.2.1"
 description = "Local post-training lab (uv workspace)"
 readme = "README.md"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.13,<3.14"
 dependencies = [
-    "posttrain-common",
-    "posttrain-data",
+    "posttrain-common==0.2.1",
+    "posttrain-data==0.2.1",
 ]
 
 [dependency-groups]
@@ -29,6 +29,10 @@ members = ["apps/*", "packages/*"]
 [tool.uv]
 package = false
 
+[tool.posttrain.pack]
+project_packages = ["apps/lab"]
+source_includes = ["apps/lab"]
+
 [[tool.uv.index]]
 name = "pytorch-cu130"
 url = "https://download.pytorch.org/whl/cu130"
@@ -44,11 +48,19 @@ testpaths = [
     "apps/cli/tests",
     "apps/lab/tests",
     "apps/observatory/tests",
+    "apps/release/tests",
+    "apps/runtime/tests",
     "packages/catalog/tests",
     "packages/common/tests",
     "packages/data/tests",
     "packages/eval/tests",
+    "packages/execution/tests",
+    "packages/execution-buildkit/tests",
+    "packages/execution-pack/tests",
+    "packages/execution-dstack/tests",
+    "packages/execution-local/tests",
     "packages/jobs/tests",
+    "packages/runtime-images/tests",
     "packages/serve/tests",
     "packages/tracking/tests",
     "packages/tracking-trackio/tests",
@@ -64,7 +76,7 @@ markers = [
 ]
 
 [tool.ruff]
-target-version = "py312"
+target-version = "py313"
 line-length = 120
 extend-exclude = [".venv", ".venvs", "outputs", "checkpoints"]
 
@@ -75,10 +87,10 @@ select = ["E4", "E7", "E9", "F", "I", "UP", "B"]
 "**/tests/**/*.py" = ["B017"]
 
 [tool.ruff.lint.isort]
-known-third-party = ["wandb"]
+known-third-party = ["trackio", "wandb"]
 
 [tool.pyright]
-pythonVersion = "3.12"
+pythonVersion = "3.13"
 typeCheckingMode = "standard"
 include = ["apps", "packages", "tests"]
 exclude = ["**/__pycache__", ".venv", ".venvs"]
@@ -90,7 +102,7 @@ branch = true
 source = [
     "posttrain_cli",
     "posttrain_lab",
-    "posttrain",
+    "posttrain==0.2.1",
 ]
 
 [tool.coverage.report]
@@ -100,7 +112,7 @@ precision = 1
 fail_under = 65
 
 [tool.importlinter]
-root_packages = ["posttrain", "posttrain_cli", "posttrain_lab", "posttrain_observatory"]
+root_packages = ["posttrain", "posttrain_cli", "posttrain_lab", "posttrain_observatory", "posttrain_release", "posttrain_runtime"]
 include_external_packages = true
 
 [[tool.importlinter.contracts]]

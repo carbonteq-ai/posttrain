@@ -1,0 +1,25 @@
+[project]
+name = "posttrain-execution-dstack"
+version = "0.2.1"
+description = "dstack execution provider for posttrain"
+authors = [{ name = "CarbonTeq" }]
+license = "Apache-2.0"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "posttrain-common==0.2.1",
+  "posttrain-execution==0.2.1",
+]
+
+[tool.uv]
+package = true
+
+[tool.uv.sources]
+posttrain-common = { workspace = true }
+posttrain-execution = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/posttrain_execution_dstack"]

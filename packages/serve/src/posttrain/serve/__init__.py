@@ -12,17 +12,25 @@ from .online import (
     served_model_name,
 )
 from .requests import ServeBenchmarkRequest
-from .results import BenchmarkResult
+from .results import (
+    BenchmarkPointFailure,
+    BenchmarkResult,
+    BenchmarkSweepResult,
+    InferenceRequestResult,
+)
 
 __all__ = [
     "BenchmarkCell",
+    "BenchmarkPointFailure",
     "BenchmarkResult",
+    "BenchmarkSweepResult",
     "ServeBenchmarkRequest",
     "BenchmarkSuite",
     "CORE_INFERENCE_V1",
     "Endpoint",
     "GenerationRequest",
     "GenerationResult",
+    "InferenceRequestResult",
     "ProbeResult",
     "ServeLaunchRequest",
     "WorkloadShape",

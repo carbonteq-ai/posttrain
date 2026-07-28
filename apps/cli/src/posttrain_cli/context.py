@@ -14,6 +14,7 @@ from posttrain.catalog import ProjectLayout, discover_project, open_catalog
 class CliState:
     project_root: Path | None = None
     json_output: bool = False
+    traceback: bool = False
     json_stream: TextIO = field(default_factory=lambda: sys.stdout)
 
     def layout(self) -> ProjectLayout:

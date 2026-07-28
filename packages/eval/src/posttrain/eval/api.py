@@ -61,6 +61,7 @@ def evaluate(
             "environment_package": environment.source.package,
             "environment_revision": environment.source.revision,
         },
+        role="evaluation",
     )
     context.artifact(artifact)
     sync = TraceSynchronization(
@@ -73,6 +74,11 @@ def evaluate(
     )
     context.metrics(
         {
+            "eval/run/rollouts_attempted": backend.population.attempted,
+            "eval/run/rollouts_complete": backend.population.complete,
+            "eval/run/rollouts_failed": backend.population.failed,
+            "eval/run/rollouts_truncated": backend.population.truncated,
+            "eval/run/coverage_missing": backend.population.coverage_missing,
             "eval/traces_observed": sync.observed,
             "eval/traces_emitted": sync.emitted,
             "eval/trace_records_invalid": sync.invalid,
@@ -82,13 +88,18 @@ def evaluate(
         },
         attributes=attributes,
     )
+    evaluation_status = "complete" if sync.complete and backend.population.coverage_missing == 0 else "partial"
     context.event(
         "evaluation_completed",
         {
             **attributes,
-            "rollouts": len(backend.trace_ids),
+            "rollouts": backend.population.attempted,
+            "rollouts_complete": backend.population.complete,
+            "rollouts_failed": backend.population.failed,
+            "rollouts_truncated": backend.population.truncated,
+            "coverage_missing": backend.population.coverage_missing,
             "trace_sync_complete": sync.complete,
-            "evaluation_status": sync.status,
+            "evaluation_status": evaluation_status,
         },
     )
     return EvaluationResult(
@@ -98,6 +109,7 @@ def evaluate(
         trace_ids=backend.trace_ids,
         native_artifact=artifact,
         synchronization=sync,
+        population=backend.population,
     )
 
 

@@ -14,8 +14,14 @@ from posttrain.common import Catalog, CatalogLayer, CatalogRef
 from posttrain.common.catalog import SelectionDecoder
 from posttrain.common.selections import Selection, SelectionFamily
 from posttrain.data import DATA_CATALOG_DECODERS
-from posttrain.eval import evaluation_catalog_decoders
-from posttrain.eval.programs import GENERAL_ENVIRONMENT_FACTORIES
+from posttrain.eval import (
+    EnvironmentActivation,
+    EnvironmentFactory,
+    PythonFactoryActivation,
+    VerifiersV1ConfigActivation,
+    evaluation_catalog_decoders,
+)
+from posttrain.eval.programs import GENERAL_ENVIRONMENT_ACTIVATIONS
 from posttrain.train import TRAIN_CATALOG_DECODERS
 
 from .files import (
@@ -23,49 +29,61 @@ from .files import (
     CatalogLayerManifestSchema,
     load_catalog_layer,
 )
-from .project import ProjectLayout, discover_project, load_project_layout
+from .project import (
+    ProjectExecutionDefaults,
+    ProjectLayout,
+    discover_project,
+    load_project_layout,
+)
 
 BASE_CATALOG_RELEASE = "framework-v1"
 
 
-def _automationbench_training_environment() -> Any:
-    try:
-        from verifiers.v1.env import EnvConfig  # pyright: ignore[reportMissingImports]
-    except ImportError as error:
-        raise RuntimeError("AutomationBench execution requires the pinned Verifiers environment package") from error
-    config = EnvConfig.model_validate(
-        {
-            "taskset": {"id": "automationbench-v1"},
-            "harness": {"id": "null", "runtime": {"type": "subprocess"}},
-            "timeout": {"setup": 120, "rollout": 1800, "finalize": 60, "scoring": 120},
-            "max_turns": 50,
-            "max_total_tokens": 8192,
-        }
-    )
-    return config
+AUTOMATIONBENCH_TRAINING_ACTIVATION = VerifiersV1ConfigActivation(
+    {
+        "taskset": {"id": "automationbench-v1"},
+        "harness": {"id": "null", "runtime": {"type": "subprocess"}},
+        "timeout": {"setup": 120, "rollout": 1800, "finalize": 60, "scoring": 120},
+        "max_turns": 50,
+        "max_total_tokens": 8192,
+    }
+)
 
 
 def environment_factory_registry(
-    extras: Mapping[str, Any] | None = None,
-) -> Mapping[str, Any]:
-    """Compose built-ins, installed package entry points, and explicit extras."""
+    extras: Mapping[str, EnvironmentActivation | EnvironmentFactory] | None = None,
+) -> Mapping[str, EnvironmentActivation]:
+    """Return inert legacy aliases without importing environment packages."""
 
-    factories: dict[str, Any] = {
-        **GENERAL_ENVIRONMENT_FACTORIES,
-        "automationbench-zapier-training": _automationbench_training_environment,
+    activations: dict[str, EnvironmentActivation] = {
+        **GENERAL_ENVIRONMENT_ACTIVATIONS,
+        "automationbench-zapier-training": AUTOMATIONBENCH_TRAINING_ACTIVATION,
     }
     for entry_point in entry_points(group="posttrain.environment_factories"):
-        if entry_point.name in factories:
+        if entry_point.name in activations:
             raise RuntimeError(f"duplicate environment factory entry point: {entry_point.name}")
-        factory = entry_point.load()
-        if not callable(factory):
-            raise RuntimeError(f"environment factory entry point {entry_point.name!r} is not callable")
-        factories[entry_point.name] = factory
-    for name, factory in (extras or {}).items():
-        if not callable(factory):
-            raise TypeError(f"environment factory {name!r} is not callable")
-        factories[name] = factory
-    return factories
+        activations[entry_point.name] = PythonFactoryActivation(_entry_point_reference(entry_point))
+    for name, activation in (extras or {}).items():
+        activations[name] = (
+            activation
+            if isinstance(
+                activation,
+                (PythonFactoryActivation, VerifiersV1ConfigActivation),
+            )
+            else PythonFactoryActivation.from_callable(activation)
+        )
+    return activations
+
+
+def _entry_point_reference(entry_point: Any) -> str:
+    module = getattr(entry_point, "module", None)
+    attribute = getattr(entry_point, "attr", None)
+    if isinstance(module, str) and isinstance(attribute, str):
+        return f"{module}:{attribute}"
+    value = getattr(entry_point, "value", None)
+    if not isinstance(value, str):
+        raise RuntimeError(f"environment factory entry point {entry_point.name!r} has no import reference")
+    return value.partition(" ")[0]
 
 
 def catalog_decoders(
@@ -144,6 +162,7 @@ __all__ = [
     "CatalogDocumentSchema",
     "CatalogLayerManifestSchema",
     "ProjectLayout",
+    "ProjectExecutionDefaults",
     "catalog_decoders",
     "discover_project",
     "environment_factory_registry",

@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 from posttrain.common import ExecutionTarget, InferenceBinding, JsonValue, Workload
 from posttrain.common.variants import LFM_25_12B_THINKING, QWEN_35_2B
+from posttrain.serve.prompts import load_prompt_corpus
 
 
 @pytest.fixture
@@ -87,4 +88,30 @@ def foundation_smoke_workload() -> Workload:
             "serve/p95_ttft",
             "serve/peak_gpu_memory_gib",
         ),
+    )
+
+
+@pytest.fixture
+def representative_workload() -> Workload:
+    corpus = load_prompt_corpus("general-serving-v1")
+    return Workload(
+        id="workloads/general-serving-v1@1",
+        revision="1",
+        requests={
+            "suite_id": "representative-capacity-v1",
+            "shape_id": "general-serving-v1-128out",
+            "context_window": 32_768,
+            "output_tokens": 128,
+            "cohort": "representative",
+            "corpus": {
+                "id": corpus.manifest.id,
+                "revision": corpus.manifest.revision,
+                "digest": corpus.manifest.digest,
+            },
+            "selection_seed": 17,
+            "record_count": 128,
+        },
+        concurrency=(4,),
+        warmup_repetitions=1,
+        measured_repetitions=32,
     )

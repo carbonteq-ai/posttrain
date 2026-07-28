@@ -121,6 +121,10 @@ does not introduce new selection, work, run, artifact, or evidence types.
 posttrain init [PATH] --template sft|grpo [--project-id ID] [--no-install]
 posttrain version
 posttrain doctor
+posttrain runtime images list
+posttrain runtime images verify [--variant VARIANT]
+posttrain runtime images build [--variant VARIANT] [--push]
+posttrain runtime images mirror --registry PREFIX [--variant VARIANT]
 posttrain project show
 posttrain catalog list [--family FAMILY]
 posttrain catalog show FAMILY ID
@@ -128,6 +132,19 @@ posttrain catalog validate
 posttrain dataset validate DATASET_ID
 posttrain work-package validate PATH
 posttrain work-package run PATH --job JOB_ID
+posttrain job plan WORK_PACKAGE --job JOB_ID
+posttrain job pack WORK_PACKAGE --job JOB_ID
+posttrain job run WORK_PACKAGE --job JOB_ID [--provider local|dstack] [--build-missing]
+posttrain job diff WORK_PACKAGE --job JOB_ID [--from KEY] [--to KEY]
+posttrain run list
+posttrain run status RUN_ID
+posttrain run wait RUN_ID
+posttrain run logs RUN_ID
+posttrain run cancel RUN_ID
+posttrain run retry-submit RUN_ID
+posttrain run reconcile RUN_ID
+posttrain run cleanup RUN_ID
+posttrain run show RUN_ID
 posttrain observatory up [--port PORT]
 ```
 
@@ -139,6 +156,55 @@ and two for invalid command syntax. The primary CLI is built with Typer; that is
 an implementation detail and does not change the public noun surface. Readable
 terminal output is the default; `--json` provides deterministic automation
 output.
+
+`job` owns immutable planning, packing, and submission. Once a canonical
+`run_id` exists, `run` owns provider lifecycle, admission state, retained
+evidence reconciliation, and cleanup. This noun split supersedes the earlier
+draft spelling of lifecycle commands under `posttrain job`.
+
+An actual-job image is identified by content, not by a declared version. The
+package key is a digest over resolved catalog selections, resolved
+configuration, project configuration, project and framework source, the
+dependency closure, every materialized dataset, and the job-kind image. Any
+change to any of those produces a different package key and therefore a
+different published image, so a job image is never overwritten and never needs
+a version bump; two different configurations cannot share an identity. `job
+diff` reports which of those inputs differ between two packages, because a
+digest alone states that something changed without saying what, and the honest
+answer is often narrower than a reader assumes.
+
+`runtime` owns the framework-published image levels that exist before any
+project: the universal base and the job-kind images. The framework publishes
+these once per release and pins their digests in the distribution, so an
+installed wheel already knows the exact image identity it requires. `list`
+reports those pinned digests, `verify` compares them against a registry,
+`build` reproduces them from the shipped definitions for a site that can reach
+neither the public registry nor a mirror, and `mirror` copies already-published
+digests into a site's own registry without rebuilding. Every one of these is a
+consumer operation. Publishing the release itself — pushing base and kind
+images to the framework's public registry and rewriting the pinned manifest —
+is a framework-owner operation and is deliberately absent from this surface.
+`runtime` never touches actual-job images; those remain owned by `job pack`.
+
+Two registries are in play and they are not the same thing. The framework
+publishes its base and job-kind images to one public registry per release; that
+location is a property of the framework, is identical for every consumer, and
+is recorded in the distribution rather than configured. A project publishes its
+own actual-job images somewhere else entirely, usually a private registry, and
+that location is per-site configuration. Conflating them makes a project's
+private registry look like a framework release channel.
+
+The `POSTTRAIN_REGISTRY` environment variable names the second one: the OCI
+registry prefix a project pushes its own actual-job images to. A site that
+cannot reach the public registry may also mirror the framework's base and kind
+images into it; because image digests are content-addressed, mirroring
+preserves image identity exactly, so a mirrored image satisfies the same digest
+the distribution pins. `POSTTRAIN_REGISTRY` is a location, not a credential;
+registry authentication stays in the environment's own Docker or OCI credential
+store. When it is unset, `job pack` and `job run` fail with a project contract
+error rather than defaulting to a registry. `doctor` reports its presence and
+reachability, and fails when a reachable kind image does not carry the lock
+digest the installed framework expects.
 
 Initialization writes the project layout and an installable project package,
 then creates the project environment and installs dependencies. There is no
@@ -191,7 +257,9 @@ not on the dataset.
 | Field | Role |
 | --- | --- |
 | `id` / `revision` | Env/taskset identity |
-| `package` | Published Verifiers (or compatible) package |
+| `package` | Installable Verifiers (or compatible) package name |
+| `repository` / `source_revision` / `subdirectory` | Secret-free Git URL, full commit SHA, and package root |
+| `activation` | Declarative Verifiers config by default; optional real `module:callable` for custom packages |
 | `split` / subset | Task selection for this binding |
 | `parameters` | Task-meaningful timeouts/limits |
 | `reward_components` | Declared raw signal names (meanings owned by env) |
@@ -295,7 +363,10 @@ and [06 · Verifiers ingest](./06-observation-and-lineage.md#verifiers-ingest-no
 
 ### `Workload`
 
-Request shapes, concurrency, warmup/repeat policy, required operating measures.
+Request shapes, a versioned prompt-corpus identity, representative or
+controlled cohort, ordered bounded concurrency sweep, saturation methodology,
+warmup/repeat policy, and required operating measures. Project throughput,
+latency, context, and reliability thresholds are not workload fields.
 
 ### `ExecutionTarget`
 
@@ -373,10 +444,14 @@ entries use format `nemo-ranked` (or `auto`). Materialization routes through
 `supervised_from_nemo` / `preferences_from_nemo` and caches the same canonical
 HF-normalized JSONL used by other sources.
 
-Environment entries bind a pinned Verifiers package and factory. Standard
-GRPO, distillation, and evaluation definitions build the existing environment
-bridges from the resolved `EnvironmentBinding`; projects do not supply a
-parallel dataset seat for environment-only GRPO.
+Environment entries bind a pinned Verifiers package source and serializable
+activation. Catalog loading does not import that package. `job pack`
+fetches the full Git commit, may build several selected environment
+subdirectories from one checkout, records each tree and wheel digest, and
+qualifies every activation in the actual-job image. Standard GRPO, distillation,
+and evaluation definitions build the existing environment bridges from the
+resolved `EnvironmentBinding`; projects do not supply a parallel dataset seat
+for environment-only GRPO.
 
 ## RunContext
 
@@ -482,6 +557,12 @@ OnPolicyDistillationRequest
   teacher_inference: InferenceBinding      # exact-token teacher scoring
   quantization: QuantizationPlan | None    # when student update requires it
 ```
+
+`ServeBenchmarkRequest` does not accept a project-requirements seat. The
+project runtime snapshots the typed project brief beside the resolved seats,
+while the operation returns the measured concurrency points and their safe
+failure states. Representative and controlled workloads retain distinct
+identities.
 
 `train.grpo` is environment-only in the current API. A work package binds an
 `EnvironmentBinding` reference; it does not bind a dataset, prompt collection,
@@ -687,12 +768,20 @@ posttrain_observatory  # dedicated read product and query/intelligence service
   work_package_view(work_package_id) -> WorkPackageView
   stage_view(project_id, stage) -> StageView
   lineage_view(model: ModelVariant) -> LineageView
+  serving_capacity_run_view(run_id) -> ServingCapacityRunView
   serving_pareto_view(project_id, screen_work_package_id) -> ParetoView
   export_report(view, format) -> MaterializedReport
 ```
 
 Views must expose `missing` | `failed` | `unsupported` | `not_run` |
 `reused_from_framework` | `incomparable`. No report API picks a production winner.
+
+Serving-capacity views apply project constraints only after reading evidence.
+Their versioned calculator selects the highest-throughput measured point that
+satisfies context, latency, reliability, and evidence-completeness constraints.
+It reports eligibility against the project minimum throughput and may compute
+a Pareto set only across runs with the same requirement snapshot,
+representative workload/corpus, target, and calculator version.
 
 Each supported job kind has one versioned `JobTelemetryDefinition` owned by
 Observatory and describing summary fields, chart series, health rules,
@@ -715,7 +804,7 @@ of raw provider rows.
       train_sft_bootstrap.yaml
       qualify_sft.yaml
     state/                 # ignored scratch/cache/recovery/provider state
-  pyproject.toml           # installed project and pinned environment packages
+  pyproject.toml           # installed project, dependency pins, and optional [tool.posttrain.pack] source selection
   project_entry.py         # optional escape hatch; absent on the happy path
 ```
 
@@ -725,9 +814,29 @@ resource; `.posttrain/catalog/` contains project overlays only. Durable
 artifacts remain observer/backend values and do not derive identity from
 `.posttrain/state/`.
 
+`[tool.posttrain.pack]` may declare sorted `project_packages` and
+`source_includes`. The normal single-package project defaults to installing
+`.` and snapshots `pyproject.toml`, `src/`, and a declared readme. Monorepos
+declare package roots explicitly. These values select code only; the framework
+always adds the selected work package, project manifest, overlays, and project
+brief as a closed configuration bundle. Repeatable CLI source options may
+override the committed values for an experiment, and their selected bytes
+become a different package identity. The packer never implicitly copies
+`.git/`, `.posttrain/state/`, credentials, model weights, or unrelated
+repository contents.
+
 ## Validation
 
-Before side effects, operations (or the resolver) check:
+Composition validation and detached planning perform only checks that are safe
+on the developer machine: immutable references, required seats, selection
+types, and cross-seat compatibility. They do not import CUDA backends,
+Verifiers, or independently packaged environments. Explicit materialization
+commands may install and validate local dependencies. The selected execution
+runtime performs native backend and environment activation immediately before
+the operation starts.
+
+Before operation side effects, the composition layer or execution runtime
+checks:
 
 - required seats present for the job kind
 - renderer/tokenizer alignment across model, dataset, inference, env

@@ -9,7 +9,7 @@ follow the generated project workflow instead.
 All developers need:
 
 - Git;
-- [`mise`](https://mise.jdx.dev/) or an existing Python 3.12 installation;
+- [`mise`](https://mise.jdx.dev/) or an existing Python 3.13 installation;
 - [`uv`](https://docs.astral.sh/uv/);
 - access to the private or organization-owned Git dependencies selected by
   `uv.lock`.
@@ -99,7 +99,7 @@ If vLLM cannot locate the wheel-provided CUDA runtime, add its library directory
 for the current shell:
 
 ```bash
-export LD_LIBRARY_PATH="$(pwd)/.venv/lib/python3.12/site-packages/nvidia/cu13/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export LD_LIBRARY_PATH="$(pwd)/.venv/lib/python3.13/site-packages/nvidia/cu13/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 ```
 
 Do not commit an absolute checkout path or credentials in `.env`. The repository

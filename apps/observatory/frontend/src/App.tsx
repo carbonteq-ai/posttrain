@@ -27,6 +27,8 @@ import {
 
 import { FilterPopover } from './components/FilterPopover';
 import { PhaseMemoryTimeline } from './components/PhaseMemoryTimeline';
+import { ServingBenchmarkOverview } from './features/serving/ServingBenchmarkOverview';
+import { ServingCapacityWorkPackageView } from './features/serving/ServingCapacityWorkPackage';
 
 import {
   api,
@@ -35,6 +37,7 @@ import {
   type MetricSeries,
   type RunItem,
   type RunView,
+  type ServingCapacityWorkPackage,
   type SystemMetrics,
   type TraceDetail,
   type TraceEvaluation,
@@ -105,10 +108,35 @@ const jobCopy: Record<string, { eyebrow: string; title: string; question: string
     title: 'Policy learning evidence',
     question: 'Does reward improve while rollout coverage, update stability, policy freshness, and runtime efficiency remain healthy?',
   },
+  'train.sampo': {
+    eyebrow: 'STEP-AWARE MULTI-TURN POLICY OPTIMIZATION',
+    title: 'Hierarchical policy-learning evidence',
+    question: 'Do episode and turn-level credit assignment improve multi-turn behavior without destabilizing policy updates?',
+  },
+  'train.distill': {
+    eyebrow: 'ON-POLICY DISTILLATION',
+    title: 'Student learning evidence',
+    question: 'Is the student matching fresh teacher scores while retaining complete rollout and teacher-runtime evidence?',
+  },
+  'data.prepare': {
+    eyebrow: 'DATASET PREPARATION',
+    title: 'Prepared dataset evidence',
+    question: 'Did the selected source produce the expected immutable dataset population and retained artifact?',
+  },
   'eval.domain': {
     eyebrow: 'DOMAIN EVALUATION',
     title: 'Evaluation evidence',
     question: 'Which task slices and exact traces explain aggregate quality?',
+  },
+  'serve.benchmark': {
+    eyebrow: 'SERVING CAPACITY',
+    title: 'Serving benchmark',
+    question: 'Does this model and serving configuration satisfy the product envelope on the fixed hardware profile?',
+  },
+  'serve.smoke': {
+    eyebrow: 'SERVING HEALTH',
+    title: 'Managed endpoint smoke test',
+    question: 'Did the endpoint start successfully, answer its health check, and expose the selected model?',
   },
 };
 
@@ -249,9 +277,24 @@ const jobConfigGroups: Record<string, ConfigGroupDefinition[]> = {
     { title: 'Package context', description: 'The job definition and work-package identity that placed this run in the larger workflow.', keys: ['job_definition', 'work_package'] },
   ],
   'train.distill': [
-    { title: 'Student, teacher & data', description: 'The trainable student, scoring teacher, and task population used for distillation.', keys: ['model', 'student_model', 'teacher_model', 'dataset', 'validation_dataset'] },
+    { title: 'Student, teacher & data', description: 'The trainable student, scoring teacher, and task population used for distillation.', keys: ['student', 'student_model', 'teacher', 'teacher_model', 'dataset', 'validation_dataset'] },
     { title: 'Generation & scoring', description: 'The environment and inference selections used to generate and score student responses.', keys: ['environment', 'inference', 'teacher_inference'] },
     { title: 'Distillation optimization', description: 'The objective, settings, and training binding used to update the student.', keys: ['recipe', 'settings', 'training'] },
+    { title: 'Package context', description: 'The job definition and work-package identity that placed this run in the larger workflow.', keys: ['job_definition', 'work_package'] },
+  ],
+  'train.sampo': [
+    { title: 'Policy & environment', description: 'The policy and multi-turn environment used to generate step-aware trajectories.', keys: ['model', 'environment'] },
+    { title: 'Hierarchical optimization', description: 'The SAMPO settings, rollout inference, and training binding used for credit assignment and policy updates.', keys: ['settings', 'rollout_inference', 'training'] },
+    { title: 'Package context', description: 'The job definition and work-package identity that placed this run in the larger workflow.', keys: ['job_definition', 'work_package'] },
+  ],
+  'serve.smoke': [
+    { title: 'Serving binding', description: 'The immutable inference selection launched for this health qualification.', keys: ['inference'] },
+    { title: 'Execution', description: 'The target selected to host the managed endpoint.', keys: ['target', 'execution_target'] },
+    { title: 'Package context', description: 'The job definition and work-package identity that placed this run in the larger workflow.', keys: ['job_definition', 'work_package'] },
+  ],
+  'data.prepare': [
+    { title: 'Dataset input', description: 'The source dataset selection validated and canonicalized by this job.', keys: ['dataset'] },
+    { title: 'Execution', description: 'The target selected to materialize the immutable dataset snapshot.', keys: ['target', 'execution_target'] },
     { title: 'Package context', description: 'The job definition and work-package identity that placed this run in the larger workflow.', keys: ['job_definition', 'work_package'] },
   ],
   'eval.general': evaluationConfigGroups,
@@ -381,6 +424,20 @@ function methodParameters(
           ['Learning rate', common.learningRate],
           ['Global batch', common.globalBatch],
         ]
+      : jobKind === 'train.sampo'
+        ? [
+            ['Update', common.update],
+            ['Group size', methodValue(nestedValue(settings, 'num_generations'))],
+            ['Discount gamma', methodValue(nestedValue(settings, 'discount_gamma'))],
+            ['Turn weight', methodValue(nestedValue(settings, 'step_advantage_weight'))],
+            ['Advantage normalization', methodValue(nestedValue(settings, 'advantage_normalization'))],
+            ['Clip range', [
+              methodValue(nestedValue(settings, 'clip_epsilon_low')),
+              methodValue(nestedValue(settings, 'clip_epsilon_high')),
+            ].filter(Boolean).join(' – ') || null],
+            ['Learning rate', common.learningRate],
+            ['Global batch', common.globalBatch],
+          ]
       : jobKind === 'train.distill'
         ? [
             ['Update', common.update],
@@ -392,6 +449,8 @@ function methodParameters(
             ['Learning rate', common.learningRate],
             ['Global batch', common.globalBatch],
           ]
+        : jobKind === 'serve.smoke' || jobKind === 'data.prepare'
+          ? []
         : [
             ['Update', common.update],
             ['Adapter rank', common.rank],
@@ -564,6 +623,7 @@ export default function App() {
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [activeWorkPackageId, setActiveWorkPackageId] = useState<string | null>(null);
   const [workPackage, setWorkPackage] = useState<WorkPackageView | null>(null);
+  const [servingCapacity, setServingCapacity] = useState<ServingCapacityWorkPackage | null>(null);
   const [workPackageLoading, setWorkPackageLoading] = useState(false);
   const viewRequestSequence = useRef(0);
   const selectedRunKeyRef = useRef<string | null>(null);
@@ -611,6 +671,7 @@ export default function App() {
     setSelectedProject(run.run.project_id);
     setActiveWorkPackageId(null);
     setWorkPackage(null);
+    setServingCapacity(null);
     setSection('Overview');
     setMode('auto');
     setSystem(null);
@@ -645,11 +706,17 @@ export default function App() {
     setSelectedProject(projectId);
     setActiveWorkPackageId(workPackageId);
     setWorkPackage(null);
+    setServingCapacity(null);
     setWorkPackageLoading(true);
     setError('');
     try {
       if (!selectedSourceId) throw new Error('No evidence backend is selected.');
-      setWorkPackage(await api.workPackage(workPackageId, projectId, selectedSourceId));
+      const [packageView, capacityView] = await Promise.all([
+        api.workPackage(workPackageId, projectId, selectedSourceId),
+        api.servingCapacity(workPackageId, projectId, selectedSourceId).catch(() => null),
+      ]);
+      setWorkPackage(packageView);
+      setServingCapacity(capacityView);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -867,19 +934,21 @@ export default function App() {
         )}
 
         <div className="mx-auto max-w-[1460px] px-8 py-7">
-          {activeWorkPackageId ? <WorkPackagePage view={workPackage} loading={workPackageLoading} onOpenRun={(runKey) => {
+          {activeWorkPackageId ? <WorkPackagePage view={workPackage} servingCapacity={servingCapacity} loading={workPackageLoading} onOpenRun={(runKey) => {
             const run = runs.find((item) => item.run_key === runKey);
             if (run) void chooseRun(run);
           }} /> : !response ? <div className="grid min-h-[420px] place-items-center text-xs text-muted">{error || 'Loading run evidence…'}</div> : <>
           {section === 'Overview' && (
-            <Overview
-              selected={selected}
-              response={response}
-              copy={copy}
-              activeChart={activeChart}
-              onChart={setActiveChart}
-              onTraces={() => void openSection('Traces & evaluation')}
-            />
+            response.view.view_kind === 'job.serving'
+              ? <ServingBenchmarkOverview response={response} sourceId={selected.locator.source_id} onRunConfig={() => void openSection('Run config')} />
+              : <Overview
+                  selected={selected}
+                  response={response}
+                  copy={copy}
+                  activeChart={activeChart}
+                  onChart={setActiveChart}
+                  onTraces={() => void openSection('Traces & evaluation')}
+                />
           )}
           {section === 'Metrics' && <GenericMetrics response={response} runKey={selected.run_key} />}
           {section === 'System metrics' && <SystemView system={system} />}
@@ -908,7 +977,7 @@ function Crumb({ label, value, grow = false, mobileGrow = false }: { label: stri
   return <div className={grow ? 'min-w-0 flex-1' : mobileGrow ? 'min-w-0 flex-1 sm:flex-none' : ''}><span className="type-label block">{label}</span><strong className="mt-1 block max-w-[240px] truncate text-[13px] font-medium leading-tight">{value}</strong></div>;
 }
 
-function WorkPackagePage({ view, loading, onOpenRun }: { view: WorkPackageView | null; loading: boolean; onOpenRun: (runKey: string) => void }) {
+function WorkPackagePage({ view, servingCapacity, loading, onOpenRun }: { view: WorkPackageView | null; servingCapacity: ServingCapacityWorkPackage | null; loading: boolean; onOpenRun: (runKey: string) => void }) {
   if (loading) return <div className="grid min-h-[420px] place-items-center text-xs text-muted">Assembling work-package evidence…</div>;
   if (!view) return <EmptyState title="Work package unavailable" body="Observatory could not assemble the package projection from its configured evidence sources." />;
   const stage = view.runs[0]?.run.stage ?? view.work_package_id.split('/')[0] ?? 'work';
@@ -931,6 +1000,7 @@ function WorkPackagePage({ view, loading, onOpenRun }: { view: WorkPackageView |
         ['Run outcomes', outcome],
       ].map(([label, value]) => <div key={label} className="min-w-0 border-b border-r border-divider px-4 py-3"><span className="type-label">{label}</span><strong title={value} className="mt-1.5 block truncate text-[11px] font-medium text-ink">{value}</strong></div>)}
     </section>
+    {servingCapacity && (servingCapacity.contenders?.length ?? 0) > 0 && <ServingCapacityWorkPackageView view={servingCapacity} onOpenRun={onOpenRun} />}
     <div className="mt-6 grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
       <section aria-labelledby="package-run-groups">
         <div className="mb-3"><h2 id="package-run-groups" className="font-serif text-xl font-normal">Run groups</h2><p className="mt-1 text-xs leading-5 text-muted">Runs are grouped by reusable job kind so retries and variants stay inside the package boundary.</p></div>
@@ -996,6 +1066,11 @@ function Overview({ selected, response, copy, activeChart, onChart, onTraces }: 
     value: series.points.find((point) => point.step === selectedStep)?.value ?? null,
   })) ?? [];
   const model = selectionValue(view.resolved_inputs, 'model');
+  const student = selectionValue(view.resolved_inputs, 'student')
+    ?? selectionValue(view.resolved_inputs, 'student_model');
+  const teacher = selectionValue(view.resolved_inputs, 'teacher')
+    ?? selectionValue(view.resolved_inputs, 'teacher_model');
+  const inference = selectionValue(view.resolved_inputs, 'inference');
   const dataset = selectionValue(view.resolved_inputs, 'dataset');
   const validationDataset = selectionValue(view.resolved_inputs, 'validation_dataset');
   const training = selectionValue(view.resolved_inputs, 'training');
@@ -1011,6 +1086,10 @@ function Overview({ selected, response, copy, activeChart, onChart, onTraces }: 
   const isSft = selected.run.job_kind === 'train.sft';
   const isDpo = selected.run.job_kind === 'train.dpo';
   const isGrpo = selected.run.job_kind === 'train.grpo';
+  const isSampo = selected.run.job_kind === 'train.sampo';
+  const isDistill = selected.run.job_kind === 'train.distill';
+  const isServeSmoke = selected.run.job_kind === 'serve.smoke';
+  const isDataPrepare = selected.run.job_kind === 'data.prepare';
   const completeness = view.completeness;
   const missingRequirement = completeness?.requirements.find(
     (item) => item.state === 'missing' && item.level !== 'diagnostic',
@@ -1035,8 +1114,8 @@ function Overview({ selected, response, copy, activeChart, onChart, onTraces }: 
       </div>
       {response.fallback_reason && <div className="mt-5 flex items-center gap-2 border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"><Warning size={16} weight="fill" />{response.fallback_reason}</div>}
       {healthAlert && <div className="obs-card mt-5 flex items-center gap-3 border-amber-200 bg-[#fffaf1] px-3 py-2 text-[11px]"><Warning size={16} weight="fill" className="text-amber-500" /><strong>Live health</strong><span className="text-secondary">{healthAlert.message}</span><button className="ml-auto text-violet-700">View evidence</button></div>}
-      {(isDpo || isGrpo) && completeness && (
-        <section aria-label={`${isGrpo ? 'GRPO' : 'DPO'} evidence completeness`} className="obs-card mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3 text-[11px]">
+      {(isDpo || isGrpo || isSampo || isDistill) && completeness && (
+        <section aria-label={`${isGrpo ? 'GRPO' : isSampo ? 'SAMPO' : isDistill ? 'Distillation' : 'DPO'} evidence completeness`} className="obs-card mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3 text-[11px]">
           <div className="flex items-center gap-2">
             <Circle size={9} weight="fill" className={completeness.state === 'complete' ? 'text-emerald-600' : completeness.state === 'partial' ? 'text-amber-500' : 'text-rose-600'} />
             <span className="type-label">EVIDENCE</span>
@@ -1098,10 +1177,14 @@ function Overview({ selected, response, copy, activeChart, onChart, onTraces }: 
         </section>
         <aside className="obs-card self-start overflow-hidden">
           <div className="border-b border-divider px-4 py-3"><p className="type-eyebrow">RUN LINEAGE</p><h2 className="mt-1 font-serif text-xl">Inputs to outputs</h2></div>
-          <LineageItem icon={<Stack size={18} />} label="Base model" value={model?.id ?? 'Not recorded'} detail={model?.revision ? `revision ${model.revision.slice(0, 12)}` : undefined} />
-          <LineageItem icon={<Database size={18} />} label="Consumed dataset" value={dataset?.id ?? 'Not recorded'} detail={dataset?.revision ? `revision ${dataset.revision.slice(0, 12)}` : undefined} />
+          {isDistill ? <>
+            <LineageItem icon={<Stack size={18} />} label="Student model" value={student?.id ?? 'Not recorded'} detail={student?.revision ? `revision ${student.revision.slice(0, 12)}` : undefined} />
+            <LineageItem icon={<Stack size={18} />} label="Teacher model" value={teacher?.id ?? 'Not recorded'} detail={teacher?.revision ? `revision ${teacher.revision.slice(0, 12)}` : undefined} />
+          </> : !isServeSmoke && !isDataPrepare && <LineageItem icon={<Stack size={18} />} label="Base model" value={model?.id ?? 'Not recorded'} detail={model?.revision ? `revision ${model.revision.slice(0, 12)}` : undefined} />}
+          {isServeSmoke && <LineageItem icon={<Pulse size={18} />} label="Inference binding" value={inference?.id ?? 'Not recorded'} detail={inference?.revision ? `revision ${inference.revision.slice(0, 12)}` : undefined} />}
+          {!isServeSmoke && <LineageItem icon={<Database size={18} />} label={isDataPrepare ? 'Source dataset' : 'Consumed dataset'} value={dataset?.id ?? 'Not recorded'} detail={dataset?.revision ? `revision ${dataset.revision.slice(0, 12)}` : undefined} />}
           {validationDataset && <LineageItem icon={<Database size={18} />} label="Validation dataset" value={validationDataset.id} detail={validationDataset.revision ? `revision ${validationDataset.revision.slice(0, 12)}` : undefined} />}
-          <LineageItem icon={<Pulse size={18} />} label="Training binding" value={training?.id ?? 'Not recorded'} detail={typeof training?.detail.parameter_update_kind === 'string' ? training.detail.parameter_update_kind.toUpperCase() : undefined} />
+          {!isServeSmoke && !isDataPrepare && <LineageItem icon={<Pulse size={18} />} label="Training binding" value={training?.id ?? 'Not recorded'} detail={typeof training?.detail.parameter_update_kind === 'string' ? training.detail.parameter_update_kind.toUpperCase() : undefined} />}
           {executionTargets.map((target) => <LineageItem
             key={`${target.selection_id}:${target.revision ?? 'unknown'}`}
             icon={<Cpu size={18} />}

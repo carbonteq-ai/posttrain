@@ -11,6 +11,7 @@ Knowledge base for this lab. Runtime is a **uv workspace** with
 | Area | Purpose |
 | --- | --- |
 | [overview.md](./overview.md) | Project goal, implementation orientation, and setup |
+| [consumer-setup.md](./consumer-setup.md) | Install from the internal index, trust the CA, run local or dstack jobs |
 | [tooling/mise-uv/setup-environment.md](./tooling/mise-uv/setup-environment.md) | Developer checkout setup, GPU profiles, verification, and backend isolation |
 | [post-training/01-workflow.md](./post-training/01-workflow.md) | Mental model: framework-shared assets, screen → train → qualify |
 | [post-training/02-primitives.md](./post-training/02-primitives.md) | Exact model, data, environment, inference, training, evaluation, workload, and execution selections |
@@ -18,6 +19,8 @@ Knowledge base for this lab. Runtime is a **uv workspace** with
 | [post-training/04-framework.md](./post-training/04-framework.md) | Developer experience: packages, boundaries, catalog, and composition playthrough |
 | [post-training/05-apis.md](./post-training/05-apis.md) | Target public APIs: primitive selections, jobs, config-first composition |
 | [post-training/06-observation-and-lineage.md](./post-training/06-observation-and-lineage.md) | Metrics, traces, artifacts, lineage, and observer wiring |
+| [contributing.md](./contributing.md) | Working on the framework: setup, the validation ladder, boundaries, and what surprises people |
+| [publishing.md](./publishing.md) | Cutting a release: coordinated versions, the index, and when runtime images must be rebuilt |
 | [release-and-consumption.md](./release-and-consumption.md) | Package publication order, project installation, remote operation, and release gates |
 | [architecture.md](./architecture.md) | Target MVP architecture (**stale** pending reconcile) |
 | [architecture/RECONCILIATION.md](./architecture/RECONCILIATION.md) | Keep / rewrite / delete gap list vs post-training baseline |

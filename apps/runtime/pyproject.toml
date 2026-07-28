@@ -1,0 +1,48 @@
+[project]
+name = "posttrain-runtime"
+version = "0.2.1"
+description = "Stable worker entrypoint for verified posttrain job manifests"
+authors = [{ name = "CarbonTeq" }]
+license = "Apache-2.0"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "posttrain-catalog==0.2.1",
+    "posttrain-common==0.2.1",
+    "posttrain-data==0.2.1",
+    "posttrain-eval==0.2.1",
+    "posttrain-execution==0.2.1",
+    "posttrain-jobs==0.2.1",
+    "posttrain-work==0.2.1",
+]
+
+[project.optional-dependencies]
+trackio = [
+    "posttrain-tracking-trackio==0.2.1",
+]
+wandb = [
+    "posttrain-tracking-wandb==0.2.1",
+]
+
+[project.scripts]
+posttrain-runtime = "posttrain_runtime.cli:main"
+
+[tool.uv]
+package = true
+
+[tool.uv.sources]
+posttrain-catalog = { workspace = true }
+posttrain-common = { workspace = true }
+posttrain-data = { workspace = true }
+posttrain-eval = { workspace = true }
+posttrain-execution = { workspace = true }
+posttrain-jobs = { workspace = true }
+posttrain-tracking-trackio = { workspace = true }
+posttrain-tracking-wandb = { workspace = true }
+posttrain-work = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/posttrain_runtime"]

@@ -30,7 +30,7 @@ outputs/
 checkpoints/
 artifacts/
 wandb/
-trackio/
+/trackio/
 .posttrain/state/
 *.pt
 *.safetensors
@@ -39,6 +39,14 @@ trackio/
 # Local agent tooling
 .agents/
 .codex/
+
+# Local-only secrets and host dumps (never commit)
+ops/ops-server.txt
+ops/remote-server.txt
+ops/*.txt
+
+# Editor design canvases (local only)
+*.pen
 
 # OS
 .DS_Store

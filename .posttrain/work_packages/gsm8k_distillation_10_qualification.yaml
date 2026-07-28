@@ -1,0 +1,63 @@
+project_id: foundation-models
+work_package_id: train/qwen3.5-0.8b/distill-from-qwen3.5-2b-10-qualification
+stage: train
+description: Complete ten live GSM8K on-policy distillation updates from Qwen 3.5 2B into Qwen 3.5 0.8B.
+recipe:
+  type: inline
+  id: recipes/gsm8k-on-policy-distillation-10@1
+  revision: "1"
+  stage: train
+  seats:
+    student: model
+    teacher: model
+    environment: environment
+    settings: training
+    training: training
+    rollout_inference: inference
+    teacher_inference: inference
+  jobs:
+    - id: train
+      kind: train.distill
+      definition: train/trl-distill@1
+  expected_artifacts:
+    - trained student adapter
+    - native Verifiers trajectories
+    - training summary
+bindings:
+  student:
+    type: ref
+    family: model
+    id: models/qwen3.5-0.8b@bf16
+  teacher:
+    type: ref
+    family: model
+    id: models/qwen3.5-2b@bf16
+  environment:
+    type: ref
+    family: environment
+    id: gsm8k-distill-train
+  settings:
+    type: ref
+    family: training
+    id: qwen3.5-0.8b/on-policy-distill-10-step-qualification-v1
+  training:
+    type: ref
+    family: training
+    id: training/qwen3.5-0.8b-trl-distill-lora@1
+  rollout_inference:
+    type: ref
+    family: inference
+    id: inference/qwen3.5-0.8b-vllm-distill-rollout@1
+  teacher_inference:
+    type: ref
+    family: inference
+    id: inference/qwen3.5-2b-transformers-teacher-score@1
+enabled_optional_jobs: []
+metadata:
+  question: Does the current TRL online-RL capsule sustain ten teacher-scored student updates with reconciled traces and artifacts?
+  labels:
+    - qualification
+    - current-capsule
+    - distillation
+    - on-policy
+    - gsm8k

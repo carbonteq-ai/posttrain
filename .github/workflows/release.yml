@@ -18,11 +18,11 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-          python-version: "3.12"
+          python-version: "3.13"
       - name: Verify and install the locked workspace
         run: |
           uv lock --check
-          uv sync --all-packages --group dev --python 3.12
+          uv sync --all-packages --group dev --python 3.13
       - name: Validate the release source
         run: |
           uv run ruff check .
@@ -46,7 +46,7 @@ jobs:
           sha256sum "posttrain-wheelhouse-${GITHUB_REF_NAME}.tar.gz" > release-SHA256SUMS
       - name: Install the exact wheelhouse
         run: |
-          uv venv release-environment --python 3.12
+          uv venv release-environment --python 3.13
           uv pip install \
             --python release-environment/bin/python \
             --constraint wheelhouse/github-constraints.txt \

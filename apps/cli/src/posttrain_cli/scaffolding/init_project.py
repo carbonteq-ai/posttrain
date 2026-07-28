@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import socket
 from importlib.metadata import PackageNotFoundError, requires, version
 from pathlib import Path
 
@@ -88,7 +89,7 @@ def starter_pyproject(project_id: str, template: str) -> str:
         f'name = "{distribution_name}"',
         'version = "0.1.0"',
         f'description = "Posttrain {template.upper()} starter project"',
-        'requires-python = ">=3.12,<3.13"',
+        'requires-python = ">=3.13,<3.14"',
         "dependencies = [",
         *(f"  {json.dumps(dependency)}," for dependency in dependencies),
         "]",
@@ -102,6 +103,10 @@ def starter_pyproject(project_id: str, template: str) -> str:
         "",
         "[tool.hatch.metadata]",
         "allow-direct-references = true",
+        "",
+        "[tool.posttrain.pack]",
+        'project_packages = ["."]',
+        'source_includes = ["pyproject.toml", "src"]',
     ]
 
     workspace = workspace_root()
@@ -278,6 +283,7 @@ def initialize(
     )
     control = project_root / ".posttrain"
     manifest = control / "project.toml"
+    project_brief = control / "project.yaml"
     catalog = control / "catalog"
     catalog_manifest = catalog / "layer.yaml"
     work_packages = control / "work_packages"
@@ -291,15 +297,42 @@ def initialize(
     catalog.mkdir(parents=True, exist_ok=True)
     work_packages.mkdir(parents=True, exist_ok=True)
     (control / "state").mkdir(parents=True, exist_ok=True)
-    manifest.write_text(
+    hostname = socket.gethostname().strip().lower().rstrip(".")
+    execution_toml = control / "state" / "execution.toml"
+    execution_toml.write_text(
         "\n".join(
             (
                 "schema_version = 1",
+                "",
+                "[providers.local]",
+                f'canonical_hostname = "{hostname}"',
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    execution_toml.chmod(0o600)
+    manifest.write_text(
+        "\n".join(
+            (
+                "schema_version = 2",
                 f'project_id = "{resolved_id}"',
                 'catalog_overlays = ["catalog"]',
                 'work_packages = "work_packages"',
                 'state = "state"',
                 'tracking = "trackio"',
+                'project_brief = "project.yaml"',
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    project_brief.write_text(
+        "\n".join(
+            (
+                "schema_version: 1",
+                f"objective: Improve and qualify models for the {resolved_id} project.",
+                "serving: null",
                 "",
             )
         ),
@@ -348,7 +381,8 @@ def initialize(
             (
                 "# Work packages\n\n"
                 f"Validate with `posttrain work-package validate {work_package_name}` and run the "
-                f"`train` job with `posttrain work-package run {work_package_name} --job train`.\n\n"
+                f"`train` job with `posttrain job run {work_package_name}` "
+                "(omit `--job` when the package has exactly one).\n\n"
                 "Validation and catalog materialization are CPU-safe. The generated training job is a "
                 "CUDA release gate; run it only on a compatible target."
                 + (
@@ -371,7 +405,7 @@ def install_starter(project_root: Path, *, json_output: bool = False) -> None:
     stream = cli_module.sys.stderr if json_output else cli_module.sys.stdout
     print("Installing dependencies...", file=stream)
     cli_module.subprocess.run(
-        [uv, "sync", "--python", "3.12"],
+        [uv, "sync", "--python", "3.13"],
         cwd=project_root,
         check=True,
         stdout=stream if json_output else None,

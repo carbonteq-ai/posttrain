@@ -11,6 +11,38 @@ workload:
     warmup_repetitions: 1
     measured_repetitions: 1
     required_measures:
-      - serve/output_token_throughput
-      - serve/p95_ttft
-      - serve/peak_gpu_memory_gib
+      - serve/run/requests_attempted
+      - serve/run/requests_measured
+      - serve/run/output_tokens_measured
+      - serve/run/measurement_duration_s
+      - serve/request/ttft_seconds
+      - serve/backend/peak_vram_bytes
+  workloads/general-serving-32k-sweep@1:
+    revision: "1"
+    requests:
+      suite_id: general-serving-capacity-v1
+      shape_id: general-serving-v1-128out
+      context_window: 32768
+      output_tokens: 128
+      cohort: representative
+      corpus:
+        id: general-serving-v1
+        revision: "1"
+        digest: 9a9467fd8a5e744968d09a4d8fd6f4d92a089c50a84e1e6e7e5c5520a9f4e50e
+      selection_seed: 17
+      record_count: 128
+      saturation_state: unknown
+    concurrency: [1, 2, 4, 8, 12, 16, 24, 32, 48, 64]
+    warmup_repetitions: 1
+    measured_repetitions: 1
+    plateau_improvement_ratio: 0.05
+    plateau_intervals: 2
+    max_consecutive_point_failures: 1
+    required_measures:
+      - serve/run/requests_attempted
+      - serve/run/requests_measured
+      - serve/run/output_tokens_measured
+      - serve/run/measurement_duration_s
+      - serve/request/ttft_seconds
+      - serve/request/tpot_seconds
+      - serve/backend/peak_vram_bytes

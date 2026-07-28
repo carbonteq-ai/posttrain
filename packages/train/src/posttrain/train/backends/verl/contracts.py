@@ -299,6 +299,7 @@ class VerlWorkerResult(VerlContract):
     model_dir: Path
     recovery_checkpoint: Path | None
     metrics_file: Path
+    retention_manifest: Path | None = None
 
     def write(self, path: Path) -> None:
         path.write_text(self.model_dump_json(indent=2) + "\n", encoding="utf-8")

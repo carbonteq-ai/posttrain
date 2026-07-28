@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
+import os
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import trackio
 from posttrain.common import (
@@ -19,6 +21,8 @@ from posttrain.common import (
     MetricBatchObservation,
     MetricObservation,
     ProducedArtifact,
+    PublishedArtifact,
+    StoredArtifactRef,
     TraceObservation,
 )
 from posttrain.tracking import (
@@ -40,9 +44,21 @@ from posttrain.tracking import (
     TraceRecord,
     TrackingCapabilities,
 )
+from trackio.remote_client import RemoteClient
 from trackio.run import Run as TrackioSDKRun
+from trackio.utils import parse_trackio_server_url
 
 _RESERVED_HISTORY_KEYS = {"step", "timestamp"}
+
+# A run records its status and timings as ordinary metrics rather than as
+# run-level fields, so these are the keys that describe its lifecycle.
+_LIFECYCLE_KEYS = (
+    "run/status",
+    "run/started_at",
+    "run/finished_at",
+    "run/error_type",
+    "run/error_message",
+)
 _SYSTEM_METRICS: dict[str, tuple[str, float]] = {
     "system/gpu_utilization": ("gpu/mean_utilization", 1.0),
     "system/gpu_vram_used_bytes": ("gpu/total_allocated_memory", 1024**3),
@@ -58,6 +74,55 @@ class TrackioSettings:
     server_url: str | None = None
     auto_log_gpu: bool = False
     auto_log_cpu: bool = False
+    gpu_log_interval: float = 1.0
+    cpu_log_interval: float = 5.0
+
+    def __post_init__(self) -> None:
+        if self.gpu_log_interval <= 0:
+            raise ValueError("Trackio GPU log interval must be positive")
+        if self.cpu_log_interval <= 0:
+            raise ValueError("Trackio CPU log interval must be positive")
+
+
+def require_remote_trackio_ready(
+    *,
+    project: str,
+    server_url: str | None,
+    write_token: str | None = None,
+) -> None:
+    """Fail unless the selected remote Trackio accepts authenticated writes.
+
+    The probe is intentionally non-mutating: checking an empty artifact-digest
+    set exercises TLS, routing, server compatibility, write authorization, and
+    the configured storage backend without creating a provider run.
+    """
+
+    if server_url is None or not server_url.strip():
+        raise ContractError("detached Trackio execution requires POSTTRAIN_TRACKIO_SERVER_URL")
+    base_url, url_token = parse_trackio_server_url(server_url)
+    resolved_write_token = write_token or url_token or os.getenv("TRACKIO_WRITE_TOKEN")
+    if not resolved_write_token:
+        raise ContractError("detached Trackio execution requires TRACKIO_WRITE_TOKEN")
+    try:
+        client = RemoteClient(
+            base_url,
+            write_token=resolved_write_token,
+            httpx_kwargs={"timeout": 10.0},
+            verbose=False,
+        )
+        response = client.predict(
+            api_name="/check_artifact_blobs",
+            project=project,
+            digests=[],
+            hf_token=None,
+        )
+    except Exception:
+        raise ContractError(
+            "required remote Trackio evidence is unavailable; verify network, "
+            "TLS trust, write authorization, and server storage health"
+        ) from None
+    if response != {"present": []}:
+        raise ContractError("required remote Trackio readiness probe returned an invalid response")
 
 
 def _artifact_name(logical_name: str) -> str:
@@ -136,6 +201,7 @@ class TrackioTrackedRun:
         self._spec = spec
         self._outcome: RunOutcome | None = None
         self._last_metric_step: int | None = None
+        self._published_artifacts: list[PublishedArtifact] = []
 
     @property
     def run_id(self) -> str:
@@ -167,7 +233,26 @@ class TrackioTrackedRun:
             destination = root / logical_name
             destination.mkdir(parents=True, exist_ok=False)
             path = Path(artifact.download(root=destination)).resolve()
-            materialized[logical_name] = LocalArtifactRef(path, _tree_sha256(path))
+            digest = _tree_sha256(path)
+            declared_content_digest = reference.provider_metadata.get("posttrain_content_digest")
+            declared_content_digest_kind = reference.provider_metadata.get("posttrain_content_digest_kind")
+            if declared_content_digest_kind == "file":
+                files = [candidate for candidate in path.rglob("*") if candidate.is_file()]
+                if len(files) != 1:
+                    raise ContractError(
+                        f"materialized Trackio file artifact contains {len(files)} files: {reference.name}:{version}"
+                    )
+                digest = _file_sha256(files[0])
+            else:
+                digest = _tree_sha256(path)
+            expected_digest = (
+                declared_content_digest.removeprefix("sha256:") if isinstance(declared_content_digest, str) else None
+            )
+            if expected_digest is not None and digest != expected_digest:
+                raise ContractError(
+                    f"materialized Trackio artifact content digest does not match {reference.name}:{version}"
+                )
+            materialized[logical_name] = LocalArtifactRef(path, digest)
         return materialized
 
     def event(self, observation: EventObservation) -> None:
@@ -204,6 +289,8 @@ class TrackioTrackedRun:
             trace: trackio.Trace = trackio.VerifiersTrace(dict(observation.payload), metadata=metadata)
         else:
             messages = observation.payload.get("messages")
+            if messages is None:
+                messages = []
             if not isinstance(messages, list) or not all(isinstance(item, dict) for item in messages):
                 raise ContractError("generic Trackio traces require a JSON messages list")
             extra = {key: value for key, value in observation.payload.items() if key != "messages"}
@@ -224,10 +311,51 @@ class TrackioTrackedRun:
         logged = trackio.Artifact(
             _artifact_name(artifact.name),
             type=artifact.kind,
-            metadata={"logical_name": artifact.name, **dict(artifact.metadata)},
+            metadata={
+                "logical_name": artifact.name,
+                **dict(artifact.metadata),
+                **({"posttrain_role": artifact.role} if artifact.role is not None else {}),
+                "posttrain_content_digest": artifact.reference.digest.removeprefix("sha256:"),
+                "posttrain_content_digest_kind": ("file" if path.is_file() else "tree"),
+            },
         )
         logged.add_dir(path) if path.is_dir() else logged.add_file(path)
-        self._run.log_artifact(logged)
+        committed = self._run.log_artifact(logged)
+        version = committed.version
+        digest = committed.digest
+        project = committed.project
+        if version is None or digest is None or project is None:
+            raise ContractError("Trackio did not return a committed artifact identity")
+        if any(item.logical_name == artifact.name for item in self._published_artifacts):
+            raise ContractError(f"Trackio run published duplicate logical artifact name: {artifact.name}")
+        size_bytes = committed.size
+        self._published_artifacts.append(
+            PublishedArtifact(
+                logical_name=artifact.name,
+                kind=artifact.kind,
+                reference=StoredArtifactRef(
+                    provider="trackio",
+                    namespace=project,
+                    name=committed.name,
+                    version=version,
+                    digest=str(digest),
+                    provider_metadata={
+                        "size_bytes": size_bytes,
+                        "posttrain_content_digest": artifact.reference.digest.removeprefix("sha256:"),
+                        "posttrain_content_digest_kind": ("file" if path.is_file() else "tree"),
+                    },
+                ),
+                required=artifact.required,
+                size_bytes=size_bytes,
+                metadata=artifact.metadata,
+                role=artifact.role,
+            )
+        )
+
+    def published_artifacts(self) -> tuple[PublishedArtifact, ...]:
+        """Return only identities synchronously committed by Trackio."""
+
+        return tuple(self._published_artifacts)
 
     def finish(self, outcome: RunOutcome) -> None:
         if self._outcome is not None:
@@ -252,7 +380,21 @@ class TrackioBackend:
         self.settings = settings or TrackioSettings()
 
     def start_run(self, spec: RunSpec) -> TrackioTrackedRun:
-        started_at = datetime.now(UTC)
+        return self._open_run(spec, resume="never")
+
+    def resume_run(self, spec: RunSpec, *, started_at: datetime) -> TrackioTrackedRun:
+        """Resume the provider run selected by the canonical Trackio run name."""
+
+        return self._open_run(spec, resume="must", started_at=started_at)
+
+    def _open_run(
+        self,
+        spec: RunSpec,
+        *,
+        resume: str,
+        started_at: datetime | None = None,
+    ) -> TrackioTrackedRun:
+        started_at = started_at or datetime.now(UTC)
         project = self.settings.project or spec.project_id
         run = trackio.init(
             project=project,
@@ -260,17 +402,153 @@ class TrackioBackend:
             group=spec.work_package_id,
             server_url=self.settings.server_url,
             config=_run_config(spec, started_at),
+            resume=resume,
             embed=False,
-            auto_log_gpu=self.settings.auto_log_gpu,
-            auto_log_cpu=self.settings.auto_log_cpu,
+            auto_log_gpu=self.settings.auto_log_gpu if resume == "never" else False,
+            gpu_log_interval=self.settings.gpu_log_interval,
+            auto_log_cpu=self.settings.auto_log_cpu if resume == "never" else False,
+            cpu_log_interval=self.settings.cpu_log_interval,
         )
         return TrackioTrackedRun(run, project, spec)
+
+
+class TrackioCancelledRunRecovery:
+    """Exact-id Trackio writer for audited cancellation recovery."""
+
+    def __init__(
+        self,
+        settings: TrackioSettings,
+        *,
+        write_token: str | None = None,
+    ) -> None:
+        self.settings = settings
+        self._write_token = write_token
+
+    def recover_cancelled(
+        self,
+        expected: RunSummary,
+        *,
+        finished_at: datetime,
+    ) -> Literal["recovered", "already-cancelled"]:
+        project = self.settings.project or expected.project_id
+        if project != expected.project_id:
+            raise ContractError("Trackio recovery project does not match the expected run")
+        server_url = self.settings.server_url
+        require_remote_trackio_ready(
+            project=project,
+            server_url=server_url,
+            write_token=self._write_token,
+        )
+        assert server_url is not None
+        provider_run = self._exact_run(expected)
+        observed = TrackioDataSource(
+            project,
+            server_url=server_url,
+        )._summary(provider_run)
+        _validate_recovery_identity(expected, observed)
+        if observed.status == "cancelled":
+            return "already-cancelled"
+        if observed.status != "running":
+            raise ContractError("Trackio recovery requires a running or already cancelled run")
+        if finished_at < observed.started_at:
+            raise ContractError("Trackio recovery finish time precedes the run start")
+
+        if not isinstance(provider_run.config, dict):
+            raise ContractError("Trackio recovery run config is unavailable")
+        raw_summary = provider_run.summary()
+        base_url, url_token = parse_trackio_server_url(server_url)
+        write_token = self._write_token or url_token or os.getenv("TRACKIO_WRITE_TOKEN")
+        if not write_token:
+            raise ContractError("Trackio recovery requires a write token")
+        run = TrackioSDKRun(
+            url=base_url,
+            project=project,
+            client=None,
+            name=provider_run.name,
+            run_id=expected.provider_run_id,
+            group=expected.work_package_id,
+            config={},
+            server_base_url=base_url,
+            write_token=write_token,
+            existing_runs=[provider_run.name],
+            initial_last_step=raw_summary.get("last_step"),
+            auto_log_gpu=False,
+            auto_log_cpu=False,
+        )
+        # This exact provider run already owns immutable canonical config.
+        # Recovery appends one terminal row; it must not rewrite physical or
+        # canonical configuration through the SDK's first-log initialization.
+        run._config_logged = True
+        tracked = TrackioTrackedRun(
+            run,
+            project,
+            RunSpec(
+                project_id=expected.project_id,
+                work_package_id=expected.work_package_id,
+                stage=expected.stage,
+                run_id=expected.run_id,
+                job_kind=expected.job_kind,
+                job_definition_version=expected.job_definition_version,
+            ),
+        )
+        tracked.finish(RunOutcome("cancelled", expected.started_at, finished_at))
+
+        verified = TrackioDataSource(
+            project,
+            server_url=server_url,
+        )._summary(self._exact_run(expected))
+        _validate_recovery_identity(expected, verified)
+        if verified.status != "cancelled":
+            raise ContractError("Trackio cancellation recovery did not become durable")
+        return "recovered"
+
+    def _exact_run(self, expected: RunSummary) -> Any:
+        if expected.provider != "trackio":
+            raise ContractError("Trackio recovery received a non-Trackio run")
+        if expected.provider_run_id is None:
+            raise ContractError("Trackio recovery requires an exact provider run id")
+        source = TrackioDataSource(
+            expected.project_id,
+            server_url=self.settings.server_url,
+        )
+        canonical = []
+        for run in source._api.runs(expected.project_id):
+            config = run.config
+            if isinstance(config, dict) and config.get("run_id") == expected.run_id:
+                canonical.append(run)
+        if len(canonical) != 1:
+            raise ContractError("Trackio recovery requires exactly one provider run for the canonical run id")
+        provider_run = canonical[0]
+        if str(provider_run.id) != expected.provider_run_id:
+            raise ContractError("Trackio recovery provider run id does not match")
+        return provider_run
+
+
+def _validate_recovery_identity(
+    expected: RunSummary,
+    observed: RunSummary,
+) -> None:
+    fields = (
+        "provider",
+        "provider_run_id",
+        "run_id",
+        "project_id",
+        "work_package_id",
+        "stage",
+        "job_kind",
+        "job_definition_version",
+        "started_at",
+    )
+    for field in fields:
+        if getattr(observed, field) != getattr(expected, field):
+            raise ContractError(f"Trackio recovery {field.replace('_', ' ')} does not match")
 
 
 class TrackioDataSource:
     def __init__(self, project: str, *, server_url: str | None = None) -> None:
         self.project = project
         self._api = trackio.Api(server_url=server_url)
+        self._provider_runs_by_id: dict[str, Any] = {}
 
     @property
     def capabilities(self) -> TrackingCapabilities:
@@ -286,36 +564,53 @@ class TrackioDataSource:
     def _summary(self, run: Any) -> RunSummary:
         raw = run.summary()
         config = raw.get("config")
+        lifecycle: dict[str, Any] = {}
+        for row in run.history(keys=list(_LIFECYCLE_KEYS)):
+            if "run/status" in row:
+                lifecycle = row
+        return self._compose_summary(
+            run_id=run.id,
+            display_name=run.name,
+            config=config,
+            lifecycle=lifecycle,
+        )
+
+    def _compose_summary(
+        self,
+        *,
+        run_id: str,
+        display_name: str,
+        config: Any,
+        lifecycle: Mapping[str, Any],
+    ) -> RunSummary:
+        """Shape one run from its configuration and its lifecycle values.
+
+        Both the per-run and the bulk listing paths land here, so a run cannot
+        be described one way when read alone and another way when read with its
+        neighbours.
+        """
         if not isinstance(config, dict) or config.get("schema_version") != 4:
-            raise ContractError(f"Trackio run {run.id!r} is not a canonical posttrain run")
+            raise ContractError(f"Trackio run {run_id!r} is not a canonical posttrain run")
         status = "running"
         started_at = _datetime(config["started_at"], field="started_at")
         finished_at = None
         error = None
-        for row in run.history(
-            keys=[
-                "run/status",
-                "run/started_at",
-                "run/finished_at",
-                "run/error_type",
-                "run/error_message",
-            ]
-        ):
-            if "run/status" not in row:
-                continue
-            status = row["run/status"]
-            started_at = _datetime(row["run/started_at"], field="started_at")
-            finished_at = _datetime(row["run/finished_at"], field="finished_at")
+        # A run that never recorded a status is still running as far as anyone
+        # can tell, and keeps the start its configuration recorded.
+        if "run/status" in lifecycle:
+            status = lifecycle["run/status"]
+            started_at = _datetime(lifecycle["run/started_at"], field="started_at")
+            finished_at = _datetime(lifecycle["run/finished_at"], field="finished_at")
             if status == "failed":
                 error = SafeRunError(
-                    type=str(row.get("run/error_type") or "RunFailed"),
-                    message=str(row.get("run/error_message") or "run failed"),
+                    type=str(lifecycle.get("run/error_type") or "RunFailed"),
+                    message=str(lifecycle.get("run/error_message") or "run failed"),
                 )
         return RunSummary(
             provider="trackio",
-            provider_run_id=run.id,
+            provider_run_id=run_id,
             run_id=str(config["run_id"]),
-            display_name=run.name,
+            display_name=display_name,
             project_id=str(config["project_id"]),
             work_package_id=str(config["work_package_id"]),
             stage=config["stage"],
@@ -328,10 +623,43 @@ class TrackioDataSource:
         )
 
     async def list_runs(self, query: RunQuery) -> tuple[RunSummary, ...]:
+        # The Trackio client is synchronous. Awaiting it directly blocks the
+        # event loop, so a caller listing several projects concurrently gets
+        # them one after another instead.
+        return await asyncio.to_thread(self._list_runs, query)
+
+    def _list_runs(self, query: RunQuery) -> tuple[RunSummary, ...]:
+        """Describe at most ``query.limit`` runs, newest first.
+
+        Describing one run costs several round trips, so the listing is walked
+        newest-first using the timestamp it already carries and stops as soon as
+        enough runs match. Describing every run in the project before applying
+        the limit made the cost of asking for one run proportional to the whole
+        project's history: a four-project deployment spent fifty seconds
+        answering a question about four.
+        """
+        provider_runs = sorted(
+            self._api.runs(self.project),
+            key=lambda run: str(getattr(run, "created_at", "") or ""),
+            reverse=True,
+        )
+        # Two requests describe every run in the project. Reading each run
+        # separately cost one request for its configuration and another for its
+        # lifecycle, so listing was proportional to how many runs existed
+        # rather than to how many were asked for.
+        configs = self._api.run_configs(self.project)
+        lifecycles = self._api.run_lifecycles(self.project)
         summaries: list[RunSummary] = []
-        for run in self._api.runs(self.project):
+        for run in provider_runs:
+            if len(summaries) >= query.limit:
+                break
             try:
-                summary = self._summary(run)
+                summary = self._compose_summary(
+                    run_id=run.id,
+                    display_name=run.name,
+                    config=configs.get(run.id),
+                    lifecycle=lifecycles.get(run.id) or {},
+                )
             except ContractError:
                 continue
             if query.project_id is not None and summary.project_id != query.project_id:
@@ -342,17 +670,15 @@ class TrackioDataSource:
                 continue
             if query.statuses and summary.status not in query.statuses:
                 continue
+            # Remember only what was described anyway; _provider_run resolves
+            # anything else on demand.
+            self._provider_runs_by_id.setdefault(summary.run_id, run)
             summaries.append(summary)
         summaries.sort(key=lambda item: item.started_at, reverse=True)
-        return tuple(summaries[: query.limit])
+        return tuple(summaries)
 
     async def get_run(self, run_id: str) -> RunDetail:
-        provider_run = next(
-            (run for run in self._api.runs(self.project) if (run.config or {}).get("run_id") == run_id),
-            None,
-        )
-        if provider_run is None:
-            raise LookupError(f"posttrain run {run_id!r} was not found in Trackio project {self.project!r}")
+        provider_run = self._provider_run(run_id)
         summary = self._summary(provider_run)
         config = provider_run.config or {}
         events: list[EventRecord] = []
@@ -391,23 +717,39 @@ class TrackioDataSource:
 
     async def metric_series(self, run_id: str, names: tuple[str, ...]) -> tuple[MetricSeries, ...]:
         provider_run = self._provider_run(run_id)
-        regular_names = tuple(name for name in names if not name.startswith("system/"))
-        raw = provider_run.metric_series(regular_names)
+        raw: dict[str, list[dict[str, object]]] = {name: [] for name in names}
+        attribute_names = tuple(f"{name}/attributes" for name in names)
+        for row in provider_run.history((*names, "metric/attributes", *attribute_names)):
+            batch_attributes = _json_mapping(row.get("metric/attributes"))
+            for name in names:
+                if name not in row:
+                    continue
+                attributes = _json_mapping(row.get(f"{name}/attributes")) or batch_attributes
+                raw[name].append(
+                    {
+                        "value": row[name],
+                        "step": row.get("step"),
+                        "timestamp": row.get("timestamp"),
+                        "attributes": attributes,
+                    }
+                )
         values_by_name: dict[str, MetricSeries] = {}
-        for name in regular_names:
+        for name in names:
             points = []
             for point in raw.get(name, []):
                 value = point.get("value")
                 if not isinstance(value, int | float) or isinstance(value, bool):
                     continue
                 observed_at = point.get("timestamp")
+                step = point.get("step")
                 points.append(
                     MetricPoint(
                         value=float(value),
-                        step=point.get("step"),
+                        step=step if isinstance(step, int) and not isinstance(step, bool) else None,
                         observed_at=(
                             _datetime(observed_at, field="metric timestamp") if observed_at is not None else None
                         ),
+                        attributes=_json_mapping(point.get("attributes")),
                     )
                 )
             values_by_name[name] = MetricSeries(name=name, points=tuple(points))
@@ -423,6 +765,9 @@ class TrackioDataSource:
                 and (finished_at is None or observed_at <= finished_at)
             ]
             for name in requested_system_names:
+                direct = values_by_name.get(name)
+                if direct is not None and direct.points:
+                    continue
                 points = []
                 for index, (row, observed_at) in enumerate(rows):
                     if name == "system/wall_time_s":
@@ -448,7 +793,14 @@ class TrackioDataSource:
     async def traces(self, run_id: str, query: TraceQuery) -> TracePage:
         provider_run = self._provider_run(run_id)
         offset = int(query.cursor) if query.cursor is not None else 0
-        raw = provider_run.traces(limit=1000, offset=0, sort="step_asc")
+        raw = []
+        provider_offset = 0
+        while True:
+            page = provider_run.traces(limit=1000, offset=provider_offset, sort="step_asc")
+            raw.extend(page)
+            if len(page) < 1000:
+                break
+            provider_offset += len(page)
         normalized = []
         for record in raw:
             metadata = _json_mapping(record.get("metadata"))
@@ -521,7 +873,14 @@ class TrackioDataSource:
         return ArtifactSet(items=tuple(links))
 
     def _provider_run(self, run_id: str) -> Any:
+        cached = self._provider_runs_by_id.get(run_id)
+        if cached is not None:
+            return cached
         for run in self._api.runs(self.project):
-            if (run.config or {}).get("run_id") == run_id:
+            config = run.config or {}
+            posttrain_run_id = config.get("run_id")
+            if isinstance(posttrain_run_id, str):
+                self._provider_runs_by_id[posttrain_run_id] = run
+            if posttrain_run_id == run_id:
                 return run
         raise LookupError(f"posttrain run {run_id!r} was not found in Trackio project {self.project!r}")

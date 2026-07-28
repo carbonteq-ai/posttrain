@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from posttrain.catalog import environment_factory_registry, load_catalog_layer, open_catalog
 from posttrain.common import CatalogRef, ContractError
+from posttrain.eval import EnvironmentBinding, PythonFactoryActivation
 
 
 def test_empty_overlay_is_valid_and_composes_with_packaged_base(tmp_path: Path) -> None:
@@ -21,6 +22,9 @@ def test_empty_overlay_is_valid_and_composes_with_packaged_base(tmp_path: Path) 
     assert CatalogRef("model", "models/qwen3.5-0.8b@bf16") in catalog.list("model")
     assert CatalogRef("dataset", "datasets/posttrain-sft-smoke@1") in catalog.list("dataset")
     assert CatalogRef("environment", "math-gsm8k") in catalog.list("environment")
+    environment = catalog.resolve(CatalogRef("environment", "math-gsm8k")).value
+    assert isinstance(environment, EnvironmentBinding)
+    assert environment.activation.kind == "verifiers-config"
 
 
 def test_catalog_manifest_still_rejects_duplicate_files(tmp_path: Path) -> None:
@@ -33,19 +37,18 @@ def test_catalog_manifest_still_rejects_duplicate_files(tmp_path: Path) -> None:
         load_catalog_layer(tmp_path)
 
 
-def test_environment_factory_registry_discovers_installed_package_entry_points(monkeypatch) -> None:
-    def factory():
-        return object()
-
+def test_environment_factory_registry_does_not_load_package_entry_points(monkeypatch) -> None:
     class FakeEntryPoint:
         name = "published-environment"
+        module = "published_environment"
+        attr = "create_environment"
 
         @staticmethod
         def load():
-            return factory
+            raise AssertionError("detached catalog loading must not import environments")
 
     monkeypatch.setattr("posttrain.catalog.entry_points", lambda **kwargs: (FakeEntryPoint(),))
 
     registry = environment_factory_registry()
 
-    assert registry["published-environment"] is factory
+    assert registry["published-environment"] == PythonFactoryActivation("published_environment:create_environment")

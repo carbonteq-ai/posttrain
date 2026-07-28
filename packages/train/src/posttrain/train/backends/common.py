@@ -14,6 +14,7 @@ class BackendTrainingResult:
     model_dir: Path
     recovery_checkpoint: Path | None
     summary_file: Path
+    retention_manifest: Path | None = None
 
     def validate(self, workspace: Path) -> None:
         """Require completed backend outputs to exist inside the run workspace."""
@@ -27,6 +28,8 @@ class BackendTrainingResult:
         }
         if self.recovery_checkpoint is not None:
             paths["recovery checkpoint"] = self.recovery_checkpoint
+        if self.retention_manifest is not None:
+            paths["retention manifest"] = self.retention_manifest
         for label, path in paths.items():
             if not path.is_absolute():
                 raise ValueError(f"training backend {label} must be absolute")
@@ -38,6 +41,8 @@ class BackendTrainingResult:
             raise FileNotFoundError(self.summary_file)
         if self.recovery_checkpoint is not None and not self.recovery_checkpoint.exists():
             raise FileNotFoundError(self.recovery_checkpoint)
+        if self.retention_manifest is not None and not self.retention_manifest.is_file():
+            raise FileNotFoundError(self.retention_manifest)
 
 
 __all__ = ["BackendTrainingResult"]

@@ -302,19 +302,13 @@ def _launch(
     )
     if isinstance(request, GRPORequest | SAMPORequest):
         context.event("grpo_runtime_resolved", _grpo_runtime_attributes(request, plan))
-    environment = _isolated_environment()
-    environment["POSTTRAIN_VERL_MANIFEST"] = str(manifest)
     timeout = _runtime_timeout(request)
     with context.phase("backend_execution", {"backend": "verl", "operation": plan.operation}):
         with log_file.open("w", encoding="utf-8") as stream:
-            process = subprocess.Popen(
-                plan.command,
-                cwd=str(plan.working_directory),
-                env=environment,
+            process = _start_isolated_worker(
+                plan,
+                manifest=manifest,
                 stdout=stream,
-                stderr=subprocess.STDOUT,
-                text=True,
-                start_new_session=True,
             )
             try:
                 returncode = process.wait(timeout=timeout)
@@ -400,12 +394,26 @@ def _backend_result(
         else None
     )
     metrics_path = _output_file(payload.metrics_file, output_dir, "metrics_file")
+    retention_manifest = (
+        _output_file(payload.retention_manifest, output_dir, "retention_manifest")
+        if payload.retention_manifest is not None
+        else None
+    )
     records = read_verl_metric_records(metrics_path)
     if not model_dir.is_dir():
         raise FileNotFoundError(model_dir)
     if checkpoint is not None and not checkpoint.exists():
         raise FileNotFoundError(checkpoint)
-    return BackendTrainingResult(training_summary, model_dir, checkpoint, metrics_path), records
+    return (
+        BackendTrainingResult(
+            training_summary,
+            model_dir,
+            checkpoint,
+            metrics_path,
+            retention_manifest,
+        ),
+        records,
+    )
 
 
 def _output_file(value: Path, output_dir: Path, field: str) -> Path:
@@ -428,7 +436,11 @@ def _replay_grpo_metrics(
     request: GRPORequest | SAMPORequest,
     records: tuple[VerlMetricRecord, ...],
 ) -> None:
-    features = GRPOObservationFeatures.from_request(request)
+    environment_category = getattr(request.environment, "category", "")
+    features = GRPOObservationFeatures.from_request(
+        request,
+        tool_environment=isinstance(environment_category, str) and "tool" in environment_category.split("-"),
+    )
     for record in records:
         normalized = normalize_grpo_metrics(
             backend="verl",
@@ -444,13 +456,52 @@ def _replay_grpo_metrics(
             )
 
 
-def _isolated_environment() -> dict[str, str]:
+def _start_isolated_worker(
+    plan: VerlLaunchPlan,
+    *,
+    manifest: Path,
+    stdout: Any,
+) -> subprocess.Popen[str]:
+    environment = _isolated_environment(plan.python_executable)
+    environment["POSTTRAIN_VERL_MANIFEST"] = str(manifest)
+    return subprocess.Popen(
+        plan.command,
+        cwd=str(plan.working_directory),
+        env=environment,
+        stdout=stdout,
+        stderr=subprocess.STDOUT,
+        text=True,
+        start_new_session=True,
+    )
+
+
+def _isolated_environment(python_executable: Path) -> dict[str, str]:
     blocked_prefixes = ("WANDB_", "TRACKIO_")
-    environment = {key: value for key, value in os.environ.items() if not key.upper().startswith(blocked_prefixes)}
+    environment = {
+        key: value
+        for key, value in os.environ.items()
+        if (
+            not key.upper().startswith(blocked_prefixes)
+            and key != "VIRTUAL_ENV"
+            and not key.startswith("UV_")
+            and not key.startswith("PYTHON")
+        )
+    }
+    isolated_bin = str(python_executable.parent)
+    inherited_path = environment.get("PATH")
+    environment["PATH"] = f"{isolated_bin}{os.pathsep}{inherited_path}" if inherited_path else isolated_bin
     # The isolated interpreter already owns an exact environment. Ray must not
     # rediscover the parent host's `uv run` command and replace worker startup
     # with the host workspace environment.
     environment["RAY_ENABLE_UV_RUN_RUNTIME_ENV"] = "0"
+    environment["PYTHONNOUSERSITE"] = "1"
+    environment["PYTHONSAFEPATH"] = "1"
+    projection = environment.get("POSTTRAIN_VERL_PYTHONPATH")
+    if projection:
+        projection_path = Path(projection)
+        if not projection_path.is_absolute() or not projection_path.is_dir():
+            raise RuntimeError("POSTTRAIN_VERL_PYTHONPATH must name the packaged absolute veRL worker projection")
+        environment["PYTHONPATH"] = projection
     return environment
 
 

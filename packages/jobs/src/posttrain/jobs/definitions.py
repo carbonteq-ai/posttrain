@@ -7,6 +7,7 @@ from dataclasses import replace
 from typing import Any, Literal
 
 from posttrain.common import (
+    ContractError,
     ExecutionTarget,
     InferenceBinding,
     ModelVariant,
@@ -15,7 +16,13 @@ from posttrain.common import (
     TrackioArtifactRef,
     Workload,
 )
-from posttrain.data import PreferenceDataSource, SupervisedDataSource
+from posttrain.data import (
+    DatasetLoadPlan,
+    DatasetPrepareRequest,
+    PreferenceDataSource,
+    SupervisedDataSource,
+    prepare,
+)
 from posttrain.eval import (
     EnvironmentBinding,
     EvaluateRequest,
@@ -65,6 +72,58 @@ from posttrain.work import JobDefinition, ResolvedSeats
 _DEFAULT_EVALUATION_BUDGET = EvaluationBudget()
 
 
+def supervised_data_prepare_definition(
+    operation: Callable[[RunContext, DatasetPrepareRequest], object] = prepare,
+    *,
+    definition_id: str = "data/canonicalize-supervised@1",
+) -> JobDefinition:
+    """Build the standard supervised dataset canonicalization job."""
+
+    def run(context: RunContext, seats: ResolvedSeats) -> object:
+        _seat(seats, "target", ExecutionTarget)
+        data = _seat(seats, "dataset", SupervisedDataSource)
+        if data.descriptor.kind != "supervised":
+            raise TypeError("supervised data.prepare requires supervised data")
+        return operation(context, DatasetPrepareRequest(data))
+
+    return JobDefinition(
+        definition_id,
+        "data.prepare",
+        {"dataset": SupervisedDataSource, "target": ExecutionTarget},
+        run,
+        "Validate and retain one canonical supervised dataset snapshot.",
+        required_artifact_roles=("dataset",),
+        selection_seats={"dataset": DatasetLoadPlan},
+        static_validator=_validate_supervised_prepare_seats,
+    )
+
+
+def preference_data_prepare_definition(
+    operation: Callable[[RunContext, DatasetPrepareRequest], object] = prepare,
+    *,
+    definition_id: str = "data/canonicalize-preference@1",
+) -> JobDefinition:
+    """Build the standard preference dataset canonicalization job."""
+
+    def run(context: RunContext, seats: ResolvedSeats) -> object:
+        _seat(seats, "target", ExecutionTarget)
+        data = _seat(seats, "dataset", PreferenceDataSource)
+        if data.descriptor.kind != "preference":
+            raise TypeError("preference data.prepare requires preference data")
+        return operation(context, DatasetPrepareRequest(data))
+
+    return JobDefinition(
+        definition_id,
+        "data.prepare",
+        {"dataset": PreferenceDataSource, "target": ExecutionTarget},
+        run,
+        "Validate and retain one canonical preference dataset snapshot.",
+        required_artifact_roles=("dataset",),
+        selection_seats={"dataset": DatasetLoadPlan},
+        static_validator=_validate_preference_prepare_seats,
+    )
+
+
 def sft_definition(
     operation: Callable[[RunContext, SFTRequest], object] = sft,
     *,
@@ -91,12 +150,18 @@ def sft_definition(
     }
     if with_validation:
         seat_types["validation_dataset"] = SupervisedDataSource
+    selection_seats = {"dataset": DatasetLoadPlan}
+    if with_validation:
+        selection_seats["validation_dataset"] = DatasetLoadPlan
     return JobDefinition(
         definition_id,
         "train.sft",
         seat_types,
         run,
         "Render supervised examples and update the selected model with the configured SFT bindings.",
+        required_artifact_roles=("model", "summary"),
+        selection_seats=selection_seats,
+        static_validator=_validate_supervised_dataset_seats,
     )
 
 
@@ -127,6 +192,9 @@ def dpo_definition(
         },
         run,
         "Optimize the selected policy from preference pairs using the configured DPO objective.",
+        required_artifact_roles=("model", "summary"),
+        selection_seats={"dataset": DatasetLoadPlan},
+        static_validator=_validate_preference_dataset_seats,
     )
 
 
@@ -161,6 +229,8 @@ def grpo_definition(
         },
         run,
         "Generate grouped Verifiers rollouts and update the selected policy with the selected GRPO-family objective.",
+        required_artifact_roles=("model", "summary"),
+        static_validator=_validate_online_rl_batch_seats,
     )
 
 
@@ -199,6 +269,7 @@ def distillation_definition(
         },
         run,
         "Generate fresh student rollouts, score with the teacher, and apply distillation.",
+        required_artifact_roles=("model", "summary"),
     )
 
 
@@ -233,6 +304,7 @@ def sampo_definition(
         },
         run,
         "Train a multi-turn tool policy with sequence clipping and hierarchical episode/turn advantages.",
+        required_artifact_roles=("model", "summary"),
     )
 
 
@@ -266,6 +338,7 @@ def serve_benchmark_definition(
         },
         run,
         "Measure a bounded serving workload on the selected execution target.",
+        required_artifact_roles=("benchmark",),
     )
 
 
@@ -341,6 +414,22 @@ def managed_evaluation_definition(
     )
 
 
+def managed_general_evaluation_definition(
+    operation: Callable[[RunContext, ServeLaunchRequest, EvaluateRequest], object] = _managed_evaluation,
+    *,
+    budget: EvaluationBudget = _DEFAULT_EVALUATION_BUDGET,
+    definition_id: str = "eval/verifiers-managed-general@1",
+) -> JobDefinition:
+    """Build a self-contained general-evaluation cell with a managed endpoint."""
+
+    return managed_evaluation_definition(
+        operation,
+        budget=budget,
+        kind="eval.general",
+        definition_id=definition_id,
+    )
+
+
 def model_transform_definition(
     operation: Callable[[RunContext, TransformRequest], TransformResult] | None = None,
     *,
@@ -375,6 +464,7 @@ def model_transform_definition(
         },
         run,
         "Transform the selected foundation model into an immutable derived variant.",
+        required_artifact_roles=("model",),
     )
 
 
@@ -382,6 +472,8 @@ def standard_definitions() -> dict[str, JobDefinition]:
     """Return the immutable standard definition registry."""
 
     definitions = (
+        supervised_data_prepare_definition(),
+        preference_data_prepare_definition(),
         sft_definition(),
         dpo_definition(),
         grpo_definition(),
@@ -391,6 +483,7 @@ def standard_definitions() -> dict[str, JobDefinition]:
         serve_smoke_definition(),
         general_evaluation_definition(),
         managed_evaluation_definition(),
+        managed_general_evaluation_definition(),
         model_transform_definition(),
     )
     registry = {definition.id: definition for definition in definitions}
@@ -417,6 +510,7 @@ def _evaluation_job(
         },
         operation,
         description,
+        required_artifact_roles=("evaluation",),
     )
 
 
@@ -453,6 +547,40 @@ def _evaluation_request(
     )
 
 
+def _validate_supervised_dataset_seats(seats: ResolvedSeats) -> None:
+    for name in ("dataset", "validation_dataset"):
+        plan = seats.get(name)
+        if isinstance(plan, DatasetLoadPlan) and plan.kind != "supervised":
+            raise ContractError(f"SFT seat {name!r} requires a supervised dataset plan")
+
+
+def _validate_supervised_prepare_seats(seats: ResolvedSeats) -> None:
+    plan = seats.get("dataset")
+    if isinstance(plan, DatasetLoadPlan) and plan.kind != "supervised":
+        raise ContractError("supervised data.prepare seat 'dataset' requires a supervised dataset plan")
+
+
+def _validate_preference_dataset_seats(seats: ResolvedSeats) -> None:
+    plan = seats.get("dataset")
+    if isinstance(plan, DatasetLoadPlan) and plan.kind != "preference":
+        raise ContractError("DPO seat 'dataset' requires a preference dataset plan")
+
+
+def _validate_preference_prepare_seats(seats: ResolvedSeats) -> None:
+    plan = seats.get("dataset")
+    if isinstance(plan, DatasetLoadPlan) and plan.kind != "preference":
+        raise ContractError("preference data.prepare seat 'dataset' requires a preference dataset plan")
+
+
+def _validate_online_rl_batch_seats(seats: ResolvedSeats) -> None:
+    settings = _seat(seats, "settings", GRPOSettings)
+    training = _seat(seats, "training", TrainingBinding)
+    expected_batch = settings.num_prompts_per_step * settings.num_generations
+    global_batch = training.runtime.global_batch_size
+    if isinstance(global_batch, int) and global_batch != expected_batch:
+        raise ContractError("training global batch must equal prompt groups times generations")
+
+
 def _seat[SelectionT: object](
     seats: ResolvedSeats,
     name: str,
@@ -471,9 +599,12 @@ __all__ = [
     "grpo_definition",
     "sampo_definition",
     "managed_evaluation_definition",
+    "managed_general_evaluation_definition",
     "model_transform_definition",
+    "preference_data_prepare_definition",
     "serve_benchmark_definition",
     "serve_smoke_definition",
     "sft_definition",
     "standard_definitions",
+    "supervised_data_prepare_definition",
 ]

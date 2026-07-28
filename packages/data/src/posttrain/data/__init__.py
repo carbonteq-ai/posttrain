@@ -15,6 +15,12 @@ from .adapters import (
     to_nemo_preference_rows,
     to_nemo_sft_rows,
 )
+from .api import (
+    DatasetPrepareRequest,
+    DatasetPrepareResult,
+    DatasetPrepareSource,
+    prepare,
+)
 from .catalog import (
     DATA_CATALOG_DECODERS,
     DatasetLoadPlan,
@@ -49,6 +55,9 @@ __all__ = [
     "DatasetDescriptor",
     "DatasetLoadPlan",
     "DatasetMaterialization",
+    "DatasetPrepareRequest",
+    "DatasetPrepareResult",
+    "DatasetPrepareSource",
     "MessageRecord",
     "PreferenceDataSource",
     "PreferenceDataset",
@@ -75,6 +84,7 @@ __all__ = [
     "preferences_from_huggingface",
     "preferences_from_nemo",
     "partition_supervised_dataset",
+    "prepare",
     "supervised_from_huggingface",
     "supervised_from_nemo",
     "supervised_from_verifiers",

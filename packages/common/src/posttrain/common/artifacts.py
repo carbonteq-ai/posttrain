@@ -105,8 +105,33 @@ class ProducedArtifact:
     reference: ArtifactRef
     required: bool = True
     metadata: ArtifactMetadata = field(default_factory=dict)
+    role: str | None = None
 
     def __post_init__(self) -> None:
         _require_name(self.name, "artifact name")
         _require_name(self.kind, "artifact kind")
+        if self.role is not None:
+            _require_name(self.role, "artifact role")
+        object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata)))
+
+
+@dataclass(frozen=True, slots=True)
+class PublishedArtifact:
+    """A produced artifact after a provider commits an immutable version."""
+
+    logical_name: str
+    kind: str
+    reference: StoredArtifactRef
+    required: bool = True
+    size_bytes: int | None = None
+    metadata: ArtifactMetadata = field(default_factory=dict)
+    role: str | None = None
+
+    def __post_init__(self) -> None:
+        _require_name(self.logical_name, "artifact logical name")
+        _require_name(self.kind, "artifact kind")
+        if self.role is not None:
+            _require_name(self.role, "artifact role")
+        if self.size_bytes is not None and self.size_bytes < 0:
+            raise ContractError("published artifact size cannot be negative")
         object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata)))

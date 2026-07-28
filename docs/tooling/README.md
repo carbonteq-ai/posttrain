@@ -11,7 +11,7 @@ Runtime lives in the **uv workspace** (`packages/common`, `packages/train`, `pac
 | [triton](./triton/) | planned server/kernel work | Clarifies server versus kernel implementations |
 | [verifiers](./verifiers/) | `packages/eval` extra `envs` | Environments Hub / `prime` |
 | [trackio](./trackio/) | lab observation context and reports | CarbonTeq fork, immutable pin, Verifiers trace copy |
-| [mise / uv / setup](./mise-uv/) | whole repo | Python 3.12 + uv workspace |
+| [mise / uv / setup](./mise-uv/) | whole repo | Python 3.13 + uv workspace |
 | [hardware](./hardware/) | — | 8 GB constraints |
 | [primerl](./primerl/) | deferred | Multi-GPU later |
 

@@ -18,10 +18,20 @@ from .commands import (
     observatory,
     project_cmd,
     run_cmd,
+    runtime,
     version,
     work_package,
+    workers,
 )
 from .context import CliState
+from .scaffolding.init_project import installed_version
+
+
+def _version_callback(*, value: bool) -> None:
+    if not value:
+        return
+    typer.echo(f"posttrain {installed_version()}")
+    raise typer.Exit(code=0)
 
 
 def create_app(*, json_stream: TextIO | None = None) -> typer.Typer:
@@ -45,11 +55,30 @@ def create_app(*, json_stream: TextIO | None = None) -> typer.Typer:
             bool,
             typer.Option("--json", help="emit JSON output"),
         ] = False,
+        show_traceback: Annotated[
+            bool,
+            typer.Option(
+                "--traceback",
+                help="print a full Python traceback for expected CLI failures",
+            ),
+        ] = False,
+        show_version: Annotated[
+            bool,
+            typer.Option(
+                "--version",
+                "-V",
+                help="show the installed framework CLI version and exit",
+                callback=_version_callback,
+                is_eager=True,
+            ),
+        ] = False,
     ) -> None:
+        del show_version
         ctx.ensure_object(dict)
         ctx.obj = CliState(
             project_root=project_root,
             json_output=json_output,
+            traceback=show_traceback,
             json_stream=json_stream or sys.stdout,
         )
 
@@ -63,6 +92,8 @@ def create_app(*, json_stream: TextIO | None = None) -> typer.Typer:
     work_package.register(app)
     job.register(app)
     run_cmd.register(app)
+    workers.register(app)
+    runtime.register(app)
     observatory.register(app)
 
     return app

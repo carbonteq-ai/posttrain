@@ -139,8 +139,8 @@ training:
       global_batch_size: 2
     backend_options:
       use_liger_kernel: true
-      source_revision: b43a0a3d622ab1547f4d2abbd1b25eab3c52a0b9
-      dependency_lock_sha256: 1a24280c5e1db1536226f2958c1bd91a21e248f1c940d5598b1f64f27a6482cc
+      source_revision: 6e7739b8ec741d21ecd79c0c212694cd15ff20d8
+      dependency_lock_sha256: ae49c44ebd25b4f0ea2bffbe6af2bcd3b2891a893e092b224b193c718f7b4674
   training/qwen3.5-0.8b-trl-distill-lora@1:
     selection_type: training-binding
     revision: "1"
@@ -161,8 +161,8 @@ training:
     runtime:
       global_batch_size: 2
     backend_options:
-      source_revision: b43a0a3d622ab1547f4d2abbd1b25eab3c52a0b9
-      dependency_lock_sha256: 1a24280c5e1db1536226f2958c1bd91a21e248f1c940d5598b1f64f27a6482cc
+      source_revision: 6e7739b8ec741d21ecd79c0c212694cd15ff20d8
+      dependency_lock_sha256: ae49c44ebd25b4f0ea2bffbe6af2bcd3b2891a893e092b224b193c718f7b4674
   training/qwen3.5-0.8b-trl-automationbench-lora-thinking@1:
     selection_type: training-binding
     revision: "1"
@@ -185,8 +185,8 @@ training:
     backend_options:
       use_liger_kernel: true
       logits_chunk_size: 128
-      source_revision: b43a0a3d622ab1547f4d2abbd1b25eab3c52a0b9
-      dependency_lock_sha256: 1a24280c5e1db1536226f2958c1bd91a21e248f1c940d5598b1f64f27a6482cc
+      source_revision: 6e7739b8ec741d21ecd79c0c212694cd15ff20d8
+      dependency_lock_sha256: ae49c44ebd25b4f0ea2bffbe6af2bcd3b2891a893e092b224b193c718f7b4674
   training/qwen3.5-trl-qlora@1:
     selection_type: training-binding
     revision: "1"
@@ -211,8 +211,8 @@ training:
       global_batch_size: 2
     backend_options:
       use_liger_kernel: true
-      source_revision: b43a0a3d622ab1547f4d2abbd1b25eab3c52a0b9
-      dependency_lock_sha256: 1a24280c5e1db1536226f2958c1bd91a21e248f1c940d5598b1f64f27a6482cc
+      source_revision: 6e7739b8ec741d21ecd79c0c212694cd15ff20d8
+      dependency_lock_sha256: ae49c44ebd25b4f0ea2bffbe6af2bcd3b2891a893e092b224b193c718f7b4674
   training/lfm2.5-trl-lora@1:
     selection_type: training-binding
     revision: "1"
@@ -231,8 +231,8 @@ training:
     parallelism:
       sequence_length_divisor: 2
     backend_options:
-      source_revision: b43a0a3d622ab1547f4d2abbd1b25eab3c52a0b9
-      dependency_lock_sha256: 1a24280c5e1db1536226f2958c1bd91a21e248f1c940d5598b1f64f27a6482cc
+      source_revision: 6e7739b8ec741d21ecd79c0c212694cd15ff20d8
+      dependency_lock_sha256: ae49c44ebd25b4f0ea2bffbe6af2bcd3b2891a893e092b224b193c718f7b4674
   training/lfm2.5-trl-qlora@1:
     selection_type: training-binding
     revision: "1"
@@ -254,5 +254,5 @@ training:
     parallelism:
       sequence_length_divisor: 2
     backend_options:
-      source_revision: b43a0a3d622ab1547f4d2abbd1b25eab3c52a0b9
-      dependency_lock_sha256: 1a24280c5e1db1536226f2958c1bd91a21e248f1c940d5598b1f64f27a6482cc
+      source_revision: 6e7739b8ec741d21ecd79c0c212694cd15ff20d8
+      dependency_lock_sha256: ae49c44ebd25b4f0ea2bffbe6af2bcd3b2891a893e092b224b193c718f7b4674

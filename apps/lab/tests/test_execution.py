@@ -19,6 +19,7 @@ from posttrain.common import (
 from posttrain.eval import EvaluationEndpoint
 from posttrain.tracking import RunOutcome, RunSpec, StoredArtifactRef
 from posttrain.train import QWEN35_SFT_SMOKE, QuantizationPlan, SFTSettings, TrainingBinding
+from posttrain.work import execute_run_tracked_finalized
 from posttrain_lab.catalog import QWEN35_TRL_QLORA, QWEN_35_2B_AWQ_4BIT, open_catalog, resolved_snapshot
 from posttrain_lab.execution import ArtifactInput, execute_run, execute_run_tracked
 from posttrain_lab.tracking import TrackioObserver, trackio_artifact_name
@@ -29,7 +30,11 @@ from posttrain_lab.work_packages import (
     resolve_qualification_package,
     resolve_screen_package,
 )
-from posttrain_tracking_trackio import TrackioBackend, TrackioSettings
+from posttrain_tracking_trackio import (
+    TrackioBackend,
+    TrackioDataSource,
+    TrackioSettings,
+)
 from posttrain_tracking_wandb import WandbBackend, WandbSettings
 
 REVISION = "a" * 40
@@ -249,6 +254,67 @@ def test_lab_executes_synthetic_job_through_trackio_backend(
     assert result == "done"
     assert any(values.get("run/status") == "succeeded" for values, _ in run.logs)
     assert run.finished == 1
+
+
+@pytest.mark.asyncio
+async def test_finalized_trackio_artifact_is_consumed_by_exact_version(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for module in ("trackio", "trackio.sqlite_storage", "trackio.utils"):
+        monkeypatch.setattr(f"{module}.TRACKIO_DIR", tmp_path)
+    monkeypatch.setattr("trackio.utils.ARTIFACTS_DIR", tmp_path / "artifacts")
+    monkeypatch.setattr("trackio.bucket_storage.TRACKIO_DIR", tmp_path)
+    project = "finalized-e2e"
+    backend = TrackioBackend(
+        TrackioSettings(
+            project=project,
+            auto_log_gpu=False,
+            auto_log_cpu=False,
+        )
+    )
+
+    def produce(context: RunContext) -> str:
+        output = context.workspace / "model.bin"
+        output.write_bytes(b"durable-weights")
+        context.artifact(
+            ProducedArtifact(
+                "model/final",
+                "model",
+                LocalArtifactRef(
+                    output.resolve(),
+                    hashlib.sha256(output.read_bytes()).hexdigest(),
+                ),
+            )
+        )
+        return "produced"
+
+    producer = execute_run_tracked_finalized(
+        _spec(run_id="00000000-0000-4000-8000-000000000401"),
+        produce,
+        backend=backend,
+        scratch_root=tmp_path,
+    )
+    reference = producer.published_artifacts[0].reference
+    assert reference.version == "v0"
+
+    consumer = execute_run_tracked_finalized(
+        _spec(
+            run_id="00000000-0000-4000-8000-000000000402",
+            artifacts={"model": ArtifactInput(reference, "model")},
+        ),
+        lambda context: next(context.input_artifact("model").path.rglob("model.bin")).read_bytes(),
+        backend=backend,
+        scratch_root=tmp_path,
+    )
+
+    assert consumer.value == b"durable-weights"
+    source = TrackioDataSource(project)
+    producer_artifacts = await source.artifacts("00000000-0000-4000-8000-000000000401")
+    consumer_artifacts = await source.artifacts("00000000-0000-4000-8000-000000000402")
+    assert producer_artifacts.outputs[0].artifact.version == "v0"
+    assert consumer_artifacts.inputs[0].artifact.version == "v0"
+    assert consumer_artifacts.inputs[0].artifact.digest == producer_artifacts.outputs[0].artifact.digest
 
 
 def test_lab_executes_synthetic_job_through_wandb_backend(

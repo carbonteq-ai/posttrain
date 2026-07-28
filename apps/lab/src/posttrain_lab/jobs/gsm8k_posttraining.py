@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from posttrain.common import InferenceBinding, ModelVariant, RunContext
 from posttrain.eval import EnvironmentBinding, EnvironmentSource, EvaluationPlan, SamplingPolicy
+from posttrain.eval.programs.general_smoke import GSM8K_TRAIN_ACTIVATION
 from posttrain.train import (
     DPORequest,
     GRPORequest,
@@ -28,19 +27,6 @@ JOB_ID = "posttraining/gsm8k"
 GSM8KDistillationJobRequest = OnPolicyDistillationRequest
 
 
-def _training_environment() -> object:
-    try:
-        from verifiers.v1.env import EnvConfig
-    except ImportError as error:
-        raise RuntimeError("install posttrain-lab with the gpu-posttrain extra") from error
-    config: dict[str, Any] = {
-        "taskset": {"id": "gsm8k-v1", "split": "train"},
-        "harness": {"id": "null", "runtime": {"type": "subprocess"}},
-        "timeout": {"setup": 120, "rollout": 180, "finalize": 60, "scoring": 120},
-    }
-    return EnvConfig.model_validate(config)
-
-
 GSM8K_TRAINING_ROLLOUTS = EvaluationPlan(
     id="gsm8k-training-rollouts-v1",
     kind="domain",
@@ -54,7 +40,7 @@ GSM8K_TRAINING_ROLLOUTS = EvaluationPlan(
                 revision=VERIFIERS_REVISION,
                 subdirectory="environments/gsm8k_v1",
             ),
-            factory=_training_environment,
+            activation=GSM8K_TRAIN_ACTIVATION,
             sampling=SamplingPolicy(max_tokens=1_024, temperature=0.8, top_p=0.95),
             num_tasks=4,
             num_rollouts=2,
@@ -71,7 +57,7 @@ GSM8K_LFM_TRAINING_ROLLOUTS = EvaluationPlan(
             id="gsm8k-train-candidates",
             category="math-reasoning",
             source=GSM8K_TRAINING_ROLLOUTS.environments[0].source,
-            factory=_training_environment,
+            activation=GSM8K_TRAIN_ACTIVATION,
             sampling=SamplingPolicy(max_tokens=4_096, temperature=0.8, top_p=0.95),
             num_tasks=4,
             num_rollouts=2,

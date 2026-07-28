@@ -113,6 +113,10 @@ def create_http_app(
         )
         return [run.model_dump(mode="json") for run in await service.list_runs(query)]
 
+    @app.get("/api/v1/runs/locate")
+    async def locate_run(run_id: str = Query(min_length=1)) -> list[dict[str, object]]:
+        return [run.model_dump(mode="json") for run in await service.locate_run(run_id)]
+
     @app.get("/api/v1/runs/{run_key}/view")
     async def run_view(
         run_key: str,
@@ -157,6 +161,20 @@ def create_http_app(
     async def semantic_summary(run_key: str, request: SemanticSummaryRequest) -> dict[str, object]:
         return (await service.summarize_run(_locator(run_key), request)).model_dump(mode="json")
 
+    @app.get("/api/v1/serving-capacity/work-packages/{work_package_id:path}")
+    async def serving_capacity_work_package(
+        work_package_id: str,
+        project_id: str | None = None,
+        source_id: str | None = None,
+    ) -> dict[str, object]:
+        return (
+            await service.get_serving_capacity_view(
+                work_package_id,
+                project_id=project_id,
+                source_id=source_id,
+            )
+        ).model_dump(mode="json")
+
     @app.get("/api/v1/work-packages/{work_package_id:path}")
     async def work_package(
         work_package_id: str,
@@ -181,6 +199,23 @@ def create_http_app(
 
     @app.post("/api/v1/exports")
     async def export(request: ExportRequest) -> JSONResponse:
+        if request.view == "serving_capacity":
+            if request.work_package_id is None:
+                return JSONResponse(
+                    status_code=422,
+                    content={"message": "serving_capacity export requires work_package_id"},
+                )
+            view = await service.get_serving_capacity_view(
+                request.work_package_id,
+                project_id=request.project_id,
+                source_id=request.source_id,
+            )
+            return JSONResponse(
+                content={
+                    "format": request.format,
+                    "view": view.model_dump(mode="json"),
+                }
+            )
         payload = []
         for key in request.run_keys:
             payload.append((await service.get_run_view_response(_locator(key))).model_dump(mode="json"))

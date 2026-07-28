@@ -13,7 +13,7 @@ from posttrain.data import DatasetDescriptor, PreferenceDataset, SupervisedDatas
 from .backends.common import BackendTrainingResult
 from .backends.trl import run_dpo, run_sft
 from .bindings import FullParameterUpdate, LoRAUpdate, QLoRAUpdate, parameter_update_digest
-from .online_rl import EnvironmentRolloutBridge
+from .online_rl import EnvironmentRolloutBridge, EnvironmentRolloutEvidence
 from .requests import DPORequest, GRPORequest, OnPolicyDistillationRequest, SAMPORequest, SFTRequest
 from .results import TeacherScoringSummary, TrainingResult
 
@@ -26,6 +26,16 @@ type DPOBackend = Callable[[TrainingContext, DPORequest, PreferenceDataset, Path
 type GRPOBackend = Callable[[TrainingContext, GRPORequest, Path], BackendTrainingResult]
 type SAMPOBackend = Callable[[TrainingContext, SAMPORequest, Path], BackendTrainingResult]
 type DistillationBackend = Callable[[TrainingContext, OnPolicyDistillationRequest, Path], BackendTrainingResult]
+
+_LIVE_ROLLOUT_POPULATION_METRICS = frozenset(
+    {
+        "train/rl/rollouts_attempted",
+        "train/rl/rollouts_completed",
+        "train/rl/rollouts_failed",
+        "train/rl/rollouts_truncated",
+        "train/rl/rollouts_unscorable",
+    }
+)
 
 
 def _digest(path: Path) -> str:
@@ -86,6 +96,7 @@ def _finish(
         kind="model-weights" if is_full_update else "model-adapter",
         reference=model_ref,
         metadata=attributes,
+        role="model",
     )
     recovery_artifact = None
     if backend.recovery_checkpoint is not None:
@@ -98,6 +109,7 @@ def _finish(
             kind="training-checkpoint",
             reference=recovery_ref,
             metadata={**attributes, "global_step": backend.summary.global_step},
+            role="recovery",
         )
     summary_ref = LocalArtifactRef(backend.summary_file.resolve(), _digest(backend.summary_file))
     native_artifact = ProducedArtifact(
@@ -105,11 +117,27 @@ def _finish(
         kind="training-summary",
         reference=summary_ref,
         metadata=attributes,
+        role="summary",
     )
+    retention_artifact = None
+    if backend.retention_manifest is not None:
+        retention_ref = LocalArtifactRef(
+            backend.retention_manifest.resolve(),
+            _digest(backend.retention_manifest),
+        )
+        retention_artifact = ProducedArtifact(
+            name=f"training/{model.id}/{technique}/retention-manifest",
+            kind="training-retention-manifest",
+            reference=retention_ref,
+            metadata=attributes,
+            role="retention",
+        )
     context.artifact(model_artifact)
     if recovery_artifact is not None:
         context.artifact(recovery_artifact)
     context.artifact(native_artifact)
+    if retention_artifact is not None:
+        context.artifact(retention_artifact)
     context.metrics(
         {
             "train/global_step": backend.summary.global_step,
@@ -269,6 +297,7 @@ def grpo(
         context,
         request.bridge,
         lambda: selected_runner(context, request, output_dir),
+        replay_exclusions=_LIVE_ROLLOUT_POPULATION_METRICS,
     )
     return _finish(context, request, request.settings.algorithm, backend)
 
@@ -296,6 +325,7 @@ def sampo(
         context,
         request.bridge,
         lambda: selected_runner(context, request, output_dir),
+        replay_exclusions=_LIVE_ROLLOUT_POPULATION_METRICS,
     )
     return _finish(context, request, "sampo", backend)
 
@@ -339,23 +369,60 @@ def _run_environment_backend(
     context: TrainingContext,
     bridge: EnvironmentRolloutBridge,
     run: Callable[[], BackendTrainingResult],
+    *,
+    replay_exclusions: frozenset[str] = frozenset(),
 ) -> BackendTrainingResult:
     try:
         result = run()
     except BaseException as training_error:
         try:
-            _publish_bridge_artifacts(context, bridge)
+            _publish_bridge_artifacts(
+                context,
+                bridge,
+                replay_exclusions=replay_exclusions,
+            )
         except BaseException as finalization_error:
             training_error.add_note(
                 f"environment trace finalization also failed: {type(finalization_error).__name__}: {finalization_error}"
             )
         raise
     result.validate(context.workspace)
-    _publish_bridge_artifacts(context, bridge)
+    _publish_bridge_artifacts(
+        context,
+        bridge,
+        replay_exclusions=replay_exclusions,
+    )
     return result
 
 
-def _publish_bridge_artifacts(context: TrainingContext, bridge: EnvironmentRolloutBridge) -> None:
+def _publish_bridge_artifacts(
+    context: TrainingContext,
+    bridge: EnvironmentRolloutBridge,
+    *,
+    replay_exclusions: frozenset[str] = frozenset(),
+) -> None:
+    evidence_reader = getattr(bridge, "evidence", None)
+    if callable(evidence_reader):
+        evidence = evidence_reader()
+        if not isinstance(evidence, EnvironmentRolloutEvidence):
+            raise TypeError("environment bridge evidence must use EnvironmentRolloutEvidence")
+        for observation in evidence.metrics:
+            values = {name: value for name, value in observation.values.items() if name not in replay_exclusions}
+            if not values:
+                continue
+            attributes = dict(observation.attributes)
+            if observation.step is not None:
+                attributes["source_step"] = observation.step
+            context.metrics(
+                values,
+                # Evidence is replayed after the backend has emitted its live
+                # training steps. Keep the source step as metadata and let the
+                # tracking provider append it at the current position.
+                step=None,
+                attributes=attributes,
+            )
+        for observation in evidence.traces:
+            context.trace(observation)
     for artifact in bridge.finalize():
         context.artifact(artifact)
 

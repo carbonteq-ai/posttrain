@@ -5,7 +5,22 @@ environment:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/AutomationBench
       revision: d54dbebabdba6c6eda201694aee8ddcf36ccfc51
-    factory: automationbench-zapier-training
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+        harness:
+          id: "null"
+          runtime:
+            type: subprocess
+        timeout:
+          setup: 120
+          rollout: 1800
+          finalize: 60
+          scoring: 120
+        max_turns: 50
+        max_total_tokens: 8192
     sampling:
       max_tokens: 6144
       temperature: 1.0
@@ -32,7 +47,21 @@ environment:
       repository: https://github.com/PrimeIntellect-ai/verifiers
       revision: 284a868d6a9022109b749710672a0460e8a996d4
       subdirectory: environments/gsm8k_v1
-    factory: math-gsm8k-train
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: gsm8k-v1
+          split: train
+        harness:
+          id: "null"
+          runtime:
+            type: subprocess
+        timeout:
+          setup: 120
+          rollout: 180
+          finalize: 60
+          scoring: 120
     sampling:
       max_tokens: 384
       temperature: 1.0
@@ -50,7 +79,21 @@ environment:
       repository: https://github.com/PrimeIntellect-ai/verifiers
       revision: 284a868d6a9022109b749710672a0460e8a996d4
       subdirectory: environments/gsm8k_v1
-    factory: math-gsm8k
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: gsm8k-v1
+          split: test
+        harness:
+          id: "null"
+          runtime:
+            type: subprocess
+        timeout:
+          setup: 120
+          rollout: 180
+          finalize: 60
+          scoring: 120
     sampling:
       max_tokens: 4096
     num_tasks: 8
@@ -61,7 +104,22 @@ environment:
       repository: https://github.com/PrimeIntellect-ai/verifiers
       revision: 284a868d6a9022109b749710672a0460e8a996d4
       subdirectory: environments/reverse_text_v1
-    factory: instruction-reverse-text
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: reverse-text-v1
+          dataset_name: PrimeIntellect/Reverse-Text-RL
+          dataset_split: train
+        harness:
+          id: "null"
+          runtime:
+            type: subprocess
+        timeout:
+          setup: 120
+          rollout: 180
+          finalize: 60
+          scoring: 120
     sampling:
       max_tokens: 1024
     num_tasks: 8
@@ -72,7 +130,21 @@ environment:
       repository: https://github.com/PrimeIntellect-ai/verifiers
       revision: 284a868d6a9022109b749710672a0460e8a996d4
       subdirectory: environments/code_golf_v1
-    factory: code-execution
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: code-golf-v1
+        harness:
+          id: "null"
+          runtime:
+            type: docker
+            image: lab/verifiers-runtime:vf-284a868d
+        timeout:
+          setup: 120
+          rollout: 180
+          finalize: 60
+          scoring: 120
     sampling:
       max_tokens: 4096
     num_tasks: 3
@@ -85,7 +157,24 @@ environment:
       repository: https://github.com/PrimeIntellect-ai/verifiers
       revision: 284a868d6a9022109b749710672a0460e8a996d4
       subdirectory: environments/alphabet_sort_v1
-    factory: multi-turn-alphabet-sort
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: alphabet-sort-v1
+          min_turns: 2
+          max_turns: 3
+          min_names_per_turn: 2
+          max_names_per_turn: 4
+        harness:
+          id: "null"
+          runtime:
+            type: subprocess
+        timeout:
+          setup: 120
+          rollout: 180
+          finalize: 60
+          scoring: 120
     sampling:
       max_tokens: 2048
     num_tasks: 4

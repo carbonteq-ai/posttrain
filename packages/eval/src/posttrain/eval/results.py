@@ -8,6 +8,30 @@ from posttrain.common import ProducedArtifact
 
 
 @dataclass(frozen=True, slots=True)
+class EvaluationPopulation:
+    """Irreducible rollout counts retained at evaluation-run grain."""
+
+    attempted: int
+    complete: int
+    failed: int
+    truncated: int
+    coverage_missing: int
+
+    def __post_init__(self) -> None:
+        values = (
+            self.attempted,
+            self.complete,
+            self.failed,
+            self.truncated,
+            self.coverage_missing,
+        )
+        if any(value < 0 for value in values):
+            raise ValueError("evaluation population counts must be non-negative")
+        if any(value > self.attempted for value in (self.complete, self.failed, self.truncated)):
+            raise ValueError("evaluation outcome counts cannot exceed attempted rollouts")
+
+
+@dataclass(frozen=True, slots=True)
 class TraceSynchronization:
     observed: int
     emitted: int
@@ -33,6 +57,7 @@ class EvaluationResult:
     trace_ids: tuple[str, ...]
     native_artifact: ProducedArtifact
     synchronization: TraceSynchronization
+    population: EvaluationPopulation
 
     @property
     def rollout_count(self) -> int:
@@ -40,7 +65,9 @@ class EvaluationResult:
 
     @property
     def status(self) -> str:
-        return self.synchronization.status
+        if self.synchronization.complete and self.population.coverage_missing == 0:
+            return "complete"
+        return "partial"
 
 
-__all__ = ["EvaluationResult", "TraceSynchronization"]
+__all__ = ["EvaluationPopulation", "EvaluationResult", "TraceSynchronization"]

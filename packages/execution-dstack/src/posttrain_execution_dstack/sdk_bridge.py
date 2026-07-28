@@ -1,0 +1,270 @@
+"""Standalone JSON bridge to dstack's Python SDK.
+
+This file intentionally imports no framework package so it can run in dstack's
+Pydantic-1 environment while the caller remains in the framework's Pydantic-2
+environment.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import sys
+import time
+
+from dstack.api import Client, Task, VirtualRepo
+from native_state import assignment_state
+
+_RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+_TERMINAL = frozenset({"terminated", "failed", "done"})
+_RECLAIMED_PREFIX = "POSTTRAIN_CLEANUP_RECLAIMED_BYTES="
+
+
+def _client(payload):
+    return Client.from_config(project_name=payload["project"])
+
+
+def _configuration(payload):
+    configuration = dict(payload["configuration"])
+    launch_environment = configuration.pop("_posttrain_launch_env", {})
+    if not isinstance(launch_environment, dict):
+        raise RuntimeError("invalid posttrain launch environment")
+    environment = configuration.get("env")
+    if isinstance(environment, list):
+        missing = [name for name in environment if name not in os.environ]
+        if missing:
+            raise RuntimeError("required execution environment names are unavailable")
+        configuration["env"] = {name: os.environ[name] for name in environment}
+    if launch_environment:
+        configured_environment = configuration.setdefault("env", {})
+        if not isinstance(configured_environment, dict):
+            raise RuntimeError("invalid dstack execution environment")
+        configured_environment.update({str(name): str(value) for name, value in launch_environment.items()})
+    return Task(**configuration)
+
+
+def plan(payload):
+    configuration = _configuration(payload)
+    native = _client(payload).runs.get_run_plan(
+        configuration=configuration,
+        repo=VirtualRepo(),
+    )
+    offers = sum(len(job.offers) for job in native.job_plans)
+    return {"run_name": configuration.name, "offers": offers}
+
+
+def submit(payload):
+    client = _client(payload)
+    configuration = _configuration(payload)
+    run = client.runs.get(configuration.name)
+    if run is None:
+        native = client.runs.get_run_plan(
+            configuration=configuration,
+            repo=VirtualRepo(),
+        )
+        run = client.runs.apply_plan(
+            run_plan=native,
+            repo=VirtualRepo(),
+            reserve_ports=False,
+        )
+    return {"run_name": run.name}
+
+
+def status(payload):
+    run = _client(payload).runs.get(payload["run_name"])
+    if run is None:
+        return {"status": "lost", "hostname": None, "attempt": 1}
+    run.refresh()
+    native = str(getattr(run.status, "value", run.status)).lower()
+    try:
+        hostname = run.hostname
+    except (AttributeError, RuntimeError, ValueError):
+        hostname = None
+    message = (
+        getattr(run._run, "error", None)
+        or getattr(run._run, "status_message", None)
+        or getattr(run._run, "termination_reason", None)
+    )
+    return {
+        "status": native,
+        "hostname": hostname,
+        "attempt": 1,
+        "message": str(message)[:500] if message else None,
+    }
+
+
+def logs(payload):
+    run = _client(payload).runs.get(payload["run_name"])
+    if run is None:
+        return {"lines": []}
+    lines = []
+    for value in run.logs(replica_num=0, job_num=0):
+        lines.extend(value.decode("utf-8", errors="replace").splitlines())
+    return {"lines": lines}
+
+
+def cancel(payload):
+    run = _client(payload).runs.get(payload["run_name"])
+    if run is None:
+        return {"cancelled": False, "missing": True}
+    native = str(getattr(run.status, "value", run.status)).lower()
+    if native not in {"terminated", "failed", "done"}:
+        run.stop(abort=False)
+        return {"cancelled": True, "missing": False}
+    return {"cancelled": False, "missing": False}
+
+
+def _native_status(run):
+    run.refresh()
+    return str(getattr(run.status, "value", run.status)).lower()
+
+
+def _cleanup_command():
+    cleanup_path = "/opt/posttrain/cleanup"
+    return "\n".join(
+        (
+            "set -eu",
+            (
+                "before=$(find " + cleanup_path + " -mindepth 1 -printf '%s\\n' "
+                "| awk '{total += $1} END {print total + 0}')"
+            ),
+            ("find " + cleanup_path + " -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +"),
+            ('test -z "$(find ' + cleanup_path + ' -mindepth 1 -print -quit)"'),
+            'printf "' + _RECLAIMED_PREFIX + '%s\\n" "$before"',
+        )
+    )
+
+
+def cleanup_workspace(payload):
+    client = _client(payload)
+    source = client.runs.get(payload["source_run_name"])
+    if source is None:
+        raise RuntimeError("cleanup source run is unavailable")
+    native = _native_status(source)
+    if native not in _TERMINAL:
+        raise RuntimeError("cleanup source run is not terminal")
+
+    run_id = str(payload["run_id"])
+    workspace = str(payload["workspace"])
+    if not _RUN_ID.fullmatch(run_id):
+        raise RuntimeError("cleanup run id is not path-safe")
+    if not workspace.startswith("/") or workspace.rstrip("/").split("/")[-1] != run_id:
+        raise RuntimeError("cleanup workspace is not the exact run directory")
+    if "/../" in workspace or workspace.endswith("/.."):
+        raise RuntimeError("cleanup workspace contains parent traversal")
+
+    expected_hostname = payload.get("hostname")
+    try:
+        observed_hostname = source.hostname
+    except (AttributeError, RuntimeError, ValueError):
+        observed_hostname = None
+    if not observed_hostname:
+        if native not in {"failed", "terminated"} or assignment_state(source._run) != "never-assigned":
+            raise RuntimeError(
+                "cleanup source run has no worker hostname but assignment history is not conclusively empty"
+            )
+        return {
+            "cleanup_run_name": None,
+            "hostname": None,
+            "workspace": workspace,
+            "workspace_state": "not-created",
+            "emptied": False,
+            "reclaimed_bytes": 0,
+        }
+    if not isinstance(expected_hostname, str) or observed_hostname != expected_hostname:
+        raise RuntimeError("cleanup source run worker does not match")
+
+    base_configuration = {
+        "name": str(payload["cleanup_run_name"]),
+        "image": str(payload["image"]),
+        "commands": [_cleanup_command()],
+        "instances": [{"hostname": expected_hostname}],
+        "volumes": [
+            {
+                "instance_path": workspace,
+                "path": "/opt/posttrain/cleanup",
+                "optional": False,
+            }
+        ],
+        "retry": False,
+        "max_duration": 300,
+        "tags": {
+            "posttrain_cleanup_run_id": run_id,
+            "posttrain_cleanup_source_run": str(payload["source_run_name"]),
+        },
+    }
+    # Prefer a CPU-only maintenance task. Some dstack SSH fleets advertise
+    # only GPU-shaped offers, even for their idle CPUs. In that case request
+    # one GPU solely as a short-lived scheduler admission constraint; the
+    # cleanup command itself never initializes CUDA.
+    configuration = Task(
+        **base_configuration,
+        resources={"gpu": {"count": 0}, "disk": {"size": "100GB.."}},
+    )
+    cleanup_run = client.runs.get(configuration.name)
+    if cleanup_run is None:
+        plan = client.runs.get_run_plan(
+            configuration=configuration,
+            repo=VirtualRepo(),
+        )
+        if not any(job.offers for job in plan.job_plans):
+            configuration = Task(
+                **base_configuration,
+                resources={"gpu": {"count": 1}, "disk": {"size": "100GB.."}},
+            )
+            plan = client.runs.get_run_plan(
+                configuration=configuration,
+                repo=VirtualRepo(),
+            )
+        if not any(job.offers for job in plan.job_plans):
+            raise RuntimeError("exact-worker cleanup task has no matching dstack offer")
+        cleanup_run = client.runs.apply_plan(
+            run_plan=plan,
+            repo=VirtualRepo(),
+            reserve_ports=False,
+        )
+
+    deadline = time.monotonic() + 300
+    cleanup_status = _native_status(cleanup_run)
+    while cleanup_status not in _TERMINAL and time.monotonic() < deadline:
+        time.sleep(2)
+        cleanup_status = _native_status(cleanup_run)
+    if cleanup_status != "done":
+        raise RuntimeError(f"exact-worker cleanup task did not succeed (status={cleanup_status})")
+
+    reclaimed = None
+    for value in cleanup_run.logs(replica_num=0, job_num=0):
+        for line in value.decode("utf-8", errors="replace").splitlines():
+            if line.startswith(_RECLAIMED_PREFIX):
+                raw = line.removeprefix(_RECLAIMED_PREFIX)
+                if raw.isdigit():
+                    reclaimed = int(raw)
+    if reclaimed is None:
+        raise RuntimeError("cleanup task did not return verification evidence")
+    return {
+        "cleanup_run_name": cleanup_run.name,
+        "hostname": expected_hostname,
+        "workspace": workspace,
+        "emptied": True,
+        "reclaimed_bytes": reclaimed,
+    }
+
+
+def main():
+    action = sys.argv[1]
+    payload = json.load(sys.stdin)
+    handlers = {
+        "plan": plan,
+        "submit": submit,
+        "status": status,
+        "logs": logs,
+        "cancel": cancel,
+        "cleanup_workspace": cleanup_workspace,
+    }
+    result = handlers[action](payload)
+    json.dump(result, sys.stdout, sort_keys=True, separators=(",", ":"))
+
+
+if __name__ == "__main__":
+    main()

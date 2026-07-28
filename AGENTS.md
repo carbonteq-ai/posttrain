@@ -89,6 +89,12 @@ authority.
   Qwen-only qualification policy, environment selections, and run evidence
   belong in this repository. Treat it as unpublished until a CarbonTeq remote
   and immutable fork commit replace the current dirty upstream checkout.
+- `../dstack` is the current graceful-cancellation candidate fork. Generic
+  server/runner stop-duration propagation and its regression tests belong
+  there; framework admission, run policy, tracking finalization, and live
+  qualification evidence belong in this repository. Treat the checkout as
+  unpublished until a CarbonTeq remote and immutable fork commit replace the
+  current dirty upstream-tag checkout.
 - Verifiers and its environment packages are external Git dependencies pinned
   by `packages/eval/pyproject.toml` and `packages/data/pyproject.toml`. Their
   native traces remain the replay authority. Do not copy environment ownership
@@ -149,7 +155,7 @@ and tests use the new contract.
 
 From the repository root, the normal validation ladder is:
 
-    uv sync --all-packages --locked --python 3.12
+    uv sync --all-packages --locked --python 3.13
     uv run ruff check .
     uv run pyright
     uv run lint-imports

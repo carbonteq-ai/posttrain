@@ -9,7 +9,13 @@ from types import MappingProxyType
 from typing import Annotated, Literal
 
 import yaml
-from posttrain.common import CatalogRef, ContractError, JsonValue, RunContext
+from posttrain.common import (
+    CatalogRef,
+    ContractError,
+    JsonValue,
+    PublishedArtifact,
+    RunContext,
+)
 from posttrain.common.selections import (
     Selection,
     SelectionFamily,
@@ -36,6 +42,7 @@ type JobStatus = Literal["succeeded", "not_run"]
 type SeatBinding = CatalogRef | Selection
 type ResolvedSeats = Mapping[str, Selection]
 type JobOperation = Callable[[RunContext, ResolvedSeats], object]
+type StaticSeatValidator = Callable[[ResolvedSeats], None]
 
 _STAGES = frozenset({"screen", "train", "qualify"})
 _JOB_KINDS = frozenset(
@@ -155,6 +162,9 @@ class JobDefinition:
     seats: Mapping[str, type[object]]
     operation: JobOperation
     description: str | None = None
+    required_artifact_roles: tuple[str, ...] = ()
+    selection_seats: Mapping[str, type[object]] = field(default_factory=dict)
+    static_validator: StaticSeatValidator | None = None
 
     def __post_init__(self) -> None:
         validate_selection_id(self.id, "job definition id")
@@ -164,11 +174,25 @@ class JobDefinition:
             raise ContractError("job definitions require typed seats")
         if not callable(self.operation):
             raise ContractError("job definition operation must be callable")
+        if any(not role.strip() for role in self.required_artifact_roles):
+            raise ContractError("required artifact roles cannot be empty")
+        if len(set(self.required_artifact_roles)) != len(self.required_artifact_roles):
+            raise ContractError("required artifact roles must be unique")
+        if unknown := sorted(set(self.selection_seats) - set(self.seats)):
+            raise ContractError("job-definition selection seats are not runtime seats: " + ", ".join(unknown))
+        if self.static_validator is not None and not callable(self.static_validator):
+            raise ContractError("job-definition static validator must be callable")
         if self.description is not None:
             if not self.description.strip():
                 raise ContractError("job-definition description cannot be empty")
-            object.__setattr__(self, "description", self.description.strip())
         object.__setattr__(self, "seats", MappingProxyType(dict(self.seats)))
+        object.__setattr__(
+            self,
+            "selection_seats",
+            MappingProxyType(dict(self.selection_seats)),
+        )
+        if self.description is not None:
+            object.__setattr__(self, "description", self.description.strip())
 
 
 @dataclass(frozen=True, slots=True)
@@ -179,6 +203,7 @@ class WorkPackageJobResult:
     status: JobStatus
     run_id: str | None = None
     value: object | None = None
+    published_artifacts: tuple[PublishedArtifact, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

@@ -1,0 +1,12 @@
+{
+  "job_definition_id": "data/fixture@1",
+  "job_id": "fixture",
+  "project_id": "fixture",
+  "project_manifest": "project/.posttrain/project.toml",
+  "project_root": "project",
+  "runtime_variant": "supervised",
+  "resolved_inputs": {},
+  "schema": "posttrain.resolved-job.v1",
+  "selected_work_package": "project/.posttrain/work_packages/fixture.yaml",
+  "work_package_id": "fixture/package"
+}

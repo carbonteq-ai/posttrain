@@ -10,6 +10,7 @@ from typing import Any, Protocol, cast
 from posttrain.common import JsonValue, RunContext, TraceObservation
 
 from ...requests import EvaluateRequest
+from ...results import EvaluationPopulation
 from .synchronization import TraceSyncStats, VerifiersTraceSynchronizer
 
 type EvaluationContext = RunContext
@@ -19,6 +20,7 @@ type EvaluationContext = RunContext
 class VerifiersRunResult:
     trace_ids: tuple[str, ...]
     synchronization: TraceSyncStats
+    population: EvaluationPopulation
 
 
 class _NativeEnvConfig(Protocol):
@@ -55,7 +57,7 @@ def _native_sampling(request: EvaluateRequest) -> dict[str, JsonValue]:
 
 def _build_native(request: EvaluateRequest, output_dir: Path) -> tuple[Any, Any, Any]:
     EvalConfig, Environment, (EnvConfig, run_eval) = _imports()
-    base = request.environment.factory()
+    base = request.environment.activate()
     if not isinstance(base, EnvConfig):
         raise TypeError("environment factories must return verifiers.v1.EnvConfig")
     base = cast(_NativeEnvConfig, base)
@@ -132,7 +134,20 @@ async def _run(context: EvaluationContext, request: EvaluateRequest, output_dir:
         raise
     finally:
         stats = sync.finalize()
-    return VerifiersRunResult(tuple(trace.id for trace in traces), stats)
+    expected = request.resolved_budget[0] * request.resolved_budget[1]
+    attempted = len(traces)
+    population = EvaluationPopulation(
+        attempted=attempted,
+        complete=sum(bool(trace.is_completed) for trace in traces),
+        failed=sum(bool(trace.has_error) for trace in traces),
+        truncated=sum(bool(trace.is_truncated) for trace in traces),
+        coverage_missing=max(expected - attempted, 0),
+    )
+    return VerifiersRunResult(
+        tuple(trace.id for trace in traces),
+        stats,
+        population,
+    )
 
 
 def run_verifiers(

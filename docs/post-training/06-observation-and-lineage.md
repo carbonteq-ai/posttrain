@@ -177,7 +177,11 @@ System series are run grain unless clearly per-request (rare).
 | `serve/run/requests_unsupported` | Config/engine rejected |
 
 Emit run-level serve scalars as **one metric batch** per finalized benchmark
-cell when possible (columnar observation), not fake sequential steps.
+point when possible (columnar observation), not fake sequential steps. Tag each
+batch with the workload identity, cohort, sweep index, concurrency, inference
+binding, and execution target. A versioned serving-result artifact may retain
+the complete ordered sweep and safe point failures, but it must not retain
+project eligibility or a selected model.
 Throughput and latency percentiles are **computed** from measured traces +
 `serve/run/*` denominators.
 
@@ -536,7 +540,8 @@ may materialize versioned reports from those same views:
 | Work-package view | All runs with that `work_package_id` |
 | Stage view | Packages/runs for `project_id` + `stage` |
 | Lineage view | Artifact edges around a `ModelVariant` |
-| Serving Pareto view | Screen `serve.benchmark` runs under a shared workload/target |
+| Serving capacity run view | One `serve.benchmark` sweep + request traces + snapshotted project requirements |
+| Serving Pareto view | Comparable screen `serve.benchmark` runs under the same representative workload/corpus, requirement snapshot, target, and calculator version |
 
 Views must mark `not_run`, `failed`, `missing`, `reused_from_framework`,
 `incomparable`.
@@ -546,6 +551,13 @@ charts, health conditions, trace sections, artifact roles, and comparison keys
 used by Python, the custom frontend, and MCP. A backend reader normalizes its
 physical records before these definitions are applied. Missing evidence remains
 `missing`; no consumer substitutes zero.
+
+Serving-capacity eligibility is a read-time interpretation. Observatory chooses
+the highest-throughput point that satisfies the snapshotted context, latency,
+failure-rate, and evidence-completeness requirements, then compares its
+aggregate output-token throughput with the project minimum. Controlled
+exact-token diagnostics and representative prompt populations remain separate
+views and are never silently combined.
 
 Trackio stores standard and Verifiers traces as native queryable records. The
 first W&B adapter may retain the same logical trace envelopes in a typed output

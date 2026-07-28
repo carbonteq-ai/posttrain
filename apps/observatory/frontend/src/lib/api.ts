@@ -55,6 +55,125 @@ export type MetricHelp = {
   unit: string | null;
 };
 
+export type ServingRequirement = {
+  key: string;
+  label: string;
+  operator: 'gte' | 'lte';
+  threshold: number | null;
+  measured: number | null;
+  margin: number | null;
+  unit: string;
+  state: 'pass' | 'fail' | 'unavailable';
+  explanation: string;
+};
+
+export type ServingOperatingPoint = {
+  sweep_index: number;
+  concurrency: number;
+  context_tokens: number | null;
+  attempted_requests: number;
+  completed_requests: number;
+  failed_requests: number;
+  output_tokens: number | null;
+  input_tokens_mean: number | null;
+  input_tokens_p95: number | null;
+  output_tokens_mean: number | null;
+  output_tokens_p95: number | null;
+  measurement_seconds: number | null;
+  aggregate_output_tps: number | null;
+  failure_rate: number | null;
+  p50_ttft_ms: number | null;
+  p95_ttft_ms: number | null;
+  p50_tpot_ms: number | null;
+  p95_tpot_ms: number | null;
+  peak_vram_bytes: number | null;
+  kv_cache_peak_usage_ratio: number | null;
+  evidence_state: 'complete' | 'partial' | 'legacy_single_point';
+  terminal_status: 'resource_exhausted' | 'unsupported' | 'failed' | null;
+  valid: boolean;
+  violations: string[];
+};
+
+export type RuntimeSettingGroup = {
+  key: string;
+  label: string;
+  settings: Array<{
+    key: string;
+    label: string;
+    value: unknown;
+    unit: string | null;
+    state: 'available' | 'missing' | 'redacted';
+    importance: 'primary' | 'advanced' | 'additional';
+  }>;
+};
+
+export type ServingCapacityEligibility = {
+  state: 'eligible' | 'below_capacity' | 'latency_constrained' | 'reliability_constrained' | 'context_failed' | 'unsaturated' | 'insufficient_evidence';
+  label: string;
+  reason: string;
+  calculator_version: 'serving-capacity-v1';
+  requirements_digest: string | null;
+  saturation_state: 'saturated' | 'unsaturated' | 'unknown';
+  selected_sweep_index: number | null;
+};
+
+export type ServingCapacityWorkPackage = {
+  schema_version: number;
+  project_id: string | null;
+  work_package_id: string;
+  methodology: 'strict_pareto' | 'single_run_sweep' | 'cross_run_compatibility';
+  explanation: string;
+  requirements: ServingRequirement[];
+  execution_target_id: string | null;
+  workload_id: string | null;
+  corpus_digest: string | null;
+  requirements_digest: string | null;
+  calculator_version: string | null;
+  contenders: Array<{
+    locator: RunItem['locator'];
+    run_key: string;
+    display_name: string;
+    started_at: string;
+    model_variant_id: string | null;
+    inference_binding_id: string | null;
+    inference_backend: string | null;
+    workload_id: string | null;
+    corpus_digest: string | null;
+    execution_target_id: string | null;
+    requirements_digest: string | null;
+    calculator_version: string;
+    comparable: boolean;
+    comparability_reason: string | null;
+    selected_point: ServingOperatingPoint | null;
+    eligibility: ServingCapacityEligibility;
+    pareto_member: boolean;
+  }>;
+  pareto: Array<{
+    run_key: string;
+    model_variant_id: string | null;
+    inference_binding_id: string | null;
+    aggregate_output_tps: number;
+    p95_ttft_ms: number;
+    peak_vram_bytes: number;
+  }>;
+  rows: Array<{
+    locator: RunItem['locator'];
+    run_key: string;
+    display_name: string;
+    started_at: string;
+    model_variant_id: string | null;
+    inference_binding_id: string | null;
+    inference_backend: string | null;
+    workload_id: string | null;
+    execution_target_id: string | null;
+    requirements_digest: string | null;
+    point: ServingOperatingPoint;
+    point_state: 'valid' | 'constraint_failed' | 'incomplete';
+    point_label: string;
+    eligibility: ServingCapacityEligibility;
+  }>;
+};
+
 export type Artifact = {
   direction: string;
   logical_name: string;
@@ -117,7 +236,7 @@ export type RunView = {
   fallback_reason: string | null;
   view: {
     schema_version?: number;
-    view_kind: 'job.metrics' | 'job.evaluation' | 'generic';
+    view_kind: 'job.metrics' | 'job.evaluation' | 'job.serving' | 'generic';
     run: RunItem['run'];
     summary?: SummaryMetric[];
     charts?: Array<{ key: string; title: string; question: string | null; series: MetricSeries[] }>;
@@ -164,6 +283,42 @@ export type RunView = {
       returned_points: number;
     } | null;
     evaluation?: TraceEvaluation;
+    question?: string;
+    eligibility?: {
+      state: 'eligible' | 'below_capacity' | 'latency_constrained' | 'reliability_constrained' | 'context_failed' | 'unsaturated' | 'insufficient_evidence';
+      label: string;
+      reason: string;
+      calculator_version: 'serving-capacity-v1';
+      requirements_digest: string | null;
+      saturation_state: 'saturated' | 'unsaturated' | 'unknown';
+      selected_sweep_index: number | null;
+    };
+    requirements?: ServingRequirement[];
+    operating_points?: ServingOperatingPoint[];
+    selected_point?: ServingOperatingPoint | null;
+    model_variant_id?: string | null;
+    inference_binding_id?: string | null;
+    inference_backend?: string | null;
+    workload_id?: string | null;
+    execution_target_id?: string | null;
+    runtime_settings?: RuntimeSettingGroup[];
+    population?: {
+      cohort: string | null;
+      corpus_id: string | null;
+      corpus_revision: string | null;
+      corpus_digest: string | null;
+      suite_id: string | null;
+      shape_id: string | null;
+      renderer: string | null;
+      requested_records: number | null;
+      measured_records: number | null;
+      input_tokens_mean: number | null;
+      input_tokens_p95: number | null;
+      output_token_budget: number | null;
+      output_length_policy: 'fixed' | 'maximum' | 'unknown';
+      output_target_hit_rate: number | null;
+      correctness_scored: false;
+    };
     artifacts: { items: Artifact[] };
     execution_targets?: ExecutionTargetContext[];
     resolved_inputs?: Record<string, unknown>;
@@ -222,6 +377,22 @@ export type SystemMetrics = {
   vram_capacity_state: 'available' | 'ambiguous' | 'unavailable';
   vram_capacity_bytes: number | null;
   vram_observed_peak_bytes: number | null;
+  inference_timing: {
+    requests: number;
+    stages: Array<{
+      stage: 'queue' | 'prefill' | 'decode' | 'engine_e2e';
+      label: string;
+      samples: number;
+      mean_ms: number;
+      p50_ms: number;
+      p95_ms: number;
+    }>;
+  } | null;
+  backend_runtime: {
+    kv_cache_capacity_tokens: number | null;
+    kv_cache_peak_usage_ratio: number | null;
+    kv_cache_samples: number;
+  } | null;
 };
 
 export type PhaseMetricAggregate = {
@@ -238,6 +409,8 @@ export type RuntimePhaseSegment = {
   phase: string;
   phase_id: string;
   label: string;
+  group: string;
+  group_label: string;
   status: 'running' | 'completed' | 'failed' | 'incomplete' | 'unclassified';
   started_at: string;
   finished_at: string;
@@ -252,6 +425,8 @@ export type RuntimePhaseInterval = {
   phase: string;
   phase_id: string;
   label: string;
+  group: string;
+  group_label: string;
   status: 'running' | 'completed' | 'failed' | 'incomplete';
   started_at: string;
   finished_at: string;
@@ -263,6 +438,8 @@ export type RuntimePhaseInterval = {
 export type RuntimePhaseSummary = {
   phase: string;
   label: string;
+  group: string;
+  group_label: string;
   duration_s: number;
   occurrences: number;
   sample_count: number;
@@ -308,6 +485,11 @@ export const api = {
     const path = workPackageId.split('/').map(encodeURIComponent).join('/');
     const query = new URLSearchParams({ project_id: projectId, source_id: sourceId });
     return request<WorkPackageView>(`/api/v1/work-packages/${path}?${query}`);
+  },
+  servingCapacity: (workPackageId: string, projectId: string, sourceId: string) => {
+    const path = workPackageId.split('/').map(encodeURIComponent).join('/');
+    const query = new URLSearchParams({ project_id: projectId, source_id: sourceId });
+    return request<ServingCapacityWorkPackage>(`/api/v1/serving-capacity/work-packages/${path}?${query}`);
   },
   view: (key: string, mode = 'auto', metrics: string[] = []) => {
     const query = new URLSearchParams({ mode });

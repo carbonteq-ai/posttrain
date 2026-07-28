@@ -1,36 +1,45 @@
 [project]
 name = "posttrain"
-version = "0.1.0"
+version = "0.2.1"
 description = "Command-line interface for portable post-training projects"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.13,<3.14"
 dependencies = [
-    "posttrain-catalog",
-    "posttrain-data",
-    "posttrain-jobs",
-    "posttrain-work",
+    "posttrain-catalog==0.2.1",
+    "posttrain-data==0.2.1",
+    "posttrain-execution==0.2.1",
+    "posttrain-execution-buildkit==0.2.1",
+    "posttrain-execution-pack==0.2.1",
+    "posttrain-execution-local==0.2.1",
+    "posttrain-jobs==0.2.1",
+    "posttrain-runtime-images==0.2.1",
+    "posttrain-tracking==0.2.1",
+    "posttrain-work==0.2.1",
     "typer>=0.25.1",
 ]
 
 [project.optional-dependencies]
 observatory = [
-    "posttrain-observatory",
+    "posttrain-observatory==0.2.1",
 ]
 trackio = [
-    "posttrain-tracking-trackio",
+    "posttrain-tracking-trackio==0.2.1",
 ]
 wandb = [
-    "posttrain-tracking-wandb",
+    "posttrain-tracking-wandb==0.2.1",
+]
+dstack = [
+    "posttrain-execution-dstack==0.2.1",
 ]
 trl = [
-    "posttrain-train[trl]",
+    "posttrain-train[trl]==0.2.1",
 ]
 verifiers = [
-    "posttrain-eval[verifiers]",
+    "posttrain-eval[verifiers]==0.2.1",
 ]
 vllm = [
-    "posttrain-serve[vllm]",
+    "posttrain-serve[vllm]==0.2.1",
 ]
 
 [project.scripts]
@@ -39,7 +48,14 @@ posttrain = "posttrain_cli.cli:main"
 [tool.uv.sources]
 posttrain-catalog = { workspace = true }
 posttrain-data = { workspace = true }
+posttrain-execution = { workspace = true }
+posttrain-execution-buildkit = { workspace = true }
+posttrain-execution-pack = { workspace = true }
+posttrain-execution-dstack = { workspace = true }
+posttrain-execution-local = { workspace = true }
 posttrain-jobs = { workspace = true }
+posttrain-runtime-images = { workspace = true }
+posttrain-tracking = { workspace = true }
 posttrain-observatory = { workspace = true }
 posttrain-eval = { workspace = true }
 posttrain-serve = { workspace = true }

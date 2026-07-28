@@ -87,6 +87,52 @@
       }
     },
     {
+      "description": "Compare serving contenders and return the strict Pareto frontier when evidence is comparable.",
+      "inputSchema": {
+        "properties": {
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Project Id"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Id"
+          },
+          "work_package_id": {
+            "title": "Work Package Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "work_package_id"
+        ],
+        "title": "get_serving_capacity_viewArguments",
+        "type": "object"
+      },
+      "name": "get_serving_capacity_view",
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "get_serving_capacity_viewDictOutput",
+        "type": "object"
+      }
+    },
+    {
       "description": "List metric namespaces and names without fetching all points.",
       "inputSchema": {
         "properties": {

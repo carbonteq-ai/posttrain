@@ -88,7 +88,8 @@ must show whether it consumed shared results, re-ran them, or skipped them.
 
 A project is the durable boundary for one model-improvement use case. It owns:
 
-- the product objective and operating constraints
+- the product objective and typed operating constraints, including serving
+  context, throughput, latency, and reliability requirements when applicable
 - the people responsible for the outcome
 - related work packages and their evidence
 - which framework-shared assets were consumed
@@ -211,6 +212,53 @@ A **run** is one observed execution of a job. Every run should record:
 Repeating a job creates another run. Do not overwrite previous evidence in
 place.
 
+### Execution admission
+
+Detached execution may apply an admission policy before a provider receives a
+run. Admission is framework lifecycle state, not a scheduler replacement:
+providers still own placement, startup, and provider-native queuing after
+submission.
+
+For providers that do not schedule across clients themselves (local Docker),
+the research policy admits at most one active run for one exact worker
+placement (`host:<canonical hostname>`). Different physical workers may
+execute independently. That singular ledger is **machine-scoped** so two
+projects on the same laptop share one placement map; project
+`.posttrain/state` still owns submission and run receipts, not the
+cross-project lock.
+
+Self-scheduling providers (today: dstack) already decide exclusivity across
+every client. Posttrain does not hold a host placement for them: each run
+keys only itself (`run:<run_id>`), so nothing queues behind another posttrain
+process while the provider's own scheduler remains authoritative.
+
+A waiting run retains its immutable execution plan and evidence destination,
+can be inspected or cancelled by canonical `run_id`, and must not contact a
+provider until its placement is admitted. Terminal provider state does not
+release a host placement; consistent retained-evidence reconciliation is the
+release barrier. When a project explicitly selects the no-op observer,
+terminal provider evidence is the admission barrier and the reconciliation
+must say that no durable evidence was asserted. Cleanup must preserve a
+successful untracked workspace whenever the run declares required output
+roles.
+
+The admission ledger lives under a machine root (`POSTTRAIN_ADMISSION_ROOT`,
+else `/var/lib/posttrain` when writable, else `$XDG_STATE_HOME/posttrain`).
+Run observations and artifacts remain durable through the selected tracking
+provider. A CLI restart must be able to restore waiting plans without
+replanning or changing their package, provider, target, or evidence identity.
+A provider submission exception retains the worker placement in quarantine
+with an ambiguous `submission_failed` entry and the original submit intent.
+This is necessary because the provider may have accepted the deterministic run
+before its response was lost. A process-scoped submission claim prevents
+concurrent provider calls and is released automatically if the CLI process
+dies; recovery then retries the same run and idempotency key explicitly.
+Read-only status and unrelated enqueue operations never recover or submit work
+as a side effect. The active admission snapshot may retain only a bounded
+terminal window, but pruning must first write a compact mode-protected receipt
+containing the run, placement, provider, image, timestamp, and terminal
+admission state.
+
 ### Run role
 
 **Job kind** answers *what executed*. **Run role** answers *why this run exists
@@ -276,11 +324,13 @@ Results do not belong inside catalog entries or recipes.
 | Stage view | Has this project selected a base (`screen`)? Produced descendants (`train`)? Accepted any (`qualify`)? |
 | Project view | What is complete, what was reused from the framework, which decisions remain open? |
 | Model-lineage view | How does this descendant compare with its parent and siblings? |
-| Serving Pareto view | Which contenders remain non-dominated under project constraints? |
+| Serving capacity run view | Which measured concurrency point best satisfies the snapshotted project requirements, and why? |
+| Serving Pareto view | Which comparable contenders remain non-dominated under the same project requirements, representative workload, and target? |
 
 Views must expose missing, failed, unsupported, stale, **not-run**,
 **reused-from-framework**, and incomparable evidence. Do not invent a fixed job
-mix per stage.
+mix per stage. Serving eligibility and Pareto membership are computed views;
+they are not written by `serve.benchmark` or stored as catalog results.
 
 ## Naming
 

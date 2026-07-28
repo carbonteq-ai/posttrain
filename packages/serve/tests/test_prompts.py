@@ -9,6 +9,7 @@ from posttrain.common.variants import LFM_25_12B_THINKING, QWEN_35_2B
 from posttrain.serve.prompts import (
     PromptError,
     PromptRecord,
+    load_prompt_corpus,
     reasoning_template_kwargs,
     render_prompt,
     representative_prompt_records,
@@ -26,12 +27,40 @@ class RecordingTokenizer:
         return [1, 2, 3]
 
 
+class StructuredTokenizer:
+    def apply_chat_template(self, messages: list[dict[str, Any]], **kwargs: Any) -> dict[str, list[int]]:
+        return {"input_ids": [4, 5, 6], "attention_mask": [1, 1, 1]}
+
+
 class InferencePromptTest(unittest.TestCase):
     def test_loads_canonical_messages_without_rendered_model_text(self) -> None:
         records = representative_prompt_records()
 
-        self.assertEqual(len(records), 4)
+        self.assertEqual(len(records), 128)
         self.assertEqual(records[0].messages[0]["role"], "user")
+        self.assertTrue(records[0].source_revision)
+
+    def test_representative_corpus_has_expected_sources_and_categories(self) -> None:
+        corpus = load_prompt_corpus("general-serving-v1")
+
+        self.assertEqual(corpus.manifest.record_count, 128)
+        self.assertEqual(
+            dict(corpus.manifest.category_counts),
+            {
+                "chat": 8,
+                "code": 32,
+                "extraction": 8,
+                "reasoning": 64,
+                "structured-output": 8,
+                "tool-use": 8,
+            },
+        )
+        self.assertEqual(
+            {source.id for source in corpus.manifest.sources},
+            {"openai/gsm8k", "openai/openai_humaneval", "carbonteq-ai/posttrain"},
+        )
+        self.assertTrue(all(record.license_id for record in corpus.records))
+        self.assertEqual(sum(bool(record.tools) for record in corpus.records), 8)
 
     def test_qwen_maps_only_declared_reasoning_modes(self) -> None:
         self.assertEqual(
@@ -69,10 +98,19 @@ class InferencePromptTest(unittest.TestCase):
             tools=tools,
         )
 
-        self.assertEqual(ids, [1, 2, 3])
+        self.assertEqual(ids, (1, 2, 3))
         self.assertEqual(tokenizer.kwargs["tools"], tools)
         self.assertTrue(tokenizer.kwargs["enable_thinking"])
         self.assertTrue(tokenizer.kwargs["add_generation_prompt"])
+
+    def test_render_normalizes_structured_tokenizer_output(self) -> None:
+        ids = render_prompt(
+            StructuredTokenizer(),
+            PromptRecord("chat", ({"role": "user", "content": "Hello"},), ()),
+            QWEN_35_2B,
+        )
+
+        self.assertEqual(ids, (4, 5, 6))
 
 
 if __name__ == "__main__":

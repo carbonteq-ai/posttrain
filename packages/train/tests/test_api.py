@@ -13,6 +13,7 @@ from posttrain.common import (
     CatalogRef,
     EventObservation,
     ExecutionTarget,
+    HubModelRef,
     InferenceBinding,
     JsonValue,
     LocalArtifactRef,
@@ -42,6 +43,7 @@ from posttrain.train import (
     DPORequest,
     DynamicGroupSampling,
     EnvironmentRollout,
+    EnvironmentRolloutEvidence,
     FullParameterUpdate,
     GRPOObservationFeatures,
     GRPORequest,
@@ -207,6 +209,23 @@ class TrackingFinalizeBridge(FakeRLBridge):
     def finalize(self) -> tuple[ProducedArtifact, ...]:
         self.finalized = True
         return ()
+
+
+@dataclass
+class EvidenceReplayBridge(FakeRLBridge):
+    def evidence(self) -> EnvironmentRolloutEvidence:
+        return EnvironmentRolloutEvidence(
+            metrics=(
+                MetricBatchObservation(
+                    {
+                        "train/rl/rollouts_completed": 8.0,
+                        "train/rl/reward_std": 0.25,
+                    },
+                    step=3,
+                    attributes={"observation_source": "verifiers"},
+                ),
+            ),
+        )
 
 
 @dataclass(frozen=True)
@@ -440,6 +459,29 @@ def test_sft_operation_separates_adapter_recovery_and_summary_artifacts() -> Non
         "training-summary",
     ]
     assert observer.events[-1].name == "training_completed"
+
+
+def test_training_operation_records_retention_manifest(tmp_path: Path) -> None:
+    observer = Observer()
+
+    def backend_with_retention(context, request, dataset, validation_dataset, output_dir):
+        result = _backend(context, request, dataset, validation_dataset, output_dir)
+        manifest = context.workspace / "retention-manifest.json"
+        manifest.write_text('{"schema_version": 1, "status": "completed"}\n', encoding="utf-8")
+        return replace(result, retention_manifest=manifest)
+
+    sft(
+        _context(tmp_path.resolve(), observer),
+        SFTRequest(QWEN_35_2B, _supervised(), QWEN35_SFT_SMOKE, _training()),
+        runner=backend_with_retention,
+    )
+
+    assert [artifact.kind for artifact in observer.artifacts] == [
+        "model-adapter",
+        "training-checkpoint",
+        "training-summary",
+        "training-retention-manifest",
+    ]
 
 
 def test_lora_and_full_updates_materialize_distinct_model_forms_and_artifact_kinds(tmp_path: Path) -> None:
@@ -729,6 +771,37 @@ def test_grpo_operation_reuses_training_artifact_contract() -> None:
     assert observer.events[0].attributes["rollout_target_id"] == rollout_target.id
 
 
+def test_grpo_replays_trace_evidence_after_training_without_decreasing_metric_step(
+    tmp_path: Path,
+) -> None:
+    observer = Observer()
+    model = QWEN_35_2B
+    request = GRPORequest(
+        policy=model,
+        bridge=EvidenceReplayBridge(),
+        settings=QWEN35_GRPO_SMOKE,
+        environment=FakeEnvironment(),
+        training=_training(),
+        inference=_inference(model),
+    )
+
+    def backend(
+        context: RunContext,
+        value: GRPORequest,
+        output_dir: Path,
+    ) -> BackendTrainingResult:
+        context.metrics({"train/loss": 0.25}, step=15)
+        return _backend(context, value, output_dir)
+
+    grpo(_context(tmp_path, observer), request, runner=backend)
+
+    replay = next(batch for batch in observer.metrics_seen if "train/rl/reward_std" in batch.values)
+    assert "train/rl/rollouts_completed" not in replay.values
+    assert replay.step is None
+    assert replay.attributes["source_step"] == 3
+    assert replay.attributes["observation_source"] == "verifiers"
+
+
 def test_distillation_operation_records_teacher_student_and_native_trace_contract() -> None:
     observer = Observer()
     request = _distillation_request()
@@ -824,6 +897,34 @@ def test_distillation_backend_fixes_fully_on_policy_reverse_kl_contract(tmp_path
     assert arguments["loss_top_k"] == 1
     assert arguments["teacher_model_server_url"] == "http://teacher.invalid:8000"
     assert arguments["use_vllm"] is True
+    assert arguments["vllm_weight_sync_mode"] == "lora"
+    assert arguments["generation_batch_size"] == request.settings.num_prompts_per_step
+
+
+def test_distillation_backend_configures_colocated_transformers_teacher(
+    tmp_path: Path,
+) -> None:
+    request = _distillation_request()
+    assert isinstance(request.teacher.artifact, HubModelRef)
+    local_teacher = replace(
+        request.teacher_inference,
+        backend="transformers@4.57.6",
+        engine={"mode": "colocate", "dtype": "bfloat16"},
+    )
+
+    arguments = _distillation_arguments(
+        replace(request, teacher_inference=local_teacher),
+        tmp_path,
+        None,
+    )
+
+    assert arguments["use_teacher_server"] is False
+    assert arguments["teacher_model_server_url"] is None
+    assert arguments["teacher_model_revision"] == request.teacher.artifact.revision
+    assert arguments["teacher_model_init_kwargs"] == {
+        "revision": request.teacher.artifact.revision,
+        "dtype": "bfloat16",
+    }
 
 
 def test_distillation_backend_translates_mtp_and_turboquant_rollout_options(tmp_path: Path) -> None:

@@ -1519,6 +1519,268 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
     ),
 )
 
+SAMPO_TELEMETRY = JobTelemetryDefinition(
+    job_kind="train.sampo",
+    display_name="Step-aware multi-turn policy optimization",
+    summary_fields=(
+        SummaryFieldDefinition(key="reward_mean", label="Mean reward", metric="train/rl/reward_mean", required=True),
+        SummaryFieldDefinition(key="reward_std", label="Reward standard deviation", metric="train/rl/reward_std"),
+        SummaryFieldDefinition(
+            key="episode_advantage",
+            label="Episode advantage",
+            metric="train/rl/episode_advantage_mean",
+            required=True,
+        ),
+        SummaryFieldDefinition(
+            key="turn_advantage",
+            label="Turn advantage",
+            metric="train/rl/turn_advantage_mean",
+            required=True,
+        ),
+        SummaryFieldDefinition(
+            key="anchor_group_size",
+            label="Anchor group size",
+            metric="train/rl/anchor_group_size_mean",
+        ),
+        SummaryFieldDefinition(
+            key="sparse_reward_projection",
+            label="Sparse-reward projection",
+            metric="train/rl/sparse_reward_projection_fraction",
+            unit="ratio",
+        ),
+        SummaryFieldDefinition(key="policy_loss", label="Policy loss", metric="train/rl/policy_loss", required=True),
+        SummaryFieldDefinition(
+            key="failed_rollouts",
+            label="Failed rollouts",
+            metric="train/rl/rollouts_failed",
+            reducer="sum",
+        ),
+    ),
+    charts=(
+        ChartDefinition(
+            key="hierarchical_advantages",
+            title="Hierarchical advantages",
+            question="Do episode and turn credit assignments remain informative across the sampled trajectories?",
+            metrics=(
+                "train/rl/episode_advantage_mean",
+                "train/rl/turn_advantage_mean",
+                "train/rl/anchor_group_size_mean",
+                "train/rl/sparse_reward_projection_fraction",
+            ),
+        ),
+        ChartDefinition(
+            key="learning_signal",
+            title="Learning signal",
+            question="Is verifier reward improving while groups retain enough variation for policy learning?",
+            metrics=("train/rl/reward_mean", "train/rl/reward_std", "train/rl/group_zero_variance_fraction"),
+        ),
+        ChartDefinition(
+            key="optimization",
+            title="Policy optimization",
+            question="Are sequence-clipped updates controlled without collapsing exploration?",
+            metrics=(
+                "train/rl/policy_loss",
+                "train/rl/entropy",
+                "train/rl/kl",
+                "train/rl/clip_fraction",
+                "train/grad_norm",
+                "train/learning_rate",
+            ),
+        ),
+        ChartDefinition(
+            key="rollouts",
+            title="Rollout population",
+            question="How much requested multi-turn evidence completed, failed, truncated, or became unscorable?",
+            metrics=(
+                "train/rl/rollouts_attempted",
+                "train/rl/rollouts_completed",
+                "train/rl/rollouts_failed",
+                "train/rl/rollouts_truncated",
+                "train/rl/rollouts_unscorable",
+            ),
+        ),
+        ChartDefinition(
+            key="runtime",
+            title="Runtime efficiency",
+            question="What end-to-end step cost and effective rollout throughput were observed?",
+            metrics=("train/step_time_seconds", "train/rl/rollout_tokens_per_second"),
+        ),
+        ChartDefinition(
+            key="tool_behavior",
+            title="Tool behavior",
+            question="Are multi-turn trajectories invoking tools successfully?",
+            metrics=("train/rl/tool_call_frequency", "train/rl/tool_failure_frequency"),
+        ),
+    ),
+    metric_help=(
+        *_help_for(
+            "train/rl/reward_mean",
+            "train/rl/reward_std",
+            "train/rl/group_zero_variance_fraction",
+            "train/rl/policy_loss",
+            "train/rl/entropy",
+            "train/rl/kl",
+            "train/rl/clip_fraction",
+            "train/grad_norm",
+            "train/learning_rate",
+            "train/rl/rollouts_attempted",
+            "train/rl/rollouts_completed",
+            "train/rl/rollouts_failed",
+            "train/rl/rollouts_truncated",
+            "train/rl/rollouts_unscorable",
+            "train/step_time_seconds",
+            "train/rl/rollout_tokens_per_second",
+            "train/rl/tool_call_frequency",
+            "train/rl/tool_failure_frequency",
+        ),
+        _metric(
+            "train/rl/episode_advantage_mean",
+            "Episode advantage",
+            "Mean trajectory-level advantage assigned from the complete episode return.",
+            "Read it with turn advantage to distinguish whole-trajectory credit from local step credit.",
+        ),
+        _metric(
+            "train/rl/turn_advantage_mean",
+            "Turn advantage",
+            "Mean step-aware advantage assigned to sampled assistant turns.",
+            "A useful turn-level signal should vary with consequential intermediate actions rather than only the terminal outcome.",
+        ),
+        _metric(
+            "train/rl/anchor_group_size_mean",
+            "Anchor group size",
+            "Mean number of comparable turns contributing to each step-aware advantage anchor.",
+            "Small groups provide weak relative evidence; compare this value across runs using the same sampling policy.",
+        ),
+        _metric(
+            "train/rl/sparse_reward_projection_fraction",
+            "Sparse-reward projection",
+            "Fraction of sampled trajectories whose terminal reward was projected back across intermediate turns.",
+            "A high value means SAMPO is relying heavily on its sparse-reward credit-assignment path.",
+            unit="ratio",
+        ),
+    ),
+    health_rules=(
+        HealthRuleDefinition(
+            id="sampo-reward-non-finite",
+            kind="non_finite",
+            metric="train/rl/reward_mean",
+            message="SAMPO reward contains a non-finite value.",
+            severity="error",
+        ),
+        HealthRuleDefinition(
+            id="sampo-policy-loss-non-finite",
+            kind="non_finite",
+            metric="train/rl/policy_loss",
+            message="SAMPO policy loss contains a non-finite value.",
+            severity="error",
+        ),
+        HealthRuleDefinition(
+            id="sampo-rollout-failures",
+            kind="threshold",
+            metric="train/rl/rollouts_failed",
+            operator="gt",
+            threshold=0,
+            message="One or more SAMPO rollout attempts failed.",
+            severity="error",
+        ),
+        HealthRuleDefinition(
+            id="sampo-unscorable-rollouts",
+            kind="threshold",
+            metric="train/rl/rollouts_unscorable",
+            operator="gt",
+            threshold=0,
+            message="One or more SAMPO rollouts did not produce a finite reward.",
+            severity="error",
+        ),
+    ),
+    comparison_keys=(
+        "reward_mean",
+        "episode_advantage",
+        "turn_advantage",
+        "policy_loss",
+        "failed_rollouts",
+    ),
+    trace_sections=(TraceSectionDefinition(trace_type="verifiers", label="Multi-turn rollouts"),),
+    artifact_roles=_training_artifacts(),
+    delta_tip_metrics=(
+        "train/rl/reward_mean",
+        "train/rl/episode_advantage_mean",
+        "train/rl/turn_advantage_mean",
+        "train/rl/policy_loss",
+        "train/rl/rollout_tokens_per_second",
+    ),
+    evidence_requirements=(
+        EvidenceRequirementDefinition(
+            key="hierarchical_credit",
+            label="Hierarchical credit assignment",
+            level="required",
+            metrics=(
+                "train/rl/episode_advantage_mean",
+                "train/rl/turn_advantage_mean",
+                "train/rl/anchor_group_size_mean",
+                "train/rl/sparse_reward_projection_fraction",
+            ),
+            reason="SAMPO needs direct evidence that its episode and turn-level credit assignment executed.",
+        ),
+        EvidenceRequirementDefinition(
+            key="learning_signal",
+            label="Relative learning signal",
+            level="required",
+            metrics=("train/rl/reward_mean", "train/rl/reward_std", "train/rl/group_zero_variance_fraction"),
+            reason="Reward level and within-group variation are both required to interpret policy learning.",
+        ),
+        EvidenceRequirementDefinition(
+            key="controlled_update",
+            label="Controlled policy update",
+            level="required",
+            metrics=(
+                "train/rl/policy_loss",
+                "train/rl/entropy",
+                "train/rl/clip_fraction",
+                "train/grad_norm",
+                "train/learning_rate",
+            ),
+            reason="The sequence-clipped objective must be paired with exploration and gradient-scale evidence.",
+        ),
+        EvidenceRequirementDefinition(
+            key="rollout_population",
+            label="Rollout population",
+            level="required",
+            metrics=(
+                "train/rl/rollouts_attempted",
+                "train/rl/rollouts_completed",
+                "train/rl/rollouts_failed",
+                "train/rl/rollouts_truncated",
+                "train/rl/rollouts_unscorable",
+            ),
+            reason="Every update needs an auditable population denominator and terminal outcomes.",
+        ),
+        EvidenceRequirementDefinition(
+            key="runtime_efficiency",
+            label="Runtime efficiency",
+            level="required",
+            metrics=("train/step_time_seconds", "train/rl/rollout_tokens_per_second"),
+            reason="End-to-end step cost and rollout throughput are required for runtime comparison.",
+        ),
+        EvidenceRequirementDefinition(
+            key="reference_policy",
+            label="Reference-policy drift",
+            level="conditional",
+            condition="reference_kl_enabled",
+            metrics=("train/rl/kl",),
+            reason="KL evidence is owed whenever a non-zero reference penalty is selected.",
+        ),
+        EvidenceRequirementDefinition(
+            key="tool_behavior",
+            label="Tool-use behavior",
+            level="conditional",
+            condition="tool_environment",
+            metrics=("train/rl/tool_call_frequency", "train/rl/tool_failure_frequency"),
+            reason="Tool environments owe invocation and failure coverage in addition to reward.",
+        ),
+    ),
+)
+
 DISTILL_TELEMETRY = JobTelemetryDefinition(
     job_kind="train.distill",
     display_name="On-policy distillation",
@@ -1661,6 +1923,266 @@ def _eval_definition(job_kind: Literal["eval.general", "eval.domain"], display_n
 GENERAL_EVAL_TELEMETRY = _eval_definition("eval.general", "General evaluation")
 DOMAIN_EVAL_TELEMETRY = _eval_definition("eval.domain", "Domain evaluation")
 
+SERVE_SMOKE_TELEMETRY = JobTelemetryDefinition(
+    job_kind="serve.smoke",
+    display_name="Serving health smoke test",
+    summary_fields=(
+        SummaryFieldDefinition(
+            key="healthy",
+            label="Endpoint healthy",
+            metric="serve/probe_healthy",
+            unit="ratio",
+            required=True,
+        ),
+        SummaryFieldDefinition(
+            key="model_available",
+            label="Model available",
+            metric="serve/probe_model_available",
+            unit="ratio",
+            required=True,
+        ),
+        SummaryFieldDefinition(
+            key="probe_latency",
+            label="Probe latency",
+            metric="serve/probe_latency_seconds",
+            unit="s",
+            required=True,
+        ),
+    ),
+    charts=(
+        ChartDefinition(
+            key="probe",
+            title="Health probe",
+            question="Did the managed endpoint answer its health and model-discovery checks?",
+            metrics=("serve/probe_healthy", "serve/probe_model_available", "serve/probe_latency_seconds"),
+        ),
+    ),
+    metric_help=(
+        _metric(
+            "serve/probe_healthy",
+            "Endpoint healthy",
+            "Whether the managed endpoint returned a successful health response.",
+            "A value of 100% confirms the endpoint process answered its health check.",
+            unit="ratio",
+        ),
+        _metric(
+            "serve/probe_model_available",
+            "Model available",
+            "Whether model discovery exposed the exact model selected by the inference binding.",
+            "A healthy server is not usable for this job unless the selected model is also available.",
+            unit="ratio",
+        ),
+        _metric(
+            "serve/probe_latency_seconds",
+            "Probe latency",
+            "Wall-clock time for the combined health and model-discovery probe.",
+            "Use this as startup qualification evidence, not as inference latency.",
+            unit="s",
+        ),
+    ),
+    health_rules=(
+        HealthRuleDefinition(
+            id="serve-smoke-unhealthy",
+            kind="threshold",
+            metric="serve/probe_healthy",
+            operator="lt",
+            threshold=1.0,
+            message="The managed serving endpoint did not pass its health probe.",
+            severity="error",
+        ),
+        HealthRuleDefinition(
+            id="serve-smoke-model-unavailable",
+            kind="threshold",
+            metric="serve/probe_model_available",
+            operator="lt",
+            threshold=1.0,
+            message="The selected model was not exposed by the managed serving endpoint.",
+            severity="error",
+        ),
+    ),
+    comparison_keys=("healthy", "model_available", "probe_latency"),
+    artifact_roles=(ArtifactRoleDefinition(kind="serving-log", label="Serving log", direction="output"),),
+    delta_tip_metrics=("serve/probe_healthy", "serve/probe_model_available", "serve/probe_latency_seconds"),
+)
+
+DATA_PREPARE_TELEMETRY = JobTelemetryDefinition(
+    job_kind="data.prepare",
+    display_name="Dataset preparation",
+    summary_fields=(
+        SummaryFieldDefinition(
+            key="examples",
+            label="Prepared examples",
+            metric="data/examples",
+            reducer="sum",
+            required=True,
+        ),
+        SummaryFieldDefinition(
+            key="bytes",
+            label="Prepared bytes",
+            metric="data/bytes",
+            reducer="sum",
+            unit="bytes",
+            required=True,
+        ),
+    ),
+    charts=(
+        ChartDefinition(
+            key="prepared_dataset",
+            title="Prepared dataset",
+            question="How much immutable dataset content did this job materialize?",
+            metrics=("data/examples", "data/bytes"),
+        ),
+    ),
+    metric_help=(
+        _metric(
+            "data/examples",
+            "Prepared examples",
+            "Number of examples materialized into the immutable prepared dataset.",
+            "Use this count to verify that the packaged dataset population matches the selected source.",
+        ),
+        _metric(
+            "data/bytes",
+            "Prepared bytes",
+            "Byte size of the immutable prepared dataset content.",
+            "Use it with example count and the retained dataset artifact to detect unexpected packaging changes.",
+            unit="bytes",
+        ),
+    ),
+    comparison_keys=("examples", "bytes"),
+    artifact_roles=(ArtifactRoleDefinition(kind="dataset", label="Prepared dataset", direction="output"),),
+    delta_tip_metrics=("data/examples", "data/bytes"),
+)
+
+SERVE_BENCHMARK_TELEMETRY = JobTelemetryDefinition(
+    job_kind="serve.benchmark",
+    display_name="Serving capacity benchmark",
+    summary_fields=(
+        SummaryFieldDefinition(
+            key="output_tokens_measured",
+            label="Measured output tokens",
+            metric="serve/run/output_tokens_measured",
+            unit="tokens",
+            required=True,
+        ),
+        SummaryFieldDefinition(
+            key="measurement_duration",
+            label="Measurement duration",
+            metric="serve/run/measurement_duration_s",
+            unit="s",
+            required=True,
+        ),
+        SummaryFieldDefinition(
+            key="requests_measured",
+            label="Measured requests",
+            metric="serve/run/requests_measured",
+            required=True,
+        ),
+        SummaryFieldDefinition(
+            key="concurrency",
+            label="Concurrency",
+            metric="serve/run/concurrency",
+            required=True,
+        ),
+        SummaryFieldDefinition(
+            key="context_window",
+            label="Context allocation",
+            metric="serve/run/context_tokens",
+            unit="tokens",
+            required=True,
+        ),
+        SummaryFieldDefinition(
+            key="peak_vram",
+            label="Peak GPU memory",
+            metric="serve/backend/peak_vram_bytes",
+            unit="bytes",
+        ),
+    ),
+    charts=(
+        ChartDefinition(
+            key="point-population",
+            title="Measured point population",
+            question="How many requests and output tokens were measured at each concurrency?",
+            metrics=("serve/run/requests_measured", "serve/run/output_tokens_measured"),
+        ),
+        ChartDefinition(
+            key="measurement-time",
+            title="Measurement duration",
+            question="How long was the timed inference window at each concurrency?",
+            metrics=("serve/run/measurement_duration_s",),
+        ),
+    ),
+    metric_help=(
+        _metric(
+            "serve/run/output_tokens_measured",
+            "Measured output tokens",
+            "Successfully generated output tokens in the finalized benchmark point.",
+            "Observatory divides this counter by the matching measurement duration to calculate aggregate throughput.",
+            unit="tokens",
+        ),
+        _metric(
+            "serve/run/measurement_duration_s",
+            "Measurement duration",
+            "Wall-clock duration of the finalized measured inference window.",
+            "This is the denominator for aggregate output-token throughput.",
+            unit="s",
+        ),
+        _metric(
+            "serve/run/requests_measured",
+            "Measured requests",
+            "Number of non-warmup requests successfully retained for the point.",
+            "Decision-grade latency requires the same complete request population in inference traces.",
+        ),
+        _metric(
+            "serve/run/concurrency",
+            "Concurrency",
+            "Number of requests allowed to execute concurrently at this measured operating point.",
+            "Concurrency is a search variable used to characterize the fixed hardware target, not a product constraint.",
+        ),
+        _metric(
+            "serve/run/context_tokens",
+            "Context allocation",
+            "Maximum context allocation configured for the serving runtime.",
+            "It must be at least the context window required by the product.",
+            unit="tokens",
+        ),
+        _metric(
+            "serve/backend/peak_vram_bytes",
+            "Peak GPU memory",
+            "Highest observed GPU memory allocation during the benchmark.",
+            "Use it to understand target headroom; it is not a substitute for KV-cache capacity evidence.",
+            unit="bytes",
+        ),
+    ),
+    comparison_keys=(
+        "output_tokens_measured",
+        "measurement_duration",
+        "requests_measured",
+        "concurrency",
+        "context_window",
+        "peak_vram",
+    ),
+    trace_sections=(TraceSectionDefinition(trace_type="inference", label="Measured requests"),),
+    artifact_roles=(
+        ArtifactRoleDefinition(kind="serving-result", label="Serving result", direction="output"),
+        ArtifactRoleDefinition(kind="serving-benchmark", label="Legacy serving benchmark", direction="output"),
+    ),
+    evidence_requirements=(
+        EvidenceRequirementDefinition(
+            key="capacity-point",
+            label="Capacity point",
+            level="required",
+            metrics=(
+                "serve/run/output_tokens_measured",
+                "serve/run/measurement_duration_s",
+                "serve/run/requests_measured",
+                "serve/run/concurrency",
+                "serve/run/context_tokens",
+            ),
+            reason="A serving decision needs point counters plus the complete measured request-trace population from which rates and latency are derived.",
+        ),
+    ),
+)
+
 DEFAULT_TELEMETRY_DEFINITIONS: Mapping[str, JobTelemetryDefinition] = MappingProxyType(
     {
         definition.job_kind: definition
@@ -1668,9 +2190,13 @@ DEFAULT_TELEMETRY_DEFINITIONS: Mapping[str, JobTelemetryDefinition] = MappingPro
             SFT_TELEMETRY,
             DPO_TELEMETRY,
             GRPO_TELEMETRY,
+            SAMPO_TELEMETRY,
             DISTILL_TELEMETRY,
+            DATA_PREPARE_TELEMETRY,
             GENERAL_EVAL_TELEMETRY,
             DOMAIN_EVAL_TELEMETRY,
+            SERVE_SMOKE_TELEMETRY,
+            SERVE_BENCHMARK_TELEMETRY,
         )
     }
 )
@@ -1690,6 +2216,7 @@ def telemetry_registry(
 __all__ = [
     "ArtifactRoleDefinition",
     "ChartDefinition",
+    "DATA_PREPARE_TELEMETRY",
     "DEFAULT_TELEMETRY_DEFINITIONS",
     "DISTILL_TELEMETRY",
     "DOMAIN_EVAL_TELEMETRY",
@@ -1701,7 +2228,10 @@ __all__ = [
     "HealthRuleDefinition",
     "JobTelemetryDefinition",
     "MetricHelp",
+    "SAMPO_TELEMETRY",
     "SFT_TELEMETRY",
+    "SERVE_BENCHMARK_TELEMETRY",
+    "SERVE_SMOKE_TELEMETRY",
     "SummaryFieldDefinition",
     "TraceSectionDefinition",
     "telemetry_registry",

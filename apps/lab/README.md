@@ -35,8 +35,8 @@ uv run --package posttrain posttrain work-package validate \
   .posttrain/work_packages/automationbench_zapier_grpo.yaml
 ```
 
-Remote GPU release evidence still uses `examples/gpu-qualification` and
-`tools/qualify_remote_gpu.py` (SSH `--host` is the remote machine only).
+Remote GPU release evidence still uses `examples/gpu-qualification` and the
+primary `posttrain work-package run` path on the remote host.
 
 ## Lab scenario CLI
 

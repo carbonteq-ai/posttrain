@@ -6,12 +6,15 @@ from .definitions import (
     general_evaluation_definition,
     grpo_definition,
     managed_evaluation_definition,
+    managed_general_evaluation_definition,
     model_transform_definition,
+    preference_data_prepare_definition,
     sampo_definition,
     serve_benchmark_definition,
     serve_smoke_definition,
     sft_definition,
     standard_definitions,
+    supervised_data_prepare_definition,
 )
 from .runtime import build_job_runtime
 
@@ -23,9 +26,12 @@ __all__ = [
     "grpo_definition",
     "sampo_definition",
     "managed_evaluation_definition",
+    "managed_general_evaluation_definition",
     "model_transform_definition",
+    "preference_data_prepare_definition",
     "serve_benchmark_definition",
     "serve_smoke_definition",
     "sft_definition",
     "standard_definitions",
+    "supervised_data_prepare_definition",
 ]

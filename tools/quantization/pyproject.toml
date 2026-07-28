@@ -1,7 +1,7 @@
 [project]
 name = "posttrain-awq-runtime"
 version = "0.1.0"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.13,<3.14"
 dependencies = [
     "datasets>=4.8.4,<5",
     "llmcompressor @ git+https://github.com/vllm-project/llm-compressor.git@655b83d1240c37920a603b747bbfb6c218f66383",

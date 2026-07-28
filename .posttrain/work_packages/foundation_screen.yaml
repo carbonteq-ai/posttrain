@@ -1,7 +1,7 @@
 project_id: foundation-models
-work_package_id: screen/qwen3.5-2b-smoke
+work_package_id: screen/qwen3.5-2b-serving-capacity
 stage: screen
-description: Establish whether the Qwen 3.5 2B foundation model meets the bounded serving screen before project-specific training begins.
+description: Measure the Qwen 3.5 2B foundation model operating curve against the project serving envelope on the local 8 GiB target.
 recipe:
   type: inline
   id: recipes/foundation-screen@1
@@ -24,7 +24,7 @@ recipe:
       definition: eval/verifiers-general@1
       optional: true
   expected_artifacts:
-    - serve benchmark result
+    - serving-result
     - optional native evaluation result
 bindings:
   model:
@@ -42,7 +42,7 @@ bindings:
   workload:
     type: ref
     family: workload
-    id: workloads/foundation-smoke-v1@1
+    id: workloads/general-serving-32k-sweep@1
   target:
     type: ref
     family: target
@@ -57,7 +57,7 @@ bindings:
     id: math-gsm8k
 enabled_optional_jobs: []
 metadata:
-  question: Can this foundation model satisfy the reference screen?
+  question: Where does this model and runtime saturate, and which operating point remains inside the product constraints?
   labels:
     - reference
-    - smoke
+    - serving-capacity

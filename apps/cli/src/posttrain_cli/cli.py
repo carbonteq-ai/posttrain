@@ -5,6 +5,7 @@ from __future__ import annotations
 import shutil  # noqa: F401 - exposed for test monkeypatching via posttrain_cli.cli.shutil
 import subprocess
 import sys
+import traceback
 from collections.abc import Sequence
 
 import click
@@ -18,7 +19,9 @@ __all__ = ["main"]
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = list(argv) if argv is not None else None
-    json_output = "--json" in (args if args is not None else sys.argv)
+    argv_list = args if args is not None else sys.argv
+    json_output = "--json" in argv_list
+    want_traceback = "--traceback" in argv_list
     json_stream = sys.stdout
     if json_output and argv is None:
         sys.stdout = sys.stderr
@@ -38,11 +41,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         ContractError,
         FileExistsError,
         KeyError,
+        LookupError,
         OSError,
         RuntimeError,
         subprocess.CalledProcessError,
         ValueError,
     ) as error:
+        if want_traceback:
+            traceback.print_exc(file=sys.stderr)
         print(f"error: {error_message(error)}", file=sys.stderr)
         return 1
 

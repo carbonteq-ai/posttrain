@@ -1,8 +1,9 @@
 """Tests for vLLM inference-binding translation."""
 
 import pytest
-from posttrain.common import InferenceBinding
-from posttrain.serve.backends.vllm.bindings import engine_config, frontend_args
+from posttrain.common import InferenceBinding, Workload
+from posttrain.serve import ServeBenchmarkRequest
+from posttrain.serve.backends.vllm.bindings import benchmark_config, engine_config, frontend_args
 from posttrain.serve.benchmarks import CORE_INFERENCE_V1
 from posttrain.serve.profiles import VllmEngineConfig
 
@@ -38,3 +39,35 @@ def test_local_matrix_stops_at_concurrency_four_and_requires_turboquant_at_32k()
     cells = CORE_INFERENCE_V1.cells(max_concurrency=4)
     assert {cell.concurrency for cell in cells} == {1, 2, 4}
     assert all(cell.required_variant == "turboquant" for cell in cells if cell.context_window == 32_768)
+
+
+def test_representative_workload_resolves_and_verifies_packaged_corpus(
+    qwen_screen_binding: InferenceBinding,
+    representative_workload: Workload,
+) -> None:
+    config = benchmark_config(ServeBenchmarkRequest(qwen_screen_binding, representative_workload))
+
+    assert config.cohort == "representative"
+    assert config.cells[0].input_tokens is None
+    assert config.corpus is not None
+    assert config.corpus.manifest.id == "general-serving-v1"
+    assert config.corpus.manifest.record_count == 128
+    assert config.selection_seed == 17
+
+
+def test_workload_concurrency_becomes_one_ordered_sweep(
+    qwen_screen_binding: InferenceBinding,
+    representative_workload: Workload,
+) -> None:
+    workload = Workload(
+        id=representative_workload.id,
+        revision=representative_workload.revision,
+        requests=representative_workload.requests,
+        concurrency=(1, 2, 4),
+        warmup_repetitions=representative_workload.warmup_repetitions,
+        measured_repetitions=representative_workload.measured_repetitions,
+    )
+
+    config = benchmark_config(ServeBenchmarkRequest(qwen_screen_binding, workload))
+
+    assert tuple(cell.concurrency for cell in config.cells) == (1, 2, 4)

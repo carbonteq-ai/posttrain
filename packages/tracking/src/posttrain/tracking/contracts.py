@@ -55,6 +55,7 @@ class RunSpec:
     resolved_inputs: Mapping[str, JsonValue] = field(default_factory=dict)
     source_metadata: Mapping[str, JsonValue] = field(default_factory=dict)
     artifacts: Mapping[str, ArtifactInput] = field(default_factory=dict)
+    required_artifact_roles: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         validate_selection_id(self.project_id, "project id")
@@ -63,6 +64,10 @@ class RunSpec:
         validate_selection_id(self.job_kind, "job kind")
         if not self.job_definition_version.strip():
             raise ContractError("job definition version cannot be empty")
+        if any(not role.strip() for role in self.required_artifact_roles):
+            raise ContractError("required artifact roles cannot be empty")
+        if len(set(self.required_artifact_roles)) != len(self.required_artifact_roles):
+            raise ContractError("required artifact roles must be unique")
         object.__setattr__(self, "resolved_inputs", MappingProxyType(dict(self.resolved_inputs)))
         object.__setattr__(self, "source_metadata", MappingProxyType(dict(self.source_metadata)))
         object.__setattr__(self, "artifacts", MappingProxyType(dict(self.artifacts)))

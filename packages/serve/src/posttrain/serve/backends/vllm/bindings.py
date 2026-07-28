@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from math import ceil
 from typing import Any
 
 from posttrain.common import InferenceBinding, JsonValue, ModelVariant
 
 from ...benchmarks import BenchmarkCell
 from ...profiles import VllmEngineConfig, VllmSamplingConfig, VllmSpeculativeConfig
+from ...prompts import PromptCorpus, load_prompt_corpus
 from ...requests import ServeBenchmarkRequest
 
 
@@ -19,7 +21,10 @@ class VllmBenchmarkConfig:
     inference_binding_id: str
     engine: VllmEngineConfig
     sampling: VllmSamplingConfig
-    cell: BenchmarkCell
+    cells: tuple[BenchmarkCell, ...]
+    cohort: str
+    corpus: PromptCorpus | None
+    selection_seed: int
 
 
 def benchmark_config(request: ServeBenchmarkRequest) -> VllmBenchmarkConfig:
@@ -35,20 +40,49 @@ def benchmark_config(request: ServeBenchmarkRequest) -> VllmBenchmarkConfig:
         variant = "turboquant"
     workload = request.workload
     values: Mapping[str, JsonValue] = workload.requests
-    cell = BenchmarkCell(
-        suite_id=_string(values, "suite_id"),
-        shape_id=_string(values, "shape_id"),
-        context_window=_integer(values, "context_window"),
-        concurrency=workload.concurrency[0],
-        input_tokens=_integer(values, "input_tokens"),
-        output_tokens=_integer(values, "output_tokens"),
-        warmup_iterations=workload.warmup_repetitions,
-        iterations=workload.measured_repetitions,
-        required_variant=variant if variant != "standard" else None,
+    cohort = _optional_string(values, "cohort", "controlled")
+    corpus: PromptCorpus | None = None
+    selection_seed = 0
+    if cohort == "representative":
+        selection = values.get("corpus")
+        if not isinstance(selection, Mapping):
+            raise ValueError("representative benchmark workload requires a corpus selection")
+        corpus_id = _mapping_string(selection, "id")
+        corpus = load_prompt_corpus(corpus_id)
+        if corpus.manifest.revision != _mapping_string(selection, "revision"):
+            raise ValueError(f"prompt corpus revision mismatch for {corpus_id}")
+        if corpus.manifest.digest != _mapping_string(selection, "digest"):
+            raise ValueError(f"prompt corpus digest mismatch for {corpus_id}")
+        selection_seed = _integer(values, "selection_seed")
+    record_count = _optional_integer(values, "record_count")
+    cells = tuple(
+        BenchmarkCell(
+            suite_id=_string(values, "suite_id"),
+            shape_id=_string(values, "shape_id"),
+            context_window=_integer(values, "context_window"),
+            concurrency=concurrency,
+            input_tokens=_integer(values, "input_tokens") if cohort == "controlled" else None,
+            output_tokens=_integer(values, "output_tokens"),
+            warmup_iterations=workload.warmup_repetitions,
+            iterations=(
+                ceil(record_count / concurrency) if record_count is not None else workload.measured_repetitions
+            ),
+            required_variant=variant if variant != "standard" else None,
+        )
+        for concurrency in workload.concurrency
     )
-    if cell.concurrency > 4 and engine.max_num_seqs == 4:
-        raise ValueError("this inference binding supports at most four concurrent sequences")
-    return VllmBenchmarkConfig(binding.model, binding.id, engine, sampling, cell)
+    if engine.max_num_seqs is not None and cells[-1].concurrency > engine.max_num_seqs:
+        raise ValueError(f"this inference binding supports at most {engine.max_num_seqs} concurrent sequences")
+    return VllmBenchmarkConfig(
+        binding.model,
+        binding.id,
+        engine,
+        sampling,
+        cells,
+        cohort,
+        corpus,
+        selection_seed,
+    )
 
 
 def engine_config(binding: InferenceBinding) -> VllmEngineConfig:
@@ -83,10 +117,33 @@ def _integer(values: Mapping[str, JsonValue], name: str) -> int:
     return value
 
 
+def _optional_integer(values: Mapping[str, JsonValue], name: str) -> int | None:
+    value = values.get(name)
+    if value is None:
+        return None
+    if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+        raise ValueError(f"benchmark workload {name} must be a positive integer")
+    return value
+
+
 def _string(values: Mapping[str, JsonValue], name: str) -> str:
     value = values[name]
     if not isinstance(value, str) or not value:
         raise ValueError(f"benchmark workload {name} must be a non-empty string")
+    return value
+
+
+def _optional_string(values: Mapping[str, JsonValue], name: str, default: str) -> str:
+    value = values.get(name, default)
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"benchmark workload {name} must be a non-empty string")
+    return value
+
+
+def _mapping_string(values: Mapping[str, object], name: str) -> str:
+    value = values.get(name)
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"benchmark corpus {name} must be a non-empty string")
     return value
 
 

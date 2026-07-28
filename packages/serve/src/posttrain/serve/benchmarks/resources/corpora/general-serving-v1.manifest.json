@@ -1,0 +1,44 @@
+{
+  "category_counts": {
+    "chat": 8,
+    "code": 32,
+    "extraction": 8,
+    "reasoning": 64,
+    "structured-output": 8,
+    "tool-use": 8
+  },
+  "digest": "9a9467fd8a5e744968d09a4d8fd6f4d92a089c50a84e1e6e7e5c5520a9f4e50e",
+  "id": "general-serving-v1",
+  "license_notices": [
+    "GSM8K records are used under the MIT license.",
+    "HumanEval records are used under the MIT license.",
+    "First-party prompts are licensed under the repository Apache-2.0 license."
+  ],
+  "record_count": 128,
+  "revision": "1",
+  "schema_version": 1,
+  "selection_algorithm": "lowest-sha256-over-source-revision-key-and-normalized-prompt-v1",
+  "sources": [
+    {
+      "config": "main",
+      "id": "openai/gsm8k",
+      "license_id": "MIT",
+      "revision": "e53f048856ff4f594e959d75785d2c2d37b678ee",
+      "split": "train"
+    },
+    {
+      "config": null,
+      "id": "openai/openai_humaneval",
+      "license_id": "MIT",
+      "revision": "e9b53e1677523f1e61e4d0960fd7502694a24bd4",
+      "split": "test"
+    },
+    {
+      "config": null,
+      "id": "carbonteq-ai/posttrain",
+      "license_id": "Apache-2.0",
+      "revision": "1",
+      "split": "first-party"
+    }
+  ]
+}

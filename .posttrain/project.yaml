@@ -1,0 +1,8 @@
+schema_version: 1
+objective: Select and improve foundation models that satisfy the product serving envelope.
+serving:
+  required_context_tokens: 32768
+  min_sustained_output_tokens_per_second: 50
+  max_p95_ttft_ms: 1000
+  max_p95_tpot_ms: 30
+  max_failure_rate: 0.01

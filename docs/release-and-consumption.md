@@ -14,29 +14,33 @@ the eventual registry contract.
 
 ## What a project installs
 
-Most projects start with the primary command distribution:
+CarbonTeq-managed projects install from the internal index with the release
+constraints file. That is the supported consumer path; see
+[consumer-setup.md](./consumer-setup.md) for the full walkthrough (trust, env,
+local Docker, and dstack).
 
 ```bash
-uv add posttrain
+uv venv --python 3.13 .venv
+VIRTUAL_ENV=.venv uv pip install --system-certs \
+  --index-url https://pypi.lan/carbonteq/stable/+simple/ \
+  --constraint github-constraints.txt \
+  "posttrain[observatory,trackio,trl]"
 ```
 
-`posttrain` supplies project initialization, diagnostics, catalog inspection,
-and work-package commands. It depends on the reusable catalog and composition
+Add the `dstack` extra when submitting remote GPU jobs. Obtain
+`github-constraints.txt` from the framework release (repository
+`release/github-constraints.txt` or the wheelhouse attachment); it is not
+served by the index today.
+
+Most projects start with the primary command distribution `posttrain`. It
+supplies project initialization, diagnostics, catalog inspection, and
+work-package commands. It depends on the reusable catalog and composition
 packages; it does not make `posttrain-lab` a runtime requirement.
 
-Projects add only the capabilities they execute:
-
-```bash
-uv add posttrain-data
-uv add "posttrain-train[trl]"
-uv add "posttrain-eval[verifiers]"
-uv add "posttrain-serve[vllm]"
-uv add posttrain-tracking-trackio
-```
-
-`posttrain-lab` remains the reference composition host and qualification
-application. `posttrain-observatory` is deployed as the read product or
-installed by developers who need its Python, CLI, HTTP, or MCP surfaces.
+Capability extras and packages (`trl`, `verifiers`, `vllm`, Trackio, W&B) are
+selected by what the project executes. Checkout developers may still use
+`uv add` against a workspace clone; that is a maintainer path, not the team
+install contract.
 
 Every consuming project commits:
 
@@ -57,7 +61,7 @@ Before a registry release, use the workspace lock:
 
 ```bash
 mise install
-uv sync --all-packages --locked --python 3.12
+uv sync --all-packages --locked --python 3.13
 uv run --package posttrain posttrain doctor
 uv run --package posttrain posttrain catalog validate
 uv run --package posttrain posttrain work-package validate foundation_screen.yaml
@@ -95,7 +99,7 @@ gh release download <release-tag> \
   --pattern 'posttrain-wheelhouse-*.tar.gz'
 mkdir posttrain-wheelhouse
 tar -xzf posttrain-wheelhouse-*.tar.gz -C posttrain-wheelhouse
-uv venv --python 3.12
+uv venv --python 3.13
 uv pip install --python .venv/bin/python \
   --constraint ./posttrain-wheelhouse/github-constraints.txt \
   --find-links ./posttrain-wheelhouse \
@@ -115,7 +119,7 @@ tag and use the checked-in lock:
 git clone --branch <release-tag> --depth 1 \
   https://github.com/carbonteq-ai/posttrain.git
 cd posttrain
-uv sync --all-packages --locked --python 3.12
+uv sync --all-packages --locked --python 3.13
 ```
 
 ## Release artifact graph
@@ -165,7 +169,7 @@ monorepo:
 ```bash
 git clone <carbonteq-project>
 cd <carbonteq-project>
-uv sync --locked --python 3.12
+uv sync --locked --python 3.13
 uv run posttrain doctor
 uv run posttrain catalog validate
 uv run posttrain work-package validate <name>.yaml

@@ -229,6 +229,217 @@ function genericView(selected: string[] = []) {
   };
 }
 
+function metricJob(
+  jobKind: string,
+  displayName: string,
+  summary: Array<{ key: string; label: string; metric: string; value: number; unit: string | null }>,
+  resolvedInputs: Record<string, unknown>,
+  traceAware = false,
+) {
+  const jobRun = {
+    ...run,
+    locator: { source_id: 'fixture', run_id: `runs/${jobKind.replace('.', '-')}` },
+    run_key: `${jobKind}-key`,
+    run: {
+      ...run.run,
+      run_id: `runs/${jobKind.replace('.', '-')}`,
+      display_name: displayName,
+      work_package_id: `${jobKind.split('.')[0]}/${jobKind.replace('.', '-')}`,
+      job_kind: jobKind,
+      job_definition_version: `${jobKind}@1`,
+    },
+  };
+  const jobView = {
+    requested_mode: 'auto',
+    resolved_mode: 'job',
+    fallback_reason: null,
+    view: {
+      view_kind: 'job.metrics',
+      run: jobRun.run,
+      summary: summary.map((item) => ({ ...item, state: 'available' })),
+      charts: [{
+        key: 'evidence',
+        title: 'Recorded evidence',
+        question: 'What did this job record?',
+        series: summary.map((item) => ({ name: item.metric, points: [{ value: item.value, step: 1 }] })),
+      }],
+      metric_help: [],
+      completeness: {
+        state: 'complete',
+        research_ready: traceAware,
+        required_available: summary.length,
+        required_total: summary.length,
+        conditional_available: 0,
+        conditional_active: 0,
+        requirements: [],
+      },
+      alerts: [],
+      artifacts: { items: [] },
+      execution_targets: [],
+      resolved_inputs: resolvedInputs,
+      source_metadata: {},
+      trace_count: traceAware ? 2 : 0,
+      trace_evaluation_enabled: traceAware,
+    },
+  };
+  return { jobRun, jobView };
+}
+
+const servingRun = {
+  ...run,
+  locator: { source_id: 'fixture', run_id: 'runs/serve' },
+  run_key: 'serve-key',
+  run: {
+    ...run.run,
+    run_id: 'runs/serve',
+    display_name: 'Serving capacity point',
+    work_package_id: 'screen/serving-capacity',
+    stage: 'screen',
+    job_kind: 'serve.benchmark',
+    job_definition_version: 'serve.benchmark@1',
+  },
+};
+
+const servingView = {
+  requested_mode: 'auto',
+  resolved_mode: 'job',
+  fallback_reason: null,
+  view: {
+    view_kind: 'job.serving',
+    schema_version: 1,
+    run: servingRun.run,
+    question: 'Does this model and serving configuration satisfy the product envelope on the fixed hardware profile?',
+    eligibility: {
+      state: 'unsaturated',
+      label: 'Point passes; sweep incomplete',
+      reason: 'This operating point passes the recorded constraints, but a single point does not prove the hardware saturation boundary.',
+      calculator_version: 'serving-capacity-v1',
+      requirements_digest: 'sha256:brief',
+      saturation_state: 'unsaturated',
+      selected_sweep_index: 0,
+    },
+    requirements: [
+      { key: 'context', label: 'Context allocation', operator: 'gte', threshold: 32768, measured: 32768, margin: 0, unit: 'tokens', state: 'pass', explanation: 'Context passes.' },
+      { key: 'output_tps', label: 'Sustained aggregate output throughput', operator: 'gte', threshold: 50, measured: 58, margin: 8, unit: 'tokens/s', state: 'pass', explanation: 'Throughput passes.' },
+      { key: 'p95_ttft', label: 'p95 time to first token', operator: 'lte', threshold: 1000, measured: 700, margin: 300, unit: 'ms', state: 'pass', explanation: 'TTFT passes.' },
+      { key: 'p95_tpot', label: 'p95 time per output token', operator: 'lte', threshold: 30, measured: 24, margin: 6, unit: 'ms/token', state: 'pass', explanation: 'TPOT passes.' },
+      { key: 'failure_rate', label: 'Request failure rate', operator: 'lte', threshold: 0.01, measured: 0, margin: 0.01, unit: 'ratio', state: 'pass', explanation: 'Reliability passes.' },
+    ],
+    operating_points: [{
+      sweep_index: 0,
+      concurrency: 4,
+      context_tokens: 32768,
+      attempted_requests: 128,
+      completed_requests: 128,
+      failed_requests: 0,
+      output_tokens: 16384,
+      input_tokens_mean: 612,
+      input_tokens_p95: 944,
+      output_tokens_mean: 128,
+      output_tokens_p95: 128,
+      measurement_seconds: 282.48,
+      aggregate_output_tps: 58,
+      failure_rate: 0,
+      p50_ttft_ms: 420,
+      p95_ttft_ms: 700,
+      p50_tpot_ms: 18,
+      p95_tpot_ms: 24,
+      peak_vram_bytes: 7.2 * 1024 ** 3,
+      kv_cache_peak_usage_ratio: 0.78,
+      evidence_state: 'complete',
+      valid: true,
+      violations: [],
+    }],
+    selected_point: {
+      sweep_index: 0,
+      concurrency: 4,
+      context_tokens: 32768,
+      attempted_requests: 128,
+      completed_requests: 128,
+      failed_requests: 0,
+      output_tokens: 16384,
+      input_tokens_mean: 612,
+      input_tokens_p95: 944,
+      output_tokens_mean: 128,
+      output_tokens_p95: 128,
+      measurement_seconds: 282.48,
+      aggregate_output_tps: 58,
+      failure_rate: 0,
+      p50_ttft_ms: 420,
+      p95_ttft_ms: 700,
+      p50_tpot_ms: 18,
+      p95_tpot_ms: 24,
+      peak_vram_bytes: 7.2 * 1024 ** 3,
+      kv_cache_peak_usage_ratio: 0.78,
+      evidence_state: 'complete',
+      valid: true,
+      violations: [],
+    },
+    model_variant_id: 'models/qwen3.5-0.8b@bf16',
+    inference_binding_id: 'inference/qwen-vllm@1',
+    inference_backend: 'vllm@0.25.1',
+    workload_id: 'workloads/representative@1',
+    execution_target_id: 'targets/cuda-8gb',
+    runtime_settings: [{
+      key: 'scheduler',
+      label: 'Scheduler & batching',
+      settings: [{ key: 'max_num_seqs', label: 'Maximum sequences', value: 8, unit: null, state: 'available', importance: 'primary' }],
+    }],
+    population: {
+      cohort: 'representative',
+      corpus_id: 'general-serving-v1',
+      corpus_revision: '1',
+      corpus_digest: 'sha256:corpus',
+      suite_id: 'general-serving-v1',
+      shape_id: 'representative-128out',
+      renderer: 'qwen3.5-tools@1',
+      requested_records: 128,
+      measured_records: 128,
+      input_tokens_mean: 612,
+      input_tokens_p95: 944,
+      output_token_budget: 128,
+      output_length_policy: 'fixed',
+      output_target_hit_rate: 1,
+      correctness_scored: false,
+    },
+    alerts: [],
+    artifacts: { items: [] },
+    execution_targets: [{
+      selection_id: 'targets/cuda-8gb',
+      revision: '1',
+      roles: ['screen_inference'],
+      device_class: 'nvidia-cuda',
+      device_count: 1,
+      memory_bytes_per_device: 8 * 1024 ** 3,
+      aggregate_memory_bytes: 8 * 1024 ** 3,
+      placement: { world_size: 1 },
+      host_constraints: {},
+      state: 'complete',
+    }],
+    resolved_inputs: {},
+    source_metadata: {},
+    trace_count: 128,
+    trace_evaluation_enabled: false,
+  },
+};
+const secondServingPoint = {
+  ...servingView.view.selected_point,
+  sweep_index: 1,
+  concurrency: 8,
+  output_tokens: 16384,
+  measurement_seconds: 182.04,
+  aggregate_output_tps: 90,
+  p50_ttft_ms: 510,
+  p95_ttft_ms: 850,
+  p50_tpot_ms: 19,
+  p95_tpot_ms: 25,
+};
+servingView.view.operating_points.push(secondServingPoint);
+servingView.view.selected_point = secondServingPoint;
+servingView.view.eligibility.label = 'Sweep passes; saturation not reached';
+servingView.view.eligibility.reason = 'The selected operating point passes the recorded constraints, but throughput is still improving at the configured concurrency ceiling.';
+servingView.view.eligibility.selected_sweep_index = 1;
+
 describe('Observatory React product shell', () => {
   afterEach(cleanup);
 
@@ -257,6 +468,8 @@ describe('Observatory React product shell', () => {
                   phase: 'operation',
                   phase_id: 'operation-1',
                   label: 'Operation',
+                  group: 'run',
+                  group_label: 'Run',
                   status: 'completed',
                   started_at: '2026-07-22T04:00:00Z',
                   finished_at: '2026-07-22T04:12:00Z',
@@ -268,6 +481,8 @@ describe('Observatory React product shell', () => {
                   phase: 'model_loading',
                   phase_id: 'model-loading-1',
                   label: 'Model loading',
+                  group: 'startup',
+                  group_label: 'Startup',
                   status: 'completed',
                   started_at: '2026-07-22T04:00:00Z',
                   finished_at: '2026-07-22T04:02:00Z',
@@ -279,6 +494,8 @@ describe('Observatory React product shell', () => {
                   phase: 'actor_update',
                   phase_id: 'actor-update-1',
                   label: 'Actor update',
+                  group: 'training',
+                  group_label: 'Training',
                   status: 'completed',
                   started_at: '2026-07-22T04:02:00Z',
                   finished_at: '2026-07-22T04:10:00Z',
@@ -292,6 +509,8 @@ describe('Observatory React product shell', () => {
                   phase: 'model_loading',
                   phase_id: 'model-loading-1',
                   label: 'Model loading',
+                  group: 'startup',
+                  group_label: 'Startup',
                   status: 'completed',
                   started_at: '2026-07-22T04:00:00Z',
                   finished_at: '2026-07-22T04:02:00Z',
@@ -305,6 +524,8 @@ describe('Observatory React product shell', () => {
                   phase: 'actor_update',
                   phase_id: 'actor-update-1',
                   label: 'Actor update',
+                  group: 'training',
+                  group_label: 'Training',
                   status: 'completed',
                   started_at: '2026-07-22T04:02:00Z',
                   finished_at: '2026-07-22T04:10:00Z',
@@ -319,6 +540,8 @@ describe('Observatory React product shell', () => {
                 {
                   phase: 'model_loading',
                   label: 'Model loading',
+                  group: 'startup',
+                  group_label: 'Startup',
                   duration_s: 120,
                   occurrences: 1,
                   sample_count: 1,
@@ -327,6 +550,8 @@ describe('Observatory React product shell', () => {
                 {
                   phase: 'actor_update',
                   label: 'Actor update',
+                  group: 'training',
+                  group_label: 'Training',
                   duration_s: 480,
                   occurrences: 1,
                   sample_count: 4,
@@ -379,11 +604,69 @@ describe('Observatory React product shell', () => {
     expect(screen.getByRole('img', { name: 'Phase GPU memory against declared hardware capacity' })).toBeVisible();
     expect(within(phaseProfile).getByText(/1 × nvidia-cuda · 8.00 GiB per device/)).toBeVisible();
     expect(within(phaseProfile).getAllByText('Actor update').length).toBeGreaterThan(0);
+    expect(within(phaseProfile).getByRole('region', { name: 'Startup phases' })).toBeVisible();
+    expect(within(phaseProfile).getByRole('region', { name: 'Training phases' })).toBeVisible();
     await user.click(within(phaseProfile).getByRole('tab', { name: 'timeline' }));
-    expect(screen.getByRole('img', { name: 'Runtime phase overlap and GPU memory timeline' })).toBeVisible();
+    expect(screen.getByRole('img', { name: 'Runtime phase and GPU utilization timeline' })).toBeVisible();
     const computeChart = screen.getByRole('region', { name: 'Compute utilization system chart' });
     const computeHeader = within(computeChart).getByRole('heading', { name: 'Compute utilization' }).parentElement;
     expect(computeHeader).toHaveTextContent('GPU utilization');
+  });
+
+  it('explains serving constraints instead of falling back to generic evidence', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      const body = path === '/api/v1/runs'
+        ? [servingRun]
+        : path.includes('/api/v1/serving-capacity/work-packages/')
+          ? {
+              schema_version: 1,
+              project_id: servingRun.run.project_id,
+              work_package_id: servingRun.run.work_package_id,
+              methodology: 'cross_run_compatibility',
+              explanation: 'Compatibility projection across historical single-point runs.',
+              rows: [{
+                locator: servingRun.locator,
+                run_key: servingRun.run_key,
+                display_name: servingRun.run.display_name,
+                started_at: servingRun.run.started_at,
+                model_variant_id: servingView.view.model_variant_id,
+                inference_binding_id: servingView.view.inference_binding_id,
+                inference_backend: servingView.view.inference_backend,
+                workload_id: servingView.view.workload_id,
+                execution_target_id: servingView.view.execution_target_id,
+                requirements_digest: servingView.view.eligibility.requirements_digest,
+                point: servingView.view.selected_point,
+                point_state: 'valid',
+                point_label: 'Valid point',
+                eligibility: servingView.view.eligibility,
+              }],
+            }
+          : servingView;
+      return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+    }));
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Serving benchmark' })).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Serving benchmark decision' })).toHaveTextContent('Sweep passes; saturation not reached');
+    expect(screen.getByRole('heading', { name: 'Product constraints' })).toBeVisible();
+    expect(screen.getByText('≥ 50 tokens/s')).toBeVisible();
+    expect(screen.getByText('58 tokens/s')).toBeVisible();
+    expect(await screen.findByRole('heading', { name: 'Concurrency points' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Throughput and latency under concurrency' })).toBeVisible();
+    expect(screen.getByRole('img', { name: 'Aggregate output tokens per second by concurrency' })).toBeVisible();
+    expect(screen.getByRole('img', { name: 'p95 time to first token versus aggregate output tokens per second' })).toBeVisible();
+    expect(screen.getByRole('table')).toHaveTextContent('Mean output');
+    expect(screen.getByRole('table')).toHaveTextContent('128 tok');
+    expect(screen.getByText('Mean response length')).toBeVisible();
+    expect(screen.getByText('Fixed-length systems run:', { exact: false })).toBeVisible();
+    expect(screen.getByText('Output target hit')).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Serving configuration' })).toBeVisible();
+    expect(screen.getByText('Maximum sequences')).toBeVisible();
+    expect(screen.getByText('Capacity only; task correctness was not scored.')).toBeVisible();
+    expect(screen.queryByText('Generic evidence workspace')).not.toBeInTheDocument();
+    expect(screen.queryByText(/No job view is registered/)).not.toBeInTheDocument();
   });
 
   it('shows resolved run inputs without misrepresenting them as artifact edges', async () => {
@@ -704,6 +987,133 @@ describe('Observatory React product shell', () => {
     expect(await screen.findByRole('heading', { name: 'Preference inputs' })).toBeVisible();
     expect(screen.getByRole('heading', { name: 'Preference optimization' })).toBeVisible();
     expect(screen.getByRole('article', { name: 'Training dataset selection' })).toHaveTextContent('dataset/preferences');
+  });
+
+  it('presents SAMPO hierarchy, method settings, and run configuration explicitly', async () => {
+    const { jobRun, jobView } = metricJob(
+      'train.sampo',
+      'SAMPO copper ridge',
+      [
+        { key: 'reward_mean', label: 'Mean reward', metric: 'train/rl/reward_mean', value: 0.7, unit: null },
+        { key: 'episode_advantage', label: 'Episode advantage', metric: 'train/rl/episode_advantage_mean', value: 0.4, unit: null },
+        { key: 'turn_advantage', label: 'Turn advantage', metric: 'train/rl/turn_advantage_mean', value: 0.2, unit: null },
+      ],
+      {
+        model: { selection_id: 'models/qwen-sampo', revision: 'v1', resolved: {} },
+        environment: { selection_id: 'environments/tool-use', revision: 'v2', resolved: {} },
+        settings: {
+          selection_id: 'settings/sampo',
+          revision: 'v1',
+          resolved: {
+            num_generations: 4,
+            discount_gamma: 0.95,
+            step_advantage_weight: 1,
+            advantage_normalization: 'mean_std',
+            clip_epsilon_low: 0.003,
+            clip_epsilon_high: 0.004,
+          },
+        },
+        rollout_inference: { selection_id: 'inference/sampo', revision: 'v1', resolved: {} },
+        training: {
+          selection_id: 'training/sampo-lora',
+          revision: 'v1',
+          resolved: { parameter_update_kind: 'lora', runtime: { global_batch_size: 4 } },
+        },
+      },
+      true,
+    );
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const body = String(input) === '/api/v1/runs' ? [jobRun] : jobView;
+      return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+    }));
+    const user = userEvent.setup();
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Hierarchical policy-learning evidence' })).toBeVisible();
+    expect(screen.getByText(/episode and turn-level credit assignment/)).toBeVisible();
+    expect(screen.getByRole('region', { name: 'SAMPO evidence completeness' })).toHaveTextContent('Research ready');
+    const method = screen.getByRole('region', { name: 'Algorithm settings' });
+    expect(method).toHaveTextContent('Discount gamma0.95');
+    expect(method).toHaveTextContent('Turn weight1');
+    expect(method).toHaveTextContent('Advantage normalizationMean Std');
+
+    await user.click(screen.getByRole('button', { name: 'Run config' }));
+    expect(await screen.findByRole('heading', { name: 'Policy & environment' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Hierarchical optimization' })).toBeVisible();
+  });
+
+  it.each([
+    {
+      kind: 'train.distill',
+      display: 'Distill quiet lake',
+      heading: 'Student learning evidence',
+      configHeading: 'Student, teacher & data',
+      summary: [
+        { key: 'final_loss', label: 'Final loss', metric: 'train/distill/loss', value: 0.3, unit: null },
+        { key: 'reverse_kl', label: 'Reverse KL', metric: 'train/distill/reverse_kl', value: 0.1, unit: null },
+      ],
+      inputs: {
+        student: { selection_id: 'models/student', revision: 'v1', resolved: {} },
+        teacher: { selection_id: 'models/teacher', revision: 'v1', resolved: {} },
+        settings: { selection_id: 'settings/distill', revision: 'v1', resolved: { temperature: 0.8, num_generations: 2 } },
+      },
+      traceAware: true,
+    },
+    {
+      kind: 'serve.smoke',
+      display: 'Serve smoke green field',
+      heading: 'Managed endpoint smoke test',
+      configHeading: 'Serving binding',
+      summary: [
+        { key: 'healthy', label: 'Endpoint healthy', metric: 'serve/probe_healthy', value: 1, unit: 'ratio' },
+        { key: 'model_available', label: 'Model available', metric: 'serve/probe_model_available', value: 1, unit: 'ratio' },
+        { key: 'probe_latency', label: 'Probe latency', metric: 'serve/probe_latency_seconds', value: 0.2, unit: 's' },
+      ],
+      inputs: { inference: { selection_id: 'inference/smoke', revision: 'v1', resolved: {} } },
+      traceAware: false,
+    },
+    {
+      kind: 'data.prepare',
+      display: 'Dataset prepare blue field',
+      heading: 'Prepared dataset evidence',
+      configHeading: 'Dataset input',
+      summary: [
+        { key: 'examples', label: 'Prepared examples', metric: 'data/examples', value: 128, unit: null },
+        { key: 'bytes', label: 'Prepared bytes', metric: 'data/bytes', value: 4096, unit: 'bytes' },
+      ],
+      inputs: { dataset: { selection_id: 'datasets/prepared', revision: 'v1', resolved: { num_examples: 128 } } },
+      traceAware: false,
+    },
+  ])('uses first-class copy and configuration for $kind', async ({
+    kind,
+    display,
+    heading,
+    configHeading,
+    summary,
+    inputs,
+    traceAware,
+  }) => {
+    const { jobRun, jobView } = metricJob(kind, display, summary, inputs, traceAware);
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const body = String(input) === '/api/v1/runs' ? [jobRun] : jobView;
+      return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+    }));
+    const user = userEvent.setup();
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: heading })).toBeVisible();
+    if (kind === 'train.distill') {
+      expect(screen.getByText('Student model')).toBeVisible();
+      expect(screen.getByText('Teacher model')).toBeVisible();
+    }
+    if (kind === 'serve.smoke' || kind === 'data.prepare') {
+      expect(screen.queryByRole('region', { name: 'Algorithm settings' })).not.toBeInTheDocument();
+      expect(screen.queryByText('Training binding')).not.toBeInTheDocument();
+    }
+    if (kind === 'serve.smoke') expect(screen.getByText('Inference binding')).toBeVisible();
+    if (kind === 'data.prepare') expect(screen.getByText('Source dataset')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Run config' }));
+    expect(await screen.findByRole('heading', { name: configHeading })).toBeVisible();
   });
 
   it('keeps trace navigation for trace-aware job definitions', async () => {
