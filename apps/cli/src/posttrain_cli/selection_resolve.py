@@ -26,9 +26,7 @@ def resolve_selection(catalog: Catalog, family: SelectionFamily, selection_id: s
     resolved = catalog.resolve(CatalogRef(family, bare))
     actual = getattr(resolved.value, "revision", None)
     if actual is not None and str(actual) != revision:
-        raise ContractError(
-            f"{family} selection {bare!r} has revision {str(actual)!r}, not {revision!r}"
-        )
+        raise ContractError(f"{family} selection {bare!r} has revision {str(actual)!r}, not {revision!r}")
     return resolved
 
 

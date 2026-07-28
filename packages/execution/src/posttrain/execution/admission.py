@@ -250,9 +250,7 @@ class ExecutionAdmissionService:
         entries = list(payload["entries"])
         active = dict(payload.get("active_by_key") or {})
         keys = {str(key) for key in active}
-        keys.update(
-            str(entry["admission_key"]) for entry in entries if entry.get("state") in _ACTIVE_MAPPING_STATES
-        )
+        keys.update(str(entry["admission_key"]) for entry in entries if entry.get("state") in _ACTIVE_MAPPING_STATES)
         keys.update(str(entry["admission_key"]) for entry in entries if entry.get("state") == "waiting")
 
         placements: list[Placement] = []
@@ -281,7 +279,9 @@ class ExecutionAdmissionService:
                     holder_state=(cast(AdmissionState, holder["state"]) if holder is not None else None),
                     holder_since=(datetime.fromisoformat(str(holder["queued_at"])) if holder is not None else None),
                     holder_message=(
-                        str(holder["message"]) if holder is not None and isinstance(holder.get("message"), str) else None
+                        str(holder["message"])
+                        if holder is not None and isinstance(holder.get("message"), str)
+                        else None
                     ),
                     waiting=waiting,
                 )

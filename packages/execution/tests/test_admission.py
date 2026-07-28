@@ -138,9 +138,7 @@ def test_waiting_cancel_never_contacts_any_provider(request_factory, tmp_path) -
 
     assert cancelled.state == "cancelled"
     assert len(providers["local-docker"].submitted) == 1
-    assert providers["local-docker"].submitted[0].request.run_spec.run_id == (
-        first.request.run_spec.run_id
-    )
+    assert providers["local-docker"].submitted[0].request.run_spec.run_id == (first.request.run_spec.run_id)
     assert not providers["local-docker"].cancelled
 
 

@@ -107,9 +107,7 @@ def register(app: typer.Typer) -> None:
                     "job_kind": (request.run_spec.job_kind if request is not None else None),
                     "work_package_id": (request.run_spec.work_package_id if request is not None else None),
                     "target_id": (request.target.id if request is not None else None),
-                    "target": (
-                        f"{request.target.id}@{request.target.revision}" if request is not None else None
-                    ),
+                    "target": (f"{request.target.id}@{request.target.revision}" if request is not None else None),
                     "message": (entry.message if entry is not None else None),
                     "tracking": (
                         submission.evidence_source.provider

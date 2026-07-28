@@ -10,9 +10,7 @@ def resolve_job_id(catalog: Catalog, package: WorkPackage, job: str | None) -> s
     """Return ``job``, or the sole enabled job when the package has exactly one."""
     resolved = resolve_work_package(catalog, package)
     enabled = tuple(
-        item.id
-        for item in resolved.recipe.jobs
-        if not item.optional or item.id in package.enabled_optional_jobs
+        item.id for item in resolved.recipe.jobs if not item.optional or item.id in package.enabled_optional_jobs
     )
     if job is not None:
         if job not in enabled:
@@ -23,9 +21,7 @@ def resolve_job_id(catalog: Catalog, package: WorkPackage, job: str | None) -> s
         return enabled[0]
     if not enabled:
         raise ContractError("work package has no enabled jobs")
-    raise ContractError(
-        f"pass --job; work package has {len(enabled)} enabled jobs: {', '.join(enabled)}"
-    )
+    raise ContractError(f"pass --job; work package has {len(enabled)} enabled jobs: {', '.join(enabled)}")
 
 
 __all__ = ["resolve_job_id"]

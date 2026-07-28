@@ -63,8 +63,7 @@ def publish_cmd(
         typer.Option(
             "--base-image",
             help=(
-                "reuse this already-published base digest instead of rebuilding "
-                "base (kinds FROM it from the registry)"
+                "reuse this already-published base digest instead of rebuilding base (kinds FROM it from the registry)"
             ),
         ),
     ] = None,

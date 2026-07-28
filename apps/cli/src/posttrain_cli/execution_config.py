@@ -525,9 +525,7 @@ def resolve_admission_state_root() -> Path:
     if declared:
         root = Path(declared).expanduser()
         if not root.is_absolute():
-            raise ContractError(
-                f"{ADMISSION_ROOT_ENVIRONMENT_VARIABLE} must be an absolute path: {root}"
-            )
+            raise ContractError(f"{ADMISSION_ROOT_ENVIRONMENT_VARIABLE} must be an absolute path: {root}")
         return root.resolve()
 
     if _WORKER_ADMISSION_ROOT.is_dir() and os.access(_WORKER_ADMISSION_ROOT, os.W_OK):
