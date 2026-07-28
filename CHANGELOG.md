@@ -14,6 +14,19 @@ version across first-party distributions.
   [developer-experience](docs/developer-experience.md#trained-model-handoff-produce--pin--rebind),
   [tooling/trackio](docs/tooling/trackio/README.md#project-developers-artifact-handoff)).
 
+## 0.2.3 - 2026-07-28
+
+Pin Trackio to `0.31.5.post5` (`703be380…`) so import and distribution
+versions match. Do not install `0.31.5.post4` from the index — that wheel is
+skewed. Public PyPI Trusted Publishing is still unconfigured, so the Git pin
+remains.
+
+### Changed
+
+- Trackio workspace, kind-profile, and constraint pins move to `703be380…`.
+- Republished kind images against the refreshed workspace lock digest
+  (`bedcf309…`).
+
 ## 0.2.2 - 2026-07-28
 
 Machine-scoped local GPU admission, Observatory/Trackio listing performance,
