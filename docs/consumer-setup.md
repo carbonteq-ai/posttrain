@@ -13,12 +13,29 @@ The commands come from a machine with no framework checkout anywhere on it.
 
 ## 1. Trust the internal certificate authority
 
-The internal services present certificates from a private CA. Install it into
-the system trust store so `curl`, `uv`, and the CLI all accept them:
+The internal services present certificates from a private CA, and it has to be
+installed in two places. They are read by different things: host tools such as
+`uv`, `curl`, and the Docker daemon consult the machine's own store, while a
+job container inherits nothing from the host and is given the authority
+separately.
 
 ```bash
-sudo cp carbonteq-local-ai-caddy.crt /usr/local/share/ca-certificates/ && sudo update-ca-certificates
+sudo cp internal-ca.pem /usr/local/share/ca-certificates/internal-ca.crt && sudo update-ca-certificates
 ```
+
+```bash
+sudo install -D -m 644 internal-ca.pem /etc/posttrain/trust/internal-ca.pem
+```
+
+The second path is where the framework looks by default, so a machine prepared
+this way needs no trust configuration in any project. That file holds the
+internal authority **alone** — never a hand-assembled union with the system
+store. The job image merges it with the authorities it already has, and a
+union assembled here would instead pin every job to whatever the machine that
+submitted it happened to trust.
+
+`posttrain doctor` reports which authority jobs will be given and warns if it
+reaches jobs but is missing from this machine's own store.
 
 If you run a VPN that captures DNS, the `.lan` names will not resolve. Check
 with `getent hosts pypi.lan` before assuming the service is down.
@@ -92,8 +109,8 @@ posttrain init my-project --template sft
 
 ## 5. Configure the local execution provider
 
-Two settings are required before any job can run locally, and neither is
-scaffolded. They live in `<project>/.posttrain/state/execution.toml`, which
+One setting is required before any job can run locally, and it is not
+scaffolded. It lives in `<project>/.posttrain/state/execution.toml`, which
 must not be readable by group or others.
 
 ```bash
@@ -105,23 +122,15 @@ schema_version = 1
 # lease per host across local and dstack access paths.
 canonical_hostname = "$(hostname)"
 
-# The container does not inherit the host trust store, so the bundle is mounted
-# explicitly. It must be the COMPLETE set of certificate authorities the job
-# should trust: it becomes SSL_CERT_FILE inside the container, replacing the
-# image's own bundle rather than adding to it. A private CA alone leaves
-# huggingface.co untrusted, which surfaces much later as a model download
-# failure rather than as a trust problem.
-trust_bundle = "/absolute/path/to/combined-ca.crt"
 EOF
 chmod 600 my-project/.posttrain/state/execution.toml
 ```
 
-Build the combined bundle by concatenating the system store with the internal
-CA:
-
-```bash
-cat /etc/ssl/certs/ca-certificates.crt internal-ca.crt > combined-ca.crt
-```
+Nothing about certificates belongs here. The authority installed in step 1 is
+found automatically. Override it only for a one-off, either with
+`POSTTRAIN_TRUST_BUNDLE` in the environment or `trust_bundle` under
+`[providers.local]`; a path named that way must exist, because silently
+substituting a different authority would be worse than refusing.
 
 ## 6. Check readiness
 
