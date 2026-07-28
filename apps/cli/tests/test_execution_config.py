@@ -914,17 +914,13 @@ def test_the_environment_supplies_a_bundle_when_nothing_is_configured(
     assert resolved.source == "environment"
 
 
-def test_a_machine_with_no_internal_authority_needs_no_configuration(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_a_machine_with_no_internal_authority_needs_no_configuration() -> None:
     """The convention path is the only source allowed to be absent.
 
     Its absence is how a machine says it has no internal authority, so jobs
-    simply trust what their image already trusts.
+    simply trust what their image already trusts. The shared fixture points
+    that path somewhere empty, so this holds wherever the tests run.
     """
-    monkeypatch.delenv(TRUST_BUNDLE_ENVIRONMENT_VARIABLE, raising=False)
-    monkeypatch.setattr(Path, "is_file", lambda self: False)
-
     resolved = resolve_trust_bundle(None)
 
     assert resolved.path is None
@@ -936,8 +932,6 @@ def test_a_named_bundle_that_does_not_exist_is_refused(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Substituting a different authority for the one asked for is worse than failing."""
-    monkeypatch.delenv(TRUST_BUNDLE_ENVIRONMENT_VARIABLE, raising=False)
-
     with pytest.raises(ContractError, match="trust_bundle does not exist"):
         resolve_trust_bundle(tmp_path / "absent.pem")
 

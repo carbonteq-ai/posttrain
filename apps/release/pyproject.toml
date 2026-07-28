@@ -1,14 +1,14 @@
 [project]
 name = "posttrain-release"
-version = "0.1.13"
+version = "0.2.1"
 description = "Framework-owner tooling that publishes runtime images and pins the release manifest"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-    "posttrain-execution==0.1.13",
-    "posttrain-execution-buildkit==0.1.13",
-    "posttrain-runtime-images==0.1.13",
+    "posttrain-execution==0.2.1",
+    "posttrain-execution-buildkit==0.2.1",
+    "posttrain-runtime-images==0.2.1",
     "typer>=0.25.1",
 ]
 
