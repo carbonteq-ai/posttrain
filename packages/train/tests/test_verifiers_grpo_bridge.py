@@ -231,6 +231,72 @@ def test_policy_client_preserves_exact_turn_tokens_and_response() -> None:
     assert response.raw == {"id": "response-1"}
 
 
+@pytest.mark.parametrize("subsequent_turn", [False, True])
+def test_policy_client_preserves_json_schema_on_every_staged_turn(subsequent_turn) -> None:
+    generator = FakeGenerator()
+    client = _PolicyClient(generator)
+    body = {
+        "messages": [{"role": "user", "content": "recover the rules"}],
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "rules_stage",
+                "schema": {
+                    "type": "object",
+                    "properties": {"rules": {"type": "array"}},
+                    "required": ["rules"],
+                },
+                "strict": True,
+            },
+        },
+    }
+    turn = (
+        SimpleNamespace(
+            prompt=body["messages"],
+            previous_token_ids=lambda: ([11, 12], [13]),
+            tail_start=0,
+        )
+        if subsequent_turn
+        else None
+    )
+
+    asyncio.run(
+        client.get_response(
+            ChatDialect(),
+            body,
+            "model-profile-v1",
+            Sampling(temperature=1.0, max_tokens=32),
+            turn=turn,
+        )
+    )
+
+    response_format = generator.requests[0].response_format
+    assert response_format is not None
+    assert response_format.name == "rules_stage"
+    assert response_format.strict is True
+    assert response_format.schema["required"] == ["rules"]
+    if subsequent_turn:
+        assert generator.requests[0].previous_prompt_ids == (11, 12)
+        assert generator.requests[0].previous_completion_ids == (13,)
+
+
+def test_policy_client_rejects_unsupported_response_format() -> None:
+    client = _PolicyClient(FakeGenerator())
+
+    with pytest.raises(ValueError, match="unsupported.*response_format"):
+        asyncio.run(
+            client.get_response(
+                ChatDialect(),
+                {
+                    "messages": [{"role": "user", "content": "hello"}],
+                    "response_format": {"type": "json_object"},
+                },
+                "model-profile-v1",
+                Sampling(temperature=1.0, max_tokens=32),
+            )
+        )
+
+
 @pytest.mark.parametrize("technique", ["grpo", "sampo", "distill"])
 def test_native_bridge_projects_multiturn_masks_rewards_and_trace_artifact(tmp_path, technique) -> None:
     task = SimpleNamespace(data=TaskData(idx=7, prompt="Arbitrary environment prompt"))

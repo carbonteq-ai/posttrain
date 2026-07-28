@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import Literal, Protocol
 
 from posttrain.common import JsonValue, MetricBatchObservation, ProducedArtifact, TraceObservation
@@ -12,6 +14,28 @@ from posttrain.data import MessageRecord, RolloutDataset
 
 type ToolRecord = Mapping[str, JsonValue]
 type TokenSpan = tuple[int, int]
+
+
+@dataclass(frozen=True, slots=True)
+class JsonSchemaResponse:
+    """Backend-neutral strict JSON Schema requested for one policy turn."""
+
+    name: str
+    schema: Mapping[str, JsonValue]
+    strict: bool
+
+    def __post_init__(self) -> None:
+        if not self.name.strip():
+            raise ValueError("JSON Schema response name cannot be empty")
+        if not isinstance(self.strict, bool):
+            raise TypeError("JSON Schema response strict must be a boolean")
+        try:
+            normalized = json.loads(json.dumps(dict(self.schema), allow_nan=False, sort_keys=True))
+        except (TypeError, ValueError) as error:
+            raise TypeError("JSON Schema response schema must be a JSON object") from error
+        if not isinstance(normalized, dict):
+            raise TypeError("JSON Schema response schema must be a JSON object")
+        object.__setattr__(self, "schema", MappingProxyType(normalized))
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +78,7 @@ class PolicyTurnRequest:
     messages: tuple[MessageRecord, ...]
     sampling: PolicySampling
     tools: tuple[ToolRecord, ...] = ()
+    response_format: JsonSchemaResponse | None = None
     session_id: str | None = None
     previous_prompt_ids: tuple[int, ...] = ()
     previous_completion_ids: tuple[int, ...] = ()
@@ -173,6 +198,7 @@ __all__ = [
     "EnvironmentRolloutEvidence",
     "EnvironmentRolloutBridge",
     "EnvironmentRollout",
+    "JsonSchemaResponse",
     "PolicyGenerator",
     "PolicySampling",
     "PolicyTurnRequest",

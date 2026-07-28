@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import math
 import subprocess
 import sys
 import time
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, cast
@@ -16,8 +17,9 @@ from urllib.parse import urlparse
 import httpx
 from posttrain.common import HubModelRef, RunContext, TraceObservation
 
+from ...bindings import LoRAUpdate
 from ...distillation import DistillationBatch, DistillationBatchLedger
-from ...online_rl import RolloutBatch
+from ...online_rl import EnvironmentRollout, RolloutBatch
 from ...requests import OnPolicyDistillationRequest
 from .common import (
     BackendTrainingResult,
@@ -26,6 +28,7 @@ from .common import (
     emit_runtime_versions,
     finish_training,
     framework_imports,
+    load_frozen_model,
     load_tokenizer,
     load_trainable_model,
     trainer_arguments,
@@ -49,6 +52,7 @@ def run_distillation(
         raise ValueError("the vLLM teacher-score binding must provide engine.base_url")
     if not isinstance(request.teacher.artifact, HubModelRef):
         raise ValueError("TRL distillation currently requires a Hugging Face teacher model")
+    _validate_gemma4_distillation_topology(request)
 
     try:
         from trl.experimental.distillation import (  # pyright: ignore[reportMissingImports]
@@ -64,6 +68,15 @@ def run_distillation(
     with context.phase("model_loading", {"backend": "trl"}):
         tokenizer = load_tokenizer(request.student, imports)
         model = load_trainable_model(request.student, request.training.update, request.settings.loop, imports)
+        teacher_model = (
+            load_frozen_model(
+                request.teacher,
+                imports,
+                dtype=str(request.teacher_inference.engine.get("dtype", "bfloat16")),
+            )
+            if teacher_product == "transformers"
+            else None
+        )
     rows = [
         {
             "messages": [{"role": "user", "content": example.prompt}],
@@ -85,35 +98,16 @@ def run_distillation(
             teacher_url if isinstance(teacher_url, str) else None,
         )
 
-        class ObservedDistillationTrainer(DistillationTrainer):
-            def _get_teacher_logits(self, inputs: dict[str, Any]) -> Any:
-                started_at = time.perf_counter()
-                with context.phase("teacher_scoring", {"backend": "trl"}):
-                    try:
-                        result = super()._get_teacher_logits(inputs)
-                    except Exception:
-                        context.metric("train/distill/teacher_failures", 1)
-                        raise
-                    else:
-                        context.metric("train/distill/teacher_failures", 0)
-                        return result
-                    finally:
-                        context.metric(
-                            "train/distill/teacher_latency_ms",
-                            (time.perf_counter() - started_at) * 1_000,
-                        )
+        ObservedDistillationTrainer = _observed_distillation_trainer_type(context, DistillationTrainer)
 
         with context.phase("runtime_initialization", {"backend": "trl"}):
             trainer = ObservedDistillationTrainer(
                 model=model,
-                teacher_model=cast(
-                    Any,
-                    (None if teacher_product == "vllm" else request.teacher.artifact.repo_id),
-                ),
+                teacher_model=cast(Any, teacher_model),
                 args=DistillationConfig(**arguments),
                 train_dataset=dataset,
                 processing_class=tokenizer,
-                callbacks=[callback_type(context, imports)()],
+                callbacks=[callback_type(context, imports, metric_normalizer=_normalize_distillation_metrics)()],
                 rollout_func=cast(Any, _rollout_function(context, request, tokenizer, ledger)),
             )
         if teacher_product == "vllm":
@@ -121,7 +115,7 @@ def run_distillation(
                 raise RuntimeError("TRL did not initialize the configured teacher scoring client")
             trainer.teacher_client = cast(
                 Any,
-                _ObservedTeacherClient(context, trainer.teacher_client),
+                _ObservedTeacherClient(context, trainer.teacher_client, lambda: int(trainer.state.global_step)),
             )
         elif trainer.teacher_model is None:
             raise RuntimeError("TRL did not initialize the colocated teacher model")
@@ -208,6 +202,48 @@ def _teacher_server_lifecycle(
             except subprocess.TimeoutExpired:
                 process.kill()
                 process.wait(timeout=10)
+
+
+def _validate_gemma4_distillation_topology(request: OnPolicyDistillationRequest) -> None:
+    if request.student.family != "gemma4" and request.teacher.family != "gemma4":
+        return
+    if request.student.family != "gemma4" or request.teacher.family != "gemma4":
+        raise ValueError("Gemma 4 distillation requires a Gemma 4 student and teacher")
+    if request.student.weight_precision != "bf16" or request.teacher.weight_precision != "bf16":
+        raise ValueError("Gemma 4 distillation requires unquantized BF16 student and teacher weights")
+    if type(request.training.update) is not LoRAUpdate:
+        raise ValueError("Gemma 4 distillation requires a BF16 LoRA student update")
+    if request.quantization is not None:
+        raise ValueError("Gemma 4 distillation forbids student and teacher weight quantization")
+
+
+def _observed_distillation_trainer_type(context: RunContext, parent: type[Any]) -> type[Any]:
+    class ObservedDistillationTrainer(parent):
+        def _get_teacher_logits(self, inputs: dict[str, Any]) -> Any:
+            started_at = time.perf_counter()
+            step = int(self.state.global_step)
+            with context.phase("teacher_scoring", {"backend": "trl", "logical_step": step}):
+                try:
+                    result = super()._get_teacher_logits(inputs)
+                except Exception:
+                    context.metric("train/distill/teacher_failures", 1, step=step)
+                    raise
+                else:
+                    context.metric("train/distill/teacher_failures", 0, step=step)
+                    return result
+                finally:
+                    context.metric(
+                        "train/distill/teacher_latency_ms",
+                        (time.perf_counter() - started_at) * 1_000,
+                        step=step,
+                    )
+
+        def _save_checkpoint(self, model: Any, trial: Any) -> None:
+            step = int(self.state.global_step)
+            with context.phase("checkpointing", {"backend": "trl", "logical_step": step}):
+                super()._save_checkpoint(model, trial)
+
+    return ObservedDistillationTrainer
 
 
 def _teacher_server_command(
@@ -341,6 +377,8 @@ def _rollout_function(
             )
         if len(rollouts) != len(inputs):
             raise ValueError("environment rollout count does not match the distillation trainer batch")
+        for rollout in rollouts:
+            _validate_rollout_token_budget(request, rollout)
         trace_ids = tuple(rollout.trace.external_id for rollout in rollouts)
         digest = hashlib.sha256()
         digest.update(ledger.policy_revision.encode())
@@ -396,29 +434,98 @@ def _rollout_function(
     return run_rollouts
 
 
+def _validate_rollout_token_budget(
+    request: OnPolicyDistillationRequest,
+    rollout: EnvironmentRollout,
+) -> None:
+    prompt_tokens = len(rollout.prompt_ids)
+    completion_tokens = len(rollout.completion_ids)
+    total_tokens = prompt_tokens + completion_tokens
+    prompt_limit = request.settings.max_prompt_length
+    completion_limit = request.settings.max_completion_length
+    total_limit = request.settings.loop.max_length
+    if (
+        prompt_tokens <= prompt_limit
+        and completion_tokens <= completion_limit
+        and total_tokens <= total_limit
+    ):
+        return
+    raise ValueError(
+        "distillation rollout exceeds the configured token budget before teacher scoring: "
+        f"example_id={rollout.example_id!r}, tangent={_rollout_tangent(rollout)!r}, "
+        f"prompt_tokens={prompt_tokens}/{prompt_limit}, "
+        f"completion_tokens={completion_tokens}/{completion_limit}, "
+        f"total_tokens={total_tokens}/{total_limit}"
+    )
+
+
+def _rollout_tangent(rollout: EnvironmentRollout) -> str:
+    direct = rollout.trace.attributes.get("tangent")
+    if isinstance(direct, str) and direct:
+        return direct
+    payload = rollout.trace.payload
+    for container_name in ("info", "task"):
+        container = payload.get(container_name)
+        if not isinstance(container, Mapping):
+            continue
+        candidates = (container, container.get("data"))
+        for candidate in candidates:
+            if isinstance(candidate, Mapping):
+                tangent = candidate.get("tangent") or candidate.get("tangent_id")
+                if isinstance(tangent, str) and tangent:
+                    return tangent
+    return "unknown"
+
+
 class _ObservedTeacherClient:
     """Record teacher scoring latency and failures without changing TRL's client contract."""
 
-    def __init__(self, context: RunContext, client: Any) -> None:
+    def __init__(self, context: RunContext, client: Any, step: Any | None = None) -> None:
         self._context = context
         self._client = client
+        self._step = step or (lambda: None)
 
     def get_sequence_logprobs(self, **kwargs: Any) -> Any:
         started = time.perf_counter()
+        step = self._step()
         with self._context.phase("teacher_scoring", {"backend": "trl"}):
             try:
                 result = self._client.get_sequence_logprobs(**kwargs)
             except Exception:
-                self._context.metric("train/distill/teacher_failures", 1)
+                self._context.metric("train/distill/teacher_failures", 1, step=step)
                 raise
             else:
-                self._context.metric("train/distill/teacher_failures", 0)
+                self._context.metric("train/distill/teacher_failures", 0, step=step)
                 return result
             finally:
                 self._context.metric(
                     "train/distill/teacher_latency_ms",
                     (time.perf_counter() - started) * 1_000,
+                    step=step,
                 )
+
+
+def _normalize_distillation_metrics(_step: int, records: Mapping[str, object]) -> Mapping[str, float]:
+    values: dict[str, float] = {}
+    raw_loss = records.get("on_policy_loss", records.get("loss"))
+    if isinstance(raw_loss, int | float) and not isinstance(raw_loss, bool):
+        loss = float(raw_loss)
+        if not math.isfinite(loss):
+            raise FloatingPointError(f"non-finite distillation loss={loss}")
+        values["train/distill/loss"] = loss
+        values["train/distill/reverse_kl"] = loss
+    for raw_name, metric_name in (
+        ("grad_norm", "train/grad_norm"),
+        ("learning_rate", "train/learning_rate"),
+        ("num_input_tokens_seen", "train/num_tokens"),
+    ):
+        raw = records.get(raw_name)
+        if isinstance(raw, int | float) and not isinstance(raw, bool):
+            numeric = float(raw)
+            if not math.isfinite(numeric):
+                raise FloatingPointError(f"non-finite training metric {raw_name}={numeric}")
+            values[metric_name] = numeric
+    return values
 
 
 def _distillation_arguments(
@@ -433,7 +540,6 @@ def _distillation_arguments(
     rollout = request.rollout_inference.engine
     speculative_config, engine_kwargs = vllm_rollout_options(request.student, rollout)
     teacher_product = request.teacher_inference.backend.split("@", 1)[0]
-    teacher_engine = request.teacher_inference.engine
     use_liger_kernel = request.training.backend_options.get("use_liger_kernel", False)
     if not isinstance(use_liger_kernel, bool):
         raise ValueError("TRL distillation use_liger_kernel must be a boolean")
@@ -446,6 +552,7 @@ def _distillation_arguments(
     arguments.update(
         {
             "remove_unused_columns": False,
+            "include_num_input_tokens_seen": "non_padding",
             "use_liger_kernel": use_liger_kernel,
             "lmbda": 1.0,
             "beta": 1.0,
@@ -459,14 +566,9 @@ def _distillation_arguments(
             "use_teacher_server": teacher_product == "vllm",
             "teacher_model_server_url": teacher_url,
             "teacher_model_revision": teacher_artifact.revision,
-            "teacher_model_init_kwargs": (
-                {
-                    "revision": teacher_artifact.revision,
-                    "dtype": teacher_engine.get("dtype", "bfloat16"),
-                }
-                if teacher_product == "transformers"
-                else None
-            ),
+            # The adapter loads a pinned local teacher object with the same
+            # architecture resolver as the student. TRL must not auto-load it.
+            "teacher_model_init_kwargs": None,
             "use_vllm": True,
             "vllm_mode": rollout.get("mode", "colocate"),
             "vllm_server_base_url": rollout.get("base_url"),

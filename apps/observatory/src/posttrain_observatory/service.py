@@ -1281,7 +1281,11 @@ class ObservatoryService:
             alerts.append(RunAlert(id="run-failed", severity="error", message="The run failed."))
         elif status in {"partial", "cancelled", "unsupported"}:
             alerts.append(
-                RunAlert(id=f"run-{status}", severity="warning", message=f"The run finished with status {status}.")
+                RunAlert(
+                    id=f"run-{status}",
+                    severity="error" if definition.job_kind == "train.distill" and status == "partial" else "warning",
+                    message=f"The run finished with status {status}.",
+                )
             )
         if definition.job_kind in {"train.grpo", "train.sampo", "train.distill"} and trace_count == 0:
             technique = definition.job_kind.removeprefix("train.")
@@ -1302,7 +1306,7 @@ class ObservatoryService:
                 alerts.append(
                     RunAlert(
                         id=f"missing-{field.key}",
-                        severity="warning",
+                        severity="error" if definition.job_kind == "train.distill" else "warning",
                         message=f"Required telemetry is missing: {field.label}.",
                         field=field.key,
                     )

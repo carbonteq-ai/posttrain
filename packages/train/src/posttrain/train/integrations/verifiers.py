@@ -27,6 +27,7 @@ from ..online_rl import (
     AgenticTurn,
     EnvironmentRollout,
     EnvironmentRolloutEvidence,
+    JsonSchemaResponse,
     PolicyGenerator,
     PolicySampling,
     PolicyTurnRequest,
@@ -342,6 +343,7 @@ class _PolicyClient:
                 top_p=1.0 if sampling_args.top_p is None else float(sampling_args.top_p),
             ),
             tools=tuple(_record(tool) for tool in tools or []),
+            response_format=_response_format(body.get("response_format")),
             session_id=session_id,
             previous_prompt_ids=tuple(anchor[0]) if anchor else (),
             previous_completion_ids=tuple(anchor[1]) if anchor else (),
@@ -368,6 +370,34 @@ class _PolicyClient:
 
     async def close(self) -> None:
         return None
+
+
+def _response_format(value: Any) -> JsonSchemaResponse | None:
+    if value is None:
+        return None
+    if hasattr(value, "model_dump"):
+        value = value.model_dump(mode="python", exclude_none=True)
+    if not isinstance(value, Mapping):
+        raise TypeError("policy response_format must be an object")
+    format_type = value.get("type")
+    if format_type != "json_schema":
+        raise ValueError(f"unsupported policy response_format type: {format_type!r}")
+    definition = value.get("json_schema")
+    model_dump = getattr(definition, "model_dump", None)
+    if callable(model_dump):
+        definition = model_dump(mode="python", exclude_none=True)
+    if not isinstance(definition, Mapping):
+        raise TypeError("json_schema response_format requires a json_schema object")
+    name = definition.get("name")
+    schema = definition.get("schema")
+    strict = definition.get("strict", False)
+    if not isinstance(name, str):
+        raise TypeError("json_schema response_format name must be a string")
+    if not isinstance(schema, Mapping):
+        raise TypeError("json_schema response_format schema must be an object")
+    if not isinstance(strict, bool):
+        raise TypeError("json_schema response_format strict must be a boolean")
+    return JsonSchemaResponse(name=name, schema=dict(schema), strict=strict)
 
 
 def _record(value: Any) -> Mapping[str, JsonValue]:

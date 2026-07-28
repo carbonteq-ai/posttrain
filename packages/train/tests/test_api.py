@@ -71,6 +71,9 @@ from posttrain.train import (
 from posttrain.train.backends.trl.common import BackendTrainingResult, callback_type, trainer_lifecycle
 from posttrain.train.backends.trl.distillation import (
     _distillation_arguments,
+    _normalize_distillation_metrics,
+    _observed_distillation_trainer_type,
+    _validate_rollout_token_budget,
 )
 from posttrain.train.backends.trl.distillation import (
     _rollout_function as _distillation_rollout_function,
@@ -824,8 +827,59 @@ def test_distillation_operation_records_teacher_student_and_native_trace_contrac
     assert result.teacher_scoring.inference_binding_revision == request.teacher_inference.revision
     assert result.teacher_scoring.backend == request.teacher_inference.backend
     assert observer.events[0].attributes["teacher_model_variant_id"] == request.teacher.id
+    objective = next(event for event in observer.events if event.name == "distillation_objective_resolved")
+    assert objective.attributes["loss_metric_equals_reverse_kl"] is True
     assert any("train/distill/loss" in batch.values for batch in observer.metrics_seen)
     assert all("train/distill/teacher_failures" not in batch.values for batch in observer.metrics_seen)
+
+
+def test_distillation_metric_normalizer_emits_per_step_objective_and_optimizer_series() -> None:
+    values = _normalize_distillation_metrics(
+        7,
+        {
+            "on_policy_loss": 0.25,
+            "loss": 99.0,
+            "grad_norm": 0.75,
+            "learning_rate": 1e-5,
+            "num_input_tokens_seen": 4096,
+        },
+    )
+
+    assert values == {
+        "train/distill/loss": 0.25,
+        "train/distill/reverse_kl": 0.25,
+        "train/grad_norm": 0.75,
+        "train/learning_rate": 1e-5,
+        "train/num_tokens": 4096.0,
+    }
+
+
+def test_observed_distillation_trainer_records_checkpoint_runtime_phase(tmp_path: Path) -> None:
+    observer = Observer()
+    context = _run_context(
+        tmp_path.resolve(),
+        observer,
+        job_kind="train.distill",
+        run_id="runs/distill-checkpoint",
+    )
+
+    class BaseTrainer:
+        state = SimpleNamespace(global_step=16)
+
+        def _save_checkpoint(self, model: object, trial: object) -> None:
+            self.saved = (model, trial)
+
+    trainer = _observed_distillation_trainer_type(context, BaseTrainer)()
+    model = object()
+    trial = object()
+
+    trainer._save_checkpoint(model, trial)
+
+    assert trainer.saved == (model, trial)
+    phase_events = [event for event in observer.events if event.name.startswith("runtime_phase_")]
+    assert [event.name for event in phase_events] == ["runtime_phase_started", "runtime_phase_completed"]
+    assert all(event.attributes["phase"] == "checkpointing" for event in phase_events)
+    assert all(event.attributes["logical_step"] == 16 for event in phase_events)
 
 
 def test_online_training_preserves_backend_failure_when_trace_finalization_also_fails(tmp_path: Path) -> None:
@@ -899,6 +953,7 @@ def test_distillation_backend_fixes_fully_on_policy_reverse_kl_contract(tmp_path
     assert arguments["use_vllm"] is True
     assert arguments["vllm_weight_sync_mode"] == "lora"
     assert arguments["generation_batch_size"] == request.settings.num_prompts_per_step
+    assert arguments["include_num_input_tokens_seen"] == "non_padding"
 
 
 def test_distillation_backend_configures_colocated_transformers_teacher(
@@ -921,10 +976,40 @@ def test_distillation_backend_configures_colocated_transformers_teacher(
     assert arguments["use_teacher_server"] is False
     assert arguments["teacher_model_server_url"] is None
     assert arguments["teacher_model_revision"] == request.teacher.artifact.revision
-    assert arguments["teacher_model_init_kwargs"] == {
-        "revision": request.teacher.artifact.revision,
-        "dtype": "bfloat16",
-    }
+    assert arguments["teacher_model_init_kwargs"] is None
+
+
+@pytest.mark.parametrize(
+    ("prompt_tokens", "completion_tokens", "expected"),
+    [(257, 1, "prompt_tokens=257/256"), (1, 385, "completion_tokens=385/384")],
+)
+def test_distillation_rejects_overlength_trajectory_before_teacher_scoring(
+    prompt_tokens: int,
+    completion_tokens: int,
+    expected: str,
+) -> None:
+    request = _distillation_request()
+    rollout = EnvironmentRollout(
+        example_id="train/000007",
+        prompt_ids=tuple(range(prompt_tokens)),
+        completion_ids=tuple(range(completion_tokens)),
+        sampling_logprobs=tuple(0.0 for _ in range(completion_tokens)),
+        env_mask=tuple(True for _ in range(completion_tokens)),
+        reward=0.0,
+        is_truncated=False,
+        trace=TraceObservation(
+            "verifiers",
+            "trace-7",
+            {"task": {"data": {"tangent": "normative_statements.exhaustive_recall"}}},
+        ),
+    )
+
+    with pytest.raises(ValueError, match="before teacher scoring") as captured:
+        _validate_rollout_token_budget(request, rollout)
+
+    assert "example_id='train/000007'" in str(captured.value)
+    assert "tangent='normative_statements.exhaustive_recall'" in str(captured.value)
+    assert expected in str(captured.value)
 
 
 def test_distillation_backend_translates_mtp_and_turboquant_rollout_options(tmp_path: Path) -> None:
@@ -1080,6 +1165,39 @@ def test_grpo_callback_emits_normalized_names_without_trl_vocabulary(tmp_path: P
     assert values["train/rl/reward_std"] == 0.25
     assert values["train/rl/kl"] == 0.01
     assert "train/reward" not in values
+
+
+def test_callback_emits_non_padding_token_throughput_from_first_log(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observer = Observer()
+    context = _run_context(
+        tmp_path.resolve(),
+        observer,
+        job_kind="train.distill",
+        run_id="runs/distill-throughput",
+    )
+    clock = iter((10.0, 12.0))
+    monkeypatch.setattr("posttrain.train.backends.trl.common.time.perf_counter", lambda: next(clock))
+    callback = callback_type(
+        context,
+        {"TrainerCallback": object},
+        metric_normalizer=_normalize_distillation_metrics,
+    )()
+    state = SimpleNamespace(global_step=1, num_input_tokens_seen=0)
+
+    callback.on_train_begin(SimpleNamespace(), state, SimpleNamespace())
+    callback.on_log(
+        SimpleNamespace(max_grad_norm=1.0),
+        state,
+        SimpleNamespace(),
+        logs={"num_input_tokens_seen": 100},
+    )
+
+    values = observer.metrics_seen[-1].values
+    assert values["train/num_tokens"] == 100.0
+    assert values["train/non_padding_tokens_per_second"] == 50.0
 
 
 def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path) -> None:

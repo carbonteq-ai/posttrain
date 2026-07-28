@@ -1813,16 +1813,30 @@ DISTILL_TELEMETRY = JobTelemetryDefinition(
         ChartDefinition(
             key="objective",
             title="Distillation objective",
+            question="Is the sampled-token reverse-KL objective finite and stable?",
             metrics=("train/distill/loss", "train/distill/reverse_kl"),
+        ),
+        ChartDefinition(
+            key="optimizer",
+            title="Optimizer",
+            question="Are gradient scale, clipping, and the learning-rate schedule healthy?",
+            metrics=("train/grad_norm", "train/learning_rate", "train/gradient_clipped"),
+        ),
+        ChartDefinition(
+            key="supervision_runtime",
+            title="Supervision and runtime",
+            question="How much valid supervision is processed at what step cost?",
+            metrics=(
+                "train/distill/scored_tokens",
+                "train/non_padding_tokens_per_second",
+                "train/step_time_seconds",
+            ),
         ),
         ChartDefinition(
             key="teacher",
             title="Teacher scoring",
-            metrics=(
-                "train/distill/scored_tokens",
-                "train/distill/teacher_latency_ms",
-                "train/distill/teacher_failures",
-            ),
+            question="Is exact-token teacher scoring responsive and failure-free?",
+            metrics=("train/distill/teacher_latency_ms", "train/distill/teacher_failures"),
         ),
     ),
     metric_help=_help_for(
@@ -1831,6 +1845,12 @@ DISTILL_TELEMETRY = JobTelemetryDefinition(
         "train/distill/scored_tokens",
         "train/distill/teacher_latency_ms",
         "train/distill/teacher_failures",
+        "train/grad_norm",
+        "train/learning_rate",
+        "train/gradient_clipped",
+        "train/num_tokens",
+        "train/non_padding_tokens_per_second",
+        "train/step_time_seconds",
     ),
     health_rules=(
         HealthRuleDefinition(
@@ -1841,12 +1861,28 @@ DISTILL_TELEMETRY = JobTelemetryDefinition(
             severity="error",
         ),
         HealthRuleDefinition(
+            id="distill-reverse-kl-non-finite",
+            kind="non_finite",
+            metric="train/distill/reverse_kl",
+            message="Distillation reverse KL contains a non-finite value.",
+            severity="error",
+        ),
+        HealthRuleDefinition(
             id="distill-teacher-failures",
             kind="threshold",
             metric="train/distill/teacher_failures",
             operator="gt",
             threshold=0.0,
             message="Teacher scoring failed for at least one batch.",
+            severity="error",
+        ),
+        HealthRuleDefinition(
+            id="distill-scored-tokens-empty",
+            kind="threshold",
+            metric="train/distill/scored_tokens",
+            operator="lte",
+            threshold=0.0,
+            message="No student completion tokens were scored by the teacher.",
             severity="error",
         ),
     ),
@@ -1859,6 +1895,44 @@ DISTILL_TELEMETRY = JobTelemetryDefinition(
         "train/distill/scored_tokens",
         "train/distill/teacher_latency_ms",
         "train/distill/teacher_failures",
+        "train/grad_norm",
+        "train/non_padding_tokens_per_second",
+        "train/step_time_seconds",
+    ),
+    evidence_requirements=(
+        EvidenceRequirementDefinition(
+            key="distillation_objective",
+            label="Distillation objective",
+            level="required",
+            metrics=("train/distill/loss", "train/distill/reverse_kl"),
+            reason="Every optimizer step must expose the configured sampled-token reverse-KL objective.",
+        ),
+        EvidenceRequirementDefinition(
+            key="distillation_optimizer",
+            label="Optimizer health",
+            level="required",
+            metrics=("train/grad_norm", "train/learning_rate", "train/gradient_clipped"),
+            reason="Gradient scale, clipping, and schedule are required to judge whether updates are healthy.",
+        ),
+        EvidenceRequirementDefinition(
+            key="distillation_supervision_runtime",
+            label="Supervision and runtime",
+            level="required",
+            metrics=(
+                "train/distill/scored_tokens",
+                "train/num_tokens",
+                "train/non_padding_tokens_per_second",
+                "train/step_time_seconds",
+            ),
+            reason="Effective supervision volume and step throughput are required for a qualified run.",
+        ),
+        EvidenceRequirementDefinition(
+            key="distillation_teacher",
+            label="Teacher scoring",
+            level="required",
+            metrics=("train/distill/teacher_latency_ms", "train/distill/teacher_failures"),
+            reason="Teacher scoring must be observable and failure-free.",
+        ),
     ),
 )
 

@@ -13,6 +13,7 @@ from posttrain.tracking import (
     MetricSeries,
     RunDetail,
     RunQuery,
+    RunStatus,
     RunSummary,
     TracePage,
     TrackingCapabilities,
@@ -58,7 +59,7 @@ class FakeRunDataSource:
         return ArtifactSet()
 
 
-def _summary(run_id: str, job_kind: str = "train.sft") -> RunSummary:
+def _summary(run_id: str, job_kind: str = "train.sft", *, status: RunStatus = "succeeded") -> RunSummary:
     return RunSummary(
         provider="fixture",
         provider_run_id=f"provider-{run_id}",
@@ -69,7 +70,7 @@ def _summary(run_id: str, job_kind: str = "train.sft") -> RunSummary:
         stage="train",
         job_kind=job_kind,
         job_definition_version=f"{job_kind}@1",
-        status="succeeded",
+        status=status,
         started_at=NOW,
         finished_at=NOW + timedelta(seconds=10),
     )
@@ -173,7 +174,20 @@ def test_distillation_telemetry_is_strict_and_trace_aware() -> None:
         "train/distill/scored_tokens",
         "train/distill/teacher_latency_ms",
         "train/distill/teacher_failures",
+        "train/grad_norm",
+        "train/learning_rate",
+        "train/gradient_clipped",
+        "train/num_tokens",
+        "train/non_padding_tokens_per_second",
+        "train/step_time_seconds",
     }
+    assert tuple(chart.key for chart in definition.charts) == (
+        "objective",
+        "optimizer",
+        "supervision_runtime",
+        "teacher",
+    )
+    assert all(chart.question for chart in definition.charts)
     assert tuple(section.trace_type for section in definition.trace_sections) == ("verifiers",)
     assert {field.key for field in definition.summary_fields if field.required} == {
         "final_loss",
@@ -182,6 +196,13 @@ def test_distillation_telemetry_is_strict_and_trace_aware() -> None:
         "teacher_failures",
     }
     assert {item.metric for item in definition.metric_help} == definition.metric_names
+    assert {item.key for item in definition.evidence_requirements} == {
+        "distillation_objective",
+        "distillation_optimizer",
+        "distillation_supervision_runtime",
+        "distillation_teacher",
+    }
+    assert all(item.level == "required" for item in definition.evidence_requirements)
     with pytest.raises(ValidationError, match="comparison keys"):
         JobTelemetryDefinition(
             job_kind="train.test",
@@ -222,6 +243,7 @@ def _registered_job_source(
     values: dict[str, float],
     *,
     trace_count: int = 0,
+    status: RunStatus = "succeeded",
 ) -> FakeRunDataSource:
     run_id = f"runs/{job_kind.replace('.', '-')}"
     series = {
@@ -230,7 +252,7 @@ def _registered_job_source(
     return FakeRunDataSource(
         {
             run_id: RunDetail(
-                summary=_summary(run_id, job_kind),
+                summary=_summary(run_id, job_kind, status=status),
                 metric_names=tuple(series),
                 trace_count=trace_count,
             )
@@ -277,6 +299,51 @@ async def test_distillation_projection_requires_traces_and_surfaces_teacher_fail
     assert view.completeness.state == "complete"
     assert view.completeness.research_ready is False
     assert {"distill-teacher-failures", "missing-distill-traces"}.issubset({alert.id for alert in view.alerts})
+
+
+@pytest.mark.asyncio
+async def test_distillation_partial_and_zero_supervision_are_errors() -> None:
+    definition = DEFAULT_TELEMETRY_DEFINITIONS["train.distill"]
+    values = {metric: 1.0 for metric in definition.metric_names}
+    values["train/distill/scored_tokens"] = 0.0
+    values["train/distill/teacher_failures"] = 0.0
+    source = _registered_job_source("train.distill", values, trace_count=2, status="partial")
+
+    view = await ObservatoryService(source).get_run_view("runs/train-distill")
+    alerts = {alert.id: alert for alert in view.alerts}
+
+    assert alerts["run-partial"].severity == "error"
+    assert alerts["distill-scored-tokens-empty"].severity == "error"
+
+
+@pytest.mark.asyncio
+async def test_distillation_missing_required_metrics_are_errors() -> None:
+    definition = DEFAULT_TELEMETRY_DEFINITIONS["train.distill"]
+    values = {metric: 1.0 for metric in definition.metric_names if metric != "train/distill/loss"}
+    values["train/distill/teacher_failures"] = 0.0
+    source = _registered_job_source("train.distill", values, trace_count=2)
+
+    view = await ObservatoryService(source).get_run_view("runs/train-distill")
+    alerts = {alert.id: alert for alert in view.alerts}
+
+    assert alerts["missing-final_loss"].severity == "error"
+    assert alerts["evidence-distillation_objective"].severity == "error"
+
+
+@pytest.mark.asyncio
+async def test_distillation_non_finite_objectives_are_errors() -> None:
+    definition = DEFAULT_TELEMETRY_DEFINITIONS["train.distill"]
+    values = {metric: 1.0 for metric in definition.metric_names}
+    values["train/distill/loss"] = float("nan")
+    values["train/distill/reverse_kl"] = float("inf")
+    values["train/distill/teacher_failures"] = 0.0
+    source = _registered_job_source("train.distill", values, trace_count=2)
+
+    view = await ObservatoryService(source).get_run_view("runs/train-distill")
+    alerts = {alert.id: alert for alert in view.alerts}
+
+    assert alerts["distill-loss-non-finite"].severity == "error"
+    assert alerts["distill-reverse-kl-non-finite"].severity == "error"
 
 
 def test_dpo_telemetry_answers_pair_policy_stability_and_data_questions() -> None:

@@ -1,0 +1,319 @@
+# Qualify Policy Prism Gemma 4 on-policy distillation
+
+This ExecPlan is a living document. Keep `Progress`, `Surprises & Discoveries`,
+`Decision Log`, and `Outcomes & Retrospective` current in accordance with
+`docs/templates/PLAN.md`. The canonical product authority is
+`docs/post-training/README.md` and the six documents it indexes.
+
+## Purpose / Big Picture
+
+Extend the existing `train.distill` path so a project can train two independent
+BF16 LoRA adapters for `google/gemma-4-E4B-it` from an unquantized local
+`google/gemma-4-31B-it` teacher on one H200. Policy Prism owns prompt-only task
+selection, staged JSON schemas, native Verifiers traces, and sealed before/after
+evaluation. PostTrain owns model loading, live student rollouts, exact-token
+teacher scoring, optimization evidence, artifacts, and Observatory views.
+
+The shortest supported route is a standard `train.distill` job using
+`train/trl-distill@1`, launched in process on a user-provisioned RunPod. This
+plan does not add a custom Lab trainer, a RunPod provider, offline teacher
+answers, or any quantization.
+
+Scope and recovery never share an adapter. Each tangent has a one-step smoke,
+an eight-step qualification, and a 64-step pilot.
+
+## Progress
+
+- [x] (2026-07-28 17:00Z) Verified the clean worktree
+  `exp/policy-prism-gemma4-distill` at PostTrain v0.2.3 commit
+  `5522b5ea84669401d8f217d7016afe04a80bb381`.
+- [x] (2026-07-28 17:15Z) Read the canonical product documents, plan template,
+  existing Verifiers distillation plan, pinned TRL fork implementation, train
+  adapters, catalogs, work packages, tests, and Observatory telemetry.
+- [x] (2026-07-28 17:25Z) Confirmed the Policy Prism branch has no distillation
+  environment at `c4cc8618e796b48e34a8768bf1967cbc0b82e623`; a final pin does not
+  yet exist.
+- [x] (2026-07-28 17:14Z) Implemented and CPU-tested the Gemma 4 renderer,
+  conditional-generation loading, local frozen BF16 teacher loading, and
+  language-model-only LoRA targeting.
+- [x] (2026-07-28 17:14Z) Implemented and CPU-tested JSON Schema and per-stage
+  sampling propagation through
+  Verifiers and the TRL policy generator.
+- [x] (2026-07-28 17:14Z) Enforced prompt, flattened-completion, and total
+  trajectory budgets before
+  teacher scoring.
+- [x] (2026-07-28 18:15Z) Verified the exact pinned E4B and 31B tokenizer files
+  are byte-identical and recorded the shared ordered-vocabulary/special-token
+  fingerprint `1ab787c816b67a0936e8d1c9ff20e6cf5bd8b77faabfe6ada5905bd2c433b413`.
+- [x] (2026-07-28 18:25Z) Added independent project selections for both Gemma
+  models, one H200 target, colocated E4B vLLM rollout, local BF16 31B teacher,
+  text-only rank-8 LoRA, and shared 1/8/64-step settings.
+- [ ] Add six Policy Prism environment bindings and six standard work packages
+  after the verifier package has a final immutable commit.
+- [x] (2026-07-28 17:14Z) Extended per-step distillation telemetry,
+  checkpoint runtime phases, and Observatory charts, evidence groups, and
+  health alerts. Focused validation has 84 common/train tests with Verifiers
+  active and 45 non-HTTP Observatory tests passing. The default package suites
+  have 16 common and 138 train tests passing, with expected optional skips.
+- [x] (2026-07-28 19:05Z) Completed focused common, train, Verifiers bridge,
+  Observatory, catalog, work-package, Ruff, changed-file Pyright,
+  import-boundary, and diff validation.
+- [ ] Commit and push the independent PostTrain support.
+- [ ] Run the H200 smoke and qualification gates; no local CPU result can claim
+  GPU readiness.
+
+## Surprises & Discoveries
+
+- Observation: v0.2.3 already implements backend-neutral `train.distill`, a
+  native Verifiers rollout bridge, consume-once batch lineage, a local
+  Transformers teacher, and colocated vLLM student rollout.
+  Evidence: `packages/train/src/posttrain/train/backends/trl/distillation.py`
+  and `docs/plan/verifiers-on-policy-distillation.md`.
+
+- Observation: the pinned TRL fork converts a mapping in
+  `vllm_generation.generation_kwargs["structured_outputs"]` into vLLM
+  `StructuredOutputsParams` for every colocated generation call. This provides
+  the required extension point without a TRL fork change.
+  Evidence: pinned TRL commit `6e7739b8ec741d21ecd79c0c212694cd15ff20d8`,
+  `trl/generation/vllm_generation.py::VLLMGeneration.generate`.
+
+- Observation: the Policy Prism branch currently contains no training
+  environment, so pinning `c4cc8618...` would produce a reproducible but
+  non-functional
+  training selection.
+  Evidence: `git status --short` in the Policy Prism checkout lists modified
+  harness, program, schema, and tests.
+
+- Observation: Transformers 5.14 exposes cumulative non-padding tokens to
+  callbacks as `num_input_tokens_seen`, not `num_tokens`.
+  Evidence: the pinned `TrainingArguments`/`Trainer` implementation and the
+  focused callback test. The adapter now normalizes that native key to the
+  framework-owned `train/num_tokens` name.
+
+- Observation: Observatory already projects model loading, rollout, teacher
+  scoring, actor update, and artifact export phases. Checkpoint saves were the
+  missing interval.
+  Evidence: `apps/observatory/src/posttrain_observatory/runtime_phases.py` and
+  the new observed distillation-trainer checkpoint test.
+
+- Observation: repository-wide Pyright has existing v0.2.3 re-export errors in
+  Lab, Work, Execution, Tracking, and unrelated tests. Every file changed by
+  this plan type-checks with zero errors; all eight import-linter contracts and
+  repository-wide Ruff pass.
+  Evidence: focused Pyright command over the changed-file set, `lint-imports
+  --cache-dir /tmp/posttrain-policy-prism-import-linter-cache`, and
+  repository-wide Ruff. No unrelated type errors were edited.
+
+- Observation: the Observatory HTTP test module blocks on its first existing
+  `TestClient` request in this restricted worktree, while all 45 service,
+  projection, settings, and execution-target tests pass.
+  Evidence: bounded test runs of `apps/observatory/tests/test_http.py` and the
+  four remaining Observatory test modules.
+
+- Observation: tokenizer JSON and tokenizer configuration files are
+  byte-identical for the pinned E4B and 31B revisions. Canonicalizing the
+  ordered vocabulary, added-token special flags, and special-token
+  configuration produces the same fingerprint for both models.
+  Evidence: exact Hugging Face files at revisions
+  `ee0ef6023621cff504d758262d4e04895a5af4a2` and
+  `842da3794eaa0b77d5f08bae87a17459d91ff475`.
+
+- Observation: Verifiers-enabled catalog/work-package tests that activate
+  `gsm8k-v1` or `automationbench-v1` require those external environment
+  packages. The implementation-specific bridge tests and all work-package
+  tests not requiring those packages pass.
+  Evidence: 69 Verifiers/TRL tests and eight focused work-package tests pass;
+  one GSM8K and one AutomationBench activation test are explicitly deselected.
+
+## Decision Log
+
+- Decision: No frozen product-baseline amendment is required.
+  Rationale: the existing baseline already assigns live environments to
+  project selections, optimization to `train.distill`, and evidence queries to
+  Observatory. This work uses those extension points without changing their
+  meaning.
+  Date/Author: 2026-07-28 / Codex.
+
+- Decision: Do not create a runnable Policy Prism environment catalog entry
+  until the external wheel is committed and its full SHA is known.
+  Rationale: a placeholder or the pre-feature SHA would violate immutable
+  selection and preflight guarantees.
+  Date/Author: 2026-07-28 / Codex.
+
+- Decision: Apply per-turn structured decoding by temporarily overriding the
+  pinned TRL generator under the adapter's existing async lock and restore it
+  in `finally`.
+  Rationale: staged environments require different schemas and token limits;
+  shared mutable generation state must never leak between turns or failures.
+  Date/Author: 2026-07-28 / Codex.
+
+- Decision: Keep the pinned TRL fork unchanged.
+  Rationale: its colocated vLLM generator already accepts per-call structured
+  output mappings and supports LoRA-only weight synchronization; the framework
+  adapter can use those supported hooks directly.
+  Date/Author: 2026-07-28 / Codex.
+
+- Decision: Train scope and recovery as separate adapters with 1/8/64-step
+  smoke, qualification, and pilot settings.
+  Rationale: the tangents have different stage contracts and must be evaluated
+  independently; combining them would obscure which policy improved.
+  Date/Author: 2026-07-28 / Codex.
+
+- Decision: Keep only identities required for correct execution: exact model
+  revisions, shared tokenizer token-ID fingerprint, final Policy Prism commit,
+  and the automatically emitted adapter identity.
+  Rationale: wheel hashes, lock hashes, dataset hash chains, and new comparison
+  reports add experiment overhead without being required by these runtime
+  contracts.
+  Date/Author: 2026-07-28 / Codex.
+
+## Outcomes & Retrospective
+
+The reusable framework slice and independent catalog are implemented and their
+focused CPU gates pass: 16 common tests, 138 train tests, 69 Verifiers/TRL
+tests, 45 Observatory tests, 13 Gemma/catalog tests, and eight work-package
+tests. Ruff, changed-file Pyright, all eight import contracts, catalog
+validation, and diff checks also pass. Final environment/work-package
+activation, wheel installation, and the H200 qualification remain gated on a
+committed Policy Prism environment and gated Gemma model-weight access.
+
+## Context and Orientation
+
+`packages/common/src/posttrain/common/variants/` owns built-in renderer
+contracts and exact foundation variants. `packages/train/src/posttrain/train/`
+owns backend-neutral turn requests and private TRL adapters.
+`packages/train/src/posttrain/train/integrations/verifiers.py` translates the
+native Verifiers request/response protocol. The project overlay belongs under
+`.posttrain/catalog/`; standard work packages belong under
+`.posttrain/work_packages/`. `apps/observatory` remains read-only.
+
+Policy Prism supplies paired scope and recovery tasks. Each staged task may
+request an OpenAI-compatible `response_format` of type `json_schema` and a
+stage-specific `max_tokens`. The complete trajectory limits are 4,096 prompt
+tokens, 12,288 flattened completion tokens, and 16,384 total tokens. Oversized
+trajectories are rejected, never truncated.
+
+## Plan of Work
+
+First add a tokenizer-native Gemma 4 renderer contract and exact E4B/31B model
+facts. Add one private model-factory resolver that reads pinned Transformers
+configuration with `trust_remote_code=False`, prefers a declared locally
+available `*ForConditionalGeneration` class, and otherwise uses
+`AutoModelForCausalLM`. Reuse it for both the trainable student and frozen local
+teacher. For Gemma 4 LoRA, validate resolved module names before PEFT wrapping
+and reject any vision/audio match.
+
+Next add immutable `JsonSchemaResponse` to the public train contract and carry
+it on `PolicyTurnRequest`. Parse only OpenAI `json_schema` response formats in
+the Verifiers bridge. In `TrlPolicyGenerator`, allow a turn token limit up to
+the global maximum, temporarily apply that maximum and the schema to the
+colocated vLLM generation arguments, use bounded Gemma JSON whitespace, and
+restore all state even on an exception.
+
+Then validate every completed rollout against the configured distillation
+limits before returning it to TRL for teacher scoring. The rejection names the
+example, tangent, three observed lengths, and their limits.
+
+The project overlay independently selects exact Gemma variants, BF16 rank-8
+LoRA, local BF16 teacher, a 2-GiB colocated vLLM KV cache, and an H200 141-GB
+target. After Policy Prism publishes its final commit, copy its exact serialized
+environment activations and add scope and recovery smoke, qualification, and
+pilot work packages using the existing 1/8/64-step settings.
+
+Finally expose objective, optimizer, supervision/runtime, and teacher metric
+groups in Observatory. Treat non-finite objectives, teacher failures, zero
+scored tokens, missing required metrics/traces, and failed/partial status as
+errors. Wrap native trainer checkpoint saves as `checkpointing` runtime phases
+so system metrics can be correlated with every required distillation phase.
+
+## Concrete Steps
+
+Run all commands from `/home/ali-awais-safdar/Post-Train/posttrain-policy-prism`.
+
+    uv run pytest packages/common/tests/test_model_variants.py \
+      packages/train/tests/test_trl_online_rl.py \
+      packages/train/tests/test_verifiers_grpo_bridge.py \
+      packages/train/tests/test_api.py
+    uv run pytest apps/observatory/tests
+    uv run ruff check packages/common packages/train apps/observatory
+    uv run pyright
+    uv run lint-imports
+
+After focused tests pass, run package-scoped Ruff, Pyright over changed files,
+`uv run lint-imports`, catalog/work-package validation, and `git diff --check`.
+Do not expand into long unrelated suites unless focused validation exposes a
+cross-package risk.
+
+On the H200, validate selections, run both one-step smokes, inspect a Verifiers
+trace and adapter artifact from each, then run both eight-step qualifications
+before the two independent 64-step pilots. Stop if teacher failures are
+non-zero, scored tokens are zero, an
+objective is non-finite, or available VRAM drops below the qualification
+headroom gate.
+
+## Validation and Acceptance
+
+CPU acceptance requires tests proving renderer resolution, conditional-loader
+selection/fallback, multimodal LoRA exclusion, first/subsequent-turn schema
+preservation, temporary generation-state restoration, pre-teacher overlength
+failure, normalized per-step metrics, and deterministic health alerts.
+
+GPU acceptance requires a successful H200 smoke with one native Verifiers
+trace, finite loss/reverse-KL/gradient norm, non-zero scored tokens, zero
+teacher failures, and retained adapter plus summary. Qualification requires
+eight training tasks per tangent. Pilot acceptance requires 64 training tasks
+per tangent and no error alert. Improvement is determined only by Policy Prism sealed
+before/after evaluation, not monotonic training loss.
+
+## Idempotence and Recovery
+
+All source and catalog edits are additive. The work packages use immutable
+selection IDs and can be retried with a new run identity. Failed runs preserve
+their traces and recovery checkpoint. Never replace an external SHA in place;
+publish a new selection revision. Do not reuse a partial Trackio directory as
+evidence for a new run.
+
+## Artifacts and Notes
+
+Required execution identity is limited to the final Policy Prism full commit,
+both exact model revisions, the shared tokenizer token-ID fingerprint, and the
+adapter identity emitted by training. Existing Observatory evidence remains
+available, but this plan adds no wheel/lock hashes, dataset hash chain,
+comparison tooling, or reproducibility report.
+
+## Interfaces and Dependencies
+
+The completed public train interface includes:
+
+    @dataclass(frozen=True, slots=True)
+    class JsonSchemaResponse:
+        name: str
+        schema: Mapping[str, JsonValue]
+        strict: bool
+
+    @dataclass(frozen=True, slots=True)
+    class PolicyTurnRequest:
+        ...
+        response_format: JsonSchemaResponse | None = None
+
+The implementation stays on PostTrain v0.2.3's immutable TRL, Verifiers,
+Transformers 5.14, renderers 0.1.8, and vLLM 0.25.1 dependency set unless a
+focused test proves a fork change is unavoidable.
+
+Plan update note (2026-07-28): created the implementation plan after verifying
+the clean worktree, current framework extension points, exact pinned TRL hook,
+and the external Policy Prism branch state.
+
+Plan update note (2026-07-28): completed the reusable Gemma, structured-turn,
+trajectory-budget, checkpoint-phase, and distillation-observability slices.
+Recorded focused test evidence and retained the immutable external-pin gates.
+
+Plan update note (2026-07-28): verified shared tokenizer identity, added the
+independent Gemma/H200/LoRA/1-8-64 catalog selections, separated the scope and
+recovery adapters, and reduced new lineage requirements to runtime-mandatory
+identities only.
+
+Plan update note (2026-07-28): completed the independent CPU validation ladder.
+The two deselected work-package activations require unrelated external GSM8K
+and AutomationBench taskset packages; no Policy Prism or changed-code failure
+remains.

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 import sys
 import time
 from collections.abc import Callable, Iterator, Mapping
@@ -25,9 +26,11 @@ def framework_imports() -> dict[str, Any]:
     os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
     try:
         import torch
+        import transformers
         from datasets import Dataset
         from peft import LoraConfig, PeftModel, get_peft_model, prepare_model_for_kbit_training
         from transformers import (
+            AutoConfig,
             AutoModelForCausalLM,
             AutoTokenizer,
             BitsAndBytesConfig,
@@ -38,12 +41,14 @@ def framework_imports() -> dict[str, Any]:
         raise RuntimeError("install posttrain-train with the trl extra") from error
     return {
         "torch": torch,
+        "transformers": transformers,
         "Dataset": Dataset,
         "LoraConfig": LoraConfig,
         "PeftModel": PeftModel,
         "get_peft_model": get_peft_model,
         "prepare_model_for_kbit_training": prepare_model_for_kbit_training,
         "AutoModelForCausalLM": AutoModelForCausalLM,
+        "AutoConfig": AutoConfig,
         "AutoTokenizer": AutoTokenizer,
         "BitsAndBytesConfig": BitsAndBytesConfig,
         "TrainerCallback": TrainerCallback,
@@ -128,8 +133,12 @@ def load_trainable_model(
             bnb_4bit_compute_dtype=torch.bfloat16,
             bnb_4bit_use_double_quant=update.double_quant,
         )
-    base = imports["AutoModelForCausalLM"].from_pretrained(model.base.repo_id, **load_options)
+    model_factory, config = resolve_model_factory(model, imports)
+    base = model_factory.from_pretrained(model.base.repo_id, config=config, **load_options)
     base.config.use_cache = False
+    text_config = base.config.get_text_config() if hasattr(base.config, "get_text_config") else None
+    if text_config is not None:
+        text_config.use_cache = False
     if isinstance(update, QLoRAUpdate):
         base = imports["prepare_model_for_kbit_training"](
             base,
@@ -140,6 +149,7 @@ def load_trainable_model(
         if update.kind == "full":
             return base
         assert isinstance(update, (LoRAUpdate, QLoRAUpdate))
+        _validate_gemma4_lora_targets(base, model, update)
         config = imports["LoraConfig"](
             r=update.rank,
             lora_alpha=update.alpha,
@@ -158,6 +168,79 @@ def load_trainable_model(
     if not model.artifact.path.is_dir():
         raise FileNotFoundError(model.artifact.path)
     return imports["PeftModel"].from_pretrained(base, model.artifact.path, is_trainable=True)
+
+
+def resolve_model_factory(model: ModelVariant, imports: Mapping[str, Any]) -> tuple[Any, Any]:
+    """Resolve a pinned checkpoint's local Transformers model class without remote code."""
+
+    config = imports["AutoConfig"].from_pretrained(
+        model.base.repo_id,
+        revision=model.base.revision,
+        trust_remote_code=False,
+    )
+    transformers_module = imports["transformers"]
+    architectures = getattr(config, "architectures", None)
+    if isinstance(architectures, (tuple, list)):
+        for architecture in architectures:
+            if not isinstance(architecture, str) or not architecture.endswith("ForConditionalGeneration"):
+                continue
+            candidate = getattr(transformers_module, architecture, None)
+            if candidate is not None and hasattr(candidate, "from_pretrained"):
+                return candidate, config
+    return imports["AutoModelForCausalLM"], config
+
+
+def load_frozen_model(
+    model: ModelVariant,
+    imports: Mapping[str, Any],
+    *,
+    dtype: str = "bfloat16",
+) -> Any:
+    """Load an immutable local teacher with the same architecture resolution as the student."""
+
+    torch = imports["torch"]
+    if dtype != "bfloat16":
+        raise ValueError("the local distillation teacher must use unquantized bfloat16 weights")
+    model_factory, config = resolve_model_factory(model, imports)
+    loaded = model_factory.from_pretrained(
+        model.base.repo_id,
+        config=config,
+        revision=model.base.revision,
+        device_map={"": 0},
+        dtype=torch.bfloat16,
+        attn_implementation="sdpa",
+        trust_remote_code=False,
+    )
+    loaded.requires_grad_(False)
+    loaded.eval()
+    return loaded
+
+
+_GEMMA4_LORA_MODULES = frozenset(
+    {"q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"}
+)
+
+
+def _validate_gemma4_lora_targets(base: Any, model: ModelVariant, update: LoRAUpdate | QLoRAUpdate) -> None:
+    if model.family != "gemma4":
+        return
+    if update.target_modules == "all-linear":
+        raise ValueError("Gemma 4 LoRA must explicitly target text-language-model modules")
+    pattern = re.compile(update.target_modules)
+    matches = tuple(name for name, _ in base.named_modules() if pattern.fullmatch(name))
+    if not matches:
+        raise ValueError("Gemma 4 LoRA target expression matched no modules")
+    invalid = tuple(
+        name
+        for name in matches
+        if not name.startswith("model.language_model.layers.") or "vision" in name or "audio" in name
+    )
+    if invalid:
+        raise ValueError(f"Gemma 4 LoRA target expression selected non-text modules: {invalid!r}")
+    resolved = {name.rsplit(".", 1)[-1] for name in matches}
+    missing = _GEMMA4_LORA_MODULES - resolved
+    if missing:
+        raise ValueError(f"Gemma 4 LoRA target expression missed required text projections: {sorted(missing)!r}")
 
 
 def emit_parameter_counts(context: RunContext, model: Any, update: ParameterUpdatePlan) -> None:
@@ -216,6 +299,12 @@ def callback_type(
             self._step_started_at = time.perf_counter()
             return control
 
+        def on_train_begin(self, args: Any, state: Any, control: Any, **_: Any) -> Any:
+            del args
+            self._last_token_count = float(getattr(state, "num_input_tokens_seen", 0.0))
+            self._last_token_time = time.perf_counter()
+            return control
+
         def on_step_end(self, args: Any, state: Any, control: Any, **_: Any) -> Any:
             del args
             if self._step_started_at is not None:
@@ -248,7 +337,7 @@ def callback_type(
             max_grad_norm = getattr(args, "max_grad_norm", None)
             if isinstance(grad_norm, int | float) and isinstance(max_grad_norm, int | float):
                 values["train/gradient_clipped"] = float(grad_norm >= max_grad_norm)
-            token_count = (logs or {}).get("num_tokens")
+            token_count = (logs or {}).get("num_tokens", (logs or {}).get("num_input_tokens_seen"))
             now = time.perf_counter()
             if isinstance(token_count, int | float):
                 numeric_tokens = float(token_count)
@@ -367,7 +456,9 @@ __all__ = [
     "finish_training",
     "framework_imports",
     "load_tokenizer",
+    "load_frozen_model",
     "load_trainable_model",
+    "resolve_model_factory",
     "trainer_lifecycle",
     "trainer_arguments",
     "vllm_rollout_options",

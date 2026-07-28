@@ -43,6 +43,7 @@ from .online_rl import (
     EnvironmentRollout,
     EnvironmentRolloutBridge,
     EnvironmentRolloutEvidence,
+    JsonSchemaResponse,
     PolicyGenerator,
     PolicySampling,
     PolicyTurnRequest,
@@ -50,6 +51,7 @@ from .online_rl import (
     RolloutBatch,
 )
 from .profiles import (
+    GEMMA4_RENDERER,
     LFM25_DPO_SMOKE,
     LFM25_RENDERER,
     LFM25_SFT_SMOKE,
@@ -100,6 +102,7 @@ __all__ = [
     "GRPOEvidenceStatus",
     "GRPOObservationFeatures",
     "GRPOSettings",
+    "GEMMA4_RENDERER",
     "GRPORequest",
     "SAMPORequest",
     "SAMPOSettings",
@@ -132,6 +135,7 @@ __all__ = [
     "AgenticTurn",
     "EnvironmentRolloutBridge",
     "EnvironmentRolloutEvidence",
+    "JsonSchemaResponse",
     "DistillationBatch",
     "DistillationBatchLedger",
     "DistillationBatchSource",

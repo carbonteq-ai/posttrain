@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 from posttrain.catalog import load_catalog_layer, packaged_base_directory
-from posttrain.common import CatalogRef, ContractError, ExecutionTarget, ModelVariant
+from posttrain.common import CatalogRef, ContractError, ExecutionTarget, InferenceBinding, ModelVariant
 from posttrain.eval import EnvironmentBinding, EvaluationPlan
 from posttrain.train import (
     DynamicGroupSampling,
@@ -145,6 +145,62 @@ def test_distillation_selections_share_exact_tokenizer_identity_and_separate_tar
     assert "rollout" in rollout.purpose  # type: ignore[union-attr]
     assert "teacher-score" in scoring.purpose  # type: ignore[union-attr]
     assert rollout.target.id != scoring.target.id  # type: ignore[union-attr]
+
+
+def test_policy_prism_gemma4_distillation_selections_load_with_h200_limits() -> None:
+    catalog = open_catalog(
+        scope="foundation-models",
+        overlays=(WORKSPACE / ".posttrain" / "catalog",),
+    )
+    student = catalog.resolve(CatalogRef("model", "models/gemma4-e4b-it@bf16")).value
+    teacher = catalog.resolve(CatalogRef("model", "models/gemma4-31b-it@bf16")).value
+    target = catalog.resolve(CatalogRef("target", "targets/runpod-h200-141gb")).value
+    rollout = catalog.resolve(
+        CatalogRef("inference", "inference/gemma4-e4b-vllm-policy-prism-rollout@1")
+    ).value
+    scoring = catalog.resolve(
+        CatalogRef("inference", "inference/gemma4-31b-transformers-teacher-score@1")
+    ).value
+    training = catalog.resolve(
+        CatalogRef("training", "training/gemma4-e4b-trl-policy-prism-distill-lora@1")
+    ).value
+    settings = tuple(
+        catalog.resolve(CatalogRef("training", identifier)).value
+        for identifier in (
+            "gemma4-e4b/policy-prism-distill-smoke-v1",
+            "gemma4-e4b/policy-prism-distill-qualification-v1",
+            "gemma4-e4b/policy-prism-distill-pilot-v1",
+        )
+    )
+
+    assert isinstance(student, ModelVariant)
+    assert isinstance(teacher, ModelVariant)
+    assert student.tokenizer_fingerprint == teacher.tokenizer_fingerprint
+    assert student.tokenizer_fingerprint == "1ab787c816b67a0936e8d1c9ff20e6cf5bd8b77faabfe6ada5905bd2c433b413"
+    assert isinstance(target, ExecutionTarget)
+    assert target.memory_gb == 141
+    assert isinstance(rollout, InferenceBinding)
+    assert rollout.backend == "vllm@0.25.1"
+    assert rollout.engine["max_model_len"] == 16_384
+    assert rollout.engine["text_only"] is True
+    assert rollout.engine["skip_mm_profiling"] is True
+    assert rollout.engine["weight_sync_mode"] == "lora"
+    assert rollout.engine["kv_cache_memory_bytes"] == 2 * 1024**3
+    assert isinstance(scoring, InferenceBinding)
+    assert scoring.backend == "transformers@5.14.1"
+    assert scoring.engine["dtype"] == "bfloat16"
+    assert isinstance(training, TrainingBinding)
+    assert isinstance(training.update, LoRAUpdate)
+    assert training.update.rank == 8
+    assert training.update.alpha == 16
+    assert training.update.target_modules.startswith("model[.]language_model[.]layers")
+    assert all(isinstance(value, OnPolicyDistillationSettings) for value in settings)
+    assert [value.loop.max_steps for value in settings] == [1, 8, 64]  # type: ignore[union-attr]
+    assert [value.loop.checkpoint_steps for value in settings] == [1, 8, 16]  # type: ignore[union-attr]
+    assert [value.loop.checkpoint_limit for value in settings] == [1, 1, 2]  # type: ignore[union-attr]
+    assert all(value.max_prompt_length == 4_096 for value in settings)  # type: ignore[union-attr]
+    assert all(value.max_completion_length == 12_288 for value in settings)  # type: ignore[union-attr]
+    assert all(value.loop.max_length == 16_384 for value in settings)  # type: ignore[union-attr]
 
 
 def test_overlay_can_shadow_an_existing_id_and_add_a_new_id(tmp_path: Path) -> None:

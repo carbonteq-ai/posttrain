@@ -1,0 +1,167 @@
+model:
+  models/gemma4-e4b-it@bf16:
+    artifact:
+      kind: hub
+      repo_id: google/gemma-4-E4B-it
+      revision: ee0ef6023621cff504d758262d4e04895a5af4a2
+    form: foundation
+    weight_precision: bf16
+    family: gemma4
+    parameters: 4000000000
+    instruction_tuned: true
+    renderer_contract: gemma4-native-v1
+    tokenizer_fingerprint: 1ab787c816b67a0936e8d1c9ff20e6cf5bd8b77faabfe6ada5905bd2c433b413
+    capabilities:
+      modalities: [text, image, video, audio]
+      native_context_window: 131072
+    provenance:
+      source: huggingface
+  models/gemma4-31b-it@bf16:
+    artifact:
+      kind: hub
+      repo_id: google/gemma-4-31B-it
+      revision: 842da3794eaa0b77d5f08bae87a17459d91ff475
+    form: foundation
+    weight_precision: bf16
+    family: gemma4
+    parameters: 31000000000
+    instruction_tuned: true
+    renderer_contract: gemma4-native-v1
+    tokenizer_fingerprint: 1ab787c816b67a0936e8d1c9ff20e6cf5bd8b77faabfe6ada5905bd2c433b413
+    capabilities:
+      modalities: [text, image]
+      native_context_window: 262144
+    provenance:
+      source: huggingface
+
+target:
+  targets/runpod-h200-141gb:
+    revision: "1"
+    device_class: nvidia-cuda
+    memory_gb: 141
+    placement:
+      world_size: 1
+
+inference:
+  inference/gemma4-e4b-vllm-policy-prism-rollout@1:
+    revision: "1"
+    model: models/gemma4-e4b-it@bf16
+    backend: vllm@0.25.1
+    renderer: gemma4-native-v1
+    engine:
+      mode: colocate
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.18
+      tensor_parallel_size: 1
+      max_model_len: 16384
+      text_only: true
+      skip_mm_profiling: true
+      kv_cache_memory_bytes: 2147483648
+      weight_sync_mode: lora
+      enforce_eager: true
+    sampling:
+      max_tokens: 12288
+      temperature: 1.0
+      top_p: 1.0
+    target: targets/runpod-h200-141gb
+    purpose: [rollout]
+  inference/gemma4-31b-transformers-teacher-score@1:
+    revision: "1"
+    model: models/gemma4-31b-it@bf16
+    backend: transformers@5.14.1
+    renderer: gemma4-native-v1
+    engine:
+      mode: colocate
+      dtype: bfloat16
+      max_model_len: 16384
+    sampling:
+      temperature: 1.0
+      top_p: 1.0
+    target: targets/runpod-h200-141gb
+    purpose: [teacher-score]
+
+training:
+  training/gemma4-e4b-trl-policy-prism-distill-lora@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.8.0
+    renderer:
+      id: gemma4-native-v1
+      model_family: gemma4
+      implementation: default
+      reasoning_mode: native
+    update:
+      kind: lora
+      rank: 8
+      alpha: 16
+      dropout: 0.0
+      target_modules: model[.]language_model[.]layers[.][0-9]+[.].*[.](q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj)$
+    target: targets/runpod-h200-141gb
+    runtime:
+      global_batch_size: 1
+      devices_per_node: 1
+    backend_options:
+      bf16: true
+  gemma4-e4b/policy-prism-distill-smoke-v1:
+    selection_type: on-policy-distillation-settings
+    revision: "1"
+    loop:
+      max_steps: 1
+      max_length: 16384
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 1
+      learning_rate: 0.00001
+      warmup_ratio: 0.05
+      max_grad_norm: 1.0
+      logging_steps: 1
+      checkpoint_steps: 1
+      checkpoint_limit: 1
+      seed: 42
+      gradient_checkpointing: true
+    temperature: 1.0
+    num_prompts_per_step: 1
+    num_generations: 1
+    max_prompt_length: 4096
+    max_completion_length: 12288
+  gemma4-e4b/policy-prism-distill-qualification-v1:
+    selection_type: on-policy-distillation-settings
+    revision: "1"
+    loop:
+      max_steps: 8
+      max_length: 16384
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 1
+      learning_rate: 0.00001
+      warmup_ratio: 0.05
+      max_grad_norm: 1.0
+      logging_steps: 1
+      checkpoint_steps: 8
+      checkpoint_limit: 1
+      seed: 42
+      gradient_checkpointing: true
+    temperature: 1.0
+    num_prompts_per_step: 1
+    num_generations: 1
+    max_prompt_length: 4096
+    max_completion_length: 12288
+  gemma4-e4b/policy-prism-distill-pilot-v1:
+    selection_type: on-policy-distillation-settings
+    revision: "1"
+    loop:
+      max_steps: 64
+      max_length: 16384
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 1
+      learning_rate: 0.00001
+      warmup_ratio: 0.05
+      max_grad_norm: 1.0
+      logging_steps: 1
+      checkpoint_steps: 16
+      checkpoint_limit: 2
+      seed: 42
+      gradient_checkpointing: true
+    temperature: 1.0
+    num_prompts_per_step: 1
+    num_generations: 1
+    max_prompt_length: 4096
+    max_completion_length: 12288

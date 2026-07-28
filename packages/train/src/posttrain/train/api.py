@@ -348,6 +348,19 @@ def distill(
         **_seat_attributes(request),
     }
     context.event("training_started", attributes)
+    context.event(
+        "distillation_objective_resolved",
+        {
+            **attributes,
+            "objective": "sampled-token-reverse-kl-top-1",
+            "fully_on_policy": True,
+            "loss_metric_equals_reverse_kl": True,
+            "explanation": (
+                "The selected objective is the sampled-token reverse-KL approximation; "
+                "train/distill/loss and train/distill/reverse_kl intentionally report the same value."
+            ),
+        },
+    )
     output_dir = context.workspace / "training" / "distill" / "trainer"
     output_dir.mkdir(parents=True, exist_ok=False)
     backend = _run_environment_backend(
@@ -360,6 +373,7 @@ def distill(
             "train/distill/loss": backend.summary.train_loss,
             "train/distill/reverse_kl": backend.summary.train_loss,
         },
+        step=backend.summary.global_step,
         attributes=attributes,
     )
     return _finish(context, request, "distill", backend)
