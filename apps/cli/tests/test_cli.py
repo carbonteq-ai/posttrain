@@ -588,6 +588,10 @@ def test_doctor_reports_readiness_and_missing_project(
         "catalog": "ok",
         "work_packages": "ok",
         "runtime_images": "warn",
+        # No internal authority is installed on a machine running the tests, so
+        # jobs trust public authorities only. That is a complete answer, not a
+        # missing one.
+        "trust": "ok",
     }
 
     assert main(["--json", "--project-root", str(tmp_path / "missing"), "doctor"]) == 1

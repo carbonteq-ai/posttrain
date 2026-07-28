@@ -8,9 +8,14 @@ from dataclasses import asdict
 from pathlib import Path
 
 from .execute import execute_manifest
+from .trust import install_additional_trust
 
 
 def main() -> None:
+    # Before anything verifies a certificate, including the runtime's own
+    # tracking calls.
+    install_additional_trust()
+
     parser = argparse.ArgumentParser(prog="posttrain-runtime")
     commands = parser.add_subparsers(dest="command", required=True)
     execute = commands.add_parser("execute")

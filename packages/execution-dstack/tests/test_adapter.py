@@ -150,7 +150,7 @@ def test_translation_and_submit_have_no_secret_values(tmp_path: Path) -> None:
     assert "secret" not in str(configurations)
 
 
-def test_dstack_maps_mandatory_instance_trust_bundle_and_sets_tls_environment(
+def test_dstack_maps_mandatory_instance_trust_bundle_as_additional_authorities(
     tmp_path: Path,
 ) -> None:
     gateway = FakeGateway()
@@ -171,8 +171,14 @@ def test_dstack_maps_mandatory_instance_trust_bundle_and_sets_tls_environment(
         "optional": False,
     }
     assert configuration["setup"] == [f"test -f {stable_path}"]
-    assert configuration["_posttrain_launch_env"]["SSL_CERT_FILE"] == stable_path
-    assert configuration["_posttrain_launch_env"]["REQUESTS_CA_BUNDLE"] == stable_path
+    launch = configuration["_posttrain_launch_env"]
+    assert launch["POSTTRAIN_EXTRA_CA_BUNDLE"] == stable_path
+    # The image merges this with the authorities it already trusts. Setting
+    # SSL_CERT_FILE here would replace that set instead, so a job that gained
+    # an internal registry would lose every public authority with it, and fail
+    # much later verifying something unrelated.
+    assert "SSL_CERT_FILE" not in launch
+    assert "REQUESTS_CA_BUNDLE" not in launch
     assert "test certificate bundle" not in str(configuration).lower()
 
 

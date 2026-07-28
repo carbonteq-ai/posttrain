@@ -24,7 +24,10 @@ from posttrain.execution import (
 )
 
 TRUST_BUNDLE_CONTAINER_PATH = Path("/opt/posttrain/trust/ca-certificates.crt")
-_TRUST_ENVIRONMENT = ("SSL_CERT_FILE", "REQUESTS_CA_BUNDLE")
+# The job image merges this with the authorities it already trusts. Setting
+# SSL_CERT_FILE here instead would replace that set rather than extend it,
+# leaving an internally-trusting job unable to verify anything public.
+_EXTRA_TRUST_VARIABLE = "POSTTRAIN_EXTRA_CA_BUNDLE"
 
 
 class DockerGateway(Protocol):
@@ -193,7 +196,7 @@ class LocalDockerExecutionProvider:
     def _launch_environment(self, request: ExecutionRequest) -> dict[str, str]:
         environment = request.launch_environment(provider="local-docker")
         if self._trust_bundle is not None:
-            environment.update({name: str(TRUST_BUNDLE_CONTAINER_PATH) for name in _TRUST_ENVIRONMENT})
+            environment.update({_EXTRA_TRUST_VARIABLE: str(TRUST_BUNDLE_CONTAINER_PATH)})
         return environment
 
     def _payload(self, request: ExecutionRequest) -> dict[str, Any]:

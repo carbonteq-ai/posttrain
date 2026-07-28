@@ -15,10 +15,12 @@ from posttrain.execution import (
 from posttrain.runtime_images.manifest import load_manifest
 from posttrain_cli.execution_config import (
     REGISTRY_ENVIRONMENT_VARIABLE,
+    TRUST_BUNDLE_ENVIRONMENT_VARIABLE,
     ExecutionOverrides,
     load_local_execution_config,
     provider_binding_fingerprint,
     resolve_execution_settings,
+    resolve_trust_bundle,
 )
 from posttrain_cli.execution_provider import (
     create_execution_provider,
@@ -880,3 +882,65 @@ def test_tracking_endpoint_is_recorded_from_the_process_environment(
 
     assert source is not None
     assert source.endpoint == "https://tracking.example.invalid"
+
+
+def test_an_explicit_trust_bundle_wins_over_every_other_source(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    declared = tmp_path / "declared.pem"
+    declared.write_text("-----BEGIN CERTIFICATE-----\nX\n", encoding="utf-8")
+    other = tmp_path / "other.pem"
+    other.write_text("-----BEGIN CERTIFICATE-----\nY\n", encoding="utf-8")
+    monkeypatch.setenv(TRUST_BUNDLE_ENVIRONMENT_VARIABLE, str(other))
+
+    resolved = resolve_trust_bundle(declared)
+
+    assert resolved.path == declared.resolve()
+    assert resolved.source == "configured"
+
+
+def test_the_environment_supplies_a_bundle_when_nothing_is_configured(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    declared = tmp_path / "from-env.pem"
+    declared.write_text("-----BEGIN CERTIFICATE-----\nX\n", encoding="utf-8")
+    monkeypatch.setenv(TRUST_BUNDLE_ENVIRONMENT_VARIABLE, str(declared))
+
+    resolved = resolve_trust_bundle(None)
+
+    assert resolved.path == declared.resolve()
+    assert resolved.source == "environment"
+
+
+def test_a_machine_with_no_internal_authority_needs_no_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The convention path is the only source allowed to be absent.
+
+    Its absence is how a machine says it has no internal authority, so jobs
+    simply trust what their image already trusts.
+    """
+    monkeypatch.delenv(TRUST_BUNDLE_ENVIRONMENT_VARIABLE, raising=False)
+    monkeypatch.setattr(Path, "is_file", lambda self: False)
+
+    resolved = resolve_trust_bundle(None)
+
+    assert resolved.path is None
+    assert resolved.source == "none"
+
+
+def test_a_named_bundle_that_does_not_exist_is_refused(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Substituting a different authority for the one asked for is worse than failing."""
+    monkeypatch.delenv(TRUST_BUNDLE_ENVIRONMENT_VARIABLE, raising=False)
+
+    with pytest.raises(ContractError, match="trust_bundle does not exist"):
+        resolve_trust_bundle(tmp_path / "absent.pem")
+
+    monkeypatch.setenv(TRUST_BUNDLE_ENVIRONMENT_VARIABLE, str(tmp_path / "also-absent.pem"))
+    with pytest.raises(ContractError, match="does not name a file"):
+        resolve_trust_bundle(None)

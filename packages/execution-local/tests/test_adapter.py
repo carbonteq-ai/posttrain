@@ -180,7 +180,7 @@ def test_local_docker_lifecycle_and_cancel_are_durable(
     ) in gateway.calls
 
 
-def test_local_docker_mounts_configured_trust_bundle_read_only(
+def test_local_docker_mounts_trust_bundle_as_additional_authorities(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -198,8 +198,14 @@ def test_local_docker_mounts_configured_trust_bundle_read_only(
     submit = next(payload for action, payload in gateway.calls if action == "submit")
     stable_path = "/opt/posttrain/trust/ca-certificates.crt"
     assert f"{trust_bundle}:{stable_path}:ro" in submit["volumes"]
-    assert submit["launch_environment"]["SSL_CERT_FILE"] == stable_path
-    assert submit["launch_environment"]["REQUESTS_CA_BUNDLE"] == stable_path
+    launch = submit["launch_environment"]
+    assert launch["POSTTRAIN_EXTRA_CA_BUNDLE"] == stable_path
+    # The image merges this with the authorities it already trusts. Setting
+    # SSL_CERT_FILE here would replace that set instead, so a job that gained
+    # an internal registry would lose every public authority with it, and fail
+    # much later verifying something unrelated.
+    assert "SSL_CERT_FILE" not in launch
+    assert "REQUESTS_CA_BUNDLE" not in launch
     assert "test certificate bundle" not in str(submit)
 
 

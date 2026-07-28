@@ -27,7 +27,10 @@ from posttrain.execution import (
 )
 
 TRUST_BUNDLE_CONTAINER_PATH = Path("/opt/posttrain/trust/ca-certificates.crt")
-_TRUST_ENVIRONMENT = ("SSL_CERT_FILE", "REQUESTS_CA_BUNDLE")
+# The job image merges this with the authorities it already trusts. Setting
+# SSL_CERT_FILE here instead would replace that set rather than extend it,
+# leaving an internally-trusting job unable to verify anything public.
+_EXTRA_TRUST_VARIABLE = "POSTTRAIN_EXTRA_CA_BUNDLE"
 _RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _HOSTNAME = re.compile(r"^(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
 
@@ -195,7 +198,7 @@ class DstackExecutionProvider:
                 gpu["memory"] = f"{minimum_memory}GB..{maximum_memory}GB"
         launch_environment = request.launch_environment(provider="dstack")
         if self._trust_bundle is not None:
-            launch_environment.update({name: str(TRUST_BUNDLE_CONTAINER_PATH) for name in _TRUST_ENVIRONMENT})
+            launch_environment.update({_EXTRA_TRUST_VARIABLE: str(TRUST_BUNDLE_CONTAINER_PATH)})
         configuration: dict[str, Any] = {
             "name": _run_name(request.idempotency_key),
             "image": request.image.value,

@@ -456,6 +456,55 @@ def _parse_dstack(value: object, *, base: Path) -> DstackBinding | None:
     )
 
 
+WELL_KNOWN_TRUST_BUNDLE = Path("/etc/posttrain/trust/internal-ca.pem")
+"""Where an internally-issued certificate authority is expected to be installed.
+
+Config management puts the same file here on every machine that runs jobs, so a
+project needs no trust configuration at all. It holds the internal authority
+alone, never a hand-assembled union with the system store: the job image merges
+it with the authorities it already has, and a union assembled here would instead
+pin the job to whatever the machine that submitted it happened to trust.
+"""
+
+TRUST_BUNDLE_ENVIRONMENT_VARIABLE = "POSTTRAIN_TRUST_BUNDLE"
+
+
+@dataclass(frozen=True, slots=True)
+class ResolvedTrustBundle:
+    """The additional certificate authority a job will be given, and why."""
+
+    path: Path | None
+    source: Literal["configured", "environment", "convention", "none"]
+
+
+def resolve_trust_bundle(configured: Path | None) -> ResolvedTrustBundle:
+    """Resolve the additional authority from configuration, environment, or convention.
+
+    An explicitly named bundle that does not exist is an error rather than a
+    reason to fall through: someone asked for a specific authority, and quietly
+    substituting a different one would be worse than refusing. The convention
+    path is the only source allowed to be absent, because its absence is how a
+    machine says it has no internal authority.
+    """
+    if configured is not None:
+        resolved = configured.expanduser()
+        if not resolved.is_file():
+            raise ContractError(f"configured providers trust_bundle does not exist: {resolved}")
+        return ResolvedTrustBundle(resolved.resolve(), "configured")
+
+    declared = os.environ.get(TRUST_BUNDLE_ENVIRONMENT_VARIABLE, "").strip()
+    if declared:
+        resolved = Path(declared).expanduser()
+        if not resolved.is_file():
+            raise ContractError(f"{TRUST_BUNDLE_ENVIRONMENT_VARIABLE} does not name a file: {resolved}")
+        return ResolvedTrustBundle(resolved.resolve(), "environment")
+
+    if WELL_KNOWN_TRUST_BUNDLE.is_file():
+        return ResolvedTrustBundle(WELL_KNOWN_TRUST_BUNDLE, "convention")
+
+    return ResolvedTrustBundle(None, "none")
+
+
 def configured_registry_prefix() -> str | None:
     """Return the project's registry prefix from the environment, if set."""
     raw = os.environ.get(REGISTRY_ENVIRONMENT_VARIABLE, "").strip().rstrip("/")

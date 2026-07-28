@@ -28,6 +28,7 @@ from .execution_config import (
     load_local_execution_config,
     provider_binding_fingerprint,
     resolve_execution_settings,
+    resolve_trust_bundle,
 )
 from .tracking_config import project_tracking_environment
 
@@ -50,7 +51,9 @@ def create_execution_provider(
         provider = provider_type(
             state_root=layout.state,
             environment=load_execution_environment(local_config),
-            trust_bundle=(local_config.local.trust_bundle if local_config.local is not None else None),
+            trust_bundle=resolve_trust_bundle(
+                local_config.local.trust_bundle if local_config.local is not None else None
+            ).path,
         )
         return "local-docker", cast(ExecutionProvider, provider)
 
@@ -73,7 +76,7 @@ def create_execution_provider(
             python=binding.python,
             environment_file=binding.environment_file,
             job_environment_file=local_config.environment_file,
-            trust_bundle=binding.trust_bundle,
+            trust_bundle=resolve_trust_bundle(binding.trust_bundle).path,
         )
         return "dstack", cast(ExecutionProvider, provider)
 
