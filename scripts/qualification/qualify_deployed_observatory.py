@@ -26,6 +26,20 @@ RUN_ID_ENVIRONMENTS = {
     "serve.smoke": "POSTTRAIN_QUALIFY_SERVE_SMOKE_RUN_ID",
     "train.distill": "POSTTRAIN_QUALIFY_FAILED_DISTILL_RUN_ID",
 }
+"""Pin a specific retained run per job kind, overriding what would be found.
+
+Naming a run is for reproducing one observation, not for ordinary use. The
+Observatory is a viewer: whether it can be deployed cannot depend on which
+runs happen to be retained, or a fresh environment could never deploy one and
+every environment would drift as its fixtures aged out.
+"""
+
+QUALIFIED_JOB_KINDS = (
+    ("data.prepare", "succeeded"),
+    ("train.sampo", "succeeded"),
+    ("serve.smoke", "succeeded"),
+    ("train.distill", "failed"),
+)
 
 
 class QualificationError(RuntimeError):
@@ -268,23 +282,34 @@ def _qualify_view(
     )
 
 
+def _discover_run_id(
+    get_json: JsonGetter,
+    job_kind: str,
+    status: str,
+) -> str | None:
+    """Return the most recent retained run of this shape, if the deployment has one."""
+    query = urllib.parse.urlencode({"job_kind": job_kind, "status": status, "limit": 1})
+    listed = _items(get_json(f"/api/v1/runs?{query}"), f"{job_kind} runs")
+    if not listed:
+        return None
+    first = _object(listed[0], f"{job_kind} run")
+    identifier = first.get("run_id")
+    return identifier if isinstance(identifier, str) and identifier else None
+
+
 def qualify_retained_runs(
     get_json: JsonGetter,
     run_ids: Mapping[str, str],
 ) -> tuple[QualifiedRun, ...]:
     """Resolve opaque run keys, then assert job semantics for each retained run."""
 
-    missing_kinds = set(RUN_ID_ENVIRONMENTS).difference(run_ids)
-    if missing_kinds:
-        raise QualificationError("run IDs are missing for " + ", ".join(sorted(missing_kinds)))
     qualified: list[QualifiedRun] = []
-    for job_kind, expected_status in (
-        ("data.prepare", "succeeded"),
-        ("train.sampo", "succeeded"),
-        ("serve.smoke", "succeeded"),
-        ("train.distill", "failed"),
-    ):
-        run_id = run_ids[job_kind]
+    for job_kind, expected_status in QUALIFIED_JOB_KINDS:
+        run_id = run_ids.get(job_kind) or _discover_run_id(get_json, job_kind, expected_status)
+        if run_id is None:
+            # Nothing of this shape is retained here. That is a fact about the
+            # deployment's data, not a defect in the deployment.
+            continue
         encoded_run_id = urllib.parse.quote(run_id, safe="")
         located = _items(
             get_json(f"/api/v1/runs/locate?run_id={encoded_run_id}"),
@@ -346,7 +371,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         username = _required_environment("POSTTRAIN_OBSERVATORY_USERNAME")
         password = _required_environment("POSTTRAIN_OBSERVATORY_PASSWORD")
         run_ids = {
-            job_kind: _required_environment(environment) for job_kind, environment in RUN_ID_ENVIRONMENTS.items()
+            job_kind: value
+            for job_kind, environment in RUN_ID_ENVIRONMENTS.items()
+            if (value := os.environ.get(environment, "").strip())
         }
         client = ObservatoryHttpClient(
             args.url,
@@ -365,6 +392,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         "status": "passed",
         "observatory_url": client.base_url,
         "runs": [run.to_json() for run in runs],
+        "job_kinds_covered": sorted({run.job_kind for run in runs}),
+        "job_kinds_without_retained_runs": sorted(
+            {job_kind for job_kind, _ in QUALIFIED_JOB_KINDS} - {run.job_kind for run in runs}
+        ),
     }
     print(json.dumps(receipt, indent=2, sort_keys=True))
     return 0

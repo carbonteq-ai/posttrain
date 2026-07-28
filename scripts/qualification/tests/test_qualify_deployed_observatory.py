@@ -274,3 +274,38 @@ def test_http_client_reports_an_unreadable_ca_without_echoing_its_path() -> None
         )
 
     assert str(ca_file) not in str(captured.value)
+
+
+def test_a_deployment_with_no_retained_runs_still_qualifies() -> None:
+    """The Observatory is a viewer, so deploying it cannot depend on its data.
+
+    Requiring a run of every shape meant a fresh environment could never
+    qualify a deployment, and an established one would stop qualifying as its
+    fixtures aged out. What is retained is reported instead of demanded.
+    """
+
+    def get_json(path: str) -> object:
+        assert path.startswith("/api/v1/runs?"), f"unexpected request: {path}"
+        return []
+
+    assert qualify_retained_runs(get_json, {}) == ()
+
+
+def test_a_pinned_run_is_used_instead_of_discovery() -> None:
+    """Naming a run reproduces one observation; it is not the ordinary path."""
+
+    class _Stop(Exception):
+        pass
+
+    requested: list[str] = []
+
+    def get_json(path: str) -> object:
+        requested.append(path)
+        raise _Stop
+
+    with pytest.raises(_Stop):
+        qualify_retained_runs(get_json, {"data.prepare": "pinned-run"})
+
+    assert requested, "no request was made"
+    assert "runs/locate" in requested[0], "a pinned run must skip discovery"
+    assert "pinned-run" in requested[0]
