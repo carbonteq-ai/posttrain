@@ -11,6 +11,13 @@ The commands come from a machine with no framework checkout anywhere on it.
   service
 - An NVIDIA GPU if you intend to run training locally
 
+The services this guide points at — the Python index at `pypi.lan`, the OCI
+registry at `registry.lan`, the tracking server at `trackio.lan`, and the
+dstack server — are operated from the `ai-infra` repository, not from this one.
+If a name does not resolve or a service is down, that repository owns it; its
+`docs/operations/` runbooks cover the index, worker enrollment, the image
+builder, and workstation trust. This guide assumes they are already running.
+
 ## 1. Trust the internal certificate authority
 
 The internal services present certificates from a private CA, and it has to be
