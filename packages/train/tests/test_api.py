@@ -1065,6 +1065,47 @@ def test_distillation_rejects_failed_environment_rollout_before_teacher_scoring(
         _validate_distillation_rollout(rollout)
 
 
+def test_distillation_accepts_environment_completed_length_bounded_rollout() -> None:
+    rollout = EnvironmentRollout(
+        example_id="train/000007",
+        prompt_ids=(1,),
+        completion_ids=(2,),
+        sampling_logprobs=(0.0,),
+        env_mask=(True,),
+        reward=0.0,
+        is_truncated=True,
+        trace=TraceObservation(
+            "verifiers",
+            "trace-length-bounded",
+            {"is_completed": True, "stop_condition": "agent_completed", "errors": []},
+            attributes={"is_truncated": True},
+        ),
+    )
+
+    _validate_distillation_rollout(rollout)
+
+
+def test_distillation_rejects_unaccepted_truncated_rollout() -> None:
+    rollout = EnvironmentRollout(
+        example_id="train/000007",
+        prompt_ids=(1,),
+        completion_ids=(2,),
+        sampling_logprobs=(0.0,),
+        env_mask=(True,),
+        reward=0.0,
+        is_truncated=True,
+        trace=TraceObservation(
+            "verifiers",
+            "trace-truncated",
+            {"is_completed": False, "stop_condition": "max_total_tokens", "errors": []},
+            attributes={"is_truncated": True},
+        ),
+    )
+
+    with pytest.raises(ValueError, match="failed.*before teacher scoring"):
+        _validate_distillation_rollout(rollout)
+
+
 def test_distillation_backend_translates_mtp_and_turboquant_rollout_options(tmp_path: Path) -> None:
     request = _distillation_request()
     rollout = _inference(

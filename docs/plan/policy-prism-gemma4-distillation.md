@@ -74,8 +74,18 @@ Recovery remains CPU-qualified but its catalog packages and GPU run are deferred
 - [x] (2026-07-29 00:55Z) Provisioned a USD 3.59/hour Community H200, installed
   the locked Python 3.13/Torch 2.11/CUDA 13 stack, verified real H200 compute,
   cached both exact Gemma revisions, and loaded 1/8/64 scope tasks.
-- [ ] Rerun the one-step H200 smoke after the runtime-discovered XGrammar and
-  failed-rollout guards; qualification remains blocked until that gate passes.
+- [x] (2026-07-29 01:05Z) Passed a clean one-step H200 smoke at PostTrain
+  `e09550d6c557b8259b16436df9f7568cc74ee1e6`: finite loss/reverse KL and
+  gradient norm, 198 scored tokens, zero teacher failures, 104.78 GiB peak GPU
+  memory, four retained traces, and complete adapter/checkpoint artifacts.
+- [x] (2026-07-29 01:30Z) Diagnosed the first eight-step qualification stop
+  from its native Trackio trace. Policy Prism completed the trajectory with no
+  errors and `agent_completed`, while its final structured stage ended at the
+  environment-owned token cap. Narrowed distillation admission so this explicit
+  environment-success state is trainable while provider errors, incomplete
+  episodes, and framework-limit truncations remain blocked.
+- [ ] Rerun and pass the eight-step H200 qualification, then apply the measured
+  timing/budget admission gate before starting the 64-step pilot.
 
 ## Surprises & Discoveries
 
@@ -169,6 +179,17 @@ Recovery remains CPU-qualified but its catalog packages and GPU run are deferred
   scored tokens with zero teacher failures, while Trackio stored one trace
   whose metadata reported `branch_count=3`.
 
+- Observation: Policy Prism deliberately treats both `stop` and `length` as a
+  completed staged rollout when the harness inventory finishes. On the first
+  qualification attempt, several student stages exhausted their local
+  512/1536/768-token limits; their native traces nevertheless had
+  `is_completed=true`, `stop_condition=agent_completed`, no provider errors,
+  and usable sampled-token sequences. Exact-token reverse-KL distillation can
+  score those student tokens even when the final structured text is incomplete.
+  Evidence: qualification run `a9613e08-83fb-4b48-808d-27860b8a4f3d`, its
+  native Trackio traces, and
+  `PolicyPrismDistillTask.finalize` at Policy Prism `bfa7802...`.
+
 ## Decision Log
 
 - Decision: No frozen product-baseline amendment is required.
@@ -232,11 +253,14 @@ Recovery remains CPU-qualified but its catalog packages and GPU run are deferred
 
 - Decision: Strip XGrammar's documented unsupported semantic constraints only
   from the temporary vLLM generation copy, while retaining Policy Prism's
-  canonical schema for its local Draft 2020-12 validation. Reject any rollout
-  with an explicit error, incomplete state, or truncation before teacher
-  scoring.
-  Rationale: constrained generation must compile, but an infrastructure error
-  must never become distillation supervision or a successful job.
+  canonical schema for its local Draft 2020-12 validation. Reject explicit
+  provider errors, incomplete episodes, error stop conditions, and
+  framework-limit truncations before teacher scoring. Admit a token-limited
+  rollout only when the environment explicitly records `is_completed=true`,
+  `stop_condition=agent_completed`, and no errors.
+  Rationale: an infrastructure failure must never become distillation
+  supervision, while Policy Prism intentionally exposes length-bounded student
+  samples for exact-token on-policy teacher scoring.
   Date/Author: 2026-07-29 / Codex.
 
 - Decision: Give each independently projected stage branch a payload ID equal

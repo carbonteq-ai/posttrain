@@ -626,19 +626,29 @@ def _rollout_function(
 
 
 def _validate_distillation_rollout(rollout: EnvironmentRollout) -> None:
-    """Reject failed environment episodes before they can reach the teacher."""
+    """Reject failed episodes while admitting environment-accepted token limits."""
 
     attributes = rollout.trace.attributes
     payload = rollout.trace.payload
     errors = payload.get("errors")
     error_type = attributes.get("error_type")
     stop_condition = attributes.get("stop_condition")
-    explicitly_incomplete = attributes.get("is_completed") is False
+    if stop_condition is None:
+        stop_condition = payload.get("stop_condition")
+    is_completed = attributes.get("is_completed")
+    if not isinstance(is_completed, bool):
+        is_completed = payload.get("is_completed")
+    explicitly_incomplete = is_completed is False
     explicitly_truncated = attributes.get("is_truncated") is True
+    accepted_length_limit = (
+        is_completed is True
+        and stop_condition == "agent_completed"
+        and not (isinstance(errors, list) and bool(errors))
+        and not (isinstance(error_type, str) and bool(error_type.strip()))
+    )
     if (
-        rollout.is_truncated
+        ((rollout.is_truncated or explicitly_truncated) and not accepted_length_limit)
         or explicitly_incomplete
-        or explicitly_truncated
         or (isinstance(error_type, str) and bool(error_type.strip()))
         or stop_condition == "error"
         or (isinstance(errors, list) and bool(errors))
@@ -646,7 +656,9 @@ def _validate_distillation_rollout(rollout: EnvironmentRollout) -> None:
         raise ValueError(
             "failed distillation environment rollout rejected before teacher scoring: "
             f"example_id={rollout.example_id!r}, trace_id={rollout.trace.external_id!r}, "
-            f"error_type={error_type!r}, stop_condition={stop_condition!r}"
+            f"is_completed={is_completed!r}, is_truncated={rollout.is_truncated!r}, "
+            f"error_type={error_type!r}, stop_condition={stop_condition!r}, "
+            f"payload_errors={len(errors) if isinstance(errors, list) else 0}"
         )
 
 
