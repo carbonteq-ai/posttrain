@@ -32,24 +32,42 @@ imagined.
 
 ## Progress
 
-- [ ] Milestone 1 — Produce a pre-release on GitHub Releases: build every
+- [x] Milestone 1 — Produce a pre-release: superseded by an internal package
+  index. `pypi.lan` (devpi) serves the framework and mirrors PyPI, so the
+  framework resolves as an ordinary dependency without a GitHub wheelhouse.
+  Published through 0.1.12; the maintained forks are constrained explicitly
+  because uv does not resolve a transitive direct URL implicitly.
+  ORIGINAL: Produce a pre-release on GitHub Releases: build every
   wheel, attach them to a tagged release, and record the exact install command
   including the Git-sourced dependency that cannot resolve implicitly. This is
   what unblocks packing, because the framework then resolves as an ordinary
   project dependency rather than needing a checkout to copy.
-- [ ] Milestone 2 — Confirm a consumer can pack and run with no framework
+- [x] Milestone 2 — Confirmed. From `/home/hammad/devsim`, with no framework
+  checkout on any parent path, a wheel-installed developer planned, packed,
+  published, and ran a job. Framework code reaches the image as staged wheels
+  rather than as a copied source tree.
+  ORIGINAL: Confirm a consumer can pack and run with no framework
   checkout: the project's resolved lock names the published `posttrain`, the
   actual-job image installs it as a dependency, and `framework_source_root` is
   needed only by framework developers overriding with a working tree.
-- [ ] Milestone 3 — Walk the consumer path end to end on real hardware:
+- [~] Milestone 3 — Walked end to end on the RTX 4090 for two jobs: SFT
+  (`54346a58`, succeeded, 3 retained artifacts) and GRPO (`bdcb9ed4`,
+  succeeded, 4 retained artifacts). Both reconciled `consistent` with no
+  missing roles. The serving benchmark and the SFT-seeded GRPO chain are not
+  yet done.
+  ORIGINAL: Walk the consumer path end to end on real hardware:
   install, configure, `doctor`, then a serving benchmark, an SFT job, and a
   GRPO job whose model seat is the SFT output.
-- [ ] Milestone 4 — Verify artifact tracking across that chain: that the SFT
+- [~] Milestone 4 — Artifact tracking verified for each job independently:
+  both runs' adapters, recovery checkpoints, and summaries are addressable on
+  `trackio.lan` and join to provider state. Consuming the SFT adapter as the
+  GRPO model seat is not yet done, so cross-job lineage is unverified.
+  ORIGINAL: Verify artifact tracking across that chain: that the SFT
   run's retained adapter is addressable, that GRPO can consume it by reference,
   and that lineage is legible in Observatory.
-- [ ] Milestone 5 — Write the setup documentation from the executed steps, and
-  record every place the consumer had to know something the framework did not
-  tell them.
+- [x] Milestone 5 — `docs/consumer-setup.md` is written from the steps that
+  were executed, and the places a consumer had to know something the framework
+  did not tell them are recorded under Surprises & Discoveries.
 
 ## Surprises & Discoveries
 
@@ -132,6 +150,72 @@ imagined.
   runtime lock. Installing the framework distributions with `--no-deps` is
   sufficient, which is the same shape as the environment wheels already staged
   beside them.
+
+- Observation: eleven defects stood between a wheel-installed developer and a
+  finished job, and every one of them was invisible from a checkout.
+  Evidence, in the order they were hit:
+  1. `posttrain-runtime` provides the image's ENTRYPOINT but no consumer
+     installs it, so the image was built without its own entry point.
+  2. Framework packages declared each other by bare name, so upgrading
+     `posttrain` left ten siblings behind at an older version.
+  3. `uv pip download` does not exist, so obtaining framework wheels failed.
+  4. pip reads `PIP_INDEX_URL` while the documented setup sets `UV_INDEX_URL`,
+     so the private index was ignored.
+  5. Build definitions ship as package data, and buildx refuses to read
+     outside the project without an explicit filesystem entitlement.
+  6. `sources/framework` was digested unconditionally in three separate
+     places: the image definition, the pack service, and the job runtime.
+  7. `release/github-constraints.txt` omitted `trl` and `verifiers`, so the
+     documented install command could not resolve.
+  8. Writing `execution.toml` for the local provider's hostname silently
+     discarded `POSTTRAIN_REGISTRY`.
+  9. A failed submission reported only that its outcome was unresolved and to
+     retry; retrying reported the same, naming nothing to fix.
+  10. A run that died before opening a tracking run held its machine's
+      admission placement forever, and cancel, cleanup, and reconcile each
+      refused for a different reason.
+  11. The Trackio endpoint was recorded only from the execution environment
+      file, so a run configured through the shell wrote its evidence to the
+      remote server and was then looked for in a local one.
+  Consequence: none of these are visible to the framework's own test suite,
+  because it runs from a checkout where the source tree exists, the packages
+  are all one version, and the definitions are inside the project.
+
+- Observation: two settings are traps whose failures surface far from their
+  cause, and both remain traps after this work.
+  Evidence: `providers.local.trust_bundle` becomes the container's
+  `SSL_CERT_FILE`, replacing the image's certificate authorities instead of
+  adding to them. Supplying only the internal CA made every public TLS
+  connection fail, which surfaced as `Can't load the configuration of
+  'Qwen/Qwen3.5-2B'` rather than as a trust problem. It must be the complete
+  set of authorities the job should trust. Separately, `posttrain job run`
+  requires `providers.local.canonical_hostname`, which no template writes and
+  no documentation mentions.
+
+- Observation: the framework's verification refused to publish an image whose
+  staged contents did not match its manifest, and was right to.
+  Evidence: `posttrain job pack` intermittently failed with `package manifest
+  key differs from PACKAGE_KEY`. The staged context was proven correct three
+  ways: the directory name, the passed variable, and the key derived from the
+  context's own `package.json` all agreed, and deriving it again inside the
+  kind image with the same framework version reproduced it exactly. The same
+  pack then succeeded unchanged on retry, and pruning the buildx cache also
+  cleared it, so the image was reading a stale layer.
+  Consequence: this is a BuildKit cache defect, not a framework one, and the
+  framework's check is what caught it. It is a real consumer cost even so,
+  because the message describes an identity mismatch rather than a stale
+  build, and the remedy is a retry that nothing suggests.
+
+- Observation: the internal PyPI mirror silently served a stale project list.
+  Evidence: `aiolimiter`, `chardet`, and `zipp` all returned 404 from
+  `pypi.lan` while `pypi.org` served them. devpi logged `serving stale
+  projects for 'pypi', getting data timed out after 5 seconds` before each,
+  because refreshing the mirror downloads PyPI's entire project list and its
+  default `--request-timeout` is five seconds. Raising it to sixty fixed all
+  three.
+  Consequence: the failure reads as a missing package, with nothing pointing
+  at the mirror. Any index this framework is consumed from needs the same
+  treatment.
 
 ## Decision Log
 
