@@ -14,9 +14,7 @@ def training_response_mask(
 
     if is_truncated and mask_truncated_completions:
         if requires_complete_group:
-            raise RuntimeError(
-                "SAMPO requires replacement for truncated trajectories whose policy tokens are masked"
-            )
+            raise RuntimeError("SAMPO requires replacement for truncated trajectories whose policy tokens are masked")
         return [0] * len(env_mask)
     return [int(value) for value in env_mask]
 

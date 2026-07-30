@@ -187,9 +187,7 @@ def validate_definition(profile: ReleaseProfile) -> tuple[str, ...]:
         "vllm": "0.25.2.dev2+g7817d8457",
         "vllm_runtime_version": "0.25.2.dev2+g7817d8457.precompiled",
         "vllm_binary_base": "0.25.1-cp38-abi3-manylinux_2_28_x86_64",
-        "vllm_binary_wheel_sha256": (
-            "16fc7a28df1576eb6f7ca0455026551b8f9adb674c19c66059359ef3e964bd1e"
-        ),
+        "vllm_binary_wheel_sha256": ("16fc7a28df1576eb6f7ca0455026551b8f9adb674c19c66059359ef3e964bd1e"),
         "ray": "2.56.1",
         "tensordict": "0.10.0",
     }

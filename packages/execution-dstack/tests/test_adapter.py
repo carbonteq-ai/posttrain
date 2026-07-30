@@ -219,11 +219,7 @@ def test_capacity_wait_retries_only_pre_start_no_capacity(
     plan = provider.plan(_request(tmp_path))
     provider.submit(plan)
 
-    configurations = [
-        payload["configuration"]
-        for action, payload in gateway.calls
-        if action in {"plan", "submit"}
-    ]
+    configurations = [payload["configuration"] for action, payload in gateway.calls if action in {"plan", "submit"}]
     assert plan.details["capacity_wait_seconds"] == 86_400
     assert all(
         configuration["retry"]

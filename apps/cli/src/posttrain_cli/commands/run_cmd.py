@@ -179,8 +179,7 @@ def register(app: typer.Typer) -> None:
         layout = state.layout()
         admission = execution_admission_service(layout)
         submissions = {
-            submission.run_id: submission
-            for submission in ExecutionSubmissionStore(layout.state).list_submissions()
+            submission.run_id: submission for submission in ExecutionSubmissionStore(layout.state).list_submissions()
         }
         rows: list[dict[str, Any]] = []
         for initial in admission.list():
@@ -213,9 +212,7 @@ def register(app: typer.Typer) -> None:
                     "provider_state": record.native_state if record is not None else None,
                     "requested_target_id": entry.plan.request.target.id,
                     "requested_hostnames": _requested_hostnames(entry.plan.request),
-                    "assigned_hostname": (
-                        _assigned_hostname(record.target_id) if record is not None else None
-                    ),
+                    "assigned_hostname": (_assigned_hostname(record.target_id) if record is not None else None),
                     "queued_at": entry.queued_at.isoformat(),
                     "message": record.message if record is not None else detail,
                 }
@@ -276,9 +273,7 @@ def register(app: typer.Typer) -> None:
         payload = {
             **json_value(record),
             "admission_state": (admission_entry.state if admission_entry is not None else None),
-            "requested_target_id": (
-                admission_entry.plan.request.target.id if admission_entry is not None else None
-            ),
+            "requested_target_id": (admission_entry.plan.request.target.id if admission_entry is not None else None),
             "requested_hostnames": (
                 _requested_hostnames(admission_entry.plan.request) if admission_entry is not None else []
             ),

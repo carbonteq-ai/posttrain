@@ -150,9 +150,7 @@ def _validate_boundaries() -> None:
         )
     for variant in RUNTIME_VARIANTS:
         variant_dockerfile = (
-            (KINDS / "verl-py313" / "Dockerfile").read_text()
-            if variant == "online-rl-verl-py313"
-            else kind_dockerfile
+            (KINDS / "verl-py313" / "Dockerfile").read_text() if variant == "online-rl-verl-py313" else kind_dockerfile
         )
         _require(f" AS {variant}\n" in variant_dockerfile, f"missing runtime stage for {variant}")
         _require(f" AS {variant}-smoke\n" in variant_dockerfile, f"missing smoke stage for {variant}")

@@ -330,9 +330,7 @@ def build_hydra_overrides(
         ):
             raise ValueError("veRL teacher topology must exactly partition the teacher target world_size")
         teacher_replicas = teacher_world_size // per_replica_world_size
-        teacher_required_context_len = (
-            algorithm.max_prompt_length + algorithm.max_completion_length + 1
-        )
+        teacher_required_context_len = algorithm.max_prompt_length + algorithm.max_completion_length + 1
         overrides.extend(
             [
                 "distillation.enabled=True",
@@ -441,10 +439,7 @@ def _write_dataset(payload: VerlPayload, path: Path) -> None:
     # intentionally contain one reusable task, so cycle them deterministically
     # to make at least one complete prompt batch.
     if len(rows) < payload.algorithm.num_prompts_per_step:
-        rows = [
-            dict(rows[index % len(rows)])
-            for index in range(payload.algorithm.num_prompts_per_step)
-        ]
+        rows = [dict(rows[index % len(rows)]) for index in range(payload.algorithm.num_prompts_per_step)]
     Dataset.from_list(rows).to_parquet(str(path))
 
 

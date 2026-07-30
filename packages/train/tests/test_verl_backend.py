@@ -1048,10 +1048,7 @@ def test_qwen35_distillation_translation_uses_native_exact_token_k1_loss(
         tmp_path / "default-checkpoints",
     )
     assert "distillation.teacher_models.teacher_model.inference.max_model_len=385" in default_context_overrides
-    assert (
-        "distillation.teacher_models.teacher_model.inference.max_num_batched_tokens=385"
-        in default_context_overrides
-    )
+    assert "distillation.teacher_models.teacher_model.inference.max_num_batched_tokens=385" in default_context_overrides
 
 
 def test_verl_worker_cycles_small_dataset_to_one_complete_prompt_batch(
