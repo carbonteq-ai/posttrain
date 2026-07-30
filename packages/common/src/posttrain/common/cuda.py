@@ -112,6 +112,20 @@ def resolve_cuda_home(torch_module: TorchModule, *, cache_root: Path | None = No
     )
 
 
+def _interpreter_scripts_dir() -> Path:
+    """Return the scripts directory for the active interpreter.
+
+    Absolute launches of ``vllm`` / ``python`` do not put that directory on
+    ``PATH``. FlashInfer's JIT still shells out to ``ninja`` (and other
+    pip-installed build tools) by bare name, so child EngineCore processes need
+    the interpreter scripts directory prepended.
+    """
+
+    import sys
+
+    return Path(sys.executable).resolve().parent
+
+
 def cuda_environment(
     torch_module: TorchModule,
     *,
@@ -123,9 +137,12 @@ def cuda_environment(
     cuda_home = resolve_cuda_home(torch_module)
     environment["CUDA_HOME"] = str(cuda_home)
     toolkit_bin = str(cuda_home / "bin")
+    scripts_bin = str(_interpreter_scripts_dir())
     path_entries = [entry for entry in environment.get("PATH", "").split(":") if entry]
-    if toolkit_bin not in path_entries:
-        environment["PATH"] = ":".join([toolkit_bin, *path_entries])
+    for prefix in (toolkit_bin, scripts_bin):
+        if prefix in path_entries:
+            path_entries.remove(prefix)
+    environment["PATH"] = ":".join([toolkit_bin, scripts_bin, *path_entries])
     return environment
 
 

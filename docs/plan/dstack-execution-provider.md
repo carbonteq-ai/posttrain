@@ -106,6 +106,14 @@ work-package, job, run, execution-target, artifact, and observation contracts.
   running cancellation released its block, native no-capacity waiting entered
   `pending` only with an explicit event/duration policy, queued cancellation
   became terminal, and both workers ended healthy and idle.
+- [x] (2026-07-29 16:32Z) Requalified concurrent placement through the normal
+  immutable actual-job path. While DAPO MTP run
+  `verl-dapo-mtp-fixed-20260729` occupied the healthy RTX PRO worker, capacity-
+  only run `capacity-concurrency-4090-20260729` requested one CUDA GPU with at
+  least 8 GiB and no hostname. dstack assigned it to the idle healthy RTX 4090.
+  Both fleet instances reported `1/1` busy concurrently, both provider runs
+  completed successfully, and neither submission was held behind the other by
+  framework admission.
 - [x] (2026-07-26 18:00Z) Removed developer-side Verifiers materialization
   from work-package validation. The GSM8K GRPO package now validates on the
   development machine without Verifiers installed; native environment
@@ -151,6 +159,14 @@ work-package, job, run, execution-target, artifact, and observation contracts.
   related qualification plan with final evidence.
 
 ## Surprises & Discoveries
+
+- Observation: GPU memory capacity is an offer constraint, not a fractional
+  sharing unit for one physical GPU.
+  Evidence: the live SSH fleet exposes one scheduling block on each worker.
+  The 96 GiB and 24 GiB GPUs therefore admitted two simultaneous one-GPU jobs
+  on different workers; remaining VRAM on a busy single-GPU worker did not
+  create a second safe placement. Capacity-only selection still allowed dstack
+  to choose the idle 24 GiB worker without a hostname pin.
 
 - Observation: the three execution packages already implement a coherent
   provider protocol and both lifecycle adapters.
@@ -299,10 +315,13 @@ work-package, job, run, execution-target, artifact, and observation contracts.
   policy, logical idempotency, submission recovery, and the terminal-evidence
   barrier. An admitted dstack task is fail-fast and dstack owns worker
   selection, startup, termination, and live resource accounting.
-  A future concurrent mode may map an explicit capacity-wait duration to
-  dstack's `no-capacity` retry event, but execution attempt count must remain a
-  separate framework concept with explicit lineage.
-  Date/Author: 2026-07-26 / Codex, revised after live two-worker testing.
+  An explicit provider capacity-wait duration maps only to dstack's
+  `no-capacity` retry event; execution attempt count remains a separate
+  framework concept with explicit lineage. `posttrain run queue` reports
+  framework and provider queue scopes plus requested and assigned host
+  identity.
+  Date/Author: 2026-07-29 / user and Codex, revised after a busy pinned worker
+  failed immediately instead of remaining pending.
 
 - Decision: provider submission ambiguity requires an explicit retry command.
   Rationale: neither `status` nor `cancel` may repeat a write merely because

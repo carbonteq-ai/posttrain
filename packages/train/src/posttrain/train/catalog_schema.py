@@ -106,7 +106,7 @@ class TrainingLoopSchema(TrainCatalogSchema):
     warmup_ratio: float = Field(default=0.0, ge=0, lt=1)
     max_grad_norm: float = Field(default=1.0, gt=0)
     logging_steps: int = Field(default=1, gt=0)
-    checkpoint_steps: int = Field(default=1, gt=0)
+    checkpoint_steps: int = Field(default=1, ge=0)
     checkpoint_limit: int = Field(default=1, gt=0)
     seed: int = 42
     gradient_checkpointing: bool = True

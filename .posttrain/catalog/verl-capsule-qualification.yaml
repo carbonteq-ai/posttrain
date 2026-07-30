@@ -19,10 +19,156 @@ training:
     num_generations: 4
     max_prompt_length: 256
     max_completion_length: 384
+  qwen3.5-0.8b/verl-dapo-2-step-capsule-v1:
+    selection_type: grpo-settings
+    revision: "1"
+    loop:
+      max_steps: 2
+      max_length: 640
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 8
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 2
+      checkpoint_limit: 1
+    num_prompts_per_step: 2
+    num_generations: 4
+    max_prompt_length: 256
+    max_completion_length: 384
+    algorithm: dapo
+    clip_epsilon_low: 0.2
+    clip_epsilon_high: 0.28
+    dynamic_sampling:
+      max_candidate_batches: 3
+    mask_truncated_completions: true
+    overlong_buffer_tokens: 32
+    overlong_penalty_factor: 1.0
+  qwen3.5-0.8b/verl-sampo-2-step-capsule-v1:
+    selection_type: sampo-settings
+    revision: "1"
+    loop:
+      max_steps: 2
+      max_length: 640
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 8
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 2
+      checkpoint_limit: 1
+    num_prompts_per_step: 2
+    num_generations: 4
+    max_prompt_length: 256
+    max_completion_length: 384
+    discount_gamma: 0.95
+    step_advantage_weight: 1.0
+    advantage_normalization: mean
+    clip_epsilon_low: 0.003
+    clip_epsilon_high: 0.004
+    dynamic_sampling:
+      max_candidate_batches: 3
+    mask_truncated_completions: false
+  qwen3.5-0.8b/verl-distill-2-step-capsule-v1:
+    selection_type: on-policy-distillation-settings
+    revision: "1"
+    loop:
+      max_steps: 2
+      max_length: 640
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 8
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 2
+      checkpoint_limit: 1
+    temperature: 1.0
+    num_prompts_per_step: 2
+    num_generations: 4
+    max_prompt_length: 256
+    max_completion_length: 384
+  qwen3.5-0.8b/verl-grpo-2-step-capsule-v2:
+    selection_type: grpo-settings
+    revision: "2"
+    loop:
+      max_steps: 2
+      max_length: 640
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 8
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 0
+      checkpoint_limit: 1
+    num_prompts_per_step: 2
+    num_generations: 4
+    max_prompt_length: 256
+    max_completion_length: 384
+  qwen3.5-0.8b/verl-dapo-2-step-capsule-v2:
+    selection_type: grpo-settings
+    revision: "2"
+    loop:
+      max_steps: 2
+      max_length: 640
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 8
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 0
+      checkpoint_limit: 1
+    num_prompts_per_step: 2
+    num_generations: 4
+    max_prompt_length: 256
+    max_completion_length: 384
+    algorithm: dapo
+    clip_epsilon_low: 0.2
+    clip_epsilon_high: 0.28
+    dynamic_sampling:
+      max_candidate_batches: 3
+    mask_truncated_completions: true
+    overlong_buffer_tokens: 32
+    overlong_penalty_factor: 1.0
+  qwen3.5-0.8b/verl-sampo-2-step-capsule-v2:
+    selection_type: sampo-settings
+    revision: "2"
+    loop:
+      max_steps: 2
+      max_length: 640
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 8
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 0
+      checkpoint_limit: 1
+    num_prompts_per_step: 2
+    num_generations: 4
+    max_prompt_length: 256
+    max_completion_length: 384
+    discount_gamma: 0.95
+    step_advantage_weight: 1.0
+    advantage_normalization: mean
+    clip_epsilon_low: 0.003
+    clip_epsilon_high: 0.004
+    dynamic_sampling:
+      max_candidate_batches: 3
+    mask_truncated_completions: false
+  qwen3.5-0.8b/verl-distill-2-step-capsule-v2:
+    selection_type: on-policy-distillation-settings
+    revision: "2"
+    loop:
+      max_steps: 2
+      max_length: 640
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 8
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 0
+      checkpoint_limit: 1
+    temperature: 1.0
+    num_prompts_per_step: 2
+    num_generations: 4
+    max_prompt_length: 256
+    max_completion_length: 384
   training/qwen3.5-0.8b-verl-grpo-capsule-lora@1:
     selection_type: training-binding
     revision: "1"
-    backend: verl@1dcdf67e9473db5297c98c9c88cf4dae6c4a8932
+    backend: verl@5433d1c297870207c335108dcaac42f8da6f59bd
     renderer:
       id: qwen3.5-off-v1
       model_family: qwen3.5
@@ -33,20 +179,20 @@ training:
       rank: 8
       alpha: 16
       target_modules: ".*language_model.*[.](o_proj|down_proj)$"
-    target: targets/pop-os-rtx4090-24gb
+    target: targets/carbonteq-rtx-pro-6000-96gb
     parallelism:
       sequence_length_divisor: 2
     runtime:
       global_batch_size: 8
       nodes: 1
       devices_per_node: 1
-      parameter_offload: true
-      optimizer_offload: true
+      parameter_offload: false
+      optimizer_offload: false
     backend_options:
       python_executable: /opt/posttrain-verl/bin/python
       working_directory: /opt/posttrain-verl/workdir
-      source_revision: 1dcdf67e9473db5297c98c9c88cf4dae6c4a8932
-      dependency_lock_sha256: 0e293b1d7beadc0e9548481236117c8fe6a888b7806029f054ee68935362f8f8
+      source_revision: 5433d1c297870207c335108dcaac42f8da6f59bd
+      dependency_lock_sha256: bb2cf4393572cd5ae4ae6e2b3b04ac3fbaccddd3dd5e507e34ed65a3f7f1a856
       source_dirty: false
       # Candidate kind does not ship FlashAttention; use SDPA for Qwen3.5 load.
       attention_implementation: sdpa
@@ -67,3 +213,315 @@ training:
         - actor_rollout_ref.rollout.max_num_seqs=4
         - actor_rollout_ref.rollout.free_cache_engine=true
         - actor_rollout_ref.rollout.enable_sleep_mode=true
+  training/qwen3.5-0.8b-verl-grpo-capsule-lora@2:
+    selection_type: training-binding
+    revision: "2"
+    backend: verl@5433d1c297870207c335108dcaac42f8da6f59bd
+    renderer:
+      id: qwen3.5-off-v1
+      model_family: qwen3.5
+      implementation: qwen3.5
+      reasoning_mode: "off"
+    update:
+      kind: lora
+      rank: 8
+      alpha: 16
+      target_modules: ".*language_model.*[.](o_proj|down_proj)$"
+    target: targets/carbonteq-cuda-24gb-plus
+    parallelism:
+      sequence_length_divisor: 2
+    runtime:
+      global_batch_size: 8
+      nodes: 1
+      devices_per_node: 1
+      parameter_offload: false
+      optimizer_offload: false
+    backend_options:
+      python_executable: /opt/posttrain-verl/bin/python
+      working_directory: /opt/posttrain-verl/workdir
+      source_revision: 5433d1c297870207c335108dcaac42f8da6f59bd
+      dependency_lock_sha256: bb2cf4393572cd5ae4ae6e2b3b04ac3fbaccddd3dd5e507e34ed65a3f7f1a856
+      source_dirty: false
+      attention_implementation: sdpa
+      hydra_overrides:
+        - actor_rollout_ref.model.use_remove_padding=false
+        - actor_rollout_ref.model.enable_gradient_checkpointing=true
+        - actor_rollout_ref.model.use_fused_kernels=true
+        - actor_rollout_ref.model.fused_kernel_options.impl_backend=torch
+        - actor_rollout_ref.actor.strategy=fsdp2
+        - actor_rollout_ref.actor.entropy_from_logits_with_chunking=true
+        - actor_rollout_ref.actor.entropy_from_logits_chunk_size=256
+        - actor_rollout_ref.actor.fsdp_config.use_torch_compile=false
+        - actor_rollout_ref.rollout.gpu_memory_utilization=0.55
+        - actor_rollout_ref.rollout.max_model_len=640
+        - actor_rollout_ref.rollout.max_num_batched_tokens=640
+        - actor_rollout_ref.rollout.max_num_seqs=4
+        - actor_rollout_ref.rollout.free_cache_engine=true
+        - actor_rollout_ref.rollout.enable_sleep_mode=true
+  training/qwen3.5-0.8b-verl-grpo-capsule-lora@3:
+    selection_type: training-binding
+    revision: "3"
+    backend: verl@5433d1c297870207c335108dcaac42f8da6f59bd
+    renderer:
+      id: qwen3.5-off-v1
+      model_family: qwen3.5
+      implementation: qwen3.5
+      reasoning_mode: "off"
+    update:
+      kind: lora
+      rank: 8
+      alpha: 16
+      target_modules: ".*language_model.*[.](o_proj|down_proj)$"
+    target: targets/carbonteq-cuda-24gb-plus
+    parallelism:
+      sequence_length_divisor: 2
+    runtime:
+      global_batch_size: 8
+      nodes: 1
+      devices_per_node: 1
+      parameter_offload: false
+      optimizer_offload: false
+    backend_options:
+      python_executable: /opt/posttrain-verl/bin/python
+      working_directory: /opt/posttrain-verl/workdir
+      source_revision: 5433d1c297870207c335108dcaac42f8da6f59bd
+      dependency_lock_sha256: bb2cf4393572cd5ae4ae6e2b3b04ac3fbaccddd3dd5e507e34ed65a3f7f1a856
+      source_dirty: false
+      attention_implementation: sdpa
+      hydra_overrides:
+        - actor_rollout_ref.model.use_remove_padding=false
+        - actor_rollout_ref.model.enable_gradient_checkpointing=true
+        - actor_rollout_ref.model.use_fused_kernels=true
+        - actor_rollout_ref.model.fused_kernel_options.impl_backend=torch
+        - actor_rollout_ref.actor.strategy=fsdp2
+        - actor_rollout_ref.actor.entropy_from_logits_with_chunking=true
+        - actor_rollout_ref.actor.entropy_from_logits_chunk_size=256
+        - actor_rollout_ref.actor.fsdp_config.use_torch_compile=false
+  training/qwen3.5-0.8b-verl-grpo-capsule-lora@4:
+    selection_type: training-binding
+    revision: "4"
+    backend: verl@c3f49b9117b882fa888e25e4a771461e13167848
+    renderer:
+      id: qwen3.5-off-v1
+      model_family: qwen3.5
+      implementation: qwen3.5
+      reasoning_mode: "off"
+    update:
+      kind: lora
+      rank: 8
+      alpha: 16
+      target_modules: ".*language_model.*[.](o_proj|down_proj)$"
+    target: targets/carbonteq-cuda-24gb-plus
+    parallelism:
+      sequence_length_divisor: 2
+    runtime:
+      global_batch_size: 8
+      nodes: 1
+      devices_per_node: 1
+      parameter_offload: false
+      optimizer_offload: false
+    backend_options:
+      python_executable: /opt/posttrain-verl/bin/python
+      working_directory: /opt/posttrain-verl/workdir
+      source_revision: c3f49b9117b882fa888e25e4a771461e13167848
+      dependency_lock_sha256: 8d390337a97228abbf8a66d2d4176bf97306383e22349b9239ce9279e966da82
+      source_dirty: false
+      attention_implementation: sdpa
+      hydra_overrides:
+        - actor_rollout_ref.model.use_remove_padding=false
+        - actor_rollout_ref.model.enable_gradient_checkpointing=true
+        - actor_rollout_ref.model.use_fused_kernels=true
+        - actor_rollout_ref.model.fused_kernel_options.impl_backend=torch
+        - actor_rollout_ref.actor.strategy=fsdp2
+        - actor_rollout_ref.actor.entropy_from_logits_with_chunking=true
+        - actor_rollout_ref.actor.entropy_from_logits_chunk_size=256
+        - actor_rollout_ref.actor.fsdp_config.use_torch_compile=false
+
+inference:
+  inference/qwen3.5-0.8b-vllm-distill-rollout@2:
+    revision: "2"
+    model: models/qwen3.5-0.8b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools@1
+    engine:
+      mode: colocate
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.2
+      tensor_parallel_size: 1
+      max_model_len: 640
+      text_only: true
+      skip_mm_profiling: true
+      kv_cache_memory_bytes: 67108864
+      weight_sync_mode: lora
+      enforce_eager: true
+    sampling:
+      max_tokens: 384
+      temperature: 1.0
+      top_p: 1.0
+    target: targets/carbonteq-cuda-24gb-plus
+    purpose: [rollout]
+
+  inference/qwen3.5-2b-transformers-teacher-score@2:
+    revision: "2"
+    model: models/qwen3.5-2b@bf16
+    backend: transformers@4.57.6
+    renderer: qwen3.5-tools@1
+    engine:
+      mode: colocate
+      dtype: bfloat16
+    sampling:
+      temperature: 1.0
+    target: targets/carbonteq-cuda-24gb-plus
+    purpose: [teacher-score]
+
+  inference/qwen3.5-0.8b-vllm-verl-mtp-rollout@1:
+    revision: "1"
+    model: models/qwen3.5-0.8b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools@1
+    engine:
+      mode: colocate
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.55
+      tensor_parallel_size: 1
+      max_model_len: 640
+      max_num_batched_tokens: 640
+      max_num_seqs: 4
+      text_only: true
+      skip_mm_profiling: true
+      weight_sync_mode: lora
+      enforce_eager: true
+      enable_chunked_prefill: true
+      free_cache_engine: true
+      disable_log_stats: false
+      speculative_config:
+        method: mtp
+        num_speculative_tokens: 1
+    sampling:
+      max_tokens: 384
+      temperature: 1.0
+      top_p: 1.0
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [rollout]
+
+  inference/qwen3.5-0.8b-vllm-verl-mtp-rollout@2:
+    revision: "2"
+    model: models/qwen3.5-0.8b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools@1
+    engine:
+      mode: colocate
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.55
+      tensor_parallel_size: 1
+      max_model_len: 640
+      max_num_batched_tokens: 640
+      max_num_seqs: 4
+      text_only: true
+      skip_mm_profiling: true
+      weight_sync_mode: lora
+      enforce_eager: true
+      enable_chunked_prefill: true
+      free_cache_engine: true
+      disable_log_stats: false
+      speculative_config:
+        method: mtp
+        num_speculative_tokens: 1
+    sampling:
+      max_tokens: 384
+      temperature: 1.0
+      top_p: 1.0
+    target: targets/carbonteq-cuda-24gb-plus
+    purpose: [rollout]
+
+  inference/qwen3.5-0.8b-vllm-verl-mtp-rollout@3:
+    revision: "3"
+    model: models/qwen3.5-0.8b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools@1
+    engine:
+      mode: colocate
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.55
+      tensor_parallel_size: 1
+      max_model_len: 640
+      max_num_batched_tokens: 640
+      max_num_seqs: 4
+      kv_cache_memory_bytes: 201326592
+      text_only: true
+      skip_mm_profiling: true
+      weight_sync_mode: lora
+      enforce_eager: true
+      enable_chunked_prefill: true
+      free_cache_engine: true
+      disable_log_stats: false
+      speculative_config:
+        method: mtp
+        num_speculative_tokens: 1
+    sampling:
+      max_tokens: 384
+      temperature: 1.0
+      top_p: 1.0
+    target: targets/carbonteq-cuda-24gb-plus
+    purpose: [rollout]
+
+  inference/qwen3.5-0.8b-vllm-verl-turboquant-rollout@1:
+    revision: "1"
+    model: models/qwen3.5-0.8b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools@1
+    engine:
+      mode: colocate
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.55
+      tensor_parallel_size: 1
+      max_model_len: 640
+      max_num_batched_tokens: 640
+      max_num_seqs: 4
+      dtype: float16
+      kv_cache_dtype: turboquant_k8v4
+      text_only: true
+      skip_mm_profiling: true
+      weight_sync_mode: lora
+      enforce_eager: true
+      enable_chunked_prefill: true
+      free_cache_engine: true
+      disable_log_stats: false
+    sampling:
+      max_tokens: 384
+      temperature: 1.0
+      top_p: 1.0
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [rollout]
+
+  inference/qwen3.5-0.8b-vllm-verl-mtp-turboquant-rollout@1:
+    revision: "1"
+    model: models/qwen3.5-0.8b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools@1
+    engine:
+      mode: colocate
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.55
+      tensor_parallel_size: 1
+      max_model_len: 640
+      max_num_batched_tokens: 640
+      max_num_seqs: 4
+      dtype: float16
+      kv_cache_dtype: turboquant_k8v4
+      text_only: true
+      skip_mm_profiling: true
+      weight_sync_mode: lora
+      enforce_eager: true
+      enable_chunked_prefill: true
+      free_cache_engine: true
+      disable_log_stats: false
+      speculative_config:
+        method: mtp
+        num_speculative_tokens: 1
+    sampling:
+      max_tokens: 384
+      temperature: 1.0
+      top_p: 1.0
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [rollout]

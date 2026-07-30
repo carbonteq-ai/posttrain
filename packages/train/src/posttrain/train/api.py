@@ -297,7 +297,7 @@ def grpo(
         context,
         request.bridge,
         lambda: selected_runner(context, request, output_dir),
-        replay_exclusions=_LIVE_ROLLOUT_POPULATION_METRICS,
+        replay_exclusions=_rollout_replay_exclusions(request.training.backend),
     )
     return _finish(context, request, request.settings.algorithm, backend)
 
@@ -325,9 +325,16 @@ def sampo(
         context,
         request.bridge,
         lambda: selected_runner(context, request, output_dir),
-        replay_exclusions=_LIVE_ROLLOUT_POPULATION_METRICS,
+        replay_exclusions=_rollout_replay_exclusions(request.training.backend),
     )
     return _finish(context, request, "sampo", backend)
+
+
+def _rollout_replay_exclusions(training_backend: str) -> frozenset[str]:
+    """Avoid duplicate population metrics only when the backend emits them live."""
+
+    product = training_backend.split("@", 1)[0]
+    return _LIVE_ROLLOUT_POPULATION_METRICS if product == "trl" else frozenset()
 
 
 def distill(

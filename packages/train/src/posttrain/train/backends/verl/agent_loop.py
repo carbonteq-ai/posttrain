@@ -11,6 +11,7 @@ from uuid import uuid4
 from ...integrations.verifiers import load_verifiers_bridge_snapshot
 from ...online_rl import EnvironmentRollout, PolicyTurnRequest, PolicyTurnResult, RolloutBatch
 from ...profiles import shape_soft_overlong_reward
+from .reward_fields import streaming_reward_extra_info, training_response_mask
 
 try:
     from verl.experimental.agent_loop.agent_loop import (  # pyright: ignore[reportMissingImports]
@@ -168,15 +169,26 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
                 buffer_tokens=self._overlong_buffer_tokens,
                 penalty_factor=self._overlong_penalty_factor,
             )
-        response_mask = [int(value) for value in rollout.env_mask]
-        if rollout.is_truncated and self._mask_truncated_completions:
-            response_mask = [0] * len(response_mask)
+        response_mask = training_response_mask(
+            rollout.env_mask,
+            is_truncated=rollout.is_truncated,
+            mask_truncated_completions=self._mask_truncated_completions,
+            requires_complete_group=self._emit_sampo_metadata,
+        )
         extra_fields: dict[str, Any] = {
             "rollout_trace_id": rollout.trace.external_id,
             "example_id": rollout.example_id,
             "is_truncated": rollout.is_truncated,
             "task_reward": rollout.reward,
             "algorithm_reward": reward,
+            # veRL V1's dynamic group filter classifies completed trajectories
+            # before materializing the training batch. Its streaming path reads
+            # the selected metric from this native nested field rather than
+            # from the token-level rm_scores tensor.
+            "reward_extra_info": streaming_reward_extra_info(
+                task_reward=rollout.reward,
+                algorithm_reward=reward,
+            ),
             "min_global_steps": step,
             "max_global_steps": step,
         }
@@ -198,6 +210,8 @@ def _sampo_metadata(rollout: EnvironmentRollout) -> dict[str, Any]:
     if not rollout.turns:
         raise RuntimeError("SAMPO requires sampled assistant-turn metadata")
     return {
+        "sampo_prompt_group_id": rollout.example_id,
+        "sampo_turn_lengths": [turn.completion_end - turn.completion_start for turn in rollout.turns],
         "sampo_turn_spans": [[turn.completion_start, turn.completion_end] for turn in rollout.turns],
         "sampo_anchor_state_keys": [turn.anchor_state_key for turn in rollout.turns],
         "sampo_step_rewards": [turn.step_reward for turn in rollout.turns],

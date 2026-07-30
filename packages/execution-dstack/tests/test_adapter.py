@@ -206,6 +206,31 @@ def test_admitted_task_is_fail_fast_for_every_framework_attempt_policy(
     assert "files" not in submit_configuration
 
 
+def test_capacity_wait_retries_only_pre_start_no_capacity(
+    tmp_path: Path,
+) -> None:
+    gateway = FakeGateway()
+    provider = DstackExecutionProvider(
+        gateway,
+        project="posttrain",
+        capacity_wait_seconds=86_400,
+    )
+
+    plan = provider.plan(_request(tmp_path))
+    provider.submit(plan)
+
+    configurations = [payload["configuration"] for action, payload in gateway.calls if action in {"plan", "submit"}]
+    assert plan.details["capacity_wait_seconds"] == 86_400
+    assert all(
+        configuration["retry"]
+        == {
+            "on_events": ["no-capacity"],
+            "duration": 86_400,
+        }
+        for configuration in configurations
+    )
+
+
 def test_gpu_memory_maximum_must_cover_the_target_minimum(tmp_path: Path) -> None:
     gateway = FakeGateway()
     provider = DstackExecutionProvider(gateway, project="posttrain")

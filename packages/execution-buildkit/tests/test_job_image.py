@@ -118,7 +118,12 @@ def test_publisher_checks_smokes_pushes_verifies_and_reuses_receipt(
     build_calls = [call for call in gateway.calls if "--metadata-file" in call]
     assert len(build_calls) == 1
     build = build_calls[0]
-    assert build[-2:] == ("posttrain-job-smoke", "posttrain-job")
+    assert build[-1] == "posttrain-job"
+    smoke_calls = [
+        call for call in gateway.calls if call and call[-1] == "posttrain-job-smoke" and "--call" not in call
+    ]
+    assert len(smoke_calls) == 1
+    assert gateway.calls.index(smoke_calls[0]) < gateway.calls.index(build)
     assert (
         "posttrain-job.output=type=image,push=true,compression=zstd,"
         "compression-level=3,force-compression=true,oci-mediatypes=true"

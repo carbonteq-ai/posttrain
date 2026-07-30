@@ -172,6 +172,27 @@ def test_verl_rollout_throughput_uses_completion_tokens_only() -> None:
     assert step.metrics["train/rl/rollout_tokens_per_second"] == pytest.approx(32.1096)
 
 
+def test_verl_sampo_metrics_use_hierarchical_credit_names() -> None:
+    step = normalize_grpo_metrics(
+        backend="verl",
+        step=2,
+        native={
+            "sampo/episode_advantage_mean": 0.0,
+            "sampo/turn_advantage_mean": 0.125,
+            "sampo/anchor_group_size_mean": 4,
+            "sampo/sparse_reward_projection_fraction": 1.0,
+        },
+        features=GRPOObservationFeatures(),
+    )
+
+    assert step.metrics == {
+        "train/rl/episode_advantage_mean": 0.0,
+        "train/rl/turn_advantage_mean": 0.125,
+        "train/rl/anchor_group_size_mean": 4.0,
+        "train/rl/sparse_reward_projection_fraction": 1.0,
+    }
+
+
 @pytest.mark.parametrize(
     ("native", "message"),
     [

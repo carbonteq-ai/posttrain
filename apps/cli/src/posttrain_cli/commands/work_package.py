@@ -385,6 +385,7 @@ def _package_plan_payload(planned: PlannedJobPackage) -> dict[str, object]:
             "kind_profile": planned.pack_plan.spec.kind_profile,
             "runtime_variant": planned.pack_plan.spec.runtime_variant,
             "constraint_profile_digest": constraint.digest,
+            "backend_constraint_profile_digest": constraint.backend_digest,
             "provided_packages": list(constraint.provided_packages),
             "publication_repository": planned.pack_plan.publication.repository,
             "datasets": [request.to_payload() for request in planned.pack_plan.spec.datasets],

@@ -99,7 +99,7 @@ class VerlLoop(VerlContract):
     learning_rate: float = Field(gt=0, allow_inf_nan=False)
     warmup_steps: int = Field(ge=0)
     max_grad_norm: float = Field(gt=0, allow_inf_nan=False)
-    checkpoint_steps: int = Field(gt=0)
+    checkpoint_steps: int = Field(ge=0)
     checkpoint_limit: int = Field(gt=0)
     seed: int
     gradient_checkpointing: bool
@@ -170,14 +170,12 @@ class VerlPayload(VerlContract):
 class VerlLaunchManifest(VerlContract):
     """Complete, validated input to one isolated veRL worker process."""
 
-    schema_version: Literal[3] = 3
+    schema_version: Literal[4] = 4
     operation: Literal["grpo", "sampo", "distill"]
     backend: str
     backend_source_revision: str = Field(pattern=r"^[0-9a-f]{40}$")
-    recipe_source_revision: str | None = Field(default=None, pattern=r"^[0-9a-f]{40}$")
     python_executable: Path
     working_directory: Path
-    recipe_working_directory: Path | None = None
     output_directory: Path
     result_file: Path
     payload: VerlPayload
@@ -192,13 +190,6 @@ class VerlLaunchManifest(VerlContract):
     def _absolute_path(cls, value: Path) -> Path:
         if not value.is_absolute():
             raise ValueError("veRL process contract paths must be absolute")
-        return value
-
-    @field_validator("recipe_working_directory")
-    @classmethod
-    def _optional_absolute_path(cls, value: Path | None) -> Path | None:
-        if value is not None and not value.is_absolute():
-            raise ValueError("veRL recipe process contract paths must be absolute")
         return value
 
     @model_validator(mode="after")
@@ -235,23 +226,9 @@ class VerlLaunchManifest(VerlContract):
                 or algorithm.advantage_normalization is None
             ):
                 raise ValueError("SAMPO manifest requires hierarchical advantage settings")
-            uses_dynamic_recipe = algorithm.dynamic_sampling and algorithm.online_rl_algorithm in {
-                "dapo",
-                "sampo",
-            }
-            if uses_dynamic_recipe and (
-                algorithm.dynamic_sampling_max_candidate_batches is None
-                or self.recipe_source_revision is None
-                or self.recipe_working_directory is None
-            ):
-                raise ValueError("veRL dynamic sampling requires a pinned recipe source")
-            if not uses_dynamic_recipe and (
-                self.recipe_source_revision is not None or self.recipe_working_directory is not None
-            ):
-                raise ValueError("veRL recipe source is only valid for dynamic online RL")
+            if algorithm.dynamic_sampling and algorithm.dynamic_sampling_max_candidate_batches is None:
+                raise ValueError("veRL dynamic sampling requires a bounded candidate-batch policy")
         else:
-            if self.recipe_source_revision is not None or self.recipe_working_directory is not None:
-                raise ValueError("distillation manifests forbid a DAPO recipe source")
             if payload.student is None or payload.teacher is None or payload.policy is not None:
                 raise ValueError("distillation manifest requires student and teacher and forbids policy")
             if payload.reference is not None or payload.teacher_scoring is None:

@@ -267,7 +267,7 @@ def callback_type(
 
 
 def trainer_arguments(loop: TrainingLoop, output_dir: Path) -> dict[str, Any]:
-    return {
+    arguments: dict[str, Any] = {
         "output_dir": str(output_dir),
         "max_steps": loop.max_steps,
         "per_device_train_batch_size": loop.per_device_batch_size,
@@ -278,8 +278,7 @@ def trainer_arguments(loop: TrainingLoop, output_dir: Path) -> dict[str, Any]:
         "logging_strategy": "steps",
         "logging_steps": loop.logging_steps,
         "logging_first_step": True,
-        "save_strategy": "steps",
-        "save_steps": loop.checkpoint_steps,
+        "save_strategy": "no" if loop.checkpoint_steps == 0 else "steps",
         "save_total_limit": loop.checkpoint_limit,
         "seed": loop.seed,
         "data_seed": loop.seed,
@@ -294,6 +293,9 @@ def trainer_arguments(loop: TrainingLoop, output_dir: Path) -> dict[str, Any]:
         "remove_unused_columns": True,
         "max_length": loop.max_length,
     }
+    if loop.checkpoint_steps > 0:
+        arguments["save_steps"] = loop.checkpoint_steps
+    return arguments
 
 
 @contextmanager

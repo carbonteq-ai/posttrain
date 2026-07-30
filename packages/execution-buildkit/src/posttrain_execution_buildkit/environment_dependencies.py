@@ -21,6 +21,7 @@ _SCHEMA = "posttrain.environment-dependency-lock.v2"
 _CONSTRAINT_PROFILE_SCHEMA = "posttrain.kind-dependency-constraints.v1"
 _PROFILE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 _PACKAGE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+_CONSTRAINT_PACKAGE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*")
 _HASH = re.compile(r"^--hash=sha256:([0-9a-f]{64})$")
 _PINNED_REQUIREMENT = re.compile(
     r"^[A-Za-z0-9][A-Za-z0-9._-]*"
@@ -182,6 +183,23 @@ class KindDependencyConstraints:
     @property
     def constraints_sha256(self) -> str:
         return hashlib.sha256(self.contents.encode()).hexdigest()
+
+    @property
+    def constrained_packages(self) -> tuple[str, ...]:
+        """Return normalized package names declared by this exact constraint set."""
+
+        packages: list[str] = []
+        for raw_line in self.contents.splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            match = _CONSTRAINT_PACKAGE_NAME.match(line)
+            if match is None:
+                raise ContractError("kind dependency constraint must start with a package name")
+            packages.append(re.sub(r"[-_.]+", "-", match.group()).lower())
+        if len(packages) != len(set(packages)):
+            raise ContractError("kind dependency constraints must name each package at most once")
+        return tuple(sorted(packages))
 
     @property
     def digest(self) -> str:

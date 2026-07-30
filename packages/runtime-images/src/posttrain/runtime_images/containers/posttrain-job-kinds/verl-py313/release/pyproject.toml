@@ -33,7 +33,7 @@ dependencies = [
     "uvicorn>=0.41,<0.42",
     "verl",
     "verifiers",
-    "vllm==0.25.1",
+    "vllm",
     "wandb>=0.28,<0.29",
 ]
 
@@ -45,7 +45,8 @@ torch = { index = "pytorch-cu130" }
 torchaudio = { index = "pytorch-cu130" }
 torchvision = { index = "pytorch-cu130" }
 verifiers = { git = "https://github.com/PrimeIntellect-ai/verifiers.git", rev = "284a868d6a9022109b749710672a0460e8a996d4" }
-verl = { git = "https://github.com/carbonteq-ai/verl.git", rev = "1dcdf67e9473db5297c98c9c88cf4dae6c4a8932" }
+verl = { git = "https://github.com/carbonteq-ai/verl.git", rev = "c3f49b9117b882fa888e25e4a771461e13167848" }
+vllm = { git = "https://github.com/carbonteq-ai/vllm.git", rev = "7817d845727af570352622dc8d58f2d43c76d89d" }
 
 [[tool.uv.index]]
 name = "pytorch-cu130"

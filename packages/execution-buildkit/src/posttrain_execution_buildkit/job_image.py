@@ -95,6 +95,12 @@ class BuildKitJobImagePublisher:
         self._receipt_root.mkdir(parents=True, exist_ok=True, mode=0o700)
         metadata = self._receipt_root / f".metadata-{uuid.uuid4().hex}.json"
         try:
+            # Build the smoke target separately. Building smoke and publication
+            # together makes BuildKit consume the same mutable named context in
+            # two concurrent target graphs; affected BuildKit releases can
+            # deliver a stale package.json to one branch even though the
+            # content-derived PACKAGE_KEY changed.
+            self._gateway.invoke(self._smoke_arguments(request))
             self._gateway.invoke(self._build_arguments(request, metadata))
             image = RuntimeImageRef(f"{request.publication.repository}@sha256:{_metadata_digest(metadata)}")
             self._verify_remote(image)
@@ -168,8 +174,27 @@ class BuildKitJobImagePublisher:
             "--sbom",
             "true",
             *self._variable_arguments(request),
-            _SMOKE_TARGET,
             _PUBLISHED_TARGET,
+        ]
+
+    def _smoke_arguments(
+        self,
+        request: JobImagePublicationRequest,
+    ) -> list[str]:
+        platforms = ",".join(request.publication.platforms)
+        return [
+            "bake",
+            "--file",
+            str(self._bake_file),
+            *self._entitlement_arguments(request),
+            *self._builder_arguments(),
+            "--progress",
+            "plain",
+            *self._context_arguments(),
+            "--set",
+            f"{_SMOKE_TARGET}.platform={platforms}",
+            *self._variable_arguments(request),
+            _SMOKE_TARGET,
         ]
 
     def _builder_arguments(self) -> list[str]:

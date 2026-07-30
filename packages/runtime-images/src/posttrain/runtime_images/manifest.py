@@ -119,13 +119,19 @@ def _verify(image: PublishedImage) -> None:
 
 
 @cache
-def load_manifest(*, verify_locks: bool = True) -> PublishedManifest:
+def load_manifest(
+    *,
+    verify_locks: bool = True,
+    verify_variants: bool = True,
+) -> PublishedManifest:
     """Load the shipped manifest.
 
     When `verify_locks` is true (the consumer default), every recorded lock
-    digest must still match the shipped lock bytes. Release tooling passes
-    `verify_locks=False` so it can read prior digests for cache-from and
-    selective reuse while the committed manifest is intentionally stale.
+    digest must still match the shipped lock bytes. When `verify_variants` is
+    true, the manifest must cover exactly the runtime variants shipped by this
+    distribution. Release tooling disables both checks so it can read a prior
+    manifest while adding or retiring a variant and selectively reuse the
+    entries that still apply.
     """
     try:
         raw = read_resource(PurePosixPath(_MANIFEST))
@@ -141,12 +147,13 @@ def load_manifest(*, verify_locks: bool = True) -> PublishedManifest:
     base = _image("base", document.get("base", {}))
     kinds = {variant: _image(f"kinds.{variant}", payload) for variant, payload in document.get("kinds", {}).items()}
 
-    missing = set(RUNTIME_VARIANTS) - set(kinds)
-    if missing:
-        raise ManifestError("published.toml is missing job-kind images for: " + ", ".join(sorted(missing)))
-    unexpected = set(kinds) - set(RUNTIME_VARIANTS)
-    if unexpected:
-        raise ManifestError("published.toml publishes unreleased variants: " + ", ".join(sorted(unexpected)))
+    if verify_variants:
+        missing = set(RUNTIME_VARIANTS) - set(kinds)
+        if missing:
+            raise ManifestError("published.toml is missing job-kind images for: " + ", ".join(sorted(missing)))
+        unexpected = set(kinds) - set(RUNTIME_VARIANTS)
+        if unexpected:
+            raise ManifestError("published.toml publishes unreleased variants: " + ", ".join(sorted(unexpected)))
 
     if verify_locks:
         _verify(base)

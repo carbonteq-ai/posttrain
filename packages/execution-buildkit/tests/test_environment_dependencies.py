@@ -304,6 +304,30 @@ def test_provided_packages_are_normalized_validated_and_digest_bound() -> None:
             KindDependencyConstraints("online-rl", "foo==1\n", packages)
 
 
+def test_constraint_package_names_are_normalized_and_unique() -> None:
+    selected = KindDependencyConstraints(
+        "online-rl-verl-py313",
+        (
+            "antlr4-python3-runtime==4.9.3\n"
+            "cffi==2.0.0 ; implementation_name == 'pypy'\n"
+            "Verifiers @ git+https://github.com/example/verifiers.git@"
+            f"{'a' * 40}\n"
+        ),
+    )
+
+    assert selected.constrained_packages == (
+        "antlr4-python3-runtime",
+        "cffi",
+        "verifiers",
+    )
+
+    with pytest.raises(ContractError, match="at most once"):
+        _ = KindDependencyConstraints(
+            "online-rl-verl-py313",
+            "foo-bar==1\nfoo_bar==1\n",
+        ).constrained_packages
+
+
 def test_rejects_wheel_drift_before_and_after_resolution(tmp_path: Path) -> None:
     wheels = _wheels(
         tmp_path,

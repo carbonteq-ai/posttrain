@@ -151,6 +151,8 @@ Install with the `dstack` extra (step 2). Then extend
 project = "main"
 python = "/absolute/path/to/dstack-venv/bin/python"
 # environment_file = "/absolute/path/to/dstack.env"   # optional
+# Persist a pre-start no-capacity task in dstack for up to one day.
+capacity_wait_seconds = 86400
 
 [providers.dstack.storage]
 run_root = "/var/lib/posttrain/runs"
@@ -163,7 +165,11 @@ job image. Storage paths are what the **workers** mount; Ansible usually owns
 those directories and the well-known CA at `/etc/posttrain/trust/internal-ca.pem`.
 Your laptop only needs the system CA (step 1) plus this client binding.
 `trust_bundle` under `[providers.dstack]` is rarely required when workers
-already have the well-known path.
+already have the well-known path. `capacity_wait_seconds` is a server-side
+dstack queue retention window. It retries only `no-capacity` before the job
+starts; interruption and runtime errors remain fail-fast so user code is never
+repeated under the same framework attempt. This dstack release defaults an
+omitted retry duration to one hour and has no unbounded value.
 
 Targets declare capacity (`device_class` / `memory_gb`). That is enough for
 dstack to place the run on any matching worker. posttrain does **not** lock a
@@ -182,7 +188,7 @@ target:
       world_size: 1
 ```
 
-**Optional soft pin** — prefer one known worker when you care which box runs
+**Optional exact pin** — require one known worker when you care which box runs
 the job (debug, local qualification, a machine with a warm cache). Use a list
 of objects with `hostname`, not bare strings (dstack treats a string as a
 different selector shape and will not pin the host you meant):
@@ -214,6 +220,8 @@ posttrain job run  .posttrain/work_packages/sft.yaml --provider dstack --target 
 
 ```bash
 posttrain run status --last
+posttrain run queue
+posttrain run list
 posttrain run logs --last --follow
 posttrain run reconcile --last
 posttrain run cleanup --last
@@ -223,6 +231,9 @@ posttrain run cleanup --last
 cancelled run settles without waiting for artifacts that will never arrive, so
 admission (for local) or the next dstack submit is not blocked forever.
 `cleanup` releases provider resources after evidence is retained.
+`run queue` separates framework admission from provider capacity waiting and
+shows the requested target/host, assigned hostname (once present), provider
+state, and provider run identity.
 `cancel` asks the provider to stop; use `recover-cancelled-tracking` when
 tracking was left open by a hard cancel.
 

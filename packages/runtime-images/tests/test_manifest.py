@@ -24,9 +24,8 @@ def test_every_released_variant_is_published() -> None:
     assert set(manifest.kinds) == set(RUNTIME_VARIANTS)
 
 
-def test_verl_is_not_published() -> None:
-    """The release-blocked variant must not appear in the published release set."""
-    assert "online-rl-verl-py313" not in load_manifest().kinds
+def test_verl_is_published() -> None:
+    assert "online-rl-verl-py313" in load_manifest().kinds
 
 
 def test_recorded_lock_digest_matches_the_shipped_lock_bytes() -> None:

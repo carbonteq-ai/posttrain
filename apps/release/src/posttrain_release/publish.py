@@ -94,7 +94,7 @@ def _prior_ref(prefix: str, repository: str, digest: str) -> str:
 
 def _prior_base_ref(prefix: str) -> str | None:
     try:
-        previous = load_manifest(verify_locks=False).base
+        previous = load_manifest(verify_locks=False, verify_variants=False).base
     except ManifestError:
         return None
     return _prior_ref(prefix, previous.repository, previous.digest)
@@ -102,7 +102,7 @@ def _prior_base_ref(prefix: str) -> str | None:
 
 def _prior_kind_ref(prefix: str, variant: str) -> str | None:
     try:
-        previous = load_manifest(verify_locks=False).image(variant)
+        previous = load_manifest(verify_locks=False, verify_variants=False).image(variant)
     except ManifestError:
         return None
     return _prior_ref(prefix, previous.repository, previous.digest)
@@ -115,7 +115,7 @@ def _reuse_unchanged_kind(variant: str, root: Path) -> PublishedImage:
     hashes to the digest recorded in the committed manifest, the image bytes
     the label binds to remain valid and rebuilding only burns cache.
     """
-    previous = load_manifest(verify_locks=False).image(variant)
+    previous = load_manifest(verify_locks=False, verify_variants=False).image(variant)
     expected = lock_digest(constraint_lock(variant))
     if previous.lock_digest != expected:
         raise ValueError(
@@ -142,7 +142,7 @@ def _reuse_unchanged_base(prefix: str, builder: BuildKitRuntimeBuilder) -> Publi
     an exact lock match (or an explicit --base-image).
     """
     try:
-        previous = load_manifest(verify_locks=False).base
+        previous = load_manifest(verify_locks=False, verify_variants=False).base
     except ManifestError:
         return None
     expected = lock_digest()

@@ -31,10 +31,22 @@ def test_candidate_definition_preserves_two_python_environments() -> None:
     assert profile.backend_worker_module == "posttrain.train.backends.verl.worker"
     assert profile.control_environment_lock_path == ("locks/runtime.control.requirements.txt")
     assert profile.backend_environment_lock_path == ("locks/runtime.backend.requirements.txt")
+    assert (
+        profile.backend_constraints_sha256
+        == hashlib.sha256((PROFILE_ROOT / "release" / "backend-constraints.txt").read_bytes()).hexdigest()
+    )
     assert profile.worker_projection_packages == ("common", "data", "train")
 
 
-def test_blocked_candidate_fails_release_closed(tmp_path: Path) -> None:
+def test_candidate_image_smokes_both_python_313_environments() -> None:
+    dockerfile = (PROFILE_ROOT / "Dockerfile").read_text(encoding="utf-8")
+
+    assert (
+        '"import sys, hatchling, pydantic, yaml, verifiers; assert sys.version_info[:3] == (3, 13, 12)"'
+    ) in dockerfile
+
+
+def test_ready_profile_still_fails_closed_without_release_inputs(tmp_path: Path) -> None:
     profile = release_gate.ReleaseProfile.read(PROFILE_ROOT / "profile.toml")
 
     blockers = release_gate.release_blockers(
@@ -44,15 +56,27 @@ def test_blocked_candidate_fails_release_closed(tmp_path: Path) -> None:
         verify_remote=False,
     )
 
-    assert "profile release_status is not ready" in blockers
+    assert "profile release_status is not ready" not in blockers
     assert any("uv.lock is missing" in blocker for blocker in blockers)
     assert "a clean veRL source checkout is required for release" in blockers
     assert "release requires remote reachability verification" in blockers
-    # Fork revision and lock digest may already be recorded while the profile
-    # remains blocked pending image smoke and GPU qualification.
+    # The immutable fork and lock are recorded, but the release command still
+    # requires a clean checkout, remote verification, and real container smoke.
     assert profile.fork_revision
     assert profile.dependency_lock_sha256
     assert (PROFILE_ROOT / "release" / "uv.lock").is_file()
+
+
+def test_backend_constraints_are_an_exact_export_of_the_release_lock() -> None:
+    errors = release_gate._validate_backend_constraints(
+        lock_path=PROFILE_ROOT / "release" / "uv.lock",
+        constraints_path=PROFILE_ROOT / "release" / "backend-constraints.txt",
+    )
+
+    assert errors == ()
+    constraints = (PROFILE_ROOT / "release" / "backend-constraints.txt").read_text(encoding="utf-8")
+    assert "antlr4-python3-runtime==4.9.3" in constraints
+    assert "omegaconf==2.3.1" in constraints
 
 
 def test_research_lock_is_rejected_as_kind_image_input() -> None:
@@ -74,12 +98,19 @@ def test_research_lock_is_rejected_as_kind_image_input() -> None:
     assert "local/editable source is forbidden in release lock: verl" in errors
 
 
-def test_blocked_verl_variant_is_not_publishable_but_trl_variant_is_explicit() -> None:
+def test_ready_verl_and_trl_variants_are_explicitly_publishable() -> None:
     bake = (ROOT / "containers" / "posttrain-job-kinds" / "docker-bake.hcl").read_text()
 
     assert 'target "posttrain-kind-online-rl-trl-py312"' in bake
-    assert 'target "posttrain-kind-online-rl-verl-py313"' not in bake
+    assert 'target "posttrain-kind-online-rl-verl-py313"' in bake
     assert 'target "posttrain-kind-online-rl" {' not in bake
+    for argument in ("CREATED", "LOCK_DIGEST", "SOURCE_REVISION", "VERSION"):
+        assert f"{argument} = {argument}" in bake
+
+    dockerfile = (PROFILE_ROOT / "Dockerfile").read_text()
+    assert 'org.opencontainers.image.revision="${SOURCE_REVISION}"' in dockerfile
+    assert 'org.opencontainers.image.version="${VERSION}"' in dockerfile
+    assert 'org.carbonteq.posttrain.lock-digest="${LOCK_DIGEST}"' in dockerfile
 
 
 def test_actual_job_definition_projects_worker_into_backend_environment() -> None:

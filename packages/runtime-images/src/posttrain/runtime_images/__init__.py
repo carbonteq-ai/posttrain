@@ -19,14 +19,12 @@ from pathlib import Path, PurePosixPath
 RUNTIME_VARIANTS: tuple[str, ...] = (
     "supervised",
     "online-rl-trl-py312",
+    "online-rl-verl-py313",
     "eval",
     "serve",
     "transform",
 )
 """Job-kind variants published once per framework release.
-
-`online-rl-verl-py313` is deliberately absent: it remains release-blocked and
-is qualified out of band.
 """
 
 _CONTAINERS = PurePosixPath("containers")

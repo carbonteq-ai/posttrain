@@ -1989,6 +1989,37 @@ def test_run_commands_keep_current_admission_visible_and_idempotent(
     listed = json.loads(capsys.readouterr().out)
     assert listed[0]["run_id"] == "waiting-run"
     assert listed[0]["queue_position"] == 1
+    assert listed[0]["requested_hostnames"] == []
+
+    assert (
+        main(
+            [
+                "--json",
+                "--project-root",
+                str(project),
+                "run",
+                "queue",
+            ]
+        )
+        == 0
+    )
+    queue = json.loads(capsys.readouterr().out)
+    assert queue == [
+        {
+            "admission_state": "waiting",
+            "assigned_hostname": None,
+            "message": None,
+            "provider": "local-docker",
+            "provider_id": None,
+            "provider_state": None,
+            "queue_position": 1,
+            "queue_scope": "framework",
+            "queued_at": now.isoformat(),
+            "requested_hostnames": [],
+            "requested_target_id": "targets/local",
+            "run_id": "waiting-run",
+        }
+    ]
 
     assert (
         main(

@@ -44,6 +44,9 @@ inference:
       skip_mm_profiling: true
       kv_cache_memory_bytes: 67108864
       weight_sync_mode: lora
+      # CUDA graphs on Qwen3.5 hybrid (GDN) can illegal-address during colocated
+      # LoRA rollouts on 24 GiB; match the AutomationBench rollout eager path.
+      enforce_eager: true
     sampling:
       max_tokens: 384
       temperature: 1.0

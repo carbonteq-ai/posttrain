@@ -7,7 +7,6 @@ import math
 import os
 import signal
 import subprocess
-from collections.abc import Mapping
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Literal
@@ -133,7 +132,7 @@ def build_distillation_launch_plan(
             "algorithm": {
                 "advantage_estimator": "grpo",
                 "loss_mode": "k1",
-                "use_policy_gradient": False,
+                "use_policy_gradient": True,
                 "use_task_rewards": False,
                 "temperature": request.settings.temperature,
                 "num_prompts_per_step": request.settings.num_prompts_per_step,
@@ -187,29 +186,6 @@ def _plan(
     source_revision = backend_options.get("source_revision")
     if not isinstance(source_revision, str) or len(source_revision) != 40:
         raise ValueError("veRL training requires a 40-character backend_options.source_revision")
-    recipe_worktree = None
-    recipe_source_revision = None
-    algorithm_payload = operation_payload.get("algorithm")
-    uses_dynamic_recipe = (
-        operation in {"grpo", "sampo"}
-        and isinstance(algorithm_payload, Mapping)
-        and algorithm_payload.get("online_rl_algorithm") in {"dapo", "sampo"}
-        and bool(algorithm_payload.get("dynamic_sampling"))
-    )
-    if uses_dynamic_recipe:
-        recipe_directory = backend_options.get("dynamic_sampling_recipe_working_directory")
-        if recipe_directory is None and operation == "grpo":
-            recipe_directory = backend_options.get("dapo_recipe_working_directory")
-        if not isinstance(recipe_directory, str) or not recipe_directory.strip():
-            raise ValueError("veRL dynamic sampling requires backend_options.dynamic_sampling_recipe_working_directory")
-        recipe_worktree = Path(recipe_directory).expanduser()
-        if not recipe_worktree.is_absolute():
-            raise ValueError("veRL dynamic-sampling recipe working directory must be an absolute path")
-        recipe_source_revision = backend_options.get("dynamic_sampling_recipe_source_revision")
-        if recipe_source_revision is None and operation == "grpo":
-            recipe_source_revision = backend_options.get("dapo_recipe_source_revision")
-        if not isinstance(recipe_source_revision, str) or len(recipe_source_revision) != 40:
-            raise ValueError("veRL dynamic sampling requires a 40-character recipe source revision")
     update = request.training.update
     if not isinstance(update, FullParameterUpdate | LoRAUpdate):
         raise ValueError("the qualified veRL slice supports full-parameter and LoRA updates")
@@ -266,10 +242,8 @@ def _plan(
         operation=operation,
         backend=request.training.backend,
         backend_source_revision=source_revision,
-        recipe_source_revision=recipe_source_revision,
         python_executable=executable_path,
         working_directory=worktree,
-        recipe_working_directory=recipe_worktree,
         output_directory=output_dir.resolve(),
         result_file=(output_dir / _RESULT_FILE).resolve(),
         payload=payload,

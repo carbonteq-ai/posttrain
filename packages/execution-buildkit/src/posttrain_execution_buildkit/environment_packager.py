@@ -62,6 +62,7 @@ class ImmutableEnvironmentPackager:
         *,
         cache_roots: EnvironmentPackagerCacheRoots,
         kind_constraints: Mapping[str, KindDependencyConstraints],
+        backend_kind_constraints: Mapping[str, KindDependencyConstraints] | None = None,
         git_gateway: GitGateway | None = None,
         wheel_gateway: WheelBuildGateway | None = None,
         dependency_gateway: DependencyCompileGateway | None = None,
@@ -74,7 +75,16 @@ class ImmutableEnvironmentPackager:
         if not selected_constraints:
             raise ContractError("environment packager requires at least one kind constraint profile")
 
+        selected_backend_constraints: dict[str, KindDependencyConstraints] = {}
+        for profile, constraints in sorted((backend_kind_constraints or {}).items()):
+            if profile != constraints.profile:
+                raise ContractError("backend kind dependency constraint key must match its profile")
+            if profile not in selected_constraints:
+                raise ContractError("backend kind dependency constraints require a control profile")
+            selected_backend_constraints[profile] = constraints
+
         self._kind_constraints = MappingProxyType(selected_constraints)
+        self._backend_kind_constraints = MappingProxyType(selected_backend_constraints)
         self._cache_roots = cache_roots
         self._source_packer = ImmutableGitSourcePacker(
             cache_root=cache_roots.git_sources,
@@ -121,7 +131,10 @@ class ImmutableEnvironmentPackager:
         output_root.mkdir(parents=True, exist_ok=True)
         sources = self._source_packer.materialize(git_sources)
         wheels = self._wheel_builder.build(sources, wheel_requests)
-        closures = _runtime_closure_constraints(constraints)
+        closures = _runtime_closure_constraints(
+            constraints,
+            self._backend_kind_constraints.get(kind_profile),
+        )
         dependencies = tuple(self._dependency_compiler.compile(wheels, closure) for closure in closures)
 
         packages = tuple(
@@ -186,18 +199,24 @@ def _validate_source_closure(
 
 def _runtime_closure_constraints(
     constraints: KindDependencyConstraints,
+    backend_constraints: KindDependencyConstraints | None,
 ) -> tuple[KindDependencyConstraints, ...]:
+    control_python = "3.13.12" if constraints.profile == "online-rl-verl-py313" else "3.12"
     control = replace(
         constraints,
         role="control",
-        python_version="3.12",
+        python_version=control_python,
         python_executable="/opt/posttrain/venv/bin/python",
         requirements_filename="runtime.control.requirements.txt",
     )
     if constraints.profile != "online-rl-verl-py313":
+        if backend_constraints is not None:
+            raise ContractError("backend dependency constraints are supported only by the veRL runtime profile")
         return (control,)
+    if backend_constraints is None:
+        raise ContractError("veRL environment packaging requires exact backend kind constraints")
     backend = replace(
-        constraints,
+        backend_constraints,
         role="backend",
         python_version="3.13.12",
         python_executable="/opt/posttrain-verl/bin/python",

@@ -47,7 +47,12 @@ def finalize_training_outputs(
         raise ValueError("checkpoint_limit must be at least one")
     root = _absolute_directory(workspace, "training retention workspace")
     model_root = _inside(root, model_dir, "model directory")
-    checkpoints_root = _inside(root, checkpoint_root, "checkpoint root")
+    checkpoints_root = _inside(
+        root,
+        checkpoint_root,
+        "checkpoint root",
+        allow_missing=recovery_checkpoint is None,
+    )
     manifest = _inside(
         root,
         manifest_path or root / "retention-manifest.json",

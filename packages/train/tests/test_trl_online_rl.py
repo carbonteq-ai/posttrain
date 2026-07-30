@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import replace
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -16,7 +17,9 @@ from posttrain.train import (
     PolicyTurnRequest,
     QLoRAUpdate,
     TrainingBinding,
+    TrainingLoop,
 )
+from posttrain.train.backends.trl.common import trainer_arguments
 from posttrain.train.backends.trl.online_rl import TrlPolicyGenerator
 
 
@@ -53,6 +56,16 @@ class FakeTrainer:
         assert generation_config is None
         assert extra == {}
         return [[3, 4]], [[-0.1, -0.2]]
+
+
+def test_trl_checkpoint_steps_zero_disables_recovery_saves(tmp_path: Path) -> None:
+    arguments = trainer_arguments(
+        TrainingLoop(max_steps=2, checkpoint_steps=0),
+        tmp_path,
+    )
+
+    assert arguments["save_strategy"] == "no"
+    assert "save_steps" not in arguments
 
 
 def test_trl_policy_generator_reuses_loaded_trainer_and_preserves_exact_tokens(monkeypatch) -> None:

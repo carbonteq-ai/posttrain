@@ -137,10 +137,32 @@ class PlannedJobPackage:
             )
             for profile, binding in registry.constraint_profiles.items()
         }
+        backend_constraints = {
+            profile: KindDependencyConstraints(
+                profile,
+                binding.backend_path.read_text(encoding="utf-8"),
+                binding.backend_provided_packages,
+                role="backend",
+                python_version="3.13.12",
+                python_executable="/opt/posttrain-verl/bin/python",
+                requirements_filename="runtime.backend.requirements.txt",
+            )
+            for profile, binding in registry.constraint_profiles.items()
+            if binding.backend_path is not None
+        }
         for profile, selected in constraints.items():
             binding = registry.constraint_profiles[profile]
             if selected.constraints_sha256 != binding.contents_digest or selected.digest != binding.digest:
                 raise ContractError(f"job-kind constraint profile changed after configuration load: {profile}")
+            selected_backend = backend_constraints.get(profile)
+            if (selected_backend is None) != (binding.backend_digest is None) or (
+                selected_backend is not None
+                and (
+                    selected_backend.constraints_sha256 != binding.backend_contents_digest
+                    or selected_backend.digest != binding.backend_digest
+                )
+            ):
+                raise ContractError(f"job-kind backend constraint profile changed after configuration load: {profile}")
         environment_packager = ImmutableEnvironmentPackager(
             cache_roots=EnvironmentPackagerCacheRoots(
                 git_sources=cache_root / "git",
@@ -148,6 +170,7 @@ class PlannedJobPackage:
                 dependencies=cache_root / "dependencies",
             ),
             kind_constraints=constraints,
+            backend_kind_constraints=backend_constraints,
         )
         pack_service = JobPackService(
             output_root=(self.layout.state / "pack" / "contexts").resolve(),

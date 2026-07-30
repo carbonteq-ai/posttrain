@@ -46,11 +46,12 @@ class TrainingLoop:
             self.per_device_batch_size,
             self.gradient_accumulation_steps,
             self.logging_steps,
-            self.checkpoint_steps,
             self.checkpoint_limit,
         )
         if any(value < 1 for value in counts):
             raise ValueError("training loop counts must be positive")
+        if self.checkpoint_steps < 0:
+            raise ValueError("checkpoint steps must be non-negative")
         if self.learning_rate <= 0 or not 0 <= self.warmup_ratio < 1 or self.max_grad_norm <= 0:
             raise ValueError("invalid training optimization values")
 

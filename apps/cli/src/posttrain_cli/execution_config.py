@@ -104,6 +104,7 @@ class DstackBinding:
     environment_file: Path | None = None
     storage: ExecutionStorageBinding | None = None
     trust_bundle: Path | None = None
+    capacity_wait_seconds: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -125,6 +126,10 @@ class ConstraintProfileBinding:
     contents_digest: str
     provided_packages: tuple[str, ...]
     digest: str
+    backend_path: Path | None = None
+    backend_contents_digest: str | None = None
+    backend_provided_packages: tuple[str, ...] = ()
+    backend_digest: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -337,6 +342,7 @@ def provider_binding_fingerprint(
             "environment_file": (str(binding.environment_file) if binding.environment_file is not None else None),
             "trust_bundle": (str(binding.trust_bundle) if binding.trust_bundle is not None else None),
             "storage": _storage_identity(binding.storage),
+            "capacity_wait_seconds": binding.capacity_wait_seconds,
         }
     else:
         # Third-party providers retain a stable name-only identity until their
@@ -420,7 +426,14 @@ def _parse_dstack(value: object, *, base: Path) -> DstackBinding | None:
     payload = _mapping(value, context="providers.dstack")
     _reject_unknown(
         payload,
-        {"project", "python", "environment_file", "storage", "trust_bundle"},
+        {
+            "project",
+            "python",
+            "environment_file",
+            "storage",
+            "trust_bundle",
+            "capacity_wait_seconds",
+        },
         "providers.dstack",
     )
     project = _required_config_string(payload.get("project"), "providers.dstack.project")
@@ -453,6 +466,11 @@ def _parse_dstack(value: object, *, base: Path) -> DstackBinding | None:
             base,
             "providers.dstack.trust_bundle",
         ),
+        _optional_nonnegative_int(
+            payload.get("capacity_wait_seconds"),
+            "providers.dstack.capacity_wait_seconds",
+        )
+        or 0,
     )
 
 
@@ -720,7 +738,17 @@ def _constraint_profile_mapping(
     for profile in sorted(payload):
         context = f"registry.constraint_profiles.{profile}"
         item = _mapping(payload[profile], context=context)
-        _reject_unknown(item, {"path", "sha256", "provided_packages"}, context)
+        _reject_unknown(
+            item,
+            {
+                "path",
+                "sha256",
+                "provided_packages",
+                "backend_path",
+                "backend_sha256",
+            },
+            context,
+        )
         path = _configured_path(item.get("path"), base, f"{context}.path")
         if not path.is_file():
             raise ContractError(f"execution configuration {context}.path is missing: {path}")
@@ -743,11 +771,59 @@ def _constraint_profile_mapping(
             path.read_text(encoding="utf-8"),
             provided_packages,
         )
+        backend_path_value = item.get("backend_path")
+        backend_digest_value = item.get("backend_sha256")
+        if (backend_path_value is None) != (backend_digest_value is None):
+            raise ContractError(
+                f"execution configuration {context} must declare backend_path and backend_sha256 together"
+            )
+        backend_path: Path | None = None
+        backend_contents_digest: str | None = None
+        backend_provided_packages: tuple[str, ...] = ()
+        backend_digest: str | None = None
+        if backend_path_value is not None:
+            backend_path = _configured_path(
+                backend_path_value,
+                base,
+                f"{context}.backend_path",
+            )
+            if not backend_path.is_file():
+                raise ContractError(f"execution configuration {context}.backend_path is missing: {backend_path}")
+            backend_contents_digest = _required_config_string(
+                backend_digest_value,
+                f"{context}.backend_sha256",
+            )
+            if len(backend_contents_digest) != 64 or any(
+                character not in "0123456789abcdef" for character in backend_contents_digest
+            ):
+                raise ContractError(f"execution configuration {context}.backend_sha256 must be lowercase SHA-256")
+            observed_backend = sha256(backend_path.read_bytes()).hexdigest()
+            if observed_backend != backend_contents_digest:
+                raise ContractError(f"execution configuration {context}.backend_path differs from its exact digest")
+            backend_constraints = KindDependencyConstraints(
+                profile,
+                backend_path.read_text(encoding="utf-8"),
+            )
+            backend_provided_packages = backend_constraints.constrained_packages
+            backend_constraints = KindDependencyConstraints(
+                profile,
+                backend_constraints.contents,
+                backend_provided_packages,
+                role="backend",
+                python_version="3.13.12",
+                python_executable="/opt/posttrain-verl/bin/python",
+                requirements_filename="runtime.backend.requirements.txt",
+            )
+            backend_digest = backend_constraints.digest
         parsed[profile] = ConstraintProfileBinding(
             path,
             expected,
             constraints.provided_packages,
             constraints.digest,
+            backend_path,
+            backend_contents_digest,
+            backend_provided_packages,
+            backend_digest,
         )
     return MappingProxyType(parsed)
 
@@ -864,6 +940,13 @@ def _optional_positive_int(value: object, context: str) -> int | None:
     parsed = _optional_int(value, context)
     if parsed is not None and parsed < 1:
         raise ContractError(f"execution configuration {context} must be positive")
+    return parsed
+
+
+def _optional_nonnegative_int(value: object, context: str) -> int | None:
+    parsed = _optional_int(value, context)
+    if parsed is not None and parsed < 0:
+        raise ContractError(f"execution configuration {context} must not be negative")
     return parsed
 
 
