@@ -104,6 +104,13 @@ def test_ready_verl_and_trl_variants_are_explicitly_publishable() -> None:
     assert 'target "posttrain-kind-online-rl-trl-py312"' in bake
     assert 'target "posttrain-kind-online-rl-verl-py313"' in bake
     assert 'target "posttrain-kind-online-rl" {' not in bake
+    for argument in ("CREATED", "LOCK_DIGEST", "SOURCE_REVISION", "VERSION"):
+        assert f"{argument} = {argument}" in bake
+
+    dockerfile = (PROFILE_ROOT / "Dockerfile").read_text()
+    assert 'org.opencontainers.image.revision="${SOURCE_REVISION}"' in dockerfile
+    assert 'org.opencontainers.image.version="${VERSION}"' in dockerfile
+    assert 'org.carbonteq.posttrain.lock-digest="${LOCK_DIGEST}"' in dockerfile
 
 
 def test_actual_job_definition_projects_worker_into_backend_environment() -> None:

@@ -85,10 +85,14 @@ target "posttrain-kind-online-rl-verl-py313" {
   dockerfile = "containers/posttrain-job-kinds/verl-py313/Dockerfile"
   target = "online-rl-verl-py313"
   args = {
+    CREATED = CREATED
     DEPENDENCY_LOCK_SHA256 = "8d390337a97228abbf8a66d2d4176bf97306383e22349b9239ce9279e966da82"
     FORK_REVISION = "c3f49b9117b882fa888e25e4a771461e13167848"
+    LOCK_DIGEST = LOCK_DIGEST
     POSTTRAIN_BASE_IMAGE = POSTTRAIN_BASE_IMAGE
+    SOURCE_REVISION = SOURCE_REVISION
     SOURCE_REPOSITORY = "https://github.com/carbonteq-ai/verl.git"
+    VERSION = VERSION
   }
   tags = ["${REGISTRY}/posttrain-kind-online-rl-verl-py313:${VERSION}"]
   output = [
@@ -129,10 +133,14 @@ target "posttrain-kind-online-rl-verl-py313-smoke" {
   dockerfile = "containers/posttrain-job-kinds/verl-py313/Dockerfile"
   target = "online-rl-verl-py313-smoke"
   args = {
+    CREATED = CREATED
     DEPENDENCY_LOCK_SHA256 = "8d390337a97228abbf8a66d2d4176bf97306383e22349b9239ce9279e966da82"
     FORK_REVISION = "c3f49b9117b882fa888e25e4a771461e13167848"
+    LOCK_DIGEST = LOCK_DIGEST
     POSTTRAIN_BASE_IMAGE = POSTTRAIN_BASE_IMAGE
+    SOURCE_REVISION = SOURCE_REVISION
     SOURCE_REPOSITORY = "https://github.com/carbonteq-ai/verl.git"
+    VERSION = VERSION
   }
   output = ["type=cacheonly"]
 }

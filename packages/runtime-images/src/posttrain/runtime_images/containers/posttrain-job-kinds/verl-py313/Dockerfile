@@ -3,9 +3,13 @@
 ARG POSTTRAIN_BASE_IMAGE
 FROM ${POSTTRAIN_BASE_IMAGE} AS online-rl-verl-py313
 
+ARG CREATED
 ARG DEPENDENCY_LOCK_SHA256
 ARG FORK_REVISION
+ARG LOCK_DIGEST
+ARG SOURCE_REVISION
 ARG SOURCE_REPOSITORY
+ARG VERSION
 ARG VLLM_BINARY_WHEEL_URL="https://files.pythonhosted.org/packages/35/9d/c379618ce0abfc2679607d403c0f586b07e9c9c33d08c5bdd6196cb524e0/vllm-0.25.1-cp38-abi3-manylinux_2_28_x86_64.whl"
 ARG VLLM_BINARY_WHEEL_SHA256="16fc7a28df1576eb6f7ca0455026551b8f9adb674c19c66059359ef3e964bd1e"
 
@@ -74,8 +78,15 @@ RUN git clone --filter=blob:none "${SOURCE_REPOSITORY}" /opt/posttrain-verl/work
     test "$(git -C /opt/posttrain-verl/workdir rev-parse HEAD)" = "${FORK_REVISION}" && \
     test -z "$(git -C /opt/posttrain-verl/workdir status --porcelain=v1)"
 
-LABEL org.carbonteq.posttrain.image-level="job-kind" \
+LABEL org.opencontainers.image.created="${CREATED}" \
+      org.opencontainers.image.description="Python 3.13 veRL runtime for online reinforcement-learning jobs" \
+      org.opencontainers.image.revision="${SOURCE_REVISION}" \
+      org.opencontainers.image.source="https://github.com/carbonteq-ai/posttrain" \
+      org.opencontainers.image.title="posttrain-kind-online-rl-verl-py313" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.carbonteq.posttrain.image-level="job-kind" \
       org.carbonteq.posttrain.job-kind="online-rl" \
+      org.carbonteq.posttrain.lock-digest="${LOCK_DIGEST}" \
       org.carbonteq.posttrain.runtime-variant="online-rl-verl-py313" \
       org.carbonteq.posttrain.verl-dependency-lock-sha256="${DEPENDENCY_LOCK_SHA256}" \
       org.carbonteq.posttrain.verl-source-repository="${SOURCE_REPOSITORY}" \

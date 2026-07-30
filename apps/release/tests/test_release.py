@@ -7,7 +7,7 @@ from pathlib import PurePosixPath
 
 import pytest
 from posttrain.runtime_images import RUNTIME_VARIANTS, constraint_lock, lock_digest
-from posttrain.runtime_images.manifest import PublishedImage, load_manifest
+from posttrain.runtime_images.manifest import ManifestError, PublishedImage, load_manifest
 from posttrain_release.manifest_render import render_manifest
 
 _REPOSITORY_ROOT_DEPTH = 3
@@ -132,6 +132,32 @@ def test_variant_subset_preserves_canonical_order() -> None:
     from posttrain_release.publish import _normalize_variants
 
     assert _normalize_variants(["transform", "eval"]) == ("eval", "transform")
+
+
+def test_release_can_read_prior_manifest_while_adding_a_variant(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import posttrain.runtime_images.manifest as manifest_module
+
+    original_variants = manifest_module.RUNTIME_VARIANTS
+    monkeypatch.setattr(
+        manifest_module,
+        "RUNTIME_VARIANTS",
+        (*original_variants, "new-runtime"),
+    )
+    manifest_module.load_manifest.cache_clear()
+    try:
+        with pytest.raises(ManifestError, match="new-runtime"):
+            manifest_module.load_manifest(verify_locks=False)
+
+        prior = manifest_module.load_manifest(
+            verify_locks=False,
+            verify_variants=False,
+        )
+        assert prior.kinds
+        assert "new-runtime" not in prior.kinds
+    finally:
+        manifest_module.load_manifest.cache_clear()
 
     """Publishing must be unreachable from a consumer environment.
 
