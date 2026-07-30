@@ -848,17 +848,18 @@ def test_derived_constraint_profiles_carry_published_provided_packages(
     assert profiles["supervised"].contents_digest == load_manifest().kinds["supervised"].lock_digest
 
 
-def test_release_blocked_variant_is_never_derived(
+def test_released_verl_variant_is_derived_from_the_manifest(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The guard that refuses an unpublished variant must stay reachable."""
     layout = _layout(tmp_path)
     monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.internal/team")
 
     loaded = load_local_execution_config(layout)
     assert loaded.registry is not None
-    assert "online-rl-verl-py313" not in loaded.registry.kind_images
+    assert loaded.registry.kind_images["online-rl-verl-py313"].value == load_manifest().reference(
+        "online-rl-verl-py313"
+    )
 
 
 def test_an_execution_file_without_a_registry_still_uses_the_environment(
