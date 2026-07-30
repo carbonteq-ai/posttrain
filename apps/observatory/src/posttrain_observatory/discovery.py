@@ -57,10 +57,7 @@ class TrackioSourceDiscovery:
         return self._status
 
     def _load_sources(self) -> dict[str, RunDataSource]:
-        return {
-            project: self._source_factory(project)
-            for project in self._catalog.list_projects()
-        }
+        return {project: self._source_factory(project) for project in self._catalog.list_projects()}
 
     async def refresh(self) -> SourceRefreshStatus:
         async with self._refresh_lock:

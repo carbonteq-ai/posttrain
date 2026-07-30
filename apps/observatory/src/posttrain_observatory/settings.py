@@ -138,9 +138,7 @@ class ObservatorySettings(ObservatoryModel):
             "trackio_project": os.getenv("POSTTRAIN_TRACKIO_PROJECT", "posttrain"),
             "trackio_server_url": os.getenv("POSTTRAIN_TRACKIO_SERVER_URL"),
             "discover_trackio_projects": _environment_bool("POSTTRAIN_OBSERVATORY_DISCOVER_TRACKIO_PROJECTS"),
-            "trackio_discovery_interval_seconds": int(
-                os.getenv("POSTTRAIN_TRACKIO_DISCOVERY_INTERVAL_SECONDS", "300")
-            ),
+            "trackio_discovery_interval_seconds": int(os.getenv("POSTTRAIN_TRACKIO_DISCOVERY_INTERVAL_SECONDS", "300")),
             "wandb_entity": os.getenv("WANDB_ENTITY"),
             "wandb_project": os.getenv("POSTTRAIN_WANDB_PROJECT"),
             "wandb_base_url": os.getenv("WANDB_BASE_URL"),

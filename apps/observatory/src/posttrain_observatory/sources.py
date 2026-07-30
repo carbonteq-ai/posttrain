@@ -49,9 +49,7 @@ class RunSourceRegistry:
 
         self._validate_sources(sources)
         discovered = {
-            source_id: source
-            for source_id, source in sources.items()
-            if source_id not in self._configured_sources
+            source_id: source for source_id, source in sources.items() if source_id not in self._configured_sources
         }
         with self._lock:
             self._snapshot = MappingProxyType({**discovered, **self._configured_sources})
