@@ -42,6 +42,7 @@ DEFAULT_VERL_DOCKERFILE = Path(__file__).with_name("Dockerfile")
 DEFAULT_VERL_BAKE_FILE = Path(__file__).with_name("docker-bake.hcl")
 DEFAULT_RELEASE_PROJECT = Path(__file__).with_name("release") / "pyproject.toml"
 DEFAULT_RELEASE_LOCK = Path(__file__).with_name("release") / "uv.lock"
+DEFAULT_BACKEND_CONSTRAINTS = Path(__file__).with_name("release") / "backend-constraints.txt"
 
 
 @dataclass(frozen=True)
@@ -66,6 +67,7 @@ class ReleaseProfile:
     upstream_revision: str
     fork_revision: str
     dependency_lock_sha256: str
+    backend_constraints_sha256: str
     dependencies: dict[str, str]
     worker_projection_packages: tuple[str, ...]
 
@@ -112,6 +114,10 @@ class ReleaseProfile:
             upstream_revision=_string(payload, "upstream_revision"),
             fork_revision=_string(payload, "fork_revision"),
             dependency_lock_sha256=_string(payload, "dependency_lock_sha256"),
+            backend_constraints_sha256=_string(
+                payload,
+                "backend_constraints_sha256",
+            ),
             dependencies=values,
             worker_projection_packages=_string_tuple(
                 worker_projection,
@@ -178,7 +184,12 @@ def validate_definition(profile: ReleaseProfile) -> tuple[str, ...]:
     required_versions = {
         "torch": "2.11.0+cu130",
         "transformers": "5.14.1",
-        "vllm": "0.25.1",
+        "vllm": "0.25.2.dev2+g7817d8457",
+        "vllm_runtime_version": "0.25.2.dev2+g7817d8457.precompiled",
+        "vllm_binary_base": "0.25.1-cp38-abi3-manylinux_2_28_x86_64",
+        "vllm_binary_wheel_sha256": (
+            "16fc7a28df1576eb6f7ca0455026551b8f9adb674c19c66059359ef3e964bd1e"
+        ),
         "ray": "2.56.1",
         "tensordict": "0.10.0",
     }
@@ -188,6 +199,9 @@ def validate_definition(profile: ReleaseProfile) -> tuple[str, ...]:
     verifiers_revision = profile.dependencies.get("verifiers_revision", "")
     if FULL_REVISION.fullmatch(verifiers_revision) is None:
         errors.append("Verifiers core must use a full source revision")
+    vllm_revision = profile.dependencies.get("vllm_revision", "")
+    if FULL_REVISION.fullmatch(vllm_revision) is None:
+        errors.append("vLLM must use a full source revision")
     return tuple(errors)
 
 
@@ -195,6 +209,7 @@ def release_blockers(
     profile: ReleaseProfile,
     *,
     lock_path: Path,
+    backend_constraints_path: Path = DEFAULT_BACKEND_CONSTRAINTS,
     source_checkout: Path | None,
     verify_remote: bool,
     actual_job_dockerfile: Path = DEFAULT_ACTUAL_JOB_DOCKERFILE,
@@ -215,6 +230,8 @@ def release_blockers(
         blockers.append("published CarbonTeq veRL fork_revision is missing")
     if re.fullmatch(r"[0-9a-f]{64}", profile.dependency_lock_sha256) is None:
         blockers.append("dependency_lock_sha256 is missing")
+    if re.fullmatch(r"[0-9a-f]{64}", profile.backend_constraints_sha256) is None:
+        blockers.append("backend_constraints_sha256 is missing")
     if not lock_path.is_file():
         blockers.append(f"dependency-only uv.lock is missing: {lock_path}")
     else:
@@ -222,6 +239,19 @@ def release_blockers(
         if digest != profile.dependency_lock_sha256:
             blockers.append("dependency-only uv.lock digest differs from profile.toml")
         blockers.extend(_validate_lock(profile, lock_path))
+    if not backend_constraints_path.is_file():
+        blockers.append(f"backend constraints are missing: {backend_constraints_path}")
+    else:
+        constraints_digest = hashlib.sha256(backend_constraints_path.read_bytes()).hexdigest()
+        if constraints_digest != profile.backend_constraints_sha256:
+            blockers.append("backend constraints digest differs from profile.toml")
+        if lock_path.is_file():
+            blockers.extend(
+                _validate_backend_constraints(
+                    lock_path=lock_path,
+                    constraints_path=backend_constraints_path,
+                )
+            )
     if source_checkout is None:
         blockers.append("a clean veRL source checkout is required for release")
     else:
@@ -268,7 +298,7 @@ def validate_repository_integration(
             "worker projection path": (f'{profile.backend_pythonpath_variable}="{profile.backend_projection_path}"'),
             "worker projection environment": (f'PYTHONPATH="${{{profile.backend_pythonpath_variable}}}"'),
             "worker module": profile.backend_worker_module,
-            "control Python 3.12 closure": "locks/runtime.control.requirements.txt",
+            "control Python 3.13.12 closure": "locks/runtime.control.requirements.txt",
             "backend Python 3.13 closure": "locks/runtime.backend.requirements.txt",
             "module-origin isolation": "PYTHONNOUSERSITE=1 PYTHONSAFEPATH=1",
         }
@@ -283,6 +313,18 @@ def validate_repository_integration(
             errors.append(
                 "actual-job Dockerfile does not install selected runtime wheels into the veRL backend environment"
             )
+
+    if DEFAULT_VERL_DOCKERFILE.is_file():
+        verl_dockerfile = DEFAULT_VERL_DOCKERFILE.read_text(encoding="utf-8")
+        for label, fragment in (
+            ("precompiled fork install", "VLLM_USE_PRECOMPILED=1"),
+            (
+                "binary wheel checksum",
+                "16fc7a28df1576eb6f7ca0455026551b8f9adb674c19c66059359ef3e964bd1e",
+            ),
+        ):
+            if fragment not in verl_dockerfile:
+                errors.append(f"veRL kind Dockerfile omits vLLM {label}: {fragment}")
 
     target = f'target "posttrain-kind-{profile.profile_id}"'
     if not kind_bake_file.is_file():
@@ -358,7 +400,7 @@ def _validate_lock(profile: ReleaseProfile, lock_path: Path) -> tuple[str, ...]:
             if "editable" in source or "directory" in source or "path" in source:
                 errors.append(f"local/editable source is forbidden in release lock: {name}")
             source_text = " ".join(str(value).lower() for value in source.values())
-            if "git" in source and name not in {"verifiers", "verl"}:
+            if "git" in source and name not in {"verifiers", "verl", "vllm"}:
                 errors.append(f"unexpected Git package in dependency-only kind lock: {name}")
             if "subdirectory=environments" in source_text or "subdirectory=environments%2f" in source_text:
                 errors.append(f"concrete environment Git subdirectory leaked into kind lock: {name}")
@@ -391,7 +433,93 @@ def _validate_lock(profile: ReleaseProfile, lock_path: Path) -> tuple[str, ...]:
         git = str(source.get("git", "")) if isinstance(source, dict) else ""
         if profile.dependencies["verifiers_revision"] not in git:
             errors.append("Verifiers core is not pinned to the profile revision")
+    vllm = by_name.get("vllm")
+    if vllm is None:
+        errors.append("dependency lock must contain vLLM")
+    else:
+        source = vllm.get("source")
+        git = str(source.get("git", "")) if isinstance(source, dict) else ""
+        if "https://github.com/carbonteq-ai/vllm.git" not in git:
+            errors.append("vLLM lock source differs from the CarbonTeq repository")
+        if profile.dependencies["vllm_revision"] not in git:
+            errors.append("vLLM is not pinned to the profile revision")
     return tuple(errors)
+
+
+def _validate_backend_constraints(
+    *,
+    lock_path: Path,
+    constraints_path: Path,
+) -> tuple[str, ...]:
+    """Require the packaged backend constraints to be an exact lock export."""
+
+    errors: list[str] = []
+    payload = tomllib.loads(lock_path.read_text(encoding="utf-8"))
+    packages = payload.get("package")
+    if not isinstance(packages, list):
+        return ("dependency lock has no package records",)
+
+    locked: dict[str, tuple[str, str]] = {}
+    for raw in packages:
+        if not isinstance(raw, dict):
+            continue
+        name = _normalized_package_name(str(raw.get("name", "")))
+        source = raw.get("source")
+        if not name or not isinstance(source, dict):
+            continue
+        if "virtual" in source:
+            continue
+        if "registry" in source:
+            locked[name] = ("registry", str(raw.get("version", "")))
+        elif "git" in source:
+            locked[name] = ("git", _canonical_git_requirement(str(source["git"])))
+
+    constrained: dict[str, tuple[str, str]] = {}
+    for line_number, raw_line in enumerate(
+        constraints_path.read_text(encoding="utf-8").splitlines(),
+        start=1,
+    ):
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        requirement = line.split(" ; ", maxsplit=1)[0]
+        if " @ git+" in requirement:
+            raw_name, git = requirement.split(" @ git+", maxsplit=1)
+            name = _normalized_package_name(raw_name)
+            value = ("git", _canonical_git_requirement(git))
+        elif "==" in requirement:
+            raw_name, version = requirement.split("==", maxsplit=1)
+            name = _normalized_package_name(raw_name)
+            value = ("registry", version)
+        else:
+            errors.append(f"backend constraint line {line_number} is not exact: {line}")
+            continue
+        if name in constrained:
+            errors.append(f"backend constraints repeat package: {name}")
+        constrained[name] = value
+
+    missing = sorted(locked.keys() - constrained.keys())
+    extra = sorted(constrained.keys() - locked.keys())
+    if missing:
+        errors.append("backend constraints omit locked packages: " + ", ".join(missing))
+    if extra:
+        errors.append("backend constraints contain packages absent from lock: " + ", ".join(extra))
+    for name in sorted(locked.keys() & constrained.keys()):
+        if constrained[name] != locked[name]:
+            errors.append(f"backend constraint for {name} differs from dependency lock")
+    return tuple(errors)
+
+
+def _normalized_package_name(value: str) -> str:
+    return re.sub(r"[-_.]+", "-", value.strip().lower())
+
+
+def _canonical_git_requirement(value: str) -> str:
+    repository, separator, revision = value.partition("?rev=")
+    if separator:
+        revision = revision.split("#", maxsplit=1)[0]
+        return f"{repository}@{revision}"
+    return value.split("#", maxsplit=1)[0]
 
 
 def _validate_checkout(

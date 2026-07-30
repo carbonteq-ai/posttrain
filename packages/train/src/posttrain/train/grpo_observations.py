@@ -136,6 +136,10 @@ _VERL_METRICS: Mapping[str, str] = MappingProxyType(
         "training/off_policy/trajectory_staleness/mean": "train/rl/policy_staleness_mean",
         "training/off_policy/trajectory_staleness/max": "train/rl/policy_staleness_max",
         "training/off_policy/trajectory_spans/mean": "train/rl/trajectory_version_span_mean",
+        "sampo/episode_advantage_mean": "train/rl/episode_advantage_mean",
+        "sampo/turn_advantage_mean": "train/rl/turn_advantage_mean",
+        "sampo/anchor_group_size_mean": "train/rl/anchor_group_size_mean",
+        "sampo/sparse_reward_projection_fraction": "train/rl/sparse_reward_projection_fraction",
         "rollout/spec_num_verify_steps": "serve/backend/speculative_drafts",
         "rollout/spec_num_draft_tokens": "serve/backend/speculative_draft_tokens",
         "rollout/spec_num_accepted_tokens": "serve/backend/speculative_accepted_tokens",
@@ -183,6 +187,10 @@ _CANONICAL_PASSTHROUGH = frozenset(
         "train/rl/time/actor_update_seconds",
         "train/rl/time/weight_sync_seconds",
         "train/rl/time/checkpoint_seconds",
+        "train/rl/episode_advantage_mean",
+        "train/rl/turn_advantage_mean",
+        "train/rl/anchor_group_size_mean",
+        "train/rl/sparse_reward_projection_fraction",
         "serve/backend/speculative_drafts",
         "serve/backend/speculative_draft_tokens",
         "serve/backend/speculative_accepted_tokens",
@@ -200,6 +208,7 @@ _RATIO_METRICS = frozenset(
         "train/rl/completion_truncation_rate",
         "train/rl/tool_call_frequency",
         "train/rl/tool_failure_frequency",
+        "train/rl/sparse_reward_projection_fraction",
         "serve/backend/speculative_acceptance_rate",
         "serve/backend/kv_cache_peak_usage_ratio",
     }
@@ -232,6 +241,7 @@ _NON_NEGATIVE_METRICS = frozenset(
         "serve/backend/speculative_accepted_tokens",
         "serve/backend/speculative_accepted_length",
         "serve/backend/kv_cache_capacity_tokens",
+        "train/rl/anchor_group_size_mean",
     }
 )
 

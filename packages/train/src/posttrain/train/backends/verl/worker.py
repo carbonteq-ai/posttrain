@@ -7,6 +7,7 @@ import importlib
 import json
 import os
 import re
+import shutil
 import site
 import subprocess
 import sys
@@ -48,14 +49,6 @@ def main() -> None:
     if _uses_turboquant(payload):
         os.environ["VERL_ENABLE_TURBOQUANT_COMPAT"] = "1"
     trainer_module = "verl.trainer.main_ppo"
-    if manifest.recipe_working_directory is not None:
-        recipe_directory = manifest.recipe_working_directory
-        assert recipe_directory is not None
-        existing_pythonpath = os.environ.get("PYTHONPATH")
-        os.environ["PYTHONPATH"] = (
-            f"{recipe_directory}{os.pathsep}{existing_pythonpath}" if existing_pythonpath else str(recipe_directory)
-        )
-        trainer_module = "dapo.main_dapo"
     started = time.perf_counter()
     completed = _run_tee(
         [sys.executable, "-m", trainer_module, *overrides],
@@ -81,6 +74,10 @@ def main() -> None:
         ],
         check=True,
     )
+    recovery_checkpoint = latest
+    if payload.training.loop.checkpoint_steps == 0:
+        shutil.rmtree(checkpoint_dir)
+        recovery_checkpoint = None
     update_kind = payload.training.update.kind
     records = read_verl_metric_records(metrics_file)
     metrics = records[-1].data
@@ -101,7 +98,7 @@ def main() -> None:
         workspace=output_dir,
         model_dir=model_dir,
         checkpoint_root=checkpoint_dir,
-        recovery_checkpoint=latest,
+        recovery_checkpoint=recovery_checkpoint,
         update_kind=update_kind,
         checkpoint_limit=payload.training.loop.checkpoint_limit,
         manifest_path=output_dir / "retention-manifest.json",
@@ -217,7 +214,10 @@ def build_hydra_overrides(
         f"trainer.nnodes={nnodes}",
         f"trainer.default_local_dir={checkpoint_dir}",
         f"trainer.total_training_steps={loop.max_steps}",
-        f"trainer.save_freq={loop.checkpoint_steps}",
+        # veRL saves the terminal model only when save_freq is positive. A
+        # framework checkpoint_steps value of zero disables retained recovery
+        # state, but still needs one terminal save so the adapter can be merged.
+        f"trainer.save_freq={loop.checkpoint_steps or loop.max_steps + 1}",
         f"trainer.max_actor_ckpt_to_keep={loop.checkpoint_limit}",
         f"trainer.max_critic_ckpt_to_keep={loop.checkpoint_limit}",
         f"trainer.resume_mode={'resume_path' if resume_from is not None else 'disable'}",
@@ -330,9 +330,13 @@ def build_hydra_overrides(
         ):
             raise ValueError("veRL teacher topology must exactly partition the teacher target world_size")
         teacher_replicas = teacher_world_size // per_replica_world_size
+        teacher_required_context_len = (
+            algorithm.max_prompt_length + algorithm.max_completion_length + 1
+        )
         overrides.extend(
             [
                 "distillation.enabled=True",
+                "distillation.enable_resource_pool=False",
                 f"distillation.n_gpus_per_node={teacher_gpus_per_node}",
                 f"distillation.nnodes={teacher_nnodes}",
                 f"distillation.teacher_models.teacher_model.model_path={_model_path(teacher)}",
@@ -345,9 +349,9 @@ def build_hydra_overrides(
                 "distillation.teacher_models.teacher_model.inference.gpu_memory_utilization="
                 f"{teacher_engine.get('gpu_memory_utilization', 0.4)}",
                 "distillation.teacher_models.teacher_model.inference.max_model_len="
-                f"{teacher_engine.get('max_model_len', algorithm.max_prompt_length + algorithm.max_completion_length)}",
+                f"{teacher_engine.get('max_model_len', teacher_required_context_len)}",
                 "distillation.teacher_models.teacher_model.inference.max_num_batched_tokens="
-                f"{teacher_engine.get('max_num_batched_tokens', algorithm.max_prompt_length + algorithm.max_completion_length)}",
+                f"{teacher_engine.get('max_num_batched_tokens', teacher_required_context_len)}",
                 "distillation.teacher_models.teacher_model.inference.max_num_seqs="
                 f"{teacher_engine.get('max_num_seqs', algorithm.num_generations)}",
                 f"distillation.distillation_loss.loss_mode={algorithm.loss_mode}",
@@ -431,6 +435,16 @@ def _write_dataset(payload: VerlPayload, path: Path) -> None:
         }
         for example in payload.environment.examples
     ]
+    # veRL's v1 trainer drops incomplete prompt batches and derives
+    # steps_per_epoch from dataset_size // train_batch_size even when an exact
+    # total_training_steps is supplied. Small qualification datasets may
+    # intentionally contain one reusable task, so cycle them deterministically
+    # to make at least one complete prompt batch.
+    if len(rows) < payload.algorithm.num_prompts_per_step:
+        rows = [
+            dict(rows[index % len(rows)])
+            for index in range(payload.algorithm.num_prompts_per_step)
+        ]
     Dataset.from_list(rows).to_parquet(str(path))
 
 
@@ -508,29 +522,6 @@ def _validate_runtime(manifest: VerlLaunchManifest) -> None:
         raise RuntimeError(
             f"veRL worktree is at {head}, expected immutable revision {manifest.backend_source_revision}"
         )
-    if manifest.recipe_working_directory is not None:
-        assert manifest.recipe_source_revision is not None
-        recipe_head = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=manifest.recipe_working_directory,
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
-        if recipe_head != manifest.recipe_source_revision:
-            raise RuntimeError(
-                f"veRL recipe worktree is at {recipe_head}, expected immutable revision "
-                f"{manifest.recipe_source_revision}"
-            )
-        recipe_status = subprocess.run(
-            ["git", "status", "--porcelain"],
-            cwd=manifest.recipe_working_directory,
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout
-        if recipe_status:
-            raise RuntimeError("veRL dynamic-sampling recipe worktree must be clean")
     backend_options = manifest.payload.training.backend_options
     expected_dirty = backend_options.get("source_dirty")
     expected_digest = backend_options.get("source_dirty_digest")

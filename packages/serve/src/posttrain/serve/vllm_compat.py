@@ -1,43 +1,26 @@
-"""Narrow, state-guarded fixes for released vLLM integration defects."""
+"""Runtime activation hooks loaded in vLLM child processes."""
 
 from __future__ import annotations
 
-from typing import Any
+from typing import cast
 
 
 def apply_vllm_compatibility_patches() -> tuple[str, ...]:
-    """Apply only defects detectable in the imported vLLM build.
+    """Activate the pip CUDA toolkit view for vLLM child processes."""
 
-    vLLM 0.25.1 creates ``TQFullAttentionSpec`` with the correct packed page
-    size but leaves ``kv_quant_mode`` at ``NONE``. The GPU runner consequently
-    replaces its TurboQuant dtype with ``auto`` during cache reshaping. Until
-    upstream adds a dedicated TurboQuant mode, FP8_PER_TENSOR is used strictly
-    as the existing non-per-token "quantized" marker; TQ's overridden page-size
-    calculation and backend remain unchanged.
-    """
+    applied: list[str] = []
+    try:
+        import torch
+        from posttrain.common.cuda import TorchModule, activate_cuda_toolkit
 
-    from vllm.v1.kv_cache_interface import (  # pyright: ignore[reportMissingImports]
-        KVQuantMode,
-        TQFullAttentionSpec,
-        get_kv_quant_mode,
-    )
+        activate_cuda_toolkit(cast(TorchModule, torch))
+        applied.append("cuda-toolkit")
+    except Exception:
+        # Plugin load must not crash vLLM when the optional CUDA toolkit is
+        # absent; launch/offline paths still activate explicitly.
+        pass
 
-    if get_kv_quant_mode("turboquant_k8v4") != KVQuantMode.NONE:
-        return ()
-    if getattr(TQFullAttentionSpec, "_lab_quant_marker_patch", False):
-        return ("turboquant-quant-marker",)
-
-    inherited_post_init: Any = TQFullAttentionSpec.__post_init__
-
-    def tq_post_init(self: Any) -> None:
-        inherited_post_init(self)
-        if self.kv_quant_mode == KVQuantMode.NONE:
-            object.__setattr__(self, "kv_quant_mode", KVQuantMode.FP8_PER_TENSOR)
-
-    spec_class: Any = TQFullAttentionSpec
-    spec_class.__post_init__ = tq_post_init
-    spec_class._lab_quant_marker_patch = True
-    return ("turboquant-quant-marker",)
+    return tuple(applied)
 
 
 __all__ = ["apply_vllm_compatibility_patches"]

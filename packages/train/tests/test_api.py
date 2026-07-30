@@ -802,6 +802,28 @@ def test_grpo_replays_trace_evidence_after_training_without_decreasing_metric_st
     assert replay.attributes["observation_source"] == "verifiers"
 
 
+def test_grpo_replays_trace_population_when_verl_does_not_emit_it_live(
+    tmp_path: Path,
+) -> None:
+    observer = Observer()
+    model = QWEN_35_2B
+    request = GRPORequest(
+        policy=model,
+        bridge=EvidenceReplayBridge(),
+        settings=QWEN35_GRPO_SMOKE,
+        environment=FakeEnvironment(),
+        training=replace(_training(), backend="verl@0.7.0"),
+        inference=_inference(model),
+    )
+
+    grpo(_context(tmp_path, observer), request, runner=_backend)
+
+    replay = next(batch for batch in observer.metrics_seen if "train/rl/reward_std" in batch.values)
+    assert replay.values["train/rl/rollouts_completed"] == 8.0
+    assert replay.step is None
+    assert replay.attributes["source_step"] == 3
+
+
 def test_distillation_operation_records_teacher_student_and_native_trace_contract() -> None:
     observer = Observer()
     request = _distillation_request()

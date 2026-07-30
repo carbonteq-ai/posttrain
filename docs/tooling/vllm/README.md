@@ -12,12 +12,24 @@ same CUDA minor version. This is required because FlashInfer compiles kernels
 locally: the runtime, headers, NVCC, NVVM, CRT, and CCCL cannot safely float to
 different CUDA releases.
 
-Both `posttrain-serve[vllm]` and `posttrain-train[vllm]` pin vLLM 0.25.1. Training resolves TRL
-1.8.0 from the immutable CarbonTeq fork commit documented in
+The production veRL runtime selects CarbonTeq vLLM commit
+`7817d845727af570352622dc8d58f2d43c76d89d`, based exactly on upstream
+vLLM 0.25.1. The fork carries the bounded TurboQuant cache-reshape correction
+documented in its root `CARBONTEQ_FORK.md`. Training resolves TRL 1.8.0 from
+the immutable CarbonTeq fork commit documented in
 [ADR 0007](../../decisions/0007-trl-vllm-025-fork.md), which raises TRL's
 validated vLLM ceiling and adds explicitly profiled synchronization options.
-Future vLLM versions remain unsupported until both the fork tests and the lab's
-GPU rollout smoke pass and the pins are advanced together.
+The general `posttrain-serve[vllm]` and `posttrain-train[trl-vllm]` extras
+remain version-pinned until their locks advance to the same fork. Future vLLM
+versions remain unsupported until the fork tests and the lab's GPU rollout
+smoke pass and all pins are advanced together.
+
+The fork delta is Python-only. The veRL image verifies the upstream 0.25.1
+x86_64 ABI3 wheel with SHA-256
+`16fc7a28df1576eb6f7ca0455026551b8f9adb674c19c66059359ef3e964bd1e`
+and uses those compiled extensions beneath the fork sources. This avoids an
+implicit local C++/CUDA rebuild while preserving a content-addressed binary
+base.
 
 `posttrain.serve` exposes two execution paths. `benchmark` uses the offline
 engine for exact token-shape throughput cells. `launch` manages an
@@ -35,8 +47,11 @@ NVIDIA's pip toolkit uses `lib` and versioned shared-object names, while CUDA JI
 builders commonly expect `CUDA_HOME/lib64` and linker names such as
 `libcudart.so`. `posttrain.common.cuda` validates the toolkit against the
 active PyTorch build and creates a cache-local conventional view. Serving and
-colocated training activate the same view before vLLM or FlashInfer starts. It
-does not alter the installed wheels and does not disable FlashInfer.
+colocated training activate the same view before vLLM or FlashInfer starts. The
+activation also prepends the active interpreter's scripts directory to `PATH`
+so pip-installed JIT tools such as `ninja` resolve for EngineCore children
+even when `vllm` was launched by absolute path. It does not alter the installed
+wheels and does not disable FlashInfer.
 
 Run either current code-defined foundation smoke through the lab composition
 root. The operation remains usable directly from Python through
@@ -81,13 +96,17 @@ weights fit.
 
 vLLM 0.25.1 recognizes `turboquant_k8v4` and selects the TurboQuant attention
 backend, but its hybrid-cache path can mark `TQFullAttentionSpec` as unquantized
-and replace the cache dtype with `auto` inside a spawned worker. The serve
-package installs a narrow, state-guarded `vllm.general_plugins` entry point that
-supplies the missing non-per-token quantized marker. vLLM loads this plugin in
-the controller, engine core, and worker processes. It does not patch the
-installed wheel, alter TurboQuant's packed page-size calculation, or fall back
-to a different cache dtype. The guard becomes a no-op when upstream reports a
-non-`NONE` TurboQuant quantization mode.
+and replace the cache dtype with `auto` inside a spawned worker. The CarbonTeq
+fork preserves the requested `turboquant_*` dtype for
+`TQFullAttentionSpec` while retaining `auto` for genuinely skipped,
+unquantized layers. The serve package's `vllm.general_plugins` entry point now
+only activates the CUDA toolkit view in controller, engine-core, and worker
+processes; it no longer mutates vLLM classes at runtime.
+
+The fork's source regression is complete. Release qualification still requires
+the locked veRL image and real DAPO and SAMPO hybrid-Qwen runs. TurboQuant and
+MTP must each pass independently and together before the combined profile is
+described as supported.
 
 ## Validated smoke result
 

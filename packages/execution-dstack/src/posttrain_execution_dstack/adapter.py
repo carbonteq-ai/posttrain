@@ -143,9 +143,13 @@ class DstackExecutionProvider:
         *,
         project: str,
         trust_bundle: Path | None = None,
+        capacity_wait_seconds: int = 0,
     ) -> None:
+        if capacity_wait_seconds < 0:
+            raise ValueError("dstack capacity wait must not be negative")
         self._gateway = gateway
         self._project = project
+        self._capacity_wait_seconds = capacity_wait_seconds
         # This is an instance-side path. It is deliberately not resolved or
         # inspected on the submitting machine.
         self._trust_bundle = trust_bundle
@@ -159,6 +163,7 @@ class DstackExecutionProvider:
         environment_file: Path | None = None,
         job_environment_file: Path | None = None,
         trust_bundle: Path | None = None,
+        capacity_wait_seconds: int = 0,
     ) -> DstackExecutionProvider:
         return cls(
             DstackSdkBridge(
@@ -168,6 +173,7 @@ class DstackExecutionProvider:
             ),
             project=project,
             trust_bundle=trust_bundle,
+            capacity_wait_seconds=capacity_wait_seconds,
         )
 
     def _configuration(
@@ -211,10 +217,18 @@ class DstackExecutionProvider:
                 "disk": {"size": f"{_integer(placement.get('disk_gb'), 100)}GB.."},
             },
             "priority": request.policy.priority,
-            # A provider retry can repeat an admitted training attempt after
-            # arbitrary user code has run. Framework attempts require a new
-            # run with explicit lineage, so admitted dstack tasks fail fast.
-            "retry": False,
+            # Capacity waiting happens before arbitrary user code starts and
+            # does not create another framework execution attempt. Other
+            # provider retry events stay disabled because they may repeat an
+            # admitted training attempt after user code has run.
+            "retry": (
+                {
+                    "on_events": ["no-capacity"],
+                    "duration": self._capacity_wait_seconds,
+                }
+                if self._capacity_wait_seconds
+                else False
+            ),
             "max_duration": request.policy.timeout_seconds,
             "tags": {
                 "posttrain_run_id": request.run_spec.run_id,
@@ -263,6 +277,7 @@ class DstackExecutionProvider:
                 "offers": int(response.get("offers") or 0),
                 "job_image": request.image.value,
                 "submission_ready": request.bundle is None,
+                "capacity_wait_seconds": self._capacity_wait_seconds,
             },
         )
 

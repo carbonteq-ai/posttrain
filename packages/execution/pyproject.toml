@@ -1,13 +1,13 @@
 [project]
 name = "posttrain-execution"
-version = "0.2.3"
+version = "0.2.4"
 description = "Provider-neutral detached execution contracts for posttrain"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-  "posttrain-common==0.2.3",
-  "posttrain-tracking==0.2.3",
+  "posttrain-common==0.2.4",
+  "posttrain-tracking==0.2.4",
 ]
 
 [tool.uv]

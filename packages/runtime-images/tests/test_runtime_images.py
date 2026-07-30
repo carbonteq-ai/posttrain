@@ -61,7 +61,7 @@ def test_transform_is_the_only_variant_off_the_workspace_lock() -> None:
 
 def test_constraint_lock_rejects_unknown_variants() -> None:
     with pytest.raises(ValueError, match="unknown runtime variant"):
-        constraint_lock("online-rl-verl-py313")
+        constraint_lock("unknown-runtime")
 
 
 def test_lock_digest_is_computed_from_the_shipped_bytes() -> None:

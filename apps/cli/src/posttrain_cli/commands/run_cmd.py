@@ -6,6 +6,7 @@ import asyncio
 import importlib
 import json
 import time
+from collections.abc import Mapping, Sequence
 from typing import Annotated, Any
 
 import click
@@ -48,6 +49,25 @@ _LAST_OPTION = Annotated[
 
 def _resolved_run_id(layout, run_id: str | None, *, last: bool) -> str:
     return resolve_run_id(layout, run_id, last=last)
+
+
+def _requested_hostnames(request: object) -> list[str]:
+    target = getattr(request, "target", None)
+    placement = getattr(target, "placement", {})
+    instances = placement.get("instances") if isinstance(placement, Mapping) else None
+    if not isinstance(instances, Sequence) or isinstance(instances, str):
+        return []
+    hostnames: list[str] = []
+    for item in instances:
+        if isinstance(item, str):
+            hostnames.append(item)
+        elif isinstance(item, Mapping) and isinstance(item.get("hostname"), str):
+            hostnames.append(str(item["hostname"]))
+    return hostnames
+
+
+def _assigned_hostname(target_id: str | None) -> str | None:
+    return target_id if target_id and target_id != "unassigned" else None
 
 
 def register(app: typer.Typer) -> None:
@@ -108,6 +128,7 @@ def register(app: typer.Typer) -> None:
                     "work_package_id": (request.run_spec.work_package_id if request is not None else None),
                     "target_id": (request.target.id if request is not None else None),
                     "target": (f"{request.target.id}@{request.target.revision}" if request is not None else None),
+                    "requested_hostnames": (_requested_hostnames(request) if request is not None else []),
                     "message": (entry.message if entry is not None else None),
                     "tracking": (
                         submission.evidence_source.provider
@@ -149,6 +170,69 @@ def register(app: typer.Typer) -> None:
             )
         emit(state, payload, "\n".join(lines) if lines else "No submitted runs.")
 
+    @run_app.command(
+        "queue",
+        help="show framework admission and provider-native capacity queues",
+    )
+    def run_queue_cmd(ctx: typer.Context) -> None:
+        state: CliState = ctx.obj
+        layout = state.layout()
+        admission = execution_admission_service(layout)
+        submissions = {
+            submission.run_id: submission
+            for submission in ExecutionSubmissionStore(layout.state).list_submissions()
+        }
+        rows: list[dict[str, Any]] = []
+        for initial in admission.list():
+            entry = initial
+            record = None
+            detail = entry.message
+            if entry.state in {"waiting", "submitting"}:
+                queue_scope = "framework"
+            elif entry.state == "submitted":
+                queue_scope = "provider"
+                try:
+                    entry, record = admission.status(entry.run_id)
+                except Exception as error:
+                    detail = f"{type(error).__name__}: {error}"
+                if record is not None and record.state != "queued":
+                    continue
+                if entry.state != "submitted":
+                    continue
+            else:
+                continue
+            submission = submissions.get(entry.run_id)
+            rows.append(
+                {
+                    "run_id": entry.run_id,
+                    "queue_scope": queue_scope,
+                    "queue_position": entry.position if queue_scope == "framework" else None,
+                    "admission_state": entry.state,
+                    "provider": entry.plan.provider,
+                    "provider_id": submission.provider_id if submission is not None else None,
+                    "provider_state": record.native_state if record is not None else None,
+                    "requested_target_id": entry.plan.request.target.id,
+                    "requested_hostnames": _requested_hostnames(entry.plan.request),
+                    "assigned_hostname": (
+                        _assigned_hostname(record.target_id) if record is not None else None
+                    ),
+                    "queued_at": entry.queued_at.isoformat(),
+                    "message": record.message if record is not None else detail,
+                }
+            )
+        rows.sort(key=lambda item: (item["queued_at"], item["run_id"]))
+        lines = [
+            (
+                f"{item['run_id']}  scope={item['queue_scope']}  "
+                f"provider={item['provider']}  position={item['queue_position'] or '-'}  "
+                f"requested={','.join(item['requested_hostnames']) or item['requested_target_id']}  "
+                f"assigned={item['assigned_hostname'] or '-'}  "
+                f"provider_state={item['provider_state'] or '-'}"
+            )
+            for item in rows
+        ]
+        emit(state, rows, "\n".join(lines) if lines else "No queued runs.")
+
     @run_app.command("status", help="show provider lifecycle state for a submitted run")
     def run_status_cmd(
         ctx: typer.Context,
@@ -170,6 +254,9 @@ def register(app: typer.Typer) -> None:
                 "state": admission_entry.state,
                 "queue_position": admission_entry.position,
                 "provider": admission_entry.plan.provider,
+                "requested_target_id": admission_entry.plan.request.target.id,
+                "requested_hostnames": _requested_hostnames(admission_entry.plan.request),
+                "assigned_hostname": None,
                 "message": admission_entry.message,
             }
             emit(
@@ -189,6 +276,13 @@ def register(app: typer.Typer) -> None:
         payload = {
             **json_value(record),
             "admission_state": (admission_entry.state if admission_entry is not None else None),
+            "requested_target_id": (
+                admission_entry.plan.request.target.id if admission_entry is not None else None
+            ),
+            "requested_hostnames": (
+                _requested_hostnames(admission_entry.plan.request) if admission_entry is not None else []
+            ),
+            "assigned_hostname": _assigned_hostname(record.target_id),
         }
         emit(
             state,

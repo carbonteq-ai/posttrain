@@ -227,7 +227,7 @@ def test_packages_two_environments_from_one_checkout_with_portable_locks(
     assert "credential" not in locks
 
 
-def test_verl_profile_resolves_distinct_python312_and_python313_closures(
+def test_verl_profile_resolves_isolated_python313_closures(
     tmp_path: Path,
 ) -> None:
     git_gateway = _git_gateway()
@@ -239,6 +239,13 @@ def test_verl_profile_resolves_distinct_python312_and_python313_closures(
             "online-rl-verl-py313": KindDependencyConstraints(
                 "online-rl-verl-py313",
                 "shared-runtime==1.0.0\n",
+            )
+        },
+        backend_kind_constraints={
+            "online-rl-verl-py313": KindDependencyConstraints(
+                "online-rl-verl-py313",
+                "backend-runtime==0.9.0\n",
+                ("backend-runtime",),
             )
         },
         git_gateway=git_gateway,
@@ -270,18 +277,52 @@ def test_verl_profile_resolves_distinct_python312_and_python313_closures(
         ),
         (
             "control",
-            "3.12",
+            "3.13.12",
             "/opt/posttrain/venv/bin/python",
             "locks/runtime.control.requirements.txt",
         ),
     ]
     assert [call["python_version"] for call in dependency_gateway.calls] == [
         "3.13.12",
-        "3.12",
+        "3.13.12",
     ]
+    assert dependency_gateway.constraints == [
+        "backend-runtime==0.9.0\n",
+        "shared-runtime==1.0.0\n",
+    ]
+    assert dependency_gateway.calls[0]["provided_packages"] == ("backend-runtime",)
     assert (
         result.runtime_dependencies[0].lock.resolution_digest != result.runtime_dependencies[1].lock.resolution_digest
     )
+
+
+def test_verl_profile_requires_exact_backend_kind_constraints(
+    tmp_path: Path,
+) -> None:
+    sources, wheels = _one_repository_requests()
+    packager = ImmutableEnvironmentPackager(
+        cache_roots=_cache_roots(tmp_path),
+        kind_constraints={
+            "online-rl-verl-py313": KindDependencyConstraints(
+                "online-rl-verl-py313",
+                "shared-runtime==1.0.0\n",
+            )
+        },
+        git_gateway=_git_gateway(),
+        wheel_gateway=FakeWheelGateway(),
+        dependency_gateway=FakeDependencyGateway(),
+    )
+
+    with pytest.raises(
+        ContractError,
+        match="requires exact backend kind constraints",
+    ):
+        packager.package(
+            git_sources=sources,
+            wheel_requests=wheels,
+            kind_profile="online-rl-verl-py313",
+            output_root=(tmp_path / "work").absolute(),
+        )
 
 
 def test_packages_environments_from_multiple_repositories(tmp_path: Path) -> None:

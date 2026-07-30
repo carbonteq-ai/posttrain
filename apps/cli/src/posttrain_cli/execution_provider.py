@@ -78,6 +78,7 @@ def create_execution_provider(
             environment_file=binding.environment_file,
             job_environment_file=local_config.environment_file,
             trust_bundle=resolve_trust_bundle(binding.trust_bundle).path,
+            capacity_wait_seconds=binding.capacity_wait_seconds,
         )
         return "dstack", cast(ExecutionProvider, provider)
 

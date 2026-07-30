@@ -35,6 +35,28 @@ A developer can demonstrate the feature without a GPU by running adapter and dis
 - [x] (2026-07-22) Completed two Verifiers GRPO updates with MTP enabled: 32 trajectories, non-zero gradients, checkpoints, adapter export and synchronization, and a post-update MTP rollout using a 0.55 rollout budget with 4096-token chunked prefill.
 - [x] (2026-07-22) Added step-local aggregate MTP telemetry and qualified it across two complete GRPO steps: 79.03% acceptance before the first update and 81.67% after LoRA synchronization. Per-request attribution remains unavailable and is not required for the synchronous backend gate.
 - [x] (2026-07-24) Completed shared checkpoint-policy conformance: veRL now maps `checkpoint_limit` to actor and critic recovery retention, applies explicit `resume_from`, disables implicit auto-resume for fresh runs, and rejects backend overrides that replace the selected checkpoint policy.
+- [x] (2026-07-29) Published self-contained veRL fork commit `8aa0b356d462568a92dedab642bba54aae37475d`, moved bounded dynamic group replacement into core V1, removed the runtime `verl-recipe` checkout, and smoked candidate kind image `sha256:dca0d724352b47630dc041368d110643faa2318d50a2a1e5e1b6eb9705402b99`.
+- [x] (2026-07-29) The first metadata follow-up `61d4cc18de5c70472f6a912985f8676bdcf150f9` proved insufficient on the locked 4090 run because V1 stores custom agent-loop values inside `extra_fields`, not as top-level TransferQueue fields.
+- [x] (2026-07-29) Published corrected veRL follow-up `0c1bea25266e346526a314c0206e96c8010911c3`, extracting SAMPO turn spans, anchor-state keys, and step rewards from the queued per-row `extra_fields` object before advantage computation.
+- [x] (2026-07-29) Run `verl-sampo-4090-extra-fields-20260729` retained all eight Verifiers traces and reached SAMPO advantage computation, then proved that the materialized trajectory `uid` was not a reliable prompt-group identity.
+- [x] (2026-07-29) Run `verl-sampo-4090-canonical-groups-20260729` retained eight traces but rejected key-derived groups of `[2, 2, 4]`; retained trace evidence showed that the stable boundary is the dataset `example_id`, with four trajectories for each of two examples.
+- [x] (2026-07-29) Published veRL follow-up `a35d13b0a4aae518ebda07f8009334098bb510f1`, consuming an explicit `sampo_prompt_group_id` from agent-loop metadata while retaining replay-key parsing only as a compatibility fallback; 31 focused V1 and SAMPO CPU tests pass in the locked runtime.
+- [x] (2026-07-29) Run `verl-sampo-96gb-explicit-groups-20260729` proved dstack placement on the restored RTX PRO 6000 worker and passed prompt grouping, then exposed that TransferQueue padding invalidated absolute environment turn offsets.
+- [x] (2026-07-29) Published veRL follow-up `6dda0d98d5be64a39567a0e0f1cfd8ece506ae3f`, reconstructing optimizer turn spans from stable per-turn policy-token lengths and the materialized response mask; 32 focused V1 and SAMPO CPU tests pass in the locked runtime.
+- [x] (2026-07-30) Run `verl-sampo-96gb-mask-aligned-turns-20260729` passed prompt grouping and reached mask-aligned span reconstruction, then exposed a truncated trajectory with zero trainable policy tokens.
+- [x] (2026-07-30) Published veRL follow-up `722595be16f9ac839d8f9c34efdb6bbff788b3ad`, making SAMPO evict and refill the entire failed prompt group even when sibling trajectories were already materialized; 77 focused V1 tests and 60 framework/runtime tests pass.
+- [x] (2026-07-29) Added two-step DAPO and SAMPO qualification packages for standard, MTP-1, TurboQuant K8V4, and combined MTP-1 plus K8V4 rollout modes; all catalog compositions validate.
+- [x] (2026-07-30) Deferred the TurboQuant-only and combined MTP-plus-TurboQuant RL matrix from this release. The package definitions remain available as explicitly unqualified follow-up work; the release matrix continues with baseline, MTP-only, 32K normal-KV GRPO, and distillation.
+- [x] (2026-07-29) Corrected the veRL actual-job control dependency closure from stale Python 3.12 to the image contract's Python 3.13.12; 27 focused execution/image tests pass.
+- [x] (2026-07-29) Enabled persistent dstack pre-start capacity waiting and added `posttrain run queue` plus requested/assigned hostname fields. A live pinned SAMPO task remained provider-pending while DAPO occupied `carbonteq-ai-workstation.lan`, then started automatically when the worker became available.
+- [x] (2026-07-29) Requalified capacity-based parallel placement through immutable actual-job images. DAPO MTP occupied the RTX PRO worker while a hostname-free 8 GiB CUDA smoke job was assigned to the idle RTX 4090; both workers reported `1/1` busy and both runs succeeded.
+- [x] (2026-07-30) Added revisioned 24-GB-minimum veRL training, rollout, MTP, and 2B teacher-score selections without hostname constraints. While exact-lock DAPO ran on the 96 GB RTX PRO worker, dstack assigned `verl-sampo-mtp-fleet-20260730` to `pop-os.lan`, proving that eligible 0.8B and colocated 2B-teacher jobs can use either worker without erasing the older 96-GB-qualified selections.
+- [x] (2026-07-30) The first hostname-free MTP revision proved placement on the 24 GB worker but exhausted memory when vLLM retained its percentage-sized cache before FSDP2 initialization. Revision 3 bounds the 640-token MTP job to the already-qualified 192 MiB fixed KV-cache reservation; the failed revision remains immutable evidence rather than being edited in place.
+- [x] (2026-07-30) A 24 GB baseline DAPO rerun exposed that the revision-2 training binding's legacy rollout Hydra values overrode the selected inference binding's 64 MiB cache. Training-binding revision 3 removes rollout capacity from backend escape hatches so baseline and MTP inference selections remain authoritative.
+- [x] (2026-07-30) Completed the corrected baseline DAPO and SAMPO pair. DAPO run `verl-dapo-baseline-fixed-20260729` completed both optimizer steps. SAMPO run `verl-sampo-96gb-vllm-fork-20260730` completed two optimizer steps on `carbonteq-ai-workstation.lan`, retained 28 Verifiers traces plus model, recovery, retention, and summary artifacts, emitted episode/turn/anchor/sparse-projection metrics, and reconciled with provider exit 0 and no missing artifact roles.
+- [x] (2026-07-30) Published veRL distillation revision `c3f49b9117b882fa888e25e4a771461e13167848`, covering dense and jagged teacher-logprob response alignment plus fully masked synthetic padding microbatches, and published runtime kind `sha256:7be370ba3ee3525d784daa68e6d2b596c6ebcfabfeaa3f1c8c8f5268a8f3efc9` with immutable Verifiers harness prerequisites.
+- [x] (2026-07-30) Run `verl-distill-shared-pool-retentionfix-20260730` completed two optimizer steps on `carbonteq-ai-workstation.lan`, merged and retained the Qwen 3.5 0.8B LoRA adapter, retained 16 Verifiers traces plus summary and retention manifest, and reconciled provider exit 0 with no missing artifact roles.
+- [ ] Project veRL distillation `scored_tokens` and `teacher_failures` through the provider-neutral metric contract. The successful run remains operational qualification evidence, but Observatory reports required telemetry `2/4` and is not research-ready.
 
 ## Surprises & Discoveries
 
@@ -49,6 +71,22 @@ A developer can demonstrate the feature without a GPU by running adapter and dis
 
 - Observation: The currently qualified isolated veRL environment cannot use TurboQuant.
   Evidence: it contains vLLM 0.18.0, which does not expose `TQFullAttentionSpec` or `get_kv_quant_mode`; the serving environment's vLLM 0.25.1 exposes `turboquant_k8v4` but requires the existing guarded quantization-marker compatibility patch.
+
+- Observation: core V1 dynamic filtering classifies finished groups before it
+  materializes the training batch and reads its metric only from
+  `extra_fields.reward_extra_info`.
+  Evidence: live DAPO run `19996710-84ff-44f2-abf7-c15c335f891b` completed
+  optimizer step 1 and then failed with `Finished groups are missing DAPO
+  metric 'seq_reward'`. The custom Verifiers loop had emitted `reward_score`
+  and top-level `algorithm_reward` but not the native nested metric.
+
+- Observation: dstack 0.20.29 represents persistent capacity queuing as a
+  bounded `no-capacity` retry rather than an unbounded queue flag.
+  Evidence: omitting retry duration defaults to 3600 seconds. With
+  `on_events: [no-capacity]` and `duration: 86400`, live SAMPO run
+  `verl-sampo-baseline-queue-20260729` remained `pending/retrying` with the
+  requested workstation unassigned while DAPO held it, then received
+  `carbonteq-ai-workstation.lan` automatically.
 
 - Observation: vLLM 0.25.1 K8V4 increases Qwen 3.5 0.8B cache capacity but fails the matched recall gate.
   Evidence: on the RTX 3070 Ti, K8V4 exposed 776722 cache tokens versus 291328 for normal FP16 KV and completed level-1 sleep plus separate weight/cache wake. The normal cache recalled a beginning-of-context code at 8192, 16384, 24576, and 32700 input tokens; K8V4 failed all four. The Ampere TurboQuant store kernel also requires an FP16 rollout copy because BF16-to-FP8 key conversion fails in Triton 3.6.
@@ -100,6 +138,23 @@ A developer can demonstrate the feature without a GPU by running adapter and dis
 
 - Observation: after chunked entropy, the remaining actor peak is the dense full-vocabulary logprob/backward path.
   Evidence: qualifications 19 and 20 completed 16 reward-bearing trajectories and old-logprob computation, then failed in actor update with only 43-45 MiB free. The Qwen 3.5 fork already contains a fused PPO head that chunks vocabulary projection and logprob/entropy work; the next clean-GPU qualification enables that path.
+
+- Observation: the maintained distillation composition exposed three boundaries
+  that the earlier trainer-only pass did not exercise: logical jagged-tensor
+  rows versus larger backing storage, all-masked synthetic padding
+  microbatches, and terminal retention after checkpoint-free export.
+  Evidence: the first two candidate runs failed at teacher-logprob alignment
+  and an empty diagnostic reduction. The third completed both optimizer steps
+  but failed after model merge because the checkpoint-free profile had already
+  removed its checkpoint root. Focused regressions now cover all three cases,
+  and `verl-distill-shared-pool-retentionfix-20260730` exits successfully.
+
+- Observation: successful execution and artifact reconciliation are necessary
+  but not sufficient for research-ready qualification.
+  Evidence: `verl-distill-shared-pool-retentionfix-20260730` retained 16 traces,
+  the adapter, summary, and retention manifest with provider exit 0, while
+  Observatory still reports missing required `train/distill/scored_tokens` and
+  `train/distill/teacher_failures`.
 
 ## Decision Log
 
@@ -167,9 +222,24 @@ A developer can demonstrate the feature without a GPU by running adapter and dis
   Rationale: Native Qwen 3.5 MTP is already represented by the selected model and vLLM speculative configuration, while MTP-loss training changes the optimizer objective and currently requires veRL's Megatron path. Keeping `enable_train=false` preserves the existing GRPO job meaning and allows MTP and non-MTP rollouts to be compared as binding variants.
   Date/Author: 2026-07-22 / Codex and user.
 
+- Decision: Keep required distillation telemetry as a release gate after the
+  two-step GPU execution succeeds.
+  Rationale: adapter and trace retention proves the training lifecycle, but it
+  does not prove the amount of effective teacher supervision or whether
+  teacher-scoring failures were excluded. Weakening Observatory completeness
+  would hide that distinction.
+  Date/Author: 2026-07-30 / Codex.
+
 ## Outcomes & Retrospective
 
-The backend integration and GRPO qualification paths are complete. Run `artifacts/automationbench-verl-qwen35-08b-qualification-23` exercised Qwen 3.5 0.8B through 32 native AutomationBench trajectories, two vLLM rollout batches, two GRPO/FSDP backward and optimizer steps, checkpointing, adapter-only synchronization, LoRA export, and trace preservation using veRL `a35908ca3c9632859c58d6a2855d858918ae21dc` plus the local lifecycle and dense-entropy fixes. Step gradients were `0.2127731889` and `0.2282306403`; rewards ranged from 0 to 1 in both steps; every rollout group had variance; all 30 exported LoRA B tensors changed, with 245,760 non-zero elements. The phase-shared profile used a 0.70 vLLM rollout budget with four active sequences, then slept vLLM before the fused Qwen 3.5 actor update, whose peak allocation was 3.5327 GiB. Distillation and a deployment catalog overlay remain outstanding, so the overall backend release gate is not yet complete.
+The backend integration, baseline GRPO path, and distillation execution path
+are complete. Run `artifacts/automationbench-verl-qwen35-08b-qualification-23`
+qualified the two-step 8K GRPO lifecycle. Run
+`verl-distill-shared-pool-retentionfix-20260730` qualified two-step colocated
+student/teacher execution on the 96 GB worker and retained 16 native traces,
+the trained adapter, summary, and retention manifest. The 32K normal-KV GRPO
+gate and veRL distillation's required scored-token and teacher-failure
+telemetry remain open, so the overall backend release gate is not yet complete.
 
 ## Context and Orientation
 

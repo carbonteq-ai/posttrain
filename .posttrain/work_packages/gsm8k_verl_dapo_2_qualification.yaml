@@ -1,10 +1,10 @@
 project_id: foundation-models
-work_package_id: train/qwen3.5-0.8b/verl-grpo-2-capsule-qualification
+work_package_id: train/qwen3.5-0.8b/verl-dapo-2-capsule-qualification
 stage: train
-description: Bounded two-step Qwen 3.5 0.8B veRL GRPO capsule qualification over GSM8K.
+description: Complete two Qwen 3.5 0.8B veRL DAPO updates with bounded reward-constant group replacement.
 recipe:
   type: inline
-  id: recipes/gsm8k-qwen3.5-0.8b-verl-grpo-2@4
+  id: recipes/gsm8k-qwen3.5-0.8b-verl-dapo-2@4
   revision: "4"
   stage: train
   seats:
@@ -14,7 +14,7 @@ recipe:
     training: training
     rollout_inference: inference
   jobs:
-    - id: grpo
+    - id: dapo
       kind: train.grpo
       definition: train/trl-grpo@1
   expected_artifacts:
@@ -33,7 +33,7 @@ bindings:
   settings:
     type: ref
     family: training
-    id: qwen3.5-0.8b/verl-grpo-2-step-capsule-v2
+    id: qwen3.5-0.8b/verl-dapo-2-step-capsule-v2
   training:
     type: ref
     family: training
@@ -44,10 +44,10 @@ bindings:
     id: inference/qwen3.5-0.8b-vllm-distill-rollout@2
 enabled_optional_jobs: []
 metadata:
-  question: Does the online-rl-verl-py313 capsule run a bounded GRPO update with Python 3.12 control and Python 3.13 worker isolation?
+  question: Does core veRL V1 execute bounded DAPO replacement and retain two synchronized optimizer steps?
   labels:
     - qualification
     - verl
-    - grpo
-    - capsule
+    - dapo
+    - bounded-dynamic-sampling
     - candidate

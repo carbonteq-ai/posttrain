@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import dataclass, field, replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from posttrain.common import (
@@ -50,10 +52,12 @@ from posttrain.train.backends.verl.launcher import (
     build_sampo_launch_plan,
 )
 from posttrain.train.backends.verl.metrics import read_verl_metric_records
+from posttrain.train.backends.verl.reward_fields import streaming_reward_extra_info, training_response_mask
 from posttrain.train.backends.verl.worker import (
     _last_metrics,
     _uses_turboquant,
     _write_agent_config,
+    _write_dataset,
     build_hydra_overrides,
 )
 from pydantic import ValidationError
@@ -177,15 +181,6 @@ def _grpo_request(*, model=QWEN_35_2B, family="qwen3.5", update=None) -> GRPOReq
 
 
 def _sampo_request() -> SAMPORequest:
-    training = _training()
-    training = replace(
-        training,
-        backend_options={
-            **training.backend_options,
-            "dynamic_sampling_recipe_working_directory": "/opt/src/verl-recipe",
-            "dynamic_sampling_recipe_source_revision": "2" * 40,
-        },
-    )
     return SAMPORequest(
         policy=QWEN_35_2B,
         bridge=FakeBridge(),
@@ -196,7 +191,7 @@ def _sampo_request() -> SAMPORequest:
             max_completion_length=128,
         ),
         environment=FakeEnvironment(),
-        training=training,
+        training=_training(),
         inference=_inference(QWEN_35_2B),
     )
 
@@ -288,6 +283,31 @@ def test_grpo_worker_maps_prompt_groups_generations_and_kl_without_importing_ver
     assert "trainer.logger=['console','file']" in overrides
 
 
+def test_verl_checkpoint_steps_zero_keeps_only_terminal_model_save(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    request = _grpo_request()
+    request = replace(
+        request,
+        settings=replace(
+            request.settings,
+            loop=replace(request.settings.loop, checkpoint_steps=0),
+        ),
+    )
+    plan = build_grpo_launch_plan(request, tmp_path)
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+
+    overrides = build_hydra_overrides(
+        plan,
+        tmp_path / "rollouts.parquet",
+        tmp_path / "agent-loop.json",
+        tmp_path / "checkpoints",
+    )
+
+    assert f"trainer.save_freq={request.settings.loop.max_steps + 1}" in overrides
+
+
 def test_verl_sampo_maps_hierarchical_advantages_gspo_and_dynamic_sampling(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -308,8 +328,6 @@ def test_verl_sampo_maps_hierarchical_advantages_gspo_and_dynamic_sampling(
 
     assert plan.operation == "sampo"
     assert plan.payload.algorithm.advantage_estimator == "sampo"
-    assert plan.recipe_working_directory == Path("/opt/src/verl-recipe")
-    assert plan.recipe_source_revision == "2" * 40
     assert "algorithm.adv_estimator=sampo" in overrides
     assert "algorithm.sampo.discount_gamma=0.95" in overrides
     assert "algorithm.sampo.step_advantage_weight=1.0" in overrides
@@ -323,44 +341,18 @@ def test_verl_sampo_maps_hierarchical_advantages_gspo_and_dynamic_sampling(
     assert agent_config[0]["emit_sampo_metadata"] is True
 
 
-def test_verl_sampo_requires_the_pinned_dynamic_sampling_recipe(tmp_path: Path) -> None:
-    request = _sampo_request()
-    request = replace(
-        request,
-        training=replace(
-            request.training,
-            backend_options={
-                key: value
-                for key, value in request.training.backend_options.items()
-                if not key.startswith("dynamic_sampling_recipe_")
-            },
-        ),
-    )
-
-    with pytest.raises(ValueError, match="dynamic_sampling_recipe_working_directory"):
-        build_sampo_launch_plan(request, tmp_path)
-
-
-def test_verl_dapo_uses_pinned_recipe_and_maps_all_dynamic_sampling_controls(
+def test_verl_dapo_uses_core_trainer_and_maps_all_dynamic_sampling_controls(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     request = _grpo_request()
-    training = replace(
-        request.training,
-        backend_options={
-            **request.training.backend_options,
-            "dapo_recipe_working_directory": "/opt/src/verl-recipe",
-            "dapo_recipe_source_revision": "2" * 40,
-        },
-    )
     settings = replace(
         request.settings,
         algorithm="dapo",
         dynamic_sampling=DynamicGroupSampling(max_candidate_batches=7),
         overlong_buffer_tokens=32,
     )
-    plan = build_grpo_launch_plan(replace(request, training=training, settings=settings), tmp_path)
+    plan = build_grpo_launch_plan(replace(request, settings=settings), tmp_path)
     monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
 
     overrides = build_hydra_overrides(
@@ -370,8 +362,6 @@ def test_verl_dapo_uses_pinned_recipe_and_maps_all_dynamic_sampling_controls(
         tmp_path / "checkpoints",
     )
 
-    assert plan.recipe_working_directory == Path("/opt/src/verl-recipe")
-    assert plan.recipe_source_revision == "2" * 40
     assert "actor_rollout_ref.actor.loss_agg_mode=token-mean" in overrides
     assert "actor_rollout_ref.actor.clip_ratio_low=0.2" in overrides
     assert "actor_rollout_ref.actor.clip_ratio_high=0.28" in overrides
@@ -379,18 +369,6 @@ def test_verl_dapo_uses_pinned_recipe_and_maps_all_dynamic_sampling_controls(
     assert "algorithm.filter_groups.enable=true" in overrides
     assert "algorithm.filter_groups.metric=seq_reward" in overrides
     assert "algorithm.filter_groups.max_num_gen_batches=7" in overrides
-
-
-def test_verl_dapo_dynamic_sampling_requires_a_pinned_recipe(tmp_path: Path) -> None:
-    request = _grpo_request()
-    settings = replace(
-        request.settings,
-        algorithm="dapo",
-        dynamic_sampling=DynamicGroupSampling(),
-    )
-
-    with pytest.raises(ValueError, match="dynamic_sampling_recipe_working_directory"):
-        build_grpo_launch_plan(replace(request, settings=settings), tmp_path)
 
 
 def test_verl_maps_shared_checkpoint_retention_and_explicit_resume(
@@ -927,6 +905,35 @@ def test_verl_agent_loop_honors_selected_reasoning_mode(tmp_path: Path) -> None:
     assert '"enable_thinking": true' in path.read_text(encoding="utf-8")
 
 
+def test_verl_streaming_reward_exposes_dynamic_filter_metric() -> None:
+    assert streaming_reward_extra_info(
+        task_reward=0.75,
+        algorithm_reward=0.5,
+    ) == {
+        "seq_reward": 0.5,
+        "task_reward": 0.75,
+    }
+
+
+def test_sampo_rejects_masked_truncation_for_bounded_replacement() -> None:
+    with pytest.raises(RuntimeError, match="SAMPO requires replacement"):
+        training_response_mask(
+            (True, True, False),
+            is_truncated=True,
+            mask_truncated_completions=True,
+            requires_complete_group=True,
+        )
+
+
+def test_non_sampo_truncation_remains_fully_masked() -> None:
+    assert training_response_mask(
+        (True, True, False),
+        is_truncated=True,
+        mask_truncated_completions=True,
+        requires_complete_group=False,
+    ) == [0, 0, 0]
+
+
 def test_verl_preflight_rejects_models_outside_current_qwen35_qualification(tmp_path: Path) -> None:
     request = _grpo_request(model=LFM_25_12B_THINKING, family="lfm2.5")
     with pytest.raises(ValueError, match="currently qualifies only qwen3.5"):
@@ -995,7 +1002,7 @@ def test_qwen35_distillation_translation_uses_native_exact_token_k1_loss(
     assert plan.payload.algorithm.model_dump(exclude_none=True) == {
         "advantage_estimator": "grpo",
         "loss_mode": "k1",
-        "use_policy_gradient": False,
+        "use_policy_gradient": True,
         "use_task_rewards": False,
         "temperature": 1.0,
         "num_prompts_per_step": 1,
@@ -1010,9 +1017,66 @@ def test_qwen35_distillation_translation_uses_native_exact_token_k1_loss(
         tmp_path / "agent-loop.json",
         tmp_path / "checkpoints",
     )
+    assert "distillation.enable_resource_pool=False" in overrides
+    assert "distillation.distillation_loss.loss_mode=k1" in overrides
+    assert "distillation.distillation_loss.use_policy_gradient=true" in overrides
+    assert "distillation.distillation_loss.use_task_rewards=false" in overrides
     assert "distillation.teacher_models.teacher_model.inference.max_model_len=32768" in overrides
     assert "distillation.teacher_models.teacher_model.inference.max_num_batched_tokens=4096" in overrides
     assert "distillation.teacher_models.teacher_model.inference.enable_chunked_prefill=true" in overrides
     assert (
         "+distillation.teacher_models.teacher_model.inference.engine_kwargs.vllm.kv_cache_dtype=turboquant_k8v4"
     ) in overrides
+
+    default_teacher_scoring = plan.payload.teacher_scoring
+    assert default_teacher_scoring is not None
+    default_context_plan = plan.model_copy(
+        update={
+            "payload": plan.payload.model_copy(
+                update={
+                    "teacher_scoring": default_teacher_scoring.model_copy(
+                        update={"engine": {}},
+                    ),
+                },
+            ),
+        },
+    )
+    default_context_overrides = build_hydra_overrides(
+        default_context_plan,
+        tmp_path / "default-rollouts.parquet",
+        tmp_path / "default-agent-loop.json",
+        tmp_path / "default-checkpoints",
+    )
+    assert "distillation.teacher_models.teacher_model.inference.max_model_len=385" in default_context_overrides
+    assert (
+        "distillation.teacher_models.teacher_model.inference.max_num_batched_tokens=385"
+        in default_context_overrides
+    )
+
+
+def test_verl_worker_cycles_small_dataset_to_one_complete_prompt_batch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    plan = build_grpo_launch_plan(_grpo_request(), tmp_path)
+    payload = plan.payload.model_copy(
+        update={
+            "algorithm": plan.payload.algorithm.model_copy(
+                update={"num_prompts_per_step": 2},
+            ),
+        },
+    )
+    captured_rows: list[dict[str, object]] = []
+
+    class FakeDataset:
+        @classmethod
+        def from_list(cls, rows):
+            captured_rows.extend(rows)
+            return SimpleNamespace(to_parquet=lambda path: None)
+
+    monkeypatch.setitem(sys.modules, "datasets", SimpleNamespace(Dataset=FakeDataset))
+
+    _write_dataset(payload, tmp_path / "rollouts.parquet")
+
+    assert len(captured_rows) == 2
+    assert [row["example_id"] for row in captured_rows] == ["train/000000", "train/000000"]

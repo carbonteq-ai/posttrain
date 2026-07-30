@@ -33,6 +33,7 @@ ROOT = _workspace_root()
 RUNTIME_VARIANTS = (
     "supervised",
     "online-rl-trl-py312",
+    "online-rl-verl-py313",
     "eval",
     "serve",
     "transform",
@@ -148,8 +149,13 @@ def _validate_boundaries() -> None:
             f"framework code leaked into dependency-only kind image: {forbidden}",
         )
     for variant in RUNTIME_VARIANTS:
-        _require(f" AS {variant}\n" in kind_dockerfile, f"missing runtime stage for {variant}")
-        _require(f" AS {variant}-smoke\n" in kind_dockerfile, f"missing smoke stage for {variant}")
+        variant_dockerfile = (
+            (KINDS / "verl-py313" / "Dockerfile").read_text()
+            if variant == "online-rl-verl-py313"
+            else kind_dockerfile
+        )
+        _require(f" AS {variant}\n" in variant_dockerfile, f"missing runtime stage for {variant}")
+        _require(f" AS {variant}-smoke\n" in variant_dockerfile, f"missing smoke stage for {variant}")
     _require(
         'ENV POSTTRAIN_QUANTIZATION_PYTHON="/opt/posttrain/venv/bin/python"' in kind_dockerfile,
         "transform image must select its locked quantization interpreter",

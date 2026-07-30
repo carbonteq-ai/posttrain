@@ -25,7 +25,7 @@ quantization-aware updates are not qualified.
 | Technique | Accepted family | Validation status |
 | --- | --- | --- |
 | GRPO | Qwen 3.5 | Qwen 3.5 0.8B ordinary BF16 LoRA qualified locally on GPU |
-| On-policy distillation | Qwen 3.5 student and teacher | Translation and CPU integration covered; GPU release gate open |
+| On-policy distillation | Qwen 3.5 student and teacher | Two-step GPU execution and retained artifacts qualified; required telemetry gate open |
 
 The complete backend release is therefore not yet production-qualified.
 
@@ -87,9 +87,10 @@ veRL. Multi-process trace appends use an operating-system file lock.
 
 For distillation, veRL's native teacher server uses the already-validated
 student/teacher tokenizer fingerprint equality and the `k1` sampled-token loss.
-This slice sets `use_task_rewards=false` and `use_policy_gradient=false`, so the
-optimization is pure on-policy distillation while Verifiers still owns and
-preserves the trajectory evidence.
+This slice sets `use_task_rewards=false` and uses veRL's policy-gradient form
+of the sampled-token `k1` objective. The gradient is therefore taken through
+the current student log probability while Verifiers still owns and preserves
+the trajectory evidence.
 
 ## Single-GPU phase lifecycle
 
@@ -405,11 +406,11 @@ extension. The SAMPO implementation itself is commit
 
 A published runtime-delta candidate has been reconstructed from that exact
 published revision as commit
-`1dcdf67e9473db5297c98c9c88cf4dae6c4a8932` on branch
+`8aa0b356d462568a92dedab642bba54aae37475d` on branch
 `codex/runtime-release-qwen35`. It adds:
 
-- compatible `orjson`, Transformers `<5.15`, and vLLM `>=0.18,<0.26`
-  dependency ranges for the separately locked runtime;
+- compatible `orjson` and Transformers `<5.15` dependencies plus the exact
+  CarbonTeq vLLM maintenance commit selected by the separately locked runtime;
 - `verl/workers/engine_workers.py`: stage LoRA adapter tensors before waking
   colocated rollout weights;
 - `verl/workers/engine/fsdp/transformer_impl.py`: honor chunked entropy for
@@ -419,6 +420,26 @@ published revision as commit
 - `verl/trainer/ppo/metric_utils.py`: retain the raw response-token total;
 - the synchronous vLLM/trainer boundary: emit step-local MTP counters instead
   of process-lifetime totals.
+- the core V1 replay buffer: enforce
+  `algorithm.filter_groups.max_num_gen_batches` as a bounded candidate budget
+  for DAPO and SAMPO instead of depending on an external recipe entrypoint;
+- the V1 advantage path: retain an explicit SAMPO prompt-group identity, turn
+  spans, anchor-state keys, and step rewards when reconstructing the optimizer
+  batch from TransferQueue. Replay-key parsing remains a compatibility fallback,
+  not the grouping contract.
+
+The current V1 SAMPO release delta is published at
+`5433d1c297870207c335108dcaac42f8da6f59bd` on branch
+`codex/sampo-v1-metadata`.
+
+The current distillation release delta is published at
+`c3f49b9117b882fa888e25e4a771461e13167848` on branch
+`codex/distill-dense-teacher-logprobs`. In addition to the preceding maintained
+delta, it aligns dense and jagged teacher log probabilities to response tokens
+without reading unused TensorDict backing storage and treats fully masked
+synthetic padding microbatches as zero-contribution batches. The paired runtime
+kind preinstalls the Verifiers harness prerequisites so parallel rollout
+workers never race while mutating the container package database.
 
 The published SAMPO revision adds:
 
@@ -427,19 +448,17 @@ The published SAMPO revision adds:
   advantage estimator, validate token-aligned turn metadata, and combine the
   result with the existing GSPO actor loss.
 
-The runtime candidate passed 42 focused CPU tests, the existing 34-test
-SAMPO/core regression, focused Ruff and format checks, dependency metadata
-assertions, source compilation, and an exclusion audit. It contains no
-`runtime/` environment, `sitecustomize`, TurboQuant bootstrap or compatibility
-code, TurboQuant test, packaging hook, or TurboQuant-only vLLM server change.
-TurboQuant remains failed research because the matched Qwen 3.5 recall gate
-failed. The candidate now has its immutable commit, but still needs the
-dependency-only Python 3.13.12 lock, image smoke, and bounded end-to-end run
-before it can replace the published revision.
+The current delta passed 68 focused Python 3.13 CPU tests with 2 expected
+skips, plus focused Ruff and diff checks. It contains no `runtime/`
+environment, `sitecustomize`, or vLLM monkey-patch. The separately maintained
+CarbonTeq vLLM fork owns the TurboQuant cache-reshape correction. TurboQuant
+remains unqualified. Its DAPO/SAMPO-only and combined MTP matrix is deferred
+from this release and must not be inferred from baseline or MTP-only results.
 
 The fork's root `CARBONTEQ_FORK.md` is the maintained delta ledger. The
-published revision makes current SAMPO experiments reproducible, but it remains
-a candidate until its independent SAMPO GPU qualification passes.
+published revision is independently GPU-qualified for the baseline two-step
+SAMPO configuration described below. MTP and TurboQuant variants remain
+separate qualification gates.
 
 ### SAMPO operating configuration
 
@@ -454,17 +473,59 @@ actor_rollout_ref.actor.policy_loss.loss_mode=gspo
 actor_rollout_ref.actor.loss_agg_mode=seq-mean-token-mean
 ```
 
-The Verifiers agent loop emits `sampo_turn_spans`,
-`sampo_anchor_state_keys`, and `sampo_step_rewards`. The fork computes
-episode-relative and anchor-relative advantages on the driver. The pinned
-`verl-recipe` dynamic trainer supplies bounded replacement sampling for
-reward-constant groups. A project training binding therefore supplies immutable
-`dynamic_sampling_recipe_working_directory` and
-`dynamic_sampling_recipe_source_revision` backend options in addition to the
-veRL interpreter, worktree, and source revision. Select
+The Verifiers agent loop emits `sampo_prompt_group_id`, `sampo_turn_lengths`,
+`sampo_turn_spans`, `sampo_anchor_state_keys`, and `sampo_step_rewards`. The
+fork aligns the stable per-turn lengths to its materialized response mask and computes
+episode-relative and anchor-relative advantages on the driver. The fork's core
+V1 replay buffer supplies bounded replacement sampling for reward-constant
+groups. A project training binding needs only the veRL interpreter, worktree,
+and source revision; it no longer carries a second recipe checkout. Select
 `backend_options.source_revision` as
-`1dcdf67e9473db5297c98c9c88cf4dae6c4a8932`; the interpreter and both checkout
-paths remain machine-local execution values rather than catalog defaults.
+`5433d1c297870207c335108dcaac42f8da6f59bd`.
+
+The first dstack SAMPO attempt with the locked runtime reached advantage
+computation on the RTX 4090 without the earlier CUDA illegal-memory-access
+failure, then exposed a V1 TransferQueue omission: the agent loop had emitted
+the SAMPO metadata, but `_compute_advantage()` had not selected it. The fork
+regression above closes that source defect.
+
+Run `verl-sampo-4090-extra-fields-20260729` retained all
+eight expected Verifiers traces and reached the estimator, proving that rollout
+completion and metadata propagation were complete. It then exposed a second
+V1 boundary defect: SAMPO grouped by the materialized trajectory `uid` rather
+than a stable prompt identity. A later key-parser run retained eight traces but
+produced incomplete `[2, 2, 4]` groups. Those traces contained two dataset
+`example_id` values with four trajectories each. Fork revision
+`722595be16f9ac839d8f9c34efdb6bbff788b3ad` therefore consumes an explicit
+`sampo_prompt_group_id` emitted from the dataset example and reconstructs
+absolute optimizer spans from per-turn policy-token lengths plus the
+materialized response mask. Its regressions cover opaque TransferQueue keys
+and masks containing environment-token gaps.
+
+Baseline qualification run `verl-sampo-96gb-vllm-fork-20260730` exercised
+immutable veRL revision `5433d1c297870207c335108dcaac42f8da6f59bd` with the
+CarbonTeq vLLM fork on the 96 GB RTX PRO worker. It completed two optimizer
+steps with eager rollout, retained 28 native Verifiers traces, and published
+the selected LoRA adapter, recovery checkpoint, retention manifest, and
+summary. The run emitted episode- and turn-level advantages, a mean anchor
+group size of 4, and sparse-reward projection metrics at both steps. Provider
+exit code 0 reconciled with succeeded tracking and no missing artifact roles.
+
+### Fleet scheduling
+
+Revision-2 qualification selections use
+`targets/carbonteq-cuda-24gb-plus`: one CUDA GPU with at least 24 GB and no
+hostname constraint. dstack may therefore place the bounded 0.8B veRL jobs and
+the colocated 2B teacher-score distillation job on either the RTX 4090 worker
+or the RTX PRO worker. The original revision-1 selections remain pinned to the
+96 GB worker so previously retained evidence keeps its exact target meaning.
+Jobs whose measured peak or context requirement exceeds 24 GB must continue to
+select a larger target rather than relying on a preferred hostname.
+
+The bounded replacement behavior adapts the Apache-2.0 DAPO semantics from
+`verl-project/verl-recipe` commit
+`230ee612279d552a4f34ecbfab931c213abd514d`; the maintained implementation and
+tests now live in the CarbonTeq veRL fork.
 
 This composition follows the official ARL-Arena SAMPO extension at
 `a25a2a229c85431b421ac785fa5f375a99b2072a`: hierarchical GiGPO advantages
@@ -486,9 +547,12 @@ non-zero elements. Focused validation passed 19 framework/environment tests and
 7 veRL lifecycle/FSDP tests.
 
 Production qualification still requires the 32K GRPO gate using the qualified
-normal FP16 KV path, a multi-turn SAMPO GPU gate, and completing the
-distillation GPU run. The fork delta is published and immutably selected, but
-publication does not satisfy either GPU gate.
+normal FP16 KV path and complete required distillation telemetry. The two-step
+distillation GPU execution and artifact gate is complete. The baseline
+multi-turn SAMPO GPU gate is complete. MTP-only, TurboQuant-only, and combined
+MTP plus TurboQuant DAPO/SAMPO configurations remain explicitly unqualified.
+TurboQuant-only and combined configurations are deferred from this release;
+MTP-only DAPO and SAMPO remain active release gates.
 Do not describe the backend as production-qualified until both commands below
 have been represented as catalog/work-package selections and completed:
 
@@ -497,7 +561,11 @@ have been represented as catalog/work-package selections and completed:
    generates with synchronized updated weights. **The equivalent 8K lifecycle
    gate is complete; 32K remains open.**
 2. A Qwen 3.5 student/teacher distillation run that performs at least one
-   optimizer step over the exact student-generated token ids.
+   optimizer step over the exact student-generated token ids. **Run
+   `verl-distill-shared-pool-retentionfix-20260730` completed two steps and
+   retained 16 traces plus the adapter, summary, and retention manifest.
+   Projection of required `scored_tokens` and `teacher_failures` telemetry
+   remains open.**
 
 Both runs must produce an exported model or LoRA adapter, a recovery checkpoint,
 a normalized training summary, and native Verifiers traces. The execution plan

@@ -114,6 +114,12 @@ def test_local_configuration_is_mode_checked_and_parsed(tmp_path: Path) -> None:
     constraints = layout.state / "constraints.txt"
     constraints.write_text("pydantic==2.12.5\n", encoding="utf-8")
     constraints_digest = hashlib.sha256(constraints.read_bytes()).hexdigest()
+    backend_constraints = layout.state / "backend-constraints.txt"
+    backend_constraints.write_text(
+        "antlr4-python3-runtime==4.9.3\nomegaconf==2.3.1\n",
+        encoding="utf-8",
+    )
+    backend_constraints_digest = hashlib.sha256(backend_constraints.read_bytes()).hexdigest()
     image = f"registry.lan/carbonteq/posttrain@sha256:{'1' * 64}"
     path.write_text(
         "\n".join(
@@ -139,6 +145,7 @@ def test_local_configuration_is_mode_checked_and_parsed(tmp_path: Path) -> None:
                 'python = "dstack-venv/bin/python"',
                 'environment_file = "dstack.env"',
                 'trust_bundle = "/etc/posttrain/trust/internal-ca.pem"',
+                "capacity_wait_seconds = 86400",
                 "",
                 "[providers.dstack.storage]",
                 'run_root = "/var/lib/posttrain/runs"',
@@ -180,6 +187,14 @@ def test_local_configuration_is_mode_checked_and_parsed(tmp_path: Path) -> None:
                         f"[registry.constraint_profiles.{profile}]",
                         'path = "constraints.txt"',
                         f'sha256 = "{constraints_digest}"',
+                        *(
+                            (
+                                'backend_path = "backend-constraints.txt"',
+                                f'backend_sha256 = "{backend_constraints_digest}"',
+                            )
+                            if profile == "online-rl-verl-py313"
+                            else ()
+                        ),
                         *(('provided_packages = ["verifiers"]',) if profile in {"online-rl-trl-py312", "eval"} else ()),
                         "",
                     )
@@ -206,6 +221,7 @@ def test_local_configuration_is_mode_checked_and_parsed(tmp_path: Path) -> None:
     assert configuration.dstack.storage is not None
     assert configuration.dstack.storage.run_root == Path("/var/lib/posttrain/runs")
     assert configuration.dstack.trust_bundle == Path("/etc/posttrain/trust/internal-ca.pem")
+    assert configuration.dstack.capacity_wait_seconds == 86_400
     assert configuration.registry is not None
     assert configuration.registry.repository == "registry.lan/carbonteq/posttrain"
     assert configuration.registry.universal_image.value == image
@@ -214,6 +230,13 @@ def test_local_configuration_is_mode_checked_and_parsed(tmp_path: Path) -> None:
     assert eval_constraints.contents_digest == constraints_digest
     assert eval_constraints.provided_packages == ("verifiers",)
     assert eval_constraints.digest != constraints_digest
+    verl_constraints = configuration.registry.constraint_profiles["online-rl-verl-py313"]
+    assert verl_constraints.backend_contents_digest == backend_constraints_digest
+    assert verl_constraints.backend_provided_packages == (
+        "antlr4-python3-runtime",
+        "omegaconf",
+    )
+    assert verl_constraints.backend_digest is not None
     assert configuration.registry.receipt_root == (layout.state / "runtime-builds").resolve()
     assert configuration.environment_file == job_environment
 
@@ -646,6 +669,7 @@ def test_dstack_factory_uses_only_protected_binding_paths(
             "environment_file": environment_file.resolve(),
             "job_environment_file": None,
             "trust_bundle": None,
+            "capacity_wait_seconds": 0,
         }
     ]
 

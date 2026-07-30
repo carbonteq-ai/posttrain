@@ -15,10 +15,27 @@ The local AI infrastructure uses dstack `0.20.29` for SSH-fleet GPU placement
 and provider lifecycle. The framework does not recreate its scheduler: durable
 framework admission owns research concurrency and retained-evidence release,
 while dstack owns offers, placement, startup, cancellation, and worker state.
-Optional catalog `placement.instances: [{hostname: …}]` is a soft pin passed
-through to dstack; it is not a posttrain admission lock. Prefer capacity-only
+Optional catalog `placement.instances: [{hostname: …}]` is an exact instance
+constraint passed through to dstack; it is not a posttrain admission lock.
+Prefer capacity-only
 targets (`device_class` / `memory_gb`) unless you need a specific worker — see
 [consumer-setup.md](../../consumer-setup.md) § “Run on dstack”.
+
+The protected dstack binding may set `capacity_wait_seconds`. Posttrain maps
+that only to dstack's persistent `no-capacity` retry event, leaving
+interruption and runtime-error retries disabled. Use `posttrain run queue` to
+inspect provider-native waiting independently of `posttrain workers`, which
+reports framework admission placements. `posttrain run status RUN_ID` reports
+the requested logical target and hostname constraints separately from the
+assigned hostname and provider run identity.
+
+A target's GPU count and minimum per-GPU memory are scheduling constraints.
+They do not authorize fractional sharing of one physical GPU. Each current SSH
+worker advertises one scheduling block, so two one-GPU jobs run concurrently
+when both physical workers match; otherwise the unmatched job remains in
+dstack's capacity wait. Omit `placement.instances` when any matching worker is
+acceptable, and use an exact hostname only when qualification requires that
+specific machine.
 
 Production still runs the upstream image
 `dstackai/dstack:0.20.29@sha256:6d57647be04cad42dff2343f4f50d41a3b8bb438ebc67165bc56aa92858e69ce`.
@@ -66,6 +83,13 @@ PostgreSQL variants skipped, all 104 PostgreSQL-enabled cases, and 35
 top-level Go executor/schema cases including three schema subtests. Ruff,
 Python and Go formatting, and diff checks pass. It does not prove a deployed
 release.
+
+The immutable actual-job placement path was requalified on 2026-07-29. DAPO
+MTP run `verl-dapo-mtp-fixed-20260729` used
+`carbonteq-ai-workstation.lan` while capacity-only serve run
+`capacity-concurrency-4090-20260729` was independently assigned to
+`pop-os.lan`. dstack reported both healthy instances `1/1` busy concurrently,
+and both provider runs finished `done`.
 
 The release gate remains:
 

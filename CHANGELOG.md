@@ -4,7 +4,45 @@ All notable changes to Posttrain are documented here. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with a coordinated
 version across first-party distributions.
 
-## Unreleased
+## 0.2.4 - 2026-07-30
+
+The maintained veRL and vLLM runtime becomes a first-class published job kind.
+This release also makes dstack placement durable and visible, and carries the
+runtime fixes found while qualifying two-step DAPO, SAMPO, and distillation on
+the 24 GB and 96 GB workers.
+
+### Added
+
+- Published `online-rl-verl-py313` runtime with immutable CarbonTeq veRL and
+  vLLM fork revisions.
+- Persistent dstack capacity waiting plus `posttrain run queue`, requested and
+  assigned worker hostnames, and worker-capacity inspection.
+- Two-step DAPO, SAMPO, and distillation qualification packages, including
+  MTP-only variants retained as explicit selections.
+- CUDA toolkit activation and vLLM compatibility checks needed by packaged
+  remote jobs.
+
+### Fixed
+
+- veRL distillation aligns dense and jagged teacher log probabilities to the
+  exact response tokens and safely ignores fully masked padding microbatches.
+- Checkpoint-free terminal model export no longer fails retention after the
+  disposable checkpoint root is removed.
+- Parallel Verifiers harnesses no longer race while installing container
+  prerequisites.
+- Colocated Qwen 3.5 rollout uses eager vLLM execution, avoiding the observed
+  CUDA-graph illegal-memory-access path.
+- Actual-job BuildKit targets no longer race through a mutable named context.
+
+### Qualification
+
+- `verl-distill-shared-pool-retentionfix-20260730` completed two optimizer
+  steps on `carbonteq-ai-workstation.lan`, retained 16 native Verifiers traces,
+  the trained adapter, summary, and retention manifest, and reconciled dstack
+  exit `0` with no missing required artifact roles.
+- Baseline DAPO and SAMPO completed two optimizer steps; dstack also proved
+  concurrent capacity-based placement across the RTX 4090 and RTX PRO 6000
+  workers.
 
 ### Documentation
 

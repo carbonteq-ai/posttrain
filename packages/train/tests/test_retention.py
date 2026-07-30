@@ -211,6 +211,28 @@ def test_full_update_retains_weights_but_rotates_recovery_state(tmp_path: Path) 
     assert [entry["reason"] for entry in manifest["planned_removals"]] == ["superseded-recovery-checkpoint"]
 
 
+def test_finalizer_allows_absent_checkpoint_root_without_recovery_state(tmp_path: Path) -> None:
+    workspace = tmp_path.resolve()
+    model, adapter = _lora_model(workspace)
+    checkpoints = workspace / "checkpoints"
+
+    result = finalize_training_outputs(
+        workspace=workspace,
+        model_dir=model,
+        checkpoint_root=checkpoints,
+        recovery_checkpoint=None,
+        update_kind="lora",
+        checkpoint_limit=1,
+    )
+
+    assert result.model_dir == adapter
+    assert result.recovery_checkpoint is None
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["status"] == "completed"
+    assert manifest["checkpoint_root"] == "checkpoints"
+    assert manifest["retained_recovery_checkpoint"] is None
+
+
 def test_retention_finalizer_rejects_paths_outside_workspace(tmp_path: Path) -> None:
     workspace = (tmp_path / "workspace").resolve()
     workspace.mkdir()
