@@ -544,6 +544,23 @@ def _validate_recovery_identity(
             raise ContractError(f"Trackio recovery {field.replace('_', ' ')} does not match")
 
 
+class TrackioProjectCatalog:
+    """Read the project catalog exposed by a pinned remote Trackio server."""
+
+    def __init__(self, server_url: str) -> None:
+        if not server_url.strip():
+            raise ValueError("Trackio server URL cannot be empty")
+        self.server_url = server_url
+
+    def list_projects(self) -> tuple[str, ...]:
+        raw = RemoteClient(self.server_url).predict(api_name="/get_all_projects")
+        if not isinstance(raw, list) or not all(isinstance(project, str) for project in raw):
+            raise ContractError("Trackio project catalog must be a list of project names")
+        if any(not project.strip() for project in raw):
+            raise ContractError("Trackio project names cannot be empty")
+        return tuple(sorted(set(raw)))
+
+
 class TrackioDataSource:
     def __init__(self, project: str, *, server_url: str | None = None) -> None:
         self.project = project

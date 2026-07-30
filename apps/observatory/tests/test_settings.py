@@ -23,6 +23,46 @@ def test_trackio_server_url_is_loaded_for_live_container_reads(
     assert ObservatorySettings.from_env().trackio_server_url == "http://trackio:7860"
 
 
+def test_trackio_discovery_is_opt_in_and_loads_interval(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("POSTTRAIN_OBSERVATORY_DISCOVER_TRACKIO_PROJECTS", "true")
+    monkeypatch.setenv("POSTTRAIN_TRACKIO_DISCOVERY_INTERVAL_SECONDS", "45")
+    monkeypatch.setenv("POSTTRAIN_TRACKIO_SERVER_URL", "http://trackio:7860")
+
+    settings = ObservatorySettings.from_env()
+
+    assert settings.discover_trackio_projects is True
+    assert settings.trackio_discovery_interval_seconds == 45
+    assert settings.configured_sources() == ()
+
+
+def test_trackio_discovery_requires_server_url() -> None:
+    with pytest.raises(ValidationError, match="requires a Trackio server URL"):
+        ObservatorySettings(discover_trackio_projects=True)
+
+
+def test_trackio_discovery_rejects_invalid_environment_values(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("POSTTRAIN_OBSERVATORY_DISCOVER_TRACKIO_PROJECTS", "sometimes")
+    with pytest.raises(ValueError, match="must be a boolean"):
+        ObservatorySettings.from_env()
+
+    monkeypatch.setenv("POSTTRAIN_OBSERVATORY_DISCOVER_TRACKIO_PROJECTS", "false")
+    monkeypatch.setenv("POSTTRAIN_TRACKIO_DISCOVERY_INTERVAL_SECONDS", "0")
+    with pytest.raises(ValidationError):
+        ObservatorySettings.from_env()
+
+
+def test_trackio_discovery_preserves_explicit_sources() -> None:
+    settings = ObservatorySettings.model_validate(
+        {
+            "discover_trackio_projects": True,
+            "trackio_server_url": "http://trackio:7860",
+            "sources": ({"provider": "fixture", "source_id": "manual"},),
+        }
+    )
+
+    assert [source.source_id for source in settings.configured_sources()] == ["manual"]
+
+
 def test_multiple_sources_are_loaded_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(
         "POSTTRAIN_OBSERVATORY_SOURCES",

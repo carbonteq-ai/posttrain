@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -23,6 +25,7 @@ from .models import (
     RunLocator,
     RunViewResponse,
     SemanticSummaryRequest,
+    SourceRefreshStatus,
     ViewMode,
 )
 from .service import ObservatoryService
@@ -45,10 +48,20 @@ def create_http_app(
     settings: ObservatorySettings | None = None,
 ) -> FastAPI:
     settings = settings or ObservatorySettings()
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        await service.start_source_discovery()
+        try:
+            yield
+        finally:
+            await service.stop_source_discovery()
+
     app = FastAPI(
         title="Posttrain Observatory",
         version="0.1.0",
         description="Provider-neutral, job-aware post-training evidence views.",
+        lifespan=lifespan,
     )
     if settings.cors_origins:
         app.add_middleware(
@@ -81,6 +94,7 @@ def create_http_app(
         return {
             "status": "ready" if any(source.state == "healthy" for source in sources) else "degraded",
             "sources": [source.model_dump(mode="json") for source in sources],
+            "source_refresh": service.source_refresh_status().model_dump(mode="json"),
         }
 
     @app.get("/version")
@@ -95,6 +109,10 @@ def create_http_app(
     @app.get("/api/v1/sources")
     async def sources() -> list[dict[str, object]]:
         return [source.model_dump(mode="json") for source in await service.list_sources()]
+
+    @app.post("/api/v1/sources/refresh")
+    async def refresh_sources() -> SourceRefreshStatus:
+        return await service.refresh_sources()
 
     @app.get("/api/v1/runs")
     async def runs(

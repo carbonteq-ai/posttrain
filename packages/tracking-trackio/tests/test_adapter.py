@@ -32,6 +32,7 @@ from posttrain_tracking_trackio import (
     TrackioBackend,
     TrackioCancelledRunRecovery,
     TrackioDataSource,
+    TrackioProjectCatalog,
     TrackioSettings,
     require_remote_trackio_ready,
 )
@@ -47,6 +48,33 @@ from packages.tracking.tests.conformance import (
 )
 
 STARTED = datetime(2026, 7, 22, 2, 0, tzinfo=UTC)
+
+
+def test_trackio_project_catalog_returns_stable_unique_names(monkeypatch: pytest.MonkeyPatch) -> None:
+    class Client:
+        def predict(self, *, api_name: str) -> list[str]:
+            assert api_name == "/get_all_projects"
+            return ["beta", "alpha", "beta"]
+
+    monkeypatch.setattr("posttrain_tracking_trackio.adapter.RemoteClient", lambda _: Client())
+
+    assert TrackioProjectCatalog("http://trackio:7860").list_projects() == ("alpha", "beta")
+
+
+@pytest.mark.parametrize("payload", [{"project": "alpha"}, ["alpha", 1], [" "]])
+def test_trackio_project_catalog_rejects_malformed_payload(
+    monkeypatch: pytest.MonkeyPatch,
+    payload: object,
+) -> None:
+    class Client:
+        def predict(self, *, api_name: str) -> object:
+            del api_name
+            return payload
+
+    monkeypatch.setattr("posttrain_tracking_trackio.adapter.RemoteClient", lambda _: Client())
+
+    with pytest.raises(ContractError, match="project"):
+        TrackioProjectCatalog("http://trackio:7860").list_projects()
 
 
 @pytest.fixture

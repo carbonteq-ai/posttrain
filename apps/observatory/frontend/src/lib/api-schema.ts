@@ -293,6 +293,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sources/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refresh Sources */
+        post: operations["refresh_sources_api_v1_sources_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/work-packages/{work_package_id}": {
         parameters: {
             query?: never;
@@ -1087,6 +1104,24 @@ export interface components {
             /** Unit */
             unit: string;
         };
+        /** SourceRefreshStatus */
+        SourceRefreshStatus: {
+            /** @default [] */
+            discovered_source_ids: components["schemas"]["StringTuple"];
+            /** Enabled */
+            enabled: boolean;
+            /** Error */
+            error?: string | null;
+            /** Last Attempt At */
+            last_attempt_at?: string | null;
+            /** Last Success At */
+            last_success_at?: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "disabled" | "pending" | "refreshing" | "succeeded" | "failed";
+        };
         /** @enum {string} */
         Stage: "screen" | "train" | "qualify";
         /** StoredArtifact */
@@ -1796,6 +1831,26 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     }[];
+                };
+            };
+        };
+    };
+    refresh_sources_api_v1_sources_refresh_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceRefreshStatus"];
                 };
             };
         };

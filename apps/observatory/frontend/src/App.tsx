@@ -3,12 +3,14 @@ import type { SortingState } from '@tanstack/react-table';
 import * as Popover from '@radix-ui/react-popover';
 import {
   ArrowRight,
+  ArrowClockwise,
   ArrowSquareOut,
   Bell,
   CaretDown,
   CaretRight,
   Check,
   Circle,
+  CircleNotch,
   Cpu,
   Database,
   FileText,
@@ -37,6 +39,7 @@ import {
   type MetricSeries,
   type RunItem,
   type RunView,
+  type SourceRefreshStatus,
   type ServingCapacityWorkPackage,
   type SystemMetrics,
   type TraceDetail,
@@ -521,7 +524,19 @@ function ProjectSelector({ projects, value, onChange }: { projects: string[]; va
   </Popover.Root>;
 }
 
-function SourceSelector({ sources, value, onChange }: { sources: SourceOption[]; value: string; onChange: (sourceId: string) => void }) {
+function SourceSelector({
+  sources,
+  value,
+  onChange,
+  onRefresh,
+  refreshStatus,
+}: {
+  sources: SourceOption[];
+  value: string;
+  onChange: (sourceId: string) => void;
+  onRefresh: () => Promise<void>;
+  refreshStatus: SourceRefreshStatus | null;
+}) {
   const [open, setOpen] = useState(false);
   const active = sources.find((source) => source.sourceId === value) ?? sources[0];
   if (!active) return null;
@@ -535,7 +550,26 @@ function SourceSelector({ sources, value, onChange }: { sources: SourceOption[];
     </Popover.Trigger>
     <Popover.Portal>
       <Popover.Content sideOffset={6} align="start" className="z-50 w-[260px] rounded-md border border-divider bg-surface p-1.5 shadow-[0_12px_32px_rgba(40,35,44,.12)] outline-none">
-        <p className="px-2 pb-1.5 pt-1 text-[10px] font-medium uppercase tracking-[.1em] text-muted">Evidence backend</p>
+        <div className="flex items-center justify-between">
+          <p className="px-2 pb-1.5 pt-1 text-[10px] font-medium uppercase tracking-[.1em] text-muted">Evidence backend</p>
+          <button
+            type="button"
+            aria-label="Refresh evidence backends"
+            title="Refresh evidence backends"
+            disabled={refreshStatus?.state === 'refreshing'}
+            onClick={() => void onRefresh()}
+            className="grid size-7 shrink-0 place-items-center rounded-md text-muted transition hover:text-ink disabled:cursor-wait disabled:opacity-60"
+          >
+            {refreshStatus?.state === 'refreshing'
+              ? <CircleNotch size={13} className="animate-spin" aria-hidden="true" />
+              : <ArrowClockwise size={13} aria-hidden="true" />}
+          </button>
+        </div>
+        {refreshStatus?.state === 'failed' && refreshStatus.error && (
+          <p role="alert" className="mx-2 mb-1.5 rounded bg-rose-50 px-2 py-1.5 text-[10px] leading-4 text-rose-700">
+            {refreshStatus.error}
+          </p>
+        )}
         <div role="listbox" aria-label="Backend" className="space-y-0.5">
           {sources.map((source) => {
             const selected = source.sourceId === value;
@@ -625,6 +659,7 @@ export default function App() {
   const [workPackage, setWorkPackage] = useState<WorkPackageView | null>(null);
   const [servingCapacity, setServingCapacity] = useState<ServingCapacityWorkPackage | null>(null);
   const [workPackageLoading, setWorkPackageLoading] = useState(false);
+  const [sourceRefreshStatus, setSourceRefreshStatus] = useState<SourceRefreshStatus | null>(null);
   const viewRequestSequence = useRef(0);
   const selectedRunKeyRef = useRef<string | null>(null);
 
@@ -701,6 +736,46 @@ export default function App() {
     setSelectedSourceId(sourceId);
     await chooseRun(run);
   }, [chooseRun, runs]);
+
+  const refreshSources = useCallback(async () => {
+    setSourceRefreshStatus((current) => ({
+      enabled: true,
+      state: 'refreshing',
+      last_attempt_at: current?.last_attempt_at ?? null,
+      last_success_at: current?.last_success_at ?? null,
+      error: null,
+      discovered_source_ids: current?.discovered_source_ids ?? [],
+    }));
+    try {
+      const status = await api.refreshSources();
+      setSourceRefreshStatus(status);
+      if (status.state === 'failed') return;
+      const items = await api.runs();
+      setRuns(items);
+      const current = items.find((item) => item.run_key === selectedRunKeyRef.current);
+      if (current) {
+        setSelected(current);
+        setSelectedSourceId(current.locator.source_id);
+        setSelectedProject(current.run.project_id);
+      } else if (items[0]) {
+        await chooseRun(items[0]);
+      } else {
+        selectedRunKeyRef.current = null;
+        setSelected(null);
+        setSelectedSourceId(null);
+        setSelectedProject(null);
+      }
+    } catch (cause) {
+      setSourceRefreshStatus((current) => ({
+        enabled: true,
+        state: 'failed',
+        last_attempt_at: current?.last_attempt_at ?? null,
+        last_success_at: current?.last_success_at ?? null,
+        error: cause instanceof Error ? cause.message : String(cause),
+        discovered_source_ids: current?.discovered_source_ids ?? [],
+      }));
+    }
+  }, [chooseRun]);
 
   const openWorkPackage = useCallback(async (projectId: string, workPackageId: string) => {
     setSelectedProject(projectId);
@@ -843,7 +918,13 @@ export default function App() {
         <div className="flex items-center gap-2 px-2 pb-4 font-serif text-xl">
           <Planet size={27} weight="thin" aria-hidden="true" /> Observatory
         </div>
-        <SourceSelector sources={sourceOptions} value={activeSourceId} onChange={(sourceId) => void chooseSource(sourceId)} />
+        <SourceSelector
+          sources={sourceOptions}
+          value={activeSourceId}
+          onChange={(sourceId) => void chooseSource(sourceId)}
+          onRefresh={refreshSources}
+          refreshStatus={sourceRefreshStatus}
+        />
         <ProjectSelector projects={projects} value={activeProject} onChange={(projectId) => void chooseProject(projectId)} />
         <label className="obs-search mt-3 flex h-9 items-center gap-2 rounded border border-divider bg-surface px-2.5 text-muted focus-within:border-violet-500">
           <MagnifyingGlass size={15} aria-hidden="true" />

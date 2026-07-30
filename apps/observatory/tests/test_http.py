@@ -5,9 +5,11 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 from posttrain_observatory import FixtureRunDataSource, FixtureSemanticSummaryProvider, ObservatoryService
+from posttrain_observatory.discovery import TrackioSourceDiscovery
 from posttrain_observatory.http import create_http_app
 from posttrain_observatory.mcp import create_mcp
 from posttrain_observatory.settings import ObservatorySettings
+from posttrain_observatory.sources import RunSourceRegistry
 
 
 def _service() -> ObservatoryService:
@@ -59,6 +61,7 @@ def test_openapi_contains_bounded_product_routes() -> None:
     assert "/api/v1/runs/{run_key}/semantic-summary" in schema["paths"]
     assert "/api/v1/runs/{run_key}/traces-evaluation" in schema["paths"]
     assert "/api/v1/serving-capacity/work-packages/{work_package_id}" in schema["paths"]
+    assert set(schema["paths"]["/api/v1/sources/refresh"]) == {"post"}
     schemas = schema["components"]["schemas"]
     assert "EvidenceCompleteness" in schemas
     assert schemas["RunView"]["properties"]["completeness"] == {"$ref": "#/components/schemas/EvidenceCompleteness"}
@@ -66,6 +69,44 @@ def test_openapi_contains_bounded_product_routes() -> None:
         "description": "Any JSON-compatible value.",
         "title": "JsonValue",
     }
+
+
+def test_disabled_source_refresh_has_an_explicit_status() -> None:
+    with _client() as client:
+        assert client.post("/api/v1/sources/refresh").json() == {
+            "enabled": False,
+            "state": "disabled",
+            "last_attempt_at": None,
+            "last_success_at": None,
+            "error": None,
+            "discovered_source_ids": [],
+        }
+
+
+def test_lifespan_discovers_sources_and_post_refreshes_again() -> None:
+    class Catalog:
+        calls = 0
+
+        def list_projects(self) -> tuple[str, ...]:
+            self.calls += 1
+            return ("alpha", "beta")
+
+    registry = RunSourceRegistry({})
+    catalog = Catalog()
+    discovery = TrackioSourceDiscovery(
+        registry,
+        catalog,  # type: ignore[arg-type]
+        lambda _: FixtureRunDataSource(),
+        interval_seconds=300,
+    )
+    service = ObservatoryService(registry, source_discovery=discovery)
+
+    with TestClient(create_http_app(service, ObservatorySettings())) as client:
+        assert {source["source_id"] for source in client.get("/api/v1/sources").json()} == {"alpha", "beta"}
+        assert client.post("/api/v1/sources/refresh").json()["discovered_source_ids"] == ["alpha", "beta"]
+        assert client.get("/health/ready").json()["source_refresh"]["state"] == "succeeded"
+
+    assert catalog.calls == 2
 
 
 def test_new_job_metric_schemas_are_available_through_existing_routes() -> None:

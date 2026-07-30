@@ -349,6 +349,15 @@ export type WorkPackageView = {
   lineage: Array<[RunItem['locator'], Artifact]>;
 };
 
+export type SourceRefreshStatus = {
+  enabled: boolean;
+  state: 'disabled' | 'pending' | 'refreshing' | 'succeeded' | 'failed';
+  last_attempt_at: string | null;
+  last_success_at: string | null;
+  error: string | null;
+  discovered_source_ids: string[];
+};
+
 export type SystemMetrics = {
   state: 'available' | 'unavailable';
   window_started_at: string;
@@ -481,6 +490,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   runs: () => request<RunItem[]>('/api/v1/runs'),
+  refreshSources: () => request<SourceRefreshStatus>('/api/v1/sources/refresh', { method: 'POST' }),
   workPackage: (workPackageId: string, projectId: string, sourceId: string) => {
     const path = workPackageId.split('/').map(encodeURIComponent).join('/');
     const query = new URLSearchParams({ project_id: projectId, source_id: sourceId });

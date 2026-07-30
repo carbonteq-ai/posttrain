@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 from collections import defaultdict
 from collections.abc import Mapping
+from threading import Lock
+from types import MappingProxyType
 
 from posttrain.tracking import RunDataSource, RunQuery
 
@@ -32,23 +34,47 @@ def _contract_text(inputs: Mapping[str, object], contract: str, field: str) -> s
 
 class RunSourceRegistry:
     def __init__(self, sources: Mapping[str, RunDataSource]) -> None:
-        if not sources:
-            raise ValueError("at least one Observatory source is required")
+        self._validate_sources(sources)
+        self._configured_sources = dict(sources)
+        self._snapshot: Mapping[str, RunDataSource] = MappingProxyType(dict(sources))
+        self._lock = Lock()
+
+    @staticmethod
+    def _validate_sources(sources: Mapping[str, RunDataSource]) -> None:
         if any(not source_id.strip() for source_id in sources):
             raise ValueError("source ids cannot be empty")
-        self._sources = dict(sources)
+
+    def reconcile_discovered(self, sources: Mapping[str, RunDataSource]) -> tuple[str, ...]:
+        """Atomically replace discovery-owned sources while preserving configured ones."""
+
+        self._validate_sources(sources)
+        discovered = {
+            source_id: source
+            for source_id, source in sources.items()
+            if source_id not in self._configured_sources
+        }
+        with self._lock:
+            self._snapshot = MappingProxyType({**discovered, **self._configured_sources})
+        return tuple(sorted(discovered))
 
     @property
     def source_ids(self) -> tuple[str, ...]:
-        return tuple(sorted(self._sources))
+        snapshot = self._snapshot
+        return tuple(sorted(snapshot))
 
-    def resolve(self, locator: RunLocator) -> RunDataSource:
+    @staticmethod
+    def _resolve(snapshot: Mapping[str, RunDataSource], locator: RunLocator) -> RunDataSource:
         try:
-            return self._sources[locator.source_id]
+            return snapshot[locator.source_id]
         except KeyError as error:
             raise LookupError(f"Observatory source {locator.source_id!r} is not configured") from error
 
+    def resolve(self, locator: RunLocator) -> RunDataSource:
+        return self._resolve(self._snapshot, locator)
+
     async def sources(self) -> tuple[SourceSummary, ...]:
+        snapshot = self._snapshot
+
         async def probe(source_id: str, source: RunDataSource) -> SourceSummary:
             try:
                 # One run is enough to prove the provider answers. Trackio's
@@ -71,10 +97,17 @@ class RunSourceRegistry:
             )
 
         return tuple(
-            await asyncio.gather(*(probe(source_id, source) for source_id, source in sorted(self._sources.items())))
+            await asyncio.gather(*(probe(source_id, source) for source_id, source in sorted(snapshot.items())))
         )
 
     async def list_runs(self, query: RunQuery) -> tuple[LocatedRunSummary, ...]:
+        return await self._list_runs(self._snapshot, query)
+
+    async def _list_runs(
+        self,
+        snapshot: Mapping[str, RunDataSource],
+        query: RunQuery,
+    ) -> tuple[LocatedRunSummary, ...]:
         async def load(source_id: str, source: RunDataSource) -> tuple[LocatedRunSummary, ...]:
             try:
                 values = await source.list_runs(query)
@@ -89,13 +122,15 @@ class RunSourceRegistry:
                 for run in values
             )
 
-        groups = await asyncio.gather(*(load(source_id, source) for source_id, source in sorted(self._sources.items())))
+        groups = await asyncio.gather(*(load(source_id, source) for source_id, source in sorted(snapshot.items())))
         merged = [item for group in groups for item in group]
         merged.sort(key=lambda item: item.run.started_at, reverse=True)
         return tuple(merged[: query.limit])
 
     async def locate_run(self, run_id: str) -> tuple[LocatedRunSummary, ...]:
         """Resolve one canonical run identity without scanning source histories."""
+
+        snapshot = self._snapshot
 
         async def load(
             source_id: str,
@@ -112,7 +147,7 @@ class RunSourceRegistry:
                 run=detail.summary,
             )
 
-        values = await asyncio.gather(*(load(source_id, source) for source_id, source in sorted(self._sources.items())))
+        values = await asyncio.gather(*(load(source_id, source) for source_id, source in sorted(snapshot.items())))
         return tuple(item for item in values if item is not None)
 
     async def work_package_view(
@@ -122,9 +157,13 @@ class RunSourceRegistry:
         project_id: str | None = None,
         source_id: str | None = None,
     ) -> WorkPackageView:
-        located = await self.list_runs(RunQuery(project_id=project_id, work_package_id=work_package_id, limit=1000))
+        snapshot = self._snapshot
+        located = await self._list_runs(
+            snapshot,
+            RunQuery(project_id=project_id, work_package_id=work_package_id, limit=1000),
+        )
         if source_id is not None:
-            self.resolve(RunLocator(source_id=source_id, run_id="source-probe"))
+            self._resolve(snapshot, RunLocator(source_id=source_id, run_id="source-probe"))
             located = tuple(item for item in located if item.locator.source_id == source_id)
         runs: list[WorkPackageRun] = []
         lineage = []
@@ -133,7 +172,7 @@ class RunSourceRegistry:
         if project_id is None and len(project_ids) > 1:
             raise ValueError(f"work package {work_package_id!r} exists in multiple projects; provide project_id")
         for item in located:
-            source = self.resolve(item.locator)
+            source = self._resolve(snapshot, item.locator)
             detail, artifacts = await asyncio.gather(
                 source.get_run(item.locator.run_id), source.artifacts(item.locator.run_id)
             )

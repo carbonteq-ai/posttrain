@@ -2328,6 +2328,71 @@
         "title": "ServingRequirementView",
         "type": "object"
       },
+      "SourceRefreshStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "discovered_source_ids": {
+            "$ref": "#/components/schemas/StringTuple",
+            "default": []
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "last_attempt_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Attempt At"
+          },
+          "last_success_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Success At"
+          },
+          "state": {
+            "enum": [
+              "disabled",
+              "pending",
+              "refreshing",
+              "succeeded",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "state"
+        ],
+        "title": "SourceRefreshStatus",
+        "type": "object"
+      },
       "Stage": {
         "enum": [
           "screen",
@@ -3578,6 +3643,24 @@
           }
         },
         "summary": "Sources"
+      }
+    },
+    "/api/v1/sources/refresh": {
+      "post": {
+        "operationId": "refresh_sources_api_v1_sources_refresh_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceRefreshStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Refresh Sources"
       }
     },
     "/api/v1/work-packages/{work_package_id}": {

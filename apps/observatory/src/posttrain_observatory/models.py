@@ -85,6 +85,15 @@ class SourceSummary(ObservatoryModel):
     capabilities: TrackingCapabilities | None = None
 
 
+class SourceRefreshStatus(ObservatoryModel):
+    enabled: bool
+    state: Literal["disabled", "pending", "refreshing", "succeeded", "failed"]
+    last_attempt_at: datetime | None = None
+    last_success_at: datetime | None = None
+    error: str | None = None
+    discovered_source_ids: StringTuple = ()
+
+
 class LocatedRunSummary(ObservatoryModel):
     locator: RunLocator
     run_key: str = Field(min_length=1)
@@ -810,6 +819,7 @@ __all__ = [
     "ServingRequirementState",
     "ServingRequirementView",
     "SourceSummary",
+    "SourceRefreshStatus",
     "SummaryChange",
     "SummaryValue",
     "SystemMetricGroup",
