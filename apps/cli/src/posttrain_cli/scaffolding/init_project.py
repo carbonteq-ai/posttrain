@@ -289,6 +289,9 @@ def initialize(
     work_packages = control / "work_packages"
     work_packages_readme = work_packages / "README.md"
     control_ignore = control / ".gitignore"
+    runtime_environment = project_root / "posttrain.env"
+    runtime_environment_example = project_root / "posttrain.env.example"
+    project_ignore = project_root / ".gitignore"
 
     if project_root.exists() and any(project_root.iterdir()):
         raise FileExistsError(f"refusing to overwrite existing project files in non-empty directory: {project_root}")
@@ -297,6 +300,16 @@ def initialize(
     catalog.mkdir(parents=True, exist_ok=True)
     work_packages.mkdir(parents=True, exist_ok=True)
     (control / "state").mkdir(parents=True, exist_ok=True)
+    runtime_environment.write_text("", encoding="utf-8")
+    runtime_environment.chmod(0o600)
+    runtime_environment_example.write_text(
+        "# Runtime variable names for this project. Keep values in posttrain.env.\n"
+        "# POSTTRAIN_REGISTRY\n"
+        "# POSTTRAIN_TRACKIO_SERVER_URL\n"
+        "# TRACKIO_WRITE_TOKEN\n",
+        encoding="utf-8",
+    )
+    project_ignore.write_text("posttrain.env\n", encoding="utf-8")
     hostname = socket.gethostname().strip().lower().rstrip(".")
     execution_toml = control / "state" / "execution.toml"
     execution_toml.write_text(
@@ -368,7 +381,7 @@ def initialize(
             encoding="utf-8",
         )
         (project_root / ".gitignore").write_text(
-            ".venv/\n__pycache__/\n*.py[cod]\n",
+            "posttrain.env\n.venv/\n__pycache__/\n*.py[cod]\n",
             encoding="utf-8",
         )
         (catalog / "settings.yaml").write_text(starter_settings(template), encoding="utf-8")

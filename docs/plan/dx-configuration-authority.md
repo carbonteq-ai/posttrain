@@ -36,7 +36,14 @@ already satisfied.
       profile, tracking policy, and install transport decisions revised.
 - [x] (2026-08-01) Follow-up review identified the required-tracking proposal
       as a frozen-baseline amendment and added the governance gate.
-- [ ] Milestone 1: `posttrain.env` loads automatically and authoritatively.
+- [ ] Milestone 1: `posttrain.env` loads automatically and authoritatively
+      (in progress: project-owned resolver, scaffold, legacy-pointer warning,
+      and CLI `--env-file` propagation complete; provider bridge narrowing and
+      pointer removal remain).
+- [x] (2026-08-01) Added public redacted runtime-environment resolution;
+      `posttrain.env` now wins over shell values and the legacy pointer for
+      local configuration and registry derivation. `init` writes protected
+      `posttrain.env`, tracked `posttrain.env.example`, and ignores the former.
 - [ ] Milestone 2: named site profiles at `$XDG_CONFIG_HOME/posttrain/config.toml`
       and the state-directory split.
 - [ ] Milestone 3: required tracking with a site-selected backend.
@@ -61,6 +68,11 @@ already satisfied.
   terminal provider evidence as the admission barrier when a project selects
   the no-op observer, and `docs/post-training/README.md` requires unfreeze →
   baseline update → plan/code for behavior changes.
+- Observation: seven execution-configuration tests encoded ambient
+  `POSTTRAIN_REGISTRY` fallback rather than a project runtime source.
+  Evidence: after the resolver stopped reading `os.environ`, those fixtures
+  returned no registry until their values were moved to `posttrain.env`; a
+  dedicated conflicting-shell regression test now covers the intended rule.
 
 ## Decision Log
 
@@ -97,6 +109,12 @@ already satisfied.
   Rationale: silently changing the scaffolded default and admission policy from
   an implementation plan would invert the repository's documented authority.
   Date/Author: 2026-08-01 / architecture review follow-up.
+- Decision: keep `execution.toml.environment_file` readable for one release,
+  but select project-root `posttrain.env` first and emit a deprecation warning
+  only when the legacy pointer is actually used.
+  Rationale: existing projects remain runnable during migration without
+  letting their ignored state file outrank the tracked project layout.
+  Date/Author: 2026-08-01 / implementation.
 
 ## Outcomes & Retrospective
 

@@ -49,6 +49,48 @@ def _layout(tmp_path: Path):
     return load_project_layout(tmp_path)
 
 
+def _write_runtime_environment(path: Path, values: str) -> None:
+    path.write_text(values, encoding="utf-8")
+    path.chmod(0o600)
+
+
+def test_project_runtime_environment_is_authoritative_over_shell_registry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    layout = _layout(tmp_path)
+    _write_runtime_environment(
+        tmp_path / "posttrain.env",
+        "POSTTRAIN_REGISTRY=registry.project.example/posttrain\n",
+    )
+    monkeypatch.setenv("POSTTRAIN_REGISTRY", "registry.shell.example/posttrain")
+
+    configuration = load_local_execution_config(layout)
+
+    assert configuration.environment_file == (tmp_path / "posttrain.env").resolve()
+    assert configuration.registry is not None
+    assert configuration.registry.repository == "registry.project.example/posttrain/posttrain-job"
+
+
+def test_explicit_runtime_environment_replaces_the_project_file(tmp_path: Path) -> None:
+    layout = _layout(tmp_path)
+    _write_runtime_environment(
+        tmp_path / "posttrain.env",
+        "POSTTRAIN_REGISTRY=registry.project.example/posttrain\n",
+    )
+    override = tmp_path / "alternate.env"
+    _write_runtime_environment(
+        override,
+        "POSTTRAIN_REGISTRY=registry.override.example/posttrain\n",
+    )
+
+    configuration = load_local_execution_config(layout, env_file=override)
+
+    assert configuration.environment_file == override.resolve()
+    assert configuration.registry is not None
+    assert configuration.registry.repository == "registry.override.example/posttrain/posttrain-job"
+
+
 def test_run_evidence_locator_survives_project_configuration_drift(
     tmp_path: Path,
 ) -> None:
@@ -736,7 +778,7 @@ def test_registry_resolves_from_the_environment_with_no_configuration_file(
     supply is the registry for their own actual-job images.
     """
     layout = _layout(tmp_path)
-    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.internal/team")
+    _write_runtime_environment(tmp_path / "posttrain.env", "POSTTRAIN_REGISTRY=registry.internal/team\n")
 
     loaded = load_local_execution_config(layout)
     assert not loaded.path.exists()
@@ -760,7 +802,7 @@ def test_framework_images_do_not_follow_the_project_registry(
     images from it even when its own job images go somewhere private.
     """
     layout = _layout(tmp_path)
-    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.internal/team")
+    _write_runtime_environment(tmp_path / "posttrain.env", "POSTTRAIN_REGISTRY=registry.internal/team\n")
 
     loaded = load_local_execution_config(layout)
     assert loaded.registry is not None
@@ -772,7 +814,7 @@ def test_trailing_slashes_in_the_environment_prefix_are_ignored(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     layout = _layout(tmp_path)
-    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "  registry.internal/team/  ")
+    _write_runtime_environment(tmp_path / "posttrain.env", "POSTTRAIN_REGISTRY=  registry.internal/team/  \n")
 
     loaded = load_local_execution_config(layout)
     assert loaded.registry is not None
@@ -814,7 +856,7 @@ def test_mirror_prefix_moves_framework_images_without_changing_identity(
 ) -> None:
     """Mirroring is a prefix change only; digests are content-addressed."""
     layout = _layout(tmp_path)
-    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.internal/team")
+    _write_runtime_environment(tmp_path / "posttrain.env", "POSTTRAIN_REGISTRY=registry.internal/team\n")
     path = layout.state / "execution.toml"
     path.parent.mkdir(parents=True)
     path.write_text(
@@ -838,7 +880,7 @@ def test_derived_constraint_profiles_carry_published_provided_packages(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     layout = _layout(tmp_path)
-    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.internal/team")
+    _write_runtime_environment(tmp_path / "posttrain.env", "POSTTRAIN_REGISTRY=registry.internal/team\n")
 
     loaded = load_local_execution_config(layout)
     assert loaded.registry is not None
@@ -853,7 +895,7 @@ def test_released_verl_variant_is_derived_from_the_manifest(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     layout = _layout(tmp_path)
-    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.internal/team")
+    _write_runtime_environment(tmp_path / "posttrain.env", "POSTTRAIN_REGISTRY=registry.internal/team\n")
 
     loaded = load_local_execution_config(layout)
     assert loaded.registry is not None
@@ -868,10 +910,9 @@ def test_an_execution_file_without_a_registry_still_uses_the_environment(
 ) -> None:
     """Writing execution.toml for one setting must not drop another.
 
-    The registry is configured through POSTTRAIN_REGISTRY. A project that adds
-    execution.toml for an unrelated reason, such as the local provider's
-    canonical hostname, previously lost it: the environment was consulted only
-    when no execution configuration existed at all.
+    The registry is configured through the project-owned posttrain.env. A
+    project that adds execution.toml for an unrelated reason, such as the
+    local provider's canonical hostname, must retain that runtime value.
     """
     layout = _layout(tmp_path)
     layout.state.mkdir(parents=True, exist_ok=True)
@@ -881,7 +922,10 @@ def test_an_execution_file_without_a_registry_still_uses_the_environment(
         encoding="utf-8",
     )
     configured.chmod(0o600)
-    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.example.invalid/team")
+    _write_runtime_environment(
+        tmp_path / "posttrain.env",
+        "POSTTRAIN_REGISTRY=registry.example.invalid/team\n",
+    )
 
     loaded = load_local_execution_config(layout)
 

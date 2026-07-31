@@ -9,6 +9,7 @@ from .execution_settings import (
     resolve_execution_settings,
 )
 from .pack_config import ProjectPackConfig, load_project_pack_config
+from .runtime_environment import RuntimeEnvironment, resolve_runtime_environment
 from .service import JobIntent, JobService, Project
 
 __all__ = [
@@ -20,7 +21,9 @@ __all__ = [
     "ProjectPackConfig",
     "Project",
     "ResolvedExecutionSettings",
+    "RuntimeEnvironment",
     "SettingSource",
     "resolve_execution_settings",
+    "resolve_runtime_environment",
     "load_project_pack_config",
 ]

@@ -282,6 +282,7 @@ def plan_job_execution(
     project_packages: tuple[str, ...] | None = None,
     source_includes: tuple[str, ...] | None = None,
     intent: JobIntent | None = None,
+    env_file: Path | None = None,
 ) -> PlannedJobExecution:
     """Resolve and hash one job without materializing or submitting it."""
 
@@ -298,6 +299,7 @@ def plan_job_execution(
         project_packages=project_packages,
         source_includes=source_includes,
         intent=intent,
+        env_file=env_file,
     )
     return PlannedJobExecution(
         package=package,
@@ -326,6 +328,7 @@ def plan_job_package(
     project_packages: tuple[str, ...] | None = None,
     source_includes: tuple[str, ...] | None = None,
     intent: JobIntent | None = None,
+    env_file: Path | None = None,
 ) -> PlannedJobPackage:
     """Resolve capsule bytes without requiring a provider or worker storage."""
 
@@ -337,6 +340,7 @@ def plan_job_package(
             overrides=overrides.as_execution_overrides(),
             project_packages=project_packages,
             source_includes=source_includes,
+            env_file=env_file,
         )
     return _plan_job_package(
         state,
@@ -347,6 +351,7 @@ def plan_job_package(
         entry=entry,
         project_packages=project_packages,
         source_includes=source_includes,
+        env_file=env_file,
     )
 
 
@@ -401,6 +406,7 @@ def _plan_job_package(
     entry: str | None,
     project_packages: tuple[str, ...] | None,
     source_includes: tuple[str, ...] | None,
+    env_file: Path | None,
 ) -> PlannedJobPackage:
     layout, catalog, work_package_path, package = load_work_package_bundle(state, path)
     context = runtime_context(
@@ -425,6 +431,7 @@ def _plan_job_package(
         overrides=overrides,
         project_packages=project_packages,
         source_includes=source_includes,
+        env_file=env_file,
     )
 
 
@@ -434,9 +441,10 @@ def _plan_job_package_from_intent(
     overrides: ExecutionOverrides,
     project_packages: tuple[str, ...] | None,
     source_includes: tuple[str, ...] | None,
+    env_file: Path | None,
 ) -> PlannedJobPackage:
     layout = intent.layout
-    local_config = load_local_execution_config(layout)
+    local_config = load_local_execution_config(layout, env_file=env_file)
     catalog = intent.catalog
     work_package_path = intent.work_package_path
     package = intent.work_package

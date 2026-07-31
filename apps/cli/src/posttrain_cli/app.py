@@ -51,6 +51,13 @@ def create_app(*, json_stream: TextIO | None = None) -> typer.Typer:
                 help="project root containing .posttrain/project.toml; otherwise discover upward",
             ),
         ] = None,
+        env_file: Annotated[
+            Path | None,
+            typer.Option(
+                "--env-file",
+                help="use this protected runtime-value file instead of project-root posttrain.env",
+            ),
+        ] = None,
         json_output: Annotated[
             bool,
             typer.Option("--json", help="emit JSON output"),
@@ -77,6 +84,7 @@ def create_app(*, json_stream: TextIO | None = None) -> typer.Typer:
         ctx.ensure_object(dict)
         ctx.obj = CliState(
             project_root=project_root,
+            env_file=env_file,
             json_output=json_output,
             traceback=show_traceback,
             json_stream=json_stream or sys.stdout,

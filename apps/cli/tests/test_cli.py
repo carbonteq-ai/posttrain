@@ -7,6 +7,7 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
 from posttrain.common import ExecutionTarget, RunContext
 from posttrain.execution import (
     AdmissionEntry,
@@ -262,6 +263,11 @@ def test_init_creates_portable_project_and_valid_empty_overlay(
     assert (project / ".posttrain" / "project.yaml").is_file()
     assert (project / ".posttrain" / "catalog" / "layer.yaml").read_text(encoding="utf-8").endswith("files: []\n")
     assert (project / ".posttrain" / ".gitignore").read_text(encoding="utf-8") == "state/\n"
+    runtime_environment = project / "posttrain.env"
+    assert runtime_environment.read_text(encoding="utf-8") == ""
+    assert runtime_environment.stat().st_mode & 0o077 == 0
+    assert "posttrain.env" in (project / ".gitignore").read_text(encoding="utf-8").splitlines()
+    assert "POSTTRAIN_REGISTRY" in (project / "posttrain.env.example").read_text(encoding="utf-8")
     assert main(["--project-root", str(project), "catalog", "validate"]) == 0
     validated = capsys.readouterr()
     assert "Catalog valid: framework-v1" in validated.out
@@ -278,6 +284,27 @@ def test_init_refuses_to_overwrite_existing_project(tmp_path: Path, capsys) -> N
 
     assert captured.out == ""
     assert "refusing to overwrite existing project files" in captured.err
+
+
+def test_global_env_file_option_reaches_the_command_state(
+    tmp_path: Path,
+    capsys,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from posttrain_cli.commands import project_cmd
+
+    project = tmp_path / "example"
+    override = tmp_path / "alternate.env"
+    override.write_text("POSTTRAIN_REGISTRY=registry.example/project\n", encoding="utf-8")
+    override.chmod(0o600)
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+    seen: list[Path | None] = []
+    monkeypatch.setattr(project_cmd, "emit", lambda state, *_args: seen.append(state.env_file))
+
+    assert main(["--project-root", str(project), "--env-file", str(override), "project", "show"]) == 0
+
+    assert seen == [override]
 
 
 def test_init_sft_template_writes_installable_project_and_valid_standard_job(

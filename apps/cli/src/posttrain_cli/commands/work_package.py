@@ -115,6 +115,7 @@ def plan_work_package_cmd(
         project_packages=project_packages,
         source_includes=source_includes,
         intent=intent,
+        env_file=state.env_file,
     )
     payload = _execution_plan_payload(planned)
     emit(
@@ -160,6 +161,7 @@ def pack_work_package_cmd(
         entry=entry,
         project_packages=project_packages,
         source_includes=source_includes,
+        env_file=state.env_file,
     )
     _require_verified_kind_image(planned, build_missing=build_missing)
     packed = planned.pack()
@@ -206,6 +208,7 @@ def run_work_package_cmd(
             entry=entry,
             project_packages=project_packages,
             source_includes=source_includes,
+            env_file=state.env_file,
         )
         _require_verified_kind_image(planned, build_missing=build_missing)
         packed = planned.pack()

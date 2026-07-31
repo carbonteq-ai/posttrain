@@ -7,6 +7,7 @@ import os
 import re
 import shlex
 import tomllib
+import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, fields
 from hashlib import sha256
@@ -24,6 +25,7 @@ from posttrain.project import (
     ResolvedExecutionSettings,
     SettingSource,
     resolve_execution_settings,
+    resolve_runtime_environment,
 )
 from posttrain.runtime_images import cached_definition_root
 from posttrain.runtime_images.manifest import (
@@ -110,15 +112,21 @@ def load_local_execution_config(
     layout: ProjectLayout,
     *,
     path: Path | None = None,
+    env_file: Path | None = None,
 ) -> LocalExecutionConfig:
     """Load an ignored mode-0600 machine binding, or return an empty binding."""
 
     configured = (path or layout.state / _DEFAULT_LOCAL_NAME).expanduser().resolve()
+    runtime_environment = resolve_runtime_environment(layout.root, env_file=env_file)
     if not configured.exists():
         # A project with no machine binding is still fully usable: the release
         # pins every framework image, so only the project's own registry is
         # missing, and the environment can supply it.
-        return LocalExecutionConfig(configured, registry=derived_registry())
+        return LocalExecutionConfig(
+            configured,
+            environment_file=runtime_environment.path,
+            registry=derived_registry(environ=runtime_environment.for_execution()),
+        )
     if not configured.is_file():
         raise ContractError(f"execution configuration is not a file: {configured}")
     if configured.stat().st_mode & 0o077:
@@ -145,7 +153,7 @@ def load_local_execution_config(
 
     defaults = _parse_overrides(payload.get("defaults"), context="defaults")
     environment_value = payload.get("environment_file")
-    environment_file = (
+    legacy_environment_file = (
         _configured_path(
             environment_value,
             configured.parent,
@@ -154,8 +162,18 @@ def load_local_execution_config(
         if environment_value is not None
         else None
     )
-    if environment_file is not None:
-        _require_protected_file(environment_file, "execution environment file")
+    if legacy_environment_file is not None:
+        _require_protected_file(legacy_environment_file, "execution environment file")
+    if runtime_environment.path is not None:
+        environment_file = runtime_environment.path
+    else:
+        environment_file = legacy_environment_file
+        if environment_file is not None:
+            warnings.warn(
+                "execution.toml environment_file is deprecated; use project-root posttrain.env instead",
+                DeprecationWarning,
+                stacklevel=2,
+            )
     providers = _mapping(payload.get("providers"), context="providers", allow_none=True)
     _reject_unknown(providers, {"local", "dstack"}, "providers")
     local = _parse_local(providers.get("local"), base=configured.parent)
@@ -164,7 +182,20 @@ def load_local_execution_config(
     # is no registry. Writing execution.toml for an unrelated setting, such as
     # the local provider's hostname, otherwise discards POSTTRAIN_REGISTRY and
     # reports the project as having nowhere to publish.
-    registry = _parse_registry(payload.get("registry"), base=configured.parent) or derived_registry()
+    provisional = LocalExecutionConfig(
+        path=configured,
+        defaults=defaults,
+        environment_file=environment_file,
+        local=local,
+        dstack=dstack,
+    )
+    runtime_values = load_execution_environment(provisional)
+    parsed_registry = _parse_registry(
+        payload.get("registry"),
+        base=configured.parent,
+        environ=runtime_values,
+    )
+    registry = parsed_registry or derived_registry(environ=runtime_values)
     return LocalExecutionConfig(
         path=configured,
         defaults=defaults,
@@ -417,9 +448,10 @@ def resolve_admission_state_root() -> Path:
     return (Path.home() / ".local" / "state" / "posttrain").resolve()
 
 
-def configured_registry_prefix() -> str | None:
+def configured_registry_prefix(environ: Mapping[str, str] | None = None) -> str | None:
     """Return the project's registry prefix from the environment, if set."""
-    raw = os.environ.get(REGISTRY_ENVIRONMENT_VARIABLE, "").strip().rstrip("/")
+    values = os.environ if environ is None else environ
+    raw = values.get(REGISTRY_ENVIRONMENT_VARIABLE, "").strip().rstrip("/")
     return raw or None
 
 
@@ -471,10 +503,15 @@ def _derived_constraint_profiles(
     return profiles
 
 
-def _resolved_repository(declared: object, *, context: str) -> str:
+def _resolved_repository(
+    declared: object,
+    *,
+    context: str,
+    environ: Mapping[str, str] | None = None,
+) -> str:
     if declared is not None:
         return _required_config_string(declared, context)
-    prefix = configured_registry_prefix()
+    prefix = configured_registry_prefix(environ)
     if prefix is None:
         raise ContractError(
             "job packing needs a registry for this project's actual-job images: "
@@ -484,14 +521,19 @@ def _resolved_repository(declared: object, *, context: str) -> str:
     return f"{prefix}/{_JOB_REPOSITORY_SUFFIX}"
 
 
-def derived_registry() -> RegistryBinding | None:
+def derived_registry(environ: Mapping[str, str] | None = None) -> RegistryBinding | None:
     """Build a registry binding with no execution configuration file at all."""
-    if configured_registry_prefix() is None:
+    if configured_registry_prefix(environ) is None:
         return None
-    return _parse_registry({}, base=Path.cwd())
+    return _parse_registry({}, base=Path.cwd(), environ=environ)
 
 
-def _parse_registry(value: object, *, base: Path) -> RegistryBinding | None:
+def _parse_registry(
+    value: object,
+    *,
+    base: Path,
+    environ: Mapping[str, str] | None = None,
+) -> RegistryBinding | None:
     if value is None:
         return None
     payload = _mapping(value, context="registry")
@@ -545,7 +587,11 @@ def _parse_registry(value: object, *, base: Path) -> RegistryBinding | None:
         )
     universal_value = payload.get("universal_image")
     return RegistryBinding(
-        repository=_resolved_repository(payload.get("repository"), context="registry.repository"),
+        repository=_resolved_repository(
+            payload.get("repository"),
+            context="registry.repository",
+            environ=environ,
+        ),
         universal_image=RuntimeImageRef(
             _required_config_string(universal_value, "registry.universal_image")
             if universal_value is not None
