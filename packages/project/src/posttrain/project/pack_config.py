@@ -18,6 +18,7 @@ class ProjectPackConfig:
     pyproject: Path
     project_packages: tuple[str, ...]
     source_includes: tuple[str, ...]
+    environment_candidates: tuple[str, ...] = ()
 
     def source_request(self, root: Path) -> SourceSnapshotRequest:
         return SourceSnapshotRequest(
@@ -72,7 +73,14 @@ def load_project_pack_config(
         path = layout.root if included == "." else layout.root.joinpath(*included.split("/"))
         if not path.exists():
             raise ContractError(f"project source include does not exist: {included}")
-    return ProjectPackConfig(pyproject, packages, includes)
+    candidates = tuple(
+        sorted(
+            directory.relative_to(layout.root).as_posix()
+            for directory in (layout.root / "environments").glob("*")
+            if directory.is_dir() and (directory / "pyproject.toml").is_file()
+        )
+    ) if (layout.root / "environments").is_dir() else ()
+    return ProjectPackConfig(pyproject, packages, includes, candidates)
 
 
 def _default_includes(root: Path, packages: tuple[str, ...], pyproject: dict[str, object]) -> list[str]:

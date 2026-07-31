@@ -401,6 +401,12 @@ def test_init_grpo_template_declares_environment_and_selected_extras(
     assert "starter-gsm8k-train" in work_package
     assert "kind: project-path" in environment
     assert (project / "environments" / "starter-gsm8k" / "pyproject.toml").is_file()
+    from posttrain.catalog import load_project_layout
+    from posttrain.project import load_project_pack_config
+
+    assert load_project_pack_config(load_project_layout(project)).environment_candidates == (
+        "environments/starter-gsm8k",
+    )
     assert "train/trl-grpo@1" in work_package
     assert "posttrain_lab" not in pyproject + work_package
 
