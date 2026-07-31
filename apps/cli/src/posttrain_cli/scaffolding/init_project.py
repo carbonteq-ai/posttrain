@@ -389,7 +389,11 @@ def initialize(
         ),
         encoding="utf-8",
     )
-    catalog_files = (["settings.yaml", "environments.yaml"] if template == "grpo" else ["settings.yaml"]) if template is not None else []
+    catalog_files = (
+        (["settings.yaml", "environments.yaml"] if template == "grpo" else ["settings.yaml"])
+        if template is not None
+        else []
+    )
     catalog_manifest.write_text(
         "\n".join(
             (

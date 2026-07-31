@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from posttrain.catalog import load_catalog_layer, packaged_base_directory
 from posttrain.common import CatalogRef, ContractError, ExecutionTarget, ModelVariant
-from posttrain.eval import EnvironmentBinding, EvaluationPlan
+from posttrain.eval import EnvironmentBinding, EnvironmentSource, EvaluationPlan
 from posttrain.train import (
     DynamicGroupSampling,
     GRPOSettings,
@@ -57,6 +57,7 @@ def test_automationbench_grpo_environment_is_category_and_budget_driven() -> Non
     ).value
 
     assert isinstance(environment, EnvironmentBinding)
+    assert isinstance(environment.source, EnvironmentSource)
     assert environment.source.repository == "https://github.com/carbonteq-ai/AutomationBench"
     assert environment.source.revision == "d54dbebabdba6c6eda201694aee8ddcf36ccfc51"
     assert environment.parameters["domains"] == ["simple"]
@@ -186,8 +187,8 @@ def test_invalid_catalog_yaml_is_rejected_at_the_host_boundary(tmp_path: Path) -
         encoding="utf-8",
     )
 
-    with pytest.raises(ContractError, match="extra_forbidden"):
-        load_catalog_layer(directory)
+    with pytest.raises(ContractError, match="catalog_family_unavailable: unknown_family"):
+        open_catalog(scope="invalid", overlays=(directory,))
 
 
 def test_invalid_selection_fields_fail_before_catalog_is_returned(tmp_path: Path) -> None:

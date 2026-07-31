@@ -41,6 +41,15 @@ without an out-of-band constraints file.
 - [ ] Milestone 2: one release manifest and deterministic metadata expansion.
 - [ ] Milestone 3: generated dependency locks and indexed maintained forks.
 - [ ] Milestone 4: captured image receipts and a curated release-PR flow.
+- [x] (2026-08-01) Added the milestone-1 authority and primary drift gate:
+      `release/manifest.toml` is the authored version; `posttrain-release
+      check` verifies 25 package versions, 109 internal pins, the catalog's
+      `uv.lock` digest, and the published runtime-image manifest. CI runs it.
+- [x] (2026-08-01) Added deterministic `posttrain-release prepare VERSION`;
+      the first expansion prepared `0.3.0`, refreshed `uv.lock`, regenerated
+      the catalog digest, and re-ran the consistency check. The remaining
+      milestone-2 gate is a clean `uv build --all-packages --no-sources` plus
+      wheel metadata inspection.
 
 ## Surprises & Discoveries
 

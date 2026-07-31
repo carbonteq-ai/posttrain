@@ -140,10 +140,16 @@ class ImmutableEnvironmentPackager:
             git_wheels = self._wheel_builder.build(sources, wheel_requests).wheels
         elif wheel_requests:
             raise ContractError("environment wheel requests require their Git sources")
-        project_wheels = self._wheel_builder.build_project_sources(project_sources, project_requests).wheels if project_requests else ()
+        project_wheels = (
+            self._wheel_builder.build_project_sources(project_sources, project_requests).wheels
+            if project_requests
+            else ()
+        )
         wheels = MaterializedEnvironmentWheels(
             wheels=tuple(sorted((*git_wheels, *project_wheels), key=lambda item: item.lock.package)),
-            lock=EnvironmentWheelLock(tuple(item.lock for item in sorted((*git_wheels, *project_wheels), key=lambda item: item.lock.package))),
+            lock=EnvironmentWheelLock(
+                tuple(item.lock for item in sorted((*git_wheels, *project_wheels), key=lambda item: item.lock.package))
+            ),
         )
         closures = _runtime_closure_constraints(
             constraints,

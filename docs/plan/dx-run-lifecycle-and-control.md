@@ -32,12 +32,19 @@ never silently target a different run than intended.
 - [x] (2026-08-01) Plan authored from the v0.2.5 release-scoped critique.
 - [x] (2026-08-01) Cross-plan architecture review completed; ownership,
       projection, targeting, and controller deployment decisions revised.
-- [ ] Milestone 1: chronological read selectors and canonical-id mutation.
+- [x] (2026-08-01) Milestone 1: chronological read selectors and canonical-id
+      mutation. Read selectors order strictly by timestamp; cancel, retry,
+      reconcile, recovery, and cleanup reject prefixes and `--last`.
 - [ ] Milestone 2: frozen prepared submissions and control-store ownership.
 - [ ] Milestone 3: durable provider locator (`ExecutionProviderSource`).
 - [ ] Milestone 4: provider-neutral `RunView` and idempotent reconciler.
 - [ ] Milestone 5: stable CLI JSON error envelope.
 - [ ] Milestone 6: foreground controller, then service packaging.
+- [x] (2026-08-01) Admission entries now persist and validate the owning
+      control-store URI. Review found that the shared pump does not consume the
+      locator yet: it still captures the reconciling project's provider and
+      store factory. Milestones 2 and 3 therefore remain release blockers; the
+      locator field alone is not recorded as their completion.
 
 ## Surprises & Discoveries
 

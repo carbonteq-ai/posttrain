@@ -893,10 +893,7 @@ def _verify_environment_selections(
         if package_lock is None:
             raise ContractError(f"job package omits environment package {source.package!r}")
         if isinstance(source, ProjectPathEnvironmentSource):
-            if (
-                package_lock.source_kind != "project-path"
-                or package_lock.project_path != source.path
-            ):
+            if package_lock.source_kind != "project-path" or package_lock.project_path != source.path:
                 raise ContractError(f"job package project environment source differs for {environment_id!r}")
         elif (
             package_lock.source_kind != "git"
@@ -1059,8 +1056,7 @@ def _resolve_activation_value(
                 raise ContractError(f"activation resource lock is invalid: {name}")
             return str(_package_path(root, staged_path, f"activation resource {name}", prefix="environment-resources"))
         return {
-            str(key): _resolve_activation_value(child, root=root, resources=resources)
-            for key, child in value.items()
+            str(key): _resolve_activation_value(child, root=root, resources=resources) for key, child in value.items()
         }
     if isinstance(value, list):
         return [_resolve_activation_value(child, root=root, resources=resources) for child in value]

@@ -3,14 +3,35 @@
 from __future__ import annotations
 
 import tomllib
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 
 import pytest
 from posttrain.runtime_images import RUNTIME_VARIANTS, constraint_lock, lock_digest
 from posttrain.runtime_images.manifest import ManifestError, PublishedImage, load_manifest
 from posttrain_release.manifest_render import render_manifest
+from posttrain_release.versioning import check_release, prepare_release
 
 _REPOSITORY_ROOT_DEPTH = 3
+
+
+def _version_repository(root: Path, version: str = "0.2.5") -> None:
+    (root / "release").mkdir(parents=True)
+    (root / "release" / "manifest.toml").write_text(
+        f'schema_version = 1\nversion = "{version}"\n',
+        encoding="utf-8",
+    )
+    (root / "pyproject.toml").write_text(
+        f'[project]\nname = "posttrain"\nversion = "{version}"\ndependencies = ["posttrain-common=={version}"]\n',
+        encoding="utf-8",
+    )
+    (root / "uv.lock").write_text("lock\n", encoding="utf-8")
+    digest = __import__("hashlib").sha256((root / "uv.lock").read_bytes()).hexdigest()
+    catalog = root / "packages/catalog/src/posttrain/catalog/base"
+    catalog.mkdir(parents=True)
+    (catalog / "training.yaml").write_text(
+        f"training:\n  example:\n    dependency_lock_sha256: {digest}\n",
+        encoding="utf-8",
+    )
 
 
 def _image(name: str, variant: str, digest_char: str) -> PublishedImage:
@@ -47,6 +68,48 @@ def test_rendered_manifest_parses_and_round_trips() -> None:
     assert document["framework_version"] == "9.9.9"
     assert document["default_prefix"] == "registry.lan/carbonteq"
     assert set(document["kinds"]) == set(RUNTIME_VARIANTS)
+
+
+def test_release_check_uses_the_manifest_as_version_authority(tmp_path: Path) -> None:
+    _version_repository(tmp_path)
+
+    result = check_release(tmp_path)
+
+    assert result.version == "0.2.5"
+    assert result.package_count == 1
+    assert result.internal_pin_count == 1
+
+
+def test_release_check_names_a_drifted_internal_pin(tmp_path: Path) -> None:
+    _version_repository(tmp_path)
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        pyproject.read_text(encoding="utf-8").replace("posttrain-common==0.2.5", "posttrain-common==0.2.4"),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=r"pyproject[.]toml: posttrain-common is pinned to '0[.]2[.]4'.*'0[.]2[.]5'"):
+        check_release(tmp_path)
+
+
+def test_prepare_expands_versions_refreshes_lock_and_rechecks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _version_repository(tmp_path)
+
+    def fake_run(*args, **kwargs):
+        del args, kwargs
+        (tmp_path / "uv.lock").write_text("new lock\n", encoding="utf-8")
+        return __import__("subprocess").CompletedProcess(["uv", "lock"], 0, "", "")
+
+    monkeypatch.setattr("posttrain_release.versioning.subprocess.run", fake_run)
+
+    result = prepare_release(tmp_path, "0.3.0")
+
+    assert result.version == "0.3.0"
+    assert 'version = "0.3.0"' in (tmp_path / "pyproject.toml").read_text(encoding="utf-8")
+    assert "posttrain-common==0.3.0" in (tmp_path / "pyproject.toml").read_text(encoding="utf-8")
 
 
 def test_rendered_lock_digests_come_from_the_shipped_locks() -> None:

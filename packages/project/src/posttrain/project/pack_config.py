@@ -56,12 +56,17 @@ def load_project_pack_config(
         raise ContractError("pyproject [tool.posttrain.pack] has unknown fields: " + ", ".join(unknown))
 
     configured_packages = (
-        project_packages if project_packages is not None else _string_tuple(pack.get("project_packages", ["."]), "project_packages")
+        project_packages
+        if project_packages is not None
+        else _string_tuple(pack.get("project_packages", ["."]), "project_packages")
     )
     configured_includes = (
         source_includes
         if source_includes is not None
-        else _string_tuple(pack.get("source_includes", _default_includes(layout.root, configured_packages, document)), "source_includes")
+        else _string_tuple(
+            pack.get("source_includes", _default_includes(layout.root, configured_packages, document)),
+            "source_includes",
+        )
     )
     packages = _normalized_paths(configured_packages, "project package")
     includes = _normalized_paths(configured_includes, "source include")
@@ -73,13 +78,17 @@ def load_project_pack_config(
         path = layout.root if included == "." else layout.root.joinpath(*included.split("/"))
         if not path.exists():
             raise ContractError(f"project source include does not exist: {included}")
-    candidates = tuple(
-        sorted(
-            directory.relative_to(layout.root).as_posix()
-            for directory in (layout.root / "environments").glob("*")
-            if directory.is_dir() and (directory / "pyproject.toml").is_file()
+    candidates = (
+        tuple(
+            sorted(
+                directory.relative_to(layout.root).as_posix()
+                for directory in (layout.root / "environments").glob("*")
+                if directory.is_dir() and (directory / "pyproject.toml").is_file()
+            )
         )
-    ) if (layout.root / "environments").is_dir() else ()
+        if (layout.root / "environments").is_dir()
+        else ()
+    )
     return ProjectPackConfig(pyproject, packages, includes, candidates)
 
 

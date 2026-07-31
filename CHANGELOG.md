@@ -4,6 +4,47 @@ All notable changes to Posttrain are documented here. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with a coordinated
 version across first-party distributions.
 
+## 0.3.0 - Unreleased
+
+This release starts the project-owned developer-experience redesign. Static
+job meaning, execution configuration, catalog composition, environment source,
+and image publication are now separated so projects can be planned and packed
+without silently inheriting the submitting shell or a provider connection.
+
+### Added
+
+- Installable `posttrain-project` and `posttrain-environment` packages with
+  public project discovery, provider-free job intents, execution-setting
+  provenance, portable environment activation contracts, and project-path
+  environment sources.
+- Deterministic catalog-family discovery through entry points. Resolved family
+  provenance is locked into package identity; duplicate, absent, or undeclared
+  providers fail before catalog decoding.
+- Local OCI job-image export, selected transitive catalog closure staging,
+  project environment scaffolding, and declared dataset builders with
+  input-sensitive cache identity.
+- Runtime qualification for staged activation resources, taskset loading, and
+  frozen JSONL datasets before an actual job image is published.
+- `release/manifest.toml`, `posttrain-release check`, and
+  `posttrain-release prepare` as the authoritative lockstep version workflow.
+
+### Changed
+
+- Project-root `posttrain.env` is loaded automatically and authoritatively;
+  ambient shell variables no longer override project runtime configuration.
+- `posttrain job plan` reports provider-free job intent. Publication and
+  launch settings are selected by `job pack` and `job run` respectively.
+- Read-only `--last` resolution is strictly chronological. Mutating run
+  commands require the complete canonical run id.
+
+### Release qualification
+
+- The Python release remains gated on completing durable cross-project
+  admission ownership. A queued run records its control-store locator today,
+  but the shared admission pump must still reconstruct the owning provider
+  source rather than capture the project that happens to reconcile another
+  run.
+
 ## 0.2.5 - 2026-07-31
 
 This patch hardens high-concurrency native Verifiers GRPO and makes

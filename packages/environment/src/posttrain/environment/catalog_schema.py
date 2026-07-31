@@ -147,10 +147,7 @@ def _activation_from_schema(
     if isinstance(payload, VerifiersV1ConfigActivationSchema):
         return VerifiersV1ConfigActivation(
             payload.config,
-            {
-                name: ProjectPathActivationResource(resource.source.path)
-                for name, resource in payload.resources.items()
-            },
+            {name: ProjectPathActivationResource(resource.source.path) for name, resource in payload.resources.items()},
         )
     return PythonFactoryActivation(payload.reference)
 

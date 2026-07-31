@@ -1,17 +1,17 @@
 [project]
 name = "posttrain-work"
-version = "0.2.5"
+version = "0.3.0"
 description = "Reusable recipe, work-package, preflight, and run composition"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-    "posttrain-common==0.2.5",
-    "posttrain-data==0.2.5",
-    "posttrain-environment==0.2.5",
-    "posttrain-eval==0.2.5",
-    "posttrain-tracking==0.2.5",
-    "posttrain-train==0.2.5",
+    "posttrain-common==0.3.0",
+    "posttrain-data==0.3.0",
+    "posttrain-environment==0.3.0",
+    "posttrain-eval==0.3.0",
+    "posttrain-tracking==0.3.0",
+    "posttrain-train==0.3.0",
     "pydantic>=2.12,<3",
     "pyyaml>=6.0,<7",
 ]

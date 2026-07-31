@@ -1405,14 +1405,19 @@ bindings:
         layer_path.read_text(encoding="utf-8").replace("  - targets.yaml\n", "  - targets.yaml\n  - unrelated.yaml\n"),
         encoding="utf-8",
     )
-    assert _project_config_bundle(
-        overridden.layout,
-        overridden.work_package_path,
-        overridden.prepared,
-        overridden.catalog,
-    ).files == selected_config.files
+    assert (
+        _project_config_bundle(
+            overridden.layout,
+            overridden.work_package_path,
+            overridden.prepared,
+            overridden.catalog,
+        ).files
+        == selected_config.files
+    )
     targets_path = catalog_dir / "targets.yaml"
-    targets_path.write_text(targets_path.read_text(encoding="utf-8").replace("memory_gb: 24", "memory_gb: 48"), encoding="utf-8")
+    targets_path.write_text(
+        targets_path.read_text(encoding="utf-8").replace("memory_gb: 24", "memory_gb: 48"), encoding="utf-8"
+    )
     changed_config = _project_config_bundle(
         overridden.layout,
         overridden.work_package_path,
@@ -1663,7 +1668,10 @@ bindings:
     local = reusable_package.pack_local()
     assert local.image.layout.joinpath("index.json").is_file()
     assert tuple(FakePublisher.remote_publications) == remote_before
-    assert FakePublisher.local_publications == [local_payload["package"]["publication_key"], local.context.publication_key]
+    assert FakePublisher.local_publications == [
+        local_payload["package"]["publication_key"],
+        local.context.publication_key,
+    ]
 
     observed_requests = []
 

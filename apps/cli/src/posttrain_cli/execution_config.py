@@ -45,6 +45,7 @@ that location is a property of the release and is never configured here.
 
 _JOB_REPOSITORY_SUFFIX = "posttrain-job"
 
+
 @dataclass(frozen=True, slots=True)
 class ExecutionStorageBinding:
     run_root: Path

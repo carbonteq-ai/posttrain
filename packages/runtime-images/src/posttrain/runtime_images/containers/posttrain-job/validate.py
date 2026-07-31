@@ -141,7 +141,8 @@ def _validate_tree(root: Path) -> None:
     _require(root.is_dir(), f"staged context is not a directory: {root}")
     observed_top_level = {path.name for path in root.iterdir()}
     _require(
-        observed_top_level in {frozenset(EXPECTED_TOP_LEVEL), frozenset((*EXPECTED_TOP_LEVEL, "environment-resources"))},
+        observed_top_level
+        in {frozenset(EXPECTED_TOP_LEVEL), frozenset((*EXPECTED_TOP_LEVEL, "environment-resources"))},
         "staged context top-level layout differs from the contract",
     )
     for relative in REQUIRED_PATHS:

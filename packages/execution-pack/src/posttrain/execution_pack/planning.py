@@ -389,12 +389,18 @@ def _environment_source_requests(
                 raise ContractError("planning a project-path environment requires the project root")
             root = project_root.resolve()
             package_root = (root / source.path).resolve()
-            if not package_root.is_relative_to(root) or package_root.is_symlink() or not (package_root / "pyproject.toml").is_file():
+            if (
+                not package_root.is_relative_to(root)
+                or package_root.is_symlink()
+                or not (package_root / "pyproject.toml").is_file()
+            ):
                 raise ContractError(
                     f"project-path environment {source.package!r} must contain a regular pyproject.toml: {source.path}"
                 )
             snapshot = SourceSnapshotRequest(root=root, includes=(source.path,), install_roots=(source.path,))
-            digest = ImmutableSourceSnapshotter(cache_root=(root / ".posttrain" / "state" / "pack" / "sources")).inspect(snapshot)
+            digest = ImmutableSourceSnapshotter(
+                cache_root=(root / ".posttrain" / "state" / "pack" / "sources")
+            ).inspect(snapshot)
             project_sources.append(ProjectEnvironmentSourceRequest(source.package, source.path, digest))
             continue
         subdirectory = source.subdirectory or "."
@@ -452,7 +458,9 @@ def _environment_source_requests(
         )
     )
     project = tuple(sorted(project_sources, key=lambda source: source.path))
-    if len({source.package for source in project}) != len(project) or len({source.path for source in project}) != len(project):
+    if len({source.package for source in project}) != len(project) or len({source.path for source in project}) != len(
+        project
+    ):
         raise ContractError("project environment package paths and identities must be unique")
     return sources, wheels, project
 

@@ -739,10 +739,14 @@ def _project_config_bundle(
             if not isinstance(document, dict):
                 raise ContractError(f"project catalog document is invalid: {source_path}")
             retained = {
-                family: {identifier: value for identifier, value in entries.items() if any(
-                    getattr(ref, "family", None) == family and getattr(ref, "id", None) == identifier
-                    for ref in selected_refs
-                )}
+                family: {
+                    identifier: value
+                    for identifier, value in entries.items()
+                    if any(
+                        getattr(ref, "family", None) == family and getattr(ref, "id", None) == identifier
+                        for ref in selected_refs
+                    )
+                }
                 for family, entries in document.items()
                 if isinstance(family, str) and isinstance(entries, dict)
             }

@@ -179,8 +179,10 @@ def test_verifiers_activation_digest_is_canonical() -> None:
 def test_agentic_and_domain_programs_share_the_native_port() -> None:
     assert AGENTIC_SMOKE.kind == "general"
     assert AGENTIC_SMOKE.environments[0].source.package == "automationbench-v1"
-    assert AGENTIC_SMOKE.environments[0].source.repository == ("https://github.com/carbonteq-ai/AutomationBench")
-    assert AGENTIC_SMOKE.environments[0].source.revision == ("d54dbebabdba6c6eda201694aee8ddcf36ccfc51")
+    source = AGENTIC_SMOKE.environments[0].source
+    assert isinstance(source, EnvironmentSource)
+    assert source.repository == ("https://github.com/carbonteq-ai/AutomationBench")
+    assert source.revision == ("d54dbebabdba6c6eda201694aee8ddcf36ccfc51")
     assert AGENTIC_SMOKE.environments[0].max_concurrent == 1
     assert AUTOMATIONBENCH_PUBLIC.kind == "domain"
     assert {item.category for item in AUTOMATIONBENCH_PUBLIC.environments} == {

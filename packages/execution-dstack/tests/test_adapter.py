@@ -162,11 +162,11 @@ def _sdk_bridge_module(monkeypatch: pytest.MonkeyPatch):
 
     dstack = types.ModuleType("dstack")
     api = types.ModuleType("dstack.api")
-    api.Client = object
-    api.Task = Task
-    api.VirtualRepo = object
+    api.__dict__["Client"] = object
+    api.__dict__["Task"] = Task
+    api.__dict__["VirtualRepo"] = object
     native_state = types.ModuleType("native_state")
-    native_state.assignment_state = lambda _run: "never-assigned"
+    native_state.__dict__["assignment_state"] = lambda _run: "never-assigned"
     monkeypatch.setitem(sys.modules, "dstack", dstack)
     monkeypatch.setitem(sys.modules, "dstack.api", api)
     monkeypatch.setitem(sys.modules, "native_state", native_state)

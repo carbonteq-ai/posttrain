@@ -176,10 +176,7 @@ class Catalog:
 
         known = {id(self.resolve(ref).value): ref for ref in self.list()}
         resolved = {
-            ref
-            for value in values
-            for nested in _walk_values(value)
-            if (ref := known.get(id(nested))) is not None
+            ref for value in values for nested in _walk_values(value) if (ref := known.get(id(nested))) is not None
         }
         return tuple(sorted(resolved))
 

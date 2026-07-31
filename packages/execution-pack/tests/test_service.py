@@ -379,7 +379,7 @@ def test_packs_declared_activation_resources_with_the_context(tmp_path: Path) ->
         digest=hashlib.sha256(contents).hexdigest(),
         size_bytes=len(contents),
     )
-    config = {"taskset": {"data_path": {"$resource": "task_data"}}}
+    config = cast(Mapping[str, JsonValue], {"taskset": {"data_path": {"$resource": "task_data"}}})
     activation = EnvironmentActivationLock(
         environment_id="text-train",
         package="text-env",
@@ -388,9 +388,7 @@ def test_packs_declared_activation_resources_with_the_context(tmp_path: Path) ->
             {
                 "kind": "verifiers-config",
                 "config": config,
-                "resources": {
-                    "task_data": {"source": {"kind": "project-path", "path": "data/task.jsonl"}}
-                },
+                "resources": {"task_data": {"source": {"kind": "project-path", "path": "data/task.jsonl"}}},
             }
         ),
         config=config,

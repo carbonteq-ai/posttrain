@@ -1,16 +1,16 @@
 [project]
 name = "posttrain-catalog"
-version = "0.2.5"
+version = "0.3.0"
 description = "Versioned framework catalog assets and composed catalog loader"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-    "posttrain-common==0.2.5",
-    "posttrain-data==0.2.5",
-    "posttrain-environment==0.2.5",
-    "posttrain-eval==0.2.5",
-    "posttrain-train==0.2.5",
+    "posttrain-common==0.3.0",
+    "posttrain-data==0.3.0",
+    "posttrain-environment==0.3.0",
+    "posttrain-eval==0.3.0",
+    "posttrain-train==0.3.0",
     "pyyaml>=6.0,<7",
 ]
 

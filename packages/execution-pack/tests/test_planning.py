@@ -216,8 +216,9 @@ def test_plan_derives_project_environment_tree_identity_without_git(tmp_path) ->
         sampling=SamplingPolicy(max_tokens=64),
         num_tasks=1,
     )
-    common = dict(
-        prepared=_prepared(cast(ResolvedSeats, {"environment": environment})),
+    prepared = _prepared(cast(ResolvedSeats, {"environment": environment}))
+    first = plan_job_pack(
+        prepared,
         framework_source_digest=DIGEST,
         project_source_digest="d" * 64,
         universal_image=BASE,
@@ -225,9 +226,16 @@ def test_plan_derives_project_environment_tree_identity_without_git(tmp_path) ->
         publication=PUBLICATION,
         project_root=tmp_path,
     )
-    first = plan_job_pack(**common)
     (package / "toy.py").write_text("VALUE = 2\n", encoding="utf-8")
-    second = plan_job_pack(**common)
+    second = plan_job_pack(
+        prepared,
+        framework_source_digest=DIGEST,
+        project_source_digest="d" * 64,
+        universal_image=BASE,
+        kind_image=KIND,
+        publication=PUBLICATION,
+        project_root=tmp_path,
+    )
 
     assert not first.spec.git_sources
     assert first.spec.project_environment_sources[0].path == "environments/toy_env"
@@ -303,21 +311,23 @@ def test_plan_key_ignores_run_provider_paths_and_publication() -> None:
 
 def test_plan_key_binds_the_complete_catalog_family_registry_lock() -> None:
     environment = _environment("math-gsm8k", "gsm8k-v1", "environments/gsm8k_v1")
-    common = dict(
+    prepared = _prepared(cast(ResolvedSeats, {"environment": environment}))
+    first = plan_job_pack(
+        prepared,
         framework_source_digest=DIGEST,
         project_source_digest="d" * 64,
         universal_image=BASE,
         kind_image=KIND,
         publication=PUBLICATION,
-    )
-    first = plan_job_pack(
-        _prepared(cast(ResolvedSeats, {"environment": environment})),
-        **common,
         family_registry_lock={"entries": [{"name": "environment"}], "digest": "e" * 64},
     )
     second = plan_job_pack(
-        _prepared(cast(ResolvedSeats, {"environment": environment})),
-        **common,
+        prepared,
+        framework_source_digest=DIGEST,
+        project_source_digest="d" * 64,
+        universal_image=BASE,
+        kind_image=KIND,
+        publication=PUBLICATION,
         family_registry_lock={
             "entries": [{"name": "environment"}, {"name": "unrelated-provider"}],
             "digest": "f" * 64,

@@ -160,7 +160,16 @@ class BuildKitJobImagePublisher:
                 shutil.rmtree(layout)
             temporary.replace(layout)
             receipt.write_text(
-                json.dumps({"package_key": request.package_key, "publication_key": request.publication_key, "layout": str(layout), "tag": tag}, sort_keys=True) + "\n",
+                json.dumps(
+                    {
+                        "package_key": request.package_key,
+                        "publication_key": request.publication_key,
+                        "layout": str(layout),
+                        "tag": tag,
+                    },
+                    sort_keys=True,
+                )
+                + "\n",
                 encoding="utf-8",
             )
             receipt.chmod(0o600)

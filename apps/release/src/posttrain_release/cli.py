@@ -14,12 +14,39 @@ import typer
 from posttrain_execution_buildkit import BuildKitRuntimeBuilder
 
 from .publish import publish_release
+from .versioning import check_release, prepare_release
 
 app = typer.Typer(help="publish framework runtime images and pin the release manifest")
 images_app = typer.Typer(help="runtime image release operations")
 app.add_typer(images_app, name="images")
 
 _MANIFEST_RELATIVE = Path("packages/runtime-images/src/posttrain/runtime_images/published.toml")
+
+
+@app.command("check", help="verify generated release metadata against release/manifest.toml")
+def check_cmd(
+    repository_root: Annotated[
+        Path,
+        typer.Option("--repository-root", help="framework checkout to verify"),
+    ] = Path("."),
+) -> None:
+    result = check_release(repository_root)
+    print(f"authored version: release/manifest.toml = {result.version}")
+    print(f"generated versions: OK ({result.package_count} packages, {result.internal_pin_count} internal pins)")
+    print("dependency locks: OK")
+    print("published images: OK")
+
+
+@app.command("prepare", help="expand one release version into generated workspace metadata")
+def prepare_cmd(
+    version: Annotated[str, typer.Argument(help="coordinated release version")],
+    repository_root: Annotated[
+        Path,
+        typer.Option("--repository-root", help="framework checkout to update"),
+    ] = Path("."),
+) -> None:
+    result = prepare_release(repository_root, version)
+    print(f"prepared {result.version}: {result.package_count} packages and {result.internal_pin_count} internal pins")
 
 
 @images_app.command("publish", help="build, push, and pin every image in this release")

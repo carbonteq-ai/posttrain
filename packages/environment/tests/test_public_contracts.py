@@ -33,9 +33,7 @@ def test_verifiers_activation_resource_schema_uses_a_named_source() -> None:
         {
             "kind": "verifiers-config",
             "config": {"taskset": {"data_path": {"$resource": "task_data"}}},
-            "resources": {
-                "task_data": {"source": {"kind": "project-path", "path": "data/task.jsonl"}}
-            },
+            "resources": {"task_data": {"source": {"kind": "project-path", "path": "data/task.jsonl"}}},
         }
     )
 

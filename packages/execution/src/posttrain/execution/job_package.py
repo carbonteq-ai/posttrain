@@ -206,10 +206,10 @@ class EnvironmentActivationLock:
             if self.resources:
                 activation_payload["resources"] = cast(
                     JsonValue,
-                {
-                    name: {"source": {"kind": "project-path", "path": resource.source_path}}
-                    for name, resource in self.resources.items()
-                },
+                    {
+                        name: {"source": {"kind": "project-path", "path": resource.source_path}}
+                        for name, resource in self.resources.items()
+                    },
                 )
         observed = hashlib.sha256(_json_bytes(activation_payload, "environment activation")).hexdigest()
         if self.digest != observed:

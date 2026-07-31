@@ -131,7 +131,9 @@ class ExecutionAdmissionService:
             encoded_plan = _encode_plan(plan)
             encoded_evidence = _encode_evidence(evidence_source)
             provider_binding = self._provider_binding(plan.provider)
-            if control_store_uri is not None and (not control_store_uri.startswith("file://") or "\x00" in control_store_uri):
+            if control_store_uri is not None and (
+                not control_store_uri.startswith("file://") or "\x00" in control_store_uri
+            ):
                 raise ContractError("admission control store locator must be a file URI")
             if existing is not None:
                 if (

@@ -179,7 +179,10 @@ class JobPackInputs:
             cast(Mapping[str, JsonValue], payload),
         )
         sources = dict(self.activation_resource_sources)
-        if any(not isinstance(key, tuple) or len(key) != 2 or not all(isinstance(item, str) for item in key) for key in sources):
+        if any(
+            not isinstance(key, tuple) or len(key) != 2 or not all(isinstance(item, str) for item in key)
+            for key in sources
+        ):
             raise ContractError("activation resource source keys must be (environment id, resource name)")
         if any(not isinstance(path, Path) for path in sources.values()):
             raise ContractError("activation resource sources must be paths")
@@ -869,9 +872,7 @@ def _validate_environment_selection(
     locks: tuple[EnvironmentPackageLock, ...],
 ) -> None:
     observed_git = tuple(
-        (lock.package, lock.repository, lock.revision, lock.subdirectory)
-        for lock in locks
-        if lock.source_kind == "git"
+        (lock.package, lock.repository, lock.revision, lock.subdirectory) for lock in locks if lock.source_kind == "git"
     )
     expected_git = tuple(
         (
@@ -883,13 +884,10 @@ def _validate_environment_selection(
         for request in plan.spec.environment_wheels
     )
     observed_project = tuple(
-        (lock.package, lock.project_path, lock.tree_digest)
-        for lock in locks
-        if lock.source_kind == "project-path"
+        (lock.package, lock.project_path, lock.tree_digest) for lock in locks if lock.source_kind == "project-path"
     )
     expected_project = tuple(
-        (source.package, source.path, source.tree_digest)
-        for source in plan.spec.project_environment_sources
+        (source.package, source.path, source.tree_digest) for source in plan.spec.project_environment_sources
     )
     if observed_git != expected_git or observed_project != expected_project:
         raise ContractError("materialized environment packages differ from the job-pack plan")
@@ -1116,15 +1114,9 @@ def _validate_activation_resources(
     if not resource_root.is_dir() or resource_root.is_symlink():
         raise ContractError("staged activation resource directory is missing")
     expected = {
-        resource.staged_path: resource
-        for activation in activations
-        for resource in activation.resources.values()
+        resource.staged_path: resource for activation in activations for resource in activation.resources.values()
     }
-    observed = {
-        path.relative_to(root).as_posix()
-        for path in resource_root.rglob("*")
-        if path.is_file()
-    }
+    observed = {path.relative_to(root).as_posix() for path in resource_root.rglob("*") if path.is_file()}
     if observed != set(expected):
         raise ContractError("staged activation resources differ from the package manifest")
     for staged_path, resource in expected.items():

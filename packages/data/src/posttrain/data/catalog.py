@@ -305,7 +305,11 @@ def _validate_source(kind: DatasetSourceKind, source: Mapping[str, JsonValue]) -
             or not builder_callable.strip()
         ):
             raise ContractError("built dataset source builder must be a python-file with path and callable")
-        if not isinstance(inputs, list) or not inputs or not all(isinstance(path, str) and path.strip() for path in inputs):
+        if (
+            not isinstance(inputs, list)
+            or not inputs
+            or not all(isinstance(path, str) and path.strip() for path in inputs)
+        ):
             raise ContractError("built dataset source inputs must be a non-empty string list")
         return
     for key in keys.difference({"kind"}):

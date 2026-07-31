@@ -11,6 +11,7 @@ from datetime import datetime
 from functools import partial
 from pathlib import Path
 from types import ModuleType
+from typing import cast
 
 import pytest
 from posttrain.catalog import open_catalog
@@ -18,6 +19,7 @@ from posttrain.common import (
     CatalogRef,
     ContractError,
     ExecutionTarget,
+    JsonValue,
     LocalArtifactRef,
 )
 from posttrain.data import (
@@ -63,12 +65,12 @@ def test_qualification_loads_each_verifiers_taskset_offline(monkeypatch: pytest.
     verifiers = ModuleType("verifiers")
     v1 = ModuleType("verifiers.v1")
     env = ModuleType("verifiers.v1.env")
-    env.EnvConfig = EnvConfig
-    env.Environment = Environment
+    env.__dict__["EnvConfig"] = EnvConfig
+    env.__dict__["Environment"] = Environment
     monkeypatch.setitem(sys.modules, "verifiers", verifiers)
     monkeypatch.setitem(sys.modules, "verifiers.v1", v1)
     monkeypatch.setitem(sys.modules, "verifiers.v1.env", env)
-    config = {"taskset": {"id": "offline"}}
+    config = cast(Mapping[str, JsonValue], {"taskset": {"id": "offline"}})
     lock = EnvironmentActivationLock(
         environment_id="offline",
         package="offline-env",
