@@ -1355,6 +1355,7 @@ bindings:
         overridden.prepared,
         overridden.catalog,
     )
+    assert overridden.project_config_digest == selected_config.digest
     catalog_dir = project / ".posttrain" / "catalog"
     (catalog_dir / "unrelated.yaml").write_text(
         "target:\n  targets/unrelated-8gb:\n    revision: '1'\n    device_class: nvidia-cuda\n    memory_gb: 8\n",
@@ -1373,12 +1374,14 @@ bindings:
     ).files == selected_config.files
     targets_path = catalog_dir / "targets.yaml"
     targets_path.write_text(targets_path.read_text(encoding="utf-8").replace("memory_gb: 24", "memory_gb: 48"), encoding="utf-8")
-    assert _project_config_bundle(
+    changed_config = _project_config_bundle(
         overridden.layout,
         overridden.work_package_path,
         overridden.prepared,
         overridden.catalog,
-    ).files != selected_config.files
+    )
+    assert changed_config.files != selected_config.files
+    assert changed_config.digest != overridden.project_config_digest
     assert not (project / ".posttrain" / "state" / "pack").exists()
 
 

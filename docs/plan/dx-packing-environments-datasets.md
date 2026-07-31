@@ -260,9 +260,10 @@ resolution environment recorded by the lock.
 Implementation progress (2026-08-01): packing now constructs a manifest-valid
 generated overlay containing only entries reachable from the selected recipe,
 job seats, and nested execution selections. An unrelated overlay document does
-not change the staged configuration; a selected entry does. Remaining work is
-to retain source-file provenance and layer revision in the materialized lock,
-then reject a changed selected closure between planning and materialization.
+not change the staged configuration; a selected entry does. The selected
+closure digest is bound when the package is planned and materialization rejects
+a changed closure. Remaining work is to retain source-file provenance and layer
+revision in the materialized lock.
 
 Milestone 6 scaffolds and documents the standard layout —
 `src/<package>/` for harness code, `environments/<name>/` for env packages,

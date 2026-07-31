@@ -146,6 +146,12 @@ class ProjectConfigBundle:
         object.__setattr__(self, "project_manifest", manifest)
         object.__setattr__(self, "selected_work_package", work_package)
 
+    @property
+    def digest(self) -> str:
+        """Content identity of the exact project configuration closure."""
+
+        return _project_config_digest(self)
+
 
 @dataclass(frozen=True, slots=True)
 class JobPackInputs:

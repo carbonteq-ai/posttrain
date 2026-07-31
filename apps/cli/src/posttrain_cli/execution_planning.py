@@ -105,6 +105,7 @@ class PlannedJobPackage:
     framework_source_request: SourceSnapshotRequest | None
     framework_distributions: FrameworkDistributions | None
     project_source_request: SourceSnapshotRequest
+    project_config_digest: str
     target: ExecutionTarget
     runtime_profile: str
     target_source: SettingSource
@@ -197,6 +198,14 @@ class PlannedJobPackage:
             ),
             environment_packager=environment_packager,
         )
+        project_config = _project_config_bundle(
+            self.layout,
+            self.work_package_path,
+            self.prepared,
+            self.catalog,
+        )
+        if project_config.digest != self.project_config_digest:
+            raise ContractError("selected project configuration changed after planning; run job plan again")
         context = pack_service.pack(
             self.pack_plan,
             JobPackInputs(
@@ -204,12 +213,7 @@ class PlannedJobPackage:
                 framework_wheels=framework_wheels,
                 project_source=project_source.package,
                 resolved_inputs=dict(self.prepared.spec.resolved_inputs),
-                project_config=_project_config_bundle(
-                    self.layout,
-                    self.work_package_path,
-                    self.prepared,
-                    self.catalog,
-                ),
+                project_config=project_config,
                 activation_resource_sources=activation_resource_sources(
                     environment_bindings(self.prepared.seats),
                     project_root=self.layout.root,
@@ -577,6 +581,12 @@ def _plan_job_package_from_intent(
     target = _execution_target(prepared)
     if settings.runtime_profile is None:
         raise ContractError("execution runtime profile could not be resolved")
+    project_config_digest = _project_config_bundle(
+        layout,
+        work_package_path,
+        prepared,
+        catalog,
+    ).digest
     return PlannedJobPackage(
         layout=layout,
         catalog=catalog,
@@ -587,6 +597,7 @@ def _plan_job_package_from_intent(
         framework_source_request=framework_source_request,
         framework_distributions=framework_distributions,
         project_source_request=project_source_request,
+        project_config_digest=project_config_digest,
         target=target,
         runtime_profile=settings.runtime_profile,
         target_source=settings.sources.get("target", "job"),
