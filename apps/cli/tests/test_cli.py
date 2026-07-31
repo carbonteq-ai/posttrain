@@ -915,7 +915,6 @@ bindings:
         + "\n",
         encoding="utf-8",
     )
-    _write_exact_execution_config(project)
     host = f"{__name__}:create_test_host"
 
     assert (
@@ -931,20 +930,17 @@ bindings:
                 "validate",
                 "--host",
                 host,
-                "--run-id",
-                "plan-read-only",
             ]
         )
         == 0
     )
     planned = json.loads(capsys.readouterr().out)
 
-    assert planned["run_id"] == "plan-read-only"
-    assert planned["provider"] == "local"
-    assert planned["runtime_profile"] == "framework/supervised@1"
-    assert planned["setting_sources"]["provider"] == "job"
-    assert planned["images"]["actual_job"] is None
-    assert planned["pack"]["kind_profile"] == "supervised"
+    assert planned["project_id"] == "example"
+    assert planned["job_id"] == "validate"
+    assert planned["job_kind"] == "data.prepare"
+    assert "provider" not in planned
+    assert "pack" not in planned
     assert not (project / ".posttrain" / "state" / "pack").exists()
 
 
@@ -977,8 +973,6 @@ def test_grpo_plan_is_static_and_selects_online_rl_runtime(
         "math-gsm8k-train",
         PythonFactoryActivation("environment_not_installed_during_planning:create_environment"),
     )
-    _write_exact_execution_config(project)
-
     assert (
         main(
             [
@@ -990,20 +984,15 @@ def test_grpo_plan_is_static_and_selects_online_rl_runtime(
                 "grpo.yaml",
                 "--job",
                 "train",
-                "--run-id",
-                "grpo-static-plan",
             ]
         )
         == 0
     )
     planned = json.loads(capsys.readouterr().out)
 
-    assert planned["run_id"] == "grpo-static-plan"
-    assert planned["runtime_profile"] == "framework/online-rl-trl-py312@1"
-    assert planned["images"]["actual_job"] is None
-    assert planned["pack"]["kind_profile"] == "online-rl"
-    assert planned["pack"]["runtime_variant"] == "online-rl-trl-py312"
-    assert len(planned["pack"]["constraint_profile_digest"]) == 64
+    assert planned["job_kind"] == "train.grpo"
+    assert planned["job_definition_id"] == "train/trl-grpo@1"
+    assert "pack" not in planned
     assert not (project / ".posttrain" / "state" / "pack").exists()
 
     assert (
@@ -1022,31 +1011,23 @@ def test_grpo_plan_is_static_and_selects_online_rl_runtime(
         )
         == 1
     )
-    assert "conflicts with the resolved backend variant online-rl-trl-py312" in (capsys.readouterr().err)
+    assert "job plan resolves project job meaning only" in capsys.readouterr().err
 
     # Naming one variant no longer removes the rest. Every published job-kind
     # image is pinned by the release, so a partial machine binding overrides
     # only what it names and the remainder resolves from the installed
     # manifest. This is what removes the second hand transcription.
     _write_exact_execution_config(project, variants=("supervised",))
-    assert (
-        main(
-            [
-                "--json",
-                "--project-root",
-                str(project),
-                "job",
-                "plan",
-                "grpo.yaml",
-                "--job",
-                "train",
-            ]
-        )
-        == 0
+    from posttrain_cli.context import CliState
+    from posttrain_cli.execution_planning import plan_job_package
+
+    derived = plan_job_package(
+        CliState(project_root=project),
+        Path("grpo.yaml"),
+        job="train",
     )
-    derived = json.loads(capsys.readouterr().out)
     manifest = load_manifest()
-    assert derived["images"]["job_kind"] == manifest.reference("online-rl-trl-py312")
+    assert derived.pack_plan.spec.kind_image.value == manifest.reference("online-rl-trl-py312")
 
 
 def test_work_package_run_rejects_invalid_host(tmp_path: Path, capsys) -> None:
@@ -1289,7 +1270,6 @@ bindings:
         + "\n",
         encoding="utf-8",
     )
-    _write_exact_execution_config(project)
     intent = Project.open(project).jobs.plan("cpu-check.yaml", job="validate")
 
     assert (
@@ -1303,27 +1283,21 @@ bindings:
                 "cpu-check.yaml",
                 "--job",
                 "validate",
-                "--env",
-                "HF_TOKEN",
             ]
         )
         == 0
     )
     payload = json.loads(capsys.readouterr().out)
     assert payload["work_package_id"] == "screen/cpu-check"
-    assert payload["provider"] == "local"
-    assert payload["environment_names"] == [
-        "POSTTRAIN_TRACKIO_SERVER_URL",
-        "TRACKIO_WRITE_TOKEN",
-        "HF_TOKEN",
-    ]
+    assert "provider" not in payload
+    assert "pack" not in payload
     assert payload["job_id"] == "validate"
     assert payload["job_kind"] == intent.prepared.recipe_job.kind
     assert payload["job_definition_id"] == intent.prepared.definition.id
     assert payload["work_package_id"] == intent.prepared.spec.work_package_id
 
 
-def test_job_plan_target_override_changes_nested_sft_target_and_identity(
+def test_job_package_plan_target_override_changes_nested_sft_target_and_identity(
     tmp_path: Path,
     capsys,
 ) -> None:
@@ -1356,54 +1330,25 @@ bindings:
     _write_target_overlay(project)
     _write_exact_execution_config(project)
 
-    assert (
-        main(
-            [
-                "--json",
-                "--project-root",
-                str(project),
-                "job",
-                "plan",
-                "sft-target.yaml",
-                "--job",
-                "train",
-                "--run-id",
-                "sft-default-target",
-            ]
-        )
-        == 0
-    )
-    baseline = json.loads(capsys.readouterr().out)
+    from posttrain_cli.context import CliState
+    from posttrain_cli.execution_config import PackageOverrides
+    from posttrain_cli.execution_planning import plan_job_package
 
-    assert (
-        main(
-            [
-                "--json",
-                "--project-root",
-                str(project),
-                "job",
-                "plan",
-                "sft-target.yaml",
-                "--job",
-                "train",
-                "--target",
-                "targets/remote-rtx4090-24gb",
-                "--run-id",
-                "sft-remote-target",
-            ]
-        )
-        == 0
+    baseline = plan_job_package(
+        CliState(project_root=project),
+        Path("sft-target.yaml"),
+        job="train",
     )
-    overridden = json.loads(capsys.readouterr().out)
+    overridden = plan_job_package(
+        CliState(project_root=project),
+        Path("sft-target.yaml"),
+        job="train",
+        overrides=PackageOverrides(target="targets/remote-rtx4090-24gb"),
+    )
 
-    assert baseline["target"]["id"] == "targets/local-cuda-8gb"
-    assert overridden["target"] == {
-        "id": "targets/remote-rtx4090-24gb",
-        "revision": "1",
-        "device_class": "nvidia-cuda",
-        "memory_gb": 24.0,
-    }
-    assert overridden["pack"]["plan_key"] != baseline["pack"]["plan_key"]
+    assert baseline.target.id == "targets/local-cuda-8gb"
+    assert overridden.target.id == "targets/remote-rtx4090-24gb"
+    assert overridden.pack_plan.plan_key != baseline.pack_plan.plan_key
     assert not (project / ".posttrain" / "state" / "pack").exists()
 
 
@@ -1581,9 +1526,9 @@ bindings:
                 f"{__name__}:create_test_host",
             ]
         )
-        == 1
+        == 0
     )
-    assert "dstack execution requires [providers.dstack.storage]" in capsys.readouterr().err
+    assert "Job intent: screen/cpu-check/validate" in capsys.readouterr().out
 
     execution_config.write_text(local_execution_config, encoding="utf-8")
     execution_config.chmod(0o600)

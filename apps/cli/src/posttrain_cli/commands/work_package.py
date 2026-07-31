@@ -10,7 +10,7 @@ from typing import Annotated
 import typer
 from posttrain.common import ContractError
 from posttrain.execution import compare_job_packages, unchanged_fields
-from posttrain.project import Project
+from posttrain.project import JobIntent, Project
 from posttrain.work import resolve_work_package, run_work_package_job, validate_work_package
 
 from ..context import CliState
@@ -101,39 +101,35 @@ def plan_work_package_cmd(
     entry: str | None = None,
     project_packages: tuple[str, ...] | None = None,
     source_includes: tuple[str, ...] | None = None,
-) -> PlannedJobExecution:
+) -> JobIntent:
+    """Render provider-free job meaning without loading execution configuration."""
+
+    if (
+        overrides != _EMPTY_OVERRIDES
+        or run_id is not None
+        or project_packages is not None
+        or source_includes is not None
+    ):
+        raise ContractError(
+            "job plan resolves project job meaning only; use job pack or job run to select "
+            "execution, packaging, or scheduling settings"
+        )
     project = Project.open(state.project_root) if state.project_root is not None else Project.discover(Path.cwd())
     intent = project.jobs.plan(path, job=job, host=host, entry=entry)
-    planned = plan_job_execution(
-        state,
-        path,
-        job=intent.job_id,
-        overrides=overrides,
-        run_id=run_id,
-        host=host,
-        entry=entry,
-        project_packages=project_packages,
-        source_includes=source_includes,
-        intent=intent,
-        env_file=state.env_file,
-    )
-    payload = _execution_plan_payload(planned)
+    payload = _job_intent_payload(intent)
     emit(
         state,
         payload,
         "\n".join(
             (
-                f"Execution plan: {planned.launch.run_spec.run_id}",
-                f"Provider: {planned.settings.provider}",
-                f"Target: {planned.target.id}@{planned.target.revision}",
-                f"Universal image: {planned.package.pack_plan.spec.universal_image.value}",
-                f"Job-kind image: {planned.package.pack_plan.spec.kind_image.value}",
-                f"Runtime variant: {planned.package.pack_plan.spec.runtime_variant}",
-                f"Pack plan: {planned.package.pack_plan.plan_key}",
+                f"Job intent: {intent.prepared.spec.work_package_id}/{intent.job_id}",
+                f"Job kind: {intent.prepared.recipe_job.kind}",
+                f"Definition: {intent.prepared.definition.id}",
+                "Use job pack to materialize an image or job run to select execution.",
             )
         ),
     )
-    return planned
+    return intent
 
 
 def pack_work_package_cmd(
@@ -403,6 +399,23 @@ def _package_plan_payload(planned: PlannedJobPackage) -> dict[str, object]:
                 for source in planned.pack_plan.spec.git_sources
             ],
         },
+    }
+
+
+def _job_intent_payload(intent: JobIntent) -> dict[str, object]:
+    """Stable intent view deliberately excluding machine-local execution config."""
+
+    spec = intent.prepared.spec
+    return {
+        "project_id": spec.project_id,
+        "work_package_id": spec.work_package_id,
+        "stage": spec.stage,
+        "job_id": intent.job_id,
+        "job_kind": intent.prepared.recipe_job.kind,
+        "job_definition_id": intent.prepared.definition.id,
+        "job_definition_version": spec.job_definition_version,
+        "resolved_inputs": dict(spec.resolved_inputs),
+        "required_artifact_roles": list(spec.required_artifact_roles),
     }
 
 

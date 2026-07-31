@@ -233,9 +233,12 @@ Implementation progress (2026-08-01): the CLI now exposes the materialized
 capsule as a distinct boundary and has a content-addressed BuildKit OCI-layout
 publication path (`PlannedJobPackage.pack_local()`). The layout is represented
 by a type which cannot be passed to provider submission. The remaining
-milestone work is to make all four values public, remove registry resolution
-from `job plan`, and surface the local publication as an intentional CLI/API
-destination rather than an internal planning method.
+milestone work is to make all four values public and surface the local
+publication as an intentional CLI/API destination rather than an internal
+planning method. `job plan` now renders the public `JobIntent` directly and
+does not load machine-local execution configuration, a registry, or provider
+storage; execution, packaging, and scheduling overrides fail clearly there and
+are accepted only by `job pack` or `job run`.
 
 Milestone 5 replaces the whole-overlay glob in `_project_config_bundle` with
 the transitive closure of catalog entries reachable from the selected job and
