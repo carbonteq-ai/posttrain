@@ -34,7 +34,11 @@ from posttrain.data import (
     DatasetMaterialization,
     load_materialized_dataset,
 )
-from posttrain.environment import EnvironmentBinding, VerifiersV1ConfigActivation
+from posttrain.environment import (
+    EnvironmentBinding,
+    PythonFactoryActivation,
+    VerifiersV1ConfigActivation,
+)
 from posttrain.eval import EvaluationPlan
 from posttrain.execution import (
     EXECUTION_LAUNCH_ENVIRONMENT,
@@ -131,11 +135,30 @@ class _VerifiedPackage:
     datasets: Mapping[str, tuple[DatasetPackageLock, Mapping[str, object]]]
 
 
+@dataclass(frozen=True, slots=True)
+class QualificationResult:
+    """Offline package qualification facts emitted before image publication."""
+
+    environment_ids: tuple[str, ...]
+    dataset_seats: tuple[str, ...]
+
+
 def execute_manifest(path: Path) -> WorkerExecutionResult:
     """Run exactly the verified registered job embedded in an actual-job image."""
 
     with _graceful_cancellation():
         return _execute_manifest(path)
+
+
+def qualify_manifest(path: Path) -> QualificationResult:
+    """Verify every staged activation and taskset without creating a run."""
+
+    package = _verify_package(path)
+    qualified: list[str] = []
+    for lock in package.manifest.environment_activations:
+        _qualify_activation(lock, package.root)
+        qualified.append(lock.environment_id)
+    return QualificationResult(tuple(qualified), tuple(sorted(package.datasets)))
 
 
 def _execute_manifest(path: Path) -> WorkerExecutionResult:
@@ -925,6 +948,40 @@ def _resolve_environment_resources(
         binding,
         activation=VerifiersV1ConfigActivation(cast(Mapping[str, JsonValue], resolved)),
     )
+
+
+def _qualify_activation(lock: object, root: Path) -> None:
+    """Construct one installed Verifiers environment and load its taskset offline."""
+
+    kind = getattr(lock, "kind", None)
+    if kind == "verifiers-config":
+        config = getattr(lock, "config", None)
+        resources = getattr(lock, "resources", None)
+        if not isinstance(config, Mapping) or not isinstance(resources, Mapping):
+            raise ContractError("environment activation lock is invalid")
+        resolved = _resolve_activation_value(config, root=root, resources=resources)
+        if not isinstance(resolved, Mapping):
+            raise ContractError("environment activation config must remain an object")
+        native = VerifiersV1ConfigActivation(cast(Mapping[str, JsonValue], resolved)).activate()
+    elif kind == "python-factory":
+        reference = getattr(lock, "reference", None)
+        if not isinstance(reference, str):
+            raise ContractError("environment factory activation lock is invalid")
+        native = PythonFactoryActivation(reference).activate()
+    else:
+        raise ContractError("environment activation kind is unsupported")
+    try:
+        from verifiers.v1.env import EnvConfig, Environment  # pyright: ignore[reportMissingImports]
+    except ImportError as error:
+        raise RuntimeError("install the Verifiers integration dependencies") from error
+    environment = native if isinstance(native, Environment) else Environment(native)
+    if not isinstance(getattr(environment, "config", native), EnvConfig):
+        raise ContractError("environment activation did not produce a Verifiers EnvConfig")
+    taskset = getattr(environment, "taskset", None)
+    load = getattr(taskset, "load", None)
+    if not callable(load):
+        raise ContractError("Verifiers environment has no loadable taskset")
+    load()
 
 
 def _resolve_activation_value(

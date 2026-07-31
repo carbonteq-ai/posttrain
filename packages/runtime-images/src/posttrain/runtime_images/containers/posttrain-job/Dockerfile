@@ -461,7 +461,8 @@ CMD ["execute", "--manifest", "/opt/posttrain/job/package.json"]
 
 FROM runtime AS smoke
 RUN posttrain-runtime --help >/dev/null && \
-    python -c "from pathlib import Path; from posttrain.execution import JobPackageManifest; JobPackageManifest.from_bytes(Path('/opt/posttrain/job/package.json').read_bytes())" && \
+    python -c "from pathlib import Path; from posttrain.execution import JobPackageManifest; JobPackageManifest.from_bytes(Path('/opt/posttrain/job/package.json').read_bytes())"
+RUN --network=none posttrain-runtime qualify --manifest /opt/posttrain/job/package.json && \
     if [ "${RUNTIME_VARIANT}" = "online-rl-verl-py313" ]; then \
       PYTHONNOUSERSITE=1 PYTHONSAFEPATH=1 PYTHONDONTWRITEBYTECODE=1 \
         PYTHONPATH="${POSTTRAIN_VERL_PYTHONPATH}" \
