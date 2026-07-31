@@ -16,6 +16,7 @@ from posttrain.work import resolve_work_package, run_work_package_job, validate_
 from ..context import CliState
 from ..execution_config import ExecutionOverrides, PackageOverrides
 from ..execution_planning import (
+    LocalPackedJobPackage,
     PackedJobExecution,
     PackedJobPackage,
     PlannedJobExecution,
@@ -143,8 +144,9 @@ def pack_work_package_cmd(
     project_packages: tuple[str, ...] | None = None,
     source_includes: tuple[str, ...] | None = None,
     build_missing: bool = False,
-) -> PackedJobPackage:
-    """Pack and publish one job without submitting it to a provider."""
+    local: bool = False,
+) -> PackedJobPackage | LocalPackedJobPackage:
+    """Pack one job to an immutable registry image or local OCI layout."""
 
     _layout, catalog, _resolved_path, package = load_work_package_bundle(state, path)
     job = resolve_job_id(catalog, package, job)
@@ -160,6 +162,22 @@ def pack_work_package_cmd(
         env_file=state.env_file,
     )
     _require_verified_kind_image(planned, build_missing=build_missing)
+    if local:
+        packed = planned.pack_local()
+        emit(
+            state,
+            _local_packed_job_payload(packed),
+            "\n".join(
+                (
+                    f"Local OCI layout ready: {packed.image.layout}",
+                    f"Tag: {packed.image.tag}",
+                    f"Package: {packed.context.manifest.package_key}",
+                    f"Publication cache: {'hit' if packed.image.cache_hit else 'built'}",
+                    f"Receipt: {packed.image.receipt}",
+                )
+            ),
+        )
+        return packed
     packed = planned.pack()
     emit(
         state,
@@ -465,6 +483,25 @@ def _packed_job_payload(
         "universal": packed.context.manifest.universal_image.value,
         "job_kind": packed.context.manifest.kind_image.value,
         "actual_job": packed.image.image.value,
+    }
+    payload["package"] = {
+        "package_key": packed.context.manifest.package_key,
+        "context_digest": packed.context.context_digest,
+        "publication_key": packed.image.publication_key,
+        "cache_hit": packed.image.cache_hit,
+        "receipt": str(packed.image.receipt),
+        "context": str(packed.context.root),
+    }
+    return payload
+
+
+def _local_packed_job_payload(packed: LocalPackedJobPackage) -> dict[str, object]:
+    payload = _package_plan_payload(packed.planned)
+    payload["images"] = {
+        "universal": packed.context.manifest.universal_image.value,
+        "job_kind": packed.context.manifest.kind_image.value,
+        "actual_job": None,
+        "local_oci": {"layout": str(packed.image.layout), "tag": packed.image.tag},
     }
     payload["package"] = {
         "package_key": packed.context.manifest.package_key,

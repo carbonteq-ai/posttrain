@@ -188,7 +188,7 @@ def register(app: typer.Typer) -> None:
             to_key=to_key,
         )
 
-    @job_app.command("pack", help="materialize and publish one actual-job OCI image")
+    @job_app.command("pack", help="materialize one registry image or local OCI layout")
     def job_pack_cmd(
         ctx: typer.Context,
         path: Annotated[
@@ -254,6 +254,13 @@ def register(app: typer.Typer) -> None:
                 help="rebuild absent or drifted job-kind images from the shipped definitions",
             ),
         ] = False,
+        local: Annotated[
+            bool,
+            typer.Option(
+                "--local",
+                help="export a verified local OCI layout without publishing to a registry",
+            ),
+        ] = False,
     ) -> None:
         state: CliState = ctx.obj
         pack_work_package_cmd(
@@ -269,6 +276,7 @@ def register(app: typer.Typer) -> None:
             project_packages=(tuple(project_packages) if project_packages is not None else None),
             source_includes=(tuple(source_includes) if source_includes is not None else None),
             build_missing=build_missing,
+            local=local,
         )
 
     @job_app.command("run", help="pack if needed and submit one selected job")

@@ -1515,6 +1515,29 @@ bindings:
     assert (
         main(
             [
+                "--json",
+                "--project-root",
+                str(project),
+                "job",
+                "pack",
+                "cpu-check.yaml",
+                "--job",
+                "validate",
+                "--local",
+                "--host",
+                f"{__name__}:create_test_host",
+            ]
+        )
+        == 0
+    )
+    local_payload = json.loads(capsys.readouterr().out)
+    assert local_payload["images"]["actual_job"] is None
+    assert local_payload["images"]["local_oci"]["tag"].startswith("posttrain-local:")
+    assert FakePublisher.local_publications == [local_payload["package"]["publication_key"]]
+
+    assert (
+        main(
+            [
                 "--project-root",
                 str(project),
                 "job",
@@ -1568,7 +1591,7 @@ bindings:
     local = reusable_package.pack_local()
     assert local.image.layout.joinpath("index.json").is_file()
     assert tuple(FakePublisher.remote_publications) == remote_before
-    assert FakePublisher.local_publications == [local.context.publication_key]
+    assert FakePublisher.local_publications == [local_payload["package"]["publication_key"], local.context.publication_key]
 
     observed_requests = []
 
