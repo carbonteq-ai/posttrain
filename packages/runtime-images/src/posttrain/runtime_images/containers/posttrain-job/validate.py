@@ -71,10 +71,13 @@ def _validate_definition() -> None:
     bake = (HERE / "docker-bake.hcl").read_text(encoding="utf-8")
     for required in (
         "ARG POSTTRAIN_KIND_IMAGE",
+        "ARG ALLOW_DEFERRED_QUALIFICATION",
         "FROM ${POSTTRAIN_KIND_IMAGE} AS runtime",
         "COPY --from=job-context",
         "--require-hashes",
         "--no-build-isolation",
+        "--no-sources",
+        "--allow-deferred",
         "[tool.uv.workspace]",
         "code workspace members must be non-empty and unique",
         'test -x "${VIRTUAL_ENV}/bin/python"',

@@ -24,6 +24,7 @@ class JobImagePublicationRequest:
     manifest: JobPackageManifest
     staged_context: Path
     publication: ImagePublicationSpec
+    allow_deferred_qualification: bool = False
 
     def __post_init__(self) -> None:
         if not self.staged_context.is_absolute() or not self.staged_context.is_dir():

@@ -10,7 +10,7 @@ from dataclasses import replace
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from typing import cast
 
 import pytest
@@ -42,7 +42,7 @@ from posttrain.work import (
     override_job_execution_target,
     prepare_work_package_job,
 )
-from posttrain_runtime import execute_manifest
+from posttrain_runtime import execute_manifest, qualify_manifest
 from posttrain_runtime.execute import _project_config_digest, _qualification_timeout, _qualify_activation, _tree_digest
 
 
@@ -90,6 +90,35 @@ def test_qualification_timeout_names_the_blocked_environment() -> None:
     with pytest.raises(TimeoutError, match="stuck"):
         with _qualification_timeout(0.01, "stuck"):
             time.sleep(0.1)
+
+
+def test_deferred_qualification_requires_a_waiver_and_skips_taskset_load(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    required = SimpleNamespace(environment_id="offline", qualification="required")
+    deferred = SimpleNamespace(environment_id="network-backed", qualification="deferred")
+    package = SimpleNamespace(
+        root=tmp_path,
+        manifest=SimpleNamespace(environment_activations=(required, deferred)),
+        datasets={"dataset": object()},
+    )
+    loaded: list[str] = []
+    monkeypatch.setattr("posttrain_runtime.execute._verify_package", lambda _path: package)
+    monkeypatch.setattr(
+        "posttrain_runtime.execute._qualify_activation",
+        lambda lock, _root: loaded.append(lock.environment_id),
+    )
+
+    with pytest.raises(ContractError, match="explicit waiver"):
+        qualify_manifest(tmp_path / "package.json")
+
+    loaded.clear()
+    result = qualify_manifest(tmp_path / "package.json", allow_deferred=True)
+
+    assert loaded == ["offline"]
+    assert result.environment_ids == ("offline",)
+    assert result.deferred_environment_ids == ("network-backed",)
+    assert result.dataset_seats == ("dataset",)
 
 
 def _project(

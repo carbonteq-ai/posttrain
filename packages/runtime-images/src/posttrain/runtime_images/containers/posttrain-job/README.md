@@ -47,16 +47,22 @@ without omitting any compiled dependency.
 `./sources/framework/` or `./sources/project/`. The runtime lock has already
 resolved their complete external dependency closure, so this later source
 installation uses `--no-deps` without weakening environment resolution. It
-also uses `--no-build-isolation`; every selected source tree's build backend
-must therefore be included in the hash-locked runtime closure instead of being
-downloaded implicitly while installing code.
+also uses `--no-build-isolation --no-sources`; every selected source tree's
+build backend must therefore be included in the hash-locked runtime closure
+instead of being downloaded implicitly while installing code, and
+checkout-only `tool.uv.sources` overrides cannot leak into the isolated image.
+
+Activations whose tasksets require runtime network access must declare
+`qualification: deferred`. Packaging rejects those activations by default;
+the explicit `--allow-deferred-qualification` CLI waiver makes the live job,
+rather than the offline image smoke, own the `Taskset.load()` gate.
 
 The Dockerfile derives a minimal top-level uv workspace from the hashed
-`code.requirements.txt` immediately before installing source. This preserves
-the packages' normal `workspace = true` development metadata while allowing
-the framework and project snapshots to occupy separate namespaces in the
-actual-job image. The derived workspace adds no new input: its sorted members
-are exactly the local paths already covered by `code_requirements_digest`.
+`code.requirements.txt` immediately before installing source. This keeps the
+framework and project snapshots in separate namespaces while the install
+explicitly ignores their checkout-only source overrides. The derived workspace
+adds no new input: its sorted members are exactly the local paths already
+covered by `code_requirements_digest`.
 Named package indexes are projected from the framework root `pyproject.toml`,
 which is retained under `sources/framework` and covered by
 `framework_source_digest`; this lets package-level `tool.uv.sources` entries

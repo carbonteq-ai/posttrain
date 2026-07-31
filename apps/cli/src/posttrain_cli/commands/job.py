@@ -261,6 +261,20 @@ def register(app: typer.Typer) -> None:
                 help="export a verified local OCI layout without publishing to a registry",
             ),
         ] = False,
+        framework_wheelhouse: Annotated[
+            Path | None,
+            typer.Option(
+                "--framework-wheelhouse",
+                help="use exact local framework wheels instead of downloading them from the configured index",
+            ),
+        ] = None,
+        allow_deferred_qualification: Annotated[
+            bool,
+            typer.Option(
+                "--allow-deferred-qualification",
+                help="waive offline Taskset.load for environments explicitly marked deferred",
+            ),
+        ] = False,
     ) -> None:
         state: CliState = ctx.obj
         pack_work_package_cmd(
@@ -277,6 +291,8 @@ def register(app: typer.Typer) -> None:
             source_includes=(tuple(source_includes) if source_includes is not None else None),
             build_missing=build_missing,
             local=local,
+            framework_wheelhouse=framework_wheelhouse,
+            allow_deferred_qualification=allow_deferred_qualification,
         )
 
     @job_app.command("run", help="pack if needed and submit one selected job")
@@ -394,6 +410,20 @@ def register(app: typer.Typer) -> None:
                 help="rebuild absent or drifted job-kind images from the shipped definitions",
             ),
         ] = False,
+        framework_wheelhouse: Annotated[
+            Path | None,
+            typer.Option(
+                "--framework-wheelhouse",
+                help="use exact local framework wheels instead of downloading them from the configured index",
+            ),
+        ] = None,
+        allow_deferred_qualification: Annotated[
+            bool,
+            typer.Option(
+                "--allow-deferred-qualification",
+                help="waive offline Taskset.load for environments explicitly marked deferred",
+            ),
+        ] = False,
     ) -> None:
         state: CliState = ctx.obj
         run_work_package_cmd(
@@ -416,4 +446,6 @@ def register(app: typer.Typer) -> None:
             project_packages=(tuple(project_packages) if project_packages is not None else None),
             source_includes=(tuple(source_includes) if source_includes is not None else None),
             build_missing=build_missing,
+            framework_wheelhouse=framework_wheelhouse,
+            allow_deferred_qualification=allow_deferred_qualification,
         )

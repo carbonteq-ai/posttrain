@@ -529,6 +529,18 @@ def derived_registry(environ: Mapping[str, str] | None = None) -> RegistryBindin
     return _parse_registry({}, base=Path.cwd(), environ=environ)
 
 
+def derived_local_registry() -> RegistryBinding:
+    """Resolve shipped image and lock identities for a non-publishing OCI export."""
+
+    registry = _parse_registry(
+        {"repository": "posttrain.local/posttrain/jobs"},
+        base=Path.cwd(),
+        environ={},
+    )
+    assert registry is not None
+    return registry
+
+
 def _parse_registry(
     value: object,
     *,

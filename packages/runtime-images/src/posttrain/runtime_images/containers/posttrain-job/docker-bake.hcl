@@ -2,6 +2,10 @@ variable "FRAMEWORK_SOURCE_DIGEST" {
   default = ""
 }
 
+variable "ALLOW_DEFERRED_QUALIFICATION" {
+  default = "0"
+}
+
 variable "CODE_REQUIREMENTS_DIGEST" {
   default = ""
 }
@@ -69,6 +73,7 @@ target "_common" {
   }
   dockerfile = "Dockerfile"
   args = {
+    ALLOW_DEFERRED_QUALIFICATION = ALLOW_DEFERRED_QUALIFICATION
     CODE_REQUIREMENTS_DIGEST = CODE_REQUIREMENTS_DIGEST
     FRAMEWORK_SOURCE_DIGEST = FRAMEWORK_SOURCE_DIGEST
     JOB_KIND = JOB_KIND

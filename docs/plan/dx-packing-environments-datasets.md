@@ -402,3 +402,8 @@ overlay discovery on the provider.
 - 2026-08-01: Follow-up review made the complete discovered family registry and
   versioned layer provenance explicit package-identity inputs while retaining a
   selected transitive catalog-entry closure.
+- 2026-08-01: Installed-wheel qualification added exact framework-wheelhouse
+  packing, local OCI directory export, checkout-source isolation, and an
+  explicit waiver for network-backed tasksets that declare deferred offline
+  qualification. The live job remains the required load and execution gate for
+  a waived activation.

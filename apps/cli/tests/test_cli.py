@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -1589,6 +1590,17 @@ bindings:
     assert "provider" not in payload
     assert "mounts" not in payload
 
+    from posttrain.catalog import load_project_layout
+    from posttrain_cli import execution_planning
+    from posttrain_cli.execution_config import load_local_execution_config
+
+    configured = load_local_execution_config(load_project_layout(project))
+    original_config_loader = execution_planning.load_local_execution_config
+    monkeypatch.setattr(
+        "posttrain_cli.execution_planning.load_local_execution_config",
+        lambda *_args, **_kwargs: replace(configured, registry=None),
+    )
+
     assert (
         main(
             [
@@ -1611,6 +1623,10 @@ bindings:
     assert local_payload["images"]["actual_job"] is None
     assert local_payload["images"]["local_oci"]["tag"].startswith("posttrain-local:")
     assert FakePublisher.local_publications == [local_payload["package"]["publication_key"]]
+    monkeypatch.setattr(
+        "posttrain_cli.execution_planning.load_local_execution_config",
+        original_config_loader,
+    )
 
     assert (
         main(

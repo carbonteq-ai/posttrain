@@ -145,6 +145,8 @@ def pack_work_package_cmd(
     source_includes: tuple[str, ...] | None = None,
     build_missing: bool = False,
     local: bool = False,
+    framework_wheelhouse: Path | None = None,
+    allow_deferred_qualification: bool = False,
 ) -> PackedJobPackage | LocalPackedJobPackage:
     """Pack one job to an immutable registry image or local OCI layout."""
 
@@ -160,10 +162,12 @@ def pack_work_package_cmd(
         project_packages=project_packages,
         source_includes=source_includes,
         env_file=state.env_file,
+        local_publication=local,
+        framework_wheelhouse=framework_wheelhouse,
     )
     _require_verified_kind_image(planned, build_missing=build_missing)
     if local:
-        packed = planned.pack_local()
+        packed = planned.pack_local(allow_deferred_qualification=allow_deferred_qualification)
         emit(
             state,
             _local_packed_job_payload(packed),
@@ -178,7 +182,7 @@ def pack_work_package_cmd(
             ),
         )
         return packed
-    packed = planned.pack()
+    packed = planned.pack(allow_deferred_qualification=allow_deferred_qualification)
     emit(
         state,
         _packed_job_payload(packed),
@@ -208,6 +212,8 @@ def run_work_package_cmd(
     project_packages: tuple[str, ...] | None = None,
     source_includes: tuple[str, ...] | None = None,
     build_missing: bool = False,
+    framework_wheelhouse: Path | None = None,
+    allow_deferred_qualification: bool = False,
 ) -> None:
     layout, catalog, resolved_path, package = load_work_package_bundle(state, path)
     job = resolve_job_id(catalog, package, job)
@@ -223,9 +229,10 @@ def run_work_package_cmd(
             project_packages=project_packages,
             source_includes=source_includes,
             env_file=state.env_file,
+            framework_wheelhouse=framework_wheelhouse,
         )
         _require_verified_kind_image(planned, build_missing=build_missing)
-        packed = planned.pack()
+        packed = planned.pack(allow_deferred_qualification=allow_deferred_qualification)
         prepared_submission = packed.prepare_submission()
         admission = execution_admission_service(planned.package.layout)
         admitted = admission.enqueue(

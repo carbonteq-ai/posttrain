@@ -143,6 +143,7 @@ class QualificationResult:
     """Offline package qualification facts emitted before image publication."""
 
     environment_ids: tuple[str, ...]
+    deferred_environment_ids: tuple[str, ...]
     dataset_seats: tuple[str, ...]
 
 
@@ -165,16 +166,20 @@ def qualify_manifest(
         raise ValueError("qualification timeout must be positive")
     package = _verify_package(path)
     qualified: list[str] = []
+    deferred: list[str] = []
     with tempfile.TemporaryDirectory(prefix="posttrain-qualify-") as temporary:
         previous_tmpdir = os.environ.get("TMPDIR")
         os.environ["TMPDIR"] = temporary
         try:
             for lock in package.manifest.environment_activations:
-                if lock.qualification == "deferred" and not allow_deferred:
-                    raise ContractError(
-                        f"environment {lock.environment_id!r} defers qualification; "
-                        "production packaging requires a taskset load"
-                    )
+                if lock.qualification == "deferred":
+                    if not allow_deferred:
+                        raise ContractError(
+                            f"environment {lock.environment_id!r} defers qualification; "
+                            "production packaging requires a taskset load or an explicit waiver"
+                        )
+                    deferred.append(lock.environment_id)
+                    continue
                 with _qualification_timeout(timeout_seconds, lock.environment_id):
                     _qualify_activation(lock, package.root)
                 qualified.append(lock.environment_id)
@@ -183,7 +188,7 @@ def qualify_manifest(
                 os.environ.pop("TMPDIR", None)
             else:
                 os.environ["TMPDIR"] = previous_tmpdir
-    return QualificationResult(tuple(qualified), tuple(sorted(package.datasets)))
+    return QualificationResult(tuple(qualified), tuple(deferred), tuple(sorted(package.datasets)))
 
 
 def _execute_manifest(path: Path) -> WorkerExecutionResult:

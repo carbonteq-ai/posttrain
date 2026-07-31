@@ -62,6 +62,7 @@ from .execution_config import (
     RegistryBinding,
     ResolvedExecutionSettings,
     SettingSource,
+    derived_local_registry,
     load_local_execution_config,
     resolve_execution_settings,
 )
@@ -231,7 +232,7 @@ class PlannedJobPackage:
             builder=registry.buildx_builder,
         )
 
-    def pack(self) -> PackedJobPackage:
+    def pack(self, *, allow_deferred_qualification: bool = False) -> PackedJobPackage:
         """Materialize the exact inputs and publish or reuse the actual-job image."""
 
         context = self.materialize()
@@ -240,13 +241,14 @@ class PlannedJobPackage:
                 manifest=context.manifest,
                 staged_context=context.root,
                 publication=self.pack_plan.publication,
+                allow_deferred_qualification=allow_deferred_qualification,
             )
         )
         if image.publication_key != context.publication_key:
             raise ContractError("published image identity conflicts with the retained job context")
         return PackedJobPackage(self, context, image)
 
-    def pack_local(self) -> LocalPackedJobPackage:
+    def pack_local(self, *, allow_deferred_qualification: bool = False) -> LocalPackedJobPackage:
         """Export a qualified OCI layout without publishing to a registry."""
 
         context = self.materialize()
@@ -255,6 +257,7 @@ class PlannedJobPackage:
                 manifest=context.manifest,
                 staged_context=context.root,
                 publication=self.pack_plan.publication,
+                allow_deferred_qualification=allow_deferred_qualification,
             )
         )
         if image.publication_key != context.publication_key:
@@ -299,8 +302,8 @@ class PlannedJobExecution:
     def mounts(self) -> tuple[ExecutionMount, ...]:
         return self.launch.mounts
 
-    def pack(self) -> PackedJobExecution:
-        packed = self.package.pack()
+    def pack(self, *, allow_deferred_qualification: bool = False) -> PackedJobExecution:
+        packed = self.package.pack(allow_deferred_qualification=allow_deferred_qualification)
         return PackedJobExecution(self, packed.context, packed.image)
 
 
@@ -344,6 +347,7 @@ def plan_job_execution(
     source_includes: tuple[str, ...] | None = None,
     intent: JobIntent | None = None,
     env_file: Path | None = None,
+    framework_wheelhouse: Path | None = None,
 ) -> PlannedJobExecution:
     """Resolve and hash one job without materializing or submitting it."""
 
@@ -361,6 +365,7 @@ def plan_job_execution(
         source_includes=source_includes,
         intent=intent,
         env_file=env_file,
+        framework_wheelhouse=framework_wheelhouse,
     )
     return PlannedJobExecution(
         package=package,
@@ -390,6 +395,8 @@ def plan_job_package(
     source_includes: tuple[str, ...] | None = None,
     intent: JobIntent | None = None,
     env_file: Path | None = None,
+    local_publication: bool = False,
+    framework_wheelhouse: Path | None = None,
 ) -> PlannedJobPackage:
     """Resolve capsule bytes without requiring a provider or worker storage."""
 
@@ -402,6 +409,8 @@ def plan_job_package(
             project_packages=project_packages,
             source_includes=source_includes,
             env_file=env_file,
+            local_publication=local_publication,
+            framework_wheelhouse=framework_wheelhouse,
         )
     return _plan_job_package(
         state,
@@ -413,6 +422,8 @@ def plan_job_package(
         project_packages=project_packages,
         source_includes=source_includes,
         env_file=env_file,
+        local_publication=local_publication,
+        framework_wheelhouse=framework_wheelhouse,
     )
 
 
@@ -468,6 +479,8 @@ def _plan_job_package(
     project_packages: tuple[str, ...] | None,
     source_includes: tuple[str, ...] | None,
     env_file: Path | None,
+    local_publication: bool,
+    framework_wheelhouse: Path | None,
 ) -> PlannedJobPackage:
     layout, catalog, work_package_path, package = load_work_package_bundle(state, path)
     context = runtime_context(
@@ -493,6 +506,8 @@ def _plan_job_package(
         project_packages=project_packages,
         source_includes=source_includes,
         env_file=env_file,
+        local_publication=local_publication,
+        framework_wheelhouse=framework_wheelhouse,
     )
 
 
@@ -503,9 +518,13 @@ def _plan_job_package_from_intent(
     project_packages: tuple[str, ...] | None,
     source_includes: tuple[str, ...] | None,
     env_file: Path | None,
+    local_publication: bool,
+    framework_wheelhouse: Path | None,
 ) -> PlannedJobPackage:
     layout = intent.layout
     local_config = load_local_execution_config(layout, env_file=env_file)
+    if local_publication and local_config.registry is None:
+        local_config = replace(local_config, registry=derived_local_registry())
     catalog = intent.catalog
     work_package_path = intent.work_package_path
     package = intent.work_package
@@ -556,7 +575,8 @@ def _plan_job_package_from_intent(
         # No checkout: the framework is installed, so its own distributions are
         # the code that goes into the image, and their bytes are its identity.
         framework_distributions = materialize_framework_distributions(
-            (layout.state / "pack" / "framework-wheels").resolve()
+            (layout.state / "pack" / "framework-wheels").resolve(),
+            wheelhouse=framework_wheelhouse,
         )
         framework_digest = framework_distributions.digest
     project_digest = inspector.inspect(project_source_request)
