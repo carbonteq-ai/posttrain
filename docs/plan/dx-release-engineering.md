@@ -36,20 +36,21 @@ without an out-of-band constraints file.
       lock, receipt, fork-distribution, and changelog decisions revised.
 - [x] (2026-08-01) Follow-up review made the manifest the milestone-1 checker
       authority rather than comparing repeated metadata to itself.
-- [ ] Milestone 1: CI consistency and derived-data drift checks (no process
-      change).
-- [ ] Milestone 2: one release manifest and deterministic metadata expansion.
+- [x] (2026-08-01) Milestone 1: CI consistency and derived-data drift checks.
+- [x] (2026-08-01) Milestone 2: one release manifest and isolated deterministic
+      metadata expansion. All 24 sdists and wheels built from the staged tree;
+      wheel inspection found 106 exact first-party pins at version 0.3.0.
 - [ ] Milestone 3: generated dependency locks and indexed maintained forks.
 - [ ] Milestone 4: captured image receipts and a curated release-PR flow.
 - [x] (2026-08-01) Added the milestone-1 authority and primary drift gate:
       `release/manifest.toml` is the authored version; `posttrain-release
       check` verifies 25 package versions, 109 internal pins, the catalog's
       `uv.lock` digest, and the published runtime-image manifest. CI runs it.
-- [x] (2026-08-01) Added deterministic `posttrain-release prepare VERSION`;
-      the first expansion prepared `0.3.0`, refreshed `uv.lock`, regenerated
-      the catalog digest, and re-ran the consistency check. The remaining
-      milestone-2 gate is a clean `uv build --all-packages --no-sources` plus
-      wheel metadata inspection.
+- [x] (2026-08-01) Replaced in-place TOML rewriting with release-neutral source
+      templates and `posttrain-release stage DESTINATION`. `prepare` changes
+      only the manifest; staging renders static metadata in an isolated copy.
+- [x] (2026-08-01) Replaced six copied training lock digests and source
+      revisions with `trl-fork@current` plus one generated `locks.toml` record.
 
 ## Surprises & Discoveries
 
@@ -64,6 +65,11 @@ without an out-of-band constraints file.
   Evidence: the installed `uv build --help` exposes both `--all-packages` and
   `--no-sources`; the release plan validates sdists and wheels through that
   path.
+- Observation: regex expansion over every TOML string changed the coverage
+  source `posttrain` into `posttrain==0.3.0` and made release bumps rewrite 109
+  dependency strings.
+  Evidence: the initial 0.3.0 candidate diff and the malformed coverage source
+  exposed both semantic mutation and review noise before publication.
 
 ## Decision Log
 
@@ -80,13 +86,14 @@ without an out-of-band constraints file.
   generated projections.
   Date/Author: 2026-08-01 / architecture review follow-up.
 - Decision: use `release/manifest.toml` as the single release version and
-  generate static package metadata; the tag verifies the qualified commit.
-  Rationale: a tag-derived build requires tagging before final qualification
-  and complicates source-distribution and archive builds. Generated static
-  metadata supports build-before-tag, remains standards-readable, and makes
-  drift detectable by regeneration.
-  Date/Author: 2026-08-01 / architecture review (supersedes the original
-  dynamic-version decision).
+  generate static package metadata only in an isolated release tree; the tag
+  verifies the qualified commit. Source projects use version `0.0.0` and bare
+  workspace dependencies, while staged sdists and wheels contain the manifest
+  version and exact sibling pins.
+  Rationale: this keeps build-before-tag and standards-readable artifacts while
+  removing per-release source churn and preventing broad regex mutation.
+  Date/Author: 2026-08-01 / implementation correction (supersedes committed
+  static expansion into every source pyproject).
 - Decision: deterministic dependency locks are regenerated, while image
   digests are captured from immutable build receipts.
   Rationale: a dependency hash is reproducible from source inputs; a registry
@@ -145,18 +152,20 @@ files (`CHANGELOG.md`, `uv.lock`, and the member pyprojects). The checker has an
 explicit allowlist of generated targets and fails if another authored version
 source appears.
 
-Milestone 2 builds deterministic expansion around that manifest with a
-`posttrain-release prepare X.Y.Z` command. The command updates the manifest,
-expands the version and exact first-party `==` pins into every member
-`pyproject.toml`, refreshes `uv.lock`, and changes tests to read installed
-metadata. The repeated values remain in standards-compliant static metadata,
-but they are generated and never edited directly. `posttrain-release check`
-regenerates into a temporary tree and diffs it. A tag check asserts `vX.Y.Z`
+Milestone 2 builds deterministic expansion around that manifest.
+`posttrain-release prepare X.Y.Z` updates only the manifest, while
+`posttrain-release stage DESTINATION` copies the source tree and expands the
+version and exact first-party `==` pins only there. Source pyprojects remain
+release-neutral and `uv.lock` changes only for dependency changes. The staged
+values remain standards-compliant static metadata in both sdists and wheels.
+`posttrain-release check` renders and validates the same projection in memory.
+A tag check asserts `vX.Y.Z`
 matches the manifest when building a release, without requiring a tag for PR
 qualification. Build both sdists and wheels with workspace sources disabled
 and verify wheel metadata:
 
-    uv build --all-packages --no-sources
+    uv run posttrain-release stage /tmp/posttrain-release
+    uv build --directory /tmp/posttrain-release --all-packages --no-sources
     unzip -p dist/posttrain_work-*.whl '*/METADATA' | grep posttrain-
     # expected: Requires-Dist: posttrain-common==<manifest version>, etc.
 
@@ -210,10 +219,10 @@ fails with a message naming the file. After milestone 3:
   package value without regenerating fails and names both expected and observed
   values. Adding a second non-generated version source also fails. The release
   process itself is otherwise unchanged.
-- Milestone 2: `posttrain-release check` reports that every generated package
-  version and internal pin matches `release/manifest.toml`; changing one pin
-  names that file. Sdists build wheels with `--no-sources`, and their metadata
-  carries the manifest version and exact internal pins.
+- Milestone 2: `posttrain-release check` reports that every source template is
+  release-neutral and its staged package version and internal pins match
+  `release/manifest.toml`. Sdists build wheels with `--no-sources`, and their
+  metadata carries the manifest version and exact internal pins.
 - Milestone 3: `posttrain-release lock-dependencies && git diff --exit-code` is
   clean on main; hand-editing a hash fails CI; a clean consumer installs all
   maintained forks from the internal index without a constraints file.
@@ -227,8 +236,8 @@ fails with a message naming the file. After milestone 3:
 ## Idempotence and Recovery
 
 Every step is additive and reversible: milestone 1 adds checks only;
-milestone 2 keeps static package metadata and can regenerate the previous
-manifest version; milestone 3 keeps generated tables in-tree so a regeneration
+milestone 2 leaves source templates stable and can stage any previous manifest
+version without modifying them; milestone 3 keeps generated tables in-tree so a regeneration
 bug is caught by `git diff`, and the previous committed table remains the
 working fallback. Do not remove `release/github-constraints.txt` from release
 builds until indexed fork wheels pass clean external-consumer installation.
@@ -247,6 +256,7 @@ summary, and the first fully generated release-PR diff summary.
 Extend the existing `apps/release` distribution with:
 
     posttrain-release prepare VERSION
+    posttrain-release stage DESTINATION
     posttrain-release check
     posttrain-release lock-dependencies
     posttrain-release record-images RECEIPT...
@@ -256,12 +266,12 @@ The initial manifest is deliberately small:
     schema_version = 1
     version = "0.2.5"
 
-`prepare` and `lock-dependencies` must support `--check` or a temporary output
-root so CI proves regeneration without first mutating the checkout.
-`release/manifest.toml` is the only human-facing version source. Generated
-member `pyproject.toml` values, `uv.lock`, dependency lock tables, constraints,
-CHANGELOG sections, and `published.toml` remain committed and reviewable. No
-custom PEP 517 plugin or import-time metadata rewrite is required.
+`release/manifest.toml` is the only human-facing version source. `stage`
+provides the temporary output root used to qualify generated member metadata
+without mutating the checkout. `uv.lock` and dependency lock tables change only
+when dependency inputs change; constraints, CHANGELOG sections, and
+`published.toml` remain committed and reviewable. No custom PEP 517 plugin or
+import-time metadata rewrite is required.
 
 ## Revision Notes
 
@@ -274,3 +284,6 @@ custom PEP 517 plugin or import-time metadata rewrite is required.
   milestone 1 and made the checker enforce exactly one authored version plus
   equality of every generated package version and internal pin to that
   manifest.
+- 2026-08-01: Implementation review replaced committed static expansion with
+  isolated release staging after the original regex mutated unrelated TOML and
+  recreated the many-file release diff the plan was meant to remove.

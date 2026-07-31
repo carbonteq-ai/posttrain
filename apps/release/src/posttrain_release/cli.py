@@ -14,7 +14,7 @@ import typer
 from posttrain_execution_buildkit import BuildKitRuntimeBuilder
 
 from .publish import publish_release
-from .versioning import check_release, prepare_release
+from .versioning import check_release, lock_dependencies, prepare_release, stage_release
 
 app = typer.Typer(help="publish framework runtime images and pin the release manifest")
 images_app = typer.Typer(help="runtime image release operations")
@@ -23,7 +23,7 @@ app.add_typer(images_app, name="images")
 _MANIFEST_RELATIVE = Path("packages/runtime-images/src/posttrain/runtime_images/published.toml")
 
 
-@app.command("check", help="verify generated release metadata against release/manifest.toml")
+@app.command("check", help="verify source templates and generated locks against the release manifest")
 def check_cmd(
     repository_root: Annotated[
         Path,
@@ -32,12 +32,12 @@ def check_cmd(
 ) -> None:
     result = check_release(repository_root)
     print(f"authored version: release/manifest.toml = {result.version}")
-    print(f"generated versions: OK ({result.package_count} packages, {result.internal_pin_count} internal pins)")
+    print(f"staged metadata: OK ({result.package_count} packages, {result.internal_pin_count} internal pins)")
     print("dependency locks: OK")
     print("published images: OK")
 
 
-@app.command("prepare", help="expand one release version into generated workspace metadata")
+@app.command("prepare", help="set the one authored release version without rewriting package metadata")
 def prepare_cmd(
     version: Annotated[str, typer.Argument(help="coordinated release version")],
     repository_root: Annotated[
@@ -46,7 +46,30 @@ def prepare_cmd(
     ] = Path("."),
 ) -> None:
     result = prepare_release(repository_root, version)
-    print(f"prepared {result.version}: {result.package_count} packages and {result.internal_pin_count} internal pins")
+    print(f"prepared manifest {result.version}; source package templates are unchanged")
+
+
+@app.command("stage", help="copy the repository and render static release metadata in the copy")
+def stage_cmd(
+    destination: Annotated[Path, typer.Argument(help="new directory for rendered release sources")],
+    repository_root: Annotated[
+        Path,
+        typer.Option("--repository-root", help="framework checkout to stage"),
+    ] = Path("."),
+) -> None:
+    result = stage_release(repository_root, destination)
+    print(f"staged {result.version}: {result.package_count} packages and {result.internal_pin_count} exact pins")
+
+
+@app.command("lock-dependencies", help="regenerate the catalog dependency-lock table")
+def lock_dependencies_cmd(
+    repository_root: Annotated[
+        Path,
+        typer.Option("--repository-root", help="framework checkout to update"),
+    ] = Path("."),
+) -> None:
+    digest = lock_dependencies(repository_root)
+    print(f"generated catalog dependency lock: sha256:{digest}")
 
 
 @images_app.command("publish", help="build, push, and pin every image in this release")

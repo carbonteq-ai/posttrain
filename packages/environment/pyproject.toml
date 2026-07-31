@@ -1,12 +1,12 @@
 [project]
 name = "posttrain-environment"
-version = "0.3.0"
+version = "0.0.0"
 description = "Portable environment contracts for posttrain"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-    "posttrain-common==0.3.0",
+    "posttrain-common",
     "pydantic>=2.12,<3",
 ]
 

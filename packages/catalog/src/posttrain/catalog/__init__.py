@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import copy
+import re
+import tomllib
 from collections.abc import Mapping
 from contextlib import AbstractContextManager
 from importlib.metadata import entry_points
@@ -10,7 +13,7 @@ from importlib.resources import files as resource_files
 from pathlib import Path
 from typing import Any
 
-from posttrain.common import Catalog, CatalogLayer, CatalogRef
+from posttrain.common import Catalog, CatalogLayer, CatalogRef, ContractError
 from posttrain.common.catalog import SelectionDecoder
 from posttrain.common.selections import Selection, SelectionFamily
 from posttrain.data import DATA_CATALOG_DECODERS
@@ -143,7 +146,7 @@ def _load_framework_base(
     decoders: Mapping[SelectionFamily, SelectionDecoder] | None = None,
     registry: FamilyRegistry | None = None,
 ) -> CatalogLayer:
-    source = load_catalog_layer(directory)
+    source = _resolve_base_dependency_locks(load_catalog_layer(directory), directory)
     if registry is not None:
         registry.require_families(name for name in source if name != "layer_id")
     file_catalog = Catalog.open(
@@ -153,6 +156,47 @@ def _load_framework_base(
     )
     entries: dict[CatalogRef, Selection] = {ref: file_catalog.resolve(ref).value for ref in file_catalog.list()}
     return CatalogLayer(BASE_CATALOG_RELEASE, entries)
+
+
+def _resolve_base_dependency_locks(
+    source: Mapping[str, object],
+    directory: Path,
+) -> Mapping[str, object]:
+    """Expand compact catalog lock references into immutable runtime facts."""
+
+    lock_path = directory / "locks.toml"
+    try:
+        document = tomllib.loads(lock_path.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError) as error:
+        raise ContractError(f"framework dependency lock table is invalid: {error}") from error
+    if document.get("schema_version") != 1 or not isinstance(document.get("locks"), dict):
+        raise ContractError("framework dependency lock table requires schema_version 1 and a locks table")
+    locks = document["locks"]
+    resolved = copy.deepcopy(dict(source))
+    training = resolved.get("training")
+    if not isinstance(training, dict):
+        return resolved
+    for selection_id, raw_selection in training.items():
+        if not isinstance(raw_selection, dict):
+            continue
+        options = raw_selection.get("backend_options")
+        if not isinstance(options, dict) or "dependency_lock" not in options:
+            continue
+        lock_id = options["dependency_lock"]
+        lock = locks.get(lock_id) if isinstance(lock_id, str) else None
+        if not isinstance(lock, dict):
+            raise ContractError(f"training selection {selection_id!r} references unknown dependency lock {lock_id!r}")
+        revision = lock.get("source_revision")
+        digest = lock.get("dependency_lock_sha256")
+        if not isinstance(revision, str) or re.fullmatch(r"[0-9a-f]{40}", revision) is None:
+            raise ContractError(f"dependency lock {lock_id!r} has an invalid source revision")
+        if not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+            raise ContractError(f"dependency lock {lock_id!r} has an invalid SHA-256 digest")
+        if "source_revision" in options or "dependency_lock_sha256" in options:
+            raise ContractError(f"training selection {selection_id!r} mixes a lock reference with expanded lock facts")
+        options["source_revision"] = revision
+        options["dependency_lock_sha256"] = digest
+    return resolved
 
 
 def open_catalog(

@@ -1,6 +1,6 @@
 [project]
 name = "posttrain-runtime-images"
-version = "0.3.0"
+version = "0.0.0"
 description = "Shipped container definitions and the per-release published image manifest"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"

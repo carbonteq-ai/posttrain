@@ -1346,7 +1346,7 @@ wheels = [
 
 [[package]]
 name = "lab"
-version = "0.3.0"
+version = "0.0.0"
 source = { virtual = "." }
 dependencies = [
     { name = "posttrain-common" },
@@ -2494,7 +2494,7 @@ wheels = [
 
 [[package]]
 name = "posttrain"
-version = "0.3.0"
+version = "0.0.0"
 source = { editable = "apps/cli" }
 dependencies = [
     { name = "posttrain-catalog" },
@@ -2560,7 +2560,7 @@ provides-extras = ["observatory", "trackio", "wandb", "dstack", "trl", "verifier
 
 [[package]]
 name = "posttrain-catalog"
-version = "0.3.0"
+version = "0.0.0"
 source = { editable = "packages/catalog" }
 dependencies = [
     { name = "posttrain-common" },
@@ -2583,7 +2583,7 @@ requires-dist = [
 
 [[package]]
 name = "posttrain-common"
-version = "0.3.0"
+version = "0.0.0"
 source = { editable = "packages/common" }
 dependencies = [
     { name = "pydantic" },
@@ -2594,7 +2594,7 @@ requires-dist = [{ name = "pydantic", specifier = ">=2.12,<3" }]
 
 [[package]]
 name = "posttrain-data"
-version = "0.3.0"
+version = "0.0.0"
 source = { editable = "packages/data" }
 dependencies = [
     { name = "posttrain-common" },
@@ -2618,7 +2618,7 @@ provides-extras = ["huggingface", "verifiers"]
 
 [[package]]
 name = "posttrain-environment"
-version = "0.3.0"
+version = "0.0.0"
 source = { editable = "packages/environment" }
 dependencies = [
     { name = "posttrain-common" },
@@ -2633,7 +2633,7 @@ requires-dist = [
 
 [[package]]
 name = "posttrain-eval"
-version = "0.3.0"
+version = "0.0.0"
 source = { editable = "packages/eval" }
 dependencies = [
     { name = "posttrain-common" },
@@ -2671,7 +2671,7 @@ provides-extras = ["verifiers"]
 
 [[package]]
 name = "posttrain-execution"
-version = "0.3.0"
+version = "0.0.0"
 source = { editable = "packages/execution" }
 dependencies = [
     { name = "posttrain-common" },
@@ -2686,7 +2686,7 @@ requires-dist = [
 
 [[package]]
 name = "posttrain-execution-buildkit"
-version = "0.3.0"
+version = "0.0.0"
 source = { editable = "packages/execution-buildkit" }
 dependencies = [
     { name = "posttrain-common" },
@@ -2703,7 +2703,7 @@ requires-dist = [
 
 [[package]]
 name = "posttrain-execution-dstack"
-version = "0.3.0"
+version = "0.0.0"
 source = { editable = "packages/execution-dstack" }
 dependencies = [
     { name = "posttrain-common" },
@@ -2718,7 +2718,7 @@ requires-dist = [
 
 [[package]]
 name = "posttrain-execution-local"
-version = "0.3.0"
+version = "0.0.0"
 source = { editable = "packages/execution-local" }
 dependencies = [
     { name = "posttrain-common" },
@@ -2733,7 +2733,7 @@ requires-dist = [
 
 [[package]]
 name = "posttrain-execution-pack"
-version = "0.3.0"
+version = "0.0.0"
 source = { editable = "packages/execution-pack" }
 dependencies = [
     { name = "posttrain-common" },
@@ -2756,7 +2756,7 @@ requires-dist = [
 
 [[package]]
 name = "posttrain-jobs"
-version = "0.3.0"
+version = "0.0.0"
 source = { editable = "packages/jobs" }
 dependencies = [
     { name = "posttrain-common" },
@@ -2787,7 +2787,7 @@ requires-dist = [
 
 [[package]]
 name = "posttrain-lab"
-version = "0.3.0"
+version = "0.0.0"
 source = { editable = "apps/lab" }
 dependencies = [
     { name = "carbonteq-trackio" },
@@ -2847,7 +2847,7 @@ provides-extras = ["gpu-eval", "gpu-train", "gpu-posttrain"]
 
 [[package]]
 name = "posttrain-observatory"
-version = "0.3.0"
+version = "0.0.0"
 source = { editable = "apps/observatory" }
 dependencies = [
     { name = "fastapi" },
@@ -2876,7 +2876,7 @@ requires-dist = [
 
 [[package]]
 name = "posttrain-project"
-version = "0.3.0"
+version = "0.0.0"
 source = { editable = "packages/project" }
 dependencies = [
     { name = "posttrain-catalog" },
@@ -2901,7 +2901,7 @@ requires-dist = [
 
 [[package]]
 name = "posttrain-release"
-version = "0.3.0"
+version = "0.0.0"
 source = { editable = "apps/release" }
 dependencies = [
     { name = "posttrain-execution" },
@@ -2920,7 +2920,7 @@ requires-dist = [
 
 [[package]]
 name = "posttrain-runtime"
-version = "0.3.0"
+version = "0.0.0"
 source = { editable = "apps/runtime" }
 dependencies = [
     { name = "posttrain-catalog" },
@@ -2958,12 +2958,12 @@ provides-extras = ["trackio", "wandb"]
 
 [[package]]
 name = "posttrain-runtime-images"
-version = "0.3.0"
+version = "0.0.0"
 source = { editable = "packages/runtime-images" }
 
 [[package]]
 name = "posttrain-serve"
-version = "0.3.0"
+version = "0.0.0"
 source = { editable = "packages/serve" }
 dependencies = [
     { name = "httpx" },
@@ -3003,7 +3003,7 @@ provides-extras = ["vllm"]
 
 [[package]]
 name = "posttrain-tracking"
-version = "0.3.0"
+version = "0.0.0"
 source = { editable = "packages/tracking" }
 dependencies = [
     { name = "posttrain-common" },
@@ -3018,7 +3018,7 @@ requires-dist = [
 
 [[package]]
 name = "posttrain-tracking-trackio"
-version = "0.3.0"
+version = "0.0.0"
 source = { editable = "packages/tracking-trackio" }
 dependencies = [
     { name = "carbonteq-trackio" },
@@ -3035,7 +3035,7 @@ requires-dist = [
 
 [[package]]
 name = "posttrain-tracking-wandb"
-version = "0.3.0"
+version = "0.0.0"
 source = { editable = "packages/tracking-wandb" }
 dependencies = [
     { name = "posttrain-common" },
@@ -3054,7 +3054,7 @@ requires-dist = [
 
 [[package]]
 name = "posttrain-train"
-version = "0.3.0"
+version = "0.0.0"
 source = { editable = "packages/train" }
 dependencies = [
     { name = "httpx" },
@@ -3120,7 +3120,7 @@ provides-extras = ["verifiers", "trl", "trl-vllm"]
 
 [[package]]
 name = "posttrain-work"
-version = "0.3.0"
+version = "0.0.0"
 source = { editable = "packages/work" }
 dependencies = [
     { name = "posttrain-common" },

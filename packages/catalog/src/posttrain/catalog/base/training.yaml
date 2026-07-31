@@ -139,8 +139,7 @@ training:
       global_batch_size: 2
     backend_options:
       use_liger_kernel: true
-      source_revision: 6e7739b8ec741d21ecd79c0c212694cd15ff20d8
-      dependency_lock_sha256: d18de53cd81878fd056647989ae32ebc203a204faf9b9c47de1c69f51fa854c2
+      dependency_lock: trl-fork@current
   training/qwen3.5-0.8b-trl-distill-lora@1:
     selection_type: training-binding
     revision: "1"
@@ -161,8 +160,7 @@ training:
     runtime:
       global_batch_size: 2
     backend_options:
-      source_revision: 6e7739b8ec741d21ecd79c0c212694cd15ff20d8
-      dependency_lock_sha256: d18de53cd81878fd056647989ae32ebc203a204faf9b9c47de1c69f51fa854c2
+      dependency_lock: trl-fork@current
   training/qwen3.5-0.8b-trl-automationbench-lora-thinking@1:
     selection_type: training-binding
     revision: "1"
@@ -185,8 +183,7 @@ training:
     backend_options:
       use_liger_kernel: true
       logits_chunk_size: 128
-      source_revision: 6e7739b8ec741d21ecd79c0c212694cd15ff20d8
-      dependency_lock_sha256: d18de53cd81878fd056647989ae32ebc203a204faf9b9c47de1c69f51fa854c2
+      dependency_lock: trl-fork@current
   training/qwen3.5-trl-qlora@1:
     selection_type: training-binding
     revision: "1"
@@ -211,8 +208,7 @@ training:
       global_batch_size: 2
     backend_options:
       use_liger_kernel: true
-      source_revision: 6e7739b8ec741d21ecd79c0c212694cd15ff20d8
-      dependency_lock_sha256: d18de53cd81878fd056647989ae32ebc203a204faf9b9c47de1c69f51fa854c2
+      dependency_lock: trl-fork@current
   training/lfm2.5-trl-lora@1:
     selection_type: training-binding
     revision: "1"
@@ -231,8 +227,7 @@ training:
     parallelism:
       sequence_length_divisor: 2
     backend_options:
-      source_revision: 6e7739b8ec741d21ecd79c0c212694cd15ff20d8
-      dependency_lock_sha256: d18de53cd81878fd056647989ae32ebc203a204faf9b9c47de1c69f51fa854c2
+      dependency_lock: trl-fork@current
   training/lfm2.5-trl-qlora@1:
     selection_type: training-binding
     revision: "1"
@@ -254,5 +249,4 @@ training:
     parallelism:
       sequence_length_divisor: 2
     backend_options:
-      source_revision: 6e7739b8ec741d21ecd79c0c212694cd15ff20d8
-      dependency_lock_sha256: d18de53cd81878fd056647989ae32ebc203a204faf9b9c47de1c69f51fa854c2
+      dependency_lock: trl-fork@current

@@ -1,14 +1,10 @@
-"""Framework packages must pin each other to exact versions.
+"""Framework source metadata must remain release-neutral.
 
 The workspace releases as one unit, but its packages are published as separate
-distributions. Declared by bare name, `posttrain` can be upgraded while every
-sibling stays behind, producing an installation that is several versions of the
-framework at once. Nothing detects that: each distribution is individually
-satisfiable, and the mixture only surfaces as behaviour that matches no release.
-
-It also reaches the job image. Framework code is staged into an actual-job
-package from the installed distributions, so a mixed installation is packed and
-published as if it were a coherent framework.
+distributions. Source projects use a stable template version and bare workspace
+dependencies so a release version does not rewrite every manifest. The release
+tool's staged-metadata tests own the complementary invariant: published wheels
+carry the manifest version and exact sibling pins.
 """
 
 from __future__ import annotations
@@ -36,11 +32,12 @@ def _workspace_versions() -> dict[str, str]:
     return versions
 
 
-def test_intra_workspace_dependencies_pin_the_released_version() -> None:
+def test_workspace_metadata_is_a_release_neutral_source_template() -> None:
     versions = _workspace_versions()
     assert versions, "no workspace packages were discovered"
+    assert set(versions.values()) == {"0.0.0"}
 
-    unpinned: list[str] = []
+    constrained: list[str] = []
     for manifest in _manifests():
         project = tomllib.loads(manifest.read_text(encoding="utf-8")).get("project", {})
         declared = list(project.get("dependencies", []))
@@ -50,10 +47,8 @@ def test_intra_workspace_dependencies_pin_the_released_version() -> None:
             match = _REQUIREMENT.match(requirement.strip())
             if match is None or match.group("name") not in versions:
                 continue
-            name = match.group("name")
-            expected = f"=={versions[name]}"
-            if match.group("specifier").strip() != expected:
+            if match.group("specifier").strip():
                 where = manifest.relative_to(_ROOT)
-                unpinned.append(f"{where}: {requirement!r} should require {name}{expected}")
+                constrained.append(f"{where}: {requirement!r} must be bare in source metadata")
 
-    assert not unpinned, "framework packages must pin their siblings exactly:\n" + "\n".join(unpinned)
+    assert not constrained, "release pins belong only in staged metadata:\n" + "\n".join(constrained)

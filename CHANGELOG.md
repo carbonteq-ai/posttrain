@@ -25,8 +25,9 @@ without silently inheriting the submitting shell or a provider connection.
   input-sensitive cache identity.
 - Runtime qualification for staged activation resources, taskset loading, and
   frozen JSONL datasets before an actual job image is published.
-- `release/manifest.toml`, `posttrain-release check`, and
-  `posttrain-release prepare` as the authoritative lockstep version workflow.
+- Manifest-only release preparation, release-neutral workspace metadata,
+  staged static wheel metadata, and a single generated catalog dependency-lock
+  table through `posttrain-release`.
 
 ### Changed
 

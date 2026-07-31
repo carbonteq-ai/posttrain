@@ -119,6 +119,7 @@ def test_peft_bindings_settings_and_quantization_load_from_filesystem_catalog() 
         lora.value.backend_options["dependency_lock_sha256"]
         == hashlib.sha256((root / "uv.lock").read_bytes()).hexdigest()
     )
+    assert lora.value.backend_options["dependency_lock"] == "trl-fork@current"
     assert (
         quantization.value.dependency_lock_digest
         == hashlib.sha256((root / "tools" / "quantization" / "uv.lock").read_bytes()).hexdigest()

@@ -692,11 +692,11 @@ own release metadata.
 The target contract is that **a release commit is 100% machine-generated**:
 
 - **One release manifest.** `release/manifest.toml` contains the sole release
-  version. `posttrain-release prepare X.Y.Z` updates that manifest and expands
-  every package version and exact first-party pin deterministically. Static
-  wheel and sdist metadata remain inspectable; CI regenerates and diffs the
-  expansion. The eventual `vX.Y.Z` tag must match the manifest and point at the
-  already-qualified commit.
+  version. `posttrain-release prepare X.Y.Z` updates only that manifest, and
+  `posttrain-release stage DESTINATION` expands every package version and exact
+  first-party pin in an isolated tree. Source pyprojects remain release-neutral;
+  static wheel and sdist metadata remain inspectable. The eventual `vX.Y.Z` tag
+  must match the manifest and point at the already-qualified commit.
 - **Digests as generated lock tables.** Catalog entries reference a named lock
   (`lock: trl-fork@<commit>`); one generated file owns the name→sha256 table.
   Deterministic dependency locks are regenerated and diffed. Published image

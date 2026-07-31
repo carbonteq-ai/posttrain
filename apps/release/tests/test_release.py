@@ -9,7 +9,12 @@ import pytest
 from posttrain.runtime_images import RUNTIME_VARIANTS, constraint_lock, lock_digest
 from posttrain.runtime_images.manifest import ManifestError, PublishedImage, load_manifest
 from posttrain_release.manifest_render import render_manifest
-from posttrain_release.versioning import check_release, prepare_release
+from posttrain_release.versioning import (
+    check_release,
+    lock_dependencies,
+    prepare_release,
+    stage_release,
+)
 
 _REPOSITORY_ROOT_DEPTH = 3
 
@@ -21,7 +26,24 @@ def _version_repository(root: Path, version: str = "0.2.5") -> None:
         encoding="utf-8",
     )
     (root / "pyproject.toml").write_text(
-        f'[project]\nname = "posttrain"\nversion = "{version}"\ndependencies = ["posttrain-common=={version}"]\n',
+        '[project]\nname = "lab"\nversion = "0.0.0"\ndependencies = ["posttrain-common"]\n',
+        encoding="utf-8",
+    )
+    train = root / "packages/train"
+    train.mkdir(parents=True)
+    train.joinpath("pyproject.toml").write_text(
+        """[project]
+name = "posttrain-train"
+version = "0.0.0"
+dependencies = ["posttrain-common"]
+
+[project.optional-dependencies]
+trl = ["trl @ git+https://github.com/carbonteq-ai/trl.git@6e7739b8ec741d21ecd79c0c212694cd15ff20d8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+""",
         encoding="utf-8",
     )
     (root / "uv.lock").write_text("lock\n", encoding="utf-8")
@@ -29,7 +51,17 @@ def _version_repository(root: Path, version: str = "0.2.5") -> None:
     catalog = root / "packages/catalog/src/posttrain/catalog/base"
     catalog.mkdir(parents=True)
     (catalog / "training.yaml").write_text(
-        f"training:\n  example:\n    dependency_lock_sha256: {digest}\n",
+        "training:\n  example:\n    backend_options:\n      dependency_lock: trl-fork@current\n",
+        encoding="utf-8",
+    )
+    (catalog / "locks.toml").write_text(
+        f"""schema_version = 1
+
+[locks."trl-fork@current"]
+source = "uv.lock"
+source_revision = "6e7739b8ec741d21ecd79c0c212694cd15ff20d8"
+dependency_lock_sha256 = "{digest}"
+""",
         encoding="utf-8",
     )
 
@@ -82,34 +114,52 @@ def test_release_check_uses_the_manifest_as_version_authority(tmp_path: Path) ->
 
 def test_release_check_names_a_drifted_internal_pin(tmp_path: Path) -> None:
     _version_repository(tmp_path)
-    pyproject = tmp_path / "pyproject.toml"
+    pyproject = tmp_path / "packages/train/pyproject.toml"
     pyproject.write_text(
-        pyproject.read_text(encoding="utf-8").replace("posttrain-common==0.2.5", "posttrain-common==0.2.4"),
+        pyproject.read_text(encoding="utf-8").replace("posttrain-common", "posttrain-common==0.2.4", 1),
         encoding="utf-8",
     )
 
-    with pytest.raises(ValueError, match=r"pyproject[.]toml: posttrain-common is pinned to '0[.]2[.]4'.*'0[.]2[.]5'"):
+    with pytest.raises(ValueError, match=r"source dependency 'posttrain-common==0[.]2[.]4' contains a release pin"):
         check_release(tmp_path)
 
 
-def test_prepare_expands_versions_refreshes_lock_and_rechecks(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_prepare_changes_only_the_authored_manifest(tmp_path: Path) -> None:
     _version_repository(tmp_path)
-
-    def fake_run(*args, **kwargs):
-        del args, kwargs
-        (tmp_path / "uv.lock").write_text("new lock\n", encoding="utf-8")
-        return __import__("subprocess").CompletedProcess(["uv", "lock"], 0, "", "")
-
-    monkeypatch.setattr("posttrain_release.versioning.subprocess.run", fake_run)
+    source_metadata = (tmp_path / "packages/train/pyproject.toml").read_text(encoding="utf-8")
 
     result = prepare_release(tmp_path, "0.3.0")
 
     assert result.version == "0.3.0"
-    assert 'version = "0.3.0"' in (tmp_path / "pyproject.toml").read_text(encoding="utf-8")
-    assert "posttrain-common==0.3.0" in (tmp_path / "pyproject.toml").read_text(encoding="utf-8")
+    assert (tmp_path / "packages/train/pyproject.toml").read_text(encoding="utf-8") == source_metadata
+
+
+def test_stage_expands_static_wheel_metadata_without_touching_source(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    destination = tmp_path / "staged"
+    _version_repository(source, version="0.3.0")
+
+    result = stage_release(source, destination)
+
+    source_text = (source / "packages/train/pyproject.toml").read_text(encoding="utf-8")
+    staged_text = (destination / "packages/train/pyproject.toml").read_text(encoding="utf-8")
+    assert result.package_count == 1
+    assert 'version = "0.0.0"' in source_text
+    assert 'version = "0.3.0"' in staged_text
+    assert '"posttrain-common==0.3.0"' in staged_text
+
+
+def test_dependency_lock_generation_has_one_record(tmp_path: Path) -> None:
+    _version_repository(tmp_path)
+    (tmp_path / "uv.lock").write_text("updated lock\n", encoding="utf-8")
+
+    digest = lock_dependencies(tmp_path)
+
+    document = tomllib.loads(
+        (tmp_path / "packages/catalog/src/posttrain/catalog/base/locks.toml").read_text(encoding="utf-8")
+    )
+    assert set(document["locks"]) == {"trl-fork@current"}
+    assert document["locks"]["trl-fork@current"]["dependency_lock_sha256"] == digest
 
 
 def test_rendered_lock_digests_come_from_the_shipped_locks() -> None:
