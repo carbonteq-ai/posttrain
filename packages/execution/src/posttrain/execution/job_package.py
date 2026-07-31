@@ -140,6 +140,7 @@ class EnvironmentActivationLock:
     reference: str | None = None
     config: Mapping[str, JsonValue] | None = None
     resources: Mapping[str, StagedResourceLock] = field(default_factory=dict)
+    qualification: Literal["required", "deferred"] = "required"
 
     def __post_init__(self) -> None:
         if not _IDENTITY.fullmatch(self.environment_id):
@@ -169,6 +170,8 @@ class EnvironmentActivationLock:
             raise ContractError("environment factory ref must be an import reference such as module:callable")
         if self.kind == "python-factory" and self.config is not None:
             raise ContractError("Python factory activation cannot include config")
+        if self.qualification not in {"required", "deferred"}:
+            raise ContractError("environment activation qualification is invalid")
         resources = dict(self.resources)
         if any(name != resource.name for name, resource in resources.items()):
             raise ContractError("activation resource mapping names must match their locks")
@@ -204,6 +207,7 @@ class EnvironmentActivationLock:
             "reference": self.reference,
             "config": (None if self.config is None else cast(JsonValue, _thaw_json(self.config))),
             "resources": {name: resource.to_payload() for name, resource in self.resources.items()},
+            "qualification": self.qualification,
         }
 
 
@@ -638,6 +642,7 @@ def _environment_activation_lock(value: object) -> EnvironmentActivationLock:
     reference = value.get("reference")
     config = value.get("config")
     resources = value.get("resources", {})
+    qualification = value.get("qualification", "required")
     if kind not in {"verifiers-config", "python-factory"}:
         raise TypeError("environment activation kind")
     if reference is not None and not isinstance(reference, str):
@@ -646,6 +651,8 @@ def _environment_activation_lock(value: object) -> EnvironmentActivationLock:
         raise TypeError("environment activation config")
     if not isinstance(resources, dict):
         raise TypeError("environment activation resources")
+    if qualification not in {"required", "deferred"}:
+        raise TypeError("environment activation qualification")
     return EnvironmentActivationLock(
         environment_id=_required_string(value.get("environment_id"), "environment activation id"),
         package=_required_string(value.get("package"), "environment activation package"),
@@ -657,6 +664,7 @@ def _environment_activation_lock(value: object) -> EnvironmentActivationLock:
             _required_string(name, "environment activation resource name"): _staged_resource_lock(resource)
             for name, resource in resources.items()
         },
+        qualification=qualification,
     )
 
 

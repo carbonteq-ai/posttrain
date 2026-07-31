@@ -258,6 +258,18 @@ def test_environment_activation_config_is_deeply_immutable() -> None:
         taskset["split"] = "test"  # type: ignore[index]
 
 
+def test_environment_activation_qualification_policy_round_trips() -> None:
+    manifest = _manifest()
+    deferred = replace(
+        manifest,
+        environment_activations=(replace(manifest.environment_activations[0], qualification="deferred"),),
+    )
+
+    restored = JobPackageManifest.from_bytes(deferred.to_bytes())
+
+    assert restored.environment_activations[0].qualification == "deferred"
+
+
 def test_job_package_rejects_activation_without_its_environment_wheel() -> None:
     manifest = _manifest()
 

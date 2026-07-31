@@ -82,6 +82,7 @@ class EnvironmentBindingSchema(EnvironmentCatalogSchema):
     num_tasks: int = Field(gt=0)
     num_rollouts: int = Field(default=1, gt=0)
     max_concurrent: int = Field(default=4, gt=0)
+    qualification: Literal["required", "deferred"] = "required"
     parameters: dict[str, JsonValue] = Field(default_factory=dict)
     reward_components: tuple[str, ...] = ()
 
@@ -120,6 +121,7 @@ def environment_catalog_decoders(
             num_tasks=payload.num_tasks,
             num_rollouts=payload.num_rollouts,
             max_concurrent=payload.max_concurrent,
+            qualification=payload.qualification,
             parameters=payload.parameters,
             reward_components=payload.reward_components,
         )

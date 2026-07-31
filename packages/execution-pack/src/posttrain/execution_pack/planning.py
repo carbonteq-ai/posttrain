@@ -474,6 +474,7 @@ def _activation_lock(
         reference=reference,
         config=config,
         resources=resources,
+        qualification=binding.qualification,
     )
 
 

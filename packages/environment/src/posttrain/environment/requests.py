@@ -239,6 +239,7 @@ class EnvironmentBinding:
     num_tasks: int
     num_rollouts: int = 1
     max_concurrent: int = 4
+    qualification: Literal["required", "deferred"] = "required"
     parameters: Mapping[str, JsonValue] = field(default_factory=dict)
     reward_components: tuple[str, ...] = ()
 
@@ -249,6 +250,8 @@ class EnvironmentBinding:
             raise TypeError("environment activation must be a supported serializable activation")
         if self.num_tasks < 1 or self.num_rollouts < 1 or self.max_concurrent < 1:
             raise ValueError("evaluation task, rollout, and concurrency counts must be positive")
+        if self.qualification not in {"required", "deferred"}:
+            raise ValueError("environment qualification must be required or deferred")
         if any(not value.strip() for value in self.reward_components):
             raise ValueError("environment reward component names cannot be empty")
         object.__setattr__(self, "parameters", MappingProxyType(dict(self.parameters)))

@@ -85,7 +85,7 @@ def _validate_definition() -> None:
         "posttrain.train.backends.verl.worker",
         'ENTRYPOINT ["posttrain-runtime"]',
         'CMD ["execute", "--manifest", "/opt/posttrain/job/package.json"]',
-        "posttrain-runtime qualify --manifest /opt/posttrain/job/package.json",
+        "posttrain-runtime qualify --timeout-seconds 60 --manifest /opt/posttrain/job/package.json",
         "ARG RUNTIME_DEPENDENCIES_DIGEST",
         "ARG CODE_REQUIREMENTS_DIGEST",
         "ARG RESOLVED_CONFIG_DIGEST",

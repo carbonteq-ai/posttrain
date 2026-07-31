@@ -4,6 +4,7 @@ import hashlib
 import json
 import signal
 import sys
+import time
 from collections.abc import Mapping
 from dataclasses import replace
 from datetime import datetime
@@ -40,7 +41,7 @@ from posttrain.work import (
     prepare_work_package_job,
 )
 from posttrain_runtime import execute_manifest
-from posttrain_runtime.execute import _project_config_digest, _qualify_activation, _tree_digest
+from posttrain_runtime.execute import _project_config_digest, _qualification_timeout, _qualify_activation, _tree_digest
 
 
 def test_qualification_loads_each_verifiers_taskset_offline(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -81,6 +82,12 @@ def test_qualification_loads_each_verifiers_taskset_offline(monkeypatch: pytest.
     _qualify_activation(lock, tmp_path)
 
     assert loaded == [config]
+
+
+def test_qualification_timeout_names_the_blocked_environment() -> None:
+    with pytest.raises(TimeoutError, match="stuck"):
+        with _qualification_timeout(0.01, "stuck"):
+            time.sleep(0.1)
 
 
 def _project(

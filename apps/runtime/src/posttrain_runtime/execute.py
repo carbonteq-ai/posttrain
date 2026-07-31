@@ -11,6 +11,7 @@ import socket
 import stat
 import subprocess
 import sys
+import tempfile
 import uuid
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
@@ -150,14 +151,36 @@ def execute_manifest(path: Path) -> WorkerExecutionResult:
         return _execute_manifest(path)
 
 
-def qualify_manifest(path: Path) -> QualificationResult:
+def qualify_manifest(
+    path: Path,
+    *,
+    timeout_seconds: float = 60.0,
+    allow_deferred: bool = False,
+) -> QualificationResult:
     """Verify every staged activation and taskset without creating a run."""
 
+    if timeout_seconds <= 0:
+        raise ValueError("qualification timeout must be positive")
     package = _verify_package(path)
     qualified: list[str] = []
-    for lock in package.manifest.environment_activations:
-        _qualify_activation(lock, package.root)
-        qualified.append(lock.environment_id)
+    with tempfile.TemporaryDirectory(prefix="posttrain-qualify-") as temporary:
+        previous_tmpdir = os.environ.get("TMPDIR")
+        os.environ["TMPDIR"] = temporary
+        try:
+            for lock in package.manifest.environment_activations:
+                if lock.qualification == "deferred" and not allow_deferred:
+                    raise ContractError(
+                        f"environment {lock.environment_id!r} defers qualification; "
+                        "production packaging requires a taskset load"
+                    )
+                with _qualification_timeout(timeout_seconds, lock.environment_id):
+                    _qualify_activation(lock, package.root)
+                qualified.append(lock.environment_id)
+        finally:
+            if previous_tmpdir is None:
+                os.environ.pop("TMPDIR", None)
+            else:
+                os.environ["TMPDIR"] = previous_tmpdir
     return QualificationResult(tuple(qualified), tuple(sorted(package.datasets)))
 
 
@@ -360,6 +383,29 @@ def _graceful_cancellation() -> Iterator[None]:
     finally:
         for number, handler in previous.items():
             signal.signal(number, handler)
+
+
+@contextmanager
+def _qualification_timeout(seconds: float, environment_id: str) -> Iterator[None]:
+    """Bound one offline taskset load without creating a subprocess tree."""
+
+    if not hasattr(signal, "setitimer") or not hasattr(signal, "SIGALRM"):
+        raise RuntimeError("offline qualification requires POSIX interval timers")
+    previous_handler = signal.getsignal(signal.SIGALRM)
+    previous_timer = signal.setitimer(signal.ITIMER_REAL, 0)
+
+    def expire(_signum: int, _frame: FrameType | None) -> None:
+        raise TimeoutError(f"environment qualification timed out after {seconds:g}s: {environment_id}")
+
+    signal.signal(signal.SIGALRM, expire)
+    signal.setitimer(signal.ITIMER_REAL, seconds)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous_handler)
+        if previous_timer[0] > 0:
+            signal.setitimer(signal.ITIMER_REAL, *previous_timer)
 
 
 def _verify_package(path: Path) -> _VerifiedPackage:

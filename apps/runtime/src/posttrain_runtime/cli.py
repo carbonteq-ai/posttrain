@@ -22,13 +22,19 @@ def main() -> None:
     execute.add_argument("--manifest", type=Path, required=True)
     qualify = commands.add_parser("qualify")
     qualify.add_argument("--manifest", type=Path, required=True)
+    qualify.add_argument("--timeout-seconds", type=float, default=60.0)
+    qualify.add_argument("--allow-deferred", action="store_true")
     arguments = parser.parse_args()
 
     if arguments.command == "execute":
         result = execute_manifest(arguments.manifest)
         print(json.dumps(asdict(result), sort_keys=True, separators=(",", ":")))
     if arguments.command == "qualify":
-        result = qualify_manifest(arguments.manifest)
+        result = qualify_manifest(
+            arguments.manifest,
+            timeout_seconds=arguments.timeout_seconds,
+            allow_deferred=arguments.allow_deferred,
+        )
         print(json.dumps(asdict(result), sort_keys=True, separators=(",", ":")))
 
 
