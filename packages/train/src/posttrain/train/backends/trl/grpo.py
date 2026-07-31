@@ -138,6 +138,7 @@ def _run_online_rl(
             processing_class=tokenizer,
             callbacks=[callback_type(context, imports, metric_normalizer=normalize_metrics)()],
         )
+        _configure_liger_loss(trainer, request)
     resume = str(request.resume_from.path) if request.resume_from is not None else None
     with trainer_lifecycle(trainer):
         with context.phase("actor_update", {"backend": "trl"}):
@@ -289,6 +290,11 @@ def _online_rl_arguments(
     use_liger_kernel = request.training.backend_options.get("use_liger_kernel", False)
     if not isinstance(use_liger_kernel, bool):
         raise ValueError("TRL GRPO use_liger_kernel must be a boolean")
+    liger_loss_compiled = request.training.backend_options.get("liger_loss_compiled", True)
+    if not isinstance(liger_loss_compiled, bool):
+        raise ValueError("TRL GRPO liger_loss_compiled must be a boolean")
+    if not use_liger_kernel and "liger_loss_compiled" in request.training.backend_options:
+        raise ValueError("TRL GRPO liger_loss_compiled requires use_liger_kernel=true")
     logits_chunk_size = request.training.backend_options.get("logits_chunk_size")
     if logits_chunk_size is not None and (
         isinstance(logits_chunk_size, bool) or not isinstance(logits_chunk_size, int) or logits_chunk_size < 1
@@ -348,6 +354,19 @@ def _online_rl_arguments(
     return arguments
 
 
+def _configure_liger_loss(
+    trainer: Any,
+    request: GRPORequest | SAMPORequest,
+) -> None:
+    if not request.training.backend_options.get("use_liger_kernel", False):
+        return
+    compiled = request.training.backend_options.get("liger_loss_compiled", True)
+    loss = getattr(trainer, "liger_loss", None)
+    if loss is None or not hasattr(loss, "compiled"):
+        raise RuntimeError("the selected TRL Liger loss does not expose compiled mode")
+    loss.compiled = compiled
+
+
 def _grpo_arguments(request: GRPORequest, output_dir: Path, template_kwargs: dict[str, Any]) -> dict[str, Any]:
     """Compatibility name for the GRPO-only argument translator."""
 
@@ -380,6 +399,7 @@ def _online_rl_runtime_attributes(request: GRPORequest | SAMPORequest) -> dict[s
             "max_model_len", request.settings.max_prompt_length + request.settings.max_completion_length
         ),
         "use_liger_kernel": request.training.backend_options.get("use_liger_kernel", False),
+        "liger_loss_compiled": request.training.backend_options.get("liger_loss_compiled", True),
         "logits_chunk_size": request.training.backend_options.get("logits_chunk_size"),
         "online_rl_algorithm": request.settings.algorithm if isinstance(request, GRPORequest) else "sampo",
         "clip_epsilon_low": request.settings.clip_epsilon_low,

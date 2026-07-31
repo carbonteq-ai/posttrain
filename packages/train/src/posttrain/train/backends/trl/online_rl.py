@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Sequence
 from typing import Any, Literal, cast
 
 from posttrain.common import ModelVariant
@@ -29,6 +30,13 @@ class TrlPolicyGenerator:
         self._renderer = create_renderer(tokenizer, model, training.renderer)
         self._max_completion_length = settings.max_completion_length
         self._lock = asyncio.Lock()
+        self._pending: list[
+            tuple[
+                Sequence[int],
+                asyncio.Future[tuple[Sequence[int], Sequence[float] | None]],
+            ]
+        ] = []
+        self._flush_task: asyncio.Task[None] | None = None
 
     async def generate(self, request: PolicyTurnRequest) -> PolicyTurnResult:
         expected = (
@@ -55,16 +63,11 @@ class TrlPolicyGenerator:
         else:
             spans = _bridged_message_spans(rendered, request.tail_start, len(request.previous_token_ids))
 
-        async with self._lock:
-            completion_ids, logprobs = self._trainer._generate_single_turn(  # noqa: SLF001 - pinned adapter
-                [rendered.token_ids],
-                None,
-                {},
-            )
-        token_ids = tuple(int(value) for value in completion_ids[0])
+        completion_ids, logprobs = await self._generate_tokens(rendered.token_ids)
+        token_ids = tuple(int(value) for value in completion_ids)
         if not token_ids:
             raise RuntimeError("the policy generator returned an empty completion")
-        sampled_logprobs = () if logprobs is None else tuple(float(value) for value in logprobs[0])
+        sampled_logprobs = () if logprobs is None else tuple(float(value) for value in logprobs)
         parsed = self._renderer.parse_response(list(token_ids), tools=tools or None)
         tool_calls = [
             {
@@ -102,6 +105,68 @@ class TrlPolicyGenerator:
             prompt_is_content=tuple(bool(value) for value in rendered.is_content),
             raw_response=raw_response,
         )
+
+    async def _generate_tokens(
+        self,
+        prompt_ids: Sequence[int],
+    ) -> tuple[Sequence[int], Sequence[float] | None]:
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[tuple[Sequence[int], Sequence[float] | None]] = loop.create_future()
+        self._pending.append((prompt_ids, future))
+        if self._flush_task is None:
+            self._flush_task = asyncio.create_task(self._flush_pending())
+        return await future
+
+    async def _flush_pending(self) -> None:
+        # Let concurrently scheduled environment turns reach the queue before
+        # issuing the synchronous trainer call.
+        await asyncio.sleep(0)
+        pending: list[
+            tuple[
+                Sequence[int],
+                asyncio.Future[tuple[Sequence[int], Sequence[float] | None]],
+            ]
+        ] = []
+        try:
+            # Waiting for the trainer lock yields to the event loop. Drain until
+            # no later turn remains queued so none can be stranded behind this
+            # already-scheduled flush task.
+            while self._pending:
+                pending, self._pending = self._pending, []
+                active = [(prompt_ids, future) for prompt_ids, future in pending if not future.cancelled()]
+                if not active:
+                    continue
+                async with self._lock:
+                    completion_ids, logprobs = self._trainer._generate_single_turn(  # noqa: SLF001 - pinned adapter
+                        [list(prompt_ids) for prompt_ids, _future in active],
+                        None,
+                        {},
+                    )
+                if len(completion_ids) != len(active):
+                    raise RuntimeError(
+                        f"the policy generator returned {len(completion_ids)} completions for {len(active)} prompts"
+                    )
+                if logprobs is not None and len(logprobs) != len(active):
+                    raise RuntimeError(
+                        f"the policy generator returned {len(logprobs)} logprob rows for {len(active)} prompts"
+                    )
+                for index, (_prompt_ids, future) in enumerate(active):
+                    if not future.cancelled():
+                        future.set_result(
+                            (
+                                completion_ids[index],
+                                None if logprobs is None else logprobs[index],
+                            )
+                        )
+        except BaseException as exc:
+            for _prompt_ids, future in [*pending, *self._pending]:
+                if not future.done():
+                    future.set_exception(exc)
+            self._pending = []
+        finally:
+            self._flush_task = None
+            if self._pending:
+                self._flush_task = asyncio.create_task(self._flush_pending())
 
 
 def _bridged_message_spans(rendered: Any, tail_start: int, prefix_tokens: int) -> tuple[tuple[int, int] | None, ...]:

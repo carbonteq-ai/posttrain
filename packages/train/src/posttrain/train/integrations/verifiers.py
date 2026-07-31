@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import pickle
@@ -34,6 +35,30 @@ from ..online_rl import (
 )
 
 type OnlineRLTechnique = Literal["grpo", "dapo", "sampo", "distill"]
+
+_NULL_HARNESS_UNBOUNDED_MCP = '"mcp"'
+_NULL_HARNESS_MCP_V1 = '"mcp>=1.24.0,<2"'
+
+
+def _apply_verifiers_runtime_compatibility() -> None:
+    """Keep the pinned Verifiers null harness on its compatible MCP major."""
+
+    try:
+        from verifiers.v1.harnesses.null import harness as null_harness  # pyright: ignore[reportMissingImports]
+    except ImportError as error:
+        raise RuntimeError("install the Verifiers integration dependencies") from error
+    source = null_harness.PROGRAM_SOURCE
+    if _NULL_HARNESS_MCP_V1 in source:
+        return
+    if _NULL_HARNESS_UNBOUNDED_MCP not in source:
+        raise RuntimeError(
+            "the pinned Verifiers null harness dependency declaration changed; update the Posttrain compatibility guard"
+        )
+    null_harness.PROGRAM_SOURCE = source.replace(
+        _NULL_HARNESS_UNBOUNDED_MCP,
+        _NULL_HARNESS_MCP_V1,
+        1,
+    )
 
 
 class TraceEnricher(Protocol):
@@ -146,6 +171,7 @@ def _imports() -> tuple[Any, ...]:
 
 
 def _environment_imports() -> tuple[type[Any], type[Any]]:
+    _apply_verifiers_runtime_compatibility()
     try:
         from verifiers.v1.env import EnvConfig, Environment  # pyright: ignore[reportMissingImports]
     except ImportError as error:
@@ -427,26 +453,31 @@ class VerifiersEnvironmentRolloutBridge:
             ),
         )
         by_id: dict[str, list[EnvironmentRollout]] = {}
+
+        async def run_example(example_id: str) -> tuple[str, int, Sequence[Any]]:
+            try:
+                task_index, task = self._tasks_by_example_id[example_id]
+            except KeyError as error:
+                raise ValueError(f"unknown rollout example {example_id!r}") from error
+            traces = await self._environment.episode(task, context, n=counts[example_id]).run()
+            return example_id, task_index, traces
+
         async with self._environment.serving():
-            for example_id in order:
-                try:
-                    task_index, task = self._tasks_by_example_id[example_id]
-                except KeyError as error:
-                    raise ValueError(f"unknown rollout example {example_id!r}") from error
-                traces = await self._environment.episode(task, context, n=counts[example_id]).run()
-                projected: list[EnvironmentRollout] = []
-                for trace in traces:
-                    trace.stamp(
-                        run=TrainRunInfo(id=self.run_id, step=batch.step),
-                        environment_id=self.environment_id,
-                        task_index=task_index,
-                        example_id=example_id,
-                    )
-                    for enrich in self.enrichers:
-                        enrich(trace)
-                    self._preserve(trace.to_record())
-                    projected.append(self._project(trace, example_id, task_index))
-                by_id[example_id] = projected
+            results = await asyncio.gather(*(run_example(example_id) for example_id in order))
+        for example_id, task_index, traces in results:
+            projected: list[EnvironmentRollout] = []
+            for trace in traces:
+                trace.stamp(
+                    run=TrainRunInfo(id=self.run_id, step=batch.step),
+                    environment_id=self.environment_id,
+                    task_index=task_index,
+                    example_id=example_id,
+                )
+                for enrich in self.enrichers:
+                    enrich(trace)
+                self._preserve(trace.to_record())
+                projected.append(self._project(trace, example_id, task_index))
+            by_id[example_id] = projected
         positions = {identifier: 0 for identifier in by_id}
         aligned: list[EnvironmentRollout] = []
         for example_id in batch.example_ids:

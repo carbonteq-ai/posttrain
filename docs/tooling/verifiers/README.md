@@ -57,6 +57,9 @@ Prototype path today: `posttrain.eval.evaluate` →
 
 - Prefer the same versioned taskset for held-out eval and online RL when
   semantics match
+- Track the open
+  [environment-data packaging feedback](../../feedback/verifiers-environment-data-packaging.md)
+  when an environment needs package-owned or externally staged task resources
 - Keep training reward **weights** in training settings; reward **meanings** in
   the env Task
 - Resolve and record the **inference binding** (endpoint + engine limits); the

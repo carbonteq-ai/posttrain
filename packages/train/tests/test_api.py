@@ -76,6 +76,7 @@ from posttrain.train.backends.trl.distillation import (
     _rollout_function as _distillation_rollout_function,
 )
 from posttrain.train.backends.trl.grpo import (
+    _configure_liger_loss,
     _grpo_arguments,
     _grpo_runtime_attributes,
     _rollout_function,
@@ -1163,6 +1164,7 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
         runtime=TrainingRuntime(global_batch_size=2),
         backend_options={
             "use_liger_kernel": True,
+            "liger_loss_compiled": False,
             "logits_chunk_size": 128,
         },
     )
@@ -1174,6 +1176,19 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
     )
     assert optimized_arguments["use_liger_kernel"] is True
     assert optimized_arguments["logits_chunk_size"] == 128
+    trainer = SimpleNamespace(liger_loss=SimpleNamespace(compiled=True))
+    _configure_liger_loss(trainer, optimized_request)
+    assert trainer.liger_loss.compiled is False
+    assert _grpo_runtime_attributes(optimized_request)["liger_loss_compiled"] is False
+    invalid_liger_request = replace(
+        request,
+        training=replace(
+            _training(),
+            backend_options={"use_liger_kernel": False, "liger_loss_compiled": False},
+        ),
+    )
+    with pytest.raises(ValueError, match="requires use_liger_kernel=true"):
+        _grpo_arguments(invalid_liger_request, tmp_path, {"enable_thinking": False})
 
     mtp_request = GRPORequest(
         model,
