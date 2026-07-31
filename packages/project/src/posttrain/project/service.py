@@ -87,6 +87,7 @@ class Project:
                 scope=layout.project_id,
                 overlays=layout.catalog_overlays,
                 catalog_root=layout.base_catalog,
+                required_plugin_distributions=layout.catalog_plugin_requirements,
             ),
         )
 
@@ -152,7 +153,9 @@ def _work_package_path(layout: ProjectLayout, configured: Path) -> Path:
 
 def _resolve_job_id(catalog: Catalog, package: WorkPackage, requested: str | None) -> str:
     resolved = resolve_work_package(catalog, package)
-    enabled = tuple(item.id for item in resolved.recipe.jobs if not item.optional or item.id in package.enabled_optional_jobs)
+    enabled = tuple(
+        item.id for item in resolved.recipe.jobs if not item.optional or item.id in package.enabled_optional_jobs
+    )
     if requested is not None:
         if requested not in enabled:
             available = ", ".join(enabled) if enabled else "(none)"
@@ -263,7 +266,9 @@ def _validate_standard_definitions(runtime: JobRuntime) -> None:
         configured = runtime.definitions.get(definition_id)
         if configured is None:
             raise ContractError(f"project entry omitted standard job definition: {definition_id}")
-        same_operation = getattr(configured.operation, "__code__", None) is getattr(standard.operation, "__code__", None)
+        same_operation = getattr(configured.operation, "__code__", None) is getattr(
+            standard.operation, "__code__", None
+        )
         same_static_validator = getattr(configured.static_validator, "__code__", None) is getattr(
             standard.static_validator, "__code__", None
         )

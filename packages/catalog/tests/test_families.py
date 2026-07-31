@@ -91,3 +91,14 @@ def test_complete_registry_lock_changes_for_an_unrelated_installed_family() -> N
     assert baseline.digest != extended.digest
     assert "widget" not in {entry.name for entry in baseline.entries}
     assert "widget" in {entry.name for entry in extended.entries}
+
+
+def test_required_provider_distribution_fails_before_catalog_decoding() -> None:
+    registry = family_registry(entry_point_values=())
+
+    with pytest.raises(ContractError, match="required catalog plugin distribution.*example-plugin>=1"):
+        open_catalog(
+            scope="test",
+            registry=registry,
+            required_plugin_distributions=("example-plugin>=1",),
+        )

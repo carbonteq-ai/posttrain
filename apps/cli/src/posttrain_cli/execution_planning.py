@@ -7,7 +7,7 @@ import uuid
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from posttrain.catalog import ProjectLayout
+from posttrain.catalog import FamilyRegistryLock, ProjectLayout
 from posttrain.common import ContractError, ExecutionTarget
 from posttrain.execution import (
     JOB_PACKAGE_WORKER_COMMAND,
@@ -504,6 +504,8 @@ def _plan_job_package_from_intent(
         profile,
         settings.runtime_profile,
     )
+    if not isinstance(catalog.family_registry_lock, FamilyRegistryLock):
+        raise ContractError("opened project catalog has no family registry lock")
     pack_plan = plan_job_pack(
         prepared,
         framework_source_digest=framework_digest,
@@ -512,6 +514,7 @@ def _plan_job_package_from_intent(
         kind_image=_kind_image(registry, runtime_variant),
         publication=ImagePublicationSpec(registry.repository),
         runtime_variant=runtime_variant,
+        family_registry_lock=catalog.family_registry_lock.to_payload(),
     )
     target = _execution_target(prepared)
     if settings.runtime_profile is None:

@@ -72,6 +72,11 @@ instead of transcription.
       duplicate origins fail loudly, unavailable source families fail before
       decoding, and every opened catalog retains its `FamilyRegistryLock`.
       Package-identity and project-declared plugin requirements remain.
+- [x] (2026-08-01) Bound the full family lock into the semantic package plan
+      and digest-protected worker config. A project may declare required plugin
+      distributions in `[catalog_plugins]`; CLI, `doctor`, public project
+      opening, and the worker all reject an absent provider before decoding.
+      Staging reachable provider distributions into the image remains.
 - [ ] Milestone 3: replace the host-factory hook with a public registration
       extension API and compatibility adapter.
 - [ ] Milestone 4: deterministic overlay discovery, `catalog explain`,
@@ -108,6 +113,11 @@ instead of transcription.
   Evidence: Typer rejected the widened alias as an unsupported parameter type;
   catalog commands now accept strings and validate them against the opened
   registry instead.
+- Observation: recording a registry lock only in a host-side plan would still
+  let an image rediscover a different installed set on the worker.
+  Evidence: the lock is now in `JobPackSpec` (therefore plan identity), in the
+  digest-protected resolved config, and compared to the worker's opened
+  registry before the job is prepared.
 
 ## Decision Log
 
@@ -175,6 +185,11 @@ instead of transcription.
   optional package imports first. The resolved catalog exposes a stable,
   serializable lock recording every installed family contributor; the next
   packing slice must bind that lock into package identity and runtime replay.
+- Registry-lock outcome: package identity and worker replay now bind the
+  complete discovered family set, including unrelated installed providers.
+  Project-declared provider requirements produce `catalog_family_unavailable`
+  with the missing distribution and installed family providers. Image staging
+  of the selected provider distributions remains the final Milestone-2 gap.
 
 ## Context and Orientation
 

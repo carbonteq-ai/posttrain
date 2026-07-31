@@ -112,6 +112,24 @@ environment_names = ["TRACKIO_SERVER_URL", "TRACKIO_WRITE_TOKEN"]
     )
 
 
+def test_project_loads_tracked_catalog_plugin_requirements(tmp_path: Path) -> None:
+    _write_manifest(
+        tmp_path,
+        """
+schema_version = 1
+project_id = "plugin-project"
+catalog_overlays = []
+
+[catalog_plugins]
+required = ["acme-posttrain-catalog>=1,<2"]
+""",
+    )
+
+    layout = load_project_layout(tmp_path)
+
+    assert layout.catalog_plugin_requirements == ("acme-posttrain-catalog>=1,<2",)
+
+
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     [

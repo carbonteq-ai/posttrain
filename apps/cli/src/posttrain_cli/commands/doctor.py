@@ -61,6 +61,7 @@ def register(app: typer.Typer) -> None:
                     scope=layout.project_id,
                     overlays=layout.catalog_overlays,
                     catalog_root=layout.base_catalog,
+                    required_plugin_distributions=layout.catalog_plugin_requirements,
                 )
                 summary = catalog_summary(catalog)
                 checks.append(

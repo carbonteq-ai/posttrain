@@ -213,6 +213,32 @@ def test_plan_key_ignores_run_provider_paths_and_publication() -> None:
     assert "/private/developer/path" not in str(serialized)
 
 
+def test_plan_key_binds_the_complete_catalog_family_registry_lock() -> None:
+    environment = _environment("math-gsm8k", "gsm8k-v1", "environments/gsm8k_v1")
+    common = dict(
+        framework_source_digest=DIGEST,
+        project_source_digest="d" * 64,
+        universal_image=BASE,
+        kind_image=KIND,
+        publication=PUBLICATION,
+    )
+    first = plan_job_pack(
+        _prepared(cast(ResolvedSeats, {"environment": environment})),
+        **common,
+        family_registry_lock={"entries": [{"name": "environment"}], "digest": "e" * 64},
+    )
+    second = plan_job_pack(
+        _prepared(cast(ResolvedSeats, {"environment": environment})),
+        **common,
+        family_registry_lock={
+            "entries": [{"name": "environment"}, {"name": "unrelated-provider"}],
+            "digest": "f" * 64,
+        },
+    )
+
+    assert first.plan_key != second.plan_key
+
+
 def test_input_or_build_semantics_change_plan_key() -> None:
     environment = _environment(
         "math-gsm8k",

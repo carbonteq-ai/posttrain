@@ -20,7 +20,7 @@ from pathlib import Path, PurePosixPath
 from types import FrameType
 from typing import cast
 
-from posttrain.catalog import load_project_layout, open_catalog
+from posttrain.catalog import FamilyRegistryLock, load_project_layout, open_catalog
 from posttrain.common import (
     Catalog,
     CatalogRef,
@@ -73,6 +73,7 @@ _RESOLVED_FIELDS = {
     "selected_work_package",
     "resolved_inputs",
 }
+_OPTIONAL_RESOLVED_FIELDS = {"family_registry_lock"}
 _LAUNCH_FIELDS = {
     "schema",
     "run",
@@ -123,6 +124,7 @@ class _VerifiedPackage:
     root: Path
     manifest: JobPackageManifest
     resolved_inputs: Mapping[str, JsonValue]
+    family_registry_lock: Mapping[str, JsonValue]
     project_root: Path
     project_manifest: Path
     selected_work_package: Path
@@ -154,7 +156,13 @@ def _execute_manifest(path: Path) -> WorkerExecutionResult:
             scope=layout.project_id,
             overlays=layout.catalog_overlays,
             catalog_root=layout.base_catalog,
+            required_plugin_distributions=layout.catalog_plugin_requirements,
         )
+        if package.family_registry_lock and (
+            not isinstance(catalog.family_registry_lock, FamilyRegistryLock)
+            or catalog.family_registry_lock.to_payload() != package.family_registry_lock
+        ):
+            raise ContractError("installed catalog family registry differs from the packaged registry lock")
         if not package.selected_work_package.is_relative_to(layout.work_packages):
             raise ContractError("resolved job work package is outside the project work-package directory")
         work_package = load_work_package(package.selected_work_package)
@@ -371,7 +379,7 @@ def _verify_package(path: Path) -> _VerifiedPackage:
     resolved = _load_json_object(resolved_bytes, "resolved job config")
     if resolved.get("schema") != _RESOLVED_SCHEMA:
         raise ContractError("resolved job config schema is unsupported")
-    if unknown := sorted(set(resolved) - _RESOLVED_FIELDS):
+    if unknown := sorted(set(resolved) - _RESOLVED_FIELDS - _OPTIONAL_RESOLVED_FIELDS):
         raise ContractError("resolved job config has unknown fields: " + ", ".join(unknown))
     if missing := sorted(_RESOLVED_FIELDS - set(resolved)):
         raise ContractError("resolved job config is missing fields: " + ", ".join(missing))
@@ -392,6 +400,9 @@ def _verify_package(path: Path) -> _VerifiedPackage:
     typed_resolved_inputs = cast(Mapping[str, JsonValue], resolved_inputs)
     if resolved_inputs_digest(typed_resolved_inputs) != (manifest.resolved_inputs_digest):
         raise ContractError("resolved job inputs differ from the package manifest")
+    family_registry_lock = resolved.get("family_registry_lock", {})
+    if not isinstance(family_registry_lock, dict):
+        raise ContractError("resolved job family registry lock must be an object")
 
     config_root = root / "config"
     project_root = config_root / _PROJECT_ROOT.as_posix()
@@ -422,6 +433,7 @@ def _verify_package(path: Path) -> _VerifiedPackage:
         root=root,
         manifest=manifest,
         resolved_inputs=typed_resolved_inputs,
+        family_registry_lock=cast(Mapping[str, JsonValue], family_registry_lock),
         project_root=project_root.resolve(),
         project_manifest=project_manifest,
         selected_work_package=selected_work_package,

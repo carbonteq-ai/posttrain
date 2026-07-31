@@ -129,6 +129,24 @@ class FamilyRegistry:
             f"catalog_family_unavailable: {', '.join(missing)}; installed catalog families: {available}"
         )
 
+    def require_distributions(self, requirements: Iterable[str]) -> None:
+        """Fail before decoding when a tracked project provider is absent."""
+
+        required = tuple(requirements)
+        installed = {_normalized_distribution(entry.distribution) for entry in self.lock.entries}
+        missing = tuple(
+            requirement
+            for requirement in required
+            if _normalized_distribution(_requirement_distribution(requirement)) not in installed
+        )
+        if not missing:
+            return
+        available = ", ".join(sorted(installed)) or "(none)"
+        raise ContractError(
+            "catalog_family_unavailable: required catalog plugin distribution is not installed: "
+            f"{', '.join(missing)}; installed family providers: {available}"
+        )
+
 
 def core_catalog_family_descriptors(
     decoders: Mapping[str, SelectionDecoder],
@@ -205,6 +223,17 @@ def _distribution_version(name: str) -> str:
         return distribution(name).version
     except PackageNotFoundError:
         return "unknown"
+
+
+def _requirement_distribution(value: str) -> str:
+    for marker in "<>=!~ ":
+        if marker in value:
+            return value.partition(marker)[0]
+    return value
+
+
+def _normalized_distribution(value: str) -> str:
+    return value.replace("_", "-").replace(".", "-").lower()
 
 
 __all__ = [

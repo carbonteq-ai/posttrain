@@ -162,10 +162,12 @@ def open_catalog(
     catalog_root: Path | None = None,
     environment_factories: Mapping[str, Any] | None = None,
     registry: FamilyRegistry | None = None,
+    required_plugin_distributions: tuple[str, ...] = (),
 ) -> Catalog:
     """Open the packaged framework base plus project overlay directories."""
 
     resolved_registry = registry or family_registry(environment_factories=environment_factories)
+    resolved_registry.require_distributions(required_plugin_distributions)
     sources: list[Mapping[str, object]] = []
     if catalog_root is not None:
         project_directory = catalog_root / "projects" / scope.replace("/", "__")

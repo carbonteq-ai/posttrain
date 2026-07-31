@@ -6,8 +6,9 @@ import hashlib
 import json
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
-from typing import Literal
+from dataclasses import dataclass, field
+from types import MappingProxyType
+from typing import Literal, cast
 
 from posttrain.common import ContractError, JsonValue
 from posttrain.data import DatasetLoadPlan
@@ -114,6 +115,7 @@ class JobPackSpec:
     environment_activations: tuple[EnvironmentActivationLock, ...]
     expected_artifact_roles: tuple[str, ...]
     worker_contract_version: str = "1"
+    family_registry_lock: Mapping[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         for label, value in (
@@ -192,6 +194,18 @@ class JobPackSpec:
             raise ContractError("expected artifact roles must be unique and sorted")
         if any(not role.strip() for role in self.expected_artifact_roles):
             raise ContractError("expected artifact roles cannot be empty")
+        lock = dict(self.family_registry_lock)
+        entries = lock.get("entries")
+        digest = lock.get("digest")
+        if lock and (
+            not isinstance(entries, list) or not entries or not isinstance(digest, str) or not _SHA256.fullmatch(digest)
+        ):
+            raise ContractError("family registry lock must contain entries and a SHA-256 digest")
+        try:
+            json.dumps(lock, sort_keys=True, separators=(",", ":"))
+        except (TypeError, ValueError) as error:
+            raise ContractError("family registry lock must contain only JSON values") from error
+        object.__setattr__(self, "family_registry_lock", MappingProxyType(lock))
 
     @property
     def plan_key(self) -> str:
@@ -235,6 +249,7 @@ class JobPackSpec:
             "environment_activations": [activation.to_payload() for activation in self.environment_activations],
             "expected_artifact_roles": list(self.expected_artifact_roles),
             "worker_contract_version": self.worker_contract_version,
+            "family_registry_lock": cast(JsonValue, dict(self.family_registry_lock)),
         }
 
 
@@ -288,6 +303,7 @@ def plan_job_pack(
     publication: ImagePublicationSpec,
     runtime_variant: str | None = None,
     worker_contract_version: str = "1",
+    family_registry_lock: Mapping[str, object] | None = None,
 ) -> JobPackPlan:
     """Derive an immutable plan without importing, fetching, building, or writing."""
 
@@ -322,6 +338,7 @@ def plan_job_pack(
         environment_activations=activations,
         expected_artifact_roles=tuple(sorted(prepared.definition.required_artifact_roles)),
         worker_contract_version=worker_contract_version,
+        family_registry_lock=family_registry_lock or {},
     )
     return JobPackPlan(spec=spec, publication=publication)
 

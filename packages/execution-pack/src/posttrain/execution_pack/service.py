@@ -268,6 +268,7 @@ class JobPackService:
                 "project_manifest": (f"project/{inputs.project_config.project_manifest}"),
                 "selected_work_package": (f"project/{inputs.project_config.selected_work_package}"),
                 "resolved_inputs": resolved_inputs,
+                "family_registry_lock": dict(plan.spec.family_registry_lock),
             }
             config_bytes = _json_bytes(resolved_config, pretty=True)
             (stage / "config" / "resolved.json").write_bytes(config_bytes)
