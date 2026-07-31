@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from posttrain.catalog import ProjectLayout
 from posttrain.common import ContractError
+from posttrain.project import load_project_pack_config as public_load_project_pack_config
 from posttrain_cli.pack_config import load_project_pack_config
 
 
@@ -24,6 +25,10 @@ def _layout(root: Path) -> ProjectLayout:
         work_packages=work_packages.resolve(),
         state=(control / "state").resolve(),
     )
+
+
+def test_cli_reexports_the_public_pack_config_loader() -> None:
+    assert load_project_pack_config is public_load_project_pack_config
 
 
 def test_loads_explicit_monorepo_source_selection(tmp_path: Path) -> None:

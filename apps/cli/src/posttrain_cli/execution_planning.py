@@ -33,7 +33,7 @@ from posttrain.execution_pack import (
     SourceSnapshotRequest,
     plan_job_pack,
 )
-from posttrain.project import JobIntent
+from posttrain.project import JobIntent, load_project_pack_config
 from posttrain.runtime_images import JOB_BAKE_FILE, cached_definition_root
 from posttrain.tracking import RunSpec
 from posttrain.work import (
@@ -64,7 +64,6 @@ from .execution_config import (
 from .execution_provider import create_execution_provider, evidence_source_for_project
 from .framework_distributions import FrameworkDistributions
 from .framework_distributions import materialize as materialize_framework_distributions
-from .pack_config import load_project_pack_config
 from .selection_resolve import resolve_selection
 from .work_runtime import load_work_package_bundle, runtime_context
 

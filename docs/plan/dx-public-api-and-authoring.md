@@ -54,6 +54,9 @@ instead of transcription.
       and precedence/provenance resolution to `posttrain.project`; the legacy
       CLI configuration module now re-exports those public types while it
       retains machine-binding file parsing.
+- [x] (2026-08-01) Moved tracked project source-selection for pack planning to
+      `posttrain.project`; the CLI loader is now a tested compatibility
+      re-export.
 - [ ] Milestone 1 remaining: move execution-setting, pack-plan, and other
       command-family application logic out of `apps/cli` while preserving the
       current public intent seam.
