@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 from posttrain.common import ContractError
+from posttrain.execution_pack import ProjectEnvironmentSourceRequest
 from posttrain_execution_buildkit import (
     EnvironmentWheelRequest,
     GitSourceLock,
@@ -133,6 +134,22 @@ def test_deduplicates_exact_requests(tmp_path: Path) -> None:
 
     assert len(result.wheels) == 1
     assert len(gateway.calls) == 1
+
+
+def test_builds_a_project_snapshot_without_git_metadata(tmp_path: Path) -> None:
+    root = (tmp_path / "toy_env").absolute()
+    root.mkdir()
+    (root / "pyproject.toml").write_text('[project]\nname = "toy-env"\nversion = "1.0.0"\n')
+    gateway = FakeWheelGateway({"toy_env": {"toy_env-1.0.0-py3-none-any.whl": b"wheel"}})
+    builder = ImmutableEnvironmentWheelBuilder(output_root=(tmp_path / "wheels").absolute(), gateway=gateway)
+    request = ProjectEnvironmentSourceRequest("toy-env", "environments/toy_env", _tree_digest(root))
+
+    result = builder.build_project_sources({request.path: root}, (request,))
+
+    lock = result.wheels[0].lock
+    assert lock.source_kind == "project-path"
+    assert lock.repository is None and lock.revision is None
+    assert lock.project_path == request.path
 
 
 def test_accepts_uv_generated_output_gitignore(tmp_path: Path) -> None:
