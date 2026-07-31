@@ -160,6 +160,7 @@ class JobPackInputs:
     # --no-deps and no resolution happens inside the image build.
     framework_wheels: tuple[Path, ...] = ()
     activation_resource_sources: Mapping[tuple[str, str], Path] = field(default_factory=dict)
+    project_environment_sources: Mapping[str, Path] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         selected = dict(self.resolved_inputs)
@@ -177,6 +178,10 @@ class JobPackInputs:
         if any(not isinstance(path, Path) for path in sources.values()):
             raise ContractError("activation resource sources must be paths")
         object.__setattr__(self, "activation_resource_sources", MappingProxyType(sources))
+        project_sources = dict(self.project_environment_sources)
+        if any(not isinstance(path, str) or not isinstance(source, Path) for path, source in project_sources.items()):
+            raise ContractError("project environment sources must map declared paths to local paths")
+        object.__setattr__(self, "project_environment_sources", MappingProxyType(project_sources))
 
 
 @dataclass(frozen=True, slots=True)
@@ -296,7 +301,7 @@ class JobPackService:
             dataset_locks = tuple(sorted(datasets.locks, key=lambda lock: lock.seat_name))
             _validate_dataset_packages(stage, dataset_locks)
 
-            environments = self._materialize_environments(plan, work)
+            environments = self._materialize_environments(plan, inputs, work)
             _stage_environment_packages(environments, stage)
             environment_locks = tuple(package.lock for package in environments.packages)
             runtime_dependency_locks = _stage_runtime_dependencies(
@@ -372,9 +377,10 @@ class JobPackService:
     def _materialize_environments(
         self,
         plan: JobPackPlan,
+        inputs: JobPackInputs,
         work: Path,
     ) -> MaterializedEnvironments:
-        if not plan.spec.environment_wheels:
+        if not plan.spec.environment_wheels and not plan.spec.project_environment_sources:
             runtime_requirements = work / "runtime.requirements.txt"
             runtime_requirements.write_bytes(b"")
             return MaterializedEnvironments(
@@ -387,6 +393,8 @@ class JobPackService:
         return self._environment_packager.package(
             git_sources=plan.spec.git_sources,
             wheel_requests=plan.spec.environment_wheels,
+            project_sources=inputs.project_environment_sources,
+            project_requests=plan.spec.project_environment_sources,
             kind_profile=plan.spec.runtime_variant,
             output_root=work,
         )
@@ -854,16 +862,12 @@ def _validate_environment_selection(
     plan: JobPackPlan,
     locks: tuple[EnvironmentPackageLock, ...],
 ) -> None:
-    observed = tuple(
-        (
-            lock.package,
-            lock.repository,
-            lock.revision,
-            lock.subdirectory,
-        )
+    observed_git = tuple(
+        (lock.package, lock.repository, lock.revision, lock.subdirectory)
         for lock in locks
+        if lock.source_kind == "git"
     )
-    expected = tuple(
+    expected_git = tuple(
         (
             request.package,
             request.repository,
@@ -872,7 +876,16 @@ def _validate_environment_selection(
         )
         for request in plan.spec.environment_wheels
     )
-    if observed != expected:
+    observed_project = tuple(
+        (lock.package, lock.project_path, lock.tree_digest)
+        for lock in locks
+        if lock.source_kind == "project-path"
+    )
+    expected_project = tuple(
+        (source.package, source.path, source.tree_digest)
+        for source in plan.spec.project_environment_sources
+    )
+    if observed_git != expected_git or observed_project != expected_project:
         raise ContractError("materialized environment packages differ from the job-pack plan")
 
 

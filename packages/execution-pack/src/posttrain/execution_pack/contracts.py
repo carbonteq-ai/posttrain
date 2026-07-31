@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Protocol
@@ -173,6 +173,8 @@ class EnvironmentPackager(Protocol):
         *,
         git_sources: tuple[GitSourceRequest, ...],
         wheel_requests: tuple[EnvironmentWheelRequest, ...],
+        project_sources: Mapping[str, Path],
+        project_requests: tuple[ProjectEnvironmentSourceRequest, ...],
         kind_profile: str,
         output_root: Path,
     ) -> MaterializedEnvironments: ...

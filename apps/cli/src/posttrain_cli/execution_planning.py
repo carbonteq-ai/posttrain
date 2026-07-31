@@ -114,6 +114,18 @@ class PlannedJobPackage:
         source_root = (self.layout.state / "pack" / "sources").resolve()
         snapshotter = ImmutableSourceSnapshotter(cache_root=source_root)
         project_source = snapshotter.materialize(self.project_source_request)
+        project_environment_sources: dict[str, Path] = {}
+        for request in self.pack_plan.spec.project_environment_sources:
+            snapshot = snapshotter.materialize(
+                SourceSnapshotRequest(
+                    root=self.layout.root,
+                    includes=(request.path,),
+                    install_roots=(request.path,),
+                )
+            )
+            if snapshot.digest != request.tree_digest:
+                raise ContractError("project environment source changed after planning; run job plan again")
+            project_environment_sources[request.path] = snapshot.package.root / request.path
         if self.framework_source_request is not None:
             framework_source = snapshotter.materialize(self.framework_source_request)
             framework_package = framework_source.package
@@ -197,6 +209,7 @@ class PlannedJobPackage:
                     environment_bindings(self.prepared.seats),
                     project_root=self.layout.root,
                 ),
+                project_environment_sources=project_environment_sources,
             ),
         )
         publisher = BuildKitJobImagePublisher(

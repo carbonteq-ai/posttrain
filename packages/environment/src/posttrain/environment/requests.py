@@ -234,6 +234,16 @@ class ProjectPathEnvironmentSource:
     def kind(self) -> Literal["project-path"]:
         return "project-path"
 
+    @property
+    def revision(self) -> str:
+        """Stable declared label for APIs that require a source revision string.
+
+        Immutable package identity is the separately derived tree digest; this
+        label deliberately does not claim to be a Git revision.
+        """
+
+        return f"project-path:{self.path}"
+
 
 type EnvironmentPackageSource = EnvironmentSource | ProjectPathEnvironmentSource
 
@@ -304,7 +314,7 @@ class EnvironmentBinding:
     def revision(self) -> str:
         if isinstance(self.source, EnvironmentSource):
             return self.source.revision
-        return f"project-path:{self.source.path}"
+        return self.source.revision
 
     def activate(self) -> object:
         return self.activation.activate()

@@ -249,11 +249,14 @@ class _FakeEnvironmentPackager:
         *,
         git_sources: tuple[GitSourceRequest, ...],
         wheel_requests: tuple[EnvironmentWheelRequest, ...],
+        project_sources: Mapping[str, Path],
+        project_requests: tuple[object, ...],
         kind_profile: str,
         output_root: Path,
     ) -> MaterializedEnvironments:
         self.calls += 1
         assert len(git_sources) == 1
+        assert not project_sources and not project_requests
         assert kind_profile == "supervised"
         packages: list[MaterializedEnvironmentPackage] = []
         requirements: list[str] = []
