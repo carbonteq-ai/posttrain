@@ -67,6 +67,7 @@ class AdmissionEntry:
     queued_at: datetime
     position: int | None = None
     message: str | None = None
+    control_store_uri: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,6 +121,7 @@ class ExecutionAdmissionService:
         *,
         evidence_source: ExecutionEvidenceSource | None,
         initial_service: JobExecutionService | None = None,
+        control_store_uri: str | None = None,
     ) -> AdmissionResult:
         run_id = plan.request.run_spec.run_id
         with self._locked() as payload:
@@ -129,6 +131,8 @@ class ExecutionAdmissionService:
             encoded_plan = _encode_plan(plan)
             encoded_evidence = _encode_evidence(evidence_source)
             provider_binding = self._provider_binding(plan.provider)
+            if control_store_uri is not None and (not control_store_uri.startswith("file://") or "\x00" in control_store_uri):
+                raise ContractError("admission control store locator must be a file URI")
             if existing is not None:
                 if (
                     existing.get("plan") != encoded_plan
@@ -146,6 +150,7 @@ class ExecutionAdmissionService:
                         "plan": encoded_plan,
                         "evidence_source": encoded_evidence,
                         "provider_binding": provider_binding,
+                        "control_store_uri": control_store_uri,
                     }
                 )
             self._persist(payload)
@@ -720,6 +725,7 @@ def _decode_entry(raw: dict[str, Any], entries: list[dict[str, Any]]) -> Admissi
         queued_at=queued_at,
         position=position,
         message=(str(raw["message"]) if isinstance(raw.get("message"), str) else None),
+        control_store_uri=(str(raw["control_store_uri"]) if isinstance(raw.get("control_store_uri"), str) else None),
     )
 
 
