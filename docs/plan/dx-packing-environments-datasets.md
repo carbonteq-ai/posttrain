@@ -67,6 +67,14 @@ registry.
 
 ## Surprises & Discoveries
 
+- Observation: a local OCI export must start from the materialized capsule,
+  not call the existing `pack()` path, because that path publishes remotely as
+  part of its contract.
+  Evidence: `PlannedJobPackage.materialize()` now owns snapshotting and context
+  construction; `pack()` and `pack_local()` independently choose remote or
+  local publication. The CLI regression proves the local path never invokes the
+  remote publisher.
+
 - Observation: asking a developer to copy a SHA into catalog YAML would move
   the existing generated-lock problem to a new surface.
   Evidence: the project snapshotter already computes content digests, so the
@@ -220,6 +228,14 @@ image store or OCI destination), and `JobLaunchPlan` (provider, policy, mounts,
 run id). `job plan` needs no registry. Add a content-addressed local-image
 publisher for local Docker (BuildKit `--load` or a local OCI layout); dstack
 requires an OCI destination only at publication/submission preflight.
+
+Implementation progress (2026-08-01): the CLI now exposes the materialized
+capsule as a distinct boundary and has a content-addressed BuildKit OCI-layout
+publication path (`PlannedJobPackage.pack_local()`). The layout is represented
+by a type which cannot be passed to provider submission. The remaining
+milestone work is to make all four values public, remove registry resolution
+from `job plan`, and surface the local publication as an intentional CLI/API
+destination rather than an internal planning method.
 
 Milestone 5 replaces the whole-overlay glob in `_project_config_bundle` with
 the transitive closure of catalog entries reachable from the selected job and

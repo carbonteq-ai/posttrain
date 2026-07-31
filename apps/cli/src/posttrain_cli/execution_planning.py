@@ -27,6 +27,7 @@ from posttrain.execution_pack import (
     JobPackInputs,
     JobPackPlan,
     JobPackService,
+    LocalPublishedJobImage,
     PackedJobContext,
     ProjectConfigBundle,
     PublishedJobImage,
@@ -107,8 +108,8 @@ class PlannedJobPackage:
     target_source: SettingSource
     runtime_profile_source: SettingSource
 
-    def pack(self) -> PackedJobPackage:
-        """Materialize the exact inputs and publish or reuse the actual-job image."""
+    def materialize(self) -> PackedJobContext:
+        """Materialize the immutable job context without publishing an image."""
 
         registry = _registry(self.local_config)
         source_root = (self.layout.state / "pack" / "sources").resolve()
@@ -212,12 +213,21 @@ class PlannedJobPackage:
                 project_environment_sources=project_environment_sources,
             ),
         )
-        publisher = BuildKitJobImagePublisher(
+        return context
+
+    def _publisher(self) -> BuildKitJobImagePublisher:
+        registry = _registry(self.local_config)
+        return BuildKitJobImagePublisher(
             bake_file=_bake_file(registry),
             receipt_root=(registry.receipt_root or (self.layout.state / "pack" / "publications").resolve()),
             builder=registry.buildx_builder,
         )
-        image = publisher.publish(
+
+    def pack(self) -> PackedJobPackage:
+        """Materialize the exact inputs and publish or reuse the actual-job image."""
+
+        context = self.materialize()
+        image = self._publisher().publish(
             JobImagePublicationRequest(
                 manifest=context.manifest,
                 staged_context=context.root,
@@ -228,6 +238,21 @@ class PlannedJobPackage:
             raise ContractError("published image identity conflicts with the retained job context")
         return PackedJobPackage(self, context, image)
 
+    def pack_local(self) -> LocalPackedJobPackage:
+        """Export a qualified OCI layout without publishing to a registry."""
+
+        context = self.materialize()
+        image = self._publisher().publish_local(
+            JobImagePublicationRequest(
+                manifest=context.manifest,
+                staged_context=context.root,
+                publication=self.pack_plan.publication,
+            )
+        )
+        if image.publication_key != context.publication_key:
+            raise ContractError("local image identity conflicts with the retained job context")
+        return LocalPackedJobPackage(self, context, image)
+
 
 @dataclass(frozen=True, slots=True)
 class PackedJobPackage:
@@ -236,6 +261,15 @@ class PackedJobPackage:
     planned: PlannedJobPackage
     context: PackedJobContext
     image: PublishedJobImage
+
+
+@dataclass(frozen=True, slots=True)
+class LocalPackedJobPackage:
+    """Qualified local OCI layout; deliberately not launchable by a provider."""
+
+    planned: PlannedJobPackage
+    context: PackedJobContext
+    image: LocalPublishedJobImage
 
 
 @dataclass(frozen=True, slots=True)
@@ -843,6 +877,7 @@ def _idempotency_key(run_id: str, package_key: str, image: str) -> str:
 
 
 __all__ = [
+    "LocalPackedJobPackage",
     "PackedJobPackage",
     "PackedJobExecution",
     "PlannedJobPackage",

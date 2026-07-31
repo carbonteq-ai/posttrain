@@ -28,7 +28,7 @@ from posttrain.execution import (
     RuntimeImageRef,
     TrackingCancellationRecovery,
 )
-from posttrain.execution_pack import PackedJobContext, PublishedJobImage
+from posttrain.execution_pack import LocalPublishedJobImage, PackedJobContext, PublishedJobImage
 from posttrain.jobs import build_job_runtime
 from posttrain.runtime_images.manifest import load_manifest
 from posttrain.tracking import RunSpec
@@ -1487,10 +1487,14 @@ bindings:
             return PackedJobContext(root, manifest, "5" * 64, publication_key)
 
     class FakePublisher:
+        remote_publications: list[str] = []
+        local_publications: list[str] = []
+
         def __init__(self, **_kwargs) -> None:
             pass
 
         def publish(self, request):
+            self.remote_publications.append(request.publication_key)
             receipt = (project / ".posttrain/state/fake-receipt.json").resolve()
             receipt.write_text("{}\n", encoding="utf-8")
             receipt.chmod(0o600)
@@ -1499,6 +1503,23 @@ bindings:
                 request.publication_key,
                 actual_image,
                 request.manifest.kind_image,
+                receipt,
+                False,
+            )
+
+        def publish_local(self, request):
+            self.local_publications.append(request.publication_key)
+            layout = (project / ".posttrain/state/fake-local-layout").resolve()
+            layout.mkdir(parents=True, exist_ok=True)
+            (layout / "index.json").write_text("{}\n", encoding="utf-8")
+            receipt = (project / ".posttrain/state/fake-local-receipt.json").resolve()
+            receipt.write_text("{}\n", encoding="utf-8")
+            receipt.chmod(0o600)
+            return LocalPublishedJobImage(
+                request.package_key,
+                request.publication_key,
+                layout,
+                f"posttrain-local:{request.publication_key}",
                 receipt,
                 False,
             )
@@ -1597,6 +1618,12 @@ bindings:
     assert second_launch.settings.timeout_seconds == 240
     assert first_launch.mounts[0].instance_path.name == "capsule-launch-a"
     assert second_launch.mounts[0].instance_path.name == "capsule-launch-b"
+
+    remote_before = tuple(FakePublisher.remote_publications)
+    local = reusable_package.pack_local()
+    assert local.image.layout.joinpath("index.json").is_file()
+    assert tuple(FakePublisher.remote_publications) == remote_before
+    assert FakePublisher.local_publications == [local.context.publication_key]
 
     observed_requests = []
 
