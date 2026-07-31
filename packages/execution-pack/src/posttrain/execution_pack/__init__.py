@@ -9,6 +9,7 @@ from .contracts import (
     MaterializedEnvironmentPackage,
     MaterializedEnvironments,
     MaterializedRuntimeDependency,
+    ProjectEnvironmentSourceRequest,
     SourcePackage,
 )
 from .datasets import ImmutableDatasetPackager, MaterializedDatasetPackages
@@ -62,6 +63,7 @@ __all__ = [
     "MaterializedSourceSnapshot",
     "PackedJobContext",
     "ProjectConfigBundle",
+    "ProjectEnvironmentSourceRequest",
     "PublishedJobImage",
     "SourceSnapshotRequest",
     "SourcePackage",

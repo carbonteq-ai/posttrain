@@ -62,6 +62,22 @@ class EnvironmentWheelRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class ProjectEnvironmentSourceRequest:
+    """One project-relative environment package with a planning-time tree digest."""
+
+    package: str
+    path: str
+    tree_digest: str
+
+    def __post_init__(self) -> None:
+        if not _PACKAGE.fullmatch(self.package):
+            raise ContractError("project environment package identity is invalid")
+        _validate_subdirectory(self.path)
+        if not re.fullmatch(r"[0-9a-f]{64}", self.tree_digest):
+            raise ContractError("project environment tree digest must be SHA-256")
+
+
+@dataclass(frozen=True, slots=True)
 class DatasetPackRequest:
     """One inert dataset selection to materialize during the pack phase."""
 

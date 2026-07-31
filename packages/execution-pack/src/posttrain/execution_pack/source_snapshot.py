@@ -14,7 +14,6 @@ from pathlib import Path, PurePosixPath
 from posttrain.common import ContractError
 
 from .contracts import SourcePackage
-from .service import digest_source_package
 
 _FORBIDDEN_NAMES = {
     ".env",
@@ -108,18 +107,18 @@ class ImmutableSourceSnapshotter:
                     destination.parent.mkdir(parents=True, exist_ok=True)
                     _copy_entry(source, destination, budget)
             package = SourcePackage(staging, request.install_roots)
-            digest = digest_source_package(package)
+            digest = _digest_source_package(package)
             destination = self._cache_root / digest
             if destination.exists():
                 existing = SourcePackage(destination, request.install_roots)
-                if digest_source_package(existing) != digest:
+                if _digest_source_package(existing) != digest:
                     raise ContractError("retained source snapshot contains filesystem drift")
                 return MaterializedSourceSnapshot(existing, digest, False)
             try:
                 staging.replace(destination)
             except FileExistsError:
                 existing = SourcePackage(destination, request.install_roots)
-                if digest_source_package(existing) != digest:
+                if _digest_source_package(existing) != digest:
                     raise ContractError("retained source snapshot contains filesystem drift") from None
                 return MaterializedSourceSnapshot(existing, digest, False)
             retained = SourcePackage(destination, request.install_roots)
@@ -164,6 +163,14 @@ class ImmutableSourceSnapshotter:
                 separators=(",", ":"),
             ).encode()
         ).hexdigest()
+
+
+def _digest_source_package(source: SourcePackage) -> str:
+    """Delay the service import so planning can inspect a source without a cycle."""
+
+    from .service import digest_source_package
+
+    return digest_source_package(source)
 
 
 @dataclass(slots=True)
