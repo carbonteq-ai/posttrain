@@ -1,6 +1,6 @@
 # Posttrain v0.2.5 developer experience critique
 
-- **Status:** release-scoped critique, revision 4
+- **Status:** release-scoped critique, revision 7
 - **Release:** [Posttrain v0.2.5](https://github.com/carbonteq-ai/posttrain/releases/tag/v0.2.5)
 - **Published:** 2026-07-31 11:21:42 UTC
 - **Tag commit:** `dc1c5e1c8ad5ba27ce1ccc3a356caf89a0ae1579`
@@ -44,6 +44,14 @@ and fails latest.
 
 The release should be treated as a strong framework substrate with an
 incomplete application experience.
+
+Revision 7 adds the framework-maintainer repository boundary. The release
+calls `apps/lab` its qualification project but splits that project across the
+root `lab` workspace project, root `.posttrain`, `apps/lab`, temporary
+qualification scripts, and a second Lab-dependent project under `examples/`.
+This does not make the tracked qualification policy disposable; it means the
+policy has no single physical owner and the framework checkout itself is
+implicitly discovered as a project from almost every directory.
 
 ## Architecture decisions after plan review
 
@@ -139,6 +147,7 @@ important consistency and automation problems after correctness is restored.
 | P2 | Install bootstrap depends on out-of-band artifacts and per-command flags | `github-constraints.txt` must be fetched beside the index, `--system-certs` must be repeated on every `uv` invocation, and the CA is installed in two places by hand. |
 | P2 | The veRL runtime variant cannot pack from installed distributions | A project that packs SFT/TRL jobs from wheels hard-fails on veRL without a framework source checkout. |
 | P2 | Release versions and digests are hand-edited across the repository | One version bump touches ~27 files, restates the version literal ~80 times, and hand-updates derived lock digests inside catalog YAML; any missed edit ships silently. |
+| P1 | The framework qualification project is split across the repository root | Root project discovery, Lab composition, temporary launchers, a false example, and mixed local state have no single owner or retirement gate; maintainers cannot distinguish active release inputs from historical noise. |
 
 ## Detailed critique
 
@@ -719,6 +728,61 @@ one another. It reads the expected version from `release/manifest.toml`, proves
 that it is the only authored version source, and checks every generated package
 version and first-party pin against that value.
 
+### 22. The qualification project is physically split across the framework root
+
+The v0.2.5 tag describes `apps/lab` as the framework qualification project,
+but its executable project is assembled from several independent surfaces:
+
+- root `pyproject.toml` declares a non-package project named `lab` and selects
+  `apps/lab` through `[tool.posttrain.pack]`;
+- root `.posttrain/project.toml` declares `foundation-models` and points back
+  to `posttrain_lab.entry:configure`;
+- `apps/lab` owns the Python package, scenario policy, composition, and tests,
+  and its tests climb to the repository root to load `.posttrain` work
+  packages;
+- `scripts/qualification/` contains provider and evidence launchers that its
+  own implementation plan calls temporary parity harnesses;
+- `examples/gpu-qualification` is another project whose entry imports
+  `posttrain_lab`, so it is a release fixture rather than an ordinary consumer
+  example; and
+- `.agents/` is ignored by policy while a stale plan inside it remains tracked
+  and maintained docs link to a different, nonexistent `.agents` plan.
+
+Because project discovery searches upward, a command run from most directories
+inside the framework checkout silently opens `foundation-models`. The root
+also becomes the default owner of ignored `.posttrain/state`, mixing large
+rebuildable pack/publication caches with small authoritative execution receipts.
+The problem is not that `.posttrain` is junk: the v0.2.5 qualification overlay
+adds project-local selections rather than duplicating the packaged base. The
+problem is that the configuration half and Python half of one project have
+different roots and no manifest classifies which qualification files remain
+release gates.
+
+Make `apps/lab` one self-contained Posttrain project. Move the tracked
+qualification `.posttrain` source below it, pack Lab as its own project root,
+and make the repository root a virtual uv workspace rather than a project
+called `lab`. Keep the generic `posttrain` path as the executor; a Lab-owned
+qualification command selects gates and checks acceptance without duplicating
+packing, provider, or tracking logic. A Lab-owned gate registry must classify
+every retained work package as release, extended, experimental, or retired.
+
+Temporary scripts are removed only after public-path parity. Provider-neutral
+scenario and acceptance logic moves into Lab; deployment topology checks move
+to `ai-infra`; deterministic generators move beside their owned package
+resources; the Lab-dependent GPU project becomes a qualification/consumer
+fixture; Markdown-only `ops/` content moves under `docs/operations`; and the
+tracked ignored `.agents` plan is deleted after useful decisions and links are
+reconciled.
+
+Local state requires a separate safety gate. Reuse the state split from
+finding 5: copy and verify durable `executions/` records into the new project,
+rebuild caches in place, and expose a dry-run classified prune command. Never
+delete root `.posttrain/state` wholesale merely because it is ignored. The
+migration is complete only after a dataset-backed job and an
+environment/evaluation-backed job plan, pack, execute, reconcile, and expose
+retained evidence from `apps/lab` using the public CLI and staged release
+wheels.
+
 ## Source-of-truth model
 
 | Source | Authoritative question | Retention |
@@ -921,10 +985,13 @@ reimplementing it.
     curated release-PR flow.
 13. Deprecate manual happy-path reconciliation and compatibility aliases only
     after the automatic path has live provider and tracking qualification.
+14. Consolidate the framework qualification project under `apps/lab`, migrate
+    durable state safely, delete parity harnesses after replacement, and enforce
+    the reviewed root ownership contract in CI.
 
 ## Implementation plans
 
-The findings are divided into five delivery categories, each with a
+The findings are divided into six delivery categories, each with a
 self-contained ExecPlan under `docs/plan/` authored per
 `docs/templates/PLAN.md`:
 
@@ -935,6 +1002,7 @@ self-contained ExecPlan under `docs/plan/` authored per
 | Packing, environments, and datasets | 7, 8, 13, 14, 15, 16, 17 | [dx-packing-environments-datasets.md](../../plan/dx-packing-environments-datasets.md) |
 | Public API and authoring surface | 10, 12, 18, code organization | [dx-public-api-and-authoring.md](../../plan/dx-public-api-and-authoring.md) |
 | Release engineering | 21 | [dx-release-engineering.md](../../plan/dx-release-engineering.md) |
+| Repository and qualification ownership | 22 | [dx-repository-and-qualification-cleanup.md](../../plan/dx-repository-and-qualification-cleanup.md) |
 
 The delivery order above sequences work *across* the categories; each plan
 sequences work *within* its category and states its own acceptance.
@@ -949,6 +1017,8 @@ Cross-plan gates are explicit:
 | Lifecycle controller | Configuration milestones 1–2 and lifecycle milestones 2–4 |
 | Dataset builders | Packing milestone 4: explicit materialization boundary |
 | Constraint-free consumer install | Release milestone 3 and configuration milestone 5 |
+| Lab state relocation and root cache pruning | Configuration milestone 2 state split; lifecycle durable provider/control locators for any active run |
+| Root `.posttrain` removal | Two representative Lab jobs pack and execute from `apps/lab`; every retained gate is classified |
 
 These are dependency gates, not a requirement to complete an entire sibling
 plan before returning to the current category.
@@ -998,6 +1068,16 @@ the following are demonstrated from an installed external project:
 - A release is produced by changing only the release manifest and structured
   release inputs; generated metadata and captured receipts are reviewed, and CI
   fails when committed derived data does not match regeneration or receipts.
+- The framework root is not implicitly discovered as a Posttrain project;
+  `apps/lab` owns the only qualification manifest, overlay, work packages, gate
+  registry, and composition code.
+- Every retained Lab work package is classified, one dataset-backed and one
+  environment/evaluation-backed job execute from the nested Lab project, and
+  no deleted qualification launcher loses provider or evidence acceptance
+  behavior.
+- Durable execution records survive Lab state relocation, rebuildable caches
+  are reported separately, and no tracked ignored file, broken maintained
+  documentation link, or unowned root bucket remains.
 
 ## Revision history
 
@@ -1040,3 +1120,8 @@ the following are demonstrated from an installed external project:
   explicit excludes; made required tracking conditional on a frozen-baseline
   amendment; and tightened release drift checking around the sole authored
   version in `release/manifest.toml`. No implementation behavior was changed.
+- 2026-08-01, revision 7: Added finding 22 after verifying the qualification
+  ownership split against tag `v0.2.5`; authored the repository/Lab cleanup
+  ExecPlan, added its cross-plan state and packing gates, and required two real
+  packaged jobs before removing compatibility paths. No implementation
+  behavior was changed.

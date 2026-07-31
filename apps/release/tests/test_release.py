@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import subprocess
 import tomllib
 from pathlib import Path, PurePosixPath
 
 import pytest
 from posttrain.runtime_images import RUNTIME_VARIANTS, constraint_lock, lock_digest
 from posttrain.runtime_images.manifest import ManifestError, PublishedImage, load_manifest
+from posttrain_release.cli import main
 from posttrain_release.manifest_render import render_manifest
+from posttrain_release.repository_audit import evaluate_repository, inspect_repository
 from posttrain_release.versioning import (
     check_release,
     lock_dependencies,
@@ -110,6 +113,62 @@ def test_release_check_uses_the_manifest_as_version_authority(tmp_path: Path) ->
     assert result.version == "0.2.5"
     assert result.package_count == 1
     assert result.internal_pin_count == 1
+
+
+def test_repository_audit_reports_legacy_root_ignore_and_documentation_findings(tmp_path: Path) -> None:
+    (tmp_path / ".gitignore").write_text(".agents/\n", encoding="utf-8")
+    (tmp_path / "README.md").write_text(
+        "[maintained](docs/exists.md) [missing](docs/missing.md) [outside](../outside.md)\n```markdown\n[example](docs/example.md)\n```\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "exists.md").write_text("present\n", encoding="utf-8")
+    (tmp_path / ".agents").mkdir()
+    (tmp_path / ".agents" / "old-plan.md").write_text("legacy\n", encoding="utf-8")
+
+    report = evaluate_repository(
+        repository_root=tmp_path,
+        root_entries=("README.md", "docs", ".agents"),
+        tracked_ignored_paths=(Path(".agents/old-plan.md"),),
+        markdown_documents={
+            Path("README.md"): (tmp_path / "README.md").read_text(encoding="utf-8"),
+        },
+    )
+
+    assert report.unreviewed_root_entries == (".agents",)
+    assert report.tracked_ignored_paths == (Path(".agents/old-plan.md"),)
+    assert [(link.source, link.target) for link in report.broken_markdown_links] == [
+        (Path("README.md"), "../outside.md"),
+        (Path("README.md"), "docs/missing.md"),
+    ]
+    assert "repository ownership audit (report-only)" in report.render()
+
+
+def test_repository_audit_uses_git_ignore_rules_for_tracked_files(tmp_path: Path) -> None:
+    (tmp_path / ".gitignore").write_text(".agents/\n", encoding="utf-8")
+    (tmp_path / "README.md").write_text("clean\n", encoding="utf-8")
+    (tmp_path / ".agents").mkdir()
+    (tmp_path / ".agents" / "old-plan.md").write_text("legacy\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "add", "-f", ".agents/old-plan.md"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "add", ".gitignore", "README.md"], check=True)
+
+    report = inspect_repository(tmp_path)
+
+    assert report.tracked_ignored_paths == (Path(".agents/old-plan.md"),)
+    assert report.unreviewed_root_entries == (".agents",)
+
+
+def test_repository_check_command_is_explicitly_report_only(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    (tmp_path / "README.md").write_text("[missing](missing.md)\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "add", "README.md"], check=True)
+
+    assert main(["repository-check", "--repository-root", str(tmp_path), "--report-only"]) == 0
+
+    output = capsys.readouterr().out
+    assert "repository ownership audit (report-only)" in output
+    assert "broken local Markdown links: 1" in output
 
 
 def test_release_check_names_a_drifted_internal_pin(tmp_path: Path) -> None:

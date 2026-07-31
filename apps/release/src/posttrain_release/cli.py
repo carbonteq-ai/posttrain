@@ -14,6 +14,7 @@ import typer
 from posttrain_execution_buildkit import BuildKitRuntimeBuilder
 
 from .publish import publish_release
+from .repository_audit import inspect_repository
 from .versioning import check_release, lock_dependencies, prepare_release, stage_release
 
 app = typer.Typer(help="publish framework runtime images and pin the release manifest")
@@ -70,6 +71,24 @@ def lock_dependencies_cmd(
 ) -> None:
     digest = lock_dependencies(repository_root)
     print(f"generated catalog dependency lock: sha256:{digest}")
+
+
+@app.command("repository-check", help="report repository ownership and local-documentation findings")
+def repository_check_cmd(
+    repository_root: Annotated[
+        Path,
+        typer.Option("--repository-root", help="framework checkout to inspect"),
+    ] = Path("."),
+    report_only: Annotated[
+        bool,
+        typer.Option("--report-only", help="explicitly request the non-failing migration inventory"),
+    ] = False,
+) -> None:
+    # The command is intentionally report-only during the 0.3.0 migration.
+    # Keep the explicit flag in the public invocation so promotion to a CI
+    # gate is a conscious contract change rather than an accidental default.
+    del report_only
+    print(inspect_repository(repository_root).render())
 
 
 @images_app.command("publish", help="build, push, and pin every image in this release")

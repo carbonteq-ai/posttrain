@@ -38,6 +38,24 @@ uv run --package posttrain posttrain work-package validate \
 Remote GPU release evidence still uses `examples/gpu-qualification` and the
 primary `posttrain work-package run` path on the remote host.
 
+## Qualification gates
+
+Lab owns the reviewed inventory of framework qualification gates in
+`src/posttrain_lab/qualification/gates.toml`. During the additive migration,
+the manifest classifies the work packages currently owned by the root
+qualification project; it does not submit work or duplicate provider logic.
+
+```bash
+uv run --package posttrain-lab posttrain-lab qualification list --project-root .
+uv run --package posttrain-lab posttrain-lab qualification list --project-root . --json
+```
+
+Every work-package YAML must occur exactly once in the registry. A gate records
+its lifecycle, tier, selected job, expected job kind, and evidence acceptance
+adapter. The two active release gates are the SFT data-preparation and managed
+GSM8K evaluation qualifications; extended and experimental entries remain
+visible without silently becoming release requirements.
+
 ## Lab scenario CLI
 
 Use Lab when qualifying framework backends or the repository's reference

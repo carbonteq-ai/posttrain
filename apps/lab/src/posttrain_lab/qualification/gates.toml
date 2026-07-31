@@ -1,0 +1,226 @@
+schema_version = 1
+
+[[gates]]
+id = "foundation-serving-screen"
+work_package = ".posttrain/work_packages/foundation_screen.yaml"
+job_id = "benchmark"
+tier = "extended"
+state = "active"
+job_kind = "serve.benchmark"
+acceptance = "serving-curve"
+
+[[gates]]
+id = "automationbench-grpo"
+work_package = ".posttrain/work_packages/automationbench_zapier_grpo.yaml"
+job_id = "grpo"
+tier = "experimental"
+state = "active"
+job_kind = "train.grpo"
+acceptance = "verifiers-trajectories"
+
+[[gates]]
+id = "gsm8k-distillation-smoke"
+work_package = ".posttrain/work_packages/gsm8k_distillation.yaml"
+job_id = "distill"
+tier = "experimental"
+state = "active"
+job_kind = "train.distill"
+acceptance = "training-summary"
+
+[[gates]]
+id = "gsm8k-distillation-extended"
+work_package = ".posttrain/work_packages/gsm8k_distillation_10_qualification.yaml"
+job_id = "train"
+tier = "extended"
+state = "active"
+job_kind = "train.distill"
+acceptance = "training-summary"
+
+[[gates]]
+id = "gsm8k-grpo-extended"
+work_package = ".posttrain/work_packages/gsm8k_qwen08b_grpo_qualification.yaml"
+job_id = "grpo"
+tier = "experimental"
+state = "active"
+job_kind = "train.grpo"
+acceptance = "verifiers-trajectories"
+
+[[gates]]
+id = "verl-dapo"
+work_package = ".posttrain/work_packages/gsm8k_verl_dapo_2_qualification.yaml"
+job_id = "dapo"
+tier = "experimental"
+state = "active"
+job_kind = "train.grpo"
+acceptance = "verifiers-trajectories"
+
+[[gates]]
+id = "verl-dapo-mtp"
+work_package = ".posttrain/work_packages/gsm8k_verl_dapo_2_mtp_qualification.yaml"
+job_id = "dapo"
+tier = "experimental"
+state = "active"
+job_kind = "train.grpo"
+acceptance = "verifiers-trajectories"
+
+[[gates]]
+id = "verl-dapo-turboquant"
+work_package = ".posttrain/work_packages/gsm8k_verl_dapo_2_turboquant_qualification.yaml"
+job_id = "dapo"
+tier = "experimental"
+state = "active"
+job_kind = "train.grpo"
+acceptance = "verifiers-trajectories"
+
+[[gates]]
+id = "verl-dapo-mtp-turboquant"
+work_package = ".posttrain/work_packages/gsm8k_verl_dapo_2_mtp_turboquant_qualification.yaml"
+job_id = "dapo"
+tier = "experimental"
+state = "active"
+job_kind = "train.grpo"
+acceptance = "verifiers-trajectories"
+
+[[gates]]
+id = "verl-distillation"
+work_package = ".posttrain/work_packages/gsm8k_verl_distill_2_qualification.yaml"
+job_id = "distill"
+tier = "experimental"
+state = "active"
+job_kind = "train.distill"
+acceptance = "verifiers-trajectories"
+
+[[gates]]
+id = "verl-grpo"
+work_package = ".posttrain/work_packages/gsm8k_verl_grpo_2_qualification.yaml"
+job_id = "grpo"
+tier = "experimental"
+state = "active"
+job_kind = "train.grpo"
+acceptance = "verifiers-trajectories"
+
+[[gates]]
+id = "sampo-extended"
+work_package = ".posttrain/work_packages/qwen08b_sampo_10_qualification.yaml"
+job_id = "train"
+tier = "experimental"
+state = "active"
+job_kind = "train.sampo"
+acceptance = "verifiers-trajectories"
+
+[[gates]]
+id = "qwen08b-rtn-transform"
+work_package = ".posttrain/work_packages/qwen08b_transform_qualification.yaml"
+job_id = "transform"
+tier = "extended"
+state = "active"
+job_kind = "model.transform"
+acceptance = "model-reload"
+
+[[gates]]
+id = "verl-sampo"
+work_package = ".posttrain/work_packages/qwen08b_verl_sampo_2_qualification.yaml"
+job_id = "sampo"
+tier = "experimental"
+state = "active"
+job_kind = "train.sampo"
+acceptance = "verifiers-trajectories"
+
+[[gates]]
+id = "verl-sampo-mtp"
+work_package = ".posttrain/work_packages/qwen08b_verl_sampo_2_mtp_qualification.yaml"
+job_id = "sampo"
+tier = "experimental"
+state = "active"
+job_kind = "train.sampo"
+acceptance = "verifiers-trajectories"
+
+[[gates]]
+id = "verl-sampo-turboquant"
+work_package = ".posttrain/work_packages/qwen08b_verl_sampo_2_turboquant_qualification.yaml"
+job_id = "sampo"
+tier = "experimental"
+state = "active"
+job_kind = "train.sampo"
+acceptance = "verifiers-trajectories"
+
+[[gates]]
+id = "verl-sampo-mtp-turboquant"
+work_package = ".posttrain/work_packages/qwen08b_verl_sampo_2_mtp_turboquant_qualification.yaml"
+job_id = "sampo"
+tier = "experimental"
+state = "active"
+job_kind = "train.sampo"
+acceptance = "verifiers-trajectories"
+
+[[gates]]
+id = "qwen2b-dpo-extended"
+work_package = ".posttrain/work_packages/qwen2b_dpo_10_qualification.yaml"
+job_id = "train"
+tier = "extended"
+state = "active"
+job_kind = "train.dpo"
+acceptance = "training-summary"
+
+[[gates]]
+id = "qwen2b-gsm8k-evaluation"
+work_package = ".posttrain/work_packages/qwen2b_eval_qualification.yaml"
+job_id = "evaluate"
+tier = "release"
+state = "active"
+job_kind = "eval.domain"
+acceptance = "managed-evaluation"
+
+[[gates]]
+id = "qwen2b-multi-environment-evaluation"
+work_package = ".posttrain/work_packages/qwen2b_multi_environment_eval_qualification.yaml"
+job_id = "evaluate-reverse-text"
+tier = "extended"
+state = "active"
+job_kind = "eval.general"
+acceptance = "managed-evaluation"
+
+[[gates]]
+id = "qwen2b-serving-capacity"
+work_package = ".posttrain/work_packages/qwen2b_serve_capacity_qualification.yaml"
+job_id = "benchmark"
+tier = "extended"
+state = "active"
+job_kind = "serve.benchmark"
+acceptance = "serving-curve"
+
+[[gates]]
+id = "qwen2b-serving-smoke"
+work_package = ".posttrain/work_packages/qwen2b_serve_smoke_qualification.yaml"
+job_id = "smoke"
+tier = "extended"
+state = "active"
+job_kind = "serve.smoke"
+acceptance = "serving-probe"
+
+[[gates]]
+id = "qwen2b-sft-extended"
+work_package = ".posttrain/work_packages/qwen2b_sft_10_qualification.yaml"
+job_id = "train"
+tier = "extended"
+state = "active"
+job_kind = "train.sft"
+acceptance = "training-summary"
+
+[[gates]]
+id = "qwen2b-sft-cli"
+work_package = ".posttrain/work_packages/qwen2b_sft_qualification.yaml"
+job_id = "train"
+tier = "extended"
+state = "active"
+job_kind = "train.sft"
+acceptance = "training-summary"
+
+[[gates]]
+id = "sft-data-prepare"
+work_package = ".posttrain/work_packages/sft_data_prepare_qualification.yaml"
+job_id = "prepare"
+tier = "release"
+state = "active"
+job_kind = "data.prepare"
+acceptance = "dataset-canonicalization"
