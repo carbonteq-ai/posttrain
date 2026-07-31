@@ -25,6 +25,8 @@ from .planning import (
 from .publication import (
     JobImagePublicationRequest,
     JobImagePublisher,
+    LocalJobImagePublisher,
+    LocalPublishedJobImage,
     PublishedJobImage,
 )
 from .service import (
@@ -56,6 +58,8 @@ __all__ = [
     "JobPackSpec",
     "JobImagePublicationRequest",
     "JobImagePublisher",
+    "LocalJobImagePublisher",
+    "LocalPublishedJobImage",
     "MaterializedEnvironmentPackage",
     "MaterializedEnvironments",
     "MaterializedRuntimeDependency",

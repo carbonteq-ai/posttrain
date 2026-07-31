@@ -70,6 +70,36 @@ class PublishedJobImage:
             raise ContractError("published job receipt path must be absolute")
 
 
+@dataclass(frozen=True, slots=True)
+class LocalPublishedJobImage:
+    """A content-addressed OCI layout for local Docker-compatible execution.
+
+    This intentionally is not a ``RuntimeImageRef`` and cannot be passed to a
+    remote execution provider until an explicit OCI publication occurs.
+    """
+
+    package_key: str
+    publication_key: str
+    layout: Path
+    tag: str
+    receipt: Path
+    cache_hit: bool
+
+    def __post_init__(self) -> None:
+        if not _SHA256.fullmatch(self.package_key) or not _SHA256.fullmatch(self.publication_key):
+            raise ContractError("local job image keys must be SHA-256")
+        if not self.layout.is_absolute() or not self.receipt.is_absolute():
+            raise ContractError("local job image paths must be absolute")
+        if not self.tag or "@" in self.tag or any(character.isspace() for character in self.tag):
+            raise ContractError("local job image tag is invalid")
+
+
+class LocalJobImagePublisher(Protocol):
+    """Publish an actual-job image to a local OCI layout or daemon store."""
+
+    def publish_local(self, request: JobImagePublicationRequest) -> LocalPublishedJobImage: ...
+
+
 class JobImagePublisher(Protocol):
     """Application-facing port implemented by BuildKit or another OCI builder."""
 
