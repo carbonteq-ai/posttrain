@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import importlib.util
 import json
+import sys
+import types
 from dataclasses import replace
 from pathlib import Path
 
@@ -16,7 +19,7 @@ from posttrain.execution import (
     RuntimeImageRef,
 )
 from posttrain.tracking import RunSpec
-from posttrain_execution_dstack import DstackExecutionProvider
+from posttrain_execution_dstack import DstackExecutionProvider, DstackSdkBridge
 from posttrain_execution_dstack.native_state import assignment_state
 
 
@@ -148,6 +151,76 @@ def test_translation_and_submit_have_no_secret_values(tmp_path: Path) -> None:
     assert all(config["tags"]["posttrain_job_image_digest"] == "b" * 64 for _, config in configurations)
     assert all(config["tags"]["posttrain_attempt"] == "1" for _, config in configurations)
     assert "secret" not in str(configurations)
+
+
+def _sdk_bridge_module(monkeypatch: pytest.MonkeyPatch):
+    """Load the standalone bridge with a tiny dstack API double."""
+
+    class Task:
+        def __init__(self, **values) -> None:
+            self.values = values
+
+    dstack = types.ModuleType("dstack")
+    api = types.ModuleType("dstack.api")
+    api.Client = object
+    api.Task = Task
+    api.VirtualRepo = object
+    native_state = types.ModuleType("native_state")
+    native_state.assignment_state = lambda _run: "never-assigned"
+    monkeypatch.setitem(sys.modules, "dstack", dstack)
+    monkeypatch.setitem(sys.modules, "dstack.api", api)
+    monkeypatch.setitem(sys.modules, "native_state", native_state)
+    path = Path(__file__).parents[1] / "src/posttrain_execution_dstack/sdk_bridge.py"
+    specification = importlib.util.spec_from_file_location("test_dstack_sdk_bridge", path)
+    assert specification is not None and specification.loader is not None
+    module = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(module)
+    return module
+
+
+def test_sdk_bridge_uses_only_the_private_runtime_map_for_declared_job_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _sdk_bridge_module(monkeypatch)
+    monkeypatch.setenv("TRACKIO_WRITE_TOKEN", "from-submitting-shell")
+
+    task = module._configuration(
+        {
+            "configuration": {
+                "env": ["TRACKIO_WRITE_TOKEN"],
+                "_posttrain_runtime_env": {"TRACKIO_WRITE_TOKEN": "from-posttrain-env"},
+            }
+        }
+    )
+
+    assert task.values["env"] == {"TRACKIO_WRITE_TOKEN": "from-posttrain-env"}
+    with pytest.raises(RuntimeError, match="posttrain.env"):
+        module._configuration({"configuration": {"env": ["TRACKIO_WRITE_TOKEN"]}})
+
+
+def test_sdk_bridge_private_runtime_values_are_not_part_of_public_provider_configuration(
+    tmp_path: Path,
+) -> None:
+    python = tmp_path / "python"
+    python.symlink_to(Path(sys.executable))
+    bridge = tmp_path / "bridge.py"
+    bridge.write_text(
+        "import json, sys\n"
+        "payload = json.load(sys.stdin)\n"
+        "print(json.dumps({'runtime': payload['configuration'].pop('_posttrain_runtime_env')}))\n",
+        encoding="utf-8",
+    )
+    sdk = DstackSdkBridge(
+        python,
+        bridge=bridge,
+        runtime_environment={"TRACKIO_WRITE_TOKEN": "from-posttrain-env"},
+    )
+    payload = {"project": "posttrain", "configuration": {"env": ["TRACKIO_WRITE_TOKEN"]}}
+
+    response = sdk.invoke("plan", payload)
+
+    assert response == {"runtime": {"TRACKIO_WRITE_TOKEN": "from-posttrain-env"}}
+    assert payload == {"project": "posttrain", "configuration": {"env": ["TRACKIO_WRITE_TOKEN"]}}
 
 
 def test_dstack_maps_mandatory_instance_trust_bundle_as_additional_authorities(

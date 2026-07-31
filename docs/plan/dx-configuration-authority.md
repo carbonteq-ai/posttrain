@@ -36,10 +36,11 @@ already satisfied.
       profile, tracking policy, and install transport decisions revised.
 - [x] (2026-08-01) Follow-up review identified the required-tracking proposal
       as a frozen-baseline amendment and added the governance gate.
-- [ ] Milestone 1: `posttrain.env` loads automatically and authoritatively
-      (in progress: project-owned resolver, scaffold, legacy-pointer warning,
-      and CLI `--env-file` propagation complete; provider bridge narrowing and
-      pointer removal remain).
+- [x] (2026-08-01) Milestone 1: `posttrain.env` loads automatically and
+      authoritatively. The dstack bridge injects declared job variables only
+      from the resolved project map, never from its parent shell; a legacy
+      `environment_file` pointer remains readable with a warning for one
+      release before its scheduled removal.
 - [x] (2026-08-01) Added public redacted runtime-environment resolution;
       `posttrain.env` now wins over shell values and the legacy pointer for
       local configuration and registry derivation. `init` writes protected
@@ -73,6 +74,13 @@ already satisfied.
   Evidence: after the resolver stopped reading `os.environ`, those fixtures
   returned no registry until their values were moved to `posttrain.env`; a
   dedicated conflicting-shell regression test now covers the intended rule.
+- Observation: dstack's isolated SDK process deliberately inherits parent
+  variables so its client can authenticate, but it previously reused that
+  process map to resolve job variables.
+  Evidence: `sdk_bridge.py` translated the requested `env` name list directly
+  from `os.environ`; a regression now proves its private runtime payload wins
+  over a conflicting shell token and fails closed when the project map lacks a
+  declared name.
 
 ## Decision Log
 
@@ -115,12 +123,23 @@ already satisfied.
   Rationale: existing projects remain runnable during migration without
   letting their ignored state file outrank the tracked project layout.
   Date/Author: 2026-08-01 / implementation.
+- Decision: send resolved project runtime values to dstack only in a private
+  bridge payload, immediately before the isolated SDK process runs.
+  Rationale: the SDK process may still inherit host credentials, but plan
+  output, durable submissions, and gateway-visible configuration must retain
+  variable names—not values—and the job must never source a declared value from
+  that parent environment.
+  Date/Author: 2026-08-01 / implementation.
 
 ## Outcomes & Retrospective
 
+- Milestone 1 outcome: fresh projects load root `posttrain.env` without shell
+  sourcing; `--env-file` is the only one-off override; local and dstack
+  execution consume that resolved map only. The one-release legacy-pointer
+  reader is the sole compatibility exception and warns on use.
 - Planning review outcome: project runtime, site configuration, and process
   environment now have non-overlapping authority. Tracking is required by
-  policy but backend-neutral. Implementation outcomes remain pending.
+  policy but backend-neutral. Later implementation outcomes remain pending.
 
 ## Context and Orientation
 

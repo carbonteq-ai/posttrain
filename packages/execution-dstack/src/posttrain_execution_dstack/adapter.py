@@ -61,29 +61,29 @@ class DstackSdkBridge:
         bridge: Path | None = None,
         *,
         environment_file: Path | None = None,
-        job_environment_file: Path | None = None,
+        runtime_environment: Mapping[str, str] | None = None,
     ) -> None:
         # Preserve a virtualenv's ``bin/python`` symlink: resolving it escapes
         # the environment and loses the dstack installation.
         self._python = python.absolute()
         self._bridge = (bridge or Path(__file__).with_name("sdk_bridge.py")).resolve()
         self._environment_file = environment_file.resolve() if environment_file else None
-        self._job_environment_file = job_environment_file.resolve() if job_environment_file else None
+        # The SDK process may need ambient or provider-credential values to
+        # authenticate to dstack. Job values are deliberately a separate map:
+        # they cross the bridge only for names declared by the execution
+        # request, never by reading the submitting shell.
+        self._runtime_environment = dict(runtime_environment or {})
         if not self._python.is_file():
             raise FileNotFoundError(self._python)
         if not self._bridge.is_file():
             raise FileNotFoundError(self._bridge)
         if self._environment_file is not None and not self._environment_file.is_file():
             raise FileNotFoundError(self._environment_file)
-        if self._job_environment_file is not None and not self._job_environment_file.is_file():
-            raise FileNotFoundError(self._job_environment_file)
 
     def _environment(self) -> dict[str, str]:
         environment = dict(os.environ)
-        for path in (self._environment_file, self._job_environment_file):
-            if path is None:
-                continue
-            for raw_line in path.read_text(encoding="utf-8").splitlines():
+        if self._environment_file is not None:
+            for raw_line in self._environment_file.read_text(encoding="utf-8").splitlines():
                 line = raw_line.strip()
                 if not line or line.startswith("#"):
                     continue
@@ -97,9 +97,20 @@ class DstackSdkBridge:
         return environment
 
     def invoke(self, action: str, payload: Mapping[str, Any]) -> Mapping[str, Any]:
+        bridge_payload = dict(payload)
+        configuration = payload.get("configuration")
+        if not isinstance(configuration, Mapping):
+            raise RuntimeError("dstack SDK bridge payload has no configuration")
+        bridge_configuration = dict(configuration)
+        # This private field is added immediately before the isolated bridge
+        # process. It is intentionally absent from plans, submission receipts,
+        # and gateway-visible configuration so no public representation can
+        # accidentally serialize a secret value.
+        bridge_configuration["_posttrain_runtime_env"] = dict(self._runtime_environment)
+        bridge_payload["configuration"] = bridge_configuration
         result = subprocess.run(
             [str(self._python), str(self._bridge), action],
-            input=json.dumps(payload, separators=(",", ":"), sort_keys=True),
+            input=json.dumps(bridge_payload, separators=(",", ":"), sort_keys=True),
             text=True,
             capture_output=True,
             check=False,
@@ -161,7 +172,7 @@ class DstackExecutionProvider:
         project: str,
         python: Path,
         environment_file: Path | None = None,
-        job_environment_file: Path | None = None,
+        runtime_environment: Mapping[str, str] | None = None,
         trust_bundle: Path | None = None,
         capacity_wait_seconds: int = 0,
     ) -> DstackExecutionProvider:
@@ -169,7 +180,7 @@ class DstackExecutionProvider:
             DstackSdkBridge(
                 python,
                 environment_file=environment_file,
-                job_environment_file=job_environment_file,
+                runtime_environment=runtime_environment,
             ),
             project=project,
             trust_bundle=trust_bundle,

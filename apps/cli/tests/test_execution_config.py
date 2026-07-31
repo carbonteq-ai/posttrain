@@ -680,6 +680,10 @@ def test_dstack_factory_uses_only_protected_binding_paths(
         encoding="utf-8",
     )
     config_path.chmod(0o600)
+    _write_runtime_environment(
+        tmp_path / "posttrain.env",
+        "TRACKIO_WRITE_TOKEN=from-posttrain-env\n",
+    )
     calls: list[dict[str, object]] = []
 
     class FakeDstackProvider:
@@ -709,7 +713,7 @@ def test_dstack_factory_uses_only_protected_binding_paths(
             "project": "main",
             "python": python.resolve(),
             "environment_file": environment_file.resolve(),
-            "job_environment_file": None,
+            "runtime_environment": {"TRACKIO_WRITE_TOKEN": "from-posttrain-env"},
             "trust_bundle": None,
             "capacity_wait_seconds": 0,
         }
@@ -934,25 +938,18 @@ def test_an_execution_file_without_a_registry_still_uses_the_environment(
     assert loaded.registry is not None
 
 
-def test_tracking_endpoint_is_recorded_from_the_process_environment(
+def test_tracking_endpoint_is_ignored_when_only_the_process_environment_has_it(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Evidence must be read back from where the job actually wrote it.
-
-    The job container receives POSTTRAIN_TRACKIO_SERVER_URL from the process
-    environment, so a run configured through the shell writes to the remote
-    server. Recording no endpoint made reconciliation read a local store
-    instead, where the run does not exist, and a succeeded run could never
-    produce retained evidence.
-    """
+    """An ambient endpoint must not select a job or reconciliation destination."""
     layout = _layout(tmp_path)
     monkeypatch.setenv("POSTTRAIN_TRACKIO_SERVER_URL", "https://tracking.example.invalid")
 
     source = evidence_source_for_project(layout)
 
     assert source is not None
-    assert source.endpoint == "https://tracking.example.invalid"
+    assert source.endpoint is None
 
 
 def test_an_explicit_trust_bundle_wins_over_every_other_source(

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import importlib
-import os
 import warnings
 from pathlib import Path
 from typing import Any, cast
@@ -76,7 +75,7 @@ def create_execution_provider(
             project=binding.project,
             python=binding.python,
             environment_file=binding.environment_file,
-            job_environment_file=local_config.environment_file,
+            runtime_environment=load_execution_environment(local_config),
             trust_bundle=resolve_trust_bundle(binding.trust_bundle).path,
             capacity_wait_seconds=binding.capacity_wait_seconds,
         )
@@ -179,33 +178,23 @@ def evidence_source_for_project(
 
     environment = project_tracking_environment(layout)
     if layout.tracking == "trackio":
-        # The process environment counts as much as the execution environment
-        # file, because it is what reaches the job: a run configured through the
-        # shell writes to a remote server while the recorded endpoint stays
-        # empty, and reconciliation then looks for that run in a local store and
-        # reports the project as nonexistent. The W&B branch below already
-        # consults both.
-        project = (
-            environment.get("POSTTRAIN_TRACKIO_PROJECT") or os.getenv("POSTTRAIN_TRACKIO_PROJECT") or layout.project_id
-        )
+        project = environment.get("POSTTRAIN_TRACKIO_PROJECT") or layout.project_id
         return ExecutionEvidenceSource(
             provider="trackio",
             source_id=f"trackio-{layout.project_id}",
             project=project,
-            endpoint=environment.get("POSTTRAIN_TRACKIO_SERVER_URL") or os.getenv("POSTTRAIN_TRACKIO_SERVER_URL"),
+            endpoint=environment.get("POSTTRAIN_TRACKIO_SERVER_URL"),
         )
     if layout.tracking == "wandb":
-        entity = environment.get("WANDB_ENTITY") or os.getenv("WANDB_ENTITY")
+        entity = environment.get("WANDB_ENTITY")
         if not entity:
             raise RuntimeError("W&B execution requires WANDB_ENTITY")
-        project = (
-            environment.get("POSTTRAIN_WANDB_PROJECT") or os.getenv("POSTTRAIN_WANDB_PROJECT") or layout.project_id
-        )
+        project = environment.get("POSTTRAIN_WANDB_PROJECT") or layout.project_id
         return ExecutionEvidenceSource(
             provider="wandb",
             source_id=f"wandb-{layout.project_id}",
             project=project,
-            endpoint=environment.get("WANDB_BASE_URL") or os.getenv("WANDB_BASE_URL"),
+            endpoint=environment.get("WANDB_BASE_URL"),
             scope=entity,
         )
     if layout.tracking == "none":
