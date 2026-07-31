@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from posttrain.common import ExecutionTarget, RunContext
+from posttrain.common import ContractError, ExecutionTarget, RunContext
 from posttrain.execution import (
     AdmissionEntry,
     AdmissionResult,
@@ -299,6 +299,21 @@ def test_environment_new_scaffolds_a_project_local_verifiers_package(tmp_path: P
     assert "verifiers" in (root / "pyproject.toml").read_text(encoding="utf-8")
     assert "create_environment" in (root / "src" / "kg_extract_env" / "taskset.py").read_text(encoding="utf-8")
     assert main(["--project-root", str(project), "environment", "new", "kg-extract"]) == 1
+
+
+def test_mutating_run_selection_requires_a_complete_canonical_id(tmp_path: Path) -> None:
+    from posttrain.catalog import load_project_layout
+    from posttrain_cli.run_resolve import resolve_run_id
+
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    layout = load_project_layout(project)
+    known = ("01234567-89ab-cdef-0123-456789abcdef",)
+    assert resolve_run_id(layout, known[0], known=known, exact_only=True) == known[0]
+    with pytest.raises(ContractError, match="complete canonical"):
+        resolve_run_id(layout, "01234567", known=known, exact_only=True)
+    with pytest.raises(ContractError, match="--last is read-only"):
+        resolve_run_id(layout, None, last=True, known=known, exact_only=True)
 
 
 def test_global_env_file_option_reaches_the_command_state(

@@ -47,8 +47,8 @@ _LAST_OPTION = Annotated[
 ]
 
 
-def _resolved_run_id(layout, run_id: str | None, *, last: bool) -> str:
-    return resolve_run_id(layout, run_id, last=last)
+def _resolved_run_id(layout, run_id: str | None, *, last: bool, exact_only: bool = False) -> str:
+    return resolve_run_id(layout, run_id, last=last, exact_only=exact_only)
 
 
 def _requested_hostnames(request: object) -> list[str]:
@@ -404,7 +404,7 @@ def register(app: typer.Typer) -> None:
     ) -> None:
         state: CliState = ctx.obj
         layout = state.layout()
-        run_id = _resolved_run_id(layout, run_id, last=last)
+        run_id = _resolved_run_id(layout, run_id, last=last, exact_only=True)
         try:
             admission_service = execution_admission_service(layout)
             before = admission_service.get(run_id)
@@ -438,7 +438,7 @@ def register(app: typer.Typer) -> None:
     ) -> None:
         state: CliState = ctx.obj
         layout = state.layout()
-        run_id = _resolved_run_id(layout, run_id, last=last)
+        run_id = _resolved_run_id(layout, run_id, last=last, exact_only=True)
         result = execution_admission_service(layout).retry_submission(run_id)
         emit(
             state,
@@ -461,7 +461,7 @@ def register(app: typer.Typer) -> None:
     ) -> None:
         state: CliState = ctx.obj
         layout = state.layout()
-        run_id = _resolved_run_id(layout, run_id, last=last)
+        run_id = _resolved_run_id(layout, run_id, last=last, exact_only=True)
         recovery = asyncio.run(
             recover_cancelled_tracking(
                 execution_service_for_run(layout, run_id),
@@ -502,7 +502,7 @@ def register(app: typer.Typer) -> None:
     ) -> None:
         state: CliState = ctx.obj
         layout = state.layout()
-        run_id = _resolved_run_id(layout, run_id, last=last)
+        run_id = _resolved_run_id(layout, run_id, last=last, exact_only=True)
         service = execution_service_for_run(layout, run_id)
         result = asyncio.run(
             reconcile_execution(
@@ -575,7 +575,7 @@ def register(app: typer.Typer) -> None:
     ) -> None:
         state: CliState = ctx.obj
         layout = state.layout()
-        run_id = _resolved_run_id(layout, run_id, last=last)
+        run_id = _resolved_run_id(layout, run_id, last=last, exact_only=True)
         result = asyncio.run(
             cleanup_execution(
                 execution_service_for_run(layout, run_id),
