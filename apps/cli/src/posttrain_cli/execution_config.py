@@ -14,9 +14,17 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Literal
 
-from posttrain.catalog import ProjectExecutionDefaults, ProjectLayout
+from posttrain.catalog import ProjectLayout
 from posttrain.common import ContractError
 from posttrain.execution import RuntimeImageRef
+from posttrain.project import (
+    ExecutionOverrides,
+    LaunchOverrides,
+    PackageOverrides,
+    ResolvedExecutionSettings,
+    SettingSource,
+    resolve_execution_settings,
+)
 from posttrain.runtime_images import cached_definition_root
 from posttrain.runtime_images.manifest import (
     ManifestError,
@@ -34,54 +42,6 @@ that location is a property of the release and is never configured here.
 """
 
 _JOB_REPOSITORY_SUFFIX = "posttrain-job"
-
-type SettingSource = Literal["cli", "local", "project", "job"]
-
-
-@dataclass(frozen=True, slots=True)
-class ExecutionOverrides:
-    provider: str | None = None
-    target: str | None = None
-    runtime_profile: str | None = None
-    timeout_seconds: int | None = None
-    max_attempts: int | None = None
-    priority: int | None = None
-    environment_names: tuple[str, ...] | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class PackageOverrides:
-    """Options allowed to change immutable capsule contents."""
-
-    target: str | None = None
-    runtime_profile: str | None = None
-
-    def as_execution_overrides(self) -> ExecutionOverrides:
-        return ExecutionOverrides(
-            target=self.target,
-            runtime_profile=self.runtime_profile,
-        )
-
-
-@dataclass(frozen=True, slots=True)
-class LaunchOverrides:
-    """Options that affect one provider launch but not capsule bytes."""
-
-    provider: str | None = None
-    timeout_seconds: int | None = None
-    max_attempts: int | None = None
-    priority: int | None = None
-    environment_names: tuple[str, ...] | None = None
-
-    def as_execution_overrides(self) -> ExecutionOverrides:
-        return ExecutionOverrides(
-            provider=self.provider,
-            timeout_seconds=self.timeout_seconds,
-            max_attempts=self.max_attempts,
-            priority=self.priority,
-            environment_names=self.environment_names,
-        )
-
 
 @dataclass(frozen=True, slots=True)
 class ExecutionStorageBinding:
@@ -142,26 +102,6 @@ class LocalExecutionConfig:
     registry: RegistryBinding | None = None
 
 
-@dataclass(frozen=True, slots=True)
-class ResolvedExecutionSettings:
-    provider: str
-    target: str | None
-    runtime_profile: str | None
-    timeout_seconds: int
-    max_attempts: int
-    priority: int
-    environment_names: tuple[str, ...]
-    sources: dict[str, SettingSource]
-
-
-_DEFAULT_JOB_SETTINGS = ExecutionOverrides(
-    provider="local",
-    runtime_profile="framework/job@1",
-    timeout_seconds=3600,
-    max_attempts=1,
-    priority=0,
-    environment_names=(),
-)
 _DEFAULT_LOCAL_NAME = "execution.toml"
 _DEFAULT_KEYS = {field.name for field in fields(ExecutionOverrides)}
 
@@ -233,84 +173,6 @@ def load_local_execution_config(
         dstack=dstack,
         registry=registry,
     )
-
-
-def resolve_execution_settings(
-    project: ProjectExecutionDefaults,
-    *,
-    local: ExecutionOverrides | None = None,
-    cli: ExecutionOverrides | None = None,
-    job: ExecutionOverrides | None = None,
-) -> ResolvedExecutionSettings:
-    """Resolve CLI > local > project > registered-job defaults with provenance."""
-
-    project_layer = ExecutionOverrides(
-        provider=project.provider,
-        target=project.target,
-        runtime_profile=project.runtime_profile,
-        timeout_seconds=project.timeout_seconds,
-        max_attempts=project.max_attempts,
-        priority=project.priority,
-        environment_names=project.environment_names or None,
-    )
-    layers: tuple[tuple[SettingSource, ExecutionOverrides], ...] = (
-        ("cli", cli or ExecutionOverrides()),
-        ("local", local or ExecutionOverrides()),
-        ("project", project_layer),
-        ("job", job or _DEFAULT_JOB_SETTINGS),
-    )
-    values: dict[str, object] = {}
-    sources: dict[str, SettingSource] = {}
-    for field in fields(ExecutionOverrides):
-        if field.name == "environment_names":
-            continue
-        for source, layer in layers:
-            value = getattr(layer, field.name)
-            if value is not None:
-                values[field.name] = value
-                sources[field.name] = source
-                break
-    environment_names: list[str] = []
-    environment_source: SettingSource = "job"
-    for source, layer in reversed(layers):
-        selected = layer.environment_names
-        if selected is None:
-            continue
-        environment_source = source
-        for name in selected:
-            if name not in environment_names:
-                environment_names.append(name)
-    values["environment_names"] = tuple(environment_names)
-    sources["environment_names"] = environment_source
-
-    provider = values.get("provider")
-    timeout_seconds = values.get("timeout_seconds")
-    max_attempts = values.get("max_attempts")
-    priority = values.get("priority")
-    resolved_environment_names = values.get("environment_names")
-    if not isinstance(provider, str):
-        raise ContractError("execution provider could not be resolved")
-    if not isinstance(timeout_seconds, int):
-        raise ContractError("execution timeout could not be resolved")
-    if not isinstance(max_attempts, int):
-        raise ContractError("execution attempts could not be resolved")
-    if not isinstance(priority, int):
-        raise ContractError("execution priority could not be resolved")
-    if not isinstance(resolved_environment_names, tuple):
-        raise ContractError("execution environment names could not be resolved")
-
-    resolved = ResolvedExecutionSettings(
-        provider=provider,
-        target=_optional_string(values.get("target")),
-        runtime_profile=_optional_string(values.get("runtime_profile")),
-        timeout_seconds=timeout_seconds,
-        max_attempts=max_attempts,
-        priority=priority,
-        environment_names=resolved_environment_names,
-        sources=sources,
-    )
-    _validate_resolved(resolved)
-    return resolved
 
 
 def provider_binding_fingerprint(
@@ -974,10 +836,6 @@ def _string_tuple(
     return parsed
 
 
-def _optional_string(value: object) -> str | None:
-    return value if isinstance(value, str) else None
-
-
 def load_execution_environment(
     configuration: LocalExecutionConfig,
 ) -> dict[str, str]:
@@ -1009,26 +867,18 @@ def _require_protected_file(path: Path, label: str) -> None:
         raise ContractError(f"{label} must not be accessible by group or others: {path}")
 
 
-def _validate_resolved(settings: ResolvedExecutionSettings) -> None:
-    if not settings.provider.strip():
-        raise ContractError("resolved execution provider cannot be empty")
-    if settings.timeout_seconds < 1 or settings.max_attempts < 1:
-        raise ContractError("resolved execution timeout and attempts must be positive")
-    if len(set(settings.environment_names)) != len(settings.environment_names):
-        raise ContractError("resolved execution environment names must be unique")
-    if any(not name.strip() or "=" in name for name in settings.environment_names):
-        raise ContractError("resolved execution environment entries must be variable names")
-
-
 __all__ = [
     "ConstraintProfileBinding",
     "DstackBinding",
     "ExecutionOverrides",
     "ExecutionStorageBinding",
+    "LaunchOverrides",
     "LocalProviderBinding",
     "LocalExecutionConfig",
+    "PackageOverrides",
     "RegistryBinding",
     "ResolvedExecutionSettings",
+    "SettingSource",
     "load_local_execution_config",
     "load_execution_environment",
     "resolve_execution_settings",

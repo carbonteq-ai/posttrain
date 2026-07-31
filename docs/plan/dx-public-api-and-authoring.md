@@ -50,6 +50,10 @@ instead of transcription.
       migrated `work-package plan` and its `job plan` alias to obtain static
       job meaning through that service. Focused tests, pyright, and import
       boundaries pass.
+- [x] (2026-08-01) Moved execution override values, launch/package boundaries,
+      and precedence/provenance resolution to `posttrain.project`; the legacy
+      CLI configuration module now re-exports those public types while it
+      retains machine-binding file parsing.
 - [ ] Milestone 1 remaining: move execution-setting, pack-plan, and other
       command-family application logic out of `apps/cli` while preserving the
       current public intent seam.
@@ -121,6 +125,11 @@ instead of transcription.
   controller or notebook; image materialization and provider submission remain
   separate phases to migrate within this milestone.
   Date/Author: 2026-08-01 / implementation.
+- Decision: retain `posttrain_cli.execution_config` imports as compatibility
+  re-exports while moving the underlying execution-setting types and resolver.
+  Rationale: command modules and external callers can migrate at their own
+  pace, while the sole implementation of precedence is already public.
+  Date/Author: 2026-08-01 / implementation.
 
 ## Outcomes & Retrospective
 
@@ -131,6 +140,9 @@ instead of transcription.
   statically plans one enabled job without a CLI state object, image registry,
   provider, or credentials. The current CLI routes its plan command through
   that service and keeps OCI-specific planning as a compatibility adapter.
+- The execution-setting resolver is now shared by public Python callers and
+  CLI compatibility imports; 67 focused tests, pyright, and import-boundary
+  checks passed after the move.
 
 ## Context and Orientation
 
