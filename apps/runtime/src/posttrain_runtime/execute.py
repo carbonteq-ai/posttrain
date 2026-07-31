@@ -38,6 +38,7 @@ from posttrain.data import (
 )
 from posttrain.environment import (
     EnvironmentBinding,
+    ProjectPathEnvironmentSource,
     PythonFactoryActivation,
     VerifiersV1ConfigActivation,
 )
@@ -891,8 +892,15 @@ def _verify_environment_selections(
         package_lock = package_locks.get(source.package)
         if package_lock is None:
             raise ContractError(f"job package omits environment package {source.package!r}")
-        if (
-            package_lock.repository != source.repository
+        if isinstance(source, ProjectPathEnvironmentSource):
+            if (
+                package_lock.source_kind != "project-path"
+                or package_lock.project_path != source.path
+            ):
+                raise ContractError(f"job package project environment source differs for {environment_id!r}")
+        elif (
+            package_lock.source_kind != "git"
+            or package_lock.repository != source.repository
             or package_lock.revision != source.revision
             or package_lock.subdirectory != (source.subdirectory or ".")
         ):
