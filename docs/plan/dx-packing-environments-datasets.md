@@ -52,7 +52,11 @@ registry.
       smoke invokes it with BuildKit networking disabled. Deferred
       qualification is retained in the activation lock and rejected by the
       production smoke unless explicitly waived.
-- [ ] Milestone 3: `project-path` environment source kind.
+- [x] (2026-08-01) Milestone 3: `project-path` environment source kind.
+      Project packages are snapshotted from the working tree, digest-bound at
+      planning time, rebuilt from that snapshot in the isolated wheel builder,
+      resolved with Git packages as one dependency closure, and verified by the
+      worker without synthetic Git metadata.
 - [ ] Milestone 4: intent/materialization/publication/launch split and
       local-image publication.
 - [ ] Milestone 5: selected transitive configuration closure.
@@ -118,6 +122,9 @@ registry.
 - Milestone 2 outcome: broken taskset resources and malformed staged data now
   fail image qualification before publication, rather than after a provider
   has admitted a GPU run.
+- Milestone 3 outcome: a project environment can be selected by normalized
+  path and packed from its actual working-tree bytes. Its declared path is
+  provenance only; the source-tree digest is the immutable identity.
 
 ## Context and Orientation
 
