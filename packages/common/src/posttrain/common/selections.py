@@ -15,18 +15,7 @@ from .models import ModelVariant
 _SELECTION_ID = re.compile(r"^[a-z0-9][a-z0-9._/@:-]*$")
 _REVISION = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/+:-]*$")
 
-type SelectionFamily = Literal[
-    "model",
-    "dataset",
-    "environment",
-    "inference",
-    "training",
-    "quantization",
-    "evaluation",
-    "workload",
-    "target",
-    "recipe",
-]
+type SelectionFamily = str
 type Purpose = Literal["screen", "eval", "rollout", "teacher-score", "smoke", "handoff"]
 type JsonMapping = Mapping[str, JsonValue]
 

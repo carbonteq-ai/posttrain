@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -24,20 +25,19 @@ from .selections import (
 )
 from .variants import RENDERER_CONTRACTS
 
-_FAMILIES: frozenset[str] = frozenset(
-    {
-        "model",
-        "dataset",
-        "environment",
-        "inference",
-        "training",
-        "quantization",
-        "evaluation",
-        "workload",
-        "target",
-        "recipe",
-    }
+_CORE_FAMILY_ORDER: tuple[str, ...] = (
+    "model",
+    "target",
+    "dataset",
+    "environment",
+    "evaluation",
+    "workload",
+    "training",
+    "quantization",
+    "recipe",
+    "inference",
 )
+_FAMILY = re.compile(r"^[a-z][a-z0-9-]*$")
 
 
 @dataclass(frozen=True, slots=True, order=True)
@@ -46,8 +46,8 @@ class CatalogRef:
     id: str
 
     def __post_init__(self) -> None:
-        if self.family not in _FAMILIES:
-            raise ContractError(f"unknown catalog family: {self.family!r}")
+        if not _FAMILY.fullmatch(self.family):
+            raise ContractError(f"catalog family must be a lowercase identifier: {self.family!r}")
         validate_selection_id(self.id, "catalog id")
 
 
@@ -82,13 +82,21 @@ type SelectionDecoder = Callable[[CatalogRef, Mapping[str, object], Mapping[Cata
 class Catalog:
     """One project-scoped read view over a base catalog and its overlays."""
 
-    def __init__(self, base: CatalogLayer, overlays: tuple[CatalogLayer, ...], scope: str) -> None:
+    def __init__(
+        self,
+        base: CatalogLayer,
+        overlays: tuple[CatalogLayer, ...],
+        scope: str,
+        *,
+        family_registry_lock: object | None = None,
+    ) -> None:
         validate_selection_id(scope, "catalog scope")
         if len({overlay.id for overlay in overlays}) != len(overlays):
             raise ContractError("catalog overlay ids must be unique")
         self._base = base
         self._overlays = overlays
         self.scope = scope
+        self.family_registry_lock = family_registry_lock
 
     @classmethod
     def open(
@@ -97,6 +105,7 @@ class Catalog:
         overlays: Iterable[CatalogSource] = (),
         scope: str = "default",
         decoders: Mapping[SelectionFamily, SelectionDecoder] | None = None,
+        family_registry_lock: object | None = None,
     ) -> Catalog:
         decoders = {} if decoders is None else decoders
         base_layer = _load_layer(base, default_id="base", known={}, decoders=decoders)
@@ -106,7 +115,7 @@ class Catalog:
             layer = _load_layer(source, default_id=f"overlay-{index + 1}", known=known, decoders=decoders)
             overlay_layers.append(layer)
             known.update(layer.entries)
-        return cls(base_layer, tuple(overlay_layers), scope)
+        return cls(base_layer, tuple(overlay_layers), scope, family_registry_lock=family_registry_lock)
 
     def resolve(self, ref: CatalogRef) -> Resolved[Selection]:
         for overlay in reversed(self._overlays):
@@ -161,28 +170,17 @@ def _load_layer(
         raise ContractError("catalog layer_id must be a string")
     raw_entries: dict[CatalogRef, object] = {}
     for family, family_entries in payload.items():
-        if family not in _FAMILIES:
-            raise ContractError(f"unknown catalog family: {family!r}")
+        if not isinstance(family, str) or not _FAMILY.fullmatch(family):
+            raise ContractError(f"catalog family must be a lowercase identifier: {family!r}")
         if not isinstance(family_entries, Mapping):
             raise ContractError(f"catalog family {family!r} must contain an object")
         for selection_id, raw in family_entries.items():
             if not isinstance(selection_id, str):
                 raise ContractError("catalog ids must be strings")
-            ref = CatalogRef(cast(SelectionFamily, family), selection_id)
+            ref = CatalogRef(family, selection_id)
             raw_entries[ref] = raw
     entries: dict[CatalogRef, Selection] = {}
-    family_order = (
-        "model",
-        "target",
-        "dataset",
-        "environment",
-        "evaluation",
-        "workload",
-        "training",
-        "quantization",
-        "recipe",
-        "inference",
-    )
+    family_order = (*_CORE_FAMILY_ORDER, *sorted(set(ref.family for ref in raw_entries).difference(_CORE_FAMILY_ORDER)))
     for family in family_order:
         for ref, raw in raw_entries.items():
             if ref.family == family:

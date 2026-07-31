@@ -2,22 +2,7 @@
 
 from __future__ import annotations
 
-from posttrain.common.selections import SelectionFamily
-
 DISTRIBUTION = "posttrain"
-
-CATALOG_FAMILIES: tuple[SelectionFamily, ...] = (
-    "model",
-    "dataset",
-    "environment",
-    "inference",
-    "training",
-    "quantization",
-    "evaluation",
-    "workload",
-    "target",
-    "recipe",
-)
 
 DATASET_FORMAT_CHOICES = (
     "auto",

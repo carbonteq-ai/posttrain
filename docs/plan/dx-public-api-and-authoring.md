@@ -66,6 +66,12 @@ instead of transcription.
       one-release re-exports while catalog, jobs, packing, work composition,
       and the runtime worker depend on the shared domain directly. Catalog
       family registry composition remains the next part of this milestone.
+- [x] (2026-08-01) Replaced core catalog-family literal lists with an explicit
+      `FamilyRegistry`: core descriptors plus installed
+      `posttrain.catalog_families` entry points compose in stable order,
+      duplicate origins fail loudly, unavailable source families fail before
+      decoding, and every opened catalog retains its `FamilyRegistryLock`.
+      Package-identity and project-declared plugin requirements remain.
 - [ ] Milestone 3: replace the host-factory hook with a public registration
       extension API and compatibility adapter.
 - [ ] Milestone 4: deterministic overlay discovery, `catalog explain`,
@@ -96,6 +102,12 @@ instead of transcription.
   Evidence: direct `posttrain.environment` imports and the legacy
   `posttrain.eval` re-exports resolve to the same binding and schema objects;
   the catalog, jobs, packer, work runner, and runtime worker tests all pass.
+- Observation: type-level literal families had leaked into CLI argument
+  generation, so replacing the registry alone left the application unable to
+  start when the family annotation became extensible.
+  Evidence: Typer rejected the widened alias as an unsupported parameter type;
+  catalog commands now accept strings and validate them against the opened
+  registry instead.
 
 ## Decision Log
 
@@ -159,6 +171,10 @@ instead of transcription.
   owner (`posttrain-environment`) rather than being structurally coupled to
   evaluation. The catalog-family registry remains to be made explicit and
   frozen before the milestone is complete.
+- Family-registry outcome: catalog composition no longer depends on which
+  optional package imports first. The resolved catalog exposes a stable,
+  serializable lock recording every installed family contributor; the next
+  packing slice must bind that lock into package identity and runtime replay.
 
 ## Context and Orientation
 

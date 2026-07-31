@@ -27,6 +27,13 @@ from posttrain.eval import (
 from posttrain.eval.programs import GENERAL_ENVIRONMENT_ACTIVATIONS
 from posttrain.train import TRAIN_CATALOG_DECODERS
 
+from .families import (
+    CatalogFamilyDescriptor,
+    FamilyRegistry,
+    FamilyRegistryLock,
+    FamilyRegistryLockEntry,
+    core_catalog_family_descriptors,
+)
 from .files import (
     CatalogDocumentSchema,
     CatalogLayerManifestSchema,
@@ -95,12 +102,26 @@ def catalog_decoders(
 ) -> Mapping[SelectionFamily, SelectionDecoder]:
     """Return decoders for every selection family in the framework base."""
 
-    return {
+    return family_registry(environment_factories=environment_factories).decoders()
+
+
+def family_registry(
+    *,
+    environment_factories: Mapping[str, Any] | None = None,
+    entry_point_values: tuple[Any, ...] | None = None,
+) -> FamilyRegistry:
+    """Compose core families and installed extension descriptors deterministically."""
+
+    decoders: Mapping[SelectionFamily, SelectionDecoder] = {
         **DATA_CATALOG_DECODERS,
         **environment_catalog_decoders(environment_factory_registry(environment_factories)),
         **evaluation_catalog_decoders(),
         **TRAIN_CATALOG_DECODERS,
     }
+    return FamilyRegistry.compose(
+        core_catalog_family_descriptors(decoders),
+        entry_point_values,
+    )
 
 
 def packaged_base_directory() -> AbstractContextManager[Path]:
@@ -120,9 +141,13 @@ def _load_framework_base(
     directory: Path,
     *,
     decoders: Mapping[SelectionFamily, SelectionDecoder] | None = None,
+    registry: FamilyRegistry | None = None,
 ) -> CatalogLayer:
+    source = load_catalog_layer(directory)
+    if registry is not None:
+        registry.require_families(name for name in source if name != "layer_id")
     file_catalog = Catalog.open(
-        load_catalog_layer(directory),
+        source,
         scope="framework",
         decoders=catalog_decoders() if decoders is None else decoders,
     )
@@ -136,9 +161,11 @@ def open_catalog(
     overlays: tuple[Mapping[str, object] | Path, ...] = (),
     catalog_root: Path | None = None,
     environment_factories: Mapping[str, Any] | None = None,
+    registry: FamilyRegistry | None = None,
 ) -> Catalog:
     """Open the packaged framework base plus project overlay directories."""
 
+    resolved_registry = registry or family_registry(environment_factories=environment_factories)
     sources: list[Mapping[str, object]] = []
     if catalog_root is not None:
         project_directory = catalog_root / "projects" / scope.replace("/", "__")
@@ -146,18 +173,21 @@ def open_catalog(
             sources.append(load_catalog_layer(project_directory))
     for source in overlays:
         sources.append(load_catalog_layer(source) if isinstance(source, Path) else source)
-    decoders = catalog_decoders(environment_factories=environment_factories)
+    for source in sources:
+        resolved_registry.require_families(name for name in source if name != "layer_id")
+    decoders = resolved_registry.decoders()
     base_directory: Path | None = catalog_root / "base" if catalog_root is not None else None
     if base_directory is None:
         with packaged_base_directory() as directory:
-            base_layer = _load_framework_base(directory, decoders=decoders)
+            base_layer = _load_framework_base(directory, decoders=decoders, registry=resolved_registry)
     else:
-        base_layer = _load_framework_base(base_directory, decoders=decoders)
+        base_layer = _load_framework_base(base_directory, decoders=decoders, registry=resolved_registry)
     return Catalog.open(
         base_layer,
         overlays=sources,
         scope=scope,
         decoders=decoders,
+        family_registry_lock=resolved_registry.lock,
     )
 
 
@@ -165,9 +195,14 @@ __all__ = [
     "BASE_CATALOG_RELEASE",
     "CatalogDocumentSchema",
     "CatalogLayerManifestSchema",
+    "CatalogFamilyDescriptor",
+    "FamilyRegistry",
+    "FamilyRegistryLock",
+    "FamilyRegistryLockEntry",
     "ProjectLayout",
     "ProjectExecutionDefaults",
     "catalog_decoders",
+    "family_registry",
     "discover_project",
     "environment_factory_registry",
     "load_catalog_layer",

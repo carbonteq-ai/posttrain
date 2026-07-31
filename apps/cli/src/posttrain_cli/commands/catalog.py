@@ -6,18 +6,13 @@ import json
 from pathlib import Path
 from typing import Annotated
 
-import click
 import typer
 from posttrain.common import CatalogRef
-from posttrain.common.selections import SelectionFamily
 
-from ..constants import CATALOG_FAMILIES
 from ..context import CliState
 from ..materialize import materialize_project_references
 from ..output import emit, json_value
 from ..project import catalog_entries, catalog_summary
-
-FAMILY_CHOICE = click.Choice(CATALOG_FAMILIES)
 
 
 def register(app: typer.Typer) -> None:
@@ -28,8 +23,8 @@ def register(app: typer.Typer) -> None:
     def catalog_list_cmd(
         ctx: typer.Context,
         family: Annotated[
-            SelectionFamily | None,
-            typer.Option("--family", click_type=FAMILY_CHOICE),
+            str | None,
+            typer.Option("--family", help="limit results to one installed catalog family"),
         ] = None,
     ) -> None:
         state: CliState = ctx.obj
@@ -50,7 +45,7 @@ def register(app: typer.Typer) -> None:
     @catalog_app.command("show", help="show one resolved catalog selection")
     def catalog_show_cmd(
         ctx: typer.Context,
-        family: Annotated[SelectionFamily, typer.Argument(click_type=FAMILY_CHOICE)],
+        family: Annotated[str, typer.Argument(help="installed catalog family")],
         selection_id: Annotated[str, typer.Argument(metavar="id")],
     ) -> None:
         state: CliState = ctx.obj
