@@ -206,6 +206,12 @@ def load_materialized_dataset(
     )
 
 
+def validate_materialized_dataset(path: Path) -> int:
+    """Parse a staged normalized JSONL dataset and return its record count."""
+
+    return len(_jsonl_rows(path.read_text(encoding="utf-8"), source=str(path)))
+
+
 def resolve_dataset_source(
     plan: DatasetLoadPlan,
     *,

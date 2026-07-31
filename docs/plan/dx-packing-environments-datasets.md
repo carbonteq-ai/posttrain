@@ -45,8 +45,13 @@ registry.
       planning derives their SHA-256 and size, packaging stages them below
       `environment-resources/`, and the worker verifies and resolves only the
       reserved `{$resource: NAME}` reference.
-- [ ] Milestone 2: image qualification exercises `Taskset.load()` and staged
-      datasets.
+- [x] (2026-08-01) Milestone 2: image qualification exercises `Taskset.load()`
+      and staged datasets. `posttrain-runtime qualify` verifies the capsule,
+      loads each required taskset with a per-binding timeout and temporary
+      scratch directory, and parses every frozen JSONL dataset; actual-job
+      smoke invokes it with BuildKit networking disabled. Deferred
+      qualification is retained in the activation lock and rejected by the
+      production smoke unless explicitly waived.
 - [ ] Milestone 3: `project-path` environment source kind.
 - [ ] Milestone 4: intent/materialization/publication/launch split and
       local-image publication.
@@ -110,6 +115,9 @@ registry.
   submit-host-only `data_path`. Direct references to an existing project file
   fail planning with the resource declaration repair, while declared resources
   are content-addressed, staged, and validated at both pack and worker time.
+- Milestone 2 outcome: broken taskset resources and malformed staged data now
+  fail image qualification before publication, rather than after a provider
+  has admitted a GPU run.
 
 ## Context and Orientation
 

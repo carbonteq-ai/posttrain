@@ -34,6 +34,7 @@ from posttrain.data import (
     DatasetLoadPlan,
     DatasetMaterialization,
     load_materialized_dataset,
+    validate_materialized_dataset,
 )
 from posttrain.environment import (
     EnvironmentBinding,
@@ -1114,6 +1115,8 @@ def _verify_datasets(
             or (lock.num_records is not None and examples != lock.num_records)
         ):
             raise ContractError(f"packaged dataset manifest has invalid examples: {lock.seat_name}")
+        if validate_materialized_dataset(data_path) != examples:
+            raise ContractError(f"packaged dataset record count differs from its lock: {lock.seat_name}")
         verified[lock.seat_name] = (lock, dataset_manifest)
     return verified
 
