@@ -100,7 +100,7 @@ def test_distillation_yaml_resolves_every_seat_through_the_catalog() -> None:
     }
     assert training["resolved"]["backend_options"] == {  # type: ignore[index]
         "source_revision": "6e7739b8ec741d21ecd79c0c212694cd15ff20d8",
-        "dependency_lock_sha256": ("52d60597911137495302b63d84754eb8256f588714e7e07f35602fbbbb6ded83"),
+        "dependency_lock_sha256": ("5a1096b0b5d988795e12a6b42e31d9940ded2718d4f6edcd148f1b4fa3e0afe5"),
     }
     execution_targets = resolved.snapshot["execution_targets"]
     assert isinstance(execution_targets, dict)

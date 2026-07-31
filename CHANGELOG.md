@@ -4,6 +4,25 @@ All notable changes to Posttrain are documented here. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with a coordinated
 version across first-party distributions.
 
+## 0.2.5 - 2026-07-31
+
+This patch hardens high-concurrency native Verifiers GRPO and makes
+Observatory discover Trackio projects dynamically.
+
+### Fixed
+
+- Concurrent policy turns are batched and arrivals are drained safely while a
+  trainer update holds the lock.
+- The TRL backend exposes Liger loss compilation as an explicit, validated
+  setting.
+- Verifiers rollout groups execute concurrently, with a bounded compatibility
+  patch for the current MCP harness dependency.
+
+### Changed
+
+- Observatory discovers available Trackio projects instead of relying on a
+  fixed project list.
+
 ## 0.2.4 - 2026-07-30
 
 The maintained veRL and vLLM runtime becomes a first-class published job kind.
