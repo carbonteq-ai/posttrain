@@ -14,11 +14,14 @@ from posttrain.common import Catalog, CatalogLayer, CatalogRef
 from posttrain.common.catalog import SelectionDecoder
 from posttrain.common.selections import Selection, SelectionFamily
 from posttrain.data import DATA_CATALOG_DECODERS
-from posttrain.eval import (
+from posttrain.environment import (
     EnvironmentActivation,
     EnvironmentFactory,
     PythonFactoryActivation,
     VerifiersV1ConfigActivation,
+    environment_catalog_decoders,
+)
+from posttrain.eval import (
     evaluation_catalog_decoders,
 )
 from posttrain.eval.programs import GENERAL_ENVIRONMENT_ACTIVATIONS
@@ -94,7 +97,8 @@ def catalog_decoders(
 
     return {
         **DATA_CATALOG_DECODERS,
-        **evaluation_catalog_decoders(environment_factory_registry(environment_factories)),
+        **environment_catalog_decoders(environment_factory_registry(environment_factories)),
+        **evaluation_catalog_decoders(),
         **TRAIN_CATALOG_DECODERS,
     }
 

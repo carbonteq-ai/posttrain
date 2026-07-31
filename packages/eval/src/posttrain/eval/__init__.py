@@ -1,11 +1,9 @@
 """Reusable evaluation operations over independently packaged environments."""
 
+from posttrain.environment import EnvironmentBindingSchema
+
 from .api import domain, evaluate, general
-from .catalog_schema import (
-    EnvironmentBindingSchema,
-    EvaluationPlanSchema,
-    evaluation_catalog_decoders,
-)
+from .catalog_schema import EvaluationPlanSchema, evaluation_catalog_decoders
 from .requests import (
     EnvironmentActivation,
     EnvironmentBinding,

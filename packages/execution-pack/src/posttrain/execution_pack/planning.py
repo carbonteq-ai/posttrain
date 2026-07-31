@@ -11,11 +11,8 @@ from typing import Literal
 
 from posttrain.common import ContractError, JsonValue
 from posttrain.data import DatasetLoadPlan
-from posttrain.eval import (
-    EnvironmentBinding,
-    EvaluationPlan,
-    PythonFactoryActivation,
-)
+from posttrain.environment import EnvironmentBinding, PythonFactoryActivation
+from posttrain.eval import EvaluationPlan
 from posttrain.execution import EnvironmentActivationLock, RuntimeImageRef
 from posttrain.work import JobKind, PreparedWorkPackageJob, ResolvedSeats
 

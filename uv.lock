@@ -15,6 +15,7 @@ members = [
     "posttrain-catalog",
     "posttrain-common",
     "posttrain-data",
+    "posttrain-environment",
     "posttrain-eval",
     "posttrain-execution",
     "posttrain-execution-buildkit",
@@ -2564,6 +2565,7 @@ source = { editable = "packages/catalog" }
 dependencies = [
     { name = "posttrain-common" },
     { name = "posttrain-data" },
+    { name = "posttrain-environment" },
     { name = "posttrain-eval" },
     { name = "posttrain-train" },
     { name = "pyyaml" },
@@ -2573,6 +2575,7 @@ dependencies = [
 requires-dist = [
     { name = "posttrain-common", editable = "packages/common" },
     { name = "posttrain-data", editable = "packages/data" },
+    { name = "posttrain-environment", editable = "packages/environment" },
     { name = "posttrain-eval", editable = "packages/eval" },
     { name = "posttrain-train", editable = "packages/train" },
     { name = "pyyaml", specifier = ">=6.0,<7" },
@@ -2614,11 +2617,27 @@ requires-dist = [
 provides-extras = ["huggingface", "verifiers"]
 
 [[package]]
+name = "posttrain-environment"
+version = "0.2.5"
+source = { editable = "packages/environment" }
+dependencies = [
+    { name = "posttrain-common" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "posttrain-common", editable = "packages/common" },
+    { name = "pydantic", specifier = ">=2.12,<3" },
+]
+
+[[package]]
 name = "posttrain-eval"
 version = "0.2.5"
 source = { editable = "packages/eval" }
 dependencies = [
     { name = "posttrain-common" },
+    { name = "posttrain-environment" },
     { name = "pydantic" },
 ]
 
@@ -2640,6 +2659,7 @@ requires-dist = [
     { name = "code-golf-v1", marker = "extra == 'verifiers'", git = "https://github.com/PrimeIntellect-ai/verifiers.git?subdirectory=environments%2Fcode_golf_v1&rev=284a868d6a9022109b749710672a0460e8a996d4" },
     { name = "gsm8k-v1", marker = "extra == 'verifiers'", git = "https://github.com/PrimeIntellect-ai/verifiers.git?subdirectory=environments%2Fgsm8k_v1&rev=284a868d6a9022109b749710672a0460e8a996d4" },
     { name = "posttrain-common", editable = "packages/common" },
+    { name = "posttrain-environment", editable = "packages/environment" },
     { name = "prime", marker = "extra == 'verifiers'", specifier = ">=0.6" },
     { name = "pydantic", specifier = ">=2.12,<3" },
     { name = "reverse-text-v1", marker = "extra == 'verifiers'", git = "https://github.com/PrimeIntellect-ai/verifiers.git?subdirectory=environments%2Freverse_text_v1&rev=284a868d6a9022109b749710672a0460e8a996d4" },
@@ -2718,6 +2738,7 @@ source = { editable = "packages/execution-pack" }
 dependencies = [
     { name = "posttrain-common" },
     { name = "posttrain-data" },
+    { name = "posttrain-environment" },
     { name = "posttrain-eval" },
     { name = "posttrain-execution" },
     { name = "posttrain-work" },
@@ -2727,6 +2748,7 @@ dependencies = [
 requires-dist = [
     { name = "posttrain-common", editable = "packages/common" },
     { name = "posttrain-data", editable = "packages/data" },
+    { name = "posttrain-environment", editable = "packages/environment" },
     { name = "posttrain-eval", editable = "packages/eval" },
     { name = "posttrain-execution", editable = "packages/execution" },
     { name = "posttrain-work", editable = "packages/work" },
@@ -2739,6 +2761,7 @@ source = { editable = "packages/jobs" }
 dependencies = [
     { name = "posttrain-common" },
     { name = "posttrain-data" },
+    { name = "posttrain-environment" },
     { name = "posttrain-eval" },
     { name = "posttrain-serve" },
     { name = "posttrain-tracking" },
@@ -2752,6 +2775,7 @@ dependencies = [
 requires-dist = [
     { name = "posttrain-common", editable = "packages/common" },
     { name = "posttrain-data", editable = "packages/data" },
+    { name = "posttrain-environment", editable = "packages/environment" },
     { name = "posttrain-eval", editable = "packages/eval" },
     { name = "posttrain-serve", editable = "packages/serve" },
     { name = "posttrain-tracking", editable = "packages/tracking" },
@@ -2902,6 +2926,7 @@ dependencies = [
     { name = "posttrain-catalog" },
     { name = "posttrain-common" },
     { name = "posttrain-data" },
+    { name = "posttrain-environment" },
     { name = "posttrain-eval" },
     { name = "posttrain-execution" },
     { name = "posttrain-jobs" },
@@ -2921,6 +2946,7 @@ requires-dist = [
     { name = "posttrain-catalog", editable = "packages/catalog" },
     { name = "posttrain-common", editable = "packages/common" },
     { name = "posttrain-data", editable = "packages/data" },
+    { name = "posttrain-environment", editable = "packages/environment" },
     { name = "posttrain-eval", editable = "packages/eval" },
     { name = "posttrain-execution", editable = "packages/execution" },
     { name = "posttrain-jobs", editable = "packages/jobs" },
@@ -3099,6 +3125,7 @@ source = { editable = "packages/work" }
 dependencies = [
     { name = "posttrain-common" },
     { name = "posttrain-data" },
+    { name = "posttrain-environment" },
     { name = "posttrain-eval" },
     { name = "posttrain-tracking" },
     { name = "posttrain-train" },
@@ -3110,6 +3137,7 @@ dependencies = [
 requires-dist = [
     { name = "posttrain-common", editable = "packages/common" },
     { name = "posttrain-data", editable = "packages/data" },
+    { name = "posttrain-environment", editable = "packages/environment" },
     { name = "posttrain-eval", editable = "packages/eval" },
     { name = "posttrain-tracking", editable = "packages/tracking" },
     { name = "posttrain-train", editable = "packages/train" },

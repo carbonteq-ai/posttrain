@@ -1,4 +1,4 @@
-"""Strict catalog schemas for evaluation plans and environment bindings."""
+"""Strict catalog schema and decoder for portable environment bindings."""
 
 from __future__ import annotations
 
@@ -14,36 +14,37 @@ from .requests import (
     EnvironmentActivation,
     EnvironmentBinding,
     EnvironmentFactory,
-    EvaluationPlan,
+    EnvironmentSource,
     PythonFactoryActivation,
+    SamplingPolicy,
     VerifiersV1ConfigActivation,
 )
 
 
-class EvalCatalogSchema(BaseModel):
+class EnvironmentCatalogSchema(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
-class EnvironmentSourceSchema(EvalCatalogSchema):
+class EnvironmentSourceSchema(EnvironmentCatalogSchema):
     package: str
     repository: str
     revision: str
     subdirectory: str | None = None
 
 
-class SamplingPolicySchema(EvalCatalogSchema):
+class SamplingPolicySchema(EnvironmentCatalogSchema):
     max_tokens: int = Field(gt=0)
     temperature: float = Field(default=0.0, ge=0)
     top_p: float | None = Field(default=None, gt=0, le=1)
     reasoning_effort: str | None = None
 
 
-class VerifiersV1ConfigActivationSchema(EvalCatalogSchema):
+class VerifiersV1ConfigActivationSchema(EnvironmentCatalogSchema):
     kind: Literal["verifiers-config"]
     config: dict[str, JsonValue]
 
 
-class PythonFactoryActivationSchema(EvalCatalogSchema):
+class PythonFactoryActivationSchema(EnvironmentCatalogSchema):
     kind: Literal["python-factory"]
     reference: str
 
@@ -54,7 +55,7 @@ EnvironmentActivationSchema = Annotated[
 ]
 
 
-class EnvironmentBindingSchema(EvalCatalogSchema):
+class EnvironmentBindingSchema(EnvironmentCatalogSchema):
     id: str
     category: str
     source: EnvironmentSourceSchema
@@ -74,47 +75,39 @@ class EnvironmentBindingSchema(EvalCatalogSchema):
         return self
 
 
-class EvaluationPlanSchema(EvalCatalogSchema):
-    id: str
-    kind: Literal["general", "domain"]
-    environments: tuple[str, ...]
-    revision: str = "1"
-    inference_requirements: dict[str, JsonValue] = Field(default_factory=dict)
-    metrics_and_slices: tuple[str, ...] = ()
-    aggregation: dict[str, JsonValue] = Field(default_factory=dict)
-    comparison: dict[str, JsonValue] = Field(default_factory=dict)
-
-
-def evaluation_catalog_decoders(
+def environment_catalog_decoders(
     factories: Mapping[str, EnvironmentActivation | EnvironmentFactory] | None = None,
 ) -> Mapping[SelectionFamily, SelectionDecoder]:
-    """Build evaluation decoders; environment decoding moved to posttrain.environment."""
+    """Build detached environment decoders without importing implementations."""
 
-    # Retain the argument for one release so callers using the former combined
-    # decoder factory do not fail at import time. Environment aliases are now
-    # interpreted by posttrain.environment.environment_catalog_decoders().
-    del factories
+    aliases = {name: _normalize_activation(value) for name, value in (factories or {}).items()}
 
-    def decode_evaluation(
+    def decode_environment(
         ref: CatalogRef,
         data: Mapping[str, object],
         known: Mapping[CatalogRef, Selection],
     ) -> Selection:
-        del ref
-        payload = EvaluationPlanSchema.model_validate(data)
-        environments: list[EnvironmentBinding] = []
-        for environment_id in payload.environments:
-            value = known.get(CatalogRef("environment", environment_id))
-            if not isinstance(value, EnvironmentBinding):
-                raise ContractError(f"unresolved catalog link: environment/{environment_id}")
-            environments.append(value)
-        values = payload.model_dump(exclude={"environments"})
-        return EvaluationPlan(environments=tuple(environments), **values)
+        del ref, known
+        payload = EnvironmentBindingSchema.model_validate(data)
+        activation = (
+            _activation_from_schema(payload.activation)
+            if payload.activation is not None
+            else _legacy_activation(payload.factory, aliases)
+        )
+        return EnvironmentBinding(
+            id=payload.id,
+            category=payload.category,
+            source=EnvironmentSource(**payload.source.model_dump()),
+            activation=activation,
+            sampling=SamplingPolicy(**payload.sampling.model_dump()),
+            num_tasks=payload.num_tasks,
+            num_rollouts=payload.num_rollouts,
+            max_concurrent=payload.max_concurrent,
+            parameters=payload.parameters,
+            reward_components=payload.reward_components,
+        )
 
-    return cast(
-        Mapping[SelectionFamily, SelectionDecoder],
-        {"evaluation": decode_evaluation},
-    )
+    return cast(Mapping[SelectionFamily, SelectionDecoder], {"environment": decode_environment})
 
 
 def _activation_from_schema(
@@ -139,9 +132,7 @@ def _legacy_activation(
         raise ContractError(f"legacy environment factory alias is not registered: {name}") from error
 
 
-def _normalize_activation(
-    value: EnvironmentActivation | EnvironmentFactory,
-) -> EnvironmentActivation:
+def _normalize_activation(value: EnvironmentActivation | EnvironmentFactory) -> EnvironmentActivation:
     if isinstance(value, (VerifiersV1ConfigActivation, PythonFactoryActivation)):
         return value
     return PythonFactoryActivation.from_callable(value)
@@ -150,8 +141,9 @@ def _normalize_activation(
 __all__ = [
     "EnvironmentActivationSchema",
     "EnvironmentBindingSchema",
-    "EvaluationPlanSchema",
+    "EnvironmentSourceSchema",
     "PythonFactoryActivationSchema",
+    "SamplingPolicySchema",
     "VerifiersV1ConfigActivationSchema",
-    "evaluation_catalog_decoders",
+    "environment_catalog_decoders",
 ]

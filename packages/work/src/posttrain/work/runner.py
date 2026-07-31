@@ -25,7 +25,8 @@ from posttrain.common import (
 )
 from posttrain.common.selections import Selection
 from posttrain.data import DatasetDescriptor
-from posttrain.eval import EnvironmentBinding, EvaluationPlan
+from posttrain.environment import EnvironmentBinding
+from posttrain.eval import EvaluationPlan
 from posttrain.train import (
     DPOSettings,
     GRPOSettings,

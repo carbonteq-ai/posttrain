@@ -23,8 +23,8 @@ from posttrain.data import (
     SupervisedDataSource,
     prepare,
 )
+from posttrain.environment import EnvironmentBinding
 from posttrain.eval import (
-    EnvironmentBinding,
     EvaluateRequest,
     EvaluationBudget,
     EvaluationEndpoint,

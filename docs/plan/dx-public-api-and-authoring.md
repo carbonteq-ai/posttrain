@@ -62,6 +62,10 @@ instead of transcription.
       current public intent seam.
 - [ ] Milestone 2: dedicated `posttrain.environment` contracts and
       deterministic catalog-family assembly.
+- [x] (2026-08-01) Extracted `posttrain-environment`; evaluation preserves
+      one-release re-exports while catalog, jobs, packing, work composition,
+      and the runtime worker depend on the shared domain directly. Catalog
+      family registry composition remains the next part of this milestone.
 - [ ] Milestone 3: replace the host-factory hook with a public registration
       extension API and compatibility adapter.
 - [ ] Milestone 4: deterministic overlay discovery, `catalog explain`,
@@ -87,6 +91,11 @@ instead of transcription.
   not defined`; restoring it inside the adapter kept `JobIntent` free of
   provider, registry, and credential state while the CLI regression suite
   passed.
+- Observation: an environment contract can move without changing evaluation
+  semantics when compatibility imports retain object identity.
+  Evidence: direct `posttrain.environment` imports and the legacy
+  `posttrain.eval` re-exports resolve to the same binding and schema objects;
+  the catalog, jobs, packer, work runner, and runtime worker tests all pass.
 
 ## Decision Log
 
@@ -146,6 +155,10 @@ instead of transcription.
 - The execution-setting resolver is now shared by public Python callers and
   CLI compatibility imports; 67 focused tests, pyright, and import-boundary
   checks passed after the move.
+- Milestone-2 partial outcome: the portable environment contract now has one
+  owner (`posttrain-environment`) rather than being structurally coupled to
+  evaluation. The catalog-family registry remains to be made explicit and
+  frozen before the milestone is complete.
 
 ## Context and Orientation
 

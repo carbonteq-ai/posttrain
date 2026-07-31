@@ -34,7 +34,8 @@ from posttrain.data import (
     DatasetMaterialization,
     load_materialized_dataset,
 )
-from posttrain.eval import EnvironmentBinding, EvaluationPlan
+from posttrain.environment import EnvironmentBinding
+from posttrain.eval import EvaluationPlan
 from posttrain.execution import (
     EXECUTION_LAUNCH_ENVIRONMENT,
     DatasetPackageLock,

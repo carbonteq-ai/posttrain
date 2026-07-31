@@ -8,6 +8,7 @@ requires-python = ">=3.13,<3.14"
 dependencies = [
     "posttrain-common==0.2.5",
     "posttrain-data==0.2.5",
+    "posttrain-environment==0.2.5",
     "posttrain-eval==0.2.5",
     "posttrain-train==0.2.5",
     "pyyaml>=6.0,<7",
@@ -19,6 +20,7 @@ package = true
 [tool.uv.sources]
 posttrain-common = { workspace = true }
 posttrain-data = { workspace = true }
+posttrain-environment = { workspace = true }
 posttrain-eval = { workspace = true }
 posttrain-train = { workspace = true }
 
