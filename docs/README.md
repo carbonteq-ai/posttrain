@@ -32,6 +32,7 @@ Knowledge base for this lab. Runtime is a **uv workspace** with
 | [research/](./research/) | Papers, surveys, cross-cutting summaries |
 | [decisions/](./decisions/) | Architecture / stack ADRs |
 | [design/](./design/README.md) | Revision-aware product-design references, explorations, and accepted contracts |
+| [dx-improvements/](./dx-improvements/README.md) | Release-scoped developer experience critiques and proposed improvements |
 | [plan/observatory-product-implementation.md](./plan/observatory-product-implementation.md) | Detailed living implementation plan for the Observatory read product |
 
 ## Canonical design sequence
