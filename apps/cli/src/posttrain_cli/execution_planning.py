@@ -12,6 +12,7 @@ from posttrain.catalog import FamilyRegistryLock, ProjectLayout
 from posttrain.common import Catalog, CatalogRef, ContractError, ExecutionTarget
 from posttrain.execution import (
     JOB_PACKAGE_WORKER_COMMAND,
+    ExecutionEvidenceSource,
     ExecutionMount,
     ExecutionPlan,
     ExecutionPolicy,
@@ -63,6 +64,7 @@ from .execution_config import (
     ResolvedExecutionSettings,
     SettingSource,
     derived_local_registry,
+    load_execution_environment,
     load_local_execution_config,
     resolve_execution_settings,
 )
@@ -332,6 +334,7 @@ class PreparedJobSubmission:
     request: ExecutionRequest
     provider_plan: ExecutionPlan
     service: JobExecutionService
+    evidence_source: ExecutionEvidenceSource | None
 
 
 def plan_job_execution(
@@ -654,14 +657,18 @@ def _prepared_submission(packed: PackedJobExecution) -> PreparedJobSubmission:
         planned.settings,
         package.local_config,
     )
+    evidence_source = evidence_source_for_project(
+        package.layout,
+        environment=load_execution_environment(package.local_config),
+    )
     service = JobExecutionService(
         provider,
         ExecutionSubmissionStore(package.layout.state),
         provider_name=provider_name,
-        evidence_source=evidence_source_for_project(package.layout),
+        evidence_source=evidence_source,
     )
     provider_plan = service.plan(request)
-    return PreparedJobSubmission(packed, request, provider_plan, service)
+    return PreparedJobSubmission(packed, request, provider_plan, service, evidence_source)
 
 
 def _registry(local_config: LocalExecutionConfig) -> RegistryBinding:

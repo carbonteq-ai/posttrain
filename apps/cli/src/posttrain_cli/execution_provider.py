@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import warnings
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, cast
 
@@ -173,28 +174,30 @@ def tracking_source_for_project(layout: ProjectLayout) -> RunDataSource:
 
 def evidence_source_for_project(
     layout: ProjectLayout,
+    *,
+    environment: Mapping[str, str] | None = None,
 ) -> ExecutionEvidenceSource | None:
     """Resolve the secret-free evidence destination recorded at submission."""
 
-    environment = project_tracking_environment(layout)
+    resolved_environment = dict(environment) if environment is not None else project_tracking_environment(layout)
     if layout.tracking == "trackio":
-        project = environment.get("POSTTRAIN_TRACKIO_PROJECT") or layout.project_id
+        project = resolved_environment.get("POSTTRAIN_TRACKIO_PROJECT") or layout.project_id
         return ExecutionEvidenceSource(
             provider="trackio",
             source_id=f"trackio-{layout.project_id}",
             project=project,
-            endpoint=environment.get("POSTTRAIN_TRACKIO_SERVER_URL"),
+            endpoint=resolved_environment.get("POSTTRAIN_TRACKIO_SERVER_URL"),
         )
     if layout.tracking == "wandb":
-        entity = environment.get("WANDB_ENTITY")
+        entity = resolved_environment.get("WANDB_ENTITY")
         if not entity:
             raise RuntimeError("W&B execution requires WANDB_ENTITY")
-        project = environment.get("POSTTRAIN_WANDB_PROJECT") or layout.project_id
+        project = resolved_environment.get("POSTTRAIN_WANDB_PROJECT") or layout.project_id
         return ExecutionEvidenceSource(
             provider="wandb",
             source_id=f"wandb-{layout.project_id}",
             project=project,
-            endpoint=environment.get("WANDB_BASE_URL"),
+            endpoint=resolved_environment.get("WANDB_BASE_URL"),
             scope=entity,
         )
     if layout.tracking == "none":

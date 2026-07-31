@@ -24,10 +24,7 @@ from ..execution_planning import (
     plan_job_execution,
     plan_job_package,
 )
-from ..execution_provider import (
-    evidence_source_for_project,
-    execution_admission_service,
-)
+from ..execution_provider import execution_admission_service
 from ..job_resolve import resolve_job_id
 from ..output import emit, json_value
 from ..package_history import packages_for, resolve_package
@@ -237,7 +234,7 @@ def run_work_package_cmd(
         admission = execution_admission_service(planned.package.layout)
         admitted = admission.enqueue(
             prepared_submission.provider_plan,
-            evidence_source=evidence_source_for_project(planned.package.layout),
+            evidence_source=prepared_submission.evidence_source,
             initial_service=prepared_submission.service,
             control_store_uri=planned.package.layout.state.as_uri(),
         )

@@ -952,6 +952,18 @@ def test_tracking_endpoint_is_ignored_when_only_the_process_environment_has_it(
     assert source.endpoint is None
 
 
+def test_prepared_evidence_source_uses_the_explicit_resolved_runtime_environment(tmp_path: Path) -> None:
+    layout = _layout(tmp_path)
+
+    source = evidence_source_for_project(
+        layout,
+        environment={"POSTTRAIN_TRACKIO_SERVER_URL": "https://tracking.example.invalid"},
+    )
+
+    assert source is not None
+    assert source.endpoint == "https://tracking.example.invalid"
+
+
 def test_an_explicit_trust_bundle_wins_over_every_other_source(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

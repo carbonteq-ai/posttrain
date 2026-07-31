@@ -223,6 +223,21 @@ def test_sdk_bridge_private_runtime_values_are_not_part_of_public_provider_confi
     assert payload == {"project": "posttrain", "configuration": {"env": ["TRACKIO_WRITE_TOKEN"]}}
 
 
+def test_sdk_bridge_lifecycle_actions_do_not_require_submission_configuration(tmp_path: Path) -> None:
+    python = tmp_path / "python"
+    python.symlink_to(Path(sys.executable))
+    bridge = tmp_path / "bridge.py"
+    bridge.write_text(
+        "import json, sys\npayload = json.load(sys.stdin)\nprint(json.dumps(payload))\n",
+        encoding="utf-8",
+    )
+    sdk = DstackSdkBridge(python, bridge=bridge, runtime_environment={"SECRET": "not-forwarded"})
+
+    response = sdk.invoke("status", {"project": "posttrain", "run_name": "pt-example"})
+
+    assert response == {"project": "posttrain", "run_name": "pt-example"}
+
+
 def test_dstack_maps_mandatory_instance_trust_bundle_as_additional_authorities(
     tmp_path: Path,
 ) -> None:

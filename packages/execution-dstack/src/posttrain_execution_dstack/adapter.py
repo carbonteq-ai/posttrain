@@ -99,15 +99,16 @@ class DstackSdkBridge:
     def invoke(self, action: str, payload: Mapping[str, Any]) -> Mapping[str, Any]:
         bridge_payload = dict(payload)
         configuration = payload.get("configuration")
-        if not isinstance(configuration, Mapping):
-            raise RuntimeError("dstack SDK bridge payload has no configuration")
-        bridge_configuration = dict(configuration)
-        # This private field is added immediately before the isolated bridge
-        # process. It is intentionally absent from plans, submission receipts,
-        # and gateway-visible configuration so no public representation can
-        # accidentally serialize a secret value.
-        bridge_configuration["_posttrain_runtime_env"] = dict(self._runtime_environment)
-        bridge_payload["configuration"] = bridge_configuration
+        if configuration is not None:
+            if not isinstance(configuration, Mapping):
+                raise RuntimeError("dstack SDK bridge configuration is invalid")
+            bridge_configuration = dict(configuration)
+            # This private field is added immediately before the isolated bridge
+            # process. It is intentionally absent from plans, submission receipts,
+            # and gateway-visible configuration so no public representation can
+            # accidentally serialize a secret value.
+            bridge_configuration["_posttrain_runtime_env"] = dict(self._runtime_environment)
+            bridge_payload["configuration"] = bridge_configuration
         result = subprocess.run(
             [str(self._python), str(self._bridge), action],
             input=json.dumps(bridge_payload, separators=(",", ":"), sort_keys=True),
