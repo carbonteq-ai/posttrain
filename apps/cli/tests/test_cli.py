@@ -397,7 +397,10 @@ def test_init_grpo_template_declares_environment_and_selected_extras(
     work_package = (project / ".posttrain" / "work_packages" / "grpo.yaml").read_text(encoding="utf-8")
     assert '"posttrain[observatory,trackio,trl,verifiers]' in pyproject
     assert "PrimeIntellect-ai/verifiers.git@284a868d" in pyproject
-    assert "gsm8k-distill-train" in work_package
+    environment = (project / ".posttrain" / "catalog" / "environments.yaml").read_text(encoding="utf-8")
+    assert "starter-gsm8k-train" in work_package
+    assert "kind: project-path" in environment
+    assert (project / "environments" / "starter-gsm8k" / "pyproject.toml").is_file()
     assert "train/trl-grpo@1" in work_package
     assert "posttrain_lab" not in pyproject + work_package
 
