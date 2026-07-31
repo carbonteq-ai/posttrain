@@ -11,6 +11,18 @@ from pydantic import Field, model_validator
 from .models import ObservatoryModel
 
 
+def _environment_bool(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    normalized = raw.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"{name} must be a boolean")
+
+
 class FixtureSourceSettings(ObservatoryModel):
     provider: Literal["fixture"] = "fixture"
     source_id: str = Field(min_length=1)
@@ -45,6 +57,8 @@ class ObservatorySettings(ObservatoryModel):
     source_id: str = "trackio-local"
     trackio_project: str = "posttrain"
     trackio_server_url: str | None = None
+    discover_trackio_projects: bool = False
+    trackio_discovery_interval_seconds: int = Field(default=300, ge=1)
     wandb_entity: str | None = None
     wandb_project: str | None = None
     wandb_base_url: str | None = None
@@ -64,6 +78,8 @@ class ObservatorySettings(ObservatoryModel):
                 raise ValueError("production Observatory on a non-loopback host requires an auth boundary")
         if self.source == "wandb" and (not self.wandb_entity or not self.wandb_project):
             raise ValueError("W&B source requires entity and project")
+        if self.discover_trackio_projects and not self.trackio_server_url:
+            raise ValueError("Trackio project discovery requires a Trackio server URL")
         source_ids = [source.source_id for source in self.sources]
         if len(source_ids) != len(set(source_ids)):
             raise ValueError("Observatory source ids must be unique")
@@ -76,6 +92,8 @@ class ObservatorySettings(ObservatoryModel):
     def configured_sources(self) -> tuple[ObservatorySourceSettings, ...]:
         if self.sources:
             return self.sources
+        if self.discover_trackio_projects:
+            return ()
         if self.source == "trackio":
             return (
                 TrackioSourceSettings(
@@ -119,6 +137,8 @@ class ObservatorySettings(ObservatoryModel):
             "source_id": os.getenv("POSTTRAIN_OBSERVATORY_SOURCE_ID", "trackio-local"),
             "trackio_project": os.getenv("POSTTRAIN_TRACKIO_PROJECT", "posttrain"),
             "trackio_server_url": os.getenv("POSTTRAIN_TRACKIO_SERVER_URL"),
+            "discover_trackio_projects": _environment_bool("POSTTRAIN_OBSERVATORY_DISCOVER_TRACKIO_PROJECTS"),
+            "trackio_discovery_interval_seconds": int(os.getenv("POSTTRAIN_TRACKIO_DISCOVERY_INTERVAL_SECONDS", "300")),
             "wandb_entity": os.getenv("WANDB_ENTITY"),
             "wandb_project": os.getenv("POSTTRAIN_WANDB_PROJECT"),
             "wandb_base_url": os.getenv("WANDB_BASE_URL"),
@@ -153,6 +173,7 @@ class ObservatorySettings(ObservatoryModel):
                 "source": tracking,
                 "source_id": f"{tracking}-{project_id}",
                 "sources": (),
+                "discover_trackio_projects": False,
             }
         )
         if host is not None:

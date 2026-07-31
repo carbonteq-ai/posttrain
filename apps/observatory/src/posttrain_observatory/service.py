@@ -21,6 +21,7 @@ from posttrain.tracking import (
     TraceQuery,
 )
 
+from .discovery import TrackioSourceDiscovery
 from .execution_targets import execution_target_capacity, execution_target_contexts
 from .models import (
     BackendRuntimeSummary,
@@ -54,6 +55,7 @@ from .models import (
     ServingCapacityWorkPackageView,
     ServingContenderView,
     ServingParetoPoint,
+    SourceRefreshStatus,
     SourceSummary,
     SummaryChange,
     SummaryValue,
@@ -495,22 +497,47 @@ class ObservatoryService:
 
     def __init__(
         self,
-        source: RunDataSource | Mapping[str, RunDataSource],
+        source: RunDataSource | Mapping[str, RunDataSource] | RunSourceRegistry,
         definitions: Mapping[str, JobTelemetryDefinition] = DEFAULT_TELEMETRY_DEFINITIONS,
         *,
         semantic_provider: SemanticSummaryProvider | None = None,
         redaction: RedactionPolicy | None = None,
+        source_discovery: TrackioSourceDiscovery | None = None,
     ) -> None:
-        sources = {"default": source} if not isinstance(source, Mapping) else dict(source)
-        self.registry = RunSourceRegistry(cast(Mapping[str, RunDataSource], sources))
+        if isinstance(source, RunSourceRegistry):
+            self.registry = source
+        else:
+            sources = {"default": source} if not isinstance(source, Mapping) else dict(source)
+            self.registry = RunSourceRegistry(cast(Mapping[str, RunDataSource], sources))
         self._definitions = dict(definitions)
         self._redaction = redaction or RedactionPolicy()
         self._semantic = SemanticAnalysisService(semantic_provider)
+        self._source_discovery = source_discovery
 
     def _locator(self, value: str | RunLocator) -> RunLocator:
-        return (
-            value if isinstance(value, RunLocator) else RunLocator(source_id=self.registry.source_ids[0], run_id=value)
-        )
+        if isinstance(value, RunLocator):
+            return value
+        if not self.registry.source_ids:
+            raise LookupError("Observatory has no configured sources")
+        return RunLocator(source_id=self.registry.source_ids[0], run_id=value)
+
+    async def start_source_discovery(self) -> None:
+        if self._source_discovery is not None:
+            await self._source_discovery.start()
+
+    async def stop_source_discovery(self) -> None:
+        if self._source_discovery is not None:
+            await self._source_discovery.stop()
+
+    async def refresh_sources(self) -> SourceRefreshStatus:
+        if self._source_discovery is None:
+            return SourceRefreshStatus(enabled=False, state="disabled")
+        return await self._source_discovery.refresh()
+
+    def source_refresh_status(self) -> SourceRefreshStatus:
+        if self._source_discovery is None:
+            return SourceRefreshStatus(enabled=False, state="disabled")
+        return self._source_discovery.status()
 
     def get_job_telemetry_schema(self, job_kind: str) -> JobTelemetryDefinition:
         try:

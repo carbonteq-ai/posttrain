@@ -828,6 +828,66 @@ describe('Observatory React product shell', () => {
     expect(screen.queryByRole('button', { name: 'Select run SFT calm harbor' })).not.toBeInTheDocument();
   });
 
+  it('refreshes all evidence backends from inside the open backend popover', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      const body = path === '/api/v1/runs'
+        ? [run]
+        : path === '/api/v1/sources/refresh'
+          ? {
+              enabled: true,
+              state: 'succeeded',
+              last_attempt_at: '2026-07-30T11:00:00Z',
+              last_success_at: '2026-07-30T11:00:00Z',
+              error: null,
+              discovered_source_ids: ['fixture'],
+            }
+          : view;
+      if (path === '/api/v1/sources/refresh') expect(init?.method).toBe('POST');
+      return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: 'Backend: Fixture' }));
+    await user.click(screen.getByRole('button', { name: 'Refresh evidence backends' }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/v1/sources/refresh', { method: 'POST' }));
+    expect(screen.getByText('Evidence backend')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Refresh evidence backends' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Select run SFT calm harbor' })).toBeVisible();
+    expect(fetchMock.mock.calls.filter(([input]) => String(input) === '/api/v1/runs')).toHaveLength(2);
+  });
+
+  it('shows a safe source refresh failure beneath the backend header', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      const body = path === '/api/v1/runs'
+        ? [run]
+        : path === '/api/v1/sources/refresh'
+          ? {
+              enabled: true,
+              state: 'failed',
+              last_attempt_at: '2026-07-30T11:00:00Z',
+              last_success_at: null,
+              error: 'Trackio is temporarily unavailable',
+              discovered_source_ids: [],
+            }
+          : view;
+      return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+    }));
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: 'Backend: Fixture' }));
+    await user.click(screen.getByRole('button', { name: 'Refresh evidence backends' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Trackio is temporarily unavailable');
+    expect(screen.getByText('Evidence backend')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Select run SFT calm harbor' })).toBeVisible();
+  });
+
   it('clears prior-provider evidence while the selected backend view is loading', async () => {
     const wandbRun = {
       ...dpoRun,

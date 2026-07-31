@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from posttrain_tracking_trackio import TrackioDataSource
+from posttrain_tracking_trackio import TrackioDataSource, TrackioProjectCatalog
 from posttrain_tracking_wandb import WandbDataSource, WandbSettings
 
+from .discovery import TrackioSourceDiscovery
 from .fixtures import FixtureRunDataSource
 from .semantic import FixtureSemanticSummaryProvider, OpenAICompatibleSemanticSummaryProvider
 from .service import ObservatoryService
@@ -14,6 +15,7 @@ from .settings import (
     TrackioSourceSettings,
     WandbSourceSettings,
 )
+from .sources import RunSourceRegistry
 
 
 def create_service(settings: ObservatorySettings | None = None) -> ObservatoryService:
@@ -40,6 +42,18 @@ def create_service(settings: ObservatorySettings | None = None) -> ObservatorySe
             raise TypeError(f"unsupported Observatory source settings: {type(source_settings).__name__}")
         sources[source_settings.source_id] = source
 
+    registry = RunSourceRegistry(sources)
+    discovery = None
+    if settings.discover_trackio_projects:
+        assert settings.trackio_server_url is not None
+        server_url = settings.trackio_server_url
+        discovery = TrackioSourceDiscovery(
+            registry,
+            TrackioProjectCatalog(server_url),
+            lambda project: TrackioDataSource(project, server_url=server_url),
+            interval_seconds=settings.trackio_discovery_interval_seconds,
+        )
+
     semantic = None
     if settings.semantic_provider == "fixture":
         semantic = FixtureSemanticSummaryProvider()
@@ -50,7 +64,7 @@ def create_service(settings: ObservatorySettings | None = None) -> ObservatorySe
             api_key=settings.semantic_api_key,
             model=settings.semantic_model,
         )
-    return ObservatoryService(sources, semantic_provider=semantic)
+    return ObservatoryService(registry, semantic_provider=semantic, source_discovery=discovery)
 
 
 __all__ = ["create_service"]
