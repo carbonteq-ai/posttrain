@@ -58,6 +58,23 @@ class FakeTrainer:
         return [[3, 4]], [[-0.1, -0.2]]
 
 
+class BatchFakeTrainer:
+    temperature = 0.7
+    top_p = 0.9
+
+    def __init__(self) -> None:
+        self.prompt_batches: list[list[list[int]]] = []
+
+    def _generate_single_turn(self, prompt_ids, generation_config, extra):
+        self.prompt_batches.append(prompt_ids)
+        assert generation_config is None
+        assert extra == {}
+        return (
+            [[3, 4] for _prompt_ids in prompt_ids],
+            [[-0.1, -0.2] for _prompt_ids in prompt_ids],
+        )
+
+
 def test_trl_checkpoint_steps_zero_disables_recovery_saves(tmp_path: Path) -> None:
     arguments = trainer_arguments(
         TrainingLoop(max_steps=2, checkpoint_steps=0),
@@ -109,6 +126,52 @@ def test_trl_policy_generator_rejects_environment_sampling_drift(monkeypatch) ->
                 )
             )
         )
+
+
+def test_trl_policy_generator_batches_concurrent_environment_turns(monkeypatch) -> None:
+    monkeypatch.setattr("posttrain.train.backends.trl.online_rl.create_renderer", lambda *args: FakeRenderer())
+    profile = replace(QWEN35_GRPO_SMOKE, max_completion_length=2)
+    trainer = BatchFakeTrainer()
+    generator = TrlPolicyGenerator(trainer, object(), QWEN_35_2B, profile, _training())
+    request = PolicyTurnRequest(
+        messages=({"role": "user", "content": "hello"},),
+        sampling=PolicySampling(max_tokens=2, temperature=0.7, top_p=0.9),
+    )
+
+    async def generate_all():
+        return await asyncio.gather(*(generator.generate(request) for _index in range(4)))
+
+    results = asyncio.run(generate_all())
+
+    assert trainer.prompt_batches == [[[1, 2], [1, 2], [1, 2], [1, 2]]]
+    assert [result.completion_ids for result in results] == [(3, 4)] * 4
+    assert [result.completion_logprobs for result in results] == [(-0.1, -0.2)] * 4
+
+
+def test_trl_policy_generator_drains_turns_queued_while_waiting_for_the_lock(monkeypatch) -> None:
+    monkeypatch.setattr("posttrain.train.backends.trl.online_rl.create_renderer", lambda *args: FakeRenderer())
+    profile = replace(QWEN35_GRPO_SMOKE, max_completion_length=2)
+    trainer = BatchFakeTrainer()
+    generator = TrlPolicyGenerator(trainer, object(), QWEN_35_2B, profile, _training())
+    request = PolicyTurnRequest(
+        messages=({"role": "user", "content": "hello"},),
+        sampling=PolicySampling(max_tokens=2, temperature=0.7, top_p=0.9),
+    )
+
+    async def generate_with_late_turn():
+        await generator._lock.acquire()  # noqa: SLF001 - force the flush to yield at its lock boundary
+        first = asyncio.create_task(generator.generate(request))
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        second = asyncio.create_task(generator.generate(request))
+        await asyncio.sleep(0)
+        generator._lock.release()  # noqa: SLF001 - pair with the controlled acquisition above
+        return await asyncio.wait_for(asyncio.gather(first, second), timeout=1)
+
+    results = asyncio.run(generate_with_late_turn())
+
+    assert trainer.prompt_batches == [[[1, 2]], [[1, 2]]]
+    assert [result.completion_ids for result in results] == [(3, 4), (3, 4)]
 
 
 def _training() -> TrainingBinding:

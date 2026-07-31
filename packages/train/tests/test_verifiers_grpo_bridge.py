@@ -29,6 +29,7 @@ from posttrain.train.integrations import (
     preflight_verifiers_environment,
 )
 from posttrain.train.integrations.verifiers import (
+    _apply_verifiers_runtime_compatibility,
     _load_selected_tasks,
     _PolicyClient,
     load_verifiers_bridge_snapshot,
@@ -50,6 +51,20 @@ from verifiers.v1 import (
 from verifiers.v1.dialects import ChatDialect
 
 T = TypeVar("T")
+
+
+def test_verifiers_runtime_compatibility_pins_null_harness_mcp_v1(monkeypatch) -> None:
+    from verifiers.v1.harnesses.null import harness as null_harness
+
+    monkeypatch.setattr(
+        null_harness,
+        "PROGRAM_SOURCE",
+        '# dependencies = ["openai", "mcp", "httpx", "tenacity"]',
+    )
+
+    _apply_verifiers_runtime_compatibility()
+
+    assert '"mcp>=1.24.0,<2"' in null_harness.PROGRAM_SOURCE
 
 
 class FakeGenerator:
@@ -128,6 +143,34 @@ class FakeEnvironment:
     def episode(self, task, context, n=1):
         assert context.model == "model-profile-v1"
         return FakeEpisode(task, n)
+
+
+class ConcurrentFakeEpisode(FakeEpisode):
+    def __init__(self, environment: ConcurrentFakeEnvironment, task: object, count: int) -> None:
+        super().__init__(task, count)
+        self.environment = environment
+
+    async def run(self):
+        self.environment.active += 1
+        self.environment.max_active = max(self.environment.max_active, self.environment.active)
+        if self.environment.active == 2:
+            self.environment.started.set()
+        await asyncio.wait_for(self.environment.started.wait(), timeout=1)
+        try:
+            return await super().run()
+        finally:
+            self.environment.active -= 1
+
+
+class ConcurrentFakeEnvironment(FakeEnvironment):
+    def __init__(self) -> None:
+        self.active = 0
+        self.max_active = 0
+        self.started = asyncio.Event()
+
+    def episode(self, task, context, n=1):
+        assert context.model == "model-profile-v1"
+        return ConcurrentFakeEpisode(self, task, n)
 
 
 class InfiniteAlphabetStyleTaskset:
@@ -287,6 +330,38 @@ def test_native_bridge_projects_multiturn_masks_rewards_and_trace_artifact(tmp_p
     assert evidence.metrics[0].values["train/rl/rollouts_attempted"] == 2
     assert evidence.metrics[0].values["train/rl/rollouts_completed"] == 2
     assert evidence.metrics[0].values["train/rl/reward_std"] == pytest.approx(0.0)
+
+
+def test_native_bridge_runs_distinct_prompt_groups_concurrently(tmp_path) -> None:
+    environment = ConcurrentFakeEnvironment()
+    tasks = {
+        7: SimpleNamespace(data=TaskData(idx=7, prompt="Prompt seven")),
+        8: SimpleNamespace(data=TaskData(idx=8, prompt="Prompt eight")),
+    }
+    bridge = VerifiersEnvironmentRolloutBridge(
+        dataset_id="custom/train-v1",
+        revision="revision",
+        tasks=tasks,
+        environment_factory=lambda: environment,
+        trace_path=tmp_path / "traces.jsonl",
+        environment_id="custom-v1",
+        run_id="run-1",
+        sampling=PolicySampling(max_tokens=32),
+    )
+
+    rollouts = asyncio.run(
+        bridge.run(
+            RolloutBatch(
+                example_ids=("train/000007", "train/000008"),
+                step=3,
+                model_id="model-profile-v1",
+            ),
+            FakeGenerator(),
+        )
+    )
+
+    assert environment.max_active == 2
+    assert [rollout.example_id for rollout in rollouts] == ["train/000007", "train/000008"]
 
 
 def test_native_bridge_portable_snapshot_reconstructs_without_live_environment_state(tmp_path) -> None:
