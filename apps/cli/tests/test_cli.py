@@ -286,6 +286,21 @@ def test_init_refuses_to_overwrite_existing_project(tmp_path: Path, capsys) -> N
     assert "refusing to overwrite existing project files" in captured.err
 
 
+def test_environment_new_scaffolds_a_project_local_verifiers_package(tmp_path: Path, capsys) -> None:
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+
+    assert main(["--json", "--project-root", str(project), "environment", "new", "kg-extract"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    root = project / "environments" / "kg-extract"
+    assert payload["package"] == "kg-extract-env"
+    assert (root / "pyproject.toml").is_file()
+    assert "verifiers" in (root / "pyproject.toml").read_text(encoding="utf-8")
+    assert "create_environment" in (root / "src" / "kg_extract_env" / "taskset.py").read_text(encoding="utf-8")
+    assert main(["--project-root", str(project), "environment", "new", "kg-extract"]) == 1
+
+
 def test_global_env_file_option_reaches_the_command_state(
     tmp_path: Path,
     capsys,
