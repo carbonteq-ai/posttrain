@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, is_dataclass
 from pathlib import Path
 from typing import Any, cast
 
@@ -147,6 +147,30 @@ class Catalog:
             refs.update(overlay.entries)
         return sorted(ref for ref in refs if family is None or ref.family == family)
 
+    def transitive_refs(self, roots: Iterable[CatalogRef]) -> tuple[CatalogRef, ...]:
+        """Return resolved catalog entries reachable through selection values.
+
+        Catalog decoders replace reference-shaped fields with the resolved
+        selection object. Identity traversal therefore captures relationships
+        between families without teaching the common catalog about every
+        extension's schema.
+        """
+
+        values = {id(self.resolve(ref).value): ref for ref in self.list()}
+        pending = list(roots)
+        seen: set[CatalogRef] = set()
+        while pending:
+            ref = pending.pop()
+            if ref in seen:
+                continue
+            self.resolve(ref)
+            seen.add(ref)
+            for value in _walk_values(self.resolve(ref).value):
+                nested = values.get(id(value))
+                if nested is not None and nested not in seen:
+                    pending.append(nested)
+        return tuple(sorted(seen))
+
 
 def _load_layer(
     source: CatalogSource,
@@ -226,6 +250,31 @@ def _decode_selection(
         target = _linked(known, "target", values.pop("target"), ExecutionTarget)
         return InferenceBinding(model=model, target=target, **values)
     raise ContractError(f"catalog loader for family {ref.family!r} is not available in slice 0")
+
+
+def _walk_values(value: object) -> Iterable[object]:
+    """Yield nested values while preserving object identity relationships."""
+
+    seen: set[int] = set()
+
+    def visit(item: object) -> Iterable[object]:
+        identifier = id(item)
+        if identifier in seen:
+            return
+        seen.add(identifier)
+        yield item
+        if is_dataclass(item) and not isinstance(item, type):
+            for field in fields(item):
+                yield from visit(getattr(item, field.name))
+        elif isinstance(item, Mapping):
+            for key, nested in item.items():
+                yield from visit(key)
+                yield from visit(nested)
+        elif isinstance(item, (tuple, list, set, frozenset)):
+            for nested in item:
+                yield from visit(nested)
+
+    yield from visit(value)
 
 
 def _linked[SelectionT: Selection](
