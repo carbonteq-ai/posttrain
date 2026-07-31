@@ -4,6 +4,8 @@ from posttrain.environment import (
     EnvironmentBinding,
     EnvironmentBindingSchema,
     EnvironmentSource,
+    ProjectPathEnvironmentSource,
+    ProjectPathEnvironmentSourceSchema,
     VerifiersV1ConfigActivationSchema,
 )
 from posttrain.eval import EnvironmentBinding as LegacyEnvironmentBinding
@@ -38,3 +40,13 @@ def test_verifiers_activation_resource_schema_uses_a_named_source() -> None:
     )
 
     assert activation.resources["task_data"].source.path == "data/task.jsonl"
+
+
+def test_project_path_environment_source_is_a_distinct_declared_kind() -> None:
+    source = ProjectPathEnvironmentSource("toy-env", "environments/toy_env")
+    parsed = ProjectPathEnvironmentSourceSchema.model_validate(
+        {"kind": "project-path", "package": "toy-env", "path": "environments/toy_env"}
+    )
+
+    assert source.kind == "project-path"
+    assert parsed.path == source.path

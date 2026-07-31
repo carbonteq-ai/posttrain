@@ -14,8 +14,10 @@ from .requests import (
     EnvironmentActivation,
     EnvironmentBinding,
     EnvironmentFactory,
+    EnvironmentPackageSource,
     EnvironmentSource,
     ProjectPathActivationResource,
+    ProjectPathEnvironmentSource,
     PythonFactoryActivation,
     SamplingPolicy,
     VerifiersV1ConfigActivation,
@@ -27,10 +29,20 @@ class EnvironmentCatalogSchema(BaseModel):
 
 
 class EnvironmentSourceSchema(EnvironmentCatalogSchema):
+    kind: Literal["git"] = "git"
     package: str
     repository: str
     revision: str
     subdirectory: str | None = None
+
+
+class ProjectPathEnvironmentSourceSchema(EnvironmentCatalogSchema):
+    kind: Literal["project-path"]
+    package: str
+    path: str
+
+
+EnvironmentPackageSourceSchema = EnvironmentSourceSchema | ProjectPathEnvironmentSourceSchema
 
 
 class SamplingPolicySchema(EnvironmentCatalogSchema):
@@ -75,7 +87,7 @@ EnvironmentActivationSchema = Annotated[
 class EnvironmentBindingSchema(EnvironmentCatalogSchema):
     id: str
     category: str
-    source: EnvironmentSourceSchema
+    source: EnvironmentPackageSourceSchema
     activation: EnvironmentActivationSchema | None = None
     factory: str | None = None
     sampling: SamplingPolicySchema
@@ -115,7 +127,7 @@ def environment_catalog_decoders(
         return EnvironmentBinding(
             id=payload.id,
             category=payload.category,
-            source=EnvironmentSource(**payload.source.model_dump()),
+            source=_source_from_schema(payload.source),
             activation=activation,
             sampling=SamplingPolicy(**payload.sampling.model_dump()),
             num_tasks=payload.num_tasks,
@@ -143,6 +155,17 @@ def _activation_from_schema(
     return PythonFactoryActivation(payload.reference)
 
 
+def _source_from_schema(payload: EnvironmentPackageSourceSchema) -> EnvironmentPackageSource:
+    if isinstance(payload, ProjectPathEnvironmentSourceSchema):
+        return ProjectPathEnvironmentSource(package=payload.package, path=payload.path)
+    return EnvironmentSource(
+        package=payload.package,
+        repository=payload.repository,
+        revision=payload.revision,
+        subdirectory=payload.subdirectory,
+    )
+
+
 def _legacy_activation(
     name: str | None,
     aliases: Mapping[str, EnvironmentActivation],
@@ -167,8 +190,10 @@ __all__ = [
     "ActivationResourceSchema",
     "EnvironmentActivationSchema",
     "EnvironmentBindingSchema",
+    "EnvironmentPackageSourceSchema",
     "EnvironmentSourceSchema",
     "PythonFactoryActivationSchema",
+    "ProjectPathEnvironmentSourceSchema",
     "ProjectPathActivationResourceSchema",
     "SamplingPolicySchema",
     "VerifiersV1ConfigActivationSchema",

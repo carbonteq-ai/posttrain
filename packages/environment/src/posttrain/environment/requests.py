@@ -206,6 +206,50 @@ class EnvironmentSource:
             ):
                 raise ValueError("environment subdirectory must be a normalized relative path")
 
+    @property
+    def kind(self) -> Literal["git"]:
+        return "git"
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectPathEnvironmentSource:
+    """An installable environment package rooted below the selected project."""
+
+    package: str
+    path: str
+
+    def __post_init__(self) -> None:
+        _stable_id(self.package, "environment package")
+        normalized = PurePosixPath(self.path)
+        if (
+            not self.path
+            or "\\" in self.path
+            or normalized.is_absolute()
+            or normalized.as_posix() != self.path
+            or any(part in {"", ".", "..", ".git"} for part in normalized.parts)
+        ):
+            raise ValueError("project-path environment source must be a normalized relative path")
+
+    @property
+    def kind(self) -> Literal["project-path"]:
+        return "project-path"
+
+
+type EnvironmentPackageSource = EnvironmentSource | ProjectPathEnvironmentSource
+
+
+def environment_source_payload(source: EnvironmentPackageSource) -> dict[str, str]:
+    """Return the declared source without inventing Git metadata for a project path."""
+
+    if isinstance(source, ProjectPathEnvironmentSource):
+        return {"kind": source.kind, "path": source.path}
+    return {
+        "kind": source.kind,
+        "repository": source.repository,
+        "revision": source.revision,
+        "subdirectory": source.subdirectory or ".",
+    }
+
 
 @dataclass(frozen=True, slots=True)
 class SamplingPolicy:
@@ -233,7 +277,7 @@ class EnvironmentBinding:
 
     id: str
     category: str
-    source: EnvironmentSource
+    source: EnvironmentPackageSource
     activation: EnvironmentActivation
     sampling: SamplingPolicy
     num_tasks: int
@@ -258,7 +302,9 @@ class EnvironmentBinding:
 
     @property
     def revision(self) -> str:
-        return self.source.revision
+        if isinstance(self.source, EnvironmentSource):
+            return self.source.revision
+        return f"project-path:{self.source.path}"
 
     def activate(self) -> object:
         return self.activation.activate()
@@ -270,8 +316,11 @@ __all__ = [
     "EnvironmentBinding",
     "EnvironmentFactory",
     "EnvironmentSource",
+    "environment_source_payload",
+    "EnvironmentPackageSource",
     "PythonFactoryActivation",
     "ProjectPathActivationResource",
+    "ProjectPathEnvironmentSource",
     "SamplingPolicy",
     "VerifiersV1ConfigActivation",
 ]

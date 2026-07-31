@@ -59,7 +59,7 @@ def evaluate(
         metadata={
             **attributes,
             "environment_package": environment.source.package,
-            "environment_revision": environment.source.revision,
+            "environment_revision": environment.revision,
         },
         role="evaluation",
     )
