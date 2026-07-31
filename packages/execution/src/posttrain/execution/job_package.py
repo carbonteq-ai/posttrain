@@ -43,26 +43,41 @@ JOB_PACKAGE_WORKER_COMMAND = (
 
 @dataclass(frozen=True, slots=True)
 class EnvironmentPackageLock:
-    """One verified environment wheel built from immutable Git source."""
+    """One verified environment wheel built from an immutable source snapshot."""
 
     package: str
-    repository: str
-    revision: str
-    subdirectory: str
+    repository: str | None
+    revision: str | None
+    subdirectory: str | None
     tree_digest: str
     wheel_filename: str
     wheel_digest: str
     wheel_size_bytes: int
+    source_kind: Literal["git", "project-path"] = "git"
+    project_path: str | None = None
 
     def __post_init__(self) -> None:
         if not _IDENTITY.fullmatch(self.package):
             raise ContractError("environment package name is invalid")
-        if not self.repository.startswith("https://"):
-            raise ContractError("environment repository must use canonical HTTPS")
-        if not _COMMIT.fullmatch(self.revision):
-            raise ContractError("environment revision must be a full commit SHA")
-        if self.subdirectory != ".":
-            _relative_path(self.subdirectory, "environment subdirectory")
+        if self.source_kind == "git":
+            if not isinstance(self.repository, str) or not self.repository.startswith("https://"):
+                raise ContractError("environment repository must use canonical HTTPS")
+            if not isinstance(self.revision, str) or not _COMMIT.fullmatch(self.revision):
+                raise ContractError("environment revision must be a full commit SHA")
+            if not isinstance(self.subdirectory, str):
+                raise ContractError("environment subdirectory is required")
+            if self.subdirectory != ".":
+                _relative_path(self.subdirectory, "environment subdirectory")
+            if self.project_path is not None:
+                raise ContractError("Git environment package lock cannot name a project path")
+        elif self.source_kind == "project-path":
+            if self.repository is not None or self.revision is not None or self.subdirectory is not None:
+                raise ContractError("project-path environment package lock cannot contain Git identity")
+            if self.project_path is None:
+                raise ContractError("project-path environment package lock requires its declared path")
+            _relative_path(self.project_path, "project-path environment source")
+        else:
+            raise ContractError("environment package source kind is invalid")
         _digest(self.tree_digest, "environment tree")
         if PurePosixPath(self.wheel_filename).name != self.wheel_filename or not self.wheel_filename.endswith(".whl"):
             raise ContractError("environment wheel filename must be a portable wheel filename")
@@ -73,6 +88,7 @@ class EnvironmentPackageLock:
     def to_payload(self) -> dict[str, JsonValue]:
         return {
             "package": self.package,
+            "source_kind": self.source_kind,
             "repository": self.repository,
             "revision": self.revision,
             "subdirectory": self.subdirectory,
@@ -80,6 +96,7 @@ class EnvironmentPackageLock:
             "wheel_filename": self.wheel_filename,
             "wheel_digest": self.wheel_digest,
             "wheel_size_bytes": self.wheel_size_bytes,
+            "project_path": self.project_path,
         }
 
 
@@ -621,17 +638,25 @@ def _environment_package_lock(value: object) -> EnvironmentPackageLock:
     wheel_filename = value.get("wheel_filename")
     wheel_digest = value.get("wheel_digest")
     wheel_size_bytes = value.get("wheel_size_bytes")
+    source_kind = value.get("source_kind", "git")
+    project_path = value.get("project_path")
     if not isinstance(wheel_size_bytes, int) or isinstance(wheel_size_bytes, bool):
         raise TypeError("environment wheel size")
+    if source_kind not in {"git", "project-path"}:
+        raise TypeError("environment source kind")
+    if project_path is not None and not isinstance(project_path, str):
+        raise TypeError("environment project path")
     return EnvironmentPackageLock(
         package=_required_string(package, "environment package"),
-        repository=_required_string(repository, "environment repository"),
-        revision=_required_string(revision, "environment revision"),
-        subdirectory=_required_string(subdirectory, "environment subdirectory"),
+        repository=(None if repository is None else _required_string(repository, "environment repository")),
+        revision=(None if revision is None else _required_string(revision, "environment revision")),
+        subdirectory=(None if subdirectory is None else _required_string(subdirectory, "environment subdirectory")),
         tree_digest=_required_string(tree_digest, "environment tree digest"),
         wheel_filename=_required_string(wheel_filename, "environment wheel filename"),
         wheel_digest=_required_string(wheel_digest, "environment wheel digest"),
         wheel_size_bytes=wheel_size_bytes,
+        source_kind=source_kind,
+        project_path=project_path,
     )
 
 
