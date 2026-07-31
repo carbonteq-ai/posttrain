@@ -1234,6 +1234,8 @@ def test_environment_add_local_writes_overlay(tmp_path: Path, capsys) -> None:
 
 
 def test_job_plan_aliases_work_package_plan(tmp_path: Path, capsys) -> None:
+    from posttrain.project import Project
+
     project = tmp_path / "example"
     assert main(["init", str(project)]) == 0
     capsys.readouterr()
@@ -1261,6 +1263,7 @@ bindings:
         encoding="utf-8",
     )
     _write_exact_execution_config(project)
+    intent = Project.open(project).jobs.plan("cpu-check.yaml", job="validate")
 
     assert (
         main(
@@ -1288,6 +1291,9 @@ bindings:
         "HF_TOKEN",
     ]
     assert payload["job_id"] == "validate"
+    assert payload["job_kind"] == intent.prepared.recipe_job.kind
+    assert payload["job_definition_id"] == intent.prepared.definition.id
+    assert payload["work_package_id"] == intent.prepared.spec.work_package_id
 
 
 def test_job_plan_target_override_changes_nested_sft_target_and_identity(

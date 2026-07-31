@@ -33,6 +33,7 @@ from posttrain.execution_pack import (
     SourceSnapshotRequest,
     plan_job_pack,
 )
+from posttrain.project import JobIntent
 from posttrain.runtime_images import JOB_BAKE_FILE, cached_definition_root
 from posttrain.tracking import RunSpec
 from posttrain.work import (
@@ -281,6 +282,7 @@ def plan_job_execution(
     entry: str | None = None,
     project_packages: tuple[str, ...] | None = None,
     source_includes: tuple[str, ...] | None = None,
+    intent: JobIntent | None = None,
 ) -> PlannedJobExecution:
     """Resolve and hash one job without materializing or submitting it."""
 
@@ -296,6 +298,7 @@ def plan_job_execution(
         entry=entry,
         project_packages=project_packages,
         source_includes=source_includes,
+        intent=intent,
     )
     return PlannedJobExecution(
         package=package,
@@ -323,9 +326,19 @@ def plan_job_package(
     entry: str | None = None,
     project_packages: tuple[str, ...] | None = None,
     source_includes: tuple[str, ...] | None = None,
+    intent: JobIntent | None = None,
 ) -> PlannedJobPackage:
     """Resolve capsule bytes without requiring a provider or worker storage."""
 
+    if intent is not None:
+        if intent.job_id != job:
+            raise ContractError("public job intent does not match the requested job")
+        return _plan_job_package_from_intent(
+            intent,
+            overrides=overrides.as_execution_overrides(),
+            project_packages=project_packages,
+            source_includes=source_includes,
+        )
     return _plan_job_package(
         state,
         path,
@@ -391,7 +404,6 @@ def _plan_job_package(
     source_includes: tuple[str, ...] | None,
 ) -> PlannedJobPackage:
     layout, catalog, work_package_path, package = load_work_package_bundle(state, path)
-    local_config = load_local_execution_config(layout)
     context = runtime_context(
         layout=layout,
         catalog=catalog,
@@ -401,6 +413,37 @@ def _plan_job_package(
         activate=False,
     )
     prepared = prepare_work_package_job(context, package, job)
+    return _plan_job_package_from_intent(
+        JobIntent(
+            layout=layout,
+            catalog=catalog,
+            work_package_path=work_package_path,
+            work_package=package,
+            job_id=job,
+            context=context,
+            prepared=prepared,
+        ),
+        overrides=overrides,
+        project_packages=project_packages,
+        source_includes=source_includes,
+    )
+
+
+def _plan_job_package_from_intent(
+    intent: JobIntent,
+    *,
+    overrides: ExecutionOverrides,
+    project_packages: tuple[str, ...] | None,
+    source_includes: tuple[str, ...] | None,
+) -> PlannedJobPackage:
+    layout = intent.layout
+    local_config = load_local_execution_config(layout)
+    catalog = intent.catalog
+    work_package_path = intent.work_package_path
+    package = intent.work_package
+    context = intent.context
+    job = intent.job_id
+    prepared = intent.prepared
     profile = _kind_profile(prepared.recipe_job.kind)
     inferred_variant = _runtime_variant_from_backend(prepared, profile)
     settings = resolve_execution_settings(

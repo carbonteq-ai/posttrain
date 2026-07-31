@@ -24,6 +24,7 @@ members = [
     "posttrain-jobs",
     "posttrain-lab",
     "posttrain-observatory",
+    "posttrain-project",
     "posttrain-release",
     "posttrain-runtime",
     "posttrain-runtime-images",
@@ -2502,6 +2503,7 @@ dependencies = [
     { name = "posttrain-execution-local" },
     { name = "posttrain-execution-pack" },
     { name = "posttrain-jobs" },
+    { name = "posttrain-project" },
     { name = "posttrain-runtime-images" },
     { name = "posttrain-tracking" },
     { name = "posttrain-work" },
@@ -2543,6 +2545,7 @@ requires-dist = [
     { name = "posttrain-execution-pack", editable = "packages/execution-pack" },
     { name = "posttrain-jobs", editable = "packages/jobs" },
     { name = "posttrain-observatory", marker = "extra == 'observatory'", editable = "apps/observatory" },
+    { name = "posttrain-project", editable = "packages/project" },
     { name = "posttrain-runtime-images", editable = "packages/runtime-images" },
     { name = "posttrain-serve", extras = ["vllm"], marker = "extra == 'vllm'", editable = "packages/serve" },
     { name = "posttrain-tracking", editable = "packages/tracking" },
@@ -2845,6 +2848,31 @@ requires-dist = [
     { name = "posttrain-tracking-wandb", editable = "packages/tracking-wandb" },
     { name = "pydantic", specifier = ">=2.12,<3" },
     { name = "uvicorn", specifier = ">=0.51,<0.52" },
+]
+
+[[package]]
+name = "posttrain-project"
+version = "0.2.5"
+source = { editable = "packages/project" }
+dependencies = [
+    { name = "posttrain-catalog" },
+    { name = "posttrain-common" },
+    { name = "posttrain-execution" },
+    { name = "posttrain-execution-pack" },
+    { name = "posttrain-jobs" },
+    { name = "posttrain-tracking" },
+    { name = "posttrain-work" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "posttrain-catalog", editable = "packages/catalog" },
+    { name = "posttrain-common", editable = "packages/common" },
+    { name = "posttrain-execution", editable = "packages/execution" },
+    { name = "posttrain-execution-pack", editable = "packages/execution-pack" },
+    { name = "posttrain-jobs", editable = "packages/jobs" },
+    { name = "posttrain-tracking", editable = "packages/tracking" },
+    { name = "posttrain-work", editable = "packages/work" },
 ]
 
 [[package]]

@@ -42,7 +42,17 @@ instead of transcription.
       environment ownership, extension, registry, and overlay decisions revised.
 - [x] (2026-08-01) Follow-up review added a frozen installed-family lock, loud
       absence handling, and a versioned overlay migration/exclusion contract.
-- [ ] Milestone 1: public `posttrain.project` service; CLI delegates.
+- [ ] Milestone 1: public `posttrain.project` service; CLI delegates
+      (in progress: provider-free `Project.open()` / `jobs.plan()` and the
+      `work-package plan` CLI seam).
+- [x] (2026-08-01) Added installable `posttrain-project` with
+      `Project.open()` / `Project.discover()` and a provider-free `JobIntent`;
+      migrated `work-package plan` and its `job plan` alias to obtain static
+      job meaning through that service. Focused tests, pyright, and import
+      boundaries pass.
+- [ ] Milestone 1 remaining: move execution-setting, pack-plan, and other
+      command-family application logic out of `apps/cli` while preserving the
+      current public intent seam.
 - [ ] Milestone 2: dedicated `posttrain.environment` contracts and
       deterministic catalog-family assembly.
 - [ ] Milestone 3: replace the host-factory hook with a public registration
@@ -64,6 +74,12 @@ instead of transcription.
   Evidence: the in-progress `remote-evaluation` family currently requires
   edits across multiple literal lists; deterministic entry-point composition
   removes those edits without making import order part of catalog identity.
+- Observation: the existing image-plan adapter needs local execution
+  configuration even though static job meaning does not.
+  Evidence: the first adapter extraction raised `NameError: local_config is
+  not defined`; restoring it inside the adapter kept `JobIntent` free of
+  provider, registry, and credential state while the CLI regression suite
+  passed.
 
 ## Decision Log
 
@@ -98,12 +114,23 @@ instead of transcription.
   should construct and validate execution runtime so policy is not inverted or
   privately duplicated.
   Date/Author: 2026-08-01 / architecture review.
+- Decision: begin the CLI migration with a provider-free `JobIntent` rather
+  than exposing image registry, credentials, or worker bindings through
+  `Project.jobs.plan`.
+  Rationale: project opening and static job meaning are reusable by a
+  controller or notebook; image materialization and provider submission remain
+  separate phases to migrate within this milestone.
+  Date/Author: 2026-08-01 / implementation.
 
 ## Outcomes & Retrospective
 
 - Planning review outcome: the application service, environment domain,
   extension API, and catalog discovery now have separate owners. Implementation
   outcomes remain pending.
+- First implementation outcome: `posttrain.project` now opens a project and
+  statically plans one enabled job without a CLI state object, image registry,
+  provider, or credentials. The current CLI routes its plan command through
+  that service and keeps OCI-specific planning as a compatibility adapter.
 
 ## Context and Orientation
 

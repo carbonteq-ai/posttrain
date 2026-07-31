@@ -10,6 +10,7 @@ from typing import Annotated
 import typer
 from posttrain.common import ContractError
 from posttrain.execution import compare_job_packages, unchanged_fields
+from posttrain.project import Project
 from posttrain.work import resolve_work_package, run_work_package_job, validate_work_package
 
 from ..context import CliState
@@ -101,18 +102,19 @@ def plan_work_package_cmd(
     project_packages: tuple[str, ...] | None = None,
     source_includes: tuple[str, ...] | None = None,
 ) -> PlannedJobExecution:
-    _layout, catalog, _resolved_path, package = load_work_package_bundle(state, path)
-    job = resolve_job_id(catalog, package, job)
+    project = Project.open(state.project_root) if state.project_root is not None else Project.discover(Path.cwd())
+    intent = project.jobs.plan(path, job=job, host=host, entry=entry)
     planned = plan_job_execution(
         state,
         path,
-        job=job,
+        job=intent.job_id,
         overrides=overrides,
         run_id=run_id,
         host=host,
         entry=entry,
         project_packages=project_packages,
         source_includes=source_includes,
+        intent=intent,
     )
     payload = _execution_plan_payload(planned)
     emit(
