@@ -138,6 +138,7 @@ class ExecutionAdmissionService:
                     existing.get("plan") != encoded_plan
                     or existing.get("evidence_source") != encoded_evidence
                     or existing.get("provider_binding") != provider_binding
+                    or existing.get("control_store_uri") != control_store_uri
                 ):
                     raise ContractError(f"admission run {run_id} already names a different execution")
             else:
