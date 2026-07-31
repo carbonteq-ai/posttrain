@@ -260,6 +260,7 @@ class CatalogTests(unittest.TestCase):
                 CatalogRef("target", target.id),
             ),
         )
+        self.assertEqual(catalog.refs_for_values((target,)), (CatalogRef("target", target.id),))
 
     def test_json_loader_builds_model_target_and_inference_selections(self) -> None:
         revision = "a" * 40

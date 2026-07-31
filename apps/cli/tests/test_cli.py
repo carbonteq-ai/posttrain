@@ -1332,7 +1332,7 @@ bindings:
 
     from posttrain_cli.context import CliState
     from posttrain_cli.execution_config import PackageOverrides
-    from posttrain_cli.execution_planning import plan_job_package
+    from posttrain_cli.execution_planning import _project_config_bundle, plan_job_package
 
     baseline = plan_job_package(
         CliState(project_root=project),
@@ -1349,6 +1349,36 @@ bindings:
     assert baseline.target.id == "targets/local-cuda-8gb"
     assert overridden.target.id == "targets/remote-rtx4090-24gb"
     assert overridden.pack_plan.plan_key != baseline.pack_plan.plan_key
+    selected_config = _project_config_bundle(
+        overridden.layout,
+        overridden.work_package_path,
+        overridden.prepared,
+        overridden.catalog,
+    )
+    catalog_dir = project / ".posttrain" / "catalog"
+    (catalog_dir / "unrelated.yaml").write_text(
+        "target:\n  targets/unrelated-8gb:\n    revision: '1'\n    device_class: nvidia-cuda\n    memory_gb: 8\n",
+        encoding="utf-8",
+    )
+    layer_path = catalog_dir / "layer.yaml"
+    layer_path.write_text(
+        layer_path.read_text(encoding="utf-8").replace("  - targets.yaml\n", "  - targets.yaml\n  - unrelated.yaml\n"),
+        encoding="utf-8",
+    )
+    assert _project_config_bundle(
+        overridden.layout,
+        overridden.work_package_path,
+        overridden.prepared,
+        overridden.catalog,
+    ).files == selected_config.files
+    targets_path = catalog_dir / "targets.yaml"
+    targets_path.write_text(targets_path.read_text(encoding="utf-8").replace("memory_gb: 24", "memory_gb: 48"), encoding="utf-8")
+    assert _project_config_bundle(
+        overridden.layout,
+        overridden.work_package_path,
+        overridden.prepared,
+        overridden.catalog,
+    ).files != selected_config.files
     assert not (project / ".posttrain" / "state" / "pack").exists()
 
 

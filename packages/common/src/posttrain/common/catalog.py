@@ -171,6 +171,18 @@ class Catalog:
                     pending.append(nested)
         return tuple(sorted(seen))
 
+    def refs_for_values(self, values: Iterable[object]) -> tuple[CatalogRef, ...]:
+        """Return catalog references for resolved selection object identities."""
+
+        known = {id(self.resolve(ref).value): ref for ref in self.list()}
+        resolved = {
+            ref
+            for value in values
+            for nested in _walk_values(value)
+            if (ref := known.get(id(nested))) is not None
+        }
+        return tuple(sorted(resolved))
+
 
 def _load_layer(
     source: CatalogSource,

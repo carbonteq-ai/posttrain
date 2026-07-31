@@ -7,8 +7,9 @@ import uuid
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+import yaml
 from posttrain.catalog import FamilyRegistryLock, ProjectLayout
-from posttrain.common import ContractError, ExecutionTarget
+from posttrain.common import Catalog, CatalogRef, ContractError, ExecutionTarget
 from posttrain.execution import (
     JOB_PACKAGE_WORKER_COMMAND,
     ExecutionMount,
@@ -96,6 +97,7 @@ class PlannedJobPackage:
     """Read-only immutable capsule plan, independent of launch infrastructure."""
 
     layout: ProjectLayout
+    catalog: Catalog
     work_package_path: Path
     prepared: PreparedWorkPackageJob
     local_config: LocalExecutionConfig
@@ -205,6 +207,8 @@ class PlannedJobPackage:
                 project_config=_project_config_bundle(
                     self.layout,
                     self.work_package_path,
+                    self.prepared,
+                    self.catalog,
                 ),
                 activation_resource_sources=activation_resource_sources(
                     environment_bindings(self.prepared.seats),
@@ -575,6 +579,7 @@ def _plan_job_package_from_intent(
         raise ContractError("execution runtime profile could not be resolved")
     return PlannedJobPackage(
         layout=layout,
+        catalog=catalog,
         work_package_path=work_package_path,
         prepared=prepared,
         local_config=local_config,
@@ -685,15 +690,61 @@ def _bake_file(registry: RegistryBinding) -> Path:
 def _project_config_bundle(
     layout: ProjectLayout,
     work_package_path: Path,
+    prepared: PreparedWorkPackageJob,
+    catalog: Catalog,
 ) -> ProjectConfigBundle:
     selected: set[Path] = {layout.manifest, work_package_path}
     if layout.project_brief is not None:
         selected.add(layout.project_brief)
+    files = {_project_relative(layout, path): path.read_bytes() for path in sorted(selected)}
+    roots = {seat.ref for seat in prepared.resolved.seats.values() if seat.ref is not None}
+    roots.update(catalog.refs_for_values(prepared.seats.values()))
+    recipe = prepared.resolved.snapshot.get("recipe")
+    if isinstance(recipe, dict) and isinstance((ref := recipe.get("ref")), dict):
+        family, identifier = ref.get("family"), ref.get("id")
+        if isinstance(family, str) and isinstance(identifier, str):
+            roots.add(CatalogRef(family, identifier))
+    closure = catalog.transitive_refs(roots)
+    selected_by_overlay: dict[str, set[CatalogRef]] = {}
+    for ref in closure:
+        resolved = catalog.resolve(ref)
+        if resolved.source_layer == "overlay":
+            assert resolved.overlay_id is not None
+            selected_by_overlay.setdefault(resolved.overlay_id, set()).add(ref)
     for overlay in layout.catalog_overlays:
         if not overlay.is_dir():
             raise ContractError(f"project catalog overlay is missing: {overlay}")
-        selected.update(path for path in overlay.rglob("*") if path.is_file())
-    files = {_project_relative(layout, path): path.read_bytes() for path in sorted(selected)}
+        manifest_path = overlay / "layer.yaml"
+        manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+        if not isinstance(manifest, dict) or not isinstance((layer_id := manifest.get("layer_id")), str):
+            raise ContractError(f"project catalog overlay has an invalid layer manifest: {manifest_path}")
+        selected_refs = selected_by_overlay.get(layer_id, set())
+        generated_files: list[str] = []
+        for filename in manifest.get("files", []):
+            if not isinstance(filename, str):
+                raise ContractError(f"project catalog overlay has an invalid file name: {manifest_path}")
+            source_path = overlay / filename
+            document = yaml.safe_load(source_path.read_text(encoding="utf-8"))
+            if not isinstance(document, dict):
+                raise ContractError(f"project catalog document is invalid: {source_path}")
+            retained = {
+                family: {identifier: value for identifier, value in entries.items() if any(
+                    getattr(ref, "family", None) == family and getattr(ref, "id", None) == identifier
+                    for ref in selected_refs
+                )}
+                for family, entries in document.items()
+                if isinstance(family, str) and isinstance(entries, dict)
+            }
+            retained = {family: entries for family, entries in retained.items() if entries}
+            if retained:
+                generated_files.append(filename)
+                files[_project_relative(layout, source_path)] = yaml.safe_dump(
+                    retained, sort_keys=True, allow_unicode=True
+                ).encode()
+        files[_project_relative(layout, manifest_path)] = yaml.safe_dump(
+            {"schema_version": 1, "layer_id": layer_id, "files": generated_files},
+            sort_keys=False,
+        ).encode()
     return ProjectConfigBundle(
         files=files,
         selected_work_package=_project_relative(layout, work_package_path),
