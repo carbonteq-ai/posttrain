@@ -232,6 +232,7 @@ def run_work_package_cmd(
             prepared_submission.provider_plan,
             evidence_source=evidence_source_for_project(planned.package.layout),
             initial_service=prepared_submission.service,
+            control_store_uri=planned.package.layout.state.as_uri(),
         )
         submission = admitted.submission
         admission_entry = admitted.entry
