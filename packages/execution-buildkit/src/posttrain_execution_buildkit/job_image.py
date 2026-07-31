@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -15,6 +16,7 @@ from posttrain.common import ContractError, JsonValue
 from posttrain.execution import RuntimeImageRef
 from posttrain.execution_pack import (
     JobImagePublicationRequest,
+    LocalPublishedJobImage,
     PublishedJobImage,
 )
 
@@ -122,6 +124,50 @@ class BuildKitJobImagePublisher:
             return _published(receipt, cache_hit=False)
         finally:
             metadata.unlink(missing_ok=True)
+
+    def publish_local(self, request: JobImagePublicationRequest) -> LocalPublishedJobImage:
+        """Build the verified actual-job image into an OCI layout, never a registry."""
+
+        layout = self._receipt_root / "local-layouts" / request.publication_key
+        receipt = self._receipt_root / f"{request.publication_key}.local.json"
+        tag = f"posttrain-local:{request.publication_key}"
+        if layout.joinpath("index.json").is_file() and receipt.is_file():
+            return LocalPublishedJobImage(request.package_key, request.publication_key, layout, tag, receipt, True)
+        self._check_definition(request)
+        self._gateway.invoke(self._smoke_arguments(request))
+        layout.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        temporary = layout.parent / f".{request.publication_key}-{uuid.uuid4().hex}"
+        try:
+            self._gateway.invoke(
+                [
+                    "bake",
+                    "--file",
+                    str(self._bake_file),
+                    *self._entitlement_arguments(request),
+                    *self._builder_arguments(),
+                    "--progress",
+                    "plain",
+                    *self._context_arguments(),
+                    "--set",
+                    f"{_PUBLISHED_TARGET}.output=type=oci,dest={temporary}",
+                    *self._variable_arguments(request),
+                    _PUBLISHED_TARGET,
+                ]
+            )
+            if not temporary.joinpath("index.json").is_file():
+                raise ContractError("local OCI publication did not produce index.json")
+            if layout.exists():
+                shutil.rmtree(layout)
+            temporary.replace(layout)
+            receipt.write_text(
+                json.dumps({"package_key": request.package_key, "publication_key": request.publication_key, "layout": str(layout), "tag": tag}, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            receipt.chmod(0o600)
+            return LocalPublishedJobImage(request.package_key, request.publication_key, layout, tag, receipt, False)
+        finally:
+            if temporary.exists():
+                shutil.rmtree(temporary)
 
     def _check_definition(self, request: JobImagePublicationRequest) -> None:
         for target in (_PUBLISHED_TARGET, _SMOKE_TARGET):

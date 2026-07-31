@@ -26,6 +26,11 @@ class FakeBuildx:
     def invoke(self, arguments):
         call = tuple(arguments)
         self.calls.append(call)
+        for argument in call:
+            if isinstance(argument, str) and "output=type=oci,dest=" in argument:
+                destination = Path(argument.rsplit("dest=", 1)[1])
+                destination.mkdir(parents=True)
+                (destination / "index.json").write_text("{}\n", encoding="utf-8")
         if "--metadata-file" in call:
             path = Path(call[call.index("--metadata-file") + 1])
             path.write_text(
@@ -93,6 +98,20 @@ def _request(tmp_path: Path) -> JobImagePublicationRequest:
             "registry.lan/carbonteq/posttrain-job",
         ),
     )
+
+
+def test_publishes_a_verified_local_oci_layout(tmp_path: Path) -> None:
+    publisher = BuildKitJobImagePublisher(
+        bake_file=_definition(tmp_path),
+        receipt_root=(tmp_path / "receipts").resolve(),
+        gateway=FakeBuildx(),
+    )
+
+    result = publisher.publish_local(_request(tmp_path))
+
+    assert result.layout.joinpath("index.json").is_file()
+    assert result.receipt.is_file()
+    assert result.tag.startswith("posttrain-local:")
 
 
 def test_publisher_checks_smokes_pushes_verifies_and_reuses_receipt(
