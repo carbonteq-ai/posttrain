@@ -7,14 +7,20 @@ import json
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from pathlib import Path
 from types import MappingProxyType
 from typing import Literal, cast
 
 from posttrain.common import ContractError, JsonValue
 from posttrain.data import DatasetLoadPlan
-from posttrain.environment import EnvironmentBinding, PythonFactoryActivation
+from posttrain.environment import (
+    EnvironmentBinding,
+    ProjectPathActivationResource,
+    PythonFactoryActivation,
+    VerifiersV1ConfigActivation,
+)
 from posttrain.eval import EvaluationPlan
-from posttrain.execution import EnvironmentActivationLock, RuntimeImageRef
+from posttrain.execution import EnvironmentActivationLock, RuntimeImageRef, StagedResourceLock
 from posttrain.work import JobKind, PreparedWorkPackageJob, ResolvedSeats
 
 from .contracts import DatasetPackRequest, EnvironmentWheelRequest, GitSourceRequest
@@ -304,6 +310,7 @@ def plan_job_pack(
     runtime_variant: str | None = None,
     worker_contract_version: str = "1",
     family_registry_lock: Mapping[str, object] | None = None,
+    project_root: Path | None = None,
 ) -> JobPackPlan:
     """Derive an immutable plan without importing, fetching, building, or writing."""
 
@@ -314,7 +321,7 @@ def plan_job_pack(
         if isinstance(value, DatasetLoadPlan)
     )
     git_sources, wheels = _environment_source_requests(bindings)
-    activations = tuple(_activation_lock(binding) for binding in bindings)
+    activations = tuple(_activation_lock(binding, project_root=project_root) for binding in bindings)
     resolved_inputs_digest = _digest(dict(prepared.spec.resolved_inputs))
     profile = _KIND_PROFILES.get(prepared.recipe_job.kind)
     if profile is None:
@@ -411,9 +418,54 @@ def _environment_source_requests(
     return sources, wheels
 
 
-def _activation_lock(binding: EnvironmentBinding) -> EnvironmentActivationLock:
+def activation_resource_sources(
+    bindings: tuple[EnvironmentBinding, ...],
+    *,
+    project_root: Path,
+) -> Mapping[tuple[str, str], Path]:
+    """Resolve local files named by selected declarative environment resources."""
+
+    root = project_root.resolve()
+    sources: dict[tuple[str, str], Path] = {}
+    for binding in bindings:
+        activation = binding.activation
+        if not isinstance(activation, VerifiersV1ConfigActivation):
+            continue
+        for name, resource in activation.resources.items():
+            if not isinstance(resource, ProjectPathActivationResource):
+                raise ContractError(f"environment {binding.id!r} has an unsupported activation resource")
+            source = _project_resource_path(root, resource.path, binding.id, name)
+            sources[(binding.id, name)] = source
+        _reject_undeclared_project_paths(binding, root, sources)
+    return MappingProxyType(sources)
+
+
+def _activation_lock(
+    binding: EnvironmentBinding,
+    *,
+    project_root: Path | None,
+) -> EnvironmentActivationLock:
     reference = binding.activation.reference if isinstance(binding.activation, PythonFactoryActivation) else None
     config = dict(binding.activation.config) if not isinstance(binding.activation, PythonFactoryActivation) else None
+    resources: Mapping[str, StagedResourceLock] = {}
+    if isinstance(binding.activation, VerifiersV1ConfigActivation):
+        if binding.activation.resources and project_root is None:
+            raise ContractError(
+                "planning an activation with project resources requires the project root; "
+                "open the project before planning the job"
+            )
+        source_paths = activation_resource_sources((binding,), project_root=project_root) if project_root else {}
+        resources = {
+            name: StagedResourceLock(
+                name=name,
+                source_path=binding.activation.resources[name].path,
+                staged_path=f"environment-resources/{binding.id}/{name}",
+                digest=_file_digest(source),
+                size_bytes=source.stat().st_size,
+            )
+            for (environment_id, name), source in source_paths.items()
+            if environment_id == binding.id
+        }
     return EnvironmentActivationLock(
         environment_id=binding.id,
         package=binding.source.package,
@@ -421,7 +473,54 @@ def _activation_lock(binding: EnvironmentBinding) -> EnvironmentActivationLock:
         digest=binding.activation.digest,
         reference=reference,
         config=config,
+        resources=resources,
     )
+
+
+def _project_resource_path(root: Path, relative: str, environment_id: str, name: str) -> Path:
+    source = (root / relative).resolve()
+    if not source.is_relative_to(root) or not source.is_file() or source.is_symlink():
+        raise ContractError(
+            f"environment {environment_id!r} resource {name!r} must name a regular file under the project root: {relative}"
+        )
+    return source
+
+
+def _reject_undeclared_project_paths(
+    binding: EnvironmentBinding,
+    root: Path,
+    declared: Mapping[tuple[str, str], Path],
+) -> None:
+    activation = binding.activation
+    if not isinstance(activation, VerifiersV1ConfigActivation):
+        return
+    declared_paths = set(declared.values())
+    for value in _json_strings(activation.config):
+        candidate = (root / value).resolve()
+        if candidate in declared_paths or not candidate.is_relative_to(root) or not candidate.is_file():
+            continue
+        raise ContractError(
+            f"environment {binding.id!r} activation references project file {value!r} directly; "
+            "declare it under activation.resources and use { $resource: NAME } in the config"
+        )
+
+
+def _json_strings(value: object) -> tuple[str, ...]:
+    if isinstance(value, str):
+        return (value,)
+    if isinstance(value, Mapping):
+        return tuple(item for child in value.values() for item in _json_strings(child))
+    if isinstance(value, (tuple, list)):
+        return tuple(item for child in value for item in _json_strings(child))
+    return ()
+
+
+def _file_digest(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _digest(payload: Mapping[str, JsonValue]) -> str:

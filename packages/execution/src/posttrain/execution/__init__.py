@@ -47,6 +47,7 @@ from .job_package import (
     EnvironmentPackageLock,
     JobPackageManifest,
     RuntimeDependencyLock,
+    StagedResourceLock,
 )
 from .job_package_diff import (
     ChangeKind,
@@ -124,6 +125,7 @@ __all__ = [
     "JOB_PACKAGE_WORKER_COMMAND",
     "JobPackageManifest",
     "RuntimeDependencyLock",
+    "StagedResourceLock",
     "EnvironmentActivationLock",
     "EnvironmentPackageLock",
     "DatasetPackageLock",

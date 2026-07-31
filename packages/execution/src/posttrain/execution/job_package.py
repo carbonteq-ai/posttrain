@@ -6,7 +6,7 @@ import hashlib
 import json
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 from types import MappingProxyType
 from typing import Literal, cast
@@ -84,6 +84,52 @@ class EnvironmentPackageLock:
 
 
 @dataclass(frozen=True, slots=True)
+class StagedResourceLock:
+    """One regular activation resource copied into an immutable job package."""
+
+    name: str
+    source_path: str
+    staged_path: str
+    digest: str
+    size_bytes: int
+
+    def __post_init__(self) -> None:
+        if not _IDENTITY.fullmatch(self.name):
+            raise ContractError("activation resource name is invalid")
+        source = PurePosixPath(self.source_path)
+        if (
+            not self.source_path
+            or "\\" in self.source_path
+            or source.is_absolute()
+            or source.as_posix() != self.source_path
+            or any(part in {"", ".", ".."} for part in source.parts)
+        ):
+            raise ContractError("activation resource source path is invalid")
+        path = PurePosixPath(self.staged_path)
+        if (
+            not self.staged_path
+            or "\\" in self.staged_path
+            or path.is_absolute()
+            or path.as_posix() != self.staged_path
+            or any(part in {"", ".", ".."} for part in path.parts)
+            or not path.is_relative_to(PurePosixPath("environment-resources"))
+        ):
+            raise ContractError("activation resource staged path is invalid")
+        _digest(self.digest, "activation resource")
+        if self.size_bytes < 0:
+            raise ContractError("activation resource size cannot be negative")
+
+    def to_payload(self) -> dict[str, JsonValue]:
+        return {
+            "name": self.name,
+            "source_path": self.source_path,
+            "staged_path": self.staged_path,
+            "digest": self.digest,
+            "size_bytes": self.size_bytes,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class EnvironmentActivationLock:
     """One selected environment binding backed by an installed package."""
 
@@ -93,6 +139,7 @@ class EnvironmentActivationLock:
     digest: str
     reference: str | None = None
     config: Mapping[str, JsonValue] | None = None
+    resources: Mapping[str, StagedResourceLock] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not _IDENTITY.fullmatch(self.environment_id):
@@ -122,6 +169,12 @@ class EnvironmentActivationLock:
             raise ContractError("environment factory ref must be an import reference such as module:callable")
         if self.kind == "python-factory" and self.config is not None:
             raise ContractError("Python factory activation cannot include config")
+        resources = dict(self.resources)
+        if any(name != resource.name for name, resource in resources.items()):
+            raise ContractError("activation resource mapping names must match their locks")
+        if len({resource.staged_path for resource in resources.values()}) != len(resources):
+            raise ContractError("activation resources must have distinct staged paths")
+        object.__setattr__(self, "resources", MappingProxyType(dict(sorted(resources.items()))))
         activation_payload: dict[str, JsonValue] = {"kind": self.kind}
         if self.kind == "python-factory":
             activation_payload["reference"] = self.reference
@@ -130,6 +183,14 @@ class EnvironmentActivationLock:
                 JsonValue,
                 _thaw_json(self.config or {}),
             )
+            if self.resources:
+                activation_payload["resources"] = cast(
+                    JsonValue,
+                {
+                    name: {"source": {"kind": "project-path", "path": resource.source_path}}
+                    for name, resource in self.resources.items()
+                },
+                )
         observed = hashlib.sha256(_json_bytes(activation_payload, "environment activation")).hexdigest()
         if self.digest != observed:
             raise ContractError("environment activation digest does not match its payload")
@@ -142,6 +203,7 @@ class EnvironmentActivationLock:
             "digest": self.digest,
             "reference": self.reference,
             "config": (None if self.config is None else cast(JsonValue, _thaw_json(self.config))),
+            "resources": {name: resource.to_payload() for name, resource in self.resources.items()},
         }
 
 
@@ -575,12 +637,15 @@ def _environment_activation_lock(value: object) -> EnvironmentActivationLock:
     kind = value.get("kind")
     reference = value.get("reference")
     config = value.get("config")
+    resources = value.get("resources", {})
     if kind not in {"verifiers-config", "python-factory"}:
         raise TypeError("environment activation kind")
     if reference is not None and not isinstance(reference, str):
         raise TypeError("environment activation reference")
     if config is not None and not isinstance(config, dict):
         raise TypeError("environment activation config")
+    if not isinstance(resources, dict):
+        raise TypeError("environment activation resources")
     return EnvironmentActivationLock(
         environment_id=_required_string(value.get("environment_id"), "environment activation id"),
         package=_required_string(value.get("package"), "environment activation package"),
@@ -588,6 +653,25 @@ def _environment_activation_lock(value: object) -> EnvironmentActivationLock:
         digest=_required_string(value.get("digest"), "environment activation digest"),
         reference=reference,
         config=config,
+        resources={
+            _required_string(name, "environment activation resource name"): _staged_resource_lock(resource)
+            for name, resource in resources.items()
+        },
+    )
+
+
+def _staged_resource_lock(value: object) -> StagedResourceLock:
+    if not isinstance(value, dict):
+        raise TypeError("activation resource lock")
+    size_bytes = value.get("size_bytes")
+    if not isinstance(size_bytes, int) or isinstance(size_bytes, bool):
+        raise TypeError("activation resource size")
+    return StagedResourceLock(
+        name=_required_string(value.get("name"), "activation resource name"),
+        source_path=_required_string(value.get("source_path"), "activation resource source path"),
+        staged_path=_required_string(value.get("staged_path"), "activation resource staged path"),
+        digest=_required_string(value.get("digest"), "activation resource digest"),
+        size_bytes=size_bytes,
     )
 
 

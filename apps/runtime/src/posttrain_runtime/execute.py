@@ -34,7 +34,7 @@ from posttrain.data import (
     DatasetMaterialization,
     load_materialized_dataset,
 )
-from posttrain.environment import EnvironmentBinding
+from posttrain.environment import EnvironmentBinding, VerifiersV1ConfigActivation
 from posttrain.eval import EvaluationPlan
 from posttrain.execution import (
     EXECUTION_LAUNCH_ENVIRONMENT,
@@ -427,6 +427,7 @@ def _verify_package(path: Path) -> _VerifiedPackage:
         raise ContractError("packaged project configuration differs from its manifest digest")
 
     _verify_environment_wheels(root, manifest)
+    _verify_activation_resources(root, manifest)
     _verify_backend_runtime(root, manifest)
     datasets = _verify_datasets(root, manifest)
     return _VerifiedPackage(
@@ -624,6 +625,13 @@ def _configure_runtime(
                     examples=examples,
                     created=False,
                 ),
+            )
+        if isinstance(value, EnvironmentBinding):
+            return _resolve_environment_resources(value, package)
+        if isinstance(value, EvaluationPlan):
+            return replace(
+                value,
+                environments=tuple(_resolve_environment_resources(item, package) for item in value.environments),
             )
         if upstream_resolver is not None:
             return upstream_resolver(seat)
@@ -865,6 +873,88 @@ def _verify_environment_wheels(
         contents = path.read_bytes()
         if len(contents) != lock.wheel_size_bytes or _bytes_digest(contents) != lock.wheel_digest:
             raise ContractError(f"environment wheel differs from its lock: {lock.package}")
+
+
+def _verify_activation_resources(root: Path, manifest: JobPackageManifest) -> None:
+    expected = {
+        resource.staged_path: resource
+        for activation in manifest.environment_activations
+        for resource in activation.resources.values()
+    }
+    resource_root = root / "environment-resources"
+    if not expected and not resource_root.exists():
+        return
+    if not resource_root.is_dir() or resource_root.is_symlink():
+        raise ContractError("job package activation resource directory is missing")
+    observed: set[str] = set()
+    for path in resource_root.rglob("*"):
+        if path.is_symlink() or (not path.is_dir() and not path.is_file()):
+            raise ContractError("job package activation resources contain a symlink or special file")
+        if path.is_file():
+            observed.add(path.relative_to(root).as_posix())
+    if observed != set(expected):
+        raise ContractError("job package activation resources differ from the manifest")
+    for staged_path, resource in expected.items():
+        path = _package_path(
+            root,
+            staged_path,
+            f"activation resource {resource.name}",
+            prefix="environment-resources",
+        )
+        contents = path.read_bytes()
+        if len(contents) != resource.size_bytes or _bytes_digest(contents) != resource.digest:
+            raise ContractError(f"activation resource differs from its lock: {resource.name}")
+
+
+def _resolve_environment_resources(
+    binding: EnvironmentBinding,
+    package: _VerifiedPackage,
+) -> EnvironmentBinding:
+    activation = binding.activation
+    if not isinstance(activation, VerifiersV1ConfigActivation):
+        return binding
+    locks = {item.environment_id: item for item in package.manifest.environment_activations}
+    try:
+        lock = locks[binding.id]
+    except KeyError as error:
+        raise ContractError(f"job package has no activation lock for environment {binding.id!r}") from error
+    resolved = _resolve_activation_value(activation.config, root=package.root, resources=lock.resources)
+    if not isinstance(resolved, Mapping):
+        raise AssertionError("environment activation config must remain an object")
+    return replace(
+        binding,
+        activation=VerifiersV1ConfigActivation(cast(Mapping[str, JsonValue], resolved)),
+    )
+
+
+def _resolve_activation_value(
+    value: object,
+    *,
+    root: Path,
+    resources: Mapping[str, object],
+) -> object:
+    if isinstance(value, Mapping):
+        if "$resource" in value:
+            if set(value) != {"$resource"} or not isinstance(value["$resource"], str):
+                raise ContractError("activation resource references must be exactly { $resource: NAME }")
+            name = value["$resource"]
+            try:
+                resource = resources[name]
+            except KeyError as error:
+                raise ContractError(f"activation references undeclared resource {name!r}") from error
+            staged_path = getattr(resource, "staged_path", None)
+            if not isinstance(staged_path, str):
+                raise ContractError(f"activation resource lock is invalid: {name}")
+            return str(_package_path(root, staged_path, f"activation resource {name}", prefix="environment-resources"))
+        return {
+            str(key): _resolve_activation_value(child, root=root, resources=resources)
+            for key, child in value.items()
+        }
+    if isinstance(value, list):
+        return [_resolve_activation_value(child, root=root, resources=resources) for child in value]
+    if isinstance(value, tuple):
+        return tuple(_resolve_activation_value(child, root=root, resources=resources) for child in value)
+    return value
 
 
 def _verify_datasets(

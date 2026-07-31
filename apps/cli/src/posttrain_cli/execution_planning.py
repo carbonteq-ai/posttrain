@@ -31,6 +31,8 @@ from posttrain.execution_pack import (
     ProjectConfigBundle,
     PublishedJobImage,
     SourceSnapshotRequest,
+    activation_resource_sources,
+    environment_bindings,
     plan_job_pack,
 )
 from posttrain.project import JobIntent, load_project_pack_config
@@ -190,6 +192,10 @@ class PlannedJobPackage:
                 project_config=_project_config_bundle(
                     self.layout,
                     self.work_package_path,
+                ),
+                activation_resource_sources=activation_resource_sources(
+                    environment_bindings(self.prepared.seats),
+                    project_root=self.layout.root,
                 ),
             ),
         )
@@ -515,6 +521,7 @@ def _plan_job_package_from_intent(
         publication=ImagePublicationSpec(registry.repository),
         runtime_variant=runtime_variant,
         family_registry_lock=catalog.family_registry_lock.to_payload(),
+        project_root=layout.root,
     )
     target = _execution_target(prepared)
     if settings.runtime_profile is None:

@@ -15,6 +15,7 @@ from .requests import (
     EnvironmentBinding,
     EnvironmentFactory,
     EnvironmentSource,
+    ProjectPathActivationResource,
     PythonFactoryActivation,
     SamplingPolicy,
     VerifiersV1ConfigActivation,
@@ -39,9 +40,25 @@ class SamplingPolicySchema(EnvironmentCatalogSchema):
     reasoning_effort: str | None = None
 
 
+class ProjectPathActivationResourceSchema(EnvironmentCatalogSchema):
+    kind: Literal["project-path"]
+    path: str
+
+
+ActivationResourceSourceSchema = Annotated[
+    ProjectPathActivationResourceSchema,
+    Field(discriminator="kind"),
+]
+
+
+class ActivationResourceSchema(EnvironmentCatalogSchema):
+    source: ActivationResourceSourceSchema
+
+
 class VerifiersV1ConfigActivationSchema(EnvironmentCatalogSchema):
     kind: Literal["verifiers-config"]
     config: dict[str, JsonValue]
+    resources: dict[str, ActivationResourceSchema] = Field(default_factory=dict)
 
 
 class PythonFactoryActivationSchema(EnvironmentCatalogSchema):
@@ -114,7 +131,13 @@ def _activation_from_schema(
     payload: VerifiersV1ConfigActivationSchema | PythonFactoryActivationSchema,
 ) -> EnvironmentActivation:
     if isinstance(payload, VerifiersV1ConfigActivationSchema):
-        return VerifiersV1ConfigActivation(payload.config)
+        return VerifiersV1ConfigActivation(
+            payload.config,
+            {
+                name: ProjectPathActivationResource(resource.source.path)
+                for name, resource in payload.resources.items()
+            },
+        )
     return PythonFactoryActivation(payload.reference)
 
 
@@ -139,10 +162,12 @@ def _normalize_activation(value: EnvironmentActivation | EnvironmentFactory) -> 
 
 
 __all__ = [
+    "ActivationResourceSchema",
     "EnvironmentActivationSchema",
     "EnvironmentBindingSchema",
     "EnvironmentSourceSchema",
     "PythonFactoryActivationSchema",
+    "ProjectPathActivationResourceSchema",
     "SamplingPolicySchema",
     "VerifiersV1ConfigActivationSchema",
     "environment_catalog_decoders",

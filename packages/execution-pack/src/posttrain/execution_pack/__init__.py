@@ -17,6 +17,7 @@ from .planning import (
     JobKindProfile,
     JobPackPlan,
     JobPackSpec,
+    activation_resource_sources,
     environment_bindings,
     plan_job_pack,
 )
@@ -64,6 +65,7 @@ __all__ = [
     "PublishedJobImage",
     "SourceSnapshotRequest",
     "SourcePackage",
+    "activation_resource_sources",
     "digest_source_package",
     "environment_bindings",
     "plan_job_pack",

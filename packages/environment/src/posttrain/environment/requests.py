@@ -19,6 +19,7 @@ from posttrain.common import JsonValue
 _ID = re.compile(r"^[a-z0-9][a-z0-9._/-]*$")
 _COMMIT_SHA = re.compile(r"^[0-9a-f]{40}$")
 _PYTHON_PATH = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$")
+_RESOURCE_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,127}$")
 
 type EnvironmentFactory = Callable[[], object]
 
@@ -66,10 +67,40 @@ class PythonFactoryActivation:
 
 
 @dataclass(frozen=True, slots=True)
+class ProjectPathActivationResource:
+    """A regular file below the project root staged into an environment activation."""
+
+    path: str
+
+    def __post_init__(self) -> None:
+        value = self.path
+        normalized = PurePosixPath(value)
+        if (
+            not value
+            or "\\" in value
+            or normalized.is_absolute()
+            or normalized.as_posix() != value
+            or any(part in {"", ".", ".."} for part in normalized.parts)
+        ):
+            raise ValueError("project-path activation resource must be a normalized relative file path")
+
+    @property
+    def kind(self) -> Literal["project-path"]:
+        return "project-path"
+
+    def to_payload(self) -> dict[str, JsonValue]:
+        return {"source": {"kind": self.kind, "path": self.path}}
+
+
+type ActivationResource = ProjectPathActivationResource
+
+
+@dataclass(frozen=True, slots=True)
 class VerifiersV1ConfigActivation:
     """Declarative native Verifiers configuration activated at job startup."""
 
     config: Mapping[str, JsonValue]
+    resources: Mapping[str, ActivationResource] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         config = dict(self.config)
@@ -77,7 +108,13 @@ class VerifiersV1ConfigActivation:
             json.dumps(config, sort_keys=True)
         except (TypeError, ValueError) as error:
             raise ValueError("Verifiers activation config must contain only JSON values") from error
+        resources = dict(self.resources)
+        if any(not _RESOURCE_NAME.fullmatch(name) for name in resources):
+            raise ValueError("Verifiers activation resource names must be stable identifiers")
+        if any(not isinstance(resource, ProjectPathActivationResource) for resource in resources.values()):
+            raise TypeError("Verifiers activation resources must use a supported source")
         object.__setattr__(self, "config", MappingProxyType(config))
+        object.__setattr__(self, "resources", MappingProxyType(dict(sorted(resources.items()))))
 
     @property
     def kind(self) -> Literal["verifiers-config"]:
@@ -88,7 +125,10 @@ class VerifiersV1ConfigActivation:
         return _activation_digest(self.to_payload())
 
     def to_payload(self) -> dict[str, JsonValue]:
-        return {"kind": self.kind, "config": dict(self.config)}
+        payload: dict[str, JsonValue] = {"kind": self.kind, "config": dict(self.config)}
+        if self.resources:
+            payload["resources"] = {name: resource.to_payload() for name, resource in self.resources.items()}
+        return payload
 
     def activate(self) -> object:
         try:
@@ -222,11 +262,13 @@ class EnvironmentBinding:
 
 
 __all__ = [
+    "ActivationResource",
     "EnvironmentActivation",
     "EnvironmentBinding",
     "EnvironmentFactory",
     "EnvironmentSource",
     "PythonFactoryActivation",
+    "ProjectPathActivationResource",
     "SamplingPolicy",
     "VerifiersV1ConfigActivation",
 ]
