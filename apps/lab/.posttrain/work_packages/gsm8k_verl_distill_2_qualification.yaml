@@ -1,4 +1,4 @@
-project_id: foundation-models
+project_id: posttrain-lab
 work_package_id: train/qwen3.5-0.8b/verl-distill-2-capsule-qualification
 stage: train
 description: Complete two Qwen 3.5 student updates from a Qwen 3.5 2B teacher in the isolated veRL runtime.

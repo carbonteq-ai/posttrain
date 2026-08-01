@@ -1,5 +1,5 @@
 schema_version: 1
-layer_id: foundation-models-serving-capacity-v1
+layer_id: posttrain-lab-serving-capacity-v1
 files:
   - algorithm-qualification.yaml
   - current-capsule-qualification.yaml

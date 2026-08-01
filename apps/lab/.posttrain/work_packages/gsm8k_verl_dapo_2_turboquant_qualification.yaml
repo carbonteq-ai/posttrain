@@ -1,4 +1,4 @@
-project_id: foundation-models
+project_id: posttrain-lab
 work_package_id: train/qwen3.5-0.8b/verl-dapo-2-turboquant-qualification
 stage: train
 description: Complete two Qwen 3.5 0.8B veRL DAPO updates with TurboQuant K8V4 rollout KV cache.

@@ -1,4 +1,4 @@
-project_id: foundation-models
+project_id: posttrain-lab
 work_package_id: train/qwen3.5-0.8b/gsm8k-grpo-15-qualification
 stage: train
 description: Complete fifteen Qwen 3.5 0.8B GRPO optimizer updates over native GSM8K Verifiers rollouts and retain model, rollout, and stability evidence.

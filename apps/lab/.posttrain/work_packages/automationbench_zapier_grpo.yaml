@@ -1,4 +1,4 @@
-project_id: foundation-models
+project_id: posttrain-lab
 work_package_id: train/qwen3.5-0.8b/automationbench-zapier-grpo-mtp-smoke
 stage: train
 description: Run one bounded Qwen 3.5 0.8B GRPO update in Zapier AutomationBench with thinking and MTP enabled, retaining exact resolved tasks in Verifiers evidence.

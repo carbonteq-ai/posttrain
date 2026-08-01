@@ -1,4 +1,4 @@
-project_id: foundation-models
+project_id: posttrain-lab
 work_package_id: qualify/qwen3.5-0.8b-rtn-w4a16
 stage: screen
 description: Materialize and reload-validate a bounded Qwen 3.5 0.8B RTN W4A16 derived model on the RTX PRO 6000 worker.

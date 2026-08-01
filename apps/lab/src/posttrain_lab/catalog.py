@@ -48,7 +48,7 @@ def _selection[SelectionT: Selection](
     return value
 
 
-_REFERENCE_CATALOG = open_catalog(scope="foundation-models")
+_REFERENCE_CATALOG = open_catalog(scope="posttrain-lab")
 AUTOMATIONBENCH_ZAPIER_GRPO = _selection(
     _REFERENCE_CATALOG,
     CatalogRef("environment", "automationbench-zapier-simple-grpo"),

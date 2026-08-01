@@ -1,4 +1,4 @@
-project_id: foundation-models
+project_id: posttrain-lab
 work_package_id: train/qwen3.5-0.8b/distill-from-qwen3.5-2b-smoke
 stage: train
 description: Distill one live GSM8K trajectory from the frozen Qwen 3.5 2B teacher into the smaller student and retain replayable evidence.

@@ -1,4 +1,4 @@
-project_id: foundation-models
+project_id: posttrain-lab
 work_package_id: train/qwen3.5-0.8b/sampo-10-qualification
 stage: train
 description: Complete ten Qwen 3.5 0.8B SAMPO updates over native multi-turn Verifiers rollouts.

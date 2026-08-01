@@ -80,7 +80,7 @@ def _gate(work_package: str, **changes: str) -> QualificationGate:
 
 def test_package_registry_classifies_every_current_work_package() -> None:
     layout = ProjectLayout(
-        project_id="foundation-models",
+        project_id="posttrain-lab",
         root=LAB,
         control_dir=LAB / ".posttrain",
         manifest=LAB / ".posttrain" / "project.toml",

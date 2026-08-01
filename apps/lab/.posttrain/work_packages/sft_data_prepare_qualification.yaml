@@ -1,4 +1,4 @@
-project_id: foundation-models
+project_id: posttrain-lab
 work_package_id: screen/posttrain-sft-smoke/data-prepare-qualification
 stage: screen
 description: Validate and retain the packaged supervised fixture as a canonical digest-addressed dataset snapshot.

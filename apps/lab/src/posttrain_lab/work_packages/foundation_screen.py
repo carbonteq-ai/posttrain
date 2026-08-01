@@ -50,7 +50,7 @@ FOUNDATION_SCREEN_RECIPE = Recipe(
 )
 
 QWEN_FOUNDATION_SCREEN = WorkPackage(
-    project_id="foundation-models",
+    project_id="posttrain-lab",
     work_package_id="screen/qwen3.5-2b-smoke",
     stage="screen",
     recipe=FOUNDATION_SCREEN_RECIPE,

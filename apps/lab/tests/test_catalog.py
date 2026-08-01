@@ -26,7 +26,7 @@ WORKSPACE = Path(__file__).resolve().parents[3]
 
 
 def test_slice_one_and_two_selections_load_from_the_base_filesystem_catalog() -> None:
-    catalog = open_catalog(scope="foundation-models")
+    catalog = open_catalog(scope="posttrain-lab")
 
     model = catalog.resolve(CatalogRef("model", "models/qwen3.5-2b@bf16"))
     plan = catalog.resolve(CatalogRef("evaluation", "general-smoke-v1"))
@@ -49,7 +49,7 @@ def test_slice_one_and_two_selections_load_from_the_base_filesystem_catalog() ->
 
 
 def test_automationbench_grpo_environment_is_category_and_budget_driven() -> None:
-    catalog = open_catalog(scope="foundation-models")
+    catalog = open_catalog(scope="posttrain-lab")
     environment = catalog.resolve(CatalogRef("environment", "automationbench-zapier-simple-grpo")).value
     settings = catalog.resolve(CatalogRef("training", "automationbench/qwen3.5-0.8b/grpo-mtp-smoke-v1")).value
     training = catalog.resolve(
@@ -105,7 +105,7 @@ target:
 
 
 def test_peft_bindings_settings_and_quantization_load_from_filesystem_catalog() -> None:
-    catalog = open_catalog(scope="foundation-models")
+    catalog = open_catalog(scope="posttrain-lab")
 
     lora = catalog.resolve(CatalogRef("training", "training/qwen3.5-trl-lora@1"))
     qlora = catalog.resolve(CatalogRef("training", "training/qwen3.5-trl-qlora@1"))
@@ -145,7 +145,7 @@ def test_peft_bindings_settings_and_quantization_load_from_filesystem_catalog() 
 
 
 def test_distillation_selections_share_exact_tokenizer_identity_and_separate_targets() -> None:
-    catalog = open_catalog(scope="foundation-models")
+    catalog = open_catalog(scope="posttrain-lab")
     student = catalog.resolve(CatalogRef("model", "models/qwen3.5-0.8b@bf16")).value
     teacher = catalog.resolve(CatalogRef("model", "models/qwen3.5-2b@bf16")).value
     settings = catalog.resolve(CatalogRef("training", "qwen3.5-0.8b/on-policy-distill-smoke-v1")).value

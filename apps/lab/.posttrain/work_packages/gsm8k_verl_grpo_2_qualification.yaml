@@ -1,4 +1,4 @@
-project_id: foundation-models
+project_id: posttrain-lab
 work_package_id: train/qwen3.5-0.8b/verl-grpo-2-capsule-qualification
 stage: train
 description: Bounded two-step Qwen 3.5 0.8B veRL GRPO capsule qualification over GSM8K.

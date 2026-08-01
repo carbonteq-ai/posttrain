@@ -1,4 +1,4 @@
-project_id: foundation-models
+project_id: posttrain-lab
 work_package_id: eval/qwen3.5-2b/multi-environment-qualification
 stage: qualify
 description: Pack two environments from one pinned Verifiers checkout and execute the bounded Reverse Text evaluation cell.

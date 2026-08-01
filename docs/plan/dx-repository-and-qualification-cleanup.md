@@ -38,7 +38,7 @@ A maintainer can see the result by running:
     uv run --package posttrain-lab posttrain-lab qualification list --project-root apps/lab
     uv run --package posttrain-release posttrain-release repository-check --report-only
 
-The first command must identify `foundation-models` below `apps/lab`; the
+The first command must identify `posttrain-lab` below `apps/lab`; the
 second must classify every retained qualification work package; the third must
 confirm that no root Posttrain project, tracked ignored file, unowned root
 surface, or broken maintained documentation link remains.
@@ -207,6 +207,14 @@ surface, or broken maintained documentation link remains.
   add another boundary without an owner, while keeping root `.posttrain` would
   preserve implicit project discovery throughout the framework checkout.
   Date/Author: 2026-08-01 / plan author.
+- Decision: the Lab-owned tracking project is named `posttrain-lab`; do not
+  create `posttrain-integration` for the existing remote-GPU fixture.
+  Rationale: `apps/lab/tests/fixtures/remote_gpu_project` is a Lab test
+  fixture, not an independent application with durable jobs, evidence, or an
+  owner. A second empty project would make normal project selection and
+  retention less clear. Reserve the name until a real integration application
+  owns its own lifecycle.
+  Date/Author: 2026-08-01 / plan author.
 - Decision: the repository root becomes a virtual uv workspace with no
   `[project]` identity; if the installed uv version exposes a blocking defect,
   a temporary `posttrain-workspace` non-package project is allowed only as a
@@ -341,7 +349,7 @@ Milestone 3 outcome (2026-08-01): all tracked qualification-project source is
 now owned by `apps/lab/.posttrain`; root `.posttrain` contains only ignored
 machine state. The root has no `lab` package identity or Posttrain source-pack
 configuration. The generic CLI deliberately no longer discovers a project
-from the framework root, but resolves `foundation-models` with explicit
+from the framework root, but resolves `posttrain-lab` with an explicit
 `--project-root apps/lab`. The release checker now treats the root as a virtual
 workspace and continues to validate the 24 publishable package members.
 
@@ -461,8 +469,8 @@ The framework base catalog is package data below
 `packages/catalog/src/posttrain/catalog/base/`. It contains shared models,
 datasets, environments, inference bindings, targets, workloads, and training
 defaults released for all projects. The current root `.posttrain/catalog`
-contains only `foundation-models` qualification additions. Moving those files
-does not move or fork the base catalog.
+contains only Lab qualification additions. Moving those files does not move or
+fork the base catalog.
 
 `apps/lab/src/posttrain_lab` owns code-defined scenarios and qualification
 wrappers. `apps/lab/tests` currently reaches back to root `.posttrain` through
@@ -581,7 +589,7 @@ still discover every member. Correct `mise.toml` to the repository's actual
 Python 3.13 contract in this milestone. From the repository root, `posttrain
 project show` without `--project-root` must now fail with the standard
 project-not-found error; the same command with `--project-root apps/lab` must
-show `foundation-models`. This intentional failure proves implicit framework
+show `posttrain-lab`. This intentional failure proves implicit framework
 checkout discovery is gone.
 
 Milestone 4 consolidates the remaining qualification surfaces by ownership.
@@ -699,7 +707,7 @@ Milestone 3 discovery proof:
     # expected: project-not-found; the repository root is not a Posttrain project
 
     uv run posttrain --project-root apps/lab project show
-    # expected: project_id foundation-models and root .../apps/lab
+    # expected: project_id posttrain-lab and root .../apps/lab
 
 State migration and pruning must always begin with dry runs. Exact command
 names may follow the configuration plan's implementation, but behavior is:
@@ -736,7 +744,7 @@ alone do not qualify this ownership migration.
 The cleanup is accepted only when all of the following behavior is observed:
 
 - From the framework root, implicit project discovery fails; with
-  `--project-root apps/lab`, the CLI opens `foundation-models`.
+  `--project-root apps/lab`, the CLI opens `posttrain-lab`.
 - `apps/lab` contains the only tracked qualification `.posttrain` manifest and
   packs itself without escaping its root or copying the entire framework tree.
 - The packaged base catalog remains in `posttrain-catalog`; Lab overlays have

@@ -84,7 +84,7 @@ QUALIFICATION_RECIPE = Recipe(
 
 GSM8K_QUALIFICATION = QualificationPackage(
     definition=WorkPackage(
-        project_id="foundation-models",
+        project_id="posttrain-lab",
         work_package_id="qualify/qwen3.5-2b-gsm8k",
         stage="qualify",
         recipe=QUALIFICATION_RECIPE,

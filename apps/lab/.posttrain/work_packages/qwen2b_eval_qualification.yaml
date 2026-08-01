@@ -1,4 +1,4 @@
-project_id: foundation-models
+project_id: posttrain-lab
 work_package_id: eval/qwen3.5-2b/gsm8k-managed-qualification
 stage: qualify
 description: Launch Qwen 3.5 2B through the selected vLLM binding and retain a bounded native GSM8K Verifiers evaluation.

@@ -1,4 +1,4 @@
-project_id: foundation-models
+project_id: posttrain-lab
 work_package_id: screen/qwen3.5-2b/serve-smoke-qualification
 stage: screen
 description: Launch Qwen 3.5 2B through the current serving capsule and complete its health probe.

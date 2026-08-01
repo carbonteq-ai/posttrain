@@ -240,7 +240,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("scenario")
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--workspace", type=Path, required=True)
-    parser.add_argument("--trackio-project", default="foundation-models")
+    parser.add_argument("--trackio-project", default="posttrain-lab")
     parser.add_argument("--trackio-url", required=True)
     parser.add_argument("--receipt", type=Path)
     return parser

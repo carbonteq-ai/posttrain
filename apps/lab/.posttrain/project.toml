@@ -1,5 +1,5 @@
 schema_version = 2
-project_id = "foundation-models"
+project_id = "posttrain-lab"
 catalog_overlays = ["catalog"]
 work_packages = "work_packages"
 state = "state"
