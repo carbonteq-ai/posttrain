@@ -643,6 +643,7 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
             "sampling": dict(value.sampling),
             "target_id": value.target.id,
             "purpose": list(value.purpose),
+            "startup_timeout_seconds": value.startup_timeout_seconds,
         }
     if isinstance(value, TrainingBinding):
         return {
