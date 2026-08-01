@@ -79,9 +79,12 @@ surface, or broken maintained documentation link remains.
       its lock diff contains exactly the 24 first-party version replacements.
 - [ ] Milestone 2: prove that `apps/lab` can be a self-contained nested
       Posttrain project and pack two representative jobs from its own root.
-- [ ] Milestone 3: move tracked qualification configuration into `apps/lab`,
-      make the repository root a virtual uv workspace, and preserve release
-      tooling and project discovery.
+- [x] (2026-08-01) Milestone 3: moved all 37 tracked qualification-control
+      files into `apps/lab/.posttrain`, made the root a virtual uv workspace,
+      and updated discovery, release checks, tests, and maintainer
+      documentation. `posttrain project show` now fails at the repository root
+      and succeeds explicitly from `apps/lab`; 203 focused tests, ruff,
+      pyright, lock validation, and the release check pass.
 - [ ] Milestone 4: consolidate qualification launchers, fixtures, generators,
       and operational documentation under their real owners; delete only paths
       with demonstrated parity.
@@ -153,6 +156,10 @@ surface, or broken maintained documentation link remains.
   three maintained documents pointing at the nonexistent
   `.agents/plan/baseline-implementation.md`; `.gitignore` ignores `.agents/`
   while one stale `.agents` plan remains tracked.
+- Observation: the root may be a uv workspace without being a Python package.
+  Evidence: after removing its `[project]` table, the pinned toolchain accepts
+  the workspace lock and sync, while release validation needs to inspect only
+  publishable member pyprojects rather than every pyproject in the checkout.
 
 ## Decision Log
 
@@ -281,6 +288,14 @@ installs with `uv sync --locked --offline`. The copied lock is a deterministic
 version projection of the authored source lock, not a re-resolution. This
 removes the staged-install blocker for the final local OCI qualification.
 
+Milestone 3 outcome (2026-08-01): all tracked qualification-project source is
+now owned by `apps/lab/.posttrain`; root `.posttrain` contains only ignored
+machine state. The root has no `lab` package identity or Posttrain source-pack
+configuration. The generic CLI deliberately no longer discovers a project
+from the framework root, but resolves `foundation-models` with explicit
+`--project-root apps/lab`. The release checker now treats the root as a virtual
+workspace and continues to validate the 24 publishable package members.
+
 ## Context and Orientation
 
 The repository is a uv monorepo. Reusable distributions live under
@@ -379,7 +394,7 @@ tree is clean, so this addition does not force an unsafe all-at-once deletion.
 Add `apps/lab/src/posttrain_lab/qualification/gates.toml` and typed loading code
 beside it. Each entry names a stable gate id, the project-relative work-package
 path, job id, tier (`release`, `extended`, or `experimental`), lifecycle state
-(`active` or `retired`), expected job kind, and the acceptance adapter that
+(`active`, `candidate`, or `retired`), expected job kind, and the acceptance adapter that
 interprets retained evidence. Every YAML file under the Lab work-package
 directory must be referenced exactly once or listed in an explicit temporary
 exclusion carrying an owner and removal condition. Duplicate paths, missing
@@ -527,8 +542,10 @@ Milestone 2 and 6 package proofs use locally staged 0.3.x framework wheels so
 they do not accidentally download an older installed framework:
 
     uv run posttrain-release check
-    uv run posttrain-release stage /tmp/posttrain-release-qualification
-    uv build --directory /tmp/posttrain-release-qualification --all-packages --wheel --out-dir /tmp/posttrain-wheels
+    qualification_stage=$(mktemp -d /tmp/posttrain-release-qualification.XXXXXX)
+    rmdir "$qualification_stage"
+    uv run posttrain-release stage "$qualification_stage"
+    uv build --directory "$qualification_stage" --all-packages --wheel --out-dir /tmp/posttrain-wheels
     uv run posttrain --project-root apps/lab job plan \
       sft_data_prepare_qualification.yaml --job prepare
     uv run posttrain --project-root apps/lab job pack \
@@ -591,8 +608,8 @@ The cleanup is accepted only when all of the following behavior is observed:
 - The packaged base catalog remains in `posttrain-catalog`; Lab overlays have
   no accidental promotion into the global catalog and retain selection
   provenance.
-- Every retained Lab work package is classified exactly once as an active or
-  retired release, extended, or experimental gate. The Lab list command and
+- Every retained Lab work package is classified exactly once as an active,
+  candidate, or retired release, extended, or experimental gate. The Lab list command and
   CI fail on an orphan YAML file.
 - One dataset-backed job and one environment/evaluation-backed job plan, pack,
   execute, reconcile, and expose retained evidence through the public
@@ -718,3 +735,9 @@ the current 0.3.x repository inspection. It chooses `apps/lab` as the complete
 qualification-project root, makes root virtual-workspace conversion and state
 classification explicit, and requires two packaged real-job gates before any
 compatibility deletion.
+
+Revision note (2026-08-01): Milestone 3 is complete. The living sections now
+record the virtual-workspace behavior, the explicit Lab discovery proof, and
+the 203-test focused validation. The gate lifecycle contract is corrected to
+match the implemented `candidate` state, and the staged-package command now
+requires an absent temporary destination so it remains safely repeatable.

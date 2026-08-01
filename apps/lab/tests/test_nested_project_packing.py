@@ -1,10 +1,10 @@
 """Nested-Lab source and control-tree packing proof.
 
-The release gates remain at the workspace root until the ownership migration.
-These tests deliberately copy only the control closure each gate needs into a
-temporary ``apps/lab``-shaped project.  They exercise the public project
-planner plus the primary CLI's actual-job planning seam without creating an
-OCI image or consulting a provider.
+Lab owns its control tree beside its Python source.  These tests deliberately
+copy only the control closure each gate needs into a temporary
+``apps/lab``-shaped project.  They exercise the public project planner plus
+the primary CLI's actual-job planning seam without creating an OCI image or
+consulting a provider.
 """
 
 from __future__ import annotations
@@ -22,7 +22,6 @@ from posttrain_cli.framework_distributions import FrameworkDistributions
 
 WORKSPACE = Path(__file__).resolve().parents[3]
 LAB = WORKSPACE / "apps" / "lab"
-ROOT_CONTROL = WORKSPACE / ".posttrain"
 
 
 def _nested_lab_project(tmp_path: Path, work_package: str) -> Path:
@@ -37,11 +36,11 @@ def _nested_lab_project(tmp_path: Path, work_package: str) -> Path:
     control = project / ".posttrain"
     control.mkdir()
     for name in ("project.toml", "project.yaml"):
-        shutil.copy2(ROOT_CONTROL / name, control / name)
-    shutil.copytree(ROOT_CONTROL / "catalog", control / "catalog")
+        shutil.copy2(LAB / ".posttrain" / name, control / name)
+    shutil.copytree(LAB / ".posttrain" / "catalog", control / "catalog")
     packages = control / "work_packages"
     packages.mkdir()
-    shutil.copy2(ROOT_CONTROL / "work_packages" / work_package, packages / work_package)
+    shutil.copy2(LAB / ".posttrain" / "work_packages" / work_package, packages / work_package)
     return project
 
 

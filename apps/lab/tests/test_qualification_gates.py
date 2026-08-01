@@ -16,6 +16,7 @@ from posttrain_lab.qualification import (
 )
 
 WORKSPACE = Path(__file__).resolve().parents[3]
+LAB = WORKSPACE / "apps" / "lab"
 
 
 def _layout(tmp_path: Path) -> ProjectLayout:
@@ -80,12 +81,12 @@ def _gate(work_package: str, **changes: str) -> QualificationGate:
 def test_package_registry_classifies_every_current_work_package() -> None:
     layout = ProjectLayout(
         project_id="foundation-models",
-        root=WORKSPACE,
-        control_dir=WORKSPACE / ".posttrain",
-        manifest=WORKSPACE / ".posttrain" / "project.toml",
-        catalog_overlays=(WORKSPACE / ".posttrain" / "catalog",),
-        work_packages=WORKSPACE / ".posttrain" / "work_packages",
-        state=WORKSPACE / ".posttrain" / "state",
+        root=LAB,
+        control_dir=LAB / ".posttrain",
+        manifest=LAB / ".posttrain" / "project.toml",
+        catalog_overlays=(LAB / ".posttrain" / "catalog",),
+        work_packages=LAB / ".posttrain" / "work_packages",
+        state=LAB / ".posttrain" / "state",
     )
 
     inventory = validate_qualification_project(layout, load_qualification_gates())
@@ -196,7 +197,7 @@ def test_registry_rejects_experimental_entries_marked_active_or_candidate_metada
 
 
 def test_qualification_list_emits_a_stable_json_inventory(capsys: pytest.CaptureFixture[str]) -> None:
-    main(["qualification", "list", "--project-root", str(WORKSPACE), "--json"])
+    main(["qualification", "list", "--project-root", str(LAB), "--json"])
 
     payload = json.loads(capsys.readouterr().out)
 
@@ -208,7 +209,7 @@ def test_qualification_list_emits_a_stable_json_inventory(capsys: pytest.Capture
 
 
 def test_qualification_list_labels_candidates_as_non_active_experiments(capsys: pytest.CaptureFixture[str]) -> None:
-    main(["qualification", "list", "--project-root", str(WORKSPACE)])
+    main(["qualification", "list", "--project-root", str(LAB)])
 
     output = capsys.readouterr().out
 

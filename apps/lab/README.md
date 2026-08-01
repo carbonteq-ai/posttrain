@@ -22,17 +22,18 @@ Neither starter imports `posttrain_lab`.
 
 ## Qualification project (this repo)
 
-The monorepo root is itself a qualification project under `.posttrain/`. Its
-`project.toml` points at `posttrain_lab.entry:configure`, which builds the
-standard `JobRuntime` and attaches git source metadata. Validate YAML work
+Lab is the qualification project at `apps/lab`; its tracked control tree lives
+under `apps/lab/.posttrain/`. Its `project.toml` points at
+`posttrain_lab.entry:configure`, which builds the standard `JobRuntime` and
+attaches git source metadata. From the workspace root, validate YAML work
 packages with the primary CLI and **no** `--host`:
 
 ```bash
-uv run --package posttrain posttrain work-package validate \
-  .posttrain/work_packages/foundation_screen.yaml
+uv run --package posttrain-lab posttrain --project-root apps/lab work-package validate \
+  foundation_screen.yaml
 
-uv run --package posttrain posttrain work-package validate \
-  .posttrain/work_packages/automationbench_zapier_grpo.yaml
+uv run --package posttrain-lab posttrain --project-root apps/lab work-package validate \
+  automationbench_zapier_grpo.yaml
 ```
 
 Remote GPU release evidence still uses `examples/gpu-qualification` and the
@@ -46,8 +47,8 @@ the manifest classifies the work packages currently owned by the root
 qualification project; it does not submit work or duplicate provider logic.
 
 ```bash
-uv run --package posttrain-lab posttrain-lab qualification list --project-root .
-uv run --package posttrain-lab posttrain-lab qualification list --project-root . --json
+uv run --package posttrain-lab posttrain-lab qualification list --project-root apps/lab
+uv run --package posttrain-lab posttrain-lab qualification list --project-root apps/lab --json
 ```
 
 Every work-package YAML must occur exactly once in the registry. An entry

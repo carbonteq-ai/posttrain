@@ -42,7 +42,7 @@ from posttrain_lab.work_packages import (
 )
 
 WORKSPACE = Path(__file__).resolve().parents[3]
-WORK_PACKAGES = WORKSPACE / ".posttrain" / "work_packages"
+WORK_PACKAGES = WORKSPACE / "apps" / "lab" / ".posttrain" / "work_packages"
 
 
 def test_reference_yaml_runs_screen_and_skips_optional_eval() -> None:

@@ -96,8 +96,12 @@ def check_release(repository_root: Path) -> ReleaseCheck:
     manifest = load_release_manifest(root)
     errors: list[str] = []
     pin_count = 0
-    publishable = set(publishable_pyprojects(root))
-    for path in workspace_pyprojects(root):
+    # The repository root is a virtual uv workspace, not a package.  Release
+    # metadata belongs solely to the publishable workspace members; inspecting
+    # every ``pyproject.toml`` would incorrectly require a root ``[project]``
+    # table and make that virtual-workspace shape invalid.
+    publishable = publishable_pyprojects(root)
+    for path in publishable:
         relative = path.relative_to(root)
         try:
             text = path.read_text(encoding="utf-8")
@@ -119,20 +123,17 @@ def check_release(repository_root: Path) -> ReleaseCheck:
                     f"{relative}: source dependency {requirement!r} contains a release pin; "
                     "pins belong only in staged release metadata"
                 )
-        if path in publishable:
-            try:
-                rendered, rendered_pins = render_project_metadata(text, manifest.version, relative)
-                rendered_payload = tomllib.loads(rendered)
-            except (ValueError, tomllib.TOMLDecodeError) as error:
-                errors.append(str(error))
-                continue
-            rendered_project = rendered_payload.get("project")
-            rendered_version = rendered_project.get("version") if isinstance(rendered_project, dict) else None
-            if rendered_version != manifest.version:
-                errors.append(
-                    f"{relative}: staged project.version is {rendered_version!r}, expected {manifest.version!r}"
-                )
-            pin_count += rendered_pins
+        try:
+            rendered, rendered_pins = render_project_metadata(text, manifest.version, relative)
+            rendered_payload = tomllib.loads(rendered)
+        except (ValueError, tomllib.TOMLDecodeError) as error:
+            errors.append(str(error))
+            continue
+        rendered_project = rendered_payload.get("project")
+        rendered_version = rendered_project.get("version") if isinstance(rendered_project, dict) else None
+        if rendered_version != manifest.version:
+            errors.append(f"{relative}: staged project.version is {rendered_version!r}, expected {manifest.version!r}")
+        pin_count += rendered_pins
 
     errors.extend(_dependency_lock_errors(root))
     try:

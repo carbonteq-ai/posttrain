@@ -1,14 +1,3 @@
-[project]
-name = "lab"
-version = "0.0.0"
-description = "Local post-training lab (uv workspace)"
-readme = "README.md"
-requires-python = ">=3.13,<3.14"
-dependencies = [
-    "posttrain-common",
-    "posttrain-data",
-]
-
 [dependency-groups]
 dev = [
     "import-linter>=2.3",
@@ -19,19 +8,11 @@ dev = [
     "ruff>=0.12",
 ]
 
-[tool.uv.sources]
-posttrain-common = { workspace = true }
-posttrain-data = { workspace = true }
-
 [tool.uv.workspace]
 members = ["apps/*", "packages/*"]
 
 [tool.uv]
 package = false
-
-[tool.posttrain.pack]
-project_packages = ["apps/lab"]
-source_includes = ["apps/lab"]
 
 [[tool.uv.index]]
 name = "pytorch-cu130"

@@ -31,7 +31,7 @@ checkpoints/
 artifacts/
 wandb/
 /trackio/
-.posttrain/state/
+**/.posttrain/state/
 *.pt
 *.safetensors
 *.bin

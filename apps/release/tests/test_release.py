@@ -30,7 +30,15 @@ def _version_repository(root: Path, version: str = "0.2.5") -> None:
         encoding="utf-8",
     )
     (root / "pyproject.toml").write_text(
-        '[project]\nname = "lab"\nversion = "0.0.0"\ndependencies = ["posttrain-common"]\n',
+        '''[dependency-groups]
+dev = []
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv]
+package = false
+''',
         encoding="utf-8",
     )
     train = root / "packages/train"
@@ -128,6 +136,21 @@ def test_release_check_uses_the_manifest_as_version_authority(tmp_path: Path) ->
     assert result.version == "0.2.5"
     assert result.package_count == 1
     assert result.internal_pin_count == 1
+
+
+def test_release_check_ignores_a_virtual_root_but_checks_publishable_members(tmp_path: Path) -> None:
+    _version_repository(tmp_path)
+    member = tmp_path / "packages/train/pyproject.toml"
+    member.write_text(
+        member.read_text(encoding="utf-8").replace('version = "0.0.0"', 'version = "9.9.9"', 1),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"packages/train/pyproject[.]toml: source project[.]version is '9[.]9[.]9'",
+    ):
+        check_release(tmp_path)
 
 
 def test_repository_audit_reports_legacy_root_ignore_and_documentation_findings(tmp_path: Path) -> None:
@@ -236,13 +259,8 @@ def test_staged_workspace_syncs_with_the_projected_lock(tmp_path: Path) -> None:
         'schema_version = 1\nversion = "0.3.0"\n', encoding="utf-8"
     )
     (source / "pyproject.toml").write_text(
-        '''[project]
-name = "release-fixture"
-version = "0.0.0"
-dependencies = ["posttrain-widget"]
-
-[tool.uv.sources]
-posttrain-widget = { workspace = true }
+        '''[dependency-groups]
+dev = []
 
 [tool.uv.workspace]
 members = ["packages/*"]
