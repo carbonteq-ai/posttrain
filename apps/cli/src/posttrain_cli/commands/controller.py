@@ -132,7 +132,8 @@ def register(app: typer.Typer) -> None:
             lines = [
                 f"{event.get('run_id', '-')}  action={event['action']}  state={event['state']}" for event in events
             ]
-            emit(state, events, "\n".join(lines) if lines else "No lifecycle actions required.")
+            if events or once:
+                emit(state, events, "\n".join(lines) if lines else "No lifecycle actions required.")
             if once:
                 break
             time.sleep(interval_seconds)

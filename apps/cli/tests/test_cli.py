@@ -106,6 +106,29 @@ def test_controller_status_reads_health_without_running_a_sweep(tmp_path: Path, 
     assert payload["health_file"] == str(health)
 
 
+def test_controller_loop_does_not_emit_idle_sweeps(
+    tmp_path: Path,
+    capsys,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+
+    async def sweep(_layout):
+        return []
+
+    monkeypatch.setattr("posttrain_cli.commands.controller.controller_sweep", sweep)
+
+    def stop_after_first_sweep(_seconds: float) -> None:
+        raise RuntimeError("stop test loop")
+
+    monkeypatch.setattr("posttrain_cli.commands.controller.time.sleep", stop_after_first_sweep)
+
+    assert main(["--project-root", str(project), "controller", "run"]) == 1
+    assert capsys.readouterr().out == ""
+
+
 def _record_submission(
     project: Path,
     *,
