@@ -116,13 +116,13 @@ surface, or broken maintained documentation link remains.
       material were moved to the system recovery bin. This was an
       operator-authorized one-off disposal, not a substitute for the planned
       dry-run/apply cache-prune and evidence-purge interfaces.
-- [ ] Milestone 6: pass the full quality/release gates plus real packaged data
+- [x] (2026-08-01) Milestone 6: passed the full quality/release gates plus real packaged data
       and evaluation jobs from the new Lab project before removing migration
-      compatibility.
-      Partial progress (2026-08-01): the local quality ladder passes with 882
-      tests passed and 17 skipped; release metadata, locks, import boundaries,
-      formatting, type checks, and documentation links are clean. Real provider
-      execution, reconciliation, and retained live evidence remain open.
+      compatibility. The exact staged 0.3.0 consumer executed both jobs through
+      local Docker after the dstack fleet proved unreachable from this host;
+      both reconciled consistently against retained Trackio evidence. The
+      evaluation completed two of two GSM8K rollouts with no failures or
+      truncation and retained its resolved 600-second cold-start budget.
 
 ## Surprises & Discoveries
 
@@ -417,6 +417,32 @@ pyright, import-linter, and the full pytest suite passed. The suite reported
 paths and no broken maintained local Markdown links. Its remaining root
 inventory contains only ignored local caches/state and the still-pending root
 `scripts` compatibility harness.
+
+Milestone 6 live outcome (2026-08-01): commit `a3665351` was rendered into 24
+coordinated 0.3.0 wheels and installed in a consumer environment outside the
+checkout. The dataset gate `release-030-data-prepare-local-r6-20260801`
+executed image
+`registry.lan/carbonteq/posttrain-job@sha256:2089a82c68305e673fcc742cf21bda9cee5e288bdc95836263fb3ac2a9133680`,
+reconciled provider exit 0 with Trackio run
+`a4e956cba01e48d097fc2d7922e28544`, and retained dataset digest
+`ce3470bb5d21004df513ff080dafeba2dca378b609650dae4c9d5b38baf172db`.
+The final managed-evaluation gate
+`release-030-qwen2b-eval-local-r6-20260801` executed image
+`registry.lan/carbonteq/posttrain-job@sha256:ef57a3d602f44427838e68d678dff23e7397161892b4485eadb3bcdb57c1a418`,
+reconciled provider exit 0 with Trackio run
+`b1e5113354b840d680ed6b62d944bb36`, and retained evaluation digest
+`f45de262f6b3984414d3c0c47b4013f1b9c43b40bdcbbaccf2e35121c5ef1110`
+plus server-log digest
+`34154248dd8898a9518bd21807981e4a673cab28def397655a79a8fcd848febf`.
+Its complete native Verifiers population was two of two successful GSM8K
+rollouts, mean reward 1.0, with zero failed or truncated rollouts and complete
+trace synchronization. The resolved snapshot records
+`inference/qwen3.5-2b-vllm-eval@2` and its 600-second startup budget. Machine
+DNS (`192.168.30.1`) was retained in the provider source and applied to both
+containers. The dstack fleet was not a usable gate because both configured
+workers returned `No route to host`; the same immutable capsule path was
+therefore qualified on the local RTX 4090 rather than treating network failure
+as a framework failure.
 
 Milestone 5 partial outcome (2026-08-01): the state command has a safe
 in-place split and a project-relocation mode. It never deletes source state,

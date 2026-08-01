@@ -4,7 +4,7 @@ All notable changes to Posttrain are documented here. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with a coordinated
 version across first-party distributions.
 
-## 0.3.0 - Unreleased
+## 0.3.0 - 2026-08-01
 
 This release starts the project-owned developer-experience redesign. Static
 job meaning, execution configuration, catalog composition, environment source,
@@ -28,6 +28,8 @@ without silently inheriting the submitting shell or a provider connection.
 - Manifest-only release preparation, release-neutral workspace metadata,
   staged static wheel metadata, and a single generated catalog dependency-lock
   table through `posttrain-release`.
+- Durable project/control and provider locators, a foreground lifecycle
+  controller, joined run views, and safe state migration/cache classification.
 
 ### Changed
 
@@ -37,14 +39,20 @@ without silently inheriting the submitting shell or a provider connection.
   launch settings are selected by `job pack` and `job run` respectively.
 - Read-only `--last` resolution is strictly chronological. Mutating run
   commands require the complete canonical run id.
+- Machine defaults can configure local-container DNS without placing machine
+  topology in project configuration. Managed inference bindings carry a
+  versioned startup budget that is retained in resolved run evidence.
 
 ### Release qualification
 
-- The Python release remains gated on completing durable cross-project
-  admission ownership. A queued run records its control-store locator today,
-  but the shared admission pump must still reconstruct the owning provider
-  source rather than capture the project that happens to reconcile another
-  run.
+- An external consumer installed all 24 coordinated 0.3.0 framework wheels.
+  The Lab data-preparation gate and managed Qwen 3.5 2B GSM8K evaluation both
+  executed from packed immutable images, reconciled provider exit 0 against
+  retained Trackio artifacts, and reported complete required telemetry.
+- The bounded evaluation synchronized both native Verifiers traces: 2/2
+  completed successfully with mean reward 1.0 and no failed or truncated
+  rollouts. Its resolved evidence records the 600-second managed-inference
+  startup budget used to cover cold model/kernel initialization.
 
 ## 0.2.5 - 2026-07-31
 
