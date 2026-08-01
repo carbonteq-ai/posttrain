@@ -113,6 +113,13 @@ green unit tests.
 - [x] (2026-08-01) Pushed `codex/dx-0.3.0`; the environment source revision
       and subsequent framework fixes now name commits available from the
       remote rather than local-only objects.
+- [x] (2026-08-01) Qualified the merged AutomationBench fork at revision
+      `908db2ab` (75 focused tests, wheel/sdist metadata, and clean Python 3.12
+      wheel install), published `carbonteq-automation-bench==1.0.5.post1` to
+      the development index, and promoted the identical artifacts to stable.
+      The native adapter now selects that exact registry version, its isolated
+      lock changed only the maintained-fork entry, and the obsolete consumer
+      Git constraint is gone.
 - [ ] Run fresh provider packaging/training qualification on both providers,
       verify Trackio, Observatory, controller reconciliation, and cleanup
       receipts, then run the 0.3.0 publication and release audit.
@@ -121,6 +128,14 @@ green unit tests.
       the release, complete.
 
 ## Surprises & Discoveries
+
+- Observation: the first package-based SAMPO pack failed closed because the
+  native adapter still exposed AutomationBench as a pinned transitive Git
+  requirement. `uv pip compile --generate-hashes` correctly emitted that VCS
+  requirement without a hash, and the immutable dependency compiler correctly
+  rejected it. Publishing the already-prepared maintained fork distribution
+  closes the portability gap without weakening hash validation or pretending
+  that AutomationBench is provided by the kind image.
 
 - Observation: private package-index trust must exist inside the framework
   runtime image, independently of BuildKit daemon registry trust.
@@ -551,15 +566,13 @@ trees, job manifests, or evidence logs.
 
 ### Milestone 8: execute and inspect two fresh managed qualifications
 
-This milestone has one prerequisite left. The `automationbench-v1` environment
-source now names this repository at `environments/automationbench_v1`, which is
-where the native Verifiers v1 environment has always lived, but it pins commit
-`4c2f7563` — the commit that made the environment Python 3.13 compatible — and
-that commit is not yet on any remote. An environment source must name a pushed
-commit, so push `codex/dx-0.3.0` (or merge it) before packing anything that
-selects this environment, then confirm the pin still resolves. Do not weaken
-the wheel builder's distribution-name check, and do not reintroduce a path
-dependency on the environment to route around an unpushed pin.
+The `automationbench-v1` environment source names this repository at
+`environments/automationbench_v1`, where the native Verifiers v1 environment
+lives. Before qualification, advance its immutable source pin to the pushed
+commit containing the indexed AutomationBench dependency and confirm that pin
+resolves. Do not weaken the wheel builder's distribution-name or dependency
+hash checks, and do not reintroduce a path dependency to route around the
+published source.
 
 Prove the fix by building the environment wheel from the immutable source
 alone, with the framework workspace lock no longer containing either
