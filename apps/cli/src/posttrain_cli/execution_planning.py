@@ -243,10 +243,12 @@ class PlannedJobPackage:
 
     def _publisher(self) -> BuildKitJobImagePublisher:
         registry = _registry(self.local_config)
+        execution_environment = load_execution_environment(self.local_config)
         return BuildKitJobImagePublisher(
             bake_file=_bake_file(registry),
             receipt_root=(registry.receipt_root or cache_path(self.layout, "pack", "publications")),
             builder=registry.buildx_builder,
+            python_index_url=execution_environment.get("UV_INDEX_URL"),
         )
 
     def pack(self, *, allow_deferred_qualification: bool = False) -> PackedJobPackage:

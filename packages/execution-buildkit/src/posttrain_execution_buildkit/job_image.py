@@ -31,6 +31,11 @@ _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _SAFE_BUILDER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/@-]*$")
 _PUBLISHED_TARGET = "posttrain-job"
 _SMOKE_TARGET = "posttrain-job-smoke"
+_URL_USERINFO = re.compile(r"https?://[^/\s:@]+(?::[^@/\s]*)?@")
+_SENSITIVE_QUERY = re.compile(
+    r"[?&](?:access[_-]?token|api[_-]?key|auth|credential|password|secret|token)=",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +64,7 @@ class BuildKitJobImagePublisher:
         receipt_root: Path,
         gateway: BuildxGateway | None = None,
         builder: str | None = None,
+        python_index_url: str | None = None,
     ) -> None:
         if not bake_file.is_absolute() or not bake_file.is_file():
             raise ValueError("job image Bake file must be an existing absolute path")
@@ -68,12 +74,19 @@ class BuildKitJobImagePublisher:
             raise ValueError("job image receipt root must be absolute")
         if builder is not None and not _SAFE_BUILDER.fullmatch(builder):
             raise ContractError("job image BuildKit builder name is invalid")
+        if python_index_url is not None and (
+            not python_index_url.startswith(("http://", "https://"))
+            or _URL_USERINFO.search(python_index_url)
+            or _SENSITIVE_QUERY.search(python_index_url)
+        ):
+            raise ContractError("job image Python index URL must be credential-free HTTP(S)")
         self._bake_file = bake_file
         self._definition_root = bake_file.parent
         self._definition_digest = _build_definition_digest(bake_file.parent)
         self._receipt_root = receipt_root
         self._gateway = gateway or BuildxCli()
         self._builder = builder
+        self._python_index_url = python_index_url or ""
 
     def publish(
         self,
@@ -296,6 +309,7 @@ class BuildKitJobImagePublisher:
             "JOB_KIND": manifest.job_kind,
             "PACKAGE_KEY": manifest.package_key,
             "POSTTRAIN_KIND_IMAGE": manifest.kind_image.value,
+            "PYTHON_INDEX_URL": self._python_index_url,
             "PROJECT_CONFIG_DIGEST": manifest.project_config_digest,
             "PROJECT_SOURCE_DIGEST": manifest.project_source_digest,
             "RESOLVED_CONFIG_DIGEST": manifest.resolved_config_digest,

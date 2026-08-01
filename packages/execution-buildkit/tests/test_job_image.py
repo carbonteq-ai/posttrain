@@ -193,6 +193,36 @@ def test_publishes_a_verified_local_oci_layout(tmp_path: Path) -> None:
     assert not any("push=true" in argument for call in gateway.calls for argument in call)
 
 
+def test_credential_free_python_index_is_forwarded_as_a_build_variable(tmp_path: Path) -> None:
+    gateway = FakeBuildx()
+    publisher = BuildKitJobImagePublisher(
+        bake_file=_definition(tmp_path),
+        receipt_root=(tmp_path / "receipts").resolve(),
+        gateway=gateway,
+        python_index_url="https://pypi.example.test/simple/",
+    )
+
+    publisher.publish_local(_request(tmp_path))
+
+    assert any("PYTHON_INDEX_URL=https://pypi.example.test/simple/" in call for call in gateway.calls)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://user:secret@example.test/simple/",
+        "https://example.test/simple/?token=secret",
+    ],
+)
+def test_secret_bearing_python_index_is_rejected(tmp_path: Path, url: str) -> None:
+    with pytest.raises(ContractError, match="credential-free"):
+        BuildKitJobImagePublisher(
+            bake_file=_definition(tmp_path),
+            receipt_root=(tmp_path / "receipts").resolve(),
+            python_index_url=url,
+        )
+
+
 def test_publisher_checks_smokes_pushes_verifies_and_reuses_receipt(
     tmp_path: Path,
 ) -> None:

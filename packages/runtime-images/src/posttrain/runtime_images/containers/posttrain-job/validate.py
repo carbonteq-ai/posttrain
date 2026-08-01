@@ -93,6 +93,7 @@ def _validate_definition() -> None:
         "ARG CODE_REQUIREMENTS_DIGEST",
         "ARG RESOLVED_CONFIG_DIGEST",
         "ARG RUNTIME_VARIANT",
+        "ARG PYTHON_INDEX_URL",
     ):
         _require(required in dockerfile, f"Dockerfile is missing {required}")
     runtime_lock_copy = "COPY --from=job-context /locks/ locks/"
