@@ -337,6 +337,12 @@ The deployed-Observatory public-HTTP checker now belongs to
 still supplies deployment URL, credentials, and CA material at runtime, so this
 repository does not take ownership of topology or secret distribution.
 
+Provider-neutral algorithm scenario policy now belongs to
+`posttrain_lab.qualification.scenarios`, with its data-only manifest tests in
+Lab. The legacy scenario launcher and evidence validator import that policy but
+remain at their old paths because neither yet has the public execution/evidence
+parity required for deletion.
+
 ## Context and Orientation
 
 The repository is a uv monorepo. Reusable distributions live under
@@ -803,3 +809,7 @@ qualification paths.
 Revision note (2026-08-01): The Observatory HTTP compatibility check and its
 tests move to the Observatory product with a dedicated installed command. This
 separates public evidence-view behavior from ai-infra's deployment ownership.
+
+Revision note (2026-08-01): Algorithm scenario policy and its unit suite move
+to Lab. Direct launch and evidence scripts become explicit compatibility
+wrappers over that owner, pending the real parity gates required for removal.

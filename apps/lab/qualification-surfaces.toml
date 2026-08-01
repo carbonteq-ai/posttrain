@@ -9,12 +9,12 @@ schema_version = 1
 
 [[surfaces]]
 id = "algorithm-scenarios"
-path = "scripts/qualification/algorithm_scenarios.py"
+path = "apps/lab/src/posttrain_lab/qualification/scenarios.py"
 kind = "scenario-policy"
 owner = "lab"
 transition = "promote"
-replacement = "posttrain_lab.qualification scenario and acceptance-adapter modules"
-tests = ["scripts/qualification/tests/test_algorithm_scenarios.py"]
+replacement = "posttrain_lab.qualification.scenarios"
+tests = ["apps/lab/tests/test_qualification_scenarios.py"]
 parity = [
   "round-trip the versioned scenario manifest without importing an execution provider",
   "reject an online scenario without an environment, rollout inference, or qualifying update budget",

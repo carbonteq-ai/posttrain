@@ -13,6 +13,7 @@ REMOTE_GPU_FIXTURE = WORKSPACE / "apps" / "lab" / "tests" / "fixtures" / "remote
 OBSERVATORY_QUALIFICATION = (
     WORKSPACE / "apps" / "observatory" / "src" / "posttrain_observatory" / "deployment_qualification.py"
 )
+LAB_SCENARIOS = WORKSPACE / "apps" / "lab" / "src" / "posttrain_lab" / "qualification" / "scenarios.py"
 
 _KINDS = {
     "scenario-policy",
@@ -62,6 +63,7 @@ def test_every_temporary_script_and_lab_dependent_fixture_has_one_owner_and_exit
     } | {
         REMOTE_GPU_FIXTURE.relative_to(WORKSPACE).as_posix(),
         OBSERVATORY_QUALIFICATION.relative_to(WORKSPACE).as_posix(),
+        LAB_SCENARIOS.relative_to(WORKSPACE).as_posix(),
         *(path.relative_to(WORKSPACE).as_posix() for path in EXECUTION_FIXTURES.glob("*_job.py")),
     }
     assert {surface["path"] for surface in surfaces} == expected_paths

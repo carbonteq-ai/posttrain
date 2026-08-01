@@ -3,7 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from scripts.qualification.algorithm_scenarios import scenario_by_id
+from posttrain_lab.qualification.scenarios import scenario_by_id
+
 from scripts.qualification.validate_algorithm_run import (
     LocalAlgorithmEvidence,
     RemoteAlgorithmEvidence,

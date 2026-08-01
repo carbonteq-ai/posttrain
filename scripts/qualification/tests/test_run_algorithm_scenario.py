@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.qualification.algorithm_scenarios import scenario_by_id
+from posttrain_lab.qualification.scenarios import scenario_by_id
+
 from scripts.qualification.run_algorithm_scenario import render_launch
 
 

@@ -3,8 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 
 import pytest
-
-from scripts.qualification.algorithm_scenarios import (
+from posttrain_lab.qualification.scenarios import (
     SCENARIOS,
     QualificationAcceptance,
     QualificationScenario,

@@ -19,13 +19,12 @@ if str(REPOSITORY) not in sys.path:
     sys.path.insert(0, str(REPOSITORY))
 
 from posttrain.tracking import TraceQuery  # noqa: E402
-from posttrain_observatory import ObservatoryService  # noqa: E402
-from posttrain_tracking_trackio import TrackioDataSource  # noqa: E402
-
-from scripts.qualification.algorithm_scenarios import (  # noqa: E402
+from posttrain_lab.qualification.scenarios import (  # noqa: E402
     QualificationScenario,
     scenario_by_id,
 )
+from posttrain_observatory import ObservatoryService  # noqa: E402
+from posttrain_tracking_trackio import TrackioDataSource  # noqa: E402
 
 
 @dataclass(frozen=True, slots=True)
