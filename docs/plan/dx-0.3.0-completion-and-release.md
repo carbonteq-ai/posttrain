@@ -64,9 +64,13 @@ green unit tests.
       classifies 25 work packages with 11 active gates and no unclassified
       file. The Decision Log records why `posttrain-integration` is not
       created.
-- [ ] Stabilize the recovered Trackio repository, finish the `post6` release,
-      deploy it through Ansible, and obtain a live deletion preview for the
-      retired `foundation-models` project before deleting anything further.
+- [x] (2026-08-01) Stabilized the recovered Trackio repository, merged post6
+      at `82fed847`, published its reproducible wheel to the development index,
+      and deployed it through the narrow ai-infra Ansible playbook. Both live
+      endpoints report `0.31.5.post6`; an authenticated preview against a
+      nonexistent project returned zero owned resources. The retired
+      `foundation-models` preview remains deliberately separate from release
+      deployment because it identifies real deletion scope.
 - [ ] Implement framework-owned run/project purge planning and execution with
       artifact-consumer closure, receipts, and a Trackio lifecycle adapter.
 - [ ] Complete the remaining release-critical configuration, lifecycle,
@@ -331,13 +335,13 @@ consumer closure* is the set of later runs that read an artifact produced by a
 selected run, recursively. It is directed producer to consumer. Purging the
 closure therefore deletes its leaf consumers first and the root producer last.
 
-The Trackio fork is `/home/hammad/projects/trackio`. Commit `92b7760` contains
-the project preview/purge feature; its version metadata is being advanced from
-`0.31.5.post5` to `0.31.5.post6`. `/home/hammad/projects/ai-infra` packages a
-specific Trackio wheel into the Ansible control role, which currently pins
-`post5`; that pin must change only after the post6 wheel, commit, and digest
-are final. The live endpoint is `https://trackio.lan`; never print its write
-token or credentials in plans, logs, receipts, or command output.
+The Trackio fork is `/home/hammad/projects/trackio`. Merged commit `82fed847`
+contains the project preview/purge feature and publishes
+`carbonteq-trackio==0.31.5.post6`. `/home/hammad/projects/ai-infra` pins that
+exact source revision and packages the wheel into the Ansible-managed shared
+and candidate services. The live endpoint is `https://trackio.lan`; never
+print its write token or credentials in plans, logs, receipts, or command
+output.
 
 The source plans remain authoritative for their own detailed contracts:
 

@@ -19,6 +19,11 @@ name = "pytorch-cu130"
 url = "https://download.pytorch.org/whl/cu130"
 explicit = true
 
+[[tool.uv.index]]
+name = "carbonteq-stable"
+url = "https://pypi.lan/carbonteq/stable/+simple/"
+explicit = true
+
 [tool.pytest.ini_options]
 addopts = [
     "--import-mode=importlib",
