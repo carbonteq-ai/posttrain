@@ -120,11 +120,17 @@ You may instead pass one or more `--project` options during the first
 `machine init`. Project registration is idempotent.
 `posttrain.env` remains an ignored, mode-0600 project override for values that
 genuinely differ by project. It is auto-loaded and never needs to be sourced.
+For a one-off job-image destination, make the deviation explicit instead of
+changing the shell environment or the shared machine default:
+
+```bash
+posttrain job run .posttrain/work_packages/sft.yaml --registry registry.example/team
+```
 
 ## 5. Local execution provider
 
-Local execution uses the canonical `machine_name` written by
-`posttrain machine init`. Its admission ledger is machine-scoped, so local
+Local execution derives the canonical hostname at runtime unless the operator
+explicitly passed `--machine-name`. Its admission ledger is machine-scoped, so local
 Docker jobs from every registered project serialize against the same physical
 resources. Mutable run and cache paths under `[storage]` resolve beneath
 `$XDG_STATE_HOME/posttrain`, not beneath the configuration directory.

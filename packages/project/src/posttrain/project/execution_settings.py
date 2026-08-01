@@ -30,6 +30,7 @@ class PackageOverrides:
 
     target: str | None = None
     runtime_profile: str | None = None
+    registry_prefix: str | None = None
 
     def as_execution_overrides(self) -> ExecutionOverrides:
         return ExecutionOverrides(target=self.target, runtime_profile=self.runtime_profile)

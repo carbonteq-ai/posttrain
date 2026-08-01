@@ -3,7 +3,11 @@
 from posttrain.environment import EnvironmentBindingSchema
 
 from .api import domain, evaluate, general
-from .catalog_schema import EvaluationPlanSchema, evaluation_catalog_decoders
+from .catalog_schema import (
+    EvaluationPlanSchema,
+    RemoteEvaluationBindingSchema,
+    evaluation_catalog_decoders,
+)
 from .requests import (
     EnvironmentActivation,
     EnvironmentBinding,
@@ -13,7 +17,10 @@ from .requests import (
     EvaluationBudget,
     EvaluationEndpoint,
     EvaluationPlan,
+    ExternalInferenceService,
     PythonFactoryActivation,
+    RemoteEvaluationBinding,
+    RemotePolicy,
     SamplingPolicy,
     VerifiersV1ConfigActivation,
 )
@@ -25,6 +32,7 @@ __all__ = [
     "EnvironmentBindingSchema",
     "EnvironmentFactory",
     "EnvironmentSource",
+    "ExternalInferenceService",
     "EvaluateRequest",
     "EvaluationBudget",
     "EvaluationEndpoint",
@@ -33,6 +41,9 @@ __all__ = [
     "EvaluationPopulation",
     "EvaluationResult",
     "PythonFactoryActivation",
+    "RemoteEvaluationBinding",
+    "RemoteEvaluationBindingSchema",
+    "RemotePolicy",
     "SamplingPolicy",
     "TraceSynchronization",
     "VerifiersV1ConfigActivation",

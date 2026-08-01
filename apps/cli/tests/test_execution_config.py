@@ -19,6 +19,8 @@ from posttrain_cli.execution_config import (
     REGISTRY_ENVIRONMENT_VARIABLE,
     TRUST_BUNDLE_ENVIRONMENT_VARIABLE,
     ExecutionOverrides,
+    LocalExecutionConfig,
+    derived_local_registry,
     load_execution_environment,
     load_local_execution_config,
     provider_binding_fingerprint,
@@ -26,6 +28,7 @@ from posttrain_cli.execution_config import (
     resolve_execution_settings,
     resolve_trust_bundle,
 )
+from posttrain_cli.execution_planning import _with_registry_override
 from posttrain_cli.execution_provider import (
     create_execution_provider,
     evidence_source_for_project,
@@ -54,6 +57,20 @@ def _layout(tmp_path: Path):
 def _write_runtime_environment(path: Path, values: str) -> None:
     path.write_text(values, encoding="utf-8")
     path.chmod(0o600)
+
+
+def test_explicit_registry_override_changes_only_the_publication_destination(tmp_path: Path) -> None:
+    registry = derived_local_registry()
+    configuration = LocalExecutionConfig(path=tmp_path / "config.toml", registry=registry)
+
+    overridden = _with_registry_override(configuration, "registry.example/team")
+
+    assert overridden.registry is not None
+    assert overridden.registry.repository == "registry.example/team/posttrain-job"
+    assert overridden.registry.universal_image == registry.universal_image
+    assert overridden.registry.kind_images == registry.kind_images
+    assert overridden.registry.constraint_profiles == registry.constraint_profiles
+    assert configuration.registry == registry
 
 
 def test_project_runtime_environment_is_authoritative_over_shell_registry(

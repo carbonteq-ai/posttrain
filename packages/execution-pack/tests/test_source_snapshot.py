@@ -93,7 +93,8 @@ def test_snapshot_ignores_generated_python_cache_files(tmp_path: Path) -> None:
     assert snapshotter.materialize(request).digest == before
 
 
-def test_snapshot_rejects_overlap_and_secret_files(tmp_path: Path) -> None:
+@pytest.mark.parametrize("secret_name", (".env", "posttrain.env"))
+def test_snapshot_rejects_overlap_and_secret_files(tmp_path: Path, secret_name: str) -> None:
     source = (tmp_path / "source").resolve()
     source.mkdir()
     _source(source)
@@ -105,7 +106,7 @@ def test_snapshot_rejects_overlap_and_secret_files(tmp_path: Path) -> None:
             install_roots=("packages/example",),
         )
 
-    (source / "packages/example/.env").write_text("TOKEN=secret\n")
+    (source / "packages/example" / secret_name).write_text("TOKEN=secret\n")
     request = SourceSnapshotRequest(
         root=source,
         includes=("packages/example",),

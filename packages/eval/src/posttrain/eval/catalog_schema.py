@@ -15,7 +15,10 @@ from .requests import (
     EnvironmentBinding,
     EnvironmentFactory,
     EvaluationPlan,
+    ExternalInferenceService,
     PythonFactoryActivation,
+    RemoteEvaluationBinding,
+    RemotePolicy,
     VerifiersV1ConfigActivation,
 )
 
@@ -85,6 +88,32 @@ class EvaluationPlanSchema(EvalCatalogSchema):
     comparison: dict[str, JsonValue] = Field(default_factory=dict)
 
 
+class RemotePolicySchema(EvalCatalogSchema):
+    id: str
+    revision: str
+    model: str
+    context_window: int = Field(gt=0)
+    capabilities: dict[str, JsonValue] = Field(default_factory=dict)
+
+
+class ExternalInferenceServiceSchema(EvalCatalogSchema):
+    id: str
+    revision: str
+    base_url: str
+    api_key_var: str
+    headers: dict[str, str] = Field(default_factory=dict)
+    request_defaults: dict[str, JsonValue] = Field(default_factory=dict)
+    protocol: Literal["openai-chat@1"] = "openai-chat@1"
+
+
+class RemoteEvaluationBindingSchema(EvalCatalogSchema):
+    id: str
+    revision: str
+    policy: RemotePolicySchema
+    service: ExternalInferenceServiceSchema
+    purpose: tuple[Literal["screen", "eval"], ...]
+
+
 def evaluation_catalog_decoders(
     factories: Mapping[str, EnvironmentActivation | EnvironmentFactory] | None = None,
 ) -> Mapping[SelectionFamily, SelectionDecoder]:
@@ -111,9 +140,27 @@ def evaluation_catalog_decoders(
         values = payload.model_dump(exclude={"environments"})
         return EvaluationPlan(environments=tuple(environments), **values)
 
+    def decode_remote_evaluation(
+        ref: CatalogRef,
+        data: Mapping[str, object],
+        known: Mapping[CatalogRef, Selection],
+    ) -> Selection:
+        del ref, known
+        payload = RemoteEvaluationBindingSchema.model_validate(data)
+        return RemoteEvaluationBinding(
+            id=payload.id,
+            revision=payload.revision,
+            policy=RemotePolicy(**payload.policy.model_dump()),
+            service=ExternalInferenceService(**payload.service.model_dump()),
+            purpose=payload.purpose,
+        )
+
     return cast(
         Mapping[SelectionFamily, SelectionDecoder],
-        {"evaluation": decode_evaluation},
+        {
+            "evaluation": decode_evaluation,
+            "remote-evaluation": decode_remote_evaluation,
+        },
     )
 
 
@@ -152,6 +199,8 @@ __all__ = [
     "EnvironmentBindingSchema",
     "EvaluationPlanSchema",
     "PythonFactoryActivationSchema",
+    "RemoteEvaluationBindingSchema",
+    "RemotePolicySchema",
     "VerifiersV1ConfigActivationSchema",
     "evaluation_catalog_decoders",
 ]

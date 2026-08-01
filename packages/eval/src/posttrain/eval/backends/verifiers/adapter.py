@@ -9,7 +9,7 @@ from typing import Any, Protocol, cast
 
 from posttrain.common import JsonValue, RunContext, TraceObservation
 
-from ...requests import EvaluateRequest
+from ...requests import EvaluateRequest, RemotePolicy
 from ...results import EvaluationPopulation
 from .synchronization import TraceSyncStats, VerifiersTraceSynchronizer
 
@@ -49,9 +49,13 @@ def _native_sampling(request: EvaluateRequest) -> dict[str, JsonValue]:
         values["top_p"] = policy.top_p
     if policy.reasoning_effort is not None:
         values["reasoning_effort"] = policy.reasoning_effort
-    template_kwargs = request.model.conversation.reasoning_mode(request.resolved_reasoning_mode).kwargs()
-    if template_kwargs:
-        values["chat_template_kwargs"] = cast(dict[str, JsonValue], template_kwargs)
+    if not isinstance(request.model, RemotePolicy):
+        template_kwargs = request.model.conversation.reasoning_mode(request.resolved_reasoning_mode).kwargs()
+        if template_kwargs:
+            values["chat_template_kwargs"] = cast(dict[str, JsonValue], template_kwargs)
+    service = request.remote_service
+    if service is not None:
+        values.update(service.request_defaults)
     return values
 
 
@@ -62,15 +66,20 @@ def _build_native(request: EvaluateRequest, output_dir: Path) -> tuple[Any, Any,
         raise TypeError("environment factories must return verifiers.v1.EnvConfig")
     base = cast(_NativeEnvConfig, base)
     num_tasks, num_rollouts, max_concurrent = request.resolved_budget
+    endpoint = request.resolved_endpoint
+    service = request.remote_service
+    client: dict[str, JsonValue] = {
+        "type": "eval",
+        "base_url": endpoint.base_url,
+        "api_key_var": endpoint.api_key_var,
+    }
+    if service is not None and service.headers:
+        client["headers"] = dict(service.headers)
     raw = base.model_dump(mode="python")
     raw.update(
         {
-            "model": request.endpoint.served_model,
-            "client": {
-                "type": "eval",
-                "base_url": request.endpoint.base_url,
-                "api_key_var": request.endpoint.api_key_var,
-            },
+            "model": endpoint.served_model,
+            "client": client,
             "sampling": _native_sampling(request),
             "num_tasks": num_tasks,
             "num_rollouts": num_rollouts,
@@ -92,7 +101,7 @@ def _build_native(request: EvaluateRequest, output_dir: Path) -> tuple[Any, Any,
 
 def _emit_batch(context: EvaluationContext, request: EvaluateRequest, records: list[dict[str, Any]]) -> None:
     attributes = {
-        "model_variant_id": request.model.id,
+        "evaluation_subject_id": request.model.id,
         "evaluation_plan_id": request.plan.id,
         "evaluation_plan_kind": request.plan.kind,
         "environment_id": request.environment.id,
@@ -100,15 +109,44 @@ def _emit_batch(context: EvaluationContext, request: EvaluateRequest, records: l
         "inference_binding_id": request.inference.id,
         "execution_target_id": request.target.id,
     }
+    if isinstance(request.model, RemotePolicy):
+        assert request.remote_service is not None
+        attributes.update(
+            {
+                "evaluation_subject_kind": "remote-policy",
+                "remote_policy_revision": request.model.revision,
+                "remote_service_id": request.remote_service.id,
+                "remote_service_revision": request.remote_service.revision,
+                "remote_service_protocol": request.remote_service.protocol,
+                "remote_service_origin": request.remote_service.origin,
+            }
+        )
+    else:
+        attributes.update(
+            {
+                "evaluation_subject_kind": "model-variant",
+                "model_variant_id": request.model.id,
+            }
+        )
     for record in records:
+        observed = _observed_model(record)
+        trace_attributes = dict(attributes)
+        if observed is not None:
+            trace_attributes["observed_model"] = observed
         context.trace(
             TraceObservation(
                 trace_type="verifiers",
                 external_id=str(record["id"]),
                 payload=record,
-                attributes=attributes,
+                attributes=trace_attributes,
             )
         )
+
+
+def _observed_model(record: dict[str, Any]) -> str | None:
+    agent = record.get("agent")
+    model = agent.get("model") if isinstance(agent, dict) else None
+    return str(model) if isinstance(model, str) and model else None
 
 
 async def _run(context: EvaluationContext, request: EvaluateRequest, output_dir: Path) -> VerifiersRunResult:

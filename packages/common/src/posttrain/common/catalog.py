@@ -31,6 +31,7 @@ _CORE_FAMILY_ORDER: tuple[str, ...] = (
     "dataset",
     "environment",
     "evaluation",
+    "remote-evaluation",
     "workload",
     "training",
     "quantization",

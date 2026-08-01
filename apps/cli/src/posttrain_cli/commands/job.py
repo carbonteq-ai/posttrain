@@ -216,6 +216,13 @@ def register(app: typer.Typer) -> None:
                 help="override the selected job-kind runtime profile",
             ),
         ] = None,
+        registry: Annotated[
+            str | None,
+            typer.Option(
+                "--registry",
+                help="override the project job-image registry prefix for this invocation",
+            ),
+        ] = None,
         host: Annotated[
             str | None,
             typer.Option(
@@ -284,6 +291,7 @@ def register(app: typer.Typer) -> None:
             overrides=PackageOverrides(
                 target=target,
                 runtime_profile=runtime_profile,
+                registry_prefix=registry,
             ),
             host=host,
             entry=entry,
@@ -328,6 +336,13 @@ def register(app: typer.Typer) -> None:
             typer.Option(
                 "--runtime-profile",
                 help="override the selected job-kind runtime profile",
+            ),
+        ] = None,
+        registry: Annotated[
+            str | None,
+            typer.Option(
+                "--registry",
+                help="override the project job-image registry prefix for this invocation",
             ),
         ] = None,
         timeout_seconds: Annotated[
@@ -442,6 +457,7 @@ def register(app: typer.Typer) -> None:
                 priority=priority,
                 environment_names=environment_names,
             ),
+            registry_prefix=registry,
             run_id=run_id,
             project_packages=(tuple(project_packages) if project_packages is not None else None),
             source_includes=(tuple(source_includes) if source_includes is not None else None),

@@ -515,9 +515,9 @@ ServeBenchmarkRequest
 
 # eval.domain / eval.general
 EvaluateRequest
-  model: ModelVariant
+  model: ModelVariant | RemotePolicy
   plan: EvaluationPlan
-  inference: InferenceBinding      # how tokens are produced for this eval
+  inference: InferenceBinding | RemoteEvaluationBinding
   target: ExecutionTarget
 
 # train.sft
@@ -590,11 +590,21 @@ this operation.
 Do not require `training.target == inference.target`. Colocation is a work-package
 choice.
 
-Do not pass a `GenerationHandle` as a public seat across packages. If eval or
-train needs live generation, the **host** (or work-package runner) may start
+Evaluation has a second, evaluation-only subject path for a remote policy. It
+binds a remote model selector to a versioned external service descriptor rather
+than forcing an API model into `ModelVariant`. The descriptor carries an
+OpenAI-compatible protocol revision, secret-variable name, safe headers, and
+safe request defaults. It is not accepted by train, serve, or token-level
+rollout APIs. The service and policy remain separate because the same policy
+can be served locally, directly by a provider, or through a router.
+
+Do not pass a `GenerationHandle` as a public seat across packages. If local eval
+or train needs live generation, the **host** (or work-package runner) may start
 serve-side generation and pass an opaque, host-owned endpoint descriptor that
 satisfies the inference seat — capability packages still speak
-`InferenceBinding`, not foreign handles.
+`InferenceBinding`, not foreign handles. Remote evaluation instead uses the
+typed evaluation-only remote binding described above; its client remains inside
+Verifiers and does not become a cross-package generation handle.
 
 ### Package surfaces
 

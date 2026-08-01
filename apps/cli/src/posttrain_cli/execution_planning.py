@@ -56,6 +56,7 @@ from posttrain_execution_buildkit import (
 
 from .context import CliState
 from .execution_config import (
+    REGISTRY_ENVIRONMENT_VARIABLE,
     ExecutionOverrides,
     ExecutionStorageBinding,
     LaunchOverrides,
@@ -65,6 +66,7 @@ from .execution_config import (
     ResolvedExecutionSettings,
     SettingSource,
     derived_local_registry,
+    derived_registry,
     load_execution_environment,
     load_local_execution_config,
     resolve_execution_settings,
@@ -345,6 +347,7 @@ def plan_job_execution(
     *,
     job: str,
     overrides: ExecutionOverrides = _EMPTY_OVERRIDES,
+    registry_prefix: str | None = None,
     run_id: str | None = None,
     host: str | None = None,
     entry: str | None = None,
@@ -363,6 +366,7 @@ def plan_job_execution(
         overrides=PackageOverrides(
             target=overrides.target,
             runtime_profile=overrides.runtime_profile,
+            registry_prefix=registry_prefix,
         ),
         host=host,
         entry=entry,
@@ -411,6 +415,7 @@ def plan_job_package(
         return _plan_job_package_from_intent(
             intent,
             overrides=overrides.as_execution_overrides(),
+            registry_prefix=overrides.registry_prefix,
             project_packages=project_packages,
             source_includes=source_includes,
             env_file=env_file,
@@ -422,6 +427,7 @@ def plan_job_package(
         path,
         job=job,
         overrides=overrides.as_execution_overrides(),
+        registry_prefix=overrides.registry_prefix,
         host=host,
         entry=entry,
         project_packages=project_packages,
@@ -479,6 +485,7 @@ def _plan_job_package(
     *,
     job: str,
     overrides: ExecutionOverrides,
+    registry_prefix: str | None,
     host: str | None,
     entry: str | None,
     project_packages: tuple[str, ...] | None,
@@ -508,6 +515,7 @@ def _plan_job_package(
             prepared=prepared,
         ),
         overrides=overrides,
+        registry_prefix=registry_prefix,
         project_packages=project_packages,
         source_includes=source_includes,
         env_file=env_file,
@@ -520,6 +528,7 @@ def _plan_job_package_from_intent(
     intent: JobIntent,
     *,
     overrides: ExecutionOverrides,
+    registry_prefix: str | None,
     project_packages: tuple[str, ...] | None,
     source_includes: tuple[str, ...] | None,
     env_file: Path | None,
@@ -527,7 +536,10 @@ def _plan_job_package_from_intent(
     framework_wheelhouse: Path | None,
 ) -> PlannedJobPackage:
     layout = intent.layout
-    local_config = load_local_execution_config(layout, env_file=env_file)
+    local_config = _with_registry_override(
+        load_local_execution_config(layout, env_file=env_file),
+        registry_prefix,
+    )
     if local_publication and local_config.registry is None:
         local_config = replace(local_config, registry=derived_local_registry())
     catalog = intent.catalog
@@ -687,6 +699,24 @@ def _registry(local_config: LocalExecutionConfig) -> RegistryBinding:
             f"job packing requires [registry] with exact image and constraint identities in {local_config.path}"
         )
     return registry
+
+
+def _with_registry_override(
+    local_config: LocalExecutionConfig,
+    registry_prefix: str | None,
+) -> LocalExecutionConfig:
+    """Apply the explicit, one-invocation publication destination override."""
+
+    if registry_prefix is None:
+        return local_config
+    override = derived_registry(environ={REGISTRY_ENVIRONMENT_VARIABLE: registry_prefix})
+    if override is None:
+        raise ContractError("--registry must name a non-empty OCI registry prefix")
+    registry = local_config.registry
+    return replace(
+        local_config,
+        registry=(override if registry is None else replace(registry, repository=override.repository)),
+    )
 
 
 def _discover_framework_source_root() -> Path | None:

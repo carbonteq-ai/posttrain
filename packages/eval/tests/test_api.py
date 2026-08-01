@@ -8,6 +8,8 @@ from typing import Any
 
 import pytest
 from posttrain.common import (
+    Catalog,
+    CatalogRef,
     EventObservation,
     ExecutionTarget,
     InferenceBinding,
@@ -26,11 +28,15 @@ from posttrain.eval import (
     EvaluationEndpoint,
     EvaluationPlan,
     EvaluationPopulation,
+    ExternalInferenceService,
     PythonFactoryActivation,
+    RemoteEvaluationBinding,
+    RemotePolicy,
     SamplingPolicy,
     VerifiersV1ConfigActivation,
     domain,
     evaluate,
+    evaluation_catalog_decoders,
     general,
 )
 from posttrain.eval.backends.verifiers import VerifiersRunResult
@@ -142,6 +148,56 @@ def canonical_request() -> EvaluateRequest:
     return request()
 
 
+def remote_request(*, request_defaults: dict[str, Any] | None = None) -> EvaluateRequest:
+    source = EnvironmentSource("fake-env", "https://example.test/environments", REVISION)
+    plan = EvaluationPlan(
+        "remote-screen-test-v1",
+        "general",
+        (
+            EnvironmentBinding(
+                "tool-loop",
+                "tool-use",
+                source,
+                PythonFactoryActivation("builtins:object"),
+                SamplingPolicy(max_tokens=512),
+                num_tasks=2,
+            ),
+        ),
+    )
+    target = ExecutionTarget("targets/external-screen", "1", "network-client")
+    policy = RemotePolicy(
+        "policies/qwen-via-openrouter@1",
+        "2026-07-31",
+        "qwen/qwen3.5-2b",
+        32_768,
+        {"tools": True},
+    )
+    service = ExternalInferenceService(
+        "services/openrouter@1",
+        "1",
+        "https://openrouter.ai/api/v1",
+        "OPENROUTER_API_KEY",
+        {"HTTP-Referer": "https://posttrain.example"},
+        request_defaults or {"provider": {"allow_fallbacks": False}},
+    )
+    binding = RemoteEvaluationBinding(
+        "inference/qwen-via-openrouter-eval@1",
+        "1",
+        policy,
+        service,
+        ("screen", "eval"),
+    )
+    return EvaluateRequest(
+        model=policy,
+        plan=plan,
+        inference=binding,
+        target=target,
+        endpoint=None,
+        environment_id="tool-loop",
+        context_window=8_192,
+    )
+
+
 def test_general_smoke_is_code_defined_and_category_selectable() -> None:
     assert isinstance(GENERAL_SMOKE, EvaluationPlan)
     assert isinstance(GENERAL_SMOKE.environments[0], EnvironmentBinding)
@@ -199,6 +255,108 @@ def test_agentic_and_domain_programs_share_the_native_port() -> None:
 def test_evaluation_request_rejects_response_budget_at_context_limit() -> None:
     with pytest.raises(ValueError, match="response budget"):
         request(context_window=512)
+
+
+def test_remote_evaluation_keeps_policy_service_and_endpoint_separate() -> None:
+    evaluation = remote_request()
+
+    assert evaluation.endpoint is None
+    assert evaluation.resolved_endpoint.base_url == "https://openrouter.ai/api/v1"
+    assert evaluation.resolved_endpoint.served_model == "qwen/qwen3.5-2b"
+    assert evaluation.remote_service is evaluation.inference.service  # type: ignore[union-attr]
+    assert evaluation.resolved_reasoning_mode == "provider-default"
+
+
+@pytest.mark.parametrize(
+    ("headers", "defaults", "match"),
+    [
+        ({"Authorization": "Bearer secret"}, {}, "must not carry credentials"),
+        ({}, {"model": "different"}, "cannot override evaluation-owned fields"),
+        ({}, {"tools": []}, "cannot override evaluation-owned fields"),
+    ],
+)
+def test_external_service_rejects_secrets_and_evaluation_owned_request_fields(
+    headers: dict[str, str], defaults: dict[str, Any], match: str
+) -> None:
+    with pytest.raises(ValueError, match=match):
+        ExternalInferenceService(
+            "services/invalid@1",
+            "1",
+            "https://openrouter.ai/api/v1",
+            "OPENROUTER_API_KEY",
+            headers,
+            defaults,
+        )
+
+
+def test_remote_evaluation_rejects_local_endpoint_and_reasoning_override() -> None:
+    evaluation = remote_request()
+    with pytest.raises(ValueError, match="resolves its endpoint"):
+        replace(
+            evaluation,
+            endpoint=EvaluationEndpoint("http://127.0.0.1:8000/v1", "wrong"),
+        )
+    with pytest.raises(ValueError, match="reasoning belongs"):
+        replace(evaluation, reasoning_mode="thinking")
+
+
+def test_remote_binding_maps_to_the_native_verifiers_client_without_a_custom_loop(tmp_path: Path) -> None:
+    pytest.importorskip("verifiers.v1")
+    from posttrain.eval.backends.verifiers.adapter import _build_native
+
+    evaluation = remote_request()
+    environment = GENERAL_SMOKE.environment("math-gsm8k")
+    evaluation = replace(
+        evaluation,
+        plan=replace(evaluation.plan, environments=(environment,)),
+        environment_id=environment.id,
+    )
+
+    _native_environment, config, _runner = _build_native(evaluation, tmp_path)
+
+    assert config.model == "qwen/qwen3.5-2b"
+    assert config.client.type == "eval"
+    assert config.client.base_url == "https://openrouter.ai/api/v1"
+    assert config.client.api_key_var == "OPENROUTER_API_KEY"
+    assert config.client.headers == {"HTTP-Referer": "https://posttrain.example"}
+    assert config.sampling.provider == {"allow_fallbacks": False}
+
+
+def test_remote_evaluation_binding_decodes_from_a_catalog_family() -> None:
+    catalog = Catalog.open(
+        {
+            "layer_id": "remote-eval-test",
+            "remote-evaluation": {
+                "inference/qwen-via-openrouter-eval@1": {
+                    "revision": "1",
+                    "policy": {
+                        "id": "policies/qwen-via-openrouter@1",
+                        "revision": "2026-07-31",
+                        "model": "qwen/qwen3.5-2b",
+                        "context_window": 32768,
+                        "capabilities": {"tools": True},
+                    },
+                    "service": {
+                        "id": "services/openrouter@1",
+                        "revision": "1",
+                        "base_url": "https://openrouter.ai/api/v1",
+                        "api_key_var": "OPENROUTER_API_KEY",
+                        "request_defaults": {"provider": {"allow_fallbacks": False}},
+                    },
+                    "purpose": ["screen", "eval"],
+                }
+            },
+        },
+        decoders=evaluation_catalog_decoders(),
+    )
+
+    binding = catalog.resolve(
+        CatalogRef("remote-evaluation", "inference/qwen-via-openrouter-eval@1")
+    ).value
+
+    assert isinstance(binding, RemoteEvaluationBinding)
+    assert binding.service.origin == "https://openrouter.ai"
+    assert binding.policy.model == "qwen/qwen3.5-2b"
 
 
 def test_invocation_budget_can_select_a_small_subset_without_mutating_program() -> None:

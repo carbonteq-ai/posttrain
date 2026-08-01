@@ -37,6 +37,7 @@ from .planning import JobPackPlan
 
 _FORBIDDEN_SOURCE_NAMES = {
     ".env",
+    "posttrain.env",
     ".git",
     ".netrc",
     "credentials",

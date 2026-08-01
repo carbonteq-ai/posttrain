@@ -103,6 +103,16 @@ The framework may publish reusable choices in any family. Projects still bind
 exact versions and may create project-local choices when shared ones do not
 match.
 
+Evaluation has one deliberate exception to the otherwise model-variant-first
+rule. A local or trainable policy is a `ModelVariant`: it has immutable weights,
+a tokenizer, and a renderer contract. An API-only policy has none of those
+properties. `eval` may therefore accept an evaluation-only remote policy
+selector together with an external inference service binding. The selector says
+which remote policy is requested; the service says where and how it is called.
+Neither is a `ModelVariant`, and neither can be used by train, token-level
+rollout, or serving operations. Their compatibility is established by retained
+Verifiers evaluation evidence, not inferred from a provider name.
+
 ---
 
 ## Model variant
@@ -619,6 +629,14 @@ evals/memory-heldout@2
 Running a plan against a particular model creates one or more **runs** (typically
 one run per environment cell) and evaluation evidence. It does not mint a new
 evaluation-plan identity.
+
+The request subject is either a local `ModelVariant` with an
+`InferenceBinding`, or an evaluation-only remote policy with a remote evaluation
+binding. A remote binding owns the OpenAI-compatible wire protocol, endpoint
+origin, secret *variable name*, safe headers, and safe request defaults. It
+does not own environment behavior, tool semantics, rewards, token rendering,
+or secrets. Verifiers remains responsible for the native multi-turn trace and
+provider-specific continuation state.
 
 ### Verifiers-backed eval evidence
 

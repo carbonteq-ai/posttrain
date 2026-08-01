@@ -24,13 +24,18 @@ from posttrain.data import (
 from posttrain.eval import (
     EnvironmentBinding,
     EnvironmentSource,
+    EvaluationPlan,
+    ExternalInferenceService,
     PythonFactoryActivation,
+    RemoteEvaluationBinding,
+    RemotePolicy,
     SamplingPolicy,
 )
 from posttrain.jobs import (
     build_job_runtime,
     grpo_definition,
     preference_data_prepare_definition,
+    remote_evaluation_definition,
     sft_definition,
     standard_definitions,
     supervised_data_prepare_definition,
@@ -89,8 +94,9 @@ def test_standard_definition_registry_covers_every_technique() -> None:
         "train/trl-distill@1",
         "serve/vllm-benchmark@1",
         "serve/vllm-smoke@1",
-        "eval/verifiers-general@1",
-        "eval/verifiers-managed@1",
+            "eval/verifiers-general@1",
+            "eval/verifiers-remote-general@1",
+            "eval/verifiers-managed@1",
         "eval/verifiers-managed-general@1",
         "model/llm-compressor@2",
     } == set(definitions)
@@ -99,6 +105,58 @@ def test_standard_definition_registry_covers_every_technique() -> None:
     assert definitions["eval/verifiers-managed-general@1"].kind == "eval.general"
     assert definitions["data/canonicalize-supervised@1"].kind == "data.prepare"
     assert definitions["data/canonicalize-preference@1"].kind == "data.prepare"
+
+
+def test_remote_evaluation_definition_does_not_construct_a_local_vllm_endpoint(tmp_path: Path) -> None:
+    captured = []
+    definition = remote_evaluation_definition(lambda context, request: captured.append((context, request)))
+    source = EnvironmentSource("fake-env", "https://example.test/environments", "a" * 40)
+    environment = EnvironmentBinding(
+        "tool-loop",
+        "tool-use",
+        source,
+        PythonFactoryActivation("builtins:object"),
+        SamplingPolicy(max_tokens=128),
+        num_tasks=1,
+    )
+    policy = RemotePolicy("policies/example@1", "2026-07-31", "example/model", 8192)
+    binding = RemoteEvaluationBinding(
+        "inference/example-remote@1",
+        "1",
+        policy,
+        ExternalInferenceService(
+            "services/example@1",
+            "1",
+            "https://api.example.test/v1",
+            "EXAMPLE_API_KEY",
+        ),
+        ("screen", "eval"),
+    )
+    context = RunContext(
+        project_id="jobs-test",
+        work_package_id="screen/remote",
+        run_id="run-remote",
+        job_kind="eval.general",
+        job_definition_version=definition.id,
+        workspace=(tmp_path / "workspace").resolve(),
+        observer=NullObserver(),
+    )
+    definition.operation(
+        context,
+        {
+            "remote_evaluation": binding,
+            "target": ExecutionTarget("targets/external", "1", "network-client"),
+            "evaluation_plan": EvaluationPlan("remote-general-v1", "general", (environment,)),
+            "environment": environment,
+        },
+    )
+
+    assert len(captured) == 1
+    request = captured[0][1]
+    assert request.model is policy
+    assert request.inference is binding
+    assert request.endpoint is None
+    assert request.resolved_endpoint.base_url == "https://api.example.test/v1"
 
 
 def test_standard_data_prepare_definitions_bind_their_dataset_kinds(

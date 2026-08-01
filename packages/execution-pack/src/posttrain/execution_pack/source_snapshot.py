@@ -17,6 +17,7 @@ from .contracts import SourcePackage
 
 _FORBIDDEN_NAMES = {
     ".env",
+    "posttrain.env",
     ".git",
     ".netrc",
     "credentials",
