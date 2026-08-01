@@ -168,6 +168,16 @@ surface, or broken maintained documentation link remains.
   package `automation-bench` and has no `automationbench_v1` adapter. The
   immutable wheel builder correctly rejects the name mismatch. This does not
   affect the selected `data.prepare` or `eval.domain` nested-pack proofs.
+  Follow-up (2026-08-01): the cause was not a version mismatch and needed no
+  new code. `environments/automationbench_v1` in this repository is already the
+  native Verifiers v1 environment and has been tracked since `v0.2.5`; the
+  catalog was simply naming the benchmark fork instead of the repository that
+  contains the environment. It now names this repository with subdirectory
+  `environments/automationbench_v1`, exactly as `gsm8k-v1` names the Verifiers
+  repository with `environments/gsm8k_v1`. This resolves the ownership question
+  for `environments/` too: it is a reviewed root owner holding native Verifiers
+  environments, not an unowned dumping ground, and Lab no longer depends on it
+  by path.
 - Observation: the local AutomationBench adapter had a second incompatible
   contract: it declared Python `<3.13` and its lock resolved only Python 3.12,
   while framework online-RL capsules are Python 3.13.
@@ -558,10 +568,10 @@ record the replacements and why in the Decision Log.
 
 Inspect `apps/lab/pyproject.toml` during this proof. Its
 `automationbench-v1 = { path = "../../environments/automationbench_v1" }`
-source is development configuration, but the Lab wheel does not import that
-package directly. Remove the base/extra dependency if selected environment
-packaging already owns it; otherwise teach the packer's selected dependency
-closure to stage the workspace environment by identity. Do not permit `../..`
+source was development configuration, but the Lab wheel never imported that
+package. Resolved (2026-08-01): the extra and the path source were removed
+because selected environment packaging owns the environment once its catalog
+source names an immutable commit and subdirectory. Do not permit `../..`
 paths in the immutable project source snapshot and do not include the whole
 framework checkout merely to make the proof pass. Acceptance is an installed
 actual-job image whose project source root is Lab, whose framework packages
@@ -652,7 +662,11 @@ record the paths and recoverability.
 Milestone 6 is the migration and release acceptance gate. Build the exact
 framework wheels from the staged release source, pack the same dataset-backed
 and evaluation-backed Lab jobs used in milestone 2, and execute them through
-the public path on an appropriate target. The goal is not model quality; it is
+the public path on an appropriate target. These two remain this plan's
+migration proof because they are the jobs whose package closure milestone 2
+already established; the separate 0.3.0 release gate is the SAMPO and DAPO pair
+selected in `docs/plan/dx-0.3.0-completion-and-release.md`, and neither set
+substitutes for the other. The goal is not model quality; it is
 proof that project source, selected dataset/environment closure, runtime image,
 tracking, provider lifecycle, and retained evidence all work after the move.
 Inspect both jobs through Trackio/Observatory and reconcile their provider

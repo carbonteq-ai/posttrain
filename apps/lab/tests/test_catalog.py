@@ -58,8 +58,10 @@ def test_automationbench_grpo_environment_is_category_and_budget_driven() -> Non
 
     assert isinstance(environment, EnvironmentBinding)
     assert isinstance(environment.source, EnvironmentSource)
-    assert environment.source.repository == "https://github.com/carbonteq-ai/AutomationBench"
-    assert environment.source.revision == "d54dbebabdba6c6eda201694aee8ddcf36ccfc51"
+    assert environment.source.package == "automationbench-v1"
+    assert environment.source.repository == "https://github.com/carbonteq-ai/posttrain"
+    assert environment.source.revision == "4c2f756393b0e44d2587f9e9a5ee1f4704d5d73b"
+    assert environment.source.subdirectory == "environments/automationbench_v1"
     assert environment.parameters["domains"] == ["simple"]
     assert environment.parameters["sampling_seed"] == 17
     assert environment.parameters["toolset"] == "zapier"

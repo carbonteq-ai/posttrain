@@ -12,6 +12,33 @@ training:
     num_generations: 8
     max_prompt_length: 2048
     max_completion_length: 6144
+  automationbench/qwen3.5-0.8b/sampo-mtp-capsule-v1:
+    selection_type: sampo-settings
+    revision: "1"
+    loop:
+      max_steps: 2
+      max_length: 8192
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 8
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 0
+      checkpoint_limit: 1
+    num_prompts_per_step: 2
+    # One generation wave: the selected AutomationBench rollout engine admits
+    # four concurrent sequences, so a wider group would serialize rather than
+    # widen the sampled group.
+    num_generations: 4
+    max_prompt_length: 2048
+    max_completion_length: 6144
+    discount_gamma: 0.95
+    step_advantage_weight: 1.0
+    advantage_normalization: mean
+    clip_epsilon_low: 0.003
+    clip_epsilon_high: 0.004
+    dynamic_sampling:
+      max_candidate_batches: 3
+    mask_truncated_completions: false
   qwen3.5-0.8b/on-policy-distill-smoke-v1:
     selection_type: on-policy-distillation-settings
     revision: "1"

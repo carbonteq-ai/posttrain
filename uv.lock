@@ -246,21 +246,6 @@ wheels = [
 ]
 
 [[package]]
-name = "automationbench-v1"
-version = "0.1.0"
-source = { directory = "environments/automationbench_v1" }
-dependencies = [
-    { name = "carbonteq-automation-bench" },
-    { name = "verifiers" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "carbonteq-automation-bench", git = "https://github.com/carbonteq-ai/AutomationBench.git?rev=908db2abd4a868acc37ab0850474bff653bea25c" },
-    { name = "verifiers", git = "https://github.com/PrimeIntellect-ai/verifiers.git?rev=284a868d6a9022109b749710672a0460e8a996d4" },
-]
-
-[[package]]
 name = "bitsandbytes"
 version = "0.49.2"
 source = { registry = "https://pypi.org/simple" }
@@ -336,19 +321,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f4/8b/0d3945a13955303b81272f759a0331e54c5c793da455e6f5706b89d2639c/cachetools-7.1.4.tar.gz", hash = "sha256:437f55a4e0c1b01a4f3077cc470e6991d47430970e36fbcb77e2be0df4fc1cd6", size = 40085, upload-time = "2026-05-21T22:40:43.376Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8c/7b/1fc1c09cc0756cf25861a3be10565915953876da48bb228fb9a672b20a42/cachetools-7.1.4-py3-none-any.whl", hash = "sha256:323dc4127934744db5b54eb4924482d7edafbf9554e820d1531c2e08c0e4ef54", size = 16761, upload-time = "2026-05-21T22:40:41.845Z" },
-]
-
-[[package]]
-name = "carbonteq-automation-bench"
-version = "1.0.5.post1"
-source = { git = "https://github.com/carbonteq-ai/AutomationBench.git?rev=908db2abd4a868acc37ab0850474bff653bea25c#908db2abd4a868acc37ab0850474bff653bea25c" }
-dependencies = [
-    { name = "anthropic" },
-    { name = "httpx" },
-    { name = "pydantic" },
-    { name = "python-dotenv" },
-    { name = "rich" },
-    { name = "verifiers" },
 ]
 
 [[package]]
@@ -2786,7 +2758,6 @@ gpu-eval = [
     { name = "posttrain-serve", extra = ["vllm"] },
 ]
 gpu-posttrain = [
-    { name = "automationbench-v1" },
     { name = "posttrain-eval", extra = ["verifiers"] },
     { name = "posttrain-train", extra = ["trl", "trl-vllm"] },
 ]
@@ -2796,7 +2767,6 @@ gpu-train = [
 
 [package.metadata]
 requires-dist = [
-    { name = "automationbench-v1", marker = "extra == 'gpu-posttrain'", directory = "environments/automationbench_v1" },
     { name = "carbonteq-trackio", git = "https://github.com/carbonteq-ai/trackio.git?rev=703be3808cb6cac52259cb15e614cad971978d2e" },
     { name = "posttrain-catalog", editable = "packages/catalog" },
     { name = "posttrain-common", editable = "packages/common" },

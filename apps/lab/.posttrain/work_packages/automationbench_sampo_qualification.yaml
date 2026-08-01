@@ -1,0 +1,55 @@
+project_id: posttrain-lab
+work_package_id: train/qwen3.5-0.8b/automationbench-zapier-sampo-capsule-qualification
+stage: train
+description: Complete two Qwen 3.5 0.8B SAMPO updates over native multi-turn Zapier AutomationBench rollouts, retaining exact resolved tasks and per-step advantages in Verifiers evidence.
+recipe:
+  type: inline
+  id: recipes/automationbench-zapier-sampo-capsule@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: sampo
+      kind: train.sampo
+      definition: train/trl-sampo@1
+  expected_artifacts:
+    - trained adapter
+    - native Verifiers trajectories
+    - training summary
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/qwen3.5-0.8b@bf16
+  environment:
+    type: ref
+    family: environment
+    id: automationbench-zapier-simple-grpo
+  settings:
+    type: ref
+    family: training
+    id: automationbench/qwen3.5-0.8b/sampo-mtp-capsule-v1
+  training:
+    type: ref
+    family: training
+    id: training/qwen3.5-0.8b-trl-automationbench-lora-thinking@1
+  rollout_inference:
+    type: ref
+    family: inference
+    id: inference/qwen3.5-0.8b-vllm-automationbench-rollout-mtp@1
+enabled_optional_jobs: []
+metadata:
+  question: Do SAMPO hierarchical per-step advantages remain well defined and fully traced over long multi-turn Zapier tool-use rollouts?
+  labels:
+    - qualification
+    - sampo
+    - automationbench
+    - zapier
+    - multi-turn
+    - thinking
+    - mtp

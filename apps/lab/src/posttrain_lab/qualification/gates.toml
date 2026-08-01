@@ -23,6 +23,19 @@ owner = "posttrain-environments"
 replacement_condition = "Promote only after the immutable AutomationBench adapter wheel builds and a packaged environment job retains complete trajectory evidence; retire when its successor environment covers that contract."
 
 [[gates]]
+id = "automationbench-sampo"
+work_package = ".posttrain/work_packages/automationbench_sampo_qualification.yaml"
+job_id = "sampo"
+tier = "experimental"
+state = "candidate"
+job_kind = "train.sampo"
+acceptance = "verifiers-trajectories"
+experiment_family = "automationbench-sampo"
+hypothesis = "SAMPO's hierarchical per-step advantages are best qualified on a long multi-turn tool-use environment, so Zapier AutomationBench is a stronger release signal for the SAMPO contract than the synthetic alphabet-sort environment."
+owner = "posttrain-training"
+replacement_condition = "Promote to an active release gate once the automationbench-v1 environment distribution builds from an immutable published source and one managed run retains complete per-step advantage and trajectory evidence; retire when a successor multi-turn tool-use environment covers that contract."
+
+[[gates]]
 id = "gsm8k-distillation-smoke"
 work_package = ".posttrain/work_packages/gsm8k_distillation.yaml"
 job_id = "distill"

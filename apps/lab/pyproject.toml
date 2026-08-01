@@ -31,7 +31,6 @@ gpu-train = [
     "posttrain-train[trl]",
 ]
 gpu-posttrain = [
-    "automationbench-v1",
     "posttrain-eval[verifiers]",
     "posttrain-train[trl,trl-vllm]",
 ]
@@ -51,7 +50,6 @@ posttrain-tracking-trackio = { workspace = true }
 posttrain-tracking-wandb = { workspace = true }
 posttrain-train = { workspace = true }
 posttrain-work = { workspace = true }
-automationbench-v1 = { path = "../../environments/automationbench_v1" }
 
 [build-system]
 requires = ["hatchling"]

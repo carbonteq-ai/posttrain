@@ -7,7 +7,6 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 VERIFIERS_REVISION = "284a868d6a9022109b749710672a0460e8a996d4"
-AUTOMATIONBENCH_REVISION = "d54dbebabdba6c6eda201694aee8ddcf36ccfc51"
 type AutomationBenchDomain = Literal["simple", "sales", "marketing", "operations", "support", "finance", "hr"]
 
 
@@ -50,7 +49,6 @@ def automationbench_training_environment() -> Any:
 
 
 __all__ = [
-    "AUTOMATIONBENCH_REVISION",
     "AutomationBenchTrainingParameters",
     "VERIFIERS_REVISION",
     "automationbench_training_environment",

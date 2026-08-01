@@ -32,8 +32,9 @@ and only follows the complete downstream closure when the user explicitly
 requests and confirms a cascade.
 
 The maintainer can demonstrate the completed release by running two fresh,
-immutable 0.3.0 packages on the managed provider: one data preparation job and
-one managed evaluation job. They can inspect Trackio and Observatory during
+immutable 0.3.0 packages on this machine, one through the local provider and
+one through dstack: a SAMPO run over the multi-turn Zapier AutomationBench
+environment, and a DAPO run over GSM8K. They can inspect Trackio and Observatory during
 and after execution, see the reconciler settle the durable state without a
 manual ledger repair, then clean up the exact test resources with previewed
 receipts. This is evidence of a real deployed system, not a collection of
@@ -70,9 +71,29 @@ green unit tests.
       artifact-consumer closure, receipts, and a Trackio lifecycle adapter.
 - [ ] Complete the remaining release-critical configuration, lifecycle,
       packing, and public-service milestones listed below.
-- [ ] Run fresh provider packaging/evaluation qualification, verify Trackio,
-      Observatory, controller reconciliation, and cleanup receipts, then run
-      the 0.3.0 publication and release audit.
+- [x] (2026-08-01) Re-scoped the release gates to the maintainer's selection:
+      a SAMPO capsule over Zapier AutomationBench and the existing DAPO capsule
+      over GSM8K, one launched through the local provider and one through
+      dstack on this machine. Added the
+      `automationbench/qwen3.5-0.8b/sampo-mtp-capsule-v1` settings, the
+      `automationbench_sampo_qualification.yaml` work package, and its
+      `automationbench-sampo` registry entry; both gates now plan. The
+      registry classifies 26 work packages with 11 active gates and 15
+      candidates.
+- [x] (2026-08-01) Repointed the `automationbench-v1` environment source at the
+      repository that actually contains it — this one, subdirectory
+      `environments/automationbench_v1` — in all three places the identity was
+      authored, and deleted the dead third copy. Removed the environment from
+      Lab's `gpu-posttrain` extra and `[tool.uv.sources]`, which dropped it and
+      `carbonteq-automation-bench` from the workspace lock, and regenerated the
+      catalog dependency-lock fingerprint. The full suite passes with 889
+      passed and 17 skipped; lock check, ruff, and import contracts are clean.
+- [ ] Push `codex/dx-0.3.0` so the pinned environment revision `4c2f7563`
+      names a commit that exists on a remote. Until then the SAMPO gate cannot
+      pack, and this blocks milestone 8 independently of every other milestone.
+- [ ] Run fresh provider packaging/training qualification on both providers,
+      verify Trackio, Observatory, controller reconciliation, and cleanup
+      receipts, then run the 0.3.0 publication and release audit.
 - [ ] Complete the non-blocking authoring and release-automation follow-up
       milestones before declaring the entire DX program, rather than merely
       the release, complete.
@@ -89,6 +110,46 @@ green unit tests.
   framework package tests still use `foundation-models` as an arbitrary
   offline fixture string; those are harmless but should become an obviously
   fictional id when their packages are next touched.
+
+- Observation: the AutomationBench environment was never missing a port. The
+  native Verifiers v1 environment already exists, and the base catalog was
+  simply pointing at the wrong repository. Nothing needed to be written or
+  published to fix it.
+  Evidence: `environments/automationbench_v1` is a native `verifiers.v1`
+  taskset (`AutomationBenchTaskset(vf.Taskset)`) that reads only the fork's
+  data layer — `automationbench.domains`, `.rubric.registry`, `.schema.world`.
+  It has been tracked in this repository since tag `v0.2.5` and is on
+  `origin/main`. The fork at `carbonteq-ai/AutomationBench` publishes
+  `carbonteq-automation-bench` on the legacy 0.1 `StatefulToolEnv` API and has
+  no v1 taskset at any revision or branch, confirmed with `gh`: it has one
+  merged PR and two branches, neither carrying a port. So `package:
+  automationbench-v1` could never have resolved from that repository, and the
+  immutable wheel builder's name-mismatch rejection was correct. The framework
+  bridge is deliberately a pure `verifiers.v1` consumer; environments present a
+  v1 taskset to it, exactly as `gsm8k-v1` does from the Verifiers repository's
+  `environments/gsm8k_v1` subdirectory.
+
+- Observation: that one wrong pointer was authored in three places, and one of
+  the three was already dead.
+  Evidence: the repository/revision pair appeared in
+  `packages/catalog/.../base/environments.yaml`, in
+  `packages/eval/.../programs/automationbench.py`, and as a bare
+  `AUTOMATIONBENCH_REVISION` constant in
+  `apps/lab/.../environments/automationbench_grpo.py` that was exported
+  through two `__all__` lists and never used to build a source. This is the
+  dual-authoring asymmetry from the v0.2.5 critique showing up as a concrete
+  correctness bug rather than as an ergonomics complaint.
+
+- Observation: removing the environment from the framework's own workspace
+  lock is what the selection contract always implied.
+  Evidence: `apps/lab/pyproject.toml` carried `automationbench-v1` in its
+  `gpu-posttrain` extra and a `../../environments/automationbench_v1` path
+  source, which pulled both the adapter and `carbonteq-automation-bench` into
+  the root `uv.lock`. Dropping them removed 30 lock lines, and the environment
+  now enters a job only through selected environment packaging from an
+  immutable source. The catalog's `dependency_lock_sha256` moved with it and
+  was regenerated by `posttrain-release lock-dependencies` rather than
+  hand-edited.
 
 - Observation: deleting a Trackio run does not delete its artifact versions;
   that is intentional lineage preservation, not a complete cleanup operation.
@@ -166,6 +227,42 @@ green unit tests.
   overwritten as `post5`, before deploying the deletion API.
   Rationale: the internal index is non-volatile and `post5` is already tagged
   and deployed; one version must never name two source trees.
+  Date/Author: 2026-08-01 / framework maintainer.
+
+- Decision: the two release qualification runs are a SAMPO job over Zapier
+  AutomationBench and a DAPO job over GSM8K, not the data-preparation and
+  managed-evaluation jobs used for the packing proof.
+  Rationale: the maintainer selected these two. They are also the stronger
+  release signal. Data preparation and evaluation already have complete
+  package-closure evidence from the cleanup plan's milestone 2, whereas the
+  online-RL path is the only one that exercises a live rollout engine, weight
+  synchronization, per-step advantages, and long multi-turn trajectory
+  evidence in the same job. AutomationBench is the right home for SAMPO
+  specifically, because SAMPO's hierarchical per-step advantage is only
+  meaningful over genuinely long multi-turn tool use; the existing
+  `multi-turn-alphabet-sort` binding under-tests it.
+  Date/Author: 2026-08-01 / framework maintainer.
+
+- Decision: the SAMPO/AutomationBench gate runs through the local provider and
+  the DAPO/GSM8K gate runs through dstack; both execute on this machine's
+  single RTX 4090.
+  Rationale: both provider paths must be proven, and this machine is already a
+  dstack fleet host, so provider difference is isolated from hardware
+  difference. AutomationBench is the least-proven input in the release — its
+  environment distribution does not yet build from an immutable published
+  source — so it belongs on the provider where a failed pack costs the least.
+  GSM8K DAPO has a settled immutable environment and is therefore the right
+  workload to prove managed submission, admission, reconciliation, and cleanup.
+  The assignment may be swapped only if the swap is recorded here with the
+  evidence that motivated it.
+  Date/Author: 2026-08-01 / framework maintainer.
+
+- Decision: both gates stay `candidate`/`experimental` in the Lab registry
+  until their managed runs produce complete retained evidence; promotion to an
+  active release tier is an outcome of milestone 8, not a precondition for it.
+  Rationale: their recorded replacement conditions already require live
+  qualification before promotion. Promoting first would make the registry
+  claim evidence that does not exist.
   Date/Author: 2026-08-01 / framework maintainer.
 
 - Decision: release readiness is a bounded gate, while the complete DX program
@@ -381,11 +478,37 @@ trees, job manifests, or evidence logs.
 
 ### Milestone 8: execute and inspect two fresh managed qualifications
 
+This milestone has one prerequisite left. The `automationbench-v1` environment
+source now names this repository at `environments/automationbench_v1`, which is
+where the native Verifiers v1 environment has always lived, but it pins commit
+`4c2f7563` — the commit that made the environment Python 3.13 compatible — and
+that commit is not yet on any remote. An environment source must name a pushed
+commit, so push `codex/dx-0.3.0` (or merge it) before packing anything that
+selects this environment, then confirm the pin still resolves. Do not weaken
+the wheel builder's distribution-name check, and do not reintroduce a path
+dependency on the environment to route around an unpushed pin.
+
+Prove the fix by building the environment wheel from the immutable source
+alone, with the framework workspace lock no longer containing either
+`automationbench-v1` or `carbonteq-automation-bench`.
+
 From the release-staged 0.3.0 tree, create isolated Lab package plans for the
-data-preparation and managed-GSM8K-evaluation gates. Before submission, record
+`automationbench-sampo` and `verl-dapo` gates. Before submission, record
 the immutable framework/Trackio commit, staged wheel SHA-256 values, OCI image
 digests, selected provider site profile, and Trackio project `posttrain-lab`.
-Submit both jobs through the normal CLI, not ad hoc provider commands.
+Submit the SAMPO gate through the local provider and the DAPO gate through
+dstack, both through the normal CLI, not ad hoc provider commands. Both run on
+this machine's single RTX 4090, so a difference between the two runs is a
+provider difference and not a hardware difference.
+
+Both gates are bounded two-update capsules, so the acceptance signal is
+evidence completeness rather than model quality. The SAMPO run must retain
+per-step advantages and complete multi-turn tool-call trajectories with their
+exact resolved AutomationBench tasks; the DAPO run must retain its bounded
+reward-constant group replacement decisions and two synchronized optimizer
+steps. After both succeed, promote their registry entries from `candidate` to
+`active` and record the promoting evidence, since their replacement conditions
+require live qualification before promotion.
 
 Use the controller/daemon and `posttrain run show` to observe both executions.
 Trackio must contain canonical configurations, lifecycle metrics, artifacts,
@@ -461,6 +584,24 @@ write tokens, or internal index passwords.
     uv run posttrain project purge --tracking-project foundation-models --apply
     # expected: explicit confirmation prompt before the authenticated delete
 
+The two release gates are launched from the release-staged tree as:
+
+    uv run posttrain --project-root apps/lab job pack \
+      automationbench_sampo_qualification.yaml --job sampo \
+      --local --framework-wheelhouse /tmp/posttrain-wheels
+    uv run posttrain --project-root apps/lab job run \
+      automationbench_sampo_qualification.yaml --job sampo --provider local
+
+    uv run posttrain --project-root apps/lab job pack \
+      gsm8k_verl_dapo_2_qualification.yaml --job dapo \
+      --framework-wheelhouse /tmp/posttrain-wheels
+    uv run posttrain --project-root apps/lab job run \
+      gsm8k_verl_dapo_2_qualification.yaml --job dapo --provider dstack
+
+Exact flag names follow the packing and lifecycle plans once their public
+service milestones land; the contract is that both launches go through the
+public path with an already-materialized immutable package.
+
     uv run posttrain run purge <producer-run>
     # expected: blocker naming the direct consumer run and artifact version
     uv run posttrain run purge <producer-run> --cascade
@@ -488,9 +629,16 @@ direct, dated evidence:
   editing.
 - A clean external project can plan, pack, submit, observe, and clean a job
   without importing `posttrain_lab` or sourcing ambient shell configuration.
+- The `automationbench-v1` environment wheel builds from an immutable pushed
+  commit and subdirectory, the framework workspace lock contains neither it nor
+  `carbonteq-automation-bench`, and the distribution-name check is unchanged.
 - Two fresh, release-staged Lab provider jobs succeed with exact images,
   Trackio evidence, Observatory visibility, reconciliation, and retained
-  artifacts. Their records are distinct from the lineage cleanup fixture.
+  artifacts. Their records are distinct from the lineage cleanup fixture. One
+  ran through the local provider and one through dstack; the SAMPO run retains
+  per-step advantages and complete multi-turn trajectories, and the DAPO run
+  retains its group-replacement decisions and two optimizer steps. Both gates
+  are promoted from `candidate` to `active` on that evidence.
 - Release commands prove generated metadata, dependency locks, wheels, image
   receipts, indexed dependencies, and the merged release source agree before
   tagging. The final evidence packet includes the commands, versions, digests,
@@ -533,7 +681,8 @@ facts. Its minimal index is:
       source.json                 # merged commit, manifest version, wheel hashes
       trackio-post6.json          # fork commit, wheel hash, deployed health/version
       images.json                 # provider image refs and immutable digests
-      qualifications.json         # two job ids, outcomes, reconciliations, artifact refs
+      environment-source.json     # published automationbench-v1 commit, subdirectory, wheel hash
+      qualifications.json         # two job ids, providers, outcomes, reconciliations, artifact refs
       observatory.json            # persisted Trackio/Observatory inspection result
       controller.json             # service version, restart and reconciliation proof
       purge-fixture.json          # dry-run blocker/cascade/receipt proof
