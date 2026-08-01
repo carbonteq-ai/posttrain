@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+env:
+  CARBONTEQ_TRACKIO_WHEEL_URL: https://github.com/carbonteq-ai/trackio/releases/download/carbonteq-v0.31.5.post6/carbonteq_trackio-0.31.5.post6-py3-none-any.whl
+  CARBONTEQ_TRACKIO_WHEEL_SHA256: 9bb5defa753b16a9d322fb4a27baff80949c4f0dad2a9dadb07b974932272e00
+
 jobs:
   quality:
     runs-on: ubuntu-latest
@@ -17,24 +21,32 @@ jobs:
         with:
           enable-cache: true
           python-version: "3.13"
+      - name: Bootstrap the internal Trackio distribution
+        run: |
+          uv venv --python 3.13
+          curl --fail --location --silent --show-error \
+            --output /tmp/carbonteq_trackio-0.31.5.post6-py3-none-any.whl \
+            "${CARBONTEQ_TRACKIO_WHEEL_URL}"
+          echo "${CARBONTEQ_TRACKIO_WHEEL_SHA256}  /tmp/carbonteq_trackio-0.31.5.post6-py3-none-any.whl" | sha256sum --check --strict
+          VIRTUAL_ENV=.venv uv pip install --no-deps /tmp/carbonteq_trackio-0.31.5.post6-py3-none-any.whl
       - name: Verify lockfile
         run: uv lock --check
       - name: Install workspace and quality tools
-        run: uv sync --all-packages --group dev --python 3.13
+        run: uv sync --all-packages --group dev --python 3.13 --no-install-package carbonteq-trackio --inexact
       - name: Verify release metadata
-        run: uv run posttrain-release check
+        run: uv run --no-sync posttrain-release check
       - name: Verify repository ownership
-        run: uv run posttrain-release repository-check
+        run: uv run --no-sync posttrain-release repository-check
       - name: Test
-        run: uv run pytest --cov --cov-report=term-missing
+        run: uv run --no-sync pytest --cov --cov-report=term-missing
       - name: Lint
-        run: uv run ruff check .
+        run: uv run --no-sync ruff check .
       - name: Format
-        run: uv run ruff format --check .
+        run: uv run --no-sync ruff format --check .
       - name: Type check
-        run: uv run pyright
+        run: uv run --no-sync pyright
       - name: Check package boundaries
-        run: uv run lint-imports
+        run: uv run --no-sync lint-imports
 
   package-imports:
     runs-on: ubuntu-latest
@@ -74,10 +86,18 @@ jobs:
         with:
           enable-cache: true
           python-version: "3.13"
+      - name: Bootstrap the internal Trackio distribution
+        run: |
+          uv venv --python 3.13
+          curl --fail --location --silent --show-error \
+            --output /tmp/carbonteq_trackio-0.31.5.post6-py3-none-any.whl \
+            "${CARBONTEQ_TRACKIO_WHEEL_URL}"
+          echo "${CARBONTEQ_TRACKIO_WHEEL_SHA256}  /tmp/carbonteq_trackio-0.31.5.post6-py3-none-any.whl" | sha256sum --check --strict
+          VIRTUAL_ENV=.venv uv pip install --no-deps /tmp/carbonteq_trackio-0.31.5.post6-py3-none-any.whl
       - name: Install package
-        run: uv sync --package ${{ matrix.package }} --python 3.13
+        run: uv sync --package ${{ matrix.package }} --python 3.13 --no-install-package carbonteq-trackio --inexact
       - name: Import package
-        run: uv run --package ${{ matrix.package }} python -c "import ${{ matrix.import_name }}"
+        run: uv run --no-sync --package ${{ matrix.package }} python -c "import ${{ matrix.import_name }}"
 
   external-consumer:
     runs-on: ubuntu-latest
@@ -87,10 +107,18 @@ jobs:
         with:
           enable-cache: true
           python-version: "3.13"
+      - name: Bootstrap the internal Trackio distribution
+        run: |
+          uv venv --python 3.13
+          curl --fail --location --silent --show-error \
+            --output /tmp/carbonteq_trackio-0.31.5.post6-py3-none-any.whl \
+            "${CARBONTEQ_TRACKIO_WHEEL_URL}"
+          echo "${CARBONTEQ_TRACKIO_WHEEL_SHA256}  /tmp/carbonteq_trackio-0.31.5.post6-py3-none-any.whl" | sha256sum --check --strict
+          VIRTUAL_ENV=.venv uv pip install --no-deps /tmp/carbonteq_trackio-0.31.5.post6-py3-none-any.whl
       - name: Install workspace and test tools
-        run: uv sync --all-packages --group dev --python 3.13
+        run: uv sync --all-packages --group dev --python 3.13 --no-install-package carbonteq-trackio --inexact
       - name: Build wheels and run outside the workspace
-        run: uv run pytest -q tests/consumer
+        run: uv run --no-sync pytest -q tests/consumer
 
   optional-verifiers:
     runs-on: ubuntu-latest
@@ -100,11 +128,20 @@ jobs:
         with:
           enable-cache: true
           python-version: "3.13"
+      - name: Bootstrap the internal Trackio distribution
+        run: |
+          uv venv --python 3.13
+          curl --fail --location --silent --show-error \
+            --output /tmp/carbonteq_trackio-0.31.5.post6-py3-none-any.whl \
+            "${CARBONTEQ_TRACKIO_WHEEL_URL}"
+          echo "${CARBONTEQ_TRACKIO_WHEEL_SHA256}  /tmp/carbonteq_trackio-0.31.5.post6-py3-none-any.whl" | sha256sum --check --strict
+          VIRTUAL_ENV=.venv uv pip install --no-deps /tmp/carbonteq_trackio-0.31.5.post6-py3-none-any.whl
       - name: Install the Verifiers integration
-        run: uv sync --all-packages --extra verifiers --python 3.13
+        run: uv sync --all-packages --extra verifiers --python 3.13 --no-install-package carbonteq-trackio --inexact
       - name: Test the Verifiers bridge
         run: |
           uv run \
+            --no-sync \
             --all-packages \
             --extra verifiers \
             --with pytest \
