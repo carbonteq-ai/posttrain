@@ -569,7 +569,13 @@ def _plan_job_package_from_intent(
         source_includes=source_includes,
     )
     project_source_request = project_config.source_request(layout.root)
-    framework_source_request = _framework_source_request(registry.framework_source_root)
+    # A supplied wheelhouse is an explicit request to pack the staged framework
+    # distributions.  In particular, a maintainer qualifying a nested project
+    # from inside this monorepo must not silently capture the checkout merely
+    # because the CLI happens to be importable from it.
+    framework_source_request = (
+        None if framework_wheelhouse is not None else _framework_source_request(registry.framework_source_root)
+    )
     inspector = ImmutableSourceSnapshotter(cache_root=(layout.state / "pack" / "sources").resolve())
     if framework_source_request is not None:
         framework_digest = inspector.inspect(framework_source_request)

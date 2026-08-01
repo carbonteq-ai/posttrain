@@ -67,6 +67,12 @@ surface, or broken maintained documentation link remains.
       declaration (`.` with only its README, `pyproject.toml`, and `src`).
       The full two-job pack proof remains pending the Milestone 3 control-tree
       move and staged release-wheel path.
+- [x] (2026-08-01) Added a parameterized temporary nested-Lab proof for the
+      data-preparation and managed-evaluation release jobs. It proves Lab
+      source and project-control closure are separate and that an explicit
+      framework wheelhouse suppresses checkout-source capture. Actual OCI
+      materialization remains pending a release-staged environment whose
+      installed package identities match the staged wheels.
 - [ ] Milestone 2: prove that `apps/lab` can be a self-contained nested
       Posttrain project and pack two representative jobs from its own root.
 - [ ] Milestone 3: move tracked qualification configuration into `apps/lab`,
@@ -125,6 +131,13 @@ surface, or broken maintained documentation link remains.
   its test suite and built wheel pass under Python 3.13. The catalog source
   must not change until this adapter revision is published, because immutable
   source selection cannot name an unpushed commit.
+- Observation: the local pack command still cannot prove release wheels from
+  this editable source checkout.
+  Evidence: an explicit 0.3.0 wheelhouse reaches distribution identity
+  validation before dataset/environment materialization, but the checkout
+  environment has editable packages at `0.0.0`. A release-staged environment
+  with installed 0.3.0 distributions is therefore a prerequisite for the
+  final OCI proof, not a reason to fall back to copying framework source.
 - Observation: documentation drift is part of the ownership problem.
   Evidence: a local-link audit found 12 broken Markdown targets, including
   three maintained documents pointing at the nonexistent
@@ -189,6 +202,13 @@ surface, or broken maintained documentation link remains.
   consumer. The public `posttrain init` project is the maintained example;
   fixture-only catalog data must not occupy a tracked project overlay.
   Date/Author: 2026-08-01 / plan author.
+- Decision: an explicit framework wheelhouse is authoritative for job packing
+  and suppresses checkout-source auto-discovery.
+  Rationale: a wheelhouse is the caller's request to qualify published
+  distributions. Capturing importable source from the maintainer checkout
+  would make nested-project qualification differ from consumer execution and
+  invalidate the source/wheel boundary.
+  Date/Author: 2026-08-01 / plan author.
 - Decision: this plan consumes, rather than duplicates, the state split and
   `posttrain state migrate` from
   `docs/plan/dx-configuration-authority.md` milestone 2.
@@ -231,6 +251,13 @@ public-path parity checklist, and deletion condition. The AutomationBench
 adapter now supports Python 3.12/3.13 locally, but its catalog selection stays
 blocked until a published Posttrain revision can be pinned to the adapter
 subdirectory and an actual job pack succeeds.
+
+Nested-pack outcome (2026-08-01): both retained release jobs now have a
+temporary Lab-rooted planning proof. It verifies that `.posttrain` control
+data is bundled independently of the Lab source snapshot and that an explicit
+framework wheelhouse never falls back to framework checkout source. Final OCI
+materialization is intentionally deferred until the same 0.3.0 distributions
+are installed in a release-staged qualification environment.
 
 ## Context and Orientation
 
