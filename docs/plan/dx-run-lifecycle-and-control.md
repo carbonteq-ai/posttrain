@@ -35,23 +35,36 @@ never silently target a different run than intended.
 - [x] (2026-08-01) Milestone 1: chronological read selectors and canonical-id
       mutation. Read selectors order strictly by timestamp; cancel, retry,
       reconcile, recovery, and cleanup reject prefixes and `--last`.
-- [ ] Milestone 2: frozen prepared submissions and control-store ownership.
-- [ ] Milestone 3: durable provider locator (`ExecutionProviderSource`).
+- [x] (2026-08-01) Milestone 2: frozen prepared submissions and control-store
+      ownership. The queue retains the immutable execution plan, evidence
+      source, provider source, and exact project/control locator; cross-project
+      release-and-pump is covered by a receipt-ownership regression.
+- [x] (2026-08-01) Milestone 3: durable provider locator
+      (`ExecutionProviderSource`). New admission and submission records retain
+      the secret-free machine profile, adapter scope/path identities, binding
+      fingerprint, and local hostname or dstack capacity policy. Provider
+      commands reconstruct from that source while credential-file contents may
+      rotate.
 - [ ] Milestone 4: provider-neutral `RunView` and idempotent reconciler.
 - [ ] Milestone 5: stable CLI JSON error envelope.
-- [ ] Milestone 6: foreground controller, then service packaging.
+- [ ] Milestone 6: foreground controller is implemented as `posttrain
+      controller run [--once]`; production systemd/Ansible packaging and live
+      restart qualification remain.
 - [x] (2026-08-01) Admission entries now persist and validate the owning
-      control-store URI. Review found that the shared pump does not consume the
-      locator yet: it still captures the reconciling project's provider and
-      store factory. Milestones 2 and 3 therefore remain release blockers; the
-      locator field alone is not recorded as their completion.
+      control-store URI. At that checkpoint, review found that the shared pump
+      did not consume the locator and still captured the reconciling project's
+      provider and store factory. The subsequent entries record the completed
+      ownership and provider-source repair.
 - [x] (2026-08-01) The shared pump now consumes a versioned
       `ProjectControlLocator` containing the owning project id, project root,
       and control store. Releasing project A's local-GPU slot submits waiting
       project B through B's provider factory and writes only B's receipt. Old
-      entries without an owner locator remain manual-attention records. The
-      remaining milestone-2 work is freezing the provider source rather than
-      resolving B's current binding at pump time.
+      entries without an owner locator remain manual-attention records.
+- [x] (2026-08-01) The foreground controller scans machine admission state,
+      pumps free placements, redelivers durable cancel intent, observes the
+      recorded provider, reconciles retained evidence, persists receipts, and
+      releases settled slots. Its bounded `--once` surface is covered by CLI
+      tests; service packaging remains before milestone 6 can close.
 
 ## Surprises & Discoveries
 

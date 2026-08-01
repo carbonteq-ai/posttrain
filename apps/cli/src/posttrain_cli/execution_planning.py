@@ -17,6 +17,7 @@ from posttrain.execution import (
     ExecutionMount,
     ExecutionPlan,
     ExecutionPolicy,
+    ExecutionProviderSource,
     ExecutionRequest,
     ExecutionSubmissionStore,
     JobExecutionService,
@@ -71,7 +72,7 @@ from .execution_config import (
     load_local_execution_config,
     resolve_execution_settings,
 )
-from .execution_provider import create_execution_provider, evidence_source_for_project
+from .execution_provider import create_execution_provider, evidence_source_for_project, provider_source_for_project
 from .framework_distributions import FrameworkDistributions
 from .framework_distributions import materialize as materialize_framework_distributions
 from .selection_resolve import resolve_selection
@@ -339,6 +340,7 @@ class PreparedJobSubmission:
     provider_plan: ExecutionPlan
     service: JobExecutionService
     evidence_source: ExecutionEvidenceSource | None
+    provider_source: ExecutionProviderSource
 
 
 def plan_job_execution(
@@ -682,14 +684,16 @@ def _prepared_submission(packed: PackedJobExecution) -> PreparedJobSubmission:
         package.layout,
         environment=load_execution_environment(package.local_config),
     )
+    provider_source = provider_source_for_project(package.layout, provider_name, package.local_config)
     service = JobExecutionService(
         provider,
         ExecutionSubmissionStore(package.layout.state),
         provider_name=provider_name,
         evidence_source=evidence_source,
+        provider_source=provider_source,
     )
     provider_plan = service.plan(request)
-    return PreparedJobSubmission(packed, request, provider_plan, service, evidence_source)
+    return PreparedJobSubmission(packed, request, provider_plan, service, evidence_source, provider_source)
 
 
 def _registry(local_config: LocalExecutionConfig) -> RegistryBinding:

@@ -28,17 +28,19 @@ from .contracts import (
     RuntimeImageRef,
 )
 from .lifecycle import wait_for_terminal
+from .provider_source import ExecutionProviderSource
 from .receipts import ExecutionJournal
 
 _RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
-_SCHEMA = "posttrain.execution-submission.v5"
+_SCHEMA = "posttrain.execution-submission.v6"
 _SUPPORTED_SCHEMAS = frozenset(
     {
         "posttrain.execution-submission.v1",
         "posttrain.execution-submission.v2",
         "posttrain.execution-submission.v3",
         "posttrain.execution-submission.v4",
+        "posttrain.execution-submission.v5",
         _SCHEMA,
     }
 )
@@ -105,6 +107,8 @@ class ExecutionSubmission:
     run_workspace: Path | None = None
     evidence_source: ExecutionEvidenceSource | None = None
     evidence_source_recorded: bool = True
+    provider_source: ExecutionProviderSource | None = None
+    provider_source_recorded: bool = True
     legacy_bundle_digest: str | None = None
 
     def __post_init__(self) -> None:
@@ -130,6 +134,11 @@ class ExecutionSubmission:
                 raise ContractError("execution submission run workspace must end with its run id")
         if self.evidence_source is not None and not self.evidence_source_recorded:
             raise ContractError("execution evidence source cannot be present when its locator was not recorded")
+        if self.provider_source is not None:
+            if not self.provider_source_recorded:
+                raise ContractError("execution provider source cannot be present when its locator was not recorded")
+            if self.provider_source.provider != self.provider:
+                raise ContractError("execution provider source does not match the submission provider")
 
     @property
     def handle(self) -> ExecutionHandle:
@@ -150,6 +159,12 @@ class ExecutionSubmission:
             str(self.run_workspace) if self.run_workspace is not None else "",
             str(self.evidence_source_recorded),
             *(self.evidence_source._identity() if self.evidence_source is not None else ("",)),
+            str(self.provider_source_recorded),
+            *(
+                tuple(str(value) for value in self.provider_source.as_dict().values())
+                if self.provider_source
+                else ("",)
+            ),
             self.legacy_bundle_digest or "",
         )
 
@@ -193,6 +208,7 @@ class ExecutionSubmissionStore:
         self,
         plan: ExecutionPlan,
         evidence_source: ExecutionEvidenceSource | None,
+        provider_source: ExecutionProviderSource | None = None,
     ) -> datetime:
         """Persist immutable launch intent before contacting a provider."""
 
@@ -214,6 +230,7 @@ class ExecutionSubmissionStore:
                 if evidence_source is not None
                 else None
             ),
+            "provider_source": provider_source.as_dict() if provider_source is not None else None,
         }
         if path.is_file():
             payload = _load_json_object(
@@ -249,7 +266,7 @@ class ExecutionSubmissionStore:
         try:
             descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
         except FileExistsError:
-            return self.record_submit_intent(plan, evidence_source)
+            return self.record_submit_intent(plan, evidence_source, provider_source)
         try:
             os.write(descriptor, encoded)
             os.fsync(descriptor)
@@ -456,6 +473,10 @@ class ExecutionSubmissionStore:
                         if submission.evidence_source is not None
                         else None
                     ),
+                    "provider_source_recorded": submission.provider_source_recorded,
+                    "provider_source": (
+                        submission.provider_source.as_dict() if submission.provider_source is not None else None
+                    ),
                 },
                 sort_keys=True,
                 separators=(",", ":"),
@@ -493,6 +514,7 @@ class JobExecutionService:
         *,
         provider_name: str,
         evidence_source: ExecutionEvidenceSource | None = None,
+        provider_source: ExecutionProviderSource | None = None,
     ) -> None:
         if not provider_name.strip():
             raise ValueError("execution provider name cannot be empty")
@@ -500,6 +522,7 @@ class JobExecutionService:
         self._store = store
         self._provider_name = provider_name
         self._evidence_source = evidence_source
+        self._provider_source = provider_source
 
     def plan(self, request: ExecutionRequest) -> ExecutionPlan:
         plan = self._provider.plan(request)
@@ -522,9 +545,11 @@ class JobExecutionService:
             _validate_plan_identity(existing, plan)
             if existing.evidence_source_recorded and existing.evidence_source != self._evidence_source:
                 raise ContractError(f"execution run {run_id} already has a conflicting evidence source")
+            if existing.provider_source_recorded and existing.provider_source != self._provider_source:
+                raise ContractError(f"execution run {run_id} already has a conflicting provider source")
             return existing
 
-        self._store.record_submit_intent(plan, self._evidence_source)
+        self._store.record_submit_intent(plan, self._evidence_source, self._provider_source)
         handle = self._provider.submit(plan)
         if handle.provider != self._provider_name:
             raise ContractError(
@@ -543,6 +568,8 @@ class JobExecutionService:
             run_workspace=_run_workspace(plan.request),
             evidence_source=self._evidence_source,
             evidence_source_recorded=True,
+            provider_source=self._provider_source,
+            provider_source_recorded=True,
         )
         return self._store.save(submission)
 
@@ -639,15 +666,16 @@ def _submission_from_payload(payload: dict[str, Any]) -> ExecutionSubmission:
             in {
                 "posttrain.execution-submission.v4",
                 "posttrain.execution-submission.v5",
+                "posttrain.execution-submission.v6",
             }
             else "runtime_image"
         )
         recorded_payload = payload.get("evidence_source_recorded")
-        if schema == _SCHEMA and recorded_payload is not True:
-            raise ContractError("execution submission v5 must record whether tracking was configured")
-        evidence_source_recorded = schema == _SCHEMA
+        evidence_source_recorded = schema in {"posttrain.execution-submission.v5", _SCHEMA}
+        if evidence_source_recorded and recorded_payload is not True:
+            raise ContractError("execution submission must record whether tracking was configured")
         evidence_payload = payload.get("evidence_source")
-        if schema == _SCHEMA and evidence_payload is not None and not isinstance(evidence_payload, dict):
+        if evidence_source_recorded and evidence_payload is not None and not isinstance(evidence_payload, dict):
             raise ContractError("execution submission evidence source must be an object or null")
         evidence_source = (
             ExecutionEvidenceSource(
@@ -657,7 +685,16 @@ def _submission_from_payload(payload: dict[str, Any]) -> ExecutionSubmission:
                 endpoint=(str(evidence_payload["endpoint"]) if evidence_payload.get("endpoint") is not None else None),
                 scope=(str(evidence_payload["scope"]) if evidence_payload.get("scope") is not None else None),
             )
-            if schema == _SCHEMA and isinstance(evidence_payload, dict)
+            if evidence_source_recorded and isinstance(evidence_payload, dict)
+            else None
+        )
+        provider_source_recorded = schema == _SCHEMA
+        if provider_source_recorded and payload.get("provider_source_recorded") is not True:
+            raise ContractError("execution submission v6 must record its provider source")
+        provider_payload = payload.get("provider_source")
+        provider_source = (
+            ExecutionProviderSource.from_dict(provider_payload)
+            if provider_source_recorded and provider_payload is not None
             else None
         )
         return ExecutionSubmission(
@@ -671,6 +708,8 @@ def _submission_from_payload(payload: dict[str, Any]) -> ExecutionSubmission:
             run_workspace=(Path(str(payload["run_workspace"])) if payload.get("run_workspace") is not None else None),
             evidence_source=evidence_source,
             evidence_source_recorded=evidence_source_recorded,
+            provider_source=provider_source,
+            provider_source_recorded=provider_source_recorded,
             legacy_bundle_digest=(str(payload["bundle_digest"]) if payload.get("bundle_digest") is not None else None),
         )
     except (KeyError, TypeError, ValueError) as error:

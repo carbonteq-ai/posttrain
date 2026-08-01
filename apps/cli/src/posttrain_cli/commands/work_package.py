@@ -240,6 +240,7 @@ def run_work_package_cmd(
             prepared_submission.provider_plan,
             evidence_source=prepared_submission.evidence_source,
             initial_service=prepared_submission.service,
+            provider_source=prepared_submission.provider_source,
             control_locator=ProjectControlLocator(
                 project_id=planned.package.layout.project_id,
                 project_root_uri=planned.package.layout.root.as_uri(),

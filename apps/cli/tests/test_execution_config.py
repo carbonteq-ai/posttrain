@@ -33,6 +33,7 @@ from posttrain_cli.execution_provider import (
     create_execution_provider,
     evidence_source_for_project,
     evidence_source_for_run,
+    provider_source_for_project,
 )
 
 
@@ -769,6 +770,7 @@ def test_provider_binding_fingerprint_ignores_secret_rotation_but_not_identity(
         load_local_execution_config(layout),
         "dstack",
     )
+    source = provider_source_for_project(layout, "dstack", load_local_execution_config(layout))
 
     environment_file.write_text("DSTACK_TOKEN=rotated\n", encoding="utf-8")
     rotated = provider_binding_fingerprint(
@@ -789,6 +791,11 @@ def test_provider_binding_fingerprint_ignores_secret_rotation_but_not_identity(
 
     assert rotated == first
     assert changed != first
+    assert source.provider == "dstack"
+    assert source.endpoint_scope == "main"
+    assert source.adapter_python == python.resolve()
+    assert source.credential_file == environment_file.resolve()
+    assert source.binding_fingerprint == first
 
 
 def test_registry_resolves_from_the_environment_with_no_configuration_file(

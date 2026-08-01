@@ -13,6 +13,7 @@ from posttrain.execution import (
     ExecutionAdmissionService,
     ExecutionHandle,
     ExecutionPlan,
+    ExecutionProviderSource,
     ExecutionRecord,
     ExecutionSubmissionStore,
     JobExecutionService,
@@ -672,10 +673,26 @@ def test_shared_admission_root_serializes_two_project_factories(
 
     locator_a = ProjectControlLocator("project-a", tmp_path.as_uri(), project_a.as_uri())
     locator_b = ProjectControlLocator("project-b", tmp_path.as_uri(), project_b.as_uri())
-    assert admission_a.enqueue(first, evidence_source=None, control_locator=locator_a).entry.state == "submitted"
-    waiting = admission_b.enqueue(second, evidence_source=None, control_locator=locator_b).entry
+    source_a = ExecutionProviderSource("local-docker", "machine-a", "binding-a")
+    source_b = ExecutionProviderSource("local-docker", "machine-b", "binding-b")
+    assert (
+        admission_a.enqueue(
+            first,
+            evidence_source=None,
+            control_locator=locator_a,
+            provider_source=source_a,
+        ).entry.state
+        == "submitted"
+    )
+    waiting = admission_b.enqueue(
+        second,
+        evidence_source=None,
+        control_locator=locator_b,
+        provider_source=source_b,
+    ).entry
     assert waiting.state == "waiting"
     assert waiting.position == 1
+    assert waiting.provider_source == source_b
     assert len(provider_b.submitted) == 0
 
     placements = admission_a.placements()

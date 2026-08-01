@@ -62,6 +62,24 @@ def test_job_help_exposes_product_path_not_compatibility_flags(capsys) -> None:
             assert "idempotency namespace" in help_text
 
 
+def test_controller_once_renders_one_bounded_sweep(
+    tmp_path: Path,
+    capsys,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+
+    async def sweep(_layout):
+        return [{"run_id": "run-1", "action": "reconcile", "state": "consistent"}]
+
+    monkeypatch.setattr("posttrain_cli.commands.controller.controller_sweep", sweep)
+
+    assert main(["--json", "--project-root", str(project), "controller", "run", "--once"]) == 0
+    assert json.loads(capsys.readouterr().out) == [{"run_id": "run-1", "action": "reconcile", "state": "consistent"}]
+
+
 def _record_submission(
     project: Path,
     *,

@@ -27,6 +27,7 @@ from .contracts import (
     ExecutionRequest,
     RuntimeImageRef,
 )
+from .provider_source import ExecutionProviderSource
 from .service import ExecutionEvidenceSource, ExecutionSubmission, JobExecutionService
 
 _SCHEMA = "posttrain.execution-admission.v2"
@@ -95,6 +96,7 @@ class AdmissionEntry:
     message: str | None = None
     control_store_uri: str | None = None
     control_locator: ProjectControlLocator | None = None
+    provider_source: ExecutionProviderSource | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,6 +156,7 @@ class ExecutionAdmissionService:
         initial_service: JobExecutionService | None = None,
         control_store_uri: str | None = None,
         control_locator: ProjectControlLocator | None = None,
+        provider_source: ExecutionProviderSource | None = None,
     ) -> AdmissionResult:
         run_id = plan.request.run_spec.run_id
         with self._locked() as payload:
@@ -162,7 +165,14 @@ class ExecutionAdmissionService:
             existing = _find(payload, run_id)
             encoded_plan = _encode_plan(plan)
             encoded_evidence = _encode_evidence(evidence_source)
-            provider_binding = self._provider_binding(plan.provider)
+            if provider_source is not None and provider_source.provider != plan.provider:
+                raise ContractError("admission provider source does not match the execution plan")
+            provider_binding = (
+                provider_source.binding_fingerprint
+                if provider_source is not None
+                else self._provider_binding(plan.provider)
+            )
+            encoded_provider_source = _encode_provider_source(provider_source)
             if control_locator is not None:
                 if control_store_uri is not None and control_store_uri != control_locator.control_store_uri:
                     raise ContractError("admission control-store locators disagree")
@@ -177,6 +187,7 @@ class ExecutionAdmissionService:
                     or existing.get("provider_binding") != provider_binding
                     or existing.get("control_store_uri") != control_store_uri
                     or existing.get("control_locator") != encoded_control_locator
+                    or existing.get("provider_source") != encoded_provider_source
                 ):
                     raise ContractError(f"admission run {run_id} already names a different execution")
             else:
@@ -191,6 +202,7 @@ class ExecutionAdmissionService:
                         "provider_binding": provider_binding,
                         "control_store_uri": control_store_uri,
                         "control_locator": encoded_control_locator,
+                        "provider_source": encoded_provider_source,
                     }
                 )
             self._persist(payload)
@@ -337,6 +349,27 @@ class ExecutionAdmissionService:
         with self._locked() as payload:
             entries = [dict(item) for item in payload["entries"]]
         return tuple(_decode_entry(item, entries) for item in entries)
+
+    def service(self, run_id: str) -> JobExecutionService:
+        """Reconstruct the service from the run's retained owner and provider source."""
+
+        return self._service(self.get(run_id))
+
+    def pump_available(self) -> AdmissionResult | None:
+        """Submit the oldest waiting run whose placement is currently free."""
+
+        with self._locked() as payload:
+            active_keys = set(payload["active_by_key"])
+            waiting = next(
+                (
+                    entry
+                    for entry in payload["entries"]
+                    if entry.get("state") == "waiting" and entry.get("admission_key") not in active_keys
+                ),
+                None,
+            )
+            run_id = str(waiting["run_id"]) if waiting is not None else None
+        return self._pump(run_id) if run_id is not None else None
 
     def _pump(
         self,
@@ -589,6 +622,8 @@ class ExecutionAdmissionService:
         return binding
 
     def _entry_provider_binding(self, entry: AdmissionEntry) -> str:
+        if entry.provider_source is not None:
+            return entry.provider_source.binding_fingerprint
         if self._entry_provider_binding_factory is not None:
             binding = self._entry_provider_binding_factory(entry)
             if not binding.strip() or "\x00" in binding:
@@ -777,6 +812,7 @@ def _decode_entry(raw: dict[str, Any], entries: list[dict[str, Any]]) -> Admissi
         message=(str(raw["message"]) if isinstance(raw.get("message"), str) else None),
         control_store_uri=(str(raw["control_store_uri"]) if isinstance(raw.get("control_store_uri"), str) else None),
         control_locator=_decode_control_locator(raw.get("control_locator")),
+        provider_source=_decode_provider_source(raw.get("provider_source")),
     )
 
 
@@ -821,6 +857,14 @@ def _file_uri_path(value: str, *, label: str) -> Path:
     if not path.is_absolute():
         raise ContractError(f"admission {label} locator must be an absolute local file URI")
     return path.resolve()
+
+
+def _encode_provider_source(value: ExecutionProviderSource | None) -> dict[str, object] | None:
+    return value.as_dict() if value is not None else None
+
+
+def _decode_provider_source(value: object) -> ExecutionProviderSource | None:
+    return ExecutionProviderSource.from_dict(value) if value is not None else None
 
 
 def _encode_evidence(value: ExecutionEvidenceSource | None) -> dict[str, Any] | None:

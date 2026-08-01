@@ -66,6 +66,7 @@ from .manifest import (
     ManifestMount,
     resolved_inputs_digest,
 )
+from .provider_source import ExecutionProviderSource
 from .receipts import ExecutionJournal, latest_runtime_image
 from .reconciliation import (
     ExecutionReconciliation,
@@ -112,6 +113,7 @@ __all__ = [
     "ExecutionPlan",
     "ExecutionPolicy",
     "ExecutionProvider",
+    "ExecutionProviderSource",
     "ExecutionRecord",
     "ExecutionReconciliation",
     "ExecutionRequest",

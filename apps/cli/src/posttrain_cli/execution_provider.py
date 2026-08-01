@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib
 import warnings
 from collections.abc import Mapping
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, cast
 
@@ -16,6 +17,7 @@ from posttrain.execution import (
     ExecutionEvidenceSource,
     ExecutionPlan,
     ExecutionProvider,
+    ExecutionProviderSource,
     ExecutionSubmissionStore,
     JobExecutionService,
     ProjectControlLocator,
@@ -23,8 +25,10 @@ from posttrain.execution import (
 from posttrain.tracking import RunDataSource
 
 from .execution_config import (
+    DstackBinding,
     ExecutionOverrides,
     LocalExecutionConfig,
+    LocalProviderBinding,
     ResolvedExecutionSettings,
     load_execution_environment,
     load_local_execution_config,
@@ -87,6 +91,77 @@ def create_execution_provider(
     raise RuntimeError(f"unsupported execution provider: {settings.provider}")
 
 
+def provider_source_for_project(
+    layout: ProjectLayout,
+    provider_name: str,
+    local_config: LocalExecutionConfig | None = None,
+) -> ExecutionProviderSource:
+    """Freeze secret-free adapter identity while leaving credentials rotatable."""
+
+    local = local_config or load_local_execution_config(layout)
+    profile_id = local.machine.name if local.machine is not None else f"project:{layout.project_id}"
+    fingerprint = provider_binding_fingerprint(local, provider_name)
+    if provider_name == "local-docker":
+        binding = local.local or LocalProviderBinding()
+        return ExecutionProviderSource(
+            provider=provider_name,
+            profile_id=profile_id,
+            binding_fingerprint=fingerprint,
+            trust_bundle=binding.trust_bundle,
+            canonical_hostname=binding.canonical_hostname,
+        )
+    if provider_name == "dstack":
+        binding = local.dstack
+        if binding is None:
+            raise RuntimeError("dstack provider binding is unavailable")
+        return ExecutionProviderSource(
+            provider=provider_name,
+            profile_id=profile_id,
+            binding_fingerprint=fingerprint,
+            endpoint_scope=binding.project,
+            adapter_python=binding.python,
+            credential_file=binding.environment_file,
+            trust_bundle=binding.trust_bundle,
+            capacity_wait_seconds=binding.capacity_wait_seconds,
+        )
+    return ExecutionProviderSource(
+        provider=provider_name,
+        profile_id=profile_id,
+        binding_fingerprint=fingerprint,
+    )
+
+
+def _configuration_for_provider_source(
+    owner: ProjectLayout,
+    source: ExecutionProviderSource,
+) -> LocalExecutionConfig:
+    current = load_local_execution_config(owner)
+    if source.provider == "local-docker":
+        return replace(
+            current,
+            local=LocalProviderBinding(
+                canonical_hostname=source.canonical_hostname,
+                storage=(current.local.storage if current.local is not None else None),
+                trust_bundle=source.trust_bundle,
+            ),
+        )
+    if source.provider == "dstack":
+        if source.endpoint_scope is None or source.adapter_python is None:
+            raise RuntimeError("recorded dstack provider source is incomplete")
+        return replace(
+            current,
+            dstack=DstackBinding(
+                project=source.endpoint_scope,
+                python=source.adapter_python,
+                environment_file=source.credential_file,
+                storage=(current.dstack.storage if current.dstack is not None else None),
+                trust_bundle=source.trust_bundle,
+                capacity_wait_seconds=source.capacity_wait_seconds,
+            ),
+        )
+    raise RuntimeError(f"recorded provider source is unsupported: {source.provider!r}")
+
+
 def execution_service_for_run(
     layout: ProjectLayout,
     run_id: str,
@@ -100,7 +175,11 @@ def execution_service_for_run(
         configured_provider = providers[submission.provider]
     except KeyError as error:
         raise RuntimeError(f"execution run uses unsupported provider {submission.provider!r}") from error
-    local = load_local_execution_config(layout)
+    local = (
+        _configuration_for_provider_source(layout, submission.provider_source)
+        if submission.provider_source_recorded and submission.provider_source is not None
+        else load_local_execution_config(layout)
+    )
     settings = resolve_execution_settings(
         layout.execution,
         local=local.defaults,
@@ -109,7 +188,13 @@ def execution_service_for_run(
     provider_name, provider = create_execution_provider(layout, settings, local)
     if provider_name != submission.provider:
         raise RuntimeError(f"execution provider resolved as {provider_name!r}, expected {submission.provider!r}")
-    return JobExecutionService(provider, store, provider_name=provider_name)
+    return JobExecutionService(
+        provider,
+        store,
+        provider_name=provider_name,
+        evidence_source=submission.evidence_source,
+        provider_source=submission.provider_source,
+    )
 
 
 def execution_admission_service(
@@ -166,7 +251,11 @@ def execution_admission_service(
             provider_override = configured[entry.plan.provider]
         except KeyError as error:
             raise RuntimeError(f"execution admission uses unsupported provider {entry.plan.provider!r}") from error
-        local = load_local_execution_config(owner)
+        local = (
+            _configuration_for_provider_source(owner, entry.provider_source)
+            if entry.provider_source is not None
+            else load_local_execution_config(owner)
+        )
         settings = resolve_execution_settings(
             owner.execution,
             local=local.defaults,
@@ -180,6 +269,7 @@ def execution_admission_service(
             ExecutionSubmissionStore(locator.control_store),
             provider_name=resolved_name,
             evidence_source=entry.evidence_source,
+            provider_source=entry.provider_source,
         )
 
     def provider_binding_factory(provider_name: str) -> str:

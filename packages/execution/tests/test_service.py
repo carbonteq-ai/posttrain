@@ -14,6 +14,7 @@ from posttrain.execution import (
     ExecutionHandle,
     ExecutionPlan,
     ExecutionPolicy,
+    ExecutionProviderSource,
     ExecutionRecord,
     ExecutionRequest,
     ExecutionResult,
@@ -134,7 +135,7 @@ def test_submission_store_is_idempotent_and_rejects_conflicts(tmp_path: Path) ->
     assert store.load(submission.run_id) == submission
     assert store.submission_path(submission.run_id).stat().st_mode & 0o777 == 0o600
     payload = json.loads(store.submission_path(submission.run_id).read_text(encoding="utf-8"))
-    assert payload["schema"] == "posttrain.execution-submission.v5"
+    assert payload["schema"] == "posttrain.execution-submission.v6"
     assert payload["evidence_source_recorded"] is True
     assert payload["evidence_source"] is None
     assert payload["job_image"] == submission.job_image
@@ -242,6 +243,12 @@ def test_submission_store_round_trips_secret_free_evidence_locator(
         project="foundation-models",
         endpoint="https://trackio.internal",
     )
+    provider_source = ExecutionProviderSource(
+        provider="fake",
+        profile_id="machine-default",
+        binding_fingerprint="a" * 64,
+        credential_file=(tmp_path / "provider.env").resolve(),
+    )
     submission = ExecutionSubmission(
         run_id="run-evidence-1",
         provider="fake",
@@ -250,9 +257,12 @@ def test_submission_store_round_trips_secret_free_evidence_locator(
         job_image=f"registry.lan/posttrain@sha256:{'c' * 64}",
         submitted_at=datetime.now(UTC),
         evidence_source=source,
+        provider_source=provider_source,
     )
 
-    assert store.load(store.save(submission).run_id).evidence_source == source
+    loaded = store.load(store.save(submission).run_id)
+    assert loaded.evidence_source == source
+    assert loaded.provider_source == provider_source
     payload = store.submission_path(submission.run_id).read_text(encoding="utf-8")
     assert "token" not in payload.lower()
     assert "api_key" not in payload.lower()

@@ -10,6 +10,7 @@ import typer
 
 from .commands import (
     catalog,
+    controller,
     dataset,
     doctor,
     environment,
@@ -103,6 +104,7 @@ def create_app(*, json_stream: TextIO | None = None) -> typer.Typer:
     work_package.register(app)
     job.register(app)
     run_cmd.register(app)
+    controller.register(app)
     workers.register(app)
     runtime.register(app)
     state.register(app)
