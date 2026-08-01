@@ -102,6 +102,14 @@ surface, or broken maintained documentation link remains.
       verified terminal execution records, and refuses unresolved submissions.
       Named site profiles and explicit cache-prune remain in the configuration
       authority plan.
+      Cleanup evidence (2026-08-01): after confirming every historical
+      submission was terminal, the maintainer deliberately removed 13 dstack
+      run records, 13 exact `carbonteq/posttrain-job` OCI manifests, and all
+      11 canonical runs in Trackio project `foundation-models`. The three
+      local execution ledgers and 9.4 GiB of matching local cache/publication
+      material were moved to the system recovery bin. This was an
+      operator-authorized one-off disposal, not a substitute for the planned
+      dry-run/apply cache-prune and evidence-purge interfaces.
 - [ ] Milestone 6: pass the full quality/release gates plus real packaged data
       and evaluation jobs from the new Lab project before removing migration
       compatibility.
@@ -134,6 +142,13 @@ surface, or broken maintained documentation link remains.
   publication layouts, but `state/executions` also contains submission intent,
   provider locators, journals, and reconciliation records and cannot be
   deleted as cache.
+- Observation: the existing `posttrain run cleanup` contract is intentionally
+  retention-preserving, not a project-history purge.
+  Evidence: it releases the provider workspace only after reconciliation and
+  leaves the durable submission, tracked evidence, and immutable job manifest
+  intact. Clearing an obsolete qualification project required three separate
+  provider-native operations (dstack run deletion, Trackio run deletion, and
+  OCI manifest deletion) plus local state disposal.
 - Observation: merely moving `.posttrain` breaks current pack assumptions.
   Evidence: `packages/project/src/posttrain/project/pack_config.py` resolves
   `project_packages` and `source_includes` strictly below the discovered
@@ -262,6 +277,18 @@ surface, or broken maintained documentation link remains.
   split was verified in v0.2.5, so it is finding 22 in that review; a later
   v0.3.0 review must assess what actually shipped.
   Date/Author: 2026-08-01 / plan author.
+- Decision: a future public history-purge command must be explicitly
+  destructive and cross-plane, rather than extending evidence-preserving
+  `posttrain run cleanup` implicitly.
+  Rationale: users need one auditable operation to remove a selected terminal
+  submission, its tracking run/artifact links, its provider record, and only
+  its unreferenced job manifest. It needs a default dry-run, exact run-ID
+  selection, provider/tracking/registry capability checks, an apply flag, and
+  a durable receipt. Unsupported tracking or registry deletion must fail
+  closed rather than silently leaving data behind. This belongs with the run
+  lifecycle controller plan and must be qualified against Trackio before it
+  becomes a supported release operation.
+  Date/Author: 2026-08-01 / plan author.
 
 ## Outcomes & Retrospective
 
@@ -366,6 +393,19 @@ rejects symlinks/conflicting receipt bytes, preserves unknown state entries,
 and treats a submission without a terminal reconciliation receipt as
 unresolved. The actual old root state currently contains two such runs, so the
 real dry run correctly stops rather than copying an unsafe partial history.
+
+Historical-resource disposal outcome (2026-08-01): all 13 known terminal
+dstack qualification/distillation submissions were deleted through dstack's
+run API; all 13 corresponding immutable OCI manifests in
+`registry.lan/carbonteq/posttrain-job` were removed and verified as HTTP 404;
+and all 11 canonical Trackio runs in `foundation-models` were deleted through
+Trackio's authenticated mutation endpoint. The project subsequently listed
+zero canonical runs. The three local submission-control directories and the
+matching 9.4 GiB `pack`, `datasets`, and `runtime-builds` cache directories
+were moved to the system recovery bin, leaving only the 4 KiB machine execution
+profile below root `.posttrain/state`. This intentionally removes the prior
+live-evidence gate: the next release qualification must create fresh,
+reconciled Trackio evidence rather than referring to this retired history.
 
 ## Context and Orientation
 
@@ -848,3 +888,10 @@ migration foundation and cache-root routing. The remaining named-profile and
 cache-prune work stays explicitly owned by the configuration-authority plan;
 the unresolved historical provider runs prevent relocation until they are
 reconciled.
+
+Revision note (2026-08-01): Historical qualification resources were
+operator-authorized for disposal after terminal-state, Trackio-project, and
+exact-manifest inventory. The plan now distinguishes this one-off cleanup from
+the missing public, dry-run-first cross-plane history-purge capability; the
+latter remains a lifecycle-controller deliverable and cannot be inferred from
+the retention-preserving `run cleanup` command.
