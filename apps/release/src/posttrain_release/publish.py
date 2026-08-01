@@ -13,6 +13,7 @@ from posttrain.runtime_images import (
     KIND_BAKE_FILE,
     KIND_DEFINITION,
     RUNTIME_VARIANTS,
+    backend_constraint_lock,
     cached_definition_root,
     constraint_lock,
     lock_digest,
@@ -129,6 +130,9 @@ def _reuse_unchanged_kind(variant: str, root: Path) -> PublishedImage:
         lock_digest=previous.lock_digest,
         constraint_lock=previous.constraint_lock,
         provided_packages=previous.provided_packages or _provided_packages(variant, root),
+        backend_constraint_lock=previous.backend_constraint_lock,
+        backend_lock_digest=previous.backend_lock_digest,
+        backend_provided_packages=previous.backend_provided_packages,
     )
 
 
@@ -257,6 +261,7 @@ def publish_release(
 
     def _build_kind(variant: str) -> PublishedImage:
         lock = constraint_lock(variant)
+        backend_lock = backend_constraint_lock(variant)
         prior_kind = _prior_kind_ref(normalized, variant)
         cache_from = tuple(ref for ref in (published_base.value, prior_kind) if ref)
         result = builder.build(
@@ -286,6 +291,8 @@ def publish_release(
             lock_digest=lock_digest(lock),
             constraint_lock=lock,
             provided_packages=supplied.get(variant) or _provided_packages(variant, root),
+            backend_constraint_lock=backend_lock,
+            backend_lock_digest=lock_digest(backend_lock) if backend_lock is not None else None,
         )
 
     def _resolve_kind(variant: str) -> PublishedImage:

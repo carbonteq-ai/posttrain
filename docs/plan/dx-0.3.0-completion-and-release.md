@@ -76,6 +76,11 @@ green unit tests.
       framework to consume the indexed wheel, and regenerated the catalog and
       runtime dependency locks. The release manifest is intentionally stale
       until the replacement runtime image publication completes.
+- [x] (2026-08-01) Published the 0.3.0 base and all six job-kind images from
+      source revision `1030dcae`, including the isolated veRL backend, and
+      regenerated the digest-pinned manifest. The base retains both public and
+      LAN package-index trust; every kind installed Trackio post6 from the
+      stable index. Release consistency and focused image/release tests pass.
 - [ ] Implement framework-owned run/project purge planning and execution with
       artifact-consumer closure, receipts, and a Trackio lifecycle adapter.
 - [ ] Complete the remaining release-critical configuration, lifecycle,
@@ -129,6 +134,20 @@ green unit tests.
   —the base image's system bundle, so both public and private indexes remain
   verifiable. Only its SHA-256—not the host path—participates in the build
   receipt identity. TLS verification stays enabled.
+
+- Observation: supporting a second locked Python environment in the manifest
+  parser was insufficient because the release renderer remained unaware of
+  those fields.
+  Evidence: the first successful 0.3.0 publication built the veRL backend from
+  its exact release lock, then generated a manifest without
+  `backend_constraint_lock` or `backend_lock_digest`. The generic consistency
+  check passed because the fields were optional, but veRL environment packing
+  would have failed.
+  Resolution: backend constraint ownership is now a runtime-variant property;
+  publication derives and renders it, selective reuse preserves it, and
+  manifest validation requires the expected backend lock for veRL and no
+  unexpected backend lock for other variants. A renderer round-trip regression
+  test covers the complete fields.
 
 - Observation: the retired project id survived in two places that can still
   write to the live tracking server, not only in inert fixtures.

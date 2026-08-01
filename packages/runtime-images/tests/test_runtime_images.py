@@ -10,7 +10,9 @@ from posttrain.runtime_images import (
     KIND_BAKE_FILE,
     RUNTIME_VARIANTS,
     TRANSFORM_LOCK,
+    VERL_BACKEND_LOCK,
     WORKSPACE_LOCK,
+    backend_constraint_lock,
     constraint_lock,
     definition_root,
     lock_digest,
@@ -69,6 +71,19 @@ def test_transform_is_the_only_variant_off_the_workspace_lock() -> None:
     off_workspace = {v for v in RUNTIME_VARIANTS if constraint_lock(v) != WORKSPACE_LOCK}
     assert off_workspace == {"transform"}
     assert constraint_lock("transform") == TRANSFORM_LOCK
+
+
+def test_verl_is_the_only_variant_with_separate_backend_constraints() -> None:
+    selected = {variant: backend_constraint_lock(variant) for variant in RUNTIME_VARIANTS}
+    assert selected == {
+        "supervised": None,
+        "online-rl-trl-py312": None,
+        "online-rl-verl-py313": VERL_BACKEND_LOCK,
+        "eval": None,
+        "serve": None,
+        "transform": None,
+    }
+    assert read_lock(VERL_BACKEND_LOCK)
 
 
 def test_constraint_lock_rejects_unknown_variants() -> None:

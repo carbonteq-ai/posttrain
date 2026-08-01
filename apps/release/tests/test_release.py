@@ -8,7 +8,12 @@ from pathlib import Path, PurePosixPath
 from shutil import which
 
 import pytest
-from posttrain.runtime_images import RUNTIME_VARIANTS, constraint_lock, lock_digest
+from posttrain.runtime_images import (
+    RUNTIME_VARIANTS,
+    VERL_BACKEND_LOCK,
+    constraint_lock,
+    lock_digest,
+)
 from posttrain.runtime_images.manifest import ManifestError, PublishedImage, load_manifest
 from posttrain_release.cli import main
 from posttrain_release.manifest_render import render_manifest
@@ -94,12 +99,15 @@ dependency_lock_sha256 = "{digest}"
 
 def _image(name: str, variant: str, digest_char: str) -> PublishedImage:
     lock = constraint_lock(variant)
+    backend_lock = VERL_BACKEND_LOCK if variant == "online-rl-verl-py313" else None
     return PublishedImage(
         name=name,
         repository=f"posttrain-kind-{variant}",
         digest="sha256:" + digest_char * 64,
         lock_digest=lock_digest(lock),
         constraint_lock=lock,
+        backend_constraint_lock=backend_lock,
+        backend_lock_digest=lock_digest(backend_lock) if backend_lock is not None else None,
     )
 
 
@@ -358,6 +366,38 @@ def test_provided_packages_survive_rendering() -> None:
     assert document["kinds"]["eval"]["provided_packages"] == ["verifiers"]
 
 
+def test_backend_constraints_survive_rendering() -> None:
+    image = _image("kinds.online-rl-verl-py313", "online-rl-verl-py313", "b")
+    rendered = render_manifest(
+        framework_version="1.0.0",
+        default_prefix="registry.lan/carbonteq",
+        base=PublishedImage(
+            name="base",
+            repository="posttrain-base",
+            digest="sha256:" + "a" * 64,
+            lock_digest=lock_digest(),
+            constraint_lock=constraint_lock("supervised"),
+        ),
+        kinds={
+            "online-rl-verl-py313": PublishedImage(
+                name=image.name,
+                repository=image.repository,
+                digest=image.digest,
+                lock_digest=image.lock_digest,
+                constraint_lock=image.constraint_lock,
+                backend_constraint_lock=VERL_BACKEND_LOCK,
+                backend_lock_digest=lock_digest(VERL_BACKEND_LOCK),
+                backend_provided_packages=("verl",),
+            )
+        },
+    )
+    document = tomllib.loads(rendered)
+    published = document["kinds"]["online-rl-verl-py313"]
+    assert published["backend_constraint_lock"] == VERL_BACKEND_LOCK.as_posix()
+    assert published["backend_lock_digest"] == lock_digest(VERL_BACKEND_LOCK)
+    assert published["backend_provided_packages"] == ["verl"]
+
+
 def test_an_empty_release_is_rejected() -> None:
     with pytest.raises(ValueError, match="at least one job-kind image"):
         render_manifest(
@@ -387,6 +427,10 @@ def test_the_shipped_manifest_matches_what_the_renderer_would_produce() -> None:
         assert rendered["kinds"][variant]["repository"] == image.repository
         assert rendered["kinds"][variant]["constraint_lock"] == image.constraint_lock.as_posix()
         assert rendered["kinds"][variant]["lock_digest"] == image.lock_digest
+        assert rendered["kinds"][variant].get("backend_constraint_lock") == (
+            image.backend_constraint_lock.as_posix() if image.backend_constraint_lock else None
+        )
+        assert rendered["kinds"][variant].get("backend_lock_digest") == image.backend_lock_digest
 
 
 def test_unknown_variant_is_rejected() -> None:

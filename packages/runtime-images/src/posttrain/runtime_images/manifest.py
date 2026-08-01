@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from functools import cache
 from pathlib import PurePosixPath
 
-from . import RUNTIME_VARIANTS, lock_digest, read_resource
+from . import RUNTIME_VARIANTS, backend_constraint_lock, lock_digest, read_resource
 
 _MANIFEST = "published.toml"
 _SUPPORTED_SCHEMA = 1
@@ -185,6 +185,13 @@ def load_manifest(
         unexpected = set(kinds) - set(RUNTIME_VARIANTS)
         if unexpected:
             raise ManifestError("published.toml publishes unreleased variants: " + ", ".join(sorted(unexpected)))
+        for variant, image in kinds.items():
+            expected_backend = backend_constraint_lock(variant)
+            if image.backend_constraint_lock != expected_backend:
+                raise ManifestError(
+                    f"kinds.{variant}: backend constraint lock is "
+                    f"{image.backend_constraint_lock}, expected {expected_backend}"
+                )
 
     if verify_locks:
         _verify(base)
