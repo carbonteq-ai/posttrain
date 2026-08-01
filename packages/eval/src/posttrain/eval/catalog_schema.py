@@ -14,10 +14,11 @@ from .requests import (
     EnvironmentActivation,
     EnvironmentBinding,
     EnvironmentFactory,
-    EnvironmentSource,
     EvaluationPlan,
+    ExternalInferenceService,
     PythonFactoryActivation,
-    SamplingPolicy,
+    RemoteEvaluationBinding,
+    RemotePolicy,
     VerifiersV1ConfigActivation,
 )
 
@@ -87,37 +88,41 @@ class EvaluationPlanSchema(EvalCatalogSchema):
     comparison: dict[str, JsonValue] = Field(default_factory=dict)
 
 
+class RemotePolicySchema(EvalCatalogSchema):
+    id: str
+    revision: str
+    model: str
+    context_window: int = Field(gt=0)
+    capabilities: dict[str, JsonValue] = Field(default_factory=dict)
+
+
+class ExternalInferenceServiceSchema(EvalCatalogSchema):
+    id: str
+    revision: str
+    base_url: str
+    api_key_var: str
+    headers: dict[str, str] = Field(default_factory=dict)
+    request_defaults: dict[str, JsonValue] = Field(default_factory=dict)
+    protocol: Literal["openai-chat@1"] = "openai-chat@1"
+
+
+class RemoteEvaluationBindingSchema(EvalCatalogSchema):
+    id: str
+    revision: str
+    policy: RemotePolicySchema
+    service: ExternalInferenceServiceSchema
+    purpose: tuple[Literal["screen", "eval"], ...]
+
+
 def evaluation_catalog_decoders(
     factories: Mapping[str, EnvironmentActivation | EnvironmentFactory] | None = None,
 ) -> Mapping[SelectionFamily, SelectionDecoder]:
-    """Build detached decoders without importing environment implementations."""
+    """Build evaluation decoders; environment decoding moved to posttrain.environment."""
 
-    aliases = {name: _normalize_activation(value) for name, value in (factories or {}).items()}
-
-    def decode_environment(
-        ref: CatalogRef,
-        data: Mapping[str, object],
-        known: Mapping[CatalogRef, Selection],
-    ) -> Selection:
-        del ref, known
-        payload = EnvironmentBindingSchema.model_validate(data)
-        activation = (
-            _activation_from_schema(payload.activation)
-            if payload.activation is not None
-            else _legacy_activation(payload.factory, aliases)
-        )
-        return EnvironmentBinding(
-            id=payload.id,
-            category=payload.category,
-            source=EnvironmentSource(**payload.source.model_dump()),
-            activation=activation,
-            sampling=SamplingPolicy(**payload.sampling.model_dump()),
-            num_tasks=payload.num_tasks,
-            num_rollouts=payload.num_rollouts,
-            max_concurrent=payload.max_concurrent,
-            parameters=payload.parameters,
-            reward_components=payload.reward_components,
-        )
+    # Retain the argument for one release so callers using the former combined
+    # decoder factory do not fail at import time. Environment aliases are now
+    # interpreted by posttrain.environment.environment_catalog_decoders().
+    del factories
 
     def decode_evaluation(
         ref: CatalogRef,
@@ -135,11 +140,26 @@ def evaluation_catalog_decoders(
         values = payload.model_dump(exclude={"environments"})
         return EvaluationPlan(environments=tuple(environments), **values)
 
+    def decode_remote_evaluation(
+        ref: CatalogRef,
+        data: Mapping[str, object],
+        known: Mapping[CatalogRef, Selection],
+    ) -> Selection:
+        del ref, known
+        payload = RemoteEvaluationBindingSchema.model_validate(data)
+        return RemoteEvaluationBinding(
+            id=payload.id,
+            revision=payload.revision,
+            policy=RemotePolicy(**payload.policy.model_dump()),
+            service=ExternalInferenceService(**payload.service.model_dump()),
+            purpose=payload.purpose,
+        )
+
     return cast(
         Mapping[SelectionFamily, SelectionDecoder],
         {
-            "environment": decode_environment,
             "evaluation": decode_evaluation,
+            "remote-evaluation": decode_remote_evaluation,
         },
     )
 
@@ -179,6 +199,8 @@ __all__ = [
     "EnvironmentBindingSchema",
     "EvaluationPlanSchema",
     "PythonFactoryActivationSchema",
+    "RemoteEvaluationBindingSchema",
+    "RemotePolicySchema",
     "VerifiersV1ConfigActivationSchema",
     "evaluation_catalog_decoders",
 ]

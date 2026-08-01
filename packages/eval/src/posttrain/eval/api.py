@@ -9,7 +9,7 @@ from pathlib import Path
 from posttrain.common import LocalArtifactRef, ProducedArtifact, RunContext
 
 from .backends.verifiers import VerifiersRunResult, run_verifiers
-from .requests import EvaluateRequest
+from .requests import EvaluateRequest, RemoteEvaluationBinding, RemotePolicy
 from .results import EvaluationResult, TraceSynchronization
 
 type EvaluationContext = RunContext
@@ -59,7 +59,7 @@ def evaluate(
         metadata={
             **attributes,
             "environment_package": environment.source.package,
-            "environment_revision": environment.source.revision,
+            "environment_revision": environment.revision,
         },
         role="evaluation",
     )
@@ -140,13 +140,29 @@ def domain(
 
 
 def _attributes(request: EvaluateRequest) -> dict[str, str | int]:
-    return {
-        "model_variant_id": request.model.id,
+    attributes: dict[str, str | int] = {
+        "evaluation_subject_id": request.model.id,
         "evaluation_plan_id": request.plan.id,
         "evaluation_plan_kind": request.plan.kind,
         "inference_binding_id": request.inference.id,
         "execution_target_id": request.target.id,
     }
+    if isinstance(request.model, RemotePolicy):
+        assert isinstance(request.inference, RemoteEvaluationBinding)
+        attributes.update(
+            {
+                "evaluation_subject_kind": "remote-policy",
+                "remote_policy_revision": request.model.revision,
+                "remote_service_id": request.inference.service.id,
+                "remote_service_revision": request.inference.service.revision,
+                "remote_service_protocol": request.inference.service.protocol,
+                "remote_service_origin": request.inference.service.origin,
+            }
+        )
+    else:
+        attributes["evaluation_subject_kind"] = "model-variant"
+        attributes["model_variant_id"] = request.model.id
+    return attributes
 
 
 def _model_id(request: EvaluateRequest) -> str:

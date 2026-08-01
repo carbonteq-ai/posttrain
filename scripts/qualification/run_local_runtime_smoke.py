@@ -49,7 +49,7 @@ def main() -> None:
     )
     with tempfile.TemporaryDirectory(prefix="posttrain-local-runtime-smoke-") as temporary:
         bundle = build_bundle(
-            {"job.py": ROOT / "scripts/qualification/dstack_runtime_smoke_job.py"},
+            {"job.py": ROOT / "packages/execution/tests/fixtures/runtime_smoke_job.py"},
             (Path(temporary) / "bundle").resolve(),
         )
         request = ExecutionRequest(

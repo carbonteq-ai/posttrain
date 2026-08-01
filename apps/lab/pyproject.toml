@@ -1,39 +1,37 @@
 [project]
 name = "posttrain-lab"
-version = "0.2.5"
+version = "0.0.0"
 description = "Qualification project and scenario CLI for post-training jobs"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-    "posttrain-common==0.2.5",
-    "posttrain-catalog==0.2.5",
-    "posttrain-data==0.2.5",
-    "posttrain-eval==0.2.5",
-    "posttrain-jobs==0.2.5",
-    "posttrain-serve==0.2.5",
-    "posttrain-tracking==0.2.5",
-    "posttrain-tracking-trackio==0.2.5",
-    "posttrain-tracking-wandb==0.2.5",
-    "posttrain-train==0.2.5",
-    "posttrain-work==0.2.5",
+    "posttrain-common",
+    "posttrain-catalog",
+    "posttrain-data",
+    "posttrain-eval",
+    "posttrain-jobs",
+    "posttrain-serve",
+    "posttrain-tracking",
+    "posttrain-tracking-trackio",
+    "posttrain-tracking-wandb",
+    "posttrain-train",
+    "posttrain-work",
     "pydantic>=2.12,<3",
     "pyyaml>=6.0,<7",
-    "carbonteq-trackio @ git+https://github.com/carbonteq-ai/trackio.git@703be3808cb6cac52259cb15e614cad971978d2e",
 ]
 
 [project.optional-dependencies]
 gpu-eval = [
-    "posttrain-eval[verifiers]==0.2.5",
-    "posttrain-serve[vllm]==0.2.5",
+    "posttrain-eval[verifiers]",
+    "posttrain-serve[vllm]",
 ]
 gpu-train = [
-    "posttrain-train[trl]==0.2.5",
+    "posttrain-train[trl]",
 ]
 gpu-posttrain = [
-    "automationbench-v1",
-    "posttrain-eval[verifiers]==0.2.5",
-    "posttrain-train[trl,trl-vllm]==0.2.5",
+    "posttrain-eval[verifiers]",
+    "posttrain-train[trl,trl-vllm]",
 ]
 
 [project.scripts]
@@ -51,7 +49,6 @@ posttrain-tracking-trackio = { workspace = true }
 posttrain-tracking-wandb = { workspace = true }
 posttrain-train = { workspace = true }
 posttrain-work = { workspace = true }
-automationbench-v1 = { path = "../../environments/automationbench_v1" }
 
 [build-system]
 requires = ["hatchling"]
@@ -60,8 +57,13 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/posttrain_lab"]
 
-[tool.hatch.metadata]
-allow-direct-references = true
+[tool.posttrain.pack]
+# Lab becomes an independently packable project in Milestone 3.  This
+# declaration is deliberately usable before that move: the project source is
+# Lab only, while `.posttrain` control data is bundled through the job-package
+# closure rather than installed as Python source.
+project_packages = ["."]
+source_includes = ["README.md", "pyproject.toml", "src"]
 
 [project.urls]
 Documentation = "https://github.com/carbonteq-ai/posttrain#readme"

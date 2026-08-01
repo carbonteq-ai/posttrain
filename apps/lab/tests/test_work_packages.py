@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -41,7 +42,7 @@ from posttrain_lab.work_packages import (
 )
 
 WORKSPACE = Path(__file__).resolve().parents[3]
-WORK_PACKAGES = WORKSPACE / ".posttrain" / "work_packages"
+WORK_PACKAGES = WORKSPACE / "apps" / "lab" / ".posttrain" / "work_packages"
 
 
 def test_reference_yaml_runs_screen_and_skips_optional_eval() -> None:
@@ -99,8 +100,9 @@ def test_distillation_yaml_resolves_every_seat_through_the_catalog() -> None:
         "kind": "lora",
     }
     assert training["resolved"]["backend_options"] == {  # type: ignore[index]
+        "dependency_lock": "trl-fork@current",
         "source_revision": "6e7739b8ec741d21ecd79c0c212694cd15ff20d8",
-        "dependency_lock_sha256": ("5a1096b0b5d988795e12a6b42e31d9940ded2718d4f6edcd148f1b4fa3e0afe5"),
+        "dependency_lock_sha256": hashlib.sha256((WORKSPACE / "uv.lock").read_bytes()).hexdigest(),
     }
     execution_targets = resolved.snapshot["execution_targets"]
     assert isinstance(execution_targets, dict)
@@ -134,9 +136,12 @@ def test_distillation_yaml_resolves_every_seat_through_the_catalog() -> None:
     }
 
 
-def test_grpo_definition_accepts_only_an_environment_population_seat() -> None:
-    pytest.importorskip("verifiers")
-    catalog = open_catalog(scope="foundation-models")
+def test_grpo_definition_accepts_only_an_environment_population_seat(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "posttrain.train.verifiers_requests.create_verifiers_training_bridge",
+        lambda *_args, **_kwargs: SimpleNamespace(dataset=SimpleNamespace(examples=(object(),))),
+    )
+    catalog = open_catalog(scope="posttrain-lab")
     definition = grpo_definition(
         lambda context, request: request,
         tasks={

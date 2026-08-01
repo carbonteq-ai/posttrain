@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from posttrain.catalog import load_catalog_layer, packaged_base_directory
 from posttrain.common import CatalogRef, ContractError, ExecutionTarget, ModelVariant
-from posttrain.eval import EnvironmentBinding, EvaluationPlan
+from posttrain.eval import EnvironmentBinding, EnvironmentSource, EvaluationPlan
 from posttrain.train import (
     DynamicGroupSampling,
     GRPOSettings,
@@ -26,7 +26,7 @@ WORKSPACE = Path(__file__).resolve().parents[3]
 
 
 def test_slice_one_and_two_selections_load_from_the_base_filesystem_catalog() -> None:
-    catalog = open_catalog(scope="foundation-models")
+    catalog = open_catalog(scope="posttrain-lab")
 
     model = catalog.resolve(CatalogRef("model", "models/qwen3.5-2b@bf16"))
     plan = catalog.resolve(CatalogRef("evaluation", "general-smoke-v1"))
@@ -49,7 +49,7 @@ def test_slice_one_and_two_selections_load_from_the_base_filesystem_catalog() ->
 
 
 def test_automationbench_grpo_environment_is_category_and_budget_driven() -> None:
-    catalog = open_catalog(scope="foundation-models")
+    catalog = open_catalog(scope="posttrain-lab")
     environment = catalog.resolve(CatalogRef("environment", "automationbench-zapier-simple-grpo")).value
     settings = catalog.resolve(CatalogRef("training", "automationbench/qwen3.5-0.8b/grpo-mtp-smoke-v1")).value
     training = catalog.resolve(
@@ -57,8 +57,11 @@ def test_automationbench_grpo_environment_is_category_and_budget_driven() -> Non
     ).value
 
     assert isinstance(environment, EnvironmentBinding)
-    assert environment.source.repository == "https://github.com/carbonteq-ai/AutomationBench"
-    assert environment.source.revision == "d54dbebabdba6c6eda201694aee8ddcf36ccfc51"
+    assert isinstance(environment.source, EnvironmentSource)
+    assert environment.source.package == "automationbench-v1"
+    assert environment.source.repository == "https://github.com/carbonteq-ai/posttrain"
+    assert environment.source.revision == "02848b756727d86a55564557e79e7f613fc8762c"
+    assert environment.source.subdirectory == "environments/automationbench_v1"
     assert environment.parameters["domains"] == ["simple"]
     assert environment.parameters["sampling_seed"] == 17
     assert environment.parameters["toolset"] == "zapier"
@@ -77,10 +80,23 @@ def test_automationbench_grpo_environment_is_category_and_budget_driven() -> Non
     assert training.runtime.global_batch_size == 16
 
 
-def test_project_overlay_directory_can_publish_a_new_selection() -> None:
+def test_project_overlay_directory_can_publish_a_new_selection(tmp_path: Path) -> None:
+    overlay = _layer(
+        tmp_path,
+        "project-example-v1",
+        """
+target:
+  targets/project-cuda-24gb:
+    revision: "1"
+    device_class: nvidia-cuda
+    memory_gb: 24
+    placement:
+      world_size: 1
+""",
+    )
     catalog = open_catalog(
         scope="example",
-        overlays=(WORKSPACE / ".posttrain" / "catalog" / "example",),
+        overlays=(overlay,),
     )
     resolved = catalog.resolve(CatalogRef("target", "targets/project-cuda-24gb"))
 
@@ -91,7 +107,7 @@ def test_project_overlay_directory_can_publish_a_new_selection() -> None:
 
 
 def test_peft_bindings_settings_and_quantization_load_from_filesystem_catalog() -> None:
-    catalog = open_catalog(scope="foundation-models")
+    catalog = open_catalog(scope="posttrain-lab")
 
     lora = catalog.resolve(CatalogRef("training", "training/qwen3.5-trl-lora@1"))
     qlora = catalog.resolve(CatalogRef("training", "training/qwen3.5-trl-qlora@1"))
@@ -118,6 +134,7 @@ def test_peft_bindings_settings_and_quantization_load_from_filesystem_catalog() 
         lora.value.backend_options["dependency_lock_sha256"]
         == hashlib.sha256((root / "uv.lock").read_bytes()).hexdigest()
     )
+    assert lora.value.backend_options["dependency_lock"] == "trl-fork@current"
     assert (
         quantization.value.dependency_lock_digest
         == hashlib.sha256((root / "tools" / "quantization" / "uv.lock").read_bytes()).hexdigest()
@@ -130,7 +147,7 @@ def test_peft_bindings_settings_and_quantization_load_from_filesystem_catalog() 
 
 
 def test_distillation_selections_share_exact_tokenizer_identity_and_separate_targets() -> None:
-    catalog = open_catalog(scope="foundation-models")
+    catalog = open_catalog(scope="posttrain-lab")
     student = catalog.resolve(CatalogRef("model", "models/qwen3.5-0.8b@bf16")).value
     teacher = catalog.resolve(CatalogRef("model", "models/qwen3.5-2b@bf16")).value
     settings = catalog.resolve(CatalogRef("training", "qwen3.5-0.8b/on-policy-distill-smoke-v1")).value
@@ -186,8 +203,8 @@ def test_invalid_catalog_yaml_is_rejected_at_the_host_boundary(tmp_path: Path) -
         encoding="utf-8",
     )
 
-    with pytest.raises(ContractError, match="extra_forbidden"):
-        load_catalog_layer(directory)
+    with pytest.raises(ContractError, match="catalog_family_unavailable: unknown_family"):
+        open_catalog(scope="invalid", overlays=(directory,))
 
 
 def test_invalid_selection_fields_fail_before_catalog_is_returned(tmp_path: Path) -> None:

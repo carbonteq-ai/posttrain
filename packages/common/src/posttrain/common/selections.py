@@ -15,18 +15,7 @@ from .models import ModelVariant
 _SELECTION_ID = re.compile(r"^[a-z0-9][a-z0-9._/@:-]*$")
 _REVISION = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/+:-]*$")
 
-type SelectionFamily = Literal[
-    "model",
-    "dataset",
-    "environment",
-    "inference",
-    "training",
-    "quantization",
-    "evaluation",
-    "workload",
-    "target",
-    "recipe",
-]
+type SelectionFamily = str
 type Purpose = Literal["screen", "eval", "rollout", "teacher-score", "smoke", "handoff"]
 type JsonMapping = Mapping[str, JsonValue]
 
@@ -117,6 +106,7 @@ class InferenceBinding:
     sampling: JsonMapping
     target: ExecutionTarget
     purpose: tuple[Purpose, ...]
+    startup_timeout_seconds: float = 180.0
 
     def __post_init__(self) -> None:
         validate_selection_id(self.id, "inference binding id")
@@ -127,6 +117,8 @@ class InferenceBinding:
             raise ContractError("inference renderer cannot be empty")
         if not self.purpose or len(self.purpose) != len(set(self.purpose)):
             raise ContractError("inference purpose must be non-empty and unique")
+        if self.startup_timeout_seconds <= 0:
+            raise ContractError("inference startup timeout must be positive")
         object.__setattr__(self, "engine", immutable_json_mapping(self.engine))
         object.__setattr__(self, "sampling", immutable_json_mapping(self.sampling))
 

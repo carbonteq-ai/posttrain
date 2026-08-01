@@ -54,7 +54,13 @@ def register(app: typer.Typer) -> None:
         emit(
             state,
             layout_payload(layout),
-            f"Initialized post-training project {layout.project_id} at {layout.root}",
+            "\n".join(
+                (
+                    f"Initialized post-training project {layout.project_id} at {layout.root}",
+                    "Machine defaults are separate; register this project with "
+                    f"posttrain machine project add {layout.root}",
+                )
+            ),
         )
         if template is not None and not no_install:
             install_starter(layout.root, json_output=state.json_output)

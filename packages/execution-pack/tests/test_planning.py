@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 from types import SimpleNamespace
 from typing import cast
 
 import pytest
+from posttrain.common import ContractError
 from posttrain.data import DatasetLoadPlan
+from posttrain.environment import ProjectPathActivationResource, ProjectPathEnvironmentSource
 from posttrain.eval import (
     EnvironmentBinding,
     EnvironmentSource,
@@ -169,6 +172,99 @@ def test_plan_retains_dataset_seats_without_materializing_them() -> None:
     assert plan.spec.datasets[0].selection is dataset
 
 
+def test_plan_locks_declared_project_activation_resources(tmp_path) -> None:
+    data = tmp_path / "data" / "train.jsonl"
+    data.parent.mkdir()
+    data.write_text('{"question":"q"}\n', encoding="utf-8")
+    environment = _environment(
+        "extract",
+        "extract-v1",
+        "environments/extract",
+        activation=VerifiersV1ConfigActivation(
+            {"taskset": {"data_path": {"$resource": "task_data"}}},
+            {"task_data": ProjectPathActivationResource("data/train.jsonl")},
+        ),
+    )
+
+    plan = plan_job_pack(
+        _prepared(cast(ResolvedSeats, {"environment": environment})),
+        framework_source_digest=DIGEST,
+        project_source_digest="d" * 64,
+        universal_image=BASE,
+        kind_image=KIND,
+        publication=PUBLICATION,
+        project_root=tmp_path,
+    )
+
+    resource = plan.spec.environment_activations[0].resources["task_data"]
+    assert resource.source_path == "data/train.jsonl"
+    assert resource.staged_path == "environment-resources/extract/task_data"
+    assert resource.size_bytes == data.stat().st_size
+    assert resource.digest == hashlib.sha256(data.read_bytes()).hexdigest()
+
+
+def test_plan_derives_project_environment_tree_identity_without_git(tmp_path) -> None:
+    package = tmp_path / "environments" / "toy_env"
+    package.mkdir(parents=True)
+    (package / "pyproject.toml").write_text('[project]\nname = "toy-env"\nversion = "1.0.0"\n', encoding="utf-8")
+    (package / "toy.py").write_text("VALUE = 1\n", encoding="utf-8")
+    environment = EnvironmentBinding(
+        id="toy",
+        category="reasoning",
+        source=ProjectPathEnvironmentSource("toy-env", "environments/toy_env"),
+        activation=VerifiersV1ConfigActivation({"taskset": {"id": "toy"}}),
+        sampling=SamplingPolicy(max_tokens=64),
+        num_tasks=1,
+    )
+    prepared = _prepared(cast(ResolvedSeats, {"environment": environment}))
+    first = plan_job_pack(
+        prepared,
+        framework_source_digest=DIGEST,
+        project_source_digest="d" * 64,
+        universal_image=BASE,
+        kind_image=KIND,
+        publication=PUBLICATION,
+        project_root=tmp_path,
+    )
+    (package / "toy.py").write_text("VALUE = 2\n", encoding="utf-8")
+    second = plan_job_pack(
+        prepared,
+        framework_source_digest=DIGEST,
+        project_source_digest="d" * 64,
+        universal_image=BASE,
+        kind_image=KIND,
+        publication=PUBLICATION,
+        project_root=tmp_path,
+    )
+
+    assert not first.spec.git_sources
+    assert first.spec.project_environment_sources[0].path == "environments/toy_env"
+    assert first.plan_key != second.plan_key
+
+
+def test_plan_rejects_undeclared_project_activation_path(tmp_path) -> None:
+    data = tmp_path / "data" / "train.jsonl"
+    data.parent.mkdir()
+    data.write_text('{"question":"q"}\n', encoding="utf-8")
+    environment = _environment(
+        "extract",
+        "extract-v1",
+        "environments/extract",
+        activation=VerifiersV1ConfigActivation({"taskset": {"data_path": "data/train.jsonl"}}),
+    )
+
+    with pytest.raises(ContractError, match="declare it under activation.resources"):
+        plan_job_pack(
+            _prepared(cast(ResolvedSeats, {"environment": environment})),
+            framework_source_digest=DIGEST,
+            project_source_digest="d" * 64,
+            universal_image=BASE,
+            kind_image=KIND,
+            publication=PUBLICATION,
+            project_root=tmp_path,
+        )
+
+
 def test_plan_key_ignores_run_provider_paths_and_publication() -> None:
     environment = _environment(
         "math-gsm8k",
@@ -211,6 +307,34 @@ def test_plan_key_ignores_run_provider_paths_and_publication() -> None:
     serialized = first.spec.to_payload()
     assert "run-a" not in str(serialized)
     assert "/private/developer/path" not in str(serialized)
+
+
+def test_plan_key_binds_the_complete_catalog_family_registry_lock() -> None:
+    environment = _environment("math-gsm8k", "gsm8k-v1", "environments/gsm8k_v1")
+    prepared = _prepared(cast(ResolvedSeats, {"environment": environment}))
+    first = plan_job_pack(
+        prepared,
+        framework_source_digest=DIGEST,
+        project_source_digest="d" * 64,
+        universal_image=BASE,
+        kind_image=KIND,
+        publication=PUBLICATION,
+        family_registry_lock={"entries": [{"name": "environment"}], "digest": "e" * 64},
+    )
+    second = plan_job_pack(
+        prepared,
+        framework_source_digest=DIGEST,
+        project_source_digest="d" * 64,
+        universal_image=BASE,
+        kind_image=KIND,
+        publication=PUBLICATION,
+        family_registry_lock={
+            "entries": [{"name": "environment"}, {"name": "unrelated-provider"}],
+            "digest": "f" * 64,
+        },
+    )
+
+    assert first.plan_key != second.plan_key
 
 
 def test_input_or_build_semantics_change_plan_key() -> None:

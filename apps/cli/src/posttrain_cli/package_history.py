@@ -9,6 +9,8 @@ from pathlib import Path
 from posttrain.catalog import ProjectLayout
 from posttrain.common import ContractError
 
+from .state_layout import cache_path
+
 _MANIFEST_NAME = "package.json"
 _CONTEXTS = "pack/contexts"
 
@@ -33,7 +35,7 @@ class RetainedPackage:
 
 def retained_packages(layout: ProjectLayout) -> tuple[RetainedPackage, ...]:
     """Return every retained package, newest first."""
-    root = (layout.state / _CONTEXTS).resolve()
+    root = cache_path(layout, _CONTEXTS)
     if not root.is_dir():
         return ()
     found: list[RetainedPackage] = []

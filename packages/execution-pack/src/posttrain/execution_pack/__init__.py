@@ -9,6 +9,7 @@ from .contracts import (
     MaterializedEnvironmentPackage,
     MaterializedEnvironments,
     MaterializedRuntimeDependency,
+    ProjectEnvironmentSourceRequest,
     SourcePackage,
 )
 from .datasets import ImmutableDatasetPackager, MaterializedDatasetPackages
@@ -17,12 +18,15 @@ from .planning import (
     JobKindProfile,
     JobPackPlan,
     JobPackSpec,
+    activation_resource_sources,
     environment_bindings,
     plan_job_pack,
 )
 from .publication import (
     JobImagePublicationRequest,
     JobImagePublisher,
+    LocalJobImagePublisher,
+    LocalPublishedJobImage,
     PublishedJobImage,
 )
 from .service import (
@@ -54,6 +58,8 @@ __all__ = [
     "JobPackSpec",
     "JobImagePublicationRequest",
     "JobImagePublisher",
+    "LocalJobImagePublisher",
+    "LocalPublishedJobImage",
     "MaterializedEnvironmentPackage",
     "MaterializedEnvironments",
     "MaterializedRuntimeDependency",
@@ -61,9 +67,11 @@ __all__ = [
     "MaterializedSourceSnapshot",
     "PackedJobContext",
     "ProjectConfigBundle",
+    "ProjectEnvironmentSourceRequest",
     "PublishedJobImage",
     "SourceSnapshotRequest",
     "SourcePackage",
+    "activation_resource_sources",
     "digest_source_package",
     "environment_bindings",
     "plan_job_pack",

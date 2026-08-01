@@ -9,12 +9,14 @@ from typing import Annotated
 
 import typer
 from posttrain.common import ContractError
-from posttrain.execution import compare_job_packages, unchanged_fields
+from posttrain.execution import ProjectControlLocator, compare_job_packages, unchanged_fields
+from posttrain.project import JobIntent, Project
 from posttrain.work import resolve_work_package, run_work_package_job, validate_work_package
 
 from ..context import CliState
 from ..execution_config import ExecutionOverrides, PackageOverrides
 from ..execution_planning import (
+    LocalPackedJobPackage,
     PackedJobExecution,
     PackedJobPackage,
     PlannedJobExecution,
@@ -22,10 +24,7 @@ from ..execution_planning import (
     plan_job_execution,
     plan_job_package,
 )
-from ..execution_provider import (
-    evidence_source_for_project,
-    execution_admission_service,
-)
+from ..execution_provider import execution_admission_service
 from ..job_resolve import resolve_job_id
 from ..output import emit, json_value
 from ..package_history import packages_for, resolve_package
@@ -95,42 +94,42 @@ def plan_work_package_cmd(
     *,
     job: str | None,
     overrides: ExecutionOverrides = _EMPTY_OVERRIDES,
+    registry_prefix: str | None = None,
     run_id: str | None = None,
     host: str | None = None,
     entry: str | None = None,
     project_packages: tuple[str, ...] | None = None,
     source_includes: tuple[str, ...] | None = None,
-) -> PlannedJobExecution:
-    _layout, catalog, _resolved_path, package = load_work_package_bundle(state, path)
-    job = resolve_job_id(catalog, package, job)
-    planned = plan_job_execution(
-        state,
-        path,
-        job=job,
-        overrides=overrides,
-        run_id=run_id,
-        host=host,
-        entry=entry,
-        project_packages=project_packages,
-        source_includes=source_includes,
-    )
-    payload = _execution_plan_payload(planned)
+) -> JobIntent:
+    """Render provider-free job meaning without loading execution configuration."""
+
+    if (
+        overrides != _EMPTY_OVERRIDES
+        or registry_prefix is not None
+        or run_id is not None
+        or project_packages is not None
+        or source_includes is not None
+    ):
+        raise ContractError(
+            "job plan resolves project job meaning only; use job pack or job run to select "
+            "execution, packaging, or scheduling settings"
+        )
+    project = Project.open(state.project_root) if state.project_root is not None else Project.discover(Path.cwd())
+    intent = project.jobs.plan(path, job=job, host=host, entry=entry)
+    payload = _job_intent_payload(intent)
     emit(
         state,
         payload,
         "\n".join(
             (
-                f"Execution plan: {planned.launch.run_spec.run_id}",
-                f"Provider: {planned.settings.provider}",
-                f"Target: {planned.target.id}@{planned.target.revision}",
-                f"Universal image: {planned.package.pack_plan.spec.universal_image.value}",
-                f"Job-kind image: {planned.package.pack_plan.spec.kind_image.value}",
-                f"Runtime variant: {planned.package.pack_plan.spec.runtime_variant}",
-                f"Pack plan: {planned.package.pack_plan.plan_key}",
+                f"Job intent: {intent.prepared.spec.work_package_id}/{intent.job_id}",
+                f"Job kind: {intent.prepared.recipe_job.kind}",
+                f"Definition: {intent.prepared.definition.id}",
+                "Use job pack to materialize an image or job run to select execution.",
             )
         ),
     )
-    return planned
+    return intent
 
 
 def pack_work_package_cmd(
@@ -144,8 +143,11 @@ def pack_work_package_cmd(
     project_packages: tuple[str, ...] | None = None,
     source_includes: tuple[str, ...] | None = None,
     build_missing: bool = False,
-) -> PackedJobPackage:
-    """Pack and publish one job without submitting it to a provider."""
+    local: bool = False,
+    framework_wheelhouse: Path | None = None,
+    allow_deferred_qualification: bool = False,
+) -> PackedJobPackage | LocalPackedJobPackage:
+    """Pack one job to an immutable registry image or local OCI layout."""
 
     _layout, catalog, _resolved_path, package = load_work_package_bundle(state, path)
     job = resolve_job_id(catalog, package, job)
@@ -158,9 +160,28 @@ def pack_work_package_cmd(
         entry=entry,
         project_packages=project_packages,
         source_includes=source_includes,
+        env_file=state.env_file,
+        local_publication=local,
+        framework_wheelhouse=framework_wheelhouse,
     )
     _require_verified_kind_image(planned, build_missing=build_missing)
-    packed = planned.pack()
+    if local:
+        packed = planned.pack_local(allow_deferred_qualification=allow_deferred_qualification)
+        emit(
+            state,
+            _local_packed_job_payload(packed),
+            "\n".join(
+                (
+                    f"Local OCI layout ready: {packed.image.layout}",
+                    f"Tag: {packed.image.tag}",
+                    f"Package: {packed.context.manifest.package_key}",
+                    f"Publication cache: {'hit' if packed.image.cache_hit else 'built'}",
+                    f"Receipt: {packed.image.receipt}",
+                )
+            ),
+        )
+        return packed
+    packed = planned.pack(allow_deferred_qualification=allow_deferred_qualification)
     emit(
         state,
         _packed_job_payload(packed),
@@ -186,10 +207,13 @@ def run_work_package_cmd(
     entry: str | None = None,
     in_process: bool = False,
     overrides: ExecutionOverrides = _EMPTY_OVERRIDES,
+    registry_prefix: str | None = None,
     run_id: str | None = None,
     project_packages: tuple[str, ...] | None = None,
     source_includes: tuple[str, ...] | None = None,
     build_missing: bool = False,
+    framework_wheelhouse: Path | None = None,
+    allow_deferred_qualification: bool = False,
 ) -> None:
     layout, catalog, resolved_path, package = load_work_package_bundle(state, path)
     job = resolve_job_id(catalog, package, job)
@@ -199,20 +223,29 @@ def run_work_package_cmd(
             path,
             job=job,
             overrides=overrides,
+            registry_prefix=registry_prefix,
             run_id=run_id,
             host=host,
             entry=entry,
             project_packages=project_packages,
             source_includes=source_includes,
+            env_file=state.env_file,
+            framework_wheelhouse=framework_wheelhouse,
         )
         _require_verified_kind_image(planned, build_missing=build_missing)
-        packed = planned.pack()
+        packed = planned.pack(allow_deferred_qualification=allow_deferred_qualification)
         prepared_submission = packed.prepare_submission()
         admission = execution_admission_service(planned.package.layout)
         admitted = admission.enqueue(
             prepared_submission.provider_plan,
-            evidence_source=evidence_source_for_project(planned.package.layout),
+            evidence_source=prepared_submission.evidence_source,
             initial_service=prepared_submission.service,
+            provider_source=prepared_submission.provider_source,
+            control_locator=ProjectControlLocator(
+                project_id=planned.package.layout.project_id,
+                project_root_uri=planned.package.layout.root.as_uri(),
+                control_store_uri=planned.package.layout.state.as_uri(),
+            ),
         )
         submission = admitted.submission
         admission_entry = admitted.entry
@@ -401,6 +434,23 @@ def _package_plan_payload(planned: PlannedJobPackage) -> dict[str, object]:
     }
 
 
+def _job_intent_payload(intent: JobIntent) -> dict[str, object]:
+    """Stable intent view deliberately excluding machine-local execution config."""
+
+    spec = intent.prepared.spec
+    return {
+        "project_id": spec.project_id,
+        "work_package_id": spec.work_package_id,
+        "stage": spec.stage,
+        "job_id": intent.job_id,
+        "job_kind": intent.prepared.recipe_job.kind,
+        "job_definition_id": intent.prepared.definition.id,
+        "job_definition_version": spec.job_definition_version,
+        "resolved_inputs": dict(spec.resolved_inputs),
+        "required_artifact_roles": list(spec.required_artifact_roles),
+    }
+
+
 def _execution_plan_payload(planned: PlannedJobExecution) -> dict[str, object]:
     payload = _package_plan_payload(planned.package)
     settings = planned.settings
@@ -447,6 +497,25 @@ def _packed_job_payload(
         "universal": packed.context.manifest.universal_image.value,
         "job_kind": packed.context.manifest.kind_image.value,
         "actual_job": packed.image.image.value,
+    }
+    payload["package"] = {
+        "package_key": packed.context.manifest.package_key,
+        "context_digest": packed.context.context_digest,
+        "publication_key": packed.image.publication_key,
+        "cache_hit": packed.image.cache_hit,
+        "receipt": str(packed.image.receipt),
+        "context": str(packed.context.root),
+    }
+    return payload
+
+
+def _local_packed_job_payload(packed: LocalPackedJobPackage) -> dict[str, object]:
+    payload = _package_plan_payload(packed.planned)
+    payload["images"] = {
+        "universal": packed.context.manifest.universal_image.value,
+        "job_kind": packed.context.manifest.kind_image.value,
+        "actual_job": None,
+        "local_oci": {"layout": str(packed.image.layout), "tag": packed.image.tag},
     }
     payload["package"] = {
         "package_key": packed.context.manifest.package_key,
@@ -530,6 +599,10 @@ def register(app: typer.Typer) -> None:
             str | None,
             typer.Option("--runtime-profile"),
         ] = None,
+        registry: Annotated[
+            str | None,
+            typer.Option("--registry", help="override the project job-image registry prefix for this invocation"),
+        ] = None,
         timeout_seconds: Annotated[
             int | None,
             typer.Option("--timeout-seconds", min=1),
@@ -578,6 +651,7 @@ def register(app: typer.Typer) -> None:
                 priority=priority,
                 environment_names=environment_names,
             ),
+            registry_prefix=registry,
             run_id=run_id,
             host=host,
             entry=entry,
@@ -618,6 +692,10 @@ def register(app: typer.Typer) -> None:
         runtime_profile: Annotated[
             str | None,
             typer.Option("--runtime-profile"),
+        ] = None,
+        registry: Annotated[
+            str | None,
+            typer.Option("--registry", help="override the project job-image registry prefix for this invocation"),
         ] = None,
         timeout_seconds: Annotated[
             int | None,
@@ -661,5 +739,6 @@ def register(app: typer.Typer) -> None:
                 priority=priority,
                 environment_names=environment_names,
             ),
+            registry_prefix=registry,
             run_id=run_id,
         )

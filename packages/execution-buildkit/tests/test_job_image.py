@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 from posttrain.common import ContractError
-from posttrain.execution import JobPackageManifest, RuntimeImageRef
+from posttrain.execution import EnvironmentActivationLock, EnvironmentPackageLock, JobPackageManifest, RuntimeImageRef
 from posttrain.execution_pack import (
     ImagePublicationSpec,
     JobImagePublicationRequest,
@@ -26,6 +28,11 @@ class FakeBuildx:
     def invoke(self, arguments):
         call = tuple(arguments)
         self.calls.append(call)
+        for argument in call:
+            if isinstance(argument, str) and "output=type=oci,dest=" in argument:
+                destination = Path(argument.rsplit("dest=", 1)[1].split(",", 1)[0])
+                destination.mkdir(parents=True)
+                (destination / "index.json").write_text("{}\n", encoding="utf-8")
         if "--metadata-file" in call:
             path = Path(call[call.index("--metadata-file") + 1])
             path.write_text(
@@ -93,6 +100,127 @@ def _request(tmp_path: Path) -> JobImagePublicationRequest:
             "registry.lan/carbonteq/posttrain-job",
         ),
     )
+
+
+def test_deferred_qualification_waiver_is_forwarded_without_changing_publication_identity(tmp_path: Path) -> None:
+    gateway = FakeBuildx()
+    request = _request(tmp_path)
+    waived = JobImagePublicationRequest(
+        manifest=request.manifest,
+        staged_context=request.staged_context,
+        publication=request.publication,
+        allow_deferred_qualification=True,
+    )
+    publisher = BuildKitJobImagePublisher(
+        bake_file=_definition(tmp_path),
+        receipt_root=(tmp_path / "receipts").resolve(),
+        gateway=gateway,
+    )
+
+    publisher.publish_local(waived)
+
+    assert waived.publication_key == request.publication_key
+    assert any("ALLOW_DEFERRED_QUALIFICATION=1" in call for call in gateway.calls)
+
+
+def test_deferred_qualification_is_rejected_before_cache_or_build_without_waiver(tmp_path: Path) -> None:
+    gateway = FakeBuildx()
+    request = _request(tmp_path)
+    activation = {"kind": "verifiers-config", "config": {"taskset": {"id": "network-backed"}}}
+    deferred = EnvironmentActivationLock(
+        environment_id="network-backed",
+        package="network-env",
+        kind="verifiers-config",
+        digest=hashlib.sha256(json.dumps(activation, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+        config={"taskset": {"id": "network-backed"}},
+        qualification="deferred",
+    )
+    package = EnvironmentPackageLock(
+        package="network-env",
+        repository=None,
+        revision=None,
+        subdirectory=None,
+        tree_digest="b" * 64,
+        wheel_filename="network_env-1.0.0-py3-none-any.whl",
+        wheel_digest="c" * 64,
+        wheel_size_bytes=1,
+        source_kind="project-path",
+        project_path="environments/network_env",
+    )
+    guarded = JobImagePublicationRequest(
+        manifest=replace(
+            request.manifest,
+            environment_packages=(package,),
+            environment_activations=(deferred,),
+        ),
+        staged_context=request.staged_context,
+        publication=request.publication,
+    )
+    publisher = BuildKitJobImagePublisher(
+        bake_file=_definition(tmp_path),
+        receipt_root=(tmp_path / "receipts").resolve(),
+        gateway=gateway,
+    )
+
+    with pytest.raises(ContractError, match="--allow-deferred-qualification"):
+        publisher.publish_local(guarded)
+
+    assert gateway.calls == []
+
+
+def test_publishes_a_verified_local_oci_layout(tmp_path: Path) -> None:
+    gateway = FakeBuildx()
+    publisher = BuildKitJobImagePublisher(
+        bake_file=_definition(tmp_path),
+        receipt_root=(tmp_path / "receipts").resolve(),
+        gateway=gateway,
+    )
+
+    result = publisher.publish_local(_request(tmp_path))
+
+    assert result.layout.joinpath("index.json").is_file()
+    assert result.receipt.is_file()
+    assert result.tag.startswith("posttrain-local:")
+    published_check = next(call for call in gateway.calls if call[-1] == "posttrain-job" and "--call" in call)
+    assert "posttrain-job.output=type=cacheonly" in published_check
+    local_export = next(
+        argument
+        for call in gateway.calls
+        for argument in call
+        if isinstance(argument, str) and "output=type=oci,dest=" in argument
+    )
+    assert local_export.endswith(",tar=false")
+    assert not any("push=true" in argument for call in gateway.calls for argument in call)
+
+
+def test_credential_free_python_index_is_forwarded_as_a_build_variable(tmp_path: Path) -> None:
+    gateway = FakeBuildx()
+    publisher = BuildKitJobImagePublisher(
+        bake_file=_definition(tmp_path),
+        receipt_root=(tmp_path / "receipts").resolve(),
+        gateway=gateway,
+        python_index_url="https://pypi.example.test/simple/",
+    )
+
+    publisher.publish_local(_request(tmp_path))
+
+    assert any("PYTHON_INDEX_URL=https://pypi.example.test/simple/" in call for call in gateway.calls)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://user:secret@example.test/simple/",
+        "https://example.test/simple/?token=secret",
+    ],
+)
+def test_secret_bearing_python_index_is_rejected(tmp_path: Path, url: str) -> None:
+    with pytest.raises(ContractError, match="credential-free"):
+        BuildKitJobImagePublisher(
+            bake_file=_definition(tmp_path),
+            receipt_root=(tmp_path / "receipts").resolve(),
+            python_index_url=url,
+        )
 
 
 def test_publisher_checks_smokes_pushes_verifies_and_reuses_receipt(

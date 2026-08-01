@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import cast
 
@@ -14,6 +14,7 @@ from posttrain.execution import (
     EnvironmentActivationLock,
     EnvironmentPackageLock,
     RuntimeImageRef,
+    StagedResourceLock,
 )
 from posttrain.execution_pack import (
     DatasetPackRequest,
@@ -248,11 +249,14 @@ class _FakeEnvironmentPackager:
         *,
         git_sources: tuple[GitSourceRequest, ...],
         wheel_requests: tuple[EnvironmentWheelRequest, ...],
+        project_sources: Mapping[str, Path],
+        project_requests: tuple[object, ...],
         kind_profile: str,
         output_root: Path,
     ) -> MaterializedEnvironments:
         self.calls += 1
         assert len(git_sources) == 1
+        assert not project_sources and not project_requests
         assert kind_profile == "supervised"
         packages: list[MaterializedEnvironmentPackage] = []
         requirements: list[str] = []
@@ -314,6 +318,7 @@ def test_packs_and_reuses_one_deterministic_provider_neutral_context(
     assert {path.name for path in first.root.iterdir()} == {
         "config",
         "datasets",
+        "environment-resources",
         "locks",
         "package.json",
         "sources",
@@ -359,6 +364,53 @@ def test_packs_multiple_environment_wheels_and_activation_configs(
     assert activation_ids == ["math-train", "text-train"]
     for lock in result.manifest.environment_packages:
         assert (result.root / "wheels/environments" / lock.wheel_filename).is_file()
+
+
+def test_packs_declared_activation_resources_with_the_context(tmp_path: Path) -> None:
+    inputs = _inputs(tmp_path / "inputs")
+    resource_path = tmp_path / "inputs" / "data" / "task.jsonl"
+    resource_path.parent.mkdir()
+    resource_path.write_bytes(b'{"question":"q"}\n')
+    contents = resource_path.read_bytes()
+    resource = StagedResourceLock(
+        name="task_data",
+        source_path="data/task.jsonl",
+        staged_path="environment-resources/text-train/task_data",
+        digest=hashlib.sha256(contents).hexdigest(),
+        size_bytes=len(contents),
+    )
+    config = cast(Mapping[str, JsonValue], {"taskset": {"data_path": {"$resource": "task_data"}}})
+    activation = EnvironmentActivationLock(
+        environment_id="text-train",
+        package="text-env",
+        kind="verifiers-config",
+        digest=_digest_json(
+            {
+                "kind": "verifiers-config",
+                "config": config,
+                "resources": {"task_data": {"source": {"kind": "project-path", "path": "data/task.jsonl"}}},
+            }
+        ),
+        config=config,
+        resources={"task_data": resource},
+    )
+    base = _plan(inputs, environments=True)
+    plan = replace(
+        base,
+        spec=replace(
+            base.spec,
+            environment_activations=(base.spec.environment_activations[0], activation),
+        ),
+    )
+    resource_inputs = replace(inputs, activation_resource_sources={("text-train", "task_data"): resource_path})
+
+    result = JobPackService(
+        output_root=(tmp_path / "packages").resolve(),
+        dataset_packager=_dataset_packager(tmp_path),
+        environment_packager=_FakeEnvironmentPackager(),
+    ).pack(plan, resource_inputs)
+
+    assert (result.root / resource.staged_path).read_bytes() == contents
 
 
 def test_verl_backend_identity_rejects_host_paths_and_digests_projection(

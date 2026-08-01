@@ -2,21 +2,34 @@
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import os
 import re
 import shlex
+import socket
 import tomllib
+import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, fields
 from hashlib import sha256
 from pathlib import Path
 from types import MappingProxyType
-from typing import Literal
+from typing import Literal, cast
+from urllib.parse import urlparse
 
-from posttrain.catalog import ProjectExecutionDefaults, ProjectLayout
+from posttrain.catalog import ProjectLayout
 from posttrain.common import ContractError
 from posttrain.execution import RuntimeImageRef
+from posttrain.project import (
+    ExecutionOverrides,
+    LaunchOverrides,
+    PackageOverrides,
+    ResolvedExecutionSettings,
+    SettingSource,
+    resolve_execution_settings,
+    resolve_runtime_environment,
+)
 from posttrain.runtime_images import cached_definition_root
 from posttrain.runtime_images.manifest import (
     ManifestError,
@@ -35,53 +48,6 @@ that location is a property of the release and is never configured here.
 
 _JOB_REPOSITORY_SUFFIX = "posttrain-job"
 
-type SettingSource = Literal["cli", "local", "project", "job"]
-
-
-@dataclass(frozen=True, slots=True)
-class ExecutionOverrides:
-    provider: str | None = None
-    target: str | None = None
-    runtime_profile: str | None = None
-    timeout_seconds: int | None = None
-    max_attempts: int | None = None
-    priority: int | None = None
-    environment_names: tuple[str, ...] | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class PackageOverrides:
-    """Options allowed to change immutable capsule contents."""
-
-    target: str | None = None
-    runtime_profile: str | None = None
-
-    def as_execution_overrides(self) -> ExecutionOverrides:
-        return ExecutionOverrides(
-            target=self.target,
-            runtime_profile=self.runtime_profile,
-        )
-
-
-@dataclass(frozen=True, slots=True)
-class LaunchOverrides:
-    """Options that affect one provider launch but not capsule bytes."""
-
-    provider: str | None = None
-    timeout_seconds: int | None = None
-    max_attempts: int | None = None
-    priority: int | None = None
-    environment_names: tuple[str, ...] | None = None
-
-    def as_execution_overrides(self) -> ExecutionOverrides:
-        return ExecutionOverrides(
-            provider=self.provider,
-            timeout_seconds=self.timeout_seconds,
-            max_attempts=self.max_attempts,
-            priority=self.priority,
-            environment_names=self.environment_names,
-        )
-
 
 @dataclass(frozen=True, slots=True)
 class ExecutionStorageBinding:
@@ -93,6 +59,7 @@ class ExecutionStorageBinding:
 @dataclass(frozen=True, slots=True)
 class LocalProviderBinding:
     canonical_hostname: str | None = None
+    dns_servers: tuple[str, ...] = ()
     storage: ExecutionStorageBinding | None = None
     trust_bundle: Path | None = None
 
@@ -105,6 +72,47 @@ class DstackBinding:
     storage: ExecutionStorageBinding | None = None
     trust_bundle: Path | None = None
     capacity_wait_seconds: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class MachineTrackingBinding:
+    """Secret-free tracking default supplied to every project on a machine."""
+
+    kind: Literal["trackio", "wandb"]
+    endpoint: str | None = None
+    credentials: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class MachineServicesBinding:
+    """Internal service defaults shared by projects on one machine."""
+
+    python_index_url: str | None = None
+    python_index_credentials: str | None = None
+    job_registry: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class MachineHuggingFaceBinding:
+    """Hugging Face credential selection shared by jobs on one machine."""
+
+    credentials: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class MachineConfig:
+    """Operator-owned defaults loaded from the current user's config home."""
+
+    name: str
+    path: Path
+    projects: tuple[Path, ...]
+    defaults: ExecutionOverrides
+    local: LocalProviderBinding
+    dstack: DstackBinding | None
+    tracking: MachineTrackingBinding | None
+    huggingface: MachineHuggingFaceBinding | None
+    services: MachineServicesBinding
+    credentials: Mapping[str, Path]
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,28 +148,9 @@ class LocalExecutionConfig:
     local: LocalProviderBinding | None = None
     dstack: DstackBinding | None = None
     registry: RegistryBinding | None = None
+    machine: MachineConfig | None = None
 
 
-@dataclass(frozen=True, slots=True)
-class ResolvedExecutionSettings:
-    provider: str
-    target: str | None
-    runtime_profile: str | None
-    timeout_seconds: int
-    max_attempts: int
-    priority: int
-    environment_names: tuple[str, ...]
-    sources: dict[str, SettingSource]
-
-
-_DEFAULT_JOB_SETTINGS = ExecutionOverrides(
-    provider="local",
-    runtime_profile="framework/job@1",
-    timeout_seconds=3600,
-    max_attempts=1,
-    priority=0,
-    environment_names=(),
-)
 _DEFAULT_LOCAL_NAME = "execution.toml"
 _DEFAULT_KEYS = {field.name for field in fields(ExecutionOverrides)}
 
@@ -170,15 +159,43 @@ def load_local_execution_config(
     layout: ProjectLayout,
     *,
     path: Path | None = None,
+    env_file: Path | None = None,
 ) -> LocalExecutionConfig:
-    """Load an ignored mode-0600 machine binding, or return an empty binding."""
+    """Resolve machine defaults plus one project's protected runtime values."""
 
     configured = (path or layout.state / _DEFAULT_LOCAL_NAME).expanduser().resolve()
+    runtime_environment = resolve_runtime_environment(layout.root, env_file=env_file)
+    # An explicit path is the compatibility and test escape hatch for the
+    # project-local v0.2 binding. Normal project opens always use the
+    # automatically discovered machine configuration.
+    machine = None if path is not None else load_machine_config()
+    if machine is not None:
+        provisional = LocalExecutionConfig(
+            path=machine.path,
+            defaults=machine.defaults,
+            environment_file=runtime_environment.path,
+            local=machine.local,
+            dstack=machine.dstack,
+            machine=machine,
+        )
+        return LocalExecutionConfig(
+            path=machine.path,
+            defaults=machine.defaults,
+            environment_file=runtime_environment.path,
+            local=machine.local,
+            dstack=machine.dstack,
+            registry=derived_registry(environ=load_execution_environment(provisional)),
+            machine=machine,
+        )
     if not configured.exists():
         # A project with no machine binding is still fully usable: the release
         # pins every framework image, so only the project's own registry is
         # missing, and the environment can supply it.
-        return LocalExecutionConfig(configured, registry=derived_registry())
+        return LocalExecutionConfig(
+            configured,
+            environment_file=runtime_environment.path,
+            registry=derived_registry(environ=runtime_environment.for_execution()),
+        )
     if not configured.is_file():
         raise ContractError(f"execution configuration is not a file: {configured}")
     if configured.stat().st_mode & 0o077:
@@ -205,7 +222,7 @@ def load_local_execution_config(
 
     defaults = _parse_overrides(payload.get("defaults"), context="defaults")
     environment_value = payload.get("environment_file")
-    environment_file = (
+    legacy_environment_file = (
         _configured_path(
             environment_value,
             configured.parent,
@@ -214,8 +231,18 @@ def load_local_execution_config(
         if environment_value is not None
         else None
     )
-    if environment_file is not None:
-        _require_protected_file(environment_file, "execution environment file")
+    if legacy_environment_file is not None:
+        _require_protected_file(legacy_environment_file, "execution environment file")
+    if runtime_environment.path is not None:
+        environment_file = runtime_environment.path
+    else:
+        environment_file = legacy_environment_file
+        if environment_file is not None:
+            warnings.warn(
+                "execution.toml environment_file is deprecated; use project-root posttrain.env instead",
+                DeprecationWarning,
+                stacklevel=2,
+            )
     providers = _mapping(payload.get("providers"), context="providers", allow_none=True)
     _reject_unknown(providers, {"local", "dstack"}, "providers")
     local = _parse_local(providers.get("local"), base=configured.parent)
@@ -224,7 +251,20 @@ def load_local_execution_config(
     # is no registry. Writing execution.toml for an unrelated setting, such as
     # the local provider's hostname, otherwise discards POSTTRAIN_REGISTRY and
     # reports the project as having nowhere to publish.
-    registry = _parse_registry(payload.get("registry"), base=configured.parent) or derived_registry()
+    provisional = LocalExecutionConfig(
+        path=configured,
+        defaults=defaults,
+        environment_file=environment_file,
+        local=local,
+        dstack=dstack,
+    )
+    runtime_values = load_execution_environment(provisional)
+    parsed_registry = _parse_registry(
+        payload.get("registry"),
+        base=configured.parent,
+        environ=runtime_values,
+    )
+    registry = parsed_registry or derived_registry(environ=runtime_values)
     return LocalExecutionConfig(
         path=configured,
         defaults=defaults,
@@ -233,84 +273,6 @@ def load_local_execution_config(
         dstack=dstack,
         registry=registry,
     )
-
-
-def resolve_execution_settings(
-    project: ProjectExecutionDefaults,
-    *,
-    local: ExecutionOverrides | None = None,
-    cli: ExecutionOverrides | None = None,
-    job: ExecutionOverrides | None = None,
-) -> ResolvedExecutionSettings:
-    """Resolve CLI > local > project > registered-job defaults with provenance."""
-
-    project_layer = ExecutionOverrides(
-        provider=project.provider,
-        target=project.target,
-        runtime_profile=project.runtime_profile,
-        timeout_seconds=project.timeout_seconds,
-        max_attempts=project.max_attempts,
-        priority=project.priority,
-        environment_names=project.environment_names or None,
-    )
-    layers: tuple[tuple[SettingSource, ExecutionOverrides], ...] = (
-        ("cli", cli or ExecutionOverrides()),
-        ("local", local or ExecutionOverrides()),
-        ("project", project_layer),
-        ("job", job or _DEFAULT_JOB_SETTINGS),
-    )
-    values: dict[str, object] = {}
-    sources: dict[str, SettingSource] = {}
-    for field in fields(ExecutionOverrides):
-        if field.name == "environment_names":
-            continue
-        for source, layer in layers:
-            value = getattr(layer, field.name)
-            if value is not None:
-                values[field.name] = value
-                sources[field.name] = source
-                break
-    environment_names: list[str] = []
-    environment_source: SettingSource = "job"
-    for source, layer in reversed(layers):
-        selected = layer.environment_names
-        if selected is None:
-            continue
-        environment_source = source
-        for name in selected:
-            if name not in environment_names:
-                environment_names.append(name)
-    values["environment_names"] = tuple(environment_names)
-    sources["environment_names"] = environment_source
-
-    provider = values.get("provider")
-    timeout_seconds = values.get("timeout_seconds")
-    max_attempts = values.get("max_attempts")
-    priority = values.get("priority")
-    resolved_environment_names = values.get("environment_names")
-    if not isinstance(provider, str):
-        raise ContractError("execution provider could not be resolved")
-    if not isinstance(timeout_seconds, int):
-        raise ContractError("execution timeout could not be resolved")
-    if not isinstance(max_attempts, int):
-        raise ContractError("execution attempts could not be resolved")
-    if not isinstance(priority, int):
-        raise ContractError("execution priority could not be resolved")
-    if not isinstance(resolved_environment_names, tuple):
-        raise ContractError("execution environment names could not be resolved")
-
-    resolved = ResolvedExecutionSettings(
-        provider=provider,
-        target=_optional_string(values.get("target")),
-        runtime_profile=_optional_string(values.get("runtime_profile")),
-        timeout_seconds=timeout_seconds,
-        max_attempts=max_attempts,
-        priority=priority,
-        environment_names=resolved_environment_names,
-        sources=sources,
-    )
-    _validate_resolved(resolved)
-    return resolved
 
 
 def provider_binding_fingerprint(
@@ -324,6 +286,7 @@ def provider_binding_fingerprint(
         payload = {
             "provider": provider,
             "canonical_hostname": (binding.canonical_hostname if binding is not None else None),
+            "dns_servers": (list(binding.dns_servers) if binding is not None else []),
             "trust_bundle": (
                 str(binding.trust_bundle) if binding is not None and binding.trust_bundle is not None else None
             ),
@@ -396,7 +359,7 @@ def _parse_local(value: object, *, base: Path) -> LocalProviderBinding | None:
     payload = _mapping(value, context="providers.local")
     _reject_unknown(
         payload,
-        {"canonical_hostname", "storage", "trust_bundle"},
+        {"canonical_hostname", "dns_servers", "storage", "trust_bundle"},
         "providers.local",
     )
     trust_bundle = _optional_configured_path(
@@ -410,6 +373,10 @@ def _parse_local(value: object, *, base: Path) -> LocalProviderBinding | None:
         canonical_hostname=_optional_hostname(
             payload.get("canonical_hostname"),
             "providers.local.canonical_hostname",
+        ),
+        dns_servers=_ip_address_tuple(
+            payload.get("dns_servers"),
+            context="providers.local.dns_servers",
         ),
         storage=_parse_storage(
             payload.get("storage"),
@@ -471,6 +438,202 @@ def _parse_dstack(value: object, *, base: Path) -> DstackBinding | None:
             "providers.dstack.capacity_wait_seconds",
         )
         or 0,
+    )
+
+
+def load_machine_config() -> MachineConfig | None:
+    """Load this user's one machine-wide Posttrain configuration, if present."""
+
+    config_home = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")).expanduser().resolve()
+    path = config_home / "posttrain" / "config.toml"
+    if not path.exists():
+        return None
+    if not path.is_file():
+        raise ContractError(f"Posttrain machine configuration is not a file: {path}")
+    try:
+        payload = tomllib.loads(path.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as error:
+        raise ContractError(f"invalid Posttrain machine configuration {path}: {error}") from error
+    if not isinstance(payload, dict) or payload.get("schema_version") != 1:
+        raise ContractError("Posttrain machine configuration schema_version must be 1")
+    _reject_unknown(
+        payload,
+        {
+            "schema_version",
+            "machine_name",
+            "projects",
+            "default_provider",
+            "defaults",
+            "services",
+            "huggingface",
+            "credentials",
+            "tracking",
+            "trust",
+            "storage",
+            "providers",
+        },
+        "machine config",
+    )
+
+    machine_name = _optional_hostname(payload.get("machine_name"), "machine_name")
+    if machine_name is None:
+        machine_name = cast(str, _optional_hostname(socket.getfqdn(), "machine hostname"))
+    projects = _absolute_path_tuple(payload.get("projects"), context="projects")
+    default_provider = _optional_config_string(payload.get("default_provider"), "default_provider") or "local"
+    if default_provider not in {"local", "dstack"}:
+        raise ContractError("execution configuration default_provider must be 'local' or 'dstack'")
+    parsed_defaults = _parse_overrides(payload.get("defaults"), context="defaults")
+    if parsed_defaults.provider is not None:
+        raise ContractError("execution configuration defaults.provider is replaced by top-level default_provider")
+    defaults = ExecutionOverrides(
+        provider=default_provider,
+        target=parsed_defaults.target,
+        runtime_profile=parsed_defaults.runtime_profile,
+        timeout_seconds=parsed_defaults.timeout_seconds,
+        max_attempts=parsed_defaults.max_attempts,
+        priority=parsed_defaults.priority,
+        environment_names=parsed_defaults.environment_names,
+    )
+
+    state_home = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state"))
+    machine_state_root = state_home.expanduser().resolve() / "posttrain"
+    storage = _parse_storage(payload.get("storage"), base=machine_state_root, context="storage")
+    trust = _mapping(payload.get("trust"), context="trust", allow_none=True)
+    _reject_unknown(trust, {"ca_bundle"}, "trust")
+    trust_bundle = _optional_configured_path(trust.get("ca_bundle"), path.parent, "trust.ca_bundle")
+    if trust_bundle is not None and not trust_bundle.is_file():
+        raise ContractError(f"Posttrain machine trust bundle is missing: {trust_bundle}")
+    credential_payload = _mapping(payload.get("credentials"), context="credentials", allow_none=True)
+    credential_sources: dict[str, Path] = {}
+    for credential_name, raw_source in credential_payload.items():
+        if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", credential_name):
+            raise ContractError(f"invalid machine credential name: {credential_name!r}")
+        source = _mapping(raw_source, context=f"credentials.{credential_name}")
+        _reject_unknown(source, {"file"}, f"credentials.{credential_name}")
+        source_path = _configured_path(source.get("file"), path.parent, f"credentials.{credential_name}.file")
+        _require_protected_file(source_path, f"machine credential {credential_name!r}")
+        credential_sources[credential_name] = source_path
+
+    providers = _mapping(payload.get("providers"), context="providers", allow_none=True)
+    _reject_unknown(providers, {"local", "dstack"}, "providers")
+    local_payload = _mapping(providers.get("local"), context="providers.local", allow_none=True)
+    _reject_unknown(local_payload, {"dns_servers"}, "providers.local")
+    local = LocalProviderBinding(
+        canonical_hostname=machine_name,
+        dns_servers=_ip_address_tuple(
+            local_payload.get("dns_servers"),
+            context="providers.local.dns_servers",
+        ),
+        storage=storage,
+        trust_bundle=trust_bundle,
+    )
+    dstack_payload = _mapping(providers.get("dstack"), context="providers.dstack", allow_none=True)
+    dstack: DstackBinding | None = None
+    if dstack_payload:
+        _reject_unknown(
+            dstack_payload,
+            {"project", "python", "credentials", "credentials_file", "capacity_wait_seconds"},
+            "providers.dstack",
+        )
+        credential_name = _optional_config_string(dstack_payload.get("credentials"), "providers.dstack.credentials")
+        legacy_credentials_file = dstack_payload.get("credentials_file")
+        if credential_name is not None and legacy_credentials_file is not None:
+            raise ContractError("providers.dstack must not set both credentials and credentials_file")
+        if credential_name is not None:
+            credentials_file = _credential_source(
+                credential_sources,
+                credential_name,
+                context="providers.dstack.credentials",
+            )
+        elif legacy_credentials_file is not None:
+            credentials_file = _configured_path(
+                legacy_credentials_file,
+                path.parent,
+                "providers.dstack.credentials_file",
+            )
+            _require_protected_file(credentials_file, "dstack credentials file")
+            warnings.warn(
+                "providers.dstack.credentials_file is deprecated; define a named [credentials] source",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        else:
+            raise ContractError("providers.dstack.credentials must name a configured credential source")
+        dstack = DstackBinding(
+            project=_required_config_string(dstack_payload.get("project"), "providers.dstack.project"),
+            python=_configured_executable_path(
+                dstack_payload.get("python"),
+                path.parent,
+                "providers.dstack.python",
+            ),
+            environment_file=credentials_file,
+            trust_bundle=trust_bundle,
+            capacity_wait_seconds=_optional_nonnegative_int(
+                dstack_payload.get("capacity_wait_seconds"),
+                "providers.dstack.capacity_wait_seconds",
+            )
+            or 0,
+        )
+    if default_provider == "dstack" and dstack is None:
+        raise ContractError("default_provider is dstack but providers.dstack is not configured")
+
+    tracking_payload = _mapping(payload.get("tracking"), context="tracking", allow_none=True)
+    _reject_unknown(tracking_payload, {"kind", "endpoint", "credentials"}, "tracking")
+    tracking: MachineTrackingBinding | None = None
+    if tracking_payload:
+        tracking_kind = _required_config_string(tracking_payload.get("kind"), "tracking.kind")
+        if tracking_kind not in {"trackio", "wandb"}:
+            raise ContractError("execution configuration tracking.kind must be 'trackio' or 'wandb'")
+        tracking = MachineTrackingBinding(
+            kind=cast(Literal["trackio", "wandb"], tracking_kind),
+            endpoint=_optional_http_url(tracking_payload.get("endpoint"), "tracking.endpoint"),
+            credentials=_credential_reference(
+                credential_sources,
+                tracking_payload.get("credentials"),
+                context="tracking.credentials",
+            ),
+        )
+
+    huggingface_payload = _mapping(payload.get("huggingface"), context="huggingface", allow_none=True)
+    _reject_unknown(huggingface_payload, {"credentials"}, "huggingface")
+    huggingface = (
+        MachineHuggingFaceBinding(
+            credentials=_credential_reference(
+                credential_sources,
+                huggingface_payload.get("credentials"),
+                context="huggingface.credentials",
+            )
+        )
+        if huggingface_payload
+        else None
+    )
+
+    services_payload = _mapping(payload.get("services"), context="services", allow_none=True)
+    _reject_unknown(
+        services_payload,
+        {"python_index_url", "python_index_credentials", "job_registry"},
+        "services",
+    )
+    services = MachineServicesBinding(
+        python_index_url=_optional_http_url(services_payload.get("python_index_url"), "services.python_index_url"),
+        python_index_credentials=_credential_reference(
+            credential_sources,
+            services_payload.get("python_index_credentials"),
+            context="services.python_index_credentials",
+        ),
+        job_registry=_optional_config_string(services_payload.get("job_registry"), "services.job_registry"),
+    )
+    return MachineConfig(
+        machine_name,
+        path,
+        projects,
+        defaults,
+        local,
+        dstack,
+        tracking,
+        huggingface,
+        services,
+        MappingProxyType(credential_sources),
     )
 
 
@@ -555,9 +718,10 @@ def resolve_admission_state_root() -> Path:
     return (Path.home() / ".local" / "state" / "posttrain").resolve()
 
 
-def configured_registry_prefix() -> str | None:
+def configured_registry_prefix(environ: Mapping[str, str] | None = None) -> str | None:
     """Return the project's registry prefix from the environment, if set."""
-    raw = os.environ.get(REGISTRY_ENVIRONMENT_VARIABLE, "").strip().rstrip("/")
+    values = os.environ if environ is None else environ
+    raw = values.get(REGISTRY_ENVIRONMENT_VARIABLE, "").strip().rstrip("/")
     return raw or None
 
 
@@ -600,19 +764,53 @@ def _derived_constraint_profiles(
             path.read_text(encoding="utf-8"),
             image.provided_packages,
         )
+        backend_path: Path | None = None
+        backend_contents_digest: str | None = None
+        backend_provided_packages: tuple[str, ...] = ()
+        backend_digest: str | None = None
+        if image.backend_constraint_lock is not None:
+            # A second locked environment inside the same image, published by
+            # the release exactly like the control lock. Deriving it here is
+            # what lets a project with no machine binding pack a veRL job.
+            backend_path = root / image.backend_constraint_lock
+            backend_contents_digest = image.backend_lock_digest
+            backend = KindDependencyConstraints(
+                variant,
+                backend_path.read_text(encoding="utf-8"),
+                image.backend_provided_packages,
+            )
+            backend_provided_packages = backend.provided_packages
+            backend_digest = KindDependencyConstraints(
+                variant,
+                backend.contents,
+                backend_provided_packages,
+                role="backend",
+                python_version="3.13.12",
+                python_executable="/opt/posttrain-verl/bin/python",
+                requirements_filename="runtime.backend.requirements.txt",
+            ).digest
         profiles[variant] = ConstraintProfileBinding(
             path,
             image.lock_digest,
             constraints.provided_packages,
             constraints.digest,
+            backend_path,
+            backend_contents_digest,
+            backend_provided_packages,
+            backend_digest,
         )
     return profiles
 
 
-def _resolved_repository(declared: object, *, context: str) -> str:
+def _resolved_repository(
+    declared: object,
+    *,
+    context: str,
+    environ: Mapping[str, str] | None = None,
+) -> str:
     if declared is not None:
         return _required_config_string(declared, context)
-    prefix = configured_registry_prefix()
+    prefix = configured_registry_prefix(environ)
     if prefix is None:
         raise ContractError(
             "job packing needs a registry for this project's actual-job images: "
@@ -622,14 +820,31 @@ def _resolved_repository(declared: object, *, context: str) -> str:
     return f"{prefix}/{_JOB_REPOSITORY_SUFFIX}"
 
 
-def derived_registry() -> RegistryBinding | None:
+def derived_registry(environ: Mapping[str, str] | None = None) -> RegistryBinding | None:
     """Build a registry binding with no execution configuration file at all."""
-    if configured_registry_prefix() is None:
+    if configured_registry_prefix(environ) is None:
         return None
-    return _parse_registry({}, base=Path.cwd())
+    return _parse_registry({}, base=Path.cwd(), environ=environ)
 
 
-def _parse_registry(value: object, *, base: Path) -> RegistryBinding | None:
+def derived_local_registry() -> RegistryBinding:
+    """Resolve shipped image and lock identities for a non-publishing OCI export."""
+
+    registry = _parse_registry(
+        {"repository": "posttrain.local/posttrain/jobs"},
+        base=Path.cwd(),
+        environ={},
+    )
+    assert registry is not None
+    return registry
+
+
+def _parse_registry(
+    value: object,
+    *,
+    base: Path,
+    environ: Mapping[str, str] | None = None,
+) -> RegistryBinding | None:
     if value is None:
         return None
     payload = _mapping(value, context="registry")
@@ -683,7 +898,11 @@ def _parse_registry(value: object, *, base: Path) -> RegistryBinding | None:
         )
     universal_value = payload.get("universal_image")
     return RegistryBinding(
-        repository=_resolved_repository(payload.get("repository"), context="registry.repository"),
+        repository=_resolved_repository(
+            payload.get("repository"),
+            context="registry.repository",
+            environ=environ,
+        ),
         universal_image=RuntimeImageRef(
             _required_config_string(universal_value, "registry.universal_image")
             if universal_value is not None
@@ -898,6 +1117,49 @@ def _optional_config_string(value: object, context: str) -> str | None:
     return value
 
 
+def _credential_source(
+    sources: Mapping[str, Path],
+    name: str,
+    *,
+    context: str,
+) -> Path:
+    try:
+        return sources[name]
+    except KeyError as error:
+        raise ContractError(
+            f"execution configuration {context} references unknown credential source {name!r}"
+        ) from error
+
+
+def _credential_reference(
+    sources: Mapping[str, Path],
+    value: object,
+    *,
+    context: str,
+) -> str | None:
+    name = _optional_config_string(value, context)
+    if name is not None:
+        _credential_source(sources, name, context=context)
+    return name
+
+
+def _optional_http_url(value: object, context: str) -> str | None:
+    parsed = _optional_config_string(value, context)
+    if parsed is None:
+        return None
+    url = urlparse(parsed)
+    if (
+        url.scheme not in {"http", "https"}
+        or not url.netloc
+        or url.username is not None
+        or url.password is not None
+        or url.query
+        or url.fragment
+    ):
+        raise ContractError(f"execution configuration {context} must be a credential-free HTTP(S) URL")
+    return parsed
+
+
 def _optional_hostname(value: object, context: str) -> str | None:
     parsed = _optional_config_string(value, context)
     if parsed is None:
@@ -974,19 +1236,86 @@ def _string_tuple(
     return parsed
 
 
-def _optional_string(value: object) -> str | None:
-    return value if isinstance(value, str) else None
+def _ip_address_tuple(value: object, *, context: str) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise ContractError(f"execution configuration {context} must be an IP address array")
+    parsed: list[str] = []
+    for item in value:
+        try:
+            parsed.append(str(ipaddress.ip_address(item)))
+        except ValueError as error:
+            raise ContractError(f"execution configuration {context} must contain only literal IP addresses") from error
+    if len(set(parsed)) != len(parsed):
+        raise ContractError(f"execution configuration {context} must contain unique IP addresses")
+    return tuple(parsed)
+
+
+def _absolute_path_tuple(value: object, *, context: str) -> tuple[Path, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise ContractError(f"execution configuration {context} must be an absolute path array")
+    paths = tuple(Path(item).expanduser() for item in value)
+    if any(not path.is_absolute() for path in paths):
+        raise ContractError(f"execution configuration {context} must contain only absolute paths")
+    resolved = tuple(path.resolve() for path in paths)
+    if len(set(resolved)) != len(resolved):
+        raise ContractError(f"execution configuration {context} must contain unique paths")
+    return resolved
 
 
 def load_execution_environment(
     configuration: LocalExecutionConfig,
 ) -> dict[str, str]:
-    """Read the protected job environment without exposing it in config values."""
+    """Overlay project runtime values on reusable machine service defaults."""
 
+    environment: dict[str, str] = {}
+    if configuration.machine is not None:
+        machine = configuration.machine
+        if machine.tracking is not None and machine.tracking.endpoint is not None:
+            name = "POSTTRAIN_TRACKIO_SERVER_URL" if machine.tracking.kind == "trackio" else "WANDB_BASE_URL"
+            environment[name] = machine.tracking.endpoint
+        if machine.tracking is not None and machine.tracking.credentials is not None:
+            _merge_credential_environment(
+                environment,
+                machine.credentials[machine.tracking.credentials],
+                allowed=({"TRACKIO_WRITE_TOKEN"} if machine.tracking.kind == "trackio" else {"WANDB_API_KEY"}),
+                purpose="tracking",
+            )
+        if machine.huggingface is not None and machine.huggingface.credentials is not None:
+            _merge_credential_environment(
+                environment,
+                machine.credentials[machine.huggingface.credentials],
+                allowed={"HF_TOKEN"},
+                purpose="Hugging Face",
+            )
+        if machine.services.python_index_url is not None:
+            environment["UV_INDEX_URL"] = machine.services.python_index_url
+        if machine.services.python_index_credentials is not None:
+            _merge_credential_environment(
+                environment,
+                machine.credentials[machine.services.python_index_credentials],
+                allowed={"PIP_INDEX_URL", "UV_INDEX_PASSWORD", "UV_INDEX_USERNAME"},
+                purpose="Python index",
+            )
+        if machine.services.job_registry is not None:
+            environment[REGISTRY_ENVIRONMENT_VARIABLE] = machine.services.job_registry
     path = configuration.environment_file
     if path is None:
-        return {}
-    _require_protected_file(path, "execution environment file")
+        return environment
+    environment.update(_read_environment_file(path, label="execution environment file"))
+    if "POSTTRAIN_PROFILE" in environment:
+        raise ContractError(
+            "POSTTRAIN_PROFILE was removed; machine defaults load automatically "
+            "from $XDG_CONFIG_HOME/posttrain/config.toml"
+        )
+    return environment
+
+
+def _read_environment_file(path: Path, *, label: str) -> dict[str, str]:
+    _require_protected_file(path, label)
     environment: dict[str, str] = {}
     for raw_line in path.read_text(encoding="utf-8").splitlines():
         line = raw_line.strip()
@@ -1002,6 +1331,24 @@ def load_execution_environment(
     return environment
 
 
+def _merge_credential_environment(
+    environment: dict[str, str],
+    path: Path,
+    *,
+    allowed: set[str],
+    purpose: str,
+) -> None:
+    values = _read_environment_file(path, label=f"{purpose} credential file")
+    if unknown := sorted(set(values) - allowed):
+        raise ContractError(
+            f"{purpose} credential file {path} contains variables outside its scope: " + ", ".join(unknown)
+        )
+    for name, value in values.items():
+        if name in environment and environment[name] != value:
+            raise ContractError(f"machine credential sources disagree on {name}")
+        environment[name] = value
+
+
 def _require_protected_file(path: Path, label: str) -> None:
     if not path.is_file():
         raise ContractError(f"{label} is missing: {path}")
@@ -1009,27 +1356,24 @@ def _require_protected_file(path: Path, label: str) -> None:
         raise ContractError(f"{label} must not be accessible by group or others: {path}")
 
 
-def _validate_resolved(settings: ResolvedExecutionSettings) -> None:
-    if not settings.provider.strip():
-        raise ContractError("resolved execution provider cannot be empty")
-    if settings.timeout_seconds < 1 or settings.max_attempts < 1:
-        raise ContractError("resolved execution timeout and attempts must be positive")
-    if len(set(settings.environment_names)) != len(settings.environment_names):
-        raise ContractError("resolved execution environment names must be unique")
-    if any(not name.strip() or "=" in name for name in settings.environment_names):
-        raise ContractError("resolved execution environment entries must be variable names")
-
-
 __all__ = [
     "ConstraintProfileBinding",
     "DstackBinding",
     "ExecutionOverrides",
     "ExecutionStorageBinding",
+    "LaunchOverrides",
     "LocalProviderBinding",
     "LocalExecutionConfig",
+    "MachineHuggingFaceBinding",
+    "PackageOverrides",
     "RegistryBinding",
     "ResolvedExecutionSettings",
+    "SettingSource",
+    "MachineConfig",
+    "MachineServicesBinding",
+    "MachineTrackingBinding",
     "load_local_execution_config",
+    "load_machine_config",
     "load_execution_environment",
     "resolve_execution_settings",
 ]

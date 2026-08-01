@@ -32,6 +32,7 @@ Knowledge base for this lab. Runtime is a **uv workspace** with
 | [research/](./research/) | Papers, surveys, cross-cutting summaries |
 | [decisions/](./decisions/) | Architecture / stack ADRs |
 | [design/](./design/README.md) | Revision-aware product-design references, explorations, and accepted contracts |
+| [dx-improvements/](./dx-improvements/README.md) | Release-scoped developer experience critiques and proposed improvements |
 | [plan/observatory-product-implementation.md](./plan/observatory-product-implementation.md) | Detailed living implementation plan for the Observatory read product |
 
 ## Canonical design sequence
@@ -47,7 +48,9 @@ contract.
 5. **APIs** — done ([05](./post-training/05-apis.md))
 6. **Observation** — done ([06](./post-training/06-observation-and-lineage.md))
 7. **~~Design freeze~~** — **FROZEN 2026-07-21** ([post-training README](./post-training/README.md))
-8. **Implementation plan** — **active** ([baseline-implementation.md](../.agents/plan/baseline-implementation.md); start slice 0)
+8. **Implementation plans** — current release-scoped work in
+   [plan/](./plan/); historical package-boundary decisions in
+   [baseline-implementation.md](./plan/baseline-implementation.md)
 9. **Architecture reconciliation** — parallel/later ([RECONCILIATION.md](./architecture/RECONCILIATION.md)); do not block plan slices that already match 05/06
 10. **Code and validation** — implement plan slices; code is not the contract
 

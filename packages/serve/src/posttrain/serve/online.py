@@ -44,7 +44,7 @@ class ServeLaunchRequest:
     inference: InferenceBinding
     host: str = "127.0.0.1"
     port: int = 8000
-    startup_timeout_seconds: float = 180.0
+    startup_timeout_seconds: float | None = None
 
     def __post_init__(self) -> None:
         if "smoke" not in self.inference.purpose and "eval" not in self.inference.purpose:
@@ -57,8 +57,12 @@ class ServeLaunchRequest:
             raise ValueError("host cannot be empty")
         if not 0 < self.port < 65_536:
             raise ValueError("port must be between 1 and 65535")
-        if self.startup_timeout_seconds <= 0:
+        if self.startup_timeout_seconds is not None and self.startup_timeout_seconds <= 0:
             raise ValueError("startup timeout must be positive")
+
+    @property
+    def effective_startup_timeout_seconds(self) -> float:
+        return self.startup_timeout_seconds or self.inference.startup_timeout_seconds
 
     @property
     def endpoint(self) -> Endpoint:

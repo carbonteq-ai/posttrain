@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
+import os
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
+from typing import cast
 
-from posttrain.common import ExecutionTarget, RunContext
+import pytest
+from posttrain.catalog import ProjectLayout
+from posttrain.common import ContractError, ExecutionTarget, RunContext
 from posttrain.execution import (
     AdmissionEntry,
     AdmissionResult,
@@ -27,7 +34,7 @@ from posttrain.execution import (
     RuntimeImageRef,
     TrackingCancellationRecovery,
 )
-from posttrain.execution_pack import PackedJobContext, PublishedJobImage
+from posttrain.execution_pack import LocalPublishedJobImage, PackedJobContext, PublishedJobImage
 from posttrain.jobs import build_job_runtime
 from posttrain.runtime_images.manifest import load_manifest
 from posttrain.tracking import RunSpec
@@ -38,6 +45,7 @@ from posttrain.work import (
     WorkPackageHostRequest,
 )
 from posttrain_cli.cli import main
+from posttrain_cli.commands.controller import controller_sweep
 
 
 def test_job_help_exposes_product_path_not_compatibility_flags(capsys) -> None:
@@ -57,6 +65,94 @@ def test_job_help_exposes_product_path_not_compatibility_flags(capsys) -> None:
             assert "[tool.posttrain.execution] provider" in help_text
             assert "durable run identity" in help_text
             assert "idempotency namespace" in help_text
+
+
+def test_controller_once_renders_one_bounded_sweep(
+    tmp_path: Path,
+    capsys,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+
+    async def sweep(_layout):
+        return [{"run_id": "run-1", "action": "reconcile", "state": "consistent"}]
+
+    monkeypatch.setattr("posttrain_cli.commands.controller.controller_sweep", sweep)
+
+    assert main(["--json", "--project-root", str(project), "controller", "run", "--once"]) == 0
+    assert json.loads(capsys.readouterr().out) == [{"run_id": "run-1", "action": "reconcile", "state": "consistent"}]
+
+
+def test_controller_status_reads_health_without_running_a_sweep(tmp_path: Path, capsys) -> None:
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+    health = tmp_path / "controller-health"
+    health.write_text(f"{datetime.now(UTC).timestamp()}\n", encoding="utf-8")
+
+    assert (
+        main(
+            [
+                "--json",
+                "--project-root",
+                str(project),
+                "controller",
+                "status",
+                "--health-file",
+                str(health),
+            ]
+        )
+        == 0
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["healthy"] is True
+    assert payload["health_file"] == str(health)
+
+
+def test_controller_loop_does_not_emit_idle_sweeps(
+    tmp_path: Path,
+    capsys,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+
+    async def sweep(_layout):
+        return []
+
+    monkeypatch.setattr("posttrain_cli.commands.controller.controller_sweep", sweep)
+
+    def stop_after_first_sweep(_seconds: float) -> None:
+        raise RuntimeError("stop test loop")
+
+    monkeypatch.setattr("posttrain_cli.commands.controller.time.sleep", stop_after_first_sweep)
+
+    assert main(["--project-root", str(project), "controller", "run"]) == 1
+    assert capsys.readouterr().out == ""
+
+
+def test_controller_sweep_ignores_legacy_entries_without_project_ownership(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Admission:
+        def pump_available(self):
+            return None
+
+        def list(self):
+            return [SimpleNamespace(run_id="legacy-run", state="submitted", control_locator=None)]
+
+        def service(self, _run_id: str):
+            raise AssertionError("legacy run must not reconstruct a provider")
+
+    monkeypatch.setattr(
+        "posttrain_cli.commands.controller.execution_admission_service",
+        lambda _layout: Admission(),
+    )
+
+    assert asyncio.run(controller_sweep(cast(ProjectLayout, object()))) == []
 
 
 def _record_submission(
@@ -262,6 +358,11 @@ def test_init_creates_portable_project_and_valid_empty_overlay(
     assert (project / ".posttrain" / "project.yaml").is_file()
     assert (project / ".posttrain" / "catalog" / "layer.yaml").read_text(encoding="utf-8").endswith("files: []\n")
     assert (project / ".posttrain" / ".gitignore").read_text(encoding="utf-8") == "state/\n"
+    runtime_environment = project / "posttrain.env"
+    assert runtime_environment.read_text(encoding="utf-8") == ""
+    assert runtime_environment.stat().st_mode & 0o077 == 0
+    assert "posttrain.env" in (project / ".gitignore").read_text(encoding="utf-8").splitlines()
+    assert "POSTTRAIN_REGISTRY" in (project / "posttrain.env.example").read_text(encoding="utf-8")
     assert main(["--project-root", str(project), "catalog", "validate"]) == 0
     validated = capsys.readouterr()
     assert "Catalog valid: framework-v1" in validated.out
@@ -278,6 +379,154 @@ def test_init_refuses_to_overwrite_existing_project(tmp_path: Path, capsys) -> N
 
     assert captured.out == ""
     assert "refusing to overwrite existing project files" in captured.err
+
+
+def test_machine_init_creates_shared_defaults_and_scoped_credentials(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    from posttrain.catalog import load_project_layout
+    from posttrain_cli.execution_config import load_execution_environment, load_local_execution_config
+
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+
+    assert (
+        main(
+            [
+                "machine",
+                "init",
+                "--project",
+                str(project),
+                "--machine-name",
+                "rtx-pro-96gb.lan",
+                "--trackio-endpoint",
+                "https://trackio.lan",
+                "--python-index-url",
+                "https://pypi.lan/simple/",
+                "--job-registry",
+                "registry.lan/posttrain",
+                "--dstack-project",
+                "main",
+            ]
+        )
+        == 0
+    )
+    initialized = capsys.readouterr()
+    assert "Initialized machine configuration" in initialized.out
+
+    machine_root = Path(os.environ["XDG_CONFIG_HOME"]) / "posttrain"
+    config = machine_root / "config.toml"
+    credentials = machine_root / "credentials"
+    assert config.stat().st_mode & 0o077 == 0o044
+    assert not (project / ".posttrain" / "state" / "execution.toml").exists()
+    assert "TRACKIO_WRITE_TOKEN" not in config.read_text(encoding="utf-8")
+    for filename in ("trackio.env", "huggingface.env", "python-index.env", "dstack.env"):
+        assert (credentials / filename).stat().st_mode & 0o077 == 0
+
+    assert main(["--json", "machine", "show"]) == 0
+    shown = json.loads(capsys.readouterr().out)
+    assert shown["name"] == "rtx-pro-96gb.lan"
+    assert shown["credentials"]["dstack-default"].endswith("/credentials/dstack.env")
+    assert "dstack-secret" not in json.dumps(shown)
+
+    (credentials / "trackio.env").write_text("TRACKIO_WRITE_TOKEN=trackio-secret\n", encoding="utf-8")
+    (credentials / "huggingface.env").write_text("HF_TOKEN=hf-secret\n", encoding="utf-8")
+    (credentials / "python-index.env").write_text(
+        "UV_INDEX_USERNAME=reader\nUV_INDEX_PASSWORD=index-secret\n",
+        encoding="utf-8",
+    )
+    (credentials / "dstack.env").write_text("DSTACK_TOKEN=dstack-secret\n", encoding="utf-8")
+
+    loaded = load_local_execution_config(load_project_layout(project))
+    environment = load_execution_environment(loaded)
+    assert environment["POSTTRAIN_TRACKIO_SERVER_URL"] == "https://trackio.lan"
+    assert environment["TRACKIO_WRITE_TOKEN"] == "trackio-secret"
+    assert environment["HF_TOKEN"] == "hf-secret"
+    assert environment["UV_INDEX_USERNAME"] == "reader"
+    assert environment["UV_INDEX_PASSWORD"] == "index-secret"
+    assert environment["POSTTRAIN_REGISTRY"] == "registry.lan/posttrain"
+    assert "DSTACK_TOKEN" not in environment
+    assert loaded.dstack is not None
+    assert loaded.dstack.environment_file == credentials / "dstack.env"
+
+    second_project = tmp_path / "second"
+    assert main(["init", str(second_project)]) == 0
+    capsys.readouterr()
+    assert main(["machine", "project", "add", str(second_project)]) == 0
+    assert "Registered project" in capsys.readouterr().out
+    assert main(["machine", "project", "add", str(second_project)]) == 0
+    assert "already registered" in capsys.readouterr().out
+    loaded_again = load_local_execution_config(load_project_layout(project))
+    assert loaded_again.machine is not None
+    assert loaded_again.machine.projects == (project.resolve(), second_project.resolve())
+
+    assert main(["machine", "init"]) == 1
+    assert "refusing to overwrite existing machine configuration" in capsys.readouterr().err
+
+
+def test_machine_init_omits_redundant_hostname_by_default(tmp_path: Path, capsys) -> None:
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+
+    assert main(["machine", "init", "--project", str(project)]) == 0
+    capsys.readouterr()
+
+    config = Path(os.environ["XDG_CONFIG_HOME"]) / "posttrain" / "config.toml"
+    assert "machine_name" not in config.read_text(encoding="utf-8")
+
+
+def test_environment_new_scaffolds_a_project_local_verifiers_package(tmp_path: Path, capsys) -> None:
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+
+    assert main(["--json", "--project-root", str(project), "environment", "new", "kg-extract"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    root = project / "environments" / "kg-extract"
+    assert payload["package"] == "kg-extract-env"
+    assert (root / "pyproject.toml").is_file()
+    assert "verifiers" in (root / "pyproject.toml").read_text(encoding="utf-8")
+    assert "create_environment" in (root / "src" / "kg_extract_env" / "taskset.py").read_text(encoding="utf-8")
+    assert main(["--project-root", str(project), "environment", "new", "kg-extract"]) == 1
+
+
+def test_mutating_run_selection_requires_a_complete_canonical_id(tmp_path: Path) -> None:
+    from posttrain.catalog import load_project_layout
+    from posttrain_cli.run_resolve import resolve_run_id
+
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    layout = load_project_layout(project)
+    known = ("01234567-89ab-cdef-0123-456789abcdef",)
+    assert resolve_run_id(layout, known[0], known=known, exact_only=True) == known[0]
+    with pytest.raises(ContractError, match="complete canonical"):
+        resolve_run_id(layout, "01234567", known=known, exact_only=True)
+    with pytest.raises(ContractError, match="--last is read-only"):
+        resolve_run_id(layout, None, last=True, known=known, exact_only=True)
+
+
+def test_global_env_file_option_reaches_the_command_state(
+    tmp_path: Path,
+    capsys,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from posttrain_cli.commands import project_cmd
+
+    project = tmp_path / "example"
+    override = tmp_path / "alternate.env"
+    override.write_text("POSTTRAIN_REGISTRY=registry.example/project\n", encoding="utf-8")
+    override.chmod(0o600)
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+    seen: list[Path | None] = []
+    monkeypatch.setattr(project_cmd, "emit", lambda state, *_args: seen.append(state.env_file))
+
+    assert main(["--project-root", str(project), "--env-file", str(override), "project", "show"]) == 0
+
+    assert seen == [override]
 
 
 def test_init_sft_template_writes_installable_project_and_valid_standard_job(
@@ -306,12 +555,14 @@ def test_init_sft_template_writes_installable_project_and_valid_standard_job(
     settings = (project / ".posttrain" / "catalog" / "settings.yaml").read_text(encoding="utf-8")
     work_package = (project / ".posttrain" / "work_packages" / "sft.yaml").read_text(encoding="utf-8")
     assert '"posttrain[observatory,trackio,trl]' in pyproject
-    assert "carbonteq-ai/trackio.git@703be380" in pyproject
+    assert "carbonteq-ai/trackio.git" not in pyproject
+    assert "carbonteq-trackio" not in pyproject
     assert "carbonteq-ai/trl.git@6e7739b8" in pyproject
     assert "selection_type: sft-settings" in settings
     assert "datasets/posttrain-sft-smoke@1" in work_package
     assert "train/trl-sft@1" in work_package
     assert "posttrain_lab" not in pyproject + settings + work_package
+    assert "posttrain.env" in (project / ".gitignore").read_text(encoding="utf-8")
 
     assert (
         main(
@@ -355,7 +606,16 @@ def test_init_grpo_template_declares_environment_and_selected_extras(
     work_package = (project / ".posttrain" / "work_packages" / "grpo.yaml").read_text(encoding="utf-8")
     assert '"posttrain[observatory,trackio,trl,verifiers]' in pyproject
     assert "PrimeIntellect-ai/verifiers.git@284a868d" in pyproject
-    assert "gsm8k-distill-train" in work_package
+    environment = (project / ".posttrain" / "catalog" / "environments.yaml").read_text(encoding="utf-8")
+    assert "starter-gsm8k-train" in work_package
+    assert "kind: project-path" in environment
+    assert (project / "environments" / "starter-gsm8k" / "pyproject.toml").is_file()
+    from posttrain.catalog import load_project_layout
+    from posttrain.project import load_project_pack_config
+
+    assert load_project_pack_config(load_project_layout(project)).environment_candidates == (
+        "environments/starter-gsm8k",
+    )
     assert "train/trl-grpo@1" in work_package
     assert "posttrain_lab" not in pyproject + work_package
 
@@ -888,7 +1148,6 @@ bindings:
         + "\n",
         encoding="utf-8",
     )
-    _write_exact_execution_config(project)
     host = f"{__name__}:create_test_host"
 
     assert (
@@ -904,20 +1163,17 @@ bindings:
                 "validate",
                 "--host",
                 host,
-                "--run-id",
-                "plan-read-only",
             ]
         )
         == 0
     )
     planned = json.loads(capsys.readouterr().out)
 
-    assert planned["run_id"] == "plan-read-only"
-    assert planned["provider"] == "local"
-    assert planned["runtime_profile"] == "framework/supervised@1"
-    assert planned["setting_sources"]["provider"] == "job"
-    assert planned["images"]["actual_job"] is None
-    assert planned["pack"]["kind_profile"] == "supervised"
+    assert planned["project_id"] == "example"
+    assert planned["job_id"] == "validate"
+    assert planned["job_kind"] == "data.prepare"
+    assert "provider" not in planned
+    assert "pack" not in planned
     assert not (project / ".posttrain" / "state" / "pack").exists()
 
 
@@ -950,8 +1206,6 @@ def test_grpo_plan_is_static_and_selects_online_rl_runtime(
         "math-gsm8k-train",
         PythonFactoryActivation("environment_not_installed_during_planning:create_environment"),
     )
-    _write_exact_execution_config(project)
-
     assert (
         main(
             [
@@ -963,20 +1217,15 @@ def test_grpo_plan_is_static_and_selects_online_rl_runtime(
                 "grpo.yaml",
                 "--job",
                 "train",
-                "--run-id",
-                "grpo-static-plan",
             ]
         )
         == 0
     )
     planned = json.loads(capsys.readouterr().out)
 
-    assert planned["run_id"] == "grpo-static-plan"
-    assert planned["runtime_profile"] == "framework/online-rl-trl-py312@1"
-    assert planned["images"]["actual_job"] is None
-    assert planned["pack"]["kind_profile"] == "online-rl"
-    assert planned["pack"]["runtime_variant"] == "online-rl-trl-py312"
-    assert len(planned["pack"]["constraint_profile_digest"]) == 64
+    assert planned["job_kind"] == "train.grpo"
+    assert planned["job_definition_id"] == "train/trl-grpo@1"
+    assert "pack" not in planned
     assert not (project / ".posttrain" / "state" / "pack").exists()
 
     assert (
@@ -995,31 +1244,23 @@ def test_grpo_plan_is_static_and_selects_online_rl_runtime(
         )
         == 1
     )
-    assert "conflicts with the resolved backend variant online-rl-trl-py312" in (capsys.readouterr().err)
+    assert "job plan resolves project job meaning only" in capsys.readouterr().err
 
     # Naming one variant no longer removes the rest. Every published job-kind
     # image is pinned by the release, so a partial machine binding overrides
     # only what it names and the remainder resolves from the installed
     # manifest. This is what removes the second hand transcription.
     _write_exact_execution_config(project, variants=("supervised",))
-    assert (
-        main(
-            [
-                "--json",
-                "--project-root",
-                str(project),
-                "job",
-                "plan",
-                "grpo.yaml",
-                "--job",
-                "train",
-            ]
-        )
-        == 0
+    from posttrain_cli.context import CliState
+    from posttrain_cli.execution_planning import plan_job_package
+
+    derived = plan_job_package(
+        CliState(project_root=project),
+        Path("grpo.yaml"),
+        job="train",
     )
-    derived = json.loads(capsys.readouterr().out)
     manifest = load_manifest()
-    assert derived["images"]["job_kind"] == manifest.reference("online-rl-trl-py312")
+    assert derived.pack_plan.spec.kind_image.value == manifest.reference("online-rl-trl-py312")
 
 
 def test_work_package_run_rejects_invalid_host(tmp_path: Path, capsys) -> None:
@@ -1234,6 +1475,8 @@ def test_environment_add_local_writes_overlay(tmp_path: Path, capsys) -> None:
 
 
 def test_job_plan_aliases_work_package_plan(tmp_path: Path, capsys) -> None:
+    from posttrain.project import Project
+
     project = tmp_path / "example"
     assert main(["init", str(project)]) == 0
     capsys.readouterr()
@@ -1260,7 +1503,7 @@ bindings:
         + "\n",
         encoding="utf-8",
     )
-    _write_exact_execution_config(project)
+    intent = Project.open(project).jobs.plan("cpu-check.yaml", job="validate")
 
     assert (
         main(
@@ -1273,24 +1516,21 @@ bindings:
                 "cpu-check.yaml",
                 "--job",
                 "validate",
-                "--env",
-                "HF_TOKEN",
             ]
         )
         == 0
     )
     payload = json.loads(capsys.readouterr().out)
     assert payload["work_package_id"] == "screen/cpu-check"
-    assert payload["provider"] == "local"
-    assert payload["environment_names"] == [
-        "POSTTRAIN_TRACKIO_SERVER_URL",
-        "TRACKIO_WRITE_TOKEN",
-        "HF_TOKEN",
-    ]
+    assert "provider" not in payload
+    assert "pack" not in payload
     assert payload["job_id"] == "validate"
+    assert payload["job_kind"] == intent.prepared.recipe_job.kind
+    assert payload["job_definition_id"] == intent.prepared.definition.id
+    assert payload["work_package_id"] == intent.prepared.spec.work_package_id
 
 
-def test_job_plan_target_override_changes_nested_sft_target_and_identity(
+def test_job_package_plan_target_override_changes_nested_sft_target_and_identity(
     tmp_path: Path,
     capsys,
 ) -> None:
@@ -1323,54 +1563,63 @@ bindings:
     _write_target_overlay(project)
     _write_exact_execution_config(project)
 
-    assert (
-        main(
-            [
-                "--json",
-                "--project-root",
-                str(project),
-                "job",
-                "plan",
-                "sft-target.yaml",
-                "--job",
-                "train",
-                "--run-id",
-                "sft-default-target",
-            ]
-        )
-        == 0
-    )
-    baseline = json.loads(capsys.readouterr().out)
+    from posttrain_cli.context import CliState
+    from posttrain_cli.execution_config import PackageOverrides
+    from posttrain_cli.execution_planning import _project_config_bundle, plan_job_package
 
-    assert (
-        main(
-            [
-                "--json",
-                "--project-root",
-                str(project),
-                "job",
-                "plan",
-                "sft-target.yaml",
-                "--job",
-                "train",
-                "--target",
-                "targets/remote-rtx4090-24gb",
-                "--run-id",
-                "sft-remote-target",
-            ]
-        )
-        == 0
+    baseline = plan_job_package(
+        CliState(project_root=project),
+        Path("sft-target.yaml"),
+        job="train",
     )
-    overridden = json.loads(capsys.readouterr().out)
+    overridden = plan_job_package(
+        CliState(project_root=project),
+        Path("sft-target.yaml"),
+        job="train",
+        overrides=PackageOverrides(target="targets/remote-rtx4090-24gb"),
+    )
 
-    assert baseline["target"]["id"] == "targets/local-cuda-8gb"
-    assert overridden["target"] == {
-        "id": "targets/remote-rtx4090-24gb",
-        "revision": "1",
-        "device_class": "nvidia-cuda",
-        "memory_gb": 24.0,
-    }
-    assert overridden["pack"]["plan_key"] != baseline["pack"]["plan_key"]
+    assert baseline.target.id == "targets/local-cuda-8gb"
+    assert overridden.target.id == "targets/remote-rtx4090-24gb"
+    assert overridden.pack_plan.plan_key != baseline.pack_plan.plan_key
+    selected_config = _project_config_bundle(
+        overridden.layout,
+        overridden.work_package_path,
+        overridden.prepared,
+        overridden.catalog,
+    )
+    assert overridden.project_config_digest == selected_config.digest
+    catalog_dir = project / ".posttrain" / "catalog"
+    (catalog_dir / "unrelated.yaml").write_text(
+        "target:\n  targets/unrelated-8gb:\n    revision: '1'\n    device_class: nvidia-cuda\n    memory_gb: 8\n",
+        encoding="utf-8",
+    )
+    layer_path = catalog_dir / "layer.yaml"
+    layer_path.write_text(
+        layer_path.read_text(encoding="utf-8").replace("  - targets.yaml\n", "  - targets.yaml\n  - unrelated.yaml\n"),
+        encoding="utf-8",
+    )
+    assert (
+        _project_config_bundle(
+            overridden.layout,
+            overridden.work_package_path,
+            overridden.prepared,
+            overridden.catalog,
+        ).files
+        == selected_config.files
+    )
+    targets_path = catalog_dir / "targets.yaml"
+    targets_path.write_text(
+        targets_path.read_text(encoding="utf-8").replace("memory_gb: 24", "memory_gb: 48"), encoding="utf-8"
+    )
+    changed_config = _project_config_bundle(
+        overridden.layout,
+        overridden.work_package_path,
+        overridden.prepared,
+        overridden.catalog,
+    )
+    assert changed_config.files != selected_config.files
+    assert changed_config.digest != overridden.project_config_digest
     assert not (project / ".posttrain" / "state" / "pack").exists()
 
 
@@ -1454,10 +1703,14 @@ bindings:
             return PackedJobContext(root, manifest, "5" * 64, publication_key)
 
     class FakePublisher:
+        remote_publications: list[str] = []
+        local_publications: list[str] = []
+
         def __init__(self, **_kwargs) -> None:
             pass
 
         def publish(self, request):
+            self.remote_publications.append(request.publication_key)
             receipt = (project / ".posttrain/state/fake-receipt.json").resolve()
             receipt.write_text("{}\n", encoding="utf-8")
             receipt.chmod(0o600)
@@ -1466,6 +1719,23 @@ bindings:
                 request.publication_key,
                 actual_image,
                 request.manifest.kind_image,
+                receipt,
+                False,
+            )
+
+        def publish_local(self, request):
+            self.local_publications.append(request.publication_key)
+            layout = (project / ".posttrain/state/fake-local-layout").resolve()
+            layout.mkdir(parents=True, exist_ok=True)
+            (layout / "index.json").write_text("{}\n", encoding="utf-8")
+            receipt = (project / ".posttrain/state/fake-local-receipt.json").resolve()
+            receipt.write_text("{}\n", encoding="utf-8")
+            receipt.chmod(0o600)
+            return LocalPublishedJobImage(
+                request.package_key,
+                request.publication_key,
+                layout,
+                f"posttrain-local:{request.publication_key}",
                 receipt,
                 False,
             )
@@ -1513,6 +1783,44 @@ bindings:
     assert "provider" not in payload
     assert "mounts" not in payload
 
+    from posttrain.catalog import load_project_layout
+    from posttrain_cli import execution_planning
+    from posttrain_cli.execution_config import load_local_execution_config
+
+    configured = load_local_execution_config(load_project_layout(project))
+    original_config_loader = execution_planning.load_local_execution_config
+    monkeypatch.setattr(
+        "posttrain_cli.execution_planning.load_local_execution_config",
+        lambda *_args, **_kwargs: replace(configured, registry=None),
+    )
+
+    assert (
+        main(
+            [
+                "--json",
+                "--project-root",
+                str(project),
+                "job",
+                "pack",
+                "cpu-check.yaml",
+                "--job",
+                "validate",
+                "--local",
+                "--host",
+                f"{__name__}:create_test_host",
+            ]
+        )
+        == 0
+    )
+    local_payload = json.loads(capsys.readouterr().out)
+    assert local_payload["images"]["actual_job"] is None
+    assert local_payload["images"]["local_oci"]["tag"].startswith("posttrain-local:")
+    assert FakePublisher.local_publications == [local_payload["package"]["publication_key"]]
+    monkeypatch.setattr(
+        "posttrain_cli.execution_planning.load_local_execution_config",
+        original_config_loader,
+    )
+
     assert (
         main(
             [
@@ -1527,9 +1835,9 @@ bindings:
                 f"{__name__}:create_test_host",
             ]
         )
-        == 1
+        == 0
     )
-    assert "dstack execution requires [providers.dstack.storage]" in capsys.readouterr().err
+    assert "Job intent: screen/cpu-check/validate" in capsys.readouterr().out
 
     execution_config.write_text(local_execution_config, encoding="utf-8")
     execution_config.chmod(0o600)
@@ -1564,6 +1872,15 @@ bindings:
     assert second_launch.settings.timeout_seconds == 240
     assert first_launch.mounts[0].instance_path.name == "capsule-launch-a"
     assert second_launch.mounts[0].instance_path.name == "capsule-launch-b"
+
+    remote_before = tuple(FakePublisher.remote_publications)
+    local = reusable_package.pack_local()
+    assert local.image.layout.joinpath("index.json").is_file()
+    assert tuple(FakePublisher.remote_publications) == remote_before
+    assert FakePublisher.local_publications == [
+        local_payload["package"]["publication_key"],
+        local.context.publication_key,
+    ]
 
     observed_requests = []
 

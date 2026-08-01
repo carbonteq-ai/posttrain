@@ -19,13 +19,12 @@ if str(REPOSITORY) not in sys.path:
     sys.path.insert(0, str(REPOSITORY))
 
 from posttrain.tracking import TraceQuery  # noqa: E402
-from posttrain_observatory import ObservatoryService  # noqa: E402
-from posttrain_tracking_trackio import TrackioDataSource  # noqa: E402
-
-from scripts.qualification.algorithm_scenarios import (  # noqa: E402
+from posttrain_lab.qualification.scenarios import (  # noqa: E402
     QualificationScenario,
     scenario_by_id,
 )
+from posttrain_observatory import ObservatoryService  # noqa: E402
+from posttrain_tracking_trackio import TrackioDataSource  # noqa: E402
 
 
 @dataclass(frozen=True, slots=True)
@@ -241,7 +240,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("scenario")
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--workspace", type=Path, required=True)
-    parser.add_argument("--trackio-project", default="foundation-models")
+    parser.add_argument("--trackio-project", default="posttrain-lab")
     parser.add_argument("--trackio-url", required=True)
     parser.add_argument("--receipt", type=Path)
     return parser

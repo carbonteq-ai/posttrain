@@ -8,7 +8,6 @@ environment.
 from __future__ import annotations
 
 import json
-import os
 import re
 import sys
 import time
@@ -28,14 +27,21 @@ def _client(payload):
 def _configuration(payload):
     configuration = dict(payload["configuration"])
     launch_environment = configuration.pop("_posttrain_launch_env", {})
+    runtime_environment = configuration.pop("_posttrain_runtime_env", {})
     if not isinstance(launch_environment, dict):
         raise RuntimeError("invalid posttrain launch environment")
+    if not isinstance(runtime_environment, dict) or not all(
+        isinstance(name, str) and isinstance(value, str) for name, value in runtime_environment.items()
+    ):
+        raise RuntimeError("invalid posttrain runtime environment")
     environment = configuration.get("env")
     if isinstance(environment, list):
-        missing = [name for name in environment if name not in os.environ]
+        if not all(isinstance(name, str) for name in environment):
+            raise RuntimeError("invalid dstack execution environment")
+        missing = [name for name in environment if name not in runtime_environment]
         if missing:
-            raise RuntimeError("required execution environment names are unavailable")
-        configuration["env"] = {name: os.environ[name] for name in environment}
+            raise RuntimeError("required execution environment names are unavailable from posttrain.env")
+        configuration["env"] = {name: runtime_environment[name] for name in environment}
     if launch_environment:
         configured_environment = configuration.setdefault("env", {})
         if not isinstance(configured_environment, dict):

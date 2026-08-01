@@ -99,9 +99,12 @@ backend, but its hybrid-cache path can mark `TQFullAttentionSpec` as unquantized
 and replace the cache dtype with `auto` inside a spawned worker. The CarbonTeq
 fork preserves the requested `turboquant_*` dtype for
 `TQFullAttentionSpec` while retaining `auto` for genuinely skipped,
-unquantized layers. The serve package's `vllm.general_plugins` entry point now
-only activates the CUDA toolkit view in controller, engine-core, and worker
-processes; it no longer mutates vLLM classes at runtime.
+unquantized layers. The general serve and eval images still use the upstream
+0.25.1 binary wheel, so the serve package's `vllm.general_plugins` entry point
+applies the equivalent state-guarded quantization marker there. The guard is a
+no-op when the CarbonTeq fork reports a native TurboQuant quantization mode.
+The same entry point activates the CUDA toolkit view in controller,
+engine-core, and worker processes.
 
 The fork's source regression is complete. Release qualification still requires
 the locked veRL image and real DAPO and SAMPO hybrid-Qwen runs. TurboQuant and

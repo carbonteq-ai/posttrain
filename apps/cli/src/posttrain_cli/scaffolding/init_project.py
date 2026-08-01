@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import re
-import socket
 from importlib.metadata import PackageNotFoundError, requires, version
 from pathlib import Path
 
@@ -221,7 +220,7 @@ def starter_work_package(project_id: str, template: str) -> str:
             f"project_id: {project_id}",
             "work_package_id: train/starter-grpo",
             "stage: train",
-            "description: Run one bounded GRPO update against the global GSM8K environment binding.",
+            "description: Run one bounded GRPO update against the project-local GSM8K environment binding.",
             "recipe:",
             "  type: inline",
             "  id: recipes/starter-grpo@1",
@@ -249,7 +248,7 @@ def starter_work_package(project_id: str, template: str) -> str:
             "  environment:",
             "    type: ref",
             "    family: environment",
-            "    id: gsm8k-distill-train",
+            "    id: starter-gsm8k-train",
             "  settings:",
             "    type: ref",
             "    family: training",
@@ -268,6 +267,44 @@ def starter_work_package(project_id: str, template: str) -> str:
             "",
         )
     )
+
+
+def starter_grpo_environment() -> str:
+    return """environment:
+  starter-gsm8k-train:
+    category: math-reasoning
+    source:
+      kind: project-path
+      package: starter-gsm8k-env
+      path: environments/starter-gsm8k
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: math-gsm8k-train
+    sampling:
+      max_tokens: 384
+      temperature: 1.0
+    num_tasks: 1
+    num_rollouts: 2
+"""
+
+
+def starter_grpo_environment_pyproject() -> str:
+    return """[build-system]
+requires = [\"hatchling\"]
+build-backend = \"hatchling.build\"
+
+[project]
+name = \"starter-gsm8k-env\"
+version = \"0.1.0\"
+description = \"Project-local Verifiers environment binding\"
+requires-python = \">=3.13,<3.14\"
+dependencies = [\"verifiers\"]
+
+[tool.hatch.build.targets.wheel]
+packages = [\"src/starter_gsm8k_env\"]
+"""
 
 
 def initialize(
@@ -289,6 +326,9 @@ def initialize(
     work_packages = control / "work_packages"
     work_packages_readme = work_packages / "README.md"
     control_ignore = control / ".gitignore"
+    runtime_environment = project_root / "posttrain.env"
+    runtime_environment_example = project_root / "posttrain.env.example"
+    project_ignore = project_root / ".gitignore"
 
     if project_root.exists() and any(project_root.iterdir()):
         raise FileExistsError(f"refusing to overwrite existing project files in non-empty directory: {project_root}")
@@ -297,21 +337,16 @@ def initialize(
     catalog.mkdir(parents=True, exist_ok=True)
     work_packages.mkdir(parents=True, exist_ok=True)
     (control / "state").mkdir(parents=True, exist_ok=True)
-    hostname = socket.gethostname().strip().lower().rstrip(".")
-    execution_toml = control / "state" / "execution.toml"
-    execution_toml.write_text(
-        "\n".join(
-            (
-                "schema_version = 1",
-                "",
-                "[providers.local]",
-                f'canonical_hostname = "{hostname}"',
-                "",
-            )
-        ),
+    runtime_environment.write_text("", encoding="utf-8")
+    runtime_environment.chmod(0o600)
+    runtime_environment_example.write_text(
+        "# Project-specific runtime values and secrets. Keep values in posttrain.env.\n"
+        "# Shared service endpoints and registries belong in ~/.config/posttrain/config.toml.\n"
+        "# POSTTRAIN_REGISTRY  # optional project override\n"
+        "# TRACKIO_WRITE_TOKEN\n",
         encoding="utf-8",
     )
-    execution_toml.chmod(0o600)
+    project_ignore.write_text("posttrain.env\n", encoding="utf-8")
     manifest.write_text(
         "\n".join(
             (
@@ -338,7 +373,11 @@ def initialize(
         ),
         encoding="utf-8",
     )
-    catalog_files = ["settings.yaml"] if template is not None else []
+    catalog_files = (
+        (["settings.yaml", "environments.yaml"] if template == "grpo" else ["settings.yaml"])
+        if template is not None
+        else []
+    )
     catalog_manifest.write_text(
         "\n".join(
             (
@@ -368,10 +407,19 @@ def initialize(
             encoding="utf-8",
         )
         (project_root / ".gitignore").write_text(
-            ".venv/\n__pycache__/\n*.py[cod]\n",
+            "posttrain.env\n.venv/\n__pycache__/\n*.py[cod]\n",
             encoding="utf-8",
         )
         (catalog / "settings.yaml").write_text(starter_settings(template), encoding="utf-8")
+        if template == "grpo":
+            (catalog / "environments.yaml").write_text(starter_grpo_environment(), encoding="utf-8")
+            environment_root = project_root / "environments" / "starter-gsm8k"
+            environment_package = environment_root / "src" / "starter_gsm8k_env"
+            environment_package.mkdir(parents=True)
+            (environment_root / "pyproject.toml").write_text(starter_grpo_environment_pyproject(), encoding="utf-8")
+            (environment_package / "__init__.py").write_text(
+                '"""Project-local package for the starter GSM8K environment."""\n', encoding="utf-8"
+            )
         work_package_name = f"{template}.yaml"
         (work_packages / work_package_name).write_text(
             starter_work_package(resolved_id, template),

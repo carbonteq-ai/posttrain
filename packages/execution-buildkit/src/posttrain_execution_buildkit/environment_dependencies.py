@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -46,6 +47,7 @@ _PYTHON_PLATFORM = "x86_64-unknown-linux-gnu"
 _PYTHON_EXECUTABLE = "/opt/posttrain/venv/bin/python"
 _WHEEL_DIRECTORY = "wheels/environments"
 _LOCK_FILENAME = "environment-dependencies.lock.txt"
+_INDEX_ENVIRONMENT_NAMES = ("UV_INDEX_PASSWORD", "UV_INDEX_URL", "UV_INDEX_USERNAME")
 
 
 class DependencyResolutionError(ContractError):
@@ -71,8 +73,28 @@ class DependencyCompileGateway(Protocol):
 class UvDependencyCompileCli:
     """Compile all environment wheels together with a fixed uv target."""
 
-    def __init__(self, executable: str = "uv") -> None:
+    def __init__(
+        self,
+        executable: str = "uv",
+        *,
+        index_environment: Mapping[str, str] | None = None,
+    ) -> None:
         self._executable = executable
+        supplied = dict(index_environment or {})
+        unknown = sorted(set(supplied) - set(_INDEX_ENVIRONMENT_NAMES))
+        if unknown:
+            raise ContractError(f"unsupported dependency-index environment names: {', '.join(unknown)}")
+        for name, value in supplied.items():
+            if not isinstance(value, str) or not value or "\x00" in value:
+                raise ContractError(f"dependency-index environment value is invalid: {name}")
+        index_url = supplied.get("UV_INDEX_URL")
+        if index_url is not None and (
+            not index_url.startswith(("http://", "https://"))
+            or _URL_USERINFO.search(index_url)
+            or _SENSITIVE_QUERY.search(index_url)
+        ):
+            raise ContractError("dependency-index URL must be credential-free HTTP(S)")
+        self._index_environment = supplied
 
     def compile(
         self,
@@ -98,6 +120,7 @@ class UvDependencyCompileCli:
             )
             if (value := os.environ.get(name)) is not None
         }
+        environment.update(self._index_environment)
         arguments = [
             self._executable,
             "pip",
@@ -109,6 +132,7 @@ class UvDependencyCompileCli:
             "--no-progress",
             "--color",
             "never",
+            "--system-certs",
             "--index-strategy",
             "unsafe-best-match",
             "--python-version",

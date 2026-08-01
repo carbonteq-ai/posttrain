@@ -10,13 +10,13 @@ import shutil
 import subprocess
 import tempfile
 import tomllib
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
 from posttrain.common import ContractError
-from posttrain.execution_pack import EnvironmentWheelRequest
+from posttrain.execution_pack import EnvironmentWheelRequest, ProjectEnvironmentSourceRequest
 
 from .git_sources import (
     LockedGitSubdirectory,
@@ -80,17 +80,20 @@ class UvWheelBuildCli:
 @dataclass(frozen=True, slots=True)
 class LockedEnvironmentWheel:
     package: str
-    repository: str
-    revision: str
-    subdirectory: str
+    repository: str | None
+    revision: str | None
+    subdirectory: str | None
     source_tree_digest: str
     wheel_filename: str
     wheel_sha256: str
     wheel_size_bytes: int
+    source_kind: str = "git"
+    project_path: str | None = None
 
     def as_dict(self) -> dict[str, object]:
         return {
             "package": self.package,
+            "source_kind": self.source_kind,
             "repository": self.repository,
             "revision": self.revision,
             "subdirectory": self.subdirectory,
@@ -98,6 +101,7 @@ class LockedEnvironmentWheel:
             "wheel_filename": self.wheel_filename,
             "wheel_sha256": self.wheel_sha256,
             "wheel_size_bytes": self.wheel_size_bytes,
+            "project_path": self.project_path,
         }
 
 
@@ -205,6 +209,56 @@ class ImmutableEnvironmentWheelBuilder:
             wheels=result,
             lock=EnvironmentWheelLock(packages=tuple(wheel.lock for wheel in result)),
         )
+
+    def build_project_sources(
+        self,
+        sources: Mapping[str, Path],
+        requests: Sequence[ProjectEnvironmentSourceRequest],
+    ) -> MaterializedEnvironmentWheels:
+        """Build wheels from already-snapshotted project package roots."""
+
+        wheels: list[MaterializedEnvironmentWheel] = []
+        for request in sorted(requests, key=lambda item: (item.package, item.path)):
+            try:
+                package_root = sources[request.path]
+            except KeyError as error:
+                raise ContractError(f"project environment source was not materialized: {request.path}") from error
+            if not package_root.is_absolute() or package_root.is_symlink() or not package_root.is_dir():
+                raise ContractError(f"project environment source is not a regular directory: {request.path}")
+            if _tree_digest(package_root) != request.tree_digest:
+                raise ContractError(f"project environment source differs from its planned digest: {request.path}")
+            pyproject = package_root / "pyproject.toml"
+            if not pyproject.is_file() or pyproject.is_symlink():
+                raise ContractError(f"environment package root has no regular pyproject.toml: {request.package}")
+            _verify_project_name(pyproject, request.package)
+            wheel = self._build_one(package_root)
+            try:
+                if _tree_digest(package_root) != request.tree_digest:
+                    raise ContractError(f"project environment source changed during wheel build: {request.path}")
+                wheel_digest = _file_digest(wheel)
+                wheel_size = wheel.stat().st_size
+                _verify_wheel_filename(wheel.name, request.package)
+                if wheel_size > self._max_wheel_bytes:
+                    raise ContractError(f"environment wheel exceeds {self._max_wheel_bytes} bytes: {request.package}")
+                retained = self._retain_wheel(wheel, wheel_digest)
+                lock = LockedEnvironmentWheel(
+                    package=request.package,
+                    repository=None,
+                    revision=None,
+                    subdirectory=None,
+                    source_tree_digest=request.tree_digest,
+                    wheel_filename=retained.name,
+                    wheel_sha256=wheel_digest,
+                    wheel_size_bytes=wheel_size,
+                    source_kind="project-path",
+                    project_path=request.path,
+                )
+            finally:
+                wheel.unlink(missing_ok=True)
+                wheel.parent.rmdir()
+            wheels.append(MaterializedEnvironmentWheel(retained, lock))
+        result = tuple(wheels)
+        return MaterializedEnvironmentWheels(result, EnvironmentWheelLock(tuple(wheel.lock for wheel in result)))
 
     def _build_one(self, package_root: Path) -> Path:
         self._output_root.mkdir(parents=True, exist_ok=True)

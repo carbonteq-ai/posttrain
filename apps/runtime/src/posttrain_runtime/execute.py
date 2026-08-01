@@ -11,6 +11,7 @@ import socket
 import stat
 import subprocess
 import sys
+import tempfile
 import uuid
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
@@ -20,7 +21,7 @@ from pathlib import Path, PurePosixPath
 from types import FrameType
 from typing import cast
 
-from posttrain.catalog import load_project_layout, open_catalog
+from posttrain.catalog import FamilyRegistryLock, load_project_layout, open_catalog
 from posttrain.common import (
     Catalog,
     CatalogRef,
@@ -33,8 +34,15 @@ from posttrain.data import (
     DatasetLoadPlan,
     DatasetMaterialization,
     load_materialized_dataset,
+    validate_materialized_dataset,
 )
-from posttrain.eval import EnvironmentBinding, EvaluationPlan
+from posttrain.environment import (
+    EnvironmentBinding,
+    ProjectPathEnvironmentSource,
+    PythonFactoryActivation,
+    VerifiersV1ConfigActivation,
+)
+from posttrain.eval import EvaluationPlan
 from posttrain.execution import (
     EXECUTION_LAUNCH_ENVIRONMENT,
     DatasetPackageLock,
@@ -72,6 +80,7 @@ _RESOLVED_FIELDS = {
     "selected_work_package",
     "resolved_inputs",
 }
+_OPTIONAL_RESOLVED_FIELDS = {"family_registry_lock"}
 _LAUNCH_FIELDS = {
     "schema",
     "run",
@@ -122,10 +131,20 @@ class _VerifiedPackage:
     root: Path
     manifest: JobPackageManifest
     resolved_inputs: Mapping[str, JsonValue]
+    family_registry_lock: Mapping[str, JsonValue]
     project_root: Path
     project_manifest: Path
     selected_work_package: Path
     datasets: Mapping[str, tuple[DatasetPackageLock, Mapping[str, object]]]
+
+
+@dataclass(frozen=True, slots=True)
+class QualificationResult:
+    """Offline package qualification facts emitted before image publication."""
+
+    environment_ids: tuple[str, ...]
+    deferred_environment_ids: tuple[str, ...]
+    dataset_seats: tuple[str, ...]
 
 
 def execute_manifest(path: Path) -> WorkerExecutionResult:
@@ -133,6 +152,43 @@ def execute_manifest(path: Path) -> WorkerExecutionResult:
 
     with _graceful_cancellation():
         return _execute_manifest(path)
+
+
+def qualify_manifest(
+    path: Path,
+    *,
+    timeout_seconds: float = 60.0,
+    allow_deferred: bool = False,
+) -> QualificationResult:
+    """Verify every staged activation and taskset without creating a run."""
+
+    if timeout_seconds <= 0:
+        raise ValueError("qualification timeout must be positive")
+    package = _verify_package(path)
+    qualified: list[str] = []
+    deferred: list[str] = []
+    with tempfile.TemporaryDirectory(prefix="posttrain-qualify-") as temporary:
+        previous_tmpdir = os.environ.get("TMPDIR")
+        os.environ["TMPDIR"] = temporary
+        try:
+            for lock in package.manifest.environment_activations:
+                if lock.qualification == "deferred":
+                    if not allow_deferred:
+                        raise ContractError(
+                            f"environment {lock.environment_id!r} defers qualification; "
+                            "production packaging requires a taskset load or an explicit waiver"
+                        )
+                    deferred.append(lock.environment_id)
+                    continue
+                with _qualification_timeout(timeout_seconds, lock.environment_id):
+                    _qualify_activation(lock, package.root)
+                qualified.append(lock.environment_id)
+        finally:
+            if previous_tmpdir is None:
+                os.environ.pop("TMPDIR", None)
+            else:
+                os.environ["TMPDIR"] = previous_tmpdir
+    return QualificationResult(tuple(qualified), tuple(deferred), tuple(sorted(package.datasets)))
 
 
 def _execute_manifest(path: Path) -> WorkerExecutionResult:
@@ -153,7 +209,13 @@ def _execute_manifest(path: Path) -> WorkerExecutionResult:
             scope=layout.project_id,
             overlays=layout.catalog_overlays,
             catalog_root=layout.base_catalog,
+            required_plugin_distributions=layout.catalog_plugin_requirements,
         )
+        if package.family_registry_lock and (
+            not isinstance(catalog.family_registry_lock, FamilyRegistryLock)
+            or catalog.family_registry_lock.to_payload() != package.family_registry_lock
+        ):
+            raise ContractError("installed catalog family registry differs from the packaged registry lock")
         if not package.selected_work_package.is_relative_to(layout.work_packages):
             raise ContractError("resolved job work package is outside the project work-package directory")
         work_package = load_work_package(package.selected_work_package)
@@ -330,6 +392,29 @@ def _graceful_cancellation() -> Iterator[None]:
             signal.signal(number, handler)
 
 
+@contextmanager
+def _qualification_timeout(seconds: float, environment_id: str) -> Iterator[None]:
+    """Bound one offline taskset load without creating a subprocess tree."""
+
+    if not hasattr(signal, "setitimer") or not hasattr(signal, "SIGALRM"):
+        raise RuntimeError("offline qualification requires POSIX interval timers")
+    previous_handler = signal.getsignal(signal.SIGALRM)
+    previous_timer = signal.setitimer(signal.ITIMER_REAL, 0)
+
+    def expire(_signum: int, _frame: FrameType | None) -> None:
+        raise TimeoutError(f"environment qualification timed out after {seconds:g}s: {environment_id}")
+
+    signal.signal(signal.SIGALRM, expire)
+    signal.setitimer(signal.ITIMER_REAL, seconds)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous_handler)
+        if previous_timer[0] > 0:
+            signal.setitimer(signal.ITIMER_REAL, *previous_timer)
+
+
 def _verify_package(path: Path) -> _VerifiedPackage:
     manifest_path = path.resolve()
     if path.is_symlink() or manifest_path.name != "package.json" or not manifest_path.is_file():
@@ -370,7 +455,7 @@ def _verify_package(path: Path) -> _VerifiedPackage:
     resolved = _load_json_object(resolved_bytes, "resolved job config")
     if resolved.get("schema") != _RESOLVED_SCHEMA:
         raise ContractError("resolved job config schema is unsupported")
-    if unknown := sorted(set(resolved) - _RESOLVED_FIELDS):
+    if unknown := sorted(set(resolved) - _RESOLVED_FIELDS - _OPTIONAL_RESOLVED_FIELDS):
         raise ContractError("resolved job config has unknown fields: " + ", ".join(unknown))
     if missing := sorted(_RESOLVED_FIELDS - set(resolved)):
         raise ContractError("resolved job config is missing fields: " + ", ".join(missing))
@@ -391,6 +476,9 @@ def _verify_package(path: Path) -> _VerifiedPackage:
     typed_resolved_inputs = cast(Mapping[str, JsonValue], resolved_inputs)
     if resolved_inputs_digest(typed_resolved_inputs) != (manifest.resolved_inputs_digest):
         raise ContractError("resolved job inputs differ from the package manifest")
+    family_registry_lock = resolved.get("family_registry_lock", {})
+    if not isinstance(family_registry_lock, dict):
+        raise ContractError("resolved job family registry lock must be an object")
 
     config_root = root / "config"
     project_root = config_root / _PROJECT_ROOT.as_posix()
@@ -415,12 +503,14 @@ def _verify_package(path: Path) -> _VerifiedPackage:
         raise ContractError("packaged project configuration differs from its manifest digest")
 
     _verify_environment_wheels(root, manifest)
+    _verify_activation_resources(root, manifest)
     _verify_backend_runtime(root, manifest)
     datasets = _verify_datasets(root, manifest)
     return _VerifiedPackage(
         root=root,
         manifest=manifest,
         resolved_inputs=typed_resolved_inputs,
+        family_registry_lock=cast(Mapping[str, JsonValue], family_registry_lock),
         project_root=project_root.resolve(),
         project_manifest=project_manifest,
         selected_work_package=selected_work_package,
@@ -612,6 +702,13 @@ def _configure_runtime(
                     created=False,
                 ),
             )
+        if isinstance(value, EnvironmentBinding):
+            return _resolve_environment_resources(value, package)
+        if isinstance(value, EvaluationPlan):
+            return replace(
+                value,
+                environments=tuple(_resolve_environment_resources(item, package) for item in value.environments),
+            )
         if upstream_resolver is not None:
             return upstream_resolver(seat)
         return value
@@ -800,8 +897,12 @@ def _verify_environment_selections(
         package_lock = package_locks.get(source.package)
         if package_lock is None:
             raise ContractError(f"job package omits environment package {source.package!r}")
-        if (
-            package_lock.repository != source.repository
+        if isinstance(source, ProjectPathEnvironmentSource):
+            if package_lock.source_kind != "project-path" or package_lock.project_path != source.path:
+                raise ContractError(f"job package project environment source differs for {environment_id!r}")
+        elif (
+            package_lock.source_kind != "git"
+            or package_lock.repository != source.repository
             or package_lock.revision != source.revision
             or package_lock.subdirectory != (source.subdirectory or ".")
         ):
@@ -852,6 +953,126 @@ def _verify_environment_wheels(
         contents = path.read_bytes()
         if len(contents) != lock.wheel_size_bytes or _bytes_digest(contents) != lock.wheel_digest:
             raise ContractError(f"environment wheel differs from its lock: {lock.package}")
+
+
+def _verify_activation_resources(root: Path, manifest: JobPackageManifest) -> None:
+    expected = {
+        resource.staged_path: resource
+        for activation in manifest.environment_activations
+        for resource in activation.resources.values()
+    }
+    resource_root = root / "environment-resources"
+    if not expected and not resource_root.exists():
+        return
+    if not resource_root.is_dir() or resource_root.is_symlink():
+        raise ContractError("job package activation resource directory is missing")
+    observed: set[str] = set()
+    for path in resource_root.rglob("*"):
+        if path.is_symlink() or (not path.is_dir() and not path.is_file()):
+            raise ContractError("job package activation resources contain a symlink or special file")
+        if path.is_file():
+            observed.add(path.relative_to(root).as_posix())
+    if observed != set(expected):
+        raise ContractError("job package activation resources differ from the manifest")
+    for staged_path, resource in expected.items():
+        path = _package_path(
+            root,
+            staged_path,
+            f"activation resource {resource.name}",
+            prefix="environment-resources",
+        )
+        contents = path.read_bytes()
+        if len(contents) != resource.size_bytes or _bytes_digest(contents) != resource.digest:
+            raise ContractError(f"activation resource differs from its lock: {resource.name}")
+
+
+def _resolve_environment_resources(
+    binding: EnvironmentBinding,
+    package: _VerifiedPackage,
+) -> EnvironmentBinding:
+    activation = binding.activation
+    if not isinstance(activation, VerifiersV1ConfigActivation):
+        return binding
+    locks = {item.environment_id: item for item in package.manifest.environment_activations}
+    try:
+        lock = locks[binding.id]
+    except KeyError as error:
+        raise ContractError(f"job package has no activation lock for environment {binding.id!r}") from error
+    resolved = _resolve_activation_value(activation.config, root=package.root, resources=lock.resources)
+    if not isinstance(resolved, Mapping):
+        raise AssertionError("environment activation config must remain an object")
+    return replace(
+        binding,
+        activation=VerifiersV1ConfigActivation(cast(Mapping[str, JsonValue], resolved)),
+    )
+
+
+def _qualify_activation(lock: object, root: Path) -> None:
+    """Construct one installed Verifiers environment and load its taskset offline."""
+
+    kind = getattr(lock, "kind", None)
+    if kind == "verifiers-config":
+        config = getattr(lock, "config", None)
+        resources = getattr(lock, "resources", None)
+        if not isinstance(config, Mapping) or not isinstance(resources, Mapping):
+            raise ContractError("environment activation lock is invalid")
+        resolved = _resolve_activation_value(config, root=root, resources=resources)
+        if not isinstance(resolved, Mapping):
+            raise ContractError("environment activation config must remain an object")
+        native = VerifiersV1ConfigActivation(cast(Mapping[str, JsonValue], resolved)).activate()
+    elif kind == "python-factory":
+        reference = getattr(lock, "reference", None)
+        if not isinstance(reference, str):
+            raise ContractError("environment factory activation lock is invalid")
+        native = PythonFactoryActivation(reference).activate()
+    else:
+        raise ContractError("environment activation kind is unsupported")
+    try:
+        from verifiers.v1.env import EnvConfig, Environment  # pyright: ignore[reportMissingImports]
+    except ImportError as error:
+        raise RuntimeError("install the Verifiers integration dependencies") from error
+    if isinstance(native, Environment):
+        environment = native
+    elif isinstance(native, EnvConfig):
+        environment = Environment(native)
+    else:
+        raise ContractError("environment activation did not produce a Verifiers EnvConfig")
+    if not isinstance(getattr(environment, "config", native), EnvConfig):
+        raise ContractError("environment activation did not produce a Verifiers EnvConfig")
+    taskset = getattr(environment, "taskset", None)
+    load = getattr(taskset, "load", None)
+    if not callable(load):
+        raise ContractError("Verifiers environment has no loadable taskset")
+    load()
+
+
+def _resolve_activation_value(
+    value: object,
+    *,
+    root: Path,
+    resources: Mapping[str, object],
+) -> object:
+    if isinstance(value, Mapping):
+        if "$resource" in value:
+            if set(value) != {"$resource"} or not isinstance(value["$resource"], str):
+                raise ContractError("activation resource references must be exactly { $resource: NAME }")
+            name = value["$resource"]
+            try:
+                resource = resources[name]
+            except KeyError as error:
+                raise ContractError(f"activation references undeclared resource {name!r}") from error
+            staged_path = getattr(resource, "staged_path", None)
+            if not isinstance(staged_path, str):
+                raise ContractError(f"activation resource lock is invalid: {name}")
+            return str(_package_path(root, staged_path, f"activation resource {name}", prefix="environment-resources"))
+        return {
+            str(key): _resolve_activation_value(child, root=root, resources=resources) for key, child in value.items()
+        }
+    if isinstance(value, list):
+        return [_resolve_activation_value(child, root=root, resources=resources) for child in value]
+    if isinstance(value, tuple):
+        return tuple(_resolve_activation_value(child, root=root, resources=resources) for child in value)
+    return value
 
 
 def _verify_datasets(
@@ -908,6 +1129,8 @@ def _verify_datasets(
             or (lock.num_records is not None and examples != lock.num_records)
         ):
             raise ContractError(f"packaged dataset manifest has invalid examples: {lock.seat_name}")
+        if validate_materialized_dataset(data_path) != examples:
+            raise ContractError(f"packaged dataset record count differs from its lock: {lock.seat_name}")
         verified[lock.seat_name] = (lock, dataset_manifest)
     return verified
 

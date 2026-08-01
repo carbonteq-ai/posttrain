@@ -13,18 +13,10 @@ distribution build successfully, clean Python 3.12 installation succeeds, the
 75-test compatibility suite passes, and a `carbonteq-v*` tag workflow is ready
 for PyPI Trusted Publishing.
 
-The distribution is not yet published. Keep the adapter's immutable Git
-dependency until the fork changes are committed, pushed, and accepted by PyPI.
-The packaging candidate is committed and pushed at
-`6e3c50209731c0b06c3bc6d3dbb30bc7fdf10a38`; it still requires review, merge,
-and registry publication through
-[`carbonteq-ai/AutomationBench#1`](https://github.com/carbonteq-ai/AutomationBench/pull/1).
-The PR merged as `908db2abd4a868acc37ab0850474bff653bea25c`, and the repository
-now has the `pypi` GitHub Actions environment used by the release workflow.
-After the PyPI pending publisher is configured and the release tag publishes
-successfully, replace the adapter's direct reference with the exact registry
-version, regenerate the environment and root locks, publish
-`automationbench-v1`, and only then publish the lab GPU post-training extra.
+The distribution is published on the internal stable index from merge revision
+`908db2abd4a868acc37ab0850474bff653bea25c`. The adapter depends on the exact
+registry version instead of repeating a transitive Git URL, so environment
+packing can resolve and hash the complete portable dependency closure.
 
 ## Selected revision
 

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import copy
+import re
+import tomllib
 from collections.abc import Mapping
 from contextlib import AbstractContextManager
 from importlib.metadata import entry_points
@@ -10,20 +13,30 @@ from importlib.resources import files as resource_files
 from pathlib import Path
 from typing import Any
 
-from posttrain.common import Catalog, CatalogLayer, CatalogRef
+from posttrain.common import Catalog, CatalogLayer, CatalogRef, ContractError
 from posttrain.common.catalog import SelectionDecoder
 from posttrain.common.selections import Selection, SelectionFamily
 from posttrain.data import DATA_CATALOG_DECODERS
-from posttrain.eval import (
+from posttrain.environment import (
     EnvironmentActivation,
     EnvironmentFactory,
     PythonFactoryActivation,
     VerifiersV1ConfigActivation,
+    environment_catalog_decoders,
+)
+from posttrain.eval import (
     evaluation_catalog_decoders,
 )
 from posttrain.eval.programs import GENERAL_ENVIRONMENT_ACTIVATIONS
 from posttrain.train import TRAIN_CATALOG_DECODERS
 
+from .families import (
+    CatalogFamilyDescriptor,
+    FamilyRegistry,
+    FamilyRegistryLock,
+    FamilyRegistryLockEntry,
+    core_catalog_family_descriptors,
+)
 from .files import (
     CatalogDocumentSchema,
     CatalogLayerManifestSchema,
@@ -92,11 +105,26 @@ def catalog_decoders(
 ) -> Mapping[SelectionFamily, SelectionDecoder]:
     """Return decoders for every selection family in the framework base."""
 
-    return {
+    return family_registry(environment_factories=environment_factories).decoders()
+
+
+def family_registry(
+    *,
+    environment_factories: Mapping[str, Any] | None = None,
+    entry_point_values: tuple[Any, ...] | None = None,
+) -> FamilyRegistry:
+    """Compose core families and installed extension descriptors deterministically."""
+
+    decoders: Mapping[SelectionFamily, SelectionDecoder] = {
         **DATA_CATALOG_DECODERS,
-        **evaluation_catalog_decoders(environment_factory_registry(environment_factories)),
+        **environment_catalog_decoders(environment_factory_registry(environment_factories)),
+        **evaluation_catalog_decoders(),
         **TRAIN_CATALOG_DECODERS,
     }
+    return FamilyRegistry.compose(
+        core_catalog_family_descriptors(decoders),
+        entry_point_values,
+    )
 
 
 def packaged_base_directory() -> AbstractContextManager[Path]:
@@ -116,14 +144,59 @@ def _load_framework_base(
     directory: Path,
     *,
     decoders: Mapping[SelectionFamily, SelectionDecoder] | None = None,
+    registry: FamilyRegistry | None = None,
 ) -> CatalogLayer:
+    source = _resolve_base_dependency_locks(load_catalog_layer(directory), directory)
+    if registry is not None:
+        registry.require_families(name for name in source if name != "layer_id")
     file_catalog = Catalog.open(
-        load_catalog_layer(directory),
+        source,
         scope="framework",
         decoders=catalog_decoders() if decoders is None else decoders,
     )
     entries: dict[CatalogRef, Selection] = {ref: file_catalog.resolve(ref).value for ref in file_catalog.list()}
     return CatalogLayer(BASE_CATALOG_RELEASE, entries)
+
+
+def _resolve_base_dependency_locks(
+    source: Mapping[str, object],
+    directory: Path,
+) -> Mapping[str, object]:
+    """Expand compact catalog lock references into immutable runtime facts."""
+
+    lock_path = directory / "locks.toml"
+    try:
+        document = tomllib.loads(lock_path.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError) as error:
+        raise ContractError(f"framework dependency lock table is invalid: {error}") from error
+    if document.get("schema_version") != 1 or not isinstance(document.get("locks"), dict):
+        raise ContractError("framework dependency lock table requires schema_version 1 and a locks table")
+    locks = document["locks"]
+    resolved = copy.deepcopy(dict(source))
+    training = resolved.get("training")
+    if not isinstance(training, dict):
+        return resolved
+    for selection_id, raw_selection in training.items():
+        if not isinstance(raw_selection, dict):
+            continue
+        options = raw_selection.get("backend_options")
+        if not isinstance(options, dict) or "dependency_lock" not in options:
+            continue
+        lock_id = options["dependency_lock"]
+        lock = locks.get(lock_id) if isinstance(lock_id, str) else None
+        if not isinstance(lock, dict):
+            raise ContractError(f"training selection {selection_id!r} references unknown dependency lock {lock_id!r}")
+        revision = lock.get("source_revision")
+        digest = lock.get("dependency_lock_sha256")
+        if not isinstance(revision, str) or re.fullmatch(r"[0-9a-f]{40}", revision) is None:
+            raise ContractError(f"dependency lock {lock_id!r} has an invalid source revision")
+        if not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+            raise ContractError(f"dependency lock {lock_id!r} has an invalid SHA-256 digest")
+        if "source_revision" in options or "dependency_lock_sha256" in options:
+            raise ContractError(f"training selection {selection_id!r} mixes a lock reference with expanded lock facts")
+        options["source_revision"] = revision
+        options["dependency_lock_sha256"] = digest
+    return resolved
 
 
 def open_catalog(
@@ -132,9 +205,13 @@ def open_catalog(
     overlays: tuple[Mapping[str, object] | Path, ...] = (),
     catalog_root: Path | None = None,
     environment_factories: Mapping[str, Any] | None = None,
+    registry: FamilyRegistry | None = None,
+    required_plugin_distributions: tuple[str, ...] = (),
 ) -> Catalog:
     """Open the packaged framework base plus project overlay directories."""
 
+    resolved_registry = registry or family_registry(environment_factories=environment_factories)
+    resolved_registry.require_distributions(required_plugin_distributions)
     sources: list[Mapping[str, object]] = []
     if catalog_root is not None:
         project_directory = catalog_root / "projects" / scope.replace("/", "__")
@@ -142,18 +219,21 @@ def open_catalog(
             sources.append(load_catalog_layer(project_directory))
     for source in overlays:
         sources.append(load_catalog_layer(source) if isinstance(source, Path) else source)
-    decoders = catalog_decoders(environment_factories=environment_factories)
+    for source in sources:
+        resolved_registry.require_families(name for name in source if name != "layer_id")
+    decoders = resolved_registry.decoders()
     base_directory: Path | None = catalog_root / "base" if catalog_root is not None else None
     if base_directory is None:
         with packaged_base_directory() as directory:
-            base_layer = _load_framework_base(directory, decoders=decoders)
+            base_layer = _load_framework_base(directory, decoders=decoders, registry=resolved_registry)
     else:
-        base_layer = _load_framework_base(base_directory, decoders=decoders)
+        base_layer = _load_framework_base(base_directory, decoders=decoders, registry=resolved_registry)
     return Catalog.open(
         base_layer,
         overlays=sources,
         scope=scope,
         decoders=decoders,
+        family_registry_lock=resolved_registry.lock,
     )
 
 
@@ -161,9 +241,14 @@ __all__ = [
     "BASE_CATALOG_RELEASE",
     "CatalogDocumentSchema",
     "CatalogLayerManifestSchema",
+    "CatalogFamilyDescriptor",
+    "FamilyRegistry",
+    "FamilyRegistryLock",
+    "FamilyRegistryLockEntry",
     "ProjectLayout",
     "ProjectExecutionDefaults",
     "catalog_decoders",
+    "family_registry",
     "discover_project",
     "environment_factory_registry",
     "load_catalog_layer",

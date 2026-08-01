@@ -21,7 +21,7 @@ from .execution_config import (
     REGISTRY_ENVIRONMENT_VARIABLE,
     TRUST_BUNDLE_ENVIRONMENT_VARIABLE,
     WELL_KNOWN_TRUST_BUNDLE,
-    configured_registry_prefix,
+    load_execution_environment,
     load_local_execution_config,
     resolve_trust_bundle,
 )
@@ -57,13 +57,13 @@ def registry_check(state: CliState) -> Check:
         return Check(
             "registry",
             "warn",
-            f"not configured; set {REGISTRY_ENVIRONMENT_VARIABLE} to an OCI registry "
-            "prefix before submitting jobs (validation works without it)",
+            f"not configured; set {REGISTRY_ENVIRONMENT_VARIABLE} in the protected "
+            "project environment file before submitting jobs (validation works without it)",
         )
 
     source = (
-        f"{REGISTRY_ENVIRONMENT_VARIABLE}={configured_registry_prefix()}"
-        if configured_registry_prefix() is not None
+        "project environment file"
+        if REGISTRY_ENVIRONMENT_VARIABLE in load_execution_environment(configuration)
         else "execution configuration"
     )
     return Check("registry", "ok", f"{configuration.registry.repository} (from {source})")

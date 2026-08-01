@@ -97,6 +97,8 @@ class DockerCli:
                 arguments.extend(("--env", f"{key}={value}"))
             for volume in cast_sequence(payload.get("volumes")):
                 arguments.extend(("--volume", str(volume)))
+            for dns_server in cast_sequence(payload.get("dns_servers")):
+                arguments.extend(("--dns", str(dns_server)))
             if bool(payload.get("gpu")):
                 arguments.extend(("--gpus", "all"))
             command = tuple(str(value) for value in cast_sequence(payload.get("command")))
@@ -175,6 +177,7 @@ class LocalDockerExecutionProvider:
         *,
         state_root: Path,
         environment: Mapping[str, str] | None = None,
+        dns_servers: Sequence[str] = (),
         trust_bundle: Path | None = None,
     ) -> None:
         self._environment = dict(os.environ)
@@ -182,6 +185,7 @@ class LocalDockerExecutionProvider:
             self._environment.update(environment)
         self._gateway = gateway or DockerCli(environment=self._environment)
         self._state_root = state_root.resolve()
+        self._dns_servers = tuple(dns_servers)
         self._trust_bundle = trust_bundle.expanduser().resolve() if trust_bundle is not None else None
 
     def _cancel_marker(self, provider_id: str) -> Path:
@@ -211,6 +215,7 @@ class LocalDockerExecutionProvider:
             "environment_names": list(request.environment_names),
             "launch_environment": self._launch_environment(request),
             "volumes": self._volumes(request),
+            "dns_servers": list(self._dns_servers),
             "labels": {
                 "posttrain.run_id": request.run_spec.run_id,
                 "posttrain.attempt": str(request.attempt),

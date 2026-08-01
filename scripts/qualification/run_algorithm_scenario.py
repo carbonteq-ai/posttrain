@@ -30,11 +30,11 @@ from posttrain.execution import (  # noqa: E402
 )
 from posttrain.tracking import RunSpec  # noqa: E402
 from posttrain_execution_dstack import DstackExecutionProvider  # noqa: E402
-
-from scripts.qualification.algorithm_scenarios import (  # noqa: E402
+from posttrain_lab.qualification.scenarios import (  # noqa: E402
     QualificationScenario,
     scenario_by_id,
 )
+
 from scripts.qualification.validate_algorithm_run import (  # noqa: E402
     RemoteAlgorithmEvidence,
     collect_remote_evidence,
@@ -260,7 +260,7 @@ def _run_dstack(
     )
     launch = replace(launch, command=command)
     run_spec = RunSpec(
-        project_id="foundation-models",
+        project_id="posttrain-lab",
         work_package_id=(f"train/qwen3.5-0.8b/{scenario.environment_ref}-qualification"),
         stage="train",
         run_id=launch.run_id,
@@ -382,7 +382,7 @@ def _run_dstack(
     evidence = asyncio.run(
         collect_remote_evidence(
             run_id=launch.run_id,
-            project="foundation-models",
+            project="posttrain-lab",
             server_url=trackio_url,
         )
     )

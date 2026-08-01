@@ -71,10 +71,13 @@ def _validate_definition() -> None:
     bake = (HERE / "docker-bake.hcl").read_text(encoding="utf-8")
     for required in (
         "ARG POSTTRAIN_KIND_IMAGE",
+        "ARG ALLOW_DEFERRED_QUALIFICATION",
         "FROM ${POSTTRAIN_KIND_IMAGE} AS runtime",
         "COPY --from=job-context",
         "--require-hashes",
         "--no-build-isolation",
+        "--no-sources",
+        "--allow-deferred",
         "[tool.uv.workspace]",
         "code workspace members must be non-empty and unique",
         'test -x "${VIRTUAL_ENV}/bin/python"',
@@ -85,10 +88,12 @@ def _validate_definition() -> None:
         "posttrain.train.backends.verl.worker",
         'ENTRYPOINT ["posttrain-runtime"]',
         'CMD ["execute", "--manifest", "/opt/posttrain/job/package.json"]',
+        "posttrain-runtime qualify --timeout-seconds 60 --manifest /opt/posttrain/job/package.json",
         "ARG RUNTIME_DEPENDENCIES_DIGEST",
         "ARG CODE_REQUIREMENTS_DIGEST",
         "ARG RESOLVED_CONFIG_DIGEST",
         "ARG RUNTIME_VARIANT",
+        "ARG PYTHON_INDEX_URL",
     ):
         _require(required in dockerfile, f"Dockerfile is missing {required}")
     runtime_lock_copy = "COPY --from=job-context /locks/ locks/"
@@ -138,8 +143,10 @@ def _validate_definition() -> None:
 
 def _validate_tree(root: Path) -> None:
     _require(root.is_dir(), f"staged context is not a directory: {root}")
+    observed_top_level = {path.name for path in root.iterdir()}
     _require(
-        {path.name for path in root.iterdir()} == EXPECTED_TOP_LEVEL,
+        observed_top_level
+        in {frozenset(EXPECTED_TOP_LEVEL), frozenset((*EXPECTED_TOP_LEVEL, "environment-resources"))},
         "staged context top-level layout differs from the contract",
     )
     for relative in REQUIRED_PATHS:

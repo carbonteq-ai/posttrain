@@ -107,10 +107,10 @@ uv pip install --python .venv/bin/python \
 ```
 
 Install `posttrain-lab` from the same wheelhouse when a project needs the
-reference composition host. The bundled constraints repeat the immutable
-Trackio and AutomationBench Git URLs because uv requires transitive URL
-dependencies to be declared by the consumer. A release remains reproducible
-because the framework tag, wheel hashes, and fork commits are immutable.
+reference composition host. Published Trackio and AutomationBench forks resolve
+through the internal index; the bundled constraints retain only dependencies
+that still require immutable Git URLs. A release remains reproducible because
+the framework tag, wheel hashes, and remaining fork commits are immutable.
 
 For framework development or a complete reference checkout, clone the exact
 tag and use the checked-in lock:

@@ -188,7 +188,7 @@ def register(app: typer.Typer) -> None:
             to_key=to_key,
         )
 
-    @job_app.command("pack", help="materialize and publish one actual-job OCI image")
+    @job_app.command("pack", help="materialize one registry image or local OCI layout")
     def job_pack_cmd(
         ctx: typer.Context,
         path: Annotated[
@@ -214,6 +214,13 @@ def register(app: typer.Typer) -> None:
             typer.Option(
                 "--runtime-profile",
                 help="override the selected job-kind runtime profile",
+            ),
+        ] = None,
+        registry: Annotated[
+            str | None,
+            typer.Option(
+                "--registry",
+                help="override the project job-image registry prefix for this invocation",
             ),
         ] = None,
         host: Annotated[
@@ -254,6 +261,27 @@ def register(app: typer.Typer) -> None:
                 help="rebuild absent or drifted job-kind images from the shipped definitions",
             ),
         ] = False,
+        local: Annotated[
+            bool,
+            typer.Option(
+                "--local",
+                help="export a verified local OCI layout without publishing to a registry",
+            ),
+        ] = False,
+        framework_wheelhouse: Annotated[
+            Path | None,
+            typer.Option(
+                "--framework-wheelhouse",
+                help="use exact local framework wheels instead of downloading them from the configured index",
+            ),
+        ] = None,
+        allow_deferred_qualification: Annotated[
+            bool,
+            typer.Option(
+                "--allow-deferred-qualification",
+                help="waive offline Taskset.load for environments explicitly marked deferred",
+            ),
+        ] = False,
     ) -> None:
         state: CliState = ctx.obj
         pack_work_package_cmd(
@@ -263,12 +291,16 @@ def register(app: typer.Typer) -> None:
             overrides=PackageOverrides(
                 target=target,
                 runtime_profile=runtime_profile,
+                registry_prefix=registry,
             ),
             host=host,
             entry=entry,
             project_packages=(tuple(project_packages) if project_packages is not None else None),
             source_includes=(tuple(source_includes) if source_includes is not None else None),
             build_missing=build_missing,
+            local=local,
+            framework_wheelhouse=framework_wheelhouse,
+            allow_deferred_qualification=allow_deferred_qualification,
         )
 
     @job_app.command("run", help="pack if needed and submit one selected job")
@@ -304,6 +336,13 @@ def register(app: typer.Typer) -> None:
             typer.Option(
                 "--runtime-profile",
                 help="override the selected job-kind runtime profile",
+            ),
+        ] = None,
+        registry: Annotated[
+            str | None,
+            typer.Option(
+                "--registry",
+                help="override the project job-image registry prefix for this invocation",
             ),
         ] = None,
         timeout_seconds: Annotated[
@@ -386,6 +425,20 @@ def register(app: typer.Typer) -> None:
                 help="rebuild absent or drifted job-kind images from the shipped definitions",
             ),
         ] = False,
+        framework_wheelhouse: Annotated[
+            Path | None,
+            typer.Option(
+                "--framework-wheelhouse",
+                help="use exact local framework wheels instead of downloading them from the configured index",
+            ),
+        ] = None,
+        allow_deferred_qualification: Annotated[
+            bool,
+            typer.Option(
+                "--allow-deferred-qualification",
+                help="waive offline Taskset.load for environments explicitly marked deferred",
+            ),
+        ] = False,
     ) -> None:
         state: CliState = ctx.obj
         run_work_package_cmd(
@@ -404,8 +457,11 @@ def register(app: typer.Typer) -> None:
                 priority=priority,
                 environment_names=environment_names,
             ),
+            registry_prefix=registry,
             run_id=run_id,
             project_packages=(tuple(project_packages) if project_packages is not None else None),
             source_includes=(tuple(source_includes) if source_includes is not None else None),
             build_missing=build_missing,
+            framework_wheelhouse=framework_wheelhouse,
+            allow_deferred_qualification=allow_deferred_qualification,
         )

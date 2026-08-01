@@ -4,6 +4,56 @@ All notable changes to Posttrain are documented here. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with a coordinated
 version across first-party distributions.
 
+## 0.3.0 - 2026-08-01
+
+This release starts the project-owned developer-experience redesign. Static
+job meaning, execution configuration, catalog composition, environment source,
+and image publication are now separated so projects can be planned and packed
+without silently inheriting the submitting shell or a provider connection.
+
+### Added
+
+- Installable `posttrain-project` and `posttrain-environment` packages with
+  public project discovery, provider-free job intents, execution-setting
+  provenance, portable environment activation contracts, and project-path
+  environment sources.
+- Deterministic catalog-family discovery through entry points. Resolved family
+  provenance is locked into package identity; duplicate, absent, or undeclared
+  providers fail before catalog decoding.
+- Local OCI job-image export, selected transitive catalog closure staging,
+  project environment scaffolding, and declared dataset builders with
+  input-sensitive cache identity.
+- Runtime qualification for staged activation resources, taskset loading, and
+  frozen JSONL datasets before an actual job image is published.
+- Manifest-only release preparation, release-neutral workspace metadata,
+  staged static wheel metadata, and a single generated catalog dependency-lock
+  table through `posttrain-release`.
+- Durable project/control and provider locators, a foreground lifecycle
+  controller, joined run views, and safe state migration/cache classification.
+
+### Changed
+
+- Project-root `posttrain.env` is loaded automatically and authoritatively;
+  ambient shell variables no longer override project runtime configuration.
+- `posttrain job plan` reports provider-free job intent. Publication and
+  launch settings are selected by `job pack` and `job run` respectively.
+- Read-only `--last` resolution is strictly chronological. Mutating run
+  commands require the complete canonical run id.
+- Machine defaults can configure local-container DNS without placing machine
+  topology in project configuration. Managed inference bindings carry a
+  versioned startup budget that is retained in resolved run evidence.
+
+### Release qualification
+
+- An external consumer installed all 24 coordinated 0.3.0 framework wheels.
+  The Lab data-preparation gate and managed Qwen 3.5 2B GSM8K evaluation both
+  executed from packed immutable images, reconciled provider exit 0 against
+  retained Trackio artifacts, and reported complete required telemetry.
+- The bounded evaluation synchronized both native Verifiers traces: 2/2
+  completed successfully with mean reward 1.0 and no failed or truncated
+  rollouts. Its resolved evidence records the 600-second managed-inference
+  startup budget used to cover cold model/kernel initialization.
+
 ## 0.2.5 - 2026-07-31
 
 This patch hardens high-concurrency native Verifiers GRPO and makes

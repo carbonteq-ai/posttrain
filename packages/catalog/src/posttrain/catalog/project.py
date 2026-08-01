@@ -18,6 +18,7 @@ _CONTROL_DIRECTORY = ".posttrain"
 _MANIFEST = "project.toml"
 _PROJECT_ROOT_ENV = "POSTTRAIN_PROJECT_ROOT"
 _PROVIDER = re.compile(r"^[a-z][a-z0-9-]*$")
+_DISTRIBUTION = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*(?:[<>=!~ ].*)?$")
 
 
 class _ExecutionDefaultsManifest(BaseModel):
@@ -55,6 +56,21 @@ class _ExecutionDefaultsManifest(BaseModel):
         return values
 
 
+class _CatalogPluginsManifest(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    required: tuple[str, ...] = ()
+
+    @field_validator("required")
+    @classmethod
+    def _validate_required(cls, values: tuple[str, ...]) -> tuple[str, ...]:
+        if len(set(values)) != len(values):
+            raise ValueError("required catalog plugins must be unique")
+        if any(not _DISTRIBUTION.fullmatch(value) for value in values):
+            raise ValueError("required catalog plugins must be distribution requirements")
+        return values
+
+
 class _ProjectManifest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -67,6 +83,7 @@ class _ProjectManifest(BaseModel):
     entry: str | None = None
     project_brief: str | None = None
     execution: _ExecutionDefaultsManifest = _ExecutionDefaultsManifest()
+    catalog_plugins: _CatalogPluginsManifest = _CatalogPluginsManifest()
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,6 +115,7 @@ class ProjectLayout:
     entry: str | None = None
     base_catalog: Path | None = None
     execution: ProjectExecutionDefaults = ProjectExecutionDefaults()
+    catalog_plugin_requirements: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         validate_selection_id(self.project_id, "project id")
@@ -112,6 +130,8 @@ class ProjectLayout:
             raise ContractError("project layout project brief path must be absolute")
         if self.entry is not None:
             _validate_entry(self.entry)
+        if len(set(self.catalog_plugin_requirements)) != len(self.catalog_plugin_requirements):
+            raise ContractError("project catalog plugin requirements must be unique")
 
     @classmethod
     def legacy(cls, repository: Path, project_id: str) -> ProjectLayout:
@@ -226,6 +246,7 @@ def load_project_layout(root: Path) -> ProjectLayout:
             priority=manifest.execution.priority,
             environment_names=manifest.execution.environment_names,
         ),
+        catalog_plugin_requirements=manifest.catalog_plugins.required,
     )
 
 

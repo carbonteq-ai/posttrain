@@ -60,20 +60,6 @@ _JOB_KINDS = frozenset(
         "model.transform",
     }
 )
-_SELECTION_FAMILIES = frozenset(
-    {
-        "model",
-        "dataset",
-        "environment",
-        "inference",
-        "training",
-        "quantization",
-        "evaluation",
-        "workload",
-        "target",
-        "recipe",
-    }
-)
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,8 +92,8 @@ class Recipe:
             raise ContractError(f"unsupported recipe stage: {self.stage!r}")
         if not self.seats or any(not name.strip() for name in self.seats):
             raise ContractError("recipes require named seats")
-        if any(family not in _SELECTION_FAMILIES for family in self.seats.values()):
-            raise ContractError("recipe seats require known selection families")
+        if any(not isinstance(family, str) or not family.strip() for family in self.seats.values()):
+            raise ContractError("recipe seats require named selection families")
         if not self.jobs or len({job.id for job in self.jobs}) != len(self.jobs):
             raise ContractError("recipes require unique jobs")
         if any(not artifact.strip() for artifact in self.expected_artifacts):

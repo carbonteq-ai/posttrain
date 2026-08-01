@@ -17,6 +17,7 @@ from posttrain.execution_pack import (
     MaterializedEnvironmentPackage,
     MaterializedEnvironments,
     MaterializedRuntimeDependency,
+    ProjectEnvironmentSourceRequest,
 )
 
 from .environment_dependencies import (
@@ -25,7 +26,9 @@ from .environment_dependencies import (
     KindDependencyConstraints,
 )
 from .environment_wheels import (
+    EnvironmentWheelLock,
     ImmutableEnvironmentWheelBuilder,
+    MaterializedEnvironmentWheels,
     WheelBuildGateway,
 )
 from .git_sources import GitGateway, ImmutableGitSourcePacker
@@ -104,6 +107,8 @@ class ImmutableEnvironmentPackager:
         *,
         git_sources: tuple[GitSourceRequest, ...],
         wheel_requests: tuple[EnvironmentWheelRequest, ...],
+        project_sources: Mapping[str, Path] = {},
+        project_requests: tuple[ProjectEnvironmentSourceRequest, ...] = (),
         kind_profile: str,
         output_root: Path,
     ) -> MaterializedEnvironments:
@@ -114,8 +119,8 @@ class ImmutableEnvironmentPackager:
         constraints = self._kind_constraints.get(kind_profile)
         if constraints is None:
             raise ContractError(f"environment package kind profile has no exact constraints: {kind_profile}")
-        if not git_sources or not wheel_requests:
-            raise ContractError("environment packaging requires Git sources and wheel requests")
+        if not wheel_requests and not project_requests:
+            raise ContractError("environment packaging requires at least one selected source")
         output = output_root.resolve()
         for cache in (
             self._cache_roots.git_sources.resolve(),
@@ -129,8 +134,23 @@ class ImmutableEnvironmentPackager:
         # The service owns this per-pack work root. Persistent, content-addressed
         # source/wheel/dependency outputs live in the explicitly configured caches.
         output_root.mkdir(parents=True, exist_ok=True)
-        sources = self._source_packer.materialize(git_sources)
-        wheels = self._wheel_builder.build(sources, wheel_requests)
+        git_wheels = ()
+        if git_sources:
+            sources = self._source_packer.materialize(git_sources)
+            git_wheels = self._wheel_builder.build(sources, wheel_requests).wheels
+        elif wheel_requests:
+            raise ContractError("environment wheel requests require their Git sources")
+        project_wheels = (
+            self._wheel_builder.build_project_sources(project_sources, project_requests).wheels
+            if project_requests
+            else ()
+        )
+        wheels = MaterializedEnvironmentWheels(
+            wheels=tuple(sorted((*git_wheels, *project_wheels), key=lambda item: item.lock.package)),
+            lock=EnvironmentWheelLock(
+                tuple(item.lock for item in sorted((*git_wheels, *project_wheels), key=lambda item: item.lock.package))
+            ),
+        )
         closures = _runtime_closure_constraints(
             constraints,
             self._backend_kind_constraints.get(kind_profile),
@@ -149,6 +169,8 @@ class ImmutableEnvironmentPackager:
                     wheel_filename=wheel.lock.wheel_filename,
                     wheel_digest=wheel.lock.wheel_sha256,
                     wheel_size_bytes=wheel.lock.wheel_size_bytes,
+                    source_kind=cast(Literal["git", "project-path"], wheel.lock.source_kind),
+                    project_path=wheel.lock.project_path,
                 ),
             )
             for wheel in wheels.wheels

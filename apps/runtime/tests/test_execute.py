@@ -3,11 +3,15 @@ from __future__ import annotations
 import hashlib
 import json
 import signal
+import sys
+import time
 from collections.abc import Mapping
 from dataclasses import replace
 from datetime import datetime
 from functools import partial
 from pathlib import Path
+from types import ModuleType, SimpleNamespace
+from typing import cast
 
 import pytest
 from posttrain.catalog import open_catalog
@@ -15,6 +19,7 @@ from posttrain.common import (
     CatalogRef,
     ContractError,
     ExecutionTarget,
+    JsonValue,
     LocalArtifactRef,
 )
 from posttrain.data import (
@@ -23,6 +28,7 @@ from posttrain.data import (
 )
 from posttrain.execution import (
     DatasetPackageLock,
+    EnvironmentActivationLock,
     EnvironmentPackageLock,
     JobPackageManifest,
     RuntimeImageRef,
@@ -36,8 +42,108 @@ from posttrain.work import (
     override_job_execution_target,
     prepare_work_package_job,
 )
-from posttrain_runtime import execute_manifest
-from posttrain_runtime.execute import _project_config_digest, _tree_digest
+from posttrain_runtime import execute_manifest, qualify_manifest
+from posttrain_runtime.execute import _project_config_digest, _qualification_timeout, _qualify_activation, _tree_digest
+
+
+def test_qualification_loads_each_verifiers_taskset_offline(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    loaded: list[dict[str, object]] = []
+
+    class EnvConfig:
+        def __init__(self, payload: dict[str, object]) -> None:
+            self.payload = payload
+
+        @classmethod
+        def model_validate(cls, value: dict[str, object]) -> EnvConfig:
+            return cls(value)
+
+    class Environment:
+        def __init__(self, config: EnvConfig) -> None:
+            self.config = config
+            self.taskset = type("Taskset", (), {"load": lambda _self: loaded.append(config.payload)})()
+
+    verifiers = ModuleType("verifiers")
+    v1 = ModuleType("verifiers.v1")
+    env = ModuleType("verifiers.v1.env")
+    env.__dict__["EnvConfig"] = EnvConfig
+    env.__dict__["Environment"] = Environment
+    monkeypatch.setitem(sys.modules, "verifiers", verifiers)
+    monkeypatch.setitem(sys.modules, "verifiers.v1", v1)
+    monkeypatch.setitem(sys.modules, "verifiers.v1.env", env)
+    config = cast(Mapping[str, JsonValue], {"taskset": {"id": "offline"}})
+    lock = EnvironmentActivationLock(
+        environment_id="offline",
+        package="offline-env",
+        kind="verifiers-config",
+        digest=hashlib.sha256(
+            json.dumps({"kind": "verifiers-config", "config": config}, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest(),
+        config=config,
+    )
+
+    _qualify_activation(lock, tmp_path)
+
+    assert loaded == [config]
+
+
+def test_qualification_rejects_a_factory_result_that_is_not_a_verifiers_config(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class EnvConfig:
+        pass
+
+    class Environment:
+        def __init__(self, config: EnvConfig) -> None:
+            self.config = config
+
+    env = ModuleType("verifiers.v1.env")
+    env.__dict__["EnvConfig"] = EnvConfig
+    env.__dict__["Environment"] = Environment
+    monkeypatch.setitem(sys.modules, "verifiers.v1.env", env)
+    monkeypatch.setattr(
+        "posttrain_runtime.execute.PythonFactoryActivation",
+        lambda _reference: SimpleNamespace(activate=lambda: object()),
+    )
+    lock = SimpleNamespace(kind="python-factory", reference="example:environment")
+
+    with pytest.raises(ContractError, match="did not produce a Verifiers EnvConfig"):
+        _qualify_activation(lock, tmp_path)
+
+
+def test_qualification_timeout_names_the_blocked_environment() -> None:
+    with pytest.raises(TimeoutError, match="stuck"):
+        with _qualification_timeout(0.01, "stuck"):
+            time.sleep(0.1)
+
+
+def test_deferred_qualification_requires_a_waiver_and_skips_taskset_load(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    required = SimpleNamespace(environment_id="offline", qualification="required")
+    deferred = SimpleNamespace(environment_id="network-backed", qualification="deferred")
+    package = SimpleNamespace(
+        root=tmp_path,
+        manifest=SimpleNamespace(environment_activations=(required, deferred)),
+        datasets={"dataset": object()},
+    )
+    loaded: list[str] = []
+    monkeypatch.setattr("posttrain_runtime.execute._verify_package", lambda _path: package)
+    monkeypatch.setattr(
+        "posttrain_runtime.execute._qualify_activation",
+        lambda lock, _root: loaded.append(lock.environment_id),
+    )
+
+    with pytest.raises(ContractError, match="explicit waiver"):
+        qualify_manifest(tmp_path / "package.json")
+
+    loaded.clear()
+    result = qualify_manifest(tmp_path / "package.json", allow_deferred=True)
+
+    assert loaded == ["offline"]
+    assert result.environment_ids == ("offline",)
+    assert result.deferred_environment_ids == ("network-backed",)
+    assert result.dataset_seats == ("dataset",)
 
 
 def _project(

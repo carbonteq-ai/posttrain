@@ -38,6 +38,11 @@ JOB_BAKE_FILE = JOB_DEFINITION / "docker-bake.hcl"
 
 WORKSPACE_LOCK = KIND_DEFINITION / "locks" / "workspace.lock.txt"
 TRANSFORM_LOCK = KIND_DEFINITION / "locks" / "transform.lock.txt"
+VERL_BACKEND_LOCK = KIND_DEFINITION / "verl-py313" / "release" / "backend-constraints.txt"
+
+_BACKEND_CONSTRAINT_LOCKS = {
+    "online-rl-verl-py313": VERL_BACKEND_LOCK,
+}
 
 
 @contextmanager
@@ -82,6 +87,13 @@ def constraint_lock(variant: str) -> PurePosixPath:
     return TRANSFORM_LOCK if variant == "transform" else WORKSPACE_LOCK
 
 
+def backend_constraint_lock(variant: str) -> PurePosixPath | None:
+    """Return the separately locked backend environment for ``variant``."""
+    if variant not in RUNTIME_VARIANTS:
+        raise ValueError(f"unknown runtime variant: {variant!r}")
+    return _BACKEND_CONSTRAINT_LOCKS.get(variant)
+
+
 def read_resource(relative: PurePosixPath) -> bytes:
     """Read one shipped file without extracting the whole definition tree."""
     resource = resource_files("posttrain.runtime_images")
@@ -115,8 +127,10 @@ __all__ = [
     "KIND_DEFINITION",
     "RUNTIME_VARIANTS",
     "TRANSFORM_LOCK",
+    "VERL_BACKEND_LOCK",
     "WORKSPACE_LOCK",
     "cached_definition_root",
+    "backend_constraint_lock",
     "constraint_lock",
     "definition_root",
     "lock_digest",

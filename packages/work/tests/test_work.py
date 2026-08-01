@@ -9,9 +9,11 @@ from posttrain.common import (
     CatalogLayer,
     CatalogRef,
     ExecutionTarget,
+    InferenceBinding,
     PublishedArtifact,
     StoredArtifactRef,
 )
+from posttrain.common.variants import QWEN_35_2B
 from posttrain.work import (
     FinalizedRunResult,
     JobDefinition,
@@ -24,6 +26,7 @@ from posttrain.work import (
     run_work_package_job,
     validate_work_package,
 )
+from posttrain.work.runner import _selection_details
 
 
 def _fixture(path: Path) -> None:
@@ -181,6 +184,24 @@ def test_run_snapshot_includes_project_brief_and_digest(tmp_path: Path) -> None:
     snapshot = specs[0].resolved_inputs["project_brief"]
     assert snapshot["objective"] == brief.objective  # type: ignore[index]
     assert isinstance(snapshot["digest"], str)  # type: ignore[index]
+
+
+def test_inference_snapshot_includes_startup_timeout() -> None:
+    target = ExecutionTarget("targets/local-cuda-8gb", "1", "nvidia-cuda", memory_gb=8)
+    binding = InferenceBinding(
+        id="inference/qwen3.5-2b-vllm-eval@2",
+        revision="2",
+        model=QWEN_35_2B,
+        backend="vllm@0.25.1",
+        renderer=QWEN_35_2B.renderer.id,
+        engine={},
+        sampling={},
+        target=target,
+        purpose=("eval",),
+        startup_timeout_seconds=600,
+    )
+
+    assert _selection_details(binding)["startup_timeout_seconds"] == 600
 
 
 def test_work_package_exposes_published_artifacts_without_wrapping_value(

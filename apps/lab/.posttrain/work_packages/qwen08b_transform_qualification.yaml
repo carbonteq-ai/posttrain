@@ -1,0 +1,39 @@
+project_id: posttrain-lab
+work_package_id: qualify/qwen3.5-0.8b-rtn-w4a16
+stage: screen
+description: Materialize and reload-validate a bounded Qwen 3.5 0.8B RTN W4A16 derived model on the RTX PRO 6000 worker.
+recipe:
+  type: inline
+  id: recipes/qwen3.5-0.8b-rtn-w4a16@1
+  revision: "1"
+  stage: screen
+  seats:
+    model: model
+    quantization: quantization
+    target: target
+  jobs:
+    - id: transform
+      kind: model.transform
+      definition: model/llm-compressor@2
+  expected_artifacts:
+    - model
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/qwen3.5-0.8b@bf16
+  quantization:
+    type: ref
+    family: quantization
+    id: qwen3.5-0.8b/rtn-w4a16-qualification@1
+  target:
+    type: ref
+    family: target
+    id: targets/carbonteq-rtx-pro-6000-96gb
+enabled_optional_jobs: []
+metadata:
+  question: Can the framework produce a reloadable compact W4A16 Qwen 3.5 0.8B child variant through the immutable transform capsule?
+  labels:
+    - qualification
+    - model-transform
+    - rtn

@@ -48,7 +48,7 @@ def _selection[SelectionT: Selection](
     return value
 
 
-_REFERENCE_CATALOG = open_catalog(scope="foundation-models")
+_REFERENCE_CATALOG = open_catalog(scope="posttrain-lab")
 AUTOMATIONBENCH_ZAPIER_GRPO = _selection(
     _REFERENCE_CATALOG,
     CatalogRef("environment", "automationbench-zapier-simple-grpo"),
@@ -86,7 +86,7 @@ QWEN_SCREEN_VLLM = _selection(
 )
 QWEN_EVAL_VLLM = _selection(
     _REFERENCE_CATALOG,
-    CatalogRef("inference", "inference/qwen3.5-2b-vllm-eval@1"),
+    CatalogRef("inference", "inference/qwen3.5-2b-vllm-eval@2"),
     InferenceBinding,
 )
 QWEN_GRPO_VLLM = _selection(

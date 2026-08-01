@@ -1,19 +1,20 @@
 [project]
 name = "posttrain-tracking-trackio"
-version = "0.2.5"
+version = "0.0.0"
 description = "Trackio tracking backend for posttrain"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-    "posttrain-common==0.2.5",
-    "posttrain-tracking==0.2.5",
-    "carbonteq-trackio @ git+https://github.com/carbonteq-ai/trackio.git@703be3808cb6cac52259cb15e614cad971978d2e",
+    "posttrain-common",
+    "posttrain-tracking",
+    "carbonteq-trackio==0.31.5.post6",
 ]
 
 [tool.uv.sources]
 posttrain-common = { workspace = true }
 posttrain-tracking = { workspace = true }
+carbonteq-trackio = { index = "carbonteq-stable" }
 
 [build-system]
 requires = ["hatchling"]
@@ -21,9 +22,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/posttrain_tracking_trackio"]
-
-[tool.hatch.metadata]
-allow-direct-references = true
 
 [project.urls]
 Documentation = "https://github.com/carbonteq-ai/posttrain#readme"

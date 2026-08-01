@@ -4,9 +4,11 @@ ARG POSTTRAIN_KIND_IMAGE
 FROM ${POSTTRAIN_KIND_IMAGE} AS runtime
 
 ARG FRAMEWORK_SOURCE_DIGEST
+ARG ALLOW_DEFERRED_QUALIFICATION=0
 ARG CODE_REQUIREMENTS_DIGEST
 ARG JOB_KIND
 ARG PACKAGE_KEY
+ARG PYTHON_INDEX_URL
 ARG PROJECT_CONFIG_DIGEST
 ARG PROJECT_SOURCE_DIGEST
 ARG RESOLVED_INPUTS_DIGEST
@@ -39,6 +41,7 @@ RUN test -n "${PACKAGE_KEY}"
 COPY --from=job-context /locks/ locks/
 COPY --from=job-context /wheels/ wheels/
 RUN --mount=type=cache,id=posttrain-job-uv,target=/root/.cache/uv,sharing=locked \
+    if [ -n "${PYTHON_INDEX_URL}" ]; then export UV_INDEX_URL="${PYTHON_INDEX_URL}"; fi && \
     uv pip install \
       --python "${VIRTUAL_ENV}" \
       --no-deps \
@@ -54,6 +57,7 @@ RUN --mount=type=cache,id=posttrain-job-uv,target=/root/.cache/uv,sharing=locked
 # kind image already owns veRL/Torch/vLLM and the rest of its locked stack.
 RUN if [ "${RUNTIME_VARIANT}" = "online-rl-verl-py313" ]; then \
       test -x "/opt/posttrain-verl/bin/python"; \
+      if [ -n "${PYTHON_INDEX_URL}" ]; then export UV_INDEX_URL="${PYTHON_INDEX_URL}"; fi; \
       uv pip install \
         --python "/opt/posttrain-verl/bin/python" \
         --no-deps \
@@ -149,6 +153,7 @@ RUN --mount=type=cache,id=posttrain-job-uv,target=/root/.cache/uv,sharing=locked
       --python "${VIRTUAL_ENV}" \
       --no-build-isolation \
       --no-deps \
+      --no-sources \
       --reinstall \
       --requirement locks/code.requirements.txt
 
@@ -461,7 +466,13 @@ CMD ["execute", "--manifest", "/opt/posttrain/job/package.json"]
 
 FROM runtime AS smoke
 RUN posttrain-runtime --help >/dev/null && \
-    python -c "from pathlib import Path; from posttrain.execution import JobPackageManifest; JobPackageManifest.from_bytes(Path('/opt/posttrain/job/package.json').read_bytes())" && \
+    python -c "from pathlib import Path; from posttrain.execution import JobPackageManifest; JobPackageManifest.from_bytes(Path('/opt/posttrain/job/package.json').read_bytes())"
+RUN --network=none if [ "${ALLOW_DEFERRED_QUALIFICATION}" = "1" ]; then \
+      qualification_args="--allow-deferred"; \
+    else \
+      qualification_args=""; \
+    fi && \
+    posttrain-runtime qualify ${qualification_args} --timeout-seconds 60 --manifest /opt/posttrain/job/package.json && \
     if [ "${RUNTIME_VARIANT}" = "online-rl-verl-py313" ]; then \
       PYTHONNOUSERSITE=1 PYTHONSAFEPATH=1 PYTHONDONTWRITEBYTECODE=1 \
         PYTHONPATH="${POSTTRAIN_VERL_PYTHONPATH}" \

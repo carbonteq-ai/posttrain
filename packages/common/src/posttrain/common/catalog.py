@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, is_dataclass
 from pathlib import Path
 from typing import Any, cast
 
@@ -24,20 +25,20 @@ from .selections import (
 )
 from .variants import RENDERER_CONTRACTS
 
-_FAMILIES: frozenset[str] = frozenset(
-    {
-        "model",
-        "dataset",
-        "environment",
-        "inference",
-        "training",
-        "quantization",
-        "evaluation",
-        "workload",
-        "target",
-        "recipe",
-    }
+_CORE_FAMILY_ORDER: tuple[str, ...] = (
+    "model",
+    "target",
+    "dataset",
+    "environment",
+    "evaluation",
+    "remote-evaluation",
+    "workload",
+    "training",
+    "quantization",
+    "recipe",
+    "inference",
 )
+_FAMILY = re.compile(r"^[a-z][a-z0-9-]*$")
 
 
 @dataclass(frozen=True, slots=True, order=True)
@@ -46,8 +47,8 @@ class CatalogRef:
     id: str
 
     def __post_init__(self) -> None:
-        if self.family not in _FAMILIES:
-            raise ContractError(f"unknown catalog family: {self.family!r}")
+        if not _FAMILY.fullmatch(self.family):
+            raise ContractError(f"catalog family must be a lowercase identifier: {self.family!r}")
         validate_selection_id(self.id, "catalog id")
 
 
@@ -82,13 +83,21 @@ type SelectionDecoder = Callable[[CatalogRef, Mapping[str, object], Mapping[Cata
 class Catalog:
     """One project-scoped read view over a base catalog and its overlays."""
 
-    def __init__(self, base: CatalogLayer, overlays: tuple[CatalogLayer, ...], scope: str) -> None:
+    def __init__(
+        self,
+        base: CatalogLayer,
+        overlays: tuple[CatalogLayer, ...],
+        scope: str,
+        *,
+        family_registry_lock: object | None = None,
+    ) -> None:
         validate_selection_id(scope, "catalog scope")
         if len({overlay.id for overlay in overlays}) != len(overlays):
             raise ContractError("catalog overlay ids must be unique")
         self._base = base
         self._overlays = overlays
         self.scope = scope
+        self.family_registry_lock = family_registry_lock
 
     @classmethod
     def open(
@@ -97,6 +106,7 @@ class Catalog:
         overlays: Iterable[CatalogSource] = (),
         scope: str = "default",
         decoders: Mapping[SelectionFamily, SelectionDecoder] | None = None,
+        family_registry_lock: object | None = None,
     ) -> Catalog:
         decoders = {} if decoders is None else decoders
         base_layer = _load_layer(base, default_id="base", known={}, decoders=decoders)
@@ -106,7 +116,7 @@ class Catalog:
             layer = _load_layer(source, default_id=f"overlay-{index + 1}", known=known, decoders=decoders)
             overlay_layers.append(layer)
             known.update(layer.entries)
-        return cls(base_layer, tuple(overlay_layers), scope)
+        return cls(base_layer, tuple(overlay_layers), scope, family_registry_lock=family_registry_lock)
 
     def resolve(self, ref: CatalogRef) -> Resolved[Selection]:
         for overlay in reversed(self._overlays):
@@ -138,6 +148,39 @@ class Catalog:
             refs.update(overlay.entries)
         return sorted(ref for ref in refs if family is None or ref.family == family)
 
+    def transitive_refs(self, roots: Iterable[CatalogRef]) -> tuple[CatalogRef, ...]:
+        """Return resolved catalog entries reachable through selection values.
+
+        Catalog decoders replace reference-shaped fields with the resolved
+        selection object. Identity traversal therefore captures relationships
+        between families without teaching the common catalog about every
+        extension's schema.
+        """
+
+        values = {id(self.resolve(ref).value): ref for ref in self.list()}
+        pending = list(roots)
+        seen: set[CatalogRef] = set()
+        while pending:
+            ref = pending.pop()
+            if ref in seen:
+                continue
+            self.resolve(ref)
+            seen.add(ref)
+            for value in _walk_values(self.resolve(ref).value):
+                nested = values.get(id(value))
+                if nested is not None and nested not in seen:
+                    pending.append(nested)
+        return tuple(sorted(seen))
+
+    def refs_for_values(self, values: Iterable[object]) -> tuple[CatalogRef, ...]:
+        """Return catalog references for resolved selection object identities."""
+
+        known = {id(self.resolve(ref).value): ref for ref in self.list()}
+        resolved = {
+            ref for value in values for nested in _walk_values(value) if (ref := known.get(id(nested))) is not None
+        }
+        return tuple(sorted(resolved))
+
 
 def _load_layer(
     source: CatalogSource,
@@ -161,28 +204,17 @@ def _load_layer(
         raise ContractError("catalog layer_id must be a string")
     raw_entries: dict[CatalogRef, object] = {}
     for family, family_entries in payload.items():
-        if family not in _FAMILIES:
-            raise ContractError(f"unknown catalog family: {family!r}")
+        if not isinstance(family, str) or not _FAMILY.fullmatch(family):
+            raise ContractError(f"catalog family must be a lowercase identifier: {family!r}")
         if not isinstance(family_entries, Mapping):
             raise ContractError(f"catalog family {family!r} must contain an object")
         for selection_id, raw in family_entries.items():
             if not isinstance(selection_id, str):
                 raise ContractError("catalog ids must be strings")
-            ref = CatalogRef(cast(SelectionFamily, family), selection_id)
+            ref = CatalogRef(family, selection_id)
             raw_entries[ref] = raw
     entries: dict[CatalogRef, Selection] = {}
-    family_order = (
-        "model",
-        "target",
-        "dataset",
-        "environment",
-        "evaluation",
-        "workload",
-        "training",
-        "quantization",
-        "recipe",
-        "inference",
-    )
+    family_order = (*_CORE_FAMILY_ORDER, *sorted(set(ref.family for ref in raw_entries).difference(_CORE_FAMILY_ORDER)))
     for family in family_order:
         for ref, raw in raw_entries.items():
             if ref.family == family:
@@ -228,6 +260,31 @@ def _decode_selection(
         target = _linked(known, "target", values.pop("target"), ExecutionTarget)
         return InferenceBinding(model=model, target=target, **values)
     raise ContractError(f"catalog loader for family {ref.family!r} is not available in slice 0")
+
+
+def _walk_values(value: object) -> Iterable[object]:
+    """Yield nested values while preserving object identity relationships."""
+
+    seen: set[int] = set()
+
+    def visit(item: object) -> Iterable[object]:
+        identifier = id(item)
+        if identifier in seen:
+            return
+        seen.add(identifier)
+        yield item
+        if is_dataclass(item) and not isinstance(item, type):
+            for field in fields(item):
+                yield from visit(getattr(item, field.name))
+        elif isinstance(item, Mapping):
+            for key, nested in item.items():
+                yield from visit(key)
+                yield from visit(nested)
+        elif isinstance(item, (tuple, list, set, frozenset)):
+            for nested in item:
+                yield from visit(nested)
+
+    yield from visit(value)
 
 
 def _linked[SelectionT: Selection](

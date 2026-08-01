@@ -1,13 +1,13 @@
 [project]
 name = "posttrain-serve"
-version = "0.2.5"
+version = "0.0.0"
 description = "Reusable vLLM serving and inference benchmark operations"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "httpx>=0.28,<1",
-    "posttrain-common==0.2.5",
+    "posttrain-common",
 ]
 
 [project.entry-points."vllm.general_plugins"]

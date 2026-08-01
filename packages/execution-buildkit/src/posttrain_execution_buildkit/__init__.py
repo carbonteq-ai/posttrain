@@ -1,6 +1,11 @@
 """Framework-owned BuildKit runtime-image publication."""
 
-from posttrain.execution_pack import EnvironmentWheelRequest, GitSourceRequest
+from posttrain.execution_pack import (
+    EnvironmentWheelRequest,
+    GitSourceRequest,
+    LocalJobImagePublisher,
+    LocalPublishedJobImage,
+)
 
 from .builder import (
     BuildKitRuntimeBuilder,
@@ -79,6 +84,8 @@ __all__ = [
     "ImmutableEnvironmentDependencyCompiler",
     "ImmutableEnvironmentPackager",
     "KindDependencyConstraints",
+    "LocalJobImagePublisher",
+    "LocalPublishedJobImage",
     "LockedEnvironmentWheel",
     "LockedGitSource",
     "LockedGitSubdirectory",

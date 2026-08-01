@@ -14,12 +14,81 @@ import typer
 from posttrain_execution_buildkit import BuildKitRuntimeBuilder
 
 from .publish import publish_release
+from .repository_audit import inspect_repository
+from .versioning import check_release, lock_dependencies, prepare_release, stage_release
 
 app = typer.Typer(help="publish framework runtime images and pin the release manifest")
 images_app = typer.Typer(help="runtime image release operations")
 app.add_typer(images_app, name="images")
 
 _MANIFEST_RELATIVE = Path("packages/runtime-images/src/posttrain/runtime_images/published.toml")
+
+
+@app.command("check", help="verify source templates and generated locks against the release manifest")
+def check_cmd(
+    repository_root: Annotated[
+        Path,
+        typer.Option("--repository-root", help="framework checkout to verify"),
+    ] = Path("."),
+) -> None:
+    result = check_release(repository_root)
+    print(f"authored version: release/manifest.toml = {result.version}")
+    print(f"staged metadata: OK ({result.package_count} packages, {result.internal_pin_count} internal pins)")
+    print("dependency locks: OK")
+    print("published images: OK")
+
+
+@app.command("prepare", help="set the one authored release version without rewriting package metadata")
+def prepare_cmd(
+    version: Annotated[str, typer.Argument(help="coordinated release version")],
+    repository_root: Annotated[
+        Path,
+        typer.Option("--repository-root", help="framework checkout to update"),
+    ] = Path("."),
+) -> None:
+    result = prepare_release(repository_root, version)
+    print(f"prepared manifest {result.version}; source package templates are unchanged")
+
+
+@app.command("stage", help="copy the repository and render static release metadata in the copy")
+def stage_cmd(
+    destination: Annotated[Path, typer.Argument(help="new directory for rendered release sources")],
+    repository_root: Annotated[
+        Path,
+        typer.Option("--repository-root", help="framework checkout to stage"),
+    ] = Path("."),
+) -> None:
+    result = stage_release(repository_root, destination)
+    print(f"staged {result.version}: {result.package_count} packages and {result.internal_pin_count} exact pins")
+
+
+@app.command("lock-dependencies", help="regenerate the catalog dependency-lock table")
+def lock_dependencies_cmd(
+    repository_root: Annotated[
+        Path,
+        typer.Option("--repository-root", help="framework checkout to update"),
+    ] = Path("."),
+) -> None:
+    digest = lock_dependencies(repository_root)
+    print(f"generated catalog dependency lock: sha256:{digest}")
+
+
+@app.command("repository-check", help="report repository ownership and local-documentation findings")
+def repository_check_cmd(
+    repository_root: Annotated[
+        Path,
+        typer.Option("--repository-root", help="framework checkout to inspect"),
+    ] = Path("."),
+    report_only: Annotated[
+        bool,
+        typer.Option("--report-only", help="explicitly request the non-failing migration inventory"),
+    ] = False,
+) -> None:
+    # The command is intentionally report-only during the 0.3.0 migration.
+    # Keep the explicit flag in the public invocation so promotion to a CI
+    # gate is a conscious contract change rather than an accidental default.
+    del report_only
+    print(inspect_repository(repository_root).render())
 
 
 @images_app.command("publish", help="build, push, and pin every image in this release")
@@ -36,6 +105,13 @@ def publish_cmd(
         Path,
         typer.Option("--receipt-root", help="directory retaining build receipts"),
     ],
+    trust_bundle: Annotated[
+        Path | None,
+        typer.Option(
+            "--trust-bundle",
+            help=("machine-owned PEM CA bundle appended to the base runtime image for private HTTPS package indexes"),
+        ),
+    ] = None,
     default_prefix: Annotated[
         str | None,
         typer.Option(
@@ -141,6 +217,7 @@ def publish_cmd(
         attestations=attestations,
         compression_level=compression_level,
         force_compression=force_compression,
+        trust_bundle=trust_bundle.resolve() if trust_bundle is not None else None,
     )
     if dry_run:
         print(rendered, end="")

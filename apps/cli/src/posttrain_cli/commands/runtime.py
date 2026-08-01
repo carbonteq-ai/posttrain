@@ -29,7 +29,7 @@ def _registry(state: CliState):
     if configuration.registry is None:
         raise ContractError(
             "no registry is configured: set "
-            f"{REGISTRY_ENVIRONMENT_VARIABLE} to an OCI registry prefix, or declare "
+            f"{REGISTRY_ENVIRONMENT_VARIABLE} in the protected project environment file, or declare "
             "[registry] in the execution configuration"
         )
     return configuration.registry

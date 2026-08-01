@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import runpy
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from importlib.resources import files as resource_files
@@ -28,7 +29,7 @@ from .adapters import (
 from .models import PreferenceDataset, SupervisedDataset
 
 type DatasetKind = Literal["supervised", "preference"]
-type DatasetSourceKind = Literal["fixture", "huggingface", "jsonl", "nemo", "parquet"]
+type DatasetSourceKind = Literal["fixture", "huggingface", "jsonl", "nemo", "parquet", "built"]
 
 _SFT_FORMATS = frozenset({"auto", "messages", "prompt-completion", "alpaca", "sharegpt"})
 _PREFERENCE_FORMATS = frozenset({"auto", "trl", "tulu", "nemo-ranked"})
@@ -52,8 +53,8 @@ class DatasetLoadPlan:
         validate_revision(self.revision, "dataset selection revision")
         source = dict(self.source)
         source_kind = source.get("kind")
-        if source_kind not in {"fixture", "huggingface", "jsonl", "nemo", "parquet"}:
-            raise ContractError("dataset source kind must be fixture, huggingface, jsonl, nemo, or parquet")
+        if source_kind not in {"fixture", "huggingface", "jsonl", "nemo", "parquet", "built"}:
+            raise ContractError("dataset source kind must be fixture, huggingface, jsonl, nemo, parquet, or built")
         _validate_source(cast(DatasetSourceKind, source_kind), source)
         if source_kind == "nemo":
             allowed_formats = _NEMO_SFT_FORMATS if self.kind == "supervised" else _NEMO_PREFERENCE_FORMATS
@@ -135,7 +136,7 @@ def materialize_dataset(
 ) -> DatasetMaterialization:
     """Resolve, normalize, validate, and cache a dataset load plan."""
 
-    fingerprint = hashlib.sha256(_plan_json(plan).encode("utf-8")).hexdigest()
+    fingerprint = hashlib.sha256(_plan_json(plan, project_root=project_root).encode("utf-8")).hexdigest()
     destination = state_dir / "datasets" / fingerprint
     data_path = destination / "data.jsonl"
     manifest_path = destination / "manifest.json"
@@ -206,6 +207,12 @@ def load_materialized_dataset(
     )
 
 
+def validate_materialized_dataset(path: Path) -> int:
+    """Parse a staged normalized JSONL dataset and return its record count."""
+
+    return len(_jsonl_rows(path.read_text(encoding="utf-8"), source=str(path)))
+
+
 def resolve_dataset_source(
     plan: DatasetLoadPlan,
     *,
@@ -263,6 +270,7 @@ def _validate_source(kind: DatasetSourceKind, source: Mapping[str, JsonValue]) -
         "jsonl": frozenset({"kind", "path"}),
         "nemo": frozenset({"kind", "path"}),
         "parquet": frozenset({"kind", "path"}),
+        "built": frozenset({"kind", "builder", "inputs"}),
     }
     optional: dict[DatasetSourceKind, frozenset[str]] = {
         "fixture": frozenset(),
@@ -270,6 +278,7 @@ def _validate_source(kind: DatasetSourceKind, source: Mapping[str, JsonValue]) -
         "jsonl": frozenset(),
         "nemo": frozenset(),
         "parquet": frozenset({"split"}),
+        "built": frozenset(),
     }
     keys = set(source)
     missing = required[kind].difference(keys)
@@ -281,6 +290,28 @@ def _validate_source(kind: DatasetSourceKind, source: Mapping[str, JsonValue]) -
         if unexpected:
             details.append(f"unknown {', '.join(sorted(unexpected))}")
         raise ContractError(f"{kind} dataset source is invalid: {'; '.join(details)}")
+    if kind == "built":
+        builder = source["builder"]
+        inputs = source["inputs"]
+        if not isinstance(builder, Mapping) or set(builder) != {"kind", "path", "callable"}:
+            raise ContractError("built dataset source builder must contain kind, path, and callable")
+        builder_path = builder.get("path")
+        builder_callable = builder.get("callable")
+        if (
+            builder.get("kind") != "python-file"
+            or not isinstance(builder_path, str)
+            or not builder_path.strip()
+            or not isinstance(builder_callable, str)
+            or not builder_callable.strip()
+        ):
+            raise ContractError("built dataset source builder must be a python-file with path and callable")
+        if (
+            not isinstance(inputs, list)
+            or not inputs
+            or not all(isinstance(path, str) and path.strip() for path in inputs)
+        ):
+            raise ContractError("built dataset source inputs must be a non-empty string list")
+        return
     for key in keys.difference({"kind"}):
         value = source[key]
         if not isinstance(value, str) or not value.strip():
@@ -298,6 +329,17 @@ def _project_path(plan: DatasetLoadPlan, *, project_root: Path) -> Path:
 
 
 def _source_rows(plan: DatasetLoadPlan, *, project_root: Path) -> Iterable[Mapping[str, Any]]:
+    if plan.source_kind == "built":
+        builder = cast(Mapping[str, str], plan.source["builder"])
+        path = _safe_project_file(project_root, builder["path"], "built dataset builder")
+        namespace = runpy.run_path(str(path))
+        factory = namespace.get(builder["callable"])
+        if not callable(factory):
+            raise ContractError(f"built dataset builder callable is unavailable: {builder['callable']}")
+        rows = factory()
+        if not isinstance(rows, Iterable):
+            raise ContractError("built dataset builder must return an iterable of row objects")
+        return cast(Iterable[Mapping[str, Any]], rows)
     if plan.source_kind == "fixture":
         resource = cast(str, plan.source["resource"])
         package, separator, name = resource.partition(":")
@@ -357,18 +399,36 @@ def _jsonl_rows(text: str, *, source: str) -> tuple[Mapping[str, Any], ...]:
     return tuple(rows)
 
 
-def _plan_json(plan: DatasetLoadPlan) -> str:
+def _plan_json(plan: DatasetLoadPlan, *, project_root: Path | None = None) -> str:
+    source: dict[str, JsonValue] = dict(plan.source)
+    if plan.source_kind == "built" and project_root is not None:
+        builder = cast(Mapping[str, str], source["builder"])
+        inputs = cast(list[str], source["inputs"])
+        source["input_digests"] = {
+            path: hashlib.sha256(_safe_project_file(project_root, path, "built dataset input").read_bytes()).hexdigest()
+            for path in sorted({builder["path"], *inputs})
+        }
     return json.dumps(
         {
             "id": plan.id,
             "revision": plan.revision,
             "kind": plan.kind,
-            "source": dict(plan.source),
+            "source": source,
             "format": plan.format,
         },
         sort_keys=True,
         separators=(",", ":"),
     )
+
+
+def _safe_project_file(project_root: Path, configured: str, label: str) -> Path:
+    path = Path(configured)
+    if path.is_absolute() or not configured or ".." in path.parts:
+        raise ContractError(f"{label} path must be relative to the project root")
+    resolved = (project_root / path).resolve()
+    if not resolved.is_relative_to(project_root.resolve()) or not resolved.is_file():
+        raise ContractError(f"{label} file not found: {configured}")
+    return resolved
 
 
 def _read_materialization(

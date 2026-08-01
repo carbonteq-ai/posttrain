@@ -1,0 +1,62 @@
+project_id: posttrain-lab
+work_package_id: train/qwen3.5-0.8b/verl-distill-2-capsule-qualification
+stage: train
+description: Complete two Qwen 3.5 student updates from a Qwen 3.5 2B teacher in the isolated veRL runtime.
+recipe:
+  type: inline
+  id: recipes/gsm8k-qwen3.5-verl-distill-2@4
+  revision: "4"
+  stage: train
+  seats:
+    student: model
+    teacher: model
+    environment: environment
+    settings: training
+    training: training
+    rollout_inference: inference
+    teacher_inference: inference
+  jobs:
+    - id: distill
+      kind: train.distill
+      definition: train/trl-distill@1
+  expected_artifacts:
+    - trained student adapter
+    - native Verifiers trajectories
+    - training summary
+bindings:
+  student:
+    type: ref
+    family: model
+    id: models/qwen3.5-0.8b@bf16
+  teacher:
+    type: ref
+    family: model
+    id: models/qwen3.5-2b@bf16
+  environment:
+    type: ref
+    family: environment
+    id: gsm8k-distill-train
+  settings:
+    type: ref
+    family: training
+    id: qwen3.5-0.8b/verl-distill-2-step-capsule-v2
+  training:
+    type: ref
+    family: training
+    id: training/qwen3.5-0.8b-verl-grpo-capsule-lora@4
+  rollout_inference:
+    type: ref
+    family: inference
+    id: inference/qwen3.5-0.8b-vllm-distill-rollout@2
+  teacher_inference:
+    type: ref
+    family: inference
+    id: inference/qwen3.5-2b-transformers-teacher-score@2
+enabled_optional_jobs: []
+metadata:
+  question: Does the isolated veRL runtime complete teacher-scored student updates with exact-token evidence?
+  labels:
+    - qualification
+    - verl
+    - distillation
+    - candidate

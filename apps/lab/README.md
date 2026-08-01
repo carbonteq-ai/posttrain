@@ -22,21 +22,51 @@ Neither starter imports `posttrain_lab`.
 
 ## Qualification project (this repo)
 
-The monorepo root is itself a qualification project under `.posttrain/`. Its
-`project.toml` points at `posttrain_lab.entry:configure`, which builds the
-standard `JobRuntime` and attaches git source metadata. Validate YAML work
+Lab is the qualification project at `apps/lab`; its tracked control tree lives
+under `apps/lab/.posttrain/`. Its `project.toml` points at
+`posttrain_lab.entry:configure`, which builds the standard `JobRuntime` and
+attaches git source metadata. From the workspace root, validate YAML work
 packages with the primary CLI and **no** `--host`:
 
 ```bash
-uv run --package posttrain posttrain work-package validate \
-  .posttrain/work_packages/foundation_screen.yaml
+uv run --package posttrain-lab posttrain --project-root apps/lab work-package validate \
+  foundation_screen.yaml
 
-uv run --package posttrain posttrain work-package validate \
-  .posttrain/work_packages/automationbench_zapier_grpo.yaml
+uv run --package posttrain-lab posttrain --project-root apps/lab work-package validate \
+  automationbench_zapier_grpo.yaml
 ```
 
-Remote GPU release evidence still uses `examples/gpu-qualification` and the
+Remote GPU release evidence uses the Lab-owned
+`tests/fixtures/remote_gpu_project` and the
 primary `posttrain work-package run` path on the remote host.
+
+## Qualification gates
+
+Lab owns the reviewed inventory of framework qualification gates in
+`src/posttrain_lab/qualification/gates.toml`. During the additive migration,
+the manifest classifies the work packages currently owned by the root
+qualification project; it does not submit work or duplicate provider logic.
+
+```bash
+uv run --package posttrain-lab posttrain-lab qualification list --project-root apps/lab
+uv run --package posttrain-lab posttrain-lab qualification list --project-root apps/lab --json
+```
+
+Every work-package YAML must occur exactly once in the registry. An entry
+records its lifecycle, tier, selected job, expected job kind, and evidence
+acceptance adapter. The two active release gates are the SFT data-preparation
+and managed GSM8K evaluation qualifications. Nine active extended gates cover
+distinct framework contracts. The remaining candidate experiments are retained
+as evidence, not active Lab gates: each names an experiment family, hypothesis,
+responsible maintainer area, and the condition that replaces or promotes it.
+The DAPO and SAMPO acceleration variants are therefore two candidate matrices,
+not eight independent qualification requirements. A candidate must be executed
+through the normal `posttrain work-package` path and cannot silently satisfy a
+release or extended qualification requirement. It is an actionable holding
+state, not an archive: its replacement condition must name promotion,
+replacement, retirement, or deletion. When that condition is met, update the
+record first; a later source-removal milestone may then remove its YAML only
+after the selected successor has demonstrated command and evidence parity.
 
 ## Lab scenario CLI
 

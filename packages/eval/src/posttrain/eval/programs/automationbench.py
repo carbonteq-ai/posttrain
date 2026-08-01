@@ -12,8 +12,13 @@ from ..requests import (
     VerifiersV1ConfigActivation,
 )
 
-AUTOMATIONBENCH_REVISION = "d54dbebabdba6c6eda201694aee8ddcf36ccfc51"
-AUTOMATIONBENCH_REPOSITORY = "https://github.com/carbonteq-ai/AutomationBench"
+# The selected distribution is the native Verifiers v1 port, not the benchmark
+# fork it reads.  The fork publishes `carbonteq-automation-bench` on the legacy
+# 0.1 environment API and contains no v1 taskset at any revision, so naming its
+# repository here could never resolve `automationbench-v1`.
+AUTOMATIONBENCH_REVISION = "02848b756727d86a55564557e79e7f613fc8762c"
+AUTOMATIONBENCH_REPOSITORY = "https://github.com/carbonteq-ai/posttrain"
+AUTOMATIONBENCH_SUBDIRECTORY = "environments/automationbench_v1"
 
 
 def _activation(*domains: str) -> VerifiersV1ConfigActivation:
@@ -34,6 +39,7 @@ SOURCE = EnvironmentSource(
     package="automationbench-v1",
     repository=AUTOMATIONBENCH_REPOSITORY,
     revision=AUTOMATIONBENCH_REVISION,
+    subdirectory=AUTOMATIONBENCH_SUBDIRECTORY,
 )
 
 AGENTIC_SMOKE = EvaluationPlan(
@@ -78,4 +84,5 @@ __all__ = [
     "AUTOMATIONBENCH_PUBLIC",
     "AUTOMATIONBENCH_REPOSITORY",
     "AUTOMATIONBENCH_REVISION",
+    "AUTOMATIONBENCH_SUBDIRECTORY",
 ]

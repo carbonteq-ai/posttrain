@@ -14,12 +14,13 @@ prototype evidence, not the API contract.
 
 ## Next work
 
-**Implementation plan:** [baseline-implementation.md](../.agents/plan/baseline-implementation.md)
-— **next: slice 3a** (train config decoupling: `TrainingBinding`,
-`ParameterUpdatePlan`, `QuantizationPlan`; no async RL).
+**Implementation plans:** use the current release-scoped plan in
+[docs/plan/](./plan/). The prior
+[baseline implementation plan](./plan/baseline-implementation.md) is retained
+as historical package-boundary and validation evidence, not an active queue.
 
-Slices 0–2 are largely landed; finish shims later. Architecture rewrites remain
-optional.
+Architecture rewrites remain optional; update this handoff only when a current
+plan needs a cross-thread transfer.
 
 ## Canonical implementation (target packages)
 

@@ -50,11 +50,11 @@ matter more than the rest:
 
 ## Things that will surprise you
 
-**The catalog records the lock's hash.** `packages/catalog/src/posttrain/
-catalog/base/training.yaml` stores `dependency_lock_sha256`, the SHA-256 of
-`uv.lock`. Any change that re-locks — a bump, a new dependency — drifts it and
-fails one test in `apps/lab` until you realign it. The check is deliberate: it
-ties catalog bindings to a specific dependency closure.
+**The catalog resolves a named dependency lock.** Training entries reference
+`trl-fork@current`; the generated `catalog/base/locks.toml` owns its pinned
+source revision and `uv.lock` digest. After a real dependency change, run
+`uv lock` and `uv run posttrain-release lock-dependencies`. Ordinary release
+version changes do not alter the development lock or source package metadata.
 
 **Some tests read machine-wide state.** Trust resolution consults
 `/etc/posttrain/trust/internal-ca.pem` and admission consults a machine-scoped

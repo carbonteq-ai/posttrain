@@ -50,14 +50,14 @@ FOUNDATION_SCREEN_RECIPE = Recipe(
 )
 
 QWEN_FOUNDATION_SCREEN = WorkPackage(
-    project_id="foundation-models",
+    project_id="posttrain-lab",
     work_package_id="screen/qwen3.5-2b-smoke",
     stage="screen",
     recipe=FOUNDATION_SCREEN_RECIPE,
     bindings={
         "model": CatalogRef("model", "models/qwen3.5-2b@bf16"),
         "screen_inference": CatalogRef("inference", "inference/qwen3.5-2b-vllm-screen@1"),
-        "evaluation_inference": CatalogRef("inference", "inference/qwen3.5-2b-vllm-eval@1"),
+        "evaluation_inference": CatalogRef("inference", "inference/qwen3.5-2b-vllm-eval@2"),
         "workload": CatalogRef("workload", "workloads/general-serving-32k-sweep@1"),
         "target": CatalogRef("target", "targets/local-cuda-8gb"),
         "evaluation_plan": CatalogRef("evaluation", "general-smoke-v1"),

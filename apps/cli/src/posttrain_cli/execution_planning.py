@@ -4,16 +4,20 @@ from __future__ import annotations
 
 import hashlib
 import uuid
+import warnings
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from posttrain.catalog import ProjectLayout
-from posttrain.common import ContractError, ExecutionTarget
+import yaml
+from posttrain.catalog import FamilyRegistryLock, ProjectLayout
+from posttrain.common import Catalog, CatalogRef, ContractError, ExecutionTarget
 from posttrain.execution import (
     JOB_PACKAGE_WORKER_COMMAND,
+    ExecutionEvidenceSource,
     ExecutionMount,
     ExecutionPlan,
     ExecutionPolicy,
+    ExecutionProviderSource,
     ExecutionRequest,
     ExecutionSubmissionStore,
     JobExecutionService,
@@ -27,12 +31,16 @@ from posttrain.execution_pack import (
     JobPackInputs,
     JobPackPlan,
     JobPackService,
+    LocalPublishedJobImage,
     PackedJobContext,
     ProjectConfigBundle,
     PublishedJobImage,
     SourceSnapshotRequest,
+    activation_resource_sources,
+    environment_bindings,
     plan_job_pack,
 )
+from posttrain.project import JobIntent, load_project_pack_config
 from posttrain.runtime_images import JOB_BAKE_FILE, cached_definition_root
 from posttrain.tracking import RunSpec
 from posttrain.work import (
@@ -45,10 +53,12 @@ from posttrain_execution_buildkit import (
     EnvironmentPackagerCacheRoots,
     ImmutableEnvironmentPackager,
     KindDependencyConstraints,
+    UvDependencyCompileCli,
 )
 
 from .context import CliState
 from .execution_config import (
+    REGISTRY_ENVIRONMENT_VARIABLE,
     ExecutionOverrides,
     ExecutionStorageBinding,
     LaunchOverrides,
@@ -57,14 +67,17 @@ from .execution_config import (
     RegistryBinding,
     ResolvedExecutionSettings,
     SettingSource,
+    derived_local_registry,
+    derived_registry,
+    load_execution_environment,
     load_local_execution_config,
     resolve_execution_settings,
 )
-from .execution_provider import create_execution_provider, evidence_source_for_project
+from .execution_provider import create_execution_provider, evidence_source_for_project, provider_source_for_project
 from .framework_distributions import FrameworkDistributions
 from .framework_distributions import materialize as materialize_framework_distributions
-from .pack_config import load_project_pack_config
 from .selection_resolve import resolve_selection
+from .state_layout import cache_path
 from .work_runtime import load_work_package_bundle, runtime_context
 
 _EMPTY_OVERRIDES = ExecutionOverrides()
@@ -93,6 +106,7 @@ class PlannedJobPackage:
     """Read-only immutable capsule plan, independent of launch infrastructure."""
 
     layout: ProjectLayout
+    catalog: Catalog
     work_package_path: Path
     prepared: PreparedWorkPackageJob
     local_config: LocalExecutionConfig
@@ -100,18 +114,31 @@ class PlannedJobPackage:
     framework_source_request: SourceSnapshotRequest | None
     framework_distributions: FrameworkDistributions | None
     project_source_request: SourceSnapshotRequest
+    project_config_digest: str
     target: ExecutionTarget
     runtime_profile: str
     target_source: SettingSource
     runtime_profile_source: SettingSource
 
-    def pack(self) -> PackedJobPackage:
-        """Materialize the exact inputs and publish or reuse the actual-job image."""
+    def materialize(self) -> PackedJobContext:
+        """Materialize the immutable job context without publishing an image."""
 
         registry = _registry(self.local_config)
-        source_root = (self.layout.state / "pack" / "sources").resolve()
+        source_root = cache_path(self.layout, "pack", "sources")
         snapshotter = ImmutableSourceSnapshotter(cache_root=source_root)
         project_source = snapshotter.materialize(self.project_source_request)
+        project_environment_sources: dict[str, Path] = {}
+        for request in self.pack_plan.spec.project_environment_sources:
+            snapshot = snapshotter.materialize(
+                SourceSnapshotRequest(
+                    root=self.layout.root,
+                    includes=(request.path,),
+                    install_roots=(request.path,),
+                )
+            )
+            if snapshot.digest != request.tree_digest:
+                raise ContractError("project environment source changed after planning; run job plan again")
+            project_environment_sources[request.path] = snapshot.package.root / request.path
         if self.framework_source_request is not None:
             framework_source = snapshotter.materialize(self.framework_source_request)
             framework_package = framework_source.package
@@ -128,7 +155,7 @@ class PlannedJobPackage:
         ):
             raise ContractError("source bytes changed after planning; run job plan again")
 
-        cache_root = (self.layout.state / "pack" / "cache").resolve()
+        cache_root = cache_path(self.layout, "pack", "cache")
         constraints = {
             profile: KindDependencyConstraints(
                 profile,
@@ -163,6 +190,12 @@ class PlannedJobPackage:
                 )
             ):
                 raise ContractError(f"job-kind backend constraint profile changed after configuration load: {profile}")
+        execution_environment = load_execution_environment(self.local_config)
+        dependency_index_environment = {
+            name: execution_environment[name]
+            for name in ("UV_INDEX_PASSWORD", "UV_INDEX_URL", "UV_INDEX_USERNAME")
+            if name in execution_environment
+        }
         environment_packager = ImmutableEnvironmentPackager(
             cache_roots=EnvironmentPackagerCacheRoots(
                 git_sources=cache_root / "git",
@@ -171,15 +204,26 @@ class PlannedJobPackage:
             ),
             kind_constraints=constraints,
             backend_kind_constraints=backend_constraints,
+            dependency_gateway=UvDependencyCompileCli(
+                index_environment=dependency_index_environment,
+            ),
         )
         pack_service = JobPackService(
-            output_root=(self.layout.state / "pack" / "contexts").resolve(),
+            output_root=cache_path(self.layout, "pack", "contexts"),
             dataset_packager=ImmutableDatasetPackager(
-                state_dir=(self.layout.state / "datasets").resolve(),
+                state_dir=cache_path(self.layout, "datasets"),
                 project_root=self.layout.root,
             ),
             environment_packager=environment_packager,
         )
+        project_config = _project_config_bundle(
+            self.layout,
+            self.work_package_path,
+            self.prepared,
+            self.catalog,
+        )
+        if project_config.digest != self.project_config_digest:
+            raise ContractError("selected project configuration changed after planning; run job plan again")
         context = pack_service.pack(
             self.pack_plan,
             JobPackInputs(
@@ -187,27 +231,57 @@ class PlannedJobPackage:
                 framework_wheels=framework_wheels,
                 project_source=project_source.package,
                 resolved_inputs=dict(self.prepared.spec.resolved_inputs),
-                project_config=_project_config_bundle(
-                    self.layout,
-                    self.work_package_path,
+                project_config=project_config,
+                activation_resource_sources=activation_resource_sources(
+                    environment_bindings(self.prepared.seats),
+                    project_root=self.layout.root,
                 ),
+                project_environment_sources=project_environment_sources,
             ),
         )
-        publisher = BuildKitJobImagePublisher(
+        return context
+
+    def _publisher(self) -> BuildKitJobImagePublisher:
+        registry = _registry(self.local_config)
+        execution_environment = load_execution_environment(self.local_config)
+        return BuildKitJobImagePublisher(
             bake_file=_bake_file(registry),
-            receipt_root=(registry.receipt_root or (self.layout.state / "pack" / "publications").resolve()),
+            receipt_root=(registry.receipt_root or cache_path(self.layout, "pack", "publications")),
             builder=registry.buildx_builder,
+            python_index_url=execution_environment.get("UV_INDEX_URL"),
         )
-        image = publisher.publish(
+
+    def pack(self, *, allow_deferred_qualification: bool = False) -> PackedJobPackage:
+        """Materialize the exact inputs and publish or reuse the actual-job image."""
+
+        context = self.materialize()
+        image = self._publisher().publish(
             JobImagePublicationRequest(
                 manifest=context.manifest,
                 staged_context=context.root,
                 publication=self.pack_plan.publication,
+                allow_deferred_qualification=allow_deferred_qualification,
             )
         )
         if image.publication_key != context.publication_key:
             raise ContractError("published image identity conflicts with the retained job context")
         return PackedJobPackage(self, context, image)
+
+    def pack_local(self, *, allow_deferred_qualification: bool = False) -> LocalPackedJobPackage:
+        """Export a qualified OCI layout without publishing to a registry."""
+
+        context = self.materialize()
+        image = self._publisher().publish_local(
+            JobImagePublicationRequest(
+                manifest=context.manifest,
+                staged_context=context.root,
+                publication=self.pack_plan.publication,
+                allow_deferred_qualification=allow_deferred_qualification,
+            )
+        )
+        if image.publication_key != context.publication_key:
+            raise ContractError("local image identity conflicts with the retained job context")
+        return LocalPackedJobPackage(self, context, image)
 
 
 @dataclass(frozen=True, slots=True)
@@ -217,6 +291,15 @@ class PackedJobPackage:
     planned: PlannedJobPackage
     context: PackedJobContext
     image: PublishedJobImage
+
+
+@dataclass(frozen=True, slots=True)
+class LocalPackedJobPackage:
+    """Qualified local OCI layout; deliberately not launchable by a provider."""
+
+    planned: PlannedJobPackage
+    context: PackedJobContext
+    image: LocalPublishedJobImage
 
 
 @dataclass(frozen=True, slots=True)
@@ -238,8 +321,8 @@ class PlannedJobExecution:
     def mounts(self) -> tuple[ExecutionMount, ...]:
         return self.launch.mounts
 
-    def pack(self) -> PackedJobExecution:
-        packed = self.package.pack()
+    def pack(self, *, allow_deferred_qualification: bool = False) -> PackedJobExecution:
+        packed = self.package.pack(allow_deferred_qualification=allow_deferred_qualification)
         return PackedJobExecution(self, packed.context, packed.image)
 
 
@@ -268,6 +351,8 @@ class PreparedJobSubmission:
     request: ExecutionRequest
     provider_plan: ExecutionPlan
     service: JobExecutionService
+    evidence_source: ExecutionEvidenceSource | None
+    provider_source: ExecutionProviderSource
 
 
 def plan_job_execution(
@@ -276,11 +361,15 @@ def plan_job_execution(
     *,
     job: str,
     overrides: ExecutionOverrides = _EMPTY_OVERRIDES,
+    registry_prefix: str | None = None,
     run_id: str | None = None,
     host: str | None = None,
     entry: str | None = None,
     project_packages: tuple[str, ...] | None = None,
     source_includes: tuple[str, ...] | None = None,
+    intent: JobIntent | None = None,
+    env_file: Path | None = None,
+    framework_wheelhouse: Path | None = None,
 ) -> PlannedJobExecution:
     """Resolve and hash one job without materializing or submitting it."""
 
@@ -291,11 +380,15 @@ def plan_job_execution(
         overrides=PackageOverrides(
             target=overrides.target,
             runtime_profile=overrides.runtime_profile,
+            registry_prefix=registry_prefix,
         ),
         host=host,
         entry=entry,
         project_packages=project_packages,
         source_includes=source_includes,
+        intent=intent,
+        env_file=env_file,
+        framework_wheelhouse=framework_wheelhouse,
     )
     return PlannedJobExecution(
         package=package,
@@ -323,18 +416,39 @@ def plan_job_package(
     entry: str | None = None,
     project_packages: tuple[str, ...] | None = None,
     source_includes: tuple[str, ...] | None = None,
+    intent: JobIntent | None = None,
+    env_file: Path | None = None,
+    local_publication: bool = False,
+    framework_wheelhouse: Path | None = None,
 ) -> PlannedJobPackage:
     """Resolve capsule bytes without requiring a provider or worker storage."""
 
+    if intent is not None:
+        if intent.job_id != job:
+            raise ContractError("public job intent does not match the requested job")
+        return _plan_job_package_from_intent(
+            intent,
+            overrides=overrides.as_execution_overrides(),
+            registry_prefix=overrides.registry_prefix,
+            project_packages=project_packages,
+            source_includes=source_includes,
+            env_file=env_file,
+            local_publication=local_publication,
+            framework_wheelhouse=framework_wheelhouse,
+        )
     return _plan_job_package(
         state,
         path,
         job=job,
         overrides=overrides.as_execution_overrides(),
+        registry_prefix=overrides.registry_prefix,
         host=host,
         entry=entry,
         project_packages=project_packages,
         source_includes=source_includes,
+        env_file=env_file,
+        local_publication=local_publication,
+        framework_wheelhouse=framework_wheelhouse,
     )
 
 
@@ -385,13 +499,16 @@ def _plan_job_package(
     *,
     job: str,
     overrides: ExecutionOverrides,
+    registry_prefix: str | None,
     host: str | None,
     entry: str | None,
     project_packages: tuple[str, ...] | None,
     source_includes: tuple[str, ...] | None,
+    env_file: Path | None,
+    local_publication: bool,
+    framework_wheelhouse: Path | None,
 ) -> PlannedJobPackage:
     layout, catalog, work_package_path, package = load_work_package_bundle(state, path)
-    local_config = load_local_execution_config(layout)
     context = runtime_context(
         layout=layout,
         catalog=catalog,
@@ -401,6 +518,50 @@ def _plan_job_package(
         activate=False,
     )
     prepared = prepare_work_package_job(context, package, job)
+    return _plan_job_package_from_intent(
+        JobIntent(
+            layout=layout,
+            catalog=catalog,
+            work_package_path=work_package_path,
+            work_package=package,
+            job_id=job,
+            context=context,
+            prepared=prepared,
+        ),
+        overrides=overrides,
+        registry_prefix=registry_prefix,
+        project_packages=project_packages,
+        source_includes=source_includes,
+        env_file=env_file,
+        local_publication=local_publication,
+        framework_wheelhouse=framework_wheelhouse,
+    )
+
+
+def _plan_job_package_from_intent(
+    intent: JobIntent,
+    *,
+    overrides: ExecutionOverrides,
+    registry_prefix: str | None,
+    project_packages: tuple[str, ...] | None,
+    source_includes: tuple[str, ...] | None,
+    env_file: Path | None,
+    local_publication: bool,
+    framework_wheelhouse: Path | None,
+) -> PlannedJobPackage:
+    layout = intent.layout
+    local_config = _with_registry_override(
+        load_local_execution_config(layout, env_file=env_file),
+        registry_prefix,
+    )
+    if local_publication and local_config.registry is None:
+        local_config = replace(local_config, registry=derived_local_registry())
+    catalog = intent.catalog
+    work_package_path = intent.work_package_path
+    package = intent.work_package
+    context = intent.context
+    job = intent.job_id
+    prepared = intent.prepared
     profile = _kind_profile(prepared.recipe_job.kind)
     inferred_variant = _runtime_variant_from_backend(prepared, profile)
     settings = resolve_execution_settings(
@@ -436,8 +597,14 @@ def _plan_job_package(
         source_includes=source_includes,
     )
     project_source_request = project_config.source_request(layout.root)
-    framework_source_request = _framework_source_request(registry.framework_source_root)
-    inspector = ImmutableSourceSnapshotter(cache_root=(layout.state / "pack" / "sources").resolve())
+    # A supplied wheelhouse is an explicit request to pack the staged framework
+    # distributions.  In particular, a maintainer qualifying a nested project
+    # from inside this monorepo must not silently capture the checkout merely
+    # because the CLI happens to be importable from it.
+    framework_source_request = (
+        None if framework_wheelhouse is not None else _framework_source_request(registry.framework_source_root)
+    )
+    inspector = ImmutableSourceSnapshotter(cache_root=cache_path(layout, "pack", "sources"))
     if framework_source_request is not None:
         framework_digest = inspector.inspect(framework_source_request)
         framework_distributions = None
@@ -445,7 +612,9 @@ def _plan_job_package(
         # No checkout: the framework is installed, so its own distributions are
         # the code that goes into the image, and their bytes are its identity.
         framework_distributions = materialize_framework_distributions(
-            (layout.state / "pack" / "framework-wheels").resolve()
+            cache_path(layout, "pack", "framework-wheels"),
+            environ=load_execution_environment(local_config),
+            wheelhouse=framework_wheelhouse,
         )
         framework_digest = framework_distributions.digest
     project_digest = inspector.inspect(project_source_request)
@@ -454,6 +623,8 @@ def _plan_job_package(
         profile,
         settings.runtime_profile,
     )
+    if not isinstance(catalog.family_registry_lock, FamilyRegistryLock):
+        raise ContractError("opened project catalog has no family registry lock")
     pack_plan = plan_job_pack(
         prepared,
         framework_source_digest=framework_digest,
@@ -462,12 +633,21 @@ def _plan_job_package(
         kind_image=_kind_image(registry, runtime_variant),
         publication=ImagePublicationSpec(registry.repository),
         runtime_variant=runtime_variant,
+        family_registry_lock=catalog.family_registry_lock.to_payload(),
+        project_root=layout.root,
     )
     target = _execution_target(prepared)
     if settings.runtime_profile is None:
         raise ContractError("execution runtime profile could not be resolved")
+    project_config_digest = _project_config_bundle(
+        layout,
+        work_package_path,
+        prepared,
+        catalog,
+    ).digest
     return PlannedJobPackage(
         layout=layout,
+        catalog=catalog,
         work_package_path=work_package_path,
         prepared=prepared,
         local_config=local_config,
@@ -475,6 +655,7 @@ def _plan_job_package(
         framework_source_request=framework_source_request,
         framework_distributions=framework_distributions,
         project_source_request=project_source_request,
+        project_config_digest=project_config_digest,
         target=target,
         runtime_profile=settings.runtime_profile,
         target_source=settings.sources.get("target", "job"),
@@ -511,14 +692,20 @@ def _prepared_submission(packed: PackedJobExecution) -> PreparedJobSubmission:
         planned.settings,
         package.local_config,
     )
+    evidence_source = evidence_source_for_project(
+        package.layout,
+        environment=load_execution_environment(package.local_config),
+    )
+    provider_source = provider_source_for_project(package.layout, provider_name, package.local_config)
     service = JobExecutionService(
         provider,
         ExecutionSubmissionStore(package.layout.state),
         provider_name=provider_name,
-        evidence_source=evidence_source_for_project(package.layout),
+        evidence_source=evidence_source,
+        provider_source=provider_source,
     )
     provider_plan = service.plan(request)
-    return PreparedJobSubmission(packed, request, provider_plan, service)
+    return PreparedJobSubmission(packed, request, provider_plan, service, evidence_source, provider_source)
 
 
 def _registry(local_config: LocalExecutionConfig) -> RegistryBinding:
@@ -528,6 +715,24 @@ def _registry(local_config: LocalExecutionConfig) -> RegistryBinding:
             f"job packing requires [registry] with exact image and constraint identities in {local_config.path}"
         )
     return registry
+
+
+def _with_registry_override(
+    local_config: LocalExecutionConfig,
+    registry_prefix: str | None,
+) -> LocalExecutionConfig:
+    """Apply the explicit, one-invocation publication destination override."""
+
+    if registry_prefix is None:
+        return local_config
+    override = derived_registry(environ={REGISTRY_ENVIRONMENT_VARIABLE: registry_prefix})
+    if override is None:
+        raise ContractError("--registry must name a non-empty OCI registry prefix")
+    registry = local_config.registry
+    return replace(
+        local_config,
+        registry=(override if registry is None else replace(registry, repository=override.repository)),
+    )
 
 
 def _discover_framework_source_root() -> Path | None:
@@ -578,15 +783,65 @@ def _bake_file(registry: RegistryBinding) -> Path:
 def _project_config_bundle(
     layout: ProjectLayout,
     work_package_path: Path,
+    prepared: PreparedWorkPackageJob,
+    catalog: Catalog,
 ) -> ProjectConfigBundle:
     selected: set[Path] = {layout.manifest, work_package_path}
     if layout.project_brief is not None:
         selected.add(layout.project_brief)
+    files = {_project_relative(layout, path): path.read_bytes() for path in sorted(selected)}
+    roots = {seat.ref for seat in prepared.resolved.seats.values() if seat.ref is not None}
+    roots.update(catalog.refs_for_values(prepared.seats.values()))
+    recipe = prepared.resolved.snapshot.get("recipe")
+    if isinstance(recipe, dict) and isinstance((ref := recipe.get("ref")), dict):
+        family, identifier = ref.get("family"), ref.get("id")
+        if isinstance(family, str) and isinstance(identifier, str):
+            roots.add(CatalogRef(family, identifier))
+    closure = catalog.transitive_refs(roots)
+    selected_by_overlay: dict[str, set[CatalogRef]] = {}
+    for ref in closure:
+        resolved = catalog.resolve(ref)
+        if resolved.source_layer == "overlay":
+            assert resolved.overlay_id is not None
+            selected_by_overlay.setdefault(resolved.overlay_id, set()).add(ref)
     for overlay in layout.catalog_overlays:
         if not overlay.is_dir():
             raise ContractError(f"project catalog overlay is missing: {overlay}")
-        selected.update(path for path in overlay.rglob("*") if path.is_file())
-    files = {_project_relative(layout, path): path.read_bytes() for path in sorted(selected)}
+        manifest_path = overlay / "layer.yaml"
+        manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+        if not isinstance(manifest, dict) or not isinstance((layer_id := manifest.get("layer_id")), str):
+            raise ContractError(f"project catalog overlay has an invalid layer manifest: {manifest_path}")
+        selected_refs = selected_by_overlay.get(layer_id, set())
+        generated_files: list[str] = []
+        for filename in manifest.get("files", []):
+            if not isinstance(filename, str):
+                raise ContractError(f"project catalog overlay has an invalid file name: {manifest_path}")
+            source_path = overlay / filename
+            document = yaml.safe_load(source_path.read_text(encoding="utf-8"))
+            if not isinstance(document, dict):
+                raise ContractError(f"project catalog document is invalid: {source_path}")
+            retained = {
+                family: {
+                    identifier: value
+                    for identifier, value in entries.items()
+                    if any(
+                        getattr(ref, "family", None) == family and getattr(ref, "id", None) == identifier
+                        for ref in selected_refs
+                    )
+                }
+                for family, entries in document.items()
+                if isinstance(family, str) and isinstance(entries, dict)
+            }
+            retained = {family: entries for family, entries in retained.items() if entries}
+            if retained:
+                generated_files.append(filename)
+                files[_project_relative(layout, source_path)] = yaml.safe_dump(
+                    retained, sort_keys=True, allow_unicode=True
+                ).encode()
+        files[_project_relative(layout, manifest_path)] = yaml.safe_dump(
+            {"schema_version": 1, "layer_id": layer_id, "files": generated_files},
+            sort_keys=False,
+        ).encode()
     return ProjectConfigBundle(
         files=files,
         selected_work_package=_project_relative(layout, work_package_path),
@@ -730,15 +985,33 @@ def _storage(
     if provider == "local":
         configured = local_config.local.storage if local_config.local is not None else None
         return configured or ExecutionStorageBinding(
-            run_root=(layout.state / "runs").resolve(),
+            run_root=cache_path(layout, "runs"),
             model_cache=(layout.state / "cache" / "huggingface").resolve(),
             compile_cache=(layout.state / "cache" / "compile").resolve(),
         )
     if provider == "dstack":
         configured = local_config.dstack.storage if local_config.dstack is not None else None
-        if configured is None:
-            raise ContractError(f"dstack execution requires [providers.dstack.storage] in {local_config.path}")
-        return configured
+        if configured is not None:
+            warnings.warn(
+                "providers.dstack.storage is deprecated; dstack worker storage "
+                "is owned by the execution-dstack worker contract",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return configured
+        try:
+            from posttrain_execution_dstack import (
+                DSTACK_WORKER_COMPILE_CACHE,
+                DSTACK_WORKER_MODEL_CACHE,
+                DSTACK_WORKER_RUN_ROOT,
+            )
+        except ImportError as error:
+            raise ContractError("dstack execution support is not installed; install posttrain[dstack]") from error
+        return ExecutionStorageBinding(
+            run_root=DSTACK_WORKER_RUN_ROOT,
+            model_cache=DSTACK_WORKER_MODEL_CACHE,
+            compile_cache=DSTACK_WORKER_COMPILE_CACHE,
+        )
     raise ContractError(f"unsupported execution provider: {provider}")
 
 
@@ -770,6 +1043,7 @@ def _idempotency_key(run_id: str, package_key: str, image: str) -> str:
 
 
 __all__ = [
+    "LocalPackedJobPackage",
     "PackedJobPackage",
     "PackedJobExecution",
     "PlannedJobPackage",

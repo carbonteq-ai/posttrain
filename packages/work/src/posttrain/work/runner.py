@@ -6,6 +6,7 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from types import MappingProxyType
+from typing import cast
 
 from posttrain.common import (
     Catalog,
@@ -25,7 +26,8 @@ from posttrain.common import (
 )
 from posttrain.common.selections import Selection
 from posttrain.data import DatasetDescriptor
-from posttrain.eval import EnvironmentBinding, EvaluationPlan
+from posttrain.environment import EnvironmentBinding
+from posttrain.eval import EvaluationPlan
 from posttrain.train import (
     DPOSettings,
     GRPOSettings,
@@ -641,6 +643,7 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
             "sampling": dict(value.sampling),
             "target_id": value.target.id,
             "purpose": list(value.purpose),
+            "startup_timeout_seconds": value.startup_timeout_seconds,
         }
     if isinstance(value, TrainingBinding):
         return {
@@ -701,11 +704,13 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
             "metadata": dict(descriptor.metadata),
         }
     if isinstance(value, EnvironmentBinding):
+        from posttrain.environment import environment_source_payload
+
         return {
             "category": value.category,
             "package": value.source.package,
-            "repository": value.source.repository,
-            "source_revision": value.source.revision,
+            "source": cast(JsonValue, environment_source_payload(value.source)),
+            "source_revision": value.revision,
             "activation": value.activation.to_payload(),
             "activation_digest": value.activation.digest,
             "sampling": {

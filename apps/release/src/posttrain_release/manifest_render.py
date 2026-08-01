@@ -44,6 +44,18 @@ def _render_image(image: PublishedImage) -> list[str]:
     if image.provided_packages:
         rendered = ", ".join(_quote(name) for name in image.provided_packages)
         lines.append(f"provided_packages = [{rendered}]")
+    if image.backend_constraint_lock is not None:
+        if image.backend_lock_digest is None:
+            raise ValueError(f"{image.name}: backend constraint lock has no digest")
+        lines.extend(
+            (
+                f"backend_constraint_lock = {_quote(image.backend_constraint_lock.as_posix())}",
+                f"backend_lock_digest = {_quote(image.backend_lock_digest)}",
+            )
+        )
+        if image.backend_provided_packages:
+            rendered = ", ".join(_quote(name) for name in image.backend_provided_packages)
+            lines.append(f"backend_provided_packages = [{rendered}]")
     return lines
 
 

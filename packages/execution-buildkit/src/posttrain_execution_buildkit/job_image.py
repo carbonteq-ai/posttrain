@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -15,6 +16,7 @@ from posttrain.common import ContractError, JsonValue
 from posttrain.execution import RuntimeImageRef
 from posttrain.execution_pack import (
     JobImagePublicationRequest,
+    LocalPublishedJobImage,
     PublishedJobImage,
 )
 
@@ -29,6 +31,11 @@ _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _SAFE_BUILDER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/@-]*$")
 _PUBLISHED_TARGET = "posttrain-job"
 _SMOKE_TARGET = "posttrain-job-smoke"
+_URL_USERINFO = re.compile(r"https?://[^/\s:@]+(?::[^@/\s]*)?@")
+_SENSITIVE_QUERY = re.compile(
+    r"[?&](?:access[_-]?token|api[_-]?key|auth|credential|password|secret|token)=",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,6 +64,7 @@ class BuildKitJobImagePublisher:
         receipt_root: Path,
         gateway: BuildxGateway | None = None,
         builder: str | None = None,
+        python_index_url: str | None = None,
     ) -> None:
         if not bake_file.is_absolute() or not bake_file.is_file():
             raise ValueError("job image Bake file must be an existing absolute path")
@@ -66,17 +74,25 @@ class BuildKitJobImagePublisher:
             raise ValueError("job image receipt root must be absolute")
         if builder is not None and not _SAFE_BUILDER.fullmatch(builder):
             raise ContractError("job image BuildKit builder name is invalid")
+        if python_index_url is not None and (
+            not python_index_url.startswith(("http://", "https://"))
+            or _URL_USERINFO.search(python_index_url)
+            or _SENSITIVE_QUERY.search(python_index_url)
+        ):
+            raise ContractError("job image Python index URL must be credential-free HTTP(S)")
         self._bake_file = bake_file
         self._definition_root = bake_file.parent
         self._definition_digest = _build_definition_digest(bake_file.parent)
         self._receipt_root = receipt_root
         self._gateway = gateway or BuildxCli()
         self._builder = builder
+        self._python_index_url = python_index_url or ""
 
     def publish(
         self,
         request: JobImagePublicationRequest,
     ) -> PublishedJobImage:
+        _enforce_qualification_policy(request)
         receipt_path = self._receipt_root / f"{request.publication_key}.json"
         if receipt_path.is_file():
             receipt = self._load_receipt(receipt_path)
@@ -123,8 +139,63 @@ class BuildKitJobImagePublisher:
         finally:
             metadata.unlink(missing_ok=True)
 
-    def _check_definition(self, request: JobImagePublicationRequest) -> None:
+    def publish_local(self, request: JobImagePublicationRequest) -> LocalPublishedJobImage:
+        """Build the verified actual-job image into an OCI layout, never a registry."""
+
+        _enforce_qualification_policy(request)
+        layout = self._receipt_root / "local-layouts" / request.publication_key
+        receipt = self._receipt_root / f"{request.publication_key}.local.json"
+        tag = f"posttrain-local:{request.publication_key}"
+        if layout.joinpath("index.json").is_file() and receipt.is_file():
+            return LocalPublishedJobImage(request.package_key, request.publication_key, layout, tag, receipt, True)
+        self._check_definition(request, local=True)
+        self._gateway.invoke(self._smoke_arguments(request))
+        layout.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        temporary = layout.parent / f".{request.publication_key}-{uuid.uuid4().hex}"
+        try:
+            self._gateway.invoke(
+                [
+                    "bake",
+                    "--file",
+                    str(self._bake_file),
+                    *self._entitlement_arguments(request),
+                    *self._builder_arguments(),
+                    "--progress",
+                    "plain",
+                    *self._context_arguments(),
+                    "--set",
+                    f"{_PUBLISHED_TARGET}.output=type=oci,dest={temporary},tar=false",
+                    *self._variable_arguments(request),
+                    _PUBLISHED_TARGET,
+                ]
+            )
+            if not temporary.joinpath("index.json").is_file():
+                raise ContractError("local OCI publication did not produce index.json")
+            _remove_local_output(layout)
+            temporary.replace(layout)
+            receipt.write_text(
+                json.dumps(
+                    {
+                        "package_key": request.package_key,
+                        "publication_key": request.publication_key,
+                        "layout": str(layout),
+                        "tag": tag,
+                    },
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            receipt.chmod(0o600)
+            return LocalPublishedJobImage(request.package_key, request.publication_key, layout, tag, receipt, False)
+        finally:
+            _remove_local_output(temporary)
+
+    def _check_definition(self, request: JobImagePublicationRequest, *, local: bool = False) -> None:
         for target in (_PUBLISHED_TARGET, _SMOKE_TARGET):
+            local_output = (
+                ("--set", f"{_PUBLISHED_TARGET}.output=type=cacheonly") if local and target == _PUBLISHED_TARGET else ()
+            )
             self._gateway.invoke(
                 (
                     "bake",
@@ -133,6 +204,7 @@ class BuildKitJobImagePublisher:
                     *self._entitlement_arguments(request),
                     *self._builder_arguments(),
                     *self._context_arguments(),
+                    *local_output,
                     *self._variable_arguments(request),
                     "--call",
                     "check",
@@ -229,6 +301,7 @@ class BuildKitJobImagePublisher:
     ) -> list[str]:
         manifest = request.manifest
         variables: Mapping[str, str] = {
+            "ALLOW_DEFERRED_QUALIFICATION": "1" if request.allow_deferred_qualification else "0",
             "CODE_REQUIREMENTS_DIGEST": manifest.code_requirements_digest,
             "FRAMEWORK_SOURCE_DIGEST": manifest.framework_source_digest,
             "IMAGE_REPOSITORY": request.publication.repository,
@@ -236,6 +309,7 @@ class BuildKitJobImagePublisher:
             "JOB_KIND": manifest.job_kind,
             "PACKAGE_KEY": manifest.package_key,
             "POSTTRAIN_KIND_IMAGE": manifest.kind_image.value,
+            "PYTHON_INDEX_URL": self._python_index_url,
             "PROJECT_CONFIG_DIGEST": manifest.project_config_digest,
             "PROJECT_SOURCE_DIGEST": manifest.project_source_digest,
             "RESOLVED_CONFIG_DIGEST": manifest.resolved_config_digest,
@@ -377,6 +451,27 @@ class BuildKitJobImagePublisher:
                 "job image publication receipt does not match the requested "
                 "package, publication settings, or build definition"
             )
+
+
+def _remove_local_output(path: Path) -> None:
+    """Remove only the exact temporary or prior local-export target."""
+
+    if path.is_dir():
+        shutil.rmtree(path)
+    elif path.exists():
+        path.unlink()
+
+
+def _enforce_qualification_policy(request: JobImagePublicationRequest) -> None:
+    deferred = sorted(
+        lock.environment_id for lock in request.manifest.environment_activations if lock.qualification == "deferred"
+    )
+    if deferred and not request.allow_deferred_qualification:
+        raise ContractError(
+            "offline qualification is deferred for "
+            + ", ".join(repr(environment_id) for environment_id in deferred)
+            + "; pass --allow-deferred-qualification to make the live job the Taskset.load gate"
+        )
 
 
 def _published(

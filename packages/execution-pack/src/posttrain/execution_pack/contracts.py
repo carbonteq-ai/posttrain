@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Protocol
@@ -59,6 +59,22 @@ class EnvironmentWheelRequest:
             revision=self.revision,
             subdirectories=(self.subdirectory,),
         )
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectEnvironmentSourceRequest:
+    """One project-relative environment package with a planning-time tree digest."""
+
+    package: str
+    path: str
+    tree_digest: str
+
+    def __post_init__(self) -> None:
+        if not _PACKAGE.fullmatch(self.package):
+            raise ContractError("project environment package identity is invalid")
+        _validate_subdirectory(self.path)
+        if not re.fullmatch(r"[0-9a-f]{64}", self.tree_digest):
+            raise ContractError("project environment tree digest must be SHA-256")
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,6 +173,8 @@ class EnvironmentPackager(Protocol):
         *,
         git_sources: tuple[GitSourceRequest, ...],
         wheel_requests: tuple[EnvironmentWheelRequest, ...],
+        project_sources: Mapping[str, Path],
+        project_requests: tuple[ProjectEnvironmentSourceRequest, ...],
         kind_profile: str,
         output_root: Path,
     ) -> MaterializedEnvironments: ...

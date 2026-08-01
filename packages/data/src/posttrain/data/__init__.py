@@ -29,6 +29,7 @@ from .catalog import (
     load_materialized_dataset,
     materialize_dataset,
     resolve_dataset_source,
+    validate_materialized_dataset,
 )
 from .models import (
     DatasetDescriptor,
@@ -81,6 +82,7 @@ __all__ = [
     "load_materialized_dataset",
     "materialize_dataset",
     "resolve_dataset_source",
+    "validate_materialized_dataset",
     "preferences_from_huggingface",
     "preferences_from_nemo",
     "partition_supervised_dataset",

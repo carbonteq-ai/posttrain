@@ -3,26 +3,32 @@
 from __future__ import annotations
 
 import importlib
-import os
 import warnings
+from collections.abc import Mapping
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, cast
 
-from posttrain.catalog import ProjectLayout
+from posttrain.catalog import ProjectLayout, load_project_layout
 from posttrain.execution import (
+    AdmissionEntry,
     CancelledTrackingWriter,
     ExecutionAdmissionService,
     ExecutionEvidenceSource,
     ExecutionPlan,
     ExecutionProvider,
+    ExecutionProviderSource,
     ExecutionSubmissionStore,
     JobExecutionService,
+    ProjectControlLocator,
 )
 from posttrain.tracking import RunDataSource
 
 from .execution_config import (
+    DstackBinding,
     ExecutionOverrides,
     LocalExecutionConfig,
+    LocalProviderBinding,
     ResolvedExecutionSettings,
     load_execution_environment,
     load_local_execution_config,
@@ -52,6 +58,7 @@ def create_execution_provider(
         provider = provider_type(
             state_root=layout.state,
             environment=load_execution_environment(local_config),
+            dns_servers=(local_config.local.dns_servers if local_config.local is not None else ()),
             trust_bundle=resolve_trust_bundle(
                 local_config.local.trust_bundle if local_config.local is not None else None
             ).path,
@@ -76,13 +83,86 @@ def create_execution_provider(
             project=binding.project,
             python=binding.python,
             environment_file=binding.environment_file,
-            job_environment_file=local_config.environment_file,
+            runtime_environment=load_execution_environment(local_config),
             trust_bundle=resolve_trust_bundle(binding.trust_bundle).path,
             capacity_wait_seconds=binding.capacity_wait_seconds,
         )
         return "dstack", cast(ExecutionProvider, provider)
 
     raise RuntimeError(f"unsupported execution provider: {settings.provider}")
+
+
+def provider_source_for_project(
+    layout: ProjectLayout,
+    provider_name: str,
+    local_config: LocalExecutionConfig | None = None,
+) -> ExecutionProviderSource:
+    """Freeze secret-free adapter identity while leaving credentials rotatable."""
+
+    local = local_config or load_local_execution_config(layout)
+    profile_id = local.machine.name if local.machine is not None else f"project:{layout.project_id}"
+    fingerprint = provider_binding_fingerprint(local, provider_name)
+    if provider_name == "local-docker":
+        binding = local.local or LocalProviderBinding()
+        return ExecutionProviderSource(
+            provider=provider_name,
+            profile_id=profile_id,
+            binding_fingerprint=fingerprint,
+            trust_bundle=binding.trust_bundle,
+            canonical_hostname=binding.canonical_hostname,
+            dns_servers=binding.dns_servers,
+        )
+    if provider_name == "dstack":
+        binding = local.dstack
+        if binding is None:
+            raise RuntimeError("dstack provider binding is unavailable")
+        return ExecutionProviderSource(
+            provider=provider_name,
+            profile_id=profile_id,
+            binding_fingerprint=fingerprint,
+            endpoint_scope=binding.project,
+            adapter_python=binding.python,
+            credential_file=binding.environment_file,
+            trust_bundle=binding.trust_bundle,
+            capacity_wait_seconds=binding.capacity_wait_seconds,
+        )
+    return ExecutionProviderSource(
+        provider=provider_name,
+        profile_id=profile_id,
+        binding_fingerprint=fingerprint,
+    )
+
+
+def _configuration_for_provider_source(
+    owner: ProjectLayout,
+    source: ExecutionProviderSource,
+) -> LocalExecutionConfig:
+    current = load_local_execution_config(owner)
+    if source.provider == "local-docker":
+        return replace(
+            current,
+            local=LocalProviderBinding(
+                canonical_hostname=source.canonical_hostname,
+                dns_servers=source.dns_servers,
+                storage=(current.local.storage if current.local is not None else None),
+                trust_bundle=source.trust_bundle,
+            ),
+        )
+    if source.provider == "dstack":
+        if source.endpoint_scope is None or source.adapter_python is None:
+            raise RuntimeError("recorded dstack provider source is incomplete")
+        return replace(
+            current,
+            dstack=DstackBinding(
+                project=source.endpoint_scope,
+                python=source.adapter_python,
+                environment_file=source.credential_file,
+                storage=(current.dstack.storage if current.dstack is not None else None),
+                trust_bundle=source.trust_bundle,
+                capacity_wait_seconds=source.capacity_wait_seconds,
+            ),
+        )
+    raise RuntimeError(f"recorded provider source is unsupported: {source.provider!r}")
 
 
 def execution_service_for_run(
@@ -98,7 +178,11 @@ def execution_service_for_run(
         configured_provider = providers[submission.provider]
     except KeyError as error:
         raise RuntimeError(f"execution run uses unsupported provider {submission.provider!r}") from error
-    local = load_local_execution_config(layout)
+    local = (
+        _configuration_for_provider_source(layout, submission.provider_source)
+        if submission.provider_source_recorded and submission.provider_source is not None
+        else load_local_execution_config(layout)
+    )
     settings = resolve_execution_settings(
         layout.execution,
         local=local.defaults,
@@ -107,7 +191,13 @@ def execution_service_for_run(
     provider_name, provider = create_execution_provider(layout, settings, local)
     if provider_name != submission.provider:
         raise RuntimeError(f"execution provider resolved as {provider_name!r}, expected {submission.provider!r}")
-    return JobExecutionService(provider, store, provider_name=provider_name)
+    return JobExecutionService(
+        provider,
+        store,
+        provider_name=provider_name,
+        evidence_source=submission.evidence_source,
+        provider_source=submission.provider_source,
+    )
 
 
 def execution_admission_service(
@@ -140,10 +230,62 @@ def execution_admission_service(
             evidence_source=evidence_source,
         )
 
+    def owner_layout(entry: AdmissionEntry) -> tuple[ProjectLayout, ProjectControlLocator]:
+        locator = entry.control_locator
+        if locator is None:
+            raise RuntimeError(
+                f"admission run {entry.run_id} predates project ownership locators; "
+                "reconcile it from its owning project"
+            )
+        owner = load_project_layout(locator.project_root)
+        if owner.project_id != locator.project_id:
+            raise RuntimeError(
+                f"admission run {entry.run_id} names project {locator.project_id!r}, "
+                f"but {locator.project_root} currently identifies {owner.project_id!r}"
+            )
+        if owner.state.resolve() != locator.control_store:
+            raise RuntimeError(f"admission run {entry.run_id} control store no longer matches its owning project")
+        return owner, locator
+
+    def entry_service_factory(entry: AdmissionEntry) -> JobExecutionService:
+        owner, locator = owner_layout(entry)
+        configured = {"local-docker": "local", "dstack": "dstack"}
+        try:
+            provider_override = configured[entry.plan.provider]
+        except KeyError as error:
+            raise RuntimeError(f"execution admission uses unsupported provider {entry.plan.provider!r}") from error
+        local = (
+            _configuration_for_provider_source(owner, entry.provider_source)
+            if entry.provider_source is not None
+            else load_local_execution_config(owner)
+        )
+        settings = resolve_execution_settings(
+            owner.execution,
+            local=local.defaults,
+            cli=ExecutionOverrides(provider=provider_override),
+        )
+        resolved_name, provider = create_execution_provider(owner, settings, local)
+        if resolved_name != entry.plan.provider:
+            raise RuntimeError(f"execution provider resolved as {resolved_name!r}, expected {entry.plan.provider!r}")
+        return JobExecutionService(
+            provider,
+            ExecutionSubmissionStore(locator.control_store),
+            provider_name=resolved_name,
+            evidence_source=entry.evidence_source,
+            provider_source=entry.provider_source,
+        )
+
     def provider_binding_factory(provider_name: str) -> str:
         return provider_binding_fingerprint(
             load_local_execution_config(layout),
             provider_name,
+        )
+
+    def entry_provider_binding_factory(entry: AdmissionEntry) -> str:
+        owner, _locator = owner_layout(entry)
+        return provider_binding_fingerprint(
+            load_local_execution_config(owner),
+            entry.plan.provider,
         )
 
     def physical_host_factory(plan: ExecutionPlan) -> str | None:
@@ -155,7 +297,9 @@ def execution_admission_service(
     return ExecutionAdmissionService(
         resolve_admission_state_root(),
         service_factory,
+        entry_service_factory=entry_service_factory,
         provider_binding_factory=provider_binding_factory,
+        entry_provider_binding_factory=entry_provider_binding_factory,
         physical_host_factory=physical_host_factory,
     )
 
@@ -174,38 +318,30 @@ def tracking_source_for_project(layout: ProjectLayout) -> RunDataSource:
 
 def evidence_source_for_project(
     layout: ProjectLayout,
+    *,
+    environment: Mapping[str, str] | None = None,
 ) -> ExecutionEvidenceSource | None:
     """Resolve the secret-free evidence destination recorded at submission."""
 
-    environment = project_tracking_environment(layout)
+    resolved_environment = dict(environment) if environment is not None else project_tracking_environment(layout)
     if layout.tracking == "trackio":
-        # The process environment counts as much as the execution environment
-        # file, because it is what reaches the job: a run configured through the
-        # shell writes to a remote server while the recorded endpoint stays
-        # empty, and reconciliation then looks for that run in a local store and
-        # reports the project as nonexistent. The W&B branch below already
-        # consults both.
-        project = (
-            environment.get("POSTTRAIN_TRACKIO_PROJECT") or os.getenv("POSTTRAIN_TRACKIO_PROJECT") or layout.project_id
-        )
+        project = resolved_environment.get("POSTTRAIN_TRACKIO_PROJECT") or layout.project_id
         return ExecutionEvidenceSource(
             provider="trackio",
             source_id=f"trackio-{layout.project_id}",
             project=project,
-            endpoint=environment.get("POSTTRAIN_TRACKIO_SERVER_URL") or os.getenv("POSTTRAIN_TRACKIO_SERVER_URL"),
+            endpoint=resolved_environment.get("POSTTRAIN_TRACKIO_SERVER_URL"),
         )
     if layout.tracking == "wandb":
-        entity = environment.get("WANDB_ENTITY") or os.getenv("WANDB_ENTITY")
+        entity = resolved_environment.get("WANDB_ENTITY")
         if not entity:
             raise RuntimeError("W&B execution requires WANDB_ENTITY")
-        project = (
-            environment.get("POSTTRAIN_WANDB_PROJECT") or os.getenv("POSTTRAIN_WANDB_PROJECT") or layout.project_id
-        )
+        project = resolved_environment.get("POSTTRAIN_WANDB_PROJECT") or layout.project_id
         return ExecutionEvidenceSource(
             provider="wandb",
             source_id=f"wandb-{layout.project_id}",
             project=project,
-            endpoint=environment.get("WANDB_BASE_URL") or os.getenv("WANDB_BASE_URL"),
+            endpoint=resolved_environment.get("WANDB_BASE_URL"),
             scope=entity,
         )
     if layout.tracking == "none":

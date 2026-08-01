@@ -22,7 +22,7 @@ def test_configure_is_side_effect_free_and_uses_standard_definitions_and_git_met
     layout = ProjectLayout(
         root=project,
         control_dir=project / ".posttrain",
-        project_id="foundation-models",
+        project_id="posttrain-lab",
         manifest=project / ".posttrain" / "project.toml",
         catalog_overlays=(),
         work_packages=work_packages,

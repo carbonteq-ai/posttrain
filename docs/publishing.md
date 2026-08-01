@@ -102,14 +102,18 @@ gh pr checks <n>
 
 ## The sequence
 
-1. **Bump every workspace member** — root, `apps/*`, `packages/*` — to the same
-   version.
-2. **Re-pin siblings** so each intra-workspace dependency names the new version
-   exactly. A test derives this from the workspace, so a missed pin fails the
-   ladder rather than shipping.
-3. **`uv lock`**, then realign the catalog. `packages/catalog/src/posttrain/
-   catalog/base/training.yaml` records `dependency_lock_sha256`, the hash of
-   `uv.lock`. It drifts on every bump and fails one lab test until corrected.
+1. **Set the authored version once** with
+   `uv run posttrain-release prepare X.Y.Z`. Source `pyproject.toml` files stay
+   at the release-neutral `0.0.0` template and keep bare workspace dependencies.
+2. **Regenerate dependency locks only when dependencies changed** with
+   `uv lock` followed by `uv run posttrain-release lock-dependencies`. Training
+   selections reference the one generated catalog lock record rather than
+   copying its digest.
+3. **Stage and inspect the release metadata** with
+   `uv run posttrain-release stage /tmp/posttrain-X.Y.Z`. Build all packages
+   from that isolated tree using `uv build --all-packages --no-sources`; the
+   resulting wheel metadata must contain version `X.Y.Z` and exact first-party
+   `==X.Y.Z` pins.
 4. **Run the full ladder.** It must be green before anything is published,
    because publishing is irreversible.
 5. **Write the CHANGELOG entry**, then commit.

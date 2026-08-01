@@ -1,6 +1,6 @@
 [project]
 name = "posttrain-common"
-version = "0.2.5"
+version = "0.0.0"
 description = "Framework-neutral contracts for the post-training platform"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"

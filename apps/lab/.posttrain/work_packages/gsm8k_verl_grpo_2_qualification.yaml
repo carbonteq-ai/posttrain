@@ -1,0 +1,53 @@
+project_id: posttrain-lab
+work_package_id: train/qwen3.5-0.8b/verl-grpo-2-capsule-qualification
+stage: train
+description: Bounded two-step Qwen 3.5 0.8B veRL GRPO capsule qualification over GSM8K.
+recipe:
+  type: inline
+  id: recipes/gsm8k-qwen3.5-0.8b-verl-grpo-2@4
+  revision: "4"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: grpo
+      kind: train.grpo
+      definition: train/trl-grpo@1
+  expected_artifacts:
+    - trained adapter
+    - native Verifiers trajectories
+    - training summary
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/qwen3.5-0.8b@bf16
+  environment:
+    type: ref
+    family: environment
+    id: gsm8k-grpo-qualification
+  settings:
+    type: ref
+    family: training
+    id: qwen3.5-0.8b/verl-grpo-2-step-capsule-v2
+  training:
+    type: ref
+    family: training
+    id: training/qwen3.5-0.8b-verl-grpo-capsule-lora@4
+  rollout_inference:
+    type: ref
+    family: inference
+    id: inference/qwen3.5-0.8b-vllm-distill-rollout@2
+enabled_optional_jobs: []
+metadata:
+  question: Does the online-rl-verl-py313 capsule run a bounded GRPO update with Python 3.12 control and Python 3.13 worker isolation?
+  labels:
+    - qualification
+    - verl
+    - grpo
+    - capsule
+    - candidate

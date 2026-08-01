@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -18,16 +19,21 @@ from posttrain_cli.execution_config import (
     REGISTRY_ENVIRONMENT_VARIABLE,
     TRUST_BUNDLE_ENVIRONMENT_VARIABLE,
     ExecutionOverrides,
+    LocalExecutionConfig,
+    derived_local_registry,
+    load_execution_environment,
     load_local_execution_config,
     provider_binding_fingerprint,
     resolve_admission_state_root,
     resolve_execution_settings,
     resolve_trust_bundle,
 )
+from posttrain_cli.execution_planning import _with_registry_override
 from posttrain_cli.execution_provider import (
     create_execution_provider,
     evidence_source_for_project,
     evidence_source_for_run,
+    provider_source_for_project,
 )
 
 
@@ -47,6 +53,62 @@ def _layout(tmp_path: Path):
         encoding="utf-8",
     )
     return load_project_layout(tmp_path)
+
+
+def _write_runtime_environment(path: Path, values: str) -> None:
+    path.write_text(values, encoding="utf-8")
+    path.chmod(0o600)
+
+
+def test_explicit_registry_override_changes_only_the_publication_destination(tmp_path: Path) -> None:
+    registry = derived_local_registry()
+    configuration = LocalExecutionConfig(path=tmp_path / "config.toml", registry=registry)
+
+    overridden = _with_registry_override(configuration, "registry.example/team")
+
+    assert overridden.registry is not None
+    assert overridden.registry.repository == "registry.example/team/posttrain-job"
+    assert overridden.registry.universal_image == registry.universal_image
+    assert overridden.registry.kind_images == registry.kind_images
+    assert overridden.registry.constraint_profiles == registry.constraint_profiles
+    assert configuration.registry == registry
+
+
+def test_project_runtime_environment_is_authoritative_over_shell_registry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    layout = _layout(tmp_path)
+    _write_runtime_environment(
+        tmp_path / "posttrain.env",
+        "POSTTRAIN_REGISTRY=registry.project.example/posttrain\n",
+    )
+    monkeypatch.setenv("POSTTRAIN_REGISTRY", "registry.shell.example/posttrain")
+
+    configuration = load_local_execution_config(layout)
+
+    assert configuration.environment_file == (tmp_path / "posttrain.env").resolve()
+    assert configuration.registry is not None
+    assert configuration.registry.repository == "registry.project.example/posttrain/posttrain-job"
+
+
+def test_explicit_runtime_environment_replaces_the_project_file(tmp_path: Path) -> None:
+    layout = _layout(tmp_path)
+    _write_runtime_environment(
+        tmp_path / "posttrain.env",
+        "POSTTRAIN_REGISTRY=registry.project.example/posttrain\n",
+    )
+    override = tmp_path / "alternate.env"
+    _write_runtime_environment(
+        override,
+        "POSTTRAIN_REGISTRY=registry.override.example/posttrain\n",
+    )
+
+    configuration = load_local_execution_config(layout, env_file=override)
+
+    assert configuration.environment_file == override.resolve()
+    assert configuration.registry is not None
+    assert configuration.registry.repository == "registry.override.example/posttrain/posttrain-job"
 
 
 def test_run_evidence_locator_survives_project_configuration_drift(
@@ -138,6 +200,7 @@ def test_local_configuration_is_mode_checked_and_parsed(tmp_path: Path) -> None:
                 "",
                 "[providers.local]",
                 'canonical_hostname = "POP-OS.LAN."',
+                'dns_servers = ["192.0.2.53", "2001:db8::53"]',
                 'trust_bundle = "local-ca.pem"',
                 "",
                 "[providers.dstack]",
@@ -215,6 +278,7 @@ def test_local_configuration_is_mode_checked_and_parsed(tmp_path: Path) -> None:
     assert configuration.dstack.python == (layout.state / "dstack-venv/bin/python").resolve()
     assert configuration.local is not None
     assert configuration.local.canonical_hostname == "pop-os.lan"
+    assert configuration.local.dns_servers == ("192.0.2.53", "2001:db8::53")
     assert configuration.local.storage is not None
     assert configuration.local.storage.run_root == (layout.state / "local-runs").resolve()
     assert configuration.local.trust_bundle == local_trust_bundle.resolve()
@@ -541,7 +605,7 @@ def test_local_provider_factory_uses_project_state(
 ) -> None:
     layout = _layout(tmp_path)
     local = load_local_execution_config(layout)
-    calls: list[tuple[Path, dict[str, str]]] = []
+    calls: list[tuple[Path, dict[str, str], tuple[str, ...]]] = []
 
     class FakeLocalProvider:
         def __init__(
@@ -549,10 +613,11 @@ def test_local_provider_factory_uses_project_state(
             *,
             state_root: Path,
             environment: dict[str, str],
+            dns_servers: tuple[str, ...],
             trust_bundle: Path | None,
         ) -> None:
             assert trust_bundle is None
-            calls.append((state_root, environment))
+            calls.append((state_root, environment, dns_servers))
 
     class FakeModule:
         LocalDockerExecutionProvider = FakeLocalProvider
@@ -566,7 +631,7 @@ def test_local_provider_factory_uses_project_state(
     provider_name, _ = create_execution_provider(layout, settings, local)
 
     assert provider_name == "local-docker"
-    assert calls == [(layout.state, {})]
+    assert calls == [(layout.state, {}, ())]
 
 
 def test_dstack_factory_requires_protected_binding(tmp_path: Path) -> None:
@@ -638,6 +703,10 @@ def test_dstack_factory_uses_only_protected_binding_paths(
         encoding="utf-8",
     )
     config_path.chmod(0o600)
+    _write_runtime_environment(
+        tmp_path / "posttrain.env",
+        "TRACKIO_WRITE_TOKEN=from-posttrain-env\n",
+    )
     calls: list[dict[str, object]] = []
 
     class FakeDstackProvider:
@@ -667,7 +736,7 @@ def test_dstack_factory_uses_only_protected_binding_paths(
             "project": "main",
             "python": python.resolve(),
             "environment_file": environment_file.resolve(),
-            "job_environment_file": None,
+            "runtime_environment": {"TRACKIO_WRITE_TOKEN": "from-posttrain-env"},
             "trust_bundle": None,
             "capacity_wait_seconds": 0,
         }
@@ -704,6 +773,7 @@ def test_provider_binding_fingerprint_ignores_secret_rotation_but_not_identity(
         load_local_execution_config(layout),
         "dstack",
     )
+    source = provider_source_for_project(layout, "dstack", load_local_execution_config(layout))
 
     environment_file.write_text("DSTACK_TOKEN=rotated\n", encoding="utf-8")
     rotated = provider_binding_fingerprint(
@@ -724,6 +794,11 @@ def test_provider_binding_fingerprint_ignores_secret_rotation_but_not_identity(
 
     assert rotated == first
     assert changed != first
+    assert source.provider == "dstack"
+    assert source.endpoint_scope == "main"
+    assert source.adapter_python == python.resolve()
+    assert source.credential_file == environment_file.resolve()
+    assert source.binding_fingerprint == first
 
 
 def test_registry_resolves_from_the_environment_with_no_configuration_file(
@@ -736,7 +811,7 @@ def test_registry_resolves_from_the_environment_with_no_configuration_file(
     supply is the registry for their own actual-job images.
     """
     layout = _layout(tmp_path)
-    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.internal/team")
+    _write_runtime_environment(tmp_path / "posttrain.env", "POSTTRAIN_REGISTRY=registry.internal/team\n")
 
     loaded = load_local_execution_config(layout)
     assert not loaded.path.exists()
@@ -760,7 +835,7 @@ def test_framework_images_do_not_follow_the_project_registry(
     images from it even when its own job images go somewhere private.
     """
     layout = _layout(tmp_path)
-    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.internal/team")
+    _write_runtime_environment(tmp_path / "posttrain.env", "POSTTRAIN_REGISTRY=registry.internal/team\n")
 
     loaded = load_local_execution_config(layout)
     assert loaded.registry is not None
@@ -772,7 +847,7 @@ def test_trailing_slashes_in_the_environment_prefix_are_ignored(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     layout = _layout(tmp_path)
-    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "  registry.internal/team/  ")
+    _write_runtime_environment(tmp_path / "posttrain.env", "POSTTRAIN_REGISTRY=  registry.internal/team/  \n")
 
     loaded = load_local_execution_config(layout)
     assert loaded.registry is not None
@@ -814,7 +889,7 @@ def test_mirror_prefix_moves_framework_images_without_changing_identity(
 ) -> None:
     """Mirroring is a prefix change only; digests are content-addressed."""
     layout = _layout(tmp_path)
-    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.internal/team")
+    _write_runtime_environment(tmp_path / "posttrain.env", "POSTTRAIN_REGISTRY=registry.internal/team\n")
     path = layout.state / "execution.toml"
     path.parent.mkdir(parents=True)
     path.write_text(
@@ -838,7 +913,7 @@ def test_derived_constraint_profiles_carry_published_provided_packages(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     layout = _layout(tmp_path)
-    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.internal/team")
+    _write_runtime_environment(tmp_path / "posttrain.env", "POSTTRAIN_REGISTRY=registry.internal/team\n")
 
     loaded = load_local_execution_config(layout)
     assert loaded.registry is not None
@@ -853,7 +928,7 @@ def test_released_verl_variant_is_derived_from_the_manifest(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     layout = _layout(tmp_path)
-    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.internal/team")
+    _write_runtime_environment(tmp_path / "posttrain.env", "POSTTRAIN_REGISTRY=registry.internal/team\n")
 
     loaded = load_local_execution_config(layout)
     assert loaded.registry is not None
@@ -868,10 +943,9 @@ def test_an_execution_file_without_a_registry_still_uses_the_environment(
 ) -> None:
     """Writing execution.toml for one setting must not drop another.
 
-    The registry is configured through POSTTRAIN_REGISTRY. A project that adds
-    execution.toml for an unrelated reason, such as the local provider's
-    canonical hostname, previously lost it: the environment was consulted only
-    when no execution configuration existed at all.
+    The registry is configured through the project-owned posttrain.env. A
+    project that adds execution.toml for an unrelated reason, such as the
+    local provider's canonical hostname, must retain that runtime value.
     """
     layout = _layout(tmp_path)
     layout.state.mkdir(parents=True, exist_ok=True)
@@ -881,7 +955,10 @@ def test_an_execution_file_without_a_registry_still_uses_the_environment(
         encoding="utf-8",
     )
     configured.chmod(0o600)
-    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.example.invalid/team")
+    _write_runtime_environment(
+        tmp_path / "posttrain.env",
+        "POSTTRAIN_REGISTRY=registry.example.invalid/team\n",
+    )
 
     loaded = load_local_execution_config(layout)
 
@@ -890,22 +967,168 @@ def test_an_execution_file_without_a_registry_still_uses_the_environment(
     assert loaded.registry is not None
 
 
-def test_tracking_endpoint_is_recorded_from_the_process_environment(
+def test_tracking_endpoint_is_ignored_when_only_the_process_environment_has_it(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Evidence must be read back from where the job actually wrote it.
-
-    The job container receives POSTTRAIN_TRACKIO_SERVER_URL from the process
-    environment, so a run configured through the shell writes to the remote
-    server. Recording no endpoint made reconciliation read a local store
-    instead, where the run does not exist, and a succeeded run could never
-    produce retained evidence.
-    """
+    """An ambient endpoint must not select a job or reconciliation destination."""
     layout = _layout(tmp_path)
     monkeypatch.setenv("POSTTRAIN_TRACKIO_SERVER_URL", "https://tracking.example.invalid")
 
     source = evidence_source_for_project(layout)
+
+    assert source is not None
+    assert source.endpoint is None
+
+
+def test_machine_config_example_supplies_every_project_with_shared_defaults(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    layout = _layout(tmp_path)
+    config_home = tmp_path / "config"
+    config_dir = config_home / "posttrain"
+    config_dir.mkdir(parents=True)
+    state_home = tmp_path / "state"
+    config_path = config_dir / "config.toml"
+    config_path.write_text(
+        "\n".join(
+            (
+                "schema_version = 1",
+                f'projects = ["{layout.root}"]',
+                "",
+                "[tracking]",
+                'kind = "trackio"',
+                'endpoint = "https://trackio.lan"',
+                "",
+                "[trust]",
+                'ca_bundle = "/etc/ssl/certs/ca-certificates.crt"',
+                "",
+                "[storage]",
+                'run_root = "runs"',
+                'model_cache = "cache/huggingface"',
+                'compile_cache = "cache/compile"',
+                "",
+                "[providers.local]",
+                'dns_servers = ["192.0.2.53", "2001:db8::53"]',
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    config_path.chmod(0o644)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
+    monkeypatch.setenv("XDG_STATE_HOME", str(state_home))
+
+    loaded = load_local_execution_config(layout)
+
+    assert loaded.machine is not None
+    assert loaded.machine.projects == (layout.root,)
+    assert loaded.path == config_path
+    assert loaded.defaults.provider == "local"
+    assert loaded.local is not None
+    assert loaded.local.dns_servers == ("192.0.2.53", "2001:db8::53")
+    assert loaded.local.storage is not None
+    assert loaded.local.storage.run_root == state_home / "posttrain" / "runs"
+    assert loaded.local.storage.model_cache == state_home / "posttrain" / "cache" / "huggingface"
+    assert loaded.local.storage.compile_cache == state_home / "posttrain" / "cache" / "compile"
+    assert load_execution_environment(loaded)["POSTTRAIN_TRACKIO_SERVER_URL"] == "https://trackio.lan"
+    evidence = evidence_source_for_project(layout)
+    assert evidence is not None
+    assert evidence.endpoint == "https://trackio.lan"
+
+
+def test_machine_config_extends_defaults_without_owning_dstack_worker_storage(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    layout = _layout(tmp_path)
+    _write_runtime_environment(tmp_path / "posttrain.env", "POSTTRAIN_REGISTRY=project.example/jobs\n")
+    config_home = tmp_path / "config"
+    config_dir = config_home / "posttrain"
+    config_dir.mkdir(parents=True)
+    credentials = tmp_path / "dstack.env"
+    credentials.write_text("DSTACK_TOKEN=redacted\n", encoding="utf-8")
+    credentials.chmod(0o600)
+    (config_dir / "config.toml").write_text(
+        "\n".join(
+            (
+                "schema_version = 1",
+                'machine_name = "rtx-pro-96gb.lan"',
+                'default_provider = "dstack"',
+                "",
+                "[services]",
+                'python_index_url = "https://pypi.lan/simple/"',
+                'job_registry = "registry.lan/posttrain"',
+                "",
+                "[providers.dstack]",
+                'project = "main"',
+                f'python = "{Path(sys.executable)}"',
+                'credentials = "dstack-default"',
+                "capacity_wait_seconds = 60",
+                "",
+                "[credentials.dstack-default]",
+                f'file = "{credentials}"',
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
+
+    loaded = load_local_execution_config(layout)
+
+    assert loaded.machine is not None
+    assert loaded.machine.name == "rtx-pro-96gb.lan"
+    assert loaded.dstack is not None
+    assert loaded.dstack.storage is None
+    assert loaded.defaults.provider == "dstack"
+    environment = load_execution_environment(loaded)
+    assert environment["UV_INDEX_URL"] == "https://pypi.lan/simple/"
+    assert environment["POSTTRAIN_REGISTRY"] == "project.example/jobs"
+
+
+def test_machine_config_rejects_local_dns_hostnames(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    layout = _layout(tmp_path)
+    config_home = tmp_path / "config"
+    config_dir = config_home / "posttrain"
+    config_dir.mkdir(parents=True)
+    (config_dir / "config.toml").write_text(
+        'schema_version = 1\n\n[providers.local]\ndns_servers = ["dns.lan"]\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
+
+    with pytest.raises(ContractError, match="only literal IP addresses"):
+        load_local_execution_config(layout)
+
+
+def test_removed_profile_selector_fails_with_a_migration_message(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    layout = _layout(tmp_path)
+    _write_runtime_environment(tmp_path / "posttrain.env", "POSTTRAIN_PROFILE=rtx96\n")
+    config_home = tmp_path / "config"
+    config_dir = config_home / "posttrain"
+    config_dir.mkdir(parents=True)
+    (config_dir / "config.toml").write_text("schema_version = 1\n", encoding="utf-8")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
+
+    with pytest.raises(ContractError, match="POSTTRAIN_PROFILE was removed"):
+        load_local_execution_config(layout)
+
+
+def test_prepared_evidence_source_uses_the_explicit_resolved_runtime_environment(tmp_path: Path) -> None:
+    layout = _layout(tmp_path)
+
+    source = evidence_source_for_project(
+        layout,
+        environment={"POSTTRAIN_TRACKIO_SERVER_URL": "https://tracking.example.invalid"},
+    )
 
     assert source is not None
     assert source.endpoint == "https://tracking.example.invalid"

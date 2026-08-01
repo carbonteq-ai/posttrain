@@ -77,6 +77,7 @@ def test_docker_cli_uses_packaged_workdir_and_explicit_worker_entrypoint(
             "environment_names": ["TRACKIO_SERVER_URL"],
             "launch_environment": {"POSTTRAIN_EXECUTION": '{"schema":"test"}'},
             "volumes": [],
+            "dns_servers": ["192.0.2.53", "2001:db8::53"],
             "labels": {},
             "command": list(JOB_PACKAGE_WORKER_COMMAND),
         },
@@ -88,6 +89,8 @@ def test_docker_cli_uses_packaged_workdir_and_explicit_worker_entrypoint(
     assert arguments[arguments.index("--workdir") + 1] == "/opt/posttrain/job"
     assert arguments[arguments.index("--entrypoint") + 1] == "posttrain-runtime"
     assert "TRACKIO_SERVER_URL" in arguments
+    assert arguments.count("--dns") == 2
+    assert arguments[arguments.index("--dns") + 1] == "192.0.2.53"
     assert 'POSTTRAIN_EXECUTION={"schema":"test"}' in arguments
     assert "/opt/posttrain/bundle" not in arguments
 
@@ -133,6 +136,7 @@ def test_local_docker_lifecycle_and_cancel_are_durable(
     provider = LocalDockerExecutionProvider(
         gateway,
         state_root=(tmp_path / "state").resolve(),
+        dns_servers=("192.0.2.53",),
     )
     plan = provider.plan(_request(tmp_path))
     handle = provider.submit(plan)
@@ -147,6 +151,7 @@ def test_local_docker_lifecycle_and_cancel_are_durable(
     assert launch["job_image"] == plan.request.image.value
     assert launch["target"]["id"] == plan.request.target.id
     assert submit["gpu"] is True
+    assert submit["dns_servers"] == ["192.0.2.53"]
     assert all("trackio.example" not in str(payload) for _, payload in gateway.calls)
     assert submit["command"] == [
         "posttrain-runtime",

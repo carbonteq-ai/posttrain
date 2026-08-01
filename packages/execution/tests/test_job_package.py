@@ -258,6 +258,43 @@ def test_environment_activation_config_is_deeply_immutable() -> None:
         taskset["split"] = "test"  # type: ignore[index]
 
 
+def test_environment_activation_qualification_policy_round_trips() -> None:
+    manifest = _manifest()
+    deferred = replace(
+        manifest,
+        environment_activations=(replace(manifest.environment_activations[0], qualification="deferred"),),
+    )
+
+    restored = JobPackageManifest.from_bytes(deferred.to_bytes())
+
+    assert restored.environment_activations[0].qualification == "deferred"
+
+
+def test_project_path_environment_package_lock_round_trips_without_git_identity() -> None:
+    lock = EnvironmentPackageLock(
+        package="toy-env",
+        repository=None,
+        revision=None,
+        subdirectory=None,
+        tree_digest="a" * 64,
+        wheel_filename="toy_env-1.0.0-py3-none-any.whl",
+        wheel_digest="b" * 64,
+        wheel_size_bytes=1024,
+        source_kind="project-path",
+        project_path="environments/toy_env",
+    )
+    base = _manifest()
+    manifest = replace(
+        base,
+        environment_packages=(lock,),
+        environment_activations=(replace(base.environment_activations[0], package="toy-env"),),
+    )
+
+    restored = JobPackageManifest.from_bytes(manifest.to_bytes())
+
+    assert restored.environment_packages[0] == lock
+
+
 def test_job_package_rejects_activation_without_its_environment_wheel() -> None:
     manifest = _manifest()
 

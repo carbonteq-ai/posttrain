@@ -6,6 +6,7 @@ from .admission import (
     AdmissionState,
     ExecutionAdmissionService,
     Placement,
+    ProjectControlLocator,
 )
 from .bundles import (
     ExecutionBundlePlan,
@@ -47,6 +48,7 @@ from .job_package import (
     EnvironmentPackageLock,
     JobPackageManifest,
     RuntimeDependencyLock,
+    StagedResourceLock,
 )
 from .job_package_diff import (
     ChangeKind,
@@ -64,6 +66,7 @@ from .manifest import (
     ManifestMount,
     resolved_inputs_digest,
 )
+from .provider_source import ExecutionProviderSource
 from .receipts import ExecutionJournal, latest_runtime_image
 from .reconciliation import (
     ExecutionReconciliation,
@@ -100,6 +103,7 @@ __all__ = [
     "ExecutionHandle",
     "ExecutionAdmissionService",
     "Placement",
+    "ProjectControlLocator",
     "ExecutionBundlePlan",
     "ExecutionCleanupReceipt",
     "ExecutionMount",
@@ -109,6 +113,7 @@ __all__ = [
     "ExecutionPlan",
     "ExecutionPolicy",
     "ExecutionProvider",
+    "ExecutionProviderSource",
     "ExecutionRecord",
     "ExecutionReconciliation",
     "ExecutionRequest",
@@ -124,6 +129,7 @@ __all__ = [
     "JOB_PACKAGE_WORKER_COMMAND",
     "JobPackageManifest",
     "RuntimeDependencyLock",
+    "StagedResourceLock",
     "EnvironmentActivationLock",
     "EnvironmentPackageLock",
     "DatasetPackageLock",

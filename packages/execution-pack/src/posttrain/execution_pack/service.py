@@ -11,7 +11,7 @@ import stat
 import tempfile
 import tomllib
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 from typing import cast
@@ -20,6 +20,7 @@ from posttrain.common import ContractError, JsonValue
 from posttrain.execution import (
     BackendRuntimeLock,
     DatasetPackageLock,
+    EnvironmentActivationLock,
     EnvironmentPackageLock,
     JobPackageManifest,
     RuntimeDependencyLock,
@@ -36,6 +37,7 @@ from .planning import JobPackPlan
 
 _FORBIDDEN_SOURCE_NAMES = {
     ".env",
+    "posttrain.env",
     ".git",
     ".netrc",
     "credentials",
@@ -145,6 +147,12 @@ class ProjectConfigBundle:
         object.__setattr__(self, "project_manifest", manifest)
         object.__setattr__(self, "selected_work_package", work_package)
 
+    @property
+    def digest(self) -> str:
+        """Content identity of the exact project configuration closure."""
+
+        return _project_config_digest(self)
+
 
 @dataclass(frozen=True, slots=True)
 class JobPackInputs:
@@ -158,6 +166,8 @@ class JobPackInputs:
     # image already holds the framework's dependencies, so these install with
     # --no-deps and no resolution happens inside the image build.
     framework_wheels: tuple[Path, ...] = ()
+    activation_resource_sources: Mapping[tuple[str, str], Path] = field(default_factory=dict)
+    project_environment_sources: Mapping[str, Path] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         selected = dict(self.resolved_inputs)
@@ -169,6 +179,19 @@ class JobPackInputs:
             "resolved_inputs",
             cast(Mapping[str, JsonValue], payload),
         )
+        sources = dict(self.activation_resource_sources)
+        if any(
+            not isinstance(key, tuple) or len(key) != 2 or not all(isinstance(item, str) for item in key)
+            for key in sources
+        ):
+            raise ContractError("activation resource source keys must be (environment id, resource name)")
+        if any(not isinstance(path, Path) for path in sources.values()):
+            raise ContractError("activation resource sources must be paths")
+        object.__setattr__(self, "activation_resource_sources", MappingProxyType(sources))
+        project_sources = dict(self.project_environment_sources)
+        if any(not isinstance(path, str) or not isinstance(source, Path) for path, source in project_sources.items()):
+            raise ContractError("project environment sources must map declared paths to local paths")
+        object.__setattr__(self, "project_environment_sources", MappingProxyType(project_sources))
 
 
 @dataclass(frozen=True, slots=True)
@@ -250,6 +273,11 @@ class JobPackService:
                 inputs.project_source,
                 stage / "sources" / "project",
             )
+            _stage_activation_resources(
+                stage,
+                plan.spec.environment_activations,
+                inputs.activation_resource_sources,
+            )
             code_requirements = _code_requirements(inputs)
             code_requirements_path = stage / "locks" / "code.requirements.txt"
             code_requirements_path.write_bytes(code_requirements)
@@ -268,6 +296,7 @@ class JobPackService:
                 "project_manifest": (f"project/{inputs.project_config.project_manifest}"),
                 "selected_work_package": (f"project/{inputs.project_config.selected_work_package}"),
                 "resolved_inputs": resolved_inputs,
+                "family_registry_lock": dict(plan.spec.family_registry_lock),
             }
             config_bytes = _json_bytes(resolved_config, pretty=True)
             (stage / "config" / "resolved.json").write_bytes(config_bytes)
@@ -282,7 +311,7 @@ class JobPackService:
             dataset_locks = tuple(sorted(datasets.locks, key=lambda lock: lock.seat_name))
             _validate_dataset_packages(stage, dataset_locks)
 
-            environments = self._materialize_environments(plan, work)
+            environments = self._materialize_environments(plan, inputs, work)
             _stage_environment_packages(environments, stage)
             environment_locks = tuple(package.lock for package in environments.packages)
             runtime_dependency_locks = _stage_runtime_dependencies(
@@ -358,9 +387,10 @@ class JobPackService:
     def _materialize_environments(
         self,
         plan: JobPackPlan,
+        inputs: JobPackInputs,
         work: Path,
     ) -> MaterializedEnvironments:
-        if not plan.spec.environment_wheels:
+        if not plan.spec.environment_wheels and not plan.spec.project_environment_sources:
             runtime_requirements = work / "runtime.requirements.txt"
             runtime_requirements.write_bytes(b"")
             return MaterializedEnvironments(
@@ -373,6 +403,8 @@ class JobPackService:
         return self._environment_packager.package(
             git_sources=plan.spec.git_sources,
             wheel_requests=plan.spec.environment_wheels,
+            project_sources=inputs.project_environment_sources,
+            project_requests=plan.spec.project_environment_sources,
             kind_profile=plan.spec.runtime_variant,
             output_root=work,
         )
@@ -419,8 +451,31 @@ def _create_layout(root: Path) -> None:
         "sources/project",
         "config",
         "datasets",
+        "environment-resources",
     ):
         (root / relative).mkdir(parents=True, exist_ok=True)
+
+
+def _stage_activation_resources(
+    root: Path,
+    activations: tuple[EnvironmentActivationLock, ...],
+    sources: Mapping[tuple[str, str], Path],
+) -> None:
+    expected = {
+        (activation.environment_id, name): resource
+        for activation in activations
+        for name, resource in activation.resources.items()
+    }
+    if set(sources) != set(expected):
+        raise ContractError("activation resource inputs differ from the job-pack plan")
+    for key, resource in expected.items():
+        source = sources[key]
+        contents = _read_regular_file(source, f"activation resource {key[0]}/{key[1]}")
+        if len(contents) != resource.size_bytes or _bytes_digest(contents) != resource.digest:
+            raise ContractError(f"activation resource differs from its planned lock: {key[0]}/{key[1]}")
+        destination = root.joinpath(*PurePosixPath(resource.staged_path).parts)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(contents)
 
 
 def _stage_project_config(
@@ -780,10 +835,10 @@ def _backend_runtime_lock(
         "python_executable": "/opt/posttrain-verl/bin/python",
         "working_directory": "/opt/posttrain-verl/workdir",
     }
-    for field, expected in required.items():
-        value = options.get(field)
+    for option_name, expected in required.items():
+        value = options.get(option_name)
         if value != expected:
-            raise ContractError(f"veRL {field} must use capsule-owned path {expected}")
+            raise ContractError(f"veRL {option_name} must use capsule-owned path {expected}")
     if options.get("source_dirty") not in {None, False}:
         raise ContractError("veRL capsule cannot select a dirty source worktree")
     source_revision = options.get("source_revision")
@@ -817,16 +872,10 @@ def _validate_environment_selection(
     plan: JobPackPlan,
     locks: tuple[EnvironmentPackageLock, ...],
 ) -> None:
-    observed = tuple(
-        (
-            lock.package,
-            lock.repository,
-            lock.revision,
-            lock.subdirectory,
-        )
-        for lock in locks
+    observed_git = tuple(
+        (lock.package, lock.repository, lock.revision, lock.subdirectory) for lock in locks if lock.source_kind == "git"
     )
-    expected = tuple(
+    expected_git = tuple(
         (
             request.package,
             request.repository,
@@ -835,7 +884,13 @@ def _validate_environment_selection(
         )
         for request in plan.spec.environment_wheels
     )
-    if observed != expected:
+    observed_project = tuple(
+        (lock.package, lock.project_path, lock.tree_digest) for lock in locks if lock.source_kind == "project-path"
+    )
+    expected_project = tuple(
+        (source.package, source.path, source.tree_digest) for source in plan.spec.project_environment_sources
+    )
+    if observed_git != expected_git or observed_project != expected_project:
         raise ContractError("materialized environment packages differ from the job-pack plan")
 
 
@@ -927,6 +982,7 @@ def _verify_staged_context(
     expected_top_level = {
         "config",
         "datasets",
+        "environment-resources",
         "locks",
         "package.json",
         "sources",
@@ -1032,6 +1088,7 @@ def _verify_staged_context(
             or _file_digest(wheel) != package.wheel_digest
         ):
             raise ContractError(f"staged environment wheel differs from its lock: {package.package}")
+    _validate_activation_resources(root, manifest.environment_activations)
     _validate_runtime_requirements(
         (root / "locks/runtime.requirements.txt").read_bytes(),
         environment_locks=manifest.environment_packages,
@@ -1048,6 +1105,25 @@ def _verify_staged_context(
             contents,
             environment_locks=manifest.environment_packages,
         )
+
+
+def _validate_activation_resources(
+    root: Path,
+    activations: tuple[EnvironmentActivationLock, ...],
+) -> None:
+    resource_root = root / "environment-resources"
+    if not resource_root.is_dir() or resource_root.is_symlink():
+        raise ContractError("staged activation resource directory is missing")
+    expected = {
+        resource.staged_path: resource for activation in activations for resource in activation.resources.values()
+    }
+    observed = {path.relative_to(root).as_posix() for path in resource_root.rglob("*") if path.is_file()}
+    if observed != set(expected):
+        raise ContractError("staged activation resources differ from the package manifest")
+    for staged_path, resource in expected.items():
+        contents = _read_regular_file(root.joinpath(*PurePosixPath(staged_path).parts), "activation resource")
+        if len(contents) != resource.size_bytes or _bytes_digest(contents) != resource.digest:
+            raise ContractError(f"staged activation resource differs from its lock: {resource.name}")
 
 
 def _resolved_project_path(value: object, label: str) -> str:

@@ -7,7 +7,7 @@ from typing import Literal
 
 import yaml
 from posttrain.common import ContractError
-from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, RootModel, ValidationError, model_validator
 
 
 class _Schema(BaseModel):
@@ -30,22 +30,15 @@ class CatalogLayerManifestSchema(_Schema):
         return self
 
 
-class CatalogDocumentSchema(_Schema):
-    model: dict[str, dict[str, object]] | None = None
-    dataset: dict[str, dict[str, object]] | None = None
-    environment: dict[str, dict[str, object]] | None = None
-    inference: dict[str, dict[str, object]] | None = None
-    training: dict[str, dict[str, object]] | None = None
-    quantization: dict[str, dict[str, object]] | None = None
-    evaluation: dict[str, dict[str, object]] | None = None
-    workload: dict[str, dict[str, object]] | None = None
-    target: dict[str, dict[str, object]] | None = None
-    recipe: dict[str, dict[str, object]] | None = None
+class CatalogDocumentSchema(RootModel[dict[str, dict[str, object]]]):
+    model_config = ConfigDict(frozen=True)
 
     @model_validator(mode="after")
     def contains_entries(self) -> CatalogDocumentSchema:
-        if not any(value for _, value in self):
+        if not self.root:
             raise ValueError("catalog documents require at least one family entry")
+        if any(not family or not entries for family, entries in self.root.items()):
+            raise ValueError("catalog documents require non-empty family entries")
         return self
 
 
@@ -58,7 +51,7 @@ def load_catalog_layer(directory: Path) -> dict[str, object]:
     for filename in manifest.files:
         path = directory / filename
         document = _load_schema(path, CatalogDocumentSchema)
-        for family, entries in document.model_dump(exclude_none=True).items():
+        for family, entries in document.root.items():
             destination = families.setdefault(family, {})
             duplicate = set(destination).intersection(entries)
             if duplicate:

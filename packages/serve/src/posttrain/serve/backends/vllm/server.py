@@ -95,7 +95,7 @@ class VllmServer:
             text=True,
             env=_server_environment(),
         )
-        deadline = time.monotonic() + self.request.startup_timeout_seconds
+        deadline = time.monotonic() + self.request.effective_startup_timeout_seconds
         while time.monotonic() < deadline:
             returncode = self._process.poll()
             if returncode is not None:

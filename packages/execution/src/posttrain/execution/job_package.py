@@ -6,7 +6,7 @@ import hashlib
 import json
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 from types import MappingProxyType
 from typing import Literal, cast
@@ -43,26 +43,41 @@ JOB_PACKAGE_WORKER_COMMAND = (
 
 @dataclass(frozen=True, slots=True)
 class EnvironmentPackageLock:
-    """One verified environment wheel built from immutable Git source."""
+    """One verified environment wheel built from an immutable source snapshot."""
 
     package: str
-    repository: str
-    revision: str
-    subdirectory: str
+    repository: str | None
+    revision: str | None
+    subdirectory: str | None
     tree_digest: str
     wheel_filename: str
     wheel_digest: str
     wheel_size_bytes: int
+    source_kind: Literal["git", "project-path"] = "git"
+    project_path: str | None = None
 
     def __post_init__(self) -> None:
         if not _IDENTITY.fullmatch(self.package):
             raise ContractError("environment package name is invalid")
-        if not self.repository.startswith("https://"):
-            raise ContractError("environment repository must use canonical HTTPS")
-        if not _COMMIT.fullmatch(self.revision):
-            raise ContractError("environment revision must be a full commit SHA")
-        if self.subdirectory != ".":
-            _relative_path(self.subdirectory, "environment subdirectory")
+        if self.source_kind == "git":
+            if not isinstance(self.repository, str) or not self.repository.startswith("https://"):
+                raise ContractError("environment repository must use canonical HTTPS")
+            if not isinstance(self.revision, str) or not _COMMIT.fullmatch(self.revision):
+                raise ContractError("environment revision must be a full commit SHA")
+            if not isinstance(self.subdirectory, str):
+                raise ContractError("environment subdirectory is required")
+            if self.subdirectory != ".":
+                _relative_path(self.subdirectory, "environment subdirectory")
+            if self.project_path is not None:
+                raise ContractError("Git environment package lock cannot name a project path")
+        elif self.source_kind == "project-path":
+            if self.repository is not None or self.revision is not None or self.subdirectory is not None:
+                raise ContractError("project-path environment package lock cannot contain Git identity")
+            if self.project_path is None:
+                raise ContractError("project-path environment package lock requires its declared path")
+            _relative_path(self.project_path, "project-path environment source")
+        else:
+            raise ContractError("environment package source kind is invalid")
         _digest(self.tree_digest, "environment tree")
         if PurePosixPath(self.wheel_filename).name != self.wheel_filename or not self.wheel_filename.endswith(".whl"):
             raise ContractError("environment wheel filename must be a portable wheel filename")
@@ -73,6 +88,7 @@ class EnvironmentPackageLock:
     def to_payload(self) -> dict[str, JsonValue]:
         return {
             "package": self.package,
+            "source_kind": self.source_kind,
             "repository": self.repository,
             "revision": self.revision,
             "subdirectory": self.subdirectory,
@@ -80,6 +96,53 @@ class EnvironmentPackageLock:
             "wheel_filename": self.wheel_filename,
             "wheel_digest": self.wheel_digest,
             "wheel_size_bytes": self.wheel_size_bytes,
+            "project_path": self.project_path,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class StagedResourceLock:
+    """One regular activation resource copied into an immutable job package."""
+
+    name: str
+    source_path: str
+    staged_path: str
+    digest: str
+    size_bytes: int
+
+    def __post_init__(self) -> None:
+        if not _IDENTITY.fullmatch(self.name):
+            raise ContractError("activation resource name is invalid")
+        source = PurePosixPath(self.source_path)
+        if (
+            not self.source_path
+            or "\\" in self.source_path
+            or source.is_absolute()
+            or source.as_posix() != self.source_path
+            or any(part in {"", ".", ".."} for part in source.parts)
+        ):
+            raise ContractError("activation resource source path is invalid")
+        path = PurePosixPath(self.staged_path)
+        if (
+            not self.staged_path
+            or "\\" in self.staged_path
+            or path.is_absolute()
+            or path.as_posix() != self.staged_path
+            or any(part in {"", ".", ".."} for part in path.parts)
+            or not path.is_relative_to(PurePosixPath("environment-resources"))
+        ):
+            raise ContractError("activation resource staged path is invalid")
+        _digest(self.digest, "activation resource")
+        if self.size_bytes < 0:
+            raise ContractError("activation resource size cannot be negative")
+
+    def to_payload(self) -> dict[str, JsonValue]:
+        return {
+            "name": self.name,
+            "source_path": self.source_path,
+            "staged_path": self.staged_path,
+            "digest": self.digest,
+            "size_bytes": self.size_bytes,
         }
 
 
@@ -93,6 +156,8 @@ class EnvironmentActivationLock:
     digest: str
     reference: str | None = None
     config: Mapping[str, JsonValue] | None = None
+    resources: Mapping[str, StagedResourceLock] = field(default_factory=dict)
+    qualification: Literal["required", "deferred"] = "required"
 
     def __post_init__(self) -> None:
         if not _IDENTITY.fullmatch(self.environment_id):
@@ -122,6 +187,14 @@ class EnvironmentActivationLock:
             raise ContractError("environment factory ref must be an import reference such as module:callable")
         if self.kind == "python-factory" and self.config is not None:
             raise ContractError("Python factory activation cannot include config")
+        if self.qualification not in {"required", "deferred"}:
+            raise ContractError("environment activation qualification is invalid")
+        resources = dict(self.resources)
+        if any(name != resource.name for name, resource in resources.items()):
+            raise ContractError("activation resource mapping names must match their locks")
+        if len({resource.staged_path for resource in resources.values()}) != len(resources):
+            raise ContractError("activation resources must have distinct staged paths")
+        object.__setattr__(self, "resources", MappingProxyType(dict(sorted(resources.items()))))
         activation_payload: dict[str, JsonValue] = {"kind": self.kind}
         if self.kind == "python-factory":
             activation_payload["reference"] = self.reference
@@ -130,6 +203,14 @@ class EnvironmentActivationLock:
                 JsonValue,
                 _thaw_json(self.config or {}),
             )
+            if self.resources:
+                activation_payload["resources"] = cast(
+                    JsonValue,
+                    {
+                        name: {"source": {"kind": "project-path", "path": resource.source_path}}
+                        for name, resource in self.resources.items()
+                    },
+                )
         observed = hashlib.sha256(_json_bytes(activation_payload, "environment activation")).hexdigest()
         if self.digest != observed:
             raise ContractError("environment activation digest does not match its payload")
@@ -142,6 +223,8 @@ class EnvironmentActivationLock:
             "digest": self.digest,
             "reference": self.reference,
             "config": (None if self.config is None else cast(JsonValue, _thaw_json(self.config))),
+            "resources": {name: resource.to_payload() for name, resource in self.resources.items()},
+            "qualification": self.qualification,
         }
 
 
@@ -555,17 +638,25 @@ def _environment_package_lock(value: object) -> EnvironmentPackageLock:
     wheel_filename = value.get("wheel_filename")
     wheel_digest = value.get("wheel_digest")
     wheel_size_bytes = value.get("wheel_size_bytes")
+    source_kind = value.get("source_kind", "git")
+    project_path = value.get("project_path")
     if not isinstance(wheel_size_bytes, int) or isinstance(wheel_size_bytes, bool):
         raise TypeError("environment wheel size")
+    if source_kind not in {"git", "project-path"}:
+        raise TypeError("environment source kind")
+    if project_path is not None and not isinstance(project_path, str):
+        raise TypeError("environment project path")
     return EnvironmentPackageLock(
         package=_required_string(package, "environment package"),
-        repository=_required_string(repository, "environment repository"),
-        revision=_required_string(revision, "environment revision"),
-        subdirectory=_required_string(subdirectory, "environment subdirectory"),
+        repository=(None if repository is None else _required_string(repository, "environment repository")),
+        revision=(None if revision is None else _required_string(revision, "environment revision")),
+        subdirectory=(None if subdirectory is None else _required_string(subdirectory, "environment subdirectory")),
         tree_digest=_required_string(tree_digest, "environment tree digest"),
         wheel_filename=_required_string(wheel_filename, "environment wheel filename"),
         wheel_digest=_required_string(wheel_digest, "environment wheel digest"),
         wheel_size_bytes=wheel_size_bytes,
+        source_kind=source_kind,
+        project_path=project_path,
     )
 
 
@@ -575,12 +666,18 @@ def _environment_activation_lock(value: object) -> EnvironmentActivationLock:
     kind = value.get("kind")
     reference = value.get("reference")
     config = value.get("config")
+    resources = value.get("resources", {})
+    qualification = value.get("qualification", "required")
     if kind not in {"verifiers-config", "python-factory"}:
         raise TypeError("environment activation kind")
     if reference is not None and not isinstance(reference, str):
         raise TypeError("environment activation reference")
     if config is not None and not isinstance(config, dict):
         raise TypeError("environment activation config")
+    if not isinstance(resources, dict):
+        raise TypeError("environment activation resources")
+    if qualification not in {"required", "deferred"}:
+        raise TypeError("environment activation qualification")
     return EnvironmentActivationLock(
         environment_id=_required_string(value.get("environment_id"), "environment activation id"),
         package=_required_string(value.get("package"), "environment activation package"),
@@ -588,6 +685,26 @@ def _environment_activation_lock(value: object) -> EnvironmentActivationLock:
         digest=_required_string(value.get("digest"), "environment activation digest"),
         reference=reference,
         config=config,
+        resources={
+            _required_string(name, "environment activation resource name"): _staged_resource_lock(resource)
+            for name, resource in resources.items()
+        },
+        qualification=qualification,
+    )
+
+
+def _staged_resource_lock(value: object) -> StagedResourceLock:
+    if not isinstance(value, dict):
+        raise TypeError("activation resource lock")
+    size_bytes = value.get("size_bytes")
+    if not isinstance(size_bytes, int) or isinstance(size_bytes, bool):
+        raise TypeError("activation resource size")
+    return StagedResourceLock(
+        name=_required_string(value.get("name"), "activation resource name"),
+        source_path=_required_string(value.get("source_path"), "activation resource source path"),
+        staged_path=_required_string(value.get("staged_path"), "activation resource staged path"),
+        digest=_required_string(value.get("digest"), "activation resource digest"),
+        size_bytes=size_bytes,
     )
 
 

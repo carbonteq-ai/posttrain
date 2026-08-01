@@ -23,13 +23,14 @@ from posttrain.data import (
     SupervisedDataSource,
     prepare,
 )
+from posttrain.environment import EnvironmentBinding
 from posttrain.eval import (
-    EnvironmentBinding,
     EvaluateRequest,
     EvaluationBudget,
     EvaluationEndpoint,
     EvaluationPlan,
     EvaluationResult,
+    RemoteEvaluationBinding,
     domain,
     general,
 )
@@ -382,6 +383,49 @@ def general_evaluation_definition(
     )
 
 
+def remote_evaluation_definition(
+    operation: Callable[[RunContext, EvaluateRequest], object] | None = None,
+    *,
+    budget: EvaluationBudget = _DEFAULT_EVALUATION_BUDGET,
+    kind: Literal["eval.general", "eval.domain"] = "eval.general",
+    definition_id: str = "eval/verifiers-remote-general@1",
+) -> JobDefinition:
+    """Run one Verifiers cell through an externally owned remote-policy binding."""
+
+    def run(context: RunContext, seats: ResolvedSeats) -> object:
+        binding = _seat(seats, "remote_evaluation", RemoteEvaluationBinding)
+        plan = _seat(seats, "evaluation_plan", EvaluationPlan)
+        environment = _seat(seats, "environment", EnvironmentBinding)
+        if plan.environment(environment.id) != environment:
+            raise ValueError("evaluation environment is not a cell in the selected plan")
+        request = EvaluateRequest(
+            model=binding.policy,
+            plan=plan,
+            inference=binding,
+            target=_seat(seats, "target", ExecutionTarget),
+            endpoint=None,
+            environment_id=environment.id,
+            context_window=binding.policy.context_window,
+            budget=budget,
+        )
+        active = operation or (general if kind == "eval.general" else domain)
+        return active(context, request)
+
+    return JobDefinition(
+        definition_id,
+        kind,
+        {
+            "remote_evaluation": RemoteEvaluationBinding,
+            "target": ExecutionTarget,
+            "evaluation_plan": EvaluationPlan,
+            "environment": EnvironmentBinding,
+        },
+        run,
+        "Run one Verifiers evaluation cell through a declared external OpenAI-compatible service.",
+        required_artifact_roles=("evaluation",),
+    )
+
+
 def _managed_evaluation(
     context: RunContext,
     launch_request: ServeLaunchRequest,
@@ -404,6 +448,8 @@ def managed_evaluation_definition(
 ) -> JobDefinition:
     def run(context: RunContext, seats: ResolvedSeats) -> object:
         request = _evaluation_request(seats, budget=budget, materialize_model=context)
+        if not isinstance(request.inference, InferenceBinding):
+            raise AssertionError("managed evaluation requires a local inference binding")
         return operation(context, ServeLaunchRequest(request.inference), request)
 
     return _evaluation_job(
@@ -482,6 +528,7 @@ def standard_definitions() -> dict[str, JobDefinition]:
         serve_benchmark_definition(),
         serve_smoke_definition(),
         general_evaluation_definition(),
+        remote_evaluation_definition(),
         managed_evaluation_definition(),
         managed_general_evaluation_definition(),
         model_transform_definition(),

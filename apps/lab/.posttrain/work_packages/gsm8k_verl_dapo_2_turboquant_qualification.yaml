@@ -1,0 +1,48 @@
+project_id: posttrain-lab
+work_package_id: train/qwen3.5-0.8b/verl-dapo-2-turboquant-qualification
+stage: train
+description: Complete two Qwen 3.5 0.8B veRL DAPO updates with TurboQuant K8V4 rollout KV cache.
+recipe:
+  type: inline
+  id: recipes/gsm8k-qwen3.5-0.8b-verl-dapo-2-turboquant@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: dapo
+      kind: train.grpo
+      definition: train/trl-grpo@1
+  expected_artifacts:
+    - trained adapter
+    - native Verifiers trajectories
+    - training summary
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/qwen3.5-0.8b@bf16
+  environment:
+    type: ref
+    family: environment
+    id: gsm8k-grpo-qualification
+  settings:
+    type: ref
+    family: training
+    id: qwen3.5-0.8b/verl-dapo-2-step-capsule-v1
+  training:
+    type: ref
+    family: training
+    id: training/qwen3.5-0.8b-verl-grpo-capsule-lora@1
+  rollout_inference:
+    type: ref
+    family: inference
+    id: inference/qwen3.5-0.8b-vllm-verl-turboquant-rollout@1
+enabled_optional_jobs: []
+metadata:
+  question: Does core veRL DAPO remain synchronized across two updates with TurboQuant K8V4?
+  labels: [qualification, verl, dapo, turboquant, candidate]

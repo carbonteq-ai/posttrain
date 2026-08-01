@@ -13,6 +13,7 @@ from posttrain.catalog import ProjectLayout, discover_project, open_catalog
 @dataclass
 class CliState:
     project_root: Path | None = None
+    env_file: Path | None = None
     json_output: bool = False
     traceback: bool = False
     json_stream: TextIO = field(default_factory=lambda: sys.stdout)
@@ -28,5 +29,6 @@ class CliState:
                 scope=layout.project_id,
                 overlays=layout.catalog_overlays,
                 catalog_root=layout.base_catalog,
+                required_plugin_distributions=layout.catalog_plugin_requirements,
             ),
         )

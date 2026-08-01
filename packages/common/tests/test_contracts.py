@@ -252,6 +252,15 @@ class CatalogTests(unittest.TestCase):
         )
         self.assertTrue(catalog.contains(CatalogRef("target", target.id)))
         self.assertEqual(len(catalog.list("inference")), 1)
+        self.assertEqual(
+            catalog.transitive_refs((CatalogRef("inference", overlay_binding.id),)),
+            (
+                CatalogRef("inference", overlay_binding.id),
+                CatalogRef("model", model.id),
+                CatalogRef("target", target.id),
+            ),
+        )
+        self.assertEqual(catalog.refs_for_values((target,)), (CatalogRef("target", target.id),))
 
     def test_json_loader_builds_model_target_and_inference_selections(self) -> None:
         revision = "a" * 40

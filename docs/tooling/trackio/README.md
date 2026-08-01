@@ -2,15 +2,13 @@
 
 The platform uses [`carbonteq-ai/trackio`](https://github.com/carbonteq-ai/trackio),
 an additive fork of upstream Trackio. Workspace packages keep the normal
-`import trackio` API. The current workspace pin is immutable commit
-`703be3808cb6cac52259cb15e614cad971978d2e` (`carbonteq-trackio==0.31.5.post5`),
-which keeps the project-scoped `Api.run_configs` / `Api.run_lifecycles` APIs and
-aligns `trackio.__version__` with the distribution metadata. `0.31.5.post4` on
-`pypi.lan` is permanently skewed (metadata post4, import post3) — do not install
-it. The corrected wheel is on `pypi.lan` as `0.31.5.post5`; public PyPI Trusted
-Publishing is not configured yet (`invalid-publisher`), so the framework still
-pins the Git commit rather than a registry version. Kind images that embed
-Trackio must be rebuilt after this pin.
+`import trackio` API. The current workspace dependency is the immutable
+internal-index release `carbonteq-trackio==0.31.5.post6`, built from merged
+commit `82fed847606e4ceb696f6dbc361c19dad474a875`. Its wheel SHA-256 is
+`9bb5defa753b16a9d322fb4a27baff80949c4f0dad2a9dadb07b974932272e00`.
+The deployed shared and candidate services report post6. `0.31.5.post4` on
+`pypi.lan` is permanently skewed (metadata post4, import post3) and must not be
+installed. Kind images that embed Trackio must be rebuilt after this change.
 
 ## Distribution transition
 
@@ -155,9 +153,9 @@ After a train run publishes a model artifact, pin the immutable Trackio `vN`
 as a project catalog `ModelVariant` (`artifact.kind: trackio`) and bind that
 id on the next work package. There is no in-YAML `from_job` wire.
 
-How-to: [consumer-setup §9](../consumer-setup.md#9-pass-one-jobs-model-into-the-next) ·
-DX: [trained model handoff](../developer-experience.md#trained-model-handoff-produce--pin--rebind) ·
-Storage: [ops/dstack-trackio/object-storage.md](../../ops/dstack-trackio/object-storage.md).
+How-to: [consumer-setup §9](../../consumer-setup.md#9-pass-one-jobs-model-into-the-next) ·
+DX: [trained model handoff](../../developer-experience.md#trained-model-handoff-produce--pin--rebind) ·
+Storage: [operations/dstack-trackio/object-storage.md](../../operations/dstack-trackio/object-storage.md).
 
 Rust, Tokio, and direct job access to object storage remain deferred. The
 native Doris engine passed real provider, content-reconciled migration,

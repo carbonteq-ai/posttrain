@@ -1,0 +1,53 @@
+project_id: posttrain-lab
+work_package_id: train/qwen3.5-0.8b/automationbench-zapier-grpo-mtp-smoke
+stage: train
+description: Run one bounded Qwen 3.5 0.8B GRPO update in Zapier AutomationBench with thinking and MTP enabled, retaining exact resolved tasks in Verifiers evidence.
+recipe:
+  type: inline
+  id: recipes/automationbench-zapier-grpo@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: grpo
+      kind: train.grpo
+      definition: train/trl-grpo@1
+  expected_artifacts:
+    - trained adapter
+    - native Verifiers trajectories
+    - training summary
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/qwen3.5-0.8b@bf16
+  environment:
+    type: ref
+    family: environment
+    id: automationbench-zapier-simple-grpo
+  settings:
+    type: ref
+    family: training
+    id: automationbench/qwen3.5-0.8b/grpo-mtp-smoke-v1
+  training:
+    type: ref
+    family: training
+    id: training/qwen3.5-0.8b-trl-automationbench-lora-thinking@1
+  rollout_inference:
+    type: ref
+    family: inference
+    id: inference/qwen3.5-0.8b-vllm-automationbench-rollout-mtp@1
+enabled_optional_jobs: []
+metadata:
+  question: Can the policy improve on Zapier AutomationBench tasks while preserving stable updates and usable tool traces?
+  labels:
+    - grpo
+    - automationbench
+    - zapier
+    - thinking
+    - mtp

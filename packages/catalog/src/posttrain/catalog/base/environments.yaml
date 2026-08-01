@@ -3,8 +3,9 @@ environment:
     category: agentic-tool-use
     source:
       package: automationbench-v1
-      repository: https://github.com/carbonteq-ai/AutomationBench
-      revision: d54dbebabdba6c6eda201694aee8ddcf36ccfc51
+      repository: https://github.com/carbonteq-ai/posttrain
+      revision: 02848b756727d86a55564557e79e7f613fc8762c
+      subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
       config:

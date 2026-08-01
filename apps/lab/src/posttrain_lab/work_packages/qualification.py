@@ -84,13 +84,13 @@ QUALIFICATION_RECIPE = Recipe(
 
 GSM8K_QUALIFICATION = QualificationPackage(
     definition=WorkPackage(
-        project_id="foundation-models",
+        project_id="posttrain-lab",
         work_package_id="qualify/qwen3.5-2b-gsm8k",
         stage="qualify",
         recipe=QUALIFICATION_RECIPE,
         bindings={
             "model": CatalogRef("model", "models/qwen3.5-2b@bf16"),
-            "evaluation_inference": CatalogRef("inference", "inference/qwen3.5-2b-vllm-eval@1"),
+            "evaluation_inference": CatalogRef("inference", "inference/qwen3.5-2b-vllm-eval@2"),
             "target": CatalogRef("target", "targets/local-cuda-8gb"),
             "evaluation_plan": CatalogRef("evaluation", "general-smoke-v1"),
             "environment": CatalogRef("environment", "math-gsm8k"),

@@ -1,0 +1,63 @@
+project_id: posttrain-lab
+work_package_id: screen/qwen3.5-2b-serving-capacity
+stage: screen
+description: Measure the Qwen 3.5 2B foundation model operating curve against the project serving envelope on the local 8 GiB target.
+recipe:
+  type: inline
+  id: recipes/foundation-screen@1
+  revision: "1"
+  stage: screen
+  seats:
+    model: model
+    screen_inference: inference
+    evaluation_inference: inference
+    workload: workload
+    target: target
+    evaluation_plan: evaluation
+    environment: environment
+  jobs:
+    - id: benchmark
+      kind: serve.benchmark
+      definition: serve/vllm-benchmark@1
+    - id: general-eval
+      kind: eval.general
+      definition: eval/verifiers-general@1
+      optional: true
+  expected_artifacts:
+    - serving-result
+    - optional native evaluation result
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/qwen3.5-2b@bf16
+  screen_inference:
+    type: ref
+    family: inference
+    id: inference/qwen3.5-2b-vllm-screen@1
+  evaluation_inference:
+    type: ref
+    family: inference
+    id: inference/qwen3.5-2b-vllm-eval@1
+  workload:
+    type: ref
+    family: workload
+    id: workloads/general-serving-32k-sweep@1
+  target:
+    type: ref
+    family: target
+    id: targets/local-cuda-8gb
+  evaluation_plan:
+    type: ref
+    family: evaluation
+    id: general-smoke-v1
+  environment:
+    type: ref
+    family: environment
+    id: math-gsm8k
+enabled_optional_jobs: []
+metadata:
+  question: Where does this model and runtime saturate, and which operating point remains inside the product constraints?
+  labels:
+    - reference
+    - serving-capacity

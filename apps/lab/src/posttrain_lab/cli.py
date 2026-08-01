@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import os
+import sys
 from dataclasses import replace
 from functools import partial
 from pathlib import Path
@@ -13,6 +14,7 @@ from pathlib import Path
 from posttrain.common import (
     Catalog,
     CatalogRef,
+    ContractError,
     ExecutionTarget,
     InferenceBinding,
     LocalArtifactRef,
@@ -78,6 +80,7 @@ from .jobs import (
     run_sft,
 )
 from .project import ProjectLayout, discover_project
+from .qualification import QualificationGateError, load_qualification_gates, validate_qualification_project
 from .source import resolve_git_source
 from .tracking import trackio_artifact_name, verifiers_rollout
 from .work_packages import (
@@ -176,6 +179,63 @@ def _parser() -> argparse.ArgumentParser:
         help="path to the isolated veRL environment lockfile recorded in run lineage",
     )
     return parser
+
+
+def _qualification_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="posttrain-lab qualification")
+    subcommands = parser.add_subparsers(dest="command", required=True)
+    list_parser = subcommands.add_parser("list", help="list and validate Lab qualification gates")
+    list_parser.add_argument(
+        "--project-root",
+        type=Path,
+        required=True,
+        help="project root containing .posttrain/project.toml",
+    )
+    list_parser.add_argument("--json", action="store_true", help="emit the stable machine-readable inventory")
+    return parser
+
+
+def _qualification_main(arguments: list[str]) -> None:
+    parser = _qualification_parser()
+    args = parser.parse_args(arguments)
+    if args.command != "list":  # argparse keeps this defensive branch useful for future subcommands.
+        parser.error(f"unknown qualification command {args.command!r}")
+    try:
+        layout = discover_project(Path.cwd(), explicit_root=args.project_root)
+        inventory = validate_qualification_project(layout, load_qualification_gates())
+    except (ContractError, QualificationGateError) as error:
+        parser.error(str(error))
+    if args.json:
+        print(json.dumps(inventory.as_json(), indent=2, sort_keys=True))
+        return
+    for gate in inventory.entries:
+        print(
+            "\t".join(
+                (
+                    gate.id,
+                    gate.state,
+                    gate.tier,
+                    gate.work_package,
+                    gate.job_id,
+                    gate.job_kind,
+                    gate.acceptance,
+                )
+            )
+        )
+    print(
+        "\t".join(
+            (
+                "summary",
+                f"active={len(inventory.active_gates)}",
+                f"candidates={len(inventory.candidate_experiments)}",
+                f"retired_gates={len(inventory.retired_gates)}",
+                f"classified={len(inventory.classified)}",
+                f"retired={len(inventory.retired)}",
+                f"excluded={len(inventory.excluded)}",
+                f"unclassified={len(inventory.unclassified)}",
+            )
+        )
+    )
 
 
 def _selection[SelectionT: Selection](
@@ -434,8 +494,12 @@ def _execute_package(
     return result.jobs[0].value
 
 
-def main() -> None:
-    args = _parser().parse_args()
+def main(arguments: list[str] | None = None) -> None:
+    parsed_arguments = list(sys.argv[1:] if arguments is None else arguments)
+    if parsed_arguments[:1] == ["qualification"]:
+        _qualification_main(parsed_arguments[1:])
+        return
+    args = _parser().parse_args(parsed_arguments)
     project = args.project
     layout = _project_layout(args, project)
     catalog = open_project_catalog(layout, scope=project)
@@ -740,7 +804,7 @@ def main() -> None:
         )
         model = _adapter_variant(qwen, remote, args.peft)
         inference = replace(
-            _selection(catalog, "inference", "inference/qwen3.5-2b-vllm-eval@1", InferenceBinding),
+            _selection(catalog, "inference", "inference/qwen3.5-2b-vllm-eval@2", InferenceBinding),
             id=f"inference/qwen3.5-2b-{args.peft}-vllm-eval@1",
             model=model,
         )
@@ -809,7 +873,7 @@ def main() -> None:
         )
         model = _quantized_variant(qwen, quantization_plan, remote, output_id)
         inference = replace(
-            _selection(catalog, "inference", "inference/qwen3.5-2b-vllm-eval@1", InferenceBinding),
+            _selection(catalog, "inference", "inference/qwen3.5-2b-vllm-eval@2", InferenceBinding),
             id="inference/qwen3.5-2b-awq-vllm-eval@1",
             model=model,
         )
@@ -846,7 +910,7 @@ def main() -> None:
         )
         model = _quantized_variant(qwen, quantization_plan, remote, output_id)
         inference = replace(
-            _selection(catalog, "inference", "inference/qwen3.5-2b-vllm-eval@1", InferenceBinding),
+            _selection(catalog, "inference", "inference/qwen3.5-2b-vllm-eval@2", InferenceBinding),
             id="inference/qwen3.5-2b-rtn-vllm-eval@1",
             model=model,
         )
@@ -903,7 +967,7 @@ def main() -> None:
     else:
         is_rollout = args.job in {"gsm8k-qwen-preference-rollouts", "gsm8k-lfm-preference-rollouts"}
         model = qwen if "qwen" in args.job else lfm
-        inference_id = "inference/qwen3.5-2b-vllm-eval@1" if model is qwen else "inference/lfm2.5-1.2b-vllm-eval@1"
+        inference_id = "inference/qwen3.5-2b-vllm-eval@2" if model is qwen else "inference/lfm2.5-1.2b-vllm-eval@1"
         inference = _selection(catalog, "inference", inference_id, InferenceBinding)
         plan: EvaluationPlan = (
             GSM8K_TRAINING_ROLLOUTS

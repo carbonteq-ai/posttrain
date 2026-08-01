@@ -1,0 +1,52 @@
+project_id: posttrain-lab
+work_package_id: train/qwen3.5-0.8b/gsm8k-grpo-15-qualification
+stage: train
+description: Complete fifteen Qwen 3.5 0.8B GRPO optimizer updates over native GSM8K Verifiers rollouts and retain model, rollout, and stability evidence.
+recipe:
+  type: inline
+  id: recipes/gsm8k-qwen3.5-0.8b-grpo-15@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: grpo
+      kind: train.grpo
+      definition: train/trl-grpo@1
+  expected_artifacts:
+    - trained adapter
+    - native Verifiers trajectories
+    - training summary
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/qwen3.5-0.8b@bf16
+  environment:
+    type: ref
+    family: environment
+    id: gsm8k-grpo-qualification
+  settings:
+    type: ref
+    family: training
+    id: qwen3.5-0.8b/gsm8k-grpo-15-v1
+  training:
+    type: ref
+    family: training
+    id: training/qwen3.5-0.8b-trl-grpo-qualification-lora@1
+  rollout_inference:
+    type: ref
+    family: inference
+    id: inference/qwen3.5-0.8b-vllm-distill-rollout@1
+enabled_optional_jobs: []
+metadata:
+  question: Does the online-RL runtime sustain realistic grouped rollouts and policy updates for fifteen optimizer steps?
+  labels:
+    - qualification
+    - grpo
+    - gsm8k
+    - online-rl

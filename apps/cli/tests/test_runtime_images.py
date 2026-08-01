@@ -12,10 +12,7 @@ from posttrain.runtime_images.manifest import load_manifest
 from posttrain_cli.checks import runtime_images_check
 from posttrain_cli.cli import main
 from posttrain_cli.context import CliState
-from posttrain_cli.execution_config import (
-    REGISTRY_ENVIRONMENT_VARIABLE,
-    load_local_execution_config,
-)
+from posttrain_cli.execution_config import load_local_execution_config
 from posttrain_cli.runtime_images import (
     ensure_kind_image_ready,
     verify_registry,
@@ -81,10 +78,16 @@ class _UnreachableInspector:
         raise RuntimeError("connection refused")
 
 
+def _set_project_registry(project: Path) -> None:
+    environment = project / "posttrain.env"
+    environment.write_text("POSTTRAIN_REGISTRY=registry.internal/team\n", encoding="utf-8")
+    environment.chmod(0o600)
+
+
 def _registry(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     project = tmp_path / "example"
     assert main(["init", str(project)]) == 0
-    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.internal/team")
+    _set_project_registry(project)
     layout = CliState(project_root=project).layout()
     configuration = load_local_execution_config(layout)
     assert configuration.registry is not None
@@ -260,7 +263,7 @@ def test_doctor_fails_when_a_configured_image_is_not_this_release(
     project = tmp_path / "example"
     assert main(["init", str(project)]) == 0
     capsys.readouterr()
-    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.internal/team")
+    _set_project_registry(project)
 
     older = "sha256:" + "9" * 64
     config = project / ".posttrain" / "state" / "execution.toml"
@@ -288,7 +291,7 @@ def test_runtime_images_check_ignores_unpublished_variants(
     """A release-blocked variant has nothing in the release to disagree with."""
     project = tmp_path / "example"
     assert main(["init", str(project)]) == 0
-    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.internal/team")
+    _set_project_registry(project)
     lock = Path(__file__).resolve().parents[3] / (
         "packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/workspace.lock.txt"
     )

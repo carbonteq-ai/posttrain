@@ -1,0 +1,193 @@
+# Temporary root qualification surfaces and their verified migration boundary.
+#
+# This inventory is deliberately separate from qualification/gates.toml:
+# gates describe retained Lab work-package jobs, whereas these entries describe
+# the scripts, fixtures, and false example that must be promoted, moved, or
+# retired before the root qualification harness can disappear. An entry is
+# removed only after every named parity check succeeds on its replacement.
+schema_version = 1
+
+[[surfaces]]
+id = "algorithm-scenarios"
+path = "apps/lab/src/posttrain_lab/qualification/scenarios.py"
+kind = "scenario-policy"
+owner = "lab"
+transition = "promote"
+replacement = "posttrain_lab.qualification.scenarios"
+tests = ["apps/lab/tests/test_qualification_scenarios.py"]
+parity = [
+  "round-trip the versioned scenario manifest without importing an execution provider",
+  "reject an online scenario without an environment, rollout inference, or qualifying update budget",
+]
+deletion_condition = "The Lab scenario registry exposes the same two scenario ids and the replacement unit tests pass."
+
+[[surfaces]]
+id = "algorithm-scenario-launcher"
+path = "scripts/qualification/run_algorithm_scenario.py"
+kind = "direct-launcher"
+owner = "lab"
+transition = "retire"
+replacement = "posttrain job plan|pack|run selected through posttrain-lab qualification"
+tests = ["scripts/qualification/tests/test_run_algorithm_scenario.py"]
+parity = [
+  "plan and run each retained scenario through the public posttrain job command",
+  "prove the packed image uses a Lab project snapshot and framework wheels rather than the handwritten source bundle",
+  "record provider locator, Trackio run id, and acceptance result through the public lifecycle",
+]
+deletion_condition = "Both retained scenario paths pass public-path pack/run/evidence parity; no replacement imports private CLI modules or constructs ExecutionRequest directly."
+
+[[surfaces]]
+id = "algorithm-evidence-validator"
+path = "scripts/qualification/validate_algorithm_run.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "promote"
+replacement = "posttrain_lab.qualification acceptance adapters over public RunView and Trackio evidence"
+tests = ["scripts/qualification/tests/test_validate_algorithm_run.py"]
+parity = [
+  "derive optimizer updates, completed traces, reward variation, tool continuation, gradients, and model artifacts from retained evidence",
+  "reject a run whose remote evidence is below its declared scenario acceptance",
+]
+deletion_condition = "Each retained Lab acceptance adapter has the same success and failure fixtures and reads no local training-directory layout as its primary source."
+
+[[surfaces]]
+id = "observatory-http-qualification"
+path = "apps/observatory/src/posttrain_observatory/deployment_qualification.py"
+kind = "public-observatory-contract"
+owner = "observatory"
+transition = "promote"
+replacement = "posttrain-observatory-qualify public-HTTP compatibility command"
+tests = ["apps/observatory/tests/test_deployment_qualification.py"]
+parity = [
+  "use HTTPS with credentials only in request headers and a supplied CA bundle",
+  "resolve opaque run ids to job-aware views and validate job-specific evidence",
+  "treat an installation with no retained qualifying runs as deployable rather than failed",
+]
+deletion_condition = "The Observatory-owned compatibility suite retains these HTTP fixtures and the deployment command delegates topology checks to ai-infra."
+
+[[surfaces]]
+id = "artifact-lifecycle-preflight"
+path = "scripts/qualification/capture_artifact_preflight.py"
+kind = "operator-preflight"
+owner = "ai-infra"
+transition = "move"
+replacement = "ai-infra release preflight with framework package and Trackio image inputs"
+tests = []
+parity = [
+  "report storage admission, Trackio revision alignment, Trackio reachability, fleet availability, and local GPU availability without changing services",
+  "write a redacted atomic receipt and never include secret values",
+]
+deletion_condition = "ai-infra owns the command, its configuration paths, and a redaction/blocked-state test; this repository retains only the storage and artifact contracts it consumes."
+
+[[surfaces]]
+id = "runtime-smoke-payload"
+path = "packages/execution/tests/fixtures/runtime_smoke_job.py"
+kind = "provider-fixture"
+owner = "execution"
+transition = "move"
+replacement = "packages/execution/tests/fixtures/runtime_smoke_job.py"
+tests = ["packages/execution/tests/test_bundles.py"]
+parity = [
+  "run on a selected CUDA target and report the selected train or serving runtime profile",
+  "fail when CUDA is unavailable and require vLLM only for the serving profile",
+]
+deletion_condition = "The execution-provider integration suite uses the fixture for local and dstack adapters, and Lab invokes it only through a public work package."
+
+[[surfaces]]
+id = "queue-probe-payload"
+path = "packages/execution/tests/fixtures/queue_probe_job.py"
+kind = "provider-fixture"
+owner = "execution"
+transition = "move"
+replacement = "packages/execution/tests/fixtures/queue_probe_job.py"
+tests = ["packages/execution/tests/test_bundles.py"]
+parity = [
+  "emit ordered started and finished events with the requested label",
+  "support a bounded wait long enough to observe queueing and cancellation through the provider lifecycle",
+]
+deletion_condition = "The execution-provider integration suite proves queue, cancel, reconcile, and terminal-log behavior using the fixture."
+
+[[surfaces]]
+id = "local-runtime-smoke-launcher"
+path = "scripts/qualification/run_local_runtime_smoke.py"
+kind = "direct-launcher"
+owner = "lab"
+transition = "retire"
+replacement = "a Lab extended gate executed with posttrain job run --provider local"
+tests = []
+parity = [
+  "plan, submit, observe, collect, and clean up a local CUDA runtime smoke through the public job lifecycle",
+  "retain provider state and logs in project state rather than the repository-root .posttrain path",
+]
+deletion_condition = "A Lab work package proves the local runtime path without manually building a bundle or constructing ExecutionRequest."
+
+[[surfaces]]
+id = "dstack-runtime-smoke-launcher"
+path = "scripts/qualification/run_dstack_runtime_smoke.py"
+kind = "direct-launcher"
+owner = "lab"
+transition = "retire"
+replacement = "a Lab extended gate executed with posttrain job run --provider dstack"
+tests = []
+parity = [
+  "plan, submit, observe, collect, and clean up train and serving runtime smoke jobs through the public job lifecycle",
+  "request the selected target profile without reading ai-infra client state from the launcher",
+]
+deletion_condition = "The selected Lab gates pass on dstack using project configuration and normal provider discovery."
+
+[[surfaces]]
+id = "ambient-model-backward-launcher"
+path = "scripts/qualification/run_ambient_model_backward.py"
+kind = "product-specific-launcher"
+owner = "ambient-agent"
+transition = "move"
+replacement = "Ambient Agent's own bounded model-backward qualification command"
+tests = []
+parity = [
+  "pack only Ambient Agent source and run its bounded backward, SFT, or reinforce path",
+  "source Ambient tracking and provider configuration from the Ambient project rather than hard-coded framework paths",
+]
+deletion_condition = "Ambient Agent owns and validates the command against its own project package; Lab has no dependency on it."
+
+[[surfaces]]
+id = "ambient-artifact-consumer-launcher"
+path = "scripts/qualification/run_ambient_artifact_consumer.py"
+kind = "product-specific-launcher"
+owner = "ambient-agent"
+transition = "move"
+replacement = "Ambient Agent's cross-worker artifact-consumer qualification command"
+tests = []
+parity = [
+  "consume a declared Trackio model artifact on another worker through Ambient Agent's project flow",
+  "retain producer linkage and artifact digest without embedding tokens or ai-infra paths in framework source",
+]
+deletion_condition = "Ambient Agent owns an artifact-consumer integration test and validates producer/consumer lineage."
+
+[[surfaces]]
+id = "ambient-serving-launcher"
+path = "scripts/qualification/run_ambient_serving.py"
+kind = "product-specific-launcher"
+owner = "ambient-agent"
+transition = "move"
+replacement = "Ambient Agent's serving benchmark work package"
+tests = []
+parity = [
+  "pack and execute Ambient Agent's serving probe through its project work package",
+  "retain serving metrics and logs through normal tracking without hard-coded fleet or secret paths",
+]
+deletion_condition = "Ambient Agent owns the serving work package and its retained-evidence assertion."
+
+[[surfaces]]
+id = "remote-gpu-lab-fixture"
+path = "apps/lab/tests/fixtures/remote_gpu_project"
+kind = "lab-dependent-fixture"
+owner = "lab"
+transition = "move"
+replacement = "apps/lab/tests/fixtures/remote_gpu_project"
+tests = []
+parity = [
+  "install the released framework and Lab wheel into a clean project fixture",
+  "validate and execute the foundation screen through the generic posttrain CLI with an explicit project root",
+  "prove no ordinary generated project imports posttrain_lab",
+]
+deletion_condition = "The renamed Lab fixture is installed from built wheels on a clean remote GPU host and the product-facing examples use posttrain init instead."

@@ -4,10 +4,15 @@
 
 Developers submitting remote GPU jobs should follow
 [consumer-setup.md](../../consumer-setup.md) § “Run on dstack”: install
-`posttrain[dstack]`, bind the client interpreter and worker storage paths in
-`.posttrain/state/execution.toml`, and use
+`posttrain[dstack]`, bind the client interpreter and a named protected
+credential source in `~/.config/posttrain/config.toml`, and use
 `posttrain job run --provider dstack --target …`. This page is the fork/ops
 ledger, not that walkthrough.
+
+The client config never owns worker storage. The execution-dstack adapter and
+ai-infra Ansible deployment define the worker paths beneath
+`/var/lib/posttrain`; this repository's machine config only locates the dstack
+client and selects its project.
 
 ## Selection
 

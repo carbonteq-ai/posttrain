@@ -6,20 +6,31 @@ import hashlib
 import json
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
-from typing import Literal
+from dataclasses import dataclass, field
+from pathlib import Path
+from types import MappingProxyType
+from typing import Literal, cast
 
 from posttrain.common import ContractError, JsonValue
 from posttrain.data import DatasetLoadPlan
-from posttrain.eval import (
+from posttrain.environment import (
     EnvironmentBinding,
-    EvaluationPlan,
+    ProjectPathActivationResource,
+    ProjectPathEnvironmentSource,
     PythonFactoryActivation,
+    VerifiersV1ConfigActivation,
 )
-from posttrain.execution import EnvironmentActivationLock, RuntimeImageRef
+from posttrain.eval import EvaluationPlan
+from posttrain.execution import EnvironmentActivationLock, RuntimeImageRef, StagedResourceLock
 from posttrain.work import JobKind, PreparedWorkPackageJob, ResolvedSeats
 
-from .contracts import DatasetPackRequest, EnvironmentWheelRequest, GitSourceRequest
+from .contracts import (
+    DatasetPackRequest,
+    EnvironmentWheelRequest,
+    GitSourceRequest,
+    ProjectEnvironmentSourceRequest,
+)
+from .source_snapshot import ImmutableSourceSnapshotter, SourceSnapshotRequest
 
 type JobKindProfile = Literal[
     "supervised",
@@ -117,6 +128,8 @@ class JobPackSpec:
     environment_activations: tuple[EnvironmentActivationLock, ...]
     expected_artifact_roles: tuple[str, ...]
     worker_contract_version: str = "1"
+    family_registry_lock: Mapping[str, object] = field(default_factory=dict)
+    project_environment_sources: tuple[ProjectEnvironmentSourceRequest, ...] = ()
 
     def __post_init__(self) -> None:
         for label, value in (
@@ -184,6 +197,9 @@ class JobPackSpec:
             raise ContractError("job pack environment wheels must be canonically ordered")
         if self.environment_activations != expected_activations:
             raise ContractError("job pack environment activations must be canonically ordered")
+        expected_project_sources = tuple(sorted(self.project_environment_sources, key=lambda source: source.path))
+        if self.project_environment_sources != expected_project_sources:
+            raise ContractError("job pack project environment sources must be canonically ordered")
         if len({activation.environment_id for activation in self.environment_activations}) != len(
             self.environment_activations
         ):
@@ -195,6 +211,18 @@ class JobPackSpec:
             raise ContractError("expected artifact roles must be unique and sorted")
         if any(not role.strip() for role in self.expected_artifact_roles):
             raise ContractError("expected artifact roles cannot be empty")
+        lock = dict(self.family_registry_lock)
+        entries = lock.get("entries")
+        digest = lock.get("digest")
+        if lock and (
+            not isinstance(entries, list) or not entries or not isinstance(digest, str) or not _SHA256.fullmatch(digest)
+        ):
+            raise ContractError("family registry lock must contain entries and a SHA-256 digest")
+        try:
+            json.dumps(lock, sort_keys=True, separators=(",", ":"))
+        except (TypeError, ValueError) as error:
+            raise ContractError("family registry lock must contain only JSON values") from error
+        object.__setattr__(self, "family_registry_lock", MappingProxyType(lock))
 
     @property
     def plan_key(self) -> str:
@@ -236,8 +264,13 @@ class JobPackSpec:
                 for wheel in self.environment_wheels
             ],
             "environment_activations": [activation.to_payload() for activation in self.environment_activations],
+            "project_environment_sources": [
+                {"package": source.package, "path": source.path, "tree_digest": source.tree_digest}
+                for source in self.project_environment_sources
+            ],
             "expected_artifact_roles": list(self.expected_artifact_roles),
             "worker_contract_version": self.worker_contract_version,
+            "family_registry_lock": cast(JsonValue, dict(self.family_registry_lock)),
         }
 
 
@@ -291,6 +324,8 @@ def plan_job_pack(
     publication: ImagePublicationSpec,
     runtime_variant: str | None = None,
     worker_contract_version: str = "1",
+    family_registry_lock: Mapping[str, object] | None = None,
+    project_root: Path | None = None,
 ) -> JobPackPlan:
     """Derive an immutable plan without importing, fetching, building, or writing."""
 
@@ -300,8 +335,8 @@ def plan_job_pack(
         for name, value in sorted(prepared.seats.items())
         if isinstance(value, DatasetLoadPlan)
     )
-    git_sources, wheels = _environment_source_requests(bindings)
-    activations = tuple(_activation_lock(binding) for binding in bindings)
+    git_sources, wheels, project_sources = _environment_source_requests(bindings, project_root=project_root)
+    activations = tuple(_activation_lock(binding, project_root=project_root) for binding in bindings)
     resolved_inputs_digest = _digest(dict(prepared.spec.resolved_inputs))
     profile = _KIND_PROFILES.get(prepared.recipe_job.kind)
     if profile is None:
@@ -325,21 +360,49 @@ def plan_job_pack(
         environment_activations=activations,
         expected_artifact_roles=tuple(sorted(prepared.definition.required_artifact_roles)),
         worker_contract_version=worker_contract_version,
+        family_registry_lock=family_registry_lock or {},
+        project_environment_sources=project_sources,
     )
     return JobPackPlan(spec=spec, publication=publication)
 
 
 def _environment_source_requests(
     bindings: tuple[EnvironmentBinding, ...],
-) -> tuple[tuple[GitSourceRequest, ...], tuple[EnvironmentWheelRequest, ...]]:
+    *,
+    project_root: Path | None,
+) -> tuple[
+    tuple[GitSourceRequest, ...],
+    tuple[EnvironmentWheelRequest, ...],
+    tuple[ProjectEnvironmentSourceRequest, ...],
+]:
     revisions: dict[str, str] = {}
     subdirectories: dict[tuple[str, str], set[str]] = {}
     wheels_by_package: dict[str, EnvironmentWheelRequest] = {}
     package_spellings: dict[str, str] = {}
     package_by_root: dict[tuple[str, str, str], str] = {}
+    project_sources: list[ProjectEnvironmentSourceRequest] = []
 
     for binding in bindings:
         source = binding.source
+        if isinstance(source, ProjectPathEnvironmentSource):
+            if project_root is None:
+                raise ContractError("planning a project-path environment requires the project root")
+            root = project_root.resolve()
+            package_root = (root / source.path).resolve()
+            if (
+                not package_root.is_relative_to(root)
+                or package_root.is_symlink()
+                or not (package_root / "pyproject.toml").is_file()
+            ):
+                raise ContractError(
+                    f"project-path environment {source.package!r} must contain a regular pyproject.toml: {source.path}"
+                )
+            snapshot = SourceSnapshotRequest(root=root, includes=(source.path,), install_roots=(source.path,))
+            digest = ImmutableSourceSnapshotter(
+                cache_root=(root / ".posttrain" / "state" / "pack" / "sources")
+            ).inspect(snapshot)
+            project_sources.append(ProjectEnvironmentSourceRequest(source.package, source.path, digest))
+            continue
         subdirectory = source.subdirectory or "."
         previous_revision = revisions.get(source.repository)
         if previous_revision is not None and previous_revision != source.revision:
@@ -394,12 +457,62 @@ def _environment_source_requests(
             ),
         )
     )
-    return sources, wheels
+    project = tuple(sorted(project_sources, key=lambda source: source.path))
+    if len({source.package for source in project}) != len(project) or len({source.path for source in project}) != len(
+        project
+    ):
+        raise ContractError("project environment package paths and identities must be unique")
+    return sources, wheels, project
 
 
-def _activation_lock(binding: EnvironmentBinding) -> EnvironmentActivationLock:
+def activation_resource_sources(
+    bindings: tuple[EnvironmentBinding, ...],
+    *,
+    project_root: Path,
+) -> Mapping[tuple[str, str], Path]:
+    """Resolve local files named by selected declarative environment resources."""
+
+    root = project_root.resolve()
+    sources: dict[tuple[str, str], Path] = {}
+    for binding in bindings:
+        activation = binding.activation
+        if not isinstance(activation, VerifiersV1ConfigActivation):
+            continue
+        for name, resource in activation.resources.items():
+            if not isinstance(resource, ProjectPathActivationResource):
+                raise ContractError(f"environment {binding.id!r} has an unsupported activation resource")
+            source = _project_resource_path(root, resource.path, binding.id, name)
+            sources[(binding.id, name)] = source
+        _reject_undeclared_project_paths(binding, root, sources)
+    return MappingProxyType(sources)
+
+
+def _activation_lock(
+    binding: EnvironmentBinding,
+    *,
+    project_root: Path | None,
+) -> EnvironmentActivationLock:
     reference = binding.activation.reference if isinstance(binding.activation, PythonFactoryActivation) else None
     config = dict(binding.activation.config) if not isinstance(binding.activation, PythonFactoryActivation) else None
+    resources: Mapping[str, StagedResourceLock] = {}
+    if isinstance(binding.activation, VerifiersV1ConfigActivation):
+        if binding.activation.resources and project_root is None:
+            raise ContractError(
+                "planning an activation with project resources requires the project root; "
+                "open the project before planning the job"
+            )
+        source_paths = activation_resource_sources((binding,), project_root=project_root) if project_root else {}
+        resources = {
+            name: StagedResourceLock(
+                name=name,
+                source_path=binding.activation.resources[name].path,
+                staged_path=f"environment-resources/{binding.id}/{name}",
+                digest=_file_digest(source),
+                size_bytes=source.stat().st_size,
+            )
+            for (environment_id, name), source in source_paths.items()
+            if environment_id == binding.id
+        }
     return EnvironmentActivationLock(
         environment_id=binding.id,
         package=binding.source.package,
@@ -407,7 +520,55 @@ def _activation_lock(binding: EnvironmentBinding) -> EnvironmentActivationLock:
         digest=binding.activation.digest,
         reference=reference,
         config=config,
+        resources=resources,
+        qualification=binding.qualification,
     )
+
+
+def _project_resource_path(root: Path, relative: str, environment_id: str, name: str) -> Path:
+    source = (root / relative).resolve()
+    if not source.is_relative_to(root) or not source.is_file() or source.is_symlink():
+        raise ContractError(
+            f"environment {environment_id!r} resource {name!r} must name a regular file under the project root: {relative}"
+        )
+    return source
+
+
+def _reject_undeclared_project_paths(
+    binding: EnvironmentBinding,
+    root: Path,
+    declared: Mapping[tuple[str, str], Path],
+) -> None:
+    activation = binding.activation
+    if not isinstance(activation, VerifiersV1ConfigActivation):
+        return
+    declared_paths = set(declared.values())
+    for value in _json_strings(activation.config):
+        candidate = (root / value).resolve()
+        if candidate in declared_paths or not candidate.is_relative_to(root) or not candidate.is_file():
+            continue
+        raise ContractError(
+            f"environment {binding.id!r} activation references project file {value!r} directly; "
+            "declare it under activation.resources and use { $resource: NAME } in the config"
+        )
+
+
+def _json_strings(value: object) -> tuple[str, ...]:
+    if isinstance(value, str):
+        return (value,)
+    if isinstance(value, Mapping):
+        return tuple(item for child in value.values() for item in _json_strings(child))
+    if isinstance(value, (tuple, list)):
+        return tuple(item for child in value for item in _json_strings(child))
+    return ()
+
+
+def _file_digest(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _digest(payload: Mapping[str, JsonValue]) -> str:

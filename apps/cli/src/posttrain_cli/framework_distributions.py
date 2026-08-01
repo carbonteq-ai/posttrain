@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -29,6 +30,7 @@ FRAMEWORK_DISTRIBUTIONS = (
     "posttrain-catalog",
     "posttrain-common",
     "posttrain-data",
+    "posttrain-environment",
     "posttrain-eval",
     "posttrain-execution",
     "posttrain-execution-buildkit",
@@ -36,6 +38,7 @@ FRAMEWORK_DISTRIBUTIONS = (
     "posttrain-execution-local",
     "posttrain-execution-pack",
     "posttrain-jobs",
+    "posttrain-project",
     "posttrain-runtime",
     "posttrain-runtime-images",
     "posttrain-serve",
@@ -120,6 +123,7 @@ def materialize(
     *,
     uv: str = "uv",
     environ: Mapping[str, str] | None = None,
+    wheelhouse: Path | None = None,
 ) -> FrameworkDistributions:
     """Download the installed framework distributions as wheels.
 
@@ -139,6 +143,21 @@ def materialize(
     for stale in destination.glob("*.whl"):
         stale.unlink()
     versions = installed_versions()
+    if wheelhouse is not None:
+        source = wheelhouse.expanduser().resolve()
+        if not source.is_dir():
+            raise ContractError(f"framework wheelhouse is not a directory: {source}")
+        for name, version in sorted(versions.items()):
+            normalized = name.replace("-", "_").lower()
+            matches = tuple(sorted(source.glob(f"{normalized}-{version}-*.whl")))
+            if len(matches) != 1:
+                found = ", ".join(path.name for path in matches) or "none"
+                raise ContractError(
+                    f"framework wheelhouse must contain exactly one {name}=={version} wheel; found: {found}"
+                )
+            shutil.copy2(matches[0], destination / matches[0].name)
+        return _validated_distributions(destination, versions)
+
     requirements = [f"{name}=={version}" for name, version in sorted(versions.items())]
     result = subprocess.run(
         [
@@ -160,6 +179,7 @@ def materialize(
         capture_output=True,
         text=True,
         check=False,
+        env={**os.environ, **environ},
     )
     if result.returncode != 0:
         detail = (result.stderr or result.stdout).strip()[-1500:]
@@ -168,6 +188,10 @@ def materialize(
             "normally served by the same index the framework was installed from. "
             f"Requested: {' '.join(requirements)}. {detail}"
         )
+    return _validated_distributions(destination, versions)
+
+
+def _validated_distributions(destination: Path, versions: Mapping[str, str]) -> FrameworkDistributions:
     wheels = tuple(sorted(path for path in destination.glob("*.whl") if _WHEEL.match(path.name)))
     if not wheels:
         raise ContractError(f"no framework wheels were produced in {destination}")
