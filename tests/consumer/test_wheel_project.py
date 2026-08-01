@@ -68,6 +68,13 @@ def _build_wheelhouse(uv: str, root: Path) -> Path:
     wheelhouse = root / "wheelhouse"
     wheelhouse.mkdir()
     _run(uv, "build", "--all-packages", "--wheel", "--out-dir", str(wheelhouse), cwd=WORKSPACE)
+    for configured in os.environ.get("POSTTRAIN_CONSUMER_EXTRA_WHEELS", "").split(os.pathsep):
+        if not configured:
+            continue
+        wheel = Path(configured)
+        if not wheel.is_file() or wheel.suffix != ".whl":
+            raise RuntimeError(f"consumer extra wheel is unavailable: {wheel}")
+        shutil.copy2(wheel, wheelhouse / wheel.name)
     built = {path.name.split("-")[0].replace("_", "-") for path in wheelhouse.glob("*.whl")}
     missing = sorted(set(FRAMEWORK_PACKAGES) - built)
     if missing:

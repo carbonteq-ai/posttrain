@@ -109,10 +109,7 @@ def publish_cmd(
         Path | None,
         typer.Option(
             "--trust-bundle",
-            help=(
-                "machine-owned PEM CA bundle appended to the base runtime image "
-                "for private HTTPS package indexes"
-            ),
+            help=("machine-owned PEM CA bundle appended to the base runtime image for private HTTPS package indexes"),
         ),
     ] = None,
     default_prefix: Annotated[

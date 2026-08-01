@@ -190,9 +190,7 @@ class RuntimeBuildRequest:
         for ref in self.cache_from:
             if not ref or any(token in ref.upper() for token in ("TOKEN", "PASSWORD", "SECRET")):
                 raise ContractError("runtime build cache_from refs must be non-secret image references")
-        if self.trust_bundle is not None and (
-            not self.trust_bundle.is_absolute() or not self.trust_bundle.is_file()
-        ):
+        if self.trust_bundle is not None and (not self.trust_bundle.is_absolute() or not self.trust_bundle.is_file()):
             raise ContractError("runtime build trust_bundle must be an existing absolute file")
 
     @property
@@ -208,9 +206,7 @@ class RuntimeBuildRequest:
             "attestations": self.attestations,
             "compression_level": self.compression_level,
             "force_compression": self.force_compression,
-            "trust_bundle_sha256": (
-                _file_digest(self.trust_bundle) if self.trust_bundle is not None else None
-            ),
+            "trust_bundle_sha256": (_file_digest(self.trust_bundle) if self.trust_bundle is not None else None),
         }
         return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 

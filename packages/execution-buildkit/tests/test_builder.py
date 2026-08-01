@@ -169,10 +169,7 @@ def test_runtime_trust_bundle_is_mounted_and_hashed_not_path_identified(
     builder.build(request)
     build_call = [call for call in gateway.calls if "--metadata-file" in call][0]
     assert f"fs.read={first_bundle.resolve()}" in build_call
-    assert (
-        f"{request.target}.secrets=id=posttrain_ca_bundle,src={first_bundle.resolve()}"
-        in build_call
-    )
+    assert f"{request.target}.secrets=id=posttrain_ca_bundle,src={first_bundle.resolve()}" in build_call
 
     second_bundle.write_text("different public CA\n", encoding="utf-8")
     assert request.build_key != replace(request, trust_bundle=second_bundle.resolve()).build_key

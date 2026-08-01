@@ -11,6 +11,7 @@ permissions:
 env:
   CARBONTEQ_TRACKIO_WHEEL_URL: https://github.com/carbonteq-ai/trackio/releases/download/carbonteq-v0.31.5.post6/carbonteq_trackio-0.31.5.post6-py3-none-any.whl
   CARBONTEQ_TRACKIO_WHEEL_SHA256: 9bb5defa753b16a9d322fb4a27baff80949c4f0dad2a9dadb07b974932272e00
+  POSTTRAIN_CONSUMER_EXTRA_WHEELS: /tmp/carbonteq_trackio-0.31.5.post6-py3-none-any.whl
 
 jobs:
   quality:
