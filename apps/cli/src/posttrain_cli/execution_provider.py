@@ -8,8 +8,9 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, cast
 
-from posttrain.catalog import ProjectLayout
+from posttrain.catalog import ProjectLayout, load_project_layout
 from posttrain.execution import (
+    AdmissionEntry,
     CancelledTrackingWriter,
     ExecutionAdmissionService,
     ExecutionEvidenceSource,
@@ -17,6 +18,7 @@ from posttrain.execution import (
     ExecutionProvider,
     ExecutionSubmissionStore,
     JobExecutionService,
+    ProjectControlLocator,
 )
 from posttrain.tracking import RunDataSource
 
@@ -140,10 +142,57 @@ def execution_admission_service(
             evidence_source=evidence_source,
         )
 
+    def owner_layout(entry: AdmissionEntry) -> tuple[ProjectLayout, ProjectControlLocator]:
+        locator = entry.control_locator
+        if locator is None:
+            raise RuntimeError(
+                f"admission run {entry.run_id} predates project ownership locators; "
+                "reconcile it from its owning project"
+            )
+        owner = load_project_layout(locator.project_root)
+        if owner.project_id != locator.project_id:
+            raise RuntimeError(
+                f"admission run {entry.run_id} names project {locator.project_id!r}, "
+                f"but {locator.project_root} currently identifies {owner.project_id!r}"
+            )
+        if owner.state.resolve() != locator.control_store:
+            raise RuntimeError(f"admission run {entry.run_id} control store no longer matches its owning project")
+        return owner, locator
+
+    def entry_service_factory(entry: AdmissionEntry) -> JobExecutionService:
+        owner, locator = owner_layout(entry)
+        configured = {"local-docker": "local", "dstack": "dstack"}
+        try:
+            provider_override = configured[entry.plan.provider]
+        except KeyError as error:
+            raise RuntimeError(f"execution admission uses unsupported provider {entry.plan.provider!r}") from error
+        local = load_local_execution_config(owner)
+        settings = resolve_execution_settings(
+            owner.execution,
+            local=local.defaults,
+            cli=ExecutionOverrides(provider=provider_override),
+        )
+        resolved_name, provider = create_execution_provider(owner, settings, local)
+        if resolved_name != entry.plan.provider:
+            raise RuntimeError(f"execution provider resolved as {resolved_name!r}, expected {entry.plan.provider!r}")
+        return JobExecutionService(
+            provider,
+            ExecutionSubmissionStore(locator.control_store),
+            provider_name=resolved_name,
+            evidence_source=entry.evidence_source,
+        )
+
     def provider_binding_factory(provider_name: str) -> str:
         return provider_binding_fingerprint(
             load_local_execution_config(layout),
             provider_name,
+        )
+
+    def entry_provider_binding_factory(entry: AdmissionEntry) -> str:
+        owner, _locator = owner_layout(entry)
+        return provider_binding_fingerprint(
+            load_local_execution_config(owner),
+            entry.plan.provider,
         )
 
     def physical_host_factory(plan: ExecutionPlan) -> str | None:
@@ -155,7 +204,9 @@ def execution_admission_service(
     return ExecutionAdmissionService(
         resolve_admission_state_root(),
         service_factory,
+        entry_service_factory=entry_service_factory,
         provider_binding_factory=provider_binding_factory,
+        entry_provider_binding_factory=entry_provider_binding_factory,
         physical_host_factory=physical_host_factory,
     )
 

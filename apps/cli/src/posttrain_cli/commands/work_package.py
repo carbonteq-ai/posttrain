@@ -9,7 +9,7 @@ from typing import Annotated
 
 import typer
 from posttrain.common import ContractError
-from posttrain.execution import compare_job_packages, unchanged_fields
+from posttrain.execution import ProjectControlLocator, compare_job_packages, unchanged_fields
 from posttrain.project import JobIntent, Project
 from posttrain.work import resolve_work_package, run_work_package_job, validate_work_package
 
@@ -240,7 +240,11 @@ def run_work_package_cmd(
             prepared_submission.provider_plan,
             evidence_source=prepared_submission.evidence_source,
             initial_service=prepared_submission.service,
-            control_store_uri=planned.package.layout.state.as_uri(),
+            control_locator=ProjectControlLocator(
+                project_id=planned.package.layout.project_id,
+                project_root_uri=planned.package.layout.root.as_uri(),
+                control_store_uri=planned.package.layout.state.as_uri(),
+            ),
         )
         submission = admitted.submission
         admission_entry = admitted.entry

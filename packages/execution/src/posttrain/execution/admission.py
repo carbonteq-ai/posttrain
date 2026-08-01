@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal, cast
+from urllib.parse import unquote, urlparse
 
 from posttrain.common import ContractError, ExecutionTarget, StoredArtifactRef
 from posttrain.tracking import ArtifactInput, RunSpec
@@ -54,8 +55,33 @@ type AdmissionState = Literal[
     "cancelled",
 ]
 type ServiceFactory = Callable[[str, ExecutionEvidenceSource | None], JobExecutionService]
+type EntryServiceFactory = Callable[[AdmissionEntry], JobExecutionService]
 type ProviderBindingFactory = Callable[[str], str]
+type EntryProviderBindingFactory = Callable[[AdmissionEntry], str]
 type PhysicalHostFactory = Callable[[ExecutionPlan], str | None]
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectControlLocator:
+    """Secret-free owner of one project's durable execution receipts."""
+
+    project_id: str
+    project_root_uri: str
+    control_store_uri: str
+
+    def __post_init__(self) -> None:
+        if not self.project_id.strip() or "\x00" in self.project_id:
+            raise ContractError("admission control project id is invalid")
+        _file_uri_path(self.project_root_uri, label="project root")
+        _file_uri_path(self.control_store_uri, label="control store")
+
+    @property
+    def project_root(self) -> Path:
+        return _file_uri_path(self.project_root_uri, label="project root")
+
+    @property
+    def control_store(self) -> Path:
+        return _file_uri_path(self.control_store_uri, label="control store")
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,6 +94,7 @@ class AdmissionEntry:
     position: int | None = None
     message: str | None = None
     control_store_uri: str | None = None
+    control_locator: ProjectControlLocator | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,7 +130,9 @@ class ExecutionAdmissionService:
         state_root: Path,
         service_factory: ServiceFactory,
         *,
+        entry_service_factory: EntryServiceFactory | None = None,
         provider_binding_factory: ProviderBindingFactory | None = None,
+        entry_provider_binding_factory: EntryProviderBindingFactory | None = None,
         physical_host_factory: PhysicalHostFactory | None = None,
     ) -> None:
         if not state_root.is_absolute():
@@ -112,7 +141,9 @@ class ExecutionAdmissionService:
         self._snapshot = self._root / "queue.json"
         self._lock_path = self._root / "queue.lock"
         self._service_factory = service_factory
+        self._entry_service_factory = entry_service_factory
         self._provider_binding_factory = provider_binding_factory
+        self._entry_provider_binding_factory = entry_provider_binding_factory
         self._physical_host_factory = physical_host_factory
 
     def enqueue(
@@ -122,6 +153,7 @@ class ExecutionAdmissionService:
         evidence_source: ExecutionEvidenceSource | None,
         initial_service: JobExecutionService | None = None,
         control_store_uri: str | None = None,
+        control_locator: ProjectControlLocator | None = None,
     ) -> AdmissionResult:
         run_id = plan.request.run_spec.run_id
         with self._locked() as payload:
@@ -131,16 +163,20 @@ class ExecutionAdmissionService:
             encoded_plan = _encode_plan(plan)
             encoded_evidence = _encode_evidence(evidence_source)
             provider_binding = self._provider_binding(plan.provider)
-            if control_store_uri is not None and (
-                not control_store_uri.startswith("file://") or "\x00" in control_store_uri
-            ):
-                raise ContractError("admission control store locator must be a file URI")
+            if control_locator is not None:
+                if control_store_uri is not None and control_store_uri != control_locator.control_store_uri:
+                    raise ContractError("admission control-store locators disagree")
+                control_store_uri = control_locator.control_store_uri
+            elif control_store_uri is not None:
+                _file_uri_path(control_store_uri, label="control store")
+            encoded_control_locator = _encode_control_locator(control_locator)
             if existing is not None:
                 if (
                     existing.get("plan") != encoded_plan
                     or existing.get("evidence_source") != encoded_evidence
                     or existing.get("provider_binding") != provider_binding
                     or existing.get("control_store_uri") != control_store_uri
+                    or existing.get("control_locator") != encoded_control_locator
                 ):
                     raise ContractError(f"admission run {run_id} already names a different execution")
             else:
@@ -154,6 +190,7 @@ class ExecutionAdmissionService:
                         "evidence_source": encoded_evidence,
                         "provider_binding": provider_binding,
                         "control_store_uri": control_store_uri,
+                        "control_locator": encoded_control_locator,
                     }
                 )
             self._persist(payload)
@@ -167,7 +204,7 @@ class ExecutionAdmissionService:
             "completed",
         }:
             return entry, None
-        service = self._service_factory(entry.plan.provider, entry.evidence_source)
+        service = self._service(entry)
         record = service.status(run_id)
         if record.state in {"succeeded", "failed", "cancelled", "lost"}:
             with self._locked() as payload:
@@ -192,7 +229,7 @@ class ExecutionAdmissionService:
         if entry.state == "submission_failed":
             raise ContractError("provider submission outcome is unresolved; retry submission before cancelling")
         if entry.state == "submitted":
-            service = self._service_factory(entry.plan.provider, entry.evidence_source)
+            service = self._service(entry)
             service.cancel(run_id)
         return self.get(run_id)
 
@@ -367,7 +404,7 @@ class ExecutionAdmissionService:
 
             entry = _decode_entry(active_copy, [active_copy])
             expected_binding = active_copy.get("provider_binding")
-            current_binding = self._provider_binding(entry.plan.provider)
+            current_binding = self._entry_provider_binding(entry)
             if expected_binding != current_binding:
                 with self._locked() as payload:
                     active = _required(payload, entry.run_id)
@@ -380,10 +417,7 @@ class ExecutionAdmissionService:
                         # after an earlier ambiguous provider response.
                         self._persist(payload)
                 raise ContractError("execution provider binding changed after admission")
-            service = initial_service or self._service_factory(
-                entry.plan.provider,
-                entry.evidence_source,
-            )
+            service = initial_service or self._service(entry)
             try:
                 submission = service.submit(entry.plan)
             except Exception as error:
@@ -553,6 +587,19 @@ class ExecutionAdmissionService:
         if not binding.strip() or "\x00" in binding:
             raise ContractError("execution provider binding identity is invalid")
         return binding
+
+    def _entry_provider_binding(self, entry: AdmissionEntry) -> str:
+        if self._entry_provider_binding_factory is not None:
+            binding = self._entry_provider_binding_factory(entry)
+            if not binding.strip() or "\x00" in binding:
+                raise ContractError("execution provider binding identity is invalid")
+            return binding
+        return self._provider_binding(entry.plan.provider)
+
+    def _service(self, entry: AdmissionEntry) -> JobExecutionService:
+        if self._entry_service_factory is not None:
+            return self._entry_service_factory(entry)
+        return self._service_factory(entry.plan.provider, entry.evidence_source)
 
     def _admission_key(self, plan: ExecutionPlan) -> str:
         configured_host = self._physical_host_factory(plan) if self._physical_host_factory is not None else None
@@ -729,7 +776,51 @@ def _decode_entry(raw: dict[str, Any], entries: list[dict[str, Any]]) -> Admissi
         position=position,
         message=(str(raw["message"]) if isinstance(raw.get("message"), str) else None),
         control_store_uri=(str(raw["control_store_uri"]) if isinstance(raw.get("control_store_uri"), str) else None),
+        control_locator=_decode_control_locator(raw.get("control_locator")),
     )
+
+
+def _encode_control_locator(value: ProjectControlLocator | None) -> dict[str, str] | None:
+    if value is None:
+        return None
+    return {
+        "project_id": value.project_id,
+        "project_root_uri": value.project_root_uri,
+        "control_store_uri": value.control_store_uri,
+    }
+
+
+def _decode_control_locator(value: object) -> ProjectControlLocator | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ContractError("execution admission control locator is invalid")
+    try:
+        return ProjectControlLocator(
+            project_id=str(value["project_id"]),
+            project_root_uri=str(value["project_root_uri"]),
+            control_store_uri=str(value["control_store_uri"]),
+        )
+    except KeyError as error:
+        raise ContractError("execution admission control locator is invalid") from error
+
+
+def _file_uri_path(value: str, *, label: str) -> Path:
+    parsed = urlparse(value)
+    if (
+        parsed.scheme != "file"
+        or parsed.netloc not in {"", "localhost"}
+        or not parsed.path
+        or parsed.params
+        or parsed.query
+        or parsed.fragment
+        or "\x00" in value
+    ):
+        raise ContractError(f"admission {label} locator must be an absolute local file URI")
+    path = Path(unquote(parsed.path))
+    if not path.is_absolute():
+        raise ContractError(f"admission {label} locator must be an absolute local file URI")
+    return path.resolve()
 
 
 def _encode_evidence(value: ExecutionEvidenceSource | None) -> dict[str, Any] | None:

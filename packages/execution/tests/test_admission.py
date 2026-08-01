@@ -16,6 +16,7 @@ from posttrain.execution import (
     ExecutionRecord,
     ExecutionSubmissionStore,
     JobExecutionService,
+    ProjectControlLocator,
     ProviderCleanupResult,
 )
 
@@ -634,14 +635,24 @@ def test_shared_admission_root_serializes_two_project_factories(
             evidence_source=evidence_source,
         )
 
+    def owner_factory(entry):
+        assert entry.control_locator is not None
+        if entry.control_locator.project_id == "project-a":
+            return factory_a(entry.plan.provider, entry.evidence_source)
+        if entry.control_locator.project_id == "project-b":
+            return factory_b(entry.plan.provider, entry.evidence_source)
+        raise AssertionError("unknown project owner")
+
     admission_a = ExecutionAdmissionService(
         ledger.resolve(),
         factory_a,
+        entry_service_factory=owner_factory,
         physical_host_factory=lambda plan: "pop-os.lan",
     )
     admission_b = ExecutionAdmissionService(
         ledger.resolve(),
         factory_b,
+        entry_service_factory=owner_factory,
         physical_host_factory=lambda plan: "pop-os.lan",
     )
     first = ExecutionPlan(
@@ -659,8 +670,10 @@ def test_shared_admission_root_serializes_two_project_factories(
         ),
     )
 
-    assert admission_a.enqueue(first, evidence_source=None).entry.state == "submitted"
-    waiting = admission_b.enqueue(second, evidence_source=None).entry
+    locator_a = ProjectControlLocator("project-a", tmp_path.as_uri(), project_a.as_uri())
+    locator_b = ProjectControlLocator("project-b", tmp_path.as_uri(), project_b.as_uri())
+    assert admission_a.enqueue(first, evidence_source=None, control_locator=locator_a).entry.state == "submitted"
+    waiting = admission_b.enqueue(second, evidence_source=None, control_locator=locator_b).entry
     assert waiting.state == "waiting"
     assert waiting.position == 1
     assert len(provider_b.submitted) == 0
@@ -670,6 +683,20 @@ def test_shared_admission_root_serializes_two_project_factories(
     assert placements[0].key == "host:pop-os.lan"
     assert placements[0].holder == first.request.run_spec.run_id
     assert placements[0].waiting == (second.request.run_spec.run_id,)
+
+    first_provider_id = f"local-docker-{first.request.run_spec.run_id}"
+    provider_a.records[first_provider_id] = replace(provider_a.records[first_provider_id], state="succeeded")
+    assert admission_a.status(first.request.run_spec.run_id)[0].state == "terminal_pending_evidence"
+    promoted = admission_a.acknowledge_reconciled(first.request.run_spec.run_id)
+
+    assert promoted is not None
+    assert promoted.entry.run_id == second.request.run_spec.run_id
+    assert promoted.entry.state == "submitted"
+    assert len(provider_a.submitted) == 1
+    assert len(provider_b.submitted) == 1
+    assert store_b.load(second.request.run_spec.run_id).provider == "local-docker"
+    with pytest.raises(FileNotFoundError):
+        store_a.load(second.request.run_spec.run_id)
 
 
 def test_snapshot_rejects_dangling_active_placement(

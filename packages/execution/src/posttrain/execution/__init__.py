@@ -6,6 +6,7 @@ from .admission import (
     AdmissionState,
     ExecutionAdmissionService,
     Placement,
+    ProjectControlLocator,
 )
 from .bundles import (
     ExecutionBundlePlan,
@@ -101,6 +102,7 @@ __all__ = [
     "ExecutionHandle",
     "ExecutionAdmissionService",
     "Placement",
+    "ProjectControlLocator",
     "ExecutionBundlePlan",
     "ExecutionCleanupReceipt",
     "ExecutionMount",

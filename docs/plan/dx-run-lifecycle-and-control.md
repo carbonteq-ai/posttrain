@@ -45,6 +45,13 @@ never silently target a different run than intended.
       locator yet: it still captures the reconciling project's provider and
       store factory. Milestones 2 and 3 therefore remain release blockers; the
       locator field alone is not recorded as their completion.
+- [x] (2026-08-01) The shared pump now consumes a versioned
+      `ProjectControlLocator` containing the owning project id, project root,
+      and control store. Releasing project A's local-GPU slot submits waiting
+      project B through B's provider factory and writes only B's receipt. Old
+      entries without an owner locator remain manual-attention records. The
+      remaining milestone-2 work is freezing the provider source rather than
+      resolving B's current binding at pump time.
 
 ## Surprises & Discoveries
 
@@ -58,6 +65,12 @@ never silently target a different run than intended.
   sort order would leave a second time-of-check/time-of-use targeting risk.
   Evidence: v0.2.5 `resolve_run_id()` returns a unique prefix match for every
   caller.
+- Observation: the existing control-store URI was sufficient to identify the
+  receipt directory but insufficient to reopen a project safely because a
+  project may configure a non-default state path.
+  Evidence: the corrected queue record stores the project root and project id
+  alongside the exact state URI, and the CLI validates all three before it
+  constructs a provider or writes a receipt.
 
 ## Decision Log
 
