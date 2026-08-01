@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import re
-import socket
 from importlib.metadata import PackageNotFoundError, requires, version
 from pathlib import Path
 
@@ -341,28 +340,13 @@ def initialize(
     runtime_environment.write_text("", encoding="utf-8")
     runtime_environment.chmod(0o600)
     runtime_environment_example.write_text(
-        "# Runtime variable names for this project. Keep values in posttrain.env.\n"
-        "# POSTTRAIN_REGISTRY\n"
-        "# POSTTRAIN_TRACKIO_SERVER_URL\n"
+        "# Project-specific runtime values and secrets. Keep values in posttrain.env.\n"
+        "# Shared service endpoints and registries belong in ~/.config/posttrain/config.toml.\n"
+        "# POSTTRAIN_REGISTRY  # optional project override\n"
         "# TRACKIO_WRITE_TOKEN\n",
         encoding="utf-8",
     )
     project_ignore.write_text("posttrain.env\n", encoding="utf-8")
-    hostname = socket.gethostname().strip().lower().rstrip(".")
-    execution_toml = control / "state" / "execution.toml"
-    execution_toml.write_text(
-        "\n".join(
-            (
-                "schema_version = 1",
-                "",
-                "[providers.local]",
-                f'canonical_hostname = "{hostname}"',
-                "",
-            )
-        ),
-        encoding="utf-8",
-    )
-    execution_toml.chmod(0o600)
     manifest.write_text(
         "\n".join(
             (

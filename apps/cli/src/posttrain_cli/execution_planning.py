@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import uuid
+import warnings
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -586,6 +587,7 @@ def _plan_job_package_from_intent(
         # the code that goes into the image, and their bytes are its identity.
         framework_distributions = materialize_framework_distributions(
             cache_path(layout, "pack", "framework-wheels"),
+            environ=load_execution_environment(local_config),
             wheelhouse=framework_wheelhouse,
         )
         framework_digest = framework_distributions.digest
@@ -943,9 +945,27 @@ def _storage(
         )
     if provider == "dstack":
         configured = local_config.dstack.storage if local_config.dstack is not None else None
-        if configured is None:
-            raise ContractError(f"dstack execution requires [providers.dstack.storage] in {local_config.path}")
-        return configured
+        if configured is not None:
+            warnings.warn(
+                "providers.dstack.storage is deprecated; dstack worker storage "
+                "is owned by the execution-dstack worker contract",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return configured
+        try:
+            from posttrain_execution_dstack import (
+                DSTACK_WORKER_COMPILE_CACHE,
+                DSTACK_WORKER_MODEL_CACHE,
+                DSTACK_WORKER_RUN_ROOT,
+            )
+        except ImportError as error:
+            raise ContractError("dstack execution support is not installed; install posttrain[dstack]") from error
+        return ExecutionStorageBinding(
+            run_root=DSTACK_WORKER_RUN_ROOT,
+            model_cache=DSTACK_WORKER_MODEL_CACHE,
+            compile_cache=DSTACK_WORKER_COMPILE_CACHE,
+        )
     raise ContractError(f"unsupported execution provider: {provider}")
 
 

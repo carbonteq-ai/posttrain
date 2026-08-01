@@ -954,41 +954,90 @@ def test_tracking_endpoint_is_ignored_when_only_the_process_environment_has_it(
     assert source.endpoint is None
 
 
-def test_project_selected_site_profile_supplies_machine_and_tracking_bindings(
+def test_machine_config_example_supplies_every_project_with_shared_defaults(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     layout = _layout(tmp_path)
-    environment = tmp_path / "posttrain.env"
-    _write_runtime_environment(environment, "POSTTRAIN_PROFILE=rtx96\nPOSTTRAIN_REGISTRY=registry.example/team\n")
     config_home = tmp_path / "config"
-    profile_dir = config_home / "posttrain"
-    profile_dir.mkdir(parents=True)
-    credentials = tmp_path / "dstack.env"
-    credentials.write_text("DSTACK_TOKEN=redacted\n", encoding="utf-8")
-    credentials.chmod(0o600)
-    ca_bundle = tmp_path / "ca.pem"
-    ca_bundle.write_text("certificate\n", encoding="utf-8")
-    (profile_dir / "config.toml").write_text(
+    config_dir = config_home / "posttrain"
+    config_dir.mkdir(parents=True)
+    state_home = tmp_path / "state"
+    config_path = config_dir / "config.toml"
+    config_path.write_text(
         "\n".join(
             (
                 "schema_version = 1",
+                f'projects = ["{layout.root}"]',
                 "",
-                "[profiles.rtx96.provider]",
-                'kind = "dstack"',
+                "[tracking]",
+                'kind = "trackio"',
+                'endpoint = "https://trackio.lan"',
+                "",
+                "[trust]",
+                'ca_bundle = "/etc/ssl/certs/ca-certificates.crt"',
+                "",
+                "[storage]",
+                'run_root = "runs"',
+                'model_cache = "cache/huggingface"',
+                'compile_cache = "cache/compile"',
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    config_path.chmod(0o644)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
+    monkeypatch.setenv("XDG_STATE_HOME", str(state_home))
+
+    loaded = load_local_execution_config(layout)
+
+    assert loaded.machine is not None
+    assert loaded.machine.projects == (layout.root,)
+    assert loaded.path == config_path
+    assert loaded.defaults.provider == "local"
+    assert loaded.local is not None
+    assert loaded.local.storage is not None
+    assert loaded.local.storage.run_root == state_home / "posttrain" / "runs"
+    assert loaded.local.storage.model_cache == state_home / "posttrain" / "cache" / "huggingface"
+    assert loaded.local.storage.compile_cache == state_home / "posttrain" / "cache" / "compile"
+    assert load_execution_environment(loaded)["POSTTRAIN_TRACKIO_SERVER_URL"] == "https://trackio.lan"
+    evidence = evidence_source_for_project(layout)
+    assert evidence is not None
+    assert evidence.endpoint == "https://trackio.lan"
+
+
+def test_machine_config_extends_defaults_without_owning_dstack_worker_storage(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    layout = _layout(tmp_path)
+    _write_runtime_environment(tmp_path / "posttrain.env", "POSTTRAIN_REGISTRY=project.example/jobs\n")
+    config_home = tmp_path / "config"
+    config_dir = config_home / "posttrain"
+    config_dir.mkdir(parents=True)
+    credentials = tmp_path / "dstack.env"
+    credentials.write_text("DSTACK_TOKEN=redacted\n", encoding="utf-8")
+    credentials.chmod(0o600)
+    (config_dir / "config.toml").write_text(
+        "\n".join(
+            (
+                "schema_version = 1",
+                'machine_name = "rtx-pro-96gb.lan"',
+                'default_provider = "dstack"',
+                "",
+                "[services]",
+                'python_index_url = "https://pypi.lan/simple/"',
+                'job_registry = "registry.lan/posttrain"',
+                "",
+                "[providers.dstack]",
                 'project = "main"',
                 f'python = "{Path(sys.executable)}"',
-                f'credentials_file = "{credentials}"',
+                'credentials = "dstack-default"',
+                "capacity_wait_seconds = 60",
                 "",
-                "[profiles.rtx96.storage]",
-                'run_root = "/var/lib/posttrain/runs"',
-                "",
-                "[profiles.rtx96.trust]",
-                f'ca_bundle = "{ca_bundle}"',
-                "",
-                "[profiles.rtx96.tracking]",
-                'kind = "trackio"',
-                'endpoint = "https://trackio.example"',
+                "[credentials.dstack-default]",
+                f'file = "{credentials}"',
                 "",
             )
         ),
@@ -998,16 +1047,30 @@ def test_project_selected_site_profile_supplies_machine_and_tracking_bindings(
 
     loaded = load_local_execution_config(layout)
 
-    assert loaded.profile is not None
-    assert loaded.path == (profile_dir / "config.toml")
+    assert loaded.machine is not None
+    assert loaded.machine.name == "rtx-pro-96gb.lan"
     assert loaded.dstack is not None
-    assert loaded.dstack.project == "main"
-    assert loaded.dstack.storage is not None
-    assert loaded.dstack.storage.run_root == Path("/var/lib/posttrain/runs")
-    assert load_execution_environment(loaded)["POSTTRAIN_TRACKIO_SERVER_URL"] == "https://trackio.example"
-    evidence = evidence_source_for_project(layout)
-    assert evidence is not None
-    assert evidence.endpoint == "https://trackio.example"
+    assert loaded.dstack.storage is None
+    assert loaded.defaults.provider == "dstack"
+    environment = load_execution_environment(loaded)
+    assert environment["UV_INDEX_URL"] == "https://pypi.lan/simple/"
+    assert environment["POSTTRAIN_REGISTRY"] == "project.example/jobs"
+
+
+def test_removed_profile_selector_fails_with_a_migration_message(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    layout = _layout(tmp_path)
+    _write_runtime_environment(tmp_path / "posttrain.env", "POSTTRAIN_PROFILE=rtx96\n")
+    config_home = tmp_path / "config"
+    config_dir = config_home / "posttrain"
+    config_dir.mkdir(parents=True)
+    (config_dir / "config.toml").write_text("schema_version = 1\n", encoding="utf-8")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
+
+    with pytest.raises(ContractError, match="POSTTRAIN_PROFILE was removed"):
+        load_local_execution_config(layout)
 
 
 def test_prepared_evidence_source_uses_the_explicit_resolved_runtime_environment(tmp_path: Path) -> None:

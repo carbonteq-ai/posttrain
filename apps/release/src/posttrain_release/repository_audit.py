@@ -28,6 +28,7 @@ REVIEWED_ROOT_ENTRIES = frozenset(
         "AGENTS.md",
         "CHANGELOG.md",
         "COMPATIBILITY.md",
+        "conftest.py",
         "LICENSE",
         "NOTICE",
         "README.md",

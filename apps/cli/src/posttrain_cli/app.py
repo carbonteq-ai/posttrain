@@ -15,6 +15,7 @@ from .commands import (
     environment,
     init_cmd,
     job,
+    machine,
     observatory,
     project_cmd,
     run_cmd,
@@ -93,6 +94,7 @@ def create_app(*, json_stream: TextIO | None = None) -> typer.Typer:
 
     version.register(app)
     init_cmd.register(app)
+    machine.register(app)
     doctor.register(app)
     project_cmd.register(app)
     catalog.register(app)

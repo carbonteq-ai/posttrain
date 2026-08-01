@@ -78,41 +78,33 @@ VIRTUAL_ENV=.venv uv pip install --system-certs --index-url https://pypi.lan/car
 
 Job images need **posttrain ≥ 0.2.1** for the trust merge. Re-run
 `posttrain job pack` for any image packed before that release.
-## 3. Set the environment
+## 3. Initialize this machine
 
-Write `posttrain.env` and source it before every command. Keep it `chmod 600`:
-it carries a write token.
-
-```bash
-cat > posttrain.env <<'EOF'
-# The framework and its forked dependencies are served by the internal index,
-# which also mirrors PyPI, so this is the only index a developer needs.
-UV_INDEX_URL=https://pypi.lan/carbonteq/stable/+simple/
-UV_CONSTRAINT=/absolute/path/to/github-constraints.txt
-
-# The internal services present certificates from a private CA that is already
-# in the system trust store. uv uses rustls by default and reads this variable.
-SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
-REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
-
-# Where this project publishes its own actual-job images. This is the project's
-# registry, not the framework's release registry: the framework publishes its
-# base and job-kind images once per release, and a project pushes the job
-# images it builds on top of them here.
-POSTTRAIN_REGISTRY=registry.lan/carbonteq
-
-# The job publishes run evidence to the internal tracking service. Both names
-# are forwarded into the job container, and both are needed to read the
-# evidence back afterwards.
-POSTTRAIN_TRACKIO_SERVER_URL=https://trackio.lan
-TRACKIO_WRITE_TOKEN=...
-EOF
-chmod 600 posttrain.env
-```
+Machine defaults are shared by every project and load automatically; they do
+not depend on the shell that launched the CLI. Initialize them once:
 
 ```bash
-set -a; . ./posttrain.env; set +a
+posttrain machine init \
+  --trackio-endpoint https://trackio.lan \
+  --python-index-url https://pypi.lan/carbonteq/stable/+simple/ \
+  --job-registry registry.lan/carbonteq
 ```
+
+This writes the non-secret `$XDG_CONFIG_HOME/posttrain/config.toml` (normally
+`~/.config/posttrain/config.toml`) and mode-0600 files beneath
+`~/.config/posttrain/credentials/`. Put only the values this machine uses in
+their scoped files:
+
+```bash
+printf '%s\n' 'TRACKIO_WRITE_TOKEN=...' > ~/.config/posttrain/credentials/trackio.env
+printf '%s\n' 'HF_TOKEN=...' > ~/.config/posttrain/credentials/huggingface.env
+chmod 600 ~/.config/posttrain/credentials/*.env
+```
+
+The config stores endpoints and credential *names*, never token values. The
+framework injects each source only into its consumer: a dstack token is not
+part of a job's runtime map, and Trackio credentials are not sent to dstack's
+client process merely because both are configured on the same machine.
 
 ## 4. Create a project
 
@@ -121,20 +113,25 @@ available templates are `sft` and `grpo`.
 
 ```bash
 posttrain init my-project --template sft
+posttrain machine project add "$PWD/my-project"
 ```
+
+You may instead pass one or more `--project` options during the first
+`machine init`. Project registration is idempotent.
+`posttrain.env` remains an ignored, mode-0600 project override for values that
+genuinely differ by project. It is auto-loaded and never needs to be sourced.
 
 ## 5. Local execution provider
 
-`posttrain init` writes `.posttrain/state/execution.toml` (mode 0600) with
-`providers.local.canonical_hostname` set from this machine's hostname. That
-identity is how the admission ledger serializes local Docker jobs across
-projects on the same GPU. Edit it only if the hostname is wrong.
+Local execution uses the canonical `machine_name` written by
+`posttrain machine init`. Its admission ledger is machine-scoped, so local
+Docker jobs from every registered project serialize against the same physical
+resources. Mutable run and cache paths under `[storage]` resolve beneath
+`$XDG_STATE_HOME/posttrain`, not beneath the configuration directory.
 
-Nothing about certificates belongs here. The authority installed in step 1 is
-found automatically. Override it only for a one-off, either with
-`POSTTRAIN_TRUST_BUNDLE` in the environment or `trust_bundle` under
-`[providers.local]`; a path named that way must exist, because silently
-substituting a different authority would be worse than refusing.
+Trust belongs in the machine config's `[trust]` table. Projects cannot replace
+the machine trust root. A named path must exist because silently substituting
+a different authority would be worse than refusing.
 
 ## 6. Run on dstack
 
@@ -143,29 +140,27 @@ dstack owns offers, placement, startup, and cancellation. Local Docker still
 uses the machine admission ledger (`posttrain workers`); dstack runs do not
 take a host lock inside posttrain.
 
-Install with the `dstack` extra (step 2). Then extend
-`.posttrain/state/execution.toml`:
+Install with the `dstack` extra (step 2), then initialize the client binding
+with `posttrain machine init` or add this to the existing machine config:
 
 ```toml
 [providers.dstack]
 project = "main"
 python = "/absolute/path/to/dstack-venv/bin/python"
-# environment_file = "/absolute/path/to/dstack.env"   # optional
+credentials = "dstack-default"
 # Persist a pre-start no-capacity task in dstack for up to one day.
 capacity_wait_seconds = 86400
 
-[providers.dstack.storage]
-run_root = "/var/lib/posttrain/runs"
-model_cache = "/var/lib/posttrain/cache/huggingface"
-# compile_cache = "/var/lib/posttrain/cache/compile"  # optional
+[credentials.dstack-default]
+file = "credentials/dstack.env"
 ```
 
 `python` is the **client** interpreter that talks to the dstack server, not the
-job image. Storage paths are what the **workers** mount; Ansible usually owns
-those directories and the well-known CA at `/etc/posttrain/trust/internal-ca.pem`.
-Your laptop only needs the system CA (step 1) plus this client binding.
-`trust_bundle` under `[providers.dstack]` is rarely required when workers
-already have the well-known path. `capacity_wait_seconds` is a server-side
+job image. The referenced credential file must be mode 0600. Worker storage is
+not a developer-machine setting: the execution-dstack contract and ai-infra
+Ansible deployment own `/var/lib/posttrain/runs`, model cache, compile cache,
+and the worker CA. Your laptop needs only the system CA (step 1) plus this
+client binding. `capacity_wait_seconds` is a server-side
 dstack queue retention window. It retries only `no-capacity` before the job
 starts; interruption and runtime errors remain fail-fast so user code is never
 repeated under the same framework attempt. This dstack release defaults an

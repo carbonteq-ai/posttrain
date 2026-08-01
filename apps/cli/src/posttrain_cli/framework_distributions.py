@@ -179,6 +179,7 @@ def materialize(
         capture_output=True,
         text=True,
         check=False,
+        env={**os.environ, **environ},
     )
     if result.returncode != 0:
         detail = (result.stderr or result.stdout).strip()[-1500:]

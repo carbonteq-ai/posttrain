@@ -6,6 +6,7 @@ import json
 import os
 import re
 import shlex
+import socket
 import tomllib
 import warnings
 from collections.abc import Mapping
@@ -14,6 +15,7 @@ from hashlib import sha256
 from pathlib import Path
 from types import MappingProxyType
 from typing import Literal, cast
+from urllib.parse import urlparse
 
 from posttrain.catalog import ProjectLayout
 from posttrain.common import ContractError
@@ -71,23 +73,44 @@ class DstackBinding:
 
 
 @dataclass(frozen=True, slots=True)
-class SiteTrackingBinding:
-    """Secret-free tracking identity selected by a named machine profile."""
+class MachineTrackingBinding:
+    """Secret-free tracking default supplied to every project on a machine."""
 
     kind: Literal["trackio", "wandb"]
     endpoint: str | None = None
+    credentials: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
-class SiteProfile:
-    """One operator-owned provider, storage, trust, and tracking selection."""
+class MachineServicesBinding:
+    """Internal service defaults shared by projects on one machine."""
 
-    id: str
+    python_index_url: str | None = None
+    python_index_credentials: str | None = None
+    job_registry: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class MachineHuggingFaceBinding:
+    """Hugging Face credential selection shared by jobs on one machine."""
+
+    credentials: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class MachineConfig:
+    """Operator-owned defaults loaded from the current user's config home."""
+
+    name: str
     path: Path
+    projects: tuple[Path, ...]
     defaults: ExecutionOverrides
-    local: LocalProviderBinding | None
+    local: LocalProviderBinding
     dstack: DstackBinding | None
-    tracking: SiteTrackingBinding | None
+    tracking: MachineTrackingBinding | None
+    huggingface: MachineHuggingFaceBinding | None
+    services: MachineServicesBinding
+    credentials: Mapping[str, Path]
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,7 +146,7 @@ class LocalExecutionConfig:
     local: LocalProviderBinding | None = None
     dstack: DstackBinding | None = None
     registry: RegistryBinding | None = None
-    profile: SiteProfile | None = None
+    machine: MachineConfig | None = None
 
 
 _DEFAULT_LOCAL_NAME = "execution.toml"
@@ -136,28 +159,31 @@ def load_local_execution_config(
     path: Path | None = None,
     env_file: Path | None = None,
 ) -> LocalExecutionConfig:
-    """Load an ignored mode-0600 machine binding, or return an empty binding."""
+    """Resolve machine defaults plus one project's protected runtime values."""
 
     configured = (path or layout.state / _DEFAULT_LOCAL_NAME).expanduser().resolve()
     runtime_environment = resolve_runtime_environment(layout.root, env_file=env_file)
-    profile = _load_site_profile(runtime_environment.for_execution())
-    if profile is not None:
+    # An explicit path is the compatibility and test escape hatch for the
+    # project-local v0.2 binding. Normal project opens always use the
+    # automatically discovered machine configuration.
+    machine = None if path is not None else load_machine_config()
+    if machine is not None:
         provisional = LocalExecutionConfig(
-            path=profile.path,
-            defaults=profile.defaults,
+            path=machine.path,
+            defaults=machine.defaults,
             environment_file=runtime_environment.path,
-            local=profile.local,
-            dstack=profile.dstack,
-            profile=profile,
+            local=machine.local,
+            dstack=machine.dstack,
+            machine=machine,
         )
         return LocalExecutionConfig(
-            path=profile.path,
-            defaults=profile.defaults,
+            path=machine.path,
+            defaults=machine.defaults,
             environment_file=runtime_environment.path,
-            local=profile.local,
-            dstack=profile.dstack,
+            local=machine.local,
+            dstack=machine.dstack,
             registry=derived_registry(environ=load_execution_environment(provisional)),
-            profile=profile,
+            machine=machine,
         )
     if not configured.exists():
         # A project with no machine binding is still fully usable: the release
@@ -408,92 +434,195 @@ def _parse_dstack(value: object, *, base: Path) -> DstackBinding | None:
     )
 
 
-def _load_site_profile(environment: Mapping[str, str]) -> SiteProfile | None:
-    """Load the profile chosen by the project runtime map, never shell values."""
+def load_machine_config() -> MachineConfig | None:
+    """Load this user's one machine-wide Posttrain configuration, if present."""
 
-    profile_id = environment.get("POSTTRAIN_PROFILE")
-    if profile_id is None:
-        return None
-    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", profile_id):
-        raise ContractError("POSTTRAIN_PROFILE must be a lowercase profile id")
     config_home = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")).expanduser().resolve()
     path = config_home / "posttrain" / "config.toml"
+    if not path.exists():
+        return None
     if not path.is_file():
-        raise ContractError(f"selected Posttrain site profile is missing: {path}")
+        raise ContractError(f"Posttrain machine configuration is not a file: {path}")
     try:
         payload = tomllib.loads(path.read_text(encoding="utf-8"))
     except tomllib.TOMLDecodeError as error:
-        raise ContractError(f"invalid Posttrain site profile file {path}: {error}") from error
+        raise ContractError(f"invalid Posttrain machine configuration {path}: {error}") from error
     if not isinstance(payload, dict) or payload.get("schema_version") != 1:
-        raise ContractError("Posttrain site profile config schema_version must be 1")
-    _reject_unknown(payload, {"schema_version", "profiles"}, "site config")
-    profiles = _mapping(payload.get("profiles"), context="site profiles")
-    selected = profiles.get(profile_id)
-    if selected is None:
-        raise ContractError(f"Posttrain site profile {profile_id!r} is not defined in {path}")
-    profile = _mapping(selected, context=f"profiles.{profile_id}")
-    _reject_unknown(profile, {"defaults", "provider", "storage", "trust", "tracking"}, f"profiles.{profile_id}")
-    defaults = _parse_overrides(profile.get("defaults"), context=f"profiles.{profile_id}.defaults")
-    storage = _parse_storage(profile.get("storage"), base=path.parent, context=f"profiles.{profile_id}.storage")
-    trust = _mapping(profile.get("trust"), context=f"profiles.{profile_id}.trust", allow_none=True)
-    _reject_unknown(trust, {"ca_bundle"}, f"profiles.{profile_id}.trust")
-    trust_bundle = _optional_configured_path(
-        trust.get("ca_bundle"), path.parent, f"profiles.{profile_id}.trust.ca_bundle"
+        raise ContractError("Posttrain machine configuration schema_version must be 1")
+    _reject_unknown(
+        payload,
+        {
+            "schema_version",
+            "machine_name",
+            "projects",
+            "default_provider",
+            "defaults",
+            "services",
+            "huggingface",
+            "credentials",
+            "tracking",
+            "trust",
+            "storage",
+            "providers",
+        },
+        "machine config",
     )
+
+    machine_name = _optional_hostname(payload.get("machine_name"), "machine_name")
+    if machine_name is None:
+        machine_name = cast(str, _optional_hostname(socket.getfqdn(), "machine hostname"))
+    projects = _absolute_path_tuple(payload.get("projects"), context="projects")
+    default_provider = _optional_config_string(payload.get("default_provider"), "default_provider") or "local"
+    if default_provider not in {"local", "dstack"}:
+        raise ContractError("execution configuration default_provider must be 'local' or 'dstack'")
+    parsed_defaults = _parse_overrides(payload.get("defaults"), context="defaults")
+    if parsed_defaults.provider is not None:
+        raise ContractError("execution configuration defaults.provider is replaced by top-level default_provider")
+    defaults = ExecutionOverrides(
+        provider=default_provider,
+        target=parsed_defaults.target,
+        runtime_profile=parsed_defaults.runtime_profile,
+        timeout_seconds=parsed_defaults.timeout_seconds,
+        max_attempts=parsed_defaults.max_attempts,
+        priority=parsed_defaults.priority,
+        environment_names=parsed_defaults.environment_names,
+    )
+
+    state_home = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state"))
+    machine_state_root = state_home.expanduser().resolve() / "posttrain"
+    storage = _parse_storage(payload.get("storage"), base=machine_state_root, context="storage")
+    trust = _mapping(payload.get("trust"), context="trust", allow_none=True)
+    _reject_unknown(trust, {"ca_bundle"}, "trust")
+    trust_bundle = _optional_configured_path(trust.get("ca_bundle"), path.parent, "trust.ca_bundle")
     if trust_bundle is not None and not trust_bundle.is_file():
-        raise ContractError(f"Posttrain site profile trust bundle is missing: {trust_bundle}")
-    provider = _mapping(profile.get("provider"), context=f"profiles.{profile_id}.provider")
-    kind = _required_config_string(provider.get("kind"), f"profiles.{profile_id}.provider.kind")
-    if kind == "dstack":
+        raise ContractError(f"Posttrain machine trust bundle is missing: {trust_bundle}")
+    local = LocalProviderBinding(
+        canonical_hostname=machine_name,
+        storage=storage,
+        trust_bundle=trust_bundle,
+    )
+
+    credential_payload = _mapping(payload.get("credentials"), context="credentials", allow_none=True)
+    credential_sources: dict[str, Path] = {}
+    for credential_name, raw_source in credential_payload.items():
+        if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", credential_name):
+            raise ContractError(f"invalid machine credential name: {credential_name!r}")
+        source = _mapping(raw_source, context=f"credentials.{credential_name}")
+        _reject_unknown(source, {"file"}, f"credentials.{credential_name}")
+        source_path = _configured_path(source.get("file"), path.parent, f"credentials.{credential_name}.file")
+        _require_protected_file(source_path, f"machine credential {credential_name!r}")
+        credential_sources[credential_name] = source_path
+
+    providers = _mapping(payload.get("providers"), context="providers", allow_none=True)
+    _reject_unknown(providers, {"dstack"}, "providers")
+    dstack_payload = _mapping(providers.get("dstack"), context="providers.dstack", allow_none=True)
+    dstack: DstackBinding | None = None
+    if dstack_payload:
         _reject_unknown(
-            provider,
-            {"kind", "project", "python", "credentials_file", "capacity_wait_seconds"},
-            f"profiles.{profile_id}.provider",
+            dstack_payload,
+            {"project", "python", "credentials", "credentials_file", "capacity_wait_seconds"},
+            "providers.dstack",
         )
-        credentials_file = _configured_path(
-            provider.get("credentials_file"), path.parent, f"profiles.{profile_id}.provider.credentials_file"
-        )
-        _require_protected_file(credentials_file, "dstack credentials file")
+        credential_name = _optional_config_string(dstack_payload.get("credentials"), "providers.dstack.credentials")
+        legacy_credentials_file = dstack_payload.get("credentials_file")
+        if credential_name is not None and legacy_credentials_file is not None:
+            raise ContractError("providers.dstack must not set both credentials and credentials_file")
+        if credential_name is not None:
+            credentials_file = _credential_source(
+                credential_sources,
+                credential_name,
+                context="providers.dstack.credentials",
+            )
+        elif legacy_credentials_file is not None:
+            credentials_file = _configured_path(
+                legacy_credentials_file,
+                path.parent,
+                "providers.dstack.credentials_file",
+            )
+            _require_protected_file(credentials_file, "dstack credentials file")
+            warnings.warn(
+                "providers.dstack.credentials_file is deprecated; define a named [credentials] source",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        else:
+            raise ContractError("providers.dstack.credentials must name a configured credential source")
         dstack = DstackBinding(
-            project=_required_config_string(provider.get("project"), f"profiles.{profile_id}.provider.project"),
+            project=_required_config_string(dstack_payload.get("project"), "providers.dstack.project"),
             python=_configured_executable_path(
-                provider.get("python"), path.parent, f"profiles.{profile_id}.provider.python"
+                dstack_payload.get("python"),
+                path.parent,
+                "providers.dstack.python",
             ),
             environment_file=credentials_file,
-            storage=storage,
             trust_bundle=trust_bundle,
             capacity_wait_seconds=_optional_nonnegative_int(
-                provider.get("capacity_wait_seconds"), f"profiles.{profile_id}.provider.capacity_wait_seconds"
+                dstack_payload.get("capacity_wait_seconds"),
+                "providers.dstack.capacity_wait_seconds",
             )
             or 0,
         )
-        local = None
-    elif kind == "local":
-        _reject_unknown(provider, {"kind", "canonical_hostname"}, f"profiles.{profile_id}.provider")
-        local = LocalProviderBinding(
-            canonical_hostname=_optional_hostname(
-                provider.get("canonical_hostname"), f"profiles.{profile_id}.provider.canonical_hostname"
-            ),
-            storage=storage,
-            trust_bundle=trust_bundle,
-        )
-        dstack = None
-    else:
-        raise ContractError(f"profiles.{profile_id}.provider.kind must be 'dstack' or 'local'")
-    tracking_payload = _mapping(profile.get("tracking"), context=f"profiles.{profile_id}.tracking", allow_none=True)
-    _reject_unknown(tracking_payload, {"kind", "endpoint"}, f"profiles.{profile_id}.tracking")
-    tracking: SiteTrackingBinding | None = None
+    if default_provider == "dstack" and dstack is None:
+        raise ContractError("default_provider is dstack but providers.dstack is not configured")
+
+    tracking_payload = _mapping(payload.get("tracking"), context="tracking", allow_none=True)
+    _reject_unknown(tracking_payload, {"kind", "endpoint", "credentials"}, "tracking")
+    tracking: MachineTrackingBinding | None = None
     if tracking_payload:
-        tracking_kind = _required_config_string(tracking_payload.get("kind"), f"profiles.{profile_id}.tracking.kind")
+        tracking_kind = _required_config_string(tracking_payload.get("kind"), "tracking.kind")
         if tracking_kind not in {"trackio", "wandb"}:
-            raise ContractError(f"profiles.{profile_id}.tracking.kind must be 'trackio' or 'wandb'")
-        tracking = SiteTrackingBinding(
+            raise ContractError("execution configuration tracking.kind must be 'trackio' or 'wandb'")
+        tracking = MachineTrackingBinding(
             kind=cast(Literal["trackio", "wandb"], tracking_kind),
-            endpoint=_optional_config_string(
-                tracking_payload.get("endpoint"), f"profiles.{profile_id}.tracking.endpoint"
+            endpoint=_optional_http_url(tracking_payload.get("endpoint"), "tracking.endpoint"),
+            credentials=_credential_reference(
+                credential_sources,
+                tracking_payload.get("credentials"),
+                context="tracking.credentials",
             ),
         )
-    return SiteProfile(profile_id, path, defaults, local, dstack, tracking)
+
+    huggingface_payload = _mapping(payload.get("huggingface"), context="huggingface", allow_none=True)
+    _reject_unknown(huggingface_payload, {"credentials"}, "huggingface")
+    huggingface = (
+        MachineHuggingFaceBinding(
+            credentials=_credential_reference(
+                credential_sources,
+                huggingface_payload.get("credentials"),
+                context="huggingface.credentials",
+            )
+        )
+        if huggingface_payload
+        else None
+    )
+
+    services_payload = _mapping(payload.get("services"), context="services", allow_none=True)
+    _reject_unknown(
+        services_payload,
+        {"python_index_url", "python_index_credentials", "job_registry"},
+        "services",
+    )
+    services = MachineServicesBinding(
+        python_index_url=_optional_http_url(services_payload.get("python_index_url"), "services.python_index_url"),
+        python_index_credentials=_credential_reference(
+            credential_sources,
+            services_payload.get("python_index_credentials"),
+            context="services.python_index_credentials",
+        ),
+        job_registry=_optional_config_string(services_payload.get("job_registry"), "services.job_registry"),
+    )
+    return MachineConfig(
+        machine_name,
+        path,
+        projects,
+        defaults,
+        local,
+        dstack,
+        tracking,
+        huggingface,
+        services,
+        MappingProxyType(credential_sources),
+    )
 
 
 WELL_KNOWN_TRUST_BUNDLE = Path("/etc/posttrain/trust/internal-ca.pem")
@@ -976,6 +1105,49 @@ def _optional_config_string(value: object, context: str) -> str | None:
     return value
 
 
+def _credential_source(
+    sources: Mapping[str, Path],
+    name: str,
+    *,
+    context: str,
+) -> Path:
+    try:
+        return sources[name]
+    except KeyError as error:
+        raise ContractError(
+            f"execution configuration {context} references unknown credential source {name!r}"
+        ) from error
+
+
+def _credential_reference(
+    sources: Mapping[str, Path],
+    value: object,
+    *,
+    context: str,
+) -> str | None:
+    name = _optional_config_string(value, context)
+    if name is not None:
+        _credential_source(sources, name, context=context)
+    return name
+
+
+def _optional_http_url(value: object, context: str) -> str | None:
+    parsed = _optional_config_string(value, context)
+    if parsed is None:
+        return None
+    url = urlparse(parsed)
+    if (
+        url.scheme not in {"http", "https"}
+        or not url.netloc
+        or url.username is not None
+        or url.password is not None
+        or url.query
+        or url.fragment
+    ):
+        raise ContractError(f"execution configuration {context} must be a credential-free HTTP(S) URL")
+    return parsed
+
+
 def _optional_hostname(value: object, context: str) -> str | None:
     parsed = _optional_config_string(value, context)
     if parsed is None:
@@ -1052,21 +1224,71 @@ def _string_tuple(
     return parsed
 
 
+def _absolute_path_tuple(value: object, *, context: str) -> tuple[Path, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise ContractError(f"execution configuration {context} must be an absolute path array")
+    paths = tuple(Path(item).expanduser() for item in value)
+    if any(not path.is_absolute() for path in paths):
+        raise ContractError(f"execution configuration {context} must contain only absolute paths")
+    resolved = tuple(path.resolve() for path in paths)
+    if len(set(resolved)) != len(resolved):
+        raise ContractError(f"execution configuration {context} must contain unique paths")
+    return resolved
+
+
 def load_execution_environment(
     configuration: LocalExecutionConfig,
 ) -> dict[str, str]:
-    """Read the protected job environment without exposing it in config values."""
+    """Overlay project runtime values on reusable machine service defaults."""
 
     environment: dict[str, str] = {}
-    if configuration.profile is not None and configuration.profile.tracking is not None:
-        profile_tracking = configuration.profile.tracking
-        if profile_tracking.endpoint is not None:
-            name = "POSTTRAIN_TRACKIO_SERVER_URL" if profile_tracking.kind == "trackio" else "WANDB_BASE_URL"
-            environment[name] = profile_tracking.endpoint
+    if configuration.machine is not None:
+        machine = configuration.machine
+        if machine.tracking is not None and machine.tracking.endpoint is not None:
+            name = "POSTTRAIN_TRACKIO_SERVER_URL" if machine.tracking.kind == "trackio" else "WANDB_BASE_URL"
+            environment[name] = machine.tracking.endpoint
+        if machine.tracking is not None and machine.tracking.credentials is not None:
+            _merge_credential_environment(
+                environment,
+                machine.credentials[machine.tracking.credentials],
+                allowed=({"TRACKIO_WRITE_TOKEN"} if machine.tracking.kind == "trackio" else {"WANDB_API_KEY"}),
+                purpose="tracking",
+            )
+        if machine.huggingface is not None and machine.huggingface.credentials is not None:
+            _merge_credential_environment(
+                environment,
+                machine.credentials[machine.huggingface.credentials],
+                allowed={"HF_TOKEN"},
+                purpose="Hugging Face",
+            )
+        if machine.services.python_index_url is not None:
+            environment["UV_INDEX_URL"] = machine.services.python_index_url
+        if machine.services.python_index_credentials is not None:
+            _merge_credential_environment(
+                environment,
+                machine.credentials[machine.services.python_index_credentials],
+                allowed={"PIP_INDEX_URL", "UV_INDEX_PASSWORD", "UV_INDEX_USERNAME"},
+                purpose="Python index",
+            )
+        if machine.services.job_registry is not None:
+            environment[REGISTRY_ENVIRONMENT_VARIABLE] = machine.services.job_registry
     path = configuration.environment_file
     if path is None:
         return environment
-    _require_protected_file(path, "execution environment file")
+    environment.update(_read_environment_file(path, label="execution environment file"))
+    if "POSTTRAIN_PROFILE" in environment:
+        raise ContractError(
+            "POSTTRAIN_PROFILE was removed; machine defaults load automatically "
+            "from $XDG_CONFIG_HOME/posttrain/config.toml"
+        )
+    return environment
+
+
+def _read_environment_file(path: Path, *, label: str) -> dict[str, str]:
+    _require_protected_file(path, label)
+    environment: dict[str, str] = {}
     for raw_line in path.read_text(encoding="utf-8").splitlines():
         line = raw_line.strip()
         if not line or line.startswith("#"):
@@ -1079,6 +1301,24 @@ def load_execution_environment(
             raise ContractError(f"invalid execution environment value for {name.strip()}")
         environment[name.strip()] = parsed[0]
     return environment
+
+
+def _merge_credential_environment(
+    environment: dict[str, str],
+    path: Path,
+    *,
+    allowed: set[str],
+    purpose: str,
+) -> None:
+    values = _read_environment_file(path, label=f"{purpose} credential file")
+    if unknown := sorted(set(values) - allowed):
+        raise ContractError(
+            f"{purpose} credential file {path} contains variables outside its scope: " + ", ".join(unknown)
+        )
+    for name, value in values.items():
+        if name in environment and environment[name] != value:
+            raise ContractError(f"machine credential sources disagree on {name}")
+        environment[name] = value
 
 
 def _require_protected_file(path: Path, label: str) -> None:
@@ -1096,13 +1336,16 @@ __all__ = [
     "LaunchOverrides",
     "LocalProviderBinding",
     "LocalExecutionConfig",
+    "MachineHuggingFaceBinding",
     "PackageOverrides",
     "RegistryBinding",
     "ResolvedExecutionSettings",
     "SettingSource",
-    "SiteProfile",
-    "SiteTrackingBinding",
+    "MachineConfig",
+    "MachineServicesBinding",
+    "MachineTrackingBinding",
     "load_local_execution_config",
+    "load_machine_config",
     "load_execution_environment",
     "resolve_execution_settings",
 ]

@@ -24,8 +24,8 @@ URL and token.
 
 After this plan, `posttrain init` produces a project where no sourcing, no
 manual pointer, and no repeated `--env` flags are needed; a background process
-resolves exactly the same configuration as an interactive shell; the site's
-tracking endpoint is inherited from a named site profile; and `posttrain job
+resolves exactly the same configuration as an interactive shell; the machine's
+tracking endpoint and scoped credentials load automatically; and `posttrain job
 plan` prints which runtime variables the selected job requires and which are
 already satisfied.
 
@@ -45,19 +45,15 @@ already satisfied.
       `posttrain.env` now wins over shell values and the legacy pointer for
       local configuration and registry derivation. `init` writes protected
       `posttrain.env`, tracked `posttrain.env.example`, and ignores the former.
-- [ ] Milestone 2: operator-owned machine configuration at
+- [x] (2026-08-01) Milestone 2: operator-owned machine configuration at
       `$XDG_CONFIG_HOME/posttrain/config.toml` and the state-directory split.
-      Partial progress (2026-08-01): a project runtime map can select a named
-      profile with `POSTTRAIN_PROFILE`; the profile supplies its dstack or
-      local binding, storage, trust bundle, and Trackio/W&B endpoint without
-      putting those machine values in project state.
-      Superseded (2026-08-01): that first slice must be reshaped before it is
-      finished. The named-profile layer and `POSTTRAIN_PROFILE` are removed,
-      the settings move to the top level of the file as the machine's
-      inheritable defaults, `provider.kind` is replaced by an optional
-      `[providers.dstack]` locator plus `default_provider`, and the file gains
-      the `projects` list the machine's controller reconciles. Local execution
-      must need no provider configuration at all.
+      Top-level defaults now load automatically, relative storage resolves
+      beneath `$XDG_STATE_HOME/posttrain`, and local execution needs no
+      provider block. `posttrain machine init` creates the non-secret config
+      and protected named credential sources; `posttrain machine project add`
+      updates the controller project set idempotently. The dstack block holds
+      only its client locator and named credential source; execution-dstack
+      and Ansible own worker storage beneath `/var/lib/posttrain`.
 - [ ] Milestone 3: required tracking with a site-selected backend.
 - [ ] Milestone 4: runtime variables derived from selections.
 - [ ] Milestone 5: install transport (constraints file, trust, blessed
@@ -92,6 +88,12 @@ already satisfied.
   from `os.environ`; a regression now proves its private runtime payload wins
   over a conflicting shell token and fails closed when the project map lacks a
   declared name.
+- Observation: automatically loaded machine defaults made tests outside the
+  CLI package sensitive to the developer's real `$XDG_CONFIG_HOME`.
+  Evidence: the full suite initially failed four nested Lab packing tests on
+  this workstation's obsolete profile schema. A reviewed root `conftest.py`
+  now isolates config and state homes for every package, and the full suite
+  passes independently of the host installation.
 
 ## Decision Log
 
@@ -106,11 +108,12 @@ already satisfied.
   writes a protected env file or passes `--env-file`; process variables such as
   `PATH` and `XDG_STATE_HOME` remain process configuration, not job runtime.
   Date/Author: 2026-08-01 / architecture review.
-- Decision: use one named site profile in `config.toml`, not a provider-only
+- Superseded decision: use one named site profile in `config.toml`, not a provider-only
   file that also accumulates tracking, trust, and storage settings.
   Rationale: provider identity and tracking identity are independent concerns,
   but an operator needs one coherent machine profile that selects both.
-  Date/Author: 2026-08-01 / architecture review.
+  Date/Author: 2026-08-01 / architecture review. Superseded later the same day
+  by the top-level machine-config decision below.
 - Decision: supersede both the named-profile layer and the
   one-provider-per-profile shape. The settings live at the top level of
   `config.toml`, with no machine name in any key, and they are the defaults
@@ -163,7 +166,7 @@ already satisfied.
 - Decision: require durable tracking for managed jobs without hard-wiring
   Trackio into core contracts.
   Rationale: the current deployment chooses Trackio, while the framework also
-  supports W&B. Policy should require evidence; the site profile chooses the
+  supports W&B. Policy should require evidence; the machine config chooses the
   conforming backend.
   Date/Author: 2026-08-01 / architecture review.
 - Decision: no milestone-3 implementation may land until the frozen baseline is
@@ -194,23 +197,23 @@ already satisfied.
 - Planning review outcome: project runtime, site configuration, and process
   environment now have non-overlapping authority. Tracking is required by
   policy but backend-neutral. Later implementation outcomes remain pending.
-- Milestone 2 partial outcome: `load_local_execution_config()` resolves the
-  selected profile from `$XDG_CONFIG_HOME/posttrain/config.toml` only when
-  project-owned `posttrain.env` names it through `POSTTRAIN_PROFILE`. The site
-  file stores provider credentials paths, executable, storage, trust, and
-  tracking endpoint; the project file still owns values such as write tokens
-  and registry. The legacy local `execution.toml` remains the compatibility
-  path when no profile is selected. Required-tracking policy, profile-aware
-  doctor checks, and migration of existing operator bindings remain open.
+- Milestone 2 outcome: `load_local_execution_config()` automatically resolves
+  one machine file with no project selector. Named mode-0600 sources supply
+  only the credentials allowed for Trackio/W&B, Hugging Face, the Python
+  index, or dstack; tokens never enter the non-secret TOML. Project
+  `posttrain.env` remains the authoritative project override. Legacy local
+  `execution.toml` remains a one-release compatibility reader. Required-
+  tracking policy and machine-aware doctor checks remain open.
 
 ## Context and Orientation
 
 The target authority table, which this plan implements:
 
     Project identity, catalog paths, work packages   .posttrain/project.toml      (tracked)
-    Runtime endpoints, job secrets, provider profile  posttrain.env (repo root)   (ignored, 0600, auto-loaded)
+    Project-specific runtime overrides and secrets   posttrain.env (repo root)   (ignored, 0600, auto-loaded)
     Machine defaults: providers, tracking, storage,
     trust, and the project list the controller serves  $XDG_CONFIG_HOME/posttrain/config.toml
+    Machine credentials, scoped by consumer           $XDG_CONFIG_HOME/posttrain/credentials/*.env (0600)
     Submit/cancel intent, handles, receipts           .posttrain/state/executions/
     Materialized datasets, build caches               .posttrain/state/cache/
 
@@ -231,6 +234,14 @@ The concrete machine and project selection shape is:
     [tracking]
     kind = "trackio"
     endpoint = "https://trackio.example.internal"
+    credentials = "trackio-default"
+
+    [services]
+    python_index_url = "https://pypi.example.internal/simple/"
+    job_registry = "registry.example.internal/posttrain"
+
+    [huggingface]
+    credentials = "huggingface-default"
 
     [trust]
     ca_bundle = "/etc/ssl/certs/ca-certificates.crt"
@@ -240,8 +251,11 @@ The concrete machine and project selection shape is:
     model_cache = "cache/huggingface"
     compile_cache = "cache/compile"
 
-    # <project>/posttrain.env
-    TRACKIO_WRITE_TOKEN=...
+    [credentials.trackio-default]
+    file = "credentials/trackio.env"
+
+    [credentials.huggingface-default]
+    file = "credentials/huggingface.env"
 
 That is the complete baseline. Local execution needs no provider block at all:
 `canonical_hostname` is the only local setting and it defaults to this
@@ -257,10 +271,14 @@ stores is a client locator and nothing more:
     [providers.dstack]
     project = "posttrain"
     python = "/opt/dstack/venv/bin/python"
-    credentials_file = "/etc/posttrain/dstack.env"
+    credentials = "dstack-default"
 
-The file stores no token values; it stores stable identities and protected
-credential-file locations, and nothing is read from the ambient shell.
+    [credentials.dstack-default]
+    file = "credentials/dstack.env"
+
+The TOML stores no token values; it stores stable identities and named
+protected credential-file locations. Each consumer receives only its scoped
+variables, and nothing is read from the ambient shell.
 
 A machine may therefore offer more than one provider. The provider for a run is
 chosen by the `--provider` flag that already exists on `job pack` and `job run`,
@@ -290,7 +308,9 @@ Key files today:
 - `apps/cli/src/posttrain_cli/tracking_config.py` — resolves the tracking
   backend per project.
 - `apps/cli/src/posttrain_cli/scaffolding/init_project.py` — `initialize()`
-  writes the project layout and `.posttrain/state/execution.toml`.
+  writes only the portable project layout and protected project override.
+- `apps/cli/src/posttrain_cli/scaffolding/init_machine.py` — writes machine
+  defaults, scoped credential sources, and project registrations.
 - `docs/consumer-setup.md` — documents today's manual steps (hand-written
   `posttrain.env`, the relative `environment_file` pointer resolved from
   `.posttrain/state/`, `--system-certs` on every uv call, fetching
@@ -322,9 +342,9 @@ Milestone 2 introduces the operator-owned machine configuration at
 level of the file: storage roots, trust-bundle location, a tracking
 backend/endpoint, `default_provider`, and the list of project roots whose runs
 this machine's controller reconciles. Local execution needs nothing further.
-An optional `[providers.dstack]` block adds the client locator — server URL
-project, client Python, credentials file — where a dstack server already
-exists; the framework never manages that server. A project inherits these
+An optional `[providers.dstack]` block adds the client locator — project,
+client Python, and named credential source — where a dstack server already
+exists; the framework never manages that server or its worker storage. A project inherits these
 settings and selects a provider per run with `--provider`; provider and
 tracking locators are still stored separately on each submission.
 
@@ -343,9 +363,8 @@ Provide a `posttrain state migrate` command that performs the split
 idempotently.
 
 Milestone 3 makes durable tracking the default policy for managed training and
-evaluation. The selected site profile supplies either Trackio or W&B plus its
-endpoint; the fresh project needs only that backend's write token in
-`posttrain.env`. `doctor` verifies reachability with an actionable failure. The
+evaluation. The machine config supplies either Trackio or W&B plus its
+endpoint and named credential source. `doctor` verifies reachability with an actionable failure. The
 no-op observer becomes an explicit development waiver (`tracking = "none"` in
 `project.toml`) rather than a branch every lifecycle rule accommodates. Add
 `tracking = "site"` as the scaffolded project default; retain existing explicit
@@ -420,7 +439,7 @@ link the accepted amendment before milestone 3 is marked in progress.
 - The same command sequence run under `env -i PATH=...` (an empty
   environment) resolves identical configuration — proving a future controller
   inherits nothing from a shell.
-- On a machine with the site profile installed, a new project reaches
+- On a machine initialized with `posttrain machine init`, a new project reaches
   `job run` and `run show` entering only the selected tracking backend's write
   token.
 - The accepted frozen baseline contains a dated amendment for required managed
@@ -490,3 +509,7 @@ Selections that need runtime variables implement:
   `[profiles.<id>.provider]`, `storage`, `trust`, and `tracking` shape,
   projects only the selected secret-free tracking endpoint into runtime
   configuration, and never reads `POSTTRAIN_PROFILE` from the ambient shell.
+- 2026-08-01: Milestone 2 superseded that transitional profile slice with one
+  automatically loaded machine config, named scoped credential sources,
+  separate project and machine initializers, state-root-relative caches, and
+  execution-dstack-owned worker storage.

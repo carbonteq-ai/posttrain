@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -285,6 +286,103 @@ def test_init_refuses_to_overwrite_existing_project(tmp_path: Path, capsys) -> N
 
     assert captured.out == ""
     assert "refusing to overwrite existing project files" in captured.err
+
+
+def test_machine_init_creates_shared_defaults_and_scoped_credentials(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    from posttrain.catalog import load_project_layout
+    from posttrain_cli.execution_config import load_execution_environment, load_local_execution_config
+
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+
+    assert (
+        main(
+            [
+                "machine",
+                "init",
+                "--project",
+                str(project),
+                "--machine-name",
+                "rtx-pro-96gb.lan",
+                "--trackio-endpoint",
+                "https://trackio.lan",
+                "--python-index-url",
+                "https://pypi.lan/simple/",
+                "--job-registry",
+                "registry.lan/posttrain",
+                "--dstack-project",
+                "main",
+            ]
+        )
+        == 0
+    )
+    initialized = capsys.readouterr()
+    assert "Initialized machine configuration" in initialized.out
+
+    machine_root = Path(os.environ["XDG_CONFIG_HOME"]) / "posttrain"
+    config = machine_root / "config.toml"
+    credentials = machine_root / "credentials"
+    assert config.stat().st_mode & 0o077 == 0o044
+    assert not (project / ".posttrain" / "state" / "execution.toml").exists()
+    assert "TRACKIO_WRITE_TOKEN" not in config.read_text(encoding="utf-8")
+    for filename in ("trackio.env", "huggingface.env", "python-index.env", "dstack.env"):
+        assert (credentials / filename).stat().st_mode & 0o077 == 0
+
+    assert main(["--json", "machine", "show"]) == 0
+    shown = json.loads(capsys.readouterr().out)
+    assert shown["name"] == "rtx-pro-96gb.lan"
+    assert shown["credentials"]["dstack-default"].endswith("/credentials/dstack.env")
+    assert "dstack-secret" not in json.dumps(shown)
+
+    (credentials / "trackio.env").write_text("TRACKIO_WRITE_TOKEN=trackio-secret\n", encoding="utf-8")
+    (credentials / "huggingface.env").write_text("HF_TOKEN=hf-secret\n", encoding="utf-8")
+    (credentials / "python-index.env").write_text(
+        "UV_INDEX_USERNAME=reader\nUV_INDEX_PASSWORD=index-secret\n",
+        encoding="utf-8",
+    )
+    (credentials / "dstack.env").write_text("DSTACK_TOKEN=dstack-secret\n", encoding="utf-8")
+
+    loaded = load_local_execution_config(load_project_layout(project))
+    environment = load_execution_environment(loaded)
+    assert environment["POSTTRAIN_TRACKIO_SERVER_URL"] == "https://trackio.lan"
+    assert environment["TRACKIO_WRITE_TOKEN"] == "trackio-secret"
+    assert environment["HF_TOKEN"] == "hf-secret"
+    assert environment["UV_INDEX_USERNAME"] == "reader"
+    assert environment["UV_INDEX_PASSWORD"] == "index-secret"
+    assert environment["POSTTRAIN_REGISTRY"] == "registry.lan/posttrain"
+    assert "DSTACK_TOKEN" not in environment
+    assert loaded.dstack is not None
+    assert loaded.dstack.environment_file == credentials / "dstack.env"
+
+    second_project = tmp_path / "second"
+    assert main(["init", str(second_project)]) == 0
+    capsys.readouterr()
+    assert main(["machine", "project", "add", str(second_project)]) == 0
+    assert "Registered project" in capsys.readouterr().out
+    assert main(["machine", "project", "add", str(second_project)]) == 0
+    assert "already registered" in capsys.readouterr().out
+    loaded_again = load_local_execution_config(load_project_layout(project))
+    assert loaded_again.machine is not None
+    assert loaded_again.machine.projects == (project.resolve(), second_project.resolve())
+
+    assert main(["machine", "init"]) == 1
+    assert "refusing to overwrite existing machine configuration" in capsys.readouterr().err
+
+
+def test_machine_init_omits_redundant_hostname_by_default(tmp_path: Path, capsys) -> None:
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+
+    assert main(["machine", "init", "--project", str(project)]) == 0
+    capsys.readouterr()
+
+    config = Path(os.environ["XDG_CONFIG_HOME"]) / "posttrain" / "config.toml"
+    assert "machine_name" not in config.read_text(encoding="utf-8")
 
 
 def test_environment_new_scaffolds_a_project_local_verifiers_package(tmp_path: Path, capsys) -> None:

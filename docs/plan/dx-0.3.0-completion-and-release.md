@@ -71,6 +71,14 @@ green unit tests.
       artifact-consumer closure, receipts, and a Trackio lifecycle adapter.
 - [ ] Complete the remaining release-critical configuration, lifecycle,
       packing, and public-service milestones listed below.
+- [x] (2026-08-01) Configuration milestone 2 is complete: one automatically
+      loaded machine config owns shared endpoints, provider locators, storage,
+      trust, and registered projects; named mode-0600 sources scope Trackio,
+      Hugging Face, Python-index, and dstack credentials. Project init no
+      longer writes a machine binding, `posttrain machine init/show/project
+      add` provide the operator workflow, and execution-dstack/Ansible—not the
+      home config—own worker storage. Ruff, Pyright, the release/lock checks,
+      and the full suite pass (894 passed, 17 skipped).
 - [x] (2026-08-01) Re-scoped the release gates to the maintainer's selection:
       a SAMPO capsule over Zapier AutomationBench and the existing DAPO capsule
       over GSM8K, one launched through the local provider and one through
@@ -447,8 +455,9 @@ retired `foundation-models` project; do not hand-write HTTP or SQL deletes.
 Complete milestones 2–6 of `dx-configuration-authority.md` and milestones
 2–6 of `dx-run-lifecycle-and-control.md` in dependency order. In particular:
 
-- finish named site profiles at `$XDG_CONFIG_HOME/posttrain/config.toml` and
-  prove `posttrain.env` is authoritative under `env -i`; shell environment
+- finish the automatically loaded machine config, scoped credentials, and
+  project registration at `$XDG_CONFIG_HOME/posttrain`; prove `posttrain.env`
+  is authoritative under `env -i`; shell environment
   variables never silently override project configuration;
 - make the selected Trackio backend and tracking project a required part of
   admission for remote jobs;
@@ -518,7 +527,7 @@ alone, with the framework workspace lock no longer containing either
 From the release-staged 0.3.0 tree, create isolated Lab package plans for the
 `automationbench-sampo` and `verl-dapo` gates. Before submission, record
 the immutable framework/Trackio commit, staged wheel SHA-256 values, OCI image
-digests, selected provider site profile, and Trackio project `posttrain-lab`.
+digests, selected provider machine binding, and Trackio project `posttrain-lab`.
 Submit the SAMPO gate through the local provider and the DAPO gate through
 dstack, both through the normal CLI, not ad hoc provider commands. Both run on
 this machine's single RTX 4090, so a difference between the two runs is a
