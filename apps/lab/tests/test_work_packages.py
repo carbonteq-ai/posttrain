@@ -136,8 +136,11 @@ def test_distillation_yaml_resolves_every_seat_through_the_catalog() -> None:
     }
 
 
-def test_grpo_definition_accepts_only_an_environment_population_seat() -> None:
-    pytest.importorskip("verifiers")
+def test_grpo_definition_accepts_only_an_environment_population_seat(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "posttrain.train.verifiers_requests.create_verifiers_training_bridge",
+        lambda *_args, **_kwargs: SimpleNamespace(dataset=SimpleNamespace(examples=(object(),))),
+    )
     catalog = open_catalog(scope="posttrain-lab")
     definition = grpo_definition(
         lambda context, request: request,

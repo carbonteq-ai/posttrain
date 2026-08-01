@@ -86,6 +86,31 @@ def test_qualification_loads_each_verifiers_taskset_offline(monkeypatch: pytest.
     assert loaded == [config]
 
 
+def test_qualification_rejects_a_factory_result_that_is_not_a_verifiers_config(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class EnvConfig:
+        pass
+
+    class Environment:
+        def __init__(self, config: EnvConfig) -> None:
+            self.config = config
+
+    env = ModuleType("verifiers.v1.env")
+    env.__dict__["EnvConfig"] = EnvConfig
+    env.__dict__["Environment"] = Environment
+    monkeypatch.setitem(sys.modules, "verifiers.v1.env", env)
+    monkeypatch.setattr(
+        "posttrain_runtime.execute.PythonFactoryActivation",
+        lambda _reference: SimpleNamespace(activate=lambda: object()),
+    )
+    lock = SimpleNamespace(kind="python-factory", reference="example:environment")
+
+    with pytest.raises(ContractError, match="did not produce a Verifiers EnvConfig"):
+        _qualify_activation(lock, tmp_path)
+
+
 def test_qualification_timeout_names_the_blocked_environment() -> None:
     with pytest.raises(TimeoutError, match="stuck"):
         with _qualification_timeout(0.01, "stuck"):

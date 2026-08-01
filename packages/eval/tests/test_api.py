@@ -350,9 +350,7 @@ def test_remote_evaluation_binding_decodes_from_a_catalog_family() -> None:
         decoders=evaluation_catalog_decoders(),
     )
 
-    binding = catalog.resolve(
-        CatalogRef("remote-evaluation", "inference/qwen-via-openrouter-eval@1")
-    ).value
+    binding = catalog.resolve(CatalogRef("remote-evaluation", "inference/qwen-via-openrouter-eval@1")).value
 
     assert isinstance(binding, RemoteEvaluationBinding)
     assert binding.service.origin == "https://openrouter.ai"

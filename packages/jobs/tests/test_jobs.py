@@ -94,9 +94,9 @@ def test_standard_definition_registry_covers_every_technique() -> None:
         "train/trl-distill@1",
         "serve/vllm-benchmark@1",
         "serve/vllm-smoke@1",
-            "eval/verifiers-general@1",
-            "eval/verifiers-remote-general@1",
-            "eval/verifiers-managed@1",
+        "eval/verifiers-general@1",
+        "eval/verifiers-remote-general@1",
+        "eval/verifiers-managed@1",
         "eval/verifiers-managed-general@1",
         "model/llm-compressor@2",
     } == set(definitions)
