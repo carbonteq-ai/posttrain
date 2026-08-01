@@ -20,6 +20,9 @@ _TRAIN_PROJECT = Path("packages/train/pyproject.toml")
 _SOURCE_VERSION = "0.0.0"
 _VERSION = re.compile(r"^[0-9]+[.][0-9]+[.][0-9]+(?:[a-zA-Z0-9.-]+)?$")
 _PROJECT_VERSION_LINE = re.compile(r'(?m)^(version\s*=\s*)"0[.]0[.]0"\s*$')
+_LOCK_PACKAGE_BLOCK = re.compile(r"(?ms)^\[\[package\]\]\n.*?(?=^\[\[package\]\]|\Z)")
+_LOCK_PACKAGE_NAME = re.compile(r'(?m)^name\s*=\s*"(?P<name>[^"]+)"\s*$')
+_LOCK_PACKAGE_VERSION = re.compile(r'(?m)^(version\s*=\s*)"(?P<version>[^"]+)"\s*$')
 _INTERNAL_REQUIREMENT = re.compile(
     r"^(?P<requirement>posttrain(?:-[A-Za-z0-9._-]+)?(?:\[[^]]+\])?)(?P<constraint>[^;\s]*)(?P<marker>\s*;.*)?$"
 )
@@ -72,6 +75,20 @@ def publishable_pyprojects(repository_root: Path) -> tuple[Path, ...]:
         for path in workspace_pyprojects(repository_root)
         if isinstance(tomllib.loads(path.read_text(encoding="utf-8")).get("build-system"), dict)
     )
+
+
+def _publishable_project_names(paths: tuple[Path, ...]) -> set[str]:
+    names: set[str] = set()
+    for path in paths:
+        payload = tomllib.loads(path.read_text(encoding="utf-8"))
+        project = payload.get("project")
+        name = project.get("name") if isinstance(project, dict) else None
+        if not isinstance(name, str) or not name:
+            raise ValueError(f"{path}: publishable project must declare a non-empty name")
+        if name in names:
+            raise ValueError(f"duplicate publishable project name: {name!r}")
+        names.add(name)
+    return names
 
 
 def check_release(repository_root: Path) -> ReleaseCheck:
@@ -193,7 +210,57 @@ def stage_release(repository_root: Path, destination: Path) -> ReleaseCheck:
         relative = path.relative_to(target)
         rendered, _ = render_project_metadata(path.read_text(encoding="utf-8"), manifest.version, relative)
         path.write_text(rendered, encoding="utf-8")
+    lock_path = target / "uv.lock"
+    if not lock_path.is_file():
+        raise ValueError(f"release staging requires a workspace lock: {lock_path}")
+    rendered_lock = render_workspace_lock(
+        lock_path.read_text(encoding="utf-8"), manifest.version, publishable_pyprojects(target)
+    )
+    lock_path.write_text(rendered_lock, encoding="utf-8")
     return _check_staged_release(target, manifest.version)
+
+
+def render_workspace_lock(text: str, version: str, publishable: tuple[Path, ...]) -> str:
+    """Project the source workspace lock into the staged release metadata.
+
+    ``uv`` records a workspace package's version in the lock.  Rendering just
+    the package metadata therefore leaves a staged tree internally
+    inconsistent: ``uv sync --locked`` correctly refuses to install it.  The
+    dependency graph and all third-party artifacts remain source-lock bytes;
+    this projection changes only the versions of editable first-party package
+    records, precisely as ``uv lock`` would after the metadata projection.
+    """
+
+    names = _publishable_project_names(publishable)
+    seen: set[str] = set()
+
+    def render_block(match: re.Match[str]) -> str:
+        block = match.group(0)
+        name_match = _LOCK_PACKAGE_NAME.search(block)
+        if name_match is None or name_match.group("name") not in names:
+            return block
+        name = name_match.group("name")
+        if 'source = { editable = ' not in block:
+            raise ValueError(f"uv.lock: staged package {name!r} is not an editable workspace record")
+        version_matches = tuple(_LOCK_PACKAGE_VERSION.finditer(block))
+        if len(version_matches) != 1:
+            raise ValueError(f"uv.lock: staged package {name!r} must have exactly one version")
+        version_match = version_matches[0]
+        if version_match.group("version") != _SOURCE_VERSION:
+            raise ValueError(
+                f"uv.lock: source package {name!r} has version {version_match.group('version')!r}, "
+                f"expected template {_SOURCE_VERSION!r}"
+            )
+        if name in seen:
+            raise ValueError(f"uv.lock: duplicate workspace package record for {name!r}")
+        seen.add(name)
+        return block[: version_match.start()] + f'{version_match.group(1)}"{version}"' + block[version_match.end() :]
+
+    rendered = _LOCK_PACKAGE_BLOCK.sub(render_block, text)
+    missing = sorted(names - seen)
+    if missing:
+        raise ValueError(f"uv.lock: missing editable workspace records for {missing!r}")
+    return rendered
 
 
 def lock_dependencies(repository_root: Path) -> str:
@@ -311,6 +378,7 @@ __all__ = [
     "prepare_release",
     "publishable_pyprojects",
     "render_project_metadata",
+    "render_workspace_lock",
     "stage_release",
     "workspace_pyprojects",
 ]

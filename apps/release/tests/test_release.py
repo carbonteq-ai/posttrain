@@ -5,6 +5,7 @@ from __future__ import annotations
 import subprocess
 import tomllib
 from pathlib import Path, PurePosixPath
+from shutil import which
 
 import pytest
 from posttrain.runtime_images import RUNTIME_VARIANTS, constraint_lock, lock_digest
@@ -49,7 +50,21 @@ build-backend = "hatchling.build"
 """,
         encoding="utf-8",
     )
-    (root / "uv.lock").write_text("lock\n", encoding="utf-8")
+    (root / "uv.lock").write_text(
+        '''version = 1
+revision = 3
+requires-python = ">=3.13"
+
+[[package]]
+name = "posttrain-train"
+version = "0.0.0"
+source = { editable = "packages/train" }
+dependencies = [
+    { name = "posttrain-common" },
+]
+''',
+        encoding="utf-8",
+    )
     digest = __import__("hashlib").sha256((root / "uv.lock").read_bytes()).hexdigest()
     catalog = root / "packages/catalog/src/posttrain/catalog/base"
     catalog.mkdir(parents=True)
@@ -206,6 +221,71 @@ def test_stage_expands_static_wheel_metadata_without_touching_source(tmp_path: P
     assert 'version = "0.0.0"' in source_text
     assert 'version = "0.3.0"' in staged_text
     assert '"posttrain-common==0.3.0"' in staged_text
+    assert 'version = "0.0.0"' in (source / "uv.lock").read_text(encoding="utf-8")
+    assert 'version = "0.3.0"' in (destination / "uv.lock").read_text(encoding="utf-8")
+
+
+@pytest.mark.skipif(which("uv") is None, reason="requires uv to validate the staged workspace lock")
+def test_staged_workspace_syncs_with_the_projected_lock(tmp_path: Path) -> None:
+    """Staging must not require a second dependency resolution to be installable."""
+
+    source = tmp_path / "source"
+    destination = tmp_path / "staged"
+    (source / "release").mkdir(parents=True)
+    (source / "release" / "manifest.toml").write_text(
+        'schema_version = 1\nversion = "0.3.0"\n', encoding="utf-8"
+    )
+    (source / "pyproject.toml").write_text(
+        '''[project]
+name = "release-fixture"
+version = "0.0.0"
+dependencies = ["posttrain-widget"]
+
+[tool.uv.sources]
+posttrain-widget = { workspace = true }
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv]
+package = false
+''',
+        encoding="utf-8",
+    )
+    package = source / "packages" / "widget"
+    package.mkdir(parents=True)
+    (package / "pyproject.toml").write_text(
+        '''[project]
+name = "posttrain-widget"
+version = "0.0.0"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/posttrain_widget"]
+''',
+        encoding="utf-8",
+    )
+    source_package = package / "src" / "posttrain_widget"
+    source_package.mkdir(parents=True)
+    (source_package / "__init__.py").write_text('', encoding="utf-8")
+
+    subprocess.run(["uv", "lock", "--offline"], cwd=source, check=True, capture_output=True, text=True)
+    source_lock = (source / "uv.lock").read_bytes()
+
+    stage_release(source, destination)
+
+    subprocess.run(
+        ["uv", "sync", "--locked", "--offline", "--no-install-project"],
+        cwd=destination,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert (source / "uv.lock").read_bytes() == source_lock
+    assert 'name = "posttrain-widget"\nversion = "0.3.0"' in (destination / "uv.lock").read_text(encoding="utf-8")
 
 
 def test_dependency_lock_generation_has_one_record(tmp_path: Path) -> None:

@@ -73,6 +73,10 @@ surface, or broken maintained documentation link remains.
       framework wheelhouse suppresses checkout-source capture. Actual OCI
       materialization remains pending a release-staged environment whose
       installed package identities match the staged wheels.
+- [x] (2026-08-01) Made release staging project the authored version into the
+      copied workspace lock without resolving dependencies or changing the
+      source lock. A full staged tree now passes `uv sync --locked --offline`;
+      its lock diff contains exactly the 24 first-party version replacements.
 - [ ] Milestone 2: prove that `apps/lab` can be a self-contained nested
       Posttrain project and pack two representative jobs from its own root.
 - [ ] Milestone 3: move tracked qualification configuration into `apps/lab`,
@@ -138,6 +142,12 @@ surface, or broken maintained documentation link remains.
   environment has editable packages at `0.0.0`. A release-staged environment
   with installed 0.3.0 distributions is therefore a prerequisite for the
   final OCI proof, not a reason to fall back to copying framework source.
+- Observation: rendering staged package metadata alone invalidated the copied
+  workspace lock because uv records editable workspace package versions.
+  Evidence: before the fix, `uv sync --locked` rejected a freshly staged 0.3.0
+  tree whose lock still named first-party packages as 0.0.0. The deterministic
+  stage projection changes those 24 versions only; third-party and artifact
+  lock bytes remain unchanged and the source lock is byte-identical.
 - Observation: documentation drift is part of the ownership problem.
   Evidence: a local-link audit found 12 broken Markdown targets, including
   three maintained documents pointing at the nonexistent
@@ -209,6 +219,13 @@ surface, or broken maintained documentation link remains.
   would make nested-project qualification differ from consumer execution and
   invalidate the source/wheel boundary.
   Date/Author: 2026-08-01 / plan author.
+- Decision: release staging may project editable first-party versions in the
+  copied `uv.lock`, but it must never invoke dependency resolution.
+  Rationale: the release manifest is the one authored version and the source
+  lock is the one authored dependency graph. Updating only workspace package
+  versions makes the staged metadata internally consistent without introducing
+  a second dependency lock or release-time network behavior.
+  Date/Author: 2026-08-01 / plan author.
 - Decision: this plan consumes, rather than duplicates, the state split and
   `posttrain state migrate` from
   `docs/plan/dx-configuration-authority.md` milestone 2.
@@ -258,6 +275,11 @@ data is bundled independently of the Lab source snapshot and that an explicit
 framework wheelhouse never falls back to framework checkout source. Final OCI
 materialization is intentionally deferred until the same 0.3.0 distributions
 are installed in a release-staged qualification environment.
+
+Release-stage outcome (2026-08-01): the complete staged 0.3.0 workspace now
+installs with `uv sync --locked --offline`. The copied lock is a deterministic
+version projection of the authored source lock, not a re-resolution. This
+removes the staged-install blocker for the final local OCI qualification.
 
 ## Context and Orientation
 
