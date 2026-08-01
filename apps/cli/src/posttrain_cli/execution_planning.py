@@ -72,6 +72,7 @@ from .execution_provider import create_execution_provider, evidence_source_for_p
 from .framework_distributions import FrameworkDistributions
 from .framework_distributions import materialize as materialize_framework_distributions
 from .selection_resolve import resolve_selection
+from .state_layout import cache_path
 from .work_runtime import load_work_package_bundle, runtime_context
 
 _EMPTY_OVERRIDES = ExecutionOverrides()
@@ -118,7 +119,7 @@ class PlannedJobPackage:
         """Materialize the immutable job context without publishing an image."""
 
         registry = _registry(self.local_config)
-        source_root = (self.layout.state / "pack" / "sources").resolve()
+        source_root = cache_path(self.layout, "pack", "sources")
         snapshotter = ImmutableSourceSnapshotter(cache_root=source_root)
         project_source = snapshotter.materialize(self.project_source_request)
         project_environment_sources: dict[str, Path] = {}
@@ -149,7 +150,7 @@ class PlannedJobPackage:
         ):
             raise ContractError("source bytes changed after planning; run job plan again")
 
-        cache_root = (self.layout.state / "pack" / "cache").resolve()
+        cache_root = cache_path(self.layout, "pack", "cache")
         constraints = {
             profile: KindDependencyConstraints(
                 profile,
@@ -194,9 +195,9 @@ class PlannedJobPackage:
             backend_kind_constraints=backend_constraints,
         )
         pack_service = JobPackService(
-            output_root=(self.layout.state / "pack" / "contexts").resolve(),
+            output_root=cache_path(self.layout, "pack", "contexts"),
             dataset_packager=ImmutableDatasetPackager(
-                state_dir=(self.layout.state / "datasets").resolve(),
+                state_dir=cache_path(self.layout, "datasets"),
                 project_root=self.layout.root,
             ),
             environment_packager=environment_packager,
@@ -230,7 +231,7 @@ class PlannedJobPackage:
         registry = _registry(self.local_config)
         return BuildKitJobImagePublisher(
             bake_file=_bake_file(registry),
-            receipt_root=(registry.receipt_root or (self.layout.state / "pack" / "publications").resolve()),
+            receipt_root=(registry.receipt_root or cache_path(self.layout, "pack", "publications")),
             builder=registry.buildx_builder,
         )
 
@@ -576,7 +577,7 @@ def _plan_job_package_from_intent(
     framework_source_request = (
         None if framework_wheelhouse is not None else _framework_source_request(registry.framework_source_root)
     )
-    inspector = ImmutableSourceSnapshotter(cache_root=(layout.state / "pack" / "sources").resolve())
+    inspector = ImmutableSourceSnapshotter(cache_root=cache_path(layout, "pack", "sources"))
     if framework_source_request is not None:
         framework_digest = inspector.inspect(framework_source_request)
         framework_distributions = None
@@ -584,7 +585,7 @@ def _plan_job_package_from_intent(
         # No checkout: the framework is installed, so its own distributions are
         # the code that goes into the image, and their bytes are its identity.
         framework_distributions = materialize_framework_distributions(
-            (layout.state / "pack" / "framework-wheels").resolve(),
+            cache_path(layout, "pack", "framework-wheels"),
             wheelhouse=framework_wheelhouse,
         )
         framework_digest = framework_distributions.digest
@@ -936,7 +937,7 @@ def _storage(
     if provider == "local":
         configured = local_config.local.storage if local_config.local is not None else None
         return configured or ExecutionStorageBinding(
-            run_root=(layout.state / "runs").resolve(),
+            run_root=cache_path(layout, "runs"),
             model_cache=(layout.state / "cache" / "huggingface").resolve(),
             compile_cache=(layout.state / "cache" / "compile").resolve(),
         )

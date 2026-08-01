@@ -97,6 +97,11 @@ surface, or broken maintained documentation link remains.
       fixture but remain until their public lifecycle replacements have parity.
 - [ ] Milestone 5: relocate durable Lab state and prune rebuildable root cache
       through classified, idempotent commands.
+      Partial progress (2026-08-01): added `posttrain state migrate`; it
+      separates new pack/dataset/run scratch under `state/cache`, copies only
+      verified terminal execution records, and refuses unresolved submissions.
+      Named site profiles and explicit cache-prune remain in the configuration
+      authority plan.
 - [ ] Milestone 6: pass the full quality/release gates plus real packaged data
       and evaluation jobs from the new Lab project before removing migration
       compatibility.
@@ -354,6 +359,13 @@ pyright, import-linter, and the full pytest suite passed. The suite reported
 paths and no broken maintained local Markdown links. Its remaining root
 inventory contains only ignored local caches/state and the still-pending root
 `scripts` compatibility harness.
+
+Milestone 5 partial outcome (2026-08-01): the state command has a safe
+in-place split and a project-relocation mode. It never deletes source state,
+rejects symlinks/conflicting receipt bytes, preserves unknown state entries,
+and treats a submission without a terminal reconciliation receipt as
+unresolved. The actual old root state currently contains two such runs, so the
+real dry run correctly stops rather than copying an unsafe partial history.
 
 ## Context and Orientation
 
@@ -830,3 +842,9 @@ Revision note (2026-08-01): The plan records the completed local Milestone 6
 quality ladder and distinguishes it from the still-required provider execution,
 reconciliation, and retained-evidence proof. A green test suite alone does not
 close the release gate.
+
+Revision note (2026-08-01): Milestone 5 now has a tested fail-closed state
+migration foundation and cache-root routing. The remaining named-profile and
+cache-prune work stays explicitly owned by the configuration-authority plan;
+the unresolved historical provider runs prevent relocation until they are
+reconciled.
