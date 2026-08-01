@@ -257,10 +257,19 @@ The concrete machine and project selection shape is:
     [credentials.huggingface-default]
     file = "credentials/huggingface.env"
 
-That is the complete baseline. Local execution needs no provider block at all:
-`canonical_hostname` is the only local setting and it defaults to this
-machine's hostname. A person running the framework must not have to declare a
-provider, and must not need dstack at all.
+That is the complete baseline. Local execution normally needs no provider
+block: `canonical_hostname` defaults to this machine's hostname. A machine
+whose Docker bridge cannot reach the host's internal DNS may add literal,
+machine-owned resolvers without leaking them into a project:
+
+    [providers.local]
+    dns_servers = ["192.0.2.53"]
+
+The resolved server list is part of the provider binding snapshot, so a retry
+does not silently adopt changed machine defaults. Hostnames are rejected here
+because resolving a DNS server through the broken resolver would be circular.
+A person running the framework must not have to declare a provider, and must
+not need dstack at all.
 
 dstack is an optional addition, present only where a dstack server already
 exists. The framework never installs, configures, or supervises that server —

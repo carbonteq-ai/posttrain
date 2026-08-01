@@ -58,6 +58,7 @@ def create_execution_provider(
         provider = provider_type(
             state_root=layout.state,
             environment=load_execution_environment(local_config),
+            dns_servers=(local_config.local.dns_servers if local_config.local is not None else ()),
             trust_bundle=resolve_trust_bundle(
                 local_config.local.trust_bundle if local_config.local is not None else None
             ).path,
@@ -109,6 +110,7 @@ def provider_source_for_project(
             binding_fingerprint=fingerprint,
             trust_bundle=binding.trust_bundle,
             canonical_hostname=binding.canonical_hostname,
+            dns_servers=binding.dns_servers,
         )
     if provider_name == "dstack":
         binding = local.dstack
@@ -141,6 +143,7 @@ def _configuration_for_provider_source(
             current,
             local=LocalProviderBinding(
                 canonical_hostname=source.canonical_hostname,
+                dns_servers=source.dns_servers,
                 storage=(current.local.storage if current.local is not None else None),
                 trust_bundle=source.trust_bundle,
             ),

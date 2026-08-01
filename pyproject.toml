@@ -79,7 +79,7 @@ known-third-party = ["trackio", "wandb"]
 pythonVersion = "3.13"
 typeCheckingMode = "standard"
 include = ["apps", "packages", "tests"]
-exclude = ["**/__pycache__", ".venv", ".venvs"]
+exclude = ["**/__pycache__", "**/.posttrain", ".venv", ".venvs"]
 reportMissingImports = false
 reportMissingTypeStubs = "none"
 

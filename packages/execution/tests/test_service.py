@@ -248,6 +248,7 @@ def test_submission_store_round_trips_secret_free_evidence_locator(
         profile_id="machine-default",
         binding_fingerprint="a" * 64,
         credential_file=(tmp_path / "provider.env").resolve(),
+        dns_servers=("192.0.2.53",),
     )
     submission = ExecutionSubmission(
         run_id="run-evidence-1",

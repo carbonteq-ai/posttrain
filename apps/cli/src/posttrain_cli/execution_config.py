@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import os
 import re
@@ -58,6 +59,7 @@ class ExecutionStorageBinding:
 @dataclass(frozen=True, slots=True)
 class LocalProviderBinding:
     canonical_hostname: str | None = None
+    dns_servers: tuple[str, ...] = ()
     storage: ExecutionStorageBinding | None = None
     trust_bundle: Path | None = None
 
@@ -284,6 +286,7 @@ def provider_binding_fingerprint(
         payload = {
             "provider": provider,
             "canonical_hostname": (binding.canonical_hostname if binding is not None else None),
+            "dns_servers": (list(binding.dns_servers) if binding is not None else []),
             "trust_bundle": (
                 str(binding.trust_bundle) if binding is not None and binding.trust_bundle is not None else None
             ),
@@ -356,7 +359,7 @@ def _parse_local(value: object, *, base: Path) -> LocalProviderBinding | None:
     payload = _mapping(value, context="providers.local")
     _reject_unknown(
         payload,
-        {"canonical_hostname", "storage", "trust_bundle"},
+        {"canonical_hostname", "dns_servers", "storage", "trust_bundle"},
         "providers.local",
     )
     trust_bundle = _optional_configured_path(
@@ -370,6 +373,10 @@ def _parse_local(value: object, *, base: Path) -> LocalProviderBinding | None:
         canonical_hostname=_optional_hostname(
             payload.get("canonical_hostname"),
             "providers.local.canonical_hostname",
+        ),
+        dns_servers=_ip_address_tuple(
+            payload.get("dns_servers"),
+            context="providers.local.dns_servers",
         ),
         storage=_parse_storage(
             payload.get("storage"),
@@ -496,12 +503,6 @@ def load_machine_config() -> MachineConfig | None:
     trust_bundle = _optional_configured_path(trust.get("ca_bundle"), path.parent, "trust.ca_bundle")
     if trust_bundle is not None and not trust_bundle.is_file():
         raise ContractError(f"Posttrain machine trust bundle is missing: {trust_bundle}")
-    local = LocalProviderBinding(
-        canonical_hostname=machine_name,
-        storage=storage,
-        trust_bundle=trust_bundle,
-    )
-
     credential_payload = _mapping(payload.get("credentials"), context="credentials", allow_none=True)
     credential_sources: dict[str, Path] = {}
     for credential_name, raw_source in credential_payload.items():
@@ -514,7 +515,18 @@ def load_machine_config() -> MachineConfig | None:
         credential_sources[credential_name] = source_path
 
     providers = _mapping(payload.get("providers"), context="providers", allow_none=True)
-    _reject_unknown(providers, {"dstack"}, "providers")
+    _reject_unknown(providers, {"local", "dstack"}, "providers")
+    local_payload = _mapping(providers.get("local"), context="providers.local", allow_none=True)
+    _reject_unknown(local_payload, {"dns_servers"}, "providers.local")
+    local = LocalProviderBinding(
+        canonical_hostname=machine_name,
+        dns_servers=_ip_address_tuple(
+            local_payload.get("dns_servers"),
+            context="providers.local.dns_servers",
+        ),
+        storage=storage,
+        trust_bundle=trust_bundle,
+    )
     dstack_payload = _mapping(providers.get("dstack"), context="providers.dstack", allow_none=True)
     dstack: DstackBinding | None = None
     if dstack_payload:
@@ -1222,6 +1234,22 @@ def _string_tuple(
     if len(set(parsed)) != len(parsed) or any(not item.strip() or "=" in item for item in parsed):
         raise ContractError(f"execution configuration {context} must contain unique variable names")
     return parsed
+
+
+def _ip_address_tuple(value: object, *, context: str) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise ContractError(f"execution configuration {context} must be an IP address array")
+    parsed: list[str] = []
+    for item in value:
+        try:
+            parsed.append(str(ipaddress.ip_address(item)))
+        except ValueError as error:
+            raise ContractError(f"execution configuration {context} must contain only literal IP addresses") from error
+    if len(set(parsed)) != len(parsed):
+        raise ContractError(f"execution configuration {context} must contain unique IP addresses")
+    return tuple(parsed)
 
 
 def _absolute_path_tuple(value: object, *, context: str) -> tuple[Path, ...]:

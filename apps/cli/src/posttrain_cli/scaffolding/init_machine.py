@@ -119,6 +119,14 @@ def initialize_machine(
         if job_registry is not None:
             lines.append(f"job_registry = {json.dumps(job_registry)}")
     lines.extend(("", "[huggingface]", 'credentials = "huggingface-default"'))
+    lines.extend(
+        (
+            "",
+            "[providers.local]",
+            "# Optional literal DNS servers for containers on this machine.",
+            '# dns_servers = ["192.0.2.53"]',
+        )
+    )
     if dstack_project is not None:
         assert dstack_python is not None
         lines.extend(

@@ -200,6 +200,7 @@ def test_local_configuration_is_mode_checked_and_parsed(tmp_path: Path) -> None:
                 "",
                 "[providers.local]",
                 'canonical_hostname = "POP-OS.LAN."',
+                'dns_servers = ["192.0.2.53", "2001:db8::53"]',
                 'trust_bundle = "local-ca.pem"',
                 "",
                 "[providers.dstack]",
@@ -277,6 +278,7 @@ def test_local_configuration_is_mode_checked_and_parsed(tmp_path: Path) -> None:
     assert configuration.dstack.python == (layout.state / "dstack-venv/bin/python").resolve()
     assert configuration.local is not None
     assert configuration.local.canonical_hostname == "pop-os.lan"
+    assert configuration.local.dns_servers == ("192.0.2.53", "2001:db8::53")
     assert configuration.local.storage is not None
     assert configuration.local.storage.run_root == (layout.state / "local-runs").resolve()
     assert configuration.local.trust_bundle == local_trust_bundle.resolve()
@@ -603,7 +605,7 @@ def test_local_provider_factory_uses_project_state(
 ) -> None:
     layout = _layout(tmp_path)
     local = load_local_execution_config(layout)
-    calls: list[tuple[Path, dict[str, str]]] = []
+    calls: list[tuple[Path, dict[str, str], tuple[str, ...]]] = []
 
     class FakeLocalProvider:
         def __init__(
@@ -611,10 +613,11 @@ def test_local_provider_factory_uses_project_state(
             *,
             state_root: Path,
             environment: dict[str, str],
+            dns_servers: tuple[str, ...],
             trust_bundle: Path | None,
         ) -> None:
             assert trust_bundle is None
-            calls.append((state_root, environment))
+            calls.append((state_root, environment, dns_servers))
 
     class FakeModule:
         LocalDockerExecutionProvider = FakeLocalProvider
@@ -628,7 +631,7 @@ def test_local_provider_factory_uses_project_state(
     provider_name, _ = create_execution_provider(layout, settings, local)
 
     assert provider_name == "local-docker"
-    assert calls == [(layout.state, {})]
+    assert calls == [(layout.state, {}, ())]
 
 
 def test_dstack_factory_requires_protected_binding(tmp_path: Path) -> None:
@@ -1006,6 +1009,9 @@ def test_machine_config_example_supplies_every_project_with_shared_defaults(
                 'model_cache = "cache/huggingface"',
                 'compile_cache = "cache/compile"',
                 "",
+                "[providers.local]",
+                'dns_servers = ["192.0.2.53", "2001:db8::53"]',
+                "",
             )
         ),
         encoding="utf-8",
@@ -1021,6 +1027,7 @@ def test_machine_config_example_supplies_every_project_with_shared_defaults(
     assert loaded.path == config_path
     assert loaded.defaults.provider == "local"
     assert loaded.local is not None
+    assert loaded.local.dns_servers == ("192.0.2.53", "2001:db8::53")
     assert loaded.local.storage is not None
     assert loaded.local.storage.run_root == state_home / "posttrain" / "runs"
     assert loaded.local.storage.model_cache == state_home / "posttrain" / "cache" / "huggingface"
@@ -1079,6 +1086,24 @@ def test_machine_config_extends_defaults_without_owning_dstack_worker_storage(
     environment = load_execution_environment(loaded)
     assert environment["UV_INDEX_URL"] == "https://pypi.lan/simple/"
     assert environment["POSTTRAIN_REGISTRY"] == "project.example/jobs"
+
+
+def test_machine_config_rejects_local_dns_hostnames(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    layout = _layout(tmp_path)
+    config_home = tmp_path / "config"
+    config_dir = config_home / "posttrain"
+    config_dir.mkdir(parents=True)
+    (config_dir / "config.toml").write_text(
+        'schema_version = 1\n\n[providers.local]\ndns_servers = ["dns.lan"]\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
+
+    with pytest.raises(ContractError, match="only literal IP addresses"):
+        load_local_execution_config(layout)
 
 
 def test_removed_profile_selector_fails_with_a_migration_message(

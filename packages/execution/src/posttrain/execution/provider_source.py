@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,7 @@ class ExecutionProviderSource:
     credential_file: Path | None = None
     trust_bundle: Path | None = None
     canonical_hostname: str | None = None
+    dns_servers: tuple[str, ...] = ()
     capacity_wait_seconds: int = 0
 
     def __post_init__(self) -> None:
@@ -44,6 +46,12 @@ class ExecutionProviderSource:
             not self.canonical_hostname.strip() or "\x00" in self.canonical_hostname
         ):
             raise ContractError("execution provider canonical hostname is invalid")
+        try:
+            normalized_dns = tuple(str(ipaddress.ip_address(value)) for value in self.dns_servers)
+        except ValueError as error:
+            raise ContractError("execution provider DNS servers are invalid") from error
+        if normalized_dns != self.dns_servers or len(set(self.dns_servers)) != len(self.dns_servers):
+            raise ContractError("execution provider DNS servers are invalid")
         if self.capacity_wait_seconds < 0:
             raise ContractError("execution provider capacity wait must not be negative")
 
@@ -57,6 +65,7 @@ class ExecutionProviderSource:
             "credential_file": str(self.credential_file) if self.credential_file is not None else None,
             "trust_bundle": str(self.trust_bundle) if self.trust_bundle is not None else None,
             "canonical_hostname": self.canonical_hostname,
+            "dns_servers": list(self.dns_servers),
             "capacity_wait_seconds": self.capacity_wait_seconds,
         }
 
@@ -81,6 +90,7 @@ class ExecutionProviderSource:
                 canonical_hostname=(
                     str(payload["canonical_hostname"]) if payload.get("canonical_hostname") is not None else None
                 ),
+                dns_servers=tuple(str(value) for value in payload.get("dns_servers", ())),
                 capacity_wait_seconds=int(payload.get("capacity_wait_seconds", 0)),
             )
         except (KeyError, TypeError, ValueError) as error:
