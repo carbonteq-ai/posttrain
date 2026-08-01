@@ -47,6 +47,10 @@ already satisfied.
       `posttrain.env`, tracked `posttrain.env.example`, and ignores the former.
 - [ ] Milestone 2: named site profiles at `$XDG_CONFIG_HOME/posttrain/config.toml`
       and the state-directory split.
+      Partial progress (2026-08-01): a project runtime map can select a named
+      profile with `POSTTRAIN_PROFILE`; the profile supplies its dstack or
+      local binding, storage, trust bundle, and Trackio/W&B endpoint without
+      putting those machine values in project state.
 - [ ] Milestone 3: required tracking with a site-selected backend.
 - [ ] Milestone 4: runtime variables derived from selections.
 - [ ] Milestone 5: install transport (constraints file, trust, blessed
@@ -140,6 +144,14 @@ already satisfied.
 - Planning review outcome: project runtime, site configuration, and process
   environment now have non-overlapping authority. Tracking is required by
   policy but backend-neutral. Later implementation outcomes remain pending.
+- Milestone 2 partial outcome: `load_local_execution_config()` resolves the
+  selected profile from `$XDG_CONFIG_HOME/posttrain/config.toml` only when
+  project-owned `posttrain.env` names it through `POSTTRAIN_PROFILE`. The site
+  file stores provider credentials paths, executable, storage, trust, and
+  tracking endpoint; the project file still owns values such as write tokens
+  and registry. The legacy local `execution.toml` remains the compatibility
+  path when no profile is selected. Required-tracking policy, profile-aware
+  doctor checks, and migration of existing operator bindings remain open.
 
 ## Context and Orientation
 
@@ -370,3 +382,7 @@ Selections that need runtime variables implement:
   amendment → review/refreeze gate before required-tracking implementation and
   preserved optional tracking as the fallback if that product amendment is
   declined.
+- 2026-08-01: Milestone 2 begins with profile resolution. It uses the agreed
+  `[profiles.<id>.provider]`, `storage`, `trust`, and `tracking` shape,
+  projects only the selected secret-free tracking endpoint into runtime
+  configuration, and never reads `POSTTRAIN_PROFILE` from the ambient shell.

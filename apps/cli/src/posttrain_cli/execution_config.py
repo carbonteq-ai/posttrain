@@ -13,7 +13,7 @@ from dataclasses import dataclass, fields
 from hashlib import sha256
 from pathlib import Path
 from types import MappingProxyType
-from typing import Literal
+from typing import Literal, cast
 
 from posttrain.catalog import ProjectLayout
 from posttrain.common import ContractError
@@ -71,6 +71,26 @@ class DstackBinding:
 
 
 @dataclass(frozen=True, slots=True)
+class SiteTrackingBinding:
+    """Secret-free tracking identity selected by a named machine profile."""
+
+    kind: Literal["trackio", "wandb"]
+    endpoint: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SiteProfile:
+    """One operator-owned provider, storage, trust, and tracking selection."""
+
+    id: str
+    path: Path
+    defaults: ExecutionOverrides
+    local: LocalProviderBinding | None
+    dstack: DstackBinding | None
+    tracking: SiteTrackingBinding | None
+
+
+@dataclass(frozen=True, slots=True)
 class RegistryBinding:
     repository: str
     universal_image: RuntimeImageRef
@@ -103,6 +123,7 @@ class LocalExecutionConfig:
     local: LocalProviderBinding | None = None
     dstack: DstackBinding | None = None
     registry: RegistryBinding | None = None
+    profile: SiteProfile | None = None
 
 
 _DEFAULT_LOCAL_NAME = "execution.toml"
@@ -119,6 +140,25 @@ def load_local_execution_config(
 
     configured = (path or layout.state / _DEFAULT_LOCAL_NAME).expanduser().resolve()
     runtime_environment = resolve_runtime_environment(layout.root, env_file=env_file)
+    profile = _load_site_profile(runtime_environment.for_execution())
+    if profile is not None:
+        provisional = LocalExecutionConfig(
+            path=profile.path,
+            defaults=profile.defaults,
+            environment_file=runtime_environment.path,
+            local=profile.local,
+            dstack=profile.dstack,
+            profile=profile,
+        )
+        return LocalExecutionConfig(
+            path=profile.path,
+            defaults=profile.defaults,
+            environment_file=runtime_environment.path,
+            local=profile.local,
+            dstack=profile.dstack,
+            registry=derived_registry(environ=load_execution_environment(provisional)),
+            profile=profile,
+        )
     if not configured.exists():
         # A project with no machine binding is still fully usable: the release
         # pins every framework image, so only the project's own registry is
@@ -366,6 +406,94 @@ def _parse_dstack(value: object, *, base: Path) -> DstackBinding | None:
         )
         or 0,
     )
+
+
+def _load_site_profile(environment: Mapping[str, str]) -> SiteProfile | None:
+    """Load the profile chosen by the project runtime map, never shell values."""
+
+    profile_id = environment.get("POSTTRAIN_PROFILE")
+    if profile_id is None:
+        return None
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", profile_id):
+        raise ContractError("POSTTRAIN_PROFILE must be a lowercase profile id")
+    config_home = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")).expanduser().resolve()
+    path = config_home / "posttrain" / "config.toml"
+    if not path.is_file():
+        raise ContractError(f"selected Posttrain site profile is missing: {path}")
+    try:
+        payload = tomllib.loads(path.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as error:
+        raise ContractError(f"invalid Posttrain site profile file {path}: {error}") from error
+    if not isinstance(payload, dict) or payload.get("schema_version") != 1:
+        raise ContractError("Posttrain site profile config schema_version must be 1")
+    _reject_unknown(payload, {"schema_version", "profiles"}, "site config")
+    profiles = _mapping(payload.get("profiles"), context="site profiles")
+    selected = profiles.get(profile_id)
+    if selected is None:
+        raise ContractError(f"Posttrain site profile {profile_id!r} is not defined in {path}")
+    profile = _mapping(selected, context=f"profiles.{profile_id}")
+    _reject_unknown(profile, {"defaults", "provider", "storage", "trust", "tracking"}, f"profiles.{profile_id}")
+    defaults = _parse_overrides(profile.get("defaults"), context=f"profiles.{profile_id}.defaults")
+    storage = _parse_storage(profile.get("storage"), base=path.parent, context=f"profiles.{profile_id}.storage")
+    trust = _mapping(profile.get("trust"), context=f"profiles.{profile_id}.trust", allow_none=True)
+    _reject_unknown(trust, {"ca_bundle"}, f"profiles.{profile_id}.trust")
+    trust_bundle = _optional_configured_path(
+        trust.get("ca_bundle"), path.parent, f"profiles.{profile_id}.trust.ca_bundle"
+    )
+    if trust_bundle is not None and not trust_bundle.is_file():
+        raise ContractError(f"Posttrain site profile trust bundle is missing: {trust_bundle}")
+    provider = _mapping(profile.get("provider"), context=f"profiles.{profile_id}.provider")
+    kind = _required_config_string(provider.get("kind"), f"profiles.{profile_id}.provider.kind")
+    if kind == "dstack":
+        _reject_unknown(
+            provider,
+            {"kind", "project", "python", "credentials_file", "capacity_wait_seconds"},
+            f"profiles.{profile_id}.provider",
+        )
+        credentials_file = _configured_path(
+            provider.get("credentials_file"), path.parent, f"profiles.{profile_id}.provider.credentials_file"
+        )
+        _require_protected_file(credentials_file, "dstack credentials file")
+        dstack = DstackBinding(
+            project=_required_config_string(provider.get("project"), f"profiles.{profile_id}.provider.project"),
+            python=_configured_executable_path(
+                provider.get("python"), path.parent, f"profiles.{profile_id}.provider.python"
+            ),
+            environment_file=credentials_file,
+            storage=storage,
+            trust_bundle=trust_bundle,
+            capacity_wait_seconds=_optional_nonnegative_int(
+                provider.get("capacity_wait_seconds"), f"profiles.{profile_id}.provider.capacity_wait_seconds"
+            )
+            or 0,
+        )
+        local = None
+    elif kind == "local":
+        _reject_unknown(provider, {"kind", "canonical_hostname"}, f"profiles.{profile_id}.provider")
+        local = LocalProviderBinding(
+            canonical_hostname=_optional_hostname(
+                provider.get("canonical_hostname"), f"profiles.{profile_id}.provider.canonical_hostname"
+            ),
+            storage=storage,
+            trust_bundle=trust_bundle,
+        )
+        dstack = None
+    else:
+        raise ContractError(f"profiles.{profile_id}.provider.kind must be 'dstack' or 'local'")
+    tracking_payload = _mapping(profile.get("tracking"), context=f"profiles.{profile_id}.tracking", allow_none=True)
+    _reject_unknown(tracking_payload, {"kind", "endpoint"}, f"profiles.{profile_id}.tracking")
+    tracking: SiteTrackingBinding | None = None
+    if tracking_payload:
+        tracking_kind = _required_config_string(tracking_payload.get("kind"), f"profiles.{profile_id}.tracking.kind")
+        if tracking_kind not in {"trackio", "wandb"}:
+            raise ContractError(f"profiles.{profile_id}.tracking.kind must be 'trackio' or 'wandb'")
+        tracking = SiteTrackingBinding(
+            kind=cast(Literal["trackio", "wandb"], tracking_kind),
+            endpoint=_optional_config_string(
+                tracking_payload.get("endpoint"), f"profiles.{profile_id}.tracking.endpoint"
+            ),
+        )
+    return SiteProfile(profile_id, path, defaults, local, dstack, tracking)
 
 
 WELL_KNOWN_TRUST_BUNDLE = Path("/etc/posttrain/trust/internal-ca.pem")
@@ -900,11 +1028,16 @@ def load_execution_environment(
 ) -> dict[str, str]:
     """Read the protected job environment without exposing it in config values."""
 
+    environment: dict[str, str] = {}
+    if configuration.profile is not None and configuration.profile.tracking is not None:
+        profile_tracking = configuration.profile.tracking
+        if profile_tracking.endpoint is not None:
+            name = "POSTTRAIN_TRACKIO_SERVER_URL" if profile_tracking.kind == "trackio" else "WANDB_BASE_URL"
+            environment[name] = profile_tracking.endpoint
     path = configuration.environment_file
     if path is None:
-        return {}
+        return environment
     _require_protected_file(path, "execution environment file")
-    environment: dict[str, str] = {}
     for raw_line in path.read_text(encoding="utf-8").splitlines():
         line = raw_line.strip()
         if not line or line.startswith("#"):
@@ -938,6 +1071,8 @@ __all__ = [
     "RegistryBinding",
     "ResolvedExecutionSettings",
     "SettingSource",
+    "SiteProfile",
+    "SiteTrackingBinding",
     "load_local_execution_config",
     "load_execution_environment",
     "resolve_execution_settings",

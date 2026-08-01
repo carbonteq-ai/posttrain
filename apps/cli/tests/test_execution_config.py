@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -18,6 +19,7 @@ from posttrain_cli.execution_config import (
     REGISTRY_ENVIRONMENT_VARIABLE,
     TRUST_BUNDLE_ENVIRONMENT_VARIABLE,
     ExecutionOverrides,
+    load_execution_environment,
     load_local_execution_config,
     provider_binding_fingerprint,
     resolve_admission_state_root,
@@ -950,6 +952,62 @@ def test_tracking_endpoint_is_ignored_when_only_the_process_environment_has_it(
 
     assert source is not None
     assert source.endpoint is None
+
+
+def test_project_selected_site_profile_supplies_machine_and_tracking_bindings(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    layout = _layout(tmp_path)
+    environment = tmp_path / "posttrain.env"
+    _write_runtime_environment(environment, "POSTTRAIN_PROFILE=rtx96\nPOSTTRAIN_REGISTRY=registry.example/team\n")
+    config_home = tmp_path / "config"
+    profile_dir = config_home / "posttrain"
+    profile_dir.mkdir(parents=True)
+    credentials = tmp_path / "dstack.env"
+    credentials.write_text("DSTACK_TOKEN=redacted\n", encoding="utf-8")
+    credentials.chmod(0o600)
+    ca_bundle = tmp_path / "ca.pem"
+    ca_bundle.write_text("certificate\n", encoding="utf-8")
+    (profile_dir / "config.toml").write_text(
+        "\n".join(
+            (
+                "schema_version = 1",
+                "",
+                "[profiles.rtx96.provider]",
+                'kind = "dstack"',
+                'project = "main"',
+                f'python = "{Path(sys.executable)}"',
+                f'credentials_file = "{credentials}"',
+                "",
+                "[profiles.rtx96.storage]",
+                'run_root = "/var/lib/posttrain/runs"',
+                "",
+                "[profiles.rtx96.trust]",
+                f'ca_bundle = "{ca_bundle}"',
+                "",
+                "[profiles.rtx96.tracking]",
+                'kind = "trackio"',
+                'endpoint = "https://trackio.example"',
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
+
+    loaded = load_local_execution_config(layout)
+
+    assert loaded.profile is not None
+    assert loaded.path == (profile_dir / "config.toml")
+    assert loaded.dstack is not None
+    assert loaded.dstack.project == "main"
+    assert loaded.dstack.storage is not None
+    assert loaded.dstack.storage.run_root == Path("/var/lib/posttrain/runs")
+    assert load_execution_environment(loaded)["POSTTRAIN_TRACKIO_SERVER_URL"] == "https://trackio.example"
+    evidence = evidence_source_for_project(layout)
+    assert evidence is not None
+    assert evidence.endpoint == "https://trackio.example"
 
 
 def test_prepared_evidence_source_uses_the_explicit_resolved_runtime_environment(tmp_path: Path) -> None:
