@@ -331,6 +331,12 @@ tracked historical implementation baseline likewise moved from ignored
 `.agents/` to `docs/plan/baseline-implementation.md`; its decision log is
 preserved but it no longer claims to be the active work queue.
 
+The deployed-Observatory public-HTTP checker now belongs to
+`posttrain_observatory.deployment_qualification` and is exposed as
+`posttrain-observatory-qualify`. Its fixture suite moved with it; its caller
+still supplies deployment URL, credentials, and CA material at runtime, so this
+repository does not take ownership of topology or secret distribution.
+
 ## Context and Orientation
 
 The repository is a uv monorepo. Reusable distributions live under
@@ -793,3 +799,7 @@ and Lab-fixture root buckets into their owners, repairs the resulting document
 links, and preserves the old implementation baseline under `docs/plan/`. This
 reduces root discovery noise without claiming parity for unexecuted remote
 qualification paths.
+
+Revision note (2026-08-01): The Observatory HTTP compatibility check and its
+tests move to the Observatory product with a dedicated installed command. This
+separates public evidence-view behavior from ai-infra's deployment ownership.

@@ -19,6 +19,7 @@ dependencies = [
 
 [project.scripts]
 posttrain-observatory = "posttrain_observatory.cli:main"
+posttrain-observatory-qualify = "posttrain_observatory.deployment_qualification:main"
 
 [tool.uv.sources]
 posttrain-common = { workspace = true }

@@ -52,12 +52,12 @@ deletion_condition = "Each retained Lab acceptance adapter has the same success 
 
 [[surfaces]]
 id = "observatory-http-qualification"
-path = "scripts/qualification/qualify_deployed_observatory.py"
+path = "apps/observatory/src/posttrain_observatory/deployment_qualification.py"
 kind = "public-observatory-contract"
 owner = "observatory"
 transition = "promote"
-replacement = "apps/observatory public-HTTP compatibility suite or release check"
-tests = ["scripts/qualification/tests/test_qualify_deployed_observatory.py"]
+replacement = "posttrain-observatory-qualify public-HTTP compatibility command"
+tests = ["apps/observatory/tests/test_deployment_qualification.py"]
 parity = [
   "use HTTPS with credentials only in request headers and a supplied CA bundle",
   "resolve opaque run ids to job-aware views and validate job-specific evidence",

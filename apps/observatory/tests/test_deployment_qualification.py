@@ -6,8 +6,7 @@ from pathlib import Path
 from urllib.request import Request
 
 import pytest
-
-from scripts.qualification.qualify_deployed_observatory import (
+from posttrain_observatory.deployment_qualification import (
     ObservatoryHttpClient,
     QualificationError,
     qualify_retained_runs,

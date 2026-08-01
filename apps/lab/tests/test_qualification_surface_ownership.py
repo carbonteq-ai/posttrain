@@ -10,6 +10,9 @@ INVENTORY = WORKSPACE / "apps" / "lab" / "qualification-surfaces.toml"
 SCRIPTS = WORKSPACE / "scripts" / "qualification"
 EXECUTION_FIXTURES = WORKSPACE / "packages" / "execution" / "tests" / "fixtures"
 REMOTE_GPU_FIXTURE = WORKSPACE / "apps" / "lab" / "tests" / "fixtures" / "remote_gpu_project"
+OBSERVATORY_QUALIFICATION = (
+    WORKSPACE / "apps" / "observatory" / "src" / "posttrain_observatory" / "deployment_qualification.py"
+)
 
 _KINDS = {
     "scenario-policy",
@@ -58,6 +61,7 @@ def test_every_temporary_script_and_lab_dependent_fixture_has_one_owner_and_exit
         path.relative_to(WORKSPACE).as_posix() for path in SCRIPTS.glob("*.py") if path.name != "__init__.py"
     } | {
         REMOTE_GPU_FIXTURE.relative_to(WORKSPACE).as_posix(),
+        OBSERVATORY_QUALIFICATION.relative_to(WORKSPACE).as_posix(),
         *(path.relative_to(WORKSPACE).as_posix() for path in EXECUTION_FIXTURES.glob("*_job.py")),
     }
     assert {surface["path"] for surface in surfaces} == expected_paths
