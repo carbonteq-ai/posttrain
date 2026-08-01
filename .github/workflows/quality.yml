@@ -23,6 +23,8 @@ jobs:
         run: uv sync --all-packages --group dev --python 3.13
       - name: Verify release metadata
         run: uv run posttrain-release check
+      - name: Verify repository ownership
+        run: uv run posttrain-release repository-check
       - name: Test
         run: uv run pytest --cov --cov-report=term-missing
       - name: Lint

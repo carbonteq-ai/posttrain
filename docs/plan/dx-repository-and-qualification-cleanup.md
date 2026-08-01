@@ -95,6 +95,10 @@ surface, or broken maintained documentation link remains.
       `packages/execution/tests/fixtures` and added deterministic bundle-input
       coverage. Legacy direct launchers now reference that execution-owned
       fixture but remain until their public lifecycle replacements have parity.
+      The quality workflow now also executes the repository-ownership audit on
+      every pull request and main-branch push; its report-only mode keeps the
+      remaining explicitly inventoried compatibility scripts visible without
+      declaring them silently owned.
 - [ ] Milestone 5: relocate durable Lab state and prune rebuildable root cache
       through classified, idempotent commands.
       Partial progress (2026-08-01): added `posttrain state migrate`; it
@@ -380,6 +384,13 @@ Provider-neutral algorithm scenario policy now belongs to
 Lab. The legacy scenario launcher and evidence validator import that policy but
 remain at their old paths because neither yet has the public execution/evidence
 parity required for deletion.
+
+Milestone 4 CI outcome (2026-08-01): `.github/workflows/quality.yml` now runs
+`posttrain-release repository-check` immediately after release metadata
+validation. The report currently identifies only ignored developer state and
+the intentionally retained `scripts` compatibility harness. This makes root
+ownership regression visible in the standard quality path while the remaining
+launchers await their named public-path parity proofs.
 
 Milestone 6 partial outcome (2026-08-01): `uv lock --check`, locked workspace
 sync, release consistency validation, full ruff check/format validation,
