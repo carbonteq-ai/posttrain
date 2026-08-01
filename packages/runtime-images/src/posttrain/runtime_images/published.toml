@@ -42,6 +42,11 @@ repository = "posttrain-kind-online-rl-verl-py313"
 digest = "sha256:52dbbd68caae26d394ff42d923362b17cce9e5a6ab647391a93d2c3f6a2c6664"
 lock_digest = "bedcf3096a2f4c286d77bf2606c76c47c6657d4a4f833fb31ae711798ed9bb8d"
 constraint_lock = "containers/posttrain-job-kinds/locks/workspace.lock.txt"
+# This image carries a second Python environment at /opt/posttrain-verl, built
+# from the veRL fork's own release lock.  Environment packaging needs its
+# constraints as well as the control venv's.
+backend_constraint_lock = "containers/posttrain-job-kinds/verl-py313/release/backend-constraints.txt"
+backend_lock_digest = "f9f22dc0438998d04000a1bf9b8093f86893adbdc8094b0e6736c77205cb7693"
 
 [kinds.serve]
 repository = "posttrain-kind-serve"

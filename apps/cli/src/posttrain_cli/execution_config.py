@@ -623,11 +623,40 @@ def _derived_constraint_profiles(
             path.read_text(encoding="utf-8"),
             image.provided_packages,
         )
+        backend_path: Path | None = None
+        backend_contents_digest: str | None = None
+        backend_provided_packages: tuple[str, ...] = ()
+        backend_digest: str | None = None
+        if image.backend_constraint_lock is not None:
+            # A second locked environment inside the same image, published by
+            # the release exactly like the control lock. Deriving it here is
+            # what lets a project with no machine binding pack a veRL job.
+            backend_path = root / image.backend_constraint_lock
+            backend_contents_digest = image.backend_lock_digest
+            backend = KindDependencyConstraints(
+                variant,
+                backend_path.read_text(encoding="utf-8"),
+                image.backend_provided_packages,
+            )
+            backend_provided_packages = backend.provided_packages
+            backend_digest = KindDependencyConstraints(
+                variant,
+                backend.contents,
+                backend_provided_packages,
+                role="backend",
+                python_version="3.13.12",
+                python_executable="/opt/posttrain-verl/bin/python",
+                requirements_filename="runtime.backend.requirements.txt",
+            ).digest
         profiles[variant] = ConstraintProfileBinding(
             path,
             image.lock_digest,
             constraints.provided_packages,
             constraints.digest,
+            backend_path,
+            backend_contents_digest,
+            backend_provided_packages,
+            backend_digest,
         )
     return profiles
 

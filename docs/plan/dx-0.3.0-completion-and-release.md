@@ -111,6 +111,29 @@ green unit tests.
   offline fixture string; those are harmless but should become an obviously
   fictional id when their packages are next touched.
 
+- Observation: no veRL job had ever been packed through the public path, on any
+  provider. Both selected release gates would have failed identically.
+  Evidence: the veRL job-kind image carries two locked Python environments — a
+  control venv at `/opt/posttrain/venv` and a backend venv at
+  `/opt/posttrain-verl` built from the veRL fork's own release lock — and
+  `environment_packager.py` raises `veRL environment packaging requires exact
+  backend kind constraints` unless both are supplied. But `PublishedImage`
+  carried a single `constraint_lock`, so the release manifest could not publish
+  the backend lock, and `_derived_constraint_profiles` therefore always left
+  `backend_digest` unset. The only way to satisfy the check was a hand-authored
+  `execution.toml` naming a `backend_path`, and neither the machine's existing
+  `execution.toml` nor the legacy `scripts/qualification/` launchers ever did:
+  `backend_path` appears in no launcher. The historical veRL runs therefore
+  never exercised this path.
+  Resolution: the backend constraints file was already shipped and generated
+  (`containers/posttrain-job-kinds/verl-py313/release/backend-constraints.txt`,
+  `uv export`ed from the veRL release lock) — it was simply never bound.
+  `PublishedImage` now carries an optional `backend_constraint_lock`,
+  `backend_lock_digest`, and `backend_provided_packages`, verified against the
+  shipped bytes like the control lock; the manifest declares them for
+  `online-rl-verl-py313`; and `_derived_constraint_profiles` binds them. A
+  project with no machine configuration at all can now pack a veRL job.
+
 - Observation: the AutomationBench environment was never missing a port. The
   native Verifiers v1 environment already exists, and the base catalog was
   simply pointing at the wrong repository. Nothing needed to be written or

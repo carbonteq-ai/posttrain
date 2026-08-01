@@ -33,6 +33,14 @@ class PublishedImage:
     lock_digest: str
     constraint_lock: PurePosixPath
     provided_packages: tuple[str, ...] = ()
+    # A job-kind image whose runtime has a second, separately locked Python
+    # environment publishes that lock too.  The veRL image is the only current
+    # case: its control venv is built from `constraint_lock` and its backend
+    # venv from the veRL fork's own release lock.  Packaging an environment
+    # into such an image needs both, and neither may be transcribed by hand.
+    backend_constraint_lock: PurePosixPath | None = None
+    backend_lock_digest: str | None = None
+    backend_provided_packages: tuple[str, ...] = ()
 
     def reference(self, prefix: str) -> str:
         """Return the digest-pinned pull reference under `prefix`."""
@@ -92,6 +100,21 @@ def _image(name: str, payload: Mapping[str, object]) -> PublishedImage:
     if not isinstance(provided, list | tuple) or not all(isinstance(p, str) for p in provided):
         raise ManifestError(f"{name}: 'provided_packages' must be a list of strings")
 
+    backend_lock = payload.get("backend_constraint_lock")
+    backend_digest = payload.get("backend_lock_digest")
+    if (backend_lock is None) != (backend_digest is None):
+        raise ManifestError(f"{name}: 'backend_constraint_lock' and 'backend_lock_digest' must be declared together")
+    if backend_lock is not None and (not isinstance(backend_lock, str) or not backend_lock):
+        raise ManifestError(f"{name}: 'backend_constraint_lock' must be a non-empty string")
+    if backend_digest is not None and (not isinstance(backend_digest, str) or not backend_digest):
+        raise ManifestError(f"{name}: 'backend_lock_digest' must be a non-empty string")
+
+    backend_provided = payload.get("backend_provided_packages", ())
+    if not isinstance(backend_provided, list | tuple) or not all(isinstance(p, str) for p in backend_provided):
+        raise ManifestError(f"{name}: 'backend_provided_packages' must be a list of strings")
+    if backend_lock is None and backend_provided:
+        raise ManifestError(f"{name}: 'backend_provided_packages' needs a 'backend_constraint_lock'")
+
     return PublishedImage(
         name=name,
         repository=_text("repository"),
@@ -99,23 +122,31 @@ def _image(name: str, payload: Mapping[str, object]) -> PublishedImage:
         lock_digest=_text("lock_digest"),
         constraint_lock=PurePosixPath(_text("constraint_lock")),
         provided_packages=tuple(provided),
+        backend_constraint_lock=(PurePosixPath(backend_lock) if backend_lock is not None else None),
+        backend_lock_digest=backend_digest,
+        backend_provided_packages=tuple(backend_provided),
     )
 
 
-def _verify(image: PublishedImage) -> None:
+def _verify_lock(image: PublishedImage, lock: PurePosixPath, recorded: str, *, role: str) -> None:
     try:
-        actual = lock_digest(image.constraint_lock)
+        actual = lock_digest(lock)
     except (FileNotFoundError, OSError) as error:
+        raise ManifestError(f"{image.name}: {role} lock {lock} is not shipped in this distribution") from error
+    if actual != recorded:
         raise ManifestError(
-            f"{image.name}: constraint lock {image.constraint_lock} is not shipped in this distribution"
-        ) from error
-    if actual != image.lock_digest:
-        raise ManifestError(
-            f"{image.name}: published image records lock digest {image.lock_digest}, "
-            f"but the shipped {image.constraint_lock} hashes to {actual}. The image "
+            f"{image.name}: published image records {role} lock digest {recorded}, "
+            f"but the shipped {lock} hashes to {actual}. The image "
             f"must be republished, or the manifest regenerated; a stale job-kind "
             f"image silently invalidates every qualification run against it."
         )
+
+
+def _verify(image: PublishedImage) -> None:
+    _verify_lock(image, image.constraint_lock, image.lock_digest, role="constraint")
+    if image.backend_constraint_lock is not None:
+        assert image.backend_lock_digest is not None
+        _verify_lock(image, image.backend_constraint_lock, image.backend_lock_digest, role="backend constraint")
 
 
 @cache

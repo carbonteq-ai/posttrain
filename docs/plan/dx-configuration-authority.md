@@ -45,12 +45,19 @@ already satisfied.
       `posttrain.env` now wins over shell values and the legacy pointer for
       local configuration and registry derivation. `init` writes protected
       `posttrain.env`, tracked `posttrain.env.example`, and ignores the former.
-- [ ] Milestone 2: named site profiles at `$XDG_CONFIG_HOME/posttrain/config.toml`
-      and the state-directory split.
+- [ ] Milestone 2: operator-owned machine configuration at
+      `$XDG_CONFIG_HOME/posttrain/config.toml` and the state-directory split.
       Partial progress (2026-08-01): a project runtime map can select a named
       profile with `POSTTRAIN_PROFILE`; the profile supplies its dstack or
       local binding, storage, trust bundle, and Trackio/W&B endpoint without
       putting those machine values in project state.
+      Superseded (2026-08-01): that first slice must be reshaped before it is
+      finished. The named-profile layer and `POSTTRAIN_PROFILE` are removed,
+      the settings move to the top level of the file as the machine's
+      inheritable defaults, `provider.kind` is replaced by an optional
+      `[providers.dstack]` locator plus `default_provider`, and the file gains
+      the `projects` list the machine's controller reconciles. Local execution
+      must need no provider configuration at all.
 - [ ] Milestone 3: required tracking with a site-selected backend.
 - [ ] Milestone 4: runtime variables derived from selections.
 - [ ] Milestone 5: install transport (constraints file, trust, blessed
@@ -104,6 +111,49 @@ already satisfied.
   Rationale: provider identity and tracking identity are independent concerns,
   but an operator needs one coherent machine profile that selects both.
   Date/Author: 2026-08-01 / architecture review.
+- Decision: supersede both the named-profile layer and the
+  one-provider-per-profile shape. The settings live at the top level of
+  `config.toml`, with no machine name in any key, and they are the defaults
+  every project on that machine inherits. The file also carries `projects` and
+  `default_provider`; the run keeps choosing a provider with the existing
+  `--provider` flag, and the controller is deployed per machine.
+  Rationale: the file already lives under one user's `$XDG_CONFIG_HOME` on one
+  machine, so naming a profile after that machine restates what the file's
+  location already says, and `POSTTRAIN_PROFILE` then makes every project
+  select the only thing on offer. The implemented schema compounded this by
+  taking `provider.kind` as a single `"dstack" | "local"`, which forced two
+  profiles — `pop-local` and `pop-dstack` — to describe one workstation, and
+  made the provider a property of a config file rather than of a run. Three
+  things already in the tree contradict that: `job pack`/`job run` already
+  accept `--provider`, admission keys are host-scoped (`"host:" + hostname` in
+  `packages/execution/.../admission.py`), and this program's own lifecycle plan
+  states the controller pumps queued work across projects. Nothing enumerates
+  project roots today, so a systemd unit can only be pointed at one project
+  while the ledger it reconciles is machine-wide. The superseded
+  `execution.toml` had the provider part right: it declared `[providers.local]`
+  and `[providers.dstack]` together.
+  Date/Author: 2026-08-01 / framework maintainer.
+- Decision: local execution requires no provider configuration, and dstack is
+  an optional block that only exists where a dstack server already does. The
+  framework stores a dstack client locator and never installs, configures, or
+  supervises the server.
+  Rationale: someone running the framework needs tracking, trust, storage, and
+  their project list; they do not need dstack. Putting `[providers.dstack]`
+  beside `[providers.local]` in the baseline presents an optional remote
+  dependency as part of setup. dstack is always a remote server that jobs are
+  submitted to, and `ai-infra` owns its lifecycle through Ansible; the
+  framework's concern ends at the client locator.
+  Date/Author: 2026-08-01 / framework maintainer.
+- Decision: a project inherits the machine settings and may narrow only
+  `defaults`; provider, storage, trust, and tracking remain operator-owned and
+  are not overridable from the project.
+  Rationale: inheritance is wanted, but override in the other direction would
+  reopen exactly what this plan closed. If a project can override
+  `trust.ca_bundle`, `provider.credentials_file`, or `storage.run_root`, then a
+  job's trust root and identity depend on who submitted it rather than on the
+  machine it ran on. `defaults` are execution overrides with no security
+  content, so narrowing them per project is safe.
+  Date/Author: 2026-08-01 / framework maintainer.
 - Decision: `posttrain.env` is a string-to-string runtime value map, not a
   second structured configuration format.
   Rationale: typed structure remains in TOML/YAML schemas; environment values
@@ -159,35 +209,75 @@ The target authority table, which this plan implements:
 
     Project identity, catalog paths, work packages   .posttrain/project.toml      (tracked)
     Runtime endpoints, job secrets, provider profile  posttrain.env (repo root)   (ignored, 0600, auto-loaded)
-    Named provider, tracking, storage, trust profile  $XDG_CONFIG_HOME/posttrain/config.toml
+    Machine defaults: providers, tracking, storage,
+    trust, and the project list the controller serves  $XDG_CONFIG_HOME/posttrain/config.toml
     Submit/cancel intent, handles, receipts           .posttrain/state/executions/
     Materialized datasets, build caches               .posttrain/state/cache/
 
 The concrete machine and project selection shape is:
 
     # $XDG_CONFIG_HOME/posttrain/config.toml
-    [profiles.rtx96]
+    # This file already belongs to one user on one machine, so its settings sit
+    # at the top level and no machine name appears in any key.  Everything here
+    # is a default that every project on this machine inherits.
+    schema_version = 1
 
-    [profiles.rtx96.provider]
-    kind = "dstack"
+    # Project roots this machine's controller reconciles.
+    projects = ["/srv/posttrain/foundation", "/srv/posttrain/lab"]
+
+    # Which provider a run uses when it does not say. `--provider` overrides it.
+    default_provider = "local"
+
+    [tracking]
+    kind = "trackio"
+    endpoint = "https://trackio.example.internal"
+
+    [trust]
+    ca_bundle = "/etc/ssl/certs/ca-certificates.crt"
+
+    [storage]
+    run_root = "runs"
+    model_cache = "cache/huggingface"
+    compile_cache = "cache/compile"
+
+    # <project>/posttrain.env
+    TRACKIO_WRITE_TOKEN=...
+
+That is the complete baseline. Local execution needs no provider block at all:
+`canonical_hostname` is the only local setting and it defaults to this
+machine's hostname. A person running the framework must not have to declare a
+provider, and must not need dstack at all.
+
+dstack is an optional addition, present only where a dstack server already
+exists. The framework never installs, configures, or supervises that server —
+it is always remote, and `ai-infra` owns it through Ansible. What the framework
+stores is a client locator and nothing more:
+
+    # optional, only where a dstack server already exists
+    [providers.dstack]
     project = "posttrain"
     python = "/opt/dstack/venv/bin/python"
     credentials_file = "/etc/posttrain/dstack.env"
 
-    [profiles.rtx96.tracking]
-    kind = "trackio"
-    endpoint = "https://trackio.example.internal"
+The file stores no token values; it stores stable identities and protected
+credential-file locations, and nothing is read from the ambient shell.
 
-    [profiles.rtx96.trust]
-    ca_bundle = "/etc/ssl/certs/ca-certificates.crt"
+A machine may therefore offer more than one provider. The provider for a run is
+chosen by the `--provider` flag that already exists on `job pack` and `job run`,
+falling back to `default_provider`. It is never a property of which
+configuration file happened to be in place.
 
-    # <project>/posttrain.env
-    POSTTRAIN_PROFILE=rtx96
-    TRACKIO_WRITE_TOKEN=...
+`projects` is what makes the controller's deployment scope match the ledger it
+reconciles. Admission keys are already host-scoped, and the controller is
+specified to pump queued work across projects, but nothing enumerates project
+roots, so a service unit could only ever be aimed at one. One machine runs one
+controller; it reads this list, and for each run it loads whichever provider
+the run's own frozen locator names.
 
-`POSTTRAIN_PROFILE` is read from the selected env file, never from the ambient
-shell. The profile stores no token values; it stores stable identities and
-protected credential-file locations.
+A project inherits these settings and may narrow only `defaults`. Provider,
+storage, trust, and tracking are operator-owned and are not overridable from
+project files, because otherwise a job's trust root and storage identity would
+depend on who submitted it rather than on the machine that ran it.
 
 Key files today:
 
@@ -227,16 +317,30 @@ else project `posttrain.env`, else no project runtime values. Ambient process
 variables neither override nor fill the project runtime namespace. Remove the
 `environment_file` key after a deprecation release that warns when it is set.
 
-Milestone 2 introduces named site profiles in
-`$XDG_CONFIG_HOME/posttrain/config.toml`, owned by the operator. Each profile
-selects provider identity, provider executables (dstack client Python), storage
-roots, trust-bundle location, and a tracking backend/endpoint. A project selects
-the site profile by id from `posttrain.env`; provider and tracking locators are
-still stored separately on each submission.
+Milestone 2 introduces the operator-owned machine configuration at
+`$XDG_CONFIG_HOME/posttrain/config.toml`. It describes one machine at the top
+level of the file: storage roots, trust-bundle location, a tracking
+backend/endpoint, `default_provider`, and the list of project roots whose runs
+this machine's controller reconciles. Local execution needs nothing further.
+An optional `[providers.dstack]` block adds the client locator — server URL
+project, client Python, credentials file — where a dstack server already
+exists; the framework never manages that server. A project inherits these
+settings and selects a provider per run with `--provider`; provider and
+tracking locators are still stored separately on each submission.
+
+Do not keep the named-profile layer or the single `provider.kind` shape that
+shipped in the first slice of this milestone. The profile name restates the
+file's own location, and `provider.kind` makes the provider a property of a
+configuration file, which forces one workstation offering two execution paths
+to be described as two unrelated profiles and contradicts the `--provider`
+flag, the host-scoped admission key, and the cross-project controller that all
+already exist. Remove `POSTTRAIN_PROFILE` with them.
+
 `.posttrain/state/` is reorganized into `executions/` (control receipts —
 protect and retain) and `cache/` (safe to delete); `execution.toml` shrinks to
-machine-binding leftovers and is then folded into the profile. Provide a
-`posttrain state migrate` command that performs the split idempotently.
+machine-binding leftovers and is then folded into the machine configuration.
+Provide a `posttrain state migrate` command that performs the split
+idempotently.
 
 Milestone 3 makes durable tracking the default policy for managed training and
 evaluation. The selected site profile supplies either Trackio or W&B plus its

@@ -8,6 +8,11 @@ __pycache__/
 .env
 .env.*
 !.env.example
+# Protected project runtime values.  `posttrain init` writes this rule into a
+# generated project's own .gitignore; the framework checkout needs it too
+# because apps/lab is a real project that predates init.
+posttrain.env
+!posttrain.env.example
 .mypy_cache/
 .ruff_cache/
 .pytest_cache/
