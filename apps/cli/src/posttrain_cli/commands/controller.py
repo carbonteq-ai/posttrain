@@ -51,6 +51,12 @@ async def controller_sweep(layout: ProjectLayout) -> list[dict[str, Any]]:
     for initial in admission.list():
         if initial.state not in {"submitted", "terminal_pending_evidence"}:
             continue
+        # Entries written before project ownership became durable cannot be
+        # reconstructed safely. Leave them for explicit, project-scoped
+        # operator action instead of reporting the same unactionable event on
+        # every foreground sweep.
+        if initial.control_locator is None:
+            continue
         try:
             owner = _owner(initial)
             store = ExecutionSubmissionStore(owner.state)

@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import os
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
+from typing import cast
 
 import pytest
+from posttrain.catalog import ProjectLayout
 from posttrain.common import ContractError, ExecutionTarget, RunContext
 from posttrain.execution import (
     AdmissionEntry,
@@ -41,6 +45,7 @@ from posttrain.work import (
     WorkPackageHostRequest,
 )
 from posttrain_cli.cli import main
+from posttrain_cli.commands.controller import controller_sweep
 
 
 def test_job_help_exposes_product_path_not_compatibility_flags(capsys) -> None:
@@ -127,6 +132,27 @@ def test_controller_loop_does_not_emit_idle_sweeps(
 
     assert main(["--project-root", str(project), "controller", "run"]) == 1
     assert capsys.readouterr().out == ""
+
+
+def test_controller_sweep_ignores_legacy_entries_without_project_ownership(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Admission:
+        def pump_available(self):
+            return None
+
+        def list(self):
+            return [SimpleNamespace(run_id="legacy-run", state="submitted", control_locator=None)]
+
+        def service(self, _run_id: str):
+            raise AssertionError("legacy run must not reconstruct a provider")
+
+    monkeypatch.setattr(
+        "posttrain_cli.commands.controller.execution_admission_service",
+        lambda _layout: Admission(),
+    )
+
+    assert asyncio.run(controller_sweep(cast(ProjectLayout, object()))) == []
 
 
 def _record_submission(
