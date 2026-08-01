@@ -392,6 +392,7 @@ def test_uv_gateway_uses_one_non_shell_compile_with_fixed_safety_flags(
     assert arguments[:3] == ["/opt/uv", "pip", "compile"]
     assert "--generate-hashes" in arguments
     assert "--no-config" in arguments
+    assert "--system-certs" in arguments
     assert arguments[arguments.index("--index-strategy") + 1] == "unsafe-best-match"
     assert arguments[arguments.index("--python-version") + 1] == "3.12"
     assert arguments[arguments.index("--python-platform") + 1] == "x86_64-unknown-linux-gnu"

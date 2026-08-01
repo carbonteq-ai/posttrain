@@ -132,6 +132,7 @@ class UvDependencyCompileCli:
             "--no-progress",
             "--color",
             "never",
+            "--system-certs",
             "--index-strategy",
             "unsafe-best-match",
             "--python-version",
