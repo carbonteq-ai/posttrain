@@ -81,12 +81,12 @@ deletion_condition = "ai-infra owns the command, its configuration paths, and a 
 
 [[surfaces]]
 id = "runtime-smoke-payload"
-path = "scripts/qualification/dstack_runtime_smoke_job.py"
+path = "packages/execution/tests/fixtures/runtime_smoke_job.py"
 kind = "provider-fixture"
 owner = "execution"
 transition = "move"
 replacement = "packages/execution/tests/fixtures/runtime_smoke_job.py"
-tests = []
+tests = ["packages/execution/tests/test_bundles.py"]
 parity = [
   "run on a selected CUDA target and report the selected train or serving runtime profile",
   "fail when CUDA is unavailable and require vLLM only for the serving profile",
@@ -95,12 +95,12 @@ deletion_condition = "The execution-provider integration suite uses the fixture 
 
 [[surfaces]]
 id = "queue-probe-payload"
-path = "scripts/qualification/queue_probe_job.py"
+path = "packages/execution/tests/fixtures/queue_probe_job.py"
 kind = "provider-fixture"
 owner = "execution"
 transition = "move"
 replacement = "packages/execution/tests/fixtures/queue_probe_job.py"
-tests = []
+tests = ["packages/execution/tests/test_bundles.py"]
 parity = [
   "emit ordered started and finished events with the requested label",
   "support a bounded wait long enough to observe queueing and cancellation through the provider lifecycle",

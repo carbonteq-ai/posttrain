@@ -53,3 +53,13 @@ def test_bundle_ref_digest_must_match_manifest(tmp_path: Path) -> None:
 
     with pytest.raises(ContractError, match="digest does not match"):
         verify_bundle(BundleRef(bundle.path, "0" * 64))
+
+
+@pytest.mark.parametrize("fixture", ("runtime_smoke_job.py", "queue_probe_job.py"))
+def test_provider_qualification_payloads_are_explicit_verifiable_bundle_inputs(tmp_path: Path, fixture: str) -> None:
+    payload = Path(__file__).parent / "fixtures" / fixture
+
+    bundle = build_bundle({"job.py": payload}, (tmp_path / fixture).resolve())
+
+    assert (bundle.path / "job.py").read_bytes() == payload.read_bytes()
+    verify_bundle(bundle)

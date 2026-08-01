@@ -77,8 +77,11 @@ surface, or broken maintained documentation link remains.
       copied workspace lock without resolving dependencies or changing the
       source lock. A full staged tree now passes `uv sync --locked --offline`;
       its lock diff contains exactly the 24 first-party version replacements.
-- [ ] Milestone 2: prove that `apps/lab` can be a self-contained nested
-      Posttrain project and pack two representative jobs from its own root.
+- [x] (2026-08-01) Milestone 2: release-staged 0.3.0 wheels packed the
+      Lab-owned data-preparation and managed-evaluation jobs to local OCI
+      layouts. Both images install Lab only from the project source snapshot
+      and all framework packages from the explicit staged wheelhouse; the
+      evaluation image also installs its selected `gsm8k-v1` environment wheel.
 - [x] (2026-08-01) Milestone 3: moved all 37 tracked qualification-control
       files into `apps/lab/.posttrain`, made the root a virtual uv workspace,
       and updated discovery, release checks, tests, and maintainer
@@ -88,6 +91,10 @@ surface, or broken maintained documentation link remains.
 - [ ] Milestone 4: consolidate qualification launchers, fixtures, generators,
       and operational documentation under their real owners; delete only paths
       with demonstrated parity.
+      Partial progress (2026-08-01): moved the two provider payloads to
+      `packages/execution/tests/fixtures` and added deterministic bundle-input
+      coverage. Legacy direct launchers now reference that execution-owned
+      fixture but remain until their public lifecycle replacements have parity.
 - [ ] Milestone 5: relocate durable Lab state and prune rebuildable root cache
       through classified, idempotent commands.
 - [ ] Milestone 6: pass the full quality/release gates plus real packaged data
@@ -296,16 +303,35 @@ from the framework root, but resolves `foundation-models` with explicit
 `--project-root apps/lab`. The release checker now treats the root as a virtual
 workspace and continues to validate the 24 publishable package members.
 
+Milestone 2 packaging outcome (2026-08-01): a staged 0.3.0 workspace built 24
+framework wheels and then successfully packed `sft_data_prepare_qualification`
+job `prepare` as package `ef111176…` and
+`qwen2b_eval_qualification` job `evaluate` as package `0864d3d9…`. The
+resulting OCI layouts were respectively `19ae5902…` and `d1ef95b8…`. The
+evaluation job correctly requires the explicit `--allow-deferred-qualification`
+acknowledgement: offline image qualification installs the `gsm8k-v1` wheel but
+records `gsm8k-eval-qualification` as deferred so the live job, rather than
+the build host, owns the networked `Taskset.load` gate. These are packaging
+proofs, not completed provider executions; Milestone 6 remains open.
+
+Milestone 4 partial outcome (2026-08-01): `runtime_smoke_job.py` and
+`queue_probe_job.py` now belong to the execution integration-test fixture
+surface instead of root `scripts/qualification`. Their explicit bundle test
+proves that they remain deterministic, verifiable provider inputs. The old
+local and dstack launcher scripts temporarily reference the new fixture; they
+are not deleted because their public `posttrain job run` parity has not yet
+been demonstrated.
+
 ## Context and Orientation
 
 The repository is a uv monorepo. Reusable distributions live under
 `packages/*`; executable products and owner tools live under `apps/*`;
 independently publishable Verifiers environments live under `environments/*`.
-The root `pyproject.toml` currently combines workspace configuration with a
-non-package project called `lab`. Its `[tool.posttrain.pack]` selects
-`apps/lab`, while `.posttrain/project.toml` at the repository root selects
-`posttrain_lab.entry:configure`. This makes the Python application and the
-project configuration two halves of one project at different roots.
+The root `pyproject.toml` is a virtual workspace: it owns workspace membership,
+shared tooling, dependency groups, and indexes but has no Python package or
+Posttrain project identity. Lab's complete project lives at `apps/lab`; its
+`.posttrain/project.toml` selects `posttrain_lab.entry:configure` and its
+`pyproject.toml` packs only Lab-owned source and resources.
 
 Posttrain project discovery is implemented in
 `packages/catalog/src/posttrain/catalog/project.py`. It searches upward for
@@ -741,3 +767,14 @@ record the virtual-workspace behavior, the explicit Lab discovery proof, and
 the 203-test focused validation. The gate lifecycle contract is corrected to
 match the implemented `candidate` state, and the staged-package command now
 requires an absent temporary destination so it remains safely repeatable.
+
+Revision note (2026-08-01): Milestone 2 now records two successful OCI
+materializations from a release-staged 0.3.0 wheelhouse, including the
+evaluation environment's explicit deferred-live-qualification boundary. This
+closes source and package closure, while preserving live execution and
+reconciliation as the separate Milestone 6 release gate.
+
+Revision note (2026-08-01): Milestone 4 begins with the two provider payload
+moves. The plan records their new execution-test ownership and makes clear
+that launcher deletion remains blocked on public lifecycle parity rather than
+on a filename move alone.

@@ -8,6 +8,7 @@ from pathlib import Path
 WORKSPACE = Path(__file__).resolve().parents[3]
 INVENTORY = WORKSPACE / "apps" / "lab" / "qualification-surfaces.toml"
 SCRIPTS = WORKSPACE / "scripts" / "qualification"
+EXECUTION_FIXTURES = WORKSPACE / "packages" / "execution" / "tests" / "fixtures"
 
 _KINDS = {
     "scenario-policy",
@@ -54,7 +55,10 @@ def test_every_temporary_script_and_lab_dependent_fixture_has_one_owner_and_exit
 
     expected_paths = {
         path.relative_to(WORKSPACE).as_posix() for path in SCRIPTS.glob("*.py") if path.name != "__init__.py"
-    } | {"examples/gpu-qualification"}
+    } | {
+        "examples/gpu-qualification",
+        *(path.relative_to(WORKSPACE).as_posix() for path in EXECUTION_FIXTURES.glob("*_job.py")),
+    }
     assert {surface["path"] for surface in surfaces} == expected_paths
 
     for surface in surfaces:
@@ -75,11 +79,12 @@ def test_every_temporary_script_and_lab_dependent_fixture_has_one_owner_and_exit
 
 
 def test_current_script_unit_tests_are_owned_by_the_surface_they_characterize() -> None:
-    documented_tests = {
+    documented_script_tests = {
         test
         for surface in _inventory()
         for test in surface["tests"]  # type: ignore[index]
+        if test.startswith("scripts/qualification/tests/")
     }
     actual_tests = {path.relative_to(WORKSPACE).as_posix() for path in (SCRIPTS / "tests").glob("test_*.py")}
 
-    assert documented_tests == actual_tests
+    assert documented_script_tests == actual_tests
