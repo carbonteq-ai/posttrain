@@ -12,6 +12,7 @@ from posttrain.catalog import ProjectLayout, load_project_layout
 from posttrain.execution import ExecutionSubmissionStore, reconcile_execution, save_reconciliation
 
 from ..context import CliState
+from ..execution_config import resolve_admission_state_root
 from ..execution_provider import execution_admission_service, reconciliation_source_for_run
 from ..output import emit
 
@@ -121,20 +122,53 @@ def register(app: typer.Typer) -> None:
     ) -> None:
         state: CliState = ctx.obj
         layout = state.layout()
-        all_events: list[dict[str, Any]] = []
+        selected_health_file = health_file or (resolve_admission_state_root() / "controller-health")
         while True:
             events = asyncio.run(controller_sweep(layout))
-            all_events.extend(events)
-            if health_file is not None:
-                health_file.parent.mkdir(parents=True, exist_ok=True)
-                health_file.write_text(f"{time.time()}\n", encoding="utf-8")
+            selected_health_file.parent.mkdir(parents=True, exist_ok=True)
+            temporary = selected_health_file.with_suffix(".tmp")
+            temporary.write_text(f"{time.time()}\n", encoding="utf-8")
+            temporary.replace(selected_health_file)
+            lines = [
+                f"{event.get('run_id', '-')}  action={event['action']}  state={event['state']}" for event in events
+            ]
+            emit(state, events, "\n".join(lines) if lines else "No lifecycle actions required.")
             if once:
                 break
             time.sleep(interval_seconds)
-        lines = [
-            f"{event.get('run_id', '-')}  action={event['action']}  state={event['state']}" for event in all_events
-        ]
-        emit(state, all_events, "\n".join(lines) if lines else "No lifecycle actions required.")
+
+    @controller_app.command("status", help="read controller health without mutating run state")
+    def controller_status_cmd(
+        ctx: typer.Context,
+        health_file: Annotated[
+            Path | None,
+            typer.Option("--health-file", help="read a non-default controller health file"),
+        ] = None,
+        stale_after_seconds: Annotated[
+            float,
+            typer.Option("--stale-after-seconds", min=0.1),
+        ] = 30.0,
+    ) -> None:
+        state: CliState = ctx.obj
+        selected = health_file or (resolve_admission_state_root() / "controller-health")
+        try:
+            observed_at = float(selected.read_text(encoding="utf-8").strip())
+        except (FileNotFoundError, ValueError):
+            observed_at = 0.0
+        age_seconds = max(0.0, time.time() - observed_at) if observed_at else None
+        healthy = age_seconds is not None and age_seconds <= stale_after_seconds
+        emit(
+            state,
+            {
+                "healthy": healthy,
+                "observed_at": observed_at or None,
+                "age_seconds": age_seconds,
+                "health_file": str(selected),
+            },
+            f"Controller: {'healthy' if healthy else 'stale-or-missing'} ({selected})",
+        )
+        if not healthy:
+            raise typer.Exit(code=1)
 
 
 __all__ = ["controller_sweep", "register"]

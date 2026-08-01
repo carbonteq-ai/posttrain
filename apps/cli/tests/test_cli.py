@@ -80,6 +80,32 @@ def test_controller_once_renders_one_bounded_sweep(
     assert json.loads(capsys.readouterr().out) == [{"run_id": "run-1", "action": "reconcile", "state": "consistent"}]
 
 
+def test_controller_status_reads_health_without_running_a_sweep(tmp_path: Path, capsys) -> None:
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+    health = tmp_path / "controller-health"
+    health.write_text(f"{datetime.now(UTC).timestamp()}\n", encoding="utf-8")
+
+    assert (
+        main(
+            [
+                "--json",
+                "--project-root",
+                str(project),
+                "controller",
+                "status",
+                "--health-file",
+                str(health),
+            ]
+        )
+        == 0
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["healthy"] is True
+    assert payload["health_file"] == str(health)
+
+
 def _record_submission(
     project: Path,
     *,
