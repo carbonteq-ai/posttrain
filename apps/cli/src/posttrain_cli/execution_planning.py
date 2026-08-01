@@ -53,6 +53,7 @@ from posttrain_execution_buildkit import (
     EnvironmentPackagerCacheRoots,
     ImmutableEnvironmentPackager,
     KindDependencyConstraints,
+    UvDependencyCompileCli,
 )
 
 from .context import CliState
@@ -189,6 +190,12 @@ class PlannedJobPackage:
                 )
             ):
                 raise ContractError(f"job-kind backend constraint profile changed after configuration load: {profile}")
+        execution_environment = load_execution_environment(self.local_config)
+        dependency_index_environment = {
+            name: execution_environment[name]
+            for name in ("UV_INDEX_PASSWORD", "UV_INDEX_URL", "UV_INDEX_USERNAME")
+            if name in execution_environment
+        }
         environment_packager = ImmutableEnvironmentPackager(
             cache_roots=EnvironmentPackagerCacheRoots(
                 git_sources=cache_root / "git",
@@ -197,6 +204,9 @@ class PlannedJobPackage:
             ),
             kind_constraints=constraints,
             backend_kind_constraints=backend_constraints,
+            dependency_gateway=UvDependencyCompileCli(
+                index_environment=dependency_index_environment,
+            ),
         )
         pack_service = JobPackService(
             output_root=cache_path(self.layout, "pack", "contexts"),

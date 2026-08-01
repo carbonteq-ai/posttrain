@@ -120,6 +120,11 @@ green unit tests.
       The native adapter now selects that exact registry version, its isolated
       lock changed only the maintained-fork entry, and the obsolete consumer
       Git constraint is gone.
+- [x] (2026-08-01) Routed the machine-owned, credential-free Python index URL
+      and its separately scoped credentials into immutable environment
+      dependency compilation. The compiler still ignores ambient index
+      variables, runs with `--no-config`, rejects credential-bearing URLs, and
+      binds resolved artifact hashes—not credentials—into package identity.
 - [ ] Run fresh provider packaging/training qualification on both providers,
       verify Trackio, Observatory, controller reconciliation, and cleanup
       receipts, then run the 0.3.0 publication and release audit.
@@ -136,6 +141,13 @@ green unit tests.
   rejected it. Publishing the already-prepared maintained fork distribution
   closes the portability gap without weakening hash validation or pretending
   that AutomationBench is provided by the kind image.
+
+- Observation: publishing the maintained fork exposed a missing configuration
+  handoff: execution and image publication received the machine Python index,
+  but host-side environment dependency compilation did not. An internal
+  distribution therefore remained invisible to the compiler despite being a
+  valid machine service selection. The explicit compiler gateway binding fixes
+  that seam without restoring shell-dependent ambient configuration.
 
 - Observation: private package-index trust must exist inside the framework
   runtime image, independently of BuildKit daemon registry trust.

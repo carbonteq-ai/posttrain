@@ -4,7 +4,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/posttrain
-      revision: 4c2f756393b0e44d2587f9e9a5ee1f4704d5d73b
+      revision: 02848b756727d86a55564557e79e7f613fc8762c
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config

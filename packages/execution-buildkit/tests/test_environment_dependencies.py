@@ -405,6 +405,65 @@ def test_uv_gateway_uses_one_non_shell_compile_with_fixed_safety_flags(
     assert kwargs["cwd"] == root
 
 
+def test_uv_gateway_uses_only_explicit_credential_free_index_binding(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    observed: dict[str, object] = {}
+    monkeypatch.setenv("UV_INDEX_URL", "https://ambient-user:ambient-secret@example.test/simple")
+
+    def fake_run(arguments, **kwargs):
+        observed["arguments"] = arguments
+        observed["kwargs"] = kwargs
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(
+        "posttrain_execution_buildkit.environment_dependencies.subprocess.run",
+        fake_run,
+    )
+    root = tmp_path.absolute()
+    UvDependencyCompileCli(
+        "/opt/uv",
+        index_environment={
+            "UV_INDEX_URL": "https://pypi.example.test/simple/",
+            "UV_INDEX_USERNAME": "reader",
+            "UV_INDEX_PASSWORD": "secret",
+        },
+    ).compile(
+        requirements=root / "requirements.in",
+        constraints=root / "constraints.txt",
+        output=root / "requirements.txt",
+        working_directory=root,
+        python_version="3.12",
+        python_platform="x86_64-unknown-linux-gnu",
+        provided_packages=(),
+    )
+
+    kwargs = observed["kwargs"]
+    assert isinstance(kwargs, dict)
+    environment = kwargs["env"]
+    assert isinstance(environment, dict)
+    assert environment["UV_INDEX_URL"] == "https://pypi.example.test/simple/"
+    assert environment["UV_INDEX_USERNAME"] == "reader"
+    assert environment["UV_INDEX_PASSWORD"] == "secret"
+    assert "ambient-secret" not in str(observed["arguments"])
+
+
+@pytest.mark.parametrize(
+    "index_environment",
+    [
+        {"PIP_INDEX_URL": "https://example.test/simple/"},
+        {"UV_INDEX_URL": "https://user:secret@example.test/simple/"},
+        {"UV_INDEX_URL": "https://example.test/simple/?token=secret"},
+    ],
+)
+def test_uv_gateway_rejects_unsupported_or_secret_bearing_index_bindings(
+    index_environment: dict[str, str],
+) -> None:
+    with pytest.raises(ContractError, match="dependency-index|unsupported"):
+        UvDependencyCompileCli(index_environment=index_environment)
+
+
 def test_uv_gateway_reports_conflict_without_echoing_resolver_output(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

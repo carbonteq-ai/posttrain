@@ -16,7 +16,7 @@ from ..requests import (
 # fork it reads.  The fork publishes `carbonteq-automation-bench` on the legacy
 # 0.1 environment API and contains no v1 taskset at any revision, so naming its
 # repository here could never resolve `automationbench-v1`.
-AUTOMATIONBENCH_REVISION = "4c2f756393b0e44d2587f9e9a5ee1f4704d5d73b"
+AUTOMATIONBENCH_REVISION = "02848b756727d86a55564557e79e7f613fc8762c"
 AUTOMATIONBENCH_REPOSITORY = "https://github.com/carbonteq-ai/posttrain"
 AUTOMATIONBENCH_SUBDIRECTORY = "environments/automationbench_v1"
 
