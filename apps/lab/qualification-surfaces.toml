@@ -179,7 +179,7 @@ deletion_condition = "Ambient Agent owns the serving work package and its retain
 
 [[surfaces]]
 id = "remote-gpu-lab-fixture"
-path = "examples/gpu-qualification"
+path = "apps/lab/tests/fixtures/remote_gpu_project"
 kind = "lab-dependent-fixture"
 owner = "lab"
 transition = "move"

@@ -11,7 +11,7 @@ other outputs as versioned Trackio artifacts. Later jobs consume a pinned
 `TrackioArtifactRef`. Project developers register that version as a catalog
 `ModelVariant` (`artifact.kind: trackio`) and bind it on the next work package
 — see
-[consumer-setup §9](../../docs/consumer-setup.md#9-pass-one-jobs-model-into-the-next).
+[consumer-setup §9](../../consumer-setup.md#9-pass-one-jobs-model-into-the-next).
 
 Trackio owns:
 
@@ -240,4 +240,4 @@ without exposing storage-provider types to framework jobs.
 
 ## Primary source
 
-- [CarbonTeq Trackio artifact documentation](../../../trackio/docs/source/artifacts.md)
+- [CarbonTeq Trackio artifact documentation](https://github.com/carbonteq-ai/trackio/blob/main/docs/source/artifacts.md)

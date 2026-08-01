@@ -490,7 +490,7 @@ The plan must pause for a narrow baseline amendment if implementation would:
 - treat dstack completion as experiment success without Trackio finalization; or
 - require bucket credentials in workload code.
 
-Correct `ops/dstack-trackio/object-storage.md` during Milestone 3 so it no
+Correct `docs/operations/dstack-trackio/object-storage.md` during Milestone 3 so it no
 longer describes normalized `StoredArtifactRef(provider="trackio")` as a
 contract defect.
 
@@ -696,7 +696,7 @@ Add focused fake-provider and real-Trackio integration tests proving:
 - upload failure cannot produce a successful work-package result; and
 - the W&B adapter can satisfy the same logical contract.
 
-Update `ops/dstack-trackio/object-storage.md` to describe normalization into
+Update `docs/operations/dstack-trackio/object-storage.md` to describe normalization into
 `StoredArtifactRef(provider="trackio")` as intentional. Update
 `docs/architecture/proposed-dstack-execution-provider.md` only where necessary
 to reflect the finalizer and compact-receipt interfaces. Do not change the

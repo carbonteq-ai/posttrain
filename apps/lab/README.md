@@ -36,7 +36,8 @@ uv run --package posttrain-lab posttrain --project-root apps/lab work-package va
   automationbench_zapier_grpo.yaml
 ```
 
-Remote GPU release evidence still uses `examples/gpu-qualification` and the
+Remote GPU release evidence uses the Lab-owned
+`tests/fixtures/remote_gpu_project` and the
 primary `posttrain work-package run` path on the remote host.
 
 ## Qualification gates

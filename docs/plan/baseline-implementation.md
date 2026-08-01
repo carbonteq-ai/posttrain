@@ -1,9 +1,16 @@
 # Post-Training Platform Refactor Plan
 
-**Status:** In progress, revision 3
+**Status:** Historical implementation baseline. The frozen conceptual contract
+lives in `docs/post-training/`; current, release-scoped execution plans live
+beside this file in `docs/plan/`.
 **Created:** 2026-07-20  
 **Last revised:** 2026-07-20  
 **Intent:** MVP revamp; existing code is not a compatibility contract
+
+> This document is retained because its decision log and completed-slice
+> evidence explain the current package boundaries. It is not the source of
+> priority or a queue of active work. Use the current plan named by the task at
+> hand and amend the frozen baseline before changing its contract.
 
 ## Summary
 

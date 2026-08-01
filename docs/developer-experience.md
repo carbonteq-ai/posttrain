@@ -328,7 +328,7 @@ bindings:
 Step-by-step with CLI commands:
 [consumer-setup §9](./consumer-setup.md#9-pass-one-jobs-model-into-the-next).
 Storage and alias rules:
-[ops/dstack-trackio/object-storage.md](../ops/dstack-trackio/object-storage.md).
+[operations/dstack-trackio/object-storage.md](./operations/dstack-trackio/object-storage.md).
 
 ### Full layout (datasets + envs + knobs)
 

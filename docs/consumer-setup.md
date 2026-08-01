@@ -362,7 +362,7 @@ order of work-package files. Product rules:
 [03 · Work and evidence](./post-training/03-work-and-evidence.md),
 [06 · Observation](./post-training/06-observation-and-lineage.md).
 Ops detail for Trackio blob storage:
-[ops/dstack-trackio/object-storage.md](../ops/dstack-trackio/object-storage.md).
+[operations/dstack-trackio/object-storage.md](./operations/dstack-trackio/object-storage.md).
 
 ## Things that will bite you
 

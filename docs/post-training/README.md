@@ -5,7 +5,7 @@
 `QuantizationPlan`; algorithm settings must not own rollout engines or mandatory
 QLoRA; train≠rollout targets allowed; async RL deferred. Details:
 [02 · Training](./02-primitives.md#training-selection), plan
-[slice 3a](../../.agents/plan/baseline-implementation.md).
+[historical baseline plan](../plan/baseline-implementation.md).
 **Amendment — tracking backends and job-aware views (2026-07-22):** the
 framework owns the logical run, metric, event, trace, artifact, and outcome
 contracts; Trackio and W&B are backend adapters. Trackio remains the default
@@ -184,7 +184,8 @@ Locked in at freeze time:
 
 ## Next (after freeze)
 
-1. **Implementation plan** — [baseline-implementation.md](../../.agents/plan/baseline-implementation.md);
+1. **Historical implementation baseline** —
+   [baseline-implementation.md](../plan/baseline-implementation.md);
    **next code: slice 3a** (train config decoupling). Legacy refactor plan is
    historical only when it conflicts.
 2. **Architecture reconciliation** — optional; not required to start 3a.

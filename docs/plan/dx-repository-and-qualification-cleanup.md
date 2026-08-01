@@ -322,6 +322,15 @@ local and dstack launcher scripts temporarily reference the new fixture; they
 are not deleted because their public `posttrain job run` parity has not yet
 been demonstrated.
 
+The documentation-only `ops/` tree now lives at `docs/operations/`; maintained
+links resolve and the external Trackio artifact source is an explicit upstream
+link rather than a missing sibling checkout. The old `examples/gpu-qualification`
+fixture now lives at `apps/lab/tests/fixtures/remote_gpu_project`, making its
+Lab dependency explicit rather than presenting it as a consumer example. The
+tracked historical implementation baseline likewise moved from ignored
+`.agents/` to `docs/plan/baseline-implementation.md`; its decision log is
+preserved but it no longer claims to be the active work queue.
+
 ## Context and Orientation
 
 The repository is a uv monorepo. Reusable distributions live under
@@ -778,3 +787,9 @@ Revision note (2026-08-01): Milestone 4 begins with the two provider payload
 moves. The plan records their new execution-test ownership and makes clear
 that launcher deletion remains blocked on public lifecycle parity rather than
 on a filename move alone.
+
+Revision note (2026-08-01): Milestone 4 additionally moves the documentation
+and Lab-fixture root buckets into their owners, repairs the resulting document
+links, and preserves the old implementation baseline under `docs/plan/`. This
+reduces root discovery noise without claiming parity for unexecuted remote
+qualification paths.

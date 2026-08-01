@@ -259,8 +259,8 @@ and emits `rollout/spec_num_drafts`, `rollout/spec_num_draft_tokens`,
 `rollout/spec_accept_length`. Qualification run `-06` measured 79.03%
 acceptance before the first update and 81.67% after adapter synchronization.
 These are batch-level metrics; vLLM 0.25.1 still does not expose per-request
-attribution. Evidence is retained under
-[`artifacts/verl-mtp`](../../../artifacts/verl-mtp/README.md).
+attribution. The run evidence is retained in the tracked run/artifact backend,
+not in a checked-out local `artifacts/` directory.
 
 ## Required memory optimizations
 
