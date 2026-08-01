@@ -4,6 +4,7 @@ from .api import domain, evaluate, general
 from .catalog_schema import (
     EnvironmentBindingSchema,
     EvaluationPlanSchema,
+    RemoteEvaluationBindingSchema,
     evaluation_catalog_decoders,
 )
 from .requests import (
@@ -15,7 +16,10 @@ from .requests import (
     EvaluationBudget,
     EvaluationEndpoint,
     EvaluationPlan,
+    ExternalInferenceService,
     PythonFactoryActivation,
+    RemoteEvaluationBinding,
+    RemotePolicy,
     SamplingPolicy,
     VerifiersV1ConfigActivation,
 )
@@ -27,6 +31,7 @@ __all__ = [
     "EnvironmentBindingSchema",
     "EnvironmentFactory",
     "EnvironmentSource",
+    "ExternalInferenceService",
     "EvaluateRequest",
     "EvaluationBudget",
     "EvaluationEndpoint",
@@ -35,6 +40,9 @@ __all__ = [
     "EvaluationPopulation",
     "EvaluationResult",
     "PythonFactoryActivation",
+    "RemoteEvaluationBinding",
+    "RemoteEvaluationBindingSchema",
+    "RemotePolicy",
     "SamplingPolicy",
     "TraceSynchronization",
     "VerifiersV1ConfigActivation",

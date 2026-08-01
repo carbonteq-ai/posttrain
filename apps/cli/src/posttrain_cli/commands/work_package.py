@@ -95,6 +95,7 @@ def plan_work_package_cmd(
     *,
     job: str | None,
     overrides: ExecutionOverrides = _EMPTY_OVERRIDES,
+    registry_prefix: str | None = None,
     run_id: str | None = None,
     host: str | None = None,
     entry: str | None = None,
@@ -108,6 +109,7 @@ def plan_work_package_cmd(
         path,
         job=job,
         overrides=overrides,
+        registry_prefix=registry_prefix,
         run_id=run_id,
         host=host,
         entry=entry,
@@ -186,6 +188,7 @@ def run_work_package_cmd(
     entry: str | None = None,
     in_process: bool = False,
     overrides: ExecutionOverrides = _EMPTY_OVERRIDES,
+    registry_prefix: str | None = None,
     run_id: str | None = None,
     project_packages: tuple[str, ...] | None = None,
     source_includes: tuple[str, ...] | None = None,
@@ -199,6 +202,7 @@ def run_work_package_cmd(
             path,
             job=job,
             overrides=overrides,
+            registry_prefix=registry_prefix,
             run_id=run_id,
             host=host,
             entry=entry,
@@ -530,6 +534,10 @@ def register(app: typer.Typer) -> None:
             str | None,
             typer.Option("--runtime-profile"),
         ] = None,
+        registry: Annotated[
+            str | None,
+            typer.Option("--registry", help="override the project job-image registry prefix for this invocation"),
+        ] = None,
         timeout_seconds: Annotated[
             int | None,
             typer.Option("--timeout-seconds", min=1),
@@ -578,6 +586,7 @@ def register(app: typer.Typer) -> None:
                 priority=priority,
                 environment_names=environment_names,
             ),
+            registry_prefix=registry,
             run_id=run_id,
             host=host,
             entry=entry,
@@ -618,6 +627,10 @@ def register(app: typer.Typer) -> None:
         runtime_profile: Annotated[
             str | None,
             typer.Option("--runtime-profile"),
+        ] = None,
+        registry: Annotated[
+            str | None,
+            typer.Option("--registry", help="override the project job-image registry prefix for this invocation"),
         ] = None,
         timeout_seconds: Annotated[
             int | None,
@@ -661,5 +674,6 @@ def register(app: typer.Typer) -> None:
                 priority=priority,
                 environment_names=environment_names,
             ),
+            registry_prefix=registry,
             run_id=run_id,
         )

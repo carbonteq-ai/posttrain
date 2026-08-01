@@ -368,7 +368,7 @@ def initialize(
             encoding="utf-8",
         )
         (project_root / ".gitignore").write_text(
-            ".venv/\n__pycache__/\n*.py[cod]\n",
+            ".venv/\n__pycache__/\n*.py[cod]\nposttrain.env\n",
             encoding="utf-8",
         )
         (catalog / "settings.yaml").write_text(starter_settings(template), encoding="utf-8")

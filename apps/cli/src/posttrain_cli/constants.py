@@ -14,6 +14,7 @@ CATALOG_FAMILIES: tuple[SelectionFamily, ...] = (
     "training",
     "quantization",
     "evaluation",
+    "remote-evaluation",
     "workload",
     "target",
     "recipe",

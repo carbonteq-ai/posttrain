@@ -78,23 +78,26 @@ VIRTUAL_ENV=.venv uv pip install --system-certs --index-url https://pypi.lan/car
 
 Job images need **posttrain ≥ 0.2.1** for the trust merge. Re-run
 `posttrain job pack` for any image packed before that release.
-## 3. Set the environment
+## 3. Create a project
 
-Write `posttrain.env` and source it before every command. Keep it `chmod 600`:
-it carries a write token.
+`--template` scaffolds a runnable starter and builds its environment. The
+available templates are `sft` and `grpo`.
+
+```bash
+posttrain init my-project --template sft
+cd my-project
+```
+
+## 4. Set the project environment once
+
+Keep reusable project defaults and job secrets in the ignored, mode-0600
+`posttrain.env`. Posttrain reads this file for local execution, planning, and
+declared dstack job variables; it is not source code and is rejected from
+immutable job snapshots. It does **not** need to be sourced before every
+`posttrain` command.
 
 ```bash
 cat > posttrain.env <<'EOF'
-# The framework and its forked dependencies are served by the internal index,
-# which also mirrors PyPI, so this is the only index a developer needs.
-UV_INDEX_URL=https://pypi.lan/carbonteq/stable/+simple/
-UV_CONSTRAINT=/absolute/path/to/github-constraints.txt
-
-# The internal services present certificates from a private CA that is already
-# in the system trust store. uv uses rustls by default and reads this variable.
-SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
-REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
-
 # Where this project publishes its own actual-job images. This is the project's
 # registry, not the framework's release registry: the framework publishes its
 # base and job-kind images once per release, and a project pushes the job
@@ -110,17 +113,32 @@ EOF
 chmod 600 posttrain.env
 ```
 
-```bash
-set -a; . ./posttrain.env; set +a
+The starter's root `.gitignore` excludes `posttrain.env`; Posttrain still reads
+it at runtime. Add the root setting immediately after `schema_version` in
+`.posttrain/state/execution.toml`:
+
+```toml
+schema_version = 1
+environment_file = "../../posttrain.env"
 ```
 
-## 4. Create a project
-
-`--template` scaffolds a runnable starter and builds its environment. The
-available templates are `sft` and `grpo`.
+The relative path is resolved from `.posttrain/state/`. Once configured, this
+file is authoritative for the project's runtime values; normal commands need
+neither `source` nor repeated exports:
 
 ```bash
-posttrain init my-project --template sft
+uv run --system-certs posttrain doctor
+```
+
+`uv` itself reads its own command-line/index settings before Posttrain starts,
+so keep using `--system-certs` (and the install command's index/constraint
+arguments from step 2). Do not put dstack client credentials in this file:
+they remain operator-managed, separate from the job variables the project owns.
+For a one-off job-image destination, make the deviation visible in the command
+rather than changing the shell environment:
+
+```bash
+posttrain job run .posttrain/work_packages/sft.yaml --registry registry.example/team
 ```
 
 ## 5. Local execution provider
@@ -246,7 +264,8 @@ posttrain doctor
 ```
 
 Every line should read `OK`. `registry` and `runtime_images` report `WARN` when
-`POSTTRAIN_REGISTRY` is unset, which means you did not source the environment.
+`POSTTRAIN_REGISTRY` is absent from the project environment file and execution
+configuration.
 
 You can confirm the framework's published images independently:
 

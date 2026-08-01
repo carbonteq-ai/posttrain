@@ -18,6 +18,7 @@ from .service import digest_source_package
 
 _FORBIDDEN_NAMES = {
     ".env",
+    "posttrain.env",
     ".git",
     ".netrc",
     "credentials",

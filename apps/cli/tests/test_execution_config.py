@@ -24,6 +24,7 @@ from posttrain_cli.execution_config import (
     resolve_execution_settings,
     resolve_trust_bundle,
 )
+from posttrain_cli.execution_planning import _with_registry_override
 from posttrain_cli.execution_provider import (
     create_execution_provider,
     evidence_source_for_project,
@@ -47,6 +48,26 @@ def _layout(tmp_path: Path):
         encoding="utf-8",
     )
     return load_project_layout(tmp_path)
+
+
+def _project_with_registry_environment(
+    tmp_path: Path,
+    registry: str,
+    *,
+    extra: str = "",
+):
+    layout = _layout(tmp_path)
+    layout.state.mkdir(parents=True)
+    environment = layout.root / "posttrain.env"
+    environment.write_text(f"POSTTRAIN_REGISTRY={registry}\n{extra}", encoding="utf-8")
+    environment.chmod(0o600)
+    configuration = layout.state / "execution.toml"
+    configuration.write_text(
+        'schema_version = 1\nenvironment_file = "../../posttrain.env"\n',
+        encoding="utf-8",
+    )
+    configuration.chmod(0o600)
+    return layout
 
 
 def test_run_evidence_locator_survives_project_configuration_drift(
@@ -726,28 +747,51 @@ def test_provider_binding_fingerprint_ignores_secret_rotation_but_not_identity(
     assert changed != first
 
 
-def test_registry_resolves_from_the_environment_with_no_configuration_file(
+def test_ambient_registry_variable_does_not_configure_a_project(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A project with no machine binding is still fully usable.
-
-    The release pins every framework image, so the only thing a consumer must
-    supply is the registry for their own actual-job images.
-    """
     layout = _layout(tmp_path)
     monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.internal/team")
 
     loaded = load_local_execution_config(layout)
     assert not loaded.path.exists()
-    assert loaded.registry is not None
+    assert loaded.registry is None
 
-    manifest = load_manifest()
-    assert loaded.registry.repository == "registry.internal/team/posttrain-job"
-    assert set(loaded.registry.kind_images) == set(manifest.kinds)
-    assert loaded.registry.universal_image.value == manifest.base.reference(manifest.default_prefix)
-    for variant, image in manifest.kinds.items():
-        assert loaded.registry.kind_images[variant].value == image.reference(manifest.default_prefix)
+
+def test_registry_resolves_from_a_protected_project_environment_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    layout = _layout(tmp_path)
+    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.internal/shell-override")
+    path = layout.state / "execution.toml"
+    path.parent.mkdir(parents=True)
+    environment = layout.root / "posttrain.env"
+    environment.write_text("POSTTRAIN_REGISTRY=registry.internal/project\n", encoding="utf-8")
+    environment.chmod(0o600)
+    path.write_text(
+        'schema_version = 1\nenvironment_file = "../../posttrain.env"\n',
+        encoding="utf-8",
+    )
+    path.chmod(0o600)
+
+    loaded = load_local_execution_config(layout)
+
+    assert loaded.registry is not None
+    assert loaded.registry.repository == "registry.internal/project/posttrain-job"
+
+
+def test_explicit_registry_override_replaces_the_project_destination(tmp_path: Path) -> None:
+    layout = _project_with_registry_environment(tmp_path, "registry.internal/project")
+
+    overridden = _with_registry_override(
+        load_local_execution_config(layout),
+        "registry.internal/one-off",
+    )
+
+    assert overridden.registry is not None
+    assert overridden.registry.repository == "registry.internal/one-off/posttrain-job"
 
 
 def test_framework_images_do_not_follow_the_project_registry(
@@ -759,8 +803,7 @@ def test_framework_images_do_not_follow_the_project_registry(
     A site that can reach the public registry must keep pulling framework
     images from it even when its own job images go somewhere private.
     """
-    layout = _layout(tmp_path)
-    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.internal/team")
+    layout = _project_with_registry_environment(tmp_path, "registry.internal/team")
 
     loaded = load_local_execution_config(layout)
     assert loaded.registry is not None
@@ -771,8 +814,7 @@ def test_trailing_slashes_in_the_environment_prefix_are_ignored(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    layout = _layout(tmp_path)
-    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "  registry.internal/team/  ")
+    layout = _project_with_registry_environment(tmp_path, "  registry.internal/team/  ")
 
     loaded = load_local_execution_config(layout)
     assert loaded.registry is not None
@@ -813,12 +855,11 @@ def test_mirror_prefix_moves_framework_images_without_changing_identity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Mirroring is a prefix change only; digests are content-addressed."""
-    layout = _layout(tmp_path)
-    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.internal/team")
+    layout = _project_with_registry_environment(tmp_path, "registry.internal/team")
     path = layout.state / "execution.toml"
-    path.parent.mkdir(parents=True)
     path.write_text(
-        'schema_version = 1\n\n[registry]\nmirror_prefix = "registry.internal/mirror"\n',
+        'schema_version = 1\nenvironment_file = "../../posttrain.env"\n\n[registry]\n'
+        'mirror_prefix = "registry.internal/mirror"\n',
         encoding="utf-8",
     )
     path.chmod(0o600)
@@ -837,8 +878,7 @@ def test_derived_constraint_profiles_carry_published_provided_packages(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    layout = _layout(tmp_path)
-    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.internal/team")
+    layout = _project_with_registry_environment(tmp_path, "registry.internal/team")
 
     loaded = load_local_execution_config(layout)
     assert loaded.registry is not None
@@ -852,8 +892,7 @@ def test_released_verl_variant_is_derived_from_the_manifest(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    layout = _layout(tmp_path)
-    monkeypatch.setenv(REGISTRY_ENVIRONMENT_VARIABLE, "registry.internal/team")
+    layout = _project_with_registry_environment(tmp_path, "registry.internal/team")
 
     loaded = load_local_execution_config(layout)
     assert loaded.registry is not None
@@ -862,17 +901,10 @@ def test_released_verl_variant_is_derived_from_the_manifest(
     )
 
 
-def test_an_execution_file_without_a_registry_still_uses_the_environment(
+def test_an_execution_file_without_a_registry_does_not_use_the_shell(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Writing execution.toml for one setting must not drop another.
-
-    The registry is configured through POSTTRAIN_REGISTRY. A project that adds
-    execution.toml for an unrelated reason, such as the local provider's
-    canonical hostname, previously lost it: the environment was consulted only
-    when no execution configuration existed at all.
-    """
     layout = _layout(tmp_path)
     layout.state.mkdir(parents=True, exist_ok=True)
     configured = layout.state / "execution.toml"
@@ -887,23 +919,25 @@ def test_an_execution_file_without_a_registry_still_uses_the_environment(
 
     assert loaded.local is not None
     assert loaded.local.canonical_hostname == "example-host"
-    assert loaded.registry is not None
+    assert loaded.registry is None
 
 
-def test_tracking_endpoint_is_recorded_from_the_process_environment(
+def test_tracking_endpoint_is_recorded_from_the_project_environment(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Evidence must be read back from where the job actually wrote it.
 
-    The job container receives POSTTRAIN_TRACKIO_SERVER_URL from the process
-    environment, so a run configured through the shell writes to the remote
-    server. Recording no endpoint made reconciliation read a local store
-    instead, where the run does not exist, and a succeeded run could never
-    produce retained evidence.
+    The job container receives POSTTRAIN_TRACKIO_SERVER_URL from the protected
+    project environment. Recording no endpoint made reconciliation read a
+    local store instead, where the run does not exist, and a succeeded run
+    could never produce retained evidence.
     """
-    layout = _layout(tmp_path)
-    monkeypatch.setenv("POSTTRAIN_TRACKIO_SERVER_URL", "https://tracking.example.invalid")
+    layout = _project_with_registry_environment(
+        tmp_path,
+        "registry.internal/team",
+        extra="POSTTRAIN_TRACKIO_SERVER_URL=https://tracking.example.invalid\n",
+    )
 
     source = evidence_source_for_project(layout)
 

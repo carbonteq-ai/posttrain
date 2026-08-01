@@ -55,6 +55,7 @@ class PackageOverrides:
 
     target: str | None = None
     runtime_profile: str | None = None
+    registry_prefix: str | None = None
 
     def as_execution_overrides(self) -> ExecutionOverrides:
         return ExecutionOverrides(
@@ -175,10 +176,7 @@ def load_local_execution_config(
 
     configured = (path or layout.state / _DEFAULT_LOCAL_NAME).expanduser().resolve()
     if not configured.exists():
-        # A project with no machine binding is still fully usable: the release
-        # pins every framework image, so only the project's own registry is
-        # missing, and the environment can supply it.
-        return LocalExecutionConfig(configured, registry=derived_registry())
+        return LocalExecutionConfig(configured)
     if not configured.is_file():
         raise ContractError(f"execution configuration is not a file: {configured}")
     if configured.stat().st_mode & 0o077:
@@ -224,7 +222,15 @@ def load_local_execution_config(
     # is no registry. Writing execution.toml for an unrelated setting, such as
     # the local provider's hostname, otherwise discards POSTTRAIN_REGISTRY and
     # reports the project as having nowhere to publish.
-    registry = _parse_registry(payload.get("registry"), base=configured.parent) or derived_registry()
+    # Once configured, the protected project file is the sole authority for
+    # project runtime values. Ambient process variables are not an invisible
+    # second configuration layer.
+    environment = _load_environment_file(environment_file)
+    registry = _parse_registry(
+        payload.get("registry"),
+        base=configured.parent,
+        environ=environment,
+    ) or derived_registry(environ=environment)
     return LocalExecutionConfig(
         path=configured,
         defaults=defaults,
@@ -555,9 +561,9 @@ def resolve_admission_state_root() -> Path:
     return (Path.home() / ".local" / "state" / "posttrain").resolve()
 
 
-def configured_registry_prefix() -> str | None:
-    """Return the project's registry prefix from the environment, if set."""
-    raw = os.environ.get(REGISTRY_ENVIRONMENT_VARIABLE, "").strip().rstrip("/")
+def configured_registry_prefix(environ: Mapping[str, str]) -> str | None:
+    """Return the project's registry prefix from explicit runtime configuration."""
+    raw = environ.get(REGISTRY_ENVIRONMENT_VARIABLE, "").strip().rstrip("/")
     return raw or None
 
 
@@ -609,10 +615,15 @@ def _derived_constraint_profiles(
     return profiles
 
 
-def _resolved_repository(declared: object, *, context: str) -> str:
+def _resolved_repository(
+    declared: object,
+    *,
+    context: str,
+    environ: Mapping[str, str] | None = None,
+) -> str:
     if declared is not None:
         return _required_config_string(declared, context)
-    prefix = configured_registry_prefix()
+    prefix = configured_registry_prefix(environ or {})
     if prefix is None:
         raise ContractError(
             "job packing needs a registry for this project's actual-job images: "
@@ -622,14 +633,19 @@ def _resolved_repository(declared: object, *, context: str) -> str:
     return f"{prefix}/{_JOB_REPOSITORY_SUFFIX}"
 
 
-def derived_registry() -> RegistryBinding | None:
-    """Build a registry binding with no execution configuration file at all."""
-    if configured_registry_prefix() is None:
+def derived_registry(*, environ: Mapping[str, str]) -> RegistryBinding | None:
+    """Build a registry binding from explicit runtime configuration."""
+    if configured_registry_prefix(environ) is None:
         return None
-    return _parse_registry({}, base=Path.cwd())
+    return _parse_registry({}, base=Path.cwd(), environ=environ)
 
 
-def _parse_registry(value: object, *, base: Path) -> RegistryBinding | None:
+def _parse_registry(
+    value: object,
+    *,
+    base: Path,
+    environ: Mapping[str, str] | None = None,
+) -> RegistryBinding | None:
     if value is None:
         return None
     payload = _mapping(value, context="registry")
@@ -683,7 +699,11 @@ def _parse_registry(value: object, *, base: Path) -> RegistryBinding | None:
         )
     universal_value = payload.get("universal_image")
     return RegistryBinding(
-        repository=_resolved_repository(payload.get("repository"), context="registry.repository"),
+        repository=_resolved_repository(
+            payload.get("repository"),
+            context="registry.repository",
+            environ=environ,
+        ),
         universal_image=RuntimeImageRef(
             _required_config_string(universal_value, "registry.universal_image")
             if universal_value is not None
@@ -983,7 +1003,12 @@ def load_execution_environment(
 ) -> dict[str, str]:
     """Read the protected job environment without exposing it in config values."""
 
-    path = configuration.environment_file
+    return _load_environment_file(configuration.environment_file)
+
+
+def _load_environment_file(path: Path | None) -> dict[str, str]:
+    """Read one protected environment file used by local execution and planning."""
+
     if path is None:
         return {}
     _require_protected_file(path, "execution environment file")

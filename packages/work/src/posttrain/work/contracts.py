@@ -69,6 +69,7 @@ _SELECTION_FAMILIES = frozenset(
         "training",
         "quantization",
         "evaluation",
+        "remote-evaluation",
         "workload",
         "target",
         "recipe",

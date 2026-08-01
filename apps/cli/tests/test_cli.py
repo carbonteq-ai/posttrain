@@ -312,6 +312,7 @@ def test_init_sft_template_writes_installable_project_and_valid_standard_job(
     assert "datasets/posttrain-sft-smoke@1" in work_package
     assert "train/trl-sft@1" in work_package
     assert "posttrain_lab" not in pyproject + settings + work_package
+    assert "posttrain.env" in (project / ".gitignore").read_text(encoding="utf-8")
 
     assert (
         main(

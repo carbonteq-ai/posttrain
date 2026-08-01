@@ -7,7 +7,7 @@ from typing import Literal
 
 import yaml
 from posttrain.common import ContractError
-from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 
 class _Schema(BaseModel):
@@ -38,6 +38,7 @@ class CatalogDocumentSchema(_Schema):
     training: dict[str, dict[str, object]] | None = None
     quantization: dict[str, dict[str, object]] | None = None
     evaluation: dict[str, dict[str, object]] | None = None
+    remote_evaluation: dict[str, dict[str, object]] | None = Field(default=None, alias="remote-evaluation")
     workload: dict[str, dict[str, object]] | None = None
     target: dict[str, dict[str, object]] | None = None
     recipe: dict[str, dict[str, object]] | None = None
@@ -58,7 +59,7 @@ def load_catalog_layer(directory: Path) -> dict[str, object]:
     for filename in manifest.files:
         path = directory / filename
         document = _load_schema(path, CatalogDocumentSchema)
-        for family, entries in document.model_dump(exclude_none=True).items():
+        for family, entries in document.model_dump(exclude_none=True, by_alias=True).items():
             destination = families.setdefault(family, {})
             duplicate = set(destination).intersection(entries)
             if duplicate:

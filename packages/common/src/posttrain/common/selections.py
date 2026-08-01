@@ -23,6 +23,7 @@ type SelectionFamily = Literal[
     "training",
     "quantization",
     "evaluation",
+    "remote-evaluation",
     "workload",
     "target",
     "recipe",
