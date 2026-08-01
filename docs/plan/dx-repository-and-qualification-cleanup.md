@@ -100,8 +100,10 @@ surface, or broken maintained documentation link remains.
       Partial progress (2026-08-01): added `posttrain state migrate`; it
       separates new pack/dataset/run scratch under `state/cache`, copies only
       verified terminal execution records, and refuses unresolved submissions.
-      Named site profiles and explicit cache-prune remain in the configuration
-      authority plan.
+      `posttrain state cache-prune` now classifies the current and legacy cache
+      layouts, defaults to dry-run, and only removes recognized entries after
+      `--apply`; named site profiles remain in the configuration-authority
+      plan.
       Cleanup evidence (2026-08-01): after confirming every historical
       submission was terminal, the maintainer deliberately removed 13 dstack
       run records, 13 exact `carbonteq/posttrain-job` OCI manifests, and all
@@ -407,6 +409,16 @@ profile below root `.posttrain/state`. This intentionally removes the prior
 live-evidence gate: the next release qualification must create fresh,
 reconciled Trackio evidence rather than referring to this retired history.
 
+Milestone 5 cache outcome (2026-08-01): `posttrain state cache-prune` now
+reports every child below a validated `.posttrain/state` root with byte counts,
+classification, reason, and whether it was removed. It recognizes both the
+new `state/cache/{datasets,pack,runs,runtime-builds,scratch}` shape and the
+same legacy direct-child cache entries; execution receipts, configuration,
+unknown files, and symlinks remain protected. The command is dry-run by
+default and requires `--apply` before calling `rmtree` on a classified cache
+tree. The retired root state dry run reports only `execution.toml` as protected
+and zero reclaimable bytes.
+
 ## Context and Orientation
 
 The repository is a uv monorepo. Reusable distributions live under
@@ -683,7 +695,7 @@ names may follow the configuration plan's implementation, but behavior is:
 
     uv run posttrain --project-root apps/lab state migrate \
       --from-project-root /home/hammad/projects/rl-0.3.0 --dry-run
-    uv run posttrain --project-root apps/lab cache prune \
+    uv run posttrain --project-root apps/lab state cache-prune \
       --state-root /home/hammad/projects/rl-0.3.0/.posttrain/state --dry-run
 
 The migration reports durable records separately and refuses active runs. The
@@ -895,3 +907,9 @@ exact-manifest inventory. The plan now distinguishes this one-off cleanup from
 the missing public, dry-run-first cross-plane history-purge capability; the
 latter remains a lifecycle-controller deliverable and cannot be inferred from
 the retention-preserving `run cleanup` command.
+
+Revision note (2026-08-01): Milestone 5 now includes the planned classified
+cache-prune command and fixture coverage. It is intentionally distinct from
+the future cross-plane history purge: it owns local rebuildable cache only and
+will not discard execution control, Trackio evidence, provider records, or
+registry manifests.

@@ -57,6 +57,52 @@ class StateMigrationReport:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class CachePruneEntry:
+    """One classified local-state entry considered by cache pruning."""
+
+    path: Path
+    classification: str
+    reason: str
+    bytes: int
+    removed: bool
+
+
+@dataclass(frozen=True, slots=True)
+class CachePruneReport:
+    """Explain a dry-run or applied cache prune without hiding protected state."""
+
+    state_root: Path
+    apply: bool
+    entries: tuple[CachePruneEntry, ...]
+
+    @property
+    def reclaimable_bytes(self) -> int:
+        return sum(entry.bytes for entry in self.entries if entry.classification == "rebuildable")
+
+    @property
+    def removed_bytes(self) -> int:
+        return sum(entry.bytes for entry in self.entries if entry.removed)
+
+    def as_json(self) -> dict[str, object]:
+        return {
+            "state_root": str(self.state_root),
+            "apply": self.apply,
+            "reclaimable_bytes": self.reclaimable_bytes,
+            "removed_bytes": self.removed_bytes,
+            "entries": [
+                {
+                    "path": str(entry.path),
+                    "classification": entry.classification,
+                    "reason": entry.reason,
+                    "bytes": entry.bytes,
+                    "removed": entry.removed,
+                }
+                for entry in self.entries
+            ],
+        }
+
+
 def migrate_state(
     layout: ProjectLayout,
     *,
@@ -72,9 +118,7 @@ def migrate_state(
 
     destination = layout.state.resolve()
     source = (
-        (source_project_root.resolve() / ".posttrain" / "state")
-        if source_project_root is not None
-        else destination
+        (source_project_root.resolve() / ".posttrain" / "state") if source_project_root is not None else destination
     )
     if source_project_root is not None and not source.is_relative_to(source_project_root.resolve()):
         raise ContractError("source project state path is invalid")
@@ -85,9 +129,7 @@ def migrate_state(
 
     unresolved = _unresolved_runs(source / "executions")
     if unresolved:
-        raise ContractError(
-            "state migration refuses unresolved executions: " + ", ".join(unresolved)
-        )
+        raise ContractError("state migration refuses unresolved executions: " + ", ".join(unresolved))
 
     copied = _copy_executions(source / "executions", destination / "executions", dry_run=dry_run)
     moved: list[str] = []
@@ -115,6 +157,80 @@ def migrate_state(
         tuple(protected),
         (),
     )
+
+
+def prune_cache(
+    layout: ProjectLayout,
+    *,
+    state_root: Path | None = None,
+    apply: bool = False,
+) -> CachePruneReport:
+    """Classify and optionally remove only recognized rebuildable cache trees.
+
+    The default project state supports the current ``state/cache`` layout and
+    the old direct-child layout so a maintainer can clean up after migration.
+    Execution receipts and any unknown or symlinked entry are reported as
+    protected.  ``apply`` must be explicit; dry-runs never mutate the tree.
+    """
+
+    root = (state_root or layout.state).resolve()
+    _validate_state_root(root)
+    if not root.exists():
+        return CachePruneReport(root, apply, ())
+
+    entries: list[CachePruneEntry] = []
+    for child in sorted(root.iterdir(), key=lambda value: value.name):
+        if child.is_symlink():
+            entries.append(CachePruneEntry(child, "protected", "symlinked state entries are never traversed", 0, False))
+            continue
+        if child.name == "cache" and child.is_dir():
+            entries.extend(_classify_cache_root(child, apply=apply))
+            continue
+        if child.name in _CACHE_CHILDREN and child.is_dir():
+            entries.append(_prune_entry(child, "legacy rebuildable cache", apply=apply))
+            continue
+        entries.append(CachePruneEntry(child, "protected", "durable or unknown state entry", _tree_bytes(child), False))
+    return CachePruneReport(root, apply, tuple(entries))
+
+
+def _validate_state_root(root: Path) -> None:
+    if root.name != "state" or root.parent.name != ".posttrain":
+        raise ContractError("cache prune state root must be a .posttrain/state directory")
+    if root.exists() and (not root.is_dir() or root.is_symlink()):
+        raise ContractError("cache prune state root must be a non-symlink directory")
+
+
+def _classify_cache_root(cache: Path, *, apply: bool) -> list[CachePruneEntry]:
+    entries: list[CachePruneEntry] = []
+    for child in sorted(cache.iterdir(), key=lambda value: value.name):
+        if child.is_symlink():
+            entries.append(CachePruneEntry(child, "protected", "symlinked cache entry is never traversed", 0, False))
+        elif child.name in _CACHE_CHILDREN and child.is_dir():
+            entries.append(_prune_entry(child, "rebuildable cache", apply=apply))
+        else:
+            entries.append(CachePruneEntry(child, "protected", "unknown cache entry", _tree_bytes(child), False))
+    return entries
+
+
+def _prune_entry(path: Path, reason: str, *, apply: bool) -> CachePruneEntry:
+    bytes_before = _tree_bytes(path)
+    if apply:
+        shutil.rmtree(path)
+    return CachePruneEntry(path, "rebuildable", reason, bytes_before, apply)
+
+
+def _tree_bytes(path: Path) -> int:
+    if path.is_file():
+        return path.stat().st_size
+    if not path.is_dir():
+        return 0
+    total = 0
+    for value in path.rglob("*"):
+        if value.is_symlink():
+            continue
+        if value.is_file():
+            total += value.stat().st_size
+    return total
 
 
 def _unresolved_runs(root: Path) -> tuple[str, ...]:

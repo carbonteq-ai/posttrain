@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from posttrain.catalog import load_project_layout
 from posttrain.common import ContractError
-from posttrain_cli.state_layout import cache_path, migrate_state
+from posttrain_cli.state_layout import cache_path, migrate_state, prune_cache
 
 
 def _project(tmp_path: Path) -> Path:
@@ -73,3 +73,45 @@ def test_cache_path_cannot_escape_project_cache(tmp_path: Path) -> None:
 
     with pytest.raises(ContractError, match="escapes"):
         cache_path(layout, "..", "outside")
+
+
+def test_cache_prune_is_dry_run_first_and_preserves_control_and_unknown_state(tmp_path: Path) -> None:
+    root = _project(tmp_path)
+    state = root / ".posttrain" / "state"
+    cache = state / "cache" / "pack"
+    cache.mkdir(parents=True)
+    (cache / "layout.json").write_text("cache", encoding="utf-8")
+    (state / "executions" / "retained").mkdir(parents=True)
+    (state / "executions" / "retained" / "receipt.json").write_text("receipt", encoding="utf-8")
+    (state / "unknown").mkdir()
+    (state / "unknown" / "note").write_text("preserve", encoding="utf-8")
+
+    dry_run = prune_cache(load_project_layout(root))
+
+    assert dry_run.reclaimable_bytes == len("cache")
+    assert dry_run.removed_bytes == 0
+    assert cache.is_dir()
+    assert (state / "executions" / "retained" / "receipt.json").is_file()
+    assert (state / "unknown" / "note").is_file()
+
+    applied = prune_cache(load_project_layout(root), apply=True)
+
+    assert applied.removed_bytes == len("cache")
+    assert not cache.exists()
+    assert (state / "executions" / "retained" / "receipt.json").is_file()
+    assert (state / "unknown" / "note").is_file()
+
+
+def test_cache_prune_handles_legacy_cache_and_rejects_unscoped_root(tmp_path: Path) -> None:
+    root = _project(tmp_path)
+    state = root / ".posttrain" / "state"
+    legacy = state / "pack"
+    legacy.mkdir(parents=True)
+    (legacy / "layout.json").write_text("legacy", encoding="utf-8")
+
+    report = prune_cache(load_project_layout(root), apply=True)
+
+    assert report.removed_bytes == len("legacy")
+    assert not legacy.exists()
+    with pytest.raises(ContractError, match=".posttrain/state"):
+        prune_cache(load_project_layout(root), state_root=tmp_path)
