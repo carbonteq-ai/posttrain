@@ -40,6 +40,18 @@ def test_shipped_dockerfile_input_paths_resolve_against_the_definition_root() ->
                 assert (root / path).exists(), f"{level}/Dockerfile copies missing {path}"
 
 
+def test_base_accepts_a_build_secret_ca_bundle_without_disabling_tls() -> None:
+    with definition_root() as root:
+        dockerfile = (root / "containers/posttrain-base/Dockerfile").read_text()
+
+    assert "--mount=type=secret,id=posttrain_ca_bundle,required=false" in dockerfile
+    assert "cat /run/secrets/posttrain_ca_bundle >>" in dockerfile
+    assert "/etc/ssl/certs/ca-certificates.crt" in dockerfile
+    assert "install -m 0644 /run/secrets/posttrain_ca_bundle" not in dockerfile
+    assert "trusted-host" not in dockerfile
+    assert "allow-insecure" not in dockerfile
+
+
 def test_runtime_variants_match_the_published_bake_targets() -> None:
     published = re.compile(r'^target "posttrain-kind-([a-z0-9-]+)" \{', re.MULTILINE)
     with definition_root() as root:

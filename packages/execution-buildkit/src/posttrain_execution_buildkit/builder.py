@@ -155,6 +155,10 @@ class RuntimeBuildRequest:
     attestations: bool = False
     compression_level: int = 1
     force_compression: bool = False
+    # Optional machine-owned PEM bundle used to establish image trust while
+    # building against private HTTPS package indexes. The local path is never
+    # part of image identity; the bundle bytes are.
+    trust_bundle: Path | None = None
 
     def __post_init__(self) -> None:
         if not self.bake_file.is_absolute() or not self.bake_file.is_file():
@@ -186,6 +190,10 @@ class RuntimeBuildRequest:
         for ref in self.cache_from:
             if not ref or any(token in ref.upper() for token in ("TOKEN", "PASSWORD", "SECRET")):
                 raise ContractError("runtime build cache_from refs must be non-secret image references")
+        if self.trust_bundle is not None and (
+            not self.trust_bundle.is_absolute() or not self.trust_bundle.is_file()
+        ):
+            raise ContractError("runtime build trust_bundle must be an existing absolute file")
 
     @property
     def build_key(self) -> str:
@@ -200,6 +208,9 @@ class RuntimeBuildRequest:
             "attestations": self.attestations,
             "compression_level": self.compression_level,
             "force_compression": self.force_compression,
+            "trust_bundle_sha256": (
+                _file_digest(self.trust_bundle) if self.trust_bundle is not None else None
+            ),
         }
         return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
@@ -289,6 +300,7 @@ class BuildKitRuntimeBuilder:
             f"{request.target}.tags={request.repository}:{request.tag}",
             "--set",
             f"{request.target}.output=type=cacheonly",
+            *self._trust_arguments(request),
             *self._variable_arguments(request),
             "--call",
             "check",
@@ -333,12 +345,23 @@ class BuildKitRuntimeBuilder:
             arguments.extend(("--set", f"{request.target}.attest="))
         for ref in request.cache_from:
             arguments.extend(("--set", f"{request.target}.cache-from=type=registry,ref={ref}"))
+        arguments.extend(self._trust_arguments(request))
         arguments.extend(self._variable_arguments(request))
         arguments.append(request.target)
         return arguments
 
     def _builder_arguments(self, request: RuntimeBuildRequest) -> list[str]:
         return ["--builder", request.builder] if request.builder is not None else []
+
+    def _trust_arguments(self, request: RuntimeBuildRequest) -> list[str]:
+        if request.trust_bundle is None:
+            return []
+        return [
+            "--allow",
+            f"fs.read={request.trust_bundle}",
+            "--set",
+            f"{request.target}.secrets=id=posttrain_ca_bundle,src={request.trust_bundle}",
+        ]
 
     def _variable_arguments(self, request: RuntimeBuildRequest) -> list[str]:
         arguments = [

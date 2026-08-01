@@ -177,6 +177,7 @@ def publish_release(
     compression_level: int = 1,
     force_compression: bool = False,
     provided_packages: dict[str, tuple[str, ...]] | None = None,
+    trust_bundle: Path | None = None,
 ) -> str:
     """Publish images for this release and return the pinned manifest text.
 
@@ -218,7 +219,11 @@ def publish_release(
             constraint_lock=constraint_lock("supervised"),
         )
     else:
-        reused = _reuse_unchanged_base(normalized, builder)
+        # A committed manifest does not record the machine trust-bundle digest,
+        # so it cannot prove that a prior base contains the requested trust.
+        # Supplying a bundle deliberately forces the content-addressed build
+        # path; its byte digest is part of RuntimeBuildRequest.build_key.
+        reused = None if trust_bundle is not None else _reuse_unchanged_base(normalized, builder)
         if reused is not None:
             published_base = RuntimeImageRef(f"{normalized}/{reused.repository}@{reused.digest}")
             base = reused
@@ -237,6 +242,7 @@ def publish_release(
                     base_image=RuntimeImageRef(f"scratch@sha256:{'0' * 64}"),
                     variables=_bake_variables(created=created, revision=revision, version=framework_version),
                     cache_from=cache_from,
+                    trust_bundle=trust_bundle,
                     **build_opts,
                 )
             )

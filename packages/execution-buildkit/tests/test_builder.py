@@ -148,6 +148,41 @@ def test_runtime_build_key_excludes_local_bake_and_context_paths(
     assert first.build_key == second.build_key
 
 
+def test_runtime_trust_bundle_is_mounted_and_hashed_not_path_identified(
+    tmp_path: Path,
+) -> None:
+    first_root = tmp_path / "first"
+    second_root = tmp_path / "second"
+    first_root.mkdir()
+    second_root.mkdir()
+    first_bundle = first_root / "ca-bundle.pem"
+    second_bundle = second_root / "renamed.pem"
+    first_bundle.write_text("test public CA\n", encoding="utf-8")
+    second_bundle.write_bytes(first_bundle.read_bytes())
+    request = replace(_request(tmp_path), trust_bundle=first_bundle.resolve())
+    same_bytes = replace(request, trust_bundle=second_bundle.resolve())
+
+    assert request.build_key == same_bytes.build_key
+
+    gateway = FakeBuildx()
+    builder = BuildKitRuntimeBuilder(gateway, receipt_root=(tmp_path / "receipts").resolve())
+    builder.build(request)
+    build_call = [call for call in gateway.calls if "--metadata-file" in call][0]
+    assert f"fs.read={first_bundle.resolve()}" in build_call
+    assert (
+        f"{request.target}.secrets=id=posttrain_ca_bundle,src={first_bundle.resolve()}"
+        in build_call
+    )
+
+    second_bundle.write_text("different public CA\n", encoding="utf-8")
+    assert request.build_key != replace(request, trust_bundle=second_bundle.resolve()).build_key
+
+
+def test_runtime_trust_bundle_must_be_an_existing_absolute_file(tmp_path: Path) -> None:
+    with pytest.raises(ContractError, match="trust_bundle"):
+        replace(_request(tmp_path), trust_bundle=tmp_path / "missing.pem")
+
+
 def test_runtime_builder_rejects_unprotected_cached_receipt(
     tmp_path: Path,
 ) -> None:

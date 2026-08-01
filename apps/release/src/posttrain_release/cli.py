@@ -105,6 +105,16 @@ def publish_cmd(
         Path,
         typer.Option("--receipt-root", help="directory retaining build receipts"),
     ],
+    trust_bundle: Annotated[
+        Path | None,
+        typer.Option(
+            "--trust-bundle",
+            help=(
+                "machine-owned PEM CA bundle appended to the base runtime image "
+                "for private HTTPS package indexes"
+            ),
+        ),
+    ] = None,
     default_prefix: Annotated[
         str | None,
         typer.Option(
@@ -210,6 +220,7 @@ def publish_cmd(
         attestations=attestations,
         compression_level=compression_level,
         force_compression=force_compression,
+        trust_bundle=trust_bundle.resolve() if trust_bundle is not None else None,
     )
     if dry_run:
         print(rendered, end="")

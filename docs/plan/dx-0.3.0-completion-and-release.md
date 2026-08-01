@@ -71,6 +71,11 @@ green unit tests.
       nonexistent project returned zero owned resources. The retired
       `foundation-models` preview remains deliberately separate from release
       deployment because it identifies real deletion scope.
+- [x] (2026-08-01) Published the exact merged Trackio post6 wheel and sdist to
+      the stable Python index, tagged `carbonteq-v0.31.5.post6`, changed the
+      framework to consume the indexed wheel, and regenerated the catalog and
+      runtime dependency locks. The release manifest is intentionally stale
+      until the replacement runtime image publication completes.
 - [ ] Implement framework-owned run/project purge planning and execution with
       artifact-consumer closure, receipts, and a Trackio lifecycle adapter.
 - [ ] Complete the remaining release-critical configuration, lifecycle,
@@ -100,9 +105,9 @@ green unit tests.
       `carbonteq-automation-bench` from the workspace lock, and regenerated the
       catalog dependency-lock fingerprint. The full suite passes with 889
       passed and 17 skipped; lock check, ruff, and import contracts are clean.
-- [ ] Push `codex/dx-0.3.0` so the pinned environment revision `4c2f7563`
-      names a commit that exists on a remote. Until then the SAMPO gate cannot
-      pack, and this blocks milestone 8 independently of every other milestone.
+- [x] (2026-08-01) Pushed `codex/dx-0.3.0`; the environment source revision
+      and subsequent framework fixes now name commits available from the
+      remote rather than local-only objects.
 - [ ] Run fresh provider packaging/training qualification on both providers,
       verify Trackio, Observatory, controller reconciliation, and cleanup
       receipts, then run the 0.3.0 publication and release audit.
@@ -111,6 +116,19 @@ green unit tests.
       the release, complete.
 
 ## Surprises & Discoveries
+
+- Observation: private package-index trust must exist inside the framework
+  runtime image, independently of BuildKit daemon registry trust.
+  Evidence: after the builder was correctly configured to resolve and trust
+  `registry.lan`, the base image published successfully, but every kind build
+  failed when `uv` fetched the stable Trackio wheel from `pypi.lan` with
+  `UnknownIssuer`. The daemon's registry CA does not become part of a build
+  stage's Debian certificate store.
+  Resolution: runtime publication accepts an explicit machine-owned PEM trust
+  bundle. BuildKit mounts it outside the context and appends it to—not replaces
+  —the base image's system bundle, so both public and private indexes remain
+  verifiable. Only its SHA-256—not the host path—participates in the build
+  receipt identity. TLS verification stays enabled.
 
 - Observation: the retired project id survived in two places that can still
   write to the live tracking server, not only in inert fixtures.

@@ -23,6 +23,15 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/* && \
     update-ca-certificates
 
+# Private package indexes may use machine-owned CA certificates. Release
+# tooling supplies them as a BuildKit secret so the host path never enters the
+# build context or image metadata. Append rather than replace: public PyPI and
+# the private index must remain verifiable in the same build and runtime.
+RUN --mount=type=secret,id=posttrain_ca_bundle,required=false \
+    if [ -f /run/secrets/posttrain_ca_bundle ]; then \
+      cat /run/secrets/posttrain_ca_bundle >> /etc/ssl/certs/ca-certificates.crt; \
+    fi
+
 # This constraint set is generated from the workspace uv.lock. Installing only
 # torch here keeps the universal image independent of trainer, evaluator,
 # serving, and concrete environment packages.
