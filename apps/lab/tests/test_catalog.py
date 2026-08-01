@@ -78,10 +78,23 @@ def test_automationbench_grpo_environment_is_category_and_budget_driven() -> Non
     assert training.runtime.global_batch_size == 16
 
 
-def test_project_overlay_directory_can_publish_a_new_selection() -> None:
+def test_project_overlay_directory_can_publish_a_new_selection(tmp_path: Path) -> None:
+    overlay = _layer(
+        tmp_path,
+        "project-example-v1",
+        """
+target:
+  targets/project-cuda-24gb:
+    revision: "1"
+    device_class: nvidia-cuda
+    memory_gb: 24
+    placement:
+      world_size: 1
+""",
+    )
     catalog = open_catalog(
         scope="example",
-        overlays=(WORKSPACE / ".posttrain" / "catalog" / "example",),
+        overlays=(overlay,),
     )
     resolved = catalog.resolve(CatalogRef("target", "targets/project-cuda-24gb"))
 

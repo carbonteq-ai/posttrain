@@ -8,7 +8,11 @@ version = "0.1.0"
 description = "Native Verifiers v1 adapter for Zapier AutomationBench"
 authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
-requires-python = ">=3.12,<3.13"
+# This adapter runs inside either of the supported online-RL capsules.  The
+# pinned benchmark dependency declares the same >=3.12 floor, so do not
+# artificially exclude the Python 3.13 capsule from environment-wheel
+# qualification.
+requires-python = ">=3.12,<3.14"
 dependencies = [
     "carbonteq-automation-bench @ git+https://github.com/carbonteq-ai/AutomationBench.git@908db2abd4a868acc37ab0850474bff653bea25c",
     "verifiers @ git+https://github.com/PrimeIntellect-ai/verifiers.git@284a868d6a9022109b749710672a0460e8a996d4",

@@ -2,10 +2,10 @@
 
 This package is a native Verifiers v1 adapter for Zapier AutomationBench 1.0.5.
 It reuses the upstream task builders, simulated SaaS world, API tools, and
-assertion registry through the CarbonTeq Python 3.12 compatibility fork at
-immutable commit `d54dbebabdba6c6eda201694aee8ddcf36ccfc51`. That commit changes
-the supported Python floor and lock resolution without changing benchmark
-behavior.
+assertion registry through the CarbonTeq compatibility fork at immutable
+commit `908db2abd4a868acc37ab0850474bff653bea25c`. The package supports the
+framework's Python 3.12 and 3.13 online-RL capsules; the package lock records
+the exact resolution for both.
 
 The adapter owns only the v1 boundary:
 
@@ -20,20 +20,27 @@ The adapter owns only the v1 boundary:
   `task_completed_correctly` metric;
 - trace metadata containing assertion results and the final world state.
 
-The adapter and its pinned AutomationBench dependency now share the platform's
-Python 3.12 runtime. `posttrain-lab[gpu-posttrain]` installs this package, so
-evaluation and environment-driven GRPO use the same recorded dependency graph
-as the trainer instead of an untracked patched wheel.
+`posttrain-lab[gpu-posttrain]` installs this package, so evaluation and
+environment-driven GRPO use the same recorded dependency graph as the trainer
+instead of an untracked patched wheel.
+
+The legacy catalog source still names the upstream benchmark repository rather
+than this adapter package, so it must not be used for a job-pack release. The
+repair is deliberately two-phase: first publish the commit containing this
+package metadata and lock; then atomically advance the catalog source to that
+published Posttrain SHA with `subdirectory = environments/automationbench_v1`.
+Run the environment-wheel and job-pack qualifications before marking the
+AutomationBench gate runnable again.
 
 ## Validate and run
 
 ```bash
-uv run --project environments/automationbench_v1 --python 3.12 \
+uv run --project environments/automationbench_v1 --python 3.13 \
   --with pytest --with pytest-asyncio \
   pytest -q environments/automationbench_v1/tests
 
 LOCAL_INFERENCE_API_KEY=EMPTY \
-uv run --project environments/automationbench_v1 --python 3.12 \
+uv run --project environments/automationbench_v1 --python 3.13 \
   eval automationbench-v1 \
   --harness.id null \
   --taskset.domains simple \

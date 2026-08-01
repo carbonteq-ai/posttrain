@@ -208,7 +208,7 @@ def _qualification_main(arguments: list[str]) -> None:
     if args.json:
         print(json.dumps(inventory.as_json(), indent=2, sort_keys=True))
         return
-    for gate in inventory.gates:
+    for gate in inventory.entries:
         print(
             "\t".join(
                 (
@@ -226,6 +226,9 @@ def _qualification_main(arguments: list[str]) -> None:
         "\t".join(
             (
                 "summary",
+                f"active={len(inventory.active_gates)}",
+                f"candidates={len(inventory.candidate_experiments)}",
+                f"retired_gates={len(inventory.retired_gates)}",
                 f"classified={len(inventory.classified)}",
                 f"retired={len(inventory.retired)}",
                 f"excluded={len(inventory.excluded)}",

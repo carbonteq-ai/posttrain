@@ -19,11 +19,13 @@ from posttrain.common import ContractError
 from posttrain.work import Recipe, load_work_package
 
 GateTier = Literal["release", "extended", "experimental"]
-GateState = Literal["active", "retired"]
+GateState = Literal["active", "candidate", "retired"]
 
 _TIERS = frozenset(("release", "extended", "experimental"))
-_STATES = frozenset(("active", "retired"))
-_FIELDS = frozenset(("id", "work_package", "job_id", "tier", "state", "job_kind", "acceptance"))
+_STATES = frozenset(("active", "candidate", "retired"))
+_REQUIRED_FIELDS = frozenset(("id", "work_package", "job_id", "tier", "state", "job_kind", "acceptance"))
+_CANDIDATE_FIELDS = frozenset(("experiment_family", "hypothesis", "owner", "replacement_condition"))
+_FIELDS = _REQUIRED_FIELDS | _CANDIDATE_FIELDS
 
 
 class QualificationGateError(ValueError):
@@ -32,7 +34,13 @@ class QualificationGateError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class QualificationGate:
-    """One named acceptance gate over a single work-package job."""
+    """One retained work-package record in the Lab qualification inventory.
+
+    ``active`` entries are maintained release or extended gates.  A
+    ``candidate`` entry is a retained experiment: it remains inspectable and
+    validates as a work package, but is deliberately excluded from the active
+    gate set until its documented replacement condition is met.
+    """
 
     id: str
     work_package: str
@@ -41,16 +49,23 @@ class QualificationGate:
     state: GateState
     job_kind: str
     acceptance: str
+    experiment_family: str | None = None
+    hypothesis: str | None = None
+    owner: str | None = None
+    replacement_condition: str | None = None
 
-    def as_json(self) -> dict[str, str]:
-        return cast(dict[str, str], asdict(self))
+    def as_json(self) -> dict[str, object]:
+        return cast(dict[str, object], asdict(self))
 
 
 @dataclass(frozen=True, slots=True)
 class QualificationInventory:
     """Validated classification of all work packages in one Lab project."""
 
-    gates: tuple[QualificationGate, ...]
+    entries: tuple[QualificationGate, ...]
+    active_gates: tuple[QualificationGate, ...]
+    candidate_experiments: tuple[QualificationGate, ...]
+    retired_gates: tuple[QualificationGate, ...]
     classified: tuple[str, ...]
     retired: tuple[str, ...]
     excluded: tuple[str, ...]
@@ -58,8 +73,10 @@ class QualificationInventory:
 
     def as_json(self) -> dict[str, object]:
         return {
-            "schema_version": 1,
-            "gates": [gate.as_json() for gate in self.gates],
+            "schema_version": 2,
+            "active_gates": [gate.as_json() for gate in self.active_gates],
+            "candidate_experiments": [gate.as_json() for gate in self.candidate_experiments],
+            "retired_gates": [gate.as_json() for gate in self.retired_gates],
             "classified_work_packages": list(self.classified),
             "retired_work_packages": list(self.retired),
             "excluded_work_packages": list(self.excluded),
@@ -81,7 +98,11 @@ def validate_qualification_project(
     layout: ProjectLayout,
     gates: tuple[QualificationGate, ...],
 ) -> QualificationInventory:
-    """Require each project work-package YAML to have one valid gate entry."""
+    """Require each project work-package YAML to have one retained record.
+
+    This validates both active qualification gates and retained experiments,
+    while intentionally exposing them as separate inventory sets to callers.
+    """
 
     errors: list[str] = []
     paths_by_gate: dict[str, Path] = {}
@@ -149,9 +170,15 @@ def validate_qualification_project(
         raise QualificationGateError(f"invalid Lab qualification gate registry:\n{details}")
 
     classified = tuple(sorted(all_work_packages[path] for path in classified_paths))
-    retired = tuple(sorted(gate.work_package for gate in gates if gate.state == "retired"))
+    active_gates = tuple(gate for gate in gates if gate.state == "active")
+    candidate_experiments = tuple(gate for gate in gates if gate.state == "candidate")
+    retired_gates = tuple(gate for gate in gates if gate.state == "retired")
+    retired = tuple(sorted(gate.work_package for gate in retired_gates))
     return QualificationInventory(
-        gates=gates,
+        entries=gates,
+        active_gates=active_gates,
+        candidate_experiments=candidate_experiments,
+        retired_gates=retired_gates,
         classified=classified,
         retired=retired,
         excluded=(),
@@ -179,7 +206,7 @@ def _load_gate_manifest(path: Path) -> tuple[QualificationGate, ...]:
             errors.append(f"gate entry {index} must be a table")
             continue
         unknown = set(entry) - _FIELDS
-        missing = _FIELDS - set(entry)
+        missing = _REQUIRED_FIELDS - set(entry)
         if unknown:
             errors.append(f"gate entry {index} has unknown fields: {', '.join(sorted(unknown))}")
         if missing:
@@ -198,6 +225,10 @@ def _load_gate_manifest(path: Path) -> tuple[QualificationGate, ...]:
                 state=cast(GateState, values["state"]),
                 job_kind=values["job_kind"],
                 acceptance=values["acceptance"],
+                experiment_family=values.get("experiment_family"),
+                hypothesis=values.get("hypothesis"),
+                owner=values.get("owner"),
+                replacement_condition=values.get("replacement_condition"),
             )
         )
     if errors:
@@ -222,6 +253,29 @@ def _validate_gate(gate: QualificationGate, errors: list[str]) -> None:
         errors.append(f"gate {gate.id!r} has unknown state {gate.state!r}")
     if gate.state == "retired" and gate.tier == "release":
         errors.append(f"gate {gate.id!r} cannot be both retired and release tier")
+    candidate_details = {
+        "experiment_family": gate.experiment_family,
+        "hypothesis": gate.hypothesis,
+        "owner": gate.owner,
+        "replacement_condition": gate.replacement_condition,
+    }
+    if gate.state == "candidate":
+        if gate.tier != "experimental":
+            errors.append(f"candidate {gate.id!r} must use the experimental tier")
+        for field, value in candidate_details.items():
+            if value is None or not value.strip():
+                errors.append(f"candidate {gate.id!r} {field} cannot be empty")
+        if gate.replacement_condition is not None and not any(
+            outcome in gate.replacement_condition.casefold()
+            for outcome in ("promote", "replace", "retire", "delete")
+        ):
+            errors.append(
+                f"candidate {gate.id!r} replacement_condition must name a promotion, replacement, retirement, or deletion outcome"
+            )
+    elif any(value is not None for value in candidate_details.values()):
+        errors.append(f"non-candidate gate {gate.id!r} cannot declare candidate retention fields")
+    if gate.state == "active" and gate.tier == "experimental":
+        errors.append(f"active gate {gate.id!r} cannot use the experimental tier; retain it as a candidate")
 
 
 __all__ = [

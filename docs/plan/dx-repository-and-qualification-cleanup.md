@@ -52,8 +52,21 @@ surface, or broken maintained documentation link remains.
       the release-scoped DX critique.
 - [x] (2026-08-01) Milestone 1: added an executable, report-only
       repository-ownership contract and a complete Lab qualification-gate
-      registry without moving files. Focused release and Lab tests pass; the
-      built Lab wheel contains the registry resource.
+      registry without moving files. The registry now separates 11 active
+      release/extended gates from 14 explicit candidate experiments. Focused
+      release and Lab tests pass; the built Lab wheel contains the registry
+      resource.
+- [x] (2026-08-01) Recorded a complete, tested ownership/parity inventory for
+      root qualification scripts and the Lab-dependent remote-GPU fixture.
+      The inventory makes the pending Milestone 4 moves and removals
+      evidence-gated rather than filename-driven.
+- [x] (2026-08-01) Removed the unowned, non-runnable `catalog/example`
+      fragment. Its only semantic test now builds a temporary project overlay;
+      `posttrain init` remains the supported user-facing project example.
+- [x] (2026-08-01) Added and tested Lab's self-contained source-snapshot
+      declaration (`.` with only its README, `pyproject.toml`, and `src`).
+      The full two-job pack proof remains pending the Milestone 3 control-tree
+      move and staged release-wheel path.
 - [ ] Milestone 2: prove that `apps/lab` can be a self-contained nested
       Posttrain project and pack two representative jobs from its own root.
 - [ ] Milestone 3: move tracked qualification configuration into `apps/lab`,
@@ -105,6 +118,13 @@ surface, or broken maintained documentation link remains.
   package `automation-bench` and has no `automationbench_v1` adapter. The
   immutable wheel builder correctly rejects the name mismatch. This does not
   affect the selected `data.prepare` or `eval.domain` nested-pack proofs.
+- Observation: the local AutomationBench adapter had a second incompatible
+  contract: it declared Python `<3.13` and its lock resolved only Python 3.12,
+  while framework online-RL capsules are Python 3.13.
+  Evidence: the adapter metadata and lock now validate a 3.12/3.13 range, and
+  its test suite and built wheel pass under Python 3.13. The catalog source
+  must not change until this adapter revision is published, because immutable
+  source selection cannot name an unpushed commit.
 - Observation: documentation drift is part of the ownership problem.
   Evidence: a local-link audit found 12 broken Markdown targets, including
   three maintained documents pointing at the nonexistent
@@ -155,6 +175,20 @@ surface, or broken maintained documentation link remains.
   deleting them based only on filename references could erase the only check
   for a real release gate.
   Date/Author: 2026-08-01 / plan author.
+- Decision: an active Lab gate must be release or extended; experimental work
+  is a candidate record with a family, hypothesis, owner, and actionable
+  promotion/replacement/retirement/deletion condition.
+  Rationale: static acceleration combinations are evidence-seeking candidates,
+  not independent framework release requirements. Keeping their work packages
+  classified preserves reproducibility without turning historical experiments
+  into required Lab work.
+  Date/Author: 2026-08-01 / plan author.
+- Decision: remove the static Lab `catalog/example` fragment and test project
+  overlay composition using a temporary fixture instead.
+  Rationale: the fragment was not a runnable user example and had one test
+  consumer. The public `posttrain init` project is the maintained example;
+  fixture-only catalog data must not occupy a tracked project overlay.
+  Date/Author: 2026-08-01 / plan author.
 - Decision: this plan consumes, rather than duplicates, the state split and
   `posttrain state migrate` from
   `docs/plan/dx-configuration-authority.md` milestone 2.
@@ -188,6 +222,15 @@ root work-package YAMLs exactly once. The two checks deliberately remain
 separate so a framework-owner release tool does not depend on the reference
 qualification application. The audit currently reports legacy migration work;
 it is not enabled as a CI failure yet.
+
+Consolidation outcome (2026-08-01): Lab reports 11 active gates and 14
+candidate experiments, rather than treating all retained YAMLs as equal
+requirements. `apps/lab/qualification-surfaces.toml` gives every current root
+qualification script and the remote-GPU fixture an owner, replacement,
+public-path parity checklist, and deletion condition. The AutomationBench
+adapter now supports Python 3.12/3.13 locally, but its catalog selection stays
+blocked until a published Posttrain revision can be pinned to the adapter
+subdirectory and an actual job pack succeeds.
 
 ## Context and Orientation
 

@@ -60,6 +60,14 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/posttrain_lab"]
 
+[tool.posttrain.pack]
+# Lab becomes an independently packable project in Milestone 3.  This
+# declaration is deliberately usable before that move: the project source is
+# Lab only, while `.posttrain` control data is bundled through the job-package
+# closure rather than installed as Python source.
+project_packages = ["."]
+source_includes = ["README.md", "pyproject.toml", "src"]
+
 [tool.hatch.metadata]
 allow-direct-references = true
 

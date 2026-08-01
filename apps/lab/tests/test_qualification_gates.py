@@ -90,13 +90,22 @@ def test_package_registry_classifies_every_current_work_package() -> None:
 
     inventory = validate_qualification_project(layout, load_qualification_gates())
 
-    assert len(inventory.gates) == 25
+    assert len(inventory.entries) == 25
+    assert len(inventory.active_gates) == 11
+    assert len(inventory.candidate_experiments) == 14
+    assert inventory.retired_gates == ()
     assert len(inventory.classified) == 25
     assert inventory.unclassified == ()
-    assert {gate.id for gate in inventory.gates if gate.tier == "release"} == {
+    assert {gate.id for gate in inventory.active_gates if gate.tier == "release"} == {
         "qwen2b-gsm8k-evaluation",
         "sft-data-prepare",
     }
+    for candidate in inventory.candidate_experiments:
+        assert candidate.tier == "experimental"
+        assert candidate.experiment_family
+        assert candidate.hypothesis
+        assert candidate.owner
+        assert candidate.replacement_condition
 
 
 def test_registry_rejects_a_missing_work_package(tmp_path: Path) -> None:
@@ -138,11 +147,70 @@ def test_registry_rejects_unknown_job_and_retired_release_gate(tmp_path: Path) -
         validate_qualification_project(layout, (_gate(path, tier="release", state="retired"),))
 
 
+def test_registry_requires_retention_details_for_candidates(tmp_path: Path) -> None:
+    layout = _layout(tmp_path)
+    path = _write_work_package(layout)
+
+    with pytest.raises(QualificationGateError, match="candidate 'sample' experiment_family cannot be empty"):
+        validate_qualification_project(layout, (_gate(path, tier="experimental", state="candidate"),))
+
+    candidate = _gate(
+        path,
+        tier="experimental",
+        state="candidate",
+        experiment_family="alternative-implementation",
+        hypothesis="Try an alternate implementation.",
+        owner="posttrain-training",
+        replacement_condition="Promote after retained qualification evidence.",
+    )
+    inventory = validate_qualification_project(layout, (candidate,))
+    assert inventory.active_gates == ()
+    assert inventory.candidate_experiments == (candidate,)
+    assert {gate.experiment_family for gate in inventory.candidate_experiments} == {"alternative-implementation"}
+
+    with pytest.raises(QualificationGateError, match="must name a promotion, replacement, retirement, or deletion outcome"):
+        validate_qualification_project(
+            layout,
+            (
+                _gate(
+                    path,
+                    tier="experimental",
+                    state="candidate",
+                    experiment_family="alternative-implementation",
+                    hypothesis="Try an alternate implementation.",
+                    owner="posttrain-training",
+                    replacement_condition="Keep this around indefinitely.",
+                ),
+            ),
+        )
+
+
+def test_registry_rejects_experimental_entries_marked_active_or_candidate_metadata_on_gates(tmp_path: Path) -> None:
+    layout = _layout(tmp_path)
+    path = _write_work_package(layout)
+
+    with pytest.raises(QualificationGateError, match="active gate 'sample' cannot use the experimental tier"):
+        validate_qualification_project(layout, (_gate(path, tier="experimental"),))
+    with pytest.raises(QualificationGateError, match="non-candidate gate 'sample' cannot declare candidate retention fields"):
+        validate_qualification_project(layout, (_gate(path, hypothesis="Unexpected"),))
+
+
 def test_qualification_list_emits_a_stable_json_inventory(capsys: pytest.CaptureFixture[str]) -> None:
     main(["qualification", "list", "--project-root", str(WORKSPACE), "--json"])
 
     payload = json.loads(capsys.readouterr().out)
 
-    assert payload["schema_version"] == 1
-    assert len(payload["gates"]) == 25
+    assert payload["schema_version"] == 2
+    assert len(payload["active_gates"]) == 11
+    assert len(payload["candidate_experiments"]) == 14
+    assert payload["retired_gates"] == []
     assert payload["unclassified_work_packages"] == []
+
+
+def test_qualification_list_labels_candidates_as_non_active_experiments(capsys: pytest.CaptureFixture[str]) -> None:
+    main(["qualification", "list", "--project-root", str(WORKSPACE)])
+
+    output = capsys.readouterr().out
+
+    assert "automationbench-grpo\tcandidate\texperimental" in output
+    assert "summary\tactive=11\tcandidates=14\tretired_gates=0" in output

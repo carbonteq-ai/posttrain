@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import tomllib
+from pathlib import Path
 
 import verifiers.v1 as vf
 from automationbench.schema.world import WorldState
@@ -9,6 +11,16 @@ from automationbench_v1.limited_tools import AutomationBenchLimitedToolset
 from automationbench_v1.scoring import score_world
 from automationbench_v1.taskset import AutomationBenchConfig, AutomationBenchTaskset
 from automationbench_v1.tools import AutomationBenchState, AutomationBenchToolset
+
+PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_distribution_metadata_supports_both_online_rl_python_capsules() -> None:
+    pyproject = tomllib.loads((PACKAGE_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    lock = tomllib.loads((PACKAGE_ROOT / "uv.lock").read_text(encoding="utf-8"))
+
+    assert pyproject["project"]["requires-python"] == ">=3.12,<3.14"
+    assert lock["requires-python"] == ">=3.12, <3.14"
 
 
 def test_simple_taskset_preserves_typed_world_and_assertions() -> None:
