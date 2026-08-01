@@ -241,7 +241,7 @@ def render_workspace_lock(text: str, version: str, publishable: tuple[Path, ...]
         if name_match is None or name_match.group("name") not in names:
             return block
         name = name_match.group("name")
-        if 'source = { editable = ' not in block:
+        if "source = { editable = " not in block:
             raise ValueError(f"uv.lock: staged package {name!r} is not an editable workspace record")
         version_matches = tuple(_LOCK_PACKAGE_VERSION.finditer(block))
         if len(version_matches) != 1:

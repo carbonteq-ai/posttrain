@@ -91,9 +91,7 @@ def test_release_gate_nested_lab_plan_keeps_source_and_control_separate(
     assert planned.framework_source_request is None
     assert planned.framework_distributions == framework_wheels
 
-    snapshot = ImmutableSourceSnapshotter(cache_root=tmp_path / "snapshots").materialize(
-        planned.project_source_request
-    )
+    snapshot = ImmutableSourceSnapshotter(cache_root=tmp_path / "snapshots").materialize(planned.project_source_request)
     source_files = {
         path.relative_to(snapshot.package.root).as_posix()
         for path in snapshot.package.root.rglob("*")

@@ -169,7 +169,9 @@ def test_registry_requires_retention_details_for_candidates(tmp_path: Path) -> N
     assert inventory.candidate_experiments == (candidate,)
     assert {gate.experiment_family for gate in inventory.candidate_experiments} == {"alternative-implementation"}
 
-    with pytest.raises(QualificationGateError, match="must name a promotion, replacement, retirement, or deletion outcome"):
+    with pytest.raises(
+        QualificationGateError, match="must name a promotion, replacement, retirement, or deletion outcome"
+    ):
         validate_qualification_project(
             layout,
             (
@@ -192,7 +194,9 @@ def test_registry_rejects_experimental_entries_marked_active_or_candidate_metada
 
     with pytest.raises(QualificationGateError, match="active gate 'sample' cannot use the experimental tier"):
         validate_qualification_project(layout, (_gate(path, tier="experimental"),))
-    with pytest.raises(QualificationGateError, match="non-candidate gate 'sample' cannot declare candidate retention fields"):
+    with pytest.raises(
+        QualificationGateError, match="non-candidate gate 'sample' cannot declare candidate retention fields"
+    ):
         validate_qualification_project(layout, (_gate(path, hypothesis="Unexpected"),))
 
 

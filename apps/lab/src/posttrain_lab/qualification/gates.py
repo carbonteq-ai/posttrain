@@ -266,8 +266,7 @@ def _validate_gate(gate: QualificationGate, errors: list[str]) -> None:
             if value is None or not value.strip():
                 errors.append(f"candidate {gate.id!r} {field} cannot be empty")
         if gate.replacement_condition is not None and not any(
-            outcome in gate.replacement_condition.casefold()
-            for outcome in ("promote", "replace", "retire", "delete")
+            outcome in gate.replacement_condition.casefold() for outcome in ("promote", "replace", "retire", "delete")
         ):
             errors.append(
                 f"candidate {gate.id!r} replacement_condition must name a promotion, replacement, retirement, or deletion outcome"

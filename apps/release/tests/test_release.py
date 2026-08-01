@@ -30,7 +30,7 @@ def _version_repository(root: Path, version: str = "0.2.5") -> None:
         encoding="utf-8",
     )
     (root / "pyproject.toml").write_text(
-        '''[dependency-groups]
+        """[dependency-groups]
 dev = []
 
 [tool.uv.workspace]
@@ -38,7 +38,7 @@ members = ["packages/*"]
 
 [tool.uv]
 package = false
-''',
+""",
         encoding="utf-8",
     )
     train = root / "packages/train"
@@ -59,7 +59,7 @@ build-backend = "hatchling.build"
         encoding="utf-8",
     )
     (root / "uv.lock").write_text(
-        '''version = 1
+        """version = 1
 revision = 3
 requires-python = ">=3.13"
 
@@ -70,7 +70,7 @@ source = { editable = "packages/train" }
 dependencies = [
     { name = "posttrain-common" },
 ]
-''',
+""",
         encoding="utf-8",
     )
     digest = __import__("hashlib").sha256((root / "uv.lock").read_bytes()).hexdigest()
@@ -255,11 +255,9 @@ def test_staged_workspace_syncs_with_the_projected_lock(tmp_path: Path) -> None:
     source = tmp_path / "source"
     destination = tmp_path / "staged"
     (source / "release").mkdir(parents=True)
-    (source / "release" / "manifest.toml").write_text(
-        'schema_version = 1\nversion = "0.3.0"\n', encoding="utf-8"
-    )
+    (source / "release" / "manifest.toml").write_text('schema_version = 1\nversion = "0.3.0"\n', encoding="utf-8")
     (source / "pyproject.toml").write_text(
-        '''[dependency-groups]
+        """[dependency-groups]
 dev = []
 
 [tool.uv.workspace]
@@ -267,13 +265,13 @@ members = ["packages/*"]
 
 [tool.uv]
 package = false
-''',
+""",
         encoding="utf-8",
     )
     package = source / "packages" / "widget"
     package.mkdir(parents=True)
     (package / "pyproject.toml").write_text(
-        '''[project]
+        """[project]
 name = "posttrain-widget"
 version = "0.0.0"
 
@@ -283,12 +281,12 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/posttrain_widget"]
-''',
+""",
         encoding="utf-8",
     )
     source_package = package / "src" / "posttrain_widget"
     source_package.mkdir(parents=True)
-    (source_package / "__init__.py").write_text('', encoding="utf-8")
+    (source_package / "__init__.py").write_text("", encoding="utf-8")
 
     subprocess.run(["uv", "lock", "--offline"], cwd=source, check=True, capture_output=True, text=True)
     source_lock = (source / "uv.lock").read_bytes()
