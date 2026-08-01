@@ -100,6 +100,10 @@ surface, or broken maintained documentation link remains.
 - [ ] Milestone 6: pass the full quality/release gates plus real packaged data
       and evaluation jobs from the new Lab project before removing migration
       compatibility.
+      Partial progress (2026-08-01): the local quality ladder passes with 882
+      tests passed and 17 skipped; release metadata, locks, import boundaries,
+      formatting, type checks, and documentation links are clean. Real provider
+      execution, reconciliation, and retained live evidence remain open.
 
 ## Surprises & Discoveries
 
@@ -342,6 +346,14 @@ Provider-neutral algorithm scenario policy now belongs to
 Lab. The legacy scenario launcher and evidence validator import that policy but
 remain at their old paths because neither yet has the public execution/evidence
 parity required for deletion.
+
+Milestone 6 partial outcome (2026-08-01): `uv lock --check`, locked workspace
+sync, release consistency validation, full ruff check/format validation,
+pyright, import-linter, and the full pytest suite passed. The suite reported
+882 passed and 17 skipped. The repository audit reports no tracked ignored
+paths and no broken maintained local Markdown links. Its remaining root
+inventory contains only ignored local caches/state and the still-pending root
+`scripts` compatibility harness.
 
 ## Context and Orientation
 
@@ -813,3 +825,8 @@ separates public evidence-view behavior from ai-infra's deployment ownership.
 Revision note (2026-08-01): Algorithm scenario policy and its unit suite move
 to Lab. Direct launch and evidence scripts become explicit compatibility
 wrappers over that owner, pending the real parity gates required for removal.
+
+Revision note (2026-08-01): The plan records the completed local Milestone 6
+quality ladder and distinguishes it from the still-required provider execution,
+reconciliation, and retained-evidence proof. A green test suite alone does not
+close the release gate.
