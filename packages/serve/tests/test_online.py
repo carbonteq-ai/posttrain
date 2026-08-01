@@ -104,6 +104,16 @@ def test_qwen_launch_command_keeps_8gb_text_only_constraints(qwen_screen_binding
     assert mm_limits == {"image": 0, "video": 0}
 
 
+def test_managed_server_uses_the_inference_binding_startup_budget(
+    qwen_screen_binding: InferenceBinding,
+) -> None:
+    request = ServeLaunchRequest(replace(qwen_screen_binding, startup_timeout_seconds=600))
+    explicit = ServeLaunchRequest(qwen_screen_binding, startup_timeout_seconds=30)
+
+    assert request.effective_startup_timeout_seconds == 600
+    assert explicit.effective_startup_timeout_seconds == 30
+
+
 def test_vllm_launches_materialized_peft_adapter_without_treating_it_as_base_weights(
     tmp_path: Path,
     qwen_screen_binding: InferenceBinding,

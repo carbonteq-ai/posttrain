@@ -90,7 +90,7 @@ GSM8K_QUALIFICATION = QualificationPackage(
         recipe=QUALIFICATION_RECIPE,
         bindings={
             "model": CatalogRef("model", "models/qwen3.5-2b@bf16"),
-            "evaluation_inference": CatalogRef("inference", "inference/qwen3.5-2b-vllm-eval@1"),
+            "evaluation_inference": CatalogRef("inference", "inference/qwen3.5-2b-vllm-eval@2"),
             "target": CatalogRef("target", "targets/local-cuda-8gb"),
             "evaluation_plan": CatalogRef("evaluation", "general-smoke-v1"),
             "environment": CatalogRef("environment", "math-gsm8k"),

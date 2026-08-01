@@ -106,6 +106,7 @@ class InferenceBinding:
     sampling: JsonMapping
     target: ExecutionTarget
     purpose: tuple[Purpose, ...]
+    startup_timeout_seconds: float = 180.0
 
     def __post_init__(self) -> None:
         validate_selection_id(self.id, "inference binding id")
@@ -116,6 +117,8 @@ class InferenceBinding:
             raise ContractError("inference renderer cannot be empty")
         if not self.purpose or len(self.purpose) != len(set(self.purpose)):
             raise ContractError("inference purpose must be non-empty and unique")
+        if self.startup_timeout_seconds <= 0:
+            raise ContractError("inference startup timeout must be positive")
         object.__setattr__(self, "engine", immutable_json_mapping(self.engine))
         object.__setattr__(self, "sampling", immutable_json_mapping(self.sampling))
 

@@ -86,7 +86,7 @@ QWEN_SCREEN_VLLM = _selection(
 )
 QWEN_EVAL_VLLM = _selection(
     _REFERENCE_CATALOG,
-    CatalogRef("inference", "inference/qwen3.5-2b-vllm-eval@1"),
+    CatalogRef("inference", "inference/qwen3.5-2b-vllm-eval@2"),
     InferenceBinding,
 )
 QWEN_GRPO_VLLM = _selection(

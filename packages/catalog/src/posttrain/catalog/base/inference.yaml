@@ -125,6 +125,31 @@ inference:
       temperature: 0.0
     target: targets/local-cuda-8gb
     purpose: [eval]
+  inference/qwen3.5-2b-vllm-eval@2:
+    revision: "2"
+    startup_timeout_seconds: 600
+    model: models/qwen3.5-2b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools@1
+    engine:
+      max_model_len: 32768
+      gpu_memory_utilization: 0.75
+      dtype: float16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 4
+      max_num_batched_tokens: 4096
+      kv_cache_dtype: turboquant_k8v4
+      text_only: true
+      skip_mm_profiling: true
+      flash_attn_version: 2
+    sampling:
+      max_tokens: 4096
+      temperature: 0.0
+    target: targets/local-cuda-8gb
+    purpose: [eval]
   inference/qwen3.5-2b-vllm-rollout@1:
     revision: "1"
     model: models/qwen3.5-2b@bf16

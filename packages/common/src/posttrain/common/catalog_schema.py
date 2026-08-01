@@ -101,6 +101,7 @@ class InferenceBindingSchema(CatalogSchema):
     sampling: dict[str, JsonValue]
     target: str | CatalogLinkSchema
     purpose: tuple[Literal["screen", "eval", "rollout", "teacher-score", "smoke", "handoff"], ...]
+    startup_timeout_seconds: float = Field(default=180.0, gt=0)
 
 
 __all__ = [

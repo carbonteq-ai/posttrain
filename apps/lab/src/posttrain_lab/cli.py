@@ -804,7 +804,7 @@ def main(arguments: list[str] | None = None) -> None:
         )
         model = _adapter_variant(qwen, remote, args.peft)
         inference = replace(
-            _selection(catalog, "inference", "inference/qwen3.5-2b-vllm-eval@1", InferenceBinding),
+            _selection(catalog, "inference", "inference/qwen3.5-2b-vllm-eval@2", InferenceBinding),
             id=f"inference/qwen3.5-2b-{args.peft}-vllm-eval@1",
             model=model,
         )
@@ -873,7 +873,7 @@ def main(arguments: list[str] | None = None) -> None:
         )
         model = _quantized_variant(qwen, quantization_plan, remote, output_id)
         inference = replace(
-            _selection(catalog, "inference", "inference/qwen3.5-2b-vllm-eval@1", InferenceBinding),
+            _selection(catalog, "inference", "inference/qwen3.5-2b-vllm-eval@2", InferenceBinding),
             id="inference/qwen3.5-2b-awq-vllm-eval@1",
             model=model,
         )
@@ -910,7 +910,7 @@ def main(arguments: list[str] | None = None) -> None:
         )
         model = _quantized_variant(qwen, quantization_plan, remote, output_id)
         inference = replace(
-            _selection(catalog, "inference", "inference/qwen3.5-2b-vllm-eval@1", InferenceBinding),
+            _selection(catalog, "inference", "inference/qwen3.5-2b-vllm-eval@2", InferenceBinding),
             id="inference/qwen3.5-2b-rtn-vllm-eval@1",
             model=model,
         )
@@ -967,7 +967,7 @@ def main(arguments: list[str] | None = None) -> None:
     else:
         is_rollout = args.job in {"gsm8k-qwen-preference-rollouts", "gsm8k-lfm-preference-rollouts"}
         model = qwen if "qwen" in args.job else lfm
-        inference_id = "inference/qwen3.5-2b-vllm-eval@1" if model is qwen else "inference/lfm2.5-1.2b-vllm-eval@1"
+        inference_id = "inference/qwen3.5-2b-vllm-eval@2" if model is qwen else "inference/lfm2.5-1.2b-vllm-eval@1"
         inference = _selection(catalog, "inference", inference_id, InferenceBinding)
         plan: EvaluationPlan = (
             GSM8K_TRAINING_ROLLOUTS
