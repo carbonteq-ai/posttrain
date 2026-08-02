@@ -10,6 +10,13 @@ The deployed shared and candidate services report post6. `0.31.5.post4` on
 `pypi.lan` is permanently skewed (metadata post4, import post3) and must not be
 installed. Kind images that embed Trackio must be rebuilt after this change.
 
+The working-tree fork now also contains the next run-purge slice, but it is not
+part of the post6 artifact: exact provider run ids can be previewed with
+consumer-aware blockers and applied only with the returned SHA-256 digest. Do
+not update the framework pin or deployed images until this change is committed,
+published, and qualified in both SQLite and Doris paths. The project-boundary
+delete endpoint is also digest-bound in this working tree.
+
 ## Distribution transition
 
 The currently deployed fork builds as `carbonteq-trackio==0.31.5.post1`,

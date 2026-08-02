@@ -1,4 +1,4 @@
-# Complete the 0.3.0 developer-experience program and prove a release
+# Complete the 0.3.0 developer-experience program and deliver safe cross-plane purge
 
 This ExecPlan is a living document. The sections `Progress`, `Surprises &
 Discoveries`, `Decision Log`, and `Outcomes & Retrospective` must be kept up to
@@ -11,34 +11,39 @@ were started. It is deliberately an umbrella plan: it preserves those six
 plans as their detailed design records while imposing one dependency order,
 one definition of done, and one evidence packet for the 0.3.0 release.
 
+Posttrain 0.3.0 has now shipped. Its release qualification and the intentional
+post-release removal of framework history are completed outcomes, not pending
+gates. The remaining release follow-up in this plan is the public, previewed
+cross-plane purge workflow that 0.3.0 explicitly did not claim to provide.
+
 ## Purpose / Big Picture
 
 A framework maintainer must be able to prepare a project, package an isolated
 job, submit it, observe it, reconcile it automatically, and deliberately
 remove the job and its outputs when the work is no longer wanted. The same
 workflow must work for the framework's Lab project without making Lab a hidden
-requirement for normal users. A release is ready only after that workflow has
-passed on real provider jobs and the published components match the exact
-source and image receipts that were tested.
+requirement for normal users. The shipped release proved planning, execution,
+evidence, and cleanup; the follow-up must prove that destructive purge applies
+only an exact, independently reviewed cross-plane plan.
 
 After this plan, the framework root is a virtual workspace, `apps/lab` owns
 the `posttrain-lab` qualification project, and there is no prematurely-created
 `posttrain-integration` project. The name is reserved until an independently
 owned integration application, not a test fixture, has its own jobs, data
-retention policy, and operator. `posttrain project purge` can preview and
-remove a wholly-owned Trackio project. `posttrain run purge` can plan deletion
-of one terminal job, tells the user when its produced artifacts are consumed,
-and only follows the complete downstream closure when the user explicitly
-requests and confirms a cascade.
+retention policy, and operator. `posttrain project purge` can preview every
+resource owned by the opened project across tracking, provider, OCI, and local
+state. `posttrain run purge` can plan deletion of one exact terminal run, tells
+the user when its produced artifacts are consumed, and only follows the
+complete downstream closure when the user explicitly requests a cascade.
+Preview and apply are separate commands so an operator or automation applies
+the exact reviewed plan rather than recomputing scope at deletion time.
 
-The maintainer can demonstrate the completed release by running two fresh,
-immutable 0.3.0 packages on this machine, one through the local provider and
-one through dstack: a SAMPO run over the multi-turn Zapier AutomationBench
-environment, and a DAPO run over GSM8K. They can inspect Trackio and Observatory during
-and after execution, see the reconciler settle the durable state without a
-manual ledger repair, then clean up the exact test resources with previewed
-receipts. This is evidence of a real deployed system, not a collection of
-green unit tests.
+The maintainer demonstrates the follow-up with disposable local and dstack
+fixtures, including producer-to-consumer lineage and an isolated project. They
+can inspect each immutable plan, apply it interactively or with a bound digest,
+resume a deliberately interrupted apply, and retain the machine-scoped receipt
+after every target project/run resource is gone. This is evidence of a safe
+operator workflow, not merely green unit tests.
 
 ## Progress
 
@@ -68,9 +73,8 @@ green unit tests.
       at `82fed847`, published its reproducible wheel to the development index,
       and deployed it through the narrow ai-infra Ansible playbook. Both live
       endpoints report `0.31.5.post6`; an authenticated preview against a
-      nonexistent project returned zero owned resources. The retired
-      `foundation-models` preview remains deliberately separate from release
-      deployment because it identifies real deletion scope.
+      nonexistent project returned zero owned resources. The later deletion of
+      `foundation-models` is recorded in the post-release cleanup outcome below.
 - [x] (2026-08-01) Published the exact merged Trackio post6 wheel and sdist to
       the stable Python index, tagged `carbonteq-v0.31.5.post6`, changed the
       framework to consume the indexed wheel, and regenerated the catalog and
@@ -82,9 +86,11 @@ green unit tests.
       LAN package-index trust; every kind installed Trackio post6 from the
       stable index. Release consistency and focused image/release tests pass.
 - [ ] Implement framework-owned run/project purge planning and execution with
-      artifact-consumer closure, receipts, and a Trackio lifecycle adapter.
-- [ ] Complete the remaining release-critical configuration, lifecycle,
-      packing, and public-service milestones listed below.
+      artifact-consumer closure, machine-scoped plans/receipts, Trackio and OCI
+      lifecycle adapters, provider cleanup actions, and local-state removal.
+- [ ] Complete the remaining broader configuration, lifecycle, packing, and
+      public-service milestones listed below without retroactively making them
+      v0.3.0 release blockers.
 - [x] (2026-08-01) Configuration milestone 2 is complete: one automatically
       loaded machine config owns shared endpoints, provider locators, storage,
       trust, and registered projects; named mode-0600 sources scope Trackio,
@@ -125,9 +131,105 @@ green unit tests.
       dependency compilation. The compiler still ignores ambient index
       variables, runs with `--no-config`, rejects credential-bearing URLs, and
       binds resolved artifact hashes—not credentials—into package identity.
-- [ ] Run fresh provider packaging/training qualification on both providers,
-      verify Trackio, Observatory, controller reconciliation, and cleanup
-      receipts, then run the 0.3.0 publication and release audit.
+- [x] (2026-08-01) Released v0.3.0 from signed commit `df7e85d`. GitHub CI and
+      the clean external consumer passed; the packed Lab data-preparation gate
+      retained its dataset artifact, and the managed Qwen 3.5 2B GSM8K gate
+      reconciled exit 0 with both Verifiers traces and 2/2 successful bounded
+      rollouts. These were the actual release gates; the previously proposed
+      SAMPO/DAPO pair remains broader qualification work rather than retroactive
+      release evidence.
+- [x] (2026-08-02) Completed the operator-authorized one-off post-release
+      history removal: deleted five framework Trackio projects, all 99 terminal
+      dstack Posttrain submissions, all 25 addressable
+      `carbonteq/posttrain-job` manifests, seven stopped local job containers,
+      16 local job images, and about 14 GB of stale local state. Preserved shared
+      base/kind images, reusable machine cache, and the `ambient-agent`,
+      `occupancy-research`, and `ai-infra` projects. The v0.3.0 release notes now
+      state both the cleanup policy and that live release evidence was
+      intentionally removed after verification.
+- [x] (2026-08-02) Reworked the pending purge milestone around the post-release
+      state and the final operator DX: content-addressed preview plans,
+      separate show/apply commands, exact run selection, dependency closure,
+      digest-bound automation, machine-scoped resumable receipts, complete
+      cross-plane inventory, and disposable qualification fixtures.
+- [x] (2026-08-02) Implemented the provider-neutral first slice in
+      `packages/execution`: immutable `PurgeAction`, `PurgePlan`, and
+      `PurgeReceipt` contracts plus the mode-0600 machine-scoped `PurgeStore`.
+      The focused suite passes (4 tests), Ruff and Pyright are clean. Backend
+      adapters and CLI mutation are intentionally still pending.
+- [x] (2026-08-02) Added the optional provider-neutral tracking lifecycle
+      contracts in `packages/tracking` for exact run/project previews and
+      receipts. The execution and tracking package suites pass together (112
+      tests), with package-wide Pyright clean. No backend is treated as purge
+      capable until it implements these contracts.
+- [x] (2026-08-02) Added the first Trackio fork integration slice in sibling
+      repository `/home/hammad/projects/trackio`: exact provider-run preview
+      and apply endpoints, consumer-aware blockers, SHA-256 preview binding,
+      SQLite and Doris storage deletion, and a CAS-retention test. The focused
+      Trackio artifact suite passes (10 tests) and changed fork files pass
+      Ruff. The follow-up was committed in the sibling repository as
+      `946622a` (`feat: add digest-bound run and project purge APIs`), but it
+      remains unpublished; the framework pin and deployed images stay on post6
+      until that commit is published and qualified.
+- [x] (2026-08-02) Added `TrackioLifecycleAdmin` in
+      `packages/tracking-trackio`, capability-detected against the new fork
+      methods and covered by a digest-bound preview/apply adapter test. The
+      adapter maps provider artifacts and receipts into the neutral tracking
+      contracts without importing Trackio into `packages/execution`.
+- [x] (2026-08-02) Validation for this slice is green: framework execution,
+      tracking, and Trackio adapter suites pass (136 tests), framework Pyright
+      is clean for the changed packages, and the sibling Trackio unit suite
+      passes (385 passed, 4 skipped). Both repositories pass `git diff --check`.
+- [x] (2026-08-02) Added the neutral journaled apply engine and strict OCI
+      manifest contracts. `apply_purge_plan` resumes completed actions from
+      the immutable journal, revalidates immediately before mutation, and
+      fails closed on blockers or missing executors. The BuildKit package now
+      has a credential-aware Distribution HTTP adapter with exact digest HEAD
+      and DELETE semantics; focused execution/registry/BuildKit tests and
+      Pyright are clean.
+- [x] (2026-08-02) Added the first closure planner and guarded CLI surface:
+      exact `run purge`, blocked `project purge`, offline `purge show`, and
+      digest/confirmation-gated `purge apply`. CLI previews persist machine
+      scoped plans and never mutate. Missing tracking-lineage and provider
+      adapters are represented as explicit blockers rather than guessed.
+      Focused CLI and execution tests pass (48 tests).
+- [x] (2026-08-02) Added safe local-state and execution-provider action
+      executors. Local deletion is confined to exact run directories below
+      configured state roots and refuses roots/symlinks; provider actions
+      revalidate the stored handle and terminal state before calling the
+      existing provider cleanup contract. Added the Trackio action bridge so
+      each tracking action obtains a fresh consumer-aware, digest-bound
+      provider plan before apply.
+- [x] (2026-08-02) Added project-level inventory planning and made the CLI
+      project preview use it. Empty projects and unmatched runs are explicit
+      plan blockers; project apply remains unavailable until the cross-plane
+      inventory adapters are connected. The planner suite now covers both
+      exact-run closure and project mismatch cases.
+- [x] (2026-08-02) Connected the guarded apply surface to the concrete action
+      executors: execution-provider cleanup, exact OCI Distribution deletion,
+      Trackio digest-bound run deletion, and scoped local-state removal. The
+      CLI still fails closed when the installed Trackio client is post6 and
+      does not expose the new run-purge API; no dependency pin was advanced.
+- [x] (2026-08-02) Extended the Trackio project boundary to return a stable
+      digest-bound preview and require that digest for project apply, while
+      preserving the legacy endpoint shape for older callers. The neutral
+      Trackio adapter now maps project plans/receipts as well as run plans.
+      The sibling focused artifact suite passes (11 tests); publication and
+      framework pin advancement remain intentionally pending.
+- [x] (2026-08-02) Completed the project tracking action path in the neutral
+      planner and Trackio adapter: project plans now delete the project only
+      after all selected run actions, and the server/client bind project apply
+      to the preview digest. Final focused validation for the changed surfaces
+      is green (191 framework tests; 386 Trackio unit tests, 4 skipped).
+- [x] (2026-08-02) Added adapter coverage for digest-bound Trackio project
+      deletion, including logical/storage byte mapping and receipt identity.
+      The changed framework suite is now 192 focused tests; Trackio remains
+      green at 386 unit tests with 4 known hardware skips.
+- [x] (2026-08-02) Added a disposable three-run producer→consumer→leaf
+      qualification fixture for the neutral planner and journaled apply. It
+      verifies leaf-to-root tracking order, provider/registry/tracking/local
+      plane sequencing, an interrupted registry action, and resumable retry
+      without widening the immutable plan.
 - [ ] Complete the non-blocking authoring and release-automation follow-up
       milestones before declaring the entire DX program, rather than merely
       the release, complete.
@@ -178,9 +280,10 @@ green unit tests.
 
 - Observation: the retired project id survived in two places that can still
   write to the live tracking server, not only in inert fixtures.
-  Evidence: `scripts/qualification/run_algorithm_scenario.py` built its
-  `RunSpec` and collected remote evidence under `foundation-models`, and
-  `scripts/qualification/validate_algorithm_run.py` defaulted its
+  Evidence: the former Lab qualification launcher
+  (`posttrain_lab.qualification.launcher`) built its `RunSpec` and collected
+  remote evidence under `foundation-models`, and
+  `posttrain_lab.qualification.evidence` defaulted its
   `--trackio-project` to the same id. Either would have recreated the project
   that this plan intends to purge. Both now name `posttrain-lab`. Several
   framework package tests still use `foundation-models` as an arbitrary
@@ -256,6 +359,26 @@ green unit tests.
   removed eleven run rows but left the `foundation-models` project and its
   artifact storage eligible for retention.
 
+- Observation: exact run purge needs a provider-owned second phase after the
+  framework computes closure. Trackio's new slice blocks an unselected
+  consumer, deletes only versions proven unlinked, and rescans retained
+  manifests before unlinking CAS blobs. SQLite and Doris implement the same
+  logical result, but provider transaction and restart qualification remains
+  open.
+
+- Observation: exposing the CLI before all adapters exist is only safe when the
+  incomplete inventory is a hard blocker. The first CLI slice therefore makes
+  `run purge` and `project purge` reviewable, but never presents an apply path
+  for a plan whose tracking lineage or provider state is unknown. This keeps
+  the command useful for diagnosing missing prerequisites without recreating
+  the one-off cleanup risk.
+
+- Observation: the framework can compose all four action executors without
+  advancing its Trackio pin, but the installed post6 RemoteClient cannot
+  perform the run-purge call. The adapter's capability check turns that drift
+  into a named tracking blocker instead of silently falling back to
+  `delete_run`.
+
 - Observation: the current Trackio project deletion implementation can only
   remove server-owned metadata and local artifact/media bytes. It cannot claim
   to delete a replica independently owned by an object store or a dataset
@@ -277,10 +400,32 @@ green unit tests.
   Evidence: `/tmp/trackio-working-tree-20260801-0601.tgz` has SHA-256
   `5d4f38771b99e306861cace5cf491657aa8874a97d76c3bb2e3858c44ad59417`.
 
-- Observation: a fully passing local framework build is not release evidence
-  after old provider, registry, and Trackio records have been removed.
-  Evidence: the prior terminal jobs/manifests were intentionally cleaned, so
-  the two required managed jobs must be rerun from the release-staged tree.
+- Observation: a fully passing local framework build was not sufficient release
+  evidence after old provider, registry, and Trackio records were removed.
+  Evidence: v0.3.0 therefore ran fresh packed provider qualifications before
+  release. Those accepted records were later intentionally removed by the
+  documented post-release cleanup and must not be presented as live evidence.
+
+- Observation: the successful post-release cleanup required a coordinated
+  operator procedure because v0.3.0 has no command that can preview the whole
+  deletion set before touching any plane.
+  Evidence: five Trackio projects, 99 terminal dstack submissions, 25 OCI
+  manifests, local containers/images, and about 14 GB of state were removed by
+  plane-specific operations. `posttrain run cleanup` could not represent that
+  scope because it intentionally preserves evidence.
+
+- Observation: storing a purge receipt below
+  `.posttrain/state/executions/<run-id>` would destroy the audit record during
+  the operation it records; project purge can remove the enclosing project
+  state as well.
+  Resolution: immutable purge plans, journals, and receipts live in the
+  machine-scoped Posttrain state root, outside every project and run subtree.
+
+- Observation: a plan id derived from the full semantic digest gives repeated
+  previews a stable handoff without creating unreviewable plan clutter.
+  Evidence: two plans with identical actions and different creation timestamps
+  produce the same `purge-<digest-prefix>` id and digest; the focused purge
+  tests verify that the persisted plan is reused.
 
 ## Decision Log
 
@@ -298,29 +443,84 @@ green unit tests.
   Date/Author: 2026-08-01 / framework maintainer.
 
 - Decision: every destructive command is plan-first. A non-mutating preview is
-  the default; mutation requires `--apply`, and an interactive terminal also
-  requires an explicit confirmation. Automation uses `--apply --yes` only
-  after it persists the reviewed plan digest.
-  Rationale: a textual prompt alone does not work in automation and a bare
-  `--force` conceals what will be lost.
-  Date/Author: 2026-08-01 / framework maintainer.
+  the only behavior of `run purge` and `project purge`. Applying is a separate
+  `posttrain purge apply PURGE_ID` operation. An interactive apply requires a
+  confirmation; non-interactive apply additionally requires
+  `--expect-digest sha256:... --yes`. There is no `--force` and no combined
+  preview/apply shortcut.
+  Rationale: separating selection from mutation makes the reviewed artifact a
+  first-class handoff, prevents apply-time flag drift, and gives automation a
+  stable compare-and-apply contract.
+  Date/Author: 2026-08-02 / framework maintainer.
 
 - Decision: a consumed output blocks a run purge by default. `--cascade`
   calculates the complete downstream consumer closure in the same project,
-  shows it as a graph, and may run only when every selected run is terminal,
-  reconciled, and has completed provider cleanup. Cross-project consumers,
-  unknown tracking providers, live jobs, or missing lineage are hard blocks in
-  0.3.0.
+  shows it as a graph, and may run only when every selected run is terminal and
+  reconciled. Provider cleanup is part of the purge plan rather than a
+  prerequisite, so no provider record disappears before the operator has seen
+  the cross-plane preview. Cross-project consumers, unknown tracking providers,
+  live jobs, or missing lineage are hard blocks in the first release.
   Rationale: deleting a producer while leaving consumers creates false
   provenance; silently reaching into another project is more dangerous.
   Date/Author: 2026-08-01 / framework maintainer.
 
 - Decision: a project purge is allowed only for an isolated Trackio project
-  after a server-authenticated preview. It does not synthesize a cross-project
-  cascade and it does not promise deletion of remote object-store replicas.
-  Rationale: project-level ownership is the only reliable storage boundary
-  available today.
-  Date/Author: 2026-08-01 / framework maintainer.
+  opened through the normal project layout and after server-authenticated and
+  machine-state discovery. The standard command takes no arbitrary project id;
+  `--project-root` selects the project as it does elsewhere in the CLI. A sharp
+  `--tracking-project NAME --scope tracking-only` escape hatch exists only for
+  orphaned legacy Trackio projects, is labeled incomplete cross-plane coverage,
+  and never claims provider/OCI/local deletion. Project purge does not
+  synthesize a cross-project cascade and does not promise deletion of
+  independently owned object-store replicas.
+  Rationale: the opened project is the reliable cross-plane ownership boundary;
+  making a Trackio name look equivalent would recreate the ambiguity this
+  feature is intended to remove.
+  Date/Author: 2026-08-02 / framework maintainer.
+
+- Decision: exact destructive selectors are mandatory. Run purge accepts one
+  full canonical run id and never `--last` or a prefix. A plan receives an
+  opaque, content-addressed `purge-<digest-prefix>` id and a full SHA-256 digest
+  over canonical action identities; an unchanged repeated preview reuses that
+  plan instead of creating clutter. Apply addresses the plan id, not the
+  original run/project selector.
+  Rationale: convenience selectors are appropriate for reads but unsafe when a
+  newer run can appear between review and deletion.
+  Date/Author: 2026-08-02 / framework maintainer.
+
+- Decision: the purge journal is machine-owned and survives the target. Store
+  `plan.json`, append-only `journal.jsonl`, and `receipt.json` below the same
+  resolved machine state root that owns admission, under `purges/<purge-id>/`.
+  Rationale: run-local and project-local receipts cannot prove deletion after
+  their parent state has been removed, while a machine-scoped receipt can also
+  resume a partial project purge.
+  Date/Author: 2026-08-02 / framework maintainer.
+
+- Decision: apply order is provider cleanup, exact unshared OCI manifest
+  deletion, Trackio evidence/artifact deletion from leaf consumers toward the
+  root producer, and local execution/workspace state last. Every action is
+  revalidated immediately before mutation and journaled immediately after it.
+  Rationale: this keeps durable evidence available while disposable execution
+  and image resources are removed, and preserves the machine-scoped audit trail
+  even after local control state is gone.
+  Date/Author: 2026-08-02 / framework maintainer.
+
+- Decision: land the plan store before any backend adapter or CLI mutation path.
+  Rationale: the destructive boundary and recovery record must be testable with
+  fakes before Trackio, OCI, dstack, Docker, and confirmation behavior are
+  composed around it.
+  Date/Author: 2026-08-02 / framework maintainer.
+
+- Decision: keep exact run purge implementation split across the neutral
+  framework and the Trackio fork. The framework owns selection, dependency
+  closure, plan identity, and cross-plane ordering; Trackio owns its
+  provider-scoped storage transaction and CAS retention. The new fork slice is
+  an unreleased post6 working-tree change until its immutable commit and
+  SQLite/Doris qualification are complete.
+  Rationale: importing Trackio into `posttrain.execution` would make the
+  framework contract provider-specific and would tempt callers to mistake a
+  provider preview for a complete purge plan.
+  Date/Author: 2026-08-02 / framework maintainer.
 
 - Decision: `carbonteq-trackio` must be released as `0.31.5.post6`, not
   overwritten as `post5`, before deploying the deletion API.
@@ -374,16 +574,26 @@ green unit tests.
 
 ## Outcomes & Retrospective
 
-No release outcome exists yet. At the start of this plan the framework has
-strong local proofs and a partially completed 0.3.0 tree, but no fresh managed
-provider evidence, no deployed Trackio project-purge API, no framework cascade
-purge, and no final release receipt. Update this section after each release
-gate and again after the remaining DX program is closed.
+Posttrain 0.3.0 shipped and was qualified with real packed provider work. Its
+framework-only live history was then deliberately removed after acceptance;
+the public release notes accurately warn that the retained release evidence is
+no longer available in Trackio. Shared runtime supply, reusable machine cache,
+and unrelated application/infrastructure projects were preserved.
+
+The first implementation slice now provides the immutable plan and receipt
+substrate, with focused tests and static checks green. The cleanup achieved the
+operational outcome but exposed the remaining product
+gap: it was a reviewed one-off procedure, not a reusable Posttrain command.
+`posttrain run cleanup` remains correctly evidence-preserving. The next release
+must deliver the plan/apply purge workflow below before maintainers can perform
+the same cross-plane removal through the normal product surface. The wider
+SAMPO/DAPO qualification and non-blocking authoring work remain open and are not
+part of the already completed 0.3.0 release claim.
 
 ## Context and Orientation
 
-The primary repository is `/home/hammad/projects/rl-0.3.0` on branch
-`codex/dx-0.3.0`. It is a `uv` workspace. `apps/cli` renders the user-facing
+The primary repository is `/home/hammad/projects/rl` on `main`. It is a `uv`
+workspace. `apps/cli` renders the user-facing
 `posttrain` command. `packages/execution` owns the durable provider submission
 record, reconciliation, and non-destructive cleanup. `packages/tracking`
 contains provider-neutral tracking contracts; `packages/tracking-trackio`
@@ -462,9 +672,23 @@ Create `packages/execution/src/posttrain/execution/purge.py`. It must define
 immutable plan/receipt types rather than hiding decisions in a CLI callback:
 
     PurgeMode = Literal["run", "project"]
-    PurgePlan(run_ids, root_run_id, tracking_actions, provider_actions,
-              registry_actions, local_actions, blockers, digest, created_at)
-    PurgeReceipt(plan_digest, completed_actions, skipped_actions, completed_at)
+    PurgePlan(purge_id, mode, project_id, run_ids, root_run_id,
+              dependency_edges, tracking_actions, provider_actions,
+              registry_actions, local_actions, warnings, blockers,
+              digest, created_at)
+    PurgeReceipt(purge_id, plan_digest, completed_actions, skipped_actions,
+                 failed_action, completed_at)
+
+Add a machine-scoped `PurgeStore` rooted at the resolved admission state root's
+`purges/` child. Preview writes mode-0600
+`purges/<purge-id>/plan.json`; apply appends one fsync'd event per attempted
+action to `journal.jsonl` and atomically writes `receipt.json` only after the
+whole plan is complete. The plan digest covers canonical resource identities,
+exact local target paths, dependency edges, action order, and preconditions,
+including warnings and blockers, but excludes display labels, timestamps, and
+secrets. The purge id is derived from a collision-checked digest prefix, so the
+same discovery snapshot resolves to the same persisted plan.
+Neither run state nor project state owns this store.
 
 Add a small provider-neutral lifecycle protocol in `packages/tracking` for
 listing a run's input/output artifacts, finding consumers, planning an exact
@@ -476,47 +700,119 @@ a server-side Trackio run-purge primitive if the current project-only API
 cannot atomically delete the selected output versions and links. Do not model
 this as `delete_run` plus client-side guesses.
 
-The planner reads `ExecutionSubmissionStore`, requires terminal reconciled
-records and existing `cleanup.json` receipts, verifies that every selected
-run's evidence source is Trackio and in the same `project_id`, derives all
-produced artifact versions, and recursively discovers consumers. The default
-plan has a blocker for every consumer. With `cascade=True`, it includes every
-downstream consumer in the same project and validates the whole closure before
-creating actions. Any missing run, untracked producer, external consumer,
-unavailable Trackio lifecycle service, uncleaned provider job, or shared OCI
-image/manifests with another retained submission remains a blocker.
+This requires a maintained-fork change in `/home/hammad/projects/trackio`.
+Implement authenticated run-purge preview/apply for SQLite and Doris, update
+the fork's root `CARBONTEQ_FORK.md` and this repository's
+`docs/tooling/trackio/README.md`, run both storage conformance suites, commit and
+push the fork, publish a new immutable `carbonteq-trackio` version, and only then
+update `packages/tracking-trackio/pyproject.toml` and `uv.lock`. Project delete
+post6 is already deployed; do not rewrite or republish that version.
 
-Apply actions in a durable journaled order: provider workspace is already
-cleaned; delete leaf consumer artifacts/run evidence first; continue toward the
-root producer; delete exact unused registry manifests and local run state only
-after Trackio proves the corresponding evidence is gone. A completed receipt
-is idempotent. An incomplete receipt resumes only the actions whose precondition
-still holds and never widens the closure.
+Add a provider-neutral `RegistryLifecycleAdmin` contract for checking and
+deleting one digest-pinned OCI manifest. Put the concrete OCI Distribution
+adapter with the other image/registry integration, not in the CLI callback. It
+must parse only `repository@sha256:...` references, use the machine trust
+bundle and Docker credential-helper/config resolution without writing secrets,
+HEAD the exact digest during preview, and DELETE that same digest during apply.
+Never accept tags or a repository prefix as a deletion target. Shared framework
+base/kind images are structurally excluded; only actual-job images proven by a
+submission/package receipt are eligible.
+
+The planner reads every registered project control store plus the selected
+`ExecutionSubmissionStore`, requires terminal reconciled records, verifies that
+every selected run's recorded evidence source is Trackio and in the same
+project, derives produced artifact versions, and recursively discovers
+consumers. Existing `cleanup.json` is an already-completed provider action, not
+a prerequisite. Otherwise the plan includes the provider's exact terminal
+cleanup action so the preview precedes provider mutation. The default plan has
+a blocker for every consumer. With `cascade=True`, it includes every downstream
+consumer in the same project and validates the whole closure before creating
+actions. Any missing control record, untracked producer, external consumer,
+unavailable lifecycle service, live or unreconciled job, incomplete lineage,
+tag-only image, or OCI digest shared by a retained submission remains a
+blocker.
+
+Project planning uses the opened project by default and inventories all of its
+known submissions, tracking runs, provider handles, actual-job image digests,
+workspaces, and control state. It renders unmatched resources explicitly. An
+unmatched Trackio run is a hard blocker on normal cross-plane project purge
+because provider and OCI absence cannot be inferred from missing local state.
+The separately named `tracking-only` legacy scope may delete an isolated
+Trackio project after its server preview, but its plan and receipt must say that
+provider, OCI, and local coverage were not attempted.
+
+Apply actions in a durable journaled order. Revalidate the complete dependency
+graph and every exact identity first. Release terminal provider records and
+workspaces, then delete exact unshared actual-job manifests, then delete
+Trackio artifact versions and run evidence from leaf consumers toward the root
+producer, and remove local execution/workspace state last. Journal each success
+before continuing. A completed receipt is idempotent. Re-applying an incomplete
+plan resumes only actions recorded in that immutable plan whose preconditions
+still hold; it never widens the closure or silently substitutes a newer
+resource.
 
 ### Milestone 4: expose a humane command surface
 
-In `apps/cli/src/posttrain_cli/commands/run_cmd.py`, add:
+In `apps/cli/src/posttrain_cli/commands/run_cmd.py`,
+`apps/cli/src/posttrain_cli/commands/project_cmd.py`, and a small presentation
+module for the machine-scoped purge store, add:
 
     posttrain run purge RUN_ID
     posttrain run purge RUN_ID --cascade
-    posttrain run purge RUN_ID --cascade --apply --yes
-    posttrain project purge --tracking-project posttrain-lab
+    posttrain project purge
+    posttrain purge show PURGE_ID
+    posttrain purge apply PURGE_ID
+    posttrain purge apply PURGE_ID --expect-digest sha256:... --yes
 
-The first two commands are dry-run plans. They render a compact graph with
-canonical run ids, display names, artifact name/version, resource type, and
-the exact reason for every blocker. `--apply` persists the plan first and
-requires a terminal confirmation unless `--yes` is supplied; `--yes` is
-rejected unless `--apply` is present. JSON mode returns a stable error envelope
-and includes the plan digest, action count, blockers, and receipt path. The
-existing `posttrain run cleanup` command retains its meaning and never deletes
-Trackio evidence.
+The run and project commands only discover, validate, persist, and render a
+plan. They never mutate. The run selector must be one full canonical id; purge
+does not support `--last` or prefixes. Preview renders a compact dependency
+graph followed by a per-plane summary: provider records/workspaces, OCI
+repository and digest, Trackio runs/artifact versions/logical and storage bytes,
+and local paths/logical bytes. It prints warnings separately from hard blockers,
+then the purge id, plan digest, plan path, and the exact `purge apply` command.
+Blocked plans remain reviewable through `purge show`, but `purge apply` rejects
+them before adapter contact.
 
-Add `posttrain project purge` as an explicit project-level command. It calls
-the authenticated Trackio preview first, renders run/artifact/version/byte
-counts, refuses an unknown or non-isolated project, and only calls delete after
-the same confirmation protocol. It does not purge the framework's local state
-until the Trackio receipt is durable. This command is the route used for the
-retired `foundation-models` project; do not hand-write HTTP or SQL deletes.
+`posttrain purge show` can be used for review or handoff without contacting
+providers. `posttrain purge apply` loads the immutable plan, reconnects to each
+adapter, and revalidates before mutation. On a terminal it prompts with the
+purge id, digest prefix, run count, and destructive planes, then requires the
+operator to type the complete purge id rather than answer a generic yes/no
+question. With `--yes`,
+`--expect-digest` is mandatory and must match the complete digest; without a
+terminal and without both automation flags, apply fails closed. There is no
+`--force`, no selector flags on apply, and no one-command preview/apply shortcut.
+JSON mode returns stable plan, blocker, journal, partial-failure, and receipt
+envelopes. The existing `posttrain run cleanup` command retains its meaning and
+never deletes Trackio evidence.
+
+The default human preview should be recognizable at a glance:
+
+    Purge preview — no changes made
+    Target: run 01... (project: disposable-purge-fixture)
+    Closure: 3 runs, 2 artifact-consumer edges
+    Provider: 3 terminal records/workspaces
+    OCI: 3 unshared actual-job manifests
+    Trackio: 3 runs, 4 artifact versions, 128 MiB logical
+    Local: 3 execution records, 96 MiB logical
+    Blockers: none
+    Plan: purge-a1b2c3d4e5f60718
+    Digest: sha256:a1b2...
+    Next: posttrain purge apply purge-a1b2c3d4e5f60718
+
+A blocked preview replaces `Next` with the exact remediation, such as rerunning
+with `--cascade` or reconciling a named run. It never prints an apply command for
+a plan that cannot be applied.
+
+`posttrain project purge` opens the current `--project-root`, calls authenticated
+Trackio and OCI previews, and scans registered project/provider control state.
+It refuses an unknown project, an incomplete inventory, cross-project consumers,
+or any live/unreconciled run. For orphaned legacy evidence, the explicit
+`posttrain project purge --tracking-project NAME --scope tracking-only` form
+creates a clearly limited plan after the Trackio server preview. It is not
+described as cross-plane success. Do not hand-write HTTP, SQL, registry, or
+filesystem deletes in the CLI.
 
 ### Milestone 5: complete release-critical configuration and controller work
 
@@ -576,64 +872,45 @@ build the framework release tree against that wheel, and prove a clean consumer
 install from the internal index. Do not put credentials in lockfiles, staged
 trees, job manifests, or evidence logs.
 
-### Milestone 8: execute and inspect two fresh managed qualifications
+### Milestone 8: qualify purge with disposable cross-plane fixtures
 
-The `automationbench-v1` environment source names this repository at
-`environments/automationbench_v1`, where the native Verifiers v1 environment
-lives. Before qualification, advance its immutable source pin to the pushed
-commit containing the indexed AutomationBench dependency and confirm that pin
-resolves. Do not weaken the wheel builder's distribution-name or dependency
-hash checks, and do not reintroduce a path dependency to route around the
-published source.
+Create a temporary project through the public `posttrain init` path and run
+small, deterministic jobs rather than expensive training. The fixture must
+produce three reconciled runs with producer → consumer → consumer artifact
+lineage and distinct digest-pinned actual-job images. Exercise at least one
+local provider record and one dstack record so both cleanup adapters appear in
+the preview. Use a dedicated Trackio project and OCI repository namespace that
+are unmistakably disposable; never reuse `posttrain-lab`, release evidence, or
+an application project.
 
-Prove the fix by building the environment wheel from the immutable source
-alone, with the framework workspace lock no longer containing either
-`automationbench-v1` or `carbonteq-automation-bench`.
+First preview the producer without cascade and verify the direct consumer is a
+blocker. Preview with cascade and verify the complete three-run closure, exact
+leaf-to-root Trackio order, provider actions, three eligible OCI digests, and
+local state. Apply the plan interactively. For a second fixture, inject a
+failure after one provider or registry action, then re-run the same purge id and
+prove it resumes without repeating or widening completed work. In JSON mode,
+prove missing and mismatched `--expect-digest` values fail before adapter
+contact.
 
-From the release-staged 0.3.0 tree, create isolated Lab package plans for the
-`automationbench-sampo` and `verl-dapo` gates. Before submission, record
-the immutable framework/Trackio commit, staged wheel SHA-256 values, OCI image
-digests, selected provider machine binding, and Trackio project `posttrain-lab`.
-Submit the SAMPO gate through the local provider and the DAPO gate through
-dstack, both through the normal CLI, not ad hoc provider commands. Both run on
-this machine's single RTX 4090, so a difference between the two runs is a
-provider difference and not a hardware difference.
+Create another isolated project and preview `posttrain project purge`. Verify
+that an injected unmatched Trackio run blocks normal cross-plane apply. Remove
+the mismatch through the fixture setup, generate a new plan, apply it, and
+verify the Trackio project, provider records, job manifests, workspaces, and
+project-local execution state are absent while the machine-scoped receipt
+remains. Separately test the `tracking-only` legacy scope against a disposable
+Trackio project and verify its receipt explicitly reports the unattempted
+planes.
 
-Both gates are bounded two-update capsules, so the acceptance signal is
-evidence completeness rather than model quality. The SAMPO run must retain
-per-step advantages and complete multi-turn tool-call trajectories with their
-exact resolved AutomationBench tasks; the DAPO run must retain its bounded
-reward-constant group replacement decisions and two synchronized optimizer
-steps. After both succeed, promote their registry entries from `candidate` to
-`active` and record the promoting evidence, since their replacement conditions
-require live qualification before promotion.
-
-Use the controller/daemon and `posttrain run show` to observe both executions.
-Trackio must contain canonical configurations, lifecycle metrics, artifacts,
-and traces where applicable; Observatory must read those persisted records.
-Capture provider state, Trackio run id, image digest, logs, reconciliation
-result, artifact set, completion status, elapsed time, and cleanup receipt in
-the release evidence directory. A job that fails, is cancelled, or does not
-publish the required artifacts is a failed release gate, not a reason to reuse
-old evidence.
-
-After success, use dry-run `posttrain run purge` on one job and demonstrate
-its no-consumer path. Create a tiny dedicated lineage fixture with producer →
-consumer → consumer, demonstrate the default blocker and explicit cascade
-preview/apply, then destroy only that fixture. Finally preview and, after the
-user confirms the rendered byte/count set, delete the now-retired
-`foundation-models` Trackio project through `posttrain project purge`. Verify
-that `posttrain-lab` still exists and has the two retained release runs.
-
-### Milestone 9: release decision and remaining DX completion
+### Milestone 9: follow-up release decision and remaining DX completion
 
 Run the complete source test suite, formatting, static typing, package import
 boundaries, release-manifest checker, staged build, clean wheel consumer,
-repository ownership checker, Lab list, and the two managed-job evidence audit.
-Create the 0.3.0 release PR only when every release blocker is proven. After
-merge, re-verify source commit, published wheels, OCI digests, deployed
-Trackio/Observatory versions, and live project views before tagging and
-publishing release notes.
+repository ownership checker, and the disposable purge evidence audit. Publish
+the Trackio fork change before updating its exact framework pin. Build/push any
+changed framework image once, record its digest, and after merge tag the
+follow-up release without rebuilding or repushing. Release notes must contrast
+evidence-preserving `run cleanup` with destructive plan/apply purge and link the
+operator documentation.
 
 Then finish the deliberately non-blocking pieces of public authoring:
 registration-extension API, deterministic overlay explain/artifact pin,
@@ -647,7 +924,7 @@ All commands below are examples of the authoritative path; update exact
 versions/digests after the associated plan changes them. Run them from the
 named repository and retain redacted output under the release evidence root.
 
-    cd /home/hammad/projects/rl-0.3.0
+    cd /home/hammad/projects/rl
     uv run pytest apps/lab/tests -q
     uv run posttrain --project-root apps/lab project show
     uv run --package posttrain-lab posttrain-lab qualification list --project-root apps/lab
@@ -676,52 +953,55 @@ Use a later narrow control-role playbook when it exists; until then, record the
 full-site effect and health checks. Never echo Ansible vault values, Trackio
 write tokens, or internal index passwords.
 
-    cd /home/hammad/projects/rl-0.3.0
-    uv run posttrain project purge --tracking-project foundation-models
-    # expected: dry-run only, counts/bytes and a plan digest, no mutation
-    uv run posttrain project purge --tracking-project foundation-models --apply
-    # expected: explicit confirmation prompt before the authenticated delete
+The historical `foundation-models` project was removed by the approved
+post-release procedure before this command existed. Use disposable fixtures for
+implementation acceptance; do not recreate or target released framework
+history merely to demonstrate deletion.
 
-The two release gates are launched from the release-staged tree as:
+    cd /home/hammad/projects/rl
+    uv run posttrain --project-root /tmp/posttrain-purge-fixture project purge
+    # expected: dry-run only; per-plane counts/bytes, purge id, digest, no mutation
+    uv run posttrain purge show <purge-id>
+    # expected: the same immutable actions without provider contact
+    uv run posttrain purge apply <purge-id>
+    # expected: terminal confirmation naming the digest and destructive planes
 
-    uv run posttrain --project-root apps/lab job pack \
-      automationbench_sampo_qualification.yaml --job sampo \
-      --local --framework-wheelhouse /tmp/posttrain-wheels
-    uv run posttrain --project-root apps/lab job run \
-      automationbench_sampo_qualification.yaml --job sampo --provider local
+For non-interactive acceptance, extract the digest from JSON preview output and
+bind apply to it explicitly:
 
-    uv run posttrain --project-root apps/lab job pack \
-      gsm8k_verl_dapo_2_qualification.yaml --job dapo \
-      --framework-wheelhouse /tmp/posttrain-wheels
-    uv run posttrain --project-root apps/lab job run \
-      gsm8k_verl_dapo_2_qualification.yaml --job dapo --provider dstack
+    uv run posttrain --json --project-root /tmp/posttrain-purge-fixture project purge
+    uv run posttrain --json purge apply <purge-id> \
+      --expect-digest sha256:<complete-digest> --yes
 
-Exact flag names follow the packing and lifecycle plans once their public
-service milestones land; the contract is that both launches go through the
-public path with an already-materialized immutable package.
+The second command must reject a missing or mismatched digest before contacting
+any adapter.
 
     uv run posttrain run purge <producer-run>
     # expected: blocker naming the direct consumer run and artifact version
     uv run posttrain run purge <producer-run> --cascade
-    # expected: leaf-to-root action order and no mutation
-    uv run posttrain run purge <producer-run> --cascade --apply --yes
-    # expected: durable receipt and no remaining Trackio/registry/local action
+    # expected: provider -> OCI -> leaf-to-root Trackio -> local action order, no mutation
+    uv run posttrain purge apply <purge-id> \
+      --expect-digest sha256:<complete-digest> --yes
+    # expected: machine-scoped durable receipt and no remaining action
 
 ## Validation and Acceptance
 
-The release is ready only when all release-blocking statements below have
-direct, dated evidence:
+The purge follow-up is ready only when all statements below have direct, dated
+evidence:
 
 - The checked-in Lab project id is `posttrain-lab`; its 25 work packages open,
   its test suite passes, and no maintained Lab surface retains the old id.
-- Trackio post6 is immutable, published, deployed, healthy, and its authenticated
-  preview/delete API works against the live Doris-backed server without leaking
-  credentials. The published artifact contains the same source commit/digest
-  that Ansible deploys.
-- The framework commands support no-op preview, blocked consumer graph,
-  explicit same-project cascade, idempotent receipt, and isolated project purge.
-  They reject cross-project, nonterminal, unreconciled, unknown-lineage, and
-  uncleaned-provider deletion attempts.
+- The new Trackio fork release is immutable, published, deployed, healthy, and
+  its authenticated run/project preview and purge APIs work against the live
+  Doris-backed server without leaking credentials. The published artifact
+  contains the same source commit/digest that Ansible deploys; post6 remains
+  unchanged as historical project-delete support.
+- The framework commands support no-op preview, immutable plan review, blocked
+  consumer graph, explicit same-project cascade, digest-bound apply, resumable
+  journaling, idempotent receipt, and isolated project purge. They reject
+  cross-project, nonterminal, unreconciled, unknown-lineage, tag-only/shared OCI,
+  incomplete-inventory, selector-prefix, and non-interactive unbound deletion
+  attempts.
 - A systemd/Ansible-managed controller uses project-owned config, restarts
   safely, and reconciles provider completion/cancellation without manual ledger
   editing.
@@ -730,13 +1010,11 @@ direct, dated evidence:
 - The `automationbench-v1` environment wheel builds from an immutable pushed
   commit and subdirectory, the framework workspace lock contains neither it nor
   `carbonteq-automation-bench`, and the distribution-name check is unchanged.
-- Two fresh, release-staged Lab provider jobs succeed with exact images,
-  Trackio evidence, Observatory visibility, reconciliation, and retained
-  artifacts. Their records are distinct from the lineage cleanup fixture. One
-  ran through the local provider and one through dstack; the SAMPO run retains
-  per-step advantages and complete multi-turn trajectories, and the DAPO run
-  retains its group-replacement decisions and two optimizer steps. Both gates
-  are promoted from `candidate` to `active` on that evidence.
+- Disposable fixtures prove local and dstack provider actions, a three-run
+  consumer closure, interactive and digest-bound apply, partial-failure resume,
+  unmatched-resource blocking, complete project purge, and the explicitly
+  limited tracking-only legacy scope. Their machine-scoped receipts remain
+  readable after all target state is gone.
 - Release commands prove generated metadata, dependency locks, wheels, image
   receipts, indexed dependencies, and the merged release source agree before
   tagging. The final evidence packet includes the commands, versions, digests,
@@ -748,43 +1026,44 @@ document's Progress/Outcomes sections are updated accordingly.
 
 ## Idempotence and Recovery
 
-Every preview is safe to repeat. Every apply operation writes a plan with a
-digest before changing a remote resource, and writes a receipt after each
-action. Re-running an applied plan reads the receipt, verifies the same
-resource identities, and reports already-absent actions rather than deleting a
-newer object. A failed plan keeps the evidence necessary to resume; it never
-widens to a new dependency graph.
+Every preview is safe to repeat and writes an immutable machine-scoped plan.
+Apply never recomputes selection from run/project flags. It loads one purge id,
+checks the expected digest when supplied, revalidates all identities and closure,
+and appends a journal event after every action. Re-running apply reads the
+journal/receipt, verifies the same resource identities, and reports
+already-completed or already-absent actions rather than deleting a newer object.
+A failed plan keeps the evidence necessary to resume; it never widens to a new
+dependency graph.
 
 Before any Trackio repair, project purge, registry deletion, or provider job
-cleanup, archive exact inputs and obtain an authenticated preview. Never use
-bulk shell deletion, raw SQL, or a wildcard registry command. The current
-Trackio working-tree backup is retained until post6 has been published,
-deployed, and verified; once the release evidence includes the new immutable
-commit/digest, move the backup to the normal recovery retention location or
-remove it through the approved cleanup path.
+cleanup, obtain an authenticated preview. Never use bulk shell deletion, raw
+SQL, a tag selector, or a wildcard registry command. Do not archive the data a
+user explicitly asked to erase unless a separately declared retention policy
+requires it; the purge plan itself retains identities and counts, not private
+payloads, model bytes, prompts, metrics, or credentials.
 
-If a project purge fails after Trackio metadata deletion but before local
-Posttrain state cleanup, retain the Trackio receipt and rerun the same plan;
-the local portion can safely complete. If an external artifact replica exists,
-report it as an independently owned retention item rather than claiming
-success. If an action detects changed source/image/digest or a new consumer,
-stop and require a new preview.
+If a purge fails, the machine-scoped journal names the last completed and first
+failed action. Re-run `posttrain purge apply PURGE_ID`; completed actions are
+verified and skipped, and the exact next action resumes. If an external artifact
+replica exists, report it as an independently owned retention item rather than
+claiming success. If revalidation detects a changed provider handle, OCI digest,
+tracking object, local identity, or new consumer, stop and require a new preview;
+never edit an immutable plan in place.
 
 ## Artifacts and Notes
 
-The final release evidence directory should contain only redacted, immutable
-facts. Its minimal index is:
+The follow-up evidence directory should contain only redacted, immutable facts.
+The v0.3.0 cleanup inventory remains historical input; new purge qualification
+uses a separate path:
 
-    release-evidence/0.3.0/
-      source.json                 # merged commit, manifest version, wheel hashes
-      trackio-post6.json          # fork commit, wheel hash, deployed health/version
-      images.json                 # provider image refs and immutable digests
-      environment-source.json     # published automationbench-v1 commit, subdirectory, wheel hash
-      qualifications.json         # two job ids, providers, outcomes, reconciliations, artifact refs
-      observatory.json            # persisted Trackio/Observatory inspection result
-      controller.json             # service version, restart and reconciliation proof
-      purge-fixture.json          # dry-run blocker/cascade/receipt proof
-      cleanup.json                # retired foundation-models preview and final receipt
+    release-evidence/cross-plane-purge/
+      source.json                 # framework/fork commits, wheel hashes, deployed versions
+      adapters.json               # Trackio, OCI, local, and dstack capability proof
+      run-purge.json              # blocker, cascade, plan digest, and receipt proof
+      resume.json                 # injected partial failure and same-plan recovery
+      project-purge.json          # unmatched blocker and complete project deletion
+      tracking-only.json          # explicit unattempted-plane receipt
+      cleanup-v0.3.0.json         # historical one-off cleanup inventory and policy
       validation.txt              # exact test/build/check commands and outcomes
 
 Do not store access URLs containing write tokens, provider credentials, raw
@@ -802,6 +1081,11 @@ tests:
         def project_delete_plan(self, *, project: str) -> ProjectDeletePlan: ...
         def delete_project(self, plan: ProjectDeletePlan) -> ProjectDeleteReceipt: ...
 
+    # provider-neutral registry lifecycle contract, implemented beside image integration
+    class RegistryLifecycleAdmin(Protocol):
+        def inspect_manifest(self, reference: RuntimeImageRef) -> RegistryManifestPlan: ...
+        def delete_manifest(self, plan: RegistryManifestPlan) -> RegistryManifestReceipt: ...
+
     # packages/execution/src/posttrain/execution/purge.py
     def plan_execution_purge(
         store: ExecutionSubmissionStore,
@@ -811,11 +1095,23 @@ tests:
         cascade: bool = False,
     ) -> PurgePlan: ...
 
-    def apply_execution_purge(
-        plan: PurgePlan,
+    def plan_project_purge(
+        layout: ProjectLayout,
         *,
-        store: ExecutionSubmissionStore,
+        submission_stores: tuple[ExecutionSubmissionStore, ...],
         lifecycle: TrackingLifecycleAdmin,
+        registry: RegistryLifecycleAdmin,
+    ) -> PurgePlan: ...
+
+    def apply_execution_purge(
+        purge_id: str,
+        *,
+        purge_store: PurgeStore,
+        submission_stores: tuple[ExecutionSubmissionStore, ...],
+        lifecycle: TrackingLifecycleAdmin,
+        registry: RegistryLifecycleAdmin,
+        provider_factory: ExecutionProviderFactory,
+        expect_digest: str | None = None,
     ) -> PurgeReceipt: ...
 
     # apps/cli/src/posttrain_cli/commands/run_cmd.py
@@ -824,10 +1120,12 @@ tests:
 
 `TrackioLifecycleAdmin` must authenticate only through the configured
 credential source, use canonical project and exact provider-run IDs, and reject
-a server that lacks the required post6 API. `ExecutionSubmissionStore` owns the
-durable plans/receipts below `.posttrain/state/executions/<run-id>/`; Trackio
-owns tracking metadata/artifact bytes; the execution provider owns provider
-job/workspace cleanup; the registry adapter owns exact image manifest removal.
+a server that lacks the required run-purge API. `PurgeStore` owns durable plans,
+journals, and receipts below the machine state root's `purges/` child;
+`ExecutionSubmissionStore` is an input and final deletion target, not the audit
+owner. Trackio owns tracking metadata/artifact bytes; the execution provider
+owns provider job/workspace cleanup; the registry adapter owns exact digest
+manifest removal. The CLI owns presentation and confirmation only.
 
 ## Revision Notes
 
@@ -835,3 +1133,11 @@ job/workspace cleanup; the registry adapter owns exact image manifest removal.
   Lab, cleanup, deployment, and release discussion. It records the explicit
   decision not to create `posttrain-integration`, separates cleanup from purge,
   and makes fresh managed-job evidence a release gate.
+- 2026-08-02: Reconciled the plan with the shipped v0.3.0 release and completed
+  one-off framework-history cleanup. Revised purge around a separate
+  preview/show/apply workflow, full cross-plane inventory before provider
+  cleanup, exact digest binding for automation, machine-scoped resumable audit
+  state, opened-project ownership, and an explicitly limited tracking-only
+  legacy escape hatch. This replaces the earlier combined `--apply --yes`
+  command and run-local receipt design because both could lose the reviewed
+  scope or the receipt during the deletion they were meant to control.

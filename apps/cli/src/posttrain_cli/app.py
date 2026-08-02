@@ -19,6 +19,7 @@ from .commands import (
     machine,
     observatory,
     project_cmd,
+    purge_cmd,
     run_cmd,
     runtime,
     state,
@@ -98,6 +99,7 @@ def create_app(*, json_stream: TextIO | None = None) -> typer.Typer:
     machine.register(app)
     doctor.register(app)
     project_cmd.register(app)
+    purge_cmd.register(app)
     catalog.register(app)
     dataset.register(app)
     environment.register(app)

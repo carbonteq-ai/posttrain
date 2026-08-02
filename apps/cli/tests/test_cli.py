@@ -111,6 +111,55 @@ def test_controller_status_reads_health_without_running_a_sweep(tmp_path: Path, 
     assert payload["health_file"] == str(health)
 
 
+def test_purge_preview_is_plan_only_and_blocked_until_inventory_is_complete(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    project = tmp_path / "purge-project"
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+
+    assert main(["--json", "--project-root", str(project), "run", "purge", "missing-run"]) == 0
+    preview = json.loads(capsys.readouterr().out)
+    assert preview["mode"] == "run"
+    assert preview["blockers"] == ["run 'missing-run' was not found"]
+    assert preview["purge_id"].startswith("purge-")
+
+    assert (
+        main(
+            [
+                "--json",
+                "--project-root",
+                str(project),
+                "purge",
+                "show",
+                preview["purge_id"],
+            ]
+        )
+        == 0
+    )
+    shown = json.loads(capsys.readouterr().out)
+    assert shown["digest"] == preview["digest"]
+
+    assert (
+        main(
+            [
+                "--json",
+                "--project-root",
+                str(project),
+                "purge",
+                "apply",
+                preview["purge_id"],
+                "--expect-digest",
+                preview["digest"],
+                "--yes",
+            ]
+        )
+        == 1
+    )
+    assert "blocked" in capsys.readouterr().err
+
+
 def test_controller_loop_does_not_emit_idle_sweeps(
     tmp_path: Path,
     capsys,

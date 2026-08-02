@@ -42,7 +42,13 @@ from posttrain.tracking import (
     TracePage,
     TraceQuery,
     TraceRecord,
+    TrackingArtifactPurge,
     TrackingCapabilities,
+    TrackingLifecycleAdmin,
+    TrackingProjectDeletePlan,
+    TrackingProjectDeleteReceipt,
+    TrackingPurgePlan,
+    TrackingPurgeReceipt,
 )
 from trackio.remote_client import RemoteClient
 from trackio.run import Run as TrackioSDKRun
@@ -559,6 +565,169 @@ class TrackioProjectCatalog:
         if any(not project.strip() for project in raw):
             raise ContractError("Trackio project names cannot be empty")
         return tuple(sorted(set(raw)))
+
+
+class TrackioLifecycleAdmin:
+    """Optional authenticated adapter for the fork's exact-run purge API.
+
+    The adapter is deliberately capability-detected so the post6 client fails
+    closed with a useful message until the fork release containing the purge
+    endpoints is selected.
+    """
+
+    def __init__(self, server_url: str, *, write_token: str | None = None) -> None:
+        if not server_url.strip():
+            raise ValueError("Trackio server URL cannot be empty")
+        base_url, url_token = parse_trackio_server_url(server_url)
+        token = write_token or url_token or os.getenv("TRACKIO_WRITE_TOKEN")
+        if not token:
+            raise ContractError("Trackio purge requires TRACKIO_WRITE_TOKEN")
+        self._client = RemoteClient(
+            base_url,
+            write_token=token,
+            httpx_kwargs={"timeout": 30.0},
+            verbose=False,
+        )
+
+    def plan_run_purge(
+        self,
+        *,
+        project: str,
+        provider_run_ids: tuple[str, ...],
+    ) -> TrackingPurgePlan:
+        method = getattr(self._client, "run_purge_plan", None)
+        if method is None:
+            raise ContractError("selected Trackio server does not support run purge")
+        raw = method(project, provider_run_ids)
+        if not isinstance(raw, dict):
+            raise ContractError("Trackio run purge plan must be an object")
+        artifacts = tuple(
+            TrackingArtifactPurge(
+                version_id=str(item["version_id"]),
+                name=str(item["name"]),
+                version=f"v{item['version']}",
+                digest=None,
+                logical_bytes=int(item.get("size_bytes", 0)),
+                consumer_run_ids=tuple(str(value) for value in item.get("consumer_run_ids", [])),
+            )
+            for item in raw.get("artifacts", [])
+            if isinstance(item, dict)
+        )
+        created_at = _datetime(raw.get("created_at"), field="purge created_at")
+        return TrackingPurgePlan(
+            provider=str(raw.get("provider", "trackio")),
+            project=str(raw.get("project", project)),
+            provider_run_ids=tuple(provider_run_ids),
+            run_ids=tuple(str(value) for value in raw.get("run_ids", provider_run_ids)),
+            artifacts=artifacts,
+            blockers=tuple(str(value) for value in raw.get("blockers", [])),
+            digest=str(raw["digest"]),
+            created_at=created_at,
+        )
+
+    def apply_run_purge(self, plan: TrackingPurgePlan) -> TrackingPurgeReceipt:
+        method = getattr(self._client, "purge_runs", None)
+        if method is None:
+            raise ContractError("selected Trackio server does not support run purge")
+        raw = method(plan.project, plan.provider_run_ids, plan.digest)
+        if not isinstance(raw, dict):
+            raise ContractError("Trackio run purge receipt must be an object")
+        return TrackingPurgeReceipt(
+            provider=str(raw.get("provider", plan.provider)),
+            project=str(raw.get("project", plan.project)),
+            plan_digest=str(raw["plan_digest"]),
+            deleted_provider_run_ids=tuple(str(value) for value in raw.get("deleted_provider_run_ids", [])),
+            deleted_artifact_version_ids=tuple(str(value) for value in raw.get("deleted_artifact_version_ids", [])),
+            already_absent_provider_run_ids=tuple(
+                str(value) for value in raw.get("already_absent_provider_run_ids", [])
+            ),
+            completed_at=_datetime(raw.get("completed_at"), field="purge completed_at"),
+        )
+
+    def project_delete_plan(self, *, project: str) -> TrackingProjectDeletePlan:
+        raw = self._client.project_delete_plan(project)
+        if not isinstance(raw, dict) or not isinstance(raw.get("digest"), str):
+            raise ContractError("selected Trackio server does not support digest-bound project purge")
+        return TrackingProjectDeletePlan(
+            provider=str(raw.get("provider", "trackio")),
+            project=str(raw.get("project", project)),
+            exists=bool(raw.get("exists", False)),
+            runs=int(raw.get("runs", 0)),
+            artifacts=int(raw.get("artifacts", 0)),
+            artifact_versions=int(raw.get("artifact_versions", 0)),
+            logical_bytes=int(raw.get("artifact_logical_bytes", 0)),
+            storage_bytes=int(raw.get("artifact_storage_bytes", 0))
+            + int(raw.get("media_storage_bytes", 0)),
+            blockers=tuple(str(value) for value in raw.get("blockers", [])),
+            digest=str(raw["digest"]),
+            created_at=_datetime(raw.get("created_at"), field="project purge created_at"),
+        )
+
+    def delete_project(self, plan: TrackingProjectDeletePlan) -> TrackingProjectDeleteReceipt:
+        delete_method = getattr(self._client, "delete_project", None)
+        if delete_method is None:
+            raise ContractError("selected Trackio server does not support project purge")
+        raw = delete_method(plan.project, plan.digest)
+        if not isinstance(raw, dict):
+            raise ContractError("Trackio project purge receipt must be an object")
+        return TrackingProjectDeleteReceipt(
+            provider=str(raw.get("provider", plan.provider)),
+            project=str(raw.get("project", plan.project)),
+            plan_digest=str(raw.get("plan_digest", plan.digest)),
+            deleted=bool(raw.get("deleted", False)),
+            completed_at=_datetime(raw.get("completed_at"), field="project purge completed_at"),
+        )
+
+
+class TrackioPurgeActionExecutor:
+    """Bridge one framework tracking action to digest-bound Trackio apply."""
+
+    def __init__(self, admin: TrackingLifecycleAdmin) -> None:
+        self._admin = admin
+        self._plans: dict[str, TrackingPurgePlan | TrackingProjectDeletePlan] = {}
+
+    def revalidate(self, action: Any) -> None:
+        kind = getattr(action, "kind", None)
+        if kind == "tracking.delete_project":
+            target = getattr(action, "target", {})
+            project = target.get("project") if isinstance(target, Mapping) else None
+            action_id = getattr(action, "action_id", None)
+            if not isinstance(project, str) or not project or not isinstance(action_id, str):
+                raise ContractError("Trackio project purge action has an invalid target")
+            plan = self._admin.project_delete_plan(project=project)
+            if plan.blockers:
+                raise ContractError("Trackio project purge is blocked: " + "; ".join(plan.blockers))
+            self._plans[action_id] = plan
+            return
+        if kind != "tracking.delete_run":
+            raise ContractError("unsupported Trackio purge action")
+        target = getattr(action, "target", {})
+        project = target.get("project")
+        provider_run_id = target.get("provider_run_id")
+        action_id = getattr(action, "action_id", None)
+        if not (
+            isinstance(project, str)
+            and project
+            and isinstance(provider_run_id, str)
+            and provider_run_id
+            and isinstance(action_id, str)
+            and action_id
+        ):
+            raise ContractError("Trackio purge action has an invalid target")
+        plan = self._admin.plan_run_purge(project=project, provider_run_ids=(provider_run_id,))
+        if plan.blockers:
+            raise ContractError("Trackio purge is blocked: " + "; ".join(plan.blockers))
+        self._plans[action_id] = plan
+
+    def apply(self, action: Any) -> None:
+        action_id = getattr(action, "action_id", None)
+        if not isinstance(action_id, str) or action_id not in self._plans:
+            raise ContractError("Trackio purge action was not revalidated")
+        plan = self._plans.pop(action_id)
+        if isinstance(plan, TrackingPurgePlan):
+            self._admin.apply_run_purge(plan)
+        else:
+            self._admin.delete_project(plan)
 
 
 class TrackioDataSource:

@@ -32,6 +32,7 @@ from ..execution_provider import (
     tracking_source_for_run,
 )
 from ..output import emit, json_value
+from ..purge_surface import render_plan, save_run_preview
 from ..run_resolve import resolve_run_id
 from ..tracking_config import project_observatory_settings
 
@@ -600,6 +601,17 @@ def register(app: typer.Typer) -> None:
                 )
             ),
         )
+
+    @run_app.command("purge", help="preview destructive evidence and resource deletion for one exact run id")
+    def run_purge_cmd(
+        ctx: typer.Context,
+        run_id: Annotated[str, typer.Argument(help="full canonical run id; prefixes and --last are unsupported")],
+        cascade: Annotated[bool, typer.Option("--cascade", help="include the complete same-project consumer closure")] = False,
+    ) -> None:
+        state: CliState = ctx.obj
+        layout = state.layout()
+        plan = save_run_preview(layout, run_id, cascade=cascade)
+        emit(state, plan, render_plan(plan))
 
     @run_app.command("show", help="show one recorded run view")
     def run_show_cmd(
