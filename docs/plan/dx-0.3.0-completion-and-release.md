@@ -230,6 +230,33 @@ operator workflow, not merely green unit tests.
       verifies leaf-to-root tracking order, provider/registry/tracking/local
       plane sequencing, an interrupted registry action, and resumable retry
       without widening the immutable plan.
+- [x] (2026-08-02) Published the Trackio lifecycle API as
+      `carbonteq-trackio==0.31.5.post8` from merged commit `77db6f5c`, tagged
+      `carbonteq-v0.31.5.post8`, promoted the identical wheel to the stable
+      index, and deployed it to both shared and Doris-candidate services. The
+      wheel SHA-256 is
+      `9b5ce6df75a6daa40478d3d2d48f4ae8e2c6b8b507d0ca57556786d217fe8d62`;
+      both live `/version` endpoints report post8.
+- [x] (2026-08-02) Qualified post8 project and run preview/apply against
+      disposable SQLite and Doris projects. Both backends rejected stale
+      digests with actionable client-visible messages, accepted current
+      digests, deleted their two-run projects, and reported the projects
+      absent afterward.
+- [x] (2026-08-02) Advanced the framework to the stable post8 wheel in commit
+      `089f407a`, regenerated its catalog/runtime locks, and published all five
+      affected 0.3.0 kind images from the immutable pin. Release consistency,
+      85 focused tests with one hardware skip, Ruff, and Pyright pass from a
+      clean detached worktree; every published registry digest resolves.
+- [x] (2026-08-02) Ran the live three-run cross-plane qualification against
+      Doris Trackio, OCI Distribution, the provider cleanup executor, and the
+      local-state executor. Non-cascade preview blocked on the producer's
+      consumer; cascade selected producer→consumer→leaf. A forced failure at
+      `registry:consumer` left the first manifest deleted and the second
+      present, then the same `purge-f1d486e43adaeabd` plan resumed. Trackio
+      applied leaf→consumer→producer, and all three provider records,
+      manifests, workspaces, runs, and the disposable project were absent.
+      Durable sanitized evidence is under
+      `release-evidence/cross-plane-purge/`.
 - [ ] Complete the non-blocking authoring and release-automation follow-up
       milestones before declaring the entire DX program, rather than merely
       the release, complete.
@@ -373,11 +400,12 @@ operator workflow, not merely green unit tests.
   the command useful for diagnosing missing prerequisites without recreating
   the one-off cleanup risk.
 
-- Observation: the framework can compose all four action executors without
-  advancing its Trackio pin, but the installed post6 RemoteClient cannot
-  perform the run-purge call. The adapter's capability check turns that drift
-  into a named tracking blocker instead of silently falling back to
-  `delete_run`.
+- Observation: the first published lifecycle build exposed server-side stale
+  digest detail as a generic HTTP 500, and the remote client discarded the
+  response body.
+  Resolution: post8 maps lifecycle `ValueError` failures to HTTP 400 and
+  preserves the JSON error message in `RemoteClient`. Live SQLite and Doris
+  checks now receive an actionable stale-digest explanation.
 
 - Observation: the current Trackio project deletion implementation can only
   remove server-owned metadata and local artifact/media bytes. It cannot claim
@@ -514,9 +542,9 @@ operator workflow, not merely green unit tests.
 - Decision: keep exact run purge implementation split across the neutral
   framework and the Trackio fork. The framework owns selection, dependency
   closure, plan identity, and cross-plane ordering; Trackio owns its
-  provider-scoped storage transaction and CAS retention. The new fork slice is
-  an unreleased post6 working-tree change until its immutable commit and
-  SQLite/Doris qualification are complete.
+  provider-scoped storage transaction and CAS retention. The fork slice is
+  released as post8 from merged commit `77db6f5c` and is qualified against
+  both SQLite and Doris.
   Rationale: importing Trackio into `posttrain.execution` would make the
   framework contract provider-specific and would tempt callers to mistake a
   provider preview for a complete purge plan.
@@ -580,13 +608,13 @@ the public release notes accurately warn that the retained release evidence is
 no longer available in Trackio. Shared runtime supply, reusable machine cache,
 and unrelated application/infrastructure projects were preserved.
 
-The first implementation slice now provides the immutable plan and receipt
-substrate, with focused tests and static checks green. The cleanup achieved the
-operational outcome but exposed the remaining product
-gap: it was a reviewed one-off procedure, not a reusable Posttrain command.
-`posttrain run cleanup` remains correctly evidence-preserving. The next release
-must deliver the plan/apply purge workflow below before maintainers can perform
-the same cross-plane removal through the normal product surface. The wider
+The exact-run purge path now has the immutable plan/receipt substrate, concrete
+Trackio/OCI/provider/local executors, published post8 dependency, rebuilt
+runtime supply, and live interruption/resume qualification. `posttrain run
+cleanup` remains correctly evidence-preserving; destructive deletion is a
+separate digest-bound workflow. Full normal project purge remains fail-closed
+until unmatched cross-plane inventory is connected, while the explicitly
+scoped Trackio project deletion primitive is published and qualified. The wider
 SAMPO/DAPO qualification and non-blocking authoring work remain open and are not
 part of the already completed 0.3.0 release claim.
 
@@ -609,9 +637,10 @@ consumer closure* is the set of later runs that read an artifact produced by a
 selected run, recursively. It is directed producer to consumer. Purging the
 closure therefore deletes its leaf consumers first and the root producer last.
 
-The Trackio fork is `/home/hammad/projects/trackio`. Merged commit `82fed847`
-contains the project preview/purge feature and publishes
-`carbonteq-trackio==0.31.5.post6`. `/home/hammad/projects/ai-infra` pins that
+The Trackio fork is `/home/hammad/projects/trackio`. Merged commit `77db6f5c`
+contains digest-bound project/run preview and purge plus actionable lifecycle
+errors and publishes `carbonteq-trackio==0.31.5.post8`.
+`/home/hammad/projects/ai-infra` pins that
 exact source revision and packages the wheel into the Ansible-managed shared
 and candidate services. The live endpoint is `https://trackio.lan`; never
 print its write token or credentials in plans, logs, receipts, or command

@@ -3,19 +3,23 @@
 The platform uses [`carbonteq-ai/trackio`](https://github.com/carbonteq-ai/trackio),
 an additive fork of upstream Trackio. Workspace packages keep the normal
 `import trackio` API. The current workspace dependency is the immutable
-internal-index release `carbonteq-trackio==0.31.5.post6`, built from merged
-commit `82fed847606e4ceb696f6dbc361c19dad474a875`. Its wheel SHA-256 is
-`9bb5defa753b16a9d322fb4a27baff80949c4f0dad2a9dadb07b974932272e00`.
-The deployed shared and candidate services report post6. `0.31.5.post4` on
+internal-index release `carbonteq-trackio==0.31.5.post8`, built from merged
+commit `77db6f5c7ec60e991009c7845462da46b4a3debd`. Its wheel SHA-256 is
+`9b5ce6df75a6daa40478d3d2d48f4ae8e2c6b8b507d0ca57556786d217fe8d62`.
+The deployed shared and candidate services report post8. `0.31.5.post4` on
 `pypi.lan` is permanently skewed (metadata post4, import post3) and must not be
-installed. Kind images that embed Trackio must be rebuilt after this change.
+installed. The five kind images affected by the workspace lock were rebuilt
+and published after this change.
 
-The working-tree fork now also contains the next run-purge slice, but it is not
-part of the post6 artifact: exact provider run ids can be previewed with
-consumer-aware blockers and applied only with the returned SHA-256 digest. Do
-not update the framework pin or deployed images until this change is committed,
-published, and qualified in both SQLite and Doris paths. The project-boundary
-delete endpoint is also digest-bound in this working tree.
+Post8 exposes authenticated digest-bound run and project purge. Exact provider
+run ids preview with consumer-aware blockers, and apply accepts only the
+returned SHA-256 digest. The provider transaction removes selected runs,
+run-artifact links, unlinked artifact versions, and unreferenced CAS blobs with
+equivalent SQLite and Doris semantics. Stale previews return actionable HTTP
+400 messages through the remote client. Disposable live SQLite/Doris checks and
+the framework's three-run cross-plane interruption/resume fixture passed on
+2026-08-02; sanitized receipts live in
+`release-evidence/cross-plane-purge/`.
 
 ## Distribution transition
 

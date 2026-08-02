@@ -1,0 +1,48 @@
+{
+  "action_counts": {
+    "local": 3,
+    "provider": 3,
+    "registry": 3,
+    "tracking": 3
+  },
+  "all_targets_absent": true,
+  "blocked_without_cascade": [
+    "run 'producer' is consumed by unselected run 'consumer'"
+  ],
+  "completed_actions": [
+    "provider:producer",
+    "provider:consumer",
+    "provider:leaf",
+    "registry:producer",
+    "registry:consumer",
+    "registry:leaf",
+    "tracking:leaf",
+    "tracking:consumer",
+    "tracking:producer",
+    "local:leaf:0",
+    "local:consumer:0",
+    "local:producer:0"
+  ],
+  "dependency_edges": [
+    [
+      "producer",
+      "consumer"
+    ],
+    [
+      "consumer",
+      "leaf"
+    ]
+  ],
+  "plan_digest": "sha256:f1d486e43adaeabd14528b20f8bb8c9b6e4f62f4e0ac7396fa4586549f8e1b8f",
+  "project": "posttrain-purge-qualification-20260802",
+  "purge_id": "purge-f1d486e43adaeabd",
+  "qualified_at": "2026-08-02T11:37:13.856952+00:00",
+  "root_run": "producer",
+  "run_count": 3,
+  "schema": "posttrain.cross-plane-run-purge.v1",
+  "tracking_apply_order": [
+    "tracking:leaf",
+    "tracking:consumer",
+    "tracking:producer"
+  ]
+}
