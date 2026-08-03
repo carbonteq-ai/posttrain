@@ -257,6 +257,13 @@ operator workflow, not merely green unit tests.
       manifests, workspaces, runs, and the disposable project were absent.
       Durable sanitized evidence is under
       `release-evidence/cross-plane-purge/`.
+- [x] (2026-08-03) Published the hash-identical post8 wheel and sdist on the
+      existing `carbonteq-v0.31.5.post8` GitHub tag for public CI, then opened
+      framework PR #11 for the qualified purge and environment-library slice.
+      The public workflow now verifies the mirrored wheel digest and installs
+      the remaining committed lock with `uv sync --frozen`; a release-tooling
+      regression test binds its URL, filename, version, and SHA-256 to
+      `uv.lock`. This is a Python artifact mirror, not a GHCR publication.
 - [ ] Complete the non-blocking authoring and release-automation follow-up
       milestones before declaring the entire DX program, rather than merely
       the release, complete.
@@ -406,6 +413,15 @@ operator workflow, not merely green unit tests.
   Resolution: post8 maps lifecycle `ValueError` failures to HTTP 400 and
   preserves the JSON error message in `RemoteClient`. Live SQLite and Doris
   checks now receive an actionable stale-digest explanation.
+
+- Observation: public GitHub runners cannot resolve the internal
+  `pypi.lan` source recorded for the qualified Trackio wheel. Installing a
+  mirrored wheel first was insufficient because an unfrozen `uv sync` still
+  refreshed the private registry.
+  Resolution: publish hash-identical post8 artifacts on the immutable fork tag,
+  verify the wheel before bootstrap, and install the rest of the committed lock
+  with `--frozen --no-install-package carbonteq-trackio`. A clean-cache probe
+  proved this path without contacting the internal index.
 
 - Observation: the current Trackio project deletion implementation can only
   remove server-owned metadata and local artifact/media bytes. It cannot claim
