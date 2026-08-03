@@ -7,24 +7,20 @@ import asyncio
 import hashlib
 import json
 import statistics
-import sys
 from collections import defaultdict
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-REPOSITORY = Path(__file__).resolve().parents[2]
-if str(REPOSITORY) not in sys.path:
-    sys.path.insert(0, str(REPOSITORY))
+from posttrain.tracking import TraceQuery
+from posttrain_observatory import ObservatoryService
+from posttrain_tracking_trackio import TrackioDataSource
 
-from posttrain.tracking import TraceQuery  # noqa: E402
-from posttrain_lab.qualification.scenarios import (  # noqa: E402
+from posttrain_lab.qualification.scenarios import (
     QualificationScenario,
     scenario_by_id,
 )
-from posttrain_observatory import ObservatoryService  # noqa: E402
-from posttrain_tracking_trackio import TrackioDataSource  # noqa: E402
 
 
 @dataclass(frozen=True, slots=True)

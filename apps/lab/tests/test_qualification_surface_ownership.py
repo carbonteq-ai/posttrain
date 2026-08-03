@@ -14,6 +14,10 @@ OBSERVATORY_QUALIFICATION = (
     WORKSPACE / "apps" / "observatory" / "src" / "posttrain_observatory" / "deployment_qualification.py"
 )
 LAB_SCENARIOS = WORKSPACE / "apps" / "lab" / "src" / "posttrain_lab" / "qualification" / "scenarios.py"
+LAB_LAUNCHER = WORKSPACE / "apps" / "lab" / "src" / "posttrain_lab" / "qualification" / "launcher.py"
+LAB_EVIDENCE = WORKSPACE / "apps" / "lab" / "src" / "posttrain_lab" / "qualification" / "evidence.py"
+LAB_LOCAL_RUNTIME = WORKSPACE / "apps" / "lab" / "src" / "posttrain_lab" / "qualification" / "local_runtime_smoke.py"
+LAB_DSTACK_RUNTIME = WORKSPACE / "apps" / "lab" / "src" / "posttrain_lab" / "qualification" / "dstack_runtime_smoke.py"
 
 _KINDS = {
     "scenario-policy",
@@ -51,9 +55,6 @@ def test_every_temporary_script_and_lab_dependent_fixture_has_one_owner_and_exit
         "queue-probe-payload",
         "local-runtime-smoke-launcher",
         "dstack-runtime-smoke-launcher",
-        "ambient-model-backward-launcher",
-        "ambient-artifact-consumer-launcher",
-        "ambient-serving-launcher",
         "remote-gpu-lab-fixture",
     }
     assert len({surface["path"] for surface in surfaces}) == len(surfaces)
@@ -64,6 +65,10 @@ def test_every_temporary_script_and_lab_dependent_fixture_has_one_owner_and_exit
         REMOTE_GPU_FIXTURE.relative_to(WORKSPACE).as_posix(),
         OBSERVATORY_QUALIFICATION.relative_to(WORKSPACE).as_posix(),
         LAB_SCENARIOS.relative_to(WORKSPACE).as_posix(),
+        LAB_LAUNCHER.relative_to(WORKSPACE).as_posix(),
+        LAB_EVIDENCE.relative_to(WORKSPACE).as_posix(),
+        LAB_LOCAL_RUNTIME.relative_to(WORKSPACE).as_posix(),
+        LAB_DSTACK_RUNTIME.relative_to(WORKSPACE).as_posix(),
         *(path.relative_to(WORKSPACE).as_posix() for path in EXECUTION_FIXTURES.glob("*_job.py")),
     }
     assert {surface["path"] for surface in surfaces} == expected_paths

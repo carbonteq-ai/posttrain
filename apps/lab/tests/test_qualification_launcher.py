@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from posttrain_lab.qualification.launcher import DEFAULT_GPU_PYTHON, render_launch
 from posttrain_lab.qualification.scenarios import scenario_by_id
-
-from scripts.qualification.run_algorithm_scenario import render_launch
 
 
 def test_automationbench_launch_uses_posttrain_job_cli() -> None:
@@ -63,6 +62,4 @@ def test_gsm8k_launch_uses_the_same_cli_with_its_work_package() -> None:
 
 
 def test_cli_default_preserves_virtual_environment_entrypoint() -> None:
-    from scripts.qualification.run_algorithm_scenario import DEFAULT_GPU_PYTHON
-
     assert str(DEFAULT_GPU_PYTHON) == "/home/hammad/projects/verl/.venv313/bin/python"

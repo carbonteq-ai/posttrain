@@ -10,8 +10,8 @@ research plan: it qualifies the reusable execution and algorithm substrate
 before Ambient Agent becomes a training workload.
 
 Provider-backed operator DX is implemented by
-`docs/plan/dstack-execution-provider.md`. The scripts under
-`scripts/qualification/` are temporary characterization and parity harnesses;
+`docs/plan/dstack-execution-provider.md`. The qualification modules under
+`posttrain_lab.qualification` are temporary characterization and parity harnesses;
 they are not the supported launch interface and must be removed after the
 normal CLI produces equivalent execution and evidence.
 
@@ -288,7 +288,7 @@ product hierarchy level.
 
 ## Plan of Work
 
-The existing `scripts/qualification/algorithm_scenarios.py` characterizes the
+The existing `posttrain_lab.qualification.scenarios` module characterizes the
 initial contract. Move its reusable immutable
 `QualificationScenario` and `QualificationAcceptance` values. The scenario
 contains stable IDs and catalog references, not live model or environment
@@ -307,19 +307,19 @@ through either `posttrain_execution_local` or
 `posttrain_execution_dstack`. It never imports an environment package until
 after resolving and validating its immutable source revision.
 
-Keep `scripts/qualification/run_algorithm_scenario.py` temporarily to compare
+Keep `posttrain_lab.qualification.launcher` temporarily to compare
 the resulting `ExecutionRequest`, native provider state, Trackio evidence, and
 retained artifacts. Remove it once the CLI path passes that parity check.
 
 Environment-specific construction belongs in work-package bindings and small
-scenario adapters under `scripts/qualification/`, not ephemeral `tools/`
+scenario adapters under `posttrain_lab.qualification`, not ephemeral `tools/`
 helpers. The AutomationBench adapter selects categories and deterministic
 sampling policy through its `EnvironmentBinding`; it must not expose raw task
 indices as the ordinary operator interface. The GSM8K adapter selects a bounded
 train split and seed through its environment binding. Both adapters use
 `create_verifiers_training_bridge`, preserving native trace payloads.
 
-Add `scripts/qualification/validate_algorithm_run.py`. It reads the
+Add `posttrain_lab.qualification.evidence`. It reads the
 `TrainingResult`, training summary, native Verifiers JSONL artifact, selected
 checkpoint/adapter, scheduler terminal state, and remote Trackio run. It
 calculates trace and reward-group evidence rather than trusting a success
@@ -381,21 +381,21 @@ Run focused contract tests while implementing:
       packages/execution-dstack/tests \
       packages/train/tests/test_verifiers_grpo_bridge.py \
       packages/train/tests/test_verl_backend.py \
-      scripts/qualification/tests -q
-    uv run ruff check scripts/qualification packages/execution*
-    uv run pyright scripts/qualification packages/execution*
+      apps/lab/tests/test_qualification_*.py -q
+    uv run ruff check apps/lab/src/posttrain_lab/qualification packages/execution*
+    uv run pyright apps/lab/src/posttrain_lab/qualification packages/execution*
     uv run lint-imports
 
 The temporary characterization commands are:
 
-    uv run python scripts/qualification/run_algorithm_scenario.py \
+    uv run python -m posttrain_lab.qualification.launcher \
       automationbench-qwen35-08b-grpo-10 \
       --provider local \
       --target pop-os.lan
 
 and:
 
-    uv run python scripts/qualification/run_algorithm_scenario.py \
+    uv run python -m posttrain_lab.qualification.launcher \
       gsm8k-qwen35-08b-grpo-10 \
       --provider dstack \
       --target carbonteq-ai-workstation.lan
@@ -416,7 +416,7 @@ failed run.
 
 After each run, validate remote evidence:
 
-    uv run python scripts/qualification/validate_algorithm_run.py \
+    uv run python -m posttrain_lab.qualification.evidence \
       --receipt .posttrain/state/qualification/<run-id>/receipt.json \
       --trackio-url https://trackio.lan
 
@@ -515,7 +515,7 @@ plan consumes Trackio as a service; algorithm jobs never import a Doris client.
 
 ## Interfaces and Dependencies
 
-In `scripts/qualification/algorithm_scenarios.py`, define:
+In `posttrain_lab.qualification.scenarios`, define:
 
     @dataclass(frozen=True)
     class QualificationAcceptance:
@@ -542,7 +542,7 @@ In `scripts/qualification/algorithm_scenarios.py`, define:
         target_capabilities: Mapping[str, object]
         acceptance: QualificationAcceptance
 
-In `scripts/qualification/run_algorithm_scenario.py`, expose:
+In `posttrain_lab.qualification.launcher`, expose:
 
     def run_scenario(
         scenario: QualificationScenario,
@@ -552,7 +552,7 @@ In `scripts/qualification/run_algorithm_scenario.py`, expose:
     ) -> QualificationReceipt:
         ...
 
-In `scripts/qualification/validate_algorithm_run.py`, expose:
+In `posttrain_lab.qualification.evidence`, expose:
 
     def validate_run(
         receipt: QualificationReceipt,

@@ -14,12 +14,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
-REPOSITORY = Path(__file__).resolve().parents[2]
-if str(REPOSITORY) not in sys.path:
-    sys.path.insert(0, str(REPOSITORY))
-
-from posttrain.common import ExecutionTarget  # noqa: E402
-from posttrain.execution import (  # noqa: E402
+from posttrain.common import ExecutionTarget
+from posttrain.execution import (
     ExecutionJournal,
     ExecutionMount,
     ExecutionPolicy,
@@ -28,18 +24,19 @@ from posttrain.execution import (  # noqa: E402
     build_bundle,
     wait_for_terminal,
 )
-from posttrain.tracking import RunSpec  # noqa: E402
-from posttrain_execution_dstack import DstackExecutionProvider  # noqa: E402
-from posttrain_lab.qualification.scenarios import (  # noqa: E402
+from posttrain.tracking import RunSpec
+from posttrain_execution_dstack import DstackExecutionProvider
+
+from posttrain_lab.qualification.evidence import (
+    RemoteAlgorithmEvidence,
+    collect_remote_evidence,
+)
+from posttrain_lab.qualification.scenarios import (
     QualificationScenario,
     scenario_by_id,
 )
 
-from scripts.qualification.validate_algorithm_run import (  # noqa: E402
-    RemoteAlgorithmEvidence,
-    collect_remote_evidence,
-)
-
+REPOSITORY = Path(__file__).resolve().parents[5]
 DEFAULT_GPU_PYTHON = Path("/home/hammad/projects/verl/.venv313/bin/python")
 REMOTE_WORKSPACE_ROOT = Path("/opt/posttrain/run")
 _SCENARIO_WORK_PACKAGES: dict[str, tuple[str, str]] = {

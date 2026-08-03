@@ -18,7 +18,7 @@ from posttrain.execution import (
 from posttrain.tracking import RunSpec
 from posttrain_execution_dstack import DstackExecutionProvider
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[5]
 INFRA = Path("/home/hammad/projects/ai-infra")
 
 

@@ -23,12 +23,12 @@ deletion_condition = "The Lab scenario registry exposes the same two scenario id
 
 [[surfaces]]
 id = "algorithm-scenario-launcher"
-path = "scripts/qualification/run_algorithm_scenario.py"
+path = "apps/lab/src/posttrain_lab/qualification/launcher.py"
 kind = "direct-launcher"
 owner = "lab"
 transition = "retire"
 replacement = "posttrain job plan|pack|run selected through posttrain-lab qualification"
-tests = ["scripts/qualification/tests/test_run_algorithm_scenario.py"]
+tests = ["apps/lab/tests/test_qualification_launcher.py"]
 parity = [
   "plan and run each retained scenario through the public posttrain job command",
   "prove the packed image uses a Lab project snapshot and framework wheels rather than the handwritten source bundle",
@@ -38,12 +38,12 @@ deletion_condition = "Both retained scenario paths pass public-path pack/run/evi
 
 [[surfaces]]
 id = "algorithm-evidence-validator"
-path = "scripts/qualification/validate_algorithm_run.py"
+path = "apps/lab/src/posttrain_lab/qualification/evidence.py"
 kind = "evidence-validator"
 owner = "lab"
 transition = "promote"
 replacement = "posttrain_lab.qualification acceptance adapters over public RunView and Trackio evidence"
-tests = ["scripts/qualification/tests/test_validate_algorithm_run.py"]
+tests = ["apps/lab/tests/test_qualification_evidence.py"]
 parity = [
   "derive optimizer updates, completed traces, reward variation, tool continuation, gradients, and model artifacts from retained evidence",
   "reject a run whose remote evidence is below its declared scenario acceptance",
@@ -109,7 +109,7 @@ deletion_condition = "The execution-provider integration suite proves queue, can
 
 [[surfaces]]
 id = "local-runtime-smoke-launcher"
-path = "scripts/qualification/run_local_runtime_smoke.py"
+path = "apps/lab/src/posttrain_lab/qualification/local_runtime_smoke.py"
 kind = "direct-launcher"
 owner = "lab"
 transition = "retire"
@@ -123,7 +123,7 @@ deletion_condition = "A Lab work package proves the local runtime path without m
 
 [[surfaces]]
 id = "dstack-runtime-smoke-launcher"
-path = "scripts/qualification/run_dstack_runtime_smoke.py"
+path = "apps/lab/src/posttrain_lab/qualification/dstack_runtime_smoke.py"
 kind = "direct-launcher"
 owner = "lab"
 transition = "retire"
@@ -134,48 +134,6 @@ parity = [
   "request the selected target profile without reading ai-infra client state from the launcher",
 ]
 deletion_condition = "The selected Lab gates pass on dstack using project configuration and normal provider discovery."
-
-[[surfaces]]
-id = "ambient-model-backward-launcher"
-path = "scripts/qualification/run_ambient_model_backward.py"
-kind = "product-specific-launcher"
-owner = "ambient-agent"
-transition = "move"
-replacement = "Ambient Agent's own bounded model-backward qualification command"
-tests = []
-parity = [
-  "pack only Ambient Agent source and run its bounded backward, SFT, or reinforce path",
-  "source Ambient tracking and provider configuration from the Ambient project rather than hard-coded framework paths",
-]
-deletion_condition = "Ambient Agent owns and validates the command against its own project package; Lab has no dependency on it."
-
-[[surfaces]]
-id = "ambient-artifact-consumer-launcher"
-path = "scripts/qualification/run_ambient_artifact_consumer.py"
-kind = "product-specific-launcher"
-owner = "ambient-agent"
-transition = "move"
-replacement = "Ambient Agent's cross-worker artifact-consumer qualification command"
-tests = []
-parity = [
-  "consume a declared Trackio model artifact on another worker through Ambient Agent's project flow",
-  "retain producer linkage and artifact digest without embedding tokens or ai-infra paths in framework source",
-]
-deletion_condition = "Ambient Agent owns an artifact-consumer integration test and validates producer/consumer lineage."
-
-[[surfaces]]
-id = "ambient-serving-launcher"
-path = "scripts/qualification/run_ambient_serving.py"
-kind = "product-specific-launcher"
-owner = "ambient-agent"
-transition = "move"
-replacement = "Ambient Agent's serving benchmark work package"
-tests = []
-parity = [
-  "pack and execute Ambient Agent's serving probe through its project work package",
-  "retain serving metrics and logs through normal tracking without hard-coded fleet or secret paths",
-]
-deletion_condition = "Ambient Agent owns the serving work package and its retained-evidence assertion."
 
 [[surfaces]]
 id = "remote-gpu-lab-fixture"

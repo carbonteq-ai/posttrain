@@ -18,7 +18,7 @@ from posttrain.execution import (
 from posttrain.tracking import RunSpec
 from posttrain_execution_local import LocalDockerExecutionProvider
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[5]
 INFRA = Path("/home/hammad/projects/ai-infra")
 
 
@@ -90,7 +90,12 @@ def main() -> None:
         print(json.dumps(output, indent=2, sort_keys=True))
         if result.record.state != "succeeded":
             raise RuntimeError(f"local Docker runtime smoke failed: {result.record.message}")
-        provider.cleanup(handle)
+        provider.cleanup(
+            handle,
+            run_id=run_spec.run_id,
+            run_workspace=None,
+            runtime_image=request.image,
+        )
 
 
 if __name__ == "__main__":

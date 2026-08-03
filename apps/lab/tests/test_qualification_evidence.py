@@ -3,14 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from posttrain_lab.qualification.scenarios import scenario_by_id
-
-from scripts.qualification.validate_algorithm_run import (
+from posttrain_lab.qualification.evidence import (
     LocalAlgorithmEvidence,
     RemoteAlgorithmEvidence,
     acceptance_failures,
     collect_local_evidence,
 )
+from posttrain_lab.qualification.scenarios import scenario_by_id
 
 
 def _write_jsonl(path: Path, records: list[dict[str, object]]) -> None:
