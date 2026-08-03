@@ -34,7 +34,7 @@ The first four new capability environments are MMLU-Pro, IFEval, Reasoning Gym, 
 - [x] (2026-08-03) Confirmed and tightened subset evaluation semantics. `EvaluationBudget.num_tasks` already gives an invocation-scoped count without mutating a reusable environment binding; Verifiers v1 consumes it through `Taskset.select(num_tasks, shuffle)`. Added an invocation-level `EvaluationBudget.shuffle` override, preserved the direct-request `shuffle` field for compatibility, forwarded the resolved policy through the native adapter, and recorded `task_selection` (`head` or `verifiers-fixed-shuffle`) in evaluation evidence. Package eval tests pass (28 passed, 2 skipped), and the standard jobs path passes its budget-forwarding test (11 passed).
 - [x] (2026-08-03) Created and published environment-repository commit `2ac96d33a4a67ce3c930543f990783505f0e7a2c` (`feat: add CarbonTeq Verifiers environment packs`) after all six package validations, boundary checks, and clean combined-wheel activation passed. The framework can now repin only to this immutable remote SHA.
 - [x] (2026-08-03) Published follow-up environment commit `017ac72f543f79f48400cbb4cb641d6df4c3adfa` with deterministic Math Python type-balanced ordering, a scientific-stack child interpreter, and the immutable sandbox `Containerfile`; all selected framework bindings now share this newer SHA.
-- [x] (2026-08-03) Built the Math Python sandbox locally as image `sha256:d983bba26930a02c4b1ea456d744443da386f2798b4f449f5f334892ffeda9b0`, verified non-root scientific-stack imports and absence of token/secret-like environment variables. GHCR publication is still pending because the approximately 1 GB dependency layer stalled during two bounded pushes.
+- [x] (2026-08-03) Built and published the Math Python sandbox in the CarbonTeq OCI registry as `registry.lan/carbonteq/math-python-v1@sha256:67624f5e71f8a5c89d25bc6c42370eb6e71b8569788aa818e5d3fe8585f15f15`; verified non-root scientific-stack imports and absence of token/secret-like environment variables. Success/error/timeout/cancellation/process-exit lifecycle coverage remains.
 - [x] (2026-08-03) Repointed framework GSM8K and AutomationBench program/catalog sources to the published environment repository, added immutable Hub fields to GSM8K activations, added the four balanced capability bindings plus Reasoning Gym/Math Python train bindings, and added `general-capability-balanced-v1`.
 - [x] (2026-08-03) Added the six explicit Lab qualification bindings and one-cell work-package manifests. Catalog and eval API tests pass with the new source identity; live endpoint qualification was pending at this checkpoint and later completed.
 - [x] (2026-08-03) Published environment-library commit `017ac72f543f79f48400cbb4cb641d6df4c3adfa` as the single source revision for all six framework bindings. AutomationBench and Reasoning Gym now vendor their pinned runtime sources inside their own wheels, so the combined job dependency closure contains no nested VCS requirement.
@@ -49,11 +49,11 @@ The first four new capability environments are MMLU-Pro, IFEval, Reasoning Gym, 
 - [x] (2026-08-03) Qualified `mmlu-pro-v1` against the pinned reference corpus and framework trace gate; run `envlib-mmlu-pro-20260803-live` reconciled consistently with provider/Trackio success and the required evaluation artifact retained.
 - [x] (2026-08-03) Qualified `ifeval-v1` against the pinned Google checker corpus and framework trace gate; run `envlib-ifeval-20260803-live` reconciled consistently with provider/Trackio success and the required evaluation artifact retained.
 - [x] (2026-08-03) Qualified `reasoning-gym-v1` across the declared balanced plan; run `envlib-reasoning-gym-20260803-live` reconciled consistently with provider/Trackio success and the required evaluation artifact retained.
-- [x] (2026-08-03) Qualified `math-python-v1` through the managed subprocess/tool path; run `envlib-math-python-20260803-live` reconciled consistently with provider/Trackio success and the required evaluation artifact retained. The standalone GHCR image publication and expanded lifecycle cleanup matrix remain release gates.
+- [x] (2026-08-03) Qualified `math-python-v1` through the managed subprocess/tool path; run `envlib-math-python-20260803-live` reconciled consistently with provider/Trackio success and the required evaluation artifact retained. The CarbonTeq OCI image is now published by digest; the expanded lifecycle cleanup matrix remains a release gate.
 - [x] Push the environment repository commits, record the qualified SHA under `Artifacts and Notes`, and use that same SHA in every selected framework source pin.
 - [x] Repoint every GSM8K and AutomationBench source/dependency pin, add the four balanced catalog bindings, and add the six-environment Lab qualification overlay.
 - [ ] Remove the legacy `/home/hammad/projects/rl/environments/automationbench_v1` package as the final migration step, after publication/configuration, full validation, and the active-reference audit pass. The root `environments/` directory should disappear from the framework repository; generic project-owned `environments/<project-path>` support and external `verifiers-environments/environments/<package>` paths remain valid and are not removed.
-- [x] Prove wheel packing against the rebuilt eval kind digest, clean-cache Hugging Face loading, all six local evaluations, native trace persistence, and exact source identity. The remaining delivery gates are normal publication/configuration, standalone Math Python image/lifecycle coverage, full validation, and final legacy-source cleanup.
+- [x] Prove wheel packing against the rebuilt eval kind digest, clean-cache Hugging Face loading, all six local evaluations, native trace persistence, and exact source identity. The remaining delivery gates are normal publication/configuration, Math Python lifecycle coverage, full validation, and final legacy-source cleanup.
 - [ ] Run both repositories' full validation ladders and update `Outcomes & Retrospective` with measured results and remaining risks.
 - [ ] Complete Milestone 9: update active documentation and compatibility instructions, remove the legacy in-repository package, and prove that no active consumer still depends on the framework-owned environment implementation.
 
@@ -122,7 +122,7 @@ The first four new capability environments are MMLU-Pro, IFEval, Reasoning Gym, 
 - Observation: the six packages could not be compiled into one actual-job dependency lock while AutomationBench and Reasoning Gym retained nested Git dependencies. Vendoring the pinned CarbonTeq AutomationBench fork and the pinned Reasoning Gym source inside their package wheels removed that closure hazard without coupling the six import namespaces.
   Evidence: the final combined `uv pip compile --generate-hashes` completed with return code 0, emitted six local wheel blocks, and contained no `git+` or VCS URL lines; external repository commit `017ac72f543f79f48400cbb4cb641d6df4c3adfa` contains both vendored source trees.
 
-- Observation: The Math Python image recipe builds a reproducible non-root image, but publishing its approximately 1 GB dependency layer to GHCR stalled twice after the smaller layers were accepted. The local image ID is not a registry digest and must not enter a framework activation. The catalog therefore keeps the subprocess qualification path and the image publication/cleanup gate explicit.
+- Observation: The Math Python image is now published in the CarbonTeq OCI registry after the approximately 1 GB dependency layer completed successfully. The immutable reference is `registry.lan/carbonteq/math-python-v1@sha256:67624f5e71f8a5c89d25bc6c42370eb6e71b8569788aa818e5d3fe8585f15f15`; lifecycle cleanup remains separate from publication. The catalog continues to use the subprocess qualification path and does not treat image publication alone as a sandbox-isolation claim.
 
 - Observation: changing the shipped runtime lock makes every published job-kind image stale until it is rebuilt and its digest is configured. The previous `--build-missing` path rebuilt a new image but ignored the returned digest and continued packing the old configured parent.
   Evidence: the diagnostic GSM8K pack used `registry.lan/carbonteq/posttrain-kind-eval@sha256:360810f695108982f077603d4248db232cf0e273213def0ccd65e1fb44fb3094`, whose OCI label still carried lock `df1b2b0b2b04b25bacdbdac9fedc9d908abd8b77ff2ae0945b7fbda09cde725e`, while the rebuild receipt recorded image `...@sha256:13ea50188e3064ac7ee38079d85367e11f20a0db627bf6f69d3177b1a73c1b28` and lock `f68d5419b00b0fde278d0b1d55057eb65bb5c9bbdcc78d2ff5cbfab0a3e1fa2c`. The CLI now raises instead of packing that mismatch.
@@ -259,8 +259,7 @@ and a retained evaluation artifact. The temporary overlay was needed only
 because the machine-wide config still resolves the stale published parent;
 normal machine launches still require the rebuilt eval kind digest to be
 published/configured. The remaining release gates are that publication/config
-step, the standalone GHCR Math Python image, expanded Math Python lifecycle
-cleanup coverage, full validation, and removal of the old in-repository
+step, expanded Math Python lifecycle cleanup coverage, full validation, and removal of the old in-repository
 AutomationBench copy as the final migration step.
 The largest product risks remain Math Python's host-networked untrusted-code
 boundary and the large pinned Reasoning Gym dependency closure.
@@ -480,7 +479,7 @@ Finally run the balanced plan only after estimating token and tool-runtime cost 
 
 This is the final migration milestone and is intentionally ordered after source
 publication, normal runtime-image publication/configuration, Math Python image
-and lifecycle qualification, six-cell live evidence, and both validation
+publication and lifecycle qualification, six-cell live evidence, and both validation
 ladders. The goal is to leave `/home/hammad/projects/rl` with no concrete
 reusable Verifiers environment implementation while preserving the framework's
 generic ability to pack a project-owned environment path. The only tracked
@@ -494,8 +493,8 @@ from the public remote, all six package wheels build from a clean clone, and
 the framework's six live runs and reconciliation records are already recorded
 above. Verify that the normal machine configuration points at the published
 eval kind digest rather than the temporary project overlay, and finish the
-standalone Math Python image publication and success/error/timeout/cancellation
-cleanup matrix. If any prerequisite is missing, do not delete the old tree.
+Math Python success/error/timeout/cancellation/process-exit cleanup matrix. If
+any prerequisite is missing, do not delete the old tree.
 
 Run an active-reference audit from `/home/hammad/projects/rl`. Local filesystem
 paths, local `uv` project commands, path dependencies, and imports from the
@@ -754,7 +753,7 @@ At later milestones, append concise evidence here:
 
 - `ENVIRONMENTS_REVISION=<40-character pushed commit>`.
 - Six wheel filenames, versions, and SHA-256 digests.
-- `MATH_PYTHON_IMAGE=<registry>@sha256:<digest>` (pending GHCR publication; local build ID `sha256:d983bba26930a02c4b1ea456d744443da386f2798b4f449f5f334892ffeda9b0` is diagnostic only).
+- `MATH_PYTHON_IMAGE=registry.lan/carbonteq/math-python-v1@sha256:67624f5e71f8a5c89d25bc6c42370eb6e71b8569788aa818e5d3fe8585f15f15`; local build ID `sha256:d983bba26930a02c4b1ea456d744443da386f2798b4f449f5f334892ffeda9b0` remains diagnostic only.
 - Clean-cache observed row counts and dataset fingerprints or row-manifest digests.
 - GSM8K old/new parity transcript and AutomationBench old/new parity transcript.
 - The framework commit that repoints consumers and removes the old AutomationBench directory.
@@ -813,8 +812,10 @@ Revision note (2026-08-03): created local environment-library commit `2ac96d3` a
 
 Revision note (2026-08-03): advanced the shared source to pushed commit `017ac72f543f79f48400cbb4cb641d6df4c3adfa`, recorded the vendored AutomationBench/Reasoning Gym closure, repinned all framework consumers, and added the runtime-lock and source-allowlist fixes needed by real job packing. A diagnostic GSM8K local pack revealed that `--build-missing` could otherwise retain a stale configured parent; the CLI now fails closed and the plan treats a verified rebuilt/published kind digest as a prerequisite for live qualification.
 
-Revision note (2026-08-03): committed and pushed framework catalog/runtime integration as `90d72802`, then completed the first provider-backed native gate. GSM8K run `envlib-gsm8k-20260803-live` succeeded on local Docker with the rebuilt eval parent, materialized job image, Trackio finalization, and consistent retained evaluation evidence. At that historical checkpoint, the remaining gates were the other five live cells, normal publication/configuration of the rebuilt eval parent, Math Python GHCR publication, and safe removal of the old AutomationBench copy.
+Revision note (2026-08-03): committed and pushed framework catalog/runtime integration as `90d72802`, then completed the first provider-backed native gate. GSM8K run `envlib-gsm8k-20260803-live` succeeded on local Docker with the rebuilt eval parent, materialized job image, Trackio finalization, and consistent retained evaluation evidence. At that historical checkpoint, the remaining gates were the other five live cells, normal publication/configuration of the rebuilt eval parent, Math Python image publication, and safe removal of the old AutomationBench copy.
 
 Revision note (2026-08-03): completed all six provider-backed environment-library cells through Posttrain, including AutomationBench, MMLU-Pro, IFEval, Reasoning Gym, and Math Python. Every run reconciled consistently with provider/Trackio success and a retained evaluation artifact. The plan now treats live qualification as complete; only normal eval-image publication/configuration, standalone Math Python image publication/lifecycle coverage, full root validation, and old-source removal remain.
 
 Revision note (2026-08-03): added Milestone 9 at the user's direction. The final migration now explicitly removes the tracked `environments/automationbench_v1` implementation from `rl` only after publication/configuration, Math Python lifecycle coverage, full validation, and an active-reference audit. The plan distinguishes this scoped deletion from generic project-owned `environments/<path>` support and external `verifiers-environments/environments/<package>` subdirectories, and defines the exact documentation, audit, recovery, and acceptance steps.
+
+Revision note (2026-08-03): switched the Math Python image release gate to the CarbonTeq OCI registry. Published `registry.lan/carbonteq/math-python-v1@sha256:67624f5e71f8a5c89d25bc6c42370eb6e71b8569788aa818e5d3fe8585f15f15`; no external registry publication target is required. Only lifecycle cleanup, normal eval-parent configuration, full validation, and final legacy-source removal remain.

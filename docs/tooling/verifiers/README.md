@@ -36,9 +36,11 @@ installable:
 The four-pack `general-capability-balanced-v1` catalog evaluation covers
 MMLU-Pro, IFEval, Reasoning Gym, and Math Python. The Lab overlay adds six
 bounded one-cell qualification work packages so each native trace can be
-inspected independently. Math Python's Docker image and lifecycle gate remain
-explicitly pending; the current overlay uses the package's subprocess path and
-must not be treated as a sandbox-isolation claim.
+inspected independently. The Math Python image is published in the CarbonTeq
+OCI registry at
+`registry.lan/carbonteq/math-python-v1@sha256:67624f5e71f8a5c89d25bc6c42370eb6e71b8569788aa818e5d3fe8585f15f15`.
+Its lifecycle cleanup gate remains; the current overlay uses the package's
+subprocess path and must not be treated as a sandbox-isolation claim.
 
 ## What Verifiers v1 exposes (eval / RL)
 
