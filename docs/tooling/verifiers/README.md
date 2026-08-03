@@ -95,8 +95,9 @@ Prototype path today: `posttrain.eval.evaluate` →
   balancing; the framework does not copy task rows or invent task IDs.
 - Inspect truncation / `finish_reason=length` rates — length-capped scores are
   weak capability evidence
-- Source-data cards stay under [datasets/](../../datasets/); env implementation
-  stays in env packages (e.g. `environments/automationbench_v1`)
+- Source-data cards stay under [datasets/](../../datasets/); environment
+  implementations stay in the external `carbonteq-ai/verifiers-environments`
+  packages (for example its `environments/automationbench_v1` subdirectory)
 - `packages/train` dataset pin can conflict with Hub envs — switch sync when
   needed
 

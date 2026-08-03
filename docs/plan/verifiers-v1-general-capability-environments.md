@@ -53,10 +53,10 @@ The first four new capability environments are MMLU-Pro, IFEval, Reasoning Gym, 
 - [x] (2026-08-03) Published the rebuilt `posttrain-kind-eval` parent through `posttrain-release images publish` to the CarbonTeq OCI registry using the existing base digest. The generated manifest now records `registry.lan/carbonteq/posttrain-kind-eval@sha256:ce3f947bf0d4f8696db110c8ed45ee539e92a67106da07948e7179248ca11c5d`; `posttrain-release check`, runtime-image manifest tests (33 passed), and an OCI registry HEAD verification passed.
 - [x] Push the environment repository commits, record the qualified SHA under `Artifacts and Notes`, and use that same SHA in every selected framework source pin.
 - [x] Repoint every GSM8K and AutomationBench source/dependency pin, add the four balanced catalog bindings, and add the six-environment Lab qualification overlay.
-- [ ] Remove the legacy `/home/hammad/projects/rl/environments/automationbench_v1` package as the final migration step, after publication/configuration, full validation, and the active-reference audit pass. The root `environments/` directory should disappear from the framework repository; generic project-owned `environments/<project-path>` support and external `verifiers-environments/environments/<package>` paths remain valid and are not removed.
+- [x] (2026-08-03) Removed the legacy `/home/hammad/projects/rl/environments/automationbench_v1` package as the final migration step after publication/configuration, full validation, and the active-reference audit. The tracked root `environments/` directory is gone; generic project-owned `environments/<project-path>` support and external `verifiers-environments/environments/<package>` paths remain valid.
 - [x] Prove wheel packing against the rebuilt eval kind digest, clean-cache Hugging Face loading, all six local evaluations, native trace persistence, and exact source identity. The remaining delivery gates are full validation and final legacy-source cleanup.
-- [ ] Run both repositories' full validation ladders and update `Outcomes & Retrospective` with measured results and remaining risks.
-- [ ] Complete Milestone 9: update active documentation and compatibility instructions, remove the legacy in-repository package, and prove that no active consumer still depends on the framework-owned environment implementation.
+- [x] (2026-08-03) Ran both repositories' full validation ladders and updated `Outcomes & Retrospective` with measured results and remaining risks: external six-package/boundary/combined-install checks pass; root Ruff, Pyright, import boundaries, and 991-test suite pass with 18 skips.
+- [x] (2026-08-03) Completed Milestone 9: active documentation and compatibility instructions now point to `carbonteq-ai/verifiers-environments`, the legacy in-repository package is removed, and the active-reference audit shows no framework-local consumer remains.
 
 ## Surprises & Discoveries
 
@@ -267,19 +267,19 @@ generic managed eval path using the rebuilt parent: GSM8K, AutomationBench,
 MMLU-Pro, IFEval, Reasoning Gym, and Math Python each have a succeeded local
 Docker run, succeeded Trackio finalization, a consistent reconciliation record,
 and a retained evaluation artifact. The temporary overlay was needed only
-because the machine-wide config still resolves the stale published parent;
-normal machine launches still require the rebuilt eval kind digest to be
-published/configured. The normal publication/configuration gate is now complete
-with the generated eval-parent manifest update. The remaining release gates are
-full validation and removal of the old in-repository
-AutomationBench copy as the final migration step.
-The largest product risks remain Math Python's host-networked untrusted-code
-boundary and the large pinned Reasoning Gym dependency closure.
+because the machine-wide config resolved the stale published parent at the time;
+the normal publication/configuration gate is now complete with the generated
+eval-parent manifest update. The subprocess-based Math Python decision is
+explicit for this release, and both validation ladders plus the final scoped
+migration are complete. Remaining risks are the deliberately bounded but not
+network-isolated subprocess threat model and the large pinned Reasoning Gym
+dependency closure.
 
-The final migration step is intentionally destructive but scoped: after all
-source, package, runtime, and live evidence gates pass, remove the tracked
-`environments/automationbench_v1` tree and update active documentation so the
-framework has no concrete Verifiers implementation in its own repository.
+The final migration step was intentionally destructive but scoped: after all
+source, package, runtime, and live evidence gates passed, the tracked
+`environments/automationbench_v1` tree was removed and active documentation was
+updated so the framework has no concrete Verifiers implementation in its own
+repository.
 Generic project-path environment support remains part of the framework, and
 the external repository continues to use `environments/<package>` paths.
 
@@ -489,7 +489,7 @@ Finally run the balanced plan only after estimating token and tool-runtime cost 
 
 ### Milestone 9: retire the framework-local environment implementation
 
-This is the final migration milestone and is intentionally ordered after source
+This was the final migration milestone and was intentionally ordered after source
 publication, normal runtime-image publication/configuration, Math Python subprocess
 lifecycle qualification, six-cell live evidence, and both validation
 ladders. The goal is to leave `/home/hammad/projects/rl` with no concrete
@@ -843,3 +843,5 @@ Revision note (2026-08-03): added Math Python lifecycle regression coverage in e
 Revision note (2026-08-03): ran the supported CarbonTeq OCI publication workflow for the rebuilt eval kind image with base digest `sha256:b50de1de16de9593c10e6cb202c5e9a89761e782695732bcaa27ff2a628b623a`. Registry HEAD returned `sha256:ce3f947bf0d4f8696db110c8ed45ee539e92a67106da07948e7179248ca11c5d`; `posttrain-release check` and 33 runtime-image tests passed, and the generated manifest is ready to commit.
 
 Revision note (2026-08-03): made the release runtime decision explicit: Math Python remains subprocess-based for this release, with Docker image execution optional. The external repository's full six-package ladder, boundary check, and disposable combined-install activation passed; only the root framework validation ladder and final scoped legacy-source removal remain.
+
+Revision note (2026-08-03): completed the final scoped migration. Active ownership docs and runbooks now point to `carbonteq-ai/verifiers-environments`; the root `environments/automationbench_v1` tree was removed after the active-reference audit; and the post-deletion root ladder passed with 991 tests passed and 18 skipped. The framework retains generic project-path environment support and external Git subdirectory bindings.

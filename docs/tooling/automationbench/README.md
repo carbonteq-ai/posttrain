@@ -27,19 +27,20 @@ declared Python floor to 3.12, regenerates the fork lockfile, and documents the
 fork. It does not change benchmark tasks, tools, simulated application state,
 routes, runner behavior, or scoring.
 
-The executable pins live in
-`environments/automationbench_v1/pyproject.toml`,
-`environments/automationbench_v1/uv.lock`, and the root `uv.lock`. Catalog and
-evaluation environment sources use the same revision so run lineage describes
-the code that actually loaded the task population.
+The executable fork pin lives in the external environment repository's
+`environments/automationbench_v1/pyproject.toml` and `uv.lock`. Framework
+catalog and evaluation source bindings pin the full
+`carbonteq-ai/verifiers-environments` commit and the root `uv.lock` carries the
+resolved wheel closure, so run lineage describes the code that actually loaded
+the task population.
 
 ## Supported integration boundary
 
-The Verifiers v1 adapter is now published as the standalone `automationbench-v1`
-package in `https://github.com/carbonteq-ai/verifiers-environments` at commit
-`017ac72f543f79f48400cbb4cb641d6df4c3adfa`, under
-`environments/automationbench_v1`. The old in-repository copy remains only for
-additive migration recovery until managed qualification completes. GRPO and
+The Verifiers v1 adapter is published as the standalone `automationbench-v1`
+package in `https://github.com/carbonteq-ai/verifiers-environments` at the
+framework-pinned commit `017ac72f543f79f48400cbb4cb641d6df4c3adfa`, under
+`environments/automationbench_v1`. There is no framework-local implementation;
+the external repository owns its package lifecycle. GRPO and
 evaluation select domain categories, deterministic sampling seeds, task and
 rollout budgets, toolset, and interaction limits. Concrete task identities are
 resolved by the environment and retained in native traces; they are not public
@@ -57,11 +58,14 @@ The fork's Python 3.12 domain, runner, rubric, and Zapier meta-tool suite passes
 The platform additionally constructs a real two-task deterministic bridge in
 the Python 3.12 host and runs the complete workspace validation ladder.
 
-From `/home/hammad/projects/rl`, run:
+From the external repository checkout, run:
 
-    uv run --project environments/automationbench_v1 --python 3.12 \
-      --with pytest --with pytest-asyncio \
-      pytest -q environments/automationbench_v1/tests
+    cd /home/hammad/projects/verifiers-environments/environments/automationbench_v1
+    uv sync --locked --python 3.12
+    uv run pytest -q
+
+From `/home/hammad/projects/rl`, run the framework consumers:
+
     uv run pytest apps/lab/tests packages/eval/tests -q
     uv run lint-imports
     uv lock --check
@@ -73,8 +77,9 @@ Python 3.12 and Python 3.13; they are not regressions introduced by the fork.
 ## Update and retirement
 
 Make compatibility changes in `/home/hammad/projects/automationbench`, update
-its `CARBONTEQ_FORK.md`, commit and push the fork first, then move the immutable
-pin and both locks here. Rerun the fork and platform suites before accepting a
-new revision. Retire the fork when upstream supports Python 3.12 and passes the
+its `CARBONTEQ_FORK.md`, commit and push the fork first, then update the
+external `verifiers-environments` package and its immutable framework pin.
+Rerun the fork, external package, and platform suites before accepting a new
+revision. Retire the fork when upstream supports Python 3.12 and passes the
 same relevant suites; move the pins to the immutable upstream commit rather
 than a branch name.
