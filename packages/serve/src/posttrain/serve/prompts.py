@@ -126,9 +126,16 @@ def load_prompt_corpus(corpus_id: str) -> PromptCorpus:
 
     if re.fullmatch(r"[a-z0-9][a-z0-9._-]*", corpus_id) is None:
         raise PromptError(f"invalid prompt corpus id: {corpus_id!r}")
-    root = files("posttrain.serve.benchmarks.resources").joinpath("corpora")
+    root = files("posttrain.serve.benchmarks.general_serving.resources")
     records_resource = root.joinpath(f"{corpus_id}.jsonl")
     manifest_resource = root.joinpath(f"{corpus_id}.manifest.json")
+    if not records_resource.is_file() or not manifest_resource.is_file():
+        # Keep a narrow read-only fallback for already-built package images
+        # during the resource relocation window.  New builds write beside the
+        # owning corpus definition under ``general_serving/resources``.
+        root = files("posttrain.serve.benchmarks.resources").joinpath("corpora")
+        records_resource = root.joinpath(f"{corpus_id}.jsonl")
+        manifest_resource = root.joinpath(f"{corpus_id}.manifest.json")
     records_text = records_resource.read_text(encoding="utf-8")
     try:
         raw = json.loads(manifest_resource.read_text(encoding="utf-8"))

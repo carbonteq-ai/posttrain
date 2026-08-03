@@ -37,6 +37,7 @@ from posttrain.execution import (
 from posttrain.execution_pack import LocalPublishedJobImage, PackedJobContext, PublishedJobImage
 from posttrain.jobs import build_job_runtime
 from posttrain.runtime_images.manifest import load_manifest
+from posttrain.serve import WorkloadMaterialization
 from posttrain.tracking import RunSpec
 from posttrain.work import (
     JobDefinition,
@@ -1538,6 +1539,61 @@ def test_dataset_add_jsonl_and_catalog_materialize(tmp_path: Path, capsys) -> No
     assert materialized["items"][0]["family"] == "dataset"
     assert materialized["items"][0]["id"] == "datasets/local-sft@1"
     assert materialized["items"][0]["status"] == "materialized"
+
+
+def test_workload_commands_delegate_to_serve_owned_operations(
+    tmp_path: Path,
+    capsys,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+    seen: dict[str, object] = {}
+
+    def result(*, materialized: bool, path: str) -> WorkloadMaterialization:
+        return WorkloadMaterialization(
+            workload_id="workloads/general-serving-32k-sweep@1",
+            workload_revision="1",
+            corpus_id="general-serving-v1",
+            corpus_revision="1",
+            record_count=128,
+            content_sha256="9a9467fd8a5e744968d09a4d8fd6f4d92a089c50a84e1e6e7e5c5520a9f4e50e",
+            path=path,
+            manifest=path.replace(".jsonl", ".manifest.json"),
+            materialized=materialized,
+        )
+
+    def fake_materialize(workload, *, output: Path) -> WorkloadMaterialization:
+        seen["materialize_workload"] = workload.id
+        seen["output"] = output
+        return result(materialized=True, path=str(output / "general-serving-v1.jsonl"))
+
+    def fake_verify(workload) -> WorkloadMaterialization:
+        seen["verify_workload"] = workload.id
+        return result(materialized=False, path="packaged/general-serving-v1.jsonl")
+
+    monkeypatch.setattr("posttrain_cli.commands.workload.materialize_workload", fake_materialize)
+    monkeypatch.setattr("posttrain_cli.commands.workload.verify_workload", fake_verify)
+
+    command = [
+        "--json",
+        "--project-root",
+        str(project),
+        "workload",
+        "materialize",
+        "workloads/general-serving-32k-sweep@1",
+    ]
+    assert main(command) == 0
+    materialized = json.loads(capsys.readouterr().out)
+    assert materialized["materialized"] is True
+    assert seen["output"] == project / ".posttrain/state/workloads/general-serving-32k-sweep-1"
+
+    command[4] = "verify"
+    assert main(command) == 0
+    verified = json.loads(capsys.readouterr().out)
+    assert verified["verified"] is True
+    assert seen["materialize_workload"] == seen["verify_workload"]
 
 
 def test_environment_add_local_writes_overlay(tmp_path: Path, capsys) -> None:
