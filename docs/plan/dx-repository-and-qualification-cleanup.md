@@ -119,6 +119,10 @@ surface, or broken maintained documentation link remains.
       audit reports no tracked ignored files or broken maintained links; its
       remaining findings are local developer state plus the one inventoried
       artifact-preflight compatibility script.
+      Release validation (2026-08-03): the generic workload command delegates
+      to `posttrain.serve`, the pinned-source rebuild reproduced all 128 records
+      at SHA-256 `9a9467fd8a5e744968d09a4d8fd6f4d92a089c50a84e1e6e7e5c5520a9f4e50e`,
+      and the complete repository suite passed with 995 tests and 18 skips.
 - [ ] Milestone 5: relocate durable Lab state and prune rebuildable root cache
       through classified, idempotent commands.
       Partial progress (2026-08-01): added `posttrain state migrate`; it

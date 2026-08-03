@@ -21,7 +21,7 @@ The visible proof is a project fixture containing one YAML dataset and one Pytho
 - [x] (2026-08-02) Replaced new arbitrary in-process Python-file execution with typed builder references, isolated materialization, complete build keys, and versioned manifests; the old form remains a warned compatibility path.
 - [x] (2026-08-02) Integrated Python-built selections with job planning, immutable execution packing, runtime resolution, and the primary CLI.
 - [x] (2026-08-02) Migrated `general-serving-v1` to the owning package convention with byte-for-byte parity and generic workload commands.
-- [x] (2026-08-02) Removed the standalone serving materializer entry point, reconciled overlapping plans, and ran the focused validation ladder plus the full repository suite.
+- [x] (2026-08-03) Removed the standalone serving materializer entry point, reconciled overlapping plans, and passed the release validation ladder: 995 tests passed and 18 skipped; the pinned-source workload rebuild reproduced SHA-256 `9a9467fd8a5e744968d09a4d8fd6f4d92a089c50a84e1e6e7e5c5520a9f4e50e`.
 
 ## Surprises & Discoveries
 
@@ -50,9 +50,9 @@ The visible proof is a project fixture containing one YAML dataset and one Pytho
   Rationale: Catalog validation and detached planning must remain lightweight, deterministic, and safe. Field-level merging across YAML and Python would make resolved values difficult to explain.
   Date/Author: 2026-08-02 / Posttrain maintainers
 
-- Decision: Keep generic record build and manifest support in `posttrain.data` rather than creating a new public catalog family or a global asset registry.
-  Rationale: `posttrain.data` already owns source adaptation and materialization and has a lightweight default dependency set. `posttrain.serve` can reuse that lower layer without importing training semantics, while a prompt corpus remains owned by its workload.
-  Date/Author: 2026-08-02 / Posttrain maintainers
+- Decision: Keep training/evaluation datasets and serving workload populations on separate domain APIs while sharing deterministic identity conventions.
+  Rationale: `posttrain.data` owns selected training/evaluation records and typed project builders. A serving prompt corpus is part of a `Workload`, so `posttrain.serve` owns its builder registry, verification, and materialization result. The generic CLI delegates to those domain APIs and does not contain corpus-specific logic.
+  Date/Author: 2026-08-03 / Posttrain maintainers
 
 - Decision: Represent builders as importable module-level references and execute them only during explicit materialization in a child process.
   Rationale: An import reference can be locked, packaged, and activated in the selected project environment. Lambdas, closures, notebook cells, and arbitrary files cannot be reproduced reliably.
@@ -78,7 +78,7 @@ dataset builders, content-addressed manifests, immutable package-lock fields,
 materialization. Schema version 1 and `python-file` remain warning-emitting
 compatibility paths; `dataset validate` remains a replacement-emitting alias
 until a release migration decision removes them. The focused suites and the
-full repository suite pass: 986 passed and 18 skipped. The serving wheel was
+full repository suite pass: 995 passed and 18 skipped. The serving wheel was
 built and checked to contain the relocated corpus resources without the old
 materializer module.
 
@@ -87,7 +87,11 @@ context under `datasets/<seat>-<identity>/<content-sha256>/`, and its lock carri
 `build_key`, `materializer_schema_version`, `builder_target`,
 `code_snapshot_digest`, `dependency_lock_digest`, and the output digest. The
 staged manifest is checked against those values before the package is retained.
-The execution-pack, execution, and jobs suites pass with 161 tests.
+The focused catalog, data, execution-pack, execution package, and CLI suites
+pass with 175 tests. The immutable project-source digest is passed into dataset
+materialization, and `posttrain job diff` now reports dataset selection,
+builder, code snapshot, dependency lock, build-key, and output changes
+separately.
 
 ## Context and Orientation
 
@@ -103,7 +107,7 @@ The current dataset implementation in `packages/data/src/posttrain/data/catalog.
 
 The current immutable packager in `packages/execution-pack/src/posttrain/execution_pack/datasets.py` calls `materialize_dataset`, verifies the manifest, copies the canonical file under `datasets/`, and records a `DatasetPackageLock`. Planning discovers dataset seats in `packages/execution-pack/src/posttrain/execution_pack/planning.py`. Standard job resolution occurs in `packages/jobs/src/posttrain/jobs/runtime.py` and `packages/jobs/src/posttrain/jobs/definitions.py`. These paths must consume the new selection and manifest without inventing a second build path.
 
-The serving corpus generator currently lives in `packages/serve/src/posttrain/serve/benchmarks/materialize_corpus.py`, is exposed as `posttrain-serve-materialize-corpus` by `packages/serve/pyproject.toml`, and writes package resources below `packages/serve/src/posttrain/serve/benchmarks/resources/corpora/`. `packages/serve/src/posttrain/serve/prompts.py` loads and verifies those resources. The migration must retain the current 128 records, digest `9a9467fd8a5e744968d09a4d8fd6f4d92a089c50a84e1e6e7e5c5520a9f4e50e`, source revisions, categories, licenses, and model-visible fields.
+Before this plan, the serving corpus generator lived in a root script and wrote package resources below `packages/serve/src/posttrain/serve/benchmarks/resources/corpora/`. The completed migration places the inert definition, explicit builder, reviewed inputs, and generated resources together under `posttrain.serve.benchmarks.general_serving`; `posttrain.serve.workloads` exposes materialize/verify operations and the generic CLI delegates to them. The retained 128 records have digest `9a9467fd8a5e744968d09a4d8fd6f4d92a089c50a84e1e6e7e5c5520a9f4e50e` with unchanged source revisions, categories, licenses, and model-visible fields.
 
 The canonical product meaning does not change: dataset selections remain public training inputs, while serving prompt populations remain part of workloads. The implementation does change the documented package and API surface, so the frozen framework and API documents must be narrowly amended before code claims the new behavior.
 
@@ -320,7 +324,7 @@ Also record one `posttrain job diff` excerpt demonstrating that a builder-code e
 
 `posttrain.data` retains `posttrain-common` as its only required framework dependency. Hugging Face input resolution remains in the existing optional `huggingface` extra. The builder runner uses the selected project's Python environment and standard-library process APIs. Do not add Trackio, W&B, TRL, vLLM, Verifiers, or YAML imports to `posttrain.data`.
 
-`posttrain.serve` may add a required dependency on lightweight `posttrain-data` materialization contracts. `posttrain.data` must not import `posttrain.serve`, so dependency direction remains one way. Extend the import-linter contract in `pyproject.toml` if needed to state this direction explicitly.
+`posttrain.serve` owns serving-workload materialization without adding a dependency on `posttrain.data`; the domains share digest and manifest conventions rather than runtime implementation. `posttrain.data` and `posttrain.serve` do not import one another, and the import-linter contract keeps reusable capabilities independent.
 
 `posttrain.execution-pack` owns code snapshot identity and immutable staging. The materializer must receive that identity through a typed argument rather than rediscovering or hashing an arbitrary subset of the project. `apps/cli` obtains the same identity through project discovery and packing configuration for local materialization.
 
@@ -329,3 +333,4 @@ The final implementation must expose one stable set of names from `packages/data
 ## Revision Notes
 
 - 2026-08-02: Initial plan written after reviewing the frozen post-training baseline and the active dataset, catalog, packing, serving-corpus, CLI, and cleanup implementations. It replaces the planned long-term `python-file` builder and package-specific corpus command with explicit Python catalog providers and one reproducible materialization lifecycle while preserving dataset and workload semantics.
+- 2026-08-03: Completed the implementation and release qualification. Corrected the final boundary so serving workload populations remain serve-owned, recorded immutable project-snapshot packing and structured job-diff evidence, and updated the exact 995-passed/18-skipped repository result plus pinned-source corpus digest.
