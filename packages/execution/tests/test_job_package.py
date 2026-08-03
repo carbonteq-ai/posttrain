@@ -66,6 +66,11 @@ def _manifest() -> JobPackageManifest:
                 manifest_path="datasets/gsm8k-train/manifest.json",
                 size_bytes=1024,
                 num_records=16,
+                build_key="8" * 64,
+                materializer_schema_version=2,
+                builder_target="example.datasets:build",
+                code_snapshot_digest="a" * 64,
+                dependency_lock_digest="b" * 64,
             ),
         ),
         expected_artifact_roles=("model", "summary"),
@@ -80,6 +85,10 @@ def test_job_package_round_trips_and_excludes_execution_identity() -> None:
 
     assert loaded == manifest
     assert loaded.package_key == manifest.package_key
+    dataset = loaded.datasets[0]
+    assert dataset.build_key == "8" * 64
+    assert dataset.materializer_schema_version == 2
+    assert dataset.builder_target == "example.datasets:build"
     assert set(payload).isdisjoint(
         {
             "run_id",

@@ -213,7 +213,8 @@ class PlannedJobPackage:
             output_root=cache_path(self.layout, "pack", "contexts"),
             dataset_packager=ImmutableDatasetPackager(
                 state_dir=cache_path(self.layout, "datasets"),
-                project_root=self.layout.root,
+                project_root=project_source.package.root,
+                code_snapshot_digest=project_source.digest,
             ),
             environment_packager=environment_packager,
         )

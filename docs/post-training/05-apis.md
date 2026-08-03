@@ -129,7 +129,11 @@ posttrain project show
 posttrain catalog list [--family FAMILY]
 posttrain catalog show FAMILY ID
 posttrain catalog validate
+posttrain dataset materialize DATASET_ID
+posttrain dataset verify DATASET_ID
 posttrain dataset validate DATASET_ID
+posttrain workload materialize WORKLOAD_ID [--output PATH]
+posttrain workload verify WORKLOAD_ID
 posttrain work-package validate PATH
 posttrain work-package run PATH --job JOB_ID
 posttrain job plan WORK_PACKAGE --job JOB_ID

@@ -15,7 +15,7 @@ _BASE: dict[str, object] = {
     "project_source_digest": "c" * 64,
     "framework_source_digest": "d" * 64,
     "kind_image": "registry.lan/team/posttrain-kind-supervised@sha256:" + "e" * 64,
-    "datasets": [{"dataset_id": "gsm8k", "digest": "f" * 64}],
+    "datasets": [{"selection_id": "datasets/gsm8k@1", "digest": "f" * 64}],
     "backend_runtime": {"backend": "verl", "projection_digest": "1" * 64},
     "expected_artifact_roles": ["model"],
 }
@@ -86,11 +86,44 @@ def test_nested_composites_name_the_field_that_moved() -> None:
 def test_list_entries_are_reported_individually() -> None:
     changes = compare_job_packages(
         _BASE,
-        _with(datasets=[{"dataset_id": "gsm8k", "digest": "9" * 64}]),
+        _with(datasets=[{"selection_id": "datasets/gsm8k@1", "digest": "9" * 64}]),
     )
     assert len(changes) == 1
-    assert changes[0].field == "datasets[gsm8k]"
-    assert "dataset changed" in changes[0].explanation
+    assert changes[0].field == "datasets[datasets/gsm8k@1].digest"
+    assert "output content changed" in changes[0].explanation
+
+
+def test_dataset_builder_code_and_input_identity_are_reported_separately() -> None:
+    changed = [
+        {
+            "selection_id": "datasets/gsm8k@1",
+            "digest": "f" * 64,
+            "build_key": "8" * 64,
+            "code_snapshot_digest": "9" * 64,
+            "dependency_lock_digest": "7" * 64,
+        }
+    ]
+    baseline = _with(
+        datasets=[
+            {
+                "selection_id": "datasets/gsm8k@1",
+                "digest": "f" * 64,
+                "build_key": "1" * 64,
+                "code_snapshot_digest": "2" * 64,
+                "dependency_lock_digest": "3" * 64,
+            }
+        ]
+    )
+
+    changes = compare_job_packages(baseline, _with(datasets=changed))
+
+    assert [change.field for change in changes] == [
+        "datasets[datasets/gsm8k@1].build_key",
+        "datasets[datasets/gsm8k@1].code_snapshot_digest",
+        "datasets[datasets/gsm8k@1].dependency_lock_digest",
+    ]
+    assert "builder code snapshot" in changes[1].explanation
+    assert "dependency lock" in changes[2].explanation
 
 
 def test_added_and_removed_list_entries_are_named() -> None:
@@ -98,17 +131,17 @@ def test_added_and_removed_list_entries_are_named() -> None:
         _BASE,
         _with(
             datasets=[
-                {"dataset_id": "gsm8k", "digest": "f" * 64},
-                {"dataset_id": "math", "digest": "9" * 64},
+                {"selection_id": "datasets/gsm8k@1", "digest": "f" * 64},
+                {"selection_id": "datasets/math@1", "digest": "9" * 64},
             ]
         ),
     )
     assert [c.kind for c in added] == ["added"]
-    assert added[0].current == "math"
+    assert added[0].current == "datasets/math@1"
 
     removed = compare_job_packages(_BASE, _with(datasets=[]))
     assert [c.kind for c in removed] == ["removed"]
-    assert removed[0].previous == "gsm8k"
+    assert removed[0].previous == "datasets/gsm8k@1"
 
 
 def test_a_field_absent_from_one_side_is_summarized_not_dumped() -> None:
@@ -117,7 +150,7 @@ def test_a_field_absent_from_one_side_is_summarized_not_dumped() -> None:
     changes = compare_job_packages(older, _BASE)
     assert len(changes) == 1
     assert changes[0].kind == "added"
-    assert changes[0].current == "1 entry: gsm8k"
+    assert changes[0].current == "1 entry: datasets/gsm8k@1"
     assert "{" not in changes[0].current
 
 

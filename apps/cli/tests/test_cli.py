@@ -864,14 +864,72 @@ def test_empty_overlay_lists_global_assets_and_dataset_validate_is_idempotent(
     assert main(command) == 0
     first = json.loads(capsys.readouterr().out)
     assert first["materialized"] is True
+    assert first["created"] is True
     assert first["examples"] == 2
     assert Path(first["path"]).is_file()
 
     assert main(command) == 0
     second = json.loads(capsys.readouterr().out)
     assert second["materialized"] is False
+    assert second["created"] is False
     assert second["path"] == first["path"]
     assert second["content_sha256"] == first["content_sha256"]
+
+
+def test_dataset_materialize_verify_and_validate_alias(tmp_path: Path, capsys) -> None:
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+
+    materialize = [
+        "--json",
+        "--project-root",
+        str(project),
+        "dataset",
+        "materialize",
+        "datasets/posttrain-sft-smoke@1",
+    ]
+    assert main(materialize) == 0
+    first = json.loads(capsys.readouterr().out)
+    assert first["materialized"] is True
+    assert isinstance(first["build_key"], str)
+    manifest = Path(first["manifest"])
+    before = manifest.stat().st_mtime_ns
+
+    assert main(materialize) == 0
+    second = json.loads(capsys.readouterr().out)
+    assert second["materialized"] is False
+    assert second["content_sha256"] == first["content_sha256"]
+
+    assert main(
+        [
+            "--json",
+            "--project-root",
+            str(project),
+            "dataset",
+            "verify",
+            "datasets/posttrain-sft-smoke@1",
+        ]
+    ) == 0
+    verified = json.loads(capsys.readouterr().out)
+    assert verified["verified"] is True
+    assert verified["baseline_content_sha256"] == first["content_sha256"]
+    assert Path(verified["path"]) == Path(first["path"])
+    assert manifest.stat().st_mtime_ns == before
+
+    assert main(
+        [
+            "--json",
+            "--project-root",
+            str(project),
+            "dataset",
+            "validate",
+            "datasets/posttrain-sft-smoke@1",
+        ]
+    ) == 0
+    alias = json.loads(capsys.readouterr().out)
+    assert alias["deprecated"] is True
+    assert alias["replacement"].startswith("posttrain dataset materialize ")
 
 
 def test_doctor_reports_readiness_and_missing_project(
