@@ -656,8 +656,7 @@ class TrackioLifecycleAdmin:
             artifacts=int(raw.get("artifacts", 0)),
             artifact_versions=int(raw.get("artifact_versions", 0)),
             logical_bytes=int(raw.get("artifact_logical_bytes", 0)),
-            storage_bytes=int(raw.get("artifact_storage_bytes", 0))
-            + int(raw.get("media_storage_bytes", 0)),
+            storage_bytes=int(raw.get("artifact_storage_bytes", 0)) + int(raw.get("media_storage_bytes", 0)),
             blockers=tuple(str(value) for value in raw.get("blockers", [])),
             digest=str(raw["digest"]),
             created_at=_datetime(raw.get("created_at"), field="project purge created_at"),

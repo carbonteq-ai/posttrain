@@ -152,9 +152,7 @@ class PurgePlan:
         for action in actions:
             unknown = set(action.depends_on) - known
             if unknown:
-                raise ContractError(
-                    "purge action depends on unknown action(s): " + ", ".join(sorted(unknown))
-                )
+                raise ContractError("purge action depends on unknown action(s): " + ", ".join(sorted(unknown)))
         _timestamp(self.created_at, "creation time")
         if not _DIGEST.fullmatch(self.digest):
             raise ContractError("purge plan digest must be SHA-256")
@@ -344,13 +342,20 @@ class PurgeStore:
                 run_ids=tuple(str(value) for value in _sequence(payload["run_ids"], "run ids")),
                 root_run_id=(str(payload["root_run_id"]) if payload.get("root_run_id") is not None else None),
                 dependency_edges=tuple(
-                    (str(edge[0]), str(edge[1]))
-                    for edge in _edge_sequence(payload["dependency_edges"])
+                    (str(edge[0]), str(edge[1])) for edge in _edge_sequence(payload["dependency_edges"])
                 ),
-                tracking_actions=tuple(self._action(value) for value in _sequence(payload["tracking_actions"], "tracking actions")),
-                provider_actions=tuple(self._action(value) for value in _sequence(payload["provider_actions"], "provider actions")),
-                registry_actions=tuple(self._action(value) for value in _sequence(payload["registry_actions"], "registry actions")),
-                local_actions=tuple(self._action(value) for value in _sequence(payload["local_actions"], "local actions")),
+                tracking_actions=tuple(
+                    self._action(value) for value in _sequence(payload["tracking_actions"], "tracking actions")
+                ),
+                provider_actions=tuple(
+                    self._action(value) for value in _sequence(payload["provider_actions"], "provider actions")
+                ),
+                registry_actions=tuple(
+                    self._action(value) for value in _sequence(payload["registry_actions"], "registry actions")
+                ),
+                local_actions=tuple(
+                    self._action(value) for value in _sequence(payload["local_actions"], "local actions")
+                ),
                 warnings=tuple(str(value) for value in _sequence(payload["warnings"], "warnings")),
                 blockers=tuple(str(value) for value in _sequence(payload["blockers"], "blockers")),
                 digest=str(payload["digest"]),
@@ -411,7 +416,9 @@ class PurgeStore:
             return PurgeReceipt(
                 purge_id=purge_id,
                 plan_digest=str(payload["plan_digest"]),
-                completed_actions=tuple(str(value) for value in _sequence(payload["completed_actions"], "completed actions")),
+                completed_actions=tuple(
+                    str(value) for value in _sequence(payload["completed_actions"], "completed actions")
+                ),
                 skipped_actions=tuple(str(value) for value in _sequence(payload["skipped_actions"], "skipped actions")),
                 failed_action=(str(payload["failed_action"]) if payload.get("failed_action") is not None else None),
                 completed_at=datetime.fromisoformat(str(payload["completed_at"])),
@@ -542,16 +549,8 @@ def apply_purge_plan(
             raise
 
     events = store.journal(purge_id)
-    completed = {
-        str(event["action_id"])
-        for event in events
-        if event.get("status") in {"completed", "skipped"}
-    }
-    skipped = {
-        str(event["action_id"])
-        for event in events
-        if event.get("status") == "skipped"
-    }
+    completed = {str(event["action_id"]) for event in events if event.get("status") in {"completed", "skipped"}}
+    skipped = {str(event["action_id"]) for event in events if event.get("status") == "skipped"}
     for action in plan.actions:
         if action.action_id in completed:
             continue

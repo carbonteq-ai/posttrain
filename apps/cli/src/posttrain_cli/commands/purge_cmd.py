@@ -12,7 +12,9 @@ from ..purge_surface import apply_saved_plan, plan_store, render_plan
 
 
 def register(app: typer.Typer) -> None:
-    purge_app = typer.Typer(rich_markup_mode=None, no_args_is_help=True, help="review and apply destructive purge plans")
+    purge_app = typer.Typer(
+        rich_markup_mode=None, no_args_is_help=True, help="review and apply destructive purge plans"
+    )
     app.add_typer(purge_app, name="purge")
 
     @purge_app.command("show", help="show an immutable purge plan without contacting providers")

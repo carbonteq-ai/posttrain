@@ -106,8 +106,7 @@ def build_run_purge_plan(
             )
         if not cascade:
             blockers.extend(
-                f"run {candidate.run_id!r} is consumed by unselected run {consumer!r}"
-                for consumer in consumers
+                f"run {candidate.run_id!r} is consumed by unselected run {consumer!r}" for consumer in consumers
             )
         else:
             for consumer_id in consumers:
@@ -235,9 +234,7 @@ def _assemble_plan(
     ordered_tracking = _leaf_first(selected, root_run_id)
     for candidate in ordered_tracking:
         consumer_dependencies = tuple(
-            f"tracking:{consumer}"
-            for consumer in candidate.consumers
-            if consumer in selected
+            f"tracking:{consumer}" for consumer in candidate.consumers if consumer in selected
         )
         registry_id = f"registry:{candidate.run_id}"
         tracking_actions.append(

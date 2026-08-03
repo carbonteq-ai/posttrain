@@ -90,9 +90,7 @@ def test_trackio_lifecycle_admin_maps_digest_bound_run_purge(
                 "created_at": "2026-08-02T00:00:00+00:00",
             }
 
-        def purge_runs(
-            self, project: str, run_ids: tuple[str, ...], plan_digest: str
-        ) -> dict[str, Any]:
+        def purge_runs(self, project: str, run_ids: tuple[str, ...], plan_digest: str) -> dict[str, Any]:
             assert (project, run_ids, plan_digest) == ("alpha", ("run-a",), digest)
             return {
                 "provider": "trackio",

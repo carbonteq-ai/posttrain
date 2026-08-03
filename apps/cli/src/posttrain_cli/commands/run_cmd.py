@@ -606,7 +606,9 @@ def register(app: typer.Typer) -> None:
     def run_purge_cmd(
         ctx: typer.Context,
         run_id: Annotated[str, typer.Argument(help="full canonical run id; prefixes and --last are unsupported")],
-        cascade: Annotated[bool, typer.Option("--cascade", help="include the complete same-project consumer closure")] = False,
+        cascade: Annotated[
+            bool, typer.Option("--cascade", help="include the complete same-project consumer closure")
+        ] = False,
     ) -> None:
         state: CliState = ctx.obj
         layout = state.layout()

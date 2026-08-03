@@ -70,7 +70,8 @@ def candidate_catalog(layout: Any) -> dict[str, PurgeRunCandidate]:
             reconciled=reconciled,
             evidence_provider=evidence.provider if evidence is not None else "unknown",
             evidence_project=evidence.project if evidence is not None else layout.project_id,
-            tracking_provider_run_id=tracking_provider_run_id or (evidence.source_id if evidence is not None else submission.run_id),
+            tracking_provider_run_id=tracking_provider_run_id
+            or (evidence.source_id if evidence is not None else submission.run_id),
             image=image,
             workspace=submission.run_workspace,
             lineage_complete=False,
@@ -81,9 +82,7 @@ def candidate_catalog(layout: Any) -> dict[str, PurgeRunCandidate]:
 
 def _populate_trackio_lineage(layout: Any, candidates: dict[str, PurgeRunCandidate]) -> None:
     trackio_candidates = {
-        run_id: candidate
-        for run_id, candidate in candidates.items()
-        if candidate.evidence_provider == "trackio"
+        run_id: candidate for run_id, candidate in candidates.items() if candidate.evidence_provider == "trackio"
     }
     if not trackio_candidates:
         return
