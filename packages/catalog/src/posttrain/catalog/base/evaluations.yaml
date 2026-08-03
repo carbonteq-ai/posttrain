@@ -1,4 +1,12 @@
 evaluation:
+  general-capability-balanced-v1:
+    revision: "1"
+    kind: general
+    environments:
+      - knowledge-mmlu-pro-cot-5shot-balanced-v1
+      - instruction-ifeval-full-v1
+      - reasoning-gym-balanced-eval-v1
+      - math-python-balanced-eval-v1
   general-smoke-v1:
     revision: "1"
     kind: general

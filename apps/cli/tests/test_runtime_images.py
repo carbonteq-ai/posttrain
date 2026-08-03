@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from posttrain.common import ContractError
@@ -252,6 +253,30 @@ def test_verified_image_passes_without_building(
         inspector=_FakeInspector(),
     )
     assert result.ok
+
+
+def test_build_missing_refuses_to_pack_when_configured_digest_stays_stale(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A successful rebuild must not silently leave the old plan usable."""
+    registry = _registry(tmp_path, monkeypatch)
+    stale = hashlib.sha256(b"an older workspace lock").hexdigest()
+    inspector = _FakeInspector(lock_digest=stale)
+    rebuilt = "registry.internal/team/posttrain-kind-supervised@sha256:" + "c" * 64
+    monkeypatch.setattr(
+        "posttrain_cli.runtime_image_builds.build_runtime_images",
+        lambda *args, **kwargs: (SimpleNamespace(image=rebuilt),),
+    )
+
+    with pytest.raises(ContractError, match=r"Update \[registry\].kind_images"):
+        ensure_kind_image_ready(
+            registry,
+            "supervised",
+            build_missing=True,
+            manifest=_manifest(),
+            inspector=inspector,
+        )
 
 
 def test_doctor_fails_when_a_configured_image_is_not_this_release(

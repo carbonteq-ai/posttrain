@@ -35,7 +35,11 @@ the code that actually loaded the task population.
 
 ## Supported integration boundary
 
-`environments/automationbench_v1` owns the Verifiers v1 adapter. GRPO and
+The Verifiers v1 adapter is now published as the standalone `automationbench-v1`
+package in `https://github.com/carbonteq-ai/verifiers-environments` at commit
+`017ac72f543f79f48400cbb4cb641d6df4c3adfa`, under
+`environments/automationbench_v1`. The old in-repository copy remains only for
+additive migration recovery until managed qualification completes. GRPO and
 evaluation select domain categories, deterministic sampling seeds, task and
 rollout budgets, toolset, and interaction limits. Concrete task identities are
 resolved by the environment and retained in native traces; they are not public
@@ -48,7 +52,8 @@ Install the integrated runtime with:
 ## Validation
 
 The fork's Python 3.12 domain, runner, rubric, and Zapier meta-tool suite passes
-75 tests. The adapter passes all six package tests from its Python 3.12 lock.
+75 tests. The published adapter passes all ten package tests from its Python
+3.12 lock.
 The platform additionally constructs a real two-task deterministic bridge in
 the Python 3.12 host and runs the complete workspace validation ladder.
 

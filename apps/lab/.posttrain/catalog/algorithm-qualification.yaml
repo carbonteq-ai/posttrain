@@ -36,14 +36,17 @@ environment:
     qualification: deferred
     source:
       package: gsm8k-v1
-      repository: https://github.com/PrimeIntellect-ai/verifiers
-      revision: 284a868d6a9022109b749710672a0460e8a996d4
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 017ac72f543f79f48400cbb4cb641d6df4c3adfa
       subdirectory: environments/gsm8k_v1
     activation:
       kind: verifiers-config
       config:
         taskset:
           id: gsm8k-v1
+          dataset_repo: openai/gsm8k
+          dataset_revision: 740312add88f781978c0658806c59bc2815b9866
+          dataset_config: main
           split: test
         harness:
           id: "null"
@@ -64,6 +67,194 @@ environment:
     parameters:
       sampling_seed: 0
     reward_components: [reward]
+  automationbench-zapier-simple-qualification:
+    category: agentic-tool-use
+    qualification: deferred
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 017ac72f543f79f48400cbb4cb641d6df4c3adfa
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple]
+          task:
+            toolset: zapier
+            search_top_k: 20
+        harness:
+          id: "null"
+          runtime:
+            type: subprocess
+        timeout:
+          setup: 600
+          rollout: 900
+          finalize: 120
+          scoring: 300
+        max_turns: 50
+    sampling:
+      max_tokens: 2048
+      temperature: 0.0
+    num_tasks: 2
+    num_rollouts: 1
+    max_concurrent: 1
+    parameters:
+      sampling_seed: 17
+    reward_components:
+      - partial_credit
+      - task_completed_correctly
+      - assertions_passed
+  mmlu-pro-qualification:
+    category: knowledge-reasoning
+    qualification: deferred
+    source:
+      package: mmlu-pro-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 017ac72f543f79f48400cbb4cb641d6df4c3adfa
+      subdirectory: environments/mmlu_pro_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: mmlu-pro-v1
+          dataset_repo: TIGER-Lab/MMLU-Pro
+          dataset_revision: b189ec765aa7ed75c8acfea42df31fdae71f97be
+          validation_split: validation
+          test_split: test
+          shots: 5
+          order_seed: 0
+          balanced: true
+          limit_per_category: 1
+        harness:
+          id: "null"
+          runtime:
+            type: subprocess
+        timeout:
+          setup: 120
+          rollout: 300
+          finalize: 60
+          scoring: 120
+    sampling:
+      max_tokens: 1024
+      temperature: 0.0
+    num_tasks: 2
+    num_rollouts: 1
+    max_concurrent: 2
+    reward_components: [answer_correct]
+  ifeval-qualification:
+    category: instruction-following
+    qualification: deferred
+    source:
+      package: ifeval-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 017ac72f543f79f48400cbb4cb641d6df4c3adfa
+      subdirectory: environments/ifeval_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: ifeval-v1
+          dataset_repo: google/IFEval
+          dataset_revision: 966cd89545d6b6acfd7638bc708b98261ca58e84
+          split: train
+          order_seed: 0
+        harness:
+          id: "null"
+          runtime:
+            type: subprocess
+        timeout:
+          setup: 120
+          rollout: 300
+          finalize: 60
+          scoring: 120
+    sampling:
+      max_tokens: 1024
+      temperature: 0.0
+    num_tasks: 2
+    num_rollouts: 1
+    max_concurrent: 2
+    reward_components: [strict_prompt_accuracy]
+  reasoning-gym-qualification:
+    category: procedural-reasoning
+    qualification: deferred
+    source:
+      package: reasoning-gym-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 017ac72f543f79f48400cbb4cb641d6df4c3adfa
+      subdirectory: environments/reasoning_gym_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: reasoning-gym-v1
+          split: eval
+          generators:
+            - leg_counting
+            - products
+            - letter_counting
+            - number_sorting
+            - knights_knaves
+            - syllogism
+            - shortest_path
+            - graph_color
+            - countdown
+            - zebra_puzzles
+          examples_per_generator: 1
+          eval_seed_start: 1000000
+        harness:
+          id: "null"
+          runtime:
+            type: subprocess
+        timeout:
+          setup: 120
+          rollout: 300
+          finalize: 60
+          scoring: 120
+    sampling:
+      max_tokens: 2048
+      temperature: 0.0
+    num_tasks: 2
+    num_rollouts: 1
+    max_concurrent: 2
+    reward_components: [native_reward]
+  math-python-qualification:
+    category: math-tool-use
+    qualification: deferred
+    source:
+      package: math-python-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 017ac72f543f79f48400cbb4cb641d6df4c3adfa
+      subdirectory: environments/math_python_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: math-python-v1
+          repository: DigitalLearningGmbH/MATH-lighteval
+          revision: 0530c78699ea5e8eb5530600900e1f328b48acad
+          split: test
+          start_index: 0
+          num_tasks: 2
+          order_seed: 0
+          balance_by_type: true
+        harness:
+          id: "null"
+          runtime:
+            type: subprocess
+        timeout:
+          setup: 120
+          rollout: 300
+          finalize: 60
+          scoring: 120
+    sampling:
+      max_tokens: 2048
+      temperature: 0.0
+    num_tasks: 2
+    num_rollouts: 1
+    max_concurrent: 1
+    reward_components: [math_reward]
   reverse-text-eval-qualification:
     category: instruction-following
     qualification: deferred
@@ -111,6 +302,16 @@ evaluation:
     environments:
       - gsm8k-eval-qualification
       - reverse-text-eval-qualification
+  environment-library-qualification-v1:
+    revision: "1"
+    kind: general
+    environments:
+      - gsm8k-eval-qualification
+      - automationbench-zapier-simple-qualification
+      - mmlu-pro-qualification
+      - ifeval-qualification
+      - reasoning-gym-qualification
+      - math-python-qualification
 
 training:
   qwen3.5-0.8b/gsm8k-grpo-15-v1:

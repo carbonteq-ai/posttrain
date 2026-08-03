@@ -12,12 +12,11 @@ from ..requests import (
     VerifiersV1ConfigActivation,
 )
 
-# The selected distribution is the native Verifiers v1 port, not the benchmark
-# fork it reads.  The fork publishes `carbonteq-automation-bench` on the legacy
-# 0.1 environment API and contains no v1 taskset at any revision, so naming its
-# repository here could never resolve `automationbench-v1`.
-AUTOMATIONBENCH_REVISION = "02848b756727d86a55564557e79e7f613fc8762c"
-AUTOMATIONBENCH_REPOSITORY = "https://github.com/carbonteq-ai/posttrain"
+# The native Verifiers v1 port is maintained in the framework-neutral
+# environment library. The benchmark fork remains a dependency of that package
+# and is not itself the environment source.
+AUTOMATIONBENCH_REVISION = "017ac72f543f79f48400cbb4cb641d6df4c3adfa"
+AUTOMATIONBENCH_REPOSITORY = "https://github.com/carbonteq-ai/verifiers-environments"
 AUTOMATIONBENCH_SUBDIRECTORY = "environments/automationbench_v1"
 
 

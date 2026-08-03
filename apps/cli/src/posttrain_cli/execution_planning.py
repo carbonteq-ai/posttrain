@@ -88,6 +88,7 @@ _FRAMEWORK_INSTALL_ROOTS = (
     "packages/catalog",
     "packages/common",
     "packages/data",
+    "packages/environment",
     "packages/eval",
     "packages/execution",
     "packages/jobs",

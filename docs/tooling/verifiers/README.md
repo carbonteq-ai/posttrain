@@ -18,6 +18,28 @@ and [06 · ingest](../../post-training/06-observation-and-lineage.md#verifiers-i
 When advancing Verifiers: pin a reviewed commit, refresh `uv.lock`, run a
 taskset smoke eval, record the new SHA here. No unpinned moving branch.
 
+CarbonTeq's maintained Verifiers v1 environment packs live in the separate
+framework-neutral [verifiers-environments repository](https://github.com/carbonteq-ai/verifiers-environments).
+The current framework integration uses published commit
+`017ac72f543f79f48400cbb4cb641d6df4c3adfa` and keeps each package independently
+installable:
+
+| Package | Taskset | Source data / generator revision |
+| --- | --- | --- |
+| `gsm8k-v1` | `gsm8k-v1` | `openai/gsm8k@740312add88f781978c0658806c59bc2815b9866` |
+| `automationbench-v1` | `automationbench-v1` | CarbonTeq AutomationBench fork pinned by its package lock |
+| `mmlu-pro-v1` | `mmlu-pro-v1` | `TIGER-Lab/MMLU-Pro@b189ec765aa7ed75c8acfea42df31fdae71f97be` |
+| `ifeval-v1` | `ifeval-v1` | `google/IFEval@966cd89545d6b6acfd7638bc708b98261ca58e84` |
+| `reasoning-gym-v1` | `reasoning-gym-v1` | `open-thought/reasoning-gym@49b07130b3fcd12f2d064bba7c43869543a0e7e7` |
+| `math-python-v1` | `math-python-v1` | `DigitalLearningGmbH/MATH-lighteval@0530c78699ea5e8eb5530600900e1f328b48acad` |
+
+The four-pack `general-capability-balanced-v1` catalog evaluation covers
+MMLU-Pro, IFEval, Reasoning Gym, and Math Python. The Lab overlay adds six
+bounded one-cell qualification work packages so each native trace can be
+inspected independently. Math Python's Docker image and lifecycle gate remain
+explicitly pending; the current overlay uses the package's subprocess path and
+must not be treated as a sandbox-isolation claim.
+
 ## What Verifiers v1 exposes (eval / RL)
 
 Not a suite API. Composition:

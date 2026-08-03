@@ -22,7 +22,7 @@ The first four new capability environments are MMLU-Pro, IFEval, Reasoning Gym, 
 - [x] (2026-08-03) Made the plan self-contained around exact AutomationBench provenance, the environment-owned Hugging Face data boundary, six package contracts, safe migration order, and six concrete one-cell Lab qualification manifests.
 - [x] (2026-08-03) Confirmed the monorepo design against the actual job planner, Git source packer, and wheel builder: one repository revision is fetched once, each package subdirectory produces an independently verified wheel and lock, and the combined runtime dependency closure is resolved after wheel creation.
 - [x] (2026-08-03) User accepted the monorepo with strict package isolation as the implementation direction. Repository layout is no longer an open design choice for this plan.
-- [x] (2026-08-03) Created the public empty repository `carbonteq-ai/verifiers-environments` and cloned it to `/home/hammad/projects/verifiers-environments` on an unborn `main` branch. Source publication remains intentionally pending until the release gate; no source commit has been created or pushed.
+- [x] (2026-08-03) Created the public repository `carbonteq-ai/verifiers-environments`, cloned it to `/home/hammad/projects/verifiers-environments`, and published the first environment-library commit over SSH.
 - [x] (2026-08-03) Completed Milestone 1 locally: six isolated uv projects and locks, synthetic Verifiers v1 contract tasks, package-boundary enforcement, matrix CI, six wheels, and a clean combined-wheel activation test.
 - [x] (2026-08-03) Started the next implementation wave in parallel across the standalone package directories. Agents own GSM8K, AutomationBench, and MMLU-Pro/IFEval; the coordinating agent owns Reasoning Gym and Math Python. No agent may commit, push, edit framework consumers, or delete the old AutomationBench source during this wave.
 - [x] (2026-08-03) Implemented GSM8K locally against the exact Hub revision, including source-row digests, default split-count checks, runtime math verification, and five passing package tests. Framework pins remain unchanged.
@@ -32,15 +32,26 @@ The first four new capability environments are MMLU-Pro, IFEval, Reasoning Gym, 
 - [x] (2026-08-03 implementation slice) Migrated `automationbench-v1` without changing its task, tool, or reward semantics. Full framework repin and live qualification remain pending.
 - [x] (2026-08-03 implementation slice) Implemented `mmlu-pro-v1` and `ifeval-v1` with exact Hub revisions, deterministic task metadata, source digests, reference-derived parsing/checkers, and successful enabled network gates (MMLU-Pro 70 validation/12,032 test rows; IFEval 541 rows and all 25 instruction IDs). Full framework repin and live qualification remain pending.
 - [x] (2026-08-03) Confirmed and tightened subset evaluation semantics. `EvaluationBudget.num_tasks` already gives an invocation-scoped count without mutating a reusable environment binding; Verifiers v1 consumes it through `Taskset.select(num_tasks, shuffle)`. Added an invocation-level `EvaluationBudget.shuffle` override, preserved the direct-request `shuffle` field for compatibility, forwarded the resolved policy through the native adapter, and recorded `task_selection` (`head` or `verifiers-fixed-shuffle`) in evaluation evidence. Package eval tests pass (28 passed, 2 skipped), and the standard jobs path passes its budget-forwarding test (11 passed).
-- [x] (2026-08-03) Created the first local environment-repository commit `2ac96d3` (`feat: add CarbonTeq Verifiers environment packs`) after all six package validations, boundary checks, and clean combined-wheel activation passed. The commit is not pushed yet, so framework source repinning remains gated.
+- [x] (2026-08-03) Created and published environment-repository commit `2ac96d33a4a67ce3c930543f990783505f0e7a2c` (`feat: add CarbonTeq Verifiers environment packs`) after all six package validations, boundary checks, and clean combined-wheel activation passed. The framework can now repin only to this immutable remote SHA.
+- [x] (2026-08-03) Published follow-up environment commit `017ac72f543f79f48400cbb4cb641d6df4c3adfa` with deterministic Math Python type-balanced ordering, a scientific-stack child interpreter, and the immutable sandbox `Containerfile`; all selected framework bindings now share this newer SHA.
+- [x] (2026-08-03) Built the Math Python sandbox locally as image `sha256:d983bba26930a02c4b1ea456d744443da386f2798b4f449f5f334892ffeda9b0`, verified non-root scientific-stack imports and absence of token/secret-like environment variables. GHCR publication is still pending because the approximately 1 GB dependency layer stalled during two bounded pushes.
+- [x] (2026-08-03) Repointed framework GSM8K and AutomationBench program/catalog sources to the published environment repository, added immutable Hub fields to GSM8K activations, added the four balanced capability bindings plus Reasoning Gym/Math Python train bindings, and added `general-capability-balanced-v1`.
+- [x] (2026-08-03) Added the six explicit Lab qualification bindings and one-cell work-package manifests. Catalog and eval API tests pass with the new source identity; live endpoint qualification is still pending.
+- [x] (2026-08-03) Published environment-library commit `017ac72f543f79f48400cbb4cb641d6df4c3adfa` as the single source revision for all six framework bindings. AutomationBench and Reasoning Gym now vendor their pinned runtime sources inside their own wheels, so the combined job dependency closure contains no nested VCS requirement.
+- [x] (2026-08-03) Repointed `packages/eval`, the base and Lab catalogs, release constraints, and `uv.lock` to the published environment revision. The catalog validates with 55 base entries and 49 project entries; the four-environment balanced evaluation plan resolves its immutable bindings.
+- [x] (2026-08-03) Proved the six-wheel dependency closure with `uv pip compile --generate-hashes`; the result contains six local wheel blocks and no `git+` or VCS transitive dependency lines. The runtime workspace lock now uses `tabulate==0.9.0`, required by the vendored Reasoning Gym closure, with lock digest `f68d5419b00b0fde278d0b1d55057eb65bb5c9bbdcc78d2ff5cbfab0a3e1fa2c`.
+- [x] (2026-08-03) Added `packages/environment` to the framework source allowlist used by job packing. Without it, a real GSM8K pack failed inside the image with `ModuleNotFoundError: posttrain.environment`; the source closure now includes the catalog activation contract required by all six environments.
+- [x] (2026-08-03) Added a fail-closed regression for `--build-missing`: a successful rebuild cannot be treated as verified while the configured digest still names a stale image. A local GSM8K pack was exercised against the stale published eval image and is retained only as diagnostic evidence, not as qualification evidence.
+- [x] (2026-08-03) Updated an ignored Lab execution override to the verified rebuilt eval digest and packed all six qualification manifests to local OCI layouts. Every package installed the six environment wheels, retained the shared source revision and activation closure, and completed the deferred qualification smoke; no provider-backed run has been claimed.
+- [x] (2026-08-03) Attempted the first provider-backed GSM8K run with `--provider local`; admission stopped before pack/submit because the machine-level registry binding still resolved the stale published eval digest. No container or provider submission was created.
 - [ ] Qualify `mmlu-pro-v1` against the pinned reference corpus and framework trace gate.
 - [ ] Qualify `ifeval-v1` against the pinned Google checker corpus and framework trace gate.
 - [ ] Qualify `reasoning-gym-v1` across the ten declared generators and balanced plan.
 - [ ] Qualify `math-python-v1`, including its immutable sandbox image and Docker cleanup tests.
-- [ ] Push the environment repository commit `2ac96d3`, record the published SHA under `Artifacts and Notes`, and use that same SHA in every selected framework source pin.
-- [ ] Repoint every GSM8K and AutomationBench source/dependency pin, add the four balanced catalog bindings, and add the six-environment Lab qualification overlay.
+- [x] Push the environment repository commits, record the qualified SHA under `Artifacts and Notes`, and use that same SHA in every selected framework source pin.
+- [x] Repoint every GSM8K and AutomationBench source/dependency pin, add the four balanced catalog bindings, and add the six-environment Lab qualification overlay.
 - [ ] Remove `/home/hammad/projects/rl/environments/automationbench_v1` only after the published replacement is packed and live-qualified.
-- [ ] Prove wheel packing, clean-cache Hugging Face loading, local live evaluation, native trace persistence, and exact source identity.
+- [ ] Prove wheel packing against the rebuilt/published eval kind digest, clean-cache Hugging Face loading, local live evaluation, native trace persistence, and exact source identity.
 - [ ] Run both repositories' full validation ladders and update `Outcomes & Retrospective` with measured results and remaining risks.
 
 ## Surprises & Discoveries
@@ -104,6 +115,14 @@ The first four new capability environments are MMLU-Pro, IFEval, Reasoning Gym, 
 - Observation: the pinned Reasoning Gym repository has a large optional dependency closure because its registry imports all generator families at package import time. This is an intentional package-owned dependency boundary, but wheel size and lock churn must be measured before release.
 
 - Observation: Math Python can prove task loading and child-interpreter state isolation without Docker, but its release contract still requires an immutable sandbox image and success/error/timeout/cancellation cleanup qualification. The local implementation is not a claim of production isolation.
+
+- Observation: the six packages could not be compiled into one actual-job dependency lock while AutomationBench and Reasoning Gym retained nested Git dependencies. Vendoring the pinned CarbonTeq AutomationBench fork and the pinned Reasoning Gym source inside their package wheels removed that closure hazard without coupling the six import namespaces.
+  Evidence: the final combined `uv pip compile --generate-hashes` completed with return code 0, emitted six local wheel blocks, and contained no `git+` or VCS URL lines; external repository commit `017ac72f543f79f48400cbb4cb641d6df4c3adfa` contains both vendored source trees.
+
+- Observation: The Math Python image recipe builds a reproducible non-root image, but publishing its approximately 1 GB dependency layer to GHCR stalled twice after the smaller layers were accepted. The local image ID is not a registry digest and must not enter a framework activation. The catalog therefore keeps the subprocess qualification path and the image publication/cleanup gate explicit.
+
+- Observation: changing the shipped runtime lock makes every published job-kind image stale until it is rebuilt and its digest is configured. The previous `--build-missing` path rebuilt a new image but ignored the returned digest and continued packing the old configured parent.
+  Evidence: the diagnostic GSM8K pack used `registry.lan/carbonteq/posttrain-kind-eval@sha256:360810f695108982f077603d4248db232cf0e273213def0ccd65e1fb44fb3094`, whose OCI label still carried lock `df1b2b0b2b04b25bacdbdac9fedc9d908abd8b77ff2ae0945b7fbda09cde725e`, while the rebuild receipt recorded image `...@sha256:13ea50188e3064ac7ee38079d85367e11f20a0db627bf6f69d3177b1a73c1b28` and lock `f68d5419b00b0fde278d0b1d55057eb65bb5c9bbdcc78d2ff5cbfab0a3e1fa2c`. The CLI now raises instead of packing that mismatch.
 
 - Observation: Verifiers v1 supports two generic subset operations, not arbitrary task-ID selection: `Taskset.select(num_tasks)` takes the deterministic head of a finite taskset, while `Taskset.select(num_tasks, shuffle=True)` uses the shared fixed seed (`SEED = 0`) before slicing. Infinite tasksets cannot be shuffled and must be bounded.
   Evidence: the pinned Verifiers v1 `verifiers/v1/taskset.py`, `verifiers/v1/cli/eval/runner.py`, and `verifiers/v1/utils/sampling.py` implement and exercise this contract. A local five-task probe selected `[0, 1]` for the head and the repeatable `[2, 1]` for the shuffled subset.
@@ -197,9 +216,36 @@ The first four new capability environments are MMLU-Pro, IFEval, Reasoning Gym, 
   Rationale: Verifiers v1 owns task population and exposes `Taskset.select(num_tasks, shuffle)`; the framework should not copy task rows or invent a parallel task-ID registry. `EvaluationBudget` now carries the optional shuffle override so normal job definitions can request a cheap head subset or a reproducible shuffled subset. Arbitrary IDs, category balancing, and train/test meaning remain environment-owned configuration and task evidence.
   Date/Author: 2026-08-03 / Codex.
 
+- Decision: vendor the pinned AutomationBench and Reasoning Gym runtime sources inside their standalone environment wheels rather than allow nested VCS dependencies in a framework job package.
+  Rationale: an environment Git revision must be sufficient to reproduce the wheel and the combined actual-job lock. Vendoring keeps each package independently installable, preserves upstream source identity in its README, and makes the six-wheel hash-locked dependency compile deterministic. The vendored trees remain private implementation details; consumers import only `automationbench_v1` or `reasoning_gym_v1`.
+  Date/Author: 2026-08-03 / Codex.
+
+- Decision: make `--build-missing` fail closed when the configured digest-pinned kind image remains stale after a rebuild.
+  Rationale: the planner embeds `registry.kind_images` in the actual-job manifest before materialization. Silently ignoring a rebuilt digest would create successful but non-reproducible evidence. The safe DX is an actionable error requiring publication or an explicit local digest override; a later change may add a first-class local-parent override, but it must preserve the same digest and label checks.
+  Date/Author: 2026-08-03 / Codex.
+
 ## Outcomes & Retrospective
 
-Milestone 1 is complete locally and the parallel implementation wave is complete for all six package directories. The public GitHub repository has local commit `2ac96d3`, but it remains unpushed, so framework repinning is still gated. GSM8K, AutomationBench, Reasoning Gym, and Math Python package-level validation passes; MMLU-Pro and IFEval pass their deterministic suites and enabled Hub gates. The combined six-wheel install resolves from public sources and activates every taskset. The framework eval API now has a complete invocation subset DX: count overrides remain non-mutating, the normal budget can request Verifiers' reproducible fixed-seed shuffle, the adapter forwards the resolved policy, and evidence records whether the run used a head or shuffled subset. During review, the initial private-index AutomationBench dependency was replaced with the immutable public CarbonTeq fork commit, and the combined helper was changed to stop assuming the synthetic `contract_reward`. No framework catalog binding, framework repin, deployment, deletion, image publication, or live qualification has occurred. The largest known risks remain Math Python's untrusted-code network boundary and the large pinned Reasoning Gym dependency closure.
+Milestone 1 and the six-package implementation wave are complete. The public
+repository is published at `017ac72f543f79f48400cbb4cb641d6df4c3adfa`, and the
+framework now consumes that exact source for GSM8K, AutomationBench, and the
+four new capability packs. AutomationBench and Reasoning Gym vendor their
+pinned runtimes, so the six-wheel dependency closure compiles without nested
+VCS requirements. The balanced capability plan and six explicit Lab
+qualification work packages are present; catalog, eval, and runtime-image
+contract tests pass. The framework eval API has a complete invocation subset
+DX: count overrides remain non-mutating, the normal budget can request
+Verifiers' reproducible fixed-seed shuffle, the adapter forwards the resolved
+policy, and evidence records head versus shuffled selection.
+
+The remaining release gates are a published eval kind image built from lock
+`f68d5419b00b0fde278d0b1d55057eb65bb5c9bbdcc78d2ff5cbfab0a3e1fa2c`, the
+GHCR Math Python image, live endpoint qualification with native traces, and
+removal of the old in-repository AutomationBench copy. The local GSM8K pack
+proved source/wheel/activation materialization but used the stale parent image,
+so it is diagnostic only. The largest product risks remain Math Python's
+host-networked untrusted-code boundary and the large pinned Reasoning Gym
+dependency closure.
 
 Update this section after every completed milestone. At final completion, include the environment-repository commit, framework commit, all six package versions and wheel digests, Math Python image digest, Hub revisions and observed row counts, GSM8K parity evidence, AutomationBench migration evidence, live run IDs, trace completeness result, and any benchmark deviations.
 
@@ -215,11 +261,11 @@ The packaged global catalog is under `packages/catalog/src/posttrain/catalog/bas
 
 The current framework pins Verifiers commit `284a868d6a9022109b749710672a0460e8a996d4` in `packages/data/pyproject.toml`, `packages/eval/pyproject.toml`, and `uv.lock`. The pin provides `verifiers.v1.Taskset`, `TaskData`, `Task`, `TasksetConfig`, `TaskConfig`, `Harness`, `Toolset`, `State`, `Trace`, `Runtime`, `@metric`, and `@reward`. A taskset loads or generates typed tasks. A task owns per-row behavior and scoring. A harness owns how a model is driven. A toolset is an MCP server exposing tools to the model. A runtime executes the harness or tool server in a subprocess or container.
 
-The current GSM8K distribution comes from `https://github.com/PrimeIntellect-ai/verifiers` at commit `284a868d6a9022109b749710672a0460e8a996d4`, subdirectory `environments/gsm8k_v1`. `packages/eval/pyproject.toml`, `uv.lock`, `packages/catalog/src/posttrain/catalog/base/environments.yaml`, `packages/eval/src/posttrain/eval/programs/general_smoke.py`, and `apps/lab/.posttrain/catalog/algorithm-qualification.yaml` all refer to that package. Its prompt and `math-verify` reward are valid, but its `openai/gsm8k` load has no Hub revision. The replacement retains the package name, taskset ID, prompt, answer extraction, and reward meaning while adding immutable data identity.
+The current GSM8K distribution is CarbonTeq's `gsm8k-v1` package from `https://github.com/carbonteq-ai/verifiers-environments` at commit `017ac72f543f79f48400cbb4cb641d6df4c3adfa`, subdirectory `environments/gsm8k_v1`, while the generic Verifiers v1 runtime remains pinned to commit `284a868d6a9022109b749710672a0460e8a996d4`. `packages/eval/pyproject.toml`, `uv.lock`, `packages/catalog/src/posttrain/catalog/base/environments.yaml`, `packages/eval/src/posttrain/eval/programs/general_smoke.py`, and `apps/lab/.posttrain/catalog/algorithm-qualification.yaml` all refer to the CarbonTeq package. It retains the upstream package name, taskset ID, prompt, answer extraction, and reward meaning while adding immutable data identity.
 
-The current CarbonTeq AutomationBench adapter is `/home/hammad/projects/rl/environments/automationbench_v1`. It is not a member of the root uv workspace; it has its own `pyproject.toml` and `uv.lock`. It depends on `carbonteq-automation-bench==1.0.5.post1` and the same exact Verifiers commit. The framework base catalog currently points at package `automationbench-v1` under `https://github.com/carbonteq-ai/posttrain`, subdirectory `environments/automationbench_v1`. The migration copies this package into the dedicated environment library, preserves provenance in its README, proves parity, repoints all consumers, and only then removes the old directory from the framework repository.
+The former CarbonTeq AutomationBench adapter was `/home/hammad/projects/rl/environments/automationbench_v1`; the active package is now under `https://github.com/carbonteq-ai/verifiers-environments` at the same shared commit, subdirectory `environments/automationbench_v1`. Its source is vendored into the wheel and its README records the CarbonTeq fork provenance. The old framework copy remains only as a migration artifact until the replacement is packed and live-qualified; no active catalog or dependency should point at it.
 
-The external repository is `/home/hammad/projects/verifiers-environments`, with public remote `https://github.com/carbonteq-ai/verifiers-environments`. The local `main` branch now has initial commit `2ac96d3`; the commit remains unpublished until the clean-clone push gate. Milestone 1 created these six standalone Python 3.12 uv projects locally:
+The external repository is `/home/hammad/projects/verifiers-environments`, with public remote `https://github.com/carbonteq-ai/verifiers-environments`. The published `main` branch now has the qualified environment-library commit `017ac72f543f79f48400cbb4cb641d6df4c3adfa`. Milestone 1 created these six standalone Python 3.12 uv projects locally:
 
 | Subdirectory | Distribution | Module | Initial CarbonTeq version |
 | --- | --- | --- | --- |
@@ -315,7 +361,7 @@ Create the GitHub repository and local checkout named above. Initialize the six 
 
 Before implementing a full benchmark, add one synthetic task to each new package and import the two migrated packages. Prove that `EnvConfig` values using taskset IDs `gsm8k-v1`, `automationbench-v1`, `mmlu-pro-v1`, `ifeval-v1`, `reasoning-gym-v1`, and `math-python-v1`, each with `harness.id=null`, import and execute through the pinned v1 loader. Build each wheel and inspect its metadata. Acceptance is six independently installable wheels whose normalized distribution names exactly match the planned `EnvironmentSource.package` values and whose dependency metadata contains no `posttrain-*`, Trackio, W&B, trainer, or serving package.
 
-Milestone status (2026-08-03): complete locally. The two migration targets are represented only by synthetic package contracts at this stage; their real implementations and parity proofs remain Milestone 2 work. Each project has an independent 115-package lock, its two contract tests pass, and its wheel metadata carries the correct distribution/version, Python range, and exact Verifiers Git requirement. A clean Python 3.12 environment installed all six wheels together and activated each taskset through `EnvConfig -> Environment -> taskset.select(1) -> task.score(trace)`. The repository source remains deliberately unpublished until the later publication gate.
+Milestone status (historical, 2026-08-03): complete locally before the real implementation wave. The two migration targets were represented only by synthetic package contracts at that point; their real implementations and parity proofs were Milestone 2 work. Each project had an independent lock, contract tests passed, and a clean Python 3.12 environment activated all six tasksets. The repository source was deliberately unpublished at that checkpoint; publication was completed later at the commit recorded below.
 
 ### Milestone 2: normalize GSM8K and AutomationBench ownership
 
@@ -348,6 +394,8 @@ Acceptance is a clean-cache MATH load with 7,500/5,000 rows; an equivalent symbo
 Run the external repository's full validation, build all wheels, and commit the environment repository. Push that commit to `carbonteq-ai/verifiers-environments`. Record its full commit as `ENVIRONMENTS_REVISION` in this plan. Do not update the framework to a local path, branch name, or unpushed SHA.
 
 Re-clone the published commit into an empty temporary directory, synchronize each package from its own lock, build all six subdirectory wheels, install the six wheels together into a disposable environment, and repeat the model-free and live source smokes. This proves both individual installability and combined dependency compatibility without the author's checkout. Tag the initial packages as `gsm8k-v1/v0.2.0`, `automationbench-v1/v0.2.0`, `mmlu-pro-v1/v0.1.0`, `ifeval-v1/v0.1.0`, `reasoning-gym-v1/v0.1.0`, and `math-python-v1/v0.1.0`, but keep every framework-composed binding on the one qualified repository commit. Do not remove or repoint the old GSM8K and AutomationBench sources until this clean-clone gate passes.
+
+Milestone status (2026-08-03): complete for source publication and dependency closure. The external repository is pushed at `017ac72f543f79f48400cbb4cb641d6df4c3adfa`; the clean-clone wheel builds and the six-wheel hash-locked compile passed. The framework pin is now this exact revision. Package publication tags and live qualification remain separate gates.
 
 ### Milestone 7: migrate framework consumers and add capability bindings
 
@@ -388,6 +436,8 @@ Create the following exact manifests under `apps/lab/.posttrain/work_packages/`:
 Each manifest uses stage `qualify`, one required job named `evaluate` with definition `eval/verifiers-managed-general@1`, and the inline recipe ID shown above. The exact shared bindings are `models/qwen3.5-2b@bf16`, `inference/qwen3.5-2b-vllm-eval@1`, `targets/local-cuda-8gb`, and evaluation `environment-library-qualification-v1`. Do not add an environment-specific runner. The six manifests are necessary because the current work-package seat map is global and one evaluation job executes one environment cell.
 
 Update `docs/tooling/verifiers/README.md` with the external environment repository, published commit, six package names, Hub revisions, Math Python image digest, migration evidence, live qualification evidence, and remaining sandbox caveat. Add a discoverability section to `packages/catalog/README.md` showing the exact `posttrain catalog list --family environment`, `posttrain catalog show environment ID`, and `posttrain catalog show evaluation ID` commands; the current README explains catalog authorship but not discovery.
+
+Milestone status (2026-08-03): framework catalog integration is complete. The six bindings, four-environment balanced plan, source pins, release constraints, and six one-cell work packages are present and catalog/eval tests pass. The runtime source allowlist was extended to include `packages/environment`; the remaining work is to use a verified rebuilt/published eval parent and execute the provider-backed qualification.
 
 ### Milestone 8: prove packaging, execution, and evidence end to end
 
@@ -475,6 +525,22 @@ Then work in the framework repository:
     done
     rg -n 'PrimeIntellect-ai/verifiers.*gsm8k_v1|carbonteq-ai/posttrain.*automationbench_v1|environments/automationbench_v1' packages apps AGENTS.md docs/tooling
 
+Before packing locally after a runtime-lock change, verify the parent image rather than relying on a tag or on `--build-missing` to rewrite a plan. `--build-missing` may rebuild and push a digest-pinned image, but it does not alter the already-planned `registry.kind_images` value. The CLI therefore fails closed if that configured digest still has the old lock label. Use the retained receipt to update a project-local ignored override, then rerun the pack with an isolated configuration directory so machine credentials and registry settings cannot affect the evidence:
+
+    cd /home/hammad/projects/rl
+    sed -n '1,80p' apps/lab/.posttrain/state/runtime-builds/4d109bd98f922f102197aea671465eca6942a0c1502c6a3d7a8e3907f99ad955.json
+    # Set [registry.kind_images].eval to the receipt's digest in the ignored
+    # apps/lab/.posttrain/state/execution.toml after the registry exposes it.
+    XDG_CONFIG_HOME="$(mktemp -d)" uv run --frozen posttrain --project-root apps/lab \
+        job pack apps/lab/.posttrain/work_packages/environment_library_gsm8k_qualification.yaml \
+        --job evaluate --local --allow-deferred-qualification
+
+The expected successful local output contains `Local OCI layout ready`, a
+content-addressed `Package`, and a receipt path. Inspect the resulting OCI
+manifest and assert its `kind_image` equals the configured rebuilt digest before
+using it for any live run. A pack that still shows the old published digest is
+diagnostic only and must not be called qualification evidence.
+
 After the migration is complete, the final `rg` command must return no active source or path dependency; historical plan evidence may still mention the old locations. The remote-branch check must print at least one `origin/*` ref containing the exact commit. Do not substitute a local-only commit.
 
 For the full framework gate, run from `/home/hammad/projects/rl`:
@@ -496,6 +562,8 @@ Catalog loading remains inert and works without Verifiers, datasets, Reasoning G
 
 Each wheel builds independently from the published Git commit. A job pack built in a clean checkout records the published source commit, wheel digest, wheel size, and declarative activation digest for all six packages. Repacking unchanged source produces the same logical source and activation identities; changing a Hub revision changes the activation digest and `posttrain job diff` explains the environment activation change.
 
+The actual-job parent image is digest pinned and carries the same lock digest as the shipped runtime definition. If the registry still exposes an older image, `posttrain job pack` fails before materialization; `--build-missing` may rebuild it, but packing remains blocked until the configured digest points at the verified rebuilt image. No successful local OCI layout with a stale parent counts as a package or qualification result.
+
 GSM8K loads exactly 7,473 train or 1,319 test rows from Hub revision `740312add88f781978c0658806c59bc2815b9866`. Its prompts and rewards match the previously pinned upstream package on the parity corpus, while every trace adds immutable source and row identity. All active GSM8K dependencies and catalog bindings resolve from the published `verifiers-environments` commit.
 
 AutomationBench resolves the same seed/domain samples, tools, assertions, rewards, metrics, and trace metadata as the former in-repository adapter. Its wheel builds from the published `verifiers-environments` commit, the managed qualification succeeds, and `/home/hammad/projects/rl/environments/automationbench_v1` no longer exists. No active catalog, dependency, or tooling instruction points at its old posttrain subdirectory.
@@ -516,6 +584,8 @@ All Hub loads are read-only and content-addressed by full revision. Deleting a t
 
 Environment wheel builds write to disposable build directories and content-addressed caches. If one build fails, fix that package and rebuild it without changing the other source packages. Do not update the framework source pin until the external commit is pushed and reproducible from a clean clone.
 
+Runtime image rebuilds are also content-addressed and retain a mode-600 receipt under the configured project state root. A rebuild is safe to retry; it never mutates `published.toml` or a planned job. If the rebuilt digest is not yet available under the project's configured registry reference, leave the pack blocked and publish or explicitly configure that digest before retrying. Use a temporary `XDG_CONFIG_HOME` for qualification commands when the host has a machine-level Posttrain config so the evidence names only the project-local registry and receipt root.
+
 GSM8K and AutomationBench migration is additive until published-source qualification passes. Keep the old source pins and AutomationBench directory intact while building and testing replacements. Repoint consumers in one framework change. If parity or live qualification fails, revert only the source-pin change and continue using the old packages; do not delete the new repository history or rewrite its published commit. Delete the old AutomationBench directory only after every active reference is repointed and the live gate is complete; Git history remains the recovery path after deletion.
 
 If a Hub repository becomes temporarily unavailable, preserve the failed plan/run evidence and retry the identical activation. Do not switch revisions or mirrors inside a retry. A deliberate source change requires a new environment repository commit, catalog revision, activation digest, qualification run, and Decision Log entry.
@@ -532,7 +602,7 @@ The current framework worktree contains unrelated in-progress dataset, workload,
 
 Milestone 1 evidence recorded on 2026-08-03:
 
-- Public repository: `https://github.com/carbonteq-ai/verifiers-environments`; local checkout: `/home/hammad/projects/verifiers-environments`; repository state: local `main` commit `2ac96d3`, not pushed yet.
+- Public repository: `https://github.com/carbonteq-ai/verifiers-environments`; local checkout: `/home/hammad/projects/verifiers-environments`; repository state: `main` commit `017ac72f543f79f48400cbb4cb641d6df4c3adfa` pushed to `origin/main`.
 - The six current project locks resolve independently at the exact Verifiers commit: GSM8K 115 packages, AutomationBench 116, MMLU-Pro 115, IFEval 116, Reasoning Gym 133, and Math Python 115.
 - Isolated validation passed for every project: lock check, Ruff lint and format check, Pyright with zero errors, and package tests: GSM8K 5, AutomationBench 10, MMLU-Pro 4 plus 1 skip, IFEval 5 plus 1 skip, Reasoning Gym 3, and Math Python 3. The MMLU-Pro and IFEval skips are opt-in network gates, not failures.
 - Enabled network gates passed for GSM8K, MMLU-Pro, and IFEval. MMLU-Pro observed exactly 70 validation and 12,032 test rows; IFEval observed 541 unique rows covering all 25 instruction IDs. Math Python loaded the pinned test row successfully; its full row-count and sandbox-image gates remain pending.
@@ -540,11 +610,19 @@ Milestone 1 evidence recorded on 2026-08-03:
 - Current uncommitted wheel evidence: `automationbench_v1-0.2.0-py3-none-any.whl` at SHA-256 `3fe6bd671080394e07a4ebfb41d5b17729f4b17f020ed409043a4ad4707ae779`; `gsm8k_v1-0.2.0-py3-none-any.whl` at `3a6540765571c76d42c8353bbca06a70cdea570f9cb20b7a26eb42169b9f6c1a`; `ifeval_v1-0.1.0-py3-none-any.whl` at `9eaf8c4fdd07616f89a14cc6535dde56d3848ee38e3b576fc30571795b8da383`; `math_python_v1-0.1.0-py3-none-any.whl` at `3b377cc0b839626bf1d7be6bd7b4f8dd47443474a705b95ce541bb83e45b614d`; `mmlu_pro_v1-0.1.0-py3-none-any.whl` at `8c559d8adc6cfaceea8245a314e2c5bf960c8fc5fb030c2a0dd8915ab2748622`; and `reasoning_gym_v1-0.1.0-py3-none-any.whl` at `dccdf9a384990049431e9c0247f542e76386857d65cde8baaeba9b43c64ca474`.
 - These are local implementation-slice digests, not release artifacts. They must be regenerated after the first source commit and again after any semantic/package change.
 
+Current framework integration evidence (2026-08-03): environment repository `017ac72f543f79f48400cbb4cb641d6df4c3adfa`; root `uv.lock` digest `7c6b061ccbdede7f91e3d4e45dd800b77ca3e0c028a892fdb5a8184f7bce2511`; runtime workspace lock digest `f68d5419b00b0fde278d0b1d55057eb65bb5c9bbdcc78d2ff5cbfab0a3e1fa2c`. The combined six-wheel `uv pip compile --generate-hashes` succeeded with no VCS URL lines. Catalog validation reported `Catalog valid: framework-v1, 55 base entries, 49 project entries`.
+
+Runtime rebuild evidence (diagnostic, not publication): receipt `apps/lab/.posttrain/state/runtime-builds/4d109bd98f922f102197aea671465eca6942a0c1502c6a3d7a8e3907f99ad955.json` records eval kind image `registry.lan/carbonteq/posttrain-kind-eval@sha256:13ea50188e3064ac7ee38079d85367e11f20a0db627bf6f69d3177b1a73c1b28` and lock digest `f68d5419b00b0fde278d0b1d55057eb65bb5c9bbdcc78d2ff5cbfab0a3e1fa2c`. A prior local GSM8K OCI layout at package key `ea4b412658a40dcfa2628ef79f808cef2d0440c2a1a99d3310a958687e696843` used stale parent digest `sha256:360810f695108982f077603d4248db232cf0e273213def0ccd65e1fb44fb3094`; it is explicitly excluded from release evidence.
+
+Verified local OCI pack evidence (2026-08-03) used the rebuilt eval parent digest above for all six one-cell manifests: GSM8K package `8670f63285c35e0951bf815a538aeb838690018db65a846daf462bec6ac33e25`, AutomationBench `98fc10086e7714945bcfea93c57d192c2b1c0cb987ce5d845c0c9411f3cd0ae7`, MMLU-Pro `b16ec9d0f1f9f8e21f8b76855c9ae29926259058c6e39a4c2b9ffbba0eecf5af`, IFEval `3c1d4a48bea36ee493b85629c4f9f698fa3e8c139bdd540226b2a1232f9527a8`, Reasoning Gym `2abce4aa4b0e9ddb879fff2d0c97f73164a732ddbd9af548f760aa7885764b0a`, and Math Python `50b1b7d9a25820780771125426cd8070a7d6f5a4961296b90b59037baaa8258f`. Each build emitted `Local OCI layout ready`, installed all six environment wheels, and ran the deferred qualification smoke successfully.
+
+Live gate attempt (2026-08-03): `posttrain job run ...environment_library_gsm8k_qualification.yaml --provider local --run-id envlib-gsm8k-20260803 --allow-deferred-qualification` stopped before materialization with the stale-image error naming lock `df1b2b0b2b04b25bacdbdac9fedc9d908abd8b77ff2ae0945b7fbda09cde725e` versus shipped lock `f68d5419b00b0fde278d0b1d55057eb65bb5c9bbdcc78d2ff5cbfab0a3e1fa2c`. No run ID, provider container, or tracking evidence exists for this attempt.
+
 At later milestones, append concise evidence here:
 
 - `ENVIRONMENTS_REVISION=<40-character pushed commit>`.
 - Six wheel filenames, versions, and SHA-256 digests.
-- `MATH_PYTHON_IMAGE=<registry>@sha256:<digest>`.
+- `MATH_PYTHON_IMAGE=<registry>@sha256:<digest>` (pending GHCR publication; local build ID `sha256:d983bba26930a02c4b1ea456d744443da386f2798b4f449f5f334892ffeda9b0` is diagnostic only).
 - Clean-cache observed row counts and dataset fingerprints or row-manifest digests.
 - GSM8K old/new parity transcript and AutomationBench old/new parity transcript.
 - The framework commit that repoints consumers and removes the old AutomationBench directory.
@@ -599,3 +677,5 @@ Revision note (2026-08-03): ran a parallel implementation wave across the monore
 Revision note (2026-08-03): confirmed Verifiers v1's finite-taskset subset contract and completed the framework-side DX slice. Standard invocation budgets now support count plus optional fixed-seed shuffle, direct request construction remains backward-compatible, and native/evidence paths record the effective selection policy. Package eval validation: 28 passed, 2 skipped; standard jobs validation: 11 passed; native GPU/endpoint qualification remains a later release gate.
 
 Revision note (2026-08-03): created local environment-library commit `2ac96d3` after package, boundary, and combined-wheel validation. The commit is intentionally not pushed until the clean-clone publication gate; no framework dependency pin has been advanced.
+
+Revision note (2026-08-03): advanced the shared source to pushed commit `017ac72f543f79f48400cbb4cb641d6df4c3adfa`, recorded the vendored AutomationBench/Reasoning Gym closure, repinned all framework consumers, and added the runtime-lock and source-allowlist fixes needed by real job packing. A diagnostic GSM8K local pack revealed that `--build-missing` could otherwise retain a stale configured parent; the CLI now fails closed and the plan treats a verified rebuilt/published kind digest as a prerequisite for live qualification.

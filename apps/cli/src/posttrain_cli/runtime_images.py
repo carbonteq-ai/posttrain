@@ -221,13 +221,23 @@ def ensure_kind_image_ready(
 
     from .runtime_image_builds import build_runtime_images
 
-    build_runtime_images(registry, variants=[variant])
-    return verify_variant(
+    built = build_runtime_images(registry, variants=[variant])
+    rebuilt = built[0] if built else None
+    verified = verify_variant(
         variant,
         expected_images(registry).get(variant, ""),
         manifest=manifest or load_manifest(),
         inspector=inspector or RuntimeImageInspector(),
     )
+    if not verified.ok:
+        rebuilt_reference = rebuilt.image if rebuilt is not None else "the rebuilt image"
+        raise ContractError(
+            f"rebuilt {variant} as {rebuilt_reference}, but the configured digest-pinned "
+            f"reference {verified.reference} is still {verified.status}: {verified.detail}. "
+            "Update [registry].kind_images (or publish the rebuilt digest) before packing; "
+            "refusing to create evidence against the stale image."
+        )
+    return verified
 
 
 __all__ = [

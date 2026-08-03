@@ -59,8 +59,8 @@ def test_automationbench_grpo_environment_is_category_and_budget_driven() -> Non
     assert isinstance(environment, EnvironmentBinding)
     assert isinstance(environment.source, EnvironmentSource)
     assert environment.source.package == "automationbench-v1"
-    assert environment.source.repository == "https://github.com/carbonteq-ai/posttrain"
-    assert environment.source.revision == "02848b756727d86a55564557e79e7f613fc8762c"
+    assert environment.source.repository == "https://github.com/carbonteq-ai/verifiers-environments"
+    assert environment.source.revision == "017ac72f543f79f48400cbb4cb641d6df4c3adfa"
     assert environment.source.subdirectory == "environments/automationbench_v1"
     assert environment.parameters["domains"] == ["simple"]
     assert environment.parameters["sampling_seed"] == 17
@@ -78,6 +78,24 @@ def test_automationbench_grpo_environment_is_category_and_budget_driven() -> Non
     assert training.renderer.reasoning_mode == "thinking"
     assert training.update.target_modules == r".*[.](o_proj|down_proj)$"
     assert training.runtime.global_batch_size == 16
+
+
+def test_general_capability_catalog_and_library_qualification_are_pinned() -> None:
+    catalog = open_catalog(scope="posttrain-lab")
+    plan = catalog.resolve(CatalogRef("evaluation", "general-capability-balanced-v1")).value
+    assert isinstance(plan, EvaluationPlan)
+    assert [item.id for item in plan.environments] == [
+        "knowledge-mmlu-pro-cot-5shot-balanced-v1",
+        "instruction-ifeval-full-v1",
+        "reasoning-gym-balanced-eval-v1",
+        "math-python-balanced-eval-v1",
+    ]
+    assert {item.num_tasks for item in plan.environments} == {1400, 541, 1000, 500}
+    assert all(
+        item.source.repository == "https://github.com/carbonteq-ai/verifiers-environments"
+        and item.source.revision == "017ac72f543f79f48400cbb4cb641d6df4c3adfa"
+        for item in plan.environments
+    )
 
 
 def test_project_overlay_directory_can_publish_a_new_selection(tmp_path: Path) -> None:
