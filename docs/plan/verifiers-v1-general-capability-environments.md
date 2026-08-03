@@ -49,12 +49,12 @@ The first four new capability environments are MMLU-Pro, IFEval, Reasoning Gym, 
 - [x] (2026-08-03) Qualified `mmlu-pro-v1` against the pinned reference corpus and framework trace gate; run `envlib-mmlu-pro-20260803-live` reconciled consistently with provider/Trackio success and the required evaluation artifact retained.
 - [x] (2026-08-03) Qualified `ifeval-v1` against the pinned Google checker corpus and framework trace gate; run `envlib-ifeval-20260803-live` reconciled consistently with provider/Trackio success and the required evaluation artifact retained.
 - [x] (2026-08-03) Qualified `reasoning-gym-v1` across the declared balanced plan; run `envlib-reasoning-gym-20260803-live` reconciled consistently with provider/Trackio success and the required evaluation artifact retained.
-- [x] (2026-08-03) Qualified `math-python-v1` through the managed subprocess/tool path; run `envlib-math-python-20260803-live` reconciled consistently with provider/Trackio success and the required evaluation artifact retained. The CarbonTeq OCI image is now published by digest; the expanded lifecycle cleanup matrix remains a release gate.
+- [x] (2026-08-03) Qualified `math-python-v1` through the managed subprocess/tool path; run `envlib-math-python-20260803-live` reconciled consistently with provider/Trackio success and the required evaluation artifact retained. The subprocess lifecycle regression and explicit cleanup probes pass; the OCI image remains an optional published artifact, not a release runtime requirement.
 - [x] (2026-08-03) Published the rebuilt `posttrain-kind-eval` parent through `posttrain-release images publish` to the CarbonTeq OCI registry using the existing base digest. The generated manifest now records `registry.lan/carbonteq/posttrain-kind-eval@sha256:ce3f947bf0d4f8696db110c8ed45ee539e92a67106da07948e7179248ca11c5d`; `posttrain-release check`, runtime-image manifest tests (33 passed), and an OCI registry HEAD verification passed.
 - [x] Push the environment repository commits, record the qualified SHA under `Artifacts and Notes`, and use that same SHA in every selected framework source pin.
 - [x] Repoint every GSM8K and AutomationBench source/dependency pin, add the four balanced catalog bindings, and add the six-environment Lab qualification overlay.
 - [ ] Remove the legacy `/home/hammad/projects/rl/environments/automationbench_v1` package as the final migration step, after publication/configuration, full validation, and the active-reference audit pass. The root `environments/` directory should disappear from the framework repository; generic project-owned `environments/<project-path>` support and external `verifiers-environments/environments/<package>` paths remain valid and are not removed.
-- [x] Prove wheel packing against the rebuilt eval kind digest, clean-cache Hugging Face loading, all six local evaluations, native trace persistence, and exact source identity. The remaining delivery gates are the provider-managed sandbox decision, full validation, and final legacy-source cleanup.
+- [x] Prove wheel packing against the rebuilt eval kind digest, clean-cache Hugging Face loading, all six local evaluations, native trace persistence, and exact source identity. The remaining delivery gates are full validation and final legacy-source cleanup.
 - [ ] Run both repositories' full validation ladders and update `Outcomes & Retrospective` with measured results and remaining risks.
 - [ ] Complete Milestone 9: update active documentation and compatibility instructions, remove the legacy in-repository package, and prove that no active consumer still depends on the framework-owned environment implementation.
 
@@ -240,8 +240,8 @@ The first four new capability environments are MMLU-Pro, IFEval, Reasoning Gym, 
   Rationale: the planner embeds `registry.kind_images` in the actual-job manifest before materialization. Silently ignoring a rebuilt digest would create successful but non-reproducible evidence. The safe DX is an actionable error requiring publication or an explicit local digest override; a later change may add a first-class local-parent override, but it must preserve the same digest and label checks.
   Date/Author: 2026-08-03 / Codex.
 
-- Decision: keep Math Python's catalog activation on the bounded subprocess/tool path for this release, while treating the published OCI image as a separately verified sandbox artifact. Do not claim image-backed isolation until a provider-managed sandbox path supplies the image without relying on an unavailable nested Docker socket.
-  Rationale: the environment package must stay framework-neutral, and the current Posttrain eval image cannot execute Verifiers' Docker runtime as configured. A catalog-only switch would change the runtime threat model without evidence. The next framework change may add a generic sandbox execution contract, but it must be designed and qualified independently of Math Python semantics.
+- Decision: keep Math Python's catalog activation on the bounded subprocess/tool path for this release, while treating the published OCI image as an optional separately verified artifact.
+  Rationale: subprocess execution already provides fresh child interpreters, strict environment filtering, bounded cells/output, timeout handling, and state isolation, and the package-level plus explicit cleanup probes pass. Docker-backed image execution is not needed for this release; any future provider-managed sandbox can be added as a generic Verifiers runtime capability without changing Math Python semantics.
   Date/Author: 2026-08-03 / Codex.
 
 - Decision: remove the legacy concrete environment package from the framework repository only as the final migration step, while retaining generic project-owned environment paths and external monorepo subdirectories.
@@ -271,8 +271,7 @@ because the machine-wide config still resolves the stale published parent;
 normal machine launches still require the rebuilt eval kind digest to be
 published/configured. The normal publication/configuration gate is now complete
 with the generated eval-parent manifest update. The remaining release gates are
-the provider-managed sandbox decision (or an explicit release decision to keep
-the subprocess path), full validation, and removal of the old in-repository
+full validation and removal of the old in-repository
 AutomationBench copy as the final migration step.
 The largest product risks remain Math Python's host-networked untrusted-code
 boundary and the large pinned Reasoning Gym dependency closure.
@@ -491,8 +490,8 @@ Finally run the balanced plan only after estimating token and tool-runtime cost 
 ### Milestone 9: retire the framework-local environment implementation
 
 This is the final migration milestone and is intentionally ordered after source
-publication, normal runtime-image publication/configuration, Math Python image
-publication and lifecycle qualification, six-cell live evidence, and both validation
+publication, normal runtime-image publication/configuration, Math Python subprocess
+lifecycle qualification, six-cell live evidence, and both validation
 ladders. The goal is to leave `/home/hammad/projects/rl` with no concrete
 reusable Verifiers environment implementation while preserving the framework's
 generic ability to pack a project-owned environment path. The only tracked
@@ -748,6 +747,8 @@ Milestone 1 evidence recorded on 2026-08-03:
 
 - Math Python lifecycle evidence (2026-08-03): the published digest ran non-root as UID `65532`, imported Python `3.12.13`, NumPy `2.5.1`, and SymPy `1.14.0`, and exposed no `TOKEN`, `PASSWORD`, or `API_KEY` environment names. The package suite now passes 8 tests, including child timeout, process exit, state non-commit, and safe-environment checks. An explicit Docker probe returned success `4`, error `17`, process exit `23`, removed a cancelled container, and removed a timed-out container through the runtime-style `docker rm --force` cleanup path. A deliberately client-killed timeout first left one named test container; it was removed by exact name and is not evidence of a production leak.
 
+- External repository validation evidence (2026-08-03): all six package ladders passed Ruff check/format, Pyright, pytest, and wheel build: GSM8K 5, AutomationBench 10, MMLU-Pro 4 plus 1 skip, IFEval 5 plus 1 skip, Reasoning Gym 3, and Math Python 8. Boundary validation passed, and a clean Python 3.12 combined install resolved 128 packages and activated all six tasksets through the declarative Verifiers loader. The initial combined-install invocation from the root interpreter was invalid because it omitted the disposable environment; the CI-equivalent disposable install is the authoritative result.
+
 - Trackio trace evidence (2026-08-03): all six live qualification reconciliation records retain an evaluation artifact with `provider=trackio`, a Trackio provider run ID, and `tracking_status=succeeded`; the native Verifiers trace synchronizer writes the task trace into the retained evaluation artifact before finalization. The host-side Observatory query was not used because this shell cannot resolve `trackio.lan`; container logs and reconciliation records are the durable evidence.
 
 Current framework integration evidence (2026-08-03): environment repository `017ac72f543f79f48400cbb4cb641d6df4c3adfa`; root `uv.lock` digest `7c6b061ccbdede7f91e3d4e45dd800b77ca3e0c028a892fdb5a8184f7bce2511`; runtime workspace lock digest `f68d5419b00b0fde278d0b1d55057eb65bb5c9bbdcc78d2ff5cbfab0a3e1fa2c`. The combined six-wheel `uv pip compile --generate-hashes` succeeded with no VCS URL lines. Catalog validation reported `Catalog valid: framework-v1, 55 base entries, 49 project entries`.
@@ -840,3 +841,5 @@ Revision note (2026-08-03): switched the Math Python image release gate to the C
 Revision note (2026-08-03): added Math Python lifecycle regression coverage in external repository commit `9619d43` and pushed it to `origin/main`. The framework source pin remains `017ac72f543f79f48400cbb4cb641d6df4c3adfa` because this follow-up changes tests and release documentation only; it does not change the package wheel semantics. Recorded that Trackio receives and finalizes the native Verifiers traces for all six qualified cells.
 
 Revision note (2026-08-03): ran the supported CarbonTeq OCI publication workflow for the rebuilt eval kind image with base digest `sha256:b50de1de16de9593c10e6cb202c5e9a89761e782695732bcaa27ff2a628b623a`. Registry HEAD returned `sha256:ce3f947bf0d4f8696db110c8ed45ee539e92a67106da07948e7179248ca11c5d`; `posttrain-release check` and 33 runtime-image tests passed, and the generated manifest is ready to commit.
+
+Revision note (2026-08-03): made the release runtime decision explicit: Math Python remains subprocess-based for this release, with Docker image execution optional. The external repository's full six-package ladder, boundary check, and disposable combined-install activation passed; only the root framework validation ladder and final scoped legacy-source removal remain.
