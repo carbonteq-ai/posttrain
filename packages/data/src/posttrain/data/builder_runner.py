@@ -64,7 +64,10 @@ def run(request_path: Path, result_path: Path) -> int:
         if not callable(factory) or getattr(factory, "__qualname__", callable_name) != callable_name:
             raise ValueError(f"builder target is not a module-level callable: {target}")
 
-        with contextlib.redirect_stdout(_Capture(captured_stdout)), contextlib.redirect_stderr(_Capture(captured_stderr)):
+        with (
+            contextlib.redirect_stdout(_Capture(captured_stdout)),
+            contextlib.redirect_stderr(_Capture(captured_stderr)),
+        ):
             rows = factory(DatasetBuildContext(inputs=inputs, workspace=workspace))
             if isinstance(rows, (str, bytes, bytearray)) or not isinstance(rows, Iterable):
                 raise TypeError("dataset builder must return an iterable of mapping rows")

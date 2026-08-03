@@ -902,32 +902,38 @@ def test_dataset_materialize_verify_and_validate_alias(tmp_path: Path, capsys) -
     assert second["materialized"] is False
     assert second["content_sha256"] == first["content_sha256"]
 
-    assert main(
-        [
-            "--json",
-            "--project-root",
-            str(project),
-            "dataset",
-            "verify",
-            "datasets/posttrain-sft-smoke@1",
-        ]
-    ) == 0
+    assert (
+        main(
+            [
+                "--json",
+                "--project-root",
+                str(project),
+                "dataset",
+                "verify",
+                "datasets/posttrain-sft-smoke@1",
+            ]
+        )
+        == 0
+    )
     verified = json.loads(capsys.readouterr().out)
     assert verified["verified"] is True
     assert verified["baseline_content_sha256"] == first["content_sha256"]
     assert Path(verified["path"]) == Path(first["path"])
     assert manifest.stat().st_mtime_ns == before
 
-    assert main(
-        [
-            "--json",
-            "--project-root",
-            str(project),
-            "dataset",
-            "validate",
-            "datasets/posttrain-sft-smoke@1",
-        ]
-    ) == 0
+    assert (
+        main(
+            [
+                "--json",
+                "--project-root",
+                str(project),
+                "dataset",
+                "validate",
+                "datasets/posttrain-sft-smoke@1",
+            ]
+        )
+        == 0
+    )
     alias = json.loads(capsys.readouterr().out)
     assert alias["deprecated"] is True
     assert alias["replacement"].startswith("posttrain dataset materialize ")

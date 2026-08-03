@@ -94,11 +94,7 @@ class DatasetPackRequest:
 
     def to_payload(self) -> dict[str, JsonValue]:
         source = self.selection.source
-        source_payload = (
-            dict(source)
-            if isinstance(source, Mapping)
-            else dict(source.identity())
-        )
+        source_payload = dict(source) if isinstance(source, Mapping) else dict(source.identity())
         return {
             "seat_name": self.seat_name,
             "selection_id": self.selection.id,

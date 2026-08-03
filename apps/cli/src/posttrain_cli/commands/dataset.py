@@ -19,7 +19,9 @@ from ..overlay_write import ensure_overlay_file, overlay_directory, selection_re
 
 
 def register(app: typer.Typer) -> None:
-    dataset_app = typer.Typer(rich_markup_mode=None, no_args_is_help=True, help="inspect and materialize project datasets")
+    dataset_app = typer.Typer(
+        rich_markup_mode=None, no_args_is_help=True, help="inspect and materialize project datasets"
+    )
     app.add_typer(dataset_app, name="dataset")
 
     @dataset_app.command("materialize", help="build and cache one dataset selection")
@@ -32,7 +34,11 @@ def register(app: typer.Typer) -> None:
         resolved, materialized = _materialize_selection(layout, catalog, selection_id)
         payload = _materialization_payload(resolved, materialized)
         action = "Materialized" if materialized.created else "Reused cached"
-        emit(state, payload, f"{action} dataset {materialized.selection_id} ({materialized.examples} examples) at {materialized.path}")
+        emit(
+            state,
+            payload,
+            f"{action} dataset {materialized.selection_id} ({materialized.examples} examples) at {materialized.path}",
+        )
 
     @dataset_app.command("verify", help="rebuild one dataset selection without changing its reusable cache")
     def dataset_verify_cmd(

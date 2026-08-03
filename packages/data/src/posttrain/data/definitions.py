@@ -199,8 +199,7 @@ class BuiltDatasetSource:
         if any(not isinstance(value, DatasetBuildInput) for value in self.inputs.values()):
             raise ContractError("built dataset source inputs must be typed dataset build inputs")
         if self.expected_content_sha256 is not None and (
-            len(self.expected_content_sha256) != 64
-            or not re.fullmatch(r"[0-9a-f]{64}", self.expected_content_sha256)
+            len(self.expected_content_sha256) != 64 or not re.fullmatch(r"[0-9a-f]{64}", self.expected_content_sha256)
         ):
             raise ContractError("expected dataset content digest must be a SHA-256 digest")
         object.__setattr__(self, "inputs", MappingProxyType(dict(self.inputs)))
@@ -213,9 +212,7 @@ class BuiltDatasetSource:
         return {
             "kind": self.kind,
             "builder": dict(self.builder.identity()),
-            "inputs": {
-                name: dict(value.identity()) for name, value in sorted(self.inputs.items())
-            },
+            "inputs": {name: dict(value.identity()) for name, value in sorted(self.inputs.items())},
             **(
                 {"expected_content_sha256": self.expected_content_sha256}
                 if self.expected_content_sha256 is not None

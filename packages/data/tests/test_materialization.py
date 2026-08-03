@@ -84,9 +84,9 @@ def test_typed_builder_materializes_in_child_process_and_reuses_cache(tmp_path: 
     manifest = json.loads(first.manifest_path.read_text(encoding="utf-8"))
     assert manifest["schema_version"] == 2
     assert manifest["build_key"] == first.build_key
-    assert manifest["inputs"]["raw"]["content_sha256"] == hashlib.sha256(
-        (tmp_path / "raw.jsonl").read_bytes()
-    ).hexdigest()
+    assert (
+        manifest["inputs"]["raw"]["content_sha256"] == hashlib.sha256((tmp_path / "raw.jsonl").read_bytes()).hexdigest()
+    )
 
 
 def test_imported_project_code_changes_build_key(tmp_path: Path) -> None:
