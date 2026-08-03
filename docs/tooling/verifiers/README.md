@@ -42,7 +42,7 @@ EvalConfig (+ model client, sampling, num_tasks, rollouts, …)
 | --- | --- |
 | `EnvironmentBinding` / env catalog entry | Published package → `EnvConfig` (taskset id + harness + params) |
 | `EvaluationPlan` | Which cells/budgets/slices/aggregation — **framework**, not Verifiers |
-| `eval.general` / `eval.domain` (target) | One cell → `EvalConfig` + `run_eval` |
+| `eval.general` / `eval.domain` (target) | One cell → `EvalConfig` + `run_eval`; `EvaluationBudget` may bound the task count and request Verifiers' fixed-seed shuffle |
 | Evidence | **Save native traces**; project aggregates; do not replace scoring |
 
 Authoritative evidence = native Verifiers bundle (`traces.jsonl`, resolved
@@ -64,6 +64,11 @@ Prototype path today: `posttrain.eval.evaluate` →
   the env Task
 - Resolve and record the **inference binding** (endpoint + engine limits); the
   eval adapter forwards context limits into Verifiers as `max_total_tokens`
+- Use `EvaluationBudget(num_tasks=...)` for a cheap invocation-scoped subset;
+  add `shuffle=True` for Verifiers' reproducible fixed-seed sample. The
+  effective `head` or `verifiers-fixed-shuffle` policy is recorded in run
+  evidence. Environment activations still own semantic splits, categories, and
+  balancing; the framework does not copy task rows or invent task IDs.
 - Inspect truncation / `finish_reason=length` rates — length-capped scores are
   weak capability evidence
 - Source-data cards stay under [datasets/](../../datasets/); env implementation

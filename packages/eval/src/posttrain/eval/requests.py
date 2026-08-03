@@ -230,11 +230,17 @@ class EvaluationBudget:
     num_tasks: int | None = None
     num_rollouts: int | None = None
     max_concurrent: int | None = None
+    # ``None`` means inherit the request's legacy ``shuffle`` field.  Keeping
+    # this override on the invocation budget lets standard job definitions
+    # express the complete subset policy without constructing a custom request.
+    shuffle: bool | None = None
 
     def __post_init__(self) -> None:
         values = (self.num_tasks, self.num_rollouts, self.max_concurrent)
         if any(value is not None and value < 1 for value in values):
             raise ValueError("evaluation budget overrides must be positive")
+        if self.shuffle is not None and not isinstance(self.shuffle, bool):
+            raise TypeError("evaluation budget shuffle override must be a boolean")
 
     def resolve(self, environment: EnvironmentBinding) -> tuple[int, int, int]:
         return (
@@ -321,6 +327,12 @@ class EvaluateRequest:
     @property
     def resolved_budget(self) -> tuple[int, int, int]:
         return self.budget.resolve(self.environment)
+
+    @property
+    def resolved_shuffle(self) -> bool:
+        """Return the effective deterministic Verifiers subset policy."""
+
+        return self.budget.shuffle if self.budget.shuffle is not None else self.shuffle
 
 
 __all__ = [

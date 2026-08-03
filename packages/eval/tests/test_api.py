@@ -359,9 +359,22 @@ def test_remote_evaluation_binding_decodes_from_a_catalog_family() -> None:
 
 def test_invocation_budget_can_select_a_small_subset_without_mutating_program() -> None:
     base = request()
-    smaller = replace(base, budget=EvaluationBudget(num_tasks=1, max_concurrent=1))
+    smaller = replace(
+        base,
+        budget=EvaluationBudget(num_tasks=1, max_concurrent=1, shuffle=True),
+    )
     assert smaller.resolved_budget == (1, 1, 1)
+    assert smaller.resolved_shuffle
     assert base.environment.num_tasks == 2
+    assert not base.resolved_shuffle
+
+
+def test_request_shuffle_remains_a_compatibility_default_for_budget() -> None:
+    base = request()
+    assert replace(base, shuffle=True).resolved_shuffle
+    assert not replace(base, budget=EvaluationBudget(shuffle=False), shuffle=True).resolved_shuffle
+    with pytest.raises(TypeError, match="shuffle override"):
+        EvaluationBudget(shuffle="yes")  # type: ignore[arg-type]
 
 
 def test_evaluate_emits_direct_sync_metrics_and_native_artifact(tmp_path: Path) -> None:
@@ -404,7 +417,38 @@ def test_evaluate_emits_direct_sync_metrics_and_native_artifact(tmp_path: Path) 
     assert values["eval/run/coverage_missing"] == 1
     assert values["eval/traces_observed"] == 1
     assert "eval/mean_reward" not in values
+    assert observer.events[0].attributes["task_selection"] == "head"
     assert observer.events[-1].name == "evaluation_completed"
+
+
+def test_evaluate_records_shuffled_subset_policy(tmp_path: Path) -> None:
+    observer = RecordingObserver()
+    evaluation = replace(request(), budget=EvaluationBudget(num_tasks=1, shuffle=True))
+
+    def fake_runner(
+        execution: RunContext,
+        request_value: EvaluateRequest,
+        output: Path,
+    ) -> VerifiersRunResult:
+        del execution, request_value
+        (output / "traces.jsonl").write_text('{"id":"trace-1"}\n', encoding="utf-8")
+        return VerifiersRunResult(
+            ("trace-1",),
+            TraceSyncStats(observed_records=1, emitted_records=1),
+            EvaluationPopulation(
+                attempted=1,
+                complete=1,
+                failed=0,
+                truncated=0,
+                coverage_missing=0,
+            ),
+        )
+
+    evaluate(context(tmp_path, observer), evaluation, runner=fake_runner)
+
+    assert observer.events[0].attributes["num_tasks"] == 1
+    assert observer.events[0].attributes["task_selection"] == "verifiers-fixed-shuffle"
+    assert observer.metrics_log[0].attributes["task_selection"] == "verifiers-fixed-shuffle"
 
 
 def test_general_uses_canonical_seats_and_marks_partial_trace_sync(tmp_path: Path) -> None:
