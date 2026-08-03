@@ -259,6 +259,60 @@ job_kind = "serve.benchmark"
 acceptance = "serving-curve"
 
 [[gates]]
+id = "environment-library-gsm8k"
+work_package = ".posttrain/work_packages/environment_library_gsm8k_qualification.yaml"
+job_id = "evaluate"
+tier = "release"
+state = "active"
+job_kind = "eval.general"
+acceptance = "native-verifiers-trace"
+
+[[gates]]
+id = "environment-library-automationbench"
+work_package = ".posttrain/work_packages/environment_library_automationbench_qualification.yaml"
+job_id = "evaluate"
+tier = "release"
+state = "active"
+job_kind = "eval.general"
+acceptance = "native-verifiers-trace"
+
+[[gates]]
+id = "environment-library-mmlu-pro"
+work_package = ".posttrain/work_packages/environment_library_mmlu_pro_qualification.yaml"
+job_id = "evaluate"
+tier = "release"
+state = "active"
+job_kind = "eval.general"
+acceptance = "native-verifiers-trace"
+
+[[gates]]
+id = "environment-library-ifeval"
+work_package = ".posttrain/work_packages/environment_library_ifeval_qualification.yaml"
+job_id = "evaluate"
+tier = "release"
+state = "active"
+job_kind = "eval.general"
+acceptance = "native-verifiers-trace"
+
+[[gates]]
+id = "environment-library-reasoning-gym"
+work_package = ".posttrain/work_packages/environment_library_reasoning_gym_qualification.yaml"
+job_id = "evaluate"
+tier = "release"
+state = "active"
+job_kind = "eval.general"
+acceptance = "native-verifiers-trace"
+
+[[gates]]
+id = "environment-library-math-python"
+work_package = ".posttrain/work_packages/environment_library_math_python_qualification.yaml"
+job_id = "evaluate"
+tier = "release"
+state = "active"
+job_kind = "eval.general"
+acceptance = "native-verifiers-trace"
+
+[[gates]]
 id = "qwen2b-serving-smoke"
 work_package = ".posttrain/work_packages/qwen2b_serve_smoke_qualification.yaml"
 job_id = "smoke"

@@ -91,11 +91,10 @@ def test_general_capability_catalog_and_library_qualification_are_pinned() -> No
         "math-python-balanced-eval-v1",
     ]
     assert {item.num_tasks for item in plan.environments} == {1400, 541, 1000, 500}
-    assert all(
-        item.source.repository == "https://github.com/carbonteq-ai/verifiers-environments"
-        and item.source.revision == "017ac72f543f79f48400cbb4cb641d6df4c3adfa"
-        for item in plan.environments
-    )
+    for item in plan.environments:
+        assert isinstance(item.source, EnvironmentSource)
+        assert item.source.repository == "https://github.com/carbonteq-ai/verifiers-environments"
+        assert item.source.revision == "017ac72f543f79f48400cbb4cb641d6df4c3adfa"
 
 
 def test_project_overlay_directory_can_publish_a_new_selection(tmp_path: Path) -> None:
