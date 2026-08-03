@@ -44,6 +44,8 @@ The first four new capability environments are MMLU-Pro, IFEval, Reasoning Gym, 
 - [x] (2026-08-03) Added a fail-closed regression for `--build-missing`: a successful rebuild cannot be treated as verified while the configured digest still names a stale image. A local GSM8K pack was exercised against the stale published eval image and is retained only as diagnostic evidence, not as qualification evidence.
 - [x] (2026-08-03) Updated an ignored Lab execution override to the verified rebuilt eval digest and packed all six qualification manifests to local OCI layouts. Every package installed the six environment wheels, retained the shared source revision and activation closure, and completed the deferred qualification smoke; no provider-backed run has been claimed.
 - [x] (2026-08-03) Attempted the first provider-backed GSM8K run with `--provider local`; admission stopped before pack/submit because the machine-level registry binding still resolved the stale published eval digest. No container or provider submission was created.
+- [x] (2026-08-03) Re-ran GSM8K through a temporary explicit project execution overlay that selected the verified eval parent `registry.lan/carbonteq/posttrain-kind-eval@sha256:13ea50188e3064ac7ee38079d85367e11f20a0db627bf6f69d3177b1a73c1b28` while retaining machine-local provider and protected service bindings. Run `envlib-gsm8k-20260803-live` completed on local Docker with provider run `pt-41ca6ad6cb1723a15c456443`, job image `registry.lan/carbonteq/posttrain@sha256:69defb79c2533c6ea1fb41955b293c6a8a92fd8f1261f68e6fb499dfee26d994`, Trackio finalization, and a consistent reconciliation record retaining the required evaluation artifact.
+- [ ] Qualify `automationbench-v1` through the provider-backed managed path and verify native tool/state/reward evidence.
 - [ ] Qualify `mmlu-pro-v1` against the pinned reference corpus and framework trace gate.
 - [ ] Qualify `ifeval-v1` against the pinned Google checker corpus and framework trace gate.
 - [ ] Qualify `reasoning-gym-v1` across the ten declared generators and balanced plan.
@@ -51,7 +53,7 @@ The first four new capability environments are MMLU-Pro, IFEval, Reasoning Gym, 
 - [x] Push the environment repository commits, record the qualified SHA under `Artifacts and Notes`, and use that same SHA in every selected framework source pin.
 - [x] Repoint every GSM8K and AutomationBench source/dependency pin, add the four balanced catalog bindings, and add the six-environment Lab qualification overlay.
 - [ ] Remove `/home/hammad/projects/rl/environments/automationbench_v1` only after the published replacement is packed and live-qualified.
-- [ ] Prove wheel packing against the rebuilt/published eval kind digest, clean-cache Hugging Face loading, local live evaluation, native trace persistence, and exact source identity.
+- [x] Prove wheel packing against the rebuilt eval kind digest, clean-cache Hugging Face loading, local GSM8K evaluation, native trace persistence, and exact source identity. The remaining packs still need provider-backed qualification.
 - [ ] Run both repositories' full validation ladders and update `Outcomes & Retrospective` with measured results and remaining risks.
 
 ## Surprises & Discoveries
@@ -123,6 +125,9 @@ The first four new capability environments are MMLU-Pro, IFEval, Reasoning Gym, 
 
 - Observation: changing the shipped runtime lock makes every published job-kind image stale until it is rebuilt and its digest is configured. The previous `--build-missing` path rebuilt a new image but ignored the returned digest and continued packing the old configured parent.
   Evidence: the diagnostic GSM8K pack used `registry.lan/carbonteq/posttrain-kind-eval@sha256:360810f695108982f077603d4248db232cf0e273213def0ccd65e1fb44fb3094`, whose OCI label still carried lock `df1b2b0b2b04b25bacdbdac9fedc9d908abd8b77ff2ae0945b7fbda09cde725e`, while the rebuild receipt recorded image `...@sha256:13ea50188e3064ac7ee38079d85367e11f20a0db627bf6f69d3177b1a73c1b28` and lock `f68d5419b00b0fde278d0b1d55057eb65bb5c9bbdcc78d2ff5cbfab0a3e1fa2c`. The CLI now raises instead of packing that mismatch.
+
+- Observation: the first live GSM8K run exposed an execution-configuration precedence gap: the machine-wide config intentionally wins over the ignored project execution overlay, so a verified local parent digest could not be selected through the normal CLI while the published manifest remained stale. A temporary explicit overlay retained the machine provider and credentials, selected the verified parent, and completed the run without changing machine state. The durable reconciliation record is sufficient release evidence even though a host-side Observatory lookup cannot resolve `trackio.lan` from this shell.
+  Evidence: run `envlib-gsm8k-20260803-live` reconciled as `state=consistent`, `outcome=succeeded`, provider exit code `0`, tracking status `succeeded`, and retained evaluation artifact digest `54005120c95d1b875fe0dbe2436c3ba6d6b67b85e48e416002414f6657c582b1`; provider run `pt-41ca6ad6cb1723a15c456443` used job image digest `69defb79c2533c6ea1fb41955b293c6a8a92fd8f1261f68e6fb499dfee26d994`.
 
 - Observation: Verifiers v1 supports two generic subset operations, not arbitrary task-ID selection: `Taskset.select(num_tasks)` takes the deterministic head of a finite taskset, while `Taskset.select(num_tasks, shuffle=True)` uses the shared fixed seed (`SEED = 0`) before slicing. Infinite tasksets cannot be shuffled and must be bounded.
   Evidence: the pinned Verifiers v1 `verifiers/v1/taskset.py`, `verifiers/v1/cli/eval/runner.py`, and `verifiers/v1/utils/sampling.py` implement and exercise this contract. A local five-task probe selected `[0, 1]` for the head and the repeatable `[2, 1]` for the shuffled subset.
@@ -238,14 +243,15 @@ DX: count overrides remain non-mutating, the normal budget can request
 Verifiers' reproducible fixed-seed shuffle, the adapter forwards the resolved
 policy, and evidence records head versus shuffled selection.
 
-The remaining release gates are a published eval kind image built from lock
-`f68d5419b00b0fde278d0b1d55057eb65bb5c9bbdcc78d2ff5cbfab0a3e1fa2c`, the
-GHCR Math Python image, live endpoint qualification with native traces, and
-removal of the old in-repository AutomationBench copy. The local GSM8K pack
-proved source/wheel/activation materialization but used the stale parent image,
-so it is diagnostic only. The largest product risks remain Math Python's
-host-networked untrusted-code boundary and the large pinned Reasoning Gym
-dependency closure.
+The remaining release gates are publication/configuration of the eval kind
+image built from lock `f68d5419b00b0fde278d0b1d55057eb65bb5c9bbdcc78d2ff5cbfab0a3e1fa2c`
+for normal machine-wide launches, the GHCR Math Python image, provider-backed
+qualification for AutomationBench, MMLU-Pro, IFEval, Reasoning Gym, and Math
+Python, and removal of the old in-repository AutomationBench copy. GSM8K is
+now live-qualified through the rebuilt parent using an explicit temporary
+overlay; its provider and Trackio reconciliation is consistent. The largest
+product risks remain Math Python's host-networked untrusted-code boundary and
+the large pinned Reasoning Gym dependency closure.
 
 Update this section after every completed milestone. At final completion, include the environment-repository commit, framework commit, all six package versions and wheel digests, Math Python image digest, Hub revisions and observed row counts, GSM8K parity evidence, AutomationBench migration evidence, live run IDs, trace completeness result, and any benchmark deviations.
 
@@ -616,7 +622,13 @@ Runtime rebuild evidence (diagnostic, not publication): receipt `apps/lab/.postt
 
 Verified local OCI pack evidence (2026-08-03) used the rebuilt eval parent digest above for all six one-cell manifests: GSM8K package `8670f63285c35e0951bf815a538aeb838690018db65a846daf462bec6ac33e25`, AutomationBench `98fc10086e7714945bcfea93c57d192c2b1c0cb987ce5d845c0c9411f3cd0ae7`, MMLU-Pro `b16ec9d0f1f9f8e21f8b76855c9ae29926259058c6e39a4c2b9ffbba0eecf5af`, IFEval `3c1d4a48bea36ee493b85629c4f9f698fa3e8c139bdd540226b2a1232f9527a8`, Reasoning Gym `2abce4aa4b0e9ddb879fff2d0c97f73164a732ddbd9af548f760aa7885764b0a`, and Math Python `50b1b7d9a25820780771125426cd8070a7d6f5a4961296b90b59037baaa8258f`. Each build emitted `Local OCI layout ready`, installed all six environment wheels, and ran the deferred qualification smoke successfully.
 
+Live GSM8K evidence (2026-08-03): run `envlib-gsm8k-20260803-live`, provider `local-docker`, provider run `pt-41ca6ad6cb1723a15c456443`, job image `registry.lan/carbonteq/posttrain@sha256:69defb79c2533c6ea1fb41955b293c6a8a92fd8f1261f68e6fb499dfee26d994`, terminal status `succeeded`, and reconciliation `state=consistent` with provider and Trackio both `succeeded`. Required evaluation artifact digest: `54005120c95d1b875fe0dbe2436c3ba6d6b67b85e48e416002414f6657c582b1`. This is the first provider-backed native trace gate; the other five environment cells remain pending.
+
+Framework milestone commit: `90d72802` (`feat: integrate verifiers environment catalog and qualification`) pushed to `origin/codex/trackio-post8-purge-qualification`. It contains the six package pins, catalog/evaluation bindings, six Lab work packages, runtime lock/guard, and living-plan updates through the pre-live gate. The subsequent live GSM8K evidence is recorded above and must be committed as the next plan-only amendment.
+
 Live gate attempt (2026-08-03): `posttrain job run ...environment_library_gsm8k_qualification.yaml --provider local --run-id envlib-gsm8k-20260803 --allow-deferred-qualification` stopped before materialization with the stale-image error naming lock `df1b2b0b2b04b25bacdbdac9fedc9d908abd8b77ff2ae0945b7fbda09cde725e` versus shipped lock `f68d5419b00b0fde278d0b1d55057eb65bb5c9bbdcc78d2ff5cbfab0a3e1fa2c`. No run ID, provider container, or tracking evidence exists for this attempt.
+
+Live GSM8K qualification (2026-08-03): using a temporary explicit project execution overlay only for this run, the machine-local provider submitted `envlib-gsm8k-20260803-live` as provider run `pt-41ca6ad6cb1723a15c456443`. The verified parent was `registry.lan/carbonteq/posttrain-kind-eval@sha256:13ea50188e3064ac7ee38079d85367e11f20a0db627bf6f69d3177b1a73c1b28`; the materialized job image was `registry.lan/carbonteq/posttrain@sha256:69defb79c2533c6ea1fb41955b293c6a8a92fd8f1261f68e6fb499dfee26d994`. `posttrain run reconcile` reported provider `succeeded`, tracking `succeeded`, `state=consistent`, `outcome=succeeded`, provider exit code `0`, no missing required roles, and retained evaluation artifact digest `54005120c95d1b875fe0dbe2436c3ba6d6b67b85e48e416002414f6657c582b1`. The container log records native run creation and completion plus remote Trackio log upload. The host-side Observatory query was not used as evidence because this shell cannot resolve `trackio.lan`.
 
 At later milestones, append concise evidence here:
 
@@ -679,3 +691,5 @@ Revision note (2026-08-03): confirmed Verifiers v1's finite-taskset subset contr
 Revision note (2026-08-03): created local environment-library commit `2ac96d3` after package, boundary, and combined-wheel validation. The commit is intentionally not pushed until the clean-clone publication gate; no framework dependency pin has been advanced.
 
 Revision note (2026-08-03): advanced the shared source to pushed commit `017ac72f543f79f48400cbb4cb641d6df4c3adfa`, recorded the vendored AutomationBench/Reasoning Gym closure, repinned all framework consumers, and added the runtime-lock and source-allowlist fixes needed by real job packing. A diagnostic GSM8K local pack revealed that `--build-missing` could otherwise retain a stale configured parent; the CLI now fails closed and the plan treats a verified rebuilt/published kind digest as a prerequisite for live qualification.
+
+Revision note (2026-08-03): committed and pushed framework catalog/runtime integration as `90d72802`, then completed the first provider-backed native gate. GSM8K run `envlib-gsm8k-20260803-live` succeeded on local Docker with the rebuilt eval parent, materialized job image, Trackio finalization, and consistent retained evaluation evidence. The remaining gates are the other five live cells, normal publication/configuration of the rebuilt eval parent, Math Python GHCR publication, and safe removal of the old AutomationBench copy.
