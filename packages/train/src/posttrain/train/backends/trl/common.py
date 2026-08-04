@@ -29,6 +29,7 @@ def framework_imports() -> dict[str, Any]:
         from peft import LoraConfig, PeftModel, get_peft_model, prepare_model_for_kbit_training
         from transformers import (
             AutoModelForCausalLM,
+            AutoModelForMultimodalLM,
             AutoTokenizer,
             BitsAndBytesConfig,
             TrainerCallback,
@@ -44,6 +45,7 @@ def framework_imports() -> dict[str, Any]:
         "get_peft_model": get_peft_model,
         "prepare_model_for_kbit_training": prepare_model_for_kbit_training,
         "AutoModelForCausalLM": AutoModelForCausalLM,
+        "AutoModelForMultimodalLM": AutoModelForMultimodalLM,
         "AutoTokenizer": AutoTokenizer,
         "BitsAndBytesConfig": BitsAndBytesConfig,
         "TrainerCallback": TrainerCallback,
@@ -105,6 +107,14 @@ def load_tokenizer(model: ModelVariant, imports: dict[str, Any]) -> Any:
     return tokenizer
 
 
+def trainable_model_factory(model: ModelVariant, imports: dict[str, Any]) -> Any:
+    """Select the Transformers factory required by a supported model family."""
+
+    if model.family == "gemma4":
+        return imports["AutoModelForMultimodalLM"]
+    return imports["AutoModelForCausalLM"]
+
+
 def load_trainable_model(
     model: ModelVariant,
     update: ParameterUpdatePlan,
@@ -128,7 +138,7 @@ def load_trainable_model(
             bnb_4bit_compute_dtype=torch.bfloat16,
             bnb_4bit_use_double_quant=update.double_quant,
         )
-    base = imports["AutoModelForCausalLM"].from_pretrained(model.base.repo_id, **load_options)
+    base = trainable_model_factory(model, imports).from_pretrained(model.base.repo_id, **load_options)
     base.config.use_cache = False
     if isinstance(update, QLoRAUpdate):
         base = imports["prepare_model_for_kbit_training"](
@@ -370,6 +380,7 @@ __all__ = [
     "framework_imports",
     "load_tokenizer",
     "load_trainable_model",
+    "trainable_model_factory",
     "trainer_lifecycle",
     "trainer_arguments",
     "vllm_rollout_options",

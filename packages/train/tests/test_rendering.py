@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import pytest
-from posttrain.common.variants import LFM_25_12B_THINKING, QWEN_35_2B
+from posttrain.common.variants import GEMMA_4_12B_IT, LFM_25_12B_THINKING, QWEN_35_2B
 from posttrain.data import PreferenceDataset, PreferenceExample, SupervisedDataset, SupervisedExample
 from posttrain.train import (
+    GEMMA4_RENDERER,
     LFM25_RENDERER,
     QWEN35_RENDERER,
     render_preferences,
@@ -32,6 +33,7 @@ def _load_tokenizer(model):
     (
         (QWEN_35_2B, QWEN35_RENDERER),
         (LFM_25_12B_THINKING, LFM25_RENDERER),
+        (GEMMA_4_12B_IT, GEMMA4_RENDERER),
     ),
 )
 def test_renderer_builds_nonempty_assistant_only_sft_masks(model, profile) -> None:
@@ -57,6 +59,65 @@ def test_renderer_builds_nonempty_assistant_only_sft_masks(model, profile) -> No
     decoded = tokenizer.decode(sample.input_ids, skip_special_tokens=False)
     assert "Solve 2 + 2" in decoded
     assert "#### 4" in decoded
+
+
+def test_gemma_renderer_masks_tool_observations_from_sft_loss() -> None:
+    tokenizer = _load_tokenizer(GEMMA_4_12B_IT)
+    dataset = SupervisedDataset(
+        "gemma4-tool-sft-golden-v1",
+        "b" * 40,
+        (
+            SupervisedExample(
+                "weather/train/0",
+                (
+                    {"role": "user", "content": "Weather in Lahore?"},
+                    {
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [
+                            {
+                                "type": "function",
+                                "id": "call-1",
+                                "function": {"name": "weather", "arguments": {"city": "Lahore"}},
+                            }
+                        ],
+                    },
+                    {"role": "tool", "tool_call_id": "call-1", "name": "weather", "content": "Sunny"},
+                    {"role": "assistant", "content": "It is sunny."},
+                ),
+                (1, 3),
+                (
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "weather",
+                            "description": "Read weather",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {"city": {"type": "string"}},
+                                "required": ["city"],
+                            },
+                        },
+                    },
+                ),
+            ),
+        ),
+    )
+
+    sample = render_supervised(tokenizer, GEMMA_4_12B_IT, dataset, GEMMA4_RENDERER, max_length=512)[0]
+    trained = tokenizer.decode(
+        [token for token, label in zip(sample.input_ids, sample.labels, strict=True) if label != -100],
+        skip_special_tokens=False,
+    )
+    masked = tokenizer.decode(
+        [token for token, label in zip(sample.input_ids, sample.labels, strict=True) if label == -100],
+        skip_special_tokens=False,
+    )
+
+    assert "<|tool_call>call:weather" in trained
+    assert "It is sunny." in trained
+    assert "response:weather" in masked
+    assert "Sunny" in masked
 
 
 @pytest.mark.parametrize(
