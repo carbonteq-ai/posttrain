@@ -2472,6 +2472,7 @@ def test_run_commands_keep_current_admission_visible_and_idempotent(
         )
         == 0
     )
+
     listed = json.loads(capsys.readouterr().out)
     assert listed[0]["run_id"] == "waiting-run"
     assert listed[0]["queue_position"] == 1
@@ -2555,6 +2556,56 @@ def test_run_commands_keep_current_admission_visible_and_idempotent(
     )
     retried = json.loads(capsys.readouterr().out)
     assert retried["state"] == "submitted"
+
+
+def test_run_list_scopes_project_and_labels_purged_history(
+    tmp_path: Path,
+    capsys,
+    monkeypatch,
+) -> None:
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+    _record_submission(project, run_id="kept-run", evidence_source=None)
+    now = datetime.now(UTC)
+    purged = AdmissionEntry(
+        run_id="purged-run",
+        state="completed",
+        plan=_cli_execution_plan("purged-run"),
+        evidence_source=None,
+        queued_at=now,
+    )
+    foreign_base = _cli_execution_plan("foreign-run")
+    foreign_plan = replace(
+        foreign_base,
+        request=replace(
+            foreign_base.request,
+            run_spec=replace(foreign_base.request.run_spec, project_id="other-project"),
+        ),
+    )
+    foreign = replace(purged, run_id="foreign-run", plan=foreign_plan)
+
+    class FakeAdmission:
+        def list(self):
+            return (purged, foreign)
+
+    monkeypatch.setattr(
+        "posttrain_cli.commands.run_cmd.execution_admission_service",
+        lambda layout: FakeAdmission(),
+    )
+    monkeypatch.setattr(
+        "posttrain_cli.commands.run_cmd.purged_run_ids",
+        lambda layout: {"purged-run"},
+    )
+
+    assert main(["--json", "--project-root", str(project), "run", "list"]) == 0
+    listed = json.loads(capsys.readouterr().out)
+    assert {item["run_id"] for item in listed} == {"kept-run"}
+
+    assert main(["--json", "--project-root", str(project), "run", "list", "--include-purged"]) == 0
+    audit = json.loads(capsys.readouterr().out)
+    assert {item["run_id"] for item in audit} == {"kept-run", "purged-run"}
+    assert next(item for item in audit if item["run_id"] == "purged-run")["purged"] is True
 
 
 def test_run_show_uses_project_tracking_source(

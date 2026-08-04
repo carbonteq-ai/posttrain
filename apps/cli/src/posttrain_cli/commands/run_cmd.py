@@ -33,7 +33,7 @@ from ..execution_provider import (
 )
 from ..output import emit, json_value
 from ..purge_surface import render_plan, save_run_preview
-from ..run_resolve import resolve_run_id
+from ..run_resolve import project_admission_entries, purged_run_ids, resolve_run_id
 from ..tracking_config import project_observatory_settings
 
 RUN_MODE_CHOICE = click.Choice(RUN_MODE_CHOICES)
@@ -86,12 +86,26 @@ def register(app: typer.Typer) -> None:
             int,
             typer.Option("--limit", min=1, max=1000),
         ] = 50,
+        include_purged: Annotated[
+            bool,
+            typer.Option("--include-purged", help="include labeled runs with completed purge receipts"),
+        ] = False,
     ) -> None:
         state: CliState = ctx.obj
         layout = state.layout()
-        submissions = ExecutionSubmissionStore(layout.state).list_submissions()
         admission = execution_admission_service(layout)
-        admission_entries = {entry.run_id: entry for entry in admission.list()}
+        purged_ids = purged_run_ids(layout)
+        purged = set() if include_purged else purged_ids
+        submissions = tuple(
+            submission
+            for submission in ExecutionSubmissionStore(layout.state).list_submissions()
+            if submission.run_id not in purged
+        )
+        admission_entries = project_admission_entries(
+            layout,
+            include_purged=include_purged,
+            entries=tuple(admission.list()),
+        )
         submission_by_run = {submission.run_id: submission for submission in submissions}
         admission_priority = {
             "waiting": 0,
@@ -142,6 +156,7 @@ def register(app: typer.Typer) -> None:
                     ),
                     "admission_state": entry.state if entry is not None else None,
                     "queue_position": entry.position if entry is not None else None,
+                    "purged": run_id in purged_ids,
                 }
             )
         payload.sort(
@@ -166,6 +181,7 @@ def register(app: typer.Typer) -> None:
             lines.append(
                 f"{item['run_id']}  {item['provider']}  "
                 f"state={item['admission_state'] or 'legacy-submitted'}  "
+                f"{'purged  ' if item['purged'] else ''}"
                 f"kind={kind}  package={package}  target={target}  "
                 f"submitted={item['submitted_at'] or '-'}{position}"
             )

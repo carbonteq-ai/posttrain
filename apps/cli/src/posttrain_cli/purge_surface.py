@@ -22,7 +22,9 @@ from posttrain.execution import (
 )
 
 from .context import CliState
+from .execution_config import load_local_execution_config
 from .execution_provider import execution_service_for_run
+from .state_layout import cache_path
 from .tracking_config import project_tracking_environment
 
 
@@ -242,9 +244,19 @@ def _apply_executors(layout: Any, plan: PurgePlan) -> dict[PurgePlane, PurgeActi
         str(action.target["run_id"]): execution_service_for_run(layout, str(action.target["run_id"]))
         for action in plan.provider_actions
     }
+    local_roots = [layout.state, cache_path(layout, "runs")]
+    try:
+        local_binding = load_local_execution_config(layout).local
+    except Exception:
+        local_binding = None
+    if local_binding is not None and local_binding.storage is not None:
+        local_roots.append(local_binding.storage.run_root)
     executors: dict[PurgePlane, PurgeActionExecutor] = {
         "provider": ExecutionProviderPurgeExecutor(services),
-        "local": LocalStatePurgeExecutor((layout.state,)),
+        # Submission receipts live in the project state root, while the
+        # local provider's run workspaces live in the configured machine
+        # storage root. Both are exact, framework-owned state roots.
+        "local": LocalStatePurgeExecutor(tuple(local_roots)),
     }
     if plan.registry_actions:
         try:
