@@ -188,6 +188,16 @@ def resolve_work_package(catalog: Catalog, package: WorkPackage) -> ResolvedWork
         "description": package.description,
         "metadata": dict(package.metadata),
     }
+    evaluation_plan = next(
+        (seat.value for seat in seats.values() if isinstance(seat.value, EvaluationPlan)),
+        None,
+    )
+    evaluation_environment = next(
+        (seat.value for seat in seats.values() if isinstance(seat.value, EnvironmentBinding)),
+        None,
+    )
+    if evaluation_plan is not None:
+        snapshot["evaluation"] = _evaluation_contract_snapshot(evaluation_plan, evaluation_environment)
     return ResolvedWorkPackage(package, recipe, seats, snapshot)
 
 
@@ -460,6 +470,17 @@ def _preflight_job(
 ) -> None:
     """Apply project policy only at the composition boundary."""
 
+    environment = seats.get("environment")
+    inference = seats.get("evaluation_inference", seats.get("rollout_inference"))
+    if isinstance(environment, EnvironmentBinding) and isinstance(inference, InferenceBinding):
+        missing_capabilities = sorted(
+            set(environment.required_inference_capabilities).difference(inference.capabilities)
+        )
+        if missing_capabilities:
+            raise ContractError(
+                f"{job.kind} inference binding is missing environment capabilities: " + ", ".join(missing_capabilities)
+            )
+
     requirements = project_brief.serving if project_brief is not None else None
     if job.kind != "serve.benchmark" or requirements is None:
         return
@@ -724,13 +745,65 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
             "max_concurrent": value.max_concurrent,
             "parameters": dict(value.parameters),
             "reward_components": list(value.reward_components),
+            "observation": {
+                "primary_metric": value.observation.primary_metric,
+                "primary_metric_label": value.observation.primary_metric_label,
+                "pass_rate_metric": value.observation.pass_rate_metric,
+                "facets": [
+                    {
+                        "field": facet.field,
+                        "dimension": facet.dimension,
+                        "label": facet.label,
+                        "transform": facet.transform,
+                    }
+                    for facet in value.observation.facets
+                ],
+            },
         }
     if isinstance(value, EvaluationPlan):
         return {
             "kind": value.kind,
             "environment_ids": [environment.id for environment in value.environments],
+            "contract": {
+                "id": "posttrain.eval.verifiers-observation",
+                "schema_version": 3,
+            },
             "inference_requirements": dict(value.inference_requirements),
             "metrics_and_slices": list(value.metrics_and_slices),
+            "success": {
+                environment_id: {
+                    "id": definition.id,
+                    "label": definition.label,
+                    "source": {
+                        "namespace": definition.source.namespace,
+                        "name": definition.source.name,
+                    },
+                    "predicate": {
+                        "operator": definition.predicate.operator,
+                        "value": definition.predicate.value,
+                        "upper": definition.predicate.upper,
+                        "tolerance": definition.predicate.tolerance,
+                    },
+                    "missing": definition.missing,
+                }
+                for environment_id, definition in value.success.items()
+            },
+            "breakdowns": {
+                environment_id: [
+                    {
+                        "id": definition.id,
+                        "label": definition.label,
+                        "dimensions": list(definition.dimensions),
+                        "presentation": definition.presentation,
+                        "multi_value": definition.multi_value,
+                        "missing": definition.missing,
+                    }
+                    for definition in definitions
+                ]
+                for environment_id, definitions in value.breakdowns.items()
+            },
+            "aggregation": dict(value.aggregation),
+            "comparison": dict(value.comparison),
         }
     if isinstance(value, Workload):
         return {
@@ -744,6 +817,121 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
             "max_consecutive_point_failures": value.max_consecutive_point_failures,
         }
     return {}
+
+
+def _evaluation_contract_snapshot(
+    plan: EvaluationPlan,
+    environment: EnvironmentBinding | None,
+) -> dict[str, JsonValue]:
+    """Materialize the eval contract that Observatory must use for this run."""
+
+    environment_revision = environment.revision if environment is not None else None
+    environment_id = environment.id if environment is not None else None
+    manifest: dict[str, JsonValue] = {
+        "schema_version": "evaluation-signals/v1",
+        "source": "catalog",
+        "environment_id": environment_id,
+        "environment_revision": environment_revision,
+        "reward_components": list(environment.reward_components) if environment is not None else [],
+        "observation": (
+            {
+                "primary_metric": environment.observation.primary_metric,
+                "primary_metric_label": environment.observation.primary_metric_label,
+                "pass_rate_metric": environment.observation.pass_rate_metric,
+                "facets": [
+                    {
+                        "field": facet.field,
+                        "dimension": facet.dimension,
+                        "label": facet.label,
+                        "transform": facet.transform,
+                    }
+                    for facet in environment.observation.facets
+                ],
+            }
+            if environment is not None
+            else {}
+        ),
+    }
+    activation = environment.activation.to_payload() if environment is not None else {}
+    activation_config = activation.get("config") if isinstance(activation, Mapping) else None
+    taskset = activation_config.get("taskset") if isinstance(activation_config, Mapping) else None
+    taskset_payload = taskset if isinstance(taskset, Mapping) else {}
+    dataset_id = taskset_payload.get("dataset_repo") or taskset_payload.get("repository")
+    dataset_revision = taskset_payload.get("dataset_revision") or taskset_payload.get("revision")
+    population: dict[str, JsonValue] = {
+        "taskset": cast(JsonValue, taskset_payload),
+        "dataset": cast(
+            JsonValue,
+            {
+                "id": dataset_id if isinstance(dataset_id, str) else None,
+                "revision": dataset_revision if isinstance(dataset_revision, str) else None,
+                "split": taskset_payload.get("split") if isinstance(taskset_payload.get("split"), str) else None,
+            },
+        ),
+        "num_tasks": environment.num_tasks if environment is not None else 0,
+        "num_rollouts": environment.num_rollouts if environment is not None else 0,
+        "max_concurrent": environment.max_concurrent if environment is not None else 0,
+        "parameters": dict(environment.parameters) if environment is not None else {},
+    }
+    success = plan.success_for(environment_id) if environment_id is not None else None
+    breakdowns = plan.breakdowns_for(environment_id) if environment_id is not None else ()
+    return {
+        "contract": {
+            "id": "posttrain.eval.verifiers-observation",
+            "schema_version": 3,
+        },
+        "plan": {
+            "id": plan.id,
+            "revision": plan.revision,
+            "kind": plan.kind,
+            "metrics_and_slices": list(plan.metrics_and_slices),
+            "success": (
+                {
+                    "id": success.id,
+                    "label": success.label,
+                    "source": {
+                        "namespace": success.source.namespace,
+                        "name": success.source.name,
+                    },
+                    "predicate": {
+                        "operator": success.predicate.operator,
+                        "value": success.predicate.value,
+                        "upper": success.predicate.upper,
+                        "tolerance": success.predicate.tolerance,
+                    },
+                    "missing": success.missing,
+                }
+                if success is not None
+                else None
+            ),
+            "breakdowns": [
+                {
+                    "id": definition.id,
+                    "label": definition.label,
+                    "dimensions": list(definition.dimensions),
+                    "presentation": definition.presentation,
+                    "multi_value": definition.multi_value,
+                    "missing": definition.missing,
+                }
+                for definition in breakdowns
+            ],
+            "aggregation": dict(plan.aggregation),
+            "comparison": dict(plan.comparison),
+        },
+        "environment": {
+            "id": environment_id,
+            "revision": environment_revision,
+            "package": environment.source.package if environment is not None else None,
+            "category": environment.category if environment is not None else None,
+            "source_revision": environment.revision if environment is not None else None,
+        },
+        "population": population,
+        "signal_manifest": manifest,
+        "native_evidence": {
+            "schema_id": "verifiers.trace",
+            "schema_version": "v1",
+        },
+    }
 
 
 def _artifact_inputs(seats: ResolvedSeats) -> dict[str, ArtifactInput]:

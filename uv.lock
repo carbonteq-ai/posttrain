@@ -262,7 +262,7 @@ wheels = [
 [[package]]
 name = "automationbench-v1"
 version = "0.2.0"
-source = { git = "https://github.com/carbonteq-ai/verifiers-environments.git?subdirectory=environments%2Fautomationbench_v1&rev=017ac72f543f79f48400cbb4cb641d6df4c3adfa#017ac72f543f79f48400cbb4cb641d6df4c3adfa" }
+source = { git = "https://github.com/carbonteq-ai/verifiers-environments.git?subdirectory=environments%2Fautomationbench_v1&rev=3e1582ef3cce8e6d355be3747be0427f700ef865#3e1582ef3cce8e6d355be3747be0427f700ef865" }
 dependencies = [
     { name = "verifiers" },
 ]
@@ -1171,7 +1171,7 @@ wheels = [
 [[package]]
 name = "gsm8k-v1"
 version = "0.2.0"
-source = { git = "https://github.com/carbonteq-ai/verifiers-environments.git?subdirectory=environments%2Fgsm8k_v1&rev=017ac72f543f79f48400cbb4cb641d6df4c3adfa#017ac72f543f79f48400cbb4cb641d6df4c3adfa" }
+source = { git = "https://github.com/carbonteq-ai/verifiers-environments.git?subdirectory=environments%2Fgsm8k_v1&rev=3e1582ef3cce8e6d355be3747be0427f700ef865#3e1582ef3cce8e6d355be3747be0427f700ef865" }
 dependencies = [
     { name = "datasets" },
     { name = "verifiers" },
@@ -1317,7 +1317,7 @@ wheels = [
 [[package]]
 name = "ifeval-v1"
 version = "0.1.0"
-source = { git = "https://github.com/carbonteq-ai/verifiers-environments.git?subdirectory=environments%2Fifeval_v1&rev=017ac72f543f79f48400cbb4cb641d6df4c3adfa#017ac72f543f79f48400cbb4cb641d6df4c3adfa" }
+source = { git = "https://github.com/carbonteq-ai/verifiers-environments.git?subdirectory=environments%2Fifeval_v1&rev=3e1582ef3cce8e6d355be3747be0427f700ef865#3e1582ef3cce8e6d355be3747be0427f700ef865" }
 dependencies = [
     { name = "datasets" },
     { name = "langdetect" },
@@ -1655,7 +1655,7 @@ wheels = [
 [[package]]
 name = "math-python-v1"
 version = "0.1.0"
-source = { git = "https://github.com/carbonteq-ai/verifiers-environments.git?subdirectory=environments%2Fmath_python_v1&rev=017ac72f543f79f48400cbb4cb641d6df4c3adfa#017ac72f543f79f48400cbb4cb641d6df4c3adfa" }
+source = { git = "https://github.com/carbonteq-ai/verifiers-environments.git?subdirectory=environments%2Fmath_python_v1&rev=3e1582ef3cce8e6d355be3747be0427f700ef865#3e1582ef3cce8e6d355be3747be0427f700ef865" }
 dependencies = [
     { name = "datasets" },
     { name = "verifiers" },
@@ -1800,7 +1800,7 @@ wheels = [
 [[package]]
 name = "mmlu-pro-v1"
 version = "0.1.0"
-source = { git = "https://github.com/carbonteq-ai/verifiers-environments.git?subdirectory=environments%2Fmmlu_pro_v1&rev=017ac72f543f79f48400cbb4cb641d6df4c3adfa#017ac72f543f79f48400cbb4cb641d6df4c3adfa" }
+source = { git = "https://github.com/carbonteq-ai/verifiers-environments.git?subdirectory=environments%2Fmmlu_pro_v1&rev=3e1582ef3cce8e6d355be3747be0427f700ef865#3e1582ef3cce8e6d355be3747be0427f700ef865" }
 dependencies = [
     { name = "datasets" },
     { name = "verifiers" },
@@ -2840,17 +2840,17 @@ verifiers = [
 [package.metadata]
 requires-dist = [
     { name = "alphabet-sort-v1", marker = "extra == 'verifiers'", git = "https://github.com/PrimeIntellect-ai/verifiers.git?subdirectory=environments%2Falphabet_sort_v1&rev=284a868d6a9022109b749710672a0460e8a996d4" },
-    { name = "automationbench-v1", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers-environments.git?subdirectory=environments%2Fautomationbench_v1&rev=017ac72f543f79f48400cbb4cb641d6df4c3adfa" },
+    { name = "automationbench-v1", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers-environments.git?subdirectory=environments%2Fautomationbench_v1&rev=3e1582ef3cce8e6d355be3747be0427f700ef865" },
     { name = "code-golf-v1", marker = "extra == 'verifiers'", git = "https://github.com/PrimeIntellect-ai/verifiers.git?subdirectory=environments%2Fcode_golf_v1&rev=284a868d6a9022109b749710672a0460e8a996d4" },
-    { name = "gsm8k-v1", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers-environments.git?subdirectory=environments%2Fgsm8k_v1&rev=017ac72f543f79f48400cbb4cb641d6df4c3adfa" },
-    { name = "ifeval-v1", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers-environments.git?subdirectory=environments%2Fifeval_v1&rev=017ac72f543f79f48400cbb4cb641d6df4c3adfa" },
-    { name = "math-python-v1", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers-environments.git?subdirectory=environments%2Fmath_python_v1&rev=017ac72f543f79f48400cbb4cb641d6df4c3adfa" },
-    { name = "mmlu-pro-v1", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers-environments.git?subdirectory=environments%2Fmmlu_pro_v1&rev=017ac72f543f79f48400cbb4cb641d6df4c3adfa" },
+    { name = "gsm8k-v1", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers-environments.git?subdirectory=environments%2Fgsm8k_v1&rev=3e1582ef3cce8e6d355be3747be0427f700ef865" },
+    { name = "ifeval-v1", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers-environments.git?subdirectory=environments%2Fifeval_v1&rev=3e1582ef3cce8e6d355be3747be0427f700ef865" },
+    { name = "math-python-v1", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers-environments.git?subdirectory=environments%2Fmath_python_v1&rev=3e1582ef3cce8e6d355be3747be0427f700ef865" },
+    { name = "mmlu-pro-v1", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers-environments.git?subdirectory=environments%2Fmmlu_pro_v1&rev=3e1582ef3cce8e6d355be3747be0427f700ef865" },
     { name = "posttrain-common", editable = "packages/common" },
     { name = "posttrain-environment", editable = "packages/environment" },
     { name = "prime", marker = "extra == 'verifiers'", specifier = ">=0.6" },
     { name = "pydantic", specifier = ">=2.12,<3" },
-    { name = "reasoning-gym-v1", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers-environments.git?subdirectory=environments%2Freasoning_gym_v1&rev=017ac72f543f79f48400cbb4cb641d6df4c3adfa" },
+    { name = "reasoning-gym-v1", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers-environments.git?subdirectory=environments%2Freasoning_gym_v1&rev=3e1582ef3cce8e6d355be3747be0427f700ef865" },
     { name = "reverse-text-v1", marker = "extra == 'verifiers'", git = "https://github.com/PrimeIntellect-ai/verifiers.git?subdirectory=environments%2Freverse_text_v1&rev=284a868d6a9022109b749710672a0460e8a996d4" },
     { name = "torch", marker = "extra == 'verifiers'", index = "https://download.pytorch.org/whl/cu130" },
     { name = "transformers", marker = "extra == 'verifiers'", specifier = ">=4.57" },
@@ -3999,7 +3999,7 @@ wheels = [
 [[package]]
 name = "reasoning-gym-v1"
 version = "0.1.0"
-source = { git = "https://github.com/carbonteq-ai/verifiers-environments.git?subdirectory=environments%2Freasoning_gym_v1&rev=017ac72f543f79f48400cbb4cb641d6df4c3adfa#017ac72f543f79f48400cbb4cb641d6df4c3adfa" }
+source = { git = "https://github.com/carbonteq-ai/verifiers-environments.git?subdirectory=environments%2Freasoning_gym_v1&rev=3e1582ef3cce8e6d355be3747be0427f700ef865#3e1582ef3cce8e6d355be3747be0427f700ef865" }
 dependencies = [
     { name = "arckit" },
     { name = "bfi" },

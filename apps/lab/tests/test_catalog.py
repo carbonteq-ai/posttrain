@@ -7,7 +7,8 @@ from pathlib import Path
 
 import pytest
 from posttrain.catalog import load_catalog_layer, packaged_base_directory
-from posttrain.common import CatalogRef, ContractError, ExecutionTarget, ModelVariant
+from posttrain.common import CatalogRef, ContractError, ExecutionTarget, InferenceBinding, ModelVariant
+from posttrain.environment import VerifiersV1ConfigActivation
 from posttrain.eval import EnvironmentBinding, EnvironmentSource, EvaluationPlan
 from posttrain.train import (
     DynamicGroupSampling,
@@ -48,6 +49,15 @@ def test_slice_one_and_two_selections_load_from_the_base_filesystem_catalog() ->
     assert sampo.value.dynamic_sampling == DynamicGroupSampling(max_candidate_batches=3)
 
 
+def test_every_evaluation_plan_declares_success_for_every_environment() -> None:
+    catalog = open_catalog(scope="posttrain-lab")
+
+    for ref in catalog.list("evaluation"):
+        plan = catalog.resolve(ref).value
+        assert isinstance(plan, EvaluationPlan)
+        assert set(plan.success) == {environment.id for environment in plan.environments}
+
+
 def test_automationbench_grpo_environment_is_category_and_budget_driven() -> None:
     catalog = open_catalog(scope="posttrain-lab")
     environment = catalog.resolve(CatalogRef("environment", "automationbench-zapier-simple-grpo")).value
@@ -60,11 +70,12 @@ def test_automationbench_grpo_environment_is_category_and_budget_driven() -> Non
     assert isinstance(environment.source, EnvironmentSource)
     assert environment.source.package == "automationbench-v1"
     assert environment.source.repository == "https://github.com/carbonteq-ai/verifiers-environments"
-    assert environment.source.revision == "017ac72f543f79f48400cbb4cb641d6df4c3adfa"
+    assert environment.source.revision == "3e1582ef3cce8e6d355be3747be0427f700ef865"
     assert environment.source.subdirectory == "environments/automationbench_v1"
     assert environment.parameters["domains"] == ["simple"]
     assert environment.parameters["sampling_seed"] == 17
     assert environment.parameters["toolset"] == "zapier"
+    assert environment.required_inference_capabilities == ("tool-calling",)
     assert "task_indices" not in environment.parameters
     assert environment.num_tasks == 2
     assert environment.num_rollouts == 8
@@ -78,6 +89,38 @@ def test_automationbench_grpo_environment_is_category_and_budget_driven() -> Non
     assert training.renderer.reasoning_mode == "thinking"
     assert training.update.target_modules == r".*[.](o_proj|down_proj)$"
     assert training.runtime.global_batch_size == 16
+
+    rollout = catalog.resolve(
+        CatalogRef("inference", "inference/qwen3.5-0.8b-vllm-automationbench-rollout-mtp@1")
+    ).value
+    assert isinstance(rollout, InferenceBinding)
+    assert rollout.capabilities == ("tool-calling",)
+    assert rollout.model.conversation.tool_calls is not None
+    assert rollout.model.conversation.tool_calls.id == "qwen3_xml"
+
+
+def test_qwen4b_automationbench_eval_binding_declares_tool_protocol() -> None:
+    catalog = open_catalog(scope="posttrain-lab", overlays=(WORKSPACE / "apps/lab/.posttrain/catalog",))
+    environment = catalog.resolve(CatalogRef("environment", "automationbench-zapier-simple-qualification")).value
+    inference = catalog.resolve(
+        CatalogRef("inference", "inference/qwen3.5-4b-vllm-thinking-eval-mtp-concurrent16-32k@1")
+    ).value
+
+    assert isinstance(environment, EnvironmentBinding)
+    assert environment.required_inference_capabilities == ("tool-calling",)
+    assert environment.num_tasks == 200
+    assert environment.max_concurrent == 16
+    assert isinstance(environment.activation, VerifiersV1ConfigActivation)
+    assert environment.activation.config.get("taskset") == {
+        "id": "automationbench-v1",
+        "domains": ["simple"],
+        "task": {"toolset": "limited_zapier", "search_top_k": 20},
+    }
+    assert isinstance(inference, InferenceBinding)
+    assert inference.capabilities == ("tool-calling",)
+    assert inference.engine["max_num_seqs"] == 16
+    assert inference.model.conversation.tool_calls is not None
+    assert inference.model.conversation.tool_calls.id == "qwen3_xml"
 
 
 def test_general_capability_catalog_and_library_qualification_are_pinned() -> None:
@@ -94,7 +137,7 @@ def test_general_capability_catalog_and_library_qualification_are_pinned() -> No
     for item in plan.environments:
         assert isinstance(item.source, EnvironmentSource)
         assert item.source.repository == "https://github.com/carbonteq-ai/verifiers-environments"
-        assert item.source.revision == "017ac72f543f79f48400cbb4cb641d6df4c3adfa"
+        assert item.source.revision == "3e1582ef3cce8e6d355be3747be0427f700ef865"
 
 
 def test_project_overlay_directory_can_publish_a_new_selection(tmp_path: Path) -> None:

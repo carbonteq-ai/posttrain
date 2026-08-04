@@ -26,8 +26,11 @@ from posttrain.eval import (
     EvaluateRequest,
     EvaluationBudget,
     EvaluationEndpoint,
+    EvaluationNumericPredicate,
     EvaluationPlan,
     EvaluationPopulation,
+    EvaluationSignalRef,
+    EvaluationSuccessDefinition,
     ExternalInferenceService,
     PythonFactoryActivation,
     RemoteEvaluationBinding,
@@ -96,6 +99,14 @@ def request(*, context_window: int = 8_192) -> EvaluateRequest:
                 num_tasks=2,
             ),
         ),
+        success={
+            "math": EvaluationSuccessDefinition(
+                "correct",
+                "Correct",
+                EvaluationSignalRef("reward", "reward"),
+                EvaluationNumericPredicate("eq", 1.0),
+            )
+        },
     )
     target = ExecutionTarget("targets/local-cuda-8gb", "1", "nvidia-cuda", 8)
     inference = InferenceBinding(
@@ -148,6 +159,32 @@ def canonical_request() -> EvaluateRequest:
     return request()
 
 
+def test_local_evaluation_rejects_missing_environment_inference_capability() -> None:
+    evaluation = request()
+    environment = replace(
+        evaluation.environment,
+        required_inference_capabilities=("tool-calling",),
+    )
+    plan = replace(evaluation.plan, environments=(environment,))
+
+    with pytest.raises(ValueError, match="missing environment capabilities: tool-calling"):
+        replace(evaluation, plan=plan)
+
+
+def test_local_evaluation_accepts_declared_environment_inference_capability() -> None:
+    evaluation = request()
+    environment = replace(
+        evaluation.environment,
+        required_inference_capabilities=("tool-calling",),
+    )
+    plan = replace(evaluation.plan, environments=(environment,))
+    inference = replace(evaluation.inference, capabilities=("tool-calling",))
+
+    compatible = replace(evaluation, plan=plan, inference=inference)
+
+    assert compatible.environment.required_inference_capabilities == ("tool-calling",)
+
+
 def remote_request(*, request_defaults: dict[str, Any] | None = None) -> EvaluateRequest:
     source = EnvironmentSource("fake-env", "https://example.test/environments", REVISION)
     plan = EvaluationPlan(
@@ -163,6 +200,14 @@ def remote_request(*, request_defaults: dict[str, Any] | None = None) -> Evaluat
                 num_tasks=2,
             ),
         ),
+        success={
+            "tool-loop": EvaluationSuccessDefinition(
+                "task-success",
+                "Task success",
+                EvaluationSignalRef("reward", "reward"),
+                EvaluationNumericPredicate("eq", 1.0),
+            )
+        },
     )
     target = ExecutionTarget("targets/external-screen", "1", "network-client")
     policy = RemotePolicy(
@@ -238,7 +283,7 @@ def test_agentic_and_domain_programs_share_the_native_port() -> None:
     source = AGENTIC_SMOKE.environments[0].source
     assert isinstance(source, EnvironmentSource)
     assert source.repository == ("https://github.com/carbonteq-ai/verifiers-environments")
-    assert source.revision == ("017ac72f543f79f48400cbb4cb641d6df4c3adfa")
+    assert source.revision == ("3e1582ef3cce8e6d355be3747be0427f700ef865")
     assert source.subdirectory == "environments/automationbench_v1"
     assert AGENTIC_SMOKE.environments[0].max_concurrent == 1
     assert AUTOMATIONBENCH_PUBLIC.kind == "domain"
@@ -255,6 +300,35 @@ def test_agentic_and_domain_programs_share_the_native_port() -> None:
 def test_evaluation_request_rejects_response_budget_at_context_limit() -> None:
     with pytest.raises(ValueError, match="response budget"):
         request(context_window=512)
+
+
+def test_evaluation_request_accepts_native_mtp_binding() -> None:
+    evaluation = request()
+    assert isinstance(evaluation.inference, InferenceBinding)
+    mtp = replace(
+        evaluation.inference,
+        engine={**evaluation.inference.engine, "speculative_config": {"method": "mtp", "num_speculative_tokens": 1}},
+    )
+    updated = replace(evaluation, inference=mtp)
+    assert isinstance(updated.inference, InferenceBinding)
+    assert updated.inference.engine["speculative_config"] == {
+        "method": "mtp",
+        "num_speculative_tokens": 1,
+    }
+
+
+def test_evaluation_request_rejects_mtp_without_native_head() -> None:
+    evaluation = request()
+    assert isinstance(evaluation.inference, InferenceBinding)
+    assert not isinstance(evaluation.model, RemotePolicy)
+    model = replace(evaluation.model, capabilities=replace(evaluation.model.capabilities, mtp=False))
+    inference = replace(
+        evaluation.inference,
+        model=model,
+        engine={**evaluation.inference.engine, "speculative_config": {"method": "mtp", "num_speculative_tokens": 1}},
+    )
+    with pytest.raises(ValueError, match="native MTP head"):
+        replace(evaluation, model=model, inference=inference)
 
 
 def test_remote_evaluation_keeps_policy_service_and_endpoint_separate() -> None:

@@ -4,7 +4,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 017ac72f543f79f48400cbb4cb641d6df4c3adfa
+      revision: 3e1582ef3cce8e6d355be3747be0427f700ef865
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -39,14 +39,20 @@ environment:
       rollout_timeout_seconds: 1800
     reward_components:
       - partial_credit
-      - task_completed_correctly
-      - assertions_passed
+    required_inference_capabilities: [tool-calling]
+    observation:
+      primary_metric: partial_credit
+      pass_rate_metric: task_completed_correctly
+      facets:
+        - field: domain
+          dimension: domain
+          label: Domain
   gsm8k-distill-train:
     category: math-reasoning
     source:
       package: gsm8k-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 017ac72f543f79f48400cbb4cb641d6df4c3adfa
+      revision: 3e1582ef3cce8e6d355be3747be0427f700ef865
       subdirectory: environments/gsm8k_v1
     activation:
       kind: verifiers-config
@@ -76,12 +82,15 @@ environment:
     parameters:
       sampling_seed: 0
     reward_components: [reward]
+    observation:
+      primary_metric: reward
+      pass_rate_metric: reward
   math-gsm8k:
     category: math-reasoning
     source:
       package: gsm8k-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 017ac72f543f79f48400cbb4cb641d6df4c3adfa
+      revision: 3e1582ef3cce8e6d355be3747be0427f700ef865
       subdirectory: environments/gsm8k_v1
     activation:
       kind: verifiers-config
@@ -104,13 +113,17 @@ environment:
     sampling:
       max_tokens: 4096
     num_tasks: 8
+    reward_components: [reward]
+    observation:
+      primary_metric: reward
+      pass_rate_metric: reward
   knowledge-mmlu-pro-cot-5shot-balanced-v1:
     category: knowledge-reasoning
     qualification: deferred
     source:
       package: mmlu-pro-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 017ac72f543f79f48400cbb4cb641d6df4c3adfa
+      revision: 3e1582ef3cce8e6d355be3747be0427f700ef865
       subdirectory: environments/mmlu_pro_v1
     activation:
       kind: verifiers-config
@@ -156,13 +169,20 @@ environment:
     num_rollouts: 1
     max_concurrent: 4
     reward_components: [answer_correct]
+    observation:
+      primary_metric: answer_correct
+      pass_rate_metric: answer_correct
+      facets:
+        - field: category
+          dimension: category
+          label: Category
   instruction-ifeval-full-v1:
     category: instruction-following
     qualification: deferred
     source:
       package: ifeval-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 017ac72f543f79f48400cbb4cb641d6df4c3adfa
+      revision: 3e1582ef3cce8e6d355be3747be0427f700ef865
       subdirectory: environments/ifeval_v1
     activation:
       kind: verifiers-config
@@ -189,13 +209,21 @@ environment:
     num_rollouts: 1
     max_concurrent: 4
     reward_components: [strict_prompt_accuracy]
+    observation:
+      primary_metric: strict_prompt_accuracy
+      pass_rate_metric: strict_prompt_accuracy
+      facets:
+        - field: instruction_id_list
+          dimension: instruction_family
+          label: Instruction family
+          transform: prefix_before_colon
   reasoning-gym-balanced-eval-v1:
     category: procedural-reasoning
     qualification: deferred
     source:
       package: reasoning-gym-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 017ac72f543f79f48400cbb4cb641d6df4c3adfa
+      revision: 3e1582ef3cce8e6d355be3747be0427f700ef865
       subdirectory: environments/reasoning_gym_v1
     activation:
       kind: verifiers-config
@@ -232,13 +260,19 @@ environment:
     num_rollouts: 1
     max_concurrent: 4
     reward_components: [native_reward]
+    observation:
+      primary_metric: native_reward
+      facets:
+        - field: generator
+          dimension: generator
+          label: Generator
   math-python-balanced-eval-v1:
     category: math-tool-use
     qualification: deferred
     source:
       package: math-python-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 017ac72f543f79f48400cbb4cb641d6df4c3adfa
+      revision: 3e1582ef3cce8e6d355be3747be0427f700ef865
       subdirectory: environments/math_python_v1
     activation:
       kind: verifiers-config
@@ -268,12 +302,22 @@ environment:
     num_rollouts: 1
     max_concurrent: 1
     reward_components: [math_reward]
+    observation:
+      primary_metric: math_reward
+      pass_rate_metric: symbolic_correctness
+      facets:
+        - field: problem_type
+          dimension: problem_type
+          label: Problem type
+        - field: level
+          dimension: difficulty
+          label: Difficulty
   reasoning-gym-train-v1:
     category: procedural-reasoning
     source:
       package: reasoning-gym-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 017ac72f543f79f48400cbb4cb641d6df4c3adfa
+      revision: 3e1582ef3cce8e6d355be3747be0427f700ef865
       subdirectory: environments/reasoning_gym_v1
     activation:
       kind: verifiers-config
@@ -313,12 +357,18 @@ environment:
     parameters:
       sampling_seed: 0
     reward_components: [native_reward]
+    observation:
+      primary_metric: native_reward
+      facets:
+        - field: generator
+          dimension: generator
+          label: Generator
   math-python-train-v1:
     category: math-tool-use
     source:
       package: math-python-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 017ac72f543f79f48400cbb4cb641d6df4c3adfa
+      revision: 3e1582ef3cce8e6d355be3747be0427f700ef865
       subdirectory: environments/math_python_v1
     activation:
       kind: verifiers-config
@@ -351,6 +401,16 @@ environment:
     parameters:
       sampling_seed: 0
     reward_components: [math_reward]
+    observation:
+      primary_metric: math_reward
+      pass_rate_metric: symbolic_correctness
+      facets:
+        - field: problem_type
+          dimension: problem_type
+          label: Problem type
+        - field: level
+          dimension: difficulty
+          label: Difficulty
   instruction-reverse-text:
     category: instruction-following
     source:
@@ -377,6 +437,10 @@ environment:
     sampling:
       max_tokens: 1024
     num_tasks: 8
+    reward_components: [reward]
+    observation:
+      primary_metric: reward
+      pass_rate_metric: reward
   code-execution:
     category: code-generation
     source:
@@ -404,6 +468,10 @@ environment:
     num_tasks: 3
     num_rollouts: 2
     max_concurrent: 1
+    reward_components: [reward]
+    observation:
+      primary_metric: reward
+      pass_rate_metric: reward
   multi-turn-alphabet-sort:
     category: multi-turn-state
     source:
@@ -432,3 +500,7 @@ environment:
     sampling:
       max_tokens: 2048
     num_tasks: 4
+    reward_components: [reward]
+    observation:
+      primary_metric: reward
+      pass_rate_metric: reward

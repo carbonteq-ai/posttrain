@@ -112,6 +112,7 @@ LABEL org.opencontainers.image.created="${CREATED}" \
       org.carbonteq.posttrain.image-level="job-kind" \
       org.carbonteq.posttrain.job-kind="eval" \
       org.carbonteq.posttrain.lock-digest="${LOCK_DIGEST}"
+ENV POSTTRAIN_VERIFIERS_PREINSTALLED="1"
 WORKDIR /opt/posttrain/job
 
 FROM serve-dependencies AS serve

@@ -1,6 +1,11 @@
 """Tests for pinned foundation model variants."""
 
-from posttrain.common.variants import LFM_25_12B_THINKING, QWEN_35_08B, QWEN_35_2B
+from posttrain.common.variants import (
+    LFM_25_12B_THINKING,
+    QWEN35_THINKING_RENDERER_CONTRACT,
+    QWEN_35_08B,
+    QWEN_35_2B,
+)
 
 
 def test_foundation_variants_publish_explicit_model_and_renderer_contracts() -> None:
@@ -13,3 +18,11 @@ def test_foundation_variants_publish_explicit_model_and_renderer_contracts() -> 
     assert QWEN_35_08B.parameters == 800_000_000
     assert QWEN_35_08B.base.revision == "2fc06364715b967f1860aea9cf38778875588b17"
     assert QWEN_35_08B.capabilities.mtp is True
+
+
+def test_qwen_thinking_renderer_contract_is_explicit() -> None:
+    assert QWEN35_THINKING_RENDERER_CONTRACT.id == "qwen3.5-tools-thinking@1"
+    assert QWEN35_THINKING_RENDERER_CONTRACT.conversation.default_reasoning_mode == "thinking"
+    assert QWEN35_THINKING_RENDERER_CONTRACT.conversation.reasoning_mode("thinking").kwargs() == {
+        "enable_thinking": True
+    }

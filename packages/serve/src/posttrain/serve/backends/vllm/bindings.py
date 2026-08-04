@@ -14,6 +14,11 @@ from ...profiles import VllmEngineConfig, VllmSamplingConfig, VllmSpeculativeCon
 from ...prompts import PromptCorpus, load_prompt_corpus
 from ...requests import ServeBenchmarkRequest
 
+_TOOL_PARSER_BY_PROTOCOL = {
+    "lfm2_pythonic": "lfm2",
+    "qwen3_xml": "qwen3_xml",
+}
+
 
 @dataclass(frozen=True, slots=True)
 class VllmBenchmarkConfig:
@@ -101,8 +106,23 @@ def sampling_config(binding: InferenceBinding) -> VllmSamplingConfig:
 
 def frontend_args(binding: InferenceBinding) -> tuple[str, ...]:
     values: list[str] = []
-    tool_parser = binding.engine.get("tool_call_parser")
+    configured_tool_parser = binding.engine.get("tool_call_parser")
+    tool_parser = configured_tool_parser
     reasoning_parser = binding.engine.get("reasoning_parser")
+    if "tool-calling" in binding.capabilities:
+        protocol = binding.model.conversation.tool_calls
+        if protocol is None:
+            raise ValueError("tool-calling vLLM bindings require a model tool-call protocol")
+        try:
+            resolved_tool_parser = _TOOL_PARSER_BY_PROTOCOL[protocol.id]
+        except KeyError as error:
+            raise ValueError(f"vLLM has no parser mapping for tool-call protocol {protocol.id!r}") from error
+        if configured_tool_parser is not None and configured_tool_parser != resolved_tool_parser:
+            raise ValueError(
+                "engine.tool_call_parser conflicts with the selected model tool-call protocol: "
+                f"expected {resolved_tool_parser!r}"
+            )
+        tool_parser = resolved_tool_parser
     if isinstance(tool_parser, str):
         values.extend(("--enable-auto-tool-choice", "--tool-call-parser", tool_parser))
     if isinstance(reasoning_parser, str):

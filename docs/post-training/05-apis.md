@@ -267,6 +267,24 @@ not on the dataset.
 | `split` / subset | Task selection for this binding |
 | `parameters` | Task-meaningful timeouts/limits |
 | `reward_components` | Declared raw signal names (meanings owned by env) |
+| `observation.facets` | Native task fields projected as stable, independently filterable dimensions |
+| `required_inference_capabilities` | Portable interaction requirements such as `tool-calling`; never an internal transport such as MCP |
+
+Every `eval.general` and `eval.domain` execution also resolves an
+environment-specific success definition from its `EvaluationPlan`. The
+definition names one declared `reward` or `metric` signal and a bounded numeric
+predicate (`eq`, `gt`, `gte`, `lt`, `lte`, or `between`). It is retained in the
+run snapshot. Evaluation execution fails before launch when the selected
+environment has no success definition. The rule is evaluation policy: it does
+not turn a continuous environment reward into a universal training outcome.
+
+An `EvaluationPlan` may also declare environment-specific compound reporting
+breakdowns over those facet dimension ids. A breakdown retains its component
+dimensions as structured values; a display label such as `Algebra · Level 4`
+is presentation, not stored task identity. The resolved run snapshots the
+selected breakdowns with the success definition, so later catalog edits cannot
+reinterpret historical evidence. Multi-valued dimensions require an explicit
+cross-product policy; the default rejects ambiguous combinations.
 
 ### `InferenceBinding`
 
@@ -285,11 +303,21 @@ is a **field** (`engine`), not its own catalog family. See
 | `sampling` | Defaults for generation or token scoring for this purpose |
 | `target` | `ExecutionTarget` |
 | `purpose` | screen \| eval \| rollout \| teacher-score \| smoke \| handoff |
+| `capabilities` | Portable interaction capabilities this complete model/backend binding is qualified to provide |
 
 `engine` schema is owned by the `serve` (or colocated train) adapter for that
 `backend`. Changing engine or sampling → new binding revision; same model
 variant. Changing on-disk weight quant → new `ModelVariant`, then a binding that
 points at it.
+
+Compatibility is checked between the environment's required capabilities and
+the complete inference binding, not the model alone. The binding's `renderer`
+must match the selected model's renderer contract; it is a compatibility
+fingerprint, not a second template selection. For vLLM, the adapter resolves
+the backend parser from the model's `ToolCallProtocol` and emits
+`--enable-auto-tool-choice` plus `--tool-call-parser`. A conflicting explicit
+backend override is rejected. An MCP client or stdio tool server is part of
+environment execution and is not an inference capability.
 
 Illustrative composition:
 

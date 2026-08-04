@@ -25,7 +25,7 @@ constraint_lock = "containers/posttrain-job-kinds/locks/workspace.lock.txt"
 
 [kinds.eval]
 repository = "posttrain-kind-eval"
-digest = "sha256:ce3f947bf0d4f8696db110c8ed45ee539e92a67106da07948e7179248ca11c5d"
+digest = "sha256:6f3f9aa48add1a0d74bd111b155c0b266e5dcc12225b22ab7669f20d0dfb23b7"
 lock_digest = "f68d5419b00b0fde278d0b1d55057eb65bb5c9bbdcc78d2ff5cbfab0a3e1fa2c"
 constraint_lock = "containers/posttrain-job-kinds/locks/workspace.lock.txt"
 provided_packages = ["verifiers"]

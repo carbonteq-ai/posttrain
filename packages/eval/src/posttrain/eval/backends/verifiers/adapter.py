@@ -31,6 +31,9 @@ class _NativeEnvConfig(Protocol):
 
 def _imports() -> tuple[type[Any], type[Any], Any]:
     try:
+        from .runtime import configure_preinstalled_runtime
+
+        configure_preinstalled_runtime()
         from verifiers.v1.cli.eval.runner import run_eval  # pyright: ignore[reportMissingImports]
         from verifiers.v1.configs.eval import EvalConfig  # pyright: ignore[reportMissingImports]
         from verifiers.v1.env import EnvConfig, Environment  # pyright: ignore[reportMissingImports]

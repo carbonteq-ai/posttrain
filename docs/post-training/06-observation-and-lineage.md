@@ -193,7 +193,7 @@ Throughput and latency percentiles are **computed** from measured traces +
 | --- | --- |
 | `eval/rollout/reward` | Scalar or primary reward |
 | `eval/rollout/reward/<component>` | When env exposes components |
-| `eval/rollout/success` | Task success if defined |
+| `eval/rollout/success` | Task success from the eval run's required, snapshotted success definition |
 | `eval/rollout/truncated` | |
 | `eval/rollout/error` | |
 | `eval/rollout/num_tool_calls` | |
@@ -211,6 +211,21 @@ Throughput and latency percentiles are **computed** from measured traces +
 | `eval/run/coverage_missing` | Tasks/slices with no evidence |
 
 Mean reward, success rate, truncation rate by slice are **computed views**.
+Every evaluation run declares success, but only traces containing a valid
+configured signal enter the pass-rate denominator. Errors, truncations, and
+missing signals retain their execution/evidence state instead of becoming
+semantic failures. Training rollout views do not acquire this evaluation-only
+pass/fail contract merely because they retain the same native trace shape.
+
+Evaluation environments declare native task facets as independent dimensions.
+Evaluation plans may select versioned compound breakdowns across those
+dimensions, such as problem type by difficulty. Observatory groups the
+structured dimension values from the run snapshot; it does not concatenate
+them into a new task identity or infer combinations from today's catalog. Each
+compound group reports observed count, pass-rate denominator, errors, and
+truncations alongside reward and configured pass rate. Missing or multi-valued
+dimensions follow the snapshotted breakdown policy rather than an
+Observatory-specific heuristic.
 
 ### Train metrics (SFT / DPO)
 

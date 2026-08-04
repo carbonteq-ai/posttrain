@@ -122,6 +122,26 @@ and schema are retained in the materialization manifest. Dataset selections
 remain training inputs, while serving prompt populations remain workload-owned.
 Details: [dataset authoring and materialization](./dataset-management.md) and
 the [implementation plan](../plan/python-dataset-authoring-and-materialization.md).
+**Amendment — explicit evaluation success (2026-08-04):** every
+`eval.general` and `eval.domain` run must snapshot a typed success definition
+for its selected environment. A success definition selects a declared reward
+or metric and an explicit bounded numeric predicate. Continuous scores and
+reward components remain separate evidence; execution errors, truncations, and
+missing signals are never coerced into semantic failures. Training jobs may
+reuse the native traces but do not inherit this evaluation-only requirement.
+Details: [05 · APIs](./05-apis.md),
+[06 · Observation](./06-observation-and-lineage.md), and the
+[evaluation Overview plan](../plan/observatory-evaluation-overview.md).
+**Amendment — tool-using environment compatibility (2026-08-04):** an
+environment that requires model tool calls declares that requirement as an
+inference capability. Local and remote inference bindings advertise compatible
+capabilities independently of the environment's internal tool transport.
+Detached planning rejects incompatible selections before submission; backend
+adapters translate a declared capability into engine configuration such as a
+vLLM tool-call parser. MCP remains an implementation detail of a Verifiers
+environment runtime, not a framework inference capability. Details:
+[05 · APIs](./05-apis.md) and the
+[tool-using environment architecture](../architecture/tool-using-environment-execution.md).
 
 These six documents are the **product/design authority** for the post-training
 framework. Do not expand or redesign them while building the implementation

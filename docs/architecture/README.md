@@ -21,6 +21,8 @@ existing code remains prototype evidence rather than an interface constraint.
 | [Layers and ownership](./layers-and-ownership.md) | What belongs in each layer, and what is shared versus job-specific? |
 | [Profiles and model variants](./profiles-and-model-variants.md) | How do model profiles compose train/eval/serve defaults, and when does an adapter become a reusable profile? |
 | [Evaluation and environments](./evaluation-and-environments.md) | How do general evaluation, domain evaluation, Verifiers, and serving benchmarks relate? |
+| [Proposed evaluation signal interpretation](./proposed-evaluation-signal-interpretation.md) | How should environment-native rewards, metrics, pass rate, task slices, aggregation, and comparison be modeled without reinterpreting traces? |
+| [Tool-using environment execution](./tool-using-environment-execution.md) | How do portable tool requirements, packed Verifiers/MCP execution, model protocols, and backend parsers compose without environment-specific framework code? |
 | [Training and inference](./training-and-inference.md) | What do the reusable train/eval/serve packages expose, and which framework details remain internal? |
 | [Observability](./observability.md) | What is recorded for runs, metrics, events, samples, and native artifacts? |
 | [Trackio architecture](./trackio.md) | What does Trackio observe, and which authoring and execution concerns explicitly remain outside it? |

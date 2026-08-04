@@ -25,7 +25,10 @@ from posttrain.eval import (
     EnvironmentBinding,
     EnvironmentSource,
     EvaluationBudget,
+    EvaluationNumericPredicate,
     EvaluationPlan,
+    EvaluationSignalRef,
+    EvaluationSuccessDefinition,
     ExternalInferenceService,
     PythonFactoryActivation,
     RemoteEvaluationBinding,
@@ -150,7 +153,19 @@ def test_remote_evaluation_definition_does_not_construct_a_local_vllm_endpoint(t
         {
             "remote_evaluation": binding,
             "target": ExecutionTarget("targets/external", "1", "network-client"),
-            "evaluation_plan": EvaluationPlan("remote-general-v1", "general", (environment,)),
+            "evaluation_plan": EvaluationPlan(
+                "remote-general-v1",
+                "general",
+                (environment,),
+                success={
+                    "tool-loop": EvaluationSuccessDefinition(
+                        "task-success",
+                        "Task success",
+                        EvaluationSignalRef("reward", "reward"),
+                        EvaluationNumericPredicate("eq", 1.0),
+                    )
+                },
+            ),
             "environment": environment,
         },
     )
