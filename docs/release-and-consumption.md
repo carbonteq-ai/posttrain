@@ -88,10 +88,13 @@ The fixture is the smallest executable consumer example:
 
 ## GitHub-first team release
 
-Each `v*` tag runs the full validation ladder, builds every first-party wheel
-plus `automationbench-v1`, records SHA-256 hashes, and attaches a wheelhouse
-archive to a GitHub Release. A team project can install that exact release
-without waiting for PyPI:
+Each `v*` tag runs the full validation ladder, renders the release-neutral
+source workspace into a versioned stage, builds every first-party wheel from
+that stage, records SHA-256 hashes, and attaches a wheelhouse archive to a
+GitHub Release. External Verifiers environments, including
+`automationbench-v1`, resolve from the immutable commits in the bundled
+constraints file instead of being copied into the framework wheelhouse. A team
+project can install that exact release without waiting for the internal index:
 
 ```bash
 gh release download <release-tag> \

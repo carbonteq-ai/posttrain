@@ -256,6 +256,18 @@ def test_stage_expands_static_wheel_metadata_without_touching_source(tmp_path: P
     assert 'version = "0.3.0"' in (destination / "uv.lock").read_text(encoding="utf-8")
 
 
+def test_tag_workflow_builds_the_versioned_stage_not_the_source_workspace() -> None:
+    repository_root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+    workflow = (repository_root / ".github/workflows/release.yml").read_text(encoding="utf-8")
+
+    stage_command = "uv run posttrain-release stage release-stage"
+    build_command = 'uv build --all-packages --wheel --out-dir "${GITHUB_WORKSPACE}/wheelhouse"'
+    assert stage_command in workflow
+    assert "cd release-stage" in workflow
+    assert workflow.index(stage_command) < workflow.index(build_command)
+    assert "uv build environments/" not in workflow
+
+
 @pytest.mark.skipif(which("uv") is None, reason="requires uv to validate the staged workspace lock")
 def test_staged_workspace_syncs_with_the_projected_lock(tmp_path: Path) -> None:
     """Staging must not require a second dependency resolution to be installable."""
