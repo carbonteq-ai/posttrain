@@ -1,0 +1,317 @@
+model:
+  models/gemma4-12b-it@bf16:
+    artifact:
+      kind: hub
+      repo_id: google/gemma-4-12B-it
+      revision: 707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7
+    form: foundation
+    weight_precision: bf16
+    family: gemma4
+    parameters: 12000000000
+    instruction_tuned: true
+    renderer_contract: gemma4-tools@1
+    capabilities:
+      modalities: [text, image, audio]
+      native_context_window: 262144
+      mtp: false
+    provenance:
+      source: huggingface
+
+target:
+  targets/lab-rtx-pro-6000-96gb:
+    revision: "1"
+    device_class: nvidia-cuda
+    memory_gb: 96
+    placement:
+      world_size: 1
+
+environment:
+  skyrl-bird-sql-train-canary:
+    category: text-to-sql
+    source:
+      kind: project-path
+      package: skyrl-bird-sql-v1
+      path: environments/skyrl_bird_sql_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: skyrl-bird-sql-v1
+          split: train
+          selection: canary
+          task:
+            user:
+              max_turns: 5
+              query_timeout_seconds: 10.0
+              maximum_result_rows: 100000
+              observation_rows: 50
+              observation_cell_characters: 200
+        harness:
+          id: "null"
+          runtime:
+            type: subprocess
+        timeout:
+          setup: 120
+          rollout: 1800
+          finalize: 120
+          scoring: 600
+        max_turns: 5
+        max_total_tokens: 8192
+    sampling:
+      max_tokens: 3072
+      temperature: 1.0
+      top_p: 1.0
+    num_tasks: 4
+    num_rollouts: 16
+    max_concurrent: 8
+    parameters:
+      sampling_seed: 42
+      max_turns: 5
+      max_total_tokens: 8192
+      protocol: skyrl-sql-v1
+      corpus: revisql-bird-verified
+    reward_components:
+      - reward
+      - format_valid
+      - prediction_executed
+      - execution_correct
+
+  skyrl-bird-sql-train-full:
+    category: text-to-sql
+    source:
+      kind: project-path
+      package: skyrl-bird-sql-v1
+      path: environments/skyrl_bird_sql_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: skyrl-bird-sql-v1
+          split: train
+          selection: all
+          task:
+            user:
+              max_turns: 5
+              query_timeout_seconds: 10.0
+              maximum_result_rows: 100000
+              observation_rows: 50
+              observation_cell_characters: 200
+        harness:
+          id: "null"
+          runtime:
+            type: subprocess
+        timeout:
+          setup: 120
+          rollout: 1800
+          finalize: 120
+          scoring: 600
+        max_turns: 5
+        max_total_tokens: 8192
+    sampling:
+      max_tokens: 3072
+      temperature: 1.0
+      top_p: 1.0
+    num_tasks: 2064
+    num_rollouts: 16
+    max_concurrent: 8
+    parameters:
+      sampling_seed: 42
+      max_turns: 5
+      max_total_tokens: 8192
+      protocol: skyrl-sql-v1
+      corpus: revisql-bird-verified
+    reward_components:
+      - reward
+      - format_valid
+      - prediction_executed
+      - execution_correct
+
+  skyrl-bird-sql-validation:
+    category: text-to-sql
+    source:
+      kind: project-path
+      package: skyrl-bird-sql-v1
+      path: environments/skyrl_bird_sql_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: skyrl-bird-sql-v1
+          split: validation
+          selection: all
+          task:
+            user:
+              max_turns: 5
+              query_timeout_seconds: 10.0
+              maximum_result_rows: 100000
+              observation_rows: 50
+              observation_cell_characters: 200
+        harness:
+          id: "null"
+          runtime:
+            type: subprocess
+        timeout:
+          setup: 120
+          rollout: 1800
+          finalize: 120
+          scoring: 600
+        max_turns: 5
+        max_total_tokens: 8192
+    sampling:
+      max_tokens: 3072
+      temperature: 0.0
+      top_p: 1.0
+    num_tasks: 398
+    num_rollouts: 1
+    max_concurrent: 4
+    parameters:
+      sampling_seed: 42
+      max_turns: 5
+      max_total_tokens: 8192
+      protocol: skyrl-sql-v1
+      corpus: revisql-bird-verified
+    reward_components:
+      - reward
+      - format_valid
+      - prediction_executed
+      - execution_correct
+
+evaluation:
+  skyrl-bird-sql-heldout-v1:
+    revision: "1"
+    kind: domain
+    environments:
+      - skyrl-bird-sql-validation
+    metrics_and_slices:
+      - reward
+      - format_valid
+      - prediction_executed
+      - execution_correct
+      - grading_method
+
+training:
+  gemma4-12b/skyrl-bird-grpo-canary-v1:
+    selection_type: grpo-settings
+    revision: "1"
+    loop:
+      max_steps: 1
+      max_length: 32768
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 64
+      learning_rate: 0.00005
+      warmup_ratio: 0.05
+      max_grad_norm: 1.0
+      logging_steps: 1
+      checkpoint_steps: 1
+      checkpoint_limit: 1
+      seed: 42
+      gradient_checkpointing: true
+    num_prompts_per_step: 4
+    num_generations: 16
+    max_prompt_length: 24576
+    max_completion_length: 8192
+    beta: 0.0
+    algorithm: grpo
+    mask_truncated_completions: true
+
+  gemma4-12b/skyrl-bird-grpo-full-v1:
+    selection_type: grpo-settings
+    revision: "1"
+    loop:
+      max_steps: 516
+      max_length: 32768
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 64
+      learning_rate: 0.00005
+      warmup_ratio: 0.05
+      max_grad_norm: 1.0
+      logging_steps: 1
+      checkpoint_steps: 64
+      checkpoint_limit: 2
+      seed: 42
+      gradient_checkpointing: true
+    num_prompts_per_step: 4
+    num_generations: 16
+    max_prompt_length: 24576
+    max_completion_length: 8192
+    beta: 0.0
+    algorithm: grpo
+    mask_truncated_completions: true
+
+  training/gemma4-12b-trl-skyrl-bird-grpo-lora@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.8.0
+    renderer:
+      id: gemma4-off-v1
+      model_family: gemma4
+      implementation: default
+      reasoning_mode: "off"
+    update:
+      kind: lora
+      rank: 32
+      alpha: 64
+      dropout: 0.0
+      target_modules: .*[.]language_model[.].*[.](q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj)$
+    target: targets/lab-rtx-pro-6000-96gb
+    parallelism:
+      tensor_parallel_size: 1
+      context_parallel_size: 1
+      expert_parallel_size: 1
+    runtime:
+      global_batch_size: 64
+      nodes: 1
+      devices_per_node: 1
+    backend_options:
+      use_liger_kernel: false
+      attention_implementation: sdpa
+      dependency_lock: trl-fork@current
+
+inference:
+  inference/gemma4-12b-vllm-skyrl-bird-rollout@1:
+    revision: "1"
+    model: models/gemma4-12b-it@bf16
+    backend: vllm@0.25.1
+    renderer: gemma4-tools@1
+    engine:
+      mode: colocate
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.35
+      tensor_parallel_size: 1
+      max_model_len: 32768
+      max_num_seqs: 8
+      max_num_batched_tokens: 8192
+      text_only: true
+      skip_mm_profiling: true
+      weight_sync_mode: lora
+      enforce_eager: true
+      disable_log_stats: false
+    sampling:
+      max_tokens: 3072
+      temperature: 1.0
+      top_p: 1.0
+    target: targets/lab-rtx-pro-6000-96gb
+    purpose: [rollout]
+
+  inference/gemma4-12b-vllm-skyrl-bird-eval@1:
+    revision: "1"
+    model: models/gemma4-12b-it@bf16
+    backend: vllm@0.25.1
+    renderer: gemma4-tools@1
+    engine:
+      mode: managed
+      gpu_memory_utilization: 0.8
+      tensor_parallel_size: 1
+      max_model_len: 32768
+      max_num_seqs: 4
+      max_num_batched_tokens: 8192
+      text_only: true
+      skip_mm_profiling: true
+      enforce_eager: true
+      disable_log_stats: false
+    sampling:
+      max_tokens: 3072
+      temperature: 0.0
+      top_p: 1.0
+    target: targets/lab-rtx-pro-6000-96gb
+    purpose: [eval]

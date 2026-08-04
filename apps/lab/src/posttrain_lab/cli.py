@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sys
 from dataclasses import replace
 from functools import partial
@@ -125,6 +126,10 @@ def _parser() -> argparse.ArgumentParser:
             "gsm8k-qwen-grpo-mtp-smoke",
             "gsm8k-qwen-0.8b-grpo-mtp-smoke",
             "automationbench-zapier-qwen-0.8b-grpo-mtp-smoke",
+            "gemma4-skyrl-bird-base-eval",
+            "gemma4-skyrl-bird-grpo-canary",
+            "gemma4-skyrl-bird-grpo-full",
+            "gemma4-skyrl-bird-adapter-eval",
             "gsm8k-qwen-distill-smoke",
             "gsm8k-qwen-peft-eval",
             "qwen-awq-transform",
@@ -315,6 +320,27 @@ def _adapter_reference(args: argparse.Namespace, model: ModelVariant) -> StoredA
         args.project,
         trackio_artifact_name(logical_name),
         args.adapter_version,
+    )
+
+
+def _grpo_adapter_variant(
+    model: ModelVariant,
+    reference: TrackioArtifactRef,
+) -> ModelVariant:
+    return replace(
+        model,
+        id=f"{model.id}/grpo-lora-{reference.version}",
+        artifact=reference,
+        form="peft-adapter",
+        revision=reference.version,
+        digest=None,
+        parent=model.id,
+        provenance={
+            "operation": "grpo",
+            "parameter_update_kind": "lora",
+            "base_model_repo_id": model.base.repo_id,
+            "base_model_revision": model.base.revision,
+        },
     )
 
 
@@ -509,7 +535,70 @@ def main(arguments: list[str] | None = None) -> None:
     target = _selection(catalog, "target", "targets/local-cuda-8gb", ExecutionTarget)
     workload = _selection(catalog, "workload", "workloads/foundation-smoke-v1@1", Workload)
 
-    if args.job == "foundation-qwen-smoke":
+    if args.job in {"gemma4-skyrl-bird-grpo-canary", "gemma4-skyrl-bird-grpo-full"}:
+        filename = (
+            "gemma4_skyrl_bird_grpo_canary.yaml"
+            if args.job.endswith("canary")
+            else "gemma4_skyrl_bird_grpo_full.yaml"
+        )
+        package = load_work_package(layout.work_packages / filename)
+        definition = grpo_definition(run_grpo_materialized)
+    elif args.job == "gemma4-skyrl-bird-base-eval":
+        package = load_work_package(layout.work_packages / "gemma4_skyrl_bird_base_eval.yaml")
+        definition = managed_evaluation_definition(
+            run_managed_evaluation,
+            context_window=32_768,
+            kind="eval.domain",
+            definition_id="eval/verifiers-managed@1",
+        )
+    elif args.job == "gemma4-skyrl-bird-adapter-eval":
+        if "--adapter-version" not in parsed_arguments:
+            raise SystemExit("Gemma 4 adapter evaluation requires an explicit --adapter-version vN")
+        if re.fullmatch(r"v[0-9]+", args.adapter_version) is None:
+            raise SystemExit("Gemma 4 adapter evaluation requires an immutable Trackio version such as v0")
+        if args.adapter_backend not in {None, "trackio"}:
+            raise SystemExit("Gemma 4 adapter evaluation currently consumes the Trackio training artifact")
+        foundation = _selection(catalog, "model", "models/gemma4-12b-it@bf16", ModelVariant)
+        remote = TrackioArtifactRef(
+            args.project,
+            trackio_artifact_name(f"training/{foundation.id}/grpo/lora/adapter"),
+            args.adapter_version,
+        )
+        model = _grpo_adapter_variant(foundation, remote)
+        inference = replace(
+            _selection(
+                catalog,
+                "inference",
+                "inference/gemma4-12b-vllm-skyrl-bird-eval@1",
+                InferenceBinding,
+            ),
+            id=f"inference/gemma4-12b-grpo-lora-{args.adapter_version}-skyrl-bird-eval@1",
+            model=model,
+        )
+        plan = _selection(catalog, "evaluation", "skyrl-bird-sql-heldout-v1", EvaluationPlan)
+        environment = plan.environment("skyrl-bird-sql-validation")
+        gemma_target = _selection(catalog, "target", "targets/lab-rtx-pro-6000-96gb", ExecutionTarget)
+        definition = managed_evaluation_definition(
+            run_managed_evaluation,
+            context_window=32_768,
+            kind="eval.domain",
+            definition_id="eval/verifiers-managed@1",
+        )
+        package = _one_job_package(
+            project_id="posttrain-lab",
+            work_package_id=f"qualify/gemma4-12b/skyrl-bird-adapter-{args.adapter_version}-eval",
+            stage="qualify",
+            job_id="evaluate",
+            definition=definition,
+            bindings={
+                "model": ("model", model),
+                "evaluation_inference": ("inference", inference),
+                "target": ("target", gemma_target),
+                "evaluation_plan": ("evaluation", plan),
+                "environment": ("environment", environment),
+            },
+        )
+    elif args.job == "foundation-qwen-smoke":
         package = load_work_package(layout.work_packages / "foundation_screen.yaml")
         definition = serve_benchmark_definition(run_screen_benchmark)
     elif args.job == "noop":

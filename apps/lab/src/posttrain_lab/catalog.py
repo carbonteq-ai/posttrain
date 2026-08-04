@@ -24,7 +24,10 @@ from posttrain.train import (
     parameter_update_digest,
 )
 
+from .gemma4 import register_gemma4_renderer
 from .project import ProjectLayout
+
+register_gemma4_renderer()
 
 
 def open_project_catalog(layout: ProjectLayout, *, scope: str | None = None) -> Catalog:

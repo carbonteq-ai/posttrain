@@ -1,0 +1,49 @@
+project_id: posttrain-lab
+work_package_id: train/gemma4-12b/skyrl-bird-grpo-canary
+stage: train
+description: Run one full-shape Gemma 4 GRPO update over four ReViSQL grading families and 64 trajectories.
+recipe:
+  type: inline
+  id: recipes/gemma4-skyrl-bird-grpo-canary@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: train
+      kind: train.grpo
+      definition: train/trl-grpo@1
+  expected_artifacts:
+    - trained Gemma 4 LoRA adapter
+    - native Verifiers trajectories
+    - training summary
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/gemma4-12b-it@bf16
+  environment:
+    type: ref
+    family: environment
+    id: skyrl-bird-sql-train-canary
+  settings:
+    type: ref
+    family: training
+    id: gemma4-12b/skyrl-bird-grpo-canary-v1
+  training:
+    type: ref
+    family: training
+    id: training/gemma4-12b-trl-skyrl-bird-grpo-lora@1
+  rollout_inference:
+    type: ref
+    family: inference
+    id: inference/gemma4-12b-vllm-skyrl-bird-rollout@1
+enabled_optional_jobs: []
+metadata:
+  geometry: 4-prompts-x-16-generations
+  optimizer_steps: 1
+  labels: [gemma4, sql, skyrl, bird, grpo, canary]

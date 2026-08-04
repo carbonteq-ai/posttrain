@@ -1,0 +1,51 @@
+project_id: posttrain-lab
+work_package_id: train/gemma4-12b/skyrl-bird-grpo-full
+stage: train
+description: Train Gemma 4 with GRPO for one complete 2,064-task ReViSQL/BIRD pass.
+recipe:
+  type: inline
+  id: recipes/gemma4-skyrl-bird-grpo-full@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: train
+      kind: train.grpo
+      definition: train/trl-grpo@1
+  expected_artifacts:
+    - trained Gemma 4 LoRA adapter
+    - retained recovery checkpoints
+    - native Verifiers trajectories
+    - training summary
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/gemma4-12b-it@bf16
+  environment:
+    type: ref
+    family: environment
+    id: skyrl-bird-sql-train-full
+  settings:
+    type: ref
+    family: training
+    id: gemma4-12b/skyrl-bird-grpo-full-v1
+  training:
+    type: ref
+    family: training
+    id: training/gemma4-12b-trl-skyrl-bird-grpo-lora@1
+  rollout_inference:
+    type: ref
+    family: inference
+    id: inference/gemma4-12b-vllm-skyrl-bird-rollout@1
+enabled_optional_jobs: []
+metadata:
+  geometry: 4-prompts-x-16-generations
+  optimizer_steps: 516
+  train_examples: 2064
+  labels: [gemma4, sql, skyrl, bird, grpo, full]

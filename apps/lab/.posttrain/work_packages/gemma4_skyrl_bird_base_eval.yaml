@@ -1,0 +1,49 @@
+project_id: posttrain-lab
+work_package_id: qualify/gemma4-12b/skyrl-bird-base-eval
+stage: qualify
+description: Evaluate the pinned Gemma 4 base model on all 398 held-out ReViSQL/BIRD tasks.
+recipe:
+  type: inline
+  id: recipes/gemma4-skyrl-bird-base-eval@1
+  revision: "1"
+  stage: qualify
+  seats:
+    model: model
+    evaluation_inference: inference
+    target: target
+    evaluation_plan: evaluation
+    environment: environment
+  jobs:
+    - id: evaluate
+      kind: eval.domain
+      definition: eval/verifiers-managed@1
+  expected_artifacts:
+    - native held-out Verifiers traces
+    - base-model evaluation summary
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/gemma4-12b-it@bf16
+  evaluation_inference:
+    type: ref
+    family: inference
+    id: inference/gemma4-12b-vllm-skyrl-bird-eval@1
+  target:
+    type: ref
+    family: target
+    id: targets/lab-rtx-pro-6000-96gb
+  evaluation_plan:
+    type: ref
+    family: evaluation
+    id: skyrl-bird-sql-heldout-v1
+  environment:
+    type: ref
+    family: environment
+    id: skyrl-bird-sql-validation
+enabled_optional_jobs: []
+metadata:
+  corpus: revisql-bird-verified
+  split: validation
+  examples: 398
+  labels: [gemma4, sql, skyrl, bird, base-eval]

@@ -1,6 +1,45 @@
 schema_version = 1
 
 [[gates]]
+id = "gemma4-skyrl-bird-base-eval"
+work_package = ".posttrain/work_packages/gemma4_skyrl_bird_base_eval.yaml"
+job_id = "evaluate"
+tier = "experimental"
+state = "candidate"
+job_kind = "eval.domain"
+acceptance = "verifiers-trajectories"
+experiment_family = "gemma4-skyrl-bird-sql"
+hypothesis = "The pinned Gemma 4 base model establishes reproducible held-out SQL protocol and execution evidence before GRPO."
+owner = "posttrain-environments"
+replacement_condition = "Promote after a complete 398-task base evaluation is retained; replace when a successor immutable BIRD qualification population is selected."
+
+[[gates]]
+id = "gemma4-skyrl-bird-grpo-canary"
+work_package = ".posttrain/work_packages/gemma4_skyrl_bird_grpo_canary.yaml"
+job_id = "train"
+tier = "experimental"
+state = "candidate"
+job_kind = "train.grpo"
+acceptance = "verifiers-trajectories"
+experiment_family = "gemma4-skyrl-bird-sql"
+hypothesis = "One full-shape update can prove Gemma 4 text-only loading, language-only LoRA attachment, reward variance, and 64-trajectory memory fit."
+owner = "posttrain-environments"
+replacement_condition = "Retire after the full-shape canary and adapter reload are retained and the full run is admitted; replace if the common geometry is deliberately revised."
+
+[[gates]]
+id = "gemma4-skyrl-bird-grpo-full"
+work_package = ".posttrain/work_packages/gemma4_skyrl_bird_grpo_full.yaml"
+job_id = "train"
+tier = "experimental"
+state = "candidate"
+job_kind = "train.grpo"
+acceptance = "verifiers-trajectories"
+experiment_family = "gemma4-skyrl-bird-sql"
+hypothesis = "One complete ReViSQL train pass can improve Gemma 4's verified SQL execution while preserving the strict multi-turn protocol."
+owner = "posttrain-environments"
+replacement_condition = "Promote after the 516-step run and immutable adapter evaluation retain complete optimizer, trajectory, artifact, and lineage evidence; otherwise replace with the recorded revised profile."
+
+[[gates]]
 id = "foundation-serving-screen"
 work_package = ".posttrain/work_packages/foundation_screen.yaml"
 job_id = "benchmark"
