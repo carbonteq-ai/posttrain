@@ -52,3 +52,24 @@ model:
       mtp: false
     provenance:
       source: huggingface
+  models/gemma4-12b-it@bf16:
+    artifact:
+      kind: hub
+      repo_id: google/gemma-4-12B-it
+      revision: 707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7
+    form: foundation
+    weight_precision: bf16
+    family: gemma4
+    parameters: 11959730224
+    instruction_tuned: true
+    renderer_contract: gemma4-tools@1
+    tokenizer_fingerprint: 059d0f7dd1efb018ec9801f316c99ab31a7c39e712de08626ac90c1898b42416
+    capabilities:
+      modalities: [text, image, audio, video]
+      native_context_window: 262144
+      mtp: false
+    provenance:
+      source: huggingface
+      license: apache-2.0
+      upstream_model_type: gemma4_unified
+      upstream_architecture: Gemma4UnifiedForConditionalGeneration

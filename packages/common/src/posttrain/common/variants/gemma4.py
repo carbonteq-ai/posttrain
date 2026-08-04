@@ -1,0 +1,67 @@
+"""Pinned Gemma 4 Unified foundation variant."""
+
+from posttrain.common.artifacts import HubModelRef
+from posttrain.common.models import (
+    ChatTemplate,
+    ConversationProfile,
+    ModelCapabilities,
+    ModelVariant,
+    ReasoningMode,
+    RendererContract,
+    ToolCallProtocol,
+)
+
+_GEMMA_4_12B_REVISION = "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7"
+
+GEMMA4_RENDERER_CONTRACT = RendererContract(
+    id="gemma4-tools@1",
+    model_family="gemma4",
+    conversation=ConversationProfile(
+        chat_template=ChatTemplate("tokenizer"),
+        roles=("system", "user", "assistant", "tool"),
+        reasoning_modes=(
+            ReasoningMode("off", (("enable_thinking", False),)),
+            ReasoningMode("thinking", (("enable_thinking", True),)),
+        ),
+        default_reasoning_mode="off",
+        tool_calls=ToolCallProtocol(
+            id="gemma4_structured",
+            assistant_format="Gemma structured call syntax with unquoted keys",
+            start_token="<|tool_call>",
+            end_token="<tool_call|>",
+        ),
+        strips_past_reasoning=True,
+    ),
+)
+
+GEMMA_4_12B_IT = ModelVariant(
+    id="gemma4-12b-it",
+    artifact=HubModelRef(
+        repo_id="google/gemma-4-12B-it",
+        revision=_GEMMA_4_12B_REVISION,
+    ),
+    form="foundation",
+    weight_precision="bf16",
+    family="gemma4",
+    parameters=11_959_730_224,
+    instruction_tuned=True,
+    capabilities=ModelCapabilities(
+        modalities=("text", "image", "audio", "video"),
+        native_context_window=262_144,
+        mtp=False,
+    ),
+    renderer=GEMMA4_RENDERER_CONTRACT,
+    base=HubModelRef(
+        repo_id="google/gemma-4-12B-it",
+        revision=_GEMMA_4_12B_REVISION,
+    ),
+    tokenizer_fingerprint="059d0f7dd1efb018ec9801f316c99ab31a7c39e712de08626ac90c1898b42416",
+    provenance={
+        "source": "huggingface",
+        "license": "apache-2.0",
+        "upstream_model_type": "gemma4_unified",
+        "upstream_architecture": "Gemma4UnifiedForConditionalGeneration",
+    },
+)
+
+__all__ = ["GEMMA4_RENDERER_CONTRACT", "GEMMA_4_12B_IT"]
