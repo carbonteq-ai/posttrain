@@ -28,6 +28,7 @@ target:
 environment:
   skyrl-bird-sql-train-canary:
     category: text-to-sql
+    qualification: deferred
     source:
       kind: project-path
       package: skyrl-bird-sql-v1
@@ -78,6 +79,7 @@ environment:
 
   skyrl-bird-sql-train-full:
     category: text-to-sql
+    qualification: deferred
     source:
       kind: project-path
       package: skyrl-bird-sql-v1
@@ -128,6 +130,7 @@ environment:
 
   skyrl-bird-sql-validation:
     category: text-to-sql
+    qualification: deferred
     source:
       kind: project-path
       package: skyrl-bird-sql-v1

@@ -43,6 +43,7 @@ def test_lab_registers_pinned_text_only_gemma_composition() -> None:
 
     assert isinstance(environment, EnvironmentBinding)
     assert isinstance(environment.source, ProjectPathEnvironmentSource)
+    assert environment.qualification == "deferred"
     assert environment.source.path == "environments/skyrl_bird_sql_v1"
     assert environment.num_tasks == 2_064
     assert environment.num_rollouts == 16
@@ -115,6 +116,7 @@ def test_heldout_plan_contains_exact_validation_population() -> None:
     plan = _catalog().resolve(CatalogRef("evaluation", "skyrl-bird-sql-heldout-v1")).value
     assert isinstance(plan, EvaluationPlan)
     environment = plan.environment("skyrl-bird-sql-validation")
+    assert environment.qualification == "deferred"
     assert environment.num_tasks == 398
     assert environment.num_rollouts == 1
     assert environment.sampling.temperature == 0.0
