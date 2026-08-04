@@ -1,0 +1,46 @@
+project_id: posttrain-lab
+work_package_id: eval/qwen3.5-4b/thinking/math-python-release-mtp-c8-32k
+stage: qualify
+description: Run the Qwen3.5-4B thinking Math Python release baseline over 500 balanced tasks with MTP, concurrency eight, a 32K evaluation budget, and 64K engine context headroom for tool continuations.
+recipe:
+  type: inline
+  id: recipes/qwen3.5-4b-thinking-math-python-release-mtp-c8-32k@1
+  revision: "1"
+  stage: qualify
+  seats:
+    model: model
+    evaluation_inference: inference
+    target: target
+    evaluation_plan: evaluation
+    environment: environment
+  jobs:
+    - id: evaluate
+      kind: eval.general
+      definition: eval/verifiers-managed-general@1
+  expected_artifacts:
+    - native evaluation result
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/qwen3.5-4b@bf16
+  evaluation_inference:
+    type: ref
+    family: inference
+    id: inference/qwen3.5-4b-vllm-thinking-eval-mtp-concurrent8-budget32k-context64k@1
+  target:
+    type: ref
+    family: target
+    id: targets/local-cuda-24gb
+  evaluation_plan:
+    type: ref
+    family: evaluation
+    id: qwen4b-thinking-math-python-release-mtp-c8-32k-v1
+  environment:
+    type: ref
+    family: environment
+    id: math-python-qwen4b-thinking-release-mtp-c8-32k
+enabled_optional_jobs: []
+metadata:
+  question: Does Qwen3.5-4B thinking solve a balanced Math Python population with symbolically correct answers and complete subprocess tool evidence under a 32K evaluation budget without preventing valid tool continuations?
+  labels: [release, evaluation, qwen3.5-4b, thinking, mtp, concurrency8, budget32k, context64k, math-python]

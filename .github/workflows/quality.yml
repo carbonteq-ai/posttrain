@@ -9,9 +9,9 @@ permissions:
   contents: read
 
 env:
-  CARBONTEQ_TRACKIO_WHEEL_URL: https://github.com/carbonteq-ai/trackio/releases/download/carbonteq-v0.31.5.post6/carbonteq_trackio-0.31.5.post6-py3-none-any.whl
-  CARBONTEQ_TRACKIO_WHEEL_SHA256: 9bb5defa753b16a9d322fb4a27baff80949c4f0dad2a9dadb07b974932272e00
-  POSTTRAIN_CONSUMER_EXTRA_WHEELS: /tmp/carbonteq_trackio-0.31.5.post6-py3-none-any.whl
+  CARBONTEQ_TRACKIO_WHEEL_URL: https://github.com/carbonteq-ai/trackio/releases/download/carbonteq-v0.31.5.post8/carbonteq_trackio-0.31.5.post8-py3-none-any.whl
+  CARBONTEQ_TRACKIO_WHEEL_SHA256: 9b5ce6df75a6daa40478d3d2d48f4ae8e2c6b8b507d0ca57556786d217fe8d62
+  POSTTRAIN_CONSUMER_EXTRA_WHEELS: /tmp/carbonteq_trackio-0.31.5.post8-py3-none-any.whl
 
 jobs:
   quality:
@@ -26,14 +26,15 @@ jobs:
         run: |
           uv venv --python 3.13
           curl --fail --location --silent --show-error \
-            --output /tmp/carbonteq_trackio-0.31.5.post6-py3-none-any.whl \
+            --output "${POSTTRAIN_CONSUMER_EXTRA_WHEELS}" \
             "${CARBONTEQ_TRACKIO_WHEEL_URL}"
-          echo "${CARBONTEQ_TRACKIO_WHEEL_SHA256}  /tmp/carbonteq_trackio-0.31.5.post6-py3-none-any.whl" | sha256sum --check --strict
-          VIRTUAL_ENV=.venv uv pip install --no-deps /tmp/carbonteq_trackio-0.31.5.post6-py3-none-any.whl
-      - name: Verify lockfile
-        run: uv lock --check
+          echo "${CARBONTEQ_TRACKIO_WHEEL_SHA256}  ${POSTTRAIN_CONSUMER_EXTRA_WHEELS}" | sha256sum --check --strict
+          VIRTUAL_ENV=.venv uv pip install --no-deps "${POSTTRAIN_CONSUMER_EXTRA_WHEELS}"
       - name: Install workspace and quality tools
-        run: uv sync --all-packages --group dev --python 3.13 --no-install-package carbonteq-trackio --inexact
+        # The committed lock records the internal stable index. Public runners
+        # consume its hash-identical GitHub Release wheel and must not resolve
+        # the private index while installing the remaining frozen lock.
+        run: uv sync --frozen --all-packages --group dev --python 3.13 --no-install-package carbonteq-trackio --inexact
       - name: Verify release metadata
         run: uv run --no-sync posttrain-release check
       - name: Verify repository ownership
@@ -91,12 +92,12 @@ jobs:
         run: |
           uv venv --python 3.13
           curl --fail --location --silent --show-error \
-            --output /tmp/carbonteq_trackio-0.31.5.post6-py3-none-any.whl \
+            --output "${POSTTRAIN_CONSUMER_EXTRA_WHEELS}" \
             "${CARBONTEQ_TRACKIO_WHEEL_URL}"
-          echo "${CARBONTEQ_TRACKIO_WHEEL_SHA256}  /tmp/carbonteq_trackio-0.31.5.post6-py3-none-any.whl" | sha256sum --check --strict
-          VIRTUAL_ENV=.venv uv pip install --no-deps /tmp/carbonteq_trackio-0.31.5.post6-py3-none-any.whl
+          echo "${CARBONTEQ_TRACKIO_WHEEL_SHA256}  ${POSTTRAIN_CONSUMER_EXTRA_WHEELS}" | sha256sum --check --strict
+          VIRTUAL_ENV=.venv uv pip install --no-deps "${POSTTRAIN_CONSUMER_EXTRA_WHEELS}"
       - name: Install package
-        run: uv sync --package ${{ matrix.package }} --python 3.13 --no-install-package carbonteq-trackio --inexact
+        run: uv sync --frozen --package ${{ matrix.package }} --python 3.13 --no-install-package carbonteq-trackio --inexact
       - name: Import package
         run: uv run --no-sync --package ${{ matrix.package }} python -c "import ${{ matrix.import_name }}"
 
@@ -112,12 +113,12 @@ jobs:
         run: |
           uv venv --python 3.13
           curl --fail --location --silent --show-error \
-            --output /tmp/carbonteq_trackio-0.31.5.post6-py3-none-any.whl \
+            --output "${POSTTRAIN_CONSUMER_EXTRA_WHEELS}" \
             "${CARBONTEQ_TRACKIO_WHEEL_URL}"
-          echo "${CARBONTEQ_TRACKIO_WHEEL_SHA256}  /tmp/carbonteq_trackio-0.31.5.post6-py3-none-any.whl" | sha256sum --check --strict
-          VIRTUAL_ENV=.venv uv pip install --no-deps /tmp/carbonteq_trackio-0.31.5.post6-py3-none-any.whl
+          echo "${CARBONTEQ_TRACKIO_WHEEL_SHA256}  ${POSTTRAIN_CONSUMER_EXTRA_WHEELS}" | sha256sum --check --strict
+          VIRTUAL_ENV=.venv uv pip install --no-deps "${POSTTRAIN_CONSUMER_EXTRA_WHEELS}"
       - name: Install workspace and test tools
-        run: uv sync --all-packages --group dev --python 3.13 --no-install-package carbonteq-trackio --inexact
+        run: uv sync --frozen --all-packages --group dev --python 3.13 --no-install-package carbonteq-trackio --inexact
       - name: Build wheels and run outside the workspace
         run: uv run --no-sync pytest -q tests/consumer
 
@@ -133,12 +134,12 @@ jobs:
         run: |
           uv venv --python 3.13
           curl --fail --location --silent --show-error \
-            --output /tmp/carbonteq_trackio-0.31.5.post6-py3-none-any.whl \
+            --output "${POSTTRAIN_CONSUMER_EXTRA_WHEELS}" \
             "${CARBONTEQ_TRACKIO_WHEEL_URL}"
-          echo "${CARBONTEQ_TRACKIO_WHEEL_SHA256}  /tmp/carbonteq_trackio-0.31.5.post6-py3-none-any.whl" | sha256sum --check --strict
-          VIRTUAL_ENV=.venv uv pip install --no-deps /tmp/carbonteq_trackio-0.31.5.post6-py3-none-any.whl
+          echo "${CARBONTEQ_TRACKIO_WHEEL_SHA256}  ${POSTTRAIN_CONSUMER_EXTRA_WHEELS}" | sha256sum --check --strict
+          VIRTUAL_ENV=.venv uv pip install --no-deps "${POSTTRAIN_CONSUMER_EXTRA_WHEELS}"
       - name: Install the Verifiers integration
-        run: uv sync --all-packages --extra verifiers --python 3.13 --no-install-package carbonteq-trackio --inexact
+        run: uv sync --frozen --all-packages --extra verifiers --python 3.13 --no-install-package carbonteq-trackio --inexact
       - name: Test the Verifiers bridge
         run: |
           uv run \

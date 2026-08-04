@@ -282,6 +282,46 @@ class SamplingPolicy:
 
 
 @dataclass(frozen=True, slots=True)
+class EvaluationFacetField:
+    """One native task-data field used to explain an evaluation population."""
+
+    field: str
+    dimension: str
+    label: str
+    transform: Literal["identity", "prefix_before_colon"] = "identity"
+
+    def __post_init__(self) -> None:
+        _stable_id(self.field, "evaluation facet field")
+        _stable_id(self.dimension, "evaluation facet dimension")
+        if not self.label.strip():
+            raise ValueError("evaluation facet label cannot be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class EvaluationObservation:
+    """Declared score and task-semantic projection for an environment binding."""
+
+    primary_metric: str | None = None
+    primary_metric_label: str | None = None
+    pass_rate_metric: str | None = None
+    facets: tuple[EvaluationFacetField, ...] = ()
+
+    def __post_init__(self) -> None:
+        for name, value in (
+            ("primary metric", self.primary_metric),
+            ("primary metric label", self.primary_metric_label),
+            ("pass-rate metric", self.pass_rate_metric),
+        ):
+            if value is not None and not value.strip():
+                raise ValueError(f"evaluation {name} cannot be empty")
+        if self.primary_metric is None and self.primary_metric_label is not None:
+            raise ValueError("evaluation primary metric label requires a primary metric")
+        keys = [(facet.field, facet.dimension) for facet in self.facets]
+        if len(set(keys)) != len(keys):
+            raise ValueError("evaluation facet fields must be unique by field and dimension")
+
+
+@dataclass(frozen=True, slots=True)
 class EnvironmentBinding:
     """One versioned, independently runnable environment inside a plan."""
 
@@ -296,6 +336,8 @@ class EnvironmentBinding:
     qualification: Literal["required", "deferred"] = "required"
     parameters: Mapping[str, JsonValue] = field(default_factory=dict)
     reward_components: tuple[str, ...] = ()
+    observation: EvaluationObservation = field(default_factory=EvaluationObservation)
+    required_inference_capabilities: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         _stable_id(self.id, "environment id")
@@ -308,6 +350,10 @@ class EnvironmentBinding:
             raise ValueError("environment qualification must be required or deferred")
         if any(not value.strip() for value in self.reward_components):
             raise ValueError("environment reward component names cannot be empty")
+        if len(self.required_inference_capabilities) != len(set(self.required_inference_capabilities)):
+            raise ValueError("required inference capabilities must be unique")
+        for capability in self.required_inference_capabilities:
+            _stable_id(capability, "required inference capability")
         object.__setattr__(self, "parameters", MappingProxyType(dict(self.parameters)))
 
     @property
@@ -324,6 +370,8 @@ __all__ = [
     "ActivationResource",
     "EnvironmentActivation",
     "EnvironmentBinding",
+    "EvaluationFacetField",
+    "EvaluationObservation",
     "EnvironmentFactory",
     "EnvironmentSource",
     "environment_source_payload",

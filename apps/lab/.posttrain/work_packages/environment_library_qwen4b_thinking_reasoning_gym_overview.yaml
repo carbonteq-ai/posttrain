@@ -1,0 +1,46 @@
+project_id: posttrain-lab
+work_package_id: eval/qwen3.5-4b/thinking/reasoning-gym-overview
+stage: qualify
+description: Run a real Qwen3.5-4B thinking baseline over one task from each Reasoning Gym generator.
+recipe:
+  type: inline
+  id: recipes/qwen3.5-4b-thinking-reasoning-gym-overview@1
+  revision: "1"
+  stage: qualify
+  seats:
+    model: model
+    evaluation_inference: inference
+    target: target
+    evaluation_plan: evaluation
+    environment: environment
+  jobs:
+    - id: evaluate
+      kind: eval.general
+      definition: eval/verifiers-managed-general@1
+  expected_artifacts:
+    - native evaluation result
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/qwen3.5-4b@bf16
+  evaluation_inference:
+    type: ref
+    family: inference
+    id: inference/qwen3.5-4b-vllm-thinking-eval@1
+  target:
+    type: ref
+    family: target
+    id: targets/local-cuda-24gb
+  evaluation_plan:
+    type: ref
+    family: evaluation
+    id: qwen4b-thinking-overview-v1
+  environment:
+    type: ref
+    family: environment
+    id: reasoning-gym-qwen4b-thinking-overview
+enabled_optional_jobs: []
+metadata:
+  question: Does an explicit thinking-default Qwen3.5-4B selection produce complete native generator and reward evidence?
+  labels: [overview, evaluation, qwen3.5-4b, thinking, reasoning-gym]

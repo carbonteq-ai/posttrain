@@ -26,6 +26,7 @@ type EvidenceRequirementLevel = Literal["required", "conditional", "diagnostic"]
 type EvidenceRequirementState = Literal["available", "missing", "not_applicable"]
 type EvidenceCompletenessState = Literal["complete", "partial", "insufficient"]
 type ServingRequirementState = Literal["pass", "fail", "unavailable"]
+type TraceOutcome = Literal["pass", "review", "scored", "error", "truncated", "unknown"]
 type ServingEligibilityState = Literal[
     "eligible",
     "below_capacity",
@@ -443,17 +444,133 @@ class RewardComponent(ObservatoryModel):
     value: float
 
 
+class EvaluationMetricDefinition(ObservatoryModel):
+    """The native metric vocabulary advertised by an evaluation."""
+
+    name: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    role: Literal["primary_reward", "reward_component", "diagnostic", "success"]
+
+
+class EvaluationFacetSpec(ObservatoryModel):
+    """Resolved environment declaration for one native task-data facet."""
+
+    field: str = Field(min_length=1)
+    dimension: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    transform: Literal["identity", "prefix_before_colon"] = "identity"
+
+
+class EvaluationBreakdownSpec(ObservatoryModel):
+    """Run-owned compound grouping over declared facet dimensions."""
+
+    id: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    dimensions: tuple[str, str]
+    presentation: Literal["matrix"] = "matrix"
+    multi_value: Literal["reject", "cross"] = "reject"
+    missing: Literal["exclude", "bucket"] = "exclude"
+
+
+class EvaluationSuccessDefinition(ObservatoryModel):
+    """Normalized run-owned predicate used to calculate semantic pass/fail."""
+
+    id: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    namespace: Literal["reward", "metric"]
+    signal: str = Field(min_length=1)
+    operator: Literal["eq", "gt", "gte", "lt", "lte", "between"]
+    value: float
+    upper: float | None = None
+    tolerance: float = Field(default=0.0, ge=0)
+    missing: Literal["error", "exclude"] = "error"
+
+
+class TaskFacet(ObservatoryModel):
+    """One native semantic attribute attached to an evaluation task.
+
+    Environments own the values; Observatory only retains their stable
+    dimension/value identity and a human-readable presentation.
+    """
+
+    key: str = Field(min_length=1)
+    dimension: str = Field(min_length=1)
+    dimension_label: str = Field(min_length=1)
+    value: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+
+
+class TaskSliceMetadata(ObservatoryModel):
+    """Stable, human-readable identity for one evaluation task slice.
+
+    ``key`` remains the source task identity (which may be numeric, as in
+    IFEval). Semantic facets are optional and must not be confused with that
+    identity.
+    """
+
+    key: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    description: str | None = None
+    category: str | None = None
+    instruction_ids: tuple[str, ...] = ()
+    instruction_families: tuple[str, ...] = ()
+    facets: tuple[TaskFacet, ...] = ()
+    dataset: str | None = None
+    dataset_revision: str | None = None
+    split: str | None = None
+    seed: int | None = None
+    index: int | None = Field(default=None, ge=0)
+
+
+class EvaluationMetadata(ObservatoryModel):
+    """Evaluation identity and metric semantics used to build the Overview."""
+
+    key: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    category: str | None = None
+    package: str | None = None
+    dataset: str | None = None
+    dataset_revision: str | None = None
+    split: str | None = None
+    source_revision: str | None = None
+    primary_metric: str | None = None
+    primary_metric_label: str | None = None
+    pass_rate_metric: str | None = None
+    pass_rate_basis: str | None = None
+    success_definition: EvaluationSuccessDefinition | None = None
+    contract_id: str | None = None
+    contract_version: int | None = Field(default=None, ge=1)
+    contract_state: Literal["versioned", "legacy", "unsupported"] = "legacy"
+    facet_specs: tuple[EvaluationFacetSpec, ...] = ()
+    breakdown_specs: tuple[EvaluationBreakdownSpec, ...] = ()
+    metrics: tuple[EvaluationMetricDefinition, ...] = ()
+
+
 class TraceSummary(ObservatoryModel):
     external_id: str = Field(min_length=1)
     trace_type: str = Field(min_length=1)
+    prompt_preview: str | None = None
     task: str | None = None
+    task_label: str | None = None
+    task_metadata: TaskSliceMetadata | None = None
     reward: float | None = None
     success: bool | None = None
+    outcome: TraceOutcome = "unknown"
     truncated: bool = False
     error: str | None = None
     tool_calls: int | None = Field(default=None, ge=0)
+    model_calls: int | None = Field(default=None, ge=0)
+    input_tokens: int | None = Field(default=None, ge=0)
+    completion_tokens: int | None = Field(default=None, ge=0)
     latency_ms: float | None = Field(default=None, ge=0)
     tokens: int | None = Field(default=None, ge=0)
+    response_tokens: int | None = Field(default=None, ge=0)
+    response_chars: int | None = Field(default=None, ge=0)
+    thinking_tokens: int | None = Field(default=None, ge=0)
+    thinking_chars: int | None = Field(default=None, ge=0)
+    reward_components: dict[str, float] = Field(default_factory=dict)
+    native_metrics: dict[str, float] = Field(default_factory=dict)
+    metrics: dict[str, float] = Field(default_factory=dict)
 
 
 class TraceDetail(ObservatoryModel):
@@ -467,21 +584,97 @@ class TraceDetail(ObservatoryModel):
 
 class EvaluationSlice(ObservatoryModel):
     key: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    description: str | None = None
+    metadata: TaskSliceMetadata | None = None
     count: int = Field(ge=0)
     mean_reward: float | None = None
     success_rate: float | None = None
 
 
+class EvaluationFacet(ObservatoryModel):
+    """Multi-label aggregate used to explain a task population by capability."""
+
+    key: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    dimension: str = Field(min_length=1)
+    dimension_label: str = Field(min_length=1)
+    count: int = Field(ge=0)
+    mean_reward: float | None = None
+    success_rate: float | None = None
+
+
+class EvaluationBreakdownValue(ObservatoryModel):
+    """One structured dimension value inside a compound group."""
+
+    dimension: str = Field(min_length=1)
+    dimension_label: str = Field(min_length=1)
+    value: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+
+
+class EvaluationBreakdownGroup(ObservatoryModel):
+    """Coverage-aware aggregate for one compound facet combination."""
+
+    key: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    values: tuple[EvaluationBreakdownValue, ...]
+    count: int = Field(ge=0)
+    scored: int = Field(ge=0)
+    failures: int = Field(ge=0)
+    truncated: int = Field(ge=0)
+    mean_reward: float | None = None
+    success_rate: float | None = None
+
+
+class EvaluationBreakdown(ObservatoryModel):
+    """One declared compound report with structured groups."""
+
+    id: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    dimensions: tuple[str, str]
+    dimension_labels: tuple[str, str]
+    presentation: Literal["matrix"] = "matrix"
+    groups: tuple[EvaluationBreakdownGroup, ...] = ()
+    excluded: int = Field(default=0, ge=0)
+
+
+class EvaluationDistribution(ObservatoryModel):
+    """Observed distribution for one request-level evaluation signal."""
+
+    samples: int = Field(ge=1)
+    mean: float = Field(ge=0)
+    p50: float = Field(ge=0)
+    p95: float = Field(ge=0)
+    maximum: float = Field(ge=0)
+
+
+class EvaluationPerformance(ObservatoryModel):
+    """Efficiency evidence computed from the same trace population as quality."""
+
+    latency_ms: EvaluationDistribution | None = None
+    completion_tokens: EvaluationDistribution | None = None
+    thinking_tokens: EvaluationDistribution | None = None
+    tool_calls: EvaluationDistribution | None = None
+
+
 class TraceEvaluationView(ObservatoryModel):
     state: Literal["complete", "partial", "unavailable"]
+    metadata: EvaluationMetadata | None = None
     scanned: int = Field(ge=0)
     expected: int | None = Field(default=None, ge=0)
     included: int = Field(ge=0)
+    scored: int = Field(default=0, ge=0)
     mean_reward: float | None = None
     success_rate: float | None = None
+    passed: int = Field(default=0, ge=0)
+    pass_scored: int = Field(default=0, ge=0)
     failures: int = Field(default=0, ge=0)
     truncated: int = Field(default=0, ge=0)
     slices: tuple[EvaluationSlice, ...] = ()
+    facets: tuple[EvaluationFacet, ...] = ()
+    breakdowns: tuple[EvaluationBreakdown, ...] = ()
+    performance: EvaluationPerformance = Field(default_factory=EvaluationPerformance)
     traces: tuple[TraceSummary, ...] = ()
     next_cursor: str | None = None
     live: bool = False
@@ -611,6 +804,7 @@ class EvaluationRunView(ObservatoryModel):
     completeness: EvidenceCompleteness
     alerts: tuple[RunAlert, ...]
     evaluation: TraceEvaluationView
+    comparison_key: str = Field(min_length=1)
     artifacts: ArtifactSet
     execution_targets: tuple[ExecutionTargetContext, ...] = ()
     resolved_inputs: dict[str, JsonPayload] = Field(default_factory=dict)
@@ -654,6 +848,7 @@ class ComparisonRow(ObservatoryModel):
     run_id: str = Field(min_length=1)
     values: dict[str, JsonPayload]
     states: dict[str, EvidenceState]
+    context: dict[str, JsonPayload] = Field(default_factory=dict)
 
 
 class RunComparison(ObservatoryModel):
@@ -662,6 +857,7 @@ class RunComparison(ObservatoryModel):
     columns: tuple[str, ...]
     rows: tuple[ComparisonRow, ...]
     reason: str | None = None
+    basis: StringTuple = ()
 
 
 class WorkPackageRun(ObservatoryModel):
@@ -767,9 +963,16 @@ __all__ = [
     "BenchmarkPopulationView",
     "ChartView",
     "ComparisonRow",
+    "EvaluationBreakdown",
+    "EvaluationBreakdownGroup",
+    "EvaluationBreakdownSpec",
+    "EvaluationBreakdownValue",
+    "EvaluationMetadata",
+    "EvaluationMetricDefinition",
     "ErrorResponse",
     "EvaluationRunView",
     "EvaluationSlice",
+    "EvaluationFacet",
     "EvidenceCitation",
     "EvidenceCompleteness",
     "EvidenceCompletenessState",
@@ -822,6 +1025,7 @@ __all__ = [
     "SourceRefreshStatus",
     "SummaryChange",
     "SummaryValue",
+    "TaskSliceMetadata",
     "SystemMetricGroup",
     "SystemMetricSummary",
     "SystemMetricsView",

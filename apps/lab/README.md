@@ -12,7 +12,7 @@ For a product project, start with the primary CLI — not lab:
 ```bash
 posttrain init support-agent --template sft
 cd support-agent
-.venv/bin/posttrain dataset validate datasets/posttrain-sft-smoke@1
+.venv/bin/posttrain dataset materialize datasets/posttrain-sft-smoke@1
 .venv/bin/posttrain work-package validate sft.yaml
 ```
 

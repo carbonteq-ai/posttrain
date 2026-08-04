@@ -38,6 +38,20 @@ def test_tailer_waits_for_complete_lines_and_batches(tmp_path: Path):
     assert stats.emitted_records == 2
 
 
+def test_default_tailer_emits_each_complete_record_before_finalization(tmp_path: Path):
+    path = tmp_path / "traces.jsonl"
+    uploaded: list[list[dict]] = []
+    path.write_text(json.dumps(_record("one")) + "\n", encoding="utf-8")
+
+    sync = VerifiersTraceSynchronizer(path, uploaded.append, validate=_identity)
+
+    stats = sync.drain()
+
+    assert uploaded == [[_record("one")]]
+    assert stats.emitted_records == 1
+    assert stats.unsynchronized_records == 0
+
+
 def test_finalization_retries_failed_batches(tmp_path: Path):
     path = tmp_path / "traces.jsonl"
     path.write_text(json.dumps(_record("one")) + "\n", encoding="utf-8")

@@ -14,7 +14,11 @@ from .requests import (
     EnvironmentActivation,
     EnvironmentBinding,
     EnvironmentFactory,
+    EvaluationBreakdownDefinition,
+    EvaluationNumericPredicate,
     EvaluationPlan,
+    EvaluationSignalRef,
+    EvaluationSuccessDefinition,
     ExternalInferenceService,
     PythonFactoryActivation,
     RemoteEvaluationBinding,
@@ -77,6 +81,35 @@ class EnvironmentBindingSchema(EvalCatalogSchema):
         return self
 
 
+class EvaluationSignalRefSchema(EvalCatalogSchema):
+    namespace: Literal["reward", "metric"]
+    name: str
+
+
+class EvaluationNumericPredicateSchema(EvalCatalogSchema):
+    operator: Literal["eq", "gt", "gte", "lt", "lte", "between"]
+    value: float
+    upper: float | None = None
+    tolerance: float = Field(default=0.0, ge=0)
+
+
+class EvaluationSuccessDefinitionSchema(EvalCatalogSchema):
+    id: str
+    label: str
+    source: EvaluationSignalRefSchema
+    predicate: EvaluationNumericPredicateSchema
+    missing: Literal["error", "exclude"] = "error"
+
+
+class EvaluationBreakdownDefinitionSchema(EvalCatalogSchema):
+    id: str
+    label: str
+    dimensions: tuple[str, ...] = Field(min_length=2, max_length=2)
+    presentation: Literal["matrix"] = "matrix"
+    multi_value: Literal["reject", "cross"] = "reject"
+    missing: Literal["exclude", "bucket"] = "exclude"
+
+
 class EvaluationPlanSchema(EvalCatalogSchema):
     id: str
     kind: Literal["general", "domain"]
@@ -84,6 +117,8 @@ class EvaluationPlanSchema(EvalCatalogSchema):
     revision: str = "1"
     inference_requirements: dict[str, JsonValue] = Field(default_factory=dict)
     metrics_and_slices: tuple[str, ...] = ()
+    success: dict[str, EvaluationSuccessDefinitionSchema] = Field(default_factory=dict)
+    breakdowns: dict[str, tuple[EvaluationBreakdownDefinitionSchema, ...]] = Field(default_factory=dict)
     aggregation: dict[str, JsonValue] = Field(default_factory=dict)
     comparison: dict[str, JsonValue] = Field(default_factory=dict)
 
@@ -138,6 +173,22 @@ def evaluation_catalog_decoders(
                 raise ContractError(f"unresolved catalog link: environment/{environment_id}")
             environments.append(value)
         values = payload.model_dump(exclude={"environments"})
+        values["success"] = {
+            environment_id: EvaluationSuccessDefinition(
+                id=definition.id,
+                label=definition.label,
+                source=EvaluationSignalRef(**definition.source.model_dump()),
+                predicate=EvaluationNumericPredicate(**definition.predicate.model_dump()),
+                missing=definition.missing,
+            )
+            for environment_id, definition in payload.success.items()
+        }
+        values["breakdowns"] = {
+            environment_id: tuple(
+                EvaluationBreakdownDefinition(**definition.model_dump()) for definition in definitions
+            )
+            for environment_id, definitions in payload.breakdowns.items()
+        }
         return EvaluationPlan(environments=tuple(environments), **values)
 
     def decode_remote_evaluation(

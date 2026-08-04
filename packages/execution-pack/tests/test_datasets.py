@@ -5,7 +5,13 @@ import json
 from pathlib import Path
 
 import pytest
-from posttrain.data import DatasetLoadPlan, DatasetMaterialization
+from posttrain.data import (
+    BuiltDatasetSource,
+    DatasetLoadPlan,
+    DatasetMaterialization,
+    LocalDatasetInput,
+    PythonDatasetBuilder,
+)
 from posttrain.execution_pack import DatasetPackRequest, ImmutableDatasetPackager
 
 
@@ -99,3 +105,69 @@ def test_rejects_duplicate_dataset_seats(tmp_path: Path) -> None:
             (request, request),
             output_root=(tmp_path / "context").resolve(),
         )
+
+
+def test_typed_builder_request_serializes_without_importing_builder() -> None:
+    selection = DatasetLoadPlan(
+        id="datasets/python-reviewed@1",
+        revision="1",
+        kind="supervised",
+        source=BuiltDatasetSource(
+            builder=PythonDatasetBuilder("example.datasets:build"),
+            inputs={"source": LocalDatasetInput("data/source.jsonl")},
+        ),
+        format="messages",
+    )
+
+    payload = DatasetPackRequest("dataset", selection).to_payload()
+
+    assert payload["source"] == {
+        "kind": "built",
+        "builder": {"kind": "python", "target": "example.datasets:build"},
+        "inputs": {"source": {"kind": "local", "path": "data/source.jsonl", "format": "jsonl"}},
+    }
+
+
+def test_typed_builder_is_materialized_and_locked_in_the_job_context(tmp_path: Path) -> None:
+    code_snapshot_digest = "c" * 64
+    dependency_lock_digest = "d" * 64
+    (tmp_path / "raw.jsonl").write_text('{"value":"hello"}\n', encoding="utf-8")
+    (tmp_path / "builder.py").write_text(
+        "def build(ctx):\n"
+        "    for row in ctx.records('raw'):\n"
+        "        yield {'messages': [{'role': 'user', 'content': row['value']}, "
+        "{'role': 'assistant', 'content': 'ok'}]}\n",
+        encoding="utf-8",
+    )
+    selection = DatasetLoadPlan(
+        id="datasets/python-reviewed@1",
+        revision="1",
+        kind="supervised",
+        source=BuiltDatasetSource(
+            builder=PythonDatasetBuilder("builder:build"),
+            inputs={"raw": LocalDatasetInput("raw.jsonl")},
+        ),
+        format="messages",
+    )
+    context = tmp_path / "context"
+    result = ImmutableDatasetPackager(
+        state_dir=(tmp_path / "state").resolve(),
+        project_root=tmp_path.resolve(),
+        code_snapshot_digest=code_snapshot_digest,
+        dependency_lock_digest=dependency_lock_digest,
+    ).package(
+        (DatasetPackRequest("dataset", selection),),
+        output_root=context.resolve(),
+    )
+
+    lock = result.locks[0]
+    assert lock.build_key
+    assert lock.materializer_schema_version == 2
+    assert lock.builder_target == "builder:build"
+    assert lock.code_snapshot_digest == code_snapshot_digest
+    assert lock.dependency_lock_digest == dependency_lock_digest
+    manifest = json.loads((context / lock.manifest_path).read_text(encoding="utf-8"))
+    assert manifest["build_key"] == lock.build_key
+    assert manifest["content_sha256"] == lock.digest
+    assert manifest["builder_target"] == lock.builder_target
+    assert (context / lock.package_path).read_text(encoding="utf-8").count("hello") == 1

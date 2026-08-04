@@ -46,6 +46,7 @@ def evaluate(
             "num_tasks": num_tasks,
             "num_rollouts": num_rollouts,
             "max_concurrent": max_concurrent,
+            "task_selection": "verifiers-fixed-shuffle" if request.resolved_shuffle else "head",
         }
     )
     context.event("evaluation_started", attributes)

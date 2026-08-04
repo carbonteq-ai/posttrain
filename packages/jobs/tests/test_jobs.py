@@ -24,7 +24,11 @@ from posttrain.data import (
 from posttrain.eval import (
     EnvironmentBinding,
     EnvironmentSource,
+    EvaluationBudget,
+    EvaluationNumericPredicate,
     EvaluationPlan,
+    EvaluationSignalRef,
+    EvaluationSuccessDefinition,
     ExternalInferenceService,
     PythonFactoryActivation,
     RemoteEvaluationBinding,
@@ -109,7 +113,10 @@ def test_standard_definition_registry_covers_every_technique() -> None:
 
 def test_remote_evaluation_definition_does_not_construct_a_local_vllm_endpoint(tmp_path: Path) -> None:
     captured = []
-    definition = remote_evaluation_definition(lambda context, request: captured.append((context, request)))
+    definition = remote_evaluation_definition(
+        lambda context, request: captured.append((context, request)),
+        budget=EvaluationBudget(num_tasks=1, shuffle=True),
+    )
     source = EnvironmentSource("fake-env", "https://example.test/environments", "a" * 40)
     environment = EnvironmentBinding(
         "tool-loop",
@@ -146,7 +153,19 @@ def test_remote_evaluation_definition_does_not_construct_a_local_vllm_endpoint(t
         {
             "remote_evaluation": binding,
             "target": ExecutionTarget("targets/external", "1", "network-client"),
-            "evaluation_plan": EvaluationPlan("remote-general-v1", "general", (environment,)),
+            "evaluation_plan": EvaluationPlan(
+                "remote-general-v1",
+                "general",
+                (environment,),
+                success={
+                    "tool-loop": EvaluationSuccessDefinition(
+                        "task-success",
+                        "Task success",
+                        EvaluationSignalRef("reward", "reward"),
+                        EvaluationNumericPredicate("eq", 1.0),
+                    )
+                },
+            ),
             "environment": environment,
         },
     )
@@ -157,6 +176,8 @@ def test_remote_evaluation_definition_does_not_construct_a_local_vllm_endpoint(t
     assert request.inference is binding
     assert request.endpoint is None
     assert request.resolved_endpoint.base_url == "https://api.example.test/v1"
+    assert request.resolved_budget == (1, 1, 4)
+    assert request.resolved_shuffle
 
 
 def test_standard_data_prepare_definitions_bind_their_dataset_kinds(

@@ -39,12 +39,19 @@ class ImmutableDatasetPackager:
         state_dir: Path,
         project_root: Path,
         materializer: DatasetMaterializer | None = None,
+        code_snapshot_digest: str | None = None,
+        dependency_lock_digest: str | None = None,
     ) -> None:
         if not state_dir.is_absolute() or not project_root.is_absolute():
             raise ContractError("dataset packager state and project roots must be absolute")
         self._state_dir = state_dir
         self._project_root = project_root
-        self._materializer = materializer or _materialize
+        self._materializer = materializer
+        self._code_snapshot_digest = _optional_digest(code_snapshot_digest, "dataset code snapshot digest")
+        self._dependency_lock_digest = _optional_digest(
+            dependency_lock_digest,
+            "dataset dependency lock digest",
+        )
 
     def package(
         self,
@@ -60,11 +67,20 @@ class ImmutableDatasetPackager:
 
         locks: list[DatasetPackageLock] = []
         for request in ordered:
-            materialized = self._materializer(
-                request.selection,
-                self._state_dir,
-                self._project_root,
-            )
+            if self._materializer is None:
+                materialized = materialize_dataset(
+                    request.selection,
+                    state_dir=self._state_dir,
+                    project_root=self._project_root,
+                    code_snapshot_digest=self._code_snapshot_digest,
+                    dependency_lock_digest=self._dependency_lock_digest,
+                )
+            else:
+                materialized = self._materializer(
+                    request.selection,
+                    self._state_dir,
+                    self._project_root,
+                )
             _verify_materialization(request.selection, materialized)
             relative_root = Path("datasets") / _dataset_slug(request) / materialized.content_sha256
             destination = output_root / relative_root
@@ -88,21 +104,20 @@ class ImmutableDatasetPackager:
                     manifest_path=(relative_root / "manifest.json").as_posix(),
                     size_bytes=data_path.stat().st_size,
                     num_records=materialized.examples,
+                    build_key=_optional_digest(manifest.get("build_key"), "dataset build key"),
+                    materializer_schema_version=_optional_positive_int(
+                        manifest.get("schema_version"), "dataset materializer schema version"
+                    ),
+                    builder_target=_optional_target(manifest.get("builder_target")),
+                    code_snapshot_digest=_optional_digest(
+                        manifest.get("code_snapshot_digest"), "dataset code snapshot digest"
+                    ),
+                    dependency_lock_digest=_optional_digest(
+                        manifest.get("dependency_lock_digest"), "dataset dependency lock digest"
+                    ),
                 )
             )
         return MaterializedDatasetPackages(output_root, tuple(locks))
-
-
-def _materialize(
-    plan: DatasetLoadPlan,
-    state_dir: Path,
-    project_root: Path,
-) -> DatasetMaterialization:
-    return materialize_dataset(
-        plan,
-        state_dir=state_dir,
-        project_root=project_root,
-    )
 
 
 def _verify_materialization(
@@ -132,6 +147,9 @@ def _verify_materialization(
         if manifest.get(key) != value:
             raise ContractError(f"dataset materialization manifest has invalid {key}")
     _positive_int(manifest.get("schema_version"), "dataset schema version")
+    if materialized.build_key:
+        if manifest.get("build_key") != materialized.build_key:
+            raise ContractError("dataset materialization build key differs from its manifest")
 
 
 def _read_manifest(path: Path) -> dict[str, object]:
@@ -147,6 +165,28 @@ def _read_manifest(path: Path) -> dict[str, object]:
 def _positive_int(value: object, label: str) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or value < 1:
         raise ContractError(f"{label} must be a positive integer")
+    return value
+
+
+def _optional_positive_int(value: object, label: str) -> int | None:
+    if value is None:
+        return None
+    return _positive_int(value, label)
+
+
+def _optional_digest(value: object, label: str) -> str | None:
+    if value is None or value == "":
+        return None
+    if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
+        raise ContractError(f"{label} must be a SHA-256 digest")
+    return value
+
+
+def _optional_target(value: object) -> str | None:
+    if value is None or value == "":
+        return None
+    if not isinstance(value, str) or re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.]*:[A-Za-z_][A-Za-z0-9_]*", value) is None:
+        raise ContractError("dataset builder target must use module:callable syntax")
     return value
 
 

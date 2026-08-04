@@ -29,10 +29,30 @@ WORKDIR ${POSTTRAIN_JOB_ROOT}
 RUN test -n "${VIRTUAL_ENV}" && test -x "${VIRTUAL_ENV}/bin/python"
 
 # Bind the mutable named context to the content-derived package identity before
-# any of its files enter the layer graph. Some BuildKit versions may otherwise
-# reuse a stale named-context COPY result once even when COPY is not linked.
-# The immutable kind parent stays cached; only actual-job layers are separated.
+# any other context files enter the layer graph. A build-arg-only barrier is not
+# sufficient on affected BuildKit versions: the first named-context COPY may be
+# reused from another context path. Copy and verify the manifest itself first,
+# then keep that verified file as the manifest installed into the final image.
 RUN test -n "${PACKAGE_KEY}"
+COPY --from=job-context /package.json context-package-${PACKAGE_KEY}.json
+RUN python - "${PACKAGE_KEY}" <<'PY'
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+expected = sys.argv[1]
+manifest_path = Path(f"context-package-{expected}.json")
+payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+observed = hashlib.sha256(
+    json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
+).hexdigest()
+if observed != expected:
+    raise SystemExit(
+        "named build context returned a manifest for a different package key: "
+        f"expected={expected} observed={observed}"
+    )
+PY
 
 # The runtime lock is the complete, hash-locked union of external
 # dependencies and selected environment wheels. It is deliberately installed
@@ -159,7 +179,7 @@ RUN --mount=type=cache,id=posttrain-job-uv,target=/root/.cache/uv,sharing=locked
 
 COPY --from=job-context /config/ config/
 COPY --from=job-context /datasets/ datasets/
-COPY --from=job-context /package.json package.json
+RUN cp "context-package-${PACKAGE_KEY}.json" package.json
 
 # Fail the build if the staged manifest is not the authoritative contract, if
 # its package key differs from the requested publication, or if it records a

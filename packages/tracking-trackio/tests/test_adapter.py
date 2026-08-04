@@ -4,6 +4,7 @@ import hashlib
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -32,7 +33,9 @@ from posttrain_tracking_trackio import (
     TrackioBackend,
     TrackioCancelledRunRecovery,
     TrackioDataSource,
+    TrackioLifecycleAdmin,
     TrackioProjectCatalog,
+    TrackioPurgeActionExecutor,
     TrackioSettings,
     require_remote_trackio_ready,
 )
@@ -59,6 +62,134 @@ def test_trackio_project_catalog_returns_stable_unique_names(monkeypatch: pytest
     monkeypatch.setattr("posttrain_tracking_trackio.adapter.RemoteClient", lambda _: Client())
 
     assert TrackioProjectCatalog("http://trackio:7860").list_projects() == ("alpha", "beta")
+
+
+def test_trackio_lifecycle_admin_maps_digest_bound_run_purge(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    digest = "sha256:" + "a" * 64
+
+    class Client:
+        def run_purge_plan(self, project: str, run_ids: tuple[str, ...]) -> dict[str, Any]:
+            assert (project, run_ids) == ("alpha", ("run-a",))
+            return {
+                "provider": "trackio",
+                "project": project,
+                "run_ids": ["run-a"],
+                "artifacts": [
+                    {
+                        "version_id": 7,
+                        "name": "model",
+                        "version": 2,
+                        "size_bytes": 128,
+                        "consumer_run_ids": [],
+                    }
+                ],
+                "blockers": [],
+                "digest": digest,
+                "created_at": "2026-08-02T00:00:00+00:00",
+            }
+
+        def purge_runs(self, project: str, run_ids: tuple[str, ...], plan_digest: str) -> dict[str, Any]:
+            assert (project, run_ids, plan_digest) == ("alpha", ("run-a",), digest)
+            return {
+                "provider": "trackio",
+                "project": project,
+                "plan_digest": digest,
+                "deleted_provider_run_ids": ["run-a"],
+                "deleted_artifact_version_ids": [7],
+                "already_absent_provider_run_ids": [],
+                "completed_at": "2026-08-02T00:01:00+00:00",
+            }
+
+    monkeypatch.setenv("TRACKIO_WRITE_TOKEN", "test-token")
+    monkeypatch.setattr(
+        "posttrain_tracking_trackio.adapter.RemoteClient",
+        lambda *args, **kwargs: Client(),
+    )
+
+    admin = TrackioLifecycleAdmin("http://trackio:7860")
+    plan = admin.plan_run_purge(project="alpha", provider_run_ids=("run-a",))
+    assert plan.artifacts[0].version_id == "7"
+    receipt = admin.apply_run_purge(plan)
+    assert receipt.deleted_provider_run_ids == ("run-a",)
+
+
+def test_trackio_purge_action_executor_revalidates_before_apply() -> None:
+    class Admin:
+        def __init__(self) -> None:
+            self.applied = []
+
+        def plan_run_purge(self, *, project: str, provider_run_ids: tuple[str, ...]):
+            from posttrain.tracking import TrackingPurgePlan
+
+            return TrackingPurgePlan(
+                provider="trackio",
+                project=project,
+                provider_run_ids=provider_run_ids,
+                run_ids=provider_run_ids,
+                artifacts=(),
+                blockers=(),
+                digest="sha256:" + "b" * 64,
+                created_at=datetime.now(UTC),
+            )
+
+        def apply_run_purge(self, plan):
+            self.applied.append(plan.project)
+
+    admin = Admin()
+    executor = TrackioPurgeActionExecutor(admin)  # type: ignore[arg-type]
+    action = SimpleNamespace(
+        action_id="tracking:run-a",
+        kind="tracking.delete_run",
+        target={"project": "alpha", "provider_run_id": "provider-a"},
+    )
+    executor.revalidate(action)
+    executor.apply(action)
+    assert admin.applied == ["alpha"]
+
+
+def test_trackio_lifecycle_admin_maps_digest_bound_project_delete(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    digest = "sha256:" + "d" * 64
+
+    class Client:
+        def project_delete_plan(self, project: str) -> dict[str, Any]:
+            return {
+                "provider": "trackio",
+                "project": project,
+                "exists": True,
+                "runs": 2,
+                "artifacts": 1,
+                "artifact_versions": 3,
+                "artifact_logical_bytes": 128,
+                "artifact_storage_bytes": 256,
+                "media_storage_bytes": 64,
+                "digest": digest,
+                "created_at": "2026-08-02T00:00:00+00:00",
+            }
+
+        def delete_project(self, project: str, plan_digest: str) -> dict[str, Any]:
+            assert (project, plan_digest) == ("alpha", digest)
+            return {
+                "provider": "trackio",
+                "project": project,
+                "plan_digest": plan_digest,
+                "deleted": True,
+                "completed_at": "2026-08-02T00:01:00+00:00",
+            }
+
+    monkeypatch.setenv("TRACKIO_WRITE_TOKEN", "test-token")
+    monkeypatch.setattr(
+        "posttrain_tracking_trackio.adapter.RemoteClient",
+        lambda *args, **kwargs: Client(),
+    )
+    admin = TrackioLifecycleAdmin("http://trackio:7860")
+    plan = admin.project_delete_plan(project="alpha")
+    assert plan.storage_bytes == 320
+    receipt = admin.delete_project(plan)
+    assert receipt.deleted is True
 
 
 @pytest.mark.parametrize("payload", [{"project": "alpha"}, ["alpha", 1], [" "]])

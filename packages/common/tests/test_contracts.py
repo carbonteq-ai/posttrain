@@ -204,6 +204,23 @@ class RunContextTests(unittest.TestCase):
 
 
 class CatalogTests(unittest.TestCase):
+    def test_inference_cannot_select_a_renderer_different_from_its_model(self) -> None:
+        model = FOUNDATION_VARIANTS["qwen3.5-2b"]
+        target = ExecutionTarget("targets/rtx3070ti-8gb", "1", "cuda", 8)
+
+        with self.assertRaisesRegex(ContractError, "must match the selected model renderer"):
+            InferenceBinding(
+                "inference/qwen-screen",
+                "1",
+                model,
+                "vllm@0.10.2",
+                "another-renderer@1",
+                {},
+                {},
+                target,
+                ("screen",),
+            )
+
     def test_overlay_wins_and_records_its_source(self) -> None:
         model = FOUNDATION_VARIANTS["qwen3.5-2b"]
         target = ExecutionTarget("targets/rtx3070ti-8gb", "1", "cuda", 8)
@@ -271,7 +288,7 @@ class CatalogTests(unittest.TestCase):
                     "revision": "1",
                     "model": "models/qwen-2b@bf16",
                     "backend": "vllm@0.10.2",
-                    "renderer": "qwen-tools@1",
+                    "renderer": "qwen3.5-tools@1",
                     "engine": {"gpu_memory_utilization": 0.8},
                     "sampling": {"temperature": 0.0},
                     "target": "targets/rtx3070ti-8gb",

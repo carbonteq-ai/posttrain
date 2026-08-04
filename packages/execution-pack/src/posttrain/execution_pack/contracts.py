@@ -93,13 +93,17 @@ class DatasetPackRequest:
             raise ContractError("dataset seat name is invalid")
 
     def to_payload(self) -> dict[str, JsonValue]:
+        source = self.selection.source
+        source_payload = dict(source) if isinstance(source, Mapping) else dict(source.identity())
         return {
             "seat_name": self.seat_name,
             "selection_id": self.selection.id,
             "revision": self.selection.revision,
             "kind": self.selection.kind,
-            "source": dict(self.selection.source),
+            "source": source_payload,
             "format": self.selection.format,
+            "split": self.selection.split,
+            "schema_version": self.selection.schema_version,
         }
 
 

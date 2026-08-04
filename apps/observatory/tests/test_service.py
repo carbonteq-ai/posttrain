@@ -449,6 +449,48 @@ async def test_compare_runs_rejects_different_job_kinds() -> None:
     assert comparison.reason is not None and "different job kinds" in comparison.reason
 
 
+@pytest.mark.asyncio
+async def test_compare_evaluations_requires_the_same_population_but_allows_model_changes() -> None:
+    source = _source()
+    first = "runs/eval-first"
+    second = "runs/eval-second"
+
+    def inputs(environment: str, model: str) -> dict[str, JsonValue]:
+        return {
+            "evaluation_plan": {"selection_id": "plans/ifeval", "revision": "1"},
+            "environment": {
+                "selection_id": environment,
+                "revision": "env-rev",
+                "resolved": {
+                    "activation": {
+                        "config": {"taskset": {"dataset_repo": "google/IFEval", "split": "train", "order_seed": 0}}
+                    },
+                    "source_revision": environment,
+                    "reward_components": ["strict_prompt_accuracy"],
+                },
+            },
+            "model": {"selection_id": model, "revision": "model-rev"},
+        }
+
+    source.details[first] = RunDetail(
+        summary=_summary(first, "eval.general"), resolved_inputs=inputs("env/ifeval", "models/a")
+    )
+    source.details[second] = RunDetail(
+        summary=_summary(second, "eval.general"), resolved_inputs=inputs("env/ifeval", "models/b")
+    )
+    source.series[first] = {}
+    source.series[second] = {}
+    comparable = await ObservatoryService(source).compare_runs((first, second))
+    assert comparable.state == "comparable"
+    assert comparable.rows[0].context["model"] == "models/a"
+    source.details[second] = source.details[second].model_copy(
+        update={"resolved_inputs": inputs("env/reasoning", "models/b")}
+    )
+    incomparable = await ObservatoryService(source).compare_runs((first, second))
+    assert incomparable.state == "incomparable"
+    assert incomparable.reason is not None and "evaluation populations" in incomparable.reason
+
+
 def test_cli_exposes_the_same_telemetry_schema(capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["schema", "train.sft"]) == 0
     payload = json.loads(capsys.readouterr().out)

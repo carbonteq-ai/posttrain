@@ -5,6 +5,9 @@ from __future__ import annotations
 import hashlib
 import json
 import runpy
+import shutil
+import tempfile
+import warnings
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from importlib.resources import files as resource_files
@@ -26,9 +29,19 @@ from .adapters import (
     to_huggingface_preference_rows,
     to_huggingface_sft_rows,
 )
+from .definitions import (
+    BuiltDatasetSource,
+    DatasetAccessPolicy,
+    DatasetKind,
+    DatasetProvenance,
+    DatasetSource,
+    HuggingFaceDatasetInput,
+    LocalDatasetInput,
+    PackageResourceInput,
+    PythonDatasetBuilder,
+)
 from .models import PreferenceDataset, SupervisedDataset
 
-type DatasetKind = Literal["supervised", "preference"]
 type DatasetSourceKind = Literal["fixture", "huggingface", "jsonl", "nemo", "parquet", "built"]
 
 _SFT_FORMATS = frozenset({"auto", "messages", "prompt-completion", "alpaca", "sharegpt"})
@@ -39,20 +52,28 @@ _PATH_SOURCE_KINDS = frozenset({"jsonl", "nemo", "parquet"})
 
 
 @dataclass(frozen=True, slots=True)
-class DatasetLoadPlan:
+class DatasetSelection:
     """A catalog selection describing how to resolve one dataset."""
 
     id: str
     revision: str
     kind: DatasetKind
-    source: Mapping[str, JsonValue]
+    source: DatasetSource
     format: str
+    split: str = "train"
+    schema_version: str = "1"
+    provenance: DatasetProvenance = DatasetProvenance()
+    access: DatasetAccessPolicy = DatasetAccessPolicy()
 
     def __post_init__(self) -> None:
         validate_selection_id(self.id, "dataset selection id")
         validate_revision(self.revision, "dataset selection revision")
-        source = dict(self.source)
-        source_kind = source.get("kind")
+        if isinstance(self.source, BuiltDatasetSource):
+            source: DatasetSource = self.source
+            source_kind = "built"
+        else:
+            source = dict(self.source)
+            source_kind = source.get("kind")
         if source_kind not in {"fixture", "huggingface", "jsonl", "nemo", "parquet", "built"}:
             raise ContractError("dataset source kind must be fixture, huggingface, jsonl, nemo, parquet, or built")
         _validate_source(cast(DatasetSourceKind, source_kind), source)
@@ -63,16 +84,29 @@ class DatasetLoadPlan:
         if self.format not in allowed_formats:
             allowed = ", ".join(sorted(allowed_formats))
             raise ContractError(f"{self.kind} dataset format must be one of: {allowed}")
-        object.__setattr__(self, "source", MappingProxyType(source))
+        if isinstance(source, Mapping):
+            object.__setattr__(self, "source", MappingProxyType(dict(source)))
+        else:
+            object.__setattr__(self, "source", source)
+        if not self.split.strip() or not self.schema_version.strip():
+            raise ContractError("dataset split and schema_version cannot be empty")
 
     @property
     def source_kind(self) -> DatasetSourceKind:
+        if isinstance(self.source, BuiltDatasetSource):
+            return "built"
         return cast(DatasetSourceKind, self.source["kind"])
 
     @property
     def dataset_revision(self) -> str:
+        if isinstance(self.source, BuiltDatasetSource):
+            return self.revision
         source_revision = self.source.get("revision")
         return source_revision if isinstance(source_revision, str) else self.revision
+
+
+# Historical callers use DatasetLoadPlan. Keep a single model implementation.
+DatasetLoadPlan = DatasetSelection
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +121,7 @@ class DatasetMaterialization:
     content_sha256: str
     examples: int
     created: bool
+    build_key: str = ""
 
 
 def decode_dataset_selection(
@@ -96,7 +131,17 @@ def decode_dataset_selection(
 ) -> DatasetLoadPlan:
     """Decode the public dataset catalog shape into a reusable load plan."""
 
-    allowed = {"id", "revision", "kind", "source", "format"}
+    allowed = {
+        "id",
+        "revision",
+        "kind",
+        "split",
+        "schema_version",
+        "provenance",
+        "access",
+        "source",
+        "format",
+    }
     unexpected = sorted(set(data).difference(allowed))
     if unexpected:
         raise ContractError(f"dataset catalog entry {ref.id!r} has unknown fields: {', '.join(unexpected)}")
@@ -116,16 +161,123 @@ def decode_dataset_selection(
     format_kind = raw_format.get("kind")
     if not isinstance(format_kind, str):
         raise ContractError(f"dataset catalog entry {ref.id!r} format kind must be a string")
+    split = data.get("split", "train")
+    schema_version = data.get("schema_version", "1")
+    if not isinstance(split, str) or not isinstance(schema_version, str):
+        raise ContractError(f"dataset catalog entry {ref.id!r} split and schema_version must be strings")
+    provenance = _decode_provenance(data.get("provenance"), ref)
+    access = _decode_access(data.get("access"), ref)
+    decoded_source: DatasetSource = cast(Mapping[str, JsonValue], source)
+    if source.get("kind") == "built" and isinstance(source.get("builder"), Mapping):
+        builder = source["builder"]
+        if builder.get("kind") == "python":
+            decoded_source = _decode_typed_built_source(source, ref)
     return DatasetLoadPlan(
         id=selection_id,
         revision=revision,
         kind=cast(DatasetKind, kind),
-        source=cast(Mapping[str, JsonValue], source),
+        source=decoded_source,
         format=format_kind,
+        split=split,
+        schema_version=schema_version,
+        provenance=provenance,
+        access=access,
     )
 
 
 DATA_CATALOG_DECODERS: Mapping[SelectionFamily, SelectionDecoder] = {"dataset": decode_dataset_selection}
+
+
+def _decode_provenance(value: object, ref: CatalogRef) -> DatasetProvenance:
+    if value is None:
+        return DatasetProvenance()
+    if not isinstance(value, Mapping):
+        raise ContractError(f"dataset catalog entry {ref.id!r} provenance must be an object")
+    allowed = {"upstream", "transformation", "references"}
+    unexpected = sorted(set(value).difference(allowed))
+    if unexpected:
+        raise ContractError(f"dataset catalog entry {ref.id!r} provenance has unknown fields: {', '.join(unexpected)}")
+    upstream = value.get("upstream", ())
+    references = value.get("references", ())
+    transformation = value.get("transformation")
+    if not _string_sequence(upstream) or not _string_sequence(references):
+        raise ContractError(f"dataset catalog entry {ref.id!r} provenance lists must contain strings")
+    if transformation is not None and not isinstance(transformation, str):
+        raise ContractError(f"dataset catalog entry {ref.id!r} provenance transformation must be a string")
+    return DatasetProvenance(tuple(upstream), transformation, tuple(references))
+
+
+def _decode_access(value: object, ref: CatalogRef) -> DatasetAccessPolicy:
+    if value is None:
+        return DatasetAccessPolicy()
+    if not isinstance(value, Mapping):
+        raise ContractError(f"dataset catalog entry {ref.id!r} access must be an object")
+    allowed = {"licenses", "classification"}
+    unexpected = sorted(set(value).difference(allowed))
+    if unexpected:
+        raise ContractError(f"dataset catalog entry {ref.id!r} access has unknown fields: {', '.join(unexpected)}")
+    licenses = value.get("licenses", ())
+    classification = value.get("classification", "public")
+    if not _string_sequence(licenses) or not isinstance(classification, str):
+        raise ContractError(f"dataset catalog entry {ref.id!r} access values are invalid")
+    return DatasetAccessPolicy(tuple(licenses), classification)
+
+
+def _string_sequence(value: object) -> bool:
+    return isinstance(value, (list, tuple)) and all(isinstance(item, str) for item in value)
+
+
+def _decode_typed_built_source(source: Mapping[str, object], ref: CatalogRef) -> BuiltDatasetSource:
+    builder = source.get("builder")
+    raw_inputs = source.get("inputs")
+    if (
+        not isinstance(builder, Mapping)
+        or set(builder).difference({"kind", "target"})
+        or builder.get("kind") != "python"
+        or not isinstance(builder.get("target"), str)
+        or not isinstance(raw_inputs, Mapping)
+    ):
+        raise ContractError(f"dataset catalog entry {ref.id!r} built source has an invalid Python builder")
+    inputs: dict[str, object] = {}
+    for name, raw in raw_inputs.items():
+        if not isinstance(name, str) or not isinstance(raw, Mapping):
+            raise ContractError(f"dataset catalog entry {ref.id!r} built source inputs must be named objects")
+        kind = raw.get("kind")
+        if kind == "local" or kind == "jsonl":
+            path = raw.get("path")
+            if not isinstance(path, str):
+                raise ContractError(f"dataset catalog entry {ref.id!r} local input requires path")
+            inputs[name] = LocalDatasetInput(path, str(raw.get("format", "jsonl")))
+        elif kind == "package-resource":
+            resource = raw.get("resource")
+            if not isinstance(resource, str):
+                raise ContractError(f"dataset catalog entry {ref.id!r} package resource input requires resource")
+            inputs[name] = PackageResourceInput(resource)
+        elif kind == "huggingface":
+            repo = raw.get("repo")
+            revision = raw.get("revision")
+            split = raw.get("split")
+            config = raw.get("config")
+            if not all(isinstance(value, str) for value in (repo, revision, split)) or (
+                config is not None and not isinstance(config, str)
+            ):
+                raise ContractError(f"dataset catalog entry {ref.id!r} Hugging Face input is invalid")
+            inputs[name] = HuggingFaceDatasetInput(
+                cast(str, repo),
+                cast(str, revision),
+                cast(str, split),
+                cast(str | None, config),
+            )
+        else:
+            raise ContractError(f"dataset catalog entry {ref.id!r} has unsupported built input kind {kind!r}")
+    expected = source.get("expected_content_sha256")
+    if expected is not None and not isinstance(expected, str):
+        raise ContractError(f"dataset catalog entry {ref.id!r} expected content digest must be a string")
+    return BuiltDatasetSource(
+        builder=PythonDatasetBuilder(builder["target"]),
+        inputs=cast(Mapping[str, Any], inputs),
+        expected_content_sha256=expected,
+    )
 
 
 def materialize_dataset(
@@ -133,8 +285,19 @@ def materialize_dataset(
     *,
     state_dir: Path,
     project_root: Path,
+    code_snapshot_digest: str | None = None,
+    dependency_lock_digest: str | None = None,
 ) -> DatasetMaterialization:
     """Resolve, normalize, validate, and cache a dataset load plan."""
+
+    if isinstance(plan.source, BuiltDatasetSource):
+        return _materialize_typed_dataset(
+            plan,
+            state_dir=state_dir,
+            project_root=project_root,
+            code_snapshot_digest=code_snapshot_digest,
+            dependency_lock_digest=dependency_lock_digest,
+        )
 
     fingerprint = hashlib.sha256(_plan_json(plan, project_root=project_root).encode("utf-8")).hexdigest()
     destination = state_dir / "datasets" / fingerprint
@@ -164,12 +327,114 @@ def materialize_dataset(
         "selection_revision": plan.revision,
         "dataset_revision": plan.dataset_revision,
         "source_kind": plan.source_kind,
+        "build_key": fingerprint,
         "content_sha256": content_sha256,
         "examples": len(normalized),
         "data": data_path.name,
     }
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return _read_materialization(plan, data_path, manifest_path, created=True)
+
+
+def _materialize_typed_dataset(
+    plan: DatasetLoadPlan,
+    *,
+    state_dir: Path,
+    project_root: Path,
+    code_snapshot_digest: str | None,
+    dependency_lock_digest: str | None,
+) -> DatasetMaterialization:
+    from .materialization import (
+        MATERIALIZER_SCHEMA_VERSION,
+        build_key,
+        input_identities,
+        lock_digest,
+        run_typed_builder,
+        source_code_digest,
+    )
+
+    source = cast(BuiltDatasetSource, plan.source)
+    code_digest = code_snapshot_digest or source.builder.code_digest or source_code_digest(project_root)
+    dependency_digest = dependency_lock_digest or source.builder.dependency_lock_digest or lock_digest(project_root)
+    fingerprint = build_key(
+        plan,
+        project_root=project_root,
+        code_snapshot_digest=code_digest,
+        dependency_lock_digest=dependency_digest,
+    )
+    destination = state_dir / "datasets" / fingerprint
+    data_path = destination / "data.jsonl"
+    manifest_path = destination / "manifest.json"
+    if data_path.is_file() and manifest_path.is_file():
+        return _read_materialization(plan, data_path, manifest_path, created=False)
+
+    cache_parent = state_dir / "datasets"
+    cache_parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=f".{fingerprint[:12]}-", dir=cache_parent))
+    try:
+        rows = run_typed_builder(source, project_root=project_root, workspace=staging / "builder")
+        dataset_id = plan.id.rsplit("@", maxsplit=1)[0]
+        try:
+            dataset = _adapt_rows(plan, rows, dataset_id=dataset_id)
+            if plan.kind == "supervised":
+                normalized = to_huggingface_sft_rows(cast(SupervisedDataset, dataset))
+            else:
+                normalized = to_huggingface_preference_rows(cast(PreferenceDataset, dataset))
+        except (KeyError, TypeError, ValueError) as error:
+            raise ContractError(f"dataset {plan.id!r} failed adapter validation: {error}") from error
+
+        serialized = "".join(json.dumps(row, sort_keys=True) + "\n" for row in normalized)
+        content_sha256 = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+        if source.expected_content_sha256 is not None and content_sha256 != source.expected_content_sha256:
+            raise ContractError(
+                f"dataset {plan.id!r} content digest mismatch: expected "
+                f"{source.expected_content_sha256}, got {content_sha256}"
+            )
+        staging_data = staging / data_path.name
+        staging_manifest = staging / manifest_path.name
+        staging_data.write_text(serialized, encoding="utf-8")
+        manifest = {
+            "schema_version": MATERIALIZER_SCHEMA_VERSION,
+            "selection_id": plan.id,
+            "selection_revision": plan.revision,
+            "dataset_revision": plan.dataset_revision,
+            "dataset_kind": plan.kind,
+            "split": plan.split,
+            "dataset_schema_version": plan.schema_version,
+            "source_kind": "built",
+            "source": source.identity(),
+            "inputs": input_identities(source, project_root=project_root),
+            "provenance": {
+                "upstream": list(plan.provenance.upstream),
+                "transformation": plan.provenance.transformation,
+                "references": list(plan.provenance.references),
+            },
+            "access": {
+                "licenses": list(plan.access.licenses),
+                "classification": plan.access.classification,
+            },
+            "build_key": fingerprint,
+            "builder_target": source.builder.target,
+            "code_snapshot_digest": code_digest,
+            "dependency_lock_digest": dependency_digest,
+            "content_sha256": content_sha256,
+            "examples": len(normalized),
+            "size_bytes": len(serialized.encode("utf-8")),
+            "data": data_path.name,
+        }
+        staging_manifest.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        # Validate before promotion; an incomplete staging directory is never a
+        # cache hit.  ``_read_materialization`` also checks output digest.
+        _read_materialization(plan, staging_data, staging_manifest, created=True)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if destination.exists():
+            return _read_materialization(
+                plan, destination / data_path.name, destination / manifest_path.name, created=False
+            )
+        staging.replace(destination)
+        return _read_materialization(plan, data_path, manifest_path, created=True)
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
 
 
 def load_materialized_dataset(
@@ -263,7 +528,13 @@ def _adapt_rows(
     )
 
 
-def _validate_source(kind: DatasetSourceKind, source: Mapping[str, JsonValue]) -> None:
+def _validate_source(kind: DatasetSourceKind, source: object) -> None:
+    if isinstance(source, BuiltDatasetSource):
+        if kind != "built":
+            raise ContractError("typed dataset source must have kind built")
+        return
+    if not isinstance(source, Mapping):
+        raise ContractError("dataset source must be an object")
     required: dict[DatasetSourceKind, frozenset[str]] = {
         "fixture": frozenset({"kind", "resource"}),
         "huggingface": frozenset({"kind", "repo", "revision", "split"}),
@@ -319,7 +590,8 @@ def _validate_source(kind: DatasetSourceKind, source: Mapping[str, JsonValue]) -
 
 
 def _project_path(plan: DatasetLoadPlan, *, project_root: Path) -> Path:
-    configured = Path(cast(str, plan.source["path"]))
+    source = cast(Mapping[str, JsonValue], plan.source)
+    configured = Path(cast(str, source["path"]))
     if configured.is_absolute():
         raise ContractError(f"{plan.source_kind} dataset path must be relative to the project root")
     path = (project_root / configured).resolve()
@@ -329,8 +601,16 @@ def _project_path(plan: DatasetLoadPlan, *, project_root: Path) -> Path:
 
 
 def _source_rows(plan: DatasetLoadPlan, *, project_root: Path) -> Iterable[Mapping[str, Any]]:
+    if isinstance(plan.source, BuiltDatasetSource):
+        raise ContractError("typed built dataset sources must use the child-process materializer")
+    source = cast(Mapping[str, JsonValue], plan.source)
     if plan.source_kind == "built":
-        builder = cast(Mapping[str, str], plan.source["builder"])
+        warnings.warn(
+            "dataset source builder kind 'python-file' is deprecated; use PythonDatasetBuilder(module:callable)",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        builder = cast(Mapping[str, str], source["builder"])
         path = _safe_project_file(project_root, builder["path"], "built dataset builder")
         namespace = runpy.run_path(str(path))
         factory = namespace.get(builder["callable"])
@@ -341,14 +621,14 @@ def _source_rows(plan: DatasetLoadPlan, *, project_root: Path) -> Iterable[Mappi
             raise ContractError("built dataset builder must return an iterable of row objects")
         return cast(Iterable[Mapping[str, Any]], rows)
     if plan.source_kind == "fixture":
-        resource = cast(str, plan.source["resource"])
+        resource = cast(str, source["resource"])
         package, separator, name = resource.partition(":")
         if not separator or not package or not name or Path(name).is_absolute() or ".." in Path(name).parts:
             raise ContractError("fixture dataset resource must use PACKAGE:RELATIVE_PATH syntax")
         text = resource_files(package).joinpath(name).read_text(encoding="utf-8")
         return _jsonl_rows(text, source=resource)
     if plan.source_kind in _PATH_SOURCE_KINDS:
-        configured = cast(str, plan.source["path"])
+        configured = cast(str, source["path"])
         path = _project_path(plan, project_root=project_root)
         if plan.source_kind in {"jsonl", "nemo"}:
             try:
@@ -360,14 +640,14 @@ def _source_rows(plan: DatasetLoadPlan, *, project_root: Path) -> Iterable[Mappi
         return _load_huggingface_rows(
             "parquet",
             data_files=str(path),
-            split=cast(str, plan.source.get("split", "train")),
+            split=cast(str, source.get("split", "train")),
         )
 
     return _load_huggingface_rows(
-        cast(str, plan.source["repo"]),
-        cast(str | None, plan.source.get("config")),
-        revision=cast(str, plan.source["revision"]),
-        split=cast(str, plan.source["split"]),
+        cast(str, source["repo"]),
+        cast(str | None, source.get("config")),
+        revision=cast(str, source["revision"]),
+        split=cast(str, source["split"]),
     )
 
 
@@ -400,7 +680,9 @@ def _jsonl_rows(text: str, *, source: str) -> tuple[Mapping[str, Any], ...]:
 
 
 def _plan_json(plan: DatasetLoadPlan, *, project_root: Path | None = None) -> str:
-    source: dict[str, JsonValue] = dict(plan.source)
+    if isinstance(plan.source, BuiltDatasetSource):
+        raise ContractError("typed built dataset sources use the typed materialization plan")
+    source: dict[str, JsonValue] = dict(cast(Mapping[str, JsonValue], plan.source))
     if plan.source_kind == "built" and project_root is not None:
         builder = cast(Mapping[str, str], source["builder"])
         inputs = cast(list[str], source["inputs"])
@@ -413,6 +695,17 @@ def _plan_json(plan: DatasetLoadPlan, *, project_root: Path | None = None) -> st
             "id": plan.id,
             "revision": plan.revision,
             "kind": plan.kind,
+            "split": plan.split,
+            "schema_version": plan.schema_version,
+            "provenance": {
+                "upstream": list(plan.provenance.upstream),
+                "transformation": plan.provenance.transformation,
+                "references": list(plan.provenance.references),
+            },
+            "access": {
+                "licenses": list(plan.access.licenses),
+                "classification": plan.access.classification,
+            },
             "source": source,
             "format": plan.format,
         },
@@ -451,6 +744,17 @@ def _read_materialization(
         raise ContractError(f"materialized dataset cache identity mismatch at {manifest_path}")
     if manifest.get("dataset_revision") != plan.dataset_revision:
         raise ContractError(f"materialized dataset cache source revision mismatch at {manifest_path}")
+    build_key_value = manifest.get("build_key", "")
+    if not isinstance(build_key_value, str):
+        raise ContractError(f"materialized dataset cache has invalid build_key at {manifest_path}")
+    if isinstance(plan.source, BuiltDatasetSource):
+        expected_content = plan.source.expected_content_sha256
+        if expected_content is not None and expected_content != actual_digest:
+            raise ContractError(
+                f"dataset {plan.id!r} content digest mismatch: expected {expected_content}, got {actual_digest}"
+            )
+        if not build_key_value:
+            raise ContractError(f"typed dataset cache is missing build_key at {manifest_path}")
     examples = manifest.get("examples")
     if not isinstance(examples, int) or examples < 1:
         raise ContractError(f"materialized dataset cache has invalid example count at {manifest_path}")
@@ -463,6 +767,7 @@ def _read_materialization(
         content_sha256=actual_digest,
         examples=examples,
         created=created,
+        build_key=build_key_value,
     )
 
 

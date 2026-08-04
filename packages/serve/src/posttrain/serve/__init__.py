@@ -18,6 +18,7 @@ from .results import (
     BenchmarkSweepResult,
     InferenceRequestResult,
 )
+from .workloads import WorkloadMaterialization, materialize_workload, verify_workload
 
 __all__ = [
     "BenchmarkCell",
@@ -34,10 +35,13 @@ __all__ = [
     "ProbeResult",
     "ServeLaunchRequest",
     "WorkloadShape",
+    "WorkloadMaterialization",
     "benchmark",
     "generate",
     "generate_concurrently",
     "launch",
+    "materialize_workload",
     "probe",
     "served_model_name",
+    "verify_workload",
 ]

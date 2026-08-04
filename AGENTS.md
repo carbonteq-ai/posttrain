@@ -82,8 +82,11 @@ authority.
   `zapier/AutomationBench`. Keep the Python compatibility declaration and any
   generally reusable benchmark fixes there; keep environment selection,
   category budgets, GRPO policy, and trace presentation in this repository.
-  Pin every accepted fork change by full commit in
-  `environments/automationbench_v1/pyproject.toml` and both lockfiles.
+  The Verifiers adapter is maintained in the external
+  `carbonteq-ai/verifiers-environments` repository under
+  `environments/automationbench_v1`; pin its full repository commit in the
+  framework catalogs, dependency constraints, and lockfiles. Do not recreate
+  the adapter under this framework repository.
 - `../verl-upstream` is the current veRL candidate-fork checkout. Generic
   trainer, FSDP, rollout-lifecycle, and model-runtime fixes belong there;
   Qwen-only qualification policy, environment selections, and run evidence

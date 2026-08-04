@@ -247,11 +247,14 @@ def test_publisher_checks_smokes_pushes_verifies_and_reuses_receipt(
     assert len(build_calls) == 1
     build = build_calls[0]
     assert build[-1] == "posttrain-job"
+    assert f"posttrain-job.contexts.job-context={request.staged_context}" in build
     smoke_calls = [
         call for call in gateway.calls if call and call[-1] == "posttrain-job-smoke" and "--call" not in call
     ]
     assert len(smoke_calls) == 1
     assert gateway.calls.index(smoke_calls[0]) < gateway.calls.index(build)
+    assert "--no-cache" in smoke_calls[0]
+    assert "--no-cache" not in build
     assert (
         "posttrain-job.output=type=image,push=true,compression=zstd,"
         "compression-level=3,force-compression=true,oci-mediatypes=true"

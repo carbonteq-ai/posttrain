@@ -446,6 +446,27 @@ def test_variant_subset_preserves_canonical_order() -> None:
     assert _normalize_variants(["transform", "eval"]) == ("eval", "transform")
 
 
+def test_public_ci_trackio_mirror_matches_locked_distribution() -> None:
+    root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+    lock = tomllib.loads((root / "uv.lock").read_text(encoding="utf-8"))
+    trackio = next(package for package in lock["package"] if package["name"] == "carbonteq-trackio")
+    wheel = next(item for item in trackio["wheels"] if item["url"].endswith(".whl"))
+    wheel_sha256 = wheel["hash"].removeprefix("sha256:")
+    version = trackio["version"]
+    filename = f"carbonteq_trackio-{version}-py3-none-any.whl"
+    workflow = (root / ".github/workflows/quality.yml").read_text(encoding="utf-8")
+
+    assert (
+        "CARBONTEQ_TRACKIO_WHEEL_URL: "
+        f"https://github.com/carbonteq-ai/trackio/releases/download/carbonteq-v{version}/{filename}"
+    ) in workflow
+    assert f"CARBONTEQ_TRACKIO_WHEEL_SHA256: {wheel_sha256}" in workflow
+    assert f"POSTTRAIN_CONSUMER_EXTRA_WHEELS: /tmp/{filename}" in workflow
+    assert "uv lock --check" not in workflow
+    assert workflow.count("uv sync --frozen") == 4
+    assert workflow.count("--no-install-package carbonteq-trackio") == 4
+
+
 def test_release_can_read_prior_manifest_while_adding_a_variant(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

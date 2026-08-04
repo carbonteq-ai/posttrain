@@ -1,0 +1,10 @@
+{
+  "failed_action": "registry:consumer",
+  "failed_event_count": 1,
+  "first_manifest_absent_before_resume": true,
+  "purge_id": "purge-f1d486e43adaeabd",
+  "qualified_at": "2026-08-02T11:37:13.856952+00:00",
+  "same_plan_resumed": true,
+  "schema": "posttrain.cross-plane-purge-interruption.v1",
+  "second_manifest_present_before_resume": true
+}

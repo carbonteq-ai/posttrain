@@ -1,0 +1,46 @@
+project_id: posttrain-lab
+work_package_id: eval/qwen3.5-2b/environment-library/mmlu-pro
+stage: qualify
+description: Qualify the published MMLU-Pro v1 environment through the managed evaluation path.
+recipe:
+  type: inline
+  id: recipes/qwen3.5-2b-environment-library-mmlu-pro@1
+  revision: "1"
+  stage: qualify
+  seats:
+    model: model
+    evaluation_inference: inference
+    target: target
+    evaluation_plan: evaluation
+    environment: environment
+  jobs:
+    - id: evaluate
+      kind: eval.general
+      definition: eval/verifiers-managed-general@1
+  expected_artifacts:
+    - native evaluation result
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/qwen3.5-2b@bf16
+  evaluation_inference:
+    type: ref
+    family: inference
+    id: inference/qwen3.5-2b-vllm-eval@1
+  target:
+    type: ref
+    family: target
+    id: targets/local-cuda-8gb
+  evaluation_plan:
+    type: ref
+    family: evaluation
+    id: environment-library-qualification-v1
+  environment:
+    type: ref
+    family: environment
+    id: mmlu-pro-qualification
+enabled_optional_jobs: []
+metadata:
+  question: Does MMLU-Pro preserve category, five-shot prompt, parse, and source revision evidence?
+  labels: [qualification, evaluation, environment-library, mmlu-pro]

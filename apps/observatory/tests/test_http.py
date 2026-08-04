@@ -49,6 +49,9 @@ def test_run_list_view_metrics_semantics_and_traces_share_one_api() -> None:
         evaluation = next(run for run in runs if run["run"]["job_kind"] == "eval.domain")
         evaluation_view = client.get(f"/api/v1/runs/{evaluation['run_key']}/view").json()
         assert evaluation_view["view"]["trace_evaluation_enabled"] is True
+        comparison_key = client.get(f"/api/v1/runs/{evaluation['run_key']}/comparison-key").json()
+        assert comparison_key["job_kind"] == "eval.domain"
+        assert comparison_key["comparison_key"]
         traces = client.get(f"/api/v1/runs/{evaluation['run_key']}/traces-evaluation").json()
         assert traces["included"] == 12
 
@@ -60,11 +63,15 @@ def test_openapi_contains_bounded_product_routes() -> None:
     assert "/api/v1/runs/{run_key}/system-metrics" in schema["paths"]
     assert "/api/v1/runs/{run_key}/semantic-summary" in schema["paths"]
     assert "/api/v1/runs/{run_key}/traces-evaluation" in schema["paths"]
+    assert "/api/v1/runs/{run_key}/comparison-key" in schema["paths"]
     assert "/api/v1/serving-capacity/work-packages/{work_package_id}" in schema["paths"]
     assert set(schema["paths"]["/api/v1/sources/refresh"]) == {"post"}
     schemas = schema["components"]["schemas"]
     assert "EvidenceCompleteness" in schemas
     assert schemas["RunView"]["properties"]["completeness"] == {"$ref": "#/components/schemas/EvidenceCompleteness"}
+    assert schemas["TraceEvaluationView"]["properties"]["performance"] == {
+        "$ref": "#/components/schemas/EvaluationPerformance"
+    }
     assert schemas["JsonValue"] == {
         "description": "Any JSON-compatible value.",
         "title": "JsonValue",

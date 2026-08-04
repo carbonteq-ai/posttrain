@@ -191,34 +191,160 @@ export type Artifact = {
 export type TraceSummary = {
   external_id: string;
   trace_type: string;
+  prompt_preview: string | null;
   task: string | null;
+  task_label: string | null;
+  task_metadata: {
+    key: string;
+    label: string;
+    description: string | null;
+    category: string | null;
+    instruction_ids: string[];
+    instruction_families: string[];
+    facets: Array<{
+      key: string;
+      dimension: string;
+      dimension_label: string;
+      value: string;
+      label: string;
+    }>;
+    dataset: string | null;
+    dataset_revision: string | null;
+    split: string | null;
+    seed: number | null;
+    index: number | null;
+  } | null;
   reward: number | null;
   success: boolean | null;
+  outcome: 'pass' | 'review' | 'scored' | 'error' | 'truncated' | 'unknown';
   truncated: boolean;
   error: string | null;
   tool_calls: number | null;
+  model_calls: number | null;
+  input_tokens: number | null;
+  completion_tokens: number | null;
   latency_ms: number | null;
   tokens: number | null;
+  response_tokens: number | null;
+  response_chars: number | null;
+  thinking_tokens: number | null;
+  thinking_chars: number | null;
+  reward_components: Record<string, number>;
+  native_metrics: Record<string, number>;
+  metrics: Record<string, number>;
 };
 
 export type TraceEvaluation = {
   state: 'complete' | 'partial' | 'unavailable';
+  metadata: {
+    key: string;
+    label: string;
+    category: string | null;
+    package: string | null;
+    dataset: string | null;
+    dataset_revision: string | null;
+    split: string | null;
+    source_revision: string | null;
+    primary_metric: string | null;
+    primary_metric_label: string | null;
+    pass_rate_metric: string | null;
+    pass_rate_basis: string | null;
+    success_definition: {
+      id: string;
+      label: string;
+      namespace: 'reward' | 'metric';
+      signal: string;
+      operator: 'eq' | 'gt' | 'gte' | 'lt' | 'lte' | 'between';
+      value: number;
+      upper: number | null;
+      tolerance: number;
+      missing: 'error' | 'exclude';
+    } | null;
+    facet_specs: Array<{
+      field: string;
+      dimension: string;
+      label: string;
+      transform: 'identity' | 'prefix_before_colon';
+    }>;
+    breakdown_specs: Array<{
+      id: string;
+      label: string;
+      dimensions: [string, string];
+      presentation: 'matrix';
+      multi_value: 'reject' | 'cross';
+      missing: 'exclude' | 'bucket';
+    }>;
+    metrics: Array<{ name: string; label: string; role: 'primary_reward' | 'reward_component' | 'diagnostic' | 'success' }>;
+  } | null;
   scanned: number;
   expected: number | null;
   included: number;
+  scored: number;
   mean_reward: number | null;
   success_rate: number | null;
+  passed?: number;
+  pass_scored?: number;
   failures: number;
   truncated: number;
   slices: Array<{
     key: string;
+    label: string;
+    description: string | null;
+    metadata: TraceSummary['task_metadata'];
     count: number;
     mean_reward: number | null;
     success_rate: number | null;
   }>;
+  facets: Array<{
+    key: string;
+    label: string;
+    dimension: string;
+    dimension_label: string;
+    count: number;
+    mean_reward: number | null;
+    success_rate: number | null;
+  }>;
+  breakdowns: Array<{
+    id: string;
+    label: string;
+    dimensions: [string, string];
+    dimension_labels: [string, string];
+    presentation: 'matrix';
+    groups: Array<{
+      key: string;
+      label: string;
+      values: Array<{
+        dimension: string;
+        dimension_label: string;
+        value: string;
+        label: string;
+      }>;
+      count: number;
+      scored: number;
+      failures: number;
+      truncated: number;
+      mean_reward: number | null;
+      success_rate: number | null;
+    }>;
+    excluded: number;
+  }>;
+  performance?: {
+    latency_ms: EvaluationDistribution | null;
+    completion_tokens: EvaluationDistribution | null;
+    thinking_tokens: EvaluationDistribution | null;
+    tool_calls: EvaluationDistribution | null;
+  };
   traces: TraceSummary[];
   next_cursor: string | null;
   live: boolean;
+};
+
+export type EvaluationDistribution = {
+  samples: number;
+  mean: number;
+  p50: number;
+  p95: number;
+  maximum: number;
 };
 
 export type TraceDetail = {
@@ -229,6 +355,23 @@ export type TraceDetail = {
   raw: Record<string, unknown>;
   projection_warning: string | null;
 };
+
+export type RunComparison = {
+  job_kind: string | null;
+  state: 'comparable' | 'incomparable';
+  columns: string[];
+  rows: Array<{
+    locator: RunItem['locator'] | null;
+    run_id: string;
+    values: Record<string, unknown>;
+    states: Record<string, string>;
+    context: Record<string, unknown>;
+  }>;
+  reason: string | null;
+  basis: string[];
+};
+
+export type RunComparisonKey = { job_kind: string | null; comparison_key: string | null };
 
 export type RunView = {
   requested_mode: 'auto' | 'job' | 'generic';
@@ -283,6 +426,7 @@ export type RunView = {
       returned_points: number;
     } | null;
     evaluation?: TraceEvaluation;
+    comparison_key?: string;
     question?: string;
     eligibility?: {
       state: 'eligible' | 'below_capacity' | 'latency_constrained' | 'reliability_constrained' | 'context_failed' | 'unsaturated' | 'insufficient_evidence';
@@ -506,11 +650,18 @@ export const api = {
     metrics.forEach((metric) => query.append('metric', metric));
     return request<RunView>(`/api/v1/runs/${key}/view?${query}`);
   },
+  comparisonKey: (key: string) => request<RunComparisonKey>(`/api/v1/runs/${key}/comparison-key`),
   system: (key: string) => request<SystemMetrics>(`/api/v1/runs/${key}/system-metrics`),
   evaluation: (key: string) =>
     request<TraceEvaluation>(`/api/v1/runs/${key}/traces-evaluation`),
   trace: (key: string, traceId: string) =>
     request<TraceDetail>(`/api/v1/runs/${key}/traces/${encodeURIComponent(traceId)}`),
+  compare: (runKeys: string[]) =>
+    request<RunComparison>('/api/v1/runs/compare', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ run_keys: runKeys }),
+    }),
   summarize: (key: string) =>
     request<SemanticResult>(`/api/v1/runs/${key}/semantic-summary`, {
       method: 'POST',

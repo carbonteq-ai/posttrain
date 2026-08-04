@@ -111,8 +111,8 @@ flowchart TB
 | Package | Public role | Must not own |
 | --- | --- | --- |
 | `packages/common` | Cross-cutting identities, artifact refs, execution/observation protocols, statuses | Train/eval/serve behavior, backend options, env semantics, report math |
-| `packages/catalog` | Versioned framework base catalog resources, project discovery, manifest-controlled overlay loading | Capability execution, project decisions, runtime artifact lineage |
-| `packages/data` | Dataset contracts, prepare/materialize, format import/export, trace→SFT projection | Training loops, tokenization tied to one model, serving, Trackio requirement |
+| `packages/catalog` | Versioned framework base catalog resources, project discovery, manifest-controlled YAML/Python overlay loading | Capability execution, project decisions, runtime artifact lineage, builder execution |
+| `packages/data` | Dataset contracts, typed source/build plans, prepare/materialize, format import/export, trace→SFT projection | Training loops, tokenization tied to one model, serving semantics, Trackio requirement |
 | `packages/serve` | Inference bindings as runnable operations: benchmark, smoke; representative and controlled capacity evidence | Training, Verifiers scoring, project thresholds or eligibility |
 | `packages/eval` | Evaluation plans as runnable operations (`general`, `domain`); Verifiers adapter retains native traces | Trainer APIs, vLLM engine ownership, promotion policy, parallel score schema |
 | `packages/train` | Training operations: SFT, DPO, GRPO, on-policy distillation (+ transform); backend-neutral rollout contracts and private trainer adapters | Environment task ownership, eval suite authorship, Trackio UI |
@@ -229,7 +229,7 @@ secrets.
 | Capability package | New operation or adapter behind stable API | TRL GRPO adapter, vLLM binding helper |
 | Standard jobs (`posttrain.jobs`) | Stable seats mapped to capability operations | `train/trl-grpo@1` |
 | Framework-shared catalog | Reusable variants, bindings, plans, recipes, baselines | `models/qwen-2b@bf16`, `inference/…`, `evals/general-compact@1` |
-| Published environment | Verifiers env package release | `automationbench_v1` |
+| Published environment | External Verifiers env package release | `automationbench-v1` from `carbonteq-ai/verifiers-environments` |
 | Project | Work packages, bindings, thresholds, accept/revise/reject | `projects/background-memory-agent/...` |
 | Project entry (optional) | Extra definitions or unshipped factories | `configure(runtime)` hook |
 | Job runtime | Standard definitions, observer, workspace, scratch | Trackio-backed project execution |
@@ -403,6 +403,15 @@ Supervised format names are the adapter literals `auto`, `messages`,
 literals already exposed by `posttrain.data` (`auto`, `trl`, `tulu`,
 `nemo-ranked`).
 
+Catalog layer schema version 2 may list ordered YAML files and explicit Python
+providers. A provider returns complete typed entries and is loaded only for
+catalog composition; it does not download data or execute a builder. A custom
+dataset builder is an importable module-level reference that runs during
+materialization in the selected project environment. The materialization
+manifest records its code snapshot, declared inputs, build key, and canonical
+content digest. See [Dataset authoring and materialization](./dataset-management.md)
+for the package layout and migration rules.
+
 Model serving is authored as **two catalog families** (plus target), not one
 profile:
 
@@ -448,6 +457,7 @@ Project DX:
 | New tracking backend | Implement writer + reader contracts and conformance suite | Capability packages and job views |
 | New observability surface | Consume normalized job views | Tracking backends and telemetry definitions |
 | New project | Work packages + bindings + decisions only | Prefer existing recipes/catalog |
+| New processed dataset | Owning package `catalog.py`, `datasets/<name>/definition.py`, and `build.py` | Root `scripts/` or `tools/` behavior |
 
 For `train.distill`, the reusable boundary is deliberate: Verifiers supplies a
 fresh exact-token environment trajectory; `packages/train` validates and

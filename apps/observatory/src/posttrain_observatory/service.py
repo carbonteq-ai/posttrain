@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hashlib
 import json
 import math
 from collections import defaultdict
 from collections.abc import Mapping
 from statistics import fmean
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from posttrain.common import JsonValue
 from posttrain.tracking import (
@@ -22,12 +23,18 @@ from posttrain.tracking import (
 )
 
 from .discovery import TrackioSourceDiscovery
+from .evaluation_contracts import read_evaluation_contract
 from .execution_targets import execution_target_capacity, execution_target_contexts
 from .models import (
     BackendRuntimeSummary,
     ChartView,
     ComparisonRow,
+    EvaluationBreakdownSpec,
+    EvaluationFacetSpec,
+    EvaluationMetadata,
+    EvaluationMetricDefinition,
     EvaluationRunView,
+    EvaluationSuccessDefinition,
     EvidenceCompleteness,
     EvidenceRequirement,
     GenericRunView,
@@ -97,6 +104,344 @@ def _reduce(series: MetricSeries, reducer: str) -> float | None:
         return reducers[reducer]()
     except KeyError as error:
         raise ValueError(f"unsupported telemetry reducer: {reducer}") from error
+
+
+def _selection_identity(value: object) -> tuple[str | None, str | None]:
+    if not isinstance(value, Mapping):
+        return None, None
+    selection_id = value.get("selection_id")
+    revision = value.get("revision")
+    return (
+        selection_id if isinstance(selection_id, str) else None,
+        revision if isinstance(revision, str) else None,
+    )
+
+
+def _evaluation_population_identity(view: EvaluationRunView | RunView) -> dict[str, str]:
+    """Return the immutable population identity required for evaluation comparison."""
+
+    inputs = view.resolved_inputs
+    contract = read_evaluation_contract(inputs)
+    environment = inputs.get("environment")
+    resolved = environment.get("resolved") if isinstance(environment, Mapping) else None
+    activation = resolved.get("activation") if isinstance(resolved, Mapping) else None
+    config = activation.get("config") if isinstance(activation, Mapping) else None
+    taskset = config.get("taskset") if isinstance(config, Mapping) else None
+    if contract.state == "versioned":
+        contract_taskset = contract.population.get("taskset")
+        if isinstance(contract_taskset, Mapping):
+            taskset = contract_taskset
+        manifest = contract.signal_manifest
+        reward_components = manifest.get("reward_components")
+        observation = manifest.get("observation")
+        aggregation = contract.plan.get("aggregation")
+        comparison = contract.plan.get("comparison")
+        success = contract.plan.get("success")
+    else:
+        reward_components = resolved.get("reward_components") if isinstance(resolved, Mapping) else None
+        observation = resolved.get("observation") if isinstance(resolved, Mapping) else None
+        aggregation = {}
+        comparison = {}
+        success = {}
+    taskset_json = json.dumps(taskset or {}, sort_keys=True, separators=(",", ":"))
+    reward_json = json.dumps(reward_components or [], sort_keys=True, separators=(",", ":"))
+    observation_json = json.dumps(observation or {}, sort_keys=True, separators=(",", ":"))
+    source_revision = (
+        contract.environment.get("source_revision")
+        if contract.state == "versioned"
+        else (resolved.get("source_revision") if isinstance(resolved, Mapping) else None)
+    )
+    package = (
+        contract.environment.get("package")
+        if contract.state == "versioned"
+        else (resolved.get("package") if isinstance(resolved, Mapping) else None)
+    )
+    return {
+        "job_kind": view.run.job_kind,
+        # The plan and environment selection IDs are orchestration wrappers and
+        # may differ between model qualification packages. Their immutable
+        # taskset, source revision, and native metric schema are the population.
+        "environment_source_revision": source_revision if isinstance(source_revision, str) else "missing",
+        "environment_package": package if isinstance(package, str) else "missing",
+        "taskset": taskset_json,
+        "reward_components": reward_json,
+        # Score and facet semantics are part of the logical evaluation
+        # population.  Runs cannot be compared when they interpret the same
+        # raw trace values through different environment declarations.
+        "observation": observation_json,
+        "aggregation": json.dumps(aggregation or {}, sort_keys=True, separators=(",", ":")),
+        "comparison": json.dumps(comparison or {}, sort_keys=True, separators=(",", ":")),
+        "success": json.dumps(success or {}, sort_keys=True, separators=(",", ":")),
+        "evaluation_contract": json.dumps(
+            {
+                "id": contract.contract_id,
+                "version": contract.contract_version,
+                "state": contract.state,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
+    }
+
+
+def _evaluation_population_key(view: EvaluationRunView | RunView) -> str:
+    identity = json.dumps(_evaluation_population_identity(view), sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(identity.encode()).hexdigest()
+
+
+def _humanize_name(value: str) -> str:
+    label = " ".join(part.capitalize() for part in value.replace("_", " ").replace("-", " ").split())
+    for source, target in (("Ifeval", "IFEval"), ("Gsm8k", "GSM8K"), ("Mmlu", "MMLU")):
+        label = label.replace(source, target)
+    return label
+
+
+def _string_value(value: object) -> str | None:
+    return value if isinstance(value, str) else None
+
+
+def _evaluation_success(value: object) -> EvaluationSuccessDefinition | None:
+    if not isinstance(value, Mapping):
+        return None
+    source = value.get("source")
+    predicate = value.get("predicate")
+    if not isinstance(source, Mapping) or not isinstance(predicate, Mapping):
+        return None
+    success_id = _string_value(value.get("id"))
+    label = _string_value(value.get("label"))
+    namespace = _string_value(source.get("namespace"))
+    signal = _string_value(source.get("name"))
+    operator = _string_value(predicate.get("operator"))
+    threshold = predicate.get("value")
+    upper = predicate.get("upper")
+    tolerance = predicate.get("tolerance", 0.0)
+    missing = _string_value(value.get("missing")) or "error"
+    if (
+        success_id is None
+        or label is None
+        or namespace not in {"reward", "metric"}
+        or signal is None
+        or operator not in {"eq", "gt", "gte", "lt", "lte", "between"}
+        or not isinstance(threshold, int | float)
+        or isinstance(threshold, bool)
+        or (upper is not None and (not isinstance(upper, int | float) or isinstance(upper, bool)))
+        or not isinstance(tolerance, int | float)
+        or isinstance(tolerance, bool)
+        or missing not in {"error", "exclude"}
+    ):
+        return None
+    return EvaluationSuccessDefinition(
+        id=success_id,
+        label=label,
+        namespace=cast(Literal["reward", "metric"], namespace),
+        signal=signal,
+        operator=cast(Literal["eq", "gt", "gte", "lt", "lte", "between"], operator),
+        value=float(threshold),
+        upper=float(upper) if upper is not None else None,
+        tolerance=float(tolerance),
+        missing=cast(Literal["error", "exclude"], missing),
+    )
+
+
+def _evaluation_metadata(inputs: Mapping[str, JsonValue]) -> EvaluationMetadata | None:
+    contract = read_evaluation_contract(inputs)
+    environment = inputs.get("environment")
+    resolved = environment.get("resolved") if isinstance(environment, Mapping) else None
+    if not isinstance(resolved, Mapping):
+        return None
+    taskset = resolved.get("activation")
+    config = taskset.get("config") if isinstance(taskset, Mapping) else None
+    taskset = config.get("taskset") if isinstance(config, Mapping) else None
+    taskset = taskset if isinstance(taskset, Mapping) else {}
+    contract_environment = contract.environment
+    contract_population = contract.population
+    contract_taskset = contract_population.get("taskset")
+    contract_dataset = contract_population.get("dataset")
+    if contract.state == "versioned" and isinstance(contract_taskset, Mapping):
+        taskset = contract_taskset
+    package = _string_value(contract_environment.get("package")) or _string_value(resolved.get("package"))
+    category = _string_value(contract_environment.get("category")) or _string_value(resolved.get("category"))
+    dataset_identity = contract_dataset if isinstance(contract_dataset, Mapping) else {}
+    dataset = (
+        _string_value(dataset_identity.get("id"))
+        or _string_value(taskset.get("dataset_repo"))
+        or _string_value(taskset.get("repository"))
+    )
+    dataset_revision = (
+        _string_value(dataset_identity.get("revision"))
+        or _string_value(taskset.get("dataset_revision"))
+        or _string_value(taskset.get("revision"))
+    )
+    split = _string_value(dataset_identity.get("split")) or _string_value(taskset.get("split"))
+    source_revision = _string_value(contract_environment.get("source_revision")) or _string_value(
+        resolved.get("source_revision")
+    )
+    if contract.state == "versioned":
+        manifest = contract.signal_manifest
+        reward_components = manifest.get("reward_components")
+        observation = manifest.get("observation")
+    elif contract.state == "legacy":
+        reward_components = resolved.get("reward_components")
+        observation = resolved.get("observation")
+    else:
+        reward_components = None
+        observation = None
+    rewards = (
+        tuple(value for value in reward_components if isinstance(value, str))
+        if isinstance(reward_components, list)
+        else ()
+    )
+    observation = observation if isinstance(observation, Mapping) else {}
+    configured_primary = _string_value(observation.get("primary_metric"))
+    configured_primary_label = _string_value(observation.get("primary_metric_label"))
+    configured_pass_rate = _string_value(observation.get("pass_rate_metric"))
+    success_definition = (
+        _evaluation_success(contract.plan.get("success"))
+        if contract.contract_version is not None and contract.contract_version >= 2
+        else None
+    )
+    raw_facets = observation.get("facets")
+    facet_specs = (
+        tuple(
+            EvaluationFacetSpec(
+                field=field,
+                dimension=dimension,
+                label=label,
+                transform=cast(
+                    Literal["identity", "prefix_before_colon"],
+                    transform if transform in {"identity", "prefix_before_colon"} else "identity",
+                ),
+            )
+            for item in raw_facets
+            if isinstance(item, Mapping)
+            if (field := _string_value(item.get("field"))) is not None
+            if (dimension := _string_value(item.get("dimension"))) is not None
+            if (label := _string_value(item.get("label"))) is not None
+            for transform in [_string_value(item.get("transform")) or "identity"]
+        )
+        if isinstance(raw_facets, list)
+        else ()
+    )
+    raw_breakdowns = contract.plan.get("breakdowns") if contract.contract_version == 3 else None
+    breakdown_specs = (
+        tuple(
+            EvaluationBreakdownSpec(
+                id=breakdown_id,
+                label=label,
+                dimensions=cast(tuple[str, str], tuple(dimensions)),
+                presentation="matrix",
+                multi_value=cast(
+                    Literal["reject", "cross"],
+                    multi_value if multi_value in {"reject", "cross"} else "reject",
+                ),
+                missing=cast(
+                    Literal["exclude", "bucket"],
+                    missing if missing in {"exclude", "bucket"} else "exclude",
+                ),
+            )
+            for item in raw_breakdowns
+            if isinstance(item, Mapping)
+            if (breakdown_id := _string_value(item.get("id"))) is not None
+            if (label := _string_value(item.get("label"))) is not None
+            if isinstance((dimensions := item.get("dimensions")), list)
+            and len(dimensions) == 2
+            and all(isinstance(dimension, str) and dimension for dimension in dimensions)
+            for multi_value in [_string_value(item.get("multi_value")) or "reject"]
+            for missing in [_string_value(item.get("missing")) or "exclude"]
+        )
+        if isinstance(raw_breakdowns, list)
+        else ()
+    )
+    primary = configured_primary or (rewards[0] if rewards else None)
+    # A pass rate is a verifier claim, not a property Observatory may infer
+    # from a continuous reward or a transport-level completion flag.
+    pass_rate_metric = success_definition.signal if success_definition is not None else configured_pass_rate
+    metric_names = tuple(
+        dict.fromkeys((*rewards, *(value for value in (configured_primary, pass_rate_metric) if value)))
+    )
+    metrics = tuple(
+        EvaluationMetricDefinition(
+            name=name,
+            label=(
+                success_definition.label
+                if success_definition is not None and name == success_definition.signal
+                else _humanize_name(name)
+            ),
+            role=(
+                "primary_reward" if name == primary else "success" if name == pass_rate_metric else "reward_component"
+            ),
+        )
+        for name in metric_names
+    )
+    selection_id, _ = _selection_identity(environment)
+    key = package or selection_id or "evaluation"
+    return EvaluationMetadata(
+        key=key,
+        label=_humanize_name(package or selection_id or "evaluation"),
+        category=category,
+        package=package,
+        dataset=dataset,
+        dataset_revision=dataset_revision,
+        split=split,
+        source_revision=source_revision,
+        primary_metric=primary,
+        primary_metric_label=configured_primary_label or (_humanize_name(primary) if primary else None),
+        pass_rate_metric=pass_rate_metric,
+        pass_rate_basis=(
+            f"{success_definition.namespace}.{success_definition.signal} "
+            f"{success_definition.operator} {success_definition.value:g}"
+            if success_definition is not None
+            else "configured binary metric"
+            if configured_pass_rate
+            else None
+        ),
+        success_definition=success_definition,
+        contract_id=contract.contract_id,
+        contract_version=contract.contract_version,
+        contract_state=contract.state,
+        facet_specs=facet_specs,
+        breakdown_specs=breakdown_specs,
+        metrics=metrics,
+    )
+
+
+def _evaluation_expected_traces(
+    inputs: Mapping[str, JsonValue],
+    *,
+    fallback: int | None,
+) -> int | None:
+    """Return the frozen population size instead of a lagging live trace count."""
+
+    contract = read_evaluation_contract(inputs)
+    if contract.state == "versioned":
+        num_tasks = contract.population.get("num_tasks")
+        num_rollouts = contract.population.get("num_rollouts", 1)
+        if (
+            isinstance(num_tasks, int)
+            and not isinstance(num_tasks, bool)
+            and num_tasks > 0
+            and isinstance(num_rollouts, int)
+            and not isinstance(num_rollouts, bool)
+            and num_rollouts > 0
+        ):
+            return num_tasks * num_rollouts
+    return fallback if fallback is not None and fallback > 0 else None
+
+
+def _comparison_context(view: EvaluationRunView | RunView) -> dict[str, JsonValue]:
+    inputs = view.resolved_inputs
+    model_id, model_revision = _selection_identity(inputs.get("model"))
+    inference = inputs.get("evaluation_inference") or inputs.get("inference")
+    inference_id, inference_revision = _selection_identity(inference)
+    environment_id, environment_revision = _selection_identity(inputs.get("environment"))
+    return {
+        "model": model_id,
+        "model_revision": model_revision,
+        "inference": inference_id,
+        "inference_revision": inference_revision,
+        "environment": environment_id,
+        "environment_revision": environment_revision,
+    }
 
 
 def _logical_metric_series(series: MetricSeries) -> MetricSeries:
@@ -607,7 +952,15 @@ class ObservatoryService:
         else:
             metric_view = await self._metric_job_view(locator, definition)
             if detail.summary.job_kind.startswith("eval."):
-                evaluation = await trace_evaluation_view(source, locator.run_id, expected=detail.trace_count or None)
+                evaluation = await trace_evaluation_view(
+                    source,
+                    locator.run_id,
+                    expected=_evaluation_expected_traces(
+                        metric_view.resolved_inputs,
+                        fallback=detail.trace_count or None,
+                    ),
+                    metadata=_evaluation_metadata(metric_view.resolved_inputs),
+                )
                 view = EvaluationRunView(
                     schema_version=metric_view.schema_version,
                     locator=locator,
@@ -618,6 +971,7 @@ class ObservatoryService:
                     completeness=metric_view.completeness,
                     alerts=metric_view.alerts,
                     evaluation=evaluation,
+                    comparison_key=_evaluation_population_key(metric_view),
                     artifacts=metric_view.artifacts,
                     execution_targets=metric_view.execution_targets,
                     resolved_inputs=metric_view.resolved_inputs,
@@ -1028,6 +1382,42 @@ class ObservatoryService:
                 rows=(),
                 reason="runs use different job kinds or view schema versions",
             )
+        evaluation_views = tuple(view for view in job_views if isinstance(view, EvaluationRunView))
+        if evaluation_views and len(evaluation_views) != len(job_views):
+            return RunComparison(
+                state="incomparable",
+                columns=(),
+                rows=(),
+                reason="evaluation runs cannot be compared with non-evaluation job views",
+            )
+        basis: tuple[str, ...] = ()
+        if evaluation_views:
+            identities = {_evaluation_population_key(view) for view in evaluation_views}
+            if len(identities) != 1:
+                return RunComparison(
+                    job_kind=next(iter(job_kinds)),
+                    state="incomparable",
+                    columns=(),
+                    rows=(),
+                    reason=(
+                        "runs use different evaluation populations; dataset/task identity, split, seed, "
+                        "environment source, and native metric schema must match"
+                    ),
+                    basis=(
+                        "job kind",
+                        "dataset/task selection",
+                        "split/subset/seed",
+                        "environment source",
+                        "native metric schema",
+                    ),
+                )
+            basis = (
+                "job kind",
+                "dataset/task selection",
+                "split/subset/seed",
+                "environment source",
+                "native metric schema",
+            )
         job_kind = next(iter(job_kinds))
         definition = self.get_job_telemetry_schema(job_kind)
         rows = []
@@ -1039,6 +1429,7 @@ class ObservatoryService:
                     run_id=view.run.run_id,
                     values={key: values[key].value for key in definition.comparison_keys},
                     states={key: values[key].state for key in definition.comparison_keys},
+                    context=(_comparison_context(view) if isinstance(view, EvaluationRunView) else {}),
                 )
             )
         return RunComparison(
@@ -1046,17 +1437,58 @@ class ObservatoryService:
             state="comparable",
             columns=definition.comparison_keys,
             rows=tuple(rows),
+            basis=basis,
         )
 
     async def get_trace_evaluation_view(self, run: str | RunLocator) -> TraceEvaluationView:
         locator = self._locator(run)
         source = self.registry.resolve(locator)
         detail = await source.get_run(locator.run_id)
-        return await trace_evaluation_view(source, locator.run_id, expected=detail.trace_count or None)
+        definition = self._definitions.get(detail.summary.job_kind)
+        trace_type = (
+            definition.trace_sections[0].trace_type
+            if definition is not None and definition.trace_sections
+            else "verifiers"
+        )
+        return await trace_evaluation_view(
+            source,
+            locator.run_id,
+            expected=_evaluation_expected_traces(
+                detail.resolved_inputs,
+                fallback=detail.trace_count or None,
+            ),
+            trace_type=trace_type,
+            metadata=_evaluation_metadata(detail.resolved_inputs),
+        )
+
+    async def get_run_comparison_key(self, run: str | RunLocator) -> tuple[str, str] | None:
+        """Return the lightweight population key used to populate Compare."""
+
+        locator = self._locator(run)
+        source = self.registry.resolve(locator)
+        detail = await source.get_run(locator.run_id)
+        definition = self._definitions.get(detail.summary.job_kind)
+        if definition is None or not detail.summary.job_kind.startswith("eval."):
+            return None
+        metric_view = await self._metric_job_view(locator, definition)
+        return detail.summary.job_kind, _evaluation_population_key(metric_view)
 
     async def get_trace_detail(self, run: str | RunLocator, trace_id: str) -> TraceDetail:
         locator = self._locator(run)
-        return await load_trace_detail(self.registry.resolve(locator), locator.run_id, trace_id, self._redaction)
+        source = self.registry.resolve(locator)
+        run_detail = await source.get_run(locator.run_id)
+        metadata = (
+            _evaluation_metadata(run_detail.resolved_inputs)
+            if run_detail.summary.job_kind.startswith("eval.")
+            else None
+        )
+        return await load_trace_detail(
+            source,
+            locator.run_id,
+            trace_id,
+            self._redaction,
+            metadata=metadata,
+        )
 
     async def get_work_package_view(
         self,

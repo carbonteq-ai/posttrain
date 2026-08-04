@@ -26,8 +26,11 @@ from posttrain.eval import (
     EvaluateRequest,
     EvaluationBudget,
     EvaluationEndpoint,
+    EvaluationNumericPredicate,
     EvaluationPlan,
     EvaluationPopulation,
+    EvaluationSignalRef,
+    EvaluationSuccessDefinition,
     ExternalInferenceService,
     PythonFactoryActivation,
     RemoteEvaluationBinding,
@@ -96,6 +99,14 @@ def request(*, context_window: int = 8_192) -> EvaluateRequest:
                 num_tasks=2,
             ),
         ),
+        success={
+            "math": EvaluationSuccessDefinition(
+                "correct",
+                "Correct",
+                EvaluationSignalRef("reward", "reward"),
+                EvaluationNumericPredicate("eq", 1.0),
+            )
+        },
     )
     target = ExecutionTarget("targets/local-cuda-8gb", "1", "nvidia-cuda", 8)
     inference = InferenceBinding(
@@ -148,6 +159,32 @@ def canonical_request() -> EvaluateRequest:
     return request()
 
 
+def test_local_evaluation_rejects_missing_environment_inference_capability() -> None:
+    evaluation = request()
+    environment = replace(
+        evaluation.environment,
+        required_inference_capabilities=("tool-calling",),
+    )
+    plan = replace(evaluation.plan, environments=(environment,))
+
+    with pytest.raises(ValueError, match="missing environment capabilities: tool-calling"):
+        replace(evaluation, plan=plan)
+
+
+def test_local_evaluation_accepts_declared_environment_inference_capability() -> None:
+    evaluation = request()
+    environment = replace(
+        evaluation.environment,
+        required_inference_capabilities=("tool-calling",),
+    )
+    plan = replace(evaluation.plan, environments=(environment,))
+    inference = replace(evaluation.inference, capabilities=("tool-calling",))
+
+    compatible = replace(evaluation, plan=plan, inference=inference)
+
+    assert compatible.environment.required_inference_capabilities == ("tool-calling",)
+
+
 def remote_request(*, request_defaults: dict[str, Any] | None = None) -> EvaluateRequest:
     source = EnvironmentSource("fake-env", "https://example.test/environments", REVISION)
     plan = EvaluationPlan(
@@ -163,6 +200,14 @@ def remote_request(*, request_defaults: dict[str, Any] | None = None) -> Evaluat
                 num_tasks=2,
             ),
         ),
+        success={
+            "tool-loop": EvaluationSuccessDefinition(
+                "task-success",
+                "Task success",
+                EvaluationSignalRef("reward", "reward"),
+                EvaluationNumericPredicate("eq", 1.0),
+            )
+        },
     )
     target = ExecutionTarget("targets/external-screen", "1", "network-client")
     policy = RemotePolicy(
@@ -237,8 +282,8 @@ def test_agentic_and_domain_programs_share_the_native_port() -> None:
     assert AGENTIC_SMOKE.environments[0].source.package == "automationbench-v1"
     source = AGENTIC_SMOKE.environments[0].source
     assert isinstance(source, EnvironmentSource)
-    assert source.repository == ("https://github.com/carbonteq-ai/posttrain")
-    assert source.revision == ("02848b756727d86a55564557e79e7f613fc8762c")
+    assert source.repository == ("https://github.com/carbonteq-ai/verifiers-environments")
+    assert source.revision == ("3e1582ef3cce8e6d355be3747be0427f700ef865")
     assert source.subdirectory == "environments/automationbench_v1"
     assert AGENTIC_SMOKE.environments[0].max_concurrent == 1
     assert AUTOMATIONBENCH_PUBLIC.kind == "domain"
@@ -255,6 +300,35 @@ def test_agentic_and_domain_programs_share_the_native_port() -> None:
 def test_evaluation_request_rejects_response_budget_at_context_limit() -> None:
     with pytest.raises(ValueError, match="response budget"):
         request(context_window=512)
+
+
+def test_evaluation_request_accepts_native_mtp_binding() -> None:
+    evaluation = request()
+    assert isinstance(evaluation.inference, InferenceBinding)
+    mtp = replace(
+        evaluation.inference,
+        engine={**evaluation.inference.engine, "speculative_config": {"method": "mtp", "num_speculative_tokens": 1}},
+    )
+    updated = replace(evaluation, inference=mtp)
+    assert isinstance(updated.inference, InferenceBinding)
+    assert updated.inference.engine["speculative_config"] == {
+        "method": "mtp",
+        "num_speculative_tokens": 1,
+    }
+
+
+def test_evaluation_request_rejects_mtp_without_native_head() -> None:
+    evaluation = request()
+    assert isinstance(evaluation.inference, InferenceBinding)
+    assert not isinstance(evaluation.model, RemotePolicy)
+    model = replace(evaluation.model, capabilities=replace(evaluation.model.capabilities, mtp=False))
+    inference = replace(
+        evaluation.inference,
+        model=model,
+        engine={**evaluation.inference.engine, "speculative_config": {"method": "mtp", "num_speculative_tokens": 1}},
+    )
+    with pytest.raises(ValueError, match="native MTP head"):
+        replace(evaluation, model=model, inference=inference)
 
 
 def test_remote_evaluation_keeps_policy_service_and_endpoint_separate() -> None:
@@ -359,9 +433,22 @@ def test_remote_evaluation_binding_decodes_from_a_catalog_family() -> None:
 
 def test_invocation_budget_can_select_a_small_subset_without_mutating_program() -> None:
     base = request()
-    smaller = replace(base, budget=EvaluationBudget(num_tasks=1, max_concurrent=1))
+    smaller = replace(
+        base,
+        budget=EvaluationBudget(num_tasks=1, max_concurrent=1, shuffle=True),
+    )
     assert smaller.resolved_budget == (1, 1, 1)
+    assert smaller.resolved_shuffle
     assert base.environment.num_tasks == 2
+    assert not base.resolved_shuffle
+
+
+def test_request_shuffle_remains_a_compatibility_default_for_budget() -> None:
+    base = request()
+    assert replace(base, shuffle=True).resolved_shuffle
+    assert not replace(base, budget=EvaluationBudget(shuffle=False), shuffle=True).resolved_shuffle
+    with pytest.raises(TypeError, match="shuffle override"):
+        EvaluationBudget(shuffle="yes")  # type: ignore[arg-type]
 
 
 def test_evaluate_emits_direct_sync_metrics_and_native_artifact(tmp_path: Path) -> None:
@@ -404,7 +491,38 @@ def test_evaluate_emits_direct_sync_metrics_and_native_artifact(tmp_path: Path) 
     assert values["eval/run/coverage_missing"] == 1
     assert values["eval/traces_observed"] == 1
     assert "eval/mean_reward" not in values
+    assert observer.events[0].attributes["task_selection"] == "head"
     assert observer.events[-1].name == "evaluation_completed"
+
+
+def test_evaluate_records_shuffled_subset_policy(tmp_path: Path) -> None:
+    observer = RecordingObserver()
+    evaluation = replace(request(), budget=EvaluationBudget(num_tasks=1, shuffle=True))
+
+    def fake_runner(
+        execution: RunContext,
+        request_value: EvaluateRequest,
+        output: Path,
+    ) -> VerifiersRunResult:
+        del execution, request_value
+        (output / "traces.jsonl").write_text('{"id":"trace-1"}\n', encoding="utf-8")
+        return VerifiersRunResult(
+            ("trace-1",),
+            TraceSyncStats(observed_records=1, emitted_records=1),
+            EvaluationPopulation(
+                attempted=1,
+                complete=1,
+                failed=0,
+                truncated=0,
+                coverage_missing=0,
+            ),
+        )
+
+    evaluate(context(tmp_path, observer), evaluation, runner=fake_runner)
+
+    assert observer.events[0].attributes["num_tasks"] == 1
+    assert observer.events[0].attributes["task_selection"] == "verifiers-fixed-shuffle"
+    assert observer.metrics_log[0].attributes["task_selection"] == "verifiers-fixed-shuffle"
 
 
 def test_general_uses_canonical_seats_and_marks_partial_trace_sync(tmp_path: Path) -> None:
