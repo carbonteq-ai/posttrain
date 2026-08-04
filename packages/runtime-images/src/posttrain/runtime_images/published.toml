@@ -14,7 +14,7 @@
 # content-addressed, so mirroring preserves identity across registries.
 
 schema_version = 1
-framework_version = "0.3.0"
+framework_version = "0.3.1"
 default_prefix = "registry.lan/carbonteq"
 
 [base]
@@ -25,21 +25,21 @@ constraint_lock = "containers/posttrain-job-kinds/locks/workspace.lock.txt"
 
 [kinds.eval]
 repository = "posttrain-kind-eval"
-digest = "sha256:6f3f9aa48add1a0d74bd111b155c0b266e5dcc12225b22ab7669f20d0dfb23b7"
+digest = "sha256:0191e30b68a8302e9c3713a5931b15aa85296e1c1387211277db7006b4bb373b"
 lock_digest = "f68d5419b00b0fde278d0b1d55057eb65bb5c9bbdcc78d2ff5cbfab0a3e1fa2c"
 constraint_lock = "containers/posttrain-job-kinds/locks/workspace.lock.txt"
 provided_packages = ["verifiers"]
 
 [kinds.online-rl-trl-py312]
 repository = "posttrain-kind-online-rl-trl-py312"
-digest = "sha256:ead581c4597cfa7a7307193248b75d2ab2bbba9442cd0eab3ac19b3c9084a785"
+digest = "sha256:21349c35c53b6d9f265389a8219029b36c2b9ab273dc1da6c0ab65bde4b5e74f"
 lock_digest = "f68d5419b00b0fde278d0b1d55057eb65bb5c9bbdcc78d2ff5cbfab0a3e1fa2c"
 constraint_lock = "containers/posttrain-job-kinds/locks/workspace.lock.txt"
 provided_packages = ["verifiers"]
 
 [kinds.online-rl-verl-py313]
 repository = "posttrain-kind-online-rl-verl-py313"
-digest = "sha256:b858d9c3532a73614a820b0cd2406ad9ee49535d96abff2b7d6bd763b5268616"
+digest = "sha256:a6415e96a207ee41723b7dcaa24b3fd4af25384a34d8653e21e01bee13df3139"
 lock_digest = "f68d5419b00b0fde278d0b1d55057eb65bb5c9bbdcc78d2ff5cbfab0a3e1fa2c"
 constraint_lock = "containers/posttrain-job-kinds/locks/workspace.lock.txt"
 backend_constraint_lock = "containers/posttrain-job-kinds/verl-py313/release/backend-constraints.txt"
@@ -47,18 +47,18 @@ backend_lock_digest = "f9f22dc0438998d04000a1bf9b8093f86893adbdc8094b0e6736c7720
 
 [kinds.serve]
 repository = "posttrain-kind-serve"
-digest = "sha256:d99eeeb5f214b6e5453090ca6ddeaf66b8e4b28ce375c86870fd198c6ed4c616"
+digest = "sha256:3b49e756fc8eed3fe39b09ddb7f7aa6c3429be2ccea3683b914dfc0ebf371613"
 lock_digest = "f68d5419b00b0fde278d0b1d55057eb65bb5c9bbdcc78d2ff5cbfab0a3e1fa2c"
 constraint_lock = "containers/posttrain-job-kinds/locks/workspace.lock.txt"
 
 [kinds.supervised]
 repository = "posttrain-kind-supervised"
-digest = "sha256:45b9625bac2cca11b98a972b12c9258fe177dd2e86c3d6c5989dddf00b4e5713"
+digest = "sha256:73b52ecf72953ae518907a6c6d82b2240ca19e8a1f96d57bd53ca22c9ba45bbd"
 lock_digest = "f68d5419b00b0fde278d0b1d55057eb65bb5c9bbdcc78d2ff5cbfab0a3e1fa2c"
 constraint_lock = "containers/posttrain-job-kinds/locks/workspace.lock.txt"
 
 [kinds.transform]
 repository = "posttrain-kind-transform"
-digest = "sha256:e12639e0f6e075e21d0e12c66a903914db9eee8b03a2f4ca4de936a69428b799"
+digest = "sha256:e4d412e53ac5826621f11d78b56e56180fc7e1827a77c09ca4f6b8f0883f1ee6"
 lock_digest = "d26cadd4b09653f988a074a3d9a861785c7bc84aec5865e020865335027bf339"
 constraint_lock = "containers/posttrain-job-kinds/locks/transform.lock.txt"

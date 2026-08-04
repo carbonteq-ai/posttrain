@@ -215,6 +215,11 @@ subject to this evaluation-only requirement.
   Moved the focused evaluation visual-QA report and its three comparison
   captures into their owned frontend and `docs/design/observatory/audit`
   locations instead of leaving release evidence at repository root.
+- [x] (2026-08-05) Prepared the coordinated 0.3.1 source metadata, staged and
+  built all 24 distributions with 107 exact internal pins, and published the
+  six 0.3.1 kind images directly to `registry.lan/carbonteq`. The publisher
+  reused the immutable base image, read every resulting digest back from the
+  registry, and regenerated `published.toml`; GHCR was not used.
 - [ ] (2026-08-05) Packed schema-v3 package
   `2f3e017b8145e4a87af79c5a68c957b145c9a165b37ba92cbc5dfcf3098f6ae6`
   as private OCI image
