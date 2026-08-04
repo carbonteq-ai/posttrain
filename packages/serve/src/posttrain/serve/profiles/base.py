@@ -38,6 +38,7 @@ class VllmEngineConfig:
     disable_log_stats: bool = False
     max_num_seqs: int | None = None
     max_num_batched_tokens: int | None = None
+    max_lora_rank: int | None = None
     kv_cache_dtype: KvCacheDtype = "auto"
     text_only: bool = False
     skip_mm_profiling: bool = False
@@ -53,6 +54,8 @@ class VllmEngineConfig:
             raise ValueError("max_num_seqs must be positive")
         if self.max_num_batched_tokens is not None and self.max_num_batched_tokens < 1:
             raise ValueError("max_num_batched_tokens must be positive")
+        if self.max_lora_rank is not None and self.max_lora_rank < 1:
+            raise ValueError("max_lora_rank must be positive")
         if self.skip_mm_profiling and not self.text_only:
             raise ValueError("skip_mm_profiling is only safe for an explicit text-only profile")
 
@@ -71,6 +74,8 @@ class VllmEngineConfig:
             values["max_num_seqs"] = self.max_num_seqs
         if self.max_num_batched_tokens is not None:
             values["max_num_batched_tokens"] = self.max_num_batched_tokens
+        if self.max_lora_rank is not None:
+            values["max_lora_rank"] = self.max_lora_rank
         if self.text_only:
             values["limit_mm_per_prompt"] = {"image": 0, "video": 0, "audio": 0}
         if self.skip_mm_profiling:
@@ -104,6 +109,8 @@ class VllmEngineConfig:
             values.extend(("--max-num-seqs", str(self.max_num_seqs)))
         if self.max_num_batched_tokens is not None:
             values.extend(("--max-num-batched-tokens", str(self.max_num_batched_tokens)))
+        if self.max_lora_rank is not None:
+            values.extend(("--max-lora-rank", str(self.max_lora_rank)))
         if self.text_only:
             values.extend(("--limit-mm-per-prompt", json.dumps({"image": 0, "video": 0, "audio": 0})))
         if self.skip_mm_profiling:

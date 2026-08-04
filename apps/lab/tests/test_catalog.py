@@ -55,9 +55,7 @@ def test_gemma4_unified_qualification_selections_resolve_as_one_support_plane() 
     )
     model = catalog.resolve(CatalogRef("model", "models/gemma4-12b-it@bf16"))
     settings = catalog.resolve(CatalogRef("training", "gemma4-12b-it/sft-qualification-v1"))
-    training = catalog.resolve(
-        CatalogRef("training", "training/gemma4-12b-it-trl-lora-qualification@1")
-    )
+    training = catalog.resolve(CatalogRef("training", "training/gemma4-12b-it-trl-lora-qualification@1"))
     inference = catalog.resolve(CatalogRef("inference", "inference/gemma4-12b-it-vllm-screen@1"))
 
     assert isinstance(model.value, ModelVariant)

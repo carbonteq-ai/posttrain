@@ -1,4 +1,4 @@
-"""Pinned Gemma 4 Unified foundation variant."""
+"""Pinned Gemma 4 foundation variants."""
 
 from posttrain.common.artifacts import HubModelRef
 from posttrain.common.models import (
@@ -12,26 +12,35 @@ from posttrain.common.models import (
 )
 
 _GEMMA_4_12B_REVISION = "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7"
+_GEMMA_4_E4B_REVISION = "ee0ef6023621cff504d758262d4e04895a5af4a2"
+
+_GEMMA4_CONVERSATION = ConversationProfile(
+    chat_template=ChatTemplate("tokenizer"),
+    roles=("system", "user", "assistant", "tool"),
+    reasoning_modes=(
+        ReasoningMode("off", (("enable_thinking", False),)),
+        ReasoningMode("thinking", (("enable_thinking", True),)),
+    ),
+    default_reasoning_mode="off",
+    tool_calls=ToolCallProtocol(
+        id="gemma4_structured",
+        assistant_format="Gemma structured call syntax with unquoted keys",
+        start_token="<|tool_call>",
+        end_token="<tool_call|>",
+    ),
+    strips_past_reasoning=True,
+)
 
 GEMMA4_RENDERER_CONTRACT = RendererContract(
     id="gemma4-tools@1",
     model_family="gemma4",
-    conversation=ConversationProfile(
-        chat_template=ChatTemplate("tokenizer"),
-        roles=("system", "user", "assistant", "tool"),
-        reasoning_modes=(
-            ReasoningMode("off", (("enable_thinking", False),)),
-            ReasoningMode("thinking", (("enable_thinking", True),)),
-        ),
-        default_reasoning_mode="off",
-        tool_calls=ToolCallProtocol(
-            id="gemma4_structured",
-            assistant_format="Gemma structured call syntax with unquoted keys",
-            start_token="<|tool_call>",
-            end_token="<tool_call|>",
-        ),
-        strips_past_reasoning=True,
-    ),
+    conversation=_GEMMA4_CONVERSATION,
+)
+
+GEMMA4_E4B_RENDERER_CONTRACT = RendererContract(
+    id="gemma4-e4b-tools@1",
+    model_family="gemma4",
+    conversation=_GEMMA4_CONVERSATION,
 )
 
 GEMMA_4_12B_IT = ModelVariant(
@@ -64,4 +73,38 @@ GEMMA_4_12B_IT = ModelVariant(
     },
 )
 
-__all__ = ["GEMMA4_RENDERER_CONTRACT", "GEMMA_4_12B_IT"]
+GEMMA_4_E4B_IT = ModelVariant(
+    id="gemma4-e4b-it",
+    artifact=HubModelRef(
+        repo_id="google/gemma-4-E4B-it",
+        revision=_GEMMA_4_E4B_REVISION,
+    ),
+    form="foundation",
+    weight_precision="bf16",
+    family="gemma4",
+    parameters=7_996_156_490,
+    instruction_tuned=True,
+    capabilities=ModelCapabilities(
+        modalities=("text", "image", "audio", "video"),
+        native_context_window=131_072,
+        mtp=False,
+    ),
+    renderer=GEMMA4_E4B_RENDERER_CONTRACT,
+    base=HubModelRef(
+        repo_id="google/gemma-4-E4B-it",
+        revision=_GEMMA_4_E4B_REVISION,
+    ),
+    tokenizer_fingerprint="1ab787c816b67a0936e8d1c9ff20e6cf5bd8b77faabfe6ada5905bd2c433b413",
+    provenance={
+        "source": "huggingface",
+        "upstream_model_type": "gemma4",
+        "upstream_architecture": "Gemma4ForConditionalGeneration",
+    },
+)
+
+__all__ = [
+    "GEMMA4_E4B_RENDERER_CONTRACT",
+    "GEMMA4_RENDERER_CONTRACT",
+    "GEMMA_4_12B_IT",
+    "GEMMA_4_E4B_IT",
+]

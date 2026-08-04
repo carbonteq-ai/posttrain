@@ -35,6 +35,28 @@ def test_skip_mm_profiling_requires_text_only_mode() -> None:
         VllmEngineConfig(max_model_len=1_024, gpu_memory_utilization=0.75, skip_mm_profiling=True)
 
 
+@pytest.mark.parametrize("max_lora_rank", [0, -1])
+def test_max_lora_rank_must_be_positive(max_lora_rank: int) -> None:
+    with pytest.raises(ValueError, match="max_lora_rank must be positive"):
+        VllmEngineConfig(
+            max_model_len=1_024,
+            gpu_memory_utilization=0.75,
+            max_lora_rank=max_lora_rank,
+        )
+
+
+def test_max_lora_rank_translates_to_vllm_kwargs_and_cli() -> None:
+    engine = VllmEngineConfig(
+        max_model_len=1_024,
+        gpu_memory_utilization=0.75,
+        max_lora_rank=32,
+    )
+
+    assert engine.as_vllm_kwargs()["max_lora_rank"] == 32
+    command = engine.as_cli_args()
+    assert command[command.index("--max-lora-rank") + 1] == "32"
+
+
 def test_local_matrix_stops_at_concurrency_four_and_requires_turboquant_at_32k() -> None:
     cells = CORE_INFERENCE_V1.cells(max_concurrency=4)
     assert {cell.concurrency for cell in cells} == {1, 2, 4}

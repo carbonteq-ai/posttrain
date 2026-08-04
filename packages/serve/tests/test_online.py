@@ -130,13 +130,16 @@ def test_vllm_launches_materialized_peft_adapter_without_treating_it_as_base_wei
         parent=QWEN_35_2B.id,
         provenance={"parameter_update_kind": "qlora"},
     )
-    request = ServeLaunchRequest(replace(qwen_screen_binding, model=adapter))
+    engine = dict(qwen_screen_binding.engine)
+    engine["max_lora_rank"] = 32
+    request = ServeLaunchRequest(replace(qwen_screen_binding, model=adapter, engine=engine))
 
     command = build_vllm_command(request)
 
     assert command[1:3] == ("serve", QWEN_35_2B.base.repo_id)
     assert command[command.index("--served-model-name") + 1] == QWEN_35_2B.base.repo_id
     assert command[command.index("--lora-modules") + 1] == f"{adapter.id}={adapter_dir}"
+    assert command[command.index("--max-lora-rank") + 1] == "32"
     assert "--enable-lora" in command
     assert request.endpoint.model == adapter.id
 

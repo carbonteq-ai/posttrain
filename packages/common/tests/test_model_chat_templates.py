@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
-from posttrain.common.variants import GEMMA_4_12B_IT, LFM_25_12B_THINKING, QWEN_35_2B
+from posttrain.common.variants import GEMMA_4_12B_IT, GEMMA_4_E4B_IT, LFM_25_12B_THINKING, QWEN_35_2B
 
 TOOLS = [
     {
@@ -21,7 +23,7 @@ TOOLS = [
 ]
 
 
-def _local_tokenizer(profile):
+def _local_tokenizer(profile) -> Any:
     transformers = pytest.importorskip("transformers")
     try:
         return transformers.AutoTokenizer.from_pretrained(
@@ -76,8 +78,15 @@ def test_lfm_package_template_preserves_openai_tool_history() -> None:
     assert "null" not in rendered
 
 
-def test_pinned_gemma_template_renders_thinking_and_structured_tool_history() -> None:
-    tokenizer = _local_tokenizer(GEMMA_4_12B_IT)
+@pytest.mark.parametrize(
+    ("profile", "off_suffix"),
+    (
+        (GEMMA_4_12B_IT, "<|channel>thought\n<channel|>"),
+        (GEMMA_4_E4B_IT, "<|turn>model\n"),
+    ),
+)
+def test_pinned_gemma_template_renders_thinking_and_structured_tool_history(profile, off_suffix: str) -> None:
+    tokenizer = _local_tokenizer(profile)
     prompt_off = tokenizer.apply_chat_template(
         [{"role": "user", "content": "Think briefly."}],
         enable_thinking=False,
@@ -112,7 +121,7 @@ def test_pinned_gemma_template_renders_thinking_and_structured_tool_history() ->
         tokenize=False,
     )
 
-    assert prompt_off.endswith("<|channel>thought\n<channel|>")
+    assert prompt_off.endswith(off_suffix)
     assert "<|think|>" not in prompt_off
     assert "<|think|>" in prompt_on
     assert prompt_on.endswith("<|turn>model\n")

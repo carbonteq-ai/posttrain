@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 import sys
 import time
 from collections.abc import Callable, Iterator, Mapping
@@ -115,6 +116,44 @@ def trainable_model_factory(model: ModelVariant, imports: dict[str, Any]) -> Any
     return imports["AutoModelForCausalLM"]
 
 
+def _disable_model_cache(base: Any) -> None:
+    """Disable cache use on both composite and nested text configurations."""
+
+    config = base.config
+    config.use_cache = False
+    get_text_config = getattr(config, "get_text_config", None)
+    text_config: Any = get_text_config() if callable(get_text_config) else getattr(config, "text_config", None)
+    if text_config is not None:
+        text_config.use_cache = False
+
+
+_GEMMA4_LORA_PROJECTIONS = frozenset({"q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"})
+_GEMMA4_LORA_MODULE = re.compile(
+    r"^model[.]language_model[.]layers[.]\d+[.]"
+    r"(self_attn[.](q_proj|k_proj|v_proj|o_proj)|mlp[.](gate_proj|up_proj|down_proj))$"
+)
+
+
+def _validate_gemma4_lora_targets(base: Any, model: ModelVariant, update: LoRAUpdate | QLoRAUpdate) -> None:
+    """Fail before PEFT wrapping when a Gemma adapter could touch multimodal towers."""
+
+    if model.family != "gemma4":
+        return
+    if update.target_modules == "all-linear":
+        raise ValueError("Gemma 4 LoRA must explicitly target text-language-model modules")
+    pattern = re.compile(update.target_modules)
+    matches = tuple(name for name, _ in base.named_modules() if pattern.fullmatch(name))
+    if not matches:
+        raise ValueError("Gemma 4 LoRA target expression matched no modules")
+    invalid = tuple(name for name in matches if _GEMMA4_LORA_MODULE.fullmatch(name) is None)
+    if invalid:
+        raise ValueError(f"Gemma 4 LoRA target expression selected non-text or unsupported modules: {invalid!r}")
+    resolved = {name.rsplit(".", 1)[-1] for name in matches}
+    missing = _GEMMA4_LORA_PROJECTIONS - resolved
+    if missing:
+        raise ValueError(f"Gemma 4 LoRA target expression missed required text projections: {sorted(missing)!r}")
+
+
 def load_trainable_model(
     model: ModelVariant,
     update: ParameterUpdatePlan,
@@ -139,7 +178,7 @@ def load_trainable_model(
             bnb_4bit_use_double_quant=update.double_quant,
         )
     base = trainable_model_factory(model, imports).from_pretrained(model.base.repo_id, **load_options)
-    base.config.use_cache = False
+    _disable_model_cache(base)
     if isinstance(update, QLoRAUpdate):
         base = imports["prepare_model_for_kbit_training"](
             base,
@@ -150,6 +189,7 @@ def load_trainable_model(
         if update.kind == "full":
             return base
         assert isinstance(update, (LoRAUpdate, QLoRAUpdate))
+        _validate_gemma4_lora_targets(base, model, update)
         config = imports["LoraConfig"](
             r=update.rank,
             lora_alpha=update.alpha,
