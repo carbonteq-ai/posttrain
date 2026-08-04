@@ -1,32 +1,12 @@
-"""Lab-local Gemma 4 conversation contract for SQL protocol experiments."""
+"""Compatibility access to the framework Gemma 4 conversation contract."""
 
 from __future__ import annotations
 
-from posttrain.common.models import ChatTemplate, ConversationProfile, ReasoningMode, RendererContract
-from posttrain.common.variants import RENDERER_CONTRACTS
-
-GEMMA4_RENDERER_CONTRACT = RendererContract(
-    id="gemma4-tools@1",
-    model_family="gemma4",
-    conversation=ConversationProfile(
-        chat_template=ChatTemplate("tokenizer"),
-        roles=("system", "user", "assistant", "tool"),
-        reasoning_modes=(
-            ReasoningMode("off", (("enable_thinking", False),)),
-            ReasoningMode("thinking", (("enable_thinking", True),)),
-        ),
-        default_reasoning_mode="off",
-        # SkyRL-SQL is a visible text protocol, not a structured tool-call
-        # environment. Keep this unset instead of assigning Gemma delimiters to
-        # one of common's unrelated Qwen/LFM protocol identifiers.
-        tool_calls=None,
-        strips_past_reasoning=False,
-    ),
-)
+from posttrain.common.variants import GEMMA4_RENDERER_CONTRACT, RENDERER_CONTRACTS
 
 
 def register_gemma4_renderer() -> None:
-    """Register the Lab contract before its project catalog is decoded."""
+    """Preserve the former Lab registration hook as an idempotent shim."""
 
     existing = RENDERER_CONTRACTS.get(GEMMA4_RENDERER_CONTRACT.id)
     if existing is not None and existing != GEMMA4_RENDERER_CONTRACT:
