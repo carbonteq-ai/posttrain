@@ -33,9 +33,12 @@ jobs:
           git diff --check
       - name: Build the GitHub wheelhouse
         run: |
+          uv run posttrain-release stage release-stage
           mkdir wheelhouse
-          uv build --all-packages --wheel --out-dir wheelhouse
-          uv build environments/automationbench_v1 --wheel --out-dir wheelhouse
+          (
+            cd release-stage
+            uv build --all-packages --wheel --out-dir "${GITHUB_WORKSPACE}/wheelhouse"
+          )
           cp docs/release-and-consumption.md wheelhouse/README.md
           cp release/github-constraints.txt wheelhouse/github-constraints.txt
           (

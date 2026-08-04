@@ -169,9 +169,14 @@ gh pr checks <n>
 7. **Re-run the ladder.** Failures from the lock-digest guard should be gone.
 8. **Follow the GitHub protocol** — push, CI green, merge. Do not publish
    distributions against an unmerged head.
-9. **Build and publish the distributions** from the merged release commit:
+9. **Stage, build, and publish the distributions** from the merged release
+   commit. Source package metadata is deliberately release-neutral, so never
+   publish a direct source-tree build: it carries version `0.0.0`. Create a new
+   isolated stage from the merged tree and build inside it:
 
    ```bash
+   uv run posttrain-release stage /tmp/posttrain-X.Y.Z
+   cd /tmp/posttrain-X.Y.Z
    uv build --all-packages
    ```
 
@@ -207,6 +212,10 @@ gh pr checks <n>
 - **Publish after merging, not before.** A version on the index whose tree is
   uncommitted or unmerged has no reviewable source. Publish-after-commit was
   gotten wrong once; publish-before-merge is the same class of mistake.
+- **Build distributions from the staged tree, not the source checkout.** The
+  source workspace intentionally declares `0.0.0` and bare first-party
+  dependencies. Only `posttrain-release stage` renders the authored release
+  version and exact sibling pins that are safe to upload.
 - **`MERGEABLE` is not ready.** No conflicts ≠ CI green ≠ local ladder green.
 - **Unpushed commits are unverified.** CI evaluates the last push, not your
   working tree.
