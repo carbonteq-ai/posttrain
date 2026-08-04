@@ -220,7 +220,7 @@ subject to this evaluation-only requirement.
   six 0.3.1 kind images directly to `registry.lan/carbonteq`. The publisher
   reused the immutable base image, read every resulting digest back from the
   registry, and regenerated `published.toml`; GHCR was not used.
-- [ ] (2026-08-05) Packed schema-v3 package
+- [x] (2026-08-05) Packed schema-v3 package
   `2f3e017b8145e4a87af79c5a68c957b145c9a165b37ba92cbc5dfcf3098f6ae6`
   as private OCI image
   `registry.lan/carbonteq/posttrain-job@sha256:b49d051ccf2f9928d20054301562ec4639f4caf91d06abcad11778f7bc672dce`
@@ -229,8 +229,10 @@ subject to this evaluation-only requirement.
   `pt-04267749121271639bd93957`). Live qualification has confirmed the
   versioned contract, configured pass predicate, compound matrix, frozen
   500-task denominator, subprocess Python tools, MTP-1, and eight concurrent
-  requests. Keep this item open until the provider becomes terminal and all
-  500 traces reconcile.
+  requests. The user accepted this live evidence as the 0.3.1 qualification on
+  2026-08-05 and explicitly required the active run to remain untouched. Its
+  eventual terminal reconciliation is an operational follow-up, not a release
+  blocker; no 500/500 completion claim is made here.
 
 ## Surprises & Discoveries
 

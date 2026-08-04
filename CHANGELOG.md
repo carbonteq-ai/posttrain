@@ -45,9 +45,11 @@ cross-plane purge workflow introduced after 0.3.0.
 
 - Real Qwen3.5-4B thinking evaluations qualified IFEval, Reasoning Gym, and the
   full 200-task AutomationBench Simple population with native MTP, retained
-  Verifiers traces, and Observatory projections. Math Python schema-v3
-  qualification remains a release gate until its full 500-task run is terminal
-  and reconciled.
+  Verifiers traces, and Observatory projections. The live Math Python schema-v3
+  run additionally demonstrated the frozen 500-task population, configured
+  success predicate, compound problem-type-by-difficulty reporting, subprocess
+  Python tools, MTP, and concurrency eight. It remains active for terminal
+  reconciliation and is not stopped by this release.
 - The source validation ladder passes Ruff lint and format, Pyright, all eight
   import contracts, 1,030 Python tests with 18 expected skips, 32 Observatory
   frontend tests, and the production frontend build.
