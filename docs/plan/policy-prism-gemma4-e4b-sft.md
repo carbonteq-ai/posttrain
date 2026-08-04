@@ -16,6 +16,7 @@ The experiment is deliberately split across two repositories. Policy Prism owns 
 - [x] (2026-08-04 14:35Z) Added positive `max_lora_rank` support to vLLM keyword and CLI translation with focused tests.
 - [x] (2026-08-04 14:40Z) Audited the 4,545 finalized records and found 46 duplicated complete conversations; selected deterministic exact-content deduplication before splitting.
 - [x] (2026-08-04 15:06Z) Completed locked sync, live E4B tokenizer tests, Ruff check/format, Pyright, import boundaries, 936-test repository suite, and diff validation.
+- [x] (2026-08-04) Added the missing `packages/environment` actual-job source root after the first live pack exposed the incomplete framework source closure; added a focused regression test.
 - [ ] Commit and push the validated PostTrain changes, then record the resulting full commit in Policy Prism pins and release evidence.
 - [ ] Make the current Policy Prism evaluation work green, then commit and push the existing 179-file change set before starting dataset-release work.
 - [ ] Add the minimal Policy Prism `packages/training` package, release builder, validation CLI, tests, and PostTrain project files described here.
@@ -28,6 +29,9 @@ The experiment is deliberately split across two repositories. Policy Prism owns 
 - [ ] Publish the private PEFT adapter to Hugging Face, verify a clean download, then clean provider workspaces.
 
 ## Surprises & Discoveries
+
+- Observation: the first live actual-job image reached its isolated runtime smoke but failed to import `posttrain.environment` from `posttrain-catalog`.
+  Evidence: source-based packing explicitly staged framework install roots and omitted `packages/environment`, even though both `posttrain-catalog` and `posttrain-runtime` declare `posttrain-environment`; local tests had the package installed and therefore masked the omission. The source closure and its regression test now include that package.
 
 - Observation: current PostTrain already implements the general SFT normalization boundary. `packages/data/src/posttrain/data/catalog.py` accepts Hugging Face, JSONL, Parquet, fixture, built, and NeMo sources, while `packages/data/src/posttrain/data/adapters/huggingface.py` normalizes messages, prompt/completion, Alpaca, and ShareGPT rows into `SupervisedExample`.
   Evidence: Policy Prism needs a domain adapter from its trace schema to canonical `messages`; it does not need a second universal formatter or model-specific rendered text.
