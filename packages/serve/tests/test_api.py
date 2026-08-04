@@ -296,7 +296,7 @@ def test_generate_emits_variant_scoped_trace_and_native_artifact(
 
     def handler(request: httpx.Request) -> httpx.Response:
         payload = json.loads(request.read())
-        assert payload["enable_thinking"] is False
+        assert payload["chat_template_kwargs"] == {"enable_thinking": False}
         return httpx.Response(
             200,
             text="\n".join(

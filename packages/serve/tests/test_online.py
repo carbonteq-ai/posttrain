@@ -65,7 +65,7 @@ def test_streaming_generation_preserves_reasoning_tools_usage_and_raw_events() -
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
         result = generate(request, QWEN_35_2B, client=client)
 
-    assert observed_payload["enable_thinking"] is True
+    assert observed_payload["chat_template_kwargs"] == {"enable_thinking": True}
     assert observed_payload["tool_choice"] == "auto"
     assert result.reasoning == "checking "
     assert result.finish_reason == "tool_calls"
@@ -101,7 +101,7 @@ def test_qwen_launch_command_keeps_8gb_text_only_constraints(qwen_screen_binding
     assert "--enforce-eager" in command
     assert "--skip-mm-profiling" in command
     mm_limits = json.loads(command[command.index("--limit-mm-per-prompt") + 1])
-    assert mm_limits == {"image": 0, "video": 0}
+    assert mm_limits == {"image": 0, "video": 0, "audio": 0}
 
 
 def test_managed_server_uses_the_inference_binding_startup_budget(
