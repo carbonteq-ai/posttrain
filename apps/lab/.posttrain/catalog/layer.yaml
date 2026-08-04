@@ -4,6 +4,7 @@ files:
   - algorithm-qualification.yaml
   - current-capsule-qualification.yaml
   - execution-targets.yaml
+  - gemma4-unified-qualification.yaml
   - serving-capacity.yaml
   - transform-qualification.yaml
   - verl-capsule-qualification.yaml

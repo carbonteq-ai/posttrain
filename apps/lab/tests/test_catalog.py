@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 from posttrain.catalog import load_catalog_layer, packaged_base_directory
-from posttrain.common import CatalogRef, ContractError, ExecutionTarget, ModelVariant
+from posttrain.common import CatalogRef, ContractError, ExecutionTarget, InferenceBinding, ModelVariant
 from posttrain.eval import EnvironmentBinding, EnvironmentSource, EvaluationPlan
 from posttrain.train import (
     DynamicGroupSampling,
@@ -46,6 +46,42 @@ def test_slice_one_and_two_selections_load_from_the_base_filesystem_catalog() ->
     assert isinstance(sampo.value, SAMPOSettings)
     assert sampo.value.discount_gamma == 0.95
     assert sampo.value.dynamic_sampling == DynamicGroupSampling(max_candidate_batches=3)
+
+
+def test_gemma4_unified_qualification_selections_resolve_as_one_support_plane() -> None:
+    catalog = open_catalog(
+        scope="posttrain-lab",
+        overlays=(WORKSPACE / "apps" / "lab" / ".posttrain" / "catalog",),
+    )
+    model = catalog.resolve(CatalogRef("model", "models/gemma4-12b-it@bf16"))
+    settings = catalog.resolve(CatalogRef("training", "gemma4-12b-it/sft-qualification-v1"))
+    training = catalog.resolve(
+        CatalogRef("training", "training/gemma4-12b-it-trl-lora-qualification@1")
+    )
+    inference = catalog.resolve(CatalogRef("inference", "inference/gemma4-12b-it-vllm-screen@1"))
+
+    assert isinstance(model.value, ModelVariant)
+    assert model.value.family == "gemma4"
+    assert model.value.provenance["upstream_model_type"] == "gemma4_unified"
+    assert model.value.renderer.id == "gemma4-tools@1"
+    assert model.source_layer == "base"
+    assert isinstance(settings.value, SFTSettings)
+    assert settings.value.loop.max_steps == 2
+    assert isinstance(training.value, TrainingBinding)
+    assert isinstance(training.value.update, LoRAUpdate)
+    assert training.value.renderer.implementation == "default"
+    assert training.value.renderer.reasoning_mode == "off"
+    assert training.value.target.id == "targets/carbonteq-rtx-pro-6000-96gb"
+    assert "language_model" in training.value.update.target_modules
+    assert isinstance(inference.value, InferenceBinding)
+    assert inference.value.model == model.value
+    assert inference.value.target == training.value.target
+    assert inference.value.engine["text_only"] is True
+    assert inference.value.engine["skip_mm_profiling"] is True
+    assert inference.value.engine["tool_call_parser"] == "gemma4"
+    assert inference.value.engine["reasoning_parser"] == "gemma4"
+    assert all(value.source_layer == "overlay" for value in (settings, training, inference))
+    assert all(value.overlay_id == "posttrain-lab-serving-capacity-v1" for value in (settings, training, inference))
 
 
 def test_automationbench_grpo_environment_is_category_and_budget_driven() -> None:

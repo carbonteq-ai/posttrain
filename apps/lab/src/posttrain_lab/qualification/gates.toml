@@ -1,6 +1,32 @@
 schema_version = 1
 
 [[gates]]
+id = "gemma4-unified-serving"
+work_package = ".posttrain/work_packages/gemma4_unified_serve_smoke_qualification.yaml"
+job_id = "smoke"
+tier = "experimental"
+state = "candidate"
+job_kind = "serve.smoke"
+acceptance = "serving-probe"
+experiment_family = "gemma4-unified-support"
+hypothesis = "The pinned vLLM capsule can load Gemma 4 Unified 12B in text-only mode and preserve its generation contract."
+owner = "posttrain-serving"
+replacement_condition = "Promote after a retained 96 GiB GPU run records a nonempty generation and structured Gemma tool-call response; retire if the architecture is removed from the maintained model plane."
+
+[[gates]]
+id = "gemma4-unified-sft"
+work_package = ".posttrain/work_packages/gemma4_unified_sft_qualification.yaml"
+job_id = "train"
+tier = "experimental"
+state = "candidate"
+job_kind = "train.sft"
+acceptance = "training-summary"
+experiment_family = "gemma4-unified-support"
+hypothesis = "The pinned Transformers and TRL capsule can produce a finite, reloadable language-model-only LoRA adapter for Gemma 4 Unified 12B."
+owner = "posttrain-training"
+replacement_condition = "Promote after a retained 96 GiB GPU run completes both optimizer updates and reloads the adapter; retire if a maintained successor architecture replaces this support plane."
+
+[[gates]]
 id = "foundation-serving-screen"
 work_package = ".posttrain/work_packages/foundation_screen.yaml"
 job_id = "benchmark"

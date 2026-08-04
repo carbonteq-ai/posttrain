@@ -1,0 +1,61 @@
+training:
+  gemma4-12b-it/sft-qualification-v1:
+    selection_type: sft-settings
+    revision: "1"
+    loop:
+      max_steps: 2
+      max_length: 512
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 1
+      learning_rate: 0.0002
+      logging_steps: 1
+      checkpoint_steps: 2
+      checkpoint_limit: 1
+  training/gemma4-12b-it-trl-lora-qualification@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.8.0
+    renderer:
+      id: gemma4-off-v1
+      model_family: gemma4
+      implementation: default
+      reasoning_mode: "off"
+    update:
+      kind: lora
+      rank: 8
+      alpha: 16
+      target_modules: ^model[.]language_model[.]layers[.]\d+[.](self_attn[.](q_proj|k_proj|v_proj|o_proj)|mlp[.](gate_proj|up_proj|down_proj))$
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    runtime:
+      global_batch_size: 1
+    backend_options:
+      source_revision: 6e7739b8ec741d21ecd79c0c212694cd15ff20d8
+      dependency_lock_sha256: 900ca2610e41c933ed8a08fa54f60415718aa883f1dbb1aff5b2f21696b8efed
+
+inference:
+  inference/gemma4-12b-it-vllm-screen@1:
+    revision: "1"
+    startup_timeout_seconds: 900
+    model: models/gemma4-12b-it@bf16
+    backend: vllm@0.25.1
+    renderer: gemma4-tools@1
+    engine:
+      max_model_len: 8192
+      gpu_memory_utilization: 0.80
+      dtype: bfloat16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 1
+      max_num_batched_tokens: 4096
+      kv_cache_dtype: auto
+      text_only: true
+      skip_mm_profiling: true
+      tool_call_parser: gemma4
+      reasoning_parser: gemma4
+    sampling:
+      max_tokens: 128
+      temperature: 0.0
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [screen, smoke]
