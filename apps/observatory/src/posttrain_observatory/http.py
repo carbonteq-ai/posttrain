@@ -143,6 +143,11 @@ def create_http_app(
     ) -> RunViewResponse:
         return await service.get_run_view_response(_locator(run_key), mode, metric)
 
+    @app.get("/api/v1/runs/{run_key}/comparison-key")
+    async def comparison_key(run_key: str) -> dict[str, str | None]:
+        value = await service.get_run_comparison_key(_locator(run_key))
+        return {"job_kind": value[0] if value else None, "comparison_key": value[1] if value else None}
+
     @app.get("/api/v1/runs/{run_key}/metrics")
     async def metrics(run_key: str) -> dict[str, object]:
         return (await service.list_run_metrics(_locator(run_key))).model_dump(mode="json")

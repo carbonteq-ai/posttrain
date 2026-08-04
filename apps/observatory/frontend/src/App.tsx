@@ -29,6 +29,7 @@ import {
 
 import { FilterPopover } from './components/FilterPopover';
 import { PhaseMemoryTimeline } from './components/PhaseMemoryTimeline';
+import { Transcript } from './components/TranscriptMessage';
 import { ServingBenchmarkOverview } from './features/serving/ServingBenchmarkOverview';
 import { ServingCapacityWorkPackageView } from './features/serving/ServingCapacityWorkPackage';
 
@@ -38,6 +39,7 @@ import {
   type MetricHelp,
   type MetricSeries,
   type RunItem,
+  type RunComparison,
   type RunView,
   type SourceRefreshStatus,
   type ServingCapacityWorkPackage,
@@ -47,6 +49,7 @@ import {
   type TraceSummary,
   type WorkPackageView,
 } from './lib/api';
+import { tracePresentation, traceSignalColumns, traceSurfaceMode, type TracePresentation } from './lib/trace-presentation';
 
 const EvidenceChart = lazy(() =>
   import('./components/EvidenceChart').then((module) => ({ default: module.EvidenceChart })),
@@ -61,7 +64,7 @@ const TraceTable = lazy(() =>
 type Section = 'Overview' | 'Metrics' | 'System metrics' | 'Traces & evaluation' | 'Artifacts & lineage' | 'Run config';
 
 function sectionLabel(section: Section, jobKind: string): string {
-  return section === 'Traces & evaluation' && jobKind === 'train.grpo'
+  return section === 'Traces & evaluation' && traceSurfaceMode(jobKind) === 'optimization'
     ? 'Rollouts & rewards'
     : section;
 }
@@ -310,6 +313,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function humanizeKey(value: string): string {
   return value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function compareNaturalLabels(left: string, right: string): number {
+  return left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' });
 }
 
 function configEntry(inputs: Record<string, unknown>, key: string): ConfigEntryValue | null {
@@ -645,6 +652,12 @@ export default function App() {
   const [selected, setSelected] = useState<RunItem | null>(null);
   const [loadedView, setLoadedView] = useState<{ runKey: string; response: RunView } | null>(null);
   const [section, setSection] = useState<Section>('Overview');
+  const [surface, setSurface] = useState<'run' | 'compare'>('run');
+  const [compareKeys, setCompareKeys] = useState<string[]>([]);
+  const [comparison, setComparison] = useState<RunComparison | null>(null);
+  const [comparisonLoading, setComparisonLoading] = useState(false);
+  const [compareCandidates, setCompareCandidates] = useState<RunItem[]>([]);
+  const [compareCandidateLoading, setCompareCandidateLoading] = useState(false);
   const [mode, setMode] = useState<'auto' | 'generic'>('auto');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -708,6 +721,7 @@ export default function App() {
     setWorkPackage(null);
     setServingCapacity(null);
     setSection('Overview');
+    setSurface('run');
     setMode('auto');
     setSystem(null);
     setEvaluation(null);
@@ -720,6 +734,48 @@ export default function App() {
       if (selectedRunKeyRef.current === run.run_key) setError(cause instanceof Error ? cause.message : String(cause));
     }
   }, [loadView]);
+
+  const toggleCompareRun = useCallback((runKey: string) => {
+    setCompareKeys((current) => current.includes(runKey)
+      ? current.filter((key) => key !== runKey)
+      : current.length >= 12 ? current : [...current, runKey]);
+    setComparison(null);
+  }, []);
+
+  const openCompare = useCallback(async (runKey?: string) => {
+    const sourceKey = runKey ?? selected?.run_key;
+    setSurface('compare');
+    setActiveWorkPackageId(null);
+    setWorkPackage(null);
+    setComparison(null);
+    setCompareCandidates([]);
+    setCompareCandidateLoading(true);
+    if (sourceKey) setCompareKeys([sourceKey]);
+    try {
+      if (!sourceKey) return;
+      const sourceComparison = await api.comparisonKey(sourceKey);
+      const candidates = runs.filter((run) => run.locator.source_id === selected?.locator.source_id && run.run.project_id === selected?.run.project_id && run.run.job_kind === sourceComparison.job_kind);
+      const candidateKeys = await Promise.all(candidates.map((run) => api.comparisonKey(run.run_key).catch(() => null)));
+      setCompareCandidates(candidates.filter((_, index) => candidateKeys[index]?.comparison_key === sourceComparison.comparison_key));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setCompareCandidateLoading(false);
+    }
+  }, [runs, selected]);
+
+  const runCompare = useCallback(async () => {
+    if (compareKeys.length < 2) return;
+    setComparisonLoading(true);
+    setError('');
+    try {
+      setComparison(await api.compare(compareKeys));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setComparisonLoading(false);
+    }
+  }, [compareKeys]);
 
   const chooseProject = useCallback(async (projectId: string) => {
     const run = runs.find((item) => item.locator.source_id === selectedSourceId && item.run.project_id === projectId);
@@ -943,7 +999,10 @@ export default function App() {
           ].map(([Icon, label]) => (
             <button
               key={label as string}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded px-2 py-2 text-secondary hover:bg-subtle"
+              type="button"
+              onClick={label === 'Compare' ? () => { void openCompare(); } : undefined}
+              aria-pressed={label === 'Compare' && surface === 'compare'}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded px-2 py-2 ${label === 'Compare' && surface === 'compare' ? 'bg-violet-50 text-violet-800' : 'text-secondary hover:bg-subtle'}`}
             >
               <Icon size={17} aria-hidden="true" /> {label as string}
             </button>
@@ -995,7 +1054,7 @@ export default function App() {
             {activeWorkPackageId ? <span className="text-muted">{workPackageLoading ? 'Loading package…' : `${workPackage?.runs.length ?? 0} runs`}</span> : <><Status value={selected.run.status} /><span className="hidden text-muted sm:inline">{selected.run.provider}</span></>}
           </div>
         </header>
-        {!activeWorkPackageId && <nav aria-label="Run evidence sections" className="flex h-9 gap-4 overflow-x-auto border-b border-divider bg-panel px-8">
+        {!activeWorkPackageId && surface === 'run' && <nav aria-label="Run evidence sections" className="flex h-9 gap-4 overflow-x-auto border-b border-divider bg-panel px-8">
           {visibleSections.map((item) => (
             <button
               key={item}
@@ -1018,7 +1077,7 @@ export default function App() {
           {activeWorkPackageId ? <WorkPackagePage view={workPackage} servingCapacity={servingCapacity} loading={workPackageLoading} onOpenRun={(runKey) => {
             const run = runs.find((item) => item.run_key === runKey);
             if (run) void chooseRun(run);
-          }} /> : !response ? <div className="grid min-h-[420px] place-items-center text-xs text-muted">{error || 'Loading run evidence…'}</div> : <>
+          }} /> : surface === 'compare' ? <CompareView runs={compareCandidates} candidateLoading={compareCandidateLoading} selectedKeys={compareKeys} comparison={comparison} loading={comparisonLoading} onToggle={toggleCompareRun} onCompare={() => void runCompare()} jobKind={selected.run.job_kind} /> : !response ? <div className="grid min-h-[420px] place-items-center text-xs text-muted">{error || 'Loading run evidence…'}</div> : <>
           {section === 'Overview' && (
             response.view.view_kind === 'job.serving'
               ? <ServingBenchmarkOverview response={response} sourceId={selected.locator.source_id} onRunConfig={() => void openSection('Run config')} />
@@ -1029,6 +1088,7 @@ export default function App() {
                   activeChart={activeChart}
                   onChart={setActiveChart}
                   onTraces={() => void openSection('Traces & evaluation')}
+                  onCompare={() => { void openCompare(selected.run_key); }}
                 />
           )}
           {section === 'Metrics' && <GenericMetrics response={response} runKey={selected.run_key} />}
@@ -1110,14 +1170,220 @@ function WorkPackagePage({ view, servingCapacity, loading, onOpenRun }: { view: 
   </>;
 }
 
-function Overview({ selected, response, copy, activeChart, onChart, onTraces }: {
+type OverviewProps = {
   selected: RunItem;
   response: RunView;
   copy: { eyebrow: string; title: string; question: string };
   activeChart: number;
   onChart: (index: number) => void;
   onTraces: () => void;
-}) {
+  onCompare: () => void;
+};
+
+function Overview(props: OverviewProps) {
+  return props.response.view.view_kind === 'job.evaluation' && props.response.view.evaluation
+    ? <EvaluationOverview {...props} evaluation={props.response.view.evaluation} />
+    : <GenericOverview {...props} />;
+}
+
+export function CapabilityBreakdown({ evaluation, onTraces }: { evaluation: TraceEvaluation; onTraces: () => void }) {
+  const compoundBreakdowns = evaluation.breakdowns ?? [];
+  const declaredDimensionOrder = evaluation.metadata?.facet_specs?.map((spec) => spec.dimension) ?? [];
+  const observedDimensions = [...new Set(evaluation.facets.map((facet) => facet.dimension))];
+  const dimensions = [...declaredDimensionOrder, ...observedDimensions.filter((item) => !declaredDimensionOrder.includes(item))];
+  const options = [
+    ...dimensions.map((dimension) => ({
+      key: `dimension:${dimension}`,
+      label: evaluation.facets.find((facet) => facet.dimension === dimension)?.dimension_label ?? humanizeKey(dimension),
+    })),
+    ...compoundBreakdowns.map((breakdown) => ({ key: `breakdown:${breakdown.id}`, label: breakdown.label })),
+  ];
+  const preferred = compoundBreakdowns.length
+    ? `breakdown:${compoundBreakdowns[0].id}`
+    : options[0]?.key ?? 'none';
+  const [selection, setSelection] = useState(preferred);
+  useEffect(() => {
+    if (!options.some((option) => option.key === selection)) setSelection(preferred);
+  }, [options, preferred, selection]);
+  const selectedBreakdown = selection.startsWith('breakdown:')
+    ? compoundBreakdowns.find((item) => item.id === selection.slice('breakdown:'.length)) ?? null
+    : null;
+  const selectedDimension = selection.startsWith('dimension:') ? selection.slice('dimension:'.length) : null;
+  const facets = selectedDimension ? evaluation.facets.filter((facet) => facet.dimension === selectedDimension) : [];
+  const universalFacet = !selectedBreakdown && dimensions.length === 1 && evaluation.facets.length === 1 && evaluation.facets[0].count === evaluation.included
+    ? evaluation.facets[0]
+    : null;
+  const selectedLabel = options.find((option) => option.key === selection)?.label ?? 'Task population';
+  const pluralLabel = selectedLabel.endsWith('y') ? `${selectedLabel.slice(0, -1)}ies` : `${selectedLabel}s`;
+  const rowValues = selectedBreakdown
+    ? [...new Map(selectedBreakdown.groups.map((group) => {
+        const value = group.values.find((item) => item.dimension === selectedBreakdown.dimensions[0]);
+        return [value?.value ?? '', value?.label ?? 'Missing'];
+      })).entries()].filter(([value]) => value).sort((left, right) => compareNaturalLabels(left[1], right[1]))
+    : [];
+  const columnValues = selectedBreakdown
+    ? [...new Map(selectedBreakdown.groups.map((group) => {
+        const value = group.values.find((item) => item.dimension === selectedBreakdown.dimensions[1]);
+        return [value?.value ?? '', value?.label ?? 'Missing'];
+      })).entries()].filter(([value]) => value).sort((left, right) => compareNaturalLabels(left[1], right[1]))
+    : [];
+  const groupFor = (row: string, column: string) => selectedBreakdown?.groups.find((group) => {
+    const values = Object.fromEntries(group.values.map((value) => [value.dimension, value.value]));
+    return values[selectedBreakdown.dimensions[0]] === row && values[selectedBreakdown.dimensions[1]] === column;
+  });
+
+  return <section className="obs-card self-start overflow-hidden" aria-labelledby="benchmark-breakdown-heading">
+    <div className="flex flex-wrap items-end justify-between gap-3 border-b border-divider px-4 py-3">
+      <div><p className="type-eyebrow">TASK POPULATION</p><h2 id="benchmark-breakdown-heading" className="mt-1 font-serif text-xl font-normal">{selectedBreakdown ? selectedBreakdown.label : universalFacet ? 'Coverage and capability breakdown' : facets.length ? pluralLabel : 'Task slices'}</h2></div>
+      <span className="text-[11px] text-muted">{evaluation.included.toLocaleString()} included · {evaluation.scored.toLocaleString()} scored</span>
+    </div>
+    {options.length > 1 && <div className="flex flex-wrap gap-1 border-b border-divider px-4 py-2" role="tablist" aria-label="Capability breakdown">
+      {options.map((option) => <button key={option.key} type="button" role="tab" aria-selected={selection === option.key} onClick={() => setSelection(option.key)} className={`rounded-[4px] px-2.5 py-1.5 text-[10px] font-medium ${selection === option.key ? 'bg-violet-700 text-white' : 'text-muted hover:bg-subtle hover:text-ink'}`}>{option.label}</button>)}
+    </div>}
+    {selectedBreakdown ? <div className="overflow-x-auto">
+      <table className="w-full min-w-[720px] border-collapse text-left text-xs">
+        <thead><tr className="border-b border-divider bg-subtle/60"><th scope="col" className="px-4 py-3 text-[10px] uppercase tracking-[.1em] text-muted">{selectedBreakdown.dimension_labels[0]}</th>{columnValues.map(([value, label]) => <th scope="col" key={value} className="min-w-[120px] px-3 py-3 text-right text-[10px] font-medium text-muted">{label}</th>)}</tr></thead>
+        <tbody className="divide-y divide-divider">{rowValues.map(([rowValue, rowLabel]) => <tr key={rowValue}><th scope="row" className="px-4 py-3 font-medium">{rowLabel}</th>{columnValues.map(([columnValue]) => {
+          const group = groupFor(rowValue, columnValue);
+          return <td key={columnValue} className="px-3 py-2.5 text-right align-top">{group ? <div>
+            <div className="flex items-baseline justify-end gap-2"><strong>{group.mean_reward?.toFixed(3) ?? '—'}</strong><span className="text-[10px] text-muted">reward</span></div>
+            <div className="mt-0.5 text-[10px]"><span className={group.success_rate == null ? 'text-muted' : group.success_rate >= 1 ? 'text-emerald-700' : 'text-rose-700'}>{group.success_rate == null ? 'No pass evidence' : `${(group.success_rate * 100).toFixed(1)}% pass`}</span><span className="text-muted"> · {group.scored}/{group.count} scored</span></div>
+            {(group.failures > 0 || group.truncated > 0) && <div className="mt-0.5 text-[9px] text-amber-700">{group.failures > 0 ? `${group.failures} error${group.failures === 1 ? '' : 's'}` : ''}{group.failures > 0 && group.truncated > 0 ? ' · ' : ''}{group.truncated > 0 ? `${group.truncated} truncated` : ''}</div>}
+          </div> : <span className="text-muted">—</span>}</td>;
+        })}</tr>)}</tbody>
+      </table>
+      {selectedBreakdown.excluded > 0 && <p className="border-t border-divider px-4 py-2 text-[10px] text-amber-700">{selectedBreakdown.excluded} traces lacked an unambiguous declared combination and were excluded from this matrix.</p>}
+    </div> : universalFacet ? <div className="px-4 py-4"><div className="rounded-[4px] border border-divider bg-subtle px-3 py-3"><span className="type-label block">Selected benchmark split</span><div className="mt-1 flex flex-wrap items-baseline justify-between gap-2"><strong className="font-medium">{universalFacet.label}</strong><span className="text-[10px] text-muted">{universalFacet.count.toLocaleString()} tasks</span></div><p className="mt-2 text-[11px] leading-5 text-muted">This run declares only one full-population {universalFacet.dimension_label.toLowerCase()} facet. Observatory keeps it as benchmark identity rather than presenting it as a capability comparison.</p></div></div> : facets.length ? <div className="divide-y divide-divider">{facets.map((item) => <div key={item.key} className="grid grid-cols-[minmax(0,1fr)_100px_100px] items-center gap-3 px-4 py-3 text-xs"><div className="min-w-0"><strong className="block truncate font-medium">{item.label}</strong><span className="block text-[10px] text-muted">{item.count} example{item.count === 1 ? '' : 's'}</span></div><div className="text-right"><span className="type-label block">Reward</span><strong>{item.mean_reward?.toFixed(3) ?? '—'}</strong></div><div className="text-right"><span className="type-label block">Pass rate</span><strong>{item.success_rate == null ? '—' : `${(item.success_rate * 100).toFixed(1)}%`}</strong></div></div>)}</div> : evaluation.slices.length ? <div className="divide-y divide-divider">{evaluation.slices.map((item) => <div key={item.key} className="grid grid-cols-[minmax(0,1fr)_100px_100px] items-center gap-3 px-4 py-3 text-xs"><div className="min-w-0"><strong className="block truncate font-medium">{item.label}</strong><span className="block text-[10px] text-muted">{item.count} example{item.count === 1 ? '' : 's'}</span></div><div className="text-right"><span className="type-label block">Reward</span><strong>{item.mean_reward?.toFixed(3) ?? '—'}</strong></div><div className="text-right"><span className="type-label block">Pass rate</span><strong>{item.success_rate == null ? '—' : `${(item.success_rate * 100).toFixed(1)}%`}</strong></div></div>)}</div> : <p className="px-4 py-6 text-xs text-muted">No task slices were projected from this run.</p>}
+    <p className="border-t border-divider px-4 py-3 text-[11px] leading-5 text-muted">Breakdowns use the dimensions frozen into this run. Compound cells retain their score coverage so pass rates are never presented without a denominator.</p>
+    <div className="border-t border-divider px-4 py-3"><button type="button" onClick={onTraces} className="inline-flex items-center gap-1 text-xs text-violet-700 hover:text-violet-900">Inspect supporting traces <ArrowSquareOut size={13} /></button></div>
+  </section>;
+}
+
+function EvaluationOverview({ selected, response, evaluation, onTraces, onCompare }: OverviewProps & { evaluation: TraceEvaluation }) {
+  const view = response.view;
+  const environment = selectionValue(view.resolved_inputs, 'environment');
+  const model = selectionValue(view.resolved_inputs, 'model');
+  const inference = selectionValue(view.resolved_inputs, 'evaluation_inference')
+    ?? selectionValue(view.resolved_inputs, 'inference');
+  const engine = isRecord(inference?.detail) && isRecord(inference.detail.engine) ? inference.detail.engine : null;
+  const speculative = engine && isRecord(engine.speculative_config) ? engine.speculative_config : null;
+  const taskset = isRecord(nestedValue(environment, 'activation', 'config', 'taskset'))
+    ? nestedValue(environment, 'activation', 'config', 'taskset') as Record<string, unknown>
+    : null;
+  const rewardComponents = nestedValue(environment, 'reward_components');
+  const expected = evaluation.expected;
+  const coverageLabel = `${evaluation.included.toLocaleString()}${expected == null ? '' : `/${expected.toLocaleString()}`} traces observed`;
+  const evidenceReady = evaluation.state === 'complete' && evaluation.failures === 0 && evaluation.truncated === 0;
+  const outcomeLabel = evidenceReady ? 'Evidence complete' : evaluation.failures > 0 ? 'Needs review' : 'Partial evidence';
+  const scoreLabel = evaluation.metadata?.primary_metric_label
+    ?? (typeof rewardComponents === 'string'
+    ? rewardComponents
+    : Array.isArray(rewardComponents) && rewardComponents.length === 1
+      ? String(rewardComponents[0])
+      : 'Native reward');
+  const performance: NonNullable<TraceEvaluation['performance']> = evaluation.performance ?? {
+    latency_ms: null,
+    completion_tokens: null,
+    thinking_tokens: null,
+    tool_calls: null,
+  };
+  const formatLatency = (milliseconds: number) => milliseconds < 1000
+    ? `${milliseconds.toFixed(0)}ms`
+    : `${(milliseconds / 1000).toFixed(milliseconds >= 10_000 ? 1 : 2)}s`;
+  const formatCount = (value: number) => value.toLocaleString(undefined, { maximumFractionDigits: 1 });
+  const performanceItems = [
+    performance.latency_ms && {
+      label: 'End-to-end latency',
+      value: formatLatency(performance.latency_ms.p50),
+      detail: `p95 ${formatLatency(performance.latency_ms.p95)}`,
+      samples: performance.latency_ms.samples,
+    },
+    performance.completion_tokens && {
+      label: 'Generated tokens',
+      value: formatCount(performance.completion_tokens.p50),
+      detail: `p95 ${formatCount(performance.completion_tokens.p95)}`,
+      samples: performance.completion_tokens.samples,
+    },
+    performance.thinking_tokens && performance.thinking_tokens.maximum > 0 && {
+      label: 'Thinking tokens',
+      value: formatCount(performance.thinking_tokens.p50),
+      detail: `p95 ${formatCount(performance.thinking_tokens.p95)}`,
+      samples: performance.thinking_tokens.samples,
+    },
+    performance.tool_calls && performance.tool_calls.maximum > 0 && {
+      label: 'Tool calls',
+      value: formatCount(performance.tool_calls.p50),
+      detail: `p95 ${formatCount(performance.tool_calls.p95)}`,
+      samples: performance.tool_calls.samples,
+    },
+  ].filter((item): item is { label: string; value: string; detail: string; samples: number } => Boolean(item));
+  return <>
+    <PageHeading
+      eyebrow={`${environment?.id ?? 'EVALUATION'} · BENCHMARK OVERVIEW`}
+      title={evaluation.metadata?.label ?? (environment?.id ? packageLabel(environment.id) : 'Evaluation overview')}
+      subtitle={`${evaluation.metadata?.category ? `${evaluation.metadata.category} · ` : ''}A single-run verdict over the selected task population. Rollout traces remain supporting evidence, not the headline.`}
+    />
+    <section aria-label="Benchmark verdict" className="obs-card mt-5 overflow-hidden border-violet-200">
+      <div className="flex items-center justify-end border-b border-divider px-4 py-3"><button type="button" onClick={onCompare} className="inline-flex items-center gap-1.5 rounded-[4px] border border-violet-300 bg-surface px-3 py-2 text-xs font-medium text-violet-800 hover:bg-violet-50">Compare this run <GitDiff size={14} /></button></div>
+      <div className="grid lg:grid-cols-[minmax(250px,.9fr)_minmax(0,1.6fr)]">
+        <div className="border-b border-divider bg-violet-50/60 px-5 py-5 lg:border-b-0 lg:border-r">
+          <p className="type-eyebrow text-violet-700">BENCHMARK VERDICT</p>
+          <div className="mt-2 flex items-end gap-3">
+            <strong className="font-serif text-[56px] font-normal leading-none">{evaluation.mean_reward?.toFixed(3) ?? '—'}</strong>
+            <span className="pb-1 text-[11px] text-secondary">{scoreLabel}</span>
+          </div>
+          <div className="mt-4 flex items-center gap-2 text-xs">
+            <Circle size={8} weight="fill" className={evidenceReady ? 'text-emerald-600' : 'text-amber-500'} />
+            <strong>{outcomeLabel}</strong>
+            <span className="text-muted">· {coverageLabel}</span>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+          {[
+            { label: 'Coverage', value: coverageLabel },
+            { label: 'Reward scored', value: evaluation.scored.toLocaleString() },
+            {
+              label: 'Pass rate',
+              value: evaluation.success_rate == null ? '—' : `${(evaluation.success_rate * 100).toFixed(1)}%`,
+              note: evaluation.success_rate == null ? undefined : `${(evaluation.passed ?? 0).toLocaleString()} passed / ${(evaluation.pass_scored ?? 0).toLocaleString()} evaluated`,
+            },
+            { label: 'Errors', value: evaluation.failures.toLocaleString() },
+            { label: 'Truncated', value: evaluation.truncated.toLocaleString() },
+          ].map((item) => <div key={item.label} className="border-b border-r border-divider px-4 py-4 last:border-r-0"><span className="type-label block">{item.label}</span><strong className="mt-1 block font-serif text-2xl font-normal">{item.value}</strong>{item.note && <span className="mt-1 block text-[10px] text-muted">{item.note}</span>}</div>)}
+        </div>
+      </div>
+      {(evaluation.failures > 0 || evaluation.truncated > 0 || evaluation.state !== 'complete') && <div className="flex items-start gap-2 border-t border-amber-200 bg-[#fffaf1] px-4 py-3 text-[11px] text-amber-900"><Warning size={15} weight="fill" className="mt-0.5 shrink-0 text-amber-600" /><span>{evaluation.failures > 0 ? `${evaluation.failures} task${evaluation.failures === 1 ? '' : 's'} reported an error. ` : ''}{evaluation.truncated > 0 ? `${evaluation.truncated} response${evaluation.truncated === 1 ? '' : 's'} reached the configured output boundary. ` : ''}Interpret the score with this evidence-quality caveat.</span></div>}
+    </section>
+    {performanceItems.length > 0 && <section className="obs-card mt-4 overflow-hidden" aria-label="Run performance">
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-divider px-4 py-3">
+        <div><p className="type-eyebrow">RUN PERFORMANCE</p><h2 className="mt-1 font-serif text-xl font-normal">Efficiency across evaluated traces</h2></div>
+        <span className="text-[11px] text-muted">Computed from the same trace population as the verdict</span>
+      </div>
+      <div className={`grid sm:grid-cols-2 ${performanceItems.length >= 4 ? 'xl:grid-cols-4' : 'xl:grid-cols-3'}`}>
+        {performanceItems.map((item) => <div key={item.label} className="border-b border-r border-divider px-4 py-4 last:border-r-0 sm:[&:nth-last-child(-n+2)]:border-b-0 xl:border-b-0">
+          <span className="type-label block">{item.label}</span>
+          <strong className="mt-1 block font-serif text-2xl font-normal">{item.value}</strong>
+          <span className="mt-1 block text-[10px] text-muted">p50 · {item.detail} · {item.samples.toLocaleString()} traces</span>
+        </div>)}
+      </div>
+    </section>}
+    <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <CapabilityBreakdown evaluation={evaluation} onTraces={onTraces} />
+      <aside className="obs-card self-start overflow-hidden" aria-label="Evaluation lineage">
+        <div className="border-b border-divider px-4 py-3"><p className="type-eyebrow">RUN LINEAGE</p><h2 className="mt-1 font-serif text-xl font-normal">Conditions behind the score</h2></div>
+        <LineageItem icon={<Stack size={18} />} label="Model" value={model?.id ?? 'Not recorded'} detail={model?.revision ? `revision ${model.revision.slice(0, 12)}` : undefined} />
+        <LineageItem icon={<Pulse size={18} />} label="Inference" value={inference?.id ?? 'Not recorded'} detail={inference?.revision ? `revision ${inference.revision.slice(0, 12)}` : undefined} />
+        <LineageItem icon={<Database size={18} />} label="Environment" value={environment?.id ?? 'Not recorded'} detail={environment?.revision ? `revision ${environment.revision.slice(0, 12)}` : undefined} />
+        {engine && <section className="border-b border-divider px-4 py-3"><p className="type-label">Serving budget</p><dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2">{([['Context length', engine.max_model_len], ['GPU memory fraction', engine.gpu_memory_utilization], ['Max sequences', engine.max_num_seqs], ['Batched tokens', engine.max_num_batched_tokens], ['KV cache dtype', engine.kv_cache_dtype], ['Speculative method', speculative?.method]] as const).map(([label, value]) => value != null && <div key={label} className="min-w-0"><dt className="text-[9px] uppercase tracking-[.1em] text-muted">{label}</dt><dd className="mt-0.5 break-words text-[10px] font-medium">{String(value)}</dd></div>)}</dl></section>}
+        {taskset && <section className="border-b border-divider px-4 py-3"><p className="type-label">Dataset / taskset</p><dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2">{(['dataset_repo', 'dataset_revision', 'split', 'order_seed', 'eval_seed_start', 'num_tasks', 'max_concurrent'] as const).map((key) => taskset[key] != null && <div key={key} className="min-w-0"><dt className="text-[9px] uppercase tracking-[.1em] text-muted">{humanizeKey(key)}</dt><dd className="mt-0.5 break-words text-[10px] font-medium">{String(taskset[key])}</dd></div>)}</dl></section>}
+        {evaluation.metadata && <section className="border-t border-divider px-4 py-3"><p className="type-label">Evaluation identity</p><dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2">{([['Dataset', evaluation.metadata.dataset], ['Dataset revision', evaluation.metadata.dataset_revision], ['Split', evaluation.metadata.split], ['Primary metric', evaluation.metadata.primary_metric_label], ['Metric basis', evaluation.metadata.pass_rate_basis]] as const).map(([label, value]) => value && <div key={label} className="min-w-0"><dt className="text-[9px] uppercase tracking-[.1em] text-muted">{label}</dt><dd className="mt-0.5 break-words text-[10px] font-medium">{value}</dd></div>)}</dl></section>}
+        <section className="px-4 py-3"><p className="type-label">Evidence state</p><p className="mt-1 text-xs leading-5 text-secondary">{evaluation.state} · {evaluation.live ? 'live reader' : 'sync settled'} · native Verifiers traces retained</p></section>
+      </aside>
+    </div>
+  </>;
+}
+
+function GenericOverview({ selected, response, copy, activeChart, onChart, onTraces }: OverviewProps) {
   const view = response.view;
   const summary = view.summary ?? [];
   const charts = view.charts ?? [];
@@ -1314,6 +1580,33 @@ function GenericMetricCard({ metric, onRemove }: { metric: MetricSeries; onRemov
   </section>;
 }
 
+function CompareView({ runs, jobKind, selectedKeys, comparison, loading, candidateLoading, onToggle, onCompare }: {
+  runs: RunItem[];
+  jobKind: string;
+  selectedKeys: string[];
+  comparison: RunComparison | null;
+  loading: boolean;
+  candidateLoading: boolean;
+  onToggle: (runKey: string) => void;
+  onCompare: () => void;
+}) {
+  const runLabel = new Map(runs.map((run) => [run.run.run_id, run.run.display_name]));
+  return <>
+    <PageHeading eyebrow="CROSS-RUN EVALUATION" title="Compare runs" subtitle={`Candidates are filtered to ${jobKind}. Compare models only against the same evaluation population; dataset, task selection, and metric schema must still match.`} />
+    <section className="obs-card mt-5 overflow-hidden" aria-label="Comparison run selection">
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-divider px-4 py-3"><div><p className="type-eyebrow">SELECT RUNS</p><h2 className="mt-1 font-serif text-xl font-normal">Evaluation candidates</h2></div><button type="button" disabled={selectedKeys.length < 2 || loading} onClick={onCompare} className="rounded-[4px] bg-violet-700 px-3 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:bg-violet-200">{loading ? 'Comparing…' : `Compare ${selectedKeys.length || ''}`}</button></div>
+      <div className="divide-y divide-divider">
+        {candidateLoading && <p className="px-4 py-6 text-xs text-muted">Resolving runs with the same evaluation population…</p>}
+        {runs.map((run) => <label key={run.run_key} className="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-subtle"><input type="checkbox" checked={selectedKeys.includes(run.run_key)} onChange={() => onToggle(run.run_key)} className="accent-violet-700" /><span className="min-w-0 flex-1"><strong className="block truncate text-xs font-medium">{run.run.display_name}</strong><span className="mt-1 block text-[10px] text-muted">{run.run.job_kind} · {run.run.work_package_id}</span></span><Status value={run.run.status} /></label>)}
+        {!candidateLoading && !runs.length && <p className="px-4 py-6 text-xs text-muted">No runs share this job’s evaluation dataset, task selection, revision, split/seed, environment source, and native metric schema.</p>}
+      </div>
+    </section>
+    {comparison && comparison.state === 'incomparable' && <section className="mt-4 border border-amber-200 bg-[#fffaf1] px-4 py-4" aria-label="Runs are not comparable"><div className="flex items-start gap-2"><Warning size={16} weight="fill" className="mt-0.5 shrink-0 text-amber-600" /><div><h2 className="text-xs font-medium text-amber-950">These runs cannot be compared</h2><p className="mt-1 text-xs leading-5 text-amber-900">{comparison.reason}</p>{comparison.basis.length > 0 && <p className="mt-2 text-[10px] text-amber-800">Required match: {comparison.basis.join(' · ')}.</p>}</div></div></section>}
+    {comparison && comparison.state === 'comparable' && <section className="obs-card mt-4 overflow-hidden" aria-label="Run comparison matrix"><div className="border-b border-divider px-4 py-3"><p className="type-eyebrow">SAME POPULATION</p><h2 className="mt-1 font-serif text-xl font-normal">Model comparison matrix</h2><p className="mt-1 text-xs text-muted">{comparison.basis.join(' · ')}</p></div><div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left text-xs"><thead className="bg-subtle text-[10px] uppercase tracking-[.1em] text-muted"><tr><th className="px-4 py-3">Run / model</th>{comparison.columns.map((column) => <th key={column} className="px-4 py-3 text-right">{humanizeKey(column)}</th>)}<th className="px-4 py-3">Inference</th></tr></thead><tbody className="divide-y divide-divider">{comparison.rows.map((row) => <tr key={row.run_id}><th className="max-w-[260px] px-4 py-3 font-medium"><span className="block truncate">{runLabel.get(row.run_id) ?? row.run_id}</span><code className="mt-1 block truncate text-[10px] font-normal text-muted">{String(row.context.model ?? 'model not recorded')}</code></th>{comparison.columns.map((column) => <td key={column} className="px-4 py-3 text-right font-medium">{row.values[column] == null ? '—' : typeof row.values[column] === 'number' ? Number(row.values[column]).toFixed(3) : String(row.values[column])}</td>)}<td className="max-w-[220px] px-4 py-3 text-[10px] text-muted">{String(row.context.inference ?? 'not recorded')}</td></tr>)}</tbody></table></div></section>}
+    {!comparison && <div className="mt-4 border border-dashed border-divider bg-subtle/50 px-4 py-5 text-xs text-muted">Select at least two runs from this filtered population, then compare. Runs from a different dataset, task selection, revision, split/seed, environment source, or native metric schema are excluded before comparison.</div>}
+  </>;
+}
+
 function GenericMetrics({ response, runKey }: { response: RunView; runKey: string }) {
   const catalog = response.view.metric_catalog;
   const names = useMemo(() => catalog?.namespaces.flatMap((namespace) => namespace.metrics) ?? [], [catalog]);
@@ -1372,17 +1665,144 @@ function TraceView({ jobKind, evaluation, detail, onSelect }: { jobKind: string;
   const [outcome, setOutcome] = useState('all');
   const [query, setQuery] = useState('');
   const [sorting, setSorting] = useState<SortingState>([{ id: 'reward', desc: false }]);
-  const traces = useMemo(() => evaluation?.traces.filter((trace) => (slice === 'all' || trace.task === slice) && (outcome === 'all' || (outcome === 'pass' ? trace.success === true : trace.success === false)) && (!query || `${trace.external_id} ${trace.task}`.toLowerCase().includes(query.toLowerCase()))) ?? [], [evaluation, outcome, query, slice]);
-  if (!evaluation) return <EmptyState title="Loading trace population" body="Scanning a bounded trace population and computing aggregate views." />;
+  const presentation = useMemo(() => evaluation ? tracePresentation(jobKind, evaluation) : null, [evaluation, jobKind]);
+  const metricColumns = useMemo(() => evaluation ? traceSignalColumns(evaluation) : [], [evaluation]);
+  const traces = useMemo(() => evaluation?.traces.filter((trace) => {
+    const matchesTask = trace.task === slice;
+    const matchesFacet = slice.startsWith('facet:') && Boolean(trace.task_metadata?.facets.some((facet) => facet.key === slice.slice('facet:'.length)));
+    return (slice === 'all' || matchesTask || matchesFacet)
+      && (outcome === 'all' || trace.outcome === outcome)
+      && (!query || `${trace.external_id} ${trace.task} ${trace.task_label ?? ''}`.toLowerCase().includes(query.toLowerCase()));
+  }) ?? [], [evaluation, outcome, query, slice]);
+  if (!evaluation || !presentation) return <EmptyState title="Loading trace population" body="Scanning a bounded trace population and computing aggregate views." />;
   if (!evaluation.included) return <EmptyState title="No traces were captured" body="This job has run-level evidence only. Trace-derived evaluation and example-level investigation are unavailable." />;
   const activeFilters = Number(slice !== 'all') + Number(outcome !== 'all') + Number(Boolean(query));
-  const isGrpo = jobKind === 'train.grpo';
-  return <><PageHeading eyebrow={isGrpo ? 'ROLLOUTS TO LEARNING SIGNAL' : 'AGGREGATE TO EVIDENCE'} title={isGrpo ? 'Rollouts & rewards' : 'Traces & evaluation'} subtitle={isGrpo ? 'Reward and rollout aggregates link back to the exact trajectories consumed by policy updates.' : 'Evaluation metrics are computed from this trace population; every aggregate links back to exact examples.'} /><div className="obs-card mt-5 grid overflow-hidden sm:grid-cols-3 xl:grid-cols-6">{[['Mean reward', evaluation.mean_reward?.toFixed(3) ?? '—'], ['Pass rate', evaluation.success_rate == null ? '—' : `${(evaluation.success_rate * 100).toFixed(1)}%`], ['Included', evaluation.included], ['Errors', evaluation.failures], ['Truncated', evaluation.truncated], ['Trace sync', evaluation.state]].map(([label, value]) => <div key={label} className="border-b border-r border-divider px-4 py-3"><span className="block text-[11px] text-muted">{label}</span><strong className="mt-1 block font-serif text-2xl font-normal">{value}</strong></div>)}</div><div className="mt-3"><Suspense fallback={<ChartFallback height={230} />}><EvaluationCharts evaluation={evaluation} /></Suspense></div><div className="obs-card mt-3 flex flex-wrap items-center gap-2 px-2.5 py-2 text-xs"><SlidersHorizontal size={15} className="mx-0.5 text-muted" /><FilterPopover label="Slice" value={slice} onChange={setSlice} options={[{ value: 'all', label: 'Any' }, ...evaluation.slices.map((item) => ({ value: item.key, label: item.key }))]} /><FilterPopover label="Outcome" value={outcome} onChange={setOutcome} options={[{ value: 'all', label: 'Any' }, { value: 'pass', label: 'Pass' }, { value: 'review', label: 'Needs review' }]} />{activeFilters > 0 && <button type="button" onClick={() => { setSlice('all'); setOutcome('all'); setQuery(''); }} className="inline-flex h-8 items-center gap-1 px-2 text-[11px] text-violet-700 hover:text-violet-900"><X size={12} /> Clear {activeFilters}</button>}<label className="obs-control ml-auto flex h-8 min-w-[250px] items-center gap-2 px-2.5 focus-within:border-violet-400"><MagnifyingGlass size={13} /><input aria-label="Search traces" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search traces, prompts, IDs…" className="w-full bg-transparent outline-none" /></label></div><div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_390px]"><div><div className="mb-2 flex items-end justify-between"><div><h2 className="text-[13px] font-medium">Trace population</h2><p className="mt-1 text-xs text-muted">{traces.length.toLocaleString()} of {evaluation.included.toLocaleString()} traces · sorted and filtered locally.</p></div></div><Suspense fallback={<ChartFallback height={430} />}><TraceTable traces={traces} selectedId={detail?.summary.external_id ?? null} sorting={sorting} onSortingChange={setSorting} onSelect={(trace) => void onSelect(trace)} /></Suspense></div><TraceInspector detail={detail} /></div></>;
+  const filterOptions = [
+    { value: 'all', label: 'Any' },
+    ...evaluation.slices.map((item) => ({ value: item.key, label: item.label })),
+    ...evaluation.facets.map((item) => ({
+      value: `facet:${item.key}`,
+      label: `${item.label} · ${item.dimension_label}`,
+    })),
+  ];
+  const hasRewardEvidence = evaluation.traces.some((trace) => trace.reward != null);
+  const summaryItems = [
+    ...(hasRewardEvidence ? [{ label: 'Mean reward', value: evaluation.mean_reward?.toFixed(3) ?? '—', note: evaluation.metadata?.primary_metric_label ?? 'Native reward' }] : []),
+    ...(presentation.mode === 'evaluation' || presentation.passRateConfigured ? [{
+      label: 'Pass rate',
+      value: presentation.passRateAvailable && evaluation.success_rate != null ? `${(evaluation.success_rate * 100).toFixed(1)}%` : '—',
+      note: presentation.passRateConfigured
+        ? `${(evaluation.passed ?? 0).toLocaleString()} passed / ${(evaluation.pass_scored ?? 0).toLocaleString()} evaluated · ${evaluation.metadata?.pass_rate_basis ?? 'Configured verifier predicate'}`
+        : 'No binary predicate declared',
+    }] : []),
+    { label: 'Included', value: evaluation.included, note: presentation.populationLabel },
+    ...(hasRewardEvidence ? [{ label: 'Scored', value: evaluation.scored, note: `${Math.max(0, evaluation.included - evaluation.scored)} unscored` }] : []),
+    { label: 'Errors', value: evaluation.failures, note: 'Task or harness errors' },
+    { label: 'Truncated', value: evaluation.truncated, note: 'Output boundary reached' },
+    { label: 'Trace sync', value: evaluation.state, note: `${evaluation.scanned}/${evaluation.expected ?? evaluation.included} observed` },
+  ];
+  const observedOutcomes = new Set(evaluation.traces.map((trace) => trace.outcome));
+  const outcomeOptions = [
+    { value: 'all', label: 'Any' },
+    ...(['pass', 'review', 'scored', 'error', 'truncated', 'unknown'] as const)
+      .filter((value) => observedOutcomes.has(value))
+      .map((value) => ({ value, label: presentation.outcomeLabel(value) })),
+  ];
+  return <>
+    <PageHeading eyebrow={presentation.eyebrow} title={presentation.title} subtitle={presentation.subtitle} />
+    <div className="obs-card mt-5 grid grid-cols-[repeat(auto-fit,minmax(145px,1fr))] overflow-hidden">
+      {summaryItems.map((item) => <div key={item.label} className="border-b border-r border-divider px-4 py-3">
+        <span className="block text-[11px] text-muted">{item.label}</span>
+        <strong className="mt-1 block font-serif text-2xl font-normal">{item.value}</strong>
+        <span className="mt-1 block truncate text-[9px] text-muted" title={item.note}>{item.note}</span>
+      </div>)}
+    </div>
+    <div className="obs-card mt-3 flex flex-wrap items-center gap-2 px-2.5 py-2 text-xs">
+      <SlidersHorizontal size={15} className="mx-0.5 text-muted" />
+      <FilterPopover label={evaluation.facets.length ? 'Slice / facet' : 'Slice'} value={slice} onChange={setSlice} options={filterOptions} />
+      <FilterPopover label={presentation.outcomeHeading} value={outcome} onChange={setOutcome} options={outcomeOptions} />
+      {activeFilters > 0 && <button type="button" onClick={() => { setSlice('all'); setOutcome('all'); setQuery(''); }} className="inline-flex h-8 items-center gap-1 px-2 text-[11px] text-violet-700 hover:text-violet-900"><X size={12} /> Clear {activeFilters}</button>}
+      <label className="obs-control ml-auto flex h-8 min-w-[250px] items-center gap-2 px-2.5 focus-within:border-violet-400"><MagnifyingGlass size={13} /><input aria-label="Search traces" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search tasks, prompts, IDs…" className="w-full bg-transparent outline-none" /></label>
+    </div>
+    {hasRewardEvidence ? <div className="mt-3"><Suspense fallback={<ChartFallback height={230} />}><EvaluationCharts evaluation={evaluation} presentation={presentation} /></Suspense></div> : <section className="obs-card mt-3 px-4 py-3" aria-label="Trace evidence semantics"><h2 className="text-[13px] font-medium">Request-level evidence</h2><p className="mt-1 text-xs leading-5 text-muted">This job exposes latency, token, tool-call, and terminal-state evidence without a reward contract. Reward charts and pass-rate controls are intentionally omitted.</p></section>}
+    <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_410px]">
+      <div>
+        <Suspense fallback={<ChartFallback height={430} />}><TraceTable traces={traces} selectedId={detail?.summary.external_id ?? null} metricColumns={metricColumns} presentation={presentation} sorting={sorting} onSortingChange={setSorting} onSelect={(trace) => void onSelect(trace)} /></Suspense>
+      </div>
+      <TraceInspector
+        detail={detail}
+        presentation={presentation}
+        metricColumns={metricColumns}
+        successMetric={evaluation.metadata?.pass_rate_metric ?? null}
+      />
+    </div>
+  </>;
 }
 
-function TraceInspector({ detail }: { detail: TraceDetail | null }) {
+function TraceInspector({
+  detail,
+  presentation,
+  metricColumns,
+  successMetric,
+}: {
+  detail: TraceDetail | null;
+  presentation: TracePresentation;
+  metricColumns: Array<{ name: string; label: string }>;
+  successMetric: string | null;
+}) {
   if (!detail) return <aside className="obs-card p-5"><p className="text-xs text-muted">Select a trace to inspect its transcript and verifier evidence.</p></aside>;
-  return <aside className="obs-card overflow-hidden"><div className="border-b border-divider p-4"><p className="type-label">SELECTED TRACE</p><h2 className="mt-1 font-mono text-xs">{detail.summary.external_id}</h2><div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs"><Status value={detail.summary.success ? 'complete' : 'failed'} /><span>Reward {detail.summary.reward?.toFixed(3) ?? '—'}</span><span>{detail.summary.task}</span><span>{detail.summary.latency_ms == null ? '—' : `${(detail.summary.latency_ms / 1000).toFixed(1)}s`}</span><span>{detail.summary.tokens?.toLocaleString() ?? '—'} tokens</span></div></div><div className="max-h-[520px] overflow-auto p-4"><h3 className="type-label">Rollout transcript</h3><div className="mt-2 space-y-2">{detail.transcript.map((message, index) => <div key={index} className="rounded-[4px] border border-divider bg-surface p-2.5"><span className="text-[10px] font-medium uppercase tracking-[.1em] text-violet-700">{String(message.role ?? 'event')}</span><p className="mt-1 text-xs leading-5 text-secondary">{String(message.content ?? JSON.stringify(message))}</p></div>)}</div><h3 className="type-label mt-5">Reward components</h3><div className="mt-2 space-y-2">{detail.reward_components.map((item) => <div key={item.name} className="grid grid-cols-[1fr_2fr_auto] items-center gap-2 text-xs"><span>{item.name}</span><meter min="-1" max="1" value={item.value} className="w-full" /><strong>{item.value.toFixed(3)}</strong></div>)}</div><h3 className="type-label mt-5">Metadata</h3><pre className="mt-2 overflow-auto rounded-[4px] bg-subtle p-3 text-[11px] leading-4">{JSON.stringify(detail.attributes, null, 2)}</pre></div></aside>;
+  const componentScale = Math.max(1, ...detail.reward_components.map((item) => Math.abs(item.value)));
+  const verifierSignals = metricColumns.flatMap((metric) => {
+    const value = detail.summary.reward_components[metric.name]
+      ?? detail.summary.native_metrics[metric.name]
+      ?? detail.summary.metrics[metric.name];
+    return value == null ? [] : [{ ...metric, value }];
+  });
+  return <aside className="obs-card self-start overflow-hidden">
+    <div className="border-b border-divider p-4">
+      <p className="type-label">SELECTED {presentation.mode === 'optimization' ? 'ROLLOUT' : 'TRACE'}</p>
+      <h2 className="mt-1 truncate text-sm font-medium" title={detail.summary.task ?? undefined}>{detail.summary.task_label ?? detail.summary.task ?? (presentation.mode === 'generic' ? 'Request' : 'Unspecified task')}</h2>
+      <code className="mt-1 block truncate text-[9px] text-muted" title={detail.summary.external_id}>{detail.summary.external_id}</code>
+      <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[10px]">
+        <span className={`inline-flex rounded-full border px-2 py-1 ${detail.summary.outcome === 'pass' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : detail.summary.outcome === 'review' || detail.summary.outcome === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : detail.summary.outcome === 'truncated' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-violet-200 bg-violet-50 text-violet-700'}`}>{presentation.outcomeLabel(detail.summary.outcome)}</span>
+        {detail.summary.reward != null && <span className="rounded-full bg-subtle px-2 py-1">Reward <strong>{detail.summary.reward.toFixed(3)}</strong></span>}
+        <span className="rounded-full bg-subtle px-2 py-1">{detail.summary.latency_ms == null ? '—' : `${(detail.summary.latency_ms / 1000).toFixed(1)}s`}</span>
+        <span className="rounded-full bg-subtle px-2 py-1">{detail.summary.completion_tokens == null ? '—' : `${detail.summary.completion_tokens.toLocaleString()} tokens`}</span>
+        <span className="rounded-full bg-subtle px-2 py-1">{detail.summary.tool_calls == null ? '—' : `${detail.summary.tool_calls} tools`}</span>
+      </div>
+    </div>
+    {(detail.summary.reward != null || detail.reward_components.length > 0) && <section className="border-b border-divider p-4" aria-labelledby="reward-components-heading">
+      <div className="flex items-center justify-between gap-3"><h3 id="reward-components-heading" className="type-label">Reward components</h3><span className="text-[10px] text-muted">{detail.reward_components.length ? `${detail.reward_components.length} signals` : 'Not exposed'}</span></div>
+      {detail.reward_components.length ? <div className="mt-3 space-y-2.5">{detail.reward_components.map((item) => {
+        const width = Math.abs(item.value) / componentScale * 50;
+        return <div key={item.name} className="grid grid-cols-[minmax(90px,1fr)_1.4fr_48px] items-center gap-2 text-[10px]">
+          <span className="truncate text-secondary" title={item.name}>{humanizeKey(item.name)}</span>
+          <div className="relative h-1.5 rounded-full bg-subtle" aria-label={`${humanizeKey(item.name)} ${item.value.toFixed(3)}`} role="img"><span className="absolute left-1/2 top-0 h-full w-px bg-divider" /><span className={`absolute top-0 h-full rounded-full ${item.value < 0 ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{ left: `${item.value < 0 ? 50 - width : 50}%`, width: `${width}%` }} /></div>
+          <strong className="text-right tabular-nums">{item.value.toFixed(3)}</strong>
+        </div>;
+      })}</div> : <p className="mt-2 text-[11px] leading-4 text-muted">This trace exposes a primary reward without named underlying components.</p>}
+    </section>}
+    {verifierSignals.length > 0 && <section className="border-b border-divider p-4" aria-labelledby="verifier-signals-heading">
+      <div className="flex items-center justify-between gap-3">
+        <h3 id="verifier-signals-heading" className="type-label">Verifier signals</h3>
+        <span className="text-[10px] text-muted">{verifierSignals.length} declared</span>
+      </div>
+      <div className="mt-2 overflow-hidden rounded-[4px] border border-divider">
+        {verifierSignals.map((signal) => <div key={signal.name} className="grid grid-cols-[minmax(0,1fr)_62px] items-center gap-2 border-b border-divider px-2.5 py-2 text-[10px] last:border-b-0">
+          <span className="truncate text-secondary" title={signal.label}>{signal.label}</span>
+          <span className="flex items-center justify-end gap-1.5 font-medium tabular-nums text-ink">
+            {signal.name === successMetric && (detail.summary.success === true ? <Check size={12} weight="bold" className="text-emerald-600" aria-label="Passing signal" /> : detail.summary.success === false ? <X size={12} weight="bold" className="text-rose-600" aria-label="Failing signal" /> : null)}
+            {signal.value.toFixed(2)}
+          </span>
+        </div>)}
+      </div>
+    </section>}
+    <div className="max-h-[600px] overflow-auto p-4">
+      <h3 className="type-label">Rollout transcript</h3>
+      <Transcript messages={detail.transcript} />
+      <details className="mt-5 border-t border-divider pt-3"><summary className="cursor-pointer text-[10px] font-medium uppercase tracking-[.1em] text-muted">Trace metadata</summary><pre className="mt-2 overflow-auto rounded-[4px] bg-subtle p-3 text-[11px] leading-4">{JSON.stringify(detail.attributes, null, 2)}</pre></details>
+    </div>
+  </aside>;
 }
 
 type RunInputItem = {

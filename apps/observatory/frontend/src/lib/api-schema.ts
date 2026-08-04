@@ -123,6 +123,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/runs/{run_key}/comparison-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Comparison Key */
+        get: operations["comparison_key_api_v1_runs__run_key__comparison_key_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs/{run_key}/delta": {
         parameters: {
             query?: never;
@@ -462,6 +479,248 @@ export interface components {
             /** Run Keys */
             run_keys: string[];
         };
+        /**
+         * EvaluationBreakdown
+         * @description One declared compound report with structured groups.
+         */
+        EvaluationBreakdown: {
+            /** Dimension Labels */
+            dimension_labels: [
+                string,
+                string
+            ];
+            /** Dimensions */
+            dimensions: [
+                string,
+                string
+            ];
+            /**
+             * Excluded
+             * @default 0
+             */
+            excluded: number;
+            /**
+             * Groups
+             * @default []
+             */
+            groups: components["schemas"]["EvaluationBreakdownGroup"][];
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /**
+             * Presentation
+             * @default matrix
+             * @constant
+             */
+            presentation: "matrix";
+        };
+        /**
+         * EvaluationBreakdownGroup
+         * @description Coverage-aware aggregate for one compound facet combination.
+         */
+        EvaluationBreakdownGroup: {
+            /** Count */
+            count: number;
+            /** Failures */
+            failures: number;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Mean Reward */
+            mean_reward?: number | null;
+            /** Scored */
+            scored: number;
+            /** Success Rate */
+            success_rate?: number | null;
+            /** Truncated */
+            truncated: number;
+            /** Values */
+            values: components["schemas"]["EvaluationBreakdownValue"][];
+        };
+        /**
+         * EvaluationBreakdownSpec
+         * @description Run-owned compound grouping over declared facet dimensions.
+         */
+        EvaluationBreakdownSpec: {
+            /** Dimensions */
+            dimensions: [
+                string,
+                string
+            ];
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /**
+             * Missing
+             * @default exclude
+             * @enum {string}
+             */
+            missing: "exclude" | "bucket";
+            /**
+             * Multi Value
+             * @default reject
+             * @enum {string}
+             */
+            multi_value: "reject" | "cross";
+            /**
+             * Presentation
+             * @default matrix
+             * @constant
+             */
+            presentation: "matrix";
+        };
+        /**
+         * EvaluationBreakdownValue
+         * @description One structured dimension value inside a compound group.
+         */
+        EvaluationBreakdownValue: {
+            /** Dimension */
+            dimension: string;
+            /** Dimension Label */
+            dimension_label: string;
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
+        };
+        /**
+         * EvaluationDistribution
+         * @description Observed distribution for one request-level evaluation signal.
+         */
+        EvaluationDistribution: {
+            /** Maximum */
+            maximum: number;
+            /** Mean */
+            mean: number;
+            /** P50 */
+            p50: number;
+            /** P95 */
+            p95: number;
+            /** Samples */
+            samples: number;
+        };
+        /**
+         * EvaluationFacet
+         * @description Multi-label aggregate used to explain a task population by capability.
+         */
+        EvaluationFacet: {
+            /** Count */
+            count: number;
+            /** Dimension */
+            dimension: string;
+            /** Dimension Label */
+            dimension_label: string;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Mean Reward */
+            mean_reward?: number | null;
+            /** Success Rate */
+            success_rate?: number | null;
+        };
+        /**
+         * EvaluationFacetSpec
+         * @description Resolved environment declaration for one native task-data facet.
+         */
+        EvaluationFacetSpec: {
+            /** Dimension */
+            dimension: string;
+            /** Field */
+            field: string;
+            /** Label */
+            label: string;
+            /**
+             * Transform
+             * @default identity
+             * @enum {string}
+             */
+            transform: "identity" | "prefix_before_colon";
+        };
+        /**
+         * EvaluationMetadata
+         * @description Evaluation identity and metric semantics used to build the Overview.
+         */
+        EvaluationMetadata: {
+            /**
+             * Breakdown Specs
+             * @default []
+             */
+            breakdown_specs: components["schemas"]["EvaluationBreakdownSpec"][];
+            /** Category */
+            category?: string | null;
+            /** Contract Id */
+            contract_id?: string | null;
+            /**
+             * Contract State
+             * @default legacy
+             * @enum {string}
+             */
+            contract_state: "versioned" | "legacy" | "unsupported";
+            /** Contract Version */
+            contract_version?: number | null;
+            /** Dataset */
+            dataset?: string | null;
+            /** Dataset Revision */
+            dataset_revision?: string | null;
+            /**
+             * Facet Specs
+             * @default []
+             */
+            facet_specs: components["schemas"]["EvaluationFacetSpec"][];
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Metrics
+             * @default []
+             */
+            metrics: components["schemas"]["EvaluationMetricDefinition"][];
+            /** Package */
+            package?: string | null;
+            /** Pass Rate Basis */
+            pass_rate_basis?: string | null;
+            /** Pass Rate Metric */
+            pass_rate_metric?: string | null;
+            /** Primary Metric */
+            primary_metric?: string | null;
+            /** Primary Metric Label */
+            primary_metric_label?: string | null;
+            /** Source Revision */
+            source_revision?: string | null;
+            /** Split */
+            split?: string | null;
+            success_definition?: components["schemas"]["EvaluationSuccessDefinition"] | null;
+        };
+        /**
+         * EvaluationMetricDefinition
+         * @description The native metric vocabulary advertised by an evaluation.
+         */
+        EvaluationMetricDefinition: {
+            /** Label */
+            label: string;
+            /** Name */
+            name: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "primary_reward" | "reward_component" | "diagnostic" | "success";
+        };
+        /**
+         * EvaluationPerformance
+         * @description Efficiency evidence computed from the same trace population as quality.
+         */
+        EvaluationPerformance: {
+            completion_tokens?: components["schemas"]["EvaluationDistribution"] | null;
+            latency_ms?: components["schemas"]["EvaluationDistribution"] | null;
+            thinking_tokens?: components["schemas"]["EvaluationDistribution"] | null;
+            tool_calls?: components["schemas"]["EvaluationDistribution"] | null;
+        };
         /** EvaluationRunView */
         EvaluationRunView: {
             /** Alerts */
@@ -470,6 +729,8 @@ export interface components {
             capabilities: components["schemas"]["TrackingCapabilities"];
             /** Charts */
             charts: components["schemas"]["ChartView"][];
+            /** Comparison Key */
+            comparison_key: string;
             completeness: components["schemas"]["EvidenceCompleteness"];
             evaluation: components["schemas"]["TraceEvaluationView"];
             /**
@@ -508,12 +769,54 @@ export interface components {
         EvaluationSlice: {
             /** Count */
             count: number;
+            /** Description */
+            description?: string | null;
             /** Key */
             key: string;
+            /** Label */
+            label: string;
             /** Mean Reward */
             mean_reward?: number | null;
+            metadata?: components["schemas"]["TaskSliceMetadata"] | null;
             /** Success Rate */
             success_rate?: number | null;
+        };
+        /**
+         * EvaluationSuccessDefinition
+         * @description Normalized run-owned predicate used to calculate semantic pass/fail.
+         */
+        EvaluationSuccessDefinition: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /**
+             * Missing
+             * @default error
+             * @enum {string}
+             */
+            missing: "error" | "exclude";
+            /**
+             * Namespace
+             * @enum {string}
+             */
+            namespace: "reward" | "metric";
+            /**
+             * Operator
+             * @enum {string}
+             */
+            operator: "eq" | "gt" | "gte" | "lt" | "lte" | "between";
+            /** Signal */
+            signal: string;
+            /**
+             * Tolerance
+             * @default 0
+             */
+            tolerance: number;
+            /** Upper */
+            upper?: number | null;
+            /** Value */
+            value: number;
         };
         /** EventRecord */
         EventRecord: {
@@ -1155,10 +1458,82 @@ export interface components {
             unit?: string | null;
             value?: components["schemas"]["JsonPayload"];
         };
+        /**
+         * TaskFacet
+         * @description One native semantic attribute attached to an evaluation task.
+         *
+         *     Environments own the values; Observatory only retains their stable
+         *     dimension/value identity and a human-readable presentation.
+         */
+        TaskFacet: {
+            /** Dimension */
+            dimension: string;
+            /** Dimension Label */
+            dimension_label: string;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
+        };
+        /**
+         * TaskSliceMetadata
+         * @description Stable, human-readable identity for one evaluation task slice.
+         *
+         *     ``key`` remains the source task identity (which may be numeric, as in
+         *     IFEval). Semantic facets are optional and must not be confused with that
+         *     identity.
+         */
+        TaskSliceMetadata: {
+            /** Category */
+            category?: string | null;
+            /** Dataset */
+            dataset?: string | null;
+            /** Dataset Revision */
+            dataset_revision?: string | null;
+            /** Description */
+            description?: string | null;
+            /**
+             * Facets
+             * @default []
+             */
+            facets: components["schemas"]["TaskFacet"][];
+            /** Index */
+            index?: number | null;
+            /**
+             * Instruction Families
+             * @default []
+             */
+            instruction_families: string[];
+            /**
+             * Instruction Ids
+             * @default []
+             */
+            instruction_ids: string[];
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Seed */
+            seed?: number | null;
+            /** Split */
+            split?: string | null;
+        };
         /** TraceEvaluationView */
         TraceEvaluationView: {
+            /**
+             * Breakdowns
+             * @default []
+             */
+            breakdowns: components["schemas"]["EvaluationBreakdown"][];
             /** Expected */
             expected?: number | null;
+            /**
+             * Facets
+             * @default []
+             */
+            facets: components["schemas"]["EvaluationFacet"][];
             /**
              * Failures
              * @default 0
@@ -1173,10 +1548,27 @@ export interface components {
             live: boolean;
             /** Mean Reward */
             mean_reward?: number | null;
+            metadata?: components["schemas"]["EvaluationMetadata"] | null;
             /** Next Cursor */
             next_cursor?: string | null;
+            /**
+             * Pass Scored
+             * @default 0
+             */
+            pass_scored: number;
+            /**
+             * Passed
+             * @default 0
+             */
+            passed: number;
+            performance?: components["schemas"]["EvaluationPerformance"];
             /** Scanned */
             scanned: number;
+            /**
+             * Scored
+             * @default 0
+             */
+            scored: number;
             /**
              * Slices
              * @default []
@@ -1200,20 +1592,55 @@ export interface components {
              */
             truncated: number;
         };
+        /** @enum {string} */
+        TraceOutcome: "pass" | "review" | "scored" | "error" | "truncated" | "unknown";
         /** TraceSummary */
         TraceSummary: {
+            /** Completion Tokens */
+            completion_tokens?: number | null;
             /** Error */
             error?: string | null;
             /** External Id */
             external_id: string;
+            /** Input Tokens */
+            input_tokens?: number | null;
             /** Latency Ms */
             latency_ms?: number | null;
+            /** Metrics */
+            metrics?: {
+                [key: string]: number;
+            };
+            /** Model Calls */
+            model_calls?: number | null;
+            /** Native Metrics */
+            native_metrics?: {
+                [key: string]: number;
+            };
+            /** @default unknown */
+            outcome: components["schemas"]["TraceOutcome"];
+            /** Prompt Preview */
+            prompt_preview?: string | null;
+            /** Response Chars */
+            response_chars?: number | null;
+            /** Response Tokens */
+            response_tokens?: number | null;
             /** Reward */
             reward?: number | null;
+            /** Reward Components */
+            reward_components?: {
+                [key: string]: number;
+            };
             /** Success */
             success?: boolean | null;
             /** Task */
             task?: string | null;
+            /** Task Label */
+            task_label?: string | null;
+            task_metadata?: components["schemas"]["TaskSliceMetadata"] | null;
+            /** Thinking Chars */
+            thinking_chars?: number | null;
+            /** Thinking Tokens */
+            thinking_tokens?: number | null;
             /** Tokens */
             tokens?: number | null;
             /** Tool Calls */
@@ -1488,6 +1915,39 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    comparison_key_api_v1_runs__run_key__comparison_key_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string | null;
+                    };
                 };
             };
             /** @description Validation Error */
