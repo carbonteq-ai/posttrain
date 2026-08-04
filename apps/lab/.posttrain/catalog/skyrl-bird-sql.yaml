@@ -30,9 +30,11 @@ environment:
     category: text-to-sql
     qualification: deferred
     source:
-      kind: project-path
+      kind: git
       package: skyrl-bird-sql-v1
-      path: environments/skyrl_bird_sql_v1
+      repository: https://github.com/carbonteq-ai/posttrain.git
+      revision: 0c04712edd013576bb245a17cd8619040750f4dc
+      subdirectory: apps/lab/environments/skyrl_bird_sql_v1
     activation:
       kind: verifiers-config
       config:
@@ -81,9 +83,11 @@ environment:
     category: text-to-sql
     qualification: deferred
     source:
-      kind: project-path
+      kind: git
       package: skyrl-bird-sql-v1
-      path: environments/skyrl_bird_sql_v1
+      repository: https://github.com/carbonteq-ai/posttrain.git
+      revision: 0c04712edd013576bb245a17cd8619040750f4dc
+      subdirectory: apps/lab/environments/skyrl_bird_sql_v1
     activation:
       kind: verifiers-config
       config:
@@ -132,9 +136,11 @@ environment:
     category: text-to-sql
     qualification: deferred
     source:
-      kind: project-path
+      kind: git
       package: skyrl-bird-sql-v1
-      path: environments/skyrl_bird_sql_v1
+      repository: https://github.com/carbonteq-ai/posttrain.git
+      revision: 0c04712edd013576bb245a17cd8619040750f4dc
+      subdirectory: apps/lab/environments/skyrl_bird_sql_v1
     activation:
       kind: verifiers-config
       config:

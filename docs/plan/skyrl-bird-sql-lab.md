@@ -16,8 +16,11 @@ vLLM, LoRA, work-package, and Trackio primitives own execution and evidence.
 The observable workflow is base evaluation, a one-step full-shape canary, a
 516-step full training pass, and held-out evaluation of an immutable adapter
 artifact. There is no pilot configuration. Implementation is restricted to
-`apps/lab` plus this plan. A required edit to a reusable package or an external
-fork must be justified to the user before it is made.
+`apps/lab`, except for the generic Gemma renderer contract that now lives beside
+the existing Qwen and LFM contracts in `packages/common`. That narrow reusable
+edit was explicitly approved after packaged execution exposed the missing
+registration. A further reusable-package or external-fork edit must still be
+justified to the user before it is made.
 
 This composition does not change the frozen product baseline. GRPO consumes an
 environment selection rather than a dataset seat, and held-out evaluation is a
@@ -38,6 +41,21 @@ separate qualification job, matching the canonical baseline.
   scenarios and work packages.
 - [x] (2026-08-04 00:00Z) Run focused tests, workspace sync, Ruff, Pyright,
   import-linter, Lab tests, gate validation, and `git diff --check`.
+- [x] (2026-08-04 13:30Z) Replace the three local `project-path` environment
+  sources with the pushed immutable Git revision after v0.3.0 packing exposed
+  inconsistent nested-source digest roots.
+- [x] (2026-08-04 13:57Z) Pack, smoke-test, attest, and publish the canary
+  actual-job image from the complete v0.3.0 framework wheel set on `pypi.lan`.
+  Package identity is
+  `33841e94d792408ad1b83f86707159bdb234cff0c50a0943b9429771d7d7d0d1`;
+  image identity is
+  `registry.lan/carbonteq/posttrain-job@sha256:23b9c118551e8a17e8471e46257e918ffdf7577aa4f85b0b2880d63ec1e8efaf`.
+- [x] (2026-08-04 14:30Z) Move `gemma4-tools@1` into the static common renderer
+  registry after the first submitted worker failed while decoding the catalog
+  before importing the Lab project entry.
+- [x] (2026-08-04 14:45Z) Verify the common and Lab suites (101 passed, 5
+  skipped), all eight import contracts, Pyright, plain `posttrain doctor`, and
+  `git diff --check` after the static registration change.
 - [ ] Complete the full repository pytest run (blocked by an unchanged
   Observatory discovery test that hangs when run alone in this environment).
 - [ ] Run the network and GPU release gates on a suitable pod and record evidence.
@@ -56,10 +74,25 @@ separate qualification job, matching the canonical baseline.
   Qwen and LFM identifiers. This experiment has no tool calls: SkyRL SQL uses
   visible text tags. The Lab Gemma renderer therefore omits `tool_calls` rather
   than broadening a shared contract for an unused feature.
-- Observation: project overlays support `source.kind: project-path` for an
-  environment package located below the project root.
-  Evidence: all three new work packages resolve the packaged environment with
-  no unpublished Git revision or reusable-package change.
+- Observation: v0.3.0 cannot pack a nested `project-path` environment because
+  planning hashes the selected directory with its project-relative prefix,
+  while environment-wheel verification hashes the package subtree without
+  that prefix. For `environments/skyrl_bird_sql_v1`, the observed digests were
+  `bc168132bf591bea2b9bce4e108b5345dfbd9a63248b73343a4996b059da7a98`
+  and `7a3200f864b28de09a5f38cfbd5553e98b1091f24023499f033be2b98a0f3016`.
+  The Lab overlay now selects the same package from the pushed full commit SHA;
+  a generic framework correction is deliberately deferred.
+- Observation: installed-distribution packing succeeds against the protected
+  project `UV_INDEX_URL=https://pypi.lan/carbonteq/stable/+simple/`. The final
+  image installed all 20 requested v0.3.0 framework distributions plus current
+  `posttrain-lab`, passed `posttrain-runtime --help`, parsed its package
+  manifest, and reported only the intentionally deferred
+  `skyrl-bird-sql-train-canary` qualification.
+- Observation: the first submitted worker failed before creating a training
+  run because `posttrain-runtime` opens the project catalog before importing
+  `posttrain_lab.entry`; the former Lab-only registration therefore did not
+  exist in that process. The exception was `unknown renderer contract:
+  'gemma4-tools@1'`.
 - Observation: the full repository suite reaches unchanged Observatory
   discovery tests and then stops making progress. The test
   `test_success_removes_missing_projects_but_failure_retains_last_snapshot`
@@ -89,20 +122,26 @@ separate qualification job, matching the canonical baseline.
   generations, effective batch 64 geometry; do not add a pilot.
   Rationale: one canary should exercise the memory and rollout shape that matters.
   Date/Author: 2026-08-04 / Codex and user.
-- Decision: register Gemma's tokenizer-backed renderer in Lab with reasoning
-  disabled and no tool-call protocol.
+- Decision: register Gemma's tokenizer-backed renderer with reasoning disabled
+  and no tool-call protocol, then promote that unchanged contract to the static
+  common renderer registry when packaged execution demonstrated that a
+  project-local registration cannot precede worker catalog decoding.
   Rationale: literal `<think>`, `<sql>`, `<observation>`, and `<solution>` tags are
   ordinary visible text and the environment never emits structured tool calls.
-  Date/Author: 2026-08-04 / Codex.
+  Static registration matches the existing Qwen/LFM mechanism and adds no new
+  runtime discovery or import behavior.
+  Date/Author: 2026-08-04 / Codex and user.
 - Decision: use Trackio and require an explicit immutable `vN` adapter version
   for descendant evaluation.
   Rationale: work-package outputs are artifact values, not implicit config links.
   Date/Author: 2026-08-04 / Codex and user.
-- Decision: use a project-path environment source rather than commit the work
-  early merely to manufacture a Git revision for its catalog entry.
-  Rationale: project-path sources are an existing portable packaging primitive
-  and their tree digest supplies immutable package identity at pack time.
-  Date/Author: 2026-08-04 / Codex.
+- Decision: select the environment package from
+  `carbonteq-ai/posttrain@0c04712edd013576bb245a17cd8619040750f4dc` using the
+  existing immutable Git-source primitive.
+  Rationale: the implementation is now pushed, and this Lab-only selection
+  avoids v0.3.0's inconsistent nested `project-path` digest roots without
+  changing reusable framework packages during the GPU qualification pass.
+  Date/Author: 2026-08-04 / Codex and user.
 - Decision: execute SQLite on a private bounded worker thread and observe its
   completion from the rollout loop instead of using `asyncio.to_thread`.
   Rationale: this avoids the verified idle-selector integration deadlock while
@@ -122,6 +161,19 @@ in the CPU environment. The standalone environment reports one expected network
 skip and 27 offline tests passing. The 20 GB asset integration and Gemma GPU
 canary remain release gates. The otherwise unrelated full-suite Observatory
 hang is recorded above rather than attributed to this experiment.
+
+The immutable canary actual-job image is now published and has passed its
+build-time runtime smoke and deferred-qualification checks. This establishes
+packaging and publication only; GPU execution, prepared BIRD assets, model
+loading, rollout generation, the optimizer update, and retained run evidence
+remain open release gates.
+
+The first submitted execution of that image failed before training because the
+v0.3.0 common wheel did not contain the formerly Lab-local renderer. The branch
+now places the same contract in common's static registry, and plain
+`posttrain doctor` resolves all 102 project selections without the Lab wrapper.
+A replacement image containing the branch version of `posttrain-common` must be
+packed and submitted; the earlier image digest remains known-bad for execution.
 
 ## Context and Orientation
 
@@ -237,8 +289,15 @@ The environment exposes `SkyRLBirdSQLTaskset` as its native Verifiers entry.
 The asset module exposes `prepare` and `validate` CLI subcommands. Catalog-facing
 configuration uses existing `EnvironmentBinding`, `GRPOSettings`,
 `TrainingBinding`, `InferenceBinding`, `EvaluationPlan`, and `ModelVariant`
-contracts. No new reusable framework API is introduced.
+contracts. `packages/common/src/posttrain/common/variants/gemma4.py` supplies the
+generic renderer value through the existing static `RENDERER_CONTRACTS` map; no
+new reusable framework API or discovery behavior is introduced.
 
 Revision note (2026-08-04): this initial living plan incorporates the decision
 to replace a pilot with a full-shape one-step canary and records the Lab-only
 renderer deviation required to avoid an unnecessary common-package edit.
+
+Revision note (2026-08-04): packaged worker execution proved that a Lab-only
+renderer cannot be registered before runtime catalog decoding. The user
+approved moving the unchanged generic contract into common beside Qwen/LFM,
+while retaining the Lab registration function as a compatibility shim.

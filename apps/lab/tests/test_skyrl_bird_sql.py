@@ -4,12 +4,12 @@ from pathlib import Path
 
 import pytest
 from posttrain.common import CatalogRef, InferenceBinding, ModelVariant
-from posttrain.environment import EnvironmentBinding, ProjectPathEnvironmentSource
+from posttrain.common.variants import GEMMA4_RENDERER_CONTRACT
+from posttrain.environment import EnvironmentBinding, EnvironmentSource
 from posttrain.eval import EvaluationPlan
 from posttrain.train import GRPOSettings, LoRAUpdate, TrainingBinding
 from posttrain_lab.catalog import open_project_catalog
 from posttrain_lab.cli import main
-from posttrain_lab.gemma4 import GEMMA4_RENDERER_CONTRACT
 from posttrain_lab.project import discover_project
 from posttrain_lab.work_packages import load_work_package, resolve_work_package
 
@@ -42,9 +42,11 @@ def test_lab_registers_pinned_text_only_gemma_composition() -> None:
     assert model.capabilities.modalities == ("text", "image", "audio")
 
     assert isinstance(environment, EnvironmentBinding)
-    assert isinstance(environment.source, ProjectPathEnvironmentSource)
+    assert isinstance(environment.source, EnvironmentSource)
     assert environment.qualification == "deferred"
-    assert environment.source.path == "environments/skyrl_bird_sql_v1"
+    assert environment.source.repository == "https://github.com/carbonteq-ai/posttrain.git"
+    assert environment.source.revision == "0c04712edd013576bb245a17cd8619040750f4dc"
+    assert environment.source.subdirectory == "apps/lab/environments/skyrl_bird_sql_v1"
     assert environment.num_tasks == 2_064
     assert environment.num_rollouts == 16
 
