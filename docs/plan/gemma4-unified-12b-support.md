@@ -25,6 +25,7 @@ The observable proof has two parts. First, a Lab serving work package launches t
 - [x] (2026-08-04) Reassessed the architecture axis against offline validation and upstream auto-model behavior; removed the field, its propagation, catalog migration, and architecture-dispatch utility in favor of family-aware loading.
 - [x] (2026-08-04) Validated the corrected family-only contract with focused tests, the broader owning-package suite, the full repository suite, targeted Ruff and Pyright, import boundaries, both primary-CLI static work-package validations, and `git diff --check`.
 - [x] (2026-08-04) Audited the complete branch delta for minimality: reused the generic training renderer instead of adding a Gemma implementation enum/branch, removed a redundant Gemma HTTP request-shape test, and made the existing text-only vLLM translation disable audio as well as image/video.
+- [x] (2026-08-05) Planned both real qualification packages against the 96 GiB target; the first serving submission exposed and then fixed a checkout-source packaging omission before any remote run was created.
 - [ ] Validate the smallest package suites, then the repository-wide static and test ladder (completed: locked sync, full Ruff, import boundaries, targeted Pyright, focused ownership suites, full pytest, and diff check; remaining: full-workspace Pyright wrapper does not terminate locally).
 - [ ] Run the real 96 GiB GPU serving and SFT qualifications, preserve their run/artifact evidence, and update this plan with results.
 
@@ -74,6 +75,9 @@ The observable proof has two parts. First, a Lab serving work package launches t
 
 - Observation: The existing `text_only` vLLM translation disabled image and video inputs but not audio.
   Evidence: Gemma 4 Unified 12B declares image, video, and audio processors, and vLLM 0.25.1 accepts `audio` in `limit_mm_per_prompt`. The generic translation now sets all three supported multimodal inputs to zero, making the existing `text_only` name truthful for this checkpoint.
+
+- Observation: Source-checkout actual-job packaging omitted the environment-contract distribution even though its consumers declared it.
+  Evidence: the serving qualification image failed its pre-publication smoke check with `ModuleNotFoundError: No module named 'posttrain.environment'`. `posttrain-catalog` and `posttrain-runtime` both declare `posttrain-environment`, and the wheel-based framework distribution list already included it, but `_FRAMEWORK_INSTALL_ROOTS` omitted `packages/environment`. Adding that install root and a regression assertion makes checkout and wheel staging agree; no dstack run was created by the failed attempt.
 
 ## Decision Log
 
@@ -229,7 +233,7 @@ Before implementation, confirm branch and cleanliness:
 
 Expected branch prefix:
 
-    ## feat/gemma4_unified-support
+    ## feat/gemma4-support
 
 Run the dependency probe through the train package environment. Store the diagnostic script in a fresh `mktemp -d` directory and keep any Hugging Face token only in the environment. The exact probe command must be added here after the script exists; do not commit the script unless it becomes a reusable test helper.
 
