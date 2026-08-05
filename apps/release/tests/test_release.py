@@ -376,6 +376,7 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
         assert "trap 'rm -f \"${image_verify_env}\"' EXIT" in workflow
         assert "--framework-wheelhouse .release/wheelhouse" in workflow
         assert "posttrain[dstack,trackio]==" in workflow
+        assert "posttrain-lab==" in workflow
         assert ".release/consumer-venv/bin/posttrain --project-root apps/lab job run" in workflow
         assert 'run reconcile \\\n            "release-' in workflow
         assert 'run cleanup \\\n            "release-' in workflow

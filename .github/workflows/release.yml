@@ -89,7 +89,8 @@ jobs:
           uv pip install \
             --python .release/consumer-venv/bin/python \
             --index-url "${PYPI_DEV_SIMPLE}" \
-            "posttrain[dstack,trackio]==${POSTTRAIN_RELEASE_VERSION}"
+            "posttrain[dstack,trackio]==${POSTTRAIN_RELEASE_VERSION}" \
+            "posttrain-lab==${POSTTRAIN_RELEASE_VERSION}"
           .release/consumer-venv/bin/posttrain --help >/dev/null
 
       - name: Verify committed runtime image digests in the private registry

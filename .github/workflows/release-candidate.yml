@@ -89,7 +89,8 @@ jobs:
           uv pip install \
             --python .release/consumer-venv/bin/python \
             --index-url "${PYPI_DEV_SIMPLE}" \
-            "posttrain[dstack,trackio]==${{ steps.version.outputs.version }}"
+            "posttrain[dstack,trackio]==${{ steps.version.outputs.version }}" \
+            "posttrain-lab==${{ steps.version.outputs.version }}"
           .release/consumer-venv/bin/posttrain --help >/dev/null
 
       - name: Build changed OCI inputs and retain the generated manifest
