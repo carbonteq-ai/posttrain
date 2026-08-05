@@ -51,7 +51,9 @@ and terminal state are retained in Trackio.
 - [x] (2026-08-05) Finished the final repository validation after the cleanup
   planner edits: 1046 tests passed and 19 skipped; Ruff, Pyright, import
   contracts, and `git diff --check` are green.
-- [ ] Reconcile the old 12B plan and add the complete run/image evidence here.
+- [x] (2026-08-05) Reconciled the old 12B plan and retained the complete
+  run/image evidence here, including the accepted MTP run's immutable job
+  digest and Trackio source metadata.
 - [x] (2026-08-05) Previewed the five temporary/diagnostic runs with exact
   dependency closure and applied only the diagnostic 12B run's remaining local
   state. The failed run's dstack workspace, actual-job OCI manifest, and
@@ -93,11 +95,11 @@ and terminal state are retained in Trackio.
   publication. It stopped before GPU/MTP qualification because the LAN OCI
   registry had no space left (`/dev/vda1` was 193G/193G used), not because of
   a Gemma or MTP failure.
-- [ ] (2026-08-05) Retry the approved candidate after registry recovery. The
-  registry cleanup retained the four accepted Gemma images and the two active
-  evaluation images, deleted 52 stale `carbonteq/posttrain-job` manifests, and
-  reclaimed 78G with registry garbage collection. The registry is healthy and
-  now has 78G free; the retry must still complete the packaged GPU/MTP gate.
+- [x] (2026-08-05) Retried the approved candidate as run `30997665099` from
+  exact commit `fdafd2dcf938ace63f434d6416dba8ce16e801da`. It allocated
+  `0.3.2rc2`, published the wheelhouse to the development index, rebuilt and
+  verified all seven OCI profiles, and completed the packed dstack GPU
+  qualification. Receipt artifact: `posttrain-0.3.2rc2-evidence`.
 - [ ] Update the release workflow inputs and 0.3.2 release notes; publish only
   after the pre-release qualification gate passes.
 
@@ -137,6 +139,12 @@ and terminal state are retained in Trackio.
   `registry.lan` with `filesystem: ... no space left on device`; after an
   exact six-digest retention cleanup and registry:3 garbage collection, the
   registry returned healthy `/v2/` responses and had 78G free.
+
+- Observation: The release candidate now proves the prepared package/image
+  path and the generic dstack canary, while the direct Gemma TRL/MTP run
+  remains the model-specific proof. This separation is intentional: generic
+  release health must not silently substitute for a Gemma MTP qualification,
+  and the Gemma run must not be inferred from a static catalog flag.
   Evidence: the E4B and 31B build logs show hashed wheel/code installation in
   BuildKit layers; runtime qualification only validates the prepared manifest.
 
@@ -338,6 +346,20 @@ The accepted smoke job images recorded in run source metadata are:
 The job-kind image was the existing
 `registry.lan/carbonteq/posttrain-kind-serve@sha256:3b49e756fc8eed3fe39b09ddb7f7aa6c3429be2ccea3683b914dfc0ebf371613`.
 Re-read these values from the run views during release preparation; never
+
+The accepted 12B TRL/MTP run used
+`registry.lan/carbonteq/posttrain-job@sha256:a12ae243e9d5c16b54122648e4ec6e5c130334875b41a8dc33b5cab9fec01f59`.
+Its source metadata declares `inference/gemma4-12b-it-vllm-grpo-mtp@1`,
+`backend=vllm@0.25.1`, `method=mtp`, assistant revision
+`364bd03c9952e5b7da73665ee30c9eccfc408345`, and one speculative token.
+
+Candidate `30997665099` produced the immutable 0.3.2rc2 manifest during the
+run; the uploaded `posttrain-0.3.2rc2-evidence` artifact is the durable copy.
+Its
+candidate image digests are the generated manifest values, including base
+`sha256:69b7416ff40ab08b2acf380e956e4c4f94d456b36a644cdebed4a3e8afb400d7`,
+TRL online-RL `sha256:e8d5f174054b91a23622c6ad5c32452e5e3a3d928c5bc4f17a9270d4d023b004`,
+and eval `sha256:a2731bc275d10de9772ff42ccdd4afa4b410b49b805a6de8881f3d0fc2e0edb5`.
 replace them with mutable tags.
 
 ## Interfaces and Dependencies
