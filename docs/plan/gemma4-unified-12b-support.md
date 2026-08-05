@@ -27,8 +27,9 @@ The observable proof has two parts. First, a Lab serving work package launches t
 - [x] (2026-08-04) Audited the complete branch delta for minimality: reused the generic training renderer instead of adding a Gemma implementation enum/branch, removed a redundant Gemma HTTP request-shape test, and made the existing text-only vLLM translation disable audio as well as image/video.
 - [x] (2026-08-05) Planned both real qualification packages against the 96 GiB target; the first serving submission exposed and then fixed a checkout-source packaging omission before any remote run was created.
 - [x] (2026-08-05) Submitted both qualification packages through dstack. The serving run `96152bfa-08c3-4bdb-bd07-286f1ec0b8e9` completed successfully; the SFT run `6b04480c-0df5-4ec6-ba00-3201bd9953e3` is submitted and provider-queued for the same single workstation.
+- [x] (2026-08-05) Tracked SFT run `6b04480c-0df5-4ec6-ba00-3201bd9953e3` to terminal success. It completed two optimizer updates with finite loss and gradient norms and published the required model and summary artifacts plus a recovery checkpoint.
 - [ ] Validate the smallest package suites, then the repository-wide static and test ladder (completed: locked sync, full Ruff, import boundaries, targeted Pyright, focused ownership suites, full pytest, and diff check; remaining: full-workspace Pyright wrapper does not terminate locally).
-- [ ] Run the real 96 GiB GPU serving and SFT qualifications, preserve their run/artifact evidence, and update this plan with results.
+- [ ] Complete the remaining real qualification acceptance (completed: terminal serving and SFT runs with preserved evidence; remaining: adapter materialization/reload and the explicit structured tool-call serving proof).
 
 ## Surprises & Discoveries
 
@@ -329,7 +330,16 @@ Qualification submissions on 2026-08-05:
     SFT run: 6b04480c-0df5-4ec6-ba00-3201bd9953e3
     SFT dstack provider id: pt-dcbe24384c8b212565cad89b
     SFT job image: registry.lan/carbonteq/posttrain-job@sha256:e0eff255602a176fb82b63e90b82ec3bda8cb0bdfdf05a1b751b5844c43dea62
-    SFT result at handoff: provider state queued; requested target targets/carbonteq-rtx-pro-6000-96gb@1
+    SFT result: succeeded on attempt 1; requested target targets/carbonteq-rtx-pro-6000-96gb@1
+    SFT runtime: 2 updates; train runtime 1.452 s; aggregate train loss 11.49
+    SFT step losses: 10.477238655090332, 12.507713317871094
+    SFT gradient norms: 20.59836196899414, 24.06705093383789
+    SFT peak throughput: 92.09031549222547 non-padding tokens/s
+    SFT adapter: trackio/posttrain-lab/training-models-gemma4-12b-it-bf16-sft-lora-adapter:v0
+    SFT adapter artifact digest: 36f0dd670efca07674dbc4fb835f2ffc24f58f8bb3088e277f6985215bd39088
+    SFT adapter content digest: dfc511859f94a6c98a2d3a1d7552699c7e471a2ae8ba78999e999ce86af01796
+    SFT recovery checkpoint digest: 7c31be77d895c85a17a97790aee5add5a8a860b2f2af5eb67af9cf6cd1f1c99e
+    SFT summary digest: d9bb2842754dd4b26aa516afe9568e97db6461a1db8d0a124dbba70118c73481
 
 Add the following evidence during milestone 1: tokenizer fingerprint inputs and digest; response-template behavior with thinking off/on; decoded ordinary and tool conversations; assistant loss-mask spans; selected LoRA module names and count; excluded multimodal module names; auto-model class resolution; and token-only forward signature result.
 
