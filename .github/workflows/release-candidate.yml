@@ -106,7 +106,10 @@ jobs:
           fi
           cp packages/runtime-images/src/posttrain/runtime_images/published.toml .release/published.toml
           uv run --no-sync posttrain-release check
-          POSTTRAIN_REGISTRY="${JOB_REGISTRY}" uv run --no-sync posttrain \
+          # Runtime-image verification reads only registry and manifest state;
+          # it must not inherit the runner's production Trackio credentials.
+          env -u TRACKIO_SERVER_URL -u POSTTRAIN_TRACKIO_SERVER_URL -u TRACKIO_WRITE_TOKEN \
+            POSTTRAIN_REGISTRY="${JOB_REGISTRY}" uv run --no-sync posttrain \
             --project-root apps/lab runtime images verify > .release/runtime-images-verify.json
 
       - name: Run one real packed GPU qualification through dstack

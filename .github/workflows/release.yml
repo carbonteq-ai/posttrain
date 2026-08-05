@@ -94,7 +94,10 @@ jobs:
 
       - name: Verify committed runtime image digests in the private registry
         run: |
-          POSTTRAIN_REGISTRY="${JOB_REGISTRY}" uv run --no-sync posttrain \
+          # Runtime-image verification reads only registry and manifest state;
+          # it must not inherit the runner's production Trackio credentials.
+          env -u TRACKIO_SERVER_URL -u POSTTRAIN_TRACKIO_SERVER_URL -u TRACKIO_WRITE_TOKEN \
+            POSTTRAIN_REGISTRY="${JOB_REGISTRY}" uv run --no-sync posttrain \
             --project-root apps/lab runtime images verify > .release/runtime-images-verify.json
 
       - name: Run the final packed GPU canary through dstack
