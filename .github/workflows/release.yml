@@ -7,6 +7,11 @@ on:
         description: Exact merged default-branch commit accepted by the candidate gate
         required: true
         type: string
+      resume_from_run_id:
+        description: Optional prior final run whose retained receipt and wheelhouse must be resumed
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: write
@@ -69,6 +74,31 @@ jobs:
           done
           test "${quality_conclusion}" = success
 
+      - name: Restore retained final evidence for a release resume
+        if: inputs.resume_from_run_id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESUME_FROM_RUN_ID: ${{ inputs.resume_from_run_id }}
+        run: |
+          mkdir -p .release/resume
+          gh run download "${RESUME_FROM_RUN_ID}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --dir .release/resume
+          receipt_path="$(find .release/resume -type f -name python-release-receipt.json -print -quit)"
+          test -n "${receipt_path}"
+          receipt_root="$(dirname "${receipt_path}")"
+          cp "${receipt_root}"/* .release/
+          source_sha="$(jq -r '.revision // empty' .release/python-release-receipt.json)"
+          version="$(jq -r '.version // empty' .release/python-release-receipt.json)"
+          test "${#source_sha}" -eq 40
+          test -n "${version}"
+          git cat-file -e "${source_sha}^{commit}"
+          git merge-base --is-ancestor "${source_sha}" "$(git rev-parse origin/main)"
+          test "$(git show "${source_sha}:release/manifest.toml" | sed -n 's/^version = "\([^"]*\)"$/\1/p')" = "${version}"
+          echo "POSTTRAIN_RELEASE_VERSION=${version}" >> "$GITHUB_ENV"
+          echo "RELEASE_SOURCE_SHA=${source_sha}" >> "$GITHUB_ENV"
+          echo "resuming immutable ${version} artifacts from ${source_sha}"
+
       - name: Validate the final source and lock
         run: |
           # The runner service has production Trackio variables for the real
@@ -83,19 +113,34 @@ jobs:
           uv run --no-sync lint-imports
           uv run --no-sync pytest
 
+      - name: Materialize and verify the retained release wheelhouse
+        if: inputs.resume_from_run_id != ''
+        run: |
+          archive="$(find .release -maxdepth 1 -type f -name 'posttrain-wheelhouse-*.tar.gz' -print -quit)"
+          test -n "${archive}"
+          mkdir -p .release/wheelhouse
+          tar -xzf "${archive}" -C .release/wheelhouse
+          uv run --no-sync posttrain-release receipt-check .release/python-release-receipt.json \
+            --distribution-root .release/wheelhouse
+
       - name: Capture the pre-build BuildKit cache
+        if: inputs.resume_from_run_id == ''
         run: buildctl --addr unix:///var/lib/github-runner/buildkit/buildkitd.sock du
 
       - name: Capture the accepted runtime image manifest
+        if: inputs.resume_from_run_id == ''
         run: |
           mkdir -p .release
           cp packages/runtime-images/src/posttrain/runtime_images/published.toml .release/published.toml
 
       - name: Build and hash final distributions exactly once
+        if: inputs.resume_from_run_id == ''
         run: |
           version="$(sed -n 's/^version = "\([^"]*\)"$/\1/p' release/manifest.toml)"
           echo "POSTTRAIN_RELEASE_VERSION=${version}" >> "$GITHUB_ENV"
-          scripts/release/build-python-distributions "${version}" "$(git rev-parse HEAD)" .release
+          source_sha="$(git rev-parse HEAD)"
+          echo "RELEASE_SOURCE_SHA=${source_sha}" >> "$GITHUB_ENV"
+          scripts/release/build-python-distributions "${version}" "${source_sha}" .release
           uv run --no-sync posttrain-release receipt-check .release/python-release-receipt.json \
             --distribution-root .release/distributions
 
@@ -220,7 +265,7 @@ jobs:
           fi
           git config user.name carbonteq-release-bot
           git config user.email release-bot@carbonteq.ai
-          git tag -a "v${POSTTRAIN_RELEASE_VERSION}" "${{ inputs.merged_sha }}" -m "Posttrain ${POSTTRAIN_RELEASE_VERSION}"
+          git tag -a "v${POSTTRAIN_RELEASE_VERSION}" "${RELEASE_SOURCE_SHA}" -m "Posttrain ${POSTTRAIN_RELEASE_VERSION}"
           git push origin "v${POSTTRAIN_RELEASE_VERSION}"
           gh release create "v${POSTTRAIN_RELEASE_VERSION}" \
             .release/posttrain-wheelhouse-${POSTTRAIN_RELEASE_VERSION}.tar.gz \

@@ -396,6 +396,12 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert "REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt" in final
     assert "exact final bytes are already present in the development index" in final
     assert "development index already contains" in final
+    assert "resume_from_run_id" in final
+    assert "gh run download" in final
+    assert 'git merge-base --is-ancestor "${source_sha}"' in final
+    assert 'git tag -a "v${POSTTRAIN_RELEASE_VERSION}" "${RELEASE_SOURCE_SHA}"' in final
+    assert "Materialize and verify the retained release wheelhouse" in final
+    assert "receipt-check .release/python-release-receipt.json" in final
 
 
 @pytest.mark.skipif(which("uv") is None, reason="requires uv to validate the staged workspace lock")
