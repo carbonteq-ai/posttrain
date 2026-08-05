@@ -17,9 +17,9 @@ The observable proof mirrors the completed 12B qualification. The serving work p
 - [x] (2026-08-05 08:12Z) Read the repository instructions, complete plan template, canonical workflow, work/evidence, framework, and API documents relevant to model qualification.
 - [x] (2026-08-05 08:12Z) Inspected the completed 12B implementation, catalog bindings, work packages, release gates, tests, and retained qualification plan.
 - [x] (2026-08-05 08:12Z) Resolved the exact 31B Hub revision and model facts; proved tokenizer vocabulary equivalence, family loader compatibility, dense topology, and the existing LoRA target expression against the pinned config.
-- [ ] Add the exact 31B model variant, base-catalog row, exports, and identity/template tests.
-- [ ] Add checkpoint-specific Lab training, serving, and evaluation bindings plus serving and SFT work packages and candidate gates.
-- [ ] Run focused tests, static work-package validation, and the repository validation ladder.
+- [x] (2026-08-05 08:20Z) Added the exact 31B model variant, base-catalog row, exports, and identity/template tests.
+- [x] (2026-08-05 08:20Z) Added checkpoint-specific Lab training, serving, and evaluation bindings plus serving and SFT work packages and candidate gates.
+- [x] (2026-08-05 08:20Z) Ran focused tests, tokenizer-aware Gemma tests, both static work-package validations, locked sync, full Ruff, import boundaries, targeted Pyright, the full repository test suite, and diff checks.
 - [ ] Submit and track the serving and SFT work packages on `targets/carbonteq-rtx-pro-6000-96gb`.
 - [ ] Prove clean PEFT reload, structured tool calling, and adapter serving where supported; record immutable evidence and finish the retrospective.
 
@@ -36,6 +36,9 @@ The observable proof mirrors the completed 12B qualification. The serving work p
 
 - Observation: The existing tokenizer fingerprint can be reused for 31B.
   Evidence: the pinned 12B and 31B tokenizers have identical vocabularies and special-token ids, which are the canonical inputs documented for the existing Gemma fingerprint `059d0f7dd1efb018ec9801f316c99ab31a7c39e712de08626ac90c1898b42416`. Their canonical Gemma 4 chat templates are also identical at the pinned revisions.
+
+- Observation: No reusable Python implementation changed beyond adding the exact model value.
+  Evidence: both work packages pass static composition, the 31B binding resolves through the existing `gemma4` renderer and family loader, and the complete repository suite reports 1,043 passed and 20 skipped. Ruff passes, all eight import contracts remain intact, and targeted Pyright reports zero diagnostics.
 
 ## Decision Log
 
@@ -150,6 +153,19 @@ Known immutable inputs:
 
 Add real run IDs, provider IDs, actual-job image digests, catalog snapshots, GPU identity, startup duration, peak memory, generated-answer summary, structured tool call, optimizer metrics, loaded total/trainable parameters, adapter identity and content digest, and reload/adapter-serving results here as work proceeds. Do not paste secrets or large model outputs.
 
+Local validation before GPU submission:
+
+    focused common/catalog tests: 55 passed, 2 skipped
+    focused Lab tests: 35 passed, 1 skipped
+    tokenizer-aware Gemma/TRL tests: 5 passed, 6 unrelated uncached-tokenizer skips
+    static work-package validation: both complete
+    uv sync --all-packages --locked: resolved 307 packages
+    full Ruff: passed
+    import contracts: 8 kept, 0 broken
+    targeted Pyright: 0 errors, 0 warnings, 0 informations
+    full pytest: 1,043 passed, 20 skipped, 4 warnings
+    git diff --check: clean
+
 ## Interfaces and Dependencies
 
 At completion `packages/common/src/posttrain/common/variants/gemma4.py` exposes both `GEMMA_4_12B_IT` and `GEMMA_4_31B_IT`, backed by the single `GEMMA4_RENDERER_CONTRACT`. `FOUNDATION_VARIANTS` contains both exact ids. The base catalog contains `models/gemma4-31b-it@bf16` as an exact `ModelVariant` value.
@@ -157,3 +173,5 @@ At completion `packages/common/src/posttrain/common/variants/gemma4.py` exposes 
 No new reusable interface is expected. `packages/train/src/posttrain/train/backends/trl/common.py` continues to return `AutoModelForMultimodalLM` for `family == "gemma4"`, and `GEMMA4_RENDERER` remains the generic default renderer with reasoning off. Lab provides checkpoint-specific `SFTSettings`, `TrainingBinding`, `InferenceBinding`, work packages, and candidate gates. All dependencies remain at the locked versions listed above.
 
 Revision note (2026-08-05): Created the plan after reconciling the completed 12B qualification with the exact 31B checkpoint. The feasibility probe proved that family-level renderer and loader behavior generalize, while model identity, resource policy, and qualification evidence remain checkpoint-specific.
+
+Revision note (2026-08-05): Updated after implementation and local validation. The result adds only an exact reusable model value plus checkpoint-specific Lab policy; no new family, architecture flag, renderer, loader, dependency, or backend branch was needed.
