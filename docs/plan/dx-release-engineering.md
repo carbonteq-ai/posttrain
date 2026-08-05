@@ -96,6 +96,17 @@ without an out-of-band constraints file.
       fixture fallback remains available for unit tests; a regression test
       proves ignored runner state and virtualenv files cannot enter a staged
       release tree.
+- [x] (2026-08-05) Qualified the repaired release workflow through the
+      packaged consumer environment: quality run `30973419701` passed after
+      validating the exact framework and lab wheels, and candidate runs now
+      reconcile and clean up their canonical run IDs. Earlier candidates
+      exposed and fixed credential-scope, target-selection, wheelhouse, and
+      lab-host dependency defects.
+- [x] (2026-08-05) Diagnosed the first real job-image build failure on `ai-release`:
+      rootless BuildKit reached the Dockerfile but `runc` could not mount
+      `/proc` for the default process sandbox. The dedicated runner now sets
+      `noProcessSandbox = true` (ai-infra commit `14c66f8`), retains bounded
+      NVMe-backed cache GC, and has been reconfigured and requalified.
 
 ## Surprises & Discoveries
 
@@ -167,6 +178,14 @@ without an out-of-band constraints file.
   source under the real `github-runner` user succeeded. Production staging now
   archives `HEAD`, making the source boundary deterministic and excluding
   state, virtualenvs, frontend dependencies, and other ignored files.
+- Observation: the first candidate that reached actual OCI job-image creation
+  failed below the Dockerfile, not in registry resolution or GPU capacity.
+  The runner journal recorded `runc run failed` while mounting `proc` with
+  `operation not permitted`; the BuildKit worker was rootless and using its
+  default process sandbox. Setting `noProcessSandbox = true` in the isolated
+  worker is the smallest compatible fix. The runner's post-fix configure run
+  reports 234 GiB free on `/dev/vda1`, BuildKit active, and private index and
+  registry TLS checks passing.
 
 ## Decision Log
 
