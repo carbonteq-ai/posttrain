@@ -43,9 +43,30 @@ jobs:
           test "${GITHUB_REPOSITORY}" = carbonteq-ai/posttrain
           git fetch --no-tags origin main
           test "${MERGED_SHA}" = "$(git rev-parse origin/main)"
-          runs="$(gh run list --workflow quality.yml --commit "${MERGED_SHA}" --limit 1 --json headSha,conclusion)"
-          test "$(jq -r '.[0].headSha // empty' <<<"${runs}")" = "${MERGED_SHA}"
-          test "$(jq -r '.[0].conclusion // empty' <<<"${runs}")" = success
+          # The merge push starts normal CI asynchronously. Wait for the
+          # exact merged-SHA run instead of racing it from this dispatch.
+          quality_conclusion=""
+          quality_status=""
+          for attempt in $(seq 1 120); do
+            runs="$(gh run list --workflow quality.yml --commit "${MERGED_SHA}" --limit 20 \
+              --json headSha,conclusion,status,event,createdAt)"
+            quality_conclusion="$(jq -r --arg sha "${MERGED_SHA}" \
+              '[.[] | select(.headSha == $sha and .event == "push")] | sort_by(.createdAt) | last.conclusion // empty' \
+              <<<"${runs}")"
+            quality_status="$(jq -r --arg sha "${MERGED_SHA}" \
+              '[.[] | select(.headSha == $sha and .event == "push")] | sort_by(.createdAt) | last.status // empty' \
+              <<<"${runs}")"
+            case "${quality_conclusion}" in
+              success) break ;;
+              failure|cancelled|timed_out|action_required|startup_failure)
+                echo "quality run for ${MERGED_SHA} ended with ${quality_conclusion}" >&2
+                exit 1
+                ;;
+            esac
+            echo "waiting for quality run for ${MERGED_SHA}: status=${quality_status:-not-found} attempt=${attempt}/120"
+            sleep 5
+          done
+          test "${quality_conclusion}" = success
 
       - name: Validate the final source and lock
         run: |
