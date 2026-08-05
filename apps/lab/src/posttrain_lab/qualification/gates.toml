@@ -79,6 +79,19 @@ owner = "posttrain-training"
 replacement_condition = "Promote only after a retained RTX PRO run proves complete rollout, finite optimizer evidence, and non-zero speculative counters; retire if the paired assistant is unsupported by the maintained vLLM stack."
 
 [[gates]]
+id = "gemma4-31b-sft"
+work_package = ".posttrain/work_packages/gemma4_31b_sft_qualification.yaml"
+job_id = "train"
+tier = "experimental"
+state = "candidate"
+job_kind = "train.sft"
+acceptance = "training-summary"
+experiment_family = "gemma4-dense-matrix"
+hypothesis = "The pinned Transformers and TRL capsule can produce a finite, reloadable language-model-only LoRA adapter for Gemma 4 31B dense."
+owner = "posttrain-training"
+replacement_condition = "Promote after a retained 96 GiB GPU run completes both optimizer updates and reloads the adapter; retire if this checkpoint leaves the maintained model plane."
+
+[[gates]]
 id = "foundation-serving-screen"
 work_package = ".posttrain/work_packages/foundation_screen.yaml"
 job_id = "benchmark"
