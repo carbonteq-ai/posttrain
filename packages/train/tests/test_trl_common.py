@@ -3,7 +3,13 @@
 from types import SimpleNamespace
 
 import pytest
-from posttrain.common.variants import GEMMA_4_12B_IT, GEMMA_4_E4B_IT, LFM_25_12B_THINKING, QWEN_35_2B
+from posttrain.common.variants import (
+    GEMMA_4_12B_IT,
+    GEMMA_4_E2B_IT,
+    GEMMA_4_E4B_IT,
+    LFM_25_12B_THINKING,
+    QWEN_35_2B,
+)
 from posttrain.train import LoRAUpdate
 from posttrain.train.backends.trl.common import (
     _disable_model_cache,
@@ -30,6 +36,7 @@ def test_trainable_model_factory_uses_multimodal_loader_for_gemma4() -> None:
     assert trainable_model_factory(QWEN_35_2B, IMPORTS) is CausalFactory
     assert trainable_model_factory(LFM_25_12B_THINKING, IMPORTS) is CausalFactory
     assert trainable_model_factory(GEMMA_4_12B_IT, IMPORTS) is MultimodalFactory
+    assert trainable_model_factory(GEMMA_4_E2B_IT, IMPORTS) is MultimodalFactory
     assert trainable_model_factory(GEMMA_4_E4B_IT, IMPORTS) is MultimodalFactory
 
 
@@ -73,7 +80,8 @@ def test_gemma_lora_targets_cover_language_projections_without_matching_multimod
         ]
     )
 
-    _validate_gemma4_lora_targets(model, GEMMA_4_E4B_IT, LoRAUpdate(target_modules=GEMMA4_TEXT_TARGETS))
+    for variant in (GEMMA_4_E2B_IT, GEMMA_4_E4B_IT):
+        _validate_gemma4_lora_targets(model, variant, LoRAUpdate(target_modules=GEMMA4_TEXT_TARGETS))
 
 
 @pytest.mark.parametrize(

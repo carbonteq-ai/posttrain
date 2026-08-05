@@ -21,6 +21,7 @@ def test_empty_overlay_is_valid_and_composes_with_packaged_base(tmp_path: Path) 
     assert catalog.overlay_ids == ("empty-project-v1",)
     assert CatalogRef("model", "models/qwen3.5-0.8b@bf16") in catalog.list("model")
     assert CatalogRef("model", "models/gemma4-e4b-it@bf16") in catalog.list("model")
+    assert CatalogRef("model", "models/gemma4-e2b-it@bf16") in catalog.list("model")
     assert CatalogRef("dataset", "datasets/posttrain-sft-smoke@1") in catalog.list("dataset")
     assert CatalogRef("environment", "math-gsm8k") in catalog.list("environment")
     environment = catalog.resolve(CatalogRef("environment", "math-gsm8k")).value
@@ -34,6 +35,15 @@ def test_empty_overlay_is_valid_and_composes_with_packaged_base(tmp_path: Path) 
     assert e4b.base.repo_id == "google/gemma-4-E4B-it"
     assert e4b.base.revision == "ee0ef6023621cff504d758262d4e04895a5af4a2"
     assert e4b.renderer_contract == "gemma4-e4b-tools@1"
+
+    e2b = catalog.resolve(CatalogRef("model", "models/gemma4-e2b-it@bf16")).value
+    assert isinstance(e2b, ModelVariant)
+    assert e2b.id == "models/gemma4-e2b-it@bf16"
+    assert e2b.parameters == 5_123_178_051
+    assert e2b.base.repo_id == "google/gemma-4-E2B-it"
+    assert e2b.base.revision == "3e22461f65e89153144f8adb70e3b8c2cc9845a7"
+    assert e2b.renderer_contract == "gemma4-e4b-tools@1"
+    assert e2b.tokenizer_fingerprint == e4b.tokenizer_fingerprint
 
 
 def test_catalog_manifest_still_rejects_duplicate_files(tmp_path: Path) -> None:

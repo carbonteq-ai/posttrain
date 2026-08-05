@@ -5,7 +5,13 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from posttrain.common.variants import GEMMA_4_12B_IT, GEMMA_4_E4B_IT, LFM_25_12B_THINKING, QWEN_35_2B
+from posttrain.common.variants import (
+    GEMMA_4_12B_IT,
+    GEMMA_4_E2B_IT,
+    GEMMA_4_E4B_IT,
+    LFM_25_12B_THINKING,
+    QWEN_35_2B,
+)
 
 TOOLS = [
     {
@@ -82,6 +88,7 @@ def test_lfm_package_template_preserves_openai_tool_history() -> None:
     ("profile", "off_suffix"),
     (
         (GEMMA_4_12B_IT, "<|channel>thought\n<channel|>"),
+        (GEMMA_4_E2B_IT, "<|turn>model\n"),
         (GEMMA_4_E4B_IT, "<|turn>model\n"),
     ),
 )

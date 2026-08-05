@@ -73,6 +73,27 @@ model:
       license: apache-2.0
       upstream_model_type: gemma4_unified
       upstream_architecture: Gemma4UnifiedForConditionalGeneration
+  models/gemma4-e2b-it@bf16:
+    artifact:
+      kind: hub
+      repo_id: google/gemma-4-E2B-it
+      revision: 3e22461f65e89153144f8adb70e3b8c2cc9845a7
+    form: foundation
+    weight_precision: bf16
+    family: gemma4
+    parameters: 5123178051
+    instruction_tuned: true
+    renderer_contract: gemma4-e4b-tools@1
+    tokenizer_fingerprint: 1ab787c816b67a0936e8d1c9ff20e6cf5bd8b77faabfe6ada5905bd2c433b413
+    capabilities:
+      modalities: [text, image, audio, video]
+      native_context_window: 131072
+      mtp: false
+    provenance:
+      source: huggingface
+      license: apache-2.0
+      upstream_model_type: gemma4
+      upstream_architecture: Gemma4ForConditionalGeneration
   models/gemma4-e4b-it@bf16:
     artifact:
       kind: hub

@@ -1,7 +1,9 @@
 """Tests for pinned foundation model variants."""
 
 from posttrain.common.variants import (
+    GEMMA4_SMALL_RENDERER_CONTRACT,
     GEMMA_4_12B_IT,
+    GEMMA_4_E2B_IT,
     GEMMA_4_E4B_IT,
     LFM_25_12B_THINKING,
     QWEN_35_08B,
@@ -27,6 +29,17 @@ def test_foundation_variants_publish_explicit_model_and_renderer_contracts() -> 
     assert GEMMA_4_12B_IT.renderer.id == "gemma4-tools@1"
     assert GEMMA_4_12B_IT.provenance["upstream_model_type"] == "gemma4_unified"
     assert GEMMA_4_12B_IT.provenance["upstream_architecture"] == "Gemma4UnifiedForConditionalGeneration"
+    assert GEMMA_4_E2B_IT.family == "gemma4"
+    assert GEMMA_4_E2B_IT.parameters == 5_123_178_051
+    assert GEMMA_4_E2B_IT.base.repo_id == "google/gemma-4-E2B-it"
+    assert GEMMA_4_E2B_IT.base.revision == "3e22461f65e89153144f8adb70e3b8c2cc9845a7"
+    assert GEMMA_4_E2B_IT.capabilities.modalities == ("text", "image", "audio", "video")
+    assert GEMMA_4_E2B_IT.capabilities.native_context_window == 131_072
+    assert GEMMA_4_E2B_IT.renderer is GEMMA4_SMALL_RENDERER_CONTRACT
+    assert GEMMA_4_E2B_IT.renderer is GEMMA_4_E4B_IT.renderer
+    assert GEMMA_4_E2B_IT.tokenizer_fingerprint == GEMMA_4_E4B_IT.tokenizer_fingerprint
+    assert GEMMA_4_E2B_IT.provenance["upstream_model_type"] == "gemma4"
+    assert GEMMA_4_E2B_IT.provenance["upstream_architecture"] == "Gemma4ForConditionalGeneration"
     assert GEMMA_4_E4B_IT.family == "gemma4"
     assert GEMMA_4_E4B_IT.parameters == 7_996_156_490
     assert GEMMA_4_E4B_IT.base.repo_id == "google/gemma-4-E4B-it"
