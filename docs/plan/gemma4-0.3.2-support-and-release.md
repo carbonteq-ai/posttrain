@@ -88,10 +88,16 @@ and terminal state are retained in Trackio.
   the workflow previously waited for a push event that this repository never
   emits on internal branches. The focused release tests pass, and PR quality
   run `30995143048` is green for commit `b352a4c1`.
-- [ ] (2026-08-05) Candidate run `30995307312` is executing the approved
-  0.3.2 path on the LAN runner. It has passed source/lock validation, dev-index
-  publication, and clean consumer installation; OCI BuildKit publication is
-  still in progress before the packaged GPU/MTP qualification step.
+- [x] (2026-08-05) Candidate run `30995307312` passed source/lock validation,
+  dev-index publication, and clean consumer installation, then reached OCI
+  publication. It stopped before GPU/MTP qualification because the LAN OCI
+  registry had no space left (`/dev/vda1` was 193G/193G used), not because of
+  a Gemma or MTP failure.
+- [ ] (2026-08-05) Retry the approved candidate after registry recovery. The
+  registry cleanup retained the four accepted Gemma images and the two active
+  evaluation images, deleted 52 stale `carbonteq/posttrain-job` manifests, and
+  reclaimed 78G with registry garbage collection. The registry is healthy and
+  now has 78G free; the retry must still complete the packaged GPU/MTP gate.
 - [ ] Update the release workflow inputs and 0.3.2 release notes; publish only
   after the pre-release qualification gate passes.
 
@@ -123,6 +129,14 @@ and terminal state are retained in Trackio.
 
 - Observation: The runtime image installs Python dependencies while building
   the job image and the smoke container performs no package installation.
+
+- Observation: OCI capacity is a release-runner dependency. A candidate can
+  pass source, lock, wheel, dev-index, and consumer-install checks yet fail
+  before GPU qualification when the private registry cannot accept a layer.
+  Evidence: candidate `30995307312` received HTTP 500 from
+  `registry.lan` with `filesystem: ... no space left on device`; after an
+  exact six-digest retention cleanup and registry:3 garbage collection, the
+  registry returned healthy `/v2/` responses and had 78G free.
   Evidence: the E4B and 31B build logs show hashed wheel/code installation in
   BuildKit layers; runtime qualification only validates the prepared manifest.
 
@@ -357,3 +371,9 @@ The provider bridge now waits for an exact healthy worker, and a new immutable
 recovery preview can apply only unfinished planes. The diagnostic run's local
 state was removed and accepted evidence was retained; release publication
 remains pending the candidate workflow and release notes.
+
+2026-08-05: Recorded the first release-candidate OCI capacity failure and its
+bounded recovery. Only stale `carbonteq/posttrain-job` manifests were removed;
+shared base/kind images, accepted Gemma evidence, active evaluation images, and
+unrelated repositories were preserved. The next candidate retry is the real
+MTP qualification gate.
