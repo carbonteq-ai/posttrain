@@ -59,3 +59,29 @@ inference:
       temperature: 0.0
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [screen, smoke]
+  inference/gemma4-12b-it-vllm-eval@1:
+    revision: "1"
+    startup_timeout_seconds: 900
+    model: models/gemma4-12b-it@bf16
+    backend: vllm@0.25.1
+    renderer: gemma4-tools@1
+    engine:
+      max_model_len: 32768
+      gpu_memory_utilization: 0.80
+      dtype: bfloat16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 1
+      max_num_batched_tokens: 4096
+      kv_cache_dtype: auto
+      text_only: true
+      skip_mm_profiling: true
+      tool_call_parser: gemma4
+      reasoning_parser: gemma4
+    sampling:
+      max_tokens: 384
+      temperature: 0.0
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [eval]

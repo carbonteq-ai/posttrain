@@ -58,6 +58,7 @@ def test_gemma4_unified_qualification_selections_resolve_as_one_support_plane() 
     settings = catalog.resolve(CatalogRef("training", "gemma4-12b-it/sft-qualification-v1"))
     training = catalog.resolve(CatalogRef("training", "training/gemma4-12b-it-trl-lora-qualification@1"))
     inference = catalog.resolve(CatalogRef("inference", "inference/gemma4-12b-it-vllm-screen@1"))
+    evaluation_inference = catalog.resolve(CatalogRef("inference", "inference/gemma4-12b-it-vllm-eval@1"))
 
     assert isinstance(model.value, ModelVariant)
     assert model.value.family == "gemma4"
@@ -79,8 +80,16 @@ def test_gemma4_unified_qualification_selections_resolve_as_one_support_plane() 
     assert inference.value.engine["skip_mm_profiling"] is True
     assert inference.value.engine["tool_call_parser"] == "gemma4"
     assert inference.value.engine["reasoning_parser"] == "gemma4"
-    assert all(value.source_layer == "overlay" for value in (settings, training, inference))
-    assert all(value.overlay_id == "posttrain-lab-serving-capacity-v1" for value in (settings, training, inference))
+    assert isinstance(evaluation_inference.value, InferenceBinding)
+    assert evaluation_inference.value.model == model.value
+    assert evaluation_inference.value.target == training.value.target
+    assert evaluation_inference.value.purpose == ("eval",)
+    assert evaluation_inference.value.engine["max_model_len"] == 32768
+    assert all(value.source_layer == "overlay" for value in (settings, training, inference, evaluation_inference))
+    assert all(
+        value.overlay_id == "posttrain-lab-serving-capacity-v1"
+        for value in (settings, training, inference, evaluation_inference)
+    )
 
 
 def test_every_evaluation_plan_declares_success_for_every_environment() -> None:
