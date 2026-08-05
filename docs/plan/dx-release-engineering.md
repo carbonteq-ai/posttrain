@@ -42,8 +42,8 @@ without an out-of-band constraints file.
       wheel inspection found 106 exact first-party pins at version 0.3.0.
 - [x] Milestone 3: generated dependency locks and indexed maintained forks.
 - [x] Milestone 4 implementation: captured image receipts and a protected
-      candidate/final publication flow. First live v0.3.1 dispatch remains
-      pending the merge and protected-environment activation gates.
+      candidate/final publication flow. The protected environment was approved
+      and the v0.3.1 final release completed through the LAN runner.
 - [x] (2026-08-01) Added the milestone-1 authority and primary drift gate:
       `release/manifest.toml` is the authored version; `posttrain-release
       check` verifies 25 package versions, 109 internal pins, the catalog's
@@ -114,6 +114,23 @@ without an out-of-band constraints file.
       artifact action ignored the hidden `.release` directory. Both workflows
       now wait for the exact run to finish and retain hidden evidence with a
       fail-closed artifact check.
+- [x] (2026-08-05) Final run `30975505448` passed source validation, built and
+      published the final `0.3.1` distributions to `carbonteq/dev`, and passed
+      the packed dstack canary, but stopped before stable promotion because
+      the provisioned devpi client lacked the runner's private CA bundle.
+- [x] (2026-08-05) Made stable promotion retry-safe with the installed CA and
+      verified that the first final run's development-index artifacts matched
+      its retained receipt byte-for-byte. A later retry correctly refused to
+      rebuild `0.3.1` from a newer workflow commit when the packaged release
+      test sdist differed.
+- [x] (2026-08-05) Added the explicit `resume_from_run_id` final-workflow
+      path. It restores the retained receipt/wheelhouse, derives and validates
+      the original source revision, reruns consumer/OCI/dstack qualification,
+      and tags the receipt source without overwriting immutable dev bytes.
+- [x] (2026-08-05) Resume run `30976912055` completed successfully: stable
+      readback verified all 24 coordinated packages and 48 artifacts, final
+      evidence was retained, and `v0.3.1` was created last at the receipt
+      source commit `271bd685c5c598616e127cf6d39c0228a176d9a0`.
 
 ## Surprises & Discoveries
 
@@ -204,6 +221,21 @@ without an out-of-band constraints file.
   upload step reported no files because all paths were under `.release`.
   Evidence retention is now explicit with `include-hidden-files: true` and
   `if-no-files-found: error` in both protected workflows.
+- Observation: the merge-triggered quality run can still be in progress when
+  a manually dispatched final workflow starts. An immediate `conclusion ==
+  success` check created a false release failure before any build or publish.
+  The final workflow now polls the exact merged-SHA push run with a bounded
+  timeout and fails fast on terminal failure.
+- Observation: final distribution bytes are sensitive to later source changes
+  even when those changes only improve release workflow tests. After `0.3.1`
+  was already present in `carbonteq/dev`, rebuilding from a newer workflow
+  commit changed `posttrain_release-0.3.1.tar.gz`; the immutable-index check
+  correctly rejected it. Final retries must restore the retained receipt and
+  wheelhouse rather than rebuild.
+- Observation: the system CA store was sufficient for `uv` and `curl`, but the
+  hash-locked devpi client did not inherit it automatically. Stable promotion
+  now passes `REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt` while
+  retaining certificate verification.
 
 ## Decision Log
 
@@ -289,6 +321,14 @@ without an out-of-band constraints file.
   appear broken. The endpoint map is bounded to the declared two workers and
   fails closed for unknown names.
   Date/Author: 2026-08-05 / infrastructure qualification.
+- Decision: final retries after development-index publication resume from a
+  retained workflow run rather than rebuilding the target version.
+  Rationale: package source archives can include release tests and therefore
+  change when workflow-only commits land; one version must never name two
+  different byte sets. The `resume_from_run_id` input derives the source SHA
+  from the immutable receipt, verifies ancestry, and keeps the tag aligned to
+  those bytes.
+  Date/Author: 2026-08-05 / release qualification.
 
 ## Outcomes & Retrospective
 
@@ -307,8 +347,15 @@ without an out-of-band constraints file.
   full fleet is now also qualified: the active fleet has two healthy idle
   unsliced GPUs, reconnect preserves fleet and instance identities, and the
   installed worker component versions match the deployed receipt. The
-  remaining release gate is repository merge plus protected GitHub-environment
-  activation, not worker capacity.
+  final protected workflow completed on the selected healthy worker; runner
+  capacity and release-environment approval are no longer open gates for
+  v0.3.1.
+- Final-release outcome: GitHub Release [v0.3.1](https://github.com/carbonteq-ai/posttrain/releases/tag/v0.3.1)
+  is published with the wheelhouse, receipt, and checksum assets. Stable
+  index readback matched every receipt artifact, the annotated tag points to
+  `271bd685c5c598616e127cf6d39c0228a176d9a0`, and no GHCR publication was
+  introduced. The remaining follow-up is the broader changed-kind matrix,
+  not a v0.3.1 publication defect.
 
 ## Context and Orientation
 
@@ -580,3 +627,8 @@ import-time metadata rewrite is required.
   and operator paths. Reconnect and component receipts now pass for the new
   active fleet; the release plan no longer treats fleet readiness as an open
   DNS-owner dependency.
+- 2026-08-05: Completed v0.3.1 publication through the protected LAN workflow.
+  Added a bounded merged-CI wait, private-CA-aware devpi promotion, and an
+  evidence-bound resume path after the first promotion interruption. The
+  final receipt, stable readback, dstack qualification, annotated tag, and
+  GitHub Release are now recorded above.
