@@ -25,8 +25,11 @@ The observable proof has two parts. First, a Lab serving work package launches t
 - [x] (2026-08-04) Reassessed the architecture axis against offline validation and upstream auto-model behavior; removed the field, its propagation, catalog migration, and architecture-dispatch utility in favor of family-aware loading.
 - [x] (2026-08-04) Validated the corrected family-only contract with focused tests, the broader owning-package suite, the full repository suite, targeted Ruff and Pyright, import boundaries, both primary-CLI static work-package validations, and `git diff --check`.
 - [x] (2026-08-04) Audited the complete branch delta for minimality: reused the generic training renderer instead of adding a Gemma implementation enum/branch, removed a redundant Gemma HTTP request-shape test, and made the existing text-only vLLM translation disable audio as well as image/video.
+- [x] (2026-08-05) Planned both real qualification packages against the 96 GiB target; the first serving submission exposed and then fixed a checkout-source packaging omission before any remote run was created.
+- [x] (2026-08-05) Submitted both qualification packages through dstack. The serving run `96152bfa-08c3-4bdb-bd07-286f1ec0b8e9` completed successfully; the SFT run `6b04480c-0df5-4ec6-ba00-3201bd9953e3` is submitted and provider-queued for the same single workstation.
+- [x] (2026-08-05) Tracked SFT run `6b04480c-0df5-4ec6-ba00-3201bd9953e3` to terminal success. It completed two optimizer updates with finite loss and gradient norms and published the required model and summary artifacts plus a recovery checkpoint.
 - [ ] Validate the smallest package suites, then the repository-wide static and test ladder (completed: locked sync, full Ruff, import boundaries, targeted Pyright, focused ownership suites, full pytest, and diff check; remaining: full-workspace Pyright wrapper does not terminate locally).
-- [ ] Run the real 96 GiB GPU serving and SFT qualifications, preserve their run/artifact evidence, and update this plan with results.
+- [x] (2026-08-05) Closed the remaining real qualification acceptance on `carbonteq-ai-workstation.lan`: raw Trackio metrics prove the LoRA parameter ratio and peak SFT memory, a clean process materialized and reloaded the exact adapter with finite logits, the Gemma parser returned a structured tool call, and pinned vLLM served the retained adapter successfully.
 
 ## Surprises & Discoveries
 
@@ -74,6 +77,21 @@ The observable proof has two parts. First, a Lab serving work package launches t
 
 - Observation: The existing `text_only` vLLM translation disabled image and video inputs but not audio.
   Evidence: Gemma 4 Unified 12B declares image, video, and audio processors, and vLLM 0.25.1 accepts `audio` in `limit_mm_per_prompt`. The generic translation now sets all three supported multimodal inputs to zero, making the existing `text_only` name truthful for this checkpoint.
+
+- Observation: Source-checkout actual-job packaging omitted the environment-contract distribution even though its consumers declared it.
+  Evidence: the serving qualification image failed its pre-publication smoke check with `ModuleNotFoundError: No module named 'posttrain.environment'`. `posttrain-catalog` and `posttrain-runtime` both declare `posttrain-environment`, and the wheel-based framework distribution list already included it, but `_FRAMEWORK_INSTALL_ROOTS` omitted `packages/environment`. Adding that install root and a regression assertion makes checkout and wheel staging agree; no dstack run was created by the failed attempt.
+
+- Observation: The SFT run recorded the required model-size and memory metrics even though the job-specific Observatory projection does not display them.
+  Evidence: direct Trackio retrieval for `train.sft-6b04480c` returned `train/parameters_total=11,992,514,560`, `train/parameters_trainable=32,784,384`, `train/parameters_trainable_fraction=0.0027337372688584836`, and `train/peak_gpu_memory_gib=28.37083673477173`.
+
+- Observation: The exact retained Gemma adapter works through both backend consumption paths in the pinned runtime stack.
+  Evidence: dstack task `gemma4-adapter-reload-validation-v3` materialized content digest `dfc511859f94a6c98a2d3a1d7552699c7e471a2ae8ba78999e999ce86af01796`, loaded `PeftModelForCausalLM` over `Gemma4UnifiedForConditionalGeneration`, produced finite logits and one generated token, and peaked at 22.521 GiB. Task `gemma4-serve-contract-validation-v3` loaded the same digest through vLLM LoRA serving and returned nonempty final content.
+
+- Observation: The Gemma vLLM parser produces a genuine OpenAI-compatible structured tool response rather than only accepting parser flags at startup.
+  Evidence: `gemma4-serve-contract-validation-v3` sent a real tool-bearing request and received `finish_reason=tool_calls` with function `get_weather` and JSON arguments `{"city":"Paris"}`.
+
+- Observation: The repository-wide Pyright command is scanning an ignored nested environment and is not currently a usable terminal gate on this checkout.
+  Evidence: verbose Pyright found 12,748 source files and entered `apps/lab/environments/skyrl_bird_sql_v1/.venv`; the configured exclusions contain root-relative `.venv` and `.venvs`, not recursive patterns. A temporary recursive exclusion completed and exposed 146 broader workspace diagnostics dominated by namespace re-export resolution, while the ten Gemma production modules pass with zero diagnostics. This remains repository validation debt and was not changed as part of model support.
 
 ## Decision Log
 
@@ -127,7 +145,7 @@ The observable proof has two parts. First, a Lab serving work package launches t
 
 ## Outcomes & Retrospective
 
-The reusable and declarative implementation is complete locally: one exact model identity, one renderer contract, one family-aware loader branch, one LoRA SFT binding, one text-only vLLM binding, a model-neutral generation-smoke definition, and two candidate Lab qualification work packages. The initially introduced required architecture field was removed after review showed that it duplicated immutable checkpoint metadata and enabled no current static validation. The corrected tree passes focused and broader behavioral tests, targeted Ruff and Pyright, both static work-package validations, and whitespace checks. The full-workspace Pyright wrapper hang and real GPU serving/SFT evidence remain, so both Lab gates correctly remain candidates rather than active support qualifications.
+The surgical Gemma 4 Unified 12B support plane is implemented and its model-specific qualification is complete. The exact foundation checkpoint generated successfully through vLLM; LoRA SFT completed two finite updates with 32,784,384 of 11,992,514,560 parameters trainable and retained an immutable adapter; a clean PEFT process reloaded that adapter and produced finite logits; the Gemma parser emitted a structured tool call; and pinned vLLM served the retained adapter with nonempty output. The initially introduced required architecture field was removed after review showed that it duplicated immutable checkpoint metadata and enabled no current static validation. Focused tests, the complete pytest suite, Ruff, import boundaries, targeted Pyright, and whitespace checks pass. Repository-wide Pyright remains a pre-existing workspace-configuration gate rather than a Gemma diagnostic, so gate promotion should record that distinction instead of broadening this model-support change.
 
 ## Context and Orientation
 
@@ -229,7 +247,7 @@ Before implementation, confirm branch and cleanliness:
 
 Expected branch prefix:
 
-    ## feat/gemma4_unified-support
+    ## feat/gemma4-support
 
 Run the dependency probe through the train package environment. Store the diagnostic script in a fresh `mktemp -d` directory and keep any Hugging Face token only in the environment. The exact probe command must be added here after the script exists; do not commit the script unless it becomes a reusable test helper.
 
@@ -268,7 +286,10 @@ Then run the normal repository ladder:
 
 Do not run `uv sync` with an unlocked dependency resolution unless the plan has been amended for a dependency change. Expected acceptance is zero lint/type/import-boundary errors, all non-environmental tests passing, only clearly explained network/GPU/cache skips, and no whitespace errors.
 
-The exact remote `posttrain work-package run` commands depend on the repository's configured dstack execution profile and must be copied here from the successful invocation before marking the GPU progress items complete. They must select `targets/carbonteq-rtx-pro-6000-96gb`, use an immutable runtime image digest, and preserve tracked run IDs.
+The successful submission commands use the target already pinned by each binding; the CLI rejects repeating it as a no-op override:
+
+    uv run --package posttrain-lab posttrain --project-root apps/lab --json job run gemma4_unified_serve_smoke_qualification.yaml --job smoke --provider dstack --env HF_TOKEN
+    uv run --package posttrain-lab posttrain --project-root apps/lab --json job run gemma4_unified_sft_qualification.yaml --job train --provider dstack --env HF_TOKEN
 
 ## Validation and Acceptance
 
@@ -298,7 +319,7 @@ Unrelated dirty work belongs to the user. Do not revert it. Before each commit, 
 
 Known immutable inputs at plan creation:
 
-    branch: feat/gemma4_unified-support
+    branch: feat/gemma4-support
     model: google/gemma-4-12B-it
     model revision: 707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7
     transformers architecture: Gemma4UnifiedForConditionalGeneration
@@ -309,6 +330,39 @@ Known immutable inputs at plan creation:
     renderers: 0.1.8
     TRL fork revision: 6e7739b8ec741d21ecd79c0c212694cd15ff20d8
     Lab target: targets/carbonteq-rtx-pro-6000-96gb
+
+Qualification submissions on 2026-08-05:
+
+    serving run: 96152bfa-08c3-4bdb-bd07-286f1ec0b8e9
+    serving dstack provider id: pt-e4558f9a1b3e3b006259d4cd
+    serving job image: registry.lan/carbonteq/posttrain-job@sha256:a5810b7134472b7846103c6ebc49f1e1ecb5f4bcc6bf8b8f69f414495fc575ed
+    serving result: succeeded; generated-output and server-log artifacts recorded in Trackio
+    serving GPU: NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 102641958912 bytes
+
+    SFT run: 6b04480c-0df5-4ec6-ba00-3201bd9953e3
+    SFT dstack provider id: pt-dcbe24384c8b212565cad89b
+    SFT job image: registry.lan/carbonteq/posttrain-job@sha256:e0eff255602a176fb82b63e90b82ec3bda8cb0bdfdf05a1b751b5844c43dea62
+    SFT result: succeeded on attempt 1; requested target targets/carbonteq-rtx-pro-6000-96gb@1
+    SFT runtime: 2 updates; train runtime 1.452 s; aggregate train loss 11.49
+    SFT step losses: 10.477238655090332, 12.507713317871094
+    SFT gradient norms: 20.59836196899414, 24.06705093383789
+    SFT peak throughput: 92.09031549222547 non-padding tokens/s
+    SFT parameters: 32,784,384 trainable / 11,992,514,560 total (0.2733737269%)
+    SFT peak allocated GPU memory: 28.37083673477173 GiB
+    SFT adapter: trackio/posttrain-lab/training-models-gemma4-12b-it-bf16-sft-lora-adapter:v0
+    SFT adapter artifact digest: 36f0dd670efca07674dbc4fb835f2ffc24f58f8bb3088e277f6985215bd39088
+    SFT adapter content digest: dfc511859f94a6c98a2d3a1d7552699c7e471a2ae8ba78999e999ce86af01796
+    SFT recovery checkpoint digest: 7c31be77d895c85a17a97790aee5add5a8a860b2f2af5eb67af9cf6cd1f1c99e
+    SFT summary digest: d9bb2842754dd4b26aa516afe9568e97db6461a1db8d0a124dbba70118c73481
+
+    clean PEFT reload dstack task: gemma4-adapter-reload-validation-v3
+    clean PEFT reload result: passed; finite logits; one generated token
+    clean PEFT reload model classes: Gemma4UnifiedForConditionalGeneration -> PeftModelForCausalLM
+    clean PEFT reload peak allocated GPU memory: 22.5210223197937 GiB
+
+    structured tool and adapter-serving dstack task: gemma4-serve-contract-validation-v3
+    structured tool result: passed; get_weather({"city":"Paris"}); finish_reason=tool_calls
+    adapter serving result: passed; exact retained content digest; nonempty final content; finish_reason=stop
 
 Add the following evidence during milestone 1: tokenizer fingerprint inputs and digest; response-template behavior with thinking off/on; decoded ordinary and tool conversations; assistant loss-mask spans; selected LoRA module names and count; excluded multimodal module names; auto-model class resolution; and token-only forward signature result.
 
@@ -332,7 +386,10 @@ Local validation evidence at the implementation stopping point:
     290 passed, 10 skipped
 
     uv run pytest
-    926 passed, 18 skipped, 2 warnings
+    927 passed, 18 skipped, 2 warnings
+
+    uv run pyright <all ten Gemma production modules>
+    0 errors, 0 warnings, 0 informations
 
     uv run --package posttrain-train --extra trl pytest packages/common/tests/test_model_chat_templates.py packages/train/tests/test_rendering.py -q -rs
     3 passed, 6 skipped (all skips are uncached Qwen/LFM tokenizers; Gemma cases passed)
