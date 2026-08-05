@@ -150,25 +150,6 @@ jobs:
           uv run --no-sync posttrain-release index-check .release/python-release-receipt.json \
             --simple-base-url "${PYPI_STABLE_SIMPLE}"
 
-      - name: Tag and create the GitHub release last
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if git ls-remote --exit-code origin "refs/tags/v${POSTTRAIN_RELEASE_VERSION}" >/dev/null 2>&1; then
-            echo "final tag already exists; refuse to attach a different commit" >&2
-            exit 1
-          fi
-          git config user.name carbonteq-release-bot
-          git config user.email release-bot@carbonteq.ai
-          git tag -a "v${POSTTRAIN_RELEASE_VERSION}" "${{ inputs.merged_sha }}" -m "Posttrain ${POSTTRAIN_RELEASE_VERSION}"
-          git push origin "v${POSTTRAIN_RELEASE_VERSION}"
-          gh release create "v${POSTTRAIN_RELEASE_VERSION}" \
-            .release/posttrain-wheelhouse-${POSTTRAIN_RELEASE_VERSION}.tar.gz \
-            .release/release-SHA256SUMS \
-            .release/python-release-receipt.json \
-            --title "Posttrain ${POSTTRAIN_RELEASE_VERSION}" \
-            --generate-notes
-
       - name: Capture bounded cache evidence
         if: always()
         run: buildctl --addr unix:///var/lib/github-runner/buildkit/buildkitd.sock du > .release/buildkit-cache-after.txt || true
@@ -189,6 +170,25 @@ jobs:
             .release/runtime-images-verify.json
             .release/dstack-capacity.json
             .release/buildkit-cache-after.txt
+
+      - name: Tag and create the GitHub release last
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git ls-remote --exit-code origin "refs/tags/v${POSTTRAIN_RELEASE_VERSION}" >/dev/null 2>&1; then
+            echo "final tag already exists; refuse to attach a different commit" >&2
+            exit 1
+          fi
+          git config user.name carbonteq-release-bot
+          git config user.email release-bot@carbonteq.ai
+          git tag -a "v${POSTTRAIN_RELEASE_VERSION}" "${{ inputs.merged_sha }}" -m "Posttrain ${POSTTRAIN_RELEASE_VERSION}"
+          git push origin "v${POSTTRAIN_RELEASE_VERSION}"
+          gh release create "v${POSTTRAIN_RELEASE_VERSION}" \
+            .release/posttrain-wheelhouse-${POSTTRAIN_RELEASE_VERSION}.tar.gz \
+            .release/release-SHA256SUMS \
+            .release/python-release-receipt.json \
+            --title "Posttrain ${POSTTRAIN_RELEASE_VERSION}" \
+            --generate-notes
 
       - name: Remove only this run's temporary release material
         if: always()
