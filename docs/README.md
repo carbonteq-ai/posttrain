@@ -5,12 +5,16 @@ Start here: **[post-training baseline — FROZEN](./post-training/README.md)**
 **[Architecture](./architecture.md)** (stale — see [reconciliation](./architecture/RECONCILIATION.md)) ·
 **[Thread handoff](./HANDOFF.md)** (next: implementation plan).
 
-Knowledge base for this lab. Runtime is a **uv workspace** with
-`packages/{common,data,train,eval,serve,reports}`.
+Knowledge base for the Posttrain framework. Runtime is a Python 3.13 **uv
+workspace** with reusable catalog, project, data, train, eval, serve, tracking,
+work, execution, environment, jobs, and runtime-image packages plus the CLI,
+Lab, Observatory, runtime worker, and release applications. `packages/reports`
+is legacy migration input for Observatory, not a parallel current product.
 
 | Area | Purpose |
 | --- | --- |
 | [overview.md](./overview.md) | Project goal, implementation orientation, and setup |
+| [releases/v0.3.md](./releases/v0.3.md) | Developer features, qualification coverage, reliability improvements, and support boundaries across v0.3.0–v0.3.2 |
 | [consumer-setup.md](./consumer-setup.md) | Install from the internal index, trust the CA, run local or dstack jobs, hand off trained models between packages |
 | [tooling/mise-uv/setup-environment.md](./tooling/mise-uv/setup-environment.md) | Developer checkout setup, GPU profiles, verification, and backend isolation |
 | [post-training/01-workflow.md](./post-training/01-workflow.md) | Mental model: framework-shared assets, screen → train → qualify |

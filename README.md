@@ -5,6 +5,12 @@ training, and qualification. It gives projects a shared way to select models,
 data, environments, inference engines, training methods, evaluation plans, and
 execution targets while keeping project policy in the project repository.
 
+Posttrain is more than a trainer wrapper. It carries the same resolved model,
+data, environment, runtime, and evidence identities from an early serving or
+evaluation screen through training, qualification, artifact handoff, and
+operational cleanup. Backend adapters remain replaceable; the project-owned
+workflow and its lineage do not.
+
 The framework is built around three stages:
 
 | Stage | Question | Typical work |
@@ -17,10 +23,114 @@ A **work package** captures one decision-making unit across those stages. It
 contains ordered jobs, resolved catalog selections, and the evidence needed to
 understand or reproduce a run.
 
+## What you can build
+
+Posttrain gives a project one workflow for preparing data, training a model,
+screening its serving behavior, evaluating its capabilities, and retaining the
+evidence behind each decision.
+
+| Workflow | Included capabilities |
+| --- | --- |
+| Project setup | Installable SFT and GRPO starters, project-local catalogs and work packages, and machine-level configuration for providers, tracking, registries, package indexes, storage, trust, and credentials |
+| Data and environments | Reproducible supervised and preference datasets, serving workloads, project-owned Verifiers packages, deterministic subsets, and immutable source and builder identities |
+| Training | SFT, DPO, GRPO, DAPO, SAMPO, and on-policy distillation through TRL or maintained veRL profiles, with full-parameter and adapter-based updates where supported |
+| Serving | vLLM smoke tests and capacity sweeps with latency, throughput, memory, KV-cache, MTP, eligibility, and Pareto evidence |
+| Evaluation | General and domain evaluation against local Verifiers environments or an OpenAI-compatible policy endpoint, with explicit success criteria and native traces |
+| Model production | AWQ and RTN W4A16 model transformation, immutable model variants, and artifact handoff between work packages |
+| Execution | Provider-free planning, immutable OCI packaging, local-container and dstack execution, shared GPU admission, queue inspection, logs, wait, cancel, retry, and recovery |
+| Operations | Continuous job reconciliation, evidence-preserving cleanup, digest-confirmed purge, and read-only evidence exploration through Observatory |
+
+### Supported jobs
+
+| Capability | Job kind |
+| --- | --- |
+| Prepare supervised or preference data | `data.prepare` |
+| Supervised fine-tuning | `train.sft` |
+| Direct preference optimization | `train.dpo` |
+| GRPO and DAPO | `train.grpo` |
+| Multi-turn SAMPO | `train.sampo` |
+| On-policy distillation | `train.distill` |
+| Serving smoke and capacity tests | `serve.smoke`, `serve.benchmark` |
+| General and domain evaluation | `eval.general`, `eval.domain` |
+| AWQ or RTN quantization | `model.transform` |
+
+### Models and environments
+
+The base catalog includes Qwen 3.5 0.8B, 2B, and 4B; LFM 2.5 1.2B Thinking;
+and Gemma 4 E2B, E4B, 12B Unified, and 31B. Available training, serving, tool
+use, and acceleration profiles vary by model size.
+
+Six versioned Verifiers environments are available as independently installable
+packages:
+
+| Environment | Use |
+| --- | --- |
+| `gsm8k-v1` | Grade-school mathematical reasoning |
+| `automationbench-v1` | Multi-turn tool use over AutomationBench Simple tasks |
+| `mmlu-pro-v1` | Knowledge and reasoning across 14 categories |
+| `ifeval-v1` | Verifiable instruction following |
+| `reasoning-gym-v1` | Procedural reasoning across ten generators |
+| `math-python-v1` | Competition mathematics with Python tools and symbolic checking |
+
+Each run records the exact environment package, task population, model,
+inference settings, success criteria, and native traces used to produce its
+results. Observatory presents coverage, pass rate, rewards, latency,
+distributions, facets, compound breakdowns, tool-aware traces, comparisons,
+and lineage without changing the meaning of earlier runs.
+
+### Run jobs beyond the submitting shell
+
+`posttrain controller run` continuously reconciles queued and active jobs. It
+submits work when capacity becomes available, delivers cancellation requests,
+checks the provider recorded at submission, finalizes tracking evidence,
+releases settled GPU admissions, and writes recovery receipts. Use `controller
+run --once` for a single reconciliation pass and `controller status` for a
+health check.
+
+Run the controller under your service supervisor for unattended operation.
+Posttrain v0.3 does not include service installation, `controller enable` or
+`controller disable`, a systemd unit, or an Ansible role.
+
+### Reliability and performance
+
+- Plans and packages include the complete selected catalog, source, dataset,
+  environment, runtime, and dependency identity. Packing fails if those inputs
+  change after planning.
+- Job images contain their environment wheels and dependency locks before
+  submission, so workers do not install or upgrade packages at startup.
+- Cancellation, reconciliation, and admission release are safe to retry after
+  an interrupted client or controller process.
+- Verifiers rollout groups run concurrently, distillation scores the exact
+  student response tokens, and serving profiles expose batching, KV-cache,
+  native or paired-assistant MTP, and speculative-acceptance measurements.
+- Evaluation keeps reward, configured success, errors, truncations, missing
+  signals, and coverage separate. Partial traces remain visible while a run is
+  active.
+- Release artifacts are built from committed source, installed in a clean
+  consumer, checked against immutable image digests, and exercised through a
+  packed dstack GPU canary before promotion.
+
+### Current support boundaries
+
+- Online RL is synchronous; Posttrain does not currently provide asynchronous
+  learner and rollout execution.
+- Gemma 4 qualifications are bounded, text-only profiles. They do not establish
+  multimodal training or full native-context support.
+- Standard KV is the qualified default for hybrid Qwen training paths;
+  TurboQuant K8V4 long-context use remains experimental.
+- The six environment packages have provider-backed activation and execution
+  evidence, but that does not mean every full catalog population has completed.
+  See the [v0.3 release notes](./docs/releases/v0.3.md) for the exact coverage.
+
+See the [v0.3 release notes](./docs/releases/v0.3.md) for release-specific
+capabilities and qualification, the [CHANGELOG](./CHANGELOG.md) for individual
+versions, and the [product baseline](./docs/post-training/README.md) for the
+public contracts.
+
 ## Quickstart
 
 Posttrain currently ships to the team as a versioned GitHub Release wheelhouse.
-Python 3.12, [`uv`](https://docs.astral.sh/uv/), and the GitHub CLI are required.
+Python 3.13, [`uv`](https://docs.astral.sh/uv/), and the GitHub CLI are required.
 
 Download and install one exact release:
 
@@ -32,7 +142,7 @@ gh release download <release-tag> \
 mkdir posttrain-wheelhouse
 tar -xzf posttrain-wheelhouse-*.tar.gz -C posttrain-wheelhouse
 
-uv venv --python 3.12
+uv venv --python 3.13
 uv pip install \
   --python .venv/bin/python \
   --constraint posttrain-wheelhouse/github-constraints.txt \
@@ -202,7 +312,7 @@ benchmark records direct request/run evidence and a versioned
 `serving-result.json`, while Observatory derives throughput, latency
 percentiles, eligibility, and the cross-contender Pareto frontier.
 
-The repository example uses the audited `general-serving-v1` population: 128
+The repository example uses the qualified `general-serving-v1` population: 128
 deterministically selected GSM8K reasoning prompts, HumanEval code prompts, and
 reviewed first-party chat, extraction, structured-output, and tool-use
 messages. It fixes decode work at 128 output tokens and never treats systems
@@ -269,7 +379,7 @@ git clone --branch <release-tag> --depth 1 \
 cd posttrain
 
 mise install
-uv sync --all-packages --locked --python 3.12
+uv sync --all-packages --locked --python 3.13
 uv run --package posttrain posttrain doctor
 uv run pytest -q tests/consumer
 ```
@@ -279,10 +389,10 @@ large GPU backends. Select one workspace profile when working on training:
 
 ```bash
 # Transformers + the pinned CarbonTeq TRL fork: SFT, DPO, and trainer tests
-uv sync --all-packages --extra gpu-train --locked --python 3.12
+uv sync --all-packages --extra gpu-train --locked --python 3.13
 
 # TRL + vLLM + Verifiers + AutomationBench: GRPO, DAPO, SAMPO, distillation
-uv sync --all-packages --extra gpu-posttrain --locked --python 3.12
+uv sync --all-packages --extra gpu-posttrain --locked --python 3.13
 ```
 
 Use `uv run --no-sync ...` for backend-specific commands after selecting one
@@ -296,7 +406,7 @@ TRL environment. See [Developer environment setup](./docs/tooling/mise-uv/setup-
 for prerequisites, verification commands, Hugging Face access, CUDA library
 setup, and the isolated veRL boundary.
 
-The repository is a Python 3.12 `uv` workspace:
+The repository is a Python 3.13 `uv` workspace:
 
 ```text
 packages/       reusable contracts, capabilities, catalog, tracking, and composition
