@@ -4,6 +4,29 @@ All notable changes to Posttrain are documented here. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with a coordinated
 version across first-party distributions.
 
+## 0.3.2 - 2026-08-05
+
+This release adds the Gemma 4 dense support matrix and qualifies the TRL
+paired-assistant MTP path on the RTX PRO dstack target.
+
+### Added
+
+- Immutable Gemma 4 E2B, E4B, 12B Unified, and 31B model variants with exact
+  checkpoint provenance and shared family-level rendering.
+- TRL MTP assistant validation and snapshot materialization for the Gemma 4
+  12B GRPO path, including speculative acceptance and KV-cache evidence.
+- Declarative Gemma serving, SFT, and TRL qualification work packages with
+  tracked dstack evidence.
+
+### Qualification
+
+- E2B, E4B, and 31B serving smokes returned non-empty text on the RTX PRO
+  target.
+- The 12B TRL run completed two non-truncated rollouts and one optimizer step
+  with reward 1, MTP acceptance 0.937888, and KV-cache metrics.
+- The protected LAN release transaction published the final wheelhouse and
+  completed the packed dstack canary before creating tag `v0.3.2`.
+
 ## 0.3.1 - 2026-08-05
 
 This release makes evaluation meaning part of immutable run evidence, expands

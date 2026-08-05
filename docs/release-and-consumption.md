@@ -96,8 +96,11 @@ Two protected workflows run on a dedicated LAN-connected self-hosted runner.
 digests plus real packed jobs, and lets maintainers repair the release branch
 without consuming the final version. **Publish release** runs only after a
 candidate passed and the release PR merged. It builds final `0.3.2` once,
-qualifies those exact files through `carbonteq/dev`, promotes them unchanged to
-`carbonteq/stable`, and creates the final tag last. External Verifiers
+downloads the candidate's generated image manifest before building the final
+wheelhouse, qualifies those exact files through `carbonteq/dev`, promotes them
+unchanged to `carbonteq/stable`, and creates the final tag last. The final
+workflow therefore requires both the merged source SHA and the successful
+candidate run ID. External Verifiers
 environments, including `automationbench-v1`, resolve from the immutable
 commits in the bundled constraints file instead of being copied into the
 framework bundle.
@@ -209,12 +212,16 @@ transaction:
 4. installs into a clean environment with workspace sources disabled;
 5. runs the independent-consumer test against those exact artifacts;
 6. runs package, import-boundary, type, and documentation checks;
-7. uploads the exact final files to `carbonteq/dev`, qualifies installation from
-   that index, and retains the final receipt and cache evidence as a GitHub
-   Actions artifact;
-8. promotes the unchanged files server-side to `carbonteq/stable` and verifies
+7. restores the generated `published.toml` from the successful candidate run,
+   verifies that its image revision is an ancestor of the merged source and
+   that its framework version matches the final version, then builds the final
+   wheelhouse with those exact image digests;
+8. uploads the exact final files to `carbonteq/dev`, qualifies installation
+   from that index, and retains the final receipt and cache evidence as a
+   GitHub Actions artifact;
+9. promotes the unchanged files server-side to `carbonteq/stable` and verifies
    stable readback hashes;
-9. creates the tag last and attaches the same bundle and receipt to the GitHub
+10. creates the tag last and attaches the same bundle and receipt to the GitHub
    Release.
 
 Do not upload a later dependency layer until the previous layer can be
