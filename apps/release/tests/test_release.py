@@ -391,6 +391,8 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert final.index("Retain final receipt and cache evidence") < final.index(
         "Tag and create the GitHub release last"
     )
+    assert "for attempt in $(seq 1 120)" in final
+    assert 'select(.headSha == $sha and .event == "push")' in final
 
 
 @pytest.mark.skipif(which("uv") is None, reason="requires uv to validate the staged workspace lock")
