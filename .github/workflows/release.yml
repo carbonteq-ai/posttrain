@@ -98,8 +98,13 @@ jobs:
           # it must not inherit the runner's production Trackio credentials.
           image_verify_config="${RUNNER_TEMP}/posttrain-image-verify-config"
           mkdir -p "${image_verify_config}"
+          image_verify_env="apps/lab/posttrain.env"
+          test ! -e "${image_verify_env}"
+          printf 'POSTTRAIN_REGISTRY=%s\n' "${JOB_REGISTRY}" > "${image_verify_env}"
+          chmod 600 "${image_verify_env}"
+          trap 'rm -f "${image_verify_env}"' EXIT
           env -u TRACKIO_SERVER_URL -u POSTTRAIN_TRACKIO_SERVER_URL -u TRACKIO_WRITE_TOKEN \
-            XDG_CONFIG_HOME="${image_verify_config}" POSTTRAIN_REGISTRY="${JOB_REGISTRY}" \
+            XDG_CONFIG_HOME="${image_verify_config}" \
             uv run --no-sync posttrain \
             --project-root apps/lab runtime images verify > .release/runtime-images-verify.json
 
