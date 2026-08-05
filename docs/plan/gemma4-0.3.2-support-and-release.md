@@ -105,12 +105,15 @@ and terminal state are retained in Trackio.
   `30999750071`. The final wheelhouse is present in the stable index, the
   packed dstack canary passed, and the GitHub release is
   `https://github.com/carbonteq-ai/posttrain/releases/tag/v0.3.2`.
-- [ ] (2026-08-05) Repair the final workflow's candidate-manifest handoff. The
+- [x] (2026-08-05) Repaired the final workflow's candidate-manifest handoff in
+  PR #31, merged at `17dcefeaa721fb472976c76e8e8bcf5878196317`. The workflow
+  now requires the successful candidate run ID, restores its generated
+  `published.toml` before final wheel construction, and verifies source
+  ancestry and framework-version alignment. The
   successful final run copied the committed 0.3.1 `published.toml` instead of
   the candidate-generated 0.3.2 manifest, even though packages, registry
-  verification, and the dstack canary passed. The follow-up must require the
-  successful candidate run ID, restore its generated manifest before building
-  final wheels, and verify its source ancestry and framework version.
+  verification, and the dstack canary passed; this remains recorded as a
+  v0.3.2 post-release caveat.
 
 ## Surprises & Discoveries
 
@@ -223,10 +226,9 @@ Current outcome is a published `v0.3.2` with the Gemma matrix, direct TRL MTP
 qualification, model-specific serving smokes, cleanup receipt, final package
 promotion, and packed dstack canary complete. Post-release inspection found a
 release-plumbing defect: the final evidence artifact retained the old committed
-image manifest instead of the generated candidate manifest. The follow-up
-workflow repair is required before the next release can claim candidate-to-final
-OCI provenance continuity; it does not invalidate the retained model or MTP
-qualification evidence.
+image manifest instead of the generated candidate manifest. PR #31 repaired
+that handoff for future releases; the caveat remains attached to 0.3.2 and does
+not invalidate the retained model or MTP qualification evidence.
 
 ## Context and Orientation
 
