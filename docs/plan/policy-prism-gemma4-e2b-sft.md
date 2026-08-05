@@ -40,11 +40,20 @@ model-neutral sequence of chat messages and is not rebuilt or republished.
   renderer alias, and model/catalog/loader/LoRA/rendering regressions. Focused
   validation passed: 29 tests, 7 intentional skips, zero focused Pyright
   diagnostics, Ruff, all eight import contracts, and diff checks.
-- [ ] Commit and push the validated PostTrain E2B model variant.
-- [ ] Add, validate, commit, and push the Policy Prism E2B training binding and
-  complete-run work package.
-- [ ] Complete dataset/model/image/job preflight without running a GPU smoke.
-- [ ] Run and reconcile the complete 535-step SFT.
+- [x] (2026-08-05) Committed and pushed PostTrain E2B support as
+  `7dd0ab370f708c75ebe52efc12994714db508ae1`.
+- [x] (2026-08-05) Added, validated, committed, and pushed the Policy Prism E2B
+  training binding and complete-run work package. The initial composition was
+  `9ca19d0bbc8a20719bb1a58aff47d7518e217e64`; the corrected binding is
+  `f28f16734abb7fca35e322bc9ca3abe5936441ee`.
+- [x] (2026-08-05) Completed dataset/model/runtime/image/job preflight without a
+  GPU smoke. The corrected isolated package is
+  `109e29df668ecb5c725c980f40762a4f659827da0d774d7ee149eeeed35a788b`
+  and the published job image is
+  `sha256:64c09a418f57168d9d57b73c2adc78011cdf462e31d72f9777c5a1a1921a48eb`.
+- [ ] Run and reconcile the complete 535-step SFT. The corrected run
+  `policy-prism-e2b-sft-r32-v1-r1` is active on
+  `carbonteq-ai-workstation.lan` with finite optimizer metrics.
 - [ ] Register the exact retained adapter and commit the two qualification work
   packages.
 - [ ] Run scope and recovery sequentially and pass their scientific gates.
@@ -82,6 +91,20 @@ model-neutral sequence of chat messages and is not rebuilt or republished.
   and does not terminate; all E2B-affected suites pass. Repository-wide Ruff
   format also identifies three unchanged files. Do not modify those unrelated
   surfaces in this experiment branch.
+
+- Observation: the first remote attempt failed safely before optimizer step
+  zero because the new Policy Prism E2B YAML value contained two literal
+  backslashes before `d`, while the proven E4B regex contains one.
+  Evidence: `policy-prism-e2b-sft-r32-v1` reconciled consistently as failed with
+  `Gemma 4 LoRA target expression matched no modules`. After correcting the
+  YAML value, the E2B regex byte-matches E4B's parsed expression and matches 205
+  language projections from layer 0 through 34 on a no-weight meta model while
+  excluding vision and audio modules.
+
+- Observation: the corrected full run passed the runtime-only target check
+  that isolated packaging cannot perform without loading the model.
+  Evidence: `policy-prism-e2b-sft-r32-v1-r1` produced finite step-one and
+  subsequent metrics in Trackio instead of failing during model preparation.
 
 ## Decision Log
 
@@ -122,6 +145,13 @@ model-neutral sequence of chat messages and is not rebuilt or republished.
   Rationale: the adapter is the produced artifact; base weights remain pinned to
   their upstream repository and checkpoints remain Trackio recovery evidence.
   Date/Author: 2026-08-05 / User and Codex.
+
+- Decision: retain the failed first attempt and relaunch the corrected capsule
+  under `policy-prism-e2b-sft-r32-v1-r1`.
+  Rationale: run IDs are immutable idempotency namespaces; changing project
+  configuration requires a new identity, and the failed evidence must not be
+  overwritten or misrepresented as training evidence.
+  Date/Author: 2026-08-05 / Codex.
 
 ## Outcomes & Retrospective
 
