@@ -17,6 +17,9 @@ The experiment is deliberately split across two repositories. Policy Prism owns 
 - [x] (2026-08-04 14:40Z) Audited the 4,545 finalized records and found 46 duplicated complete conversations; selected deterministic exact-content deduplication before splitting.
 - [x] (2026-08-04 15:06Z) Completed locked sync, live E4B tokenizer tests, Ruff check/format, Pyright, import boundaries, 936-test repository suite, and diff validation.
 - [x] (2026-08-04) Added the missing `packages/environment` actual-job source root after the first live pack exposed the incomplete framework source closure; added a focused regression test.
+- [x] (2026-08-05) Completed and reconciled the 535-step rank-32 SFT as `policy-prism-e4b-sft-r32-v2`; retained the exact Trackio adapter `training-models-gemma4-e4b-it-bf16-sft-lora-adapter:v0`.
+- [x] (2026-08-05) Diagnosed the first qualification attempts: scope retained 18 synchronized `HarnessError` traces because model chat-template controls were passed as unsupported OpenAI SDK keyword arguments, while recovery failed unassigned after it was submitted concurrently against the occupied one-GPU dstack target.
+- [x] (2026-08-05) Nested local-model `chat_template_kwargs` under the OpenAI SDK `extra_body` extension in the Verifiers adapter and added focused native-config regression coverage.
 - [ ] Commit and push the validated PostTrain changes, then record the resulting full commit in Policy Prism pins and release evidence.
 - [ ] Make the current Policy Prism evaluation work green, then commit and push the existing 179-file change set before starting dataset-release work.
 - [ ] Add the minimal Policy Prism `packages/training` package, release builder, validation CLI, tests, and PostTrain project files described here.
@@ -29,6 +32,15 @@ The experiment is deliberately split across two repositories. Policy Prism owns 
 - [ ] Publish the private PEFT adapter to Hugging Face, verify a clean download, then clean provider workspaces.
 
 ## Surprises & Discoveries
+
+- Observation: a provider-successful evaluation run can still be scientifically invalid when every native rollout terminates with a harness error.
+  Evidence: `policy-prism-e4b-sft-r32-v2-scope` reconciled consistently and retained its native artifact, but Observatory reported 18 completed and 18 failed rollouts, null rewards, and the shared error `AsyncCompletions.create() got an unexpected keyword argument 'chat_template_kwargs'`. Qualification must therefore gate on zero rollout failures and usable task metrics, not provider/reconciliation success alone.
+
+- Observation: local managed-model Verifiers requests must carry tokenizer-template extensions through the OpenAI SDK `extra_body` field.
+  Evidence: PostTrain previously emitted top-level `sampling.chat_template_kwargs`; the Policy Prism subprocess harness expands sampling into `AsyncCompletions.create(**request)`, whose supported provider-extension route is `extra_body.chat_template_kwargs`. The regression test now verifies both the framework mapping and the fully validated native Verifiers config.
+
+- Observation: dstack is intentionally self-scheduling in PostTrain admission, so two runs targeting one named fleet worker are not serialized by the local controller.
+  Evidence: scope and recovery received distinct `run:<run-id>` admission keys. With `capacity_wait_seconds=0`, recovery was submitted while scope occupied `carbonteq-ai-workstation.lan` and failed with target `unassigned`. These two qualification cells must be submitted sequentially after terminal reconciliation, using new run IDs for changed packages or failed attempts.
 
 - Observation: the first live actual-job image reached its isolated runtime smoke but failed to import `posttrain.environment` from `posttrain-catalog`.
   Evidence: source-based packing explicitly staged framework install roots and omitted `packages/environment`, even though both `posttrain-catalog` and `posttrain-runtime` declare `posttrain-environment`; local tests had the package installed and therefore masked the omission. The source closure and its regression test now include that package.
@@ -95,9 +107,13 @@ The experiment is deliberately split across two repositories. Policy Prism owns 
   Rationale: the adapter is the produced artifact, is much smaller, and retains explicit lineage to the gated pinned base model.
   Date/Author: 2026-08-04 / Codex.
 
+- Decision: submit the two one-GPU dstack qualification cells sequentially and accept each only when its expected rollout population is present, rollout failures and truncations are zero, reconciliation is consistent, the native evaluation role is retained, and Policy Prism can finalize its native task payloads into deterministic engineering and business metrics.
+  Rationale: dstack arbitrates fleet capacity independently and a process-level success does not prove that Verifiers produced scientifically usable rollouts.
+  Date/Author: 2026-08-05 / Codex.
+
 ## Outcomes & Retrospective
 
-PostTrain framework implementation and its complete local validation ladder are complete: 936 tests passed with 19 expected skips, Pyright reported zero errors, all eight import contracts were kept, Ruff check/format passed, and the live pinned E4B tokenizer tests passed. The changes are intentionally uncommitted pending review, and Policy Prism has not been modified. Update this section after each remote milestone with the dataset Hub commit, PostTrain and Policy Prism commits, smoke and full run IDs, package digests, Trackio adapter reference/digest, peak GPU memory, final train and validation losses, finalized evaluation IDs and compatibility hashes, Hugging Face model commit, and the decision on a follow-up experiment.
+The 535-step rank-32 SFT is complete and its exact Trackio adapter is retained. The first qualification attempts remain useful failure evidence but are not scientific results. The Verifiers sampling correction and regression test are committed, and replacement scope and recovery images have passed isolated qualification and been published. The remaining work is to run the two corrected cells sequentially, finalize their native artifacts in Policy Prism, compare compatibility hashes with the sealed base reports, and record the adapter publication decision.
 
 ## Context and Orientation
 
@@ -382,6 +398,8 @@ Pin both environment bindings to one full pushed Policy Prism commit and subdire
 
 Create two work packages, one for scope and one for recovery. Each has seats `model`, `evaluation_inference`, `target`, `evaluation_plan`, and `environment`; uses `eval/verifiers-managed@1`; binds the same exact adapter/inference/target/evaluation plan; and binds only its own environment cell. Forward both `HF_TOKEN` and `OPENROUTER_API_KEY`. Run each with a 21,600-second timeout, reconcile it, and retain the native `verifiers-evaluation` artifact.
 
+Submit these work packages sequentially. PostTrain deliberately defers dstack fleet arbitration to dstack, and this site's zero capacity-wait setting causes a second request for the occupied workstation to fail rather than remain in a local PostTrain queue. After each run, require the exact expected task count, zero failed and truncated rollouts, complete trace synchronization, consistent reconciliation, no missing artifact roles, and successful Policy Prism finalization of the native task payloads before submitting the next cell. These environments intentionally declare no generic reward components, so a null generic `mean_reward` is not itself a failure.
+
 The existing base comparison runs are:
 
     gemma-4-e4b-it-bf16-runpod-a100-sxm-prompt-v2-v11-sealed-scope-20260803
@@ -615,33 +633,18 @@ Stop here if reconciliation is inconsistent or any expected artifact role is mis
 
 After committing and pushing the exact adapter catalog/work-package changes:
 
-    export SCOPE_EVAL_RUN=policy-prism-e4b-sft-r32-v1-scope
-    export RECOVERY_EVAL_RUN=policy-prism-e4b-sft-r32-v1-recovery
+    export SCOPE_EVAL_RUN=policy-prism-e4b-sft-r32-v2-scope-r1
+    export RECOVERY_EVAL_RUN=policy-prism-e4b-sft-r32-v2-recovery-r1
     export SCOPE_EVAL_WP=.posttrain/work_packages/gemma4_e4b_scope_adapter_eval.yaml
     export RECOVERY_EVAL_WP=.posttrain/work_packages/gemma4_e4b_recovery_adapter_eval.yaml
 
-    for pair in \
-      "$SCOPE_EVAL_WP:$SCOPE_EVAL_RUN" \
-      "$RECOVERY_EVAL_WP:$RECOVERY_EVAL_RUN"
-    do
-      wp=${pair%%:*}
-      run=${pair#*:}
-      uv run --package posttrain posttrain --project-root "$POLICY_ROOT" \
-        job plan "$wp" --job evaluate --provider dstack --target "$TARGET" \
-        --env HF_TOKEN --env OPENROUTER_API_KEY --timeout-seconds 21600 --run-id "$run"
-      uv run --package posttrain posttrain --project-root "$POLICY_ROOT" \
-        job run "$wp" --job evaluate --provider dstack --target "$TARGET" \
-        --env HF_TOKEN --env OPENROUTER_API_KEY --timeout-seconds 21600 \
-        --run-id "$run" --build-missing
-      uv run --package posttrain posttrain --project-root "$POLICY_ROOT" \
-        run logs "$run" --follow
-      uv run --package posttrain posttrain --project-root "$POLICY_ROOT" \
-        run wait "$run" --timeout-seconds 21600
-      uv run --package posttrain posttrain --project-root "$POLICY_ROOT" \
-        run reconcile "$run"
-      uv run --package posttrain posttrain --project-root "$POLICY_ROOT" \
-        --json run show "$run"
-    done
+Run scope first: plan, pack, submit, wait, reconcile, and inspect it. Do not submit
+recovery until scope is terminal, reconciliation is consistent, all 18 rollouts
+are present, failed and truncated rollouts are zero, and task metrics are usable.
+Then perform the same sequence for recovery and require all 17 rollouts. Do not
+use a shell loop for these two dstack jobs: dstack owns fleet scheduling and the
+site's zero capacity-wait setting does not queue the second request behind the
+first on the named one-GPU worker.
 
 Materialize each exact reconciled `verifiers-evaluation` artifact with a small tested Trackio helper. The helper initializes a named audit run against `POSTTRAIN_TRACKIO_SERVER_URL`, calls `use_artifact("<name>:<vN>", type="verifiers-evaluation")`, downloads to a new destination, and finishes the audit run. It must reject aliases and existing destinations. Each downloaded native directory must contain `config.toml` and `traces.jsonl`.
 

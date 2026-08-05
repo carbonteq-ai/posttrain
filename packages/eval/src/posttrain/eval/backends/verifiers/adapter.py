@@ -52,7 +52,14 @@ def _native_sampling(request: EvaluateRequest) -> dict[str, JsonValue]:
     if not isinstance(request.model, RemotePolicy):
         template_kwargs = request.model.conversation.reasoning_mode(request.resolved_reasoning_mode).kwargs()
         if template_kwargs:
-            values["chat_template_kwargs"] = cast(dict[str, JsonValue], template_kwargs)
+            # vLLM accepts chat-template controls as an extension to the
+            # OpenAI-compatible request body.  Verifiers environment harnesses
+            # pass sampling fields to the OpenAI SDK, where provider-specific
+            # extensions must be nested under ``extra_body`` rather than sent
+            # as unsupported client method keyword arguments.
+            values["extra_body"] = {
+                "chat_template_kwargs": cast(dict[str, JsonValue], template_kwargs)
+            }
     service = request.remote_service
     if service is not None:
         values.update(service.request_defaults)

@@ -322,6 +322,33 @@ def test_remote_binding_maps_to_the_native_verifiers_client_without_a_custom_loo
     assert config.sampling.provider == {"allow_fallbacks": False}
 
 
+def test_local_evaluation_sends_chat_template_kwargs_as_openai_extra_body(tmp_path: Path) -> None:
+    pytest.importorskip("verifiers.v1")
+    from posttrain.eval.backends.verifiers.adapter import _build_native, _native_sampling
+
+    evaluation = request()
+    sampling = _native_sampling(evaluation)
+
+    assert "chat_template_kwargs" not in sampling
+    assert sampling["extra_body"] == {
+        "chat_template_kwargs": {"enable_thinking": False}
+    }
+
+    environment = GENERAL_SMOKE.environment("math-gsm8k")
+    evaluation = replace(
+        evaluation,
+        plan=replace(evaluation.plan, environments=(environment,)),
+        environment_id=environment.id,
+    )
+    _native_environment, config, _runner = _build_native(evaluation, tmp_path)
+    native_sampling = config.model_dump(mode="python")["sampling"]
+
+    assert "chat_template_kwargs" not in native_sampling
+    assert native_sampling["extra_body"] == {
+        "chat_template_kwargs": {"enable_thinking": False}
+    }
+
+
 def test_remote_evaluation_binding_decodes_from_a_catalog_family() -> None:
     catalog = Catalog.open(
         {
