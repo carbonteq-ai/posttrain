@@ -41,6 +41,9 @@ jobs:
           ref: ${{ inputs.merged_sha }}
           fetch-depth: 0
 
+      - name: Prepare release evidence directory
+        run: mkdir -p .release
+
       - name: Verify the merge target and normal CI
         env:
           GH_TOKEN: ${{ github.token }}
@@ -81,6 +84,13 @@ jobs:
           RESUME_FROM_RUN_ID: ${{ inputs.resume_from_run_id }}
         run: |
           mkdir -p .release/resume
+          resume_run="$(gh run view "${RESUME_FROM_RUN_ID}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --json workflowName,event,status,conclusion)"
+          test "$(jq -r '.workflowName // empty' <<<"${resume_run}")" = "Publish release"
+          test "$(jq -r '.event // empty' <<<"${resume_run}")" = workflow_dispatch
+          test "$(jq -r '.status // empty' <<<"${resume_run}")" = completed
+          test "$(jq -r '.conclusion // empty' <<<"${resume_run}")" = success
           gh run download "${RESUME_FROM_RUN_ID}" \
             --repo "${GITHUB_REPOSITORY}" \
             --dir .release/resume
@@ -226,13 +236,18 @@ jobs:
           DEVPI_CLIENT: /opt/posttrain-dstack-client/bin/devpi
           REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt
         run: |
-          "${DEVPI_CLIENT}" use https://pypi.lan/carbonteq/dev
-          "${DEVPI_CLIENT}" login "${UV_PUBLISH_USERNAME}" --password "${UV_PUBLISH_PASSWORD}"
-          jq -r '.packages[]' .release/python-release-receipt.json | while read -r package; do
-            "${DEVPI_CLIENT}" push -y "${package}==${POSTTRAIN_RELEASE_VERSION}" carbonteq/stable
-          done
-          uv run --no-sync posttrain-release index-check .release/python-release-receipt.json \
-            --simple-base-url "${PYPI_STABLE_SIMPLE}"
+          if uv run --no-sync posttrain-release index-check .release/python-release-receipt.json \
+            --simple-base-url "${PYPI_STABLE_SIMPLE}"; then
+            echo "exact final bytes are already present in the stable index; reusing them"
+          else
+            "${DEVPI_CLIENT}" use https://pypi.lan/carbonteq/dev
+            "${DEVPI_CLIENT}" login "${UV_PUBLISH_USERNAME}" --password "${UV_PUBLISH_PASSWORD}"
+            jq -r '.packages[]' .release/python-release-receipt.json | while read -r package; do
+              "${DEVPI_CLIENT}" push -y "${package}==${POSTTRAIN_RELEASE_VERSION}" carbonteq/stable
+            done
+            uv run --no-sync posttrain-release index-check .release/python-release-receipt.json \
+              --simple-base-url "${PYPI_STABLE_SIMPLE}"
+          fi
 
       - name: Capture bounded cache evidence
         if: always()
