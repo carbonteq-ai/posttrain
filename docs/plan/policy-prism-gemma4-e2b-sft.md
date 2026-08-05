@@ -51,12 +51,20 @@ model-neutral sequence of chat messages and is not rebuilt or republished.
   `109e29df668ecb5c725c980f40762a4f659827da0d774d7ee149eeeed35a788b`
   and the published job image is
   `sha256:64c09a418f57168d9d57b73c2adc78011cdf462e31d72f9777c5a1a1921a48eb`.
-- [ ] Run and reconcile the complete 535-step SFT. The corrected run
-  `policy-prism-e2b-sft-r32-v1-r1` is active on
-  `carbonteq-ai-workstation.lan` with finite optimizer metrics.
-- [ ] Register the exact retained adapter and commit the two qualification work
-  packages.
-- [ ] Run scope and recovery sequentially and pass their scientific gates.
+- [x] (2026-08-06) Ran and reconciled the complete 535-step SFT as
+  `policy-prism-e2b-sft-r32-v1-r1`. Reconciliation is consistent, tracking
+  succeeded, all required roles are retained, final loss is `0.0407577`, and
+  validation loss is `0.0632281`.
+- [x] (2026-08-06) Registered exact Trackio adapter
+  `training-models-gemma4-e2b-it-bf16-sft-lora-adapter:v0`, committed the two
+  qualification work packages in Policy Prism as `8ec8e90`, and packaged both
+  isolated evaluation images successfully.
+- [ ] Run scope and recovery sequentially and pass their scientific gates. The
+  first scope attempt `policy-prism-e2b-sft-r32-v1-r1-scope` was cancelled by
+  the controlling client after 20 minutes while managed vLLM was still
+  starting; it produced no rollouts. Recovery remains intentionally
+  unsubmitted, and the scope retry will use a fresh immutable run ID after the
+  shared workstation is free.
 - [ ] Publish and verify the private Hugging Face adapter.
 - [ ] Finalize, validate, commit, and push both Policy Prism evaluation runs.
 - [ ] Clean only the three new provider workspaces and record final outcomes.
@@ -106,6 +114,26 @@ model-neutral sequence of chat messages and is not rebuilt or republished.
   Evidence: `policy-prism-e2b-sft-r32-v1-r1` produced finite step-one and
   subsequent metrics in Trackio instead of failing during model preparation.
 
+- Observation: E2B completed the same 535-step workload materially faster than
+  E4B while preserving the exact data and optimization configuration.
+  Evidence: the corrected run started at `2026-08-05T17:22:28Z`, finished at
+  `2026-08-05T20:56:08Z` (about 3 h 34 min), completed validation over all 220
+  held-out examples, and retained an approximately 225.5 MB adapter.
+
+- Observation: the complete E2B run retained exactly three promoted artifacts.
+  Evidence: adapter manifest/content digests are `d3400565...`/`f58bac19...`,
+  the step-535 recovery checkpoint digest is `5ace0b88...`, and the summary
+  digest is `adc64530...`; reconciliation reported no missing roles.
+
+- Observation: the first scope qualification attempt did not expose a model,
+  Verifiers, Policy Prism, or GPU failure.
+  Evidence: dstack recorded `STOPPED_BY_USER` exactly 20 minutes after the job
+  entered `RUNNING`; PostTrain retained only the Trackio run placeholder, and
+  the evaluation view contains zero expected, included, failed, or truncated
+  rollouts. The workstation remained healthy and allocated to vLLM until the
+  stop request. This attempt is operational cancellation evidence, not a
+  scientific result.
+
 ## Decision Log
 
 - Decision: add a separate E2B `ModelVariant` but share the existing pinned
@@ -153,11 +181,31 @@ model-neutral sequence of chat messages and is not rebuilt or republished.
   overwritten or misrepresented as training evidence.
   Date/Author: 2026-08-05 / Codex.
 
+- Decision: retain the cancelled scope attempt, retry the unchanged qualified
+  capsule with a fresh run ID, and monitor it without any cancel-on-timeout
+  behavior.
+  Rationale: the provider event timeline proves the process was externally
+  stopped before the configured 1,800-second managed-vLLM startup budget, so no
+  source or inference change is justified by this attempt. Recovery remains
+  gated on 18 included scope traces with zero failures.
+  Date/Author: 2026-08-06 / Codex.
+
 ## Outcomes & Retrospective
 
 Execution is in progress. Record final source commits, job image digests, target
 host, training runtime/loss/validation, checkpoint and adapter identities, HF
 commit, evaluation metrics, compatibility digests, and cleanup results here.
+
+The complete SFT finished successfully on `carbonteq-ai-workstation.lan` in
+about 3 h 34 min. It produced final loss `0.0407577`, held-out validation loss
+`0.0632281`, token accuracy `0.988076`, zero truncation, and exact adapter
+`training-models-gemma4-e2b-it-bf16-sft-lora-adapter:v0` with artifact digest
+`d34005655b8270d5a663d49a799bc19bb5fa101d6ccf3ad4aba8da812d8c73d5` and
+content digest
+`f58bac190bc25f1f37c6f2c013f74a29fc2fe2404e073fe8e51de5d9d0020028`.
+Scope package/image are `c14e1de...`/`a48bcdf...`; recovery package/image are
+`3a52b97e...`/`4781468e...`. Qualification, publication, permanent evidence,
+and cleanup remain in progress.
 
 ## Context and Orientation
 
