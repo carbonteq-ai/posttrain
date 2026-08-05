@@ -238,6 +238,38 @@ def test_sdk_bridge_lifecycle_actions_do_not_require_submission_configuration(tm
     assert response == {"project": "posttrain", "run_name": "pt-example"}
 
 
+def test_sdk_cleanup_waits_through_transient_worker_capacity_gap(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _sdk_bridge_module(monkeypatch)
+    attempts: list[int] = []
+    applied = object()
+
+    class Runs:
+        def get(self, _name):
+            return None
+
+        def get_run_plan(self, *, configuration, repo):
+            del repo
+            gpu_count = configuration.values["resources"]["gpu"]["count"]
+            attempts.append(gpu_count)
+            offers = () if len(attempts) == 1 else (object(),)
+            return types.SimpleNamespace(job_plans=(types.SimpleNamespace(offers=offers),))
+
+        def apply_plan(self, *, run_plan, repo, reserve_ports):
+            del run_plan, repo, reserve_ports
+            return applied
+
+    client = types.SimpleNamespace(runs=Runs())
+    monkeypatch.setattr(module.time, "sleep", lambda _seconds: None)
+
+    result = module._apply_cleanup_when_worker_is_available(
+        client,
+        {"name": "pt-clean-test", "image": "registry.lan/posttrain@sha256:" + "a" * 64},
+    )
+
+    assert result is applied
+    assert attempts == [0, 1]
+
+
 def test_dstack_maps_mandatory_instance_trust_bundle_as_additional_authorities(
     tmp_path: Path,
 ) -> None:

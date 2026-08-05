@@ -32,6 +32,7 @@ def candidate_catalog(layout: Any) -> dict[str, PurgeRunCandidate]:
     """Build a deliberately fail-closed local inventory for preview commands."""
 
     store = ExecutionSubmissionStore(layout.state)
+    purge_store = PurgeStore(layout.state)
     candidates: dict[str, PurgeRunCandidate] = {}
     for submission in store.list_submissions():
         evidence = submission.evidence_source
@@ -63,6 +64,15 @@ def candidate_catalog(layout: Any) -> dict[str, PurgeRunCandidate]:
             image = RegistryManifestRef.parse(submission.job_image)
         except Exception:
             pass
+        # The submission receipt records the provider's workspace path. For a
+        # dstack run that path belongs to the remote worker and must not be
+        # handed to the local-state executor. Always purge the local execution
+        # receipt directory; add the workspace only for the local provider,
+        # whose storage root is intentionally configured on this machine.
+        local_paths = [store.run_root(submission.run_id)]
+        workspace = submission.run_workspace if submission.provider == "local" else None
+        if workspace is not None and workspace not in local_paths:
+            local_paths.append(workspace)
         candidates[submission.run_id] = PurgeRunCandidate(
             run_id=submission.run_id,
             project_id=layout.project_id,
@@ -75,11 +85,56 @@ def candidate_catalog(layout: Any) -> dict[str, PurgeRunCandidate]:
             tracking_provider_run_id=tracking_provider_run_id
             or (evidence.source_id if evidence is not None else submission.run_id),
             image=image,
-            workspace=submission.run_workspace,
+            workspace=workspace,
+            local_paths=tuple(local_paths),
+            completed_planes=_completed_purge_planes(
+                purge_store,
+                run_id=submission.run_id,
+                project_id=layout.project_id,
+            ),
             lineage_complete=False,
         )
     _populate_trackio_lineage(layout, candidates)
     return candidates
+
+
+def _completed_purge_planes(
+    store: PurgeStore,
+    *,
+    run_id: str,
+    project_id: str,
+) -> tuple[PurgePlane, ...]:
+    """Return planes already completed by an earlier immutable purge plan.
+
+    A failed apply can leave provider, registry, and tracking resources gone
+    while the final local action is still pending.  A new preview must resume
+    from the journal without trusting the old plan's (possibly stale) local
+    target.  Only completed/skipped journal events count; started/failed events
+    remain actionable.
+    """
+
+    completed: set[PurgePlane] = set()
+    if not store.root.is_dir():
+        return ()
+    for directory in store.root.iterdir():
+        if not directory.is_dir():
+            continue
+        try:
+            plan = store.load_plan(directory.name)
+            if plan.project_id != project_id or run_id not in plan.run_ids:
+                continue
+            events = store.journal(directory.name)
+        except Exception:
+            continue
+        settled = {
+            str(event["action_id"])
+            for event in events
+            if event.get("status") in {"completed", "skipped"}
+        }
+        for action in plan.actions:
+            if action.action_id in settled:
+                completed.add(action.plane)
+    return tuple(sorted(completed))
 
 
 def _populate_trackio_lineage(layout: Any, candidates: dict[str, PurgeRunCandidate]) -> None:
@@ -105,6 +160,15 @@ def _populate_trackio_lineage(layout: Any, candidates: dict[str, PurgeRunCandida
         return
     provider_to_run = {candidate.tracking_provider_run_id: run_id for run_id, candidate in trackio_candidates.items()}
     for run_id, candidate in tuple(trackio_candidates.items()):
+        if "tracking" in candidate.completed_planes:
+            candidates[run_id] = _replace_lineage(
+                candidate,
+                consumers=(),
+                external_consumers=(),
+                lineage_complete=True,
+                lineage_blockers=(),
+            )
+            continue
         try:
             plan = admin.plan_run_purge(
                 project=candidate.evidence_project,

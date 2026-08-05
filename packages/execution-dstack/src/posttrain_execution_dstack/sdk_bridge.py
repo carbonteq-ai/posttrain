@@ -18,6 +18,8 @@ from native_state import assignment_state
 _RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _TERMINAL = frozenset({"terminated", "failed", "done"})
 _RECLAIMED_PREFIX = "POSTTRAIN_CLEANUP_RECLAIMED_BYTES="
+_CLEANUP_OFFER_WAIT_SECONDS = 300
+_CLEANUP_OFFER_POLL_SECONDS = 5
 
 
 def _client(payload):
@@ -142,6 +144,54 @@ def _cleanup_command():
     )
 
 
+def _apply_cleanup_when_worker_is_available(client, base_configuration):
+    """Submit an exact-worker cleanup task, waiting through transient capacity gaps.
+
+    A terminal training run can be followed immediately by another job on the
+    same single-slot worker.  dstack then reports no offer even though the
+    worker is healthy and will become idle shortly.  Cleanup is resumable
+    control-plane work, so polling the exact worker is safer than turning this
+    normal race into a failed purge.
+    """
+
+    cleanup_name = str(base_configuration["name"])
+    cleanup_run = client.runs.get(cleanup_name)
+    if cleanup_run is not None and _native_status(cleanup_run) in {"failed", "terminated"}:
+        # Keep the failed task as diagnostic history, but do not make a retry
+        # inherit its terminal state.  Names remain deterministic and bounded.
+        for retry in range(1, 100):
+            retry_name = f"{cleanup_name}-retry-{retry}"
+            if client.runs.get(retry_name) is None:
+                base_configuration = {**base_configuration, "name": retry_name}
+                cleanup_run = None
+                break
+        else:
+            raise RuntimeError("dstack cleanup task retry names are exhausted")
+    if cleanup_run is not None:
+        return cleanup_run
+
+    deadline = time.monotonic() + _CLEANUP_OFFER_WAIT_SECONDS
+    while True:
+        for gpu_count in (0, 1):
+            configuration = Task(
+                **base_configuration,
+                resources={"gpu": {"count": gpu_count}, "disk": {"size": "100GB.."}},
+            )
+            plan = client.runs.get_run_plan(
+                configuration=configuration,
+                repo=VirtualRepo(),
+            )
+            if any(job.offers for job in plan.job_plans):
+                return client.runs.apply_plan(
+                    run_plan=plan,
+                    repo=VirtualRepo(),
+                    reserve_ports=False,
+                )
+        if time.monotonic() >= deadline:
+            raise RuntimeError("exact-worker cleanup task has no matching dstack offer")
+        time.sleep(_CLEANUP_OFFER_POLL_SECONDS)
+
+
 def cleanup_workspace(payload):
     client = _client(payload)
     source = client.runs.get(payload["source_run_name"])
@@ -200,36 +250,7 @@ def cleanup_workspace(payload):
             "posttrain_cleanup_source_run": str(payload["source_run_name"]),
         },
     }
-    # Prefer a CPU-only maintenance task. Some dstack SSH fleets advertise
-    # only GPU-shaped offers, even for their idle CPUs. In that case request
-    # one GPU solely as a short-lived scheduler admission constraint; the
-    # cleanup command itself never initializes CUDA.
-    configuration = Task(
-        **base_configuration,
-        resources={"gpu": {"count": 0}, "disk": {"size": "100GB.."}},
-    )
-    cleanup_run = client.runs.get(configuration.name)
-    if cleanup_run is None:
-        plan = client.runs.get_run_plan(
-            configuration=configuration,
-            repo=VirtualRepo(),
-        )
-        if not any(job.offers for job in plan.job_plans):
-            configuration = Task(
-                **base_configuration,
-                resources={"gpu": {"count": 1}, "disk": {"size": "100GB.."}},
-            )
-            plan = client.runs.get_run_plan(
-                configuration=configuration,
-                repo=VirtualRepo(),
-            )
-        if not any(job.offers for job in plan.job_plans):
-            raise RuntimeError("exact-worker cleanup task has no matching dstack offer")
-        cleanup_run = client.runs.apply_plan(
-            run_plan=plan,
-            repo=VirtualRepo(),
-            reserve_ports=False,
-        )
+    cleanup_run = _apply_cleanup_when_worker_is_available(client, base_configuration)
 
     deadline = time.monotonic() + 300
     cleanup_status = _native_status(cleanup_run)
