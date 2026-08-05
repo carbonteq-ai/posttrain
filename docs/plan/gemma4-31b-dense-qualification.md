@@ -20,7 +20,7 @@ The observable proof mirrors the completed 12B qualification. The serving work p
 - [x] (2026-08-05 08:20Z) Added the exact 31B model variant, base-catalog row, exports, and identity/template tests.
 - [x] (2026-08-05 08:20Z) Added checkpoint-specific Lab training, serving, and evaluation bindings plus serving and SFT work packages and candidate gates.
 - [x] (2026-08-05 08:20Z) Ran focused tests, tokenizer-aware Gemma tests, both static work-package validations, locked sync, full Ruff, import boundaries, targeted Pyright, the full repository test suite, and diff checks.
-- [ ] Submit and track the serving and SFT work packages on `targets/carbonteq-rtx-pro-6000-96gb`.
+- [ ] Submit and track the serving and SFT work packages on `targets/carbonteq-rtx-pro-6000-96gb` (both submitted; serving run `ea43f44a-f46d-45f0-8482-f0a7d3647548` succeeded with complete evidence; SFT run `844b3f1c-c076-4d1c-b486-cb9e5fafd8ea` is provider-queued for the same host).
 - [ ] Prove clean PEFT reload, structured tool calling, and adapter serving where supported; record immutable evidence and finish the retrospective.
 
 ## Surprises & Discoveries
@@ -39,6 +39,12 @@ The observable proof mirrors the completed 12B qualification. The serving work p
 
 - Observation: No reusable Python implementation changed beyond adding the exact model value.
   Evidence: both work packages pass static composition, the 31B binding resolves through the existing `gemma4` renderer and family loader, and the complete repository suite reports 1,043 passed and 20 skipped. Ruff passes, all eight import contracts remain intact, and targeted Pyright reports zero diagnostics.
+
+- Observation: Source-checkout job packaging initially exhausted the local rootless BuildKit store before any remote run existed.
+  Evidence: two serving packaging attempts failed locally with `no space left on device`. Pruning only unused reproducible BuildKit cache and unused registry-backed local image copies recovered enough space; no volume, model cache, tracked source, provider run, or retained evidence was removed. The subsequent immutable serving and SFT images published successfully.
+
+- Observation: The pinned 31B foundation checkpoint fits and serves in BF16 on the single 96 GiB target with the planned conservative engine allocation.
+  Evidence: serving run `ea43f44a-f46d-45f0-8482-f0a7d3647548` succeeded on an NVIDIA RTX PRO 6000 Blackwell Workstation Edition with `gpu_memory_utilization=0.8`, retained a nonempty inference-output artifact and server log, reported exact-model discovery and health as `1.0`, and produced a complete three-of-three required Observatory view.
 
 ## Decision Log
 
@@ -68,7 +74,7 @@ Implementation and real qualification are pending. Completion requires successfu
 
 The family-aware training loader is already implemented in `packages/train/src/posttrain/train/backends/trl/common.py`: every model whose `family` is `gemma4` loads through `AutoModelForMultimodalLM`. `packages/train/src/posttrain/train/profiles.py` already exposes `gemma4-off-v1` through the generic default renderer. No reusable train or serve code change is expected.
 
-`apps/lab/.posttrain/catalog/gemma4-unified-qualification.yaml` currently owns 12B-specific settings and bindings. Rename this overlay to a family-level filename only if doing so is a clean tracked rename with all references updated; otherwise add the 31B entries to it and record that the legacy filename is merely a catalog shard. `apps/lab/.posttrain/work_packages/` contains declarative work packages. `apps/lab/src/posttrain_lab/qualification/gates.toml` inventories candidate release gates. The target `targets/carbonteq-rtx-pro-6000-96gb` is a single NVIDIA RTX PRO 6000 Blackwell Workstation Edition with approximately 96 GiB VRAM, submitted through dstack.
+`apps/lab/.posttrain/catalog/gemma4-qualification.yaml` owns checkpoint-specific Gemma settings and bindings; it was cleanly renamed from the former 12B-specific filename when the 31B entries were added. `apps/lab/.posttrain/work_packages/` contains declarative work packages. `apps/lab/src/posttrain_lab/qualification/gates.toml` inventories candidate release gates. The target `targets/carbonteq-rtx-pro-6000-96gb` is a single NVIDIA RTX PRO 6000 Blackwell Workstation Edition with approximately 96 GiB VRAM, submitted through dstack.
 
 The exact checkpoint is `google/gemma-4-31B-it` at commit `842da3794eaa0b77d5f08bae87a17459d91ff475`. It is instruction-tuned, BF16, dense, and stores 31,273,088,876 parameters. Its upstream model type is `gemma4`, architecture is `Gemma4ForConditionalGeneration`, native context is 262,144 tokens, and it supports text and image-family visual inputs but no audio tower. The executable bindings in this plan are text-only. The model's separate speculative assistant checkpoint is not part of this variant, so `mtp` remains false.
 
@@ -152,6 +158,28 @@ Known immutable inputs:
     target: targets/carbonteq-rtx-pro-6000-96gb
 
 Add real run IDs, provider IDs, actual-job image digests, catalog snapshots, GPU identity, startup duration, peak memory, generated-answer summary, structured tool call, optimizer metrics, loaded total/trainable parameters, adapter identity and content digest, and reload/adapter-serving results here as work proceeds. Do not paste secrets or large model outputs.
+
+Submitted serving evidence:
+
+    canonical run: ea43f44a-f46d-45f0-8482-f0a7d3647548
+    provider run: pt-62675a59ab5f7c9c4cbb0606
+    tracking run: dfef39cc7030436683bc0eccb9ecbde5
+    actual-job image: registry.lan/carbonteq/posttrain-job@sha256:18e85d785baafffe821607808e95dadef2f9f638ba079e7b2601abc7dce6e357
+    kind image: registry.lan/carbonteq/posttrain-kind-serve@sha256:3b49e756fc8eed3fe39b09ddb7f7aa6c3429be2ccea3683b914dfc0ebf371613
+    package key: 753cb7b2229cf5f951ed79516ff58525ca222825fcabf676aa89d3ddb5f44fd1
+    worker: NVIDIA RTX PRO 6000 Blackwell Workstation Edition, driver 595.84, 102641958912 bytes VRAM
+    tracking interval: 2026-08-05T08:28:31.783905Z to 2026-08-05T08:39:00.316420Z
+    health/model discovery: 1.0 / 1.0
+    retained generation digest: ff62d3000ec2899252f6bd8e7183680dce51f22c61c6f80fb2b8e9c685347102
+    retained server-log digest: f3f5b3ae3974d81e7f1abe2310035c0d56dcc7bfa14af24c6a8b9713433bac73
+
+Submitted SFT identity:
+
+    canonical run: 844b3f1c-c076-4d1c-b486-cb9e5fafd8ea
+    provider run: pt-643d16c13782dad68cacb615
+    actual-job image: registry.lan/carbonteq/posttrain-job@sha256:98b970909da4987da0a50779491e0ea24aaedd115d14ca49e6122a972bfed8ed
+    kind image: registry.lan/carbonteq/posttrain-kind-supervised@sha256:73b52ecf72953ae518907a6c6d82b2240ca19e8a1f96d57bd53ca22c9ba45bbd
+    package key: 3dda7e3985e37c792c9866f0bfd3c6e8133c59964d668a0d70e856c93382da90
 
 Local validation before GPU submission:
 
