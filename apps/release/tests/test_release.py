@@ -371,6 +371,8 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
         assert "uv pip install" in workflow
         assert '--index-url "${PYPI_DEV_SIMPLE}"' in workflow
         assert "runtime images verify" in workflow
+        assert 'XDG_CONFIG_HOME="${image_verify_config}"' in workflow
+        assert 'POSTTRAIN_REGISTRY="${JOB_REGISTRY}"' in workflow
         assert "--framework-wheelhouse .release/wheelhouse" in workflow
         assert "run reconcile --last" in workflow
         assert "run cleanup --last" in workflow
