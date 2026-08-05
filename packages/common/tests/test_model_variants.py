@@ -7,7 +7,6 @@ from posttrain.common.variants import (
     QWEN_35_08B,
     QWEN_35_2B,
 )
->>>>>>> origin/main
 
 
 def test_foundation_variants_publish_explicit_model_and_renderer_contracts() -> None:
