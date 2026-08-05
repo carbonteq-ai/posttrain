@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from posttrain.catalog import load_catalog_layer, packaged_base_directory
 from posttrain.common import CatalogRef, ContractError, ExecutionTarget, InferenceBinding, ModelVariant
+from posttrain.common.variants import GEMMA_4_31B_IT
 from posttrain.environment import VerifiersV1ConfigActivation
 from posttrain.eval import EnvironmentBinding, EnvironmentSource, EvaluationPlan
 from posttrain.train import (
@@ -90,6 +91,46 @@ def test_gemma4_unified_qualification_selections_resolve_as_one_support_plane() 
         value.overlay_id == "posttrain-lab-serving-capacity-v1"
         for value in (settings, training, inference, evaluation_inference)
     )
+
+
+def test_gemma4_31b_dense_qualification_reuses_the_family_support_plane() -> None:
+    catalog = open_catalog(
+        scope="posttrain-lab",
+        overlays=(WORKSPACE / "apps" / "lab" / ".posttrain" / "catalog",),
+    )
+    model = catalog.resolve(CatalogRef("model", "models/gemma4-31b-it@bf16"))
+    settings = catalog.resolve(CatalogRef("training", "gemma4-31b-it/sft-qualification-v1"))
+    training = catalog.resolve(CatalogRef("training", "training/gemma4-31b-it-trl-lora-qualification@1"))
+    inference = catalog.resolve(CatalogRef("inference", "inference/gemma4-31b-it-vllm-screen@1"))
+    evaluation_inference = catalog.resolve(CatalogRef("inference", "inference/gemma4-31b-it-vllm-eval@1"))
+
+    assert isinstance(model.value, ModelVariant)
+    assert model.value.base == GEMMA_4_31B_IT.base
+    assert model.value.parameters == GEMMA_4_31B_IT.parameters
+    assert model.value.tokenizer_fingerprint == GEMMA_4_31B_IT.tokenizer_fingerprint
+    assert model.value.renderer == GEMMA_4_31B_IT.renderer
+    assert model.source_layer == "base"
+    assert isinstance(settings.value, SFTSettings)
+    assert settings.value.loop.max_steps == 2
+    assert isinstance(training.value, TrainingBinding)
+    assert isinstance(training.value.update, LoRAUpdate)
+    assert training.value.renderer.id == "gemma4-off-v1"
+    assert training.value.target.id == "targets/carbonteq-rtx-pro-6000-96gb"
+    assert "language_model" in training.value.update.target_modules
+    assert isinstance(inference.value, InferenceBinding)
+    assert inference.value.model == model.value
+    assert inference.value.target == training.value.target
+    assert inference.value.startup_timeout_seconds == 1800
+    assert inference.value.engine["max_model_len"] == 8192
+    assert inference.value.engine["text_only"] is True
+    assert inference.value.engine["skip_mm_profiling"] is True
+    assert inference.value.engine["tool_call_parser"] == "gemma4"
+    assert inference.value.engine["reasoning_parser"] == "gemma4"
+    assert isinstance(evaluation_inference.value, InferenceBinding)
+    assert evaluation_inference.value.model == model.value
+    assert evaluation_inference.value.purpose == ("eval",)
+    assert evaluation_inference.value.engine["max_model_len"] == 32768
+    assert all(value.source_layer == "overlay" for value in (settings, training, inference, evaluation_inference))
 
 
 def test_every_evaluation_plan_declares_success_for_every_environment() -> None:

@@ -27,6 +27,32 @@ owner = "posttrain-training"
 replacement_condition = "Promote after a retained 96 GiB GPU run completes both optimizer updates and reloads the adapter; retire if a maintained successor architecture replaces this support plane."
 
 [[gates]]
+id = "gemma4-31b-dense-serving"
+work_package = ".posttrain/work_packages/gemma4_31b_serve_smoke_qualification.yaml"
+job_id = "smoke"
+tier = "experimental"
+state = "candidate"
+job_kind = "serve.smoke"
+acceptance = "serving-probe"
+experiment_family = "gemma4-31b-dense-support"
+hypothesis = "The pinned vLLM capsule can load Gemma 4 31B dense in text-only mode and preserve the Gemma family generation contract."
+owner = "posttrain-serving"
+replacement_condition = "Promote after a retained 96 GiB GPU run records nonempty generation and a structured Gemma tool-call response; retire if this checkpoint leaves the maintained model plane."
+
+[[gates]]
+id = "gemma4-31b-dense-sft"
+work_package = ".posttrain/work_packages/gemma4_31b_sft_qualification.yaml"
+job_id = "train"
+tier = "experimental"
+state = "candidate"
+job_kind = "train.sft"
+acceptance = "training-summary"
+experiment_family = "gemma4-31b-dense-support"
+hypothesis = "The pinned Transformers and TRL capsule can produce a finite, reloadable language-model-only LoRA adapter for Gemma 4 31B dense."
+owner = "posttrain-training"
+replacement_condition = "Promote after a retained 96 GiB GPU run completes both optimizer updates and reloads the adapter; retire if this checkpoint leaves the maintained model plane."
+
+[[gates]]
 id = "foundation-serving-screen"
 work_package = ".posttrain/work_packages/foundation_screen.yaml"
 job_id = "benchmark"

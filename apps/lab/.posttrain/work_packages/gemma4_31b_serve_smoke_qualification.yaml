@@ -1,0 +1,29 @@
+project_id: posttrain-lab
+work_package_id: screen/gemma4-31b-it/generation-smoke-qualification
+stage: screen
+description: Launch the pinned Gemma 4 31B dense checkpoint and complete one bounded text-only generation.
+recipe:
+  type: inline
+  id: recipes/gemma4-31b-it-generation-smoke-qualification@1
+  revision: "1"
+  stage: screen
+  seats:
+    inference: inference
+  jobs:
+    - id: smoke
+      kind: serve.smoke
+      definition: serve/vllm-generation-smoke@1
+  expected_artifacts:
+    - terminal generation response
+bindings:
+  inference:
+    type: ref
+    family: inference
+    id: inference/gemma4-31b-it-vllm-screen@1
+enabled_optional_jobs: []
+metadata:
+  question: Can the current serving capsule load Gemma 4 31B dense and produce a nonempty text response through the family tokenizer contract?
+  labels:
+    - qualification
+    - gemma4
+    - serve-smoke
