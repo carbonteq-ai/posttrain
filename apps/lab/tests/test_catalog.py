@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 from posttrain.catalog import load_catalog_layer, packaged_base_directory
-from posttrain.environment import VerifiersV1ConfigActivation
 from posttrain.common import CatalogRef, ContractError, ExecutionTarget, InferenceBinding, ModelVariant
+from posttrain.environment import VerifiersV1ConfigActivation
 from posttrain.eval import EnvironmentBinding, EnvironmentSource, EvaluationPlan
 from posttrain.train import (
     DynamicGroupSampling,
