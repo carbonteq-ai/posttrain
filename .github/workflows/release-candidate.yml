@@ -20,6 +20,7 @@ env:
   UV_SYSTEM_CERTS: "true"
   UV_CACHE_DIR: /var/lib/github-runner/.cache/uv
   PYPI_DEV_SIMPLE: https://pypi.lan/carbonteq/dev/+simple/
+  PYPI_DEV_PROJECT_SIMPLE: https://pypi.lan/carbonteq/dev/+simple/posttrain/
   PYPI_DEV_UPLOAD: https://pypi.lan/carbonteq/dev/
   JOB_REGISTRY: registry.lan/carbonteq
 
@@ -63,7 +64,7 @@ jobs:
       - name: Allocate the next immutable RC
         id: version
         run: |
-          version="$(uv run --no-sync posttrain-release candidate-version --simple-url "${PYPI_DEV_SIMPLE}")"
+          version="$(uv run --no-sync posttrain-release candidate-version --simple-url "${PYPI_DEV_PROJECT_SIMPLE}")"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "candidate=${version}"
 
