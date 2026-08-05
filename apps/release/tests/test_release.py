@@ -388,7 +388,9 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert 'git ls-remote --exit-code origin "refs/tags/v${POSTTRAIN_RELEASE_VERSION}"' in final
     assert '"${DEVPI_CLIENT}" push -y' in final
     assert final.index("Capture bounded cache evidence") < final.index("Tag and create the GitHub release last")
-    assert final.index("Retain final receipt and cache evidence") < final.index("Tag and create the GitHub release last")
+    assert final.index("Retain final receipt and cache evidence") < final.index(
+        "Tag and create the GitHub release last"
+    )
 
 
 @pytest.mark.skipif(which("uv") is None, reason="requires uv to validate the staged workspace lock")
