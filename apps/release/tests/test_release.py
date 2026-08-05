@@ -393,6 +393,9 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     )
     assert "for attempt in $(seq 1 120)" in final
     assert 'select(.headSha == $sha and .event == "push")' in final
+    assert "REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt" in final
+    assert "exact final bytes are already present in the development index" in final
+    assert "development index already contains" in final
 
 
 @pytest.mark.skipif(which("uv") is None, reason="requires uv to validate the staged workspace lock")

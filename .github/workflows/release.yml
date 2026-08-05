@@ -20,6 +20,7 @@ env:
   UV_SYSTEM_CERTS: "true"
   UV_CACHE_DIR: /var/lib/github-runner/.cache/uv
   PYPI_DEV_SIMPLE: https://pypi.lan/carbonteq/dev/+simple/
+  PYPI_DEV_PROJECT_SIMPLE: https://pypi.lan/carbonteq/dev/+simple/
   PYPI_DEV_UPLOAD: https://pypi.lan/carbonteq/dev/
   PYPI_STABLE_SIMPLE: https://pypi.lan/carbonteq/stable/+simple/
   JOB_REGISTRY: registry.lan/carbonteq
@@ -100,9 +101,25 @@ jobs:
 
       - name: Upload final bytes to development index for qualification
         run: |
-          uv publish --publish-url "${PYPI_DEV_UPLOAD}" .release/distributions/*
-          uv run --no-sync posttrain-release index-check .release/python-release-receipt.json \
-            --simple-base-url "${PYPI_DEV_SIMPLE}"
+          if uv run --no-sync posttrain-release index-check .release/python-release-receipt.json \
+            --simple-base-url "${PYPI_DEV_SIMPLE}"; then
+            echo "exact final bytes are already present in the development index; reusing them"
+          else
+            # A failed run may have uploaded the complete immutable version
+            # before a later gate failed. Never upload over a partial or
+            # different version: detect that state and require a new release.
+            while read -r package; do
+              normalized="$(printf '%s' "${package}" | tr '[:upper:]' '[:lower:]' | sed 's/[_.]/-/g')"
+              if curl --fail --silent --show-error --max-time 20 \
+                "${PYPI_DEV_PROJECT_SIMPLE}${normalized}/" | grep -Fq "${POSTTRAIN_RELEASE_VERSION}"; then
+                echo "development index already contains ${package} ${POSTTRAIN_RELEASE_VERSION}, but the receipt did not match" >&2
+                exit 1
+              fi
+            done < <(jq -r '.packages[]' .release/python-release-receipt.json)
+            uv publish --publish-url "${PYPI_DEV_UPLOAD}" .release/distributions/*
+            uv run --no-sync posttrain-release index-check .release/python-release-receipt.json \
+              --simple-base-url "${PYPI_DEV_SIMPLE}"
+          fi
 
       - name: Prove a clean index-only consumer install
         run: |
@@ -162,6 +179,7 @@ jobs:
       - name: Promote unchanged bytes from dev to stable
         env:
           DEVPI_CLIENT: /opt/posttrain-dstack-client/bin/devpi
+          REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt
         run: |
           "${DEVPI_CLIENT}" use https://pypi.lan/carbonteq/dev
           "${DEVPI_CLIENT}" login "${UV_PUBLISH_USERNAME}" --password "${UV_PUBLISH_PASSWORD}"
