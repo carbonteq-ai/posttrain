@@ -60,11 +60,12 @@ model-neutral sequence of chat messages and is not rebuilt or republished.
   qualification work packages in Policy Prism as `8ec8e90`, and packaged both
   isolated evaluation images successfully.
 - [ ] Run scope and recovery sequentially and pass their scientific gates. The
-  first scope attempt `policy-prism-e2b-sft-r32-v1-r1-scope` was cancelled by
-  the controlling client after 20 minutes while managed vLLM was still
-  starting; it produced no rollouts. Recovery remains intentionally
-  unsubmitted, and the scope retry will use a fresh immutable run ID after the
-  shared workstation is free.
+  scope attempts `policy-prism-e2b-sft-r32-v1-r1-scope` and
+  `policy-prism-e2b-sft-r32-v1-r1-scope-r1` were externally stopped while
+  managed vLLM was starting; neither produced a rollout. The second attempt has
+  consistent cancelled reconciliation and retained tracking evidence. Recovery
+  remains intentionally unsubmitted; another project currently owns the shared
+  workstation.
 - [ ] Publish and verify the private Hugging Face adapter.
 - [ ] Finalize, validate, commit, and push both Policy Prism evaluation runs.
 - [ ] Clean only the three new provider workspaces and record final outcomes.
@@ -134,6 +135,17 @@ model-neutral sequence of chat messages and is not rebuilt or republished.
   stop request. This attempt is operational cancellation evidence, not a
   scientific result.
 
+- Observation: a second unchanged scope attempt proved the cancellation source
+  is outside this PostTrain project's durable control state.
+  Evidence: dstack recorded `STOPPED_BY_USER` for provider run
+  `pt-89dce853d7e9a441d6b5ba11` at `2026-08-06T02:55:37+05:00`, but the project
+  contains no `cancel-intent.json`, no local controller is running, and the
+  attempt reconciled consistently as cancelled with zero rollouts. Thirty-five
+  seconds after its GPU block was released, unrelated run
+  `ambient-k1-dapo-smoke-50step-rtxpro-20260806-r5` claimed the same host. This
+  is shared-workstation scheduling interference rather than an E2B evaluation
+  failure.
+
 ## Decision Log
 
 - Decision: add a separate E2B `ModelVariant` but share the existing pinned
@@ -188,6 +200,15 @@ model-neutral sequence of chat messages and is not rebuilt or republished.
   stopped before the configured 1,800-second managed-vLLM startup budget, so no
   source or inference change is justified by this attempt. Recovery remains
   gated on 18 included scope traces with zero failures.
+  Date/Author: 2026-08-06 / Codex.
+
+- Decision: do not submit another scope run while the external ambient-agent
+  workload owns or is actively reclaiming the workstation; require a stable
+  idle interval before using a fresh scope run ID.
+  Rationale: repeated submission during another project's experiment sequence
+  wastes startup time, creates cancelled Trackio placeholders, and cannot
+  produce scientific evidence. It must not be "fixed" by changing the already
+  qualified E2B capsule.
   Date/Author: 2026-08-06 / Codex.
 
 ## Outcomes & Retrospective
