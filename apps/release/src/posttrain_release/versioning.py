@@ -187,7 +187,7 @@ def render_project_metadata(text: str, version: str, relative: Path) -> tuple[st
     return rendered, pin_count
 
 
-def stage_release(repository_root: Path, destination: Path) -> ReleaseCheck:
+def stage_release(repository_root: Path, destination: Path, *, version: str | None = None) -> ReleaseCheck:
     """Copy the source tree and expand release metadata only in that copy."""
 
     root = repository_root.resolve()
@@ -207,18 +207,21 @@ def stage_release(repository_root: Path, destination: Path) -> ReleaseCheck:
 
     shutil.copytree(root, target, ignore=ignore)
     manifest = load_release_manifest(target)
+    rendered_version = version or manifest.version
+    if version is not None and not re.fullmatch(rf"{re.escape(manifest.version)}rc[1-9][0-9]*", version):
+        raise ValueError(f"staged version override must be a release candidate of {manifest.version}: {version!r}")
     for path in publishable_pyprojects(target):
         relative = path.relative_to(target)
-        rendered, _ = render_project_metadata(path.read_text(encoding="utf-8"), manifest.version, relative)
+        rendered, _ = render_project_metadata(path.read_text(encoding="utf-8"), rendered_version, relative)
         path.write_text(rendered, encoding="utf-8")
     lock_path = target / "uv.lock"
     if not lock_path.is_file():
         raise ValueError(f"release staging requires a workspace lock: {lock_path}")
     rendered_lock = render_workspace_lock(
-        lock_path.read_text(encoding="utf-8"), manifest.version, publishable_pyprojects(target)
+        lock_path.read_text(encoding="utf-8"), rendered_version, publishable_pyprojects(target)
     )
     lock_path.write_text(rendered_lock, encoding="utf-8")
-    return _check_staged_release(target, manifest.version)
+    return _check_staged_release(target, rendered_version)
 
 
 def render_workspace_lock(text: str, version: str, publishable: tuple[Path, ...]) -> str:

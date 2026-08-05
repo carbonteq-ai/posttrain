@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Release qualification intentionally uses the known 96 GiB worker. dstack's
+# scheduler state does not include arbitrary host processes, so a generic
+# memory-only target can select a machine whose GPU is already occupied.
+dstack_bin="${POSTTRAIN_DSTACK_BIN:-/opt/posttrain-dstack-client/bin/dstack}"
+output="${1:-.release/dstack-capacity.json}"
+target_host="${POSTTRAIN_DSTACK_HOST:-carbonteq-ai-workstation.lan}"
+minimum_gpu_memory_mib="${POSTTRAIN_DSTACK_MIN_GPU_MEMORY_MIB:-90112}"
+
+[[ -x "${dstack_bin}" ]] || {
+  echo "dstack client is not executable: ${dstack_bin}" >&2
+  exit 2
+}
+
+mkdir -p "$(dirname "${output}")"
+fleet_json="$(mktemp)"
+trap 'rm -f "${fleet_json}"' EXIT
+
+"${dstack_bin}" fleet get local-gpu-workers --json >"${fleet_json}"
+
+jq -e \
+  --arg host "${target_host}" \
+  --argjson minimum_gpu_memory_mib "${minimum_gpu_memory_mib}" \
+  '
+    .status == "active"
+    and ([.instances[]
+      | select(
+          .hostname == $host
+          and .status == "idle"
+          and .health_status == "healthy"
+          and (.unreachable // false) == false
+          and .total_blocks == 1
+          and (.instance_type.resources.gpus | length) == 1
+          and .instance_type.resources.gpus[0].vendor == "nvidia"
+          and .instance_type.resources.gpus[0].memory_mib >= $minimum_gpu_memory_mib
+        )
+    ] | length) == 1
+  ' "${fleet_json}" >/dev/null || {
+    echo "dstack release target is not ready: host=${target_host}" >&2
+    jq '{name,status,instances:[.instances[] | {hostname,status,health_status,unreachable,total_blocks,gpu:(.instance_type.resources.gpus[0] // null)}]}' "${fleet_json}" >&2
+    exit 3
+  }
+
+jq \
+  --arg schema "carbonteq.dstack-release-capacity.v1" \
+  --arg host "${target_host}" \
+  --argjson minimum_gpu_memory_mib "${minimum_gpu_memory_mib}" \
+  '
+    . as $fleet
+    | ($fleet.instances[] | select(.hostname == $host)) as $instance
+    | {
+        schema: $schema,
+        fleet_id: $fleet.id,
+        fleet_name: $fleet.name,
+        fleet_status: $fleet.status,
+        target_host: $host,
+        minimum_gpu_memory_mib: $minimum_gpu_memory_mib,
+        instance: {
+          id: $instance.id,
+          instance_num: $instance.instance_num,
+          hostname: $instance.hostname,
+          status: $instance.status,
+          health_status: $instance.health_status,
+          unreachable: $instance.unreachable,
+          total_blocks: $instance.total_blocks,
+          gpu: $instance.instance_type.resources.gpus[0],
+          cpus: $instance.instance_type.resources.cpus,
+          memory_mib: $instance.instance_type.resources.memory_mib,
+          disk_mib: $instance.instance_type.resources.disk.size_mib
+        }
+      }
+  ' "${fleet_json}" >"${output}"
+
+echo "dstack release capacity passed: host=${target_host} receipt=${output}"

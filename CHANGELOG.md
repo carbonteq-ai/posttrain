@@ -40,6 +40,10 @@ cross-plane purge workflow introduced after 0.3.0.
   by default; `--include-purged` exposes labeled retained history for audit.
 - Trackio advances to the maintained post8 lifecycle API, and affected runtime
   images resolve exclusively from the CarbonTeq OCI registry.
+- Release publication now runs through the protected LAN runner, private
+  `pypi.lan`/`registry.lan` channels, immutable candidate receipts, and a
+  verified idle RTX PRO dstack canary; GHCR and public PyPI are not part of the
+  release path.
 
 ### Qualification
 

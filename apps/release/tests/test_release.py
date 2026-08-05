@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 import tomllib
+import zipfile
 from pathlib import Path, PurePosixPath
 from shutil import which
 
@@ -15,6 +16,8 @@ from posttrain.runtime_images import (
     lock_digest,
 )
 from posttrain.runtime_images.manifest import ManifestError, PublishedImage, load_manifest
+from posttrain_release.artifacts import create_distribution_receipt, verify_distribution_receipt
+from posttrain_release.candidate import next_candidate_version
 from posttrain_release.cli import main
 from posttrain_release.manifest_render import render_manifest
 from posttrain_release.repository_audit import evaluate_repository, inspect_repository
@@ -256,16 +259,101 @@ def test_stage_expands_static_wheel_metadata_without_touching_source(tmp_path: P
     assert 'version = "0.3.0"' in (destination / "uv.lock").read_text(encoding="utf-8")
 
 
+def test_stage_can_render_an_rc_without_changing_the_authored_target(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    destination = tmp_path / "staged"
+    _version_repository(source, version="0.3.1")
+
+    result = stage_release(source, destination, version="0.3.1rc2")
+
+    assert result.version == "0.3.1rc2"
+    assert 'version = "0.3.1"' in (source / "release/manifest.toml").read_text(encoding="utf-8")
+    assert 'version = "0.3.1rc2"' in (destination / "packages/train/pyproject.toml").read_text(encoding="utf-8")
+    assert 'version = "0.3.1rc2"' in (destination / "uv.lock").read_text(encoding="utf-8")
+
+
+def test_stage_rejects_an_override_outside_the_authored_release_line(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    _version_repository(source, version="0.3.1")
+
+    with pytest.raises(ValueError, match="must be a release candidate of 0.3.1"):
+        stage_release(source, tmp_path / "staged", version="0.3.2rc1")
+
+
+def test_next_candidate_version_skips_every_immutable_rc_already_on_the_index() -> None:
+    assert (
+        next_candidate_version(
+            "0.3.1",
+            (
+                "posttrain-0.3.1rc1-py3-none-any.whl",
+                "posttrain-0.3.1rc3.tar.gz",
+                "unrelated-0.3.1rc2-py3-none-any.whl",
+            ),
+        )
+        == "0.3.1rc2"
+    )
+
+
+def test_distribution_receipt_binds_wheel_sdist_lock_and_image_manifest(tmp_path: Path) -> None:
+    distributions = tmp_path / "dist"
+    distributions.mkdir()
+    wheel = distributions / "posttrain_widget-0.3.1rc2-py3-none-any.whl"
+    with zipfile.ZipFile(wheel, "w") as archive:
+        archive.writestr(
+            "posttrain_widget-0.3.1rc2.dist-info/METADATA",
+            "Metadata-Version: 2.3\nName: posttrain-widget\nVersion: 0.3.1rc2\n",
+        )
+    (distributions / "posttrain_widget-0.3.1rc2.tar.gz").write_bytes(b"sdist")
+    uv_lock = tmp_path / "uv.lock"
+    uv_lock.write_text("lock\n", encoding="utf-8")
+    image_manifest = tmp_path / "published.toml"
+    image_manifest.write_text("schema_version = 1\n", encoding="utf-8")
+
+    receipt = create_distribution_receipt(
+        distributions,
+        version="0.3.1rc2",
+        revision="a" * 40,
+        uv_lock=uv_lock,
+        image_manifest=image_manifest,
+    )
+    receipt_path = tmp_path / "receipt.json"
+    receipt_path.write_text(__import__("json").dumps(receipt), encoding="utf-8")
+
+    verified = verify_distribution_receipt(receipt_path, distributions)
+    assert verified["packages"] == ["posttrain-widget"]
+    artifacts = verified["artifacts"]
+    assert isinstance(artifacts, list)
+    assert len(artifacts) == 2
+
+
 def test_tag_workflow_builds_the_versioned_stage_not_the_source_workspace() -> None:
     repository_root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
     workflow = (repository_root / ".github/workflows/release.yml").read_text(encoding="utf-8")
 
-    stage_command = "uv run posttrain-release stage release-stage"
-    build_command = 'uv build --all-packages --wheel --out-dir "${GITHUB_WORKSPACE}/wheelhouse"'
-    assert stage_command in workflow
-    assert "cd release-stage" in workflow
-    assert workflow.index(stage_command) < workflow.index(build_command)
+    assert "scripts/release/build-python-distributions" in workflow
+    assert "uv build --all-packages --no-sources" in (
+        repository_root / "scripts/release/build-python-distributions"
+    ).read_text(encoding="utf-8")
     assert "uv build environments/" not in workflow
+
+
+def test_protected_release_workflows_keep_the_build_and_qualification_boundaries() -> None:
+    repository_root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+    candidate = (repository_root / ".github/workflows/release-candidate.yml").read_text(encoding="utf-8")
+    final = (repository_root / ".github/workflows/release.yml").read_text(encoding="utf-8")
+
+    for workflow in (candidate, final):
+        assert "runs-on: [self-hosted, linux, x64, lan-release]" in workflow
+        assert "uv pip install" in workflow
+        assert '--index-url "${PYPI_DEV_SIMPLE}"' in workflow
+        assert "runtime images verify" in workflow
+        assert "--framework-wheelhouse .release/wheelhouse" in workflow
+        assert "run reconcile --last" in workflow
+        assert "run cleanup --last" in workflow
+
+    assert "candidate-version --simple-url" in candidate
+    assert 'git ls-remote --exit-code origin "refs/tags/v${POSTTRAIN_RELEASE_VERSION}"' in final
+    assert '"${DEVPI_CLIENT}" push -y' in final
 
 
 @pytest.mark.skipif(which("uv") is None, reason="requires uv to validate the staged workspace lock")
