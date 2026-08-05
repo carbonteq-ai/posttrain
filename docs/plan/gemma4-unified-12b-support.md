@@ -1,16 +1,29 @@
-# Add the Gemma 4 Unified 12B support plane
+# Add the Gemma 4 Unified 12B support plane (historical scope)
 
 This ExecPlan is a living document. The sections `Progress`, `Surprises & Discoveries`, `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 This document must be maintained in accordance with `docs/templates/PLAN.md`. It is intentionally self-contained: a contributor should be able to implement and qualify this change from this file and the current repository without relying on chat history.
 
+The active scope is now maintained in `docs/plan/gemma4-0.3.2-support-and-release.md`.
+That plan expands this work to the E2B, E4B, 12B, and 31B dense matrix and
+records the accepted non-truncated 12B MTP run. This file remains useful for
+the original 12B implementation history; do not use its old “unsupported
+31B” or “128-token accepted proof” wording as the current release contract.
+
 ## Purpose / Big Picture
 
-After this change, posttrain can identify, render, run a bounded text-only serving smoke, and perform LoRA supervised fine-tuning (SFT) for the instruction-tuned `google/gemma-4-12B-it` checkpoint. The exact supported plane is the immutable `models/gemma4-12b-it@bf16` selection in the `gemma4` family. Its upstream `gemma4_unified` model type remains checkpoint provenance rather than a separately authored framework axis. A user will pair that selection with the Gemma-specific TRL LoRA binding for SFT or the Gemma-specific vLLM binding for serving and get the same catalog resolution, job execution, evidence, and artifact behavior used by existing model families.
+After this change, posttrain can identify, render, run a bounded text-only serving smoke, perform LoRA supervised fine-tuning (SFT), and run a bounded TRL GRPO rollout with paired-assistant MTP for the instruction-tuned `google/gemma-4-12B-it` checkpoint. The exact supported plane is the immutable `models/gemma4-12b-it@bf16` selection in the `gemma4` family. Its upstream `gemma4_unified` model type remains checkpoint provenance rather than a separately authored framework axis. A user will pair that selection with the Gemma-specific TRL bindings and get the same catalog resolution, job execution, evidence, and artifact behavior used by existing model families.
 
-This work does not add support for the earlier Gemma 4 tower-dense architecture, the 31B dense checkpoint, any Gemma 4 mixture-of-experts checkpoint, multimodal training or evaluation, DPO, GRPO, distillation, quantization, MTP speculation, or the full 256K context window. The model facts may accurately record upstream text, image, audio, and video capabilities, but the executable bindings introduced here are explicitly text-only and bounded to a short context for qualification.
+This historical slice did not add multimodal training or evaluation, DPO,
+distillation, quantization, or a full-context benchmark. The active 0.3.2 plan
+adds serving smoke selections for the E2B, E4B, and 31B dense checkpoints while
+keeping every executable profile text-only and bounded. The 12B model facts
+record text, image, and audio capability; video is not part of its pinned
+configuration. The accepted GRPO proof is now the non-truncated
+`gemma4-trl-mtp-qualification-4` run; the older 128-token run is retained only
+as historical execution evidence.
 
-The observable proof has two parts. First, a Lab serving work package launches the exact pinned foundation checkpoint with vLLM, exposes it through the OpenAI-compatible endpoint, and returns a nonempty concise answer while using Gemma 4's parser and template settings. Second, a Lab SFT work package performs bounded LoRA optimizer updates using the shared smoke dataset, records nonzero trainable parameters and finite training metrics, and emits a loadable PEFT adapter plus training summary.
+The observable proof has three parts. First, a Lab serving work package launches the exact pinned foundation checkpoint with vLLM, exposes it through the OpenAI-compatible endpoint, and returns a nonempty concise answer while using Gemma 4's parser and template settings. Second, a Lab SFT work package performs bounded LoRA optimizer updates using the shared smoke dataset, records nonzero trainable parameters and finite training metrics, and emits a loadable PEFT adapter plus training summary. Third, a Lab TRL GRPO work package starts colocated vLLM with the pinned paired assistant, completes two rollout attempts and one optimizer step, and persists nonzero speculative-decoding evidence. This last proof validates the MTP execution path; it is not a quality or throughput benchmark.
 
 ## Progress
 
@@ -30,6 +43,7 @@ The observable proof has two parts. First, a Lab serving work package launches t
 - [x] (2026-08-05) Tracked SFT run `6b04480c-0df5-4ec6-ba00-3201bd9953e3` to terminal success. It completed two optimizer updates with finite loss and gradient norms and published the required model and summary artifacts plus a recovery checkpoint.
 - [ ] Validate the smallest package suites, then the repository-wide static and test ladder (completed: locked sync, full Ruff, import boundaries, targeted Pyright, focused ownership suites, full pytest, and diff check; remaining: full-workspace Pyright wrapper does not terminate locally).
 - [x] (2026-08-05) Closed the remaining real qualification acceptance on `carbonteq-ai-workstation.lan`: raw Trackio metrics prove the LoRA parameter ratio and peak SFT memory, a clean process materialized and reloaded the exact adapter with finite logits, the Gemma parser returned a structured tool call, and pinned vLLM served the retained adapter successfully.
+- [x] (2026-08-05) Added the paired-assistant MTP contract, pinned assistant materialization, and a bounded Gemma TRL GRPO work package. The successful run `6579a33b-d78e-4162-a38e-8371a93b2351` completed two rollouts and one optimizer step with nonzero MTP counters; a follow-up 512-token attempt `c8cf775c-9ebe-415a-9be0-68c5c3bed66e` reached the verifier harness but failed on setup timeout before producing a trainable branch. The latter is retained as a retry caveat, not an MTP failure.
 
 ## Surprises & Discoveries
 
@@ -93,6 +107,12 @@ The observable proof has two parts. First, a Lab serving work package launches t
 - Observation: The repository-wide Pyright command is scanning an ignored nested environment and is not currently a usable terminal gate on this checkout.
   Evidence: verbose Pyright found 12,748 source files and entered `apps/lab/environments/skyrl_bird_sql_v1/.venv`; the configured exclusions contain root-relative `.venv` and `.venvs`, not recursive patterns. A temporary recursive exclusion completed and exposed 146 broader workspace diagnostics dominated by namespace re-export resolution, while the ten Gemma production modules pass with zero diagnostics. This remains repository validation debt and was not changed as part of model support.
 
+- Observation: Paired-assistant MTP is active in the TRL/vLLM worker and its telemetry is persisted as canonical Trackio metrics.
+  Evidence: run `6579a33b-d78e-4162-a38e-8371a93b2351` on `carbonteq-ai-workstation.lan` completed two rollouts and one optimizer step. Trackio recorded `serve/backend/speculative_draft_tokens=135`, `serve/backend/speculative_accepted_tokens=120`, `serve/backend/speculative_acceptance_rate=0.8889`, `serve/backend/kv_cache_capacity_tokens=22080`, and `serve/backend/kv_cache_peak_usage_ratio=0.02302`; the image used the pinned assistant revision from the resolved run attributes. No CUDA or vLLM error was emitted.
+
+- Observation: A longer 512-token retry did not disprove MTP; it failed earlier at the Verifiers harness setup boundary.
+  Evidence: run `c8cf775c-9ebe-415a-9be0-68c5c3bed66e` ended with `HarnessError: harness setup timed out` and `got 0` trainable branches. It produced no MTP counters and no CUDA/vLLM failure. The accepted MTP proof therefore remains the bounded 128-token run, while a non-truncated quality qualification is still future work.
+
 ## Decision Log
 
 - Decision: Support only the immutable `google/gemma-4-12B-it` instruction checkpoint in the `gemma4` family.
@@ -116,8 +136,18 @@ The observable proof has two parts. First, a Lab serving work package launches t
   Date/Author: 2026-08-04 / Codex.
 
 - Decision: Set `mtp=False` and do not add a speculative binding.
-  Rationale: The current boolean means a native in-checkpoint MTP head usable by existing adapters. Gemma's separate assistant-artifact story does not satisfy that contract.
+  Rationale: Superseded by the paired-assistant amendment below; this was correct for the SFT-only scope but is no longer the desired model capability contract.
   Date/Author: 2026-08-04 / Codex.
+
+- Decision: Set Gemma 4's `mtp` capability true only with a paired assistant
+  checkpoint declared by `assistant_model` and a full-commit
+  `assistant_revision` in the colocated TRL inference engine mapping.
+  Rationale: vLLM 0.25.1 recognizes Gemma's assistant architecture but cannot
+  take a revision field in `speculative_config`. The TRL adapter therefore
+  resolves the full SHA with `snapshot_download`, passes the resulting local
+  path as vLLM's `model`, and rejects incomplete or unpinned paired mappings.
+  Native MTP mappings for existing models remain unchanged.
+  Date/Author: 2026-08-05 / Codex.
 
 - Decision: Use `AutoModelForMultimodalLM` for the `gemma4` family and retain `AutoModelForCausalLM` for existing families.
   Rationale: Both official Gemma 4 Unified and tower model types are registered with the multimodal auto factory, which resolves their concrete classes from checkpoint configuration. Family dispatch is the smallest framework-owned distinction required by the current loader.
@@ -145,11 +175,11 @@ The observable proof has two parts. First, a Lab serving work package launches t
 
 ## Outcomes & Retrospective
 
-The surgical Gemma 4 Unified 12B support plane is implemented and its model-specific qualification is complete. The exact foundation checkpoint generated successfully through vLLM; LoRA SFT completed two finite updates with 32,784,384 of 11,992,514,560 parameters trainable and retained an immutable adapter; a clean PEFT process reloaded that adapter and produced finite logits; the Gemma parser emitted a structured tool call; and pinned vLLM served the retained adapter with nonempty output. The initially introduced required architecture field was removed after review showed that it duplicated immutable checkpoint metadata and enabled no current static validation. Focused tests, the complete pytest suite, Ruff, import boundaries, targeted Pyright, and whitespace checks pass. Repository-wide Pyright remains a pre-existing workspace-configuration gate rather than a Gemma diagnostic, so gate promotion should record that distinction instead of broadening this model-support change.
+The surgical Gemma 4 Unified 12B support plane is implemented and its model-specific qualification is complete for serving, SFT, and the bounded paired-assistant MTP execution path. The exact foundation checkpoint generated successfully through vLLM; LoRA SFT completed two finite updates with 32,784,384 of 11,992,514,560 parameters trainable and retained an immutable adapter; a clean PEFT process reloaded that adapter and produced finite logits; the Gemma parser emitted a structured tool call; and pinned vLLM served the retained adapter with nonempty output. The MTP GRPO run completed two rollouts, one optimizer step, and emitted 135 draft tokens with 120 accepted (0.8889 acceptance), with 2.3% peak KV-cache use and no CUDA/vLLM error. Its 128-token cap truncated both completions and produced zero reward/gradient, so it proves execution and telemetry, not learning quality. A 512-token retry failed with `HarnessError: harness setup timed out` before a trainable branch; preserve this as an environment qualification caveat. The initially introduced required architecture field was removed after review showed that it duplicated immutable checkpoint metadata and enabled no current static validation. Focused tests, the complete pytest suite, Ruff, import boundaries, targeted Pyright, and whitespace checks pass. Repository-wide Pyright remains a pre-existing workspace-configuration gate rather than a Gemma diagnostic, so gate promotion should record that distinction instead of broadening this model-support change.
 
 ## Context and Orientation
 
-The canonical product baseline is `docs/post-training/README.md` and the six documents beside it. This change does not alter that frozen product meaning. It adds a model-specific capability under the existing `ModelVariant`, renderer, training binding, inference binding, standard job, and Lab qualification concepts. Architecture compatibility is established by the exact pinned checkpoint, backend support, and qualification evidence rather than a separately authored required field. No baseline amendment is required unless implementation discovers that Gemma needs a new product-level primitive rather than another value of these existing primitives.
+The canonical product baseline is `docs/post-training/README.md` and the six documents beside it. This change uses the paired-assistant MTP amendment in the canonical README and API document. It does not add a new job kind or training objective; it adds a bounded value to the existing model capability and inference-engine contracts. Architecture compatibility is established by the exact pinned target and assistant checkpoints, backend support, and qualification evidence rather than a separately authored required field.
 
 `packages/common/src/posttrain/common/models.py` owns immutable model facts. A `ModelVariant` is one exact loadable weight state, not a loose marketing family. Its `RendererContract` describes roles, reasoning modes, tool boundaries, and the source of the chat template. `packages/common/src/posttrain/common/catalog_schema.py` validates untrusted YAML before it becomes those Python values. `packages/common/src/posttrain/common/catalog.py` decodes validated rows. Family variants live under `packages/common/src/posttrain/common/variants/` and base model selections live in `packages/catalog/src/posttrain/catalog/base/models.yaml`.
 
@@ -197,7 +227,7 @@ Static compatibility remains expressed through existing model-family, renderer, 
 
 Create `packages/common/src/posttrain/common/variants/gemma4.py`. Define `GEMMA4_RENDERER_CONTRACT` with id `gemma4-tools@1`, family `gemma4`, tokenizer-sourced chat template, roles `system`, `user`, `assistant`, and `tool`, reasoning modes `off` and `thinking`, default `off`, and `strips_past_reasoning=True` only if the milestone-1 template probe proves that behavior. Map `off` to `enable_thinking=False` and `thinking` to `enable_thinking=True`. Extend `ToolCallProtocol.id` with `gemma4_structured` and encode the exact tool-call start/end tokens and assistant format observed in the pinned tokenizer template. Do not reuse the Qwen XML or LFM Python protocol names merely because all three support tools.
 
-In the same module define `GEMMA_4_12B_IT` from the exact upstream facts in `Context and Orientation`, including `family="gemma4"`, an immutable `HubModelRef`, the computed tokenizer fingerprint, accurate modalities, `mtp=False`, and provenance containing source, license, upstream model type, and upstream architecture class. Export the new contract and variant through `packages/common/src/posttrain/common/variants/__init__.py` and whatever package-level export pattern the current variants follow.
+In the same module define `GEMMA_4_12B_IT` from the exact upstream facts in `Context and Orientation`, including `family="gemma4"`, an immutable `HubModelRef`, the computed tokenizer fingerprint, accurate modalities, `mtp=True`, and provenance containing source, license, upstream model type, upstream architecture class, and the paired assistant identity. Export the new contract and variant through `packages/common/src/posttrain/common/variants/__init__.py` and whatever package-level export pattern the current variants follow.
 
 Add `models/gemma4-12b-it@bf16` to `packages/catalog/src/posttrain/catalog/base/models.yaml`. The base catalog row must contain only reusable model facts; it must not reference a Lab target or qualification binding. Update `packages/common/tests/test_model_variants.py`, `packages/common/tests/test_model_chat_templates.py`, and exact registry assertions such as `packages/common/tests/test_contracts.py`. Tests must prove immutable identity, upstream topology provenance, default-off and explicit-thinking template kwargs, role support, tool boundaries, registry resolution, and equality between the Python constant and YAML-decoded selection. Use the locally cached pinned tokenizer where token-level behavior is required and skip with the repository's existing clear cache-miss pattern.
 
@@ -209,7 +239,9 @@ Use the existing generic `DefaultRendererConfig` path, which already forwards `e
 
 In `packages/train/src/posttrain/train/backends/trl/common.py`, import `AutoModelForMultimodalLM` lazily alongside the existing auto classes. Add a small model-factory helper that returns the multimodal auto class for the `gemma4` family and otherwise preserves the existing causal-model loader. Use that helper in `load_trainable_model`; Transformers resolves Unified versus tower from the pinned checkpoint configuration. Retain text-only `AutoTokenizer` loading because the renderer consumes token IDs; do not switch all training data through `AutoProcessor` or add multimodal dataset fields.
 
-Use the milestone-1 language-model-only target regex in the Lab training binding. Keep `task_type="CAUSAL_LM"` only if the PEFT probe and real run prove correct adapter injection and save/reload; otherwise use the smallest PEFT-supported configuration demonstrated by the probe and document the decision. Add fake-import unit tests around family-based factory selection, unchanged Qwen/LFM dispatch, exact load options, LoRA target selection, and adapter resume behavior. Do not add QLoRA, full-parameter, DPO, online RL, or distillation bindings.
+Add a guarded paired-assistant path in the same TRL adapter. For Gemma MTP mappings, require `assistant_model` and a full-commit `assistant_revision`, resolve that exact revision with the already-pinned `huggingface-hub` package into the worker's model cache, and pass only the resulting local path as vLLM's `model` plus the speculative method and token count. Do not download or upgrade Python packages at runtime. Native mappings without assistant fields must keep their current behavior; incomplete Gemma mappings must fail before trainer construction.
+
+Use the milestone-1 language-model-only target regex in the Lab training binding. Keep `task_type="CAUSAL_LM"` only if the PEFT probe and real run prove correct adapter injection and save/reload; otherwise use the smallest PEFT-supported configuration demonstrated by the probe and document the decision. Add fake-import unit tests around family-based factory selection, unchanged Qwen/LFM dispatch, exact load options, LoRA target selection, and adapter resume behavior. Do not add QLoRA, full-parameter, DPO, or distillation bindings. Add one Gemma TRL GRPO binding solely for the bounded MTP qualification described below.
 
 Create `packages/train/tests/test_trl_common.py` for these loader tests rather than growing algorithm-level API or online-RL tests. The file should exercise the private adapter seam through fake auto-model classes and must not download weights.
 
@@ -218,6 +250,8 @@ Create `packages/train/tests/test_trl_common.py` for these loader tests rather t
 Create `apps/lab/.posttrain/catalog/gemma4-unified-qualification.yaml` and list it in `apps/lab/.posttrain/catalog/layer.yaml`. Define a bounded SFT settings selection, initially `gemma4-12b-it/sft-qualification-v1`, with two optimizer steps, max length 512, per-device batch size 1, gradient accumulation 1, bfloat16 runtime behavior inherited from the TRL adapter, logging every step, and one retained final checkpoint. Define `training/gemma4-12b-it-trl-lora-qualification@1` using backend `trl@1.8.0`, renderer `gemma4-off-v1`, rank 8, alpha 16, the proven language-model-only target regex, and `targets/carbonteq-rtx-pro-6000-96gb`. Pin the existing TRL source revision and dependency-lock digest in the same manner as other Lab qualification bindings; do not change dependency versions unless milestone 1 forced a recorded plan amendment.
 
 In that overlay define `inference/gemma4-12b-it-vllm-screen@1` for `models/gemma4-12b-it@bf16`, vLLM 0.25.1, renderer `gemma4-tools@1`, and the same Lab target. Use startup timeout 900 seconds, bfloat16, max model length 8192, one sequence, at most 4096 batched tokens, GPU utilization 0.80, eager mode, chunked prefill, automatic KV cache dtype, `text_only=true`, `skip_mm_profiling=true`, `tool_call_parser=gemma4`, and `reasoning_parser=gemma4`. Give it purposes `[screen, smoke]`, max output 128, and temperature 0.0. Do not copy the historical 32K machine-local launch into the qualified profile.
+
+Also define a Gemma MTP-only TRL qualification in the same overlay: one GSM8K prompt group, two generations, one optimizer step, max prompt length 256, max completion length 512, training `max_length` at least 1024, colocated vLLM with eager mode, sleep during optimization, max model length 4096, one sequence, and a conservative GPU-memory fraction on the 96 GiB target. Its `speculative_config` must contain `method: mtp`, `num_speculative_tokens: 1`, `assistant_model: google/gemma-4-12B-it-assistant`, and the immutable assistant revision `364bd03c9952e5b7da73665ee30c9eccfc408345`. Run `gemma4-trl-mtp-qualification-4` is the accepted non-truncated execution proof; the earlier 128-token run and the setup-timeout retry remain diagnostic evidence. This is a TRL `train.grpo` proof, not a standalone serving binding.
 
 In `packages/serve/src/posttrain/serve/online.py::generate`, replace the top-level spreading of reasoning-mode values with `chat_template_kwargs=extra` when the selected mode has values. Update `packages/serve/tests/test_online.py` and `packages/serve/tests/test_api.py` so existing Qwen requests assert the nested shape and add a Gemma off/thinking case. Keep tools in the normal OpenAI `tools` and `tool_choice` fields. This is a request-shape correction shared by all renderer contracts, not a Gemma conditional.
 
@@ -291,6 +325,13 @@ The successful submission commands use the target already pinned by each binding
     uv run --package posttrain-lab posttrain --project-root apps/lab --json job run gemma4_unified_serve_smoke_qualification.yaml --job smoke --provider dstack --env HF_TOKEN
     uv run --package posttrain-lab posttrain --project-root apps/lab --json job run gemma4_unified_sft_qualification.yaml --job train --provider dstack --env HF_TOKEN
 
+For the paired-assistant MTP qualification, use the explicit deferred-environment
+waiver only because the GSM8K package performs a network-backed dataset metadata
+check during the offline image smoke stage. The worker still loads the pinned
+environment package and records its revision in Trackio:
+
+    uv run --package posttrain-lab posttrain --project-root apps/lab --json job run gemma4_unified_grpo_mtp_qualification.yaml --job grpo --provider dstack --allow-deferred-qualification
+
 ## Validation and Acceptance
 
 Contract acceptance is met when existing model contracts and catalog rows require no new architecture field, `models/gemma4-12b-it@bf16` resolves to the exact immutable identity in this plan, and its provenance records the upstream model type and class. Loader tests must show that Gemma uses the multimodal auto factory while existing Qwen and LFM behavior remains causal-model based.
@@ -301,7 +342,7 @@ Training acceptance is met when Qwen and LFM tests remain unchanged in behavior,
 
 Serving acceptance is met when vLLM 0.25.1 launches the pinned foundation weights on the Lab target under the text-only 8192-token profile, `/health` is successful, `/v1/models` exposes the selected model, a streamed chat completion returns nonempty final content, and a tool-bearing request is parsed into structured tool calls with parser `gemma4`. A health-only probe does not count as the final serving proof.
 
-Scope acceptance is equally important: the diff must contain no Gemma tower-dense or MoE architecture values, no 31B model, no multimodal dataset path, no DPO/GRPO/distillation selection, no QLoRA/full update, no quantization, no MTP binding, no new dependency import from common into an ML backend, and no model-family conditional in `packages/jobs` or `apps/lab` orchestration.
+Scope acceptance is equally important: the diff must contain no Gemma tower-dense or MoE architecture values, no 31B model, no multimodal dataset path, no DPO/distillation selection, no QLoRA/full update, no quantization, no standalone Gemma MTP serving claim, no new dependency import from common into an ML backend, and no model-family conditional in `packages/jobs` or `apps/lab` orchestration. The single Gemma GRPO selection is a bounded qualification only.
 
 The implementation is complete only after focused and full validation pass and both real qualification results are recorded. If adapter serving is unsupported by the pinned vLLM stack, the plan must explicitly narrow the final outcome before completion rather than implying the trained candidate passed a serve-smoke gate.
 
@@ -322,6 +363,8 @@ Known immutable inputs at plan creation:
     branch: feat/gemma4-support
     model: google/gemma-4-12B-it
     model revision: 707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7
+    MTP assistant: google/gemma-4-12B-it-assistant
+    MTP assistant revision: 364bd03c9952e5b7da73665ee30c9eccfc408345
     transformers architecture: Gemma4UnifiedForConditionalGeneration
     model type: gemma4_unified
     total parameters: 11,959,730,224
@@ -364,6 +407,19 @@ Qualification submissions on 2026-08-05:
     structured tool result: passed; get_weather({"city":"Paris"}); finish_reason=tool_calls
     adapter serving result: passed; exact retained content digest; nonempty final content; finish_reason=stop
 
+    MTP GRPO run: 6579a33b-d78e-4162-a38e-8371a93b2351
+    MTP dstack provider id: pt-b96982ab638a77323412711d
+    MTP job image: registry.lan/carbonteq/posttrain-job@sha256:01168917f1321b4be16115729a22a0dddee93b3802abf4c8612f74696edb7096
+    MTP result: succeeded; two rollouts completed; one optimizer step; two Verifiers traces
+    MTP counters: 135 draft tokens, 120 accepted tokens, acceptance rate 0.8889, accepted length 1.889
+    MTP KV evidence: capacity 22,080 tokens; peak usage ratio 0.02302
+    MTP runtime: 84.78 s; rollout time 82.21 s; peak GPU memory 54.13 GiB
+    MTP caveat: both 128-token completions were truncated, reward and gradient were zero; this is an execution/telemetry proof only
+
+    MTP extended retry: c8cf775c-9ebe-415a-9be0-68c5c3bed66e
+    MTP extended retry image: registry.lan/carbonteq/posttrain-job@sha256:f5fe84a0663ad94becfea7e52494d9bd2416eb481138a0edcafedca0050a4a01
+    MTP extended retry result: failed in the Verifiers harness with `HarnessError: harness setup timed out` before a trainable branch; no CUDA/vLLM error observed
+
 Add the following evidence during milestone 1: tokenizer fingerprint inputs and digest; response-template behavior with thinking off/on; decoded ordinary and tool conversations; assistant loss-mask spans; selected LoRA module names and count; excluded multimodal module names; auto-model class resolution; and token-only forward signature result.
 
 Add the following evidence during milestone 6: serving run ID and image digest; SFT run ID and image digest; resolved catalog snapshot digests; GPU model/VRAM; startup duration; peak allocated/reserved memory; generated answer summary; structured tool-call summary; optimizer update count; initial/final loss; gradient norm samples; trainable/total parameters; adapter artifact URI/version/digest; and adapter reload or adapter-serving result.
@@ -383,10 +439,10 @@ Local validation evidence at the implementation stopping point:
     0 errors, 0 warnings, 0 informations
 
     uv run pytest packages/common/tests packages/catalog/tests packages/train/tests packages/serve/tests packages/jobs/tests apps/lab/tests -q
-    290 passed, 10 skipped
+    328 passed, 11 skipped
 
     uv run pytest
-    927 passed, 18 skipped, 2 warnings
+    1042 passed, 19 skipped, 4 warnings
 
     uv run pyright <all ten Gemma production modules>
     0 errors, 0 warnings, 0 informations
@@ -430,3 +486,14 @@ At the end of the implementation, `packages/common/src/posttrain/common/models.p
 No new direct dependency is expected. The implementation must use the currently locked Transformers 5.14.1, PEFT 0.19.x, CarbonTeq TRL fork revision `6e7739b8ec741d21ecd79c0c212694cd15ff20d8`, renderers 0.1.8, and vLLM 0.25.1 if milestone 1 passes. Framework packages remain independent: common imports no ML backend; train does not import serve or Lab; serve does not import train or Lab; standard jobs remain model-neutral; and Lab composes the concrete target and evidence path.
 
 Revision note (2026-08-04): Created the initial implementation-ready plan after repository and dependency-surface research. It fixes the scope to Gemma 4 Unified 12B, uses a hard dependency probe before production changes, separates reusable framework support from Lab-only 96 GiB qualification policy, and normalizes online renderer kwargs through vLLM's nested `chat_template_kwargs` contract. Updated after the feasibility gate to record the exact tokenizer digest, model/PEFT projection evidence, and the decision to use `DefaultRenderer` only for the bounded SFT plane while reserving typed-renderer work for future online training. Updated again after implementation with completed milestones, local validation evidence, the full-Pyright wrapper limitation, and the remaining real-GPU qualification work. The initial required architecture-axis decision was subsequently superseded: immutable checkpoint metadata and backend auto-resolution own concrete topology, while posttrain retains family-level contracts and upstream provenance.
+
+Revision note (2026-08-05): The user expanded the support request to TRL-based Gemma MTP. The plan now treats MTP as rollout-only paired-assistant capability, pins `google/gemma-4-12B-it-assistant` by full revision, resolves it into the worker cache before TRL/vLLM construction, and adds one bounded Gemma GRPO qualification. The prior SFT-only `mtp=False` decision is retained as historical context and superseded for this implementation slice.
+
+Revision note (2026-08-05, MTP qualification): The paired-assistant contract and TRL adapter are implemented. The first RTX PRO run succeeded with nonzero speculative counters and complete rollout/optimizer lifecycle, but its deliberately small 128-token cap truncated both GSM8K completions and therefore cannot support a learning-quality claim. A 512-token retry was submitted with a 4096-token engine context and failed at the Verifiers harness setup timeout before a trainable branch; it did not emit a CUDA/vLLM error. The plan retains the successful bounded execution proof and records the non-truncated quality retry as follow-up work. The GSM8K environment is marked deferred because its package performs a network-backed dataset metadata check during offline image qualification; the run used the explicit deferred waiver and immutable Verifiers revision.
+
+Revision note (2026-08-05, scope superseded): E2B, E4B, 12B, and 31B are now
+covered by `docs/plan/gemma4-0.3.2-support-and-release.md`. The corrected 12B
+profile uses training `max_length=1024`; run
+`gemma4-trl-mtp-qualification-4` completed two non-truncated traces with reward
+and MTP acceptance telemetry. The old 128-token and setup-timeout runs remain
+diagnostic evidence only.
