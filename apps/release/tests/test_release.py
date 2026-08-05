@@ -404,6 +404,8 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert "REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt" in final
     assert "exact final bytes are already present in the development index" in final
     assert "development index already contains" in final
+    assert 'grep -Eqi -- "${normalized}-${POSTTRAIN_RELEASE_VERSION}([.]|$)"' in final
+    assert 'grep -Fq "${POSTTRAIN_RELEASE_VERSION}"' not in final
     assert "resume_from_run_id" in final
     assert 'gh run view "${RESUME_FROM_RUN_ID}"' in final
     assert "workflowName // empty" in final

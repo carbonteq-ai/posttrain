@@ -165,8 +165,11 @@ jobs:
             # different version: detect that state and require a new release.
             while read -r package; do
               normalized="$(printf '%s' "${package}" | tr '[:upper:]' '[:lower:]' | sed 's/[_.]/-/g')"
+              # Match the exact stable filename boundary. A prerelease such
+              # as 0.3.2rc2 must not block the final 0.3.2 publication.
               if curl --fail --silent --show-error --max-time 20 \
-                "${PYPI_DEV_PROJECT_SIMPLE}${normalized}/" | grep -Fq "${POSTTRAIN_RELEASE_VERSION}"; then
+                "${PYPI_DEV_PROJECT_SIMPLE}${normalized}/" \
+                | grep -Eqi -- "${normalized}-${POSTTRAIN_RELEASE_VERSION}([.]|$)"; then
                 echo "development index already contains ${package} ${POSTTRAIN_RELEASE_VERSION}, but the receipt did not match" >&2
                 exit 1
               fi
