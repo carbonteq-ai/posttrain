@@ -1,0 +1,52 @@
+project_id: posttrain-lab
+work_package_id: train/gemma4-12b-it/grpo-mtp-qualification
+stage: train
+description: One-step Gemma 4 Unified TRL GRPO qualification with a pinned paired MTP assistant.
+recipe:
+  type: inline
+  id: recipes/gemma4-12b-it-grpo-mtp-qualification@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: grpo
+      kind: train.grpo
+      definition: train/trl-grpo@1
+  expected_artifacts:
+    - trained adapter
+    - native Verifiers trajectories
+    - training summary
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/gemma4-12b-it@bf16
+  environment:
+    type: ref
+    family: environment
+    id: gemma4-gsm8k-mtp-qualification
+  settings:
+    type: ref
+    family: training
+    id: gemma4-12b-it/grpo-mtp-qualification-v1
+  training:
+    type: ref
+    family: training
+    id: training/gemma4-12b-it-trl-grpo-mtp-qualification@1
+  rollout_inference:
+    type: ref
+    family: inference
+    id: inference/gemma4-12b-it-vllm-grpo-mtp@1
+enabled_optional_jobs: []
+metadata:
+  question: Does the TRL colocated rollout complete one Gemma 4 optimizer step with paired-assistant MTP evidence?
+  labels:
+    - qualification
+    - grpo
+    - gemma4
+    - mtp

@@ -1,3 +1,41 @@
+environment:
+  gemma4-gsm8k-mtp-qualification:
+    category: math-reasoning
+    qualification: deferred
+    source:
+      package: gsm8k-v1
+      repository: https://github.com/PrimeIntellect-ai/verifiers
+      revision: 284a868d6a9022109b749710672a0460e8a996d4
+      subdirectory: environments/gsm8k_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: gsm8k-v1
+          split: train
+        harness:
+          id: "null"
+          runtime:
+            type: subprocess
+        timeout:
+          setup: 600
+          rollout: 300
+          finalize: 120
+          scoring: 120
+    sampling:
+      max_tokens: 512
+      temperature: 1.0
+      top_p: 1.0
+    num_tasks: 1
+    num_rollouts: 2
+    max_concurrent: 1
+    parameters:
+      sampling_seed: 0
+    reward_components: [reward]
+    observation:
+      primary_metric: reward
+      pass_rate_metric: reward
+
 training:
   gemma4-12b-it/sft-qualification-v1:
     selection_type: sft-settings
@@ -31,8 +69,94 @@ training:
     backend_options:
       source_revision: 6e7739b8ec741d21ecd79c0c212694cd15ff20d8
       dependency_lock_sha256: 900ca2610e41c933ed8a08fa54f60415718aa883f1dbb1aff5b2f21696b8efed
+  gemma4-12b-it/grpo-mtp-qualification-v1:
+    selection_type: grpo-settings
+    revision: "1"
+    loop:
+      max_steps: 1
+      max_length: 1024
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 2
+      learning_rate: 0.00001
+    num_prompts_per_step: 1
+    num_generations: 2
+    max_prompt_length: 256
+    max_completion_length: 512
+  training/gemma4-12b-it-trl-grpo-mtp-qualification@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.8.0
+    renderer:
+      id: gemma4-off-v1
+      model_family: gemma4
+      implementation: default
+      reasoning_mode: "off"
+    update:
+      kind: lora
+      rank: 8
+      alpha: 16
+      target_modules: ^model[.]language_model[.]layers[.][0-9]+[.](self_attn[.](q_proj|k_proj|v_proj|o_proj)|mlp[.](gate_proj|up_proj|down_proj))$
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    runtime:
+      global_batch_size: 2
+    backend_options:
+      use_liger_kernel: false
+      source_revision: 6e7739b8ec741d21ecd79c0c212694cd15ff20d8
+      dependency_lock_sha256: 900ca2610e41c933ed8a08fa54f60415718aa883f1dbb1aff5b2f21696b8efed
 
 inference:
+  inference/gemma4-e2b-it-vllm-screen@1:
+    revision: "1"
+    startup_timeout_seconds: 900
+    model: models/gemma4-e2b-it@bf16
+    backend: vllm@0.25.1
+    renderer: gemma4-tools@1
+    engine:
+      max_model_len: 4096
+      gpu_memory_utilization: 0.80
+      dtype: bfloat16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 1
+      max_num_batched_tokens: 2048
+      kv_cache_dtype: auto
+      text_only: true
+      skip_mm_profiling: true
+      tool_call_parser: gemma4
+      reasoning_parser: gemma4
+    sampling:
+      max_tokens: 128
+      temperature: 0.0
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [screen, smoke]
+  inference/gemma4-e4b-it-vllm-screen@1:
+    revision: "1"
+    startup_timeout_seconds: 900
+    model: models/gemma4-e4b-it@bf16
+    backend: vllm@0.25.1
+    renderer: gemma4-tools@1
+    engine:
+      max_model_len: 4096
+      gpu_memory_utilization: 0.80
+      dtype: bfloat16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 1
+      max_num_batched_tokens: 2048
+      kv_cache_dtype: auto
+      text_only: true
+      skip_mm_profiling: true
+      tool_call_parser: gemma4
+      reasoning_parser: gemma4
+    sampling:
+      max_tokens: 128
+      temperature: 0.0
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [screen, smoke]
   inference/gemma4-12b-it-vllm-screen@1:
     revision: "1"
     startup_timeout_seconds: 900
@@ -49,6 +173,32 @@ inference:
       disable_log_stats: false
       max_num_seqs: 1
       max_num_batched_tokens: 4096
+      kv_cache_dtype: auto
+      text_only: true
+      skip_mm_profiling: true
+      tool_call_parser: gemma4
+      reasoning_parser: gemma4
+    sampling:
+      max_tokens: 128
+      temperature: 0.0
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [screen, smoke]
+  inference/gemma4-31b-it-vllm-screen@1:
+    revision: "1"
+    startup_timeout_seconds: 1200
+    model: models/gemma4-31b-it@bf16
+    backend: vllm@0.25.1
+    renderer: gemma4-tools@1
+    engine:
+      max_model_len: 4096
+      gpu_memory_utilization: 0.70
+      dtype: bfloat16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 1
+      max_num_batched_tokens: 2048
       kv_cache_dtype: auto
       text_only: true
       skip_mm_profiling: true
@@ -85,3 +235,32 @@ inference:
       temperature: 0.0
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [eval]
+  inference/gemma4-12b-it-vllm-grpo-mtp@1:
+    revision: "1"
+    model: models/gemma4-12b-it@bf16
+    backend: vllm@0.25.1
+    renderer: gemma4-tools@1
+    engine:
+      mode: colocate
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.30
+      tensor_parallel_size: 1
+      max_model_len: 4096
+      max_num_seqs: 1
+      max_num_batched_tokens: 2048
+      text_only: true
+      skip_mm_profiling: true
+      enforce_eager: true
+      kv_cache_dtype: auto
+      weight_sync_mode: lora
+      speculative_config:
+        method: mtp
+        num_speculative_tokens: 1
+        assistant_model: google/gemma-4-12B-it-assistant
+        assistant_revision: 364bd03c9952e5b7da73665ee30c9eccfc408345
+    sampling:
+      max_tokens: 512
+      temperature: 1.0
+      top_p: 1.0
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [rollout]

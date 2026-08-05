@@ -1,6 +1,12 @@
 """Pinned foundation model variants and renderer contracts."""
 
-from .gemma4 import GEMMA4_RENDERER_CONTRACT, GEMMA_4_12B_IT
+from .gemma4 import (
+    GEMMA4_RENDERER_CONTRACT,
+    GEMMA_4_12B_IT,
+    GEMMA_4_31B_IT,
+    GEMMA_4_E2B_IT,
+    GEMMA_4_E4B_IT,
+)
 from .lfm25 import LFM25_RENDERER_CONTRACT, LFM_25_12B_THINKING
 from .qwen35 import (
     QWEN35_RENDERER_CONTRACT,
@@ -20,13 +26,19 @@ FOUNDATION_VARIANTS = {
     QWEN_35_08B.id: QWEN_35_08B,
     QWEN_35_2B.id: QWEN_35_2B,
     LFM_25_12B_THINKING.id: LFM_25_12B_THINKING,
+    GEMMA_4_E2B_IT.id: GEMMA_4_E2B_IT,
+    GEMMA_4_E4B_IT.id: GEMMA_4_E4B_IT,
     GEMMA_4_12B_IT.id: GEMMA_4_12B_IT,
+    GEMMA_4_31B_IT.id: GEMMA_4_31B_IT,
 }
 
 __all__ = [
     "FOUNDATION_VARIANTS",
     "GEMMA4_RENDERER_CONTRACT",
+    "GEMMA_4_E2B_IT",
+    "GEMMA_4_E4B_IT",
     "GEMMA_4_12B_IT",
+    "GEMMA_4_31B_IT",
     "LFM25_RENDERER_CONTRACT",
     "LFM_25_12B_THINKING",
     "QWEN35_RENDERER_CONTRACT",

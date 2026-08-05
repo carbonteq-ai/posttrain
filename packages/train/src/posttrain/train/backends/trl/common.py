@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 import sys
 import time
 from collections.abc import Callable, Iterator, Mapping
@@ -19,6 +20,8 @@ from ...bindings import FullParameterUpdate, LoRAUpdate, ParameterUpdatePlan, QL
 from ...profiles import TrainingLoop
 from ...results import TrainingSummary
 from ..common import BackendTrainingResult
+
+_COMMIT_SHA = re.compile(r"^[0-9a-f]{40}$")
 
 
 def framework_imports() -> dict[str, Any]:
@@ -69,7 +72,8 @@ def vllm_rollout_options(
         if not isinstance(count, int) or isinstance(count, bool) or count < 1:
             raise ValueError("TRL MTP num_speculative_tokens must be a positive integer")
         if not model.capabilities.mtp:
-            raise ValueError(f"model variant {model.id!r} does not declare a native MTP head")
+            raise ValueError(f"model variant {model.id!r} does not declare MTP capability")
+        speculative = _resolve_speculative_assistant(model, speculative)
 
     values: dict[str, Any] = {}
     if engine.get("text_only"):
@@ -93,6 +97,48 @@ def vllm_rollout_options(
     if speculative is not None:
         values["disable_log_stats"] = False
     return dict(speculative) if isinstance(speculative, Mapping) else None, values or None
+
+
+def _resolve_speculative_assistant(
+    model: ModelVariant, speculative: Mapping[str, JsonValue]
+) -> Mapping[str, JsonValue | str]:
+    """Materialize a pinned paired assistant into the worker HF cache.
+
+    vLLM's Gemma MTP config accepts a local/repository ``model`` path but does
+    not accept a revision field. The framework keeps the immutable revision in
+    the binding and resolves it before constructing the colocated TRL engine.
+    Native MTP mappings remain unchanged.
+    """
+
+    assistant_model = speculative.get("assistant_model")
+    assistant_revision = speculative.get("assistant_revision")
+    if model.family == "gemma4" and assistant_model is None and assistant_revision is None:
+        raise ValueError("Gemma MTP requires assistant_model and assistant_revision")
+    if assistant_model is None and assistant_revision is None:
+        return speculative
+    if not isinstance(assistant_model, str) or not assistant_model.strip() or assistant_model.count("/") != 1:
+        raise ValueError("TRL MTP assistant_model must be an owner/repository string")
+    if not isinstance(assistant_revision, str) or _COMMIT_SHA.fullmatch(assistant_revision) is None:
+        raise ValueError("TRL MTP assistant_revision must be a full 40-character commit SHA")
+
+    expected_repo = model.provenance.get("mtp_assistant_repo_id")
+    expected_revision = model.provenance.get("mtp_assistant_revision")
+    if isinstance(expected_repo, str) and assistant_model != expected_repo:
+        raise ValueError(
+            f"MTP assistant_model {assistant_model!r} does not match model variant {model.id!r} provenance"
+        )
+    if isinstance(expected_revision, str) and assistant_revision != expected_revision:
+        raise ValueError(f"MTP assistant_revision does not match model variant {model.id!r} provenance")
+    try:
+        from huggingface_hub import snapshot_download
+    except ImportError as error:
+        raise RuntimeError("install posttrain-train with the trl extra for paired-assistant MTP") from error
+    local_path = snapshot_download(repo_id=assistant_model, revision=assistant_revision)
+    resolved = dict(speculative)
+    resolved.pop("assistant_model", None)
+    resolved.pop("assistant_revision", None)
+    resolved["model"] = str(local_path)
+    return resolved
 
 
 def load_tokenizer(model: ModelVariant, imports: dict[str, Any]) -> Any:
