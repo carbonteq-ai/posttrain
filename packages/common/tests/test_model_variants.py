@@ -2,6 +2,7 @@
 
 from posttrain.common.variants import (
     GEMMA_4_12B_IT,
+    GEMMA_4_31B_IT,
     LFM_25_12B_THINKING,
     QWEN35_THINKING_RENDERER_CONTRACT,
     QWEN_35_08B,
@@ -27,6 +28,14 @@ def test_foundation_variants_publish_explicit_model_and_renderer_contracts() -> 
     assert GEMMA_4_12B_IT.renderer.id == "gemma4-tools@1"
     assert GEMMA_4_12B_IT.provenance["upstream_model_type"] == "gemma4_unified"
     assert GEMMA_4_12B_IT.provenance["upstream_architecture"] == "Gemma4UnifiedForConditionalGeneration"
+    assert GEMMA_4_31B_IT.family == "gemma4"
+    assert GEMMA_4_31B_IT.parameters == 31_273_088_876
+    assert GEMMA_4_31B_IT.base.revision == "842da3794eaa0b77d5f08bae87a17459d91ff475"
+    assert GEMMA_4_31B_IT.capabilities.modalities == ("text", "image", "video")
+    assert GEMMA_4_31B_IT.renderer is GEMMA_4_12B_IT.renderer
+    assert GEMMA_4_31B_IT.tokenizer_fingerprint == GEMMA_4_12B_IT.tokenizer_fingerprint
+    assert GEMMA_4_31B_IT.provenance["upstream_model_type"] == "gemma4"
+    assert GEMMA_4_31B_IT.provenance["upstream_architecture"] == "Gemma4ForConditionalGeneration"
 
 
 def test_qwen_thinking_renderer_contract_is_explicit() -> None:

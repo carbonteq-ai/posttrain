@@ -90,3 +90,24 @@ model:
       license: apache-2.0
       upstream_model_type: gemma4_unified
       upstream_architecture: Gemma4UnifiedForConditionalGeneration
+  models/gemma4-31b-it@bf16:
+    artifact:
+      kind: hub
+      repo_id: google/gemma-4-31B-it
+      revision: 842da3794eaa0b77d5f08bae87a17459d91ff475
+    form: foundation
+    weight_precision: bf16
+    family: gemma4
+    parameters: 31273088876
+    instruction_tuned: true
+    renderer_contract: gemma4-tools@1
+    tokenizer_fingerprint: 059d0f7dd1efb018ec9801f316c99ab31a7c39e712de08626ac90c1898b42416
+    capabilities:
+      modalities: [text, image, video]
+      native_context_window: 262144
+      mtp: false
+    provenance:
+      source: huggingface
+      license: apache-2.0
+      upstream_model_type: gemma4
+      upstream_architecture: Gemma4ForConditionalGeneration

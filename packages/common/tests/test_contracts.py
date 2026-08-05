@@ -59,7 +59,7 @@ class IdentityContractTests(unittest.TestCase):
     def test_foundation_profiles_are_pinned_and_distinct(self) -> None:
         self.assertEqual(
             set(FOUNDATION_VARIANTS),
-            {"qwen3.5-0.8b", "qwen3.5-2b", "lfm2.5-1.2b-thinking", "gemma4-12b-it"},
+            {"qwen3.5-0.8b", "qwen3.5-2b", "lfm2.5-1.2b-thinking", "gemma4-12b-it", "gemma4-31b-it"},
         )
         for variant in FOUNDATION_VARIANTS.values():
             self.assertEqual(len(variant.base.revision), 40)

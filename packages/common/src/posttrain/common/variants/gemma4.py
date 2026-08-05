@@ -1,4 +1,4 @@
-"""Pinned Gemma 4 Unified foundation variant."""
+"""Pinned Gemma 4 foundation variants."""
 
 from posttrain.common.artifacts import HubModelRef
 from posttrain.common.models import (
@@ -12,6 +12,7 @@ from posttrain.common.models import (
 )
 
 _GEMMA_4_12B_REVISION = "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7"
+_GEMMA_4_31B_REVISION = "842da3794eaa0b77d5f08bae87a17459d91ff475"
 
 GEMMA4_RENDERER_CONTRACT = RendererContract(
     id="gemma4-tools@1",
@@ -64,4 +65,34 @@ GEMMA_4_12B_IT = ModelVariant(
     },
 )
 
-__all__ = ["GEMMA4_RENDERER_CONTRACT", "GEMMA_4_12B_IT"]
+GEMMA_4_31B_IT = ModelVariant(
+    id="gemma4-31b-it",
+    artifact=HubModelRef(
+        repo_id="google/gemma-4-31B-it",
+        revision=_GEMMA_4_31B_REVISION,
+    ),
+    form="foundation",
+    weight_precision="bf16",
+    family="gemma4",
+    parameters=31_273_088_876,
+    instruction_tuned=True,
+    capabilities=ModelCapabilities(
+        modalities=("text", "image", "video"),
+        native_context_window=262_144,
+        mtp=False,
+    ),
+    renderer=GEMMA4_RENDERER_CONTRACT,
+    base=HubModelRef(
+        repo_id="google/gemma-4-31B-it",
+        revision=_GEMMA_4_31B_REVISION,
+    ),
+    tokenizer_fingerprint="059d0f7dd1efb018ec9801f316c99ab31a7c39e712de08626ac90c1898b42416",
+    provenance={
+        "source": "huggingface",
+        "license": "apache-2.0",
+        "upstream_model_type": "gemma4",
+        "upstream_architecture": "Gemma4ForConditionalGeneration",
+    },
+)
+
+__all__ = ["GEMMA4_RENDERER_CONTRACT", "GEMMA_4_12B_IT", "GEMMA_4_31B_IT"]
