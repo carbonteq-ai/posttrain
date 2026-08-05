@@ -259,6 +259,27 @@ def test_stage_expands_static_wheel_metadata_without_touching_source(tmp_path: P
     assert 'version = "0.3.0"' in (destination / "uv.lock").read_text(encoding="utf-8")
 
 
+def test_stage_uses_committed_source_and_excludes_runner_state(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    destination = tmp_path / "staged"
+    _version_repository(source, version="0.3.0")
+    (source / ".posttrain/state").mkdir(parents=True)
+    (source / ".posttrain/state" / "stale.json").write_text("stale", encoding="utf-8")
+    (source / ".venv").mkdir()
+    (source / ".venv" / "generated.txt").write_text("generated", encoding="utf-8")
+    subprocess.run(["git", "-C", str(source), "init", "--quiet"], check=True)
+    subprocess.run(["git", "-C", str(source), "config", "user.email", "test@example.invalid"], check=True)
+    subprocess.run(["git", "-C", str(source), "config", "user.name", "Release Test"], check=True)
+    subprocess.run(["git", "-C", str(source), "add", "release", "pyproject.toml", "packages", "uv.lock"], check=True)
+    subprocess.run(["git", "-C", str(source), "commit", "--quiet", "-m", "fixture"], check=True)
+
+    stage_release(source, destination)
+
+    assert not (destination / ".posttrain/state/stale.json").exists()
+    assert not (destination / ".venv/generated.txt").exists()
+    assert (destination / "packages/train/pyproject.toml").is_file()
+
+
 def test_stage_can_render_an_rc_without_changing_the_authored_target(tmp_path: Path) -> None:
     source = tmp_path / "source"
     destination = tmp_path / "staged"

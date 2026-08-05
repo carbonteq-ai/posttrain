@@ -91,6 +91,11 @@ without an out-of-band constraints file.
       override, and the local admin scripts use the same endpoint map. The
       new fleet is active with two healthy idle unsliced workers, and the
       reconnect and worker-component qualification receipts pass.
+- [x] (2026-08-05) Changed real-checkout release staging to use `git archive
+      HEAD` instead of copying the persistent runner worktree. The synthetic
+      fixture fallback remains available for unit tests; a regression test
+      proves ignored runner state and virtualenv files cannot enter a staged
+      release tree.
 
 ## Surprises & Discoveries
 
@@ -154,6 +159,14 @@ without an out-of-band constraints file.
   stable worker hostname in dstack identity and evidence. The fleet was
   recreated only after verifying that no run was active; its new identity and
   both instance identities are recorded in the refreshed enrollment receipt.
+- Observation: the candidate workflow's build failure was caused by the
+  staging boundary, not by Python, uv, package metadata, or runner capacity.
+  The worktree copy included persistent generated state after validation; the
+  staged tree reached roughly 7.7 GB and `uv build` failed with only
+  `maximum recursion depth exceeded`. Building the same RC tree from committed
+  source under the real `github-runner` user succeeded. Production staging now
+  archives `HEAD`, making the source boundary deterministic and excluding
+  state, virtualenvs, frontend dependencies, and other ignored files.
 
 ## Decision Log
 
