@@ -331,9 +331,12 @@ def test_tag_workflow_builds_the_versioned_stage_not_the_source_workspace() -> N
     workflow = (repository_root / ".github/workflows/release.yml").read_text(encoding="utf-8")
 
     assert "scripts/release/build-python-distributions" in workflow
-    assert "uv build --all-packages --no-sources" in (
-        repository_root / "scripts/release/build-python-distributions"
-    ).read_text(encoding="utf-8")
+    builder = (repository_root / "scripts/release/build-python-distributions").read_text(encoding="utf-8")
+    assert "uv build" in builder
+    assert "--all-packages" in builder
+    assert "--no-sources" in builder
+    assert "--python 3.13" in builder
+    assert 'UV_CACHE_DIR="$build_cache_dir"' in builder
     assert "uv build environments/" not in workflow
 
 

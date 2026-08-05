@@ -15,6 +15,7 @@ output_dir="$(cd "$3" && pwd)"
 stage_dir="${output_dir}/stage"
 distribution_dir="${output_dir}/distributions"
 bundle_dir="${output_dir}/wheelhouse"
+build_cache_dir="${output_dir}/uv-cache"
 
 [[ ! -e "$stage_dir" && ! -e "$distribution_dir" && ! -e "$bundle_dir" ]] || {
   echo "release output directory is not empty: $output_dir" >&2
@@ -30,12 +31,17 @@ if [[ "$version" != "$target_version" ]]; then
 fi
 uv run --no-sync posttrain-release stage "${stage_args[@]}"
 mkdir -p "$distribution_dir" "$bundle_dir"
+mkdir -p "$build_cache_dir"
 (
   cd "$stage_dir"
   # The staged tree intentionally excludes the checkout's .venv. Pin the
   # build interpreter explicitly so a runner's system Python cannot change
   # PEP 517 behavior or select an incompatible interpreter.
-  uv build --all-packages --no-sources --python 3.13 --out-dir "$distribution_dir"
+  UV_CACHE_DIR="$build_cache_dir" uv build \
+    --all-packages \
+    --no-sources \
+    --python 3.13 \
+    --out-dir "$distribution_dir"
 )
 uv run --no-sync posttrain-release receipt "$distribution_dir" \
   --destination "${output_dir}/python-release-receipt.json" \
