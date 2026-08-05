@@ -131,6 +131,10 @@ without an out-of-band constraints file.
       readback verified all 24 coordinated packages and 48 artifacts, final
       evidence was retained, and `v0.3.1` was created last at the receipt
       source commit `271bd685c5c598616e127cf6d39c0228a176d9a0`.
+- [x] (2026-08-05) Runner/release hardening now polls candidate quality for the
+      exact source SHA, validates that resume evidence comes from a successful
+      final-release run, initializes the evidence directory before any failure
+      point, and reuses the LAN runner's persistent UV cache.
 
 ## Surprises & Discoveries
 
@@ -236,6 +240,18 @@ without an out-of-band constraints file.
   hash-locked devpi client did not inherit it automatically. Stable promotion
   now passes `REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt` while
   retaining certificate verification.
+- Observation: the workstation currently has no active Posttrain job to stop;
+  only the controller, Observatory servers, BuildKit, and unrelated services
+  are running. The admission snapshot still contains historical submitted and
+  terminal-pending-evidence entries, so those must not be mistaken for live
+  local processes or deleted as part of a release-runner change.
+- Observation: the candidate workflow checked only the latest quality run and
+  could race a still-running exact-SHA push. The final workflow's bounded
+  polling pattern is now shared by candidate qualification, so a transient
+  dispatch timing issue cannot consume a candidate attempt.
+- Observation: resume accepted an arbitrary workflow run ID as long as it
+  contained a plausible receipt. It now requires a completed successful
+  `Publish release` workflow-dispatch run before downloading retained bytes.
 
 ## Decision Log
 
@@ -329,6 +345,18 @@ without an out-of-band constraints file.
   from the immutable receipt, verifies ancestry, and keeps the tag aligned to
   those bytes.
   Date/Author: 2026-08-05 / release qualification.
+- Decision: use a persistent runner-owned UV cache when `UV_CACHE_DIR` is
+  configured, while retaining a release-local fallback for developer runs.
+  Rationale: BuildKit layer retention and Python build metadata are separate
+  caches; discarding the latter on every protected run adds avoidable index and
+  build latency without changing the receipt's byte-level authority.
+  Date/Author: 2026-08-05 / runner audit.
+- Decision: candidate quality and final resume provenance are fail-closed
+  workflow guards, not operator instructions.
+  Rationale: a release workflow should wait for the exact source evidence and
+  reject artifacts from the wrong workflow before it reaches private indexes,
+  rather than relying on a maintainer to inspect run IDs manually.
+  Date/Author: 2026-08-05 / runner audit.
 
 ## Outcomes & Retrospective
 
@@ -356,6 +384,11 @@ without an out-of-band constraints file.
   `271bd685c5c598616e127cf6d39c0228a176d9a0`, and no GHCR publication was
   introduced. The remaining follow-up is the broader changed-kind matrix,
   not a v0.3.1 publication defect.
+- Hardening outcome: the v0.3.1 release remains immutable; these changes affect
+  future candidate/final dispatches and do not rebuild or mutate its stable
+  artifacts. The workstation audit found no job process to kill, and the
+  runner's persistent cache is now explicitly treated as an optimization,
+  never as qualification evidence.
 
 ## Context and Orientation
 

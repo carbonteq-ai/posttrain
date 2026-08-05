@@ -66,6 +66,14 @@ runner registration with labels such as `self-hosted`, `linux`, `x64`, and
 - no inbound Internet route, public address, GPU, or SSH access from GitHub;
 - no execution of pull-request workflows or code from forked revisions.
 
+The runner keeps two independent caches with different ownership. Rootless
+BuildKit retains OCI layers in its managed state root and applies the bounded
+GC policy from `ai-infra`; the release workflow records `buildctl du` before and
+after image work. Python build metadata uses the runner's persistent
+`UV_CACHE_DIR` when one is configured, while local invocations fall back to a
+temporary release-local cache. Neither cache is release evidence: the
+wheelhouse receipt and immutable registry digests remain the source of truth.
+
 Only the manually dispatched candidate and final-release workflows may target
 `lan-release`. Both require a protected GitHub environment. Candidate work is
 restricted to an internal release branch in this repository and never runs

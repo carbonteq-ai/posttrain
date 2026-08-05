@@ -31,6 +31,10 @@ if [[ "$version" != "$target_version" ]]; then
 fi
 uv run --no-sync posttrain-release stage "${stage_args[@]}"
 mkdir -p "$distribution_dir" "$bundle_dir"
+# The protected LAN runner sets UV_CACHE_DIR to a persistent, machine-owned
+# cache. Keep the release-local fallback for ordinary local invocations, but do
+# not throw away build metadata after every protected workflow.
+build_cache_dir="${UV_CACHE_DIR:-$build_cache_dir}"
 mkdir -p "$build_cache_dir"
 (
   cd "$stage_dir"

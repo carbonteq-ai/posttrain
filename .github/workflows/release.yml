@@ -41,6 +41,9 @@ jobs:
           ref: ${{ inputs.merged_sha }}
           fetch-depth: 0
 
+      - name: Prepare release evidence directory
+        run: mkdir -p .release
+
       - name: Verify the merge target and normal CI
         env:
           GH_TOKEN: ${{ github.token }}
@@ -81,6 +84,13 @@ jobs:
           RESUME_FROM_RUN_ID: ${{ inputs.resume_from_run_id }}
         run: |
           mkdir -p .release/resume
+          resume_run="$(gh run view "${RESUME_FROM_RUN_ID}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --json workflowName,event,status,conclusion)"
+          test "$(jq -r '.workflowName // empty' <<<"${resume_run}")" = "Publish release"
+          test "$(jq -r '.event // empty' <<<"${resume_run}")" = workflow_dispatch
+          test "$(jq -r '.status // empty' <<<"${resume_run}")" = completed
+          test "$(jq -r '.conclusion // empty' <<<"${resume_run}")" = success
           gh run download "${RESUME_FROM_RUN_ID}" \
             --repo "${GITHUB_REPOSITORY}" \
             --dir .release/resume

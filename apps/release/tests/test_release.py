@@ -357,6 +357,7 @@ def test_tag_workflow_builds_the_versioned_stage_not_the_source_workspace() -> N
     assert "--all-packages" in builder
     assert "--no-sources" in builder
     assert "--python 3.13" in builder
+    assert 'build_cache_dir="${UV_CACHE_DIR:-$build_cache_dir}"' in builder
     assert 'UV_CACHE_DIR="$build_cache_dir"' in builder
     assert "uv build environments/" not in workflow
 
@@ -374,6 +375,7 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
         assert 'XDG_CONFIG_HOME="${image_verify_config}"' in workflow
         assert "printf 'POSTTRAIN_REGISTRY=%s\\n'" in workflow
         assert "trap 'rm -f \"${image_verify_env}\"' EXIT" in workflow
+        assert "Prepare release evidence directory" in workflow
         assert "--framework-wheelhouse .release/wheelhouse" in workflow
         assert "posttrain[dstack,trackio]==" in workflow
         assert "posttrain-lab==" in workflow
@@ -385,6 +387,8 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
         assert 'run cleanup \\\n            "release-' in workflow
 
     assert "candidate-version --simple-url" in candidate
+    assert "for attempt in $(seq 1 120)" in candidate
+    assert 'select(.headSha == $sha and .event == "push")' in candidate
     assert 'git ls-remote --exit-code origin "refs/tags/v${POSTTRAIN_RELEASE_VERSION}"' in final
     assert '"${DEVPI_CLIENT}" push -y' in final
     assert final.index("Capture bounded cache evidence") < final.index("Tag and create the GitHub release last")
@@ -397,6 +401,9 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert "exact final bytes are already present in the development index" in final
     assert "development index already contains" in final
     assert "resume_from_run_id" in final
+    assert 'gh run view "${RESUME_FROM_RUN_ID}"' in final
+    assert "workflowName // empty" in final
+    assert "conclusion // empty" in final
     assert "gh run download" in final
     assert 'git merge-base --is-ancestor "${source_sha}"' in final
     assert 'git tag -a "v${POSTTRAIN_RELEASE_VERSION}" "${RELEASE_SOURCE_SHA}"' in final
