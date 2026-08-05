@@ -89,7 +89,7 @@ jobs:
           uv pip install \
             --python .release/consumer-venv/bin/python \
             --index-url "${PYPI_DEV_SIMPLE}" \
-            "posttrain==${POSTTRAIN_RELEASE_VERSION}"
+            "posttrain[dstack,trackio]==${POSTTRAIN_RELEASE_VERSION}"
           .release/consumer-venv/bin/posttrain --help >/dev/null
 
       - name: Verify committed runtime image digests in the private registry
@@ -116,7 +116,7 @@ jobs:
           if [[ "${capacity_status}" -ne 0 ]]; then
             exit "${capacity_status}"
           fi
-          uv run --no-sync posttrain --project-root apps/lab job run \
+          .release/consumer-venv/bin/posttrain --project-root apps/lab job run \
             apps/lab/.posttrain/work_packages/qwen08b_transform_qualification.yaml \
             --job transform \
             --provider dstack \
@@ -124,8 +124,10 @@ jobs:
             --framework-wheelhouse .release/wheelhouse \
             --run-id "release-final-${{ github.run_id }}"
           status=$?
-          uv run --no-sync posttrain --project-root apps/lab run reconcile --last || true
-          uv run --no-sync posttrain --project-root apps/lab run cleanup --last || true
+          .release/consumer-venv/bin/posttrain --project-root apps/lab run reconcile \
+            "release-final-${{ github.run_id }}" || true
+          .release/consumer-venv/bin/posttrain --project-root apps/lab run cleanup \
+            "release-final-${{ github.run_id }}" || true
           exit "$status"
 
       - name: Promote unchanged bytes from dev to stable

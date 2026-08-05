@@ -89,7 +89,7 @@ jobs:
           uv pip install \
             --python .release/consumer-venv/bin/python \
             --index-url "${PYPI_DEV_SIMPLE}" \
-            "posttrain==${{ steps.version.outputs.version }}"
+            "posttrain[dstack,trackio]==${{ steps.version.outputs.version }}"
           .release/consumer-venv/bin/posttrain --help >/dev/null
 
       - name: Build changed OCI inputs and retain the generated manifest
@@ -129,7 +129,7 @@ jobs:
           if [[ "${capacity_status}" -ne 0 ]]; then
             exit "${capacity_status}"
           fi
-          uv run --no-sync posttrain --project-root apps/lab job run \
+          .release/consumer-venv/bin/posttrain --project-root apps/lab job run \
             apps/lab/.posttrain/work_packages/qwen08b_transform_qualification.yaml \
             --job transform \
             --provider dstack \
@@ -137,8 +137,10 @@ jobs:
             --framework-wheelhouse .release/wheelhouse \
             --run-id "release-candidate-${{ github.run_id }}"
           status=$?
-          uv run --no-sync posttrain --project-root apps/lab run reconcile --last || true
-          uv run --no-sync posttrain --project-root apps/lab run cleanup --last || true
+          .release/consumer-venv/bin/posttrain --project-root apps/lab run reconcile \
+            "release-candidate-${{ github.run_id }}" || true
+          .release/consumer-venv/bin/posttrain --project-root apps/lab run cleanup \
+            "release-candidate-${{ github.run_id }}" || true
           exit "$status"
 
       - name: Capture the post-build cache and release evidence
