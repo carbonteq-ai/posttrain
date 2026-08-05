@@ -83,6 +83,15 @@ and terminal state are retained in Trackio.
   `release/manifest.toml` from 0.3.1 to 0.3.2. The release consistency check
   reports 24 publishable packages, 107 internal pins, and a valid published
   image manifest; the release test module passes 28 tests.
+- [x] (2026-08-05) Made the release-candidate quality gate accept the
+  repository's exact-SHA green pull-request check as well as a push check;
+  the workflow previously waited for a push event that this repository never
+  emits on internal branches. The focused release tests pass, and PR quality
+  run `30995143048` is green for commit `b352a4c1`.
+- [ ] (2026-08-05) Candidate run `30995307312` is executing the approved
+  0.3.2 path on the LAN runner. It has passed source/lock validation, dev-index
+  publication, and clean consumer installation; OCI BuildKit publication is
+  still in progress before the packaged GPU/MTP qualification step.
 - [ ] Update the release workflow inputs and 0.3.2 release notes; publish only
   after the pre-release qualification gate passes.
 
