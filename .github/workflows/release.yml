@@ -236,13 +236,18 @@ jobs:
           DEVPI_CLIENT: /opt/posttrain-dstack-client/bin/devpi
           REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt
         run: |
-          "${DEVPI_CLIENT}" use https://pypi.lan/carbonteq/dev
-          "${DEVPI_CLIENT}" login "${UV_PUBLISH_USERNAME}" --password "${UV_PUBLISH_PASSWORD}"
-          jq -r '.packages[]' .release/python-release-receipt.json | while read -r package; do
-            "${DEVPI_CLIENT}" push -y "${package}==${POSTTRAIN_RELEASE_VERSION}" carbonteq/stable
-          done
-          uv run --no-sync posttrain-release index-check .release/python-release-receipt.json \
-            --simple-base-url "${PYPI_STABLE_SIMPLE}"
+          if uv run --no-sync posttrain-release index-check .release/python-release-receipt.json \
+            --simple-base-url "${PYPI_STABLE_SIMPLE}"; then
+            echo "exact final bytes are already present in the stable index; reusing them"
+          else
+            "${DEVPI_CLIENT}" use https://pypi.lan/carbonteq/dev
+            "${DEVPI_CLIENT}" login "${UV_PUBLISH_USERNAME}" --password "${UV_PUBLISH_PASSWORD}"
+            jq -r '.packages[]' .release/python-release-receipt.json | while read -r package; do
+              "${DEVPI_CLIENT}" push -y "${package}==${POSTTRAIN_RELEASE_VERSION}" carbonteq/stable
+            done
+            uv run --no-sync posttrain-release index-check .release/python-release-receipt.json \
+              --simple-base-url "${PYPI_STABLE_SIMPLE}"
+          fi
 
       - name: Capture bounded cache evidence
         if: always()

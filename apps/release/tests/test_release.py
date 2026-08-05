@@ -391,6 +391,10 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert 'select(.headSha == $sha and .event == "push")' in candidate
     assert 'git ls-remote --exit-code origin "refs/tags/v${POSTTRAIN_RELEASE_VERSION}"' in final
     assert '"${DEVPI_CLIENT}" push -y' in final
+    assert "exact final bytes are already present in the stable index" in final
+    assert final.index("exact final bytes are already present in the stable index") < final.index(
+        '"${DEVPI_CLIENT}" push -y'
+    )
     assert final.index("Capture bounded cache evidence") < final.index("Tag and create the GitHub release last")
     assert final.index("Retain final receipt and cache evidence") < final.index(
         "Tag and create the GitHub release last"

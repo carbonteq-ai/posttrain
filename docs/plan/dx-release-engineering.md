@@ -252,6 +252,10 @@ without an out-of-band constraints file.
 - Observation: resume accepted an arbitrary workflow run ID as long as it
   contained a plausible receipt. It now requires a completed successful
   `Publish release` workflow-dispatch run before downloading retained bytes.
+- Observation: the stable-promotion step always attempted every devpi push,
+  even when a retry followed a fully completed stable promotion. The final
+  workflow now performs an exact receipt readback first and skips that side
+  effect when stable already contains the accepted bytes.
 
 ## Decision Log
 
@@ -357,6 +361,12 @@ without an out-of-band constraints file.
   reject artifacts from the wrong workflow before it reaches private indexes,
   rather than relying on a maintainer to inspect run IDs manually.
   Date/Author: 2026-08-05 / runner audit.
+- Decision: stable promotion begins with a byte-level receipt check and only
+  invokes devpi promotion when stable is incomplete or unreadable.
+  Rationale: retries after a successful promotion must not republish immutable
+  files; the readback is the safe idempotency barrier and still leaves the
+  existing final verification in place after a partial promotion.
+  Date/Author: 2026-08-05 / release hardening.
 
 ## Outcomes & Retrospective
 
