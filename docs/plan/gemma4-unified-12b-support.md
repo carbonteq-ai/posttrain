@@ -26,6 +26,7 @@ The observable proof has two parts. First, a Lab serving work package launches t
 - [x] (2026-08-04) Validated the corrected family-only contract with focused tests, the broader owning-package suite, the full repository suite, targeted Ruff and Pyright, import boundaries, both primary-CLI static work-package validations, and `git diff --check`.
 - [x] (2026-08-04) Audited the complete branch delta for minimality: reused the generic training renderer instead of adding a Gemma implementation enum/branch, removed a redundant Gemma HTTP request-shape test, and made the existing text-only vLLM translation disable audio as well as image/video.
 - [x] (2026-08-05) Planned both real qualification packages against the 96 GiB target; the first serving submission exposed and then fixed a checkout-source packaging omission before any remote run was created.
+- [x] (2026-08-05) Submitted both qualification packages through dstack. The serving run `96152bfa-08c3-4bdb-bd07-286f1ec0b8e9` completed successfully; the SFT run `6b04480c-0df5-4ec6-ba00-3201bd9953e3` is submitted and provider-queued for the same single workstation.
 - [ ] Validate the smallest package suites, then the repository-wide static and test ladder (completed: locked sync, full Ruff, import boundaries, targeted Pyright, focused ownership suites, full pytest, and diff check; remaining: full-workspace Pyright wrapper does not terminate locally).
 - [ ] Run the real 96 GiB GPU serving and SFT qualifications, preserve their run/artifact evidence, and update this plan with results.
 
@@ -272,7 +273,10 @@ Then run the normal repository ladder:
 
 Do not run `uv sync` with an unlocked dependency resolution unless the plan has been amended for a dependency change. Expected acceptance is zero lint/type/import-boundary errors, all non-environmental tests passing, only clearly explained network/GPU/cache skips, and no whitespace errors.
 
-The exact remote `posttrain work-package run` commands depend on the repository's configured dstack execution profile and must be copied here from the successful invocation before marking the GPU progress items complete. They must select `targets/carbonteq-rtx-pro-6000-96gb`, use an immutable runtime image digest, and preserve tracked run IDs.
+The successful submission commands use the target already pinned by each binding; the CLI rejects repeating it as a no-op override:
+
+    uv run --package posttrain-lab posttrain --project-root apps/lab --json job run gemma4_unified_serve_smoke_qualification.yaml --job smoke --provider dstack --env HF_TOKEN
+    uv run --package posttrain-lab posttrain --project-root apps/lab --json job run gemma4_unified_sft_qualification.yaml --job train --provider dstack --env HF_TOKEN
 
 ## Validation and Acceptance
 
@@ -302,7 +306,7 @@ Unrelated dirty work belongs to the user. Do not revert it. Before each commit, 
 
 Known immutable inputs at plan creation:
 
-    branch: feat/gemma4_unified-support
+    branch: feat/gemma4-support
     model: google/gemma-4-12B-it
     model revision: 707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7
     transformers architecture: Gemma4UnifiedForConditionalGeneration
@@ -313,6 +317,19 @@ Known immutable inputs at plan creation:
     renderers: 0.1.8
     TRL fork revision: 6e7739b8ec741d21ecd79c0c212694cd15ff20d8
     Lab target: targets/carbonteq-rtx-pro-6000-96gb
+
+Qualification submissions on 2026-08-05:
+
+    serving run: 96152bfa-08c3-4bdb-bd07-286f1ec0b8e9
+    serving dstack provider id: pt-e4558f9a1b3e3b006259d4cd
+    serving job image: registry.lan/carbonteq/posttrain-job@sha256:a5810b7134472b7846103c6ebc49f1e1ecb5f4bcc6bf8b8f69f414495fc575ed
+    serving result: succeeded; generated-output and server-log artifacts recorded in Trackio
+    serving GPU: NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 102641958912 bytes
+
+    SFT run: 6b04480c-0df5-4ec6-ba00-3201bd9953e3
+    SFT dstack provider id: pt-dcbe24384c8b212565cad89b
+    SFT job image: registry.lan/carbonteq/posttrain-job@sha256:e0eff255602a176fb82b63e90b82ec3bda8cb0bdfdf05a1b751b5844c43dea62
+    SFT result at handoff: provider state queued; requested target targets/carbonteq-rtx-pro-6000-96gb@1
 
 Add the following evidence during milestone 1: tokenizer fingerprint inputs and digest; response-template behavior with thinking off/on; decoded ordinary and tool conversations; assistant loss-mask spans; selected LoRA module names and count; excluded multimodal module names; auto-model class resolution; and token-only forward signature result.
 
