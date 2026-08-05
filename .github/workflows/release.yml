@@ -120,7 +120,6 @@ jobs:
             apps/lab/.posttrain/work_packages/qwen08b_transform_qualification.yaml \
             --job transform \
             --provider dstack \
-            --target targets/carbonteq-rtx-pro-6000-96gb \
             --registry "${JOB_REGISTRY}" \
             --framework-wheelhouse .release/wheelhouse \
             --run-id "release-final-${{ github.run_id }}"
