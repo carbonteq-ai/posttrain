@@ -377,7 +377,10 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
         assert "--framework-wheelhouse .release/wheelhouse" in workflow
         assert "posttrain[dstack,trackio]==" in workflow
         assert "posttrain-lab==" in workflow
+        assert "if-no-files-found: error" in workflow
+        assert "include-hidden-files: true" in workflow
         assert ".release/consumer-venv/bin/posttrain --project-root apps/lab job run" in workflow
+        assert "run wait" in workflow
         assert 'run reconcile \\\n            "release-' in workflow
         assert 'run cleanup \\\n            "release-' in workflow
 

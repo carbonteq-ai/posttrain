@@ -107,6 +107,13 @@ without an out-of-band constraints file.
       `/proc` for the default process sandbox. The dedicated runner now sets
       `noProcessSandbox = true` (ai-infra commit `14c66f8`), retains bounded
       NVMe-backed cache GC, and has been reconfigured and requalified.
+- [x] (2026-08-05) Candidate `30974205956` completed the packed dstack
+      submission and BuildKit job-image build successfully as `0.3.1rc10`.
+      The run exposed two final workflow issues: qualification returned after
+      submission instead of waiting for terminal evidence, and GitHub's
+      artifact action ignored the hidden `.release` directory. Both workflows
+      now wait for the exact run to finish and retain hidden evidence with a
+      fail-closed artifact check.
 
 ## Surprises & Discoveries
 
@@ -186,6 +193,17 @@ without an out-of-band constraints file.
   worker is the smallest compatible fix. The runner's post-fix configure run
   reports 234 GiB free on `/dev/vda1`, BuildKit active, and private index and
   registry TLS checks passing.
+- Observation: a green candidate can still be an incomplete release gate if
+  `job run` only submits to dstack. Candidate `30974205956` printed
+  `submitted`/`provisioning` during immediate reconcile and cleanup, proving
+  that submission is not terminal qualification. The workflows now invoke
+  `run wait` with a bounded one-hour deadline before reconciliation and
+  evidence-gated cleanup.
+- Observation: GitHub artifact upload excludes hidden paths unless explicitly
+  enabled. The candidate generated its receipt and cache evidence, but the
+  upload step reported no files because all paths were under `.release`.
+  Evidence retention is now explicit with `include-hidden-files: true` and
+  `if-no-files-found: error` in both protected workflows.
 
 ## Decision Log
 

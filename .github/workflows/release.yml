@@ -125,6 +125,13 @@ jobs:
             --framework-wheelhouse .release/wheelhouse \
             --run-id "release-final-${{ github.run_id }}"
           status=$?
+          if [[ "${status}" -eq 0 ]]; then
+            .release/consumer-venv/bin/posttrain --project-root apps/lab run wait \
+              "release-final-${{ github.run_id }}" \
+              --timeout-seconds 3600 \
+              --poll-interval-seconds 10
+            status=$?
+          fi
           .release/consumer-venv/bin/posttrain --project-root apps/lab run reconcile \
             "release-final-${{ github.run_id }}" || true
           .release/consumer-venv/bin/posttrain --project-root apps/lab run cleanup \
@@ -171,7 +178,8 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: posttrain-${{ env.POSTTRAIN_RELEASE_VERSION }}-final-evidence
-          if-no-files-found: warn
+          if-no-files-found: error
+          include-hidden-files: true
           path: |
             .release/python-release-receipt.json
             .release/posttrain-wheelhouse-*.tar.gz
