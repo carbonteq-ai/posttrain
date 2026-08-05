@@ -23,6 +23,7 @@ Knowledge base for this lab. Runtime is a **uv workspace** with
 | [contributing.md](./contributing.md) | Working on the framework: setup, the validation ladder, boundaries, and what surprises people |
 | [publishing.md](./publishing.md) | Cutting a release: coordinated versions, the index, and when runtime images must be rebuilt |
 | [release-and-consumption.md](./release-and-consumption.md) | Package publication order, project installation, remote operation, and release gates |
+| [architecture/lan-release-runner.md](./architecture/lan-release-runner.md) | Release control plane, isolated LAN runner, one-build promotion flow, and recovery contract |
 | [architecture.md](./architecture.md) | Target MVP architecture (**stale** pending reconcile) |
 | [architecture/RECONCILIATION.md](./architecture/RECONCILIATION.md) | Keep / rewrite / delete gap list vs post-training baseline |
 | [architecture/](./architecture/README.md) | Layers, evaluation, training/inference, observability, and lineage |

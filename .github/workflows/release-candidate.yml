@@ -1,19 +1,19 @@
-name: Publish release
+name: Prepare release candidate
 
 on:
   workflow_dispatch:
     inputs:
-      merged_sha:
-        description: Exact merged default-branch commit accepted by the candidate gate
+      source_ref:
+        description: Internal release branch containing the candidate source
         required: true
         type: string
 
 permissions:
-  contents: write
+  contents: read
   actions: read
 
 concurrency:
-  group: posttrain-release-final
+  group: posttrain-release-candidate
   cancel-in-progress: false
 
 env:
@@ -21,33 +21,32 @@ env:
   UV_CACHE_DIR: /var/lib/github-runner/.cache/uv
   PYPI_DEV_SIMPLE: https://pypi.lan/carbonteq/dev/+simple/
   PYPI_DEV_UPLOAD: https://pypi.lan/carbonteq/dev/
-  PYPI_STABLE_SIMPLE: https://pypi.lan/carbonteq/stable/+simple/
   JOB_REGISTRY: registry.lan/carbonteq
 
 jobs:
-  publish:
-    environment: release
+  candidate:
+    environment: release-candidate
     runs-on: [self-hosted, linux, x64, lan-release]
     steps:
-      - name: Checkout the exact merged commit
+      - name: Checkout the approved internal release branch
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: ${{ inputs.merged_sha }}
+          ref: ${{ inputs.source_ref }}
           fetch-depth: 0
 
-      - name: Verify the merge target and normal CI
+      - name: Reject stale, forked, or automatic sources
         env:
           GH_TOKEN: ${{ github.token }}
-          MERGED_SHA: ${{ inputs.merged_sha }}
+          SOURCE_REF: ${{ inputs.source_ref }}
         run: |
           test "${GITHUB_REPOSITORY}" = carbonteq-ai/posttrain
-          git fetch --no-tags origin main
-          test "${MERGED_SHA}" = "$(git rev-parse origin/main)"
-          runs="$(gh run list --workflow quality.yml --commit "${MERGED_SHA}" --limit 1 --json headSha,conclusion)"
-          test "$(jq -r '.[0].headSha // empty' <<<"${runs}")" = "${MERGED_SHA}"
+          git fetch --no-tags origin main "refs/heads/${SOURCE_REF}:refs/remotes/origin/${SOURCE_REF}"
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/remotes/origin/${SOURCE_REF}")"
+          runs="$(gh run list --workflow quality.yml --branch "${SOURCE_REF}" --limit 1 --json headSha,conclusion)"
+          test "$(jq -r '.[0].headSha // empty' <<<"${runs}")" = "$(git rev-parse HEAD)"
           test "$(jq -r '.[0].conclusion // empty' <<<"${runs}")" = success
 
-      - name: Validate the final source and lock
+      - name: Validate the source and lock
         run: |
           uv sync --all-packages --group dev --python 3.13
           uv run --no-sync posttrain-release check
@@ -57,23 +56,23 @@ jobs:
           uv run --no-sync lint-imports
           uv run --no-sync pytest
 
+      - name: Allocate the next immutable RC
+        id: version
+        run: |
+          version="$(uv run --no-sync posttrain-release candidate-version --simple-url "${PYPI_DEV_SIMPLE}")"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "candidate=${version}"
+
       - name: Capture the pre-build BuildKit cache
         run: buildctl --addr unix:///var/lib/github-runner/buildkit/buildkitd.sock du
 
-      - name: Capture the accepted runtime image manifest
+      - name: Build and hash the Python wheelhouse
         run: |
-          mkdir -p .release
-          cp packages/runtime-images/src/posttrain/runtime_images/published.toml .release/published.toml
-
-      - name: Build and hash final distributions exactly once
-        run: |
-          version="$(sed -n 's/^version = "\([^"]*\)"$/\1/p' release/manifest.toml)"
-          echo "POSTTRAIN_RELEASE_VERSION=${version}" >> "$GITHUB_ENV"
-          scripts/release/build-python-distributions "${version}" "$(git rev-parse HEAD)" .release
+          scripts/release/build-python-distributions "${{ steps.version.outputs.version }}" "$(git rev-parse HEAD)" .release
           uv run --no-sync posttrain-release receipt-check .release/python-release-receipt.json \
             --distribution-root .release/distributions
 
-      - name: Upload final bytes to development index for qualification
+      - name: Publish the candidate only to the development index
         run: |
           uv publish --publish-url "${PYPI_DEV_UPLOAD}" .release/distributions/*
           uv run --no-sync posttrain-release index-check .release/python-release-receipt.json \
@@ -85,15 +84,28 @@ jobs:
           uv pip install \
             --python .release/consumer-venv/bin/python \
             --index-url "${PYPI_DEV_SIMPLE}" \
-            "posttrain==${POSTTRAIN_RELEASE_VERSION}"
+            "posttrain==${{ steps.version.outputs.version }}"
           .release/consumer-venv/bin/posttrain --help >/dev/null
 
-      - name: Verify committed runtime image digests in the private registry
+      - name: Build changed OCI inputs and retain the generated manifest
         run: |
+          git fetch --no-tags origin main
+          if git diff --quiet origin/main...HEAD -- containers packages/runtime-images packages/catalog uv.lock release; then
+            echo "No OCI input changed; committed immutable image manifest remains authoritative."
+          else
+            uv run --no-sync posttrain-release images publish \
+              --registry "${JOB_REGISTRY}" \
+              --framework-version "$(sed -n 's/^version = "\([^"]*\)"$/\1/p' release/manifest.toml)" \
+              --receipt-root .release/image-receipts \
+              --trust-bundle /etc/ssl/certs/ca-certificates.crt
+          fi
+          cp packages/runtime-images/src/posttrain/runtime_images/published.toml .release/published.toml
+          uv run --no-sync posttrain-release check
           POSTTRAIN_REGISTRY="${JOB_REGISTRY}" uv run --no-sync posttrain \
             --project-root apps/lab runtime images verify > .release/runtime-images-verify.json
 
-      - name: Run the final packed GPU canary through dstack
+      - name: Run one real packed GPU qualification through dstack
+        id: qualification
         run: |
           set +e
           scripts/release/verify-dstack-capacity .release/dstack-capacity.json
@@ -108,59 +120,31 @@ jobs:
             --target targets/carbonteq-rtx-pro-6000-96gb \
             --registry "${JOB_REGISTRY}" \
             --framework-wheelhouse .release/wheelhouse \
-            --run-id "release-final-${{ github.run_id }}"
+            --run-id "release-candidate-${{ github.run_id }}"
           status=$?
           uv run --no-sync posttrain --project-root apps/lab run reconcile --last || true
           uv run --no-sync posttrain --project-root apps/lab run cleanup --last || true
           exit "$status"
 
-      - name: Promote unchanged bytes from dev to stable
-        env:
-          DEVPI_CLIENT: /opt/posttrain-dstack-client/bin/devpi
-        run: |
-          "${DEVPI_CLIENT}" use https://pypi.lan/carbonteq/dev
-          "${DEVPI_CLIENT}" login "${UV_PUBLISH_USERNAME}" --password "${UV_PUBLISH_PASSWORD}"
-          jq -r '.packages[]' .release/python-release-receipt.json | while read -r package; do
-            "${DEVPI_CLIENT}" push -y "${package}==${POSTTRAIN_RELEASE_VERSION}" carbonteq/stable
-          done
-          uv run --no-sync posttrain-release index-check .release/python-release-receipt.json \
-            --simple-base-url "${PYPI_STABLE_SIMPLE}"
-
-      - name: Tag and create the GitHub release last
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if git ls-remote --exit-code origin "refs/tags/v${POSTTRAIN_RELEASE_VERSION}" >/dev/null 2>&1; then
-            echo "final tag already exists; refuse to attach a different commit" >&2
-            exit 1
-          fi
-          git config user.name carbonteq-release-bot
-          git config user.email release-bot@carbonteq.ai
-          git tag -a "v${POSTTRAIN_RELEASE_VERSION}" "${{ inputs.merged_sha }}" -m "Posttrain ${POSTTRAIN_RELEASE_VERSION}"
-          git push origin "v${POSTTRAIN_RELEASE_VERSION}"
-          gh release create "v${POSTTRAIN_RELEASE_VERSION}" \
-            .release/posttrain-wheelhouse-${POSTTRAIN_RELEASE_VERSION}.tar.gz \
-            .release/release-SHA256SUMS \
-            .release/python-release-receipt.json \
-            --title "Posttrain ${POSTTRAIN_RELEASE_VERSION}" \
-            --generate-notes
-
-      - name: Capture bounded cache evidence
+      - name: Capture the post-build cache and release evidence
         if: always()
-        run: buildctl --addr unix:///var/lib/github-runner/buildkit/buildkitd.sock du > .release/buildkit-cache-after.txt || true
+        run: |
+          buildctl --addr unix:///var/lib/github-runner/buildkit/buildkitd.sock du > .release/buildkit-cache-after.txt || true
+          git diff -- packages/runtime-images/src/posttrain/runtime_images/published.toml > .release/published-manifest.diff || true
 
-      - name: Retain final receipt and cache evidence
+      - name: Upload candidate receipt and wheelhouse
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: posttrain-${{ env.POSTTRAIN_RELEASE_VERSION }}-final-evidence
-          if-no-files-found: warn
+          name: posttrain-${{ steps.version.outputs.version }}-evidence
           path: |
             .release/python-release-receipt.json
             .release/posttrain-wheelhouse-*.tar.gz
             .release/release-SHA256SUMS
             .release/SHA256SUMS
+            .release/image-receipts/**
             .release/published.toml
+            .release/published-manifest.diff
             .release/runtime-images-verify.json
             .release/dstack-capacity.json
             .release/buildkit-cache-after.txt

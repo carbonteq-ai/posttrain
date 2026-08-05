@@ -2,15 +2,17 @@
 
 This page defines how CarbonTeq projects consume the post-training framework and
 how maintainers publish it. The intended users are CarbonTeq-managed projects;
-public GitHub Releases, PyPI, and GHCR are transport and installation
-infrastructure, not a commitment to support arbitrary third-party plugins or
-backends.
+the internal Python and OCI registries are the supported distribution
+infrastructure. GitHub provides source review, release orchestration, and an
+auditable copy of the accepted release bundle; it is not a second build plane
+or the framework's OCI registry.
 
 The source repository is published at
-[`carbonteq-ai/posttrain`](https://github.com/carbonteq-ai/posttrain). GitHub is
-the initial team distribution channel; PyPI remains a later convenience. The
-commands below distinguish source-checkout use, GitHub wheelhouse releases, and
-the eventual registry contract.
+[`carbonteq-ai/posttrain`](https://github.com/carbonteq-ai/posttrain). Team
+projects install from `pypi.lan`, while job images resolve from
+`registry.lan/carbonteq`. The commands below distinguish source-checkout use,
+the internal-index contract, and the GitHub release bundle retained for audit
+and recovery.
 
 ## What a project installs
 
@@ -86,15 +88,22 @@ uv run pytest -q tests/consumer/test_wheel_project.py
 The fixture is the smallest executable consumer example:
 [`tests/consumer/fixture`](../tests/consumer/fixture).
 
-## GitHub-first team release
+## GitHub release bundle
 
-Each `v*` tag runs the full validation ladder, renders the release-neutral
-source workspace into a versioned stage, builds every first-party wheel from
-that stage, records SHA-256 hashes, and attaches a wheelhouse archive to a
-GitHub Release. External Verifiers environments, including
-`automationbench-v1`, resolve from the immutable commits in the bundled
-constraints file instead of being copied into the framework wheelhouse. A team
-project can install that exact release without waiting for the internal index:
+Two protected workflows run on a dedicated LAN-connected self-hosted runner.
+**Prepare candidate** derives immutable prerelease versions such as
+`0.3.1rc1`, publishes them only to `carbonteq/dev`, qualifies changed OCI
+digests plus real packed jobs, and lets maintainers repair the release branch
+without consuming the final version. **Publish release** runs only after a
+candidate passed and the release PR merged. It builds final `0.3.1` once,
+qualifies those exact files through `carbonteq/dev`, promotes them unchanged to
+`carbonteq/stable`, and creates the final tag last. External Verifiers
+environments, including `automationbench-v1`, resolve from the immutable
+commits in the bundled constraints file instead of being copied into the
+framework bundle.
+
+Ordinary projects should use `pypi.lan`. The attached bundle is an exact
+offline installation and recovery surface for the already accepted release:
 
 ```bash
 gh release download <release-tag> \
@@ -113,7 +122,9 @@ Install `posttrain-lab` from the same wheelhouse when a project needs the
 reference composition host. Published Trackio and AutomationBench forks resolve
 through the internal index; the bundled constraints retain only dependencies
 that still require immutable Git URLs. A release remains reproducible because
-the framework tag, wheel hashes, and remaining fork commits are immutable.
+the receipt binds the merged source commit, framework version, distribution
+filenames and hashes, dependency-lock identity, and committed OCI manifest. The
+internal indexes and GitHub Release must contain those exact bytes.
 
 For framework development or a complete reference checkout, clone the exact
 tag and use the checked-in lock:
@@ -146,7 +157,32 @@ versions.
 
 ## Registry release contract
 
-A release tag builds artifacts once. CI then:
+A release uses two manually dispatched transactions. GitHub records approvals
+and evidence; a self-hosted runner on the private LAN performs build and
+registry operations. The runner requires outbound HTTPS but no public IP or
+inbound connection.
+
+The candidate transaction:
+
+1. verifies an internal release branch and green normal CI;
+2. allocates the next unused `X.Y.ZrcN` from the target version in
+   `release/manifest.toml`;
+3. builds wheels and source distributions once and records their hashes;
+4. uploads the exact candidate files to `carbonteq/dev`;
+5. runs an index-only consumer install, job packing, and a bounded dstack
+   canary;
+6. builds OCI images only when their inputs changed, pushes directly to
+   `registry.lan`, verifies registry readback, and executes one bounded packed
+   transformation canary through dstack on the explicitly verified idle
+   `carbonteq-ai-workstation.lan` RTX PRO worker. A changed-kind real-job
+   matrix is a follow-up gate, not an implicit property of the first runner
+   rollout;
+7. retains Trackio and Observatory evidence and generates `published.toml`
+   only for accepted image digests.
+
+A failed candidate is repaired as the next RC and never reaches stable. After
+one candidate passes and the generated image records merge, the final
+transaction:
 
 1. validates source and lock state;
 2. builds wheels and source distributions;
@@ -154,15 +190,20 @@ A release tag builds artifacts once. CI then:
 4. installs into a clean environment with workspace sources disabled;
 5. runs the independent-consumer test against those exact artifacts;
 6. runs package, import-boundary, type, and documentation checks;
-7. publishes the validated wheelhouse through GitHub Releases and, once
-   configured, Python artifacts through PyPI Trusted Publishing;
-8. builds Observatory from the tagged source, tests that image, and publishes
-   semantic-version and commit tags to GHCR;
-9. records the Python artifact hashes and OCI digest in the release notes.
+7. uploads the exact final files to `carbonteq/dev`, qualifies installation from
+   that index, and retains the final receipt and cache evidence as a GitHub
+   Actions artifact;
+8. promotes the unchanged files server-side to `carbonteq/stable` and verifies
+   stable readback hashes;
+9. creates the tag last and attaches the same bundle and receipt to the GitHub
+   Release.
 
 Do not upload a later dependency layer until the previous layer can be
-installed from the staging registry. Never replace an accepted PyPI version or
-OCI digest; increment the prerelease version and rebuild.
+installed from the development index. Never overwrite an RC, replace an
+accepted stable version, or reinterpret an OCI digest. A repair before final
+publication increments the RC number; a repair after stable publication
+advances the framework version. Detailed trust, network, and retry semantics are in the
+[LAN release runner architecture](./architecture/lan-release-runner.md).
 
 ## Remote project workflow
 
@@ -195,14 +236,16 @@ The framework is feature-rich but not release-complete:
   first-party job-definition preflight and `posttrain work-package run` remain.
 - The Trackio and AutomationBench forks are merged and pinned by immutable
   public GitHub commits. Their renamed distributions can therefore travel as
-  direct Git dependencies in the GitHub-first release, but must still be
-  published before a Git-free PyPI install is claimed.
-- Package names must be reserved and ownership configured in PyPI before the
-  first release.
+  direct Git dependencies in the retained release bundle, but must still be
+  published before a Git-free internal-index install is claimed.
 - License, security/contact policy, changelog, package metadata, compatibility
   window, and upgrade policy need an explicit owner decision and repository
   files.
-- Tag-driven Trusted Publishing and GHCR workflows are not implemented.
+- The former tag-triggered GitHub-hosted workflow has been replaced on the
+  release branch by the protected LAN-runner candidate/final workflows. The
+  runner is live-qualified in `../ai-infra`; merge plus GitHub environment
+  reviewer configuration is still required before the first production
+  dispatch.
 - The Observatory image, deployment configuration, authentication boundary,
   and production readback gate remain.
 - Installation and task guides still need CI-executed examples.
@@ -210,4 +253,4 @@ The framework is feature-rich but not release-complete:
   candidate gate.
 
 The living execution record is
-[`docs/plan/polished-framework-release.md`](./plan/polished-framework-release.md).
+[`docs/plan/dx-release-engineering.md`](./plan/dx-release-engineering.md).
