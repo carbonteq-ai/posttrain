@@ -375,12 +375,22 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
         assert "printf 'POSTTRAIN_REGISTRY=%s\\n'" in workflow
         assert "trap 'rm -f \"${image_verify_env}\"' EXIT" in workflow
         assert "--framework-wheelhouse .release/wheelhouse" in workflow
-        assert "run reconcile --last" in workflow
-        assert "run cleanup --last" in workflow
+        assert "posttrain[dstack,trackio]==" in workflow
+        assert "posttrain-lab==" in workflow
+        assert "if-no-files-found: error" in workflow
+        assert "include-hidden-files: true" in workflow
+        assert ".release/consumer-venv/bin/posttrain --project-root apps/lab job run" in workflow
+        assert "run wait" in workflow
+        assert 'run reconcile \\\n            "release-' in workflow
+        assert 'run cleanup \\\n            "release-' in workflow
 
     assert "candidate-version --simple-url" in candidate
     assert 'git ls-remote --exit-code origin "refs/tags/v${POSTTRAIN_RELEASE_VERSION}"' in final
     assert '"${DEVPI_CLIENT}" push -y' in final
+    assert final.index("Capture bounded cache evidence") < final.index("Tag and create the GitHub release last")
+    assert final.index("Retain final receipt and cache evidence") < final.index(
+        "Tag and create the GitHub release last"
+    )
 
 
 @pytest.mark.skipif(which("uv") is None, reason="requires uv to validate the staged workspace lock")

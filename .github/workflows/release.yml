@@ -89,7 +89,8 @@ jobs:
           uv pip install \
             --python .release/consumer-venv/bin/python \
             --index-url "${PYPI_DEV_SIMPLE}" \
-            "posttrain==${POSTTRAIN_RELEASE_VERSION}"
+            "posttrain[dstack,trackio]==${POSTTRAIN_RELEASE_VERSION}" \
+            "posttrain-lab==${POSTTRAIN_RELEASE_VERSION}"
           .release/consumer-venv/bin/posttrain --help >/dev/null
 
       - name: Verify committed runtime image digests in the private registry
@@ -116,17 +117,25 @@ jobs:
           if [[ "${capacity_status}" -ne 0 ]]; then
             exit "${capacity_status}"
           fi
-          uv run --no-sync posttrain --project-root apps/lab job run \
+          .release/consumer-venv/bin/posttrain --project-root apps/lab job run \
             apps/lab/.posttrain/work_packages/qwen08b_transform_qualification.yaml \
             --job transform \
             --provider dstack \
-            --target targets/carbonteq-rtx-pro-6000-96gb \
             --registry "${JOB_REGISTRY}" \
             --framework-wheelhouse .release/wheelhouse \
             --run-id "release-final-${{ github.run_id }}"
           status=$?
-          uv run --no-sync posttrain --project-root apps/lab run reconcile --last || true
-          uv run --no-sync posttrain --project-root apps/lab run cleanup --last || true
+          if [[ "${status}" -eq 0 ]]; then
+            .release/consumer-venv/bin/posttrain --project-root apps/lab run wait \
+              "release-final-${{ github.run_id }}" \
+              --timeout-seconds 3600 \
+              --poll-interval-seconds 10
+            status=$?
+          fi
+          .release/consumer-venv/bin/posttrain --project-root apps/lab run reconcile \
+            "release-final-${{ github.run_id }}" || true
+          .release/consumer-venv/bin/posttrain --project-root apps/lab run cleanup \
+            "release-final-${{ github.run_id }}" || true
           exit "$status"
 
       - name: Promote unchanged bytes from dev to stable
@@ -140,6 +149,27 @@ jobs:
           done
           uv run --no-sync posttrain-release index-check .release/python-release-receipt.json \
             --simple-base-url "${PYPI_STABLE_SIMPLE}"
+
+      - name: Capture bounded cache evidence
+        if: always()
+        run: buildctl --addr unix:///var/lib/github-runner/buildkit/buildkitd.sock du > .release/buildkit-cache-after.txt || true
+
+      - name: Retain final receipt and cache evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: posttrain-${{ env.POSTTRAIN_RELEASE_VERSION }}-final-evidence
+          if-no-files-found: error
+          include-hidden-files: true
+          path: |
+            .release/python-release-receipt.json
+            .release/posttrain-wheelhouse-*.tar.gz
+            .release/release-SHA256SUMS
+            .release/SHA256SUMS
+            .release/published.toml
+            .release/runtime-images-verify.json
+            .release/dstack-capacity.json
+            .release/buildkit-cache-after.txt
 
       - name: Tag and create the GitHub release last
         env:
@@ -159,26 +189,6 @@ jobs:
             .release/python-release-receipt.json \
             --title "Posttrain ${POSTTRAIN_RELEASE_VERSION}" \
             --generate-notes
-
-      - name: Capture bounded cache evidence
-        if: always()
-        run: buildctl --addr unix:///var/lib/github-runner/buildkit/buildkitd.sock du > .release/buildkit-cache-after.txt || true
-
-      - name: Retain final receipt and cache evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: posttrain-${{ env.POSTTRAIN_RELEASE_VERSION }}-final-evidence
-          if-no-files-found: warn
-          path: |
-            .release/python-release-receipt.json
-            .release/posttrain-wheelhouse-*.tar.gz
-            .release/release-SHA256SUMS
-            .release/SHA256SUMS
-            .release/published.toml
-            .release/runtime-images-verify.json
-            .release/dstack-capacity.json
-            .release/buildkit-cache-after.txt
 
       - name: Remove only this run's temporary release material
         if: always()
