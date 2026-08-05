@@ -31,6 +31,9 @@ class _NativeEnvConfig(Protocol):
 
 def _imports() -> tuple[type[Any], type[Any], Any]:
     try:
+        from .runtime import configure_preinstalled_runtime
+
+        configure_preinstalled_runtime()
         from verifiers.v1.cli.eval.runner import run_eval  # pyright: ignore[reportMissingImports]
         from verifiers.v1.configs.eval import EvalConfig  # pyright: ignore[reportMissingImports]
         from verifiers.v1.env import EnvConfig, Environment  # pyright: ignore[reportMissingImports]
@@ -84,7 +87,7 @@ def _build_native(request: EvaluateRequest, output_dir: Path) -> tuple[Any, Any,
             "num_tasks": num_tasks,
             "num_rollouts": num_rollouts,
             "max_concurrent": max_concurrent,
-            "shuffle": request.shuffle,
+            "shuffle": request.resolved_shuffle,
             "max_total_tokens": min(
                 request.context_window,
                 base.max_total_tokens or request.context_window,
@@ -100,6 +103,7 @@ def _build_native(request: EvaluateRequest, output_dir: Path) -> tuple[Any, Any,
 
 
 def _emit_batch(context: EvaluationContext, request: EvaluateRequest, records: list[dict[str, Any]]) -> None:
+    num_tasks, _, _ = request.resolved_budget
     attributes = {
         "evaluation_subject_id": request.model.id,
         "evaluation_plan_id": request.plan.id,
@@ -108,6 +112,8 @@ def _emit_batch(context: EvaluationContext, request: EvaluateRequest, records: l
         "environment_category": request.environment.category,
         "inference_binding_id": request.inference.id,
         "execution_target_id": request.target.id,
+        "num_tasks": num_tasks,
+        "task_selection": "verifiers-fixed-shuffle" if request.resolved_shuffle else "head",
     }
     if isinstance(request.model, RemotePolicy):
         assert request.remote_service is not None

@@ -40,10 +40,20 @@ _EXPLANATIONS: Mapping[str, str] = {
 # Keys that identify an entry inside a list field, so list changes can be
 # reported per entry instead of as one opaque "the list differs".
 _ENTRY_IDENTITY: Mapping[str, str] = {
-    "datasets": "dataset_id",
+    "datasets": "selection_id",
     "environment_packages": "name",
     "environment_activations": "name",
     "runtime_dependency_locks": "role",
+}
+
+_DATASET_EXPLANATIONS: Mapping[str, str] = {
+    "build_key": "the dataset selection, declared inputs, builder code, or dependency lock changed",
+    "builder_target": "the selected dataset builder changed",
+    "code_snapshot_digest": "the dataset builder code snapshot changed",
+    "dependency_lock_digest": "the dataset builder dependency lock changed",
+    "digest": "the materialized dataset output content changed",
+    "selection_id": "the selected dataset changed",
+    "selection_revision": "the selected dataset revision changed",
 }
 
 
@@ -120,6 +130,8 @@ def _compare_sequence(
             changes.append(FieldChange(field, "added", "", label, explanation))
         elif label not in after:
             changes.append(FieldChange(field, "removed", label, "", explanation))
+        elif isinstance(old, dict) and isinstance(new, dict):
+            changes.extend(_compare_mapping(old, new, prefix=f"{field}[{label}]"))
         else:
             changes.append(
                 FieldChange(
@@ -148,7 +160,12 @@ def _compare_mapping(
         new = current.get(key)
         if old == new:
             continue
-        explanation = _EXPLANATIONS.get(prefix or key, "this input changed")
+        root = field.split("[", maxsplit=1)[0].split(".", maxsplit=1)[0]
+        explanation = (
+            _DATASET_EXPLANATIONS.get(key, "a materialized dataset changed")
+            if root == "datasets"
+            else _EXPLANATIONS.get(prefix or key, "this input changed")
+        )
 
         if key in previous and key in current:
             # Recurse into composites so the report names the sub-field that

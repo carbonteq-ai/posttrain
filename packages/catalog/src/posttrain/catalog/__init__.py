@@ -40,6 +40,9 @@ from .families import (
 from .files import (
     CatalogDocumentSchema,
     CatalogLayerManifestSchema,
+    CatalogLayerSourceSchema,
+    CatalogPythonSourceSchema,
+    CatalogYamlSourceSchema,
     load_catalog_layer,
 )
 from .project import (
@@ -48,6 +51,7 @@ from .project import (
     discover_project,
     load_project_layout,
 )
+from .providers import CatalogEntries, load_python_catalog_provider
 
 BASE_CATALOG_RELEASE = "framework-v1"
 
@@ -241,6 +245,10 @@ __all__ = [
     "BASE_CATALOG_RELEASE",
     "CatalogDocumentSchema",
     "CatalogLayerManifestSchema",
+    "CatalogLayerSourceSchema",
+    "CatalogPythonSourceSchema",
+    "CatalogYamlSourceSchema",
+    "CatalogEntries",
     "CatalogFamilyDescriptor",
     "FamilyRegistry",
     "FamilyRegistryLock",
@@ -252,6 +260,7 @@ __all__ = [
     "discover_project",
     "environment_factory_registry",
     "load_catalog_layer",
+    "load_python_catalog_provider",
     "load_project_layout",
     "open_catalog",
     "packaged_base_directory",

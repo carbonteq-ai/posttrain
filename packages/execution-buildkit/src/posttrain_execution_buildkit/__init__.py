@@ -57,6 +57,12 @@ from .image_inspection import (
     RuntimeImageInspector,
 )
 from .job_image import BuildKitJobImagePublisher
+from .registry import (
+    DistributionRegistryLifecycleAdmin,
+    RegistryPurgeActionExecutor,
+    RegistryTransport,
+    UrllibDistributionTransport,
+)
 
 __all__ = [
     "IMAGE_LEVEL_LABEL",
@@ -101,4 +107,8 @@ __all__ = [
     "UvDependencyCompileCli",
     "WheelBuildGateway",
     "digest_runtime_sources",
+    "DistributionRegistryLifecycleAdmin",
+    "RegistryTransport",
+    "RegistryPurgeActionExecutor",
+    "UrllibDistributionTransport",
 ]

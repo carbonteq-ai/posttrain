@@ -188,7 +188,7 @@ work-package, job, run, execution-target, artifact, and observation contracts.
   runtime receipt resolution, target translation, environment names,
   submission, waiting, evidence validation, and final receipt writing.
   Evidence:
-  `scripts/qualification/run_algorithm_scenario.py` imports both execution
+  `posttrain_lab.qualification.launcher` imports both execution
   providers and assembles their requests directly. It remains a useful
   characterization harness, but it is not the product interface.
 

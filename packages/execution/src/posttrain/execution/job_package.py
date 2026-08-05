@@ -243,6 +243,13 @@ class DatasetPackageLock:
     manifest_path: str
     size_bytes: int
     num_records: int | None = None
+    # Typed builders add these fields while the older fields above remain the
+    # portable dataset identity used by existing job packages.
+    build_key: str | None = None
+    materializer_schema_version: int | None = None
+    builder_target: str | None = None
+    code_snapshot_digest: str | None = None
+    dependency_lock_digest: str | None = None
 
     def __post_init__(self) -> None:
         if not _IDENTITY.fullmatch(self.seat_name):
@@ -260,6 +267,17 @@ class DatasetPackageLock:
             raise ContractError("dataset size cannot be negative")
         if self.num_records is not None and self.num_records < 0:
             raise ContractError("dataset record count cannot be negative")
+        if self.build_key is not None:
+            _digest(self.build_key, "dataset build key")
+        if self.materializer_schema_version is not None and self.materializer_schema_version < 1:
+            raise ContractError("dataset materializer schema version must be positive")
+        if self.builder_target is not None:
+            if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.]*:[A-Za-z_][A-Za-z0-9_]*", self.builder_target) is None:
+                raise ContractError("dataset builder target must use module:callable syntax")
+        if self.code_snapshot_digest is not None:
+            _digest(self.code_snapshot_digest, "dataset code snapshot")
+        if self.dependency_lock_digest is not None:
+            _digest(self.dependency_lock_digest, "dataset dependency lock")
 
     def to_payload(self) -> dict[str, JsonValue]:
         return {
@@ -274,6 +292,11 @@ class DatasetPackageLock:
             "manifest_path": self.manifest_path,
             "size_bytes": self.size_bytes,
             "num_records": self.num_records,
+            "build_key": self.build_key,
+            "materializer_schema_version": self.materializer_schema_version,
+            "builder_target": self.builder_target,
+            "code_snapshot_digest": self.code_snapshot_digest,
+            "dependency_lock_digest": self.dependency_lock_digest,
         }
 
 
@@ -795,6 +818,11 @@ def _dataset_lock(value: object) -> DatasetPackageLock:
     manifest_path = _required_string(value.get("manifest_path"), "dataset manifest path")
     size_bytes = value.get("size_bytes")
     num_records = value.get("num_records")
+    build_key = value.get("build_key")
+    materializer_schema_version = value.get("materializer_schema_version")
+    builder_target = value.get("builder_target")
+    code_snapshot_digest = value.get("code_snapshot_digest")
+    dependency_lock_digest = value.get("dependency_lock_digest")
     if kind not in {"supervised", "preference"}:
         raise TypeError("dataset kind")
     if not isinstance(schema_version, int) or isinstance(schema_version, bool):
@@ -805,6 +833,19 @@ def _dataset_lock(value: object) -> DatasetPackageLock:
         raise TypeError("dataset lock size")
     if num_records is not None and (not isinstance(num_records, int) or isinstance(num_records, bool)):
         raise TypeError("dataset lock record count")
+    if build_key is not None and not isinstance(build_key, str):
+        raise TypeError("dataset build key")
+    if materializer_schema_version is not None and (
+        not isinstance(materializer_schema_version, int) or isinstance(materializer_schema_version, bool)
+    ):
+        raise TypeError("dataset materializer schema version")
+    for value, label in (
+        (builder_target, "dataset builder target"),
+        (code_snapshot_digest, "dataset code snapshot digest"),
+        (dependency_lock_digest, "dataset dependency lock digest"),
+    ):
+        if value is not None and not isinstance(value, str):
+            raise TypeError(label)
     return DatasetPackageLock(
         seat_name=seat_name,
         selection_id=selection_id,
@@ -817,6 +858,11 @@ def _dataset_lock(value: object) -> DatasetPackageLock:
         manifest_path=manifest_path,
         size_bytes=size_bytes,
         num_records=num_records,
+        build_key=build_key,
+        materializer_schema_version=materializer_schema_version,
+        builder_target=builder_target,
+        code_snapshot_digest=code_snapshot_digest,
+        dependency_lock_digest=dependency_lock_digest,
     )
 
 

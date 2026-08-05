@@ -37,6 +37,7 @@ from posttrain.execution import (
 from posttrain.execution_pack import LocalPublishedJobImage, PackedJobContext, PublishedJobImage
 from posttrain.jobs import build_job_runtime
 from posttrain.runtime_images.manifest import load_manifest
+from posttrain.serve import WorkloadMaterialization
 from posttrain.tracking import RunSpec
 from posttrain.work import (
     JobDefinition,
@@ -109,6 +110,55 @@ def test_controller_status_reads_health_without_running_a_sweep(tmp_path: Path, 
     payload = json.loads(capsys.readouterr().out)
     assert payload["healthy"] is True
     assert payload["health_file"] == str(health)
+
+
+def test_purge_preview_is_plan_only_and_blocked_until_inventory_is_complete(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    project = tmp_path / "purge-project"
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+
+    assert main(["--json", "--project-root", str(project), "run", "purge", "missing-run"]) == 0
+    preview = json.loads(capsys.readouterr().out)
+    assert preview["mode"] == "run"
+    assert preview["blockers"] == ["run 'missing-run' was not found"]
+    assert preview["purge_id"].startswith("purge-")
+
+    assert (
+        main(
+            [
+                "--json",
+                "--project-root",
+                str(project),
+                "purge",
+                "show",
+                preview["purge_id"],
+            ]
+        )
+        == 0
+    )
+    shown = json.loads(capsys.readouterr().out)
+    assert shown["digest"] == preview["digest"]
+
+    assert (
+        main(
+            [
+                "--json",
+                "--project-root",
+                str(project),
+                "purge",
+                "apply",
+                preview["purge_id"],
+                "--expect-digest",
+                preview["digest"],
+                "--yes",
+            ]
+        )
+        == 1
+    )
+    assert "blocked" in capsys.readouterr().err
 
 
 def test_controller_loop_does_not_emit_idle_sweeps(
@@ -815,14 +865,78 @@ def test_empty_overlay_lists_global_assets_and_dataset_validate_is_idempotent(
     assert main(command) == 0
     first = json.loads(capsys.readouterr().out)
     assert first["materialized"] is True
+    assert first["created"] is True
     assert first["examples"] == 2
     assert Path(first["path"]).is_file()
 
     assert main(command) == 0
     second = json.loads(capsys.readouterr().out)
     assert second["materialized"] is False
+    assert second["created"] is False
     assert second["path"] == first["path"]
     assert second["content_sha256"] == first["content_sha256"]
+
+
+def test_dataset_materialize_verify_and_validate_alias(tmp_path: Path, capsys) -> None:
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+
+    materialize = [
+        "--json",
+        "--project-root",
+        str(project),
+        "dataset",
+        "materialize",
+        "datasets/posttrain-sft-smoke@1",
+    ]
+    assert main(materialize) == 0
+    first = json.loads(capsys.readouterr().out)
+    assert first["materialized"] is True
+    assert isinstance(first["build_key"], str)
+    manifest = Path(first["manifest"])
+    before = manifest.stat().st_mtime_ns
+
+    assert main(materialize) == 0
+    second = json.loads(capsys.readouterr().out)
+    assert second["materialized"] is False
+    assert second["content_sha256"] == first["content_sha256"]
+
+    assert (
+        main(
+            [
+                "--json",
+                "--project-root",
+                str(project),
+                "dataset",
+                "verify",
+                "datasets/posttrain-sft-smoke@1",
+            ]
+        )
+        == 0
+    )
+    verified = json.loads(capsys.readouterr().out)
+    assert verified["verified"] is True
+    assert verified["baseline_content_sha256"] == first["content_sha256"]
+    assert Path(verified["path"]) == Path(first["path"])
+    assert manifest.stat().st_mtime_ns == before
+
+    assert (
+        main(
+            [
+                "--json",
+                "--project-root",
+                str(project),
+                "dataset",
+                "validate",
+                "datasets/posttrain-sft-smoke@1",
+            ]
+        )
+        == 0
+    )
+    alias = json.loads(capsys.readouterr().out)
+    assert alias["deprecated"] is True
+    assert alias["replacement"].startswith("posttrain dataset materialize ")
 
 
 def test_doctor_reports_readiness_and_missing_project(
@@ -1431,6 +1545,61 @@ def test_dataset_add_jsonl_and_catalog_materialize(tmp_path: Path, capsys) -> No
     assert materialized["items"][0]["family"] == "dataset"
     assert materialized["items"][0]["id"] == "datasets/local-sft@1"
     assert materialized["items"][0]["status"] == "materialized"
+
+
+def test_workload_commands_delegate_to_serve_owned_operations(
+    tmp_path: Path,
+    capsys,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+    seen: dict[str, object] = {}
+
+    def result(*, materialized: bool, path: str) -> WorkloadMaterialization:
+        return WorkloadMaterialization(
+            workload_id="workloads/general-serving-32k-sweep@1",
+            workload_revision="1",
+            corpus_id="general-serving-v1",
+            corpus_revision="1",
+            record_count=128,
+            content_sha256="9a9467fd8a5e744968d09a4d8fd6f4d92a089c50a84e1e6e7e5c5520a9f4e50e",
+            path=path,
+            manifest=path.replace(".jsonl", ".manifest.json"),
+            materialized=materialized,
+        )
+
+    def fake_materialize(workload, *, output: Path) -> WorkloadMaterialization:
+        seen["materialize_workload"] = workload.id
+        seen["output"] = output
+        return result(materialized=True, path=str(output / "general-serving-v1.jsonl"))
+
+    def fake_verify(workload) -> WorkloadMaterialization:
+        seen["verify_workload"] = workload.id
+        return result(materialized=False, path="packaged/general-serving-v1.jsonl")
+
+    monkeypatch.setattr("posttrain_cli.commands.workload.materialize_workload", fake_materialize)
+    monkeypatch.setattr("posttrain_cli.commands.workload.verify_workload", fake_verify)
+
+    command = [
+        "--json",
+        "--project-root",
+        str(project),
+        "workload",
+        "materialize",
+        "workloads/general-serving-32k-sweep@1",
+    ]
+    assert main(command) == 0
+    materialized = json.loads(capsys.readouterr().out)
+    assert materialized["materialized"] is True
+    assert seen["output"] == project / ".posttrain/state/workloads/general-serving-32k-sweep-1"
+
+    command[4] = "verify"
+    assert main(command) == 0
+    verified = json.loads(capsys.readouterr().out)
+    assert verified["verified"] is True
+    assert seen["materialize_workload"] == seen["verify_workload"]
 
 
 def test_environment_add_local_writes_overlay(tmp_path: Path, capsys) -> None:
@@ -2303,6 +2472,7 @@ def test_run_commands_keep_current_admission_visible_and_idempotent(
         )
         == 0
     )
+
     listed = json.loads(capsys.readouterr().out)
     assert listed[0]["run_id"] == "waiting-run"
     assert listed[0]["queue_position"] == 1
@@ -2386,6 +2556,56 @@ def test_run_commands_keep_current_admission_visible_and_idempotent(
     )
     retried = json.loads(capsys.readouterr().out)
     assert retried["state"] == "submitted"
+
+
+def test_run_list_scopes_project_and_labels_purged_history(
+    tmp_path: Path,
+    capsys,
+    monkeypatch,
+) -> None:
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+    _record_submission(project, run_id="kept-run", evidence_source=None)
+    now = datetime.now(UTC)
+    purged = AdmissionEntry(
+        run_id="purged-run",
+        state="completed",
+        plan=_cli_execution_plan("purged-run"),
+        evidence_source=None,
+        queued_at=now,
+    )
+    foreign_base = _cli_execution_plan("foreign-run")
+    foreign_plan = replace(
+        foreign_base,
+        request=replace(
+            foreign_base.request,
+            run_spec=replace(foreign_base.request.run_spec, project_id="other-project"),
+        ),
+    )
+    foreign = replace(purged, run_id="foreign-run", plan=foreign_plan)
+
+    class FakeAdmission:
+        def list(self):
+            return (purged, foreign)
+
+    monkeypatch.setattr(
+        "posttrain_cli.commands.run_cmd.execution_admission_service",
+        lambda layout: FakeAdmission(),
+    )
+    monkeypatch.setattr(
+        "posttrain_cli.commands.run_cmd.purged_run_ids",
+        lambda layout: {"purged-run"},
+    )
+
+    assert main(["--json", "--project-root", str(project), "run", "list"]) == 0
+    listed = json.loads(capsys.readouterr().out)
+    assert {item["run_id"] for item in listed} == {"kept-run"}
+
+    assert main(["--json", "--project-root", str(project), "run", "list", "--include-purged"]) == 0
+    audit = json.loads(capsys.readouterr().out)
+    assert {item["run_id"] for item in audit} == {"kept-run", "purged-run"}
+    assert next(item for item in audit if item["run_id"] == "purged-run")["purged"] is True
 
 
 def test_run_show_uses_project_tracking_source(

@@ -99,6 +99,30 @@ surface, or broken maintained documentation link remains.
       every pull request and main-branch push; its report-only mode keeps the
       remaining explicitly inventoried compatibility scripts visible without
       declaring them silently owned.
+      Update (2026-08-02): moved the Lab-owned algorithm launcher/evidence
+      modules and local/dstack runtime probes into
+      `apps/lab/src/posttrain_lab/qualification`, with focused parity tests for
+      the scenario and evidence surfaces. The serving corpus generator is now
+      reached through `posttrain workload materialize|verify`, while its
+      implementation and resources remain owned by `posttrain.serve`. The
+      obsolete Qwen 0.8B serving launcher was deleted after the maintained
+      `serve.benchmark` path was verified, and the Ambient-specific launchers
+      were removed from this repository because their corresponding commands
+      are owned by `/home/hammad/projects/ambient-agent`. The only remaining
+      root qualification script is the artifact preflight, which still awaits
+      its ai-infra-owned replacement; it remains inventoried rather than being
+      silently duplicated or deleted.
+      Validation (2026-08-02): Lab and serving focused suites pass (116 passed,
+      3 skipped across `apps/lab/tests` and `packages/serve/tests`), the
+      serving corpus reproduces through its package entry point, Ruff, Pyright,
+      import-linter, lock validation, and `git diff --check` pass. The root
+      audit reports no tracked ignored files or broken maintained links; its
+      remaining findings are local developer state plus the one inventoried
+      artifact-preflight compatibility script.
+      Release validation (2026-08-03): the generic workload command delegates
+      to `posttrain.serve`, the pinned-source rebuild reproduced all 128 records
+      at SHA-256 `9a9467fd8a5e744968d09a4d8fd6f4d92a089c50a84e1e6e7e5c5520a9f4e50e`,
+      and the complete repository suite passed with 995 tests and 18 skips.
 - [ ] Milestone 5: relocate durable Lab state and prune rebuildable root cache
       through classified, idempotent commands.
       Partial progress (2026-08-01): added `posttrain state migrate`; it
@@ -648,11 +672,12 @@ parity test first, route it as follows, then delete the original:
 - `examples/gpu-qualification` moves to an external-consumer or Lab
   qualification fixture. It must not be called an ordinary example while its
   manifest imports `posttrain_lab`.
-- `scripts/materialize_serving_corpus.py` moves beside the serving package
-  resource it deterministically generates, with its existing `--check` test.
-- `scripts/run_qwen08b_serving_benchmark.py` is removed after its selected work
-  package proves equivalent behavior; if it exposes a distinct supported
-  capability, promote that capability before deleting the script.
+- `posttrain workload materialize|verify` exposes deterministic serving-corpus
+  materialization through a serve-owned operation beside the package resource
+  it generates, with byte-for-byte verification.
+- The obsolete `scripts/run_qwen08b_serving_benchmark.py` has been removed;
+  the maintained `serve.benchmark` work packages and serving integration suite
+  now own that capability.
 - Markdown-only `ops/` content moves to `docs/operations/`; executable
   deployment remains in `ai-infra`.
 - Preserve any still-current decision from `.agents/plan/posttraining-
@@ -972,3 +997,9 @@ cache-prune command and fixture coverage. It is intentionally distinct from
 the future cross-plane history purge: it owns local rebuildable cache only and
 will not discard execution control, Trackio evidence, provider records, or
 registry manifests.
+
+Revision note (2026-08-02): Dataset and serving-corpus ownership is now defined
+by `docs/plan/python-dataset-authoring-and-materialization.md`. The durable
+serving entry point is `posttrain workload materialize|verify`; the former
+package-specific corpus command is removed after byte-for-byte parity. The
+remaining cleanup milestones here retain their original scope.

@@ -35,6 +35,28 @@
 
 * {
   box-sizing: border-box;
+  scrollbar-color: rgb(129 122 131 / 0.42) transparent;
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+  background-color: rgb(129 122 131 / 0.42);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(109 85 216 / 0.62);
 }
 
 html {
@@ -147,5 +169,20 @@ meter {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+  }
+}
+
+@media (forced-colors: active) {
+  * {
+    scrollbar-color: auto;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: ButtonText;
+    border-color: Canvas;
+  }
+
+  *::-webkit-scrollbar-track {
+    background-color: Canvas;
   }
 }

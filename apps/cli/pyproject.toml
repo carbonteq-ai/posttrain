@@ -14,6 +14,7 @@ dependencies = [
     "posttrain-execution-local",
     "posttrain-jobs",
     "posttrain-project",
+    "posttrain-serve",
     "posttrain-runtime-images",
     "posttrain-tracking",
     "posttrain-work",
@@ -56,11 +57,11 @@ posttrain-execution-dstack = { workspace = true }
 posttrain-execution-local = { workspace = true }
 posttrain-jobs = { workspace = true }
 posttrain-project = { workspace = true }
+posttrain-serve = { workspace = true }
 posttrain-runtime-images = { workspace = true }
 posttrain-tracking = { workspace = true }
 posttrain-observatory = { workspace = true }
 posttrain-eval = { workspace = true }
-posttrain-serve = { workspace = true }
 posttrain-tracking-trackio = { workspace = true }
 posttrain-tracking-wandb = { workspace = true }
 posttrain-train = { workspace = true }

@@ -407,3 +407,7 @@ overlay discovery on the provider.
   explicit waiver for network-backed tasksets that declare deferred offline
   qualification. The live job remains the required load and execution gate for
   a waived activation.
+- 2026-08-02: Python dataset builders and their immutable build identities are
+  implemented by `docs/plan/python-dataset-authoring-and-materialization.md`.
+  The earlier `python-file` direction remains a compatibility path only during
+  its documented migration window.

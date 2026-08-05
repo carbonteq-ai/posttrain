@@ -19,12 +19,14 @@ from .commands import (
     machine,
     observatory,
     project_cmd,
+    purge_cmd,
     run_cmd,
     runtime,
     state,
     version,
     work_package,
     workers,
+    workload,
 )
 from .context import CliState
 from .scaffolding.init_project import installed_version
@@ -98,10 +100,12 @@ def create_app(*, json_stream: TextIO | None = None) -> typer.Typer:
     machine.register(app)
     doctor.register(app)
     project_cmd.register(app)
+    purge_cmd.register(app)
     catalog.register(app)
     dataset.register(app)
     environment.register(app)
     work_package.register(app)
+    workload.register(app)
     job.register(app)
     run_cmd.register(app)
     controller.register(app)

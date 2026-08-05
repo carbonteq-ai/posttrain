@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from posttrain.catalog import ProjectLayout
 from posttrain.common import ContractError
-from posttrain.execution import ExecutionSubmissionStore
+from posttrain.execution import AdmissionEntry, ExecutionSubmissionStore, PurgeStore
 
 from .execution_provider import execution_admission_service
 
@@ -18,10 +18,71 @@ class _RunRow:
     stamp: str
 
 
+def purged_run_ids(layout: ProjectLayout) -> set[str]:
+    """Return runs with a completed, unblocked cross-plane purge receipt."""
+
+    store = PurgeStore(layout.state)
+    if not store.root.is_dir():
+        return set()
+    purged: set[str] = set()
+    for directory in store.root.iterdir():
+        if not directory.is_dir() or not (directory / "receipt.json").is_file():
+            continue
+        try:
+            plan = store.load_plan(directory.name)
+            receipt = store.load_receipt(directory.name)
+        except Exception:
+            continue
+        if plan.blockers or receipt.failed_action is not None:
+            continue
+        purged.update(plan.run_ids)
+    return purged
+
+
+def project_admission_entries(
+    layout: ProjectLayout,
+    *,
+    include_purged: bool = False,
+    entries: tuple[AdmissionEntry, ...] | None = None,
+) -> dict[str, AdmissionEntry]:
+    """Return current-project admission entries, excluding purged receipts.
+
+    Admission state is machine-scoped and therefore contains runs submitted
+    by other projects. A project run list must not present those as local
+    work. Completed entries without a project submission are retained in the
+    machine ledger for audit, but are omitted from the operational list after
+    purge has removed their project receipt.
+    """
+
+    submissions = ExecutionSubmissionStore(layout.state).list_submissions()
+    submission_ids = {submission.run_id for submission in submissions}
+    purged = set() if include_purged else purged_run_ids(layout)
+    selected: dict[str, AdmissionEntry] = {}
+    admission_entries = entries if entries is not None else tuple(execution_admission_service(layout).list())
+    for entry in admission_entries:
+        try:
+            project_id = entry.plan.request.run_spec.project_id
+        except AttributeError:
+            project_id = None
+        if project_id != layout.project_id:
+            continue
+        if entry.run_id in purged:
+            continue
+        if entry.state == "completed" and entry.run_id not in submission_ids and not include_purged:
+            continue
+        selected[entry.run_id] = entry
+    return selected
+
+
 def known_run_ids(layout: ProjectLayout) -> tuple[str, ...]:
     """Return every known run id in strictly newest-first chronological order."""
-    submissions = ExecutionSubmissionStore(layout.state).list_submissions()
-    admission_entries = {entry.run_id: entry for entry in execution_admission_service(layout).list()}
+    purged = purged_run_ids(layout)
+    submissions = tuple(
+        submission
+        for submission in ExecutionSubmissionStore(layout.state).list_submissions()
+        if submission.run_id not in purged
+    )
+    admission_entries = project_admission_entries(layout)
     submission_by_run = {submission.run_id: submission for submission in submissions}
     rows: list[_RunRow] = []
     for run_id in set(submission_by_run) | set(admission_entries):
@@ -78,4 +139,4 @@ def resolve_run_id(
     return run_id
 
 
-__all__ = ["known_run_ids", "resolve_run_id"]
+__all__ = ["known_run_ids", "project_admission_entries", "resolve_run_id"]

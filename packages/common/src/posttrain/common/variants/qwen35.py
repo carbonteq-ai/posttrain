@@ -33,6 +33,32 @@ QWEN35_RENDERER_CONTRACT = RendererContract(
     ),
 )
 
+# The wire format is identical to ``QWEN35_RENDERER_CONTRACT``; this contract
+# records a different default so evaluation selections can make thinking mode
+# reproducible without changing the default for existing serving/training
+# bindings.
+QWEN35_THINKING_RENDERER_CONTRACT = RendererContract(
+    id="qwen3.5-tools-thinking@1",
+    model_family="qwen3.5",
+    conversation=ConversationProfile(
+        chat_template=ChatTemplate("tokenizer"),
+        roles=("system", "user", "assistant", "tool"),
+        reasoning_modes=(
+            ReasoningMode("native"),
+            ReasoningMode("off", (("enable_thinking", False),)),
+            ReasoningMode("thinking", (("enable_thinking", True),)),
+        ),
+        default_reasoning_mode="thinking",
+        tool_calls=ToolCallProtocol(
+            id="qwen3_xml",
+            assistant_format="XML function and parameter elements",
+            start_token="<tool_call>",
+            end_token="</tool_call>",
+        ),
+        strips_past_reasoning=True,
+    ),
+)
+
 QWEN_35_08B = ModelVariant(
     id="qwen3.5-0.8b",
     artifact=HubModelRef(

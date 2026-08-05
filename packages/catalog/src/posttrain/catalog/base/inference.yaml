@@ -29,6 +29,7 @@ inference:
       top_p: 0.95
     target: targets/local-cuda-rollout-8gb
     purpose: [rollout]
+    capabilities: [tool-calling]
   inference/qwen3.5-0.8b-vllm-distill-rollout@1:
     revision: "1"
     model: models/qwen3.5-0.8b@bf16
@@ -150,6 +151,261 @@ inference:
       temperature: 0.0
     target: targets/local-cuda-8gb
     purpose: [eval]
+  inference/qwen3.5-4b-vllm-thinking-eval@1:
+    revision: "1"
+    startup_timeout_seconds: 600
+    model: models/qwen3.5-4b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools-thinking@1
+    engine:
+      max_model_len: 32768
+      gpu_memory_utilization: 0.80
+      dtype: bfloat16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 1
+      max_num_batched_tokens: 4096
+      kv_cache_dtype: auto
+      text_only: true
+      skip_mm_profiling: true
+      reasoning_parser: qwen3
+    sampling:
+      max_tokens: 4096
+      temperature: 1.0
+      top_k: 20
+    target: targets/local-cuda-24gb
+    purpose: [eval]
+    capabilities: [tool-calling]
+  inference/qwen3.5-4b-vllm-thinking-eval-long@1:
+    revision: "1"
+    startup_timeout_seconds: 600
+    model: models/qwen3.5-4b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools-thinking@1
+    engine:
+      max_model_len: 32768
+      gpu_memory_utilization: 0.80
+      dtype: bfloat16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 1
+      max_num_batched_tokens: 4096
+      kv_cache_dtype: auto
+      text_only: true
+      skip_mm_profiling: true
+      reasoning_parser: qwen3
+    sampling:
+      max_tokens: 8192
+      temperature: 1.0
+      top_k: 20
+    target: targets/local-cuda-24gb
+    purpose: [eval]
+    capabilities: [tool-calling]
+  inference/qwen3.5-4b-vllm-thinking-eval-extra-long@1:
+    revision: "1"
+    startup_timeout_seconds: 600
+    model: models/qwen3.5-4b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools-thinking@1
+    engine:
+      max_model_len: 32768
+      gpu_memory_utilization: 0.80
+      dtype: bfloat16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 1
+      max_num_batched_tokens: 4096
+      kv_cache_dtype: auto
+      text_only: true
+      skip_mm_profiling: true
+      reasoning_parser: qwen3
+    sampling:
+      max_tokens: 16384
+      temperature: 1.0
+      top_k: 20
+    target: targets/local-cuda-24gb
+    purpose: [eval]
+    capabilities: [tool-calling]
+  inference/qwen3.5-4b-vllm-thinking-eval-mtp@1:
+    revision: "1"
+    startup_timeout_seconds: 600
+    model: models/qwen3.5-4b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools-thinking@1
+    engine:
+      max_model_len: 32768
+      gpu_memory_utilization: 0.80
+      dtype: bfloat16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 1
+      max_num_batched_tokens: 4096
+      kv_cache_dtype: auto
+      text_only: true
+      skip_mm_profiling: true
+      reasoning_parser: qwen3
+      speculative_config:
+        method: mtp
+        num_speculative_tokens: 1
+    sampling:
+      max_tokens: 8192
+      temperature: 1.0
+      top_k: 20
+    target: targets/local-cuda-24gb
+    purpose: [eval]
+    capabilities: [tool-calling]
+  inference/qwen3.5-4b-vllm-thinking-eval-mtp-concurrent8-32k@1:
+    revision: "1"
+    startup_timeout_seconds: 600
+    model: models/qwen3.5-4b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools-thinking@1
+    engine:
+      max_model_len: 32768
+      gpu_memory_utilization: 0.80
+      dtype: bfloat16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 8
+      max_num_batched_tokens: 8192
+      kv_cache_dtype: auto
+      text_only: true
+      skip_mm_profiling: true
+      reasoning_parser: qwen3
+      speculative_config:
+        method: mtp
+        num_speculative_tokens: 1
+    sampling:
+      max_tokens: 16384
+      temperature: 1.0
+      top_k: 20
+    target: targets/local-cuda-24gb
+    purpose: [eval]
+    capabilities: [tool-calling]
+  inference/qwen3.5-4b-vllm-thinking-eval-mtp-concurrent8-budget32k-context64k@1:
+    revision: "1"
+    startup_timeout_seconds: 600
+    model: models/qwen3.5-4b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools-thinking@1
+    engine:
+      max_model_len: 65536
+      gpu_memory_utilization: 0.80
+      dtype: bfloat16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 8
+      max_num_batched_tokens: 8192
+      kv_cache_dtype: auto
+      text_only: true
+      skip_mm_profiling: true
+      reasoning_parser: qwen3
+      speculative_config:
+        method: mtp
+        num_speculative_tokens: 1
+    sampling:
+      max_tokens: 32768
+      temperature: 1.0
+      top_k: 20
+    target: targets/local-cuda-24gb
+    purpose: [eval]
+    capabilities: [tool-calling]
+  inference/qwen3.5-4b-vllm-thinking-eval-mtp-concurrent16-32k@1:
+    revision: "1"
+    startup_timeout_seconds: 600
+    model: models/qwen3.5-4b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools-thinking@1
+    engine:
+      max_model_len: 32768
+      gpu_memory_utilization: 0.80
+      dtype: bfloat16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 16
+      max_num_batched_tokens: 8192
+      kv_cache_dtype: auto
+      text_only: true
+      skip_mm_profiling: true
+      reasoning_parser: qwen3
+      speculative_config:
+        method: mtp
+        num_speculative_tokens: 1
+    sampling:
+      max_tokens: 16384
+      temperature: 1.0
+      top_k: 20
+    target: targets/local-cuda-24gb
+    purpose: [eval]
+    capabilities: [tool-calling]
+  inference/qwen3.5-4b-vllm-thinking-eval-concurrent2@1:
+    revision: "1"
+    startup_timeout_seconds: 600
+    model: models/qwen3.5-4b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools-thinking@1
+    engine:
+      max_model_len: 32768
+      gpu_memory_utilization: 0.80
+      dtype: bfloat16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 2
+      max_num_batched_tokens: 8192
+      kv_cache_dtype: auto
+      text_only: true
+      skip_mm_profiling: true
+      reasoning_parser: qwen3
+    sampling:
+      max_tokens: 8192
+      temperature: 1.0
+      top_k: 20
+    target: targets/local-cuda-24gb
+    purpose: [eval]
+    capabilities: [tool-calling]
+  inference/qwen3.5-4b-vllm-thinking-eval-concurrent4@1:
+    revision: "1"
+    startup_timeout_seconds: 600
+    model: models/qwen3.5-4b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools-thinking@1
+    engine:
+      max_model_len: 32768
+      gpu_memory_utilization: 0.80
+      dtype: bfloat16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 4
+      max_num_batched_tokens: 8192
+      kv_cache_dtype: auto
+      text_only: true
+      skip_mm_profiling: true
+      reasoning_parser: qwen3
+    sampling:
+      max_tokens: 8192
+      temperature: 1.0
+      top_k: 20
+    target: targets/local-cuda-24gb
+    purpose: [eval]
+    capabilities: [tool-calling]
   inference/qwen3.5-2b-vllm-rollout@1:
     revision: "1"
     model: models/qwen3.5-2b@bf16
@@ -171,6 +427,7 @@ inference:
       top_p: 1.0
     target: targets/local-cuda-rollout-8gb
     purpose: [rollout]
+    capabilities: [tool-calling]
   inference/qwen3.5-2b-vllm-rollout-mtp@1:
     revision: "1"
     model: models/qwen3.5-2b@bf16
@@ -195,6 +452,7 @@ inference:
       top_p: 1.0
     target: targets/local-cuda-rollout-8gb
     purpose: [rollout]
+    capabilities: [tool-calling]
   inference/lfm2.5-1.2b-vllm-screen@1:
     revision: "1"
     model: models/lfm2.5-1.2b-thinking@bf16

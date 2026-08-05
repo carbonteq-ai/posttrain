@@ -111,11 +111,12 @@ class BuildKitJobImagePublisher:
         self._receipt_root.mkdir(parents=True, exist_ok=True, mode=0o700)
         metadata = self._receipt_root / f".metadata-{uuid.uuid4().hex}.json"
         try:
-            # Build the smoke target separately. Building smoke and publication
-            # together makes BuildKit consume the same mutable named context in
-            # two concurrent target graphs; affected BuildKit releases can
-            # deliver a stale package.json to one branch even though the
-            # content-derived PACKAGE_KEY changed.
+            # Build the smoke target separately and uncached. Affected BuildKit
+            # releases can reuse a stale local named-context source across
+            # content-addressed directories, even when PACKAGE_KEY and the COPY
+            # destination both change. The verified smoke build establishes the
+            # current context layers; the publication build can then reuse those
+            # exact layers without rebuilding the package a second time.
             self._gateway.invoke(self._smoke_arguments(request))
             self._gateway.invoke(self._build_arguments(request, metadata))
             image = RuntimeImageRef(f"{request.publication.repository}@sha256:{_metadata_digest(metadata)}")
@@ -162,7 +163,7 @@ class BuildKitJobImagePublisher:
                     *self._builder_arguments(),
                     "--progress",
                     "plain",
-                    *self._context_arguments(),
+                    *self._context_arguments(request),
                     "--set",
                     f"{_PUBLISHED_TARGET}.output=type=oci,dest={temporary},tar=false",
                     *self._variable_arguments(request),
@@ -203,7 +204,7 @@ class BuildKitJobImagePublisher:
                     str(self._bake_file),
                     *self._entitlement_arguments(request),
                     *self._builder_arguments(),
-                    *self._context_arguments(),
+                    *self._context_arguments(request),
                     *local_output,
                     *self._variable_arguments(request),
                     "--call",
@@ -234,7 +235,7 @@ class BuildKitJobImagePublisher:
             "plain",
             "--metadata-file",
             str(metadata),
-            *self._context_arguments(),
+            *self._context_arguments(request),
             "--set",
             f"{_PUBLISHED_TARGET}.output={output}",
             "--set",
@@ -262,7 +263,8 @@ class BuildKitJobImagePublisher:
             *self._builder_arguments(),
             "--progress",
             "plain",
-            *self._context_arguments(),
+            "--no-cache",
+            *self._context_arguments(request),
             "--set",
             f"{_SMOKE_TARGET}.platform={platforms}",
             *self._variable_arguments(request),
@@ -287,12 +289,16 @@ class BuildKitJobImagePublisher:
             f"fs.read={self._definition_root}",
         ]
 
-    def _context_arguments(self) -> list[str]:
+    def _context_arguments(self, request: JobImagePublicationRequest) -> list[str]:
         return [
             "--set",
             f"{_PUBLISHED_TARGET}.context={self._definition_root}",
             "--set",
             f"{_SMOKE_TARGET}.context={self._definition_root}",
+            "--set",
+            f"{_PUBLISHED_TARGET}.contexts.job-context={request.staged_context}",
+            "--set",
+            f"{_SMOKE_TARGET}.contexts.job-context={request.staged_context}",
         ]
 
     def _variable_arguments(
@@ -316,7 +322,6 @@ class BuildKitJobImagePublisher:
             "RESOLVED_INPUTS_DIGEST": manifest.resolved_inputs_digest,
             "RUNTIME_DEPENDENCIES_DIGEST": (manifest.runtime_dependencies_digest),
             "RUNTIME_VARIANT": manifest.runtime_variant,
-            "STAGED_CONTEXT": str(request.staged_context),
         }
         arguments: list[str] = []
         for name, value in sorted(variables.items()):

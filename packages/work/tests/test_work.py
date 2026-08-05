@@ -4,20 +4,38 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from posttrain.common import (
     Catalog,
     CatalogLayer,
     CatalogRef,
+    ContractError,
     ExecutionTarget,
     InferenceBinding,
     PublishedArtifact,
     StoredArtifactRef,
 )
 from posttrain.common.variants import QWEN_35_2B
+from posttrain.environment import (
+    EnvironmentBinding,
+    EnvironmentSource,
+    EvaluationFacetField,
+    EvaluationObservation,
+    SamplingPolicy,
+    VerifiersV1ConfigActivation,
+)
+from posttrain.eval import (
+    EvaluationBreakdownDefinition,
+    EvaluationNumericPredicate,
+    EvaluationPlan,
+    EvaluationSignalRef,
+    EvaluationSuccessDefinition,
+)
 from posttrain.work import (
     FinalizedRunResult,
     JobDefinition,
     ProjectBrief,
+    RecipeJob,
     RunSpec,
     WorkPackageContext,
     load_work_package,
@@ -26,7 +44,7 @@ from posttrain.work import (
     run_work_package_job,
     validate_work_package,
 )
-from posttrain.work.runner import _selection_details
+from posttrain.work.runner import _evaluation_contract_snapshot, _preflight_job, _selection_details
 
 
 def _fixture(path: Path) -> None:
@@ -202,6 +220,105 @@ def test_inference_snapshot_includes_startup_timeout() -> None:
     )
 
     assert _selection_details(binding)["startup_timeout_seconds"] == 600
+
+
+def test_detached_preflight_rejects_tool_environment_with_plain_inference() -> None:
+    target = ExecutionTarget("targets/local-cuda-8gb", "1", "nvidia-cuda", memory_gb=8)
+    inference = InferenceBinding(
+        id="inference/qwen3.5-2b-vllm-eval@2",
+        revision="2",
+        model=QWEN_35_2B,
+        backend="vllm@0.25.1",
+        renderer=QWEN_35_2B.renderer.id,
+        engine={},
+        sampling={},
+        target=target,
+        purpose=("eval",),
+    )
+    environment = EnvironmentBinding(
+        id="env/tool-loop",
+        category="tool-use",
+        source=EnvironmentSource(
+            package="test-env",
+            repository="https://example.com/test-env",
+            revision="a" * 40,
+        ),
+        activation=VerifiersV1ConfigActivation({"taskset": {"id": "test-v1"}}),
+        sampling=SamplingPolicy(max_tokens=128),
+        num_tasks=1,
+        required_inference_capabilities=("tool-calling",),
+    )
+    job = RecipeJob("evaluate", "eval.general", "eval/verifiers-managed@1")
+
+    with pytest.raises(ContractError, match="missing environment capabilities: tool-calling"):
+        _preflight_job(None, job, {"environment": environment, "evaluation_inference": inference})
+
+
+def test_evaluation_contract_snapshot_is_versioned_and_complete() -> None:
+    environment = EnvironmentBinding(
+        id="env/test",
+        category="math",
+        source=EnvironmentSource(
+            package="test-env",
+            repository="https://example.com/test-env",
+            revision="a" * 40,
+            subdirectory="environments/test",
+        ),
+        activation=VerifiersV1ConfigActivation({"taskset": {"id": "test-v1"}}),
+        sampling=SamplingPolicy(max_tokens=128),
+        num_tasks=2,
+        reward_components=("correct",),
+        observation=EvaluationObservation(
+            facets=(
+                EvaluationFacetField("topic", "topic", "Topic"),
+                EvaluationFacetField("difficulty", "difficulty", "Difficulty"),
+            )
+        ),
+    )
+    plan = EvaluationPlan(
+        id="eval/test-v1",
+        kind="general",
+        environments=(environment,),
+        success={
+            "env/test": EvaluationSuccessDefinition(
+                "correct",
+                "Correct",
+                EvaluationSignalRef("reward", "correct"),
+                EvaluationNumericPredicate("eq", 1.0),
+            )
+        },
+        breakdowns={
+            "env/test": (
+                EvaluationBreakdownDefinition(
+                    "topic-by-difficulty",
+                    "Topic × difficulty",
+                    ("topic", "difficulty"),
+                ),
+            )
+        },
+        aggregation={"slice_weighting": "micro"},
+        comparison={"population": "same"},
+    )
+
+    snapshot = _evaluation_contract_snapshot(plan, environment)
+
+    assert snapshot["contract"] == {"id": "posttrain.eval.verifiers-observation", "schema_version": 3}
+    assert snapshot["plan"]["success"]["source"] == {"namespace": "reward", "name": "correct"}  # type: ignore[index]
+    assert snapshot["plan"]["aggregation"] == {"slice_weighting": "micro"}  # type: ignore[index]
+    assert snapshot["plan"]["breakdowns"] == [  # type: ignore[index]
+        {
+            "id": "topic-by-difficulty",
+            "label": "Topic × difficulty",
+            "dimensions": ["topic", "difficulty"],
+            "presentation": "matrix",
+            "multi_value": "reject",
+            "missing": "exclude",
+        }
+    ]
+    assert snapshot["signal_manifest"]["reward_components"] == ["correct"]  # type: ignore[index]
+    assert snapshot["native_evidence"] == {"schema_id": "verifiers.trace", "schema_version": "v1"}
+    assert snapshot["population"]["taskset"] == {"id": "test-v1"}  # type: ignore[index]
+    assert snapshot["population"]["dataset"] == {"id": None, "revision": None, "split": None}  # type: ignore[index]
 
 
 def test_work_package_exposes_published_artifacts_without_wrapping_value(

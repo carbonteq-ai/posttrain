@@ -106,6 +106,7 @@ class InferenceBinding:
     sampling: JsonMapping
     target: ExecutionTarget
     purpose: tuple[Purpose, ...]
+    capabilities: tuple[str, ...] = ()
     startup_timeout_seconds: float = 180.0
 
     def __post_init__(self) -> None:
@@ -115,8 +116,16 @@ class InferenceBinding:
             raise ContractError("inference backend must include a product and version")
         if not self.renderer.strip():
             raise ContractError("inference renderer cannot be empty")
+        if self.renderer != self.model.renderer.id:
+            raise ContractError("inference renderer must match the selected model renderer contract")
         if not self.purpose or len(self.purpose) != len(set(self.purpose)):
             raise ContractError("inference purpose must be non-empty and unique")
+        if len(self.capabilities) != len(set(self.capabilities)):
+            raise ContractError("inference capabilities must be unique")
+        for capability in self.capabilities:
+            validate_selection_id(capability, "inference capability")
+        if "tool-calling" in self.capabilities and self.model.conversation.tool_calls is None:
+            raise ContractError("tool-calling inference requires a model renderer with a tool-call protocol")
         if self.startup_timeout_seconds <= 0:
             raise ContractError("inference startup timeout must be positive")
         object.__setattr__(self, "engine", immutable_json_mapping(self.engine))

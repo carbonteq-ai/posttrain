@@ -5,6 +5,12 @@ target:
     memory_gb: 8
     placement:
       world_size: 1
+  targets/local-cuda-24gb:
+    revision: "1"
+    device_class: nvidia-cuda
+    memory_gb: 24
+    placement:
+      world_size: 1
   targets/local-cuda-rollout-8gb:
     revision: "1"
     device_class: nvidia-cuda

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -81,6 +82,77 @@ def _json_mapping(value: Mapping[str, JsonValue], field: str) -> Mapping[str, Js
 
 
 @dataclass(frozen=True, slots=True)
+class EvaluationSignalRef:
+    """One namespaced numeric signal emitted by a Verifiers environment."""
+
+    namespace: Literal["reward", "metric"]
+    name: str
+
+    def __post_init__(self) -> None:
+        _stable_id(self.name, "evaluation signal name")
+
+
+@dataclass(frozen=True, slots=True)
+class EvaluationNumericPredicate:
+    """A bounded numeric predicate used to derive semantic success."""
+
+    operator: Literal["eq", "gt", "gte", "lt", "lte", "between"]
+    value: float
+    upper: float | None = None
+    tolerance: float = 0.0
+
+    def __post_init__(self) -> None:
+        if not math.isfinite(self.value):
+            raise ValueError("evaluation success predicate value must be finite")
+        if self.upper is not None and not math.isfinite(self.upper):
+            raise ValueError("evaluation success predicate upper bound must be finite")
+        if not math.isfinite(self.tolerance) or self.tolerance < 0:
+            raise ValueError("evaluation success predicate tolerance must be finite and non-negative")
+        if self.operator == "between":
+            if self.upper is None or self.upper < self.value:
+                raise ValueError("between predicate requires upper >= value")
+        elif self.upper is not None:
+            raise ValueError("evaluation success predicate upper is valid only for between")
+
+
+@dataclass(frozen=True, slots=True)
+class EvaluationSuccessDefinition:
+    """Run-owned pass/fail meaning for one environment in an evaluation plan."""
+
+    id: str
+    label: str
+    source: EvaluationSignalRef
+    predicate: EvaluationNumericPredicate
+    missing: Literal["error", "exclude"] = "error"
+
+    def __post_init__(self) -> None:
+        _stable_id(self.id, "evaluation success id")
+        if not self.label.strip():
+            raise ValueError("evaluation success label cannot be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class EvaluationBreakdownDefinition:
+    """Run-owned compound grouping over environment-declared task facets."""
+
+    id: str
+    label: str
+    dimensions: tuple[str, ...]
+    presentation: Literal["matrix"] = "matrix"
+    multi_value: Literal["reject", "cross"] = "reject"
+    missing: Literal["exclude", "bucket"] = "exclude"
+
+    def __post_init__(self) -> None:
+        _stable_id(self.id, "evaluation breakdown id")
+        if not self.label.strip():
+            raise ValueError("evaluation breakdown label cannot be empty")
+        if len(self.dimensions) != 2 or len(set(self.dimensions)) != 2:
+            raise ValueError("evaluation matrix breakdowns require exactly two unique dimensions")
+        for dimension in self.dimensions:
+            _stable_id(dimension, "evaluation breakdown dimension")
+
+
+@dataclass(frozen=True, slots=True)
 class EvaluationPlan:
     """Reusable selection and interpretation policy for environment cells."""
 
@@ -90,6 +162,8 @@ class EvaluationPlan:
     revision: str = "1"
     inference_requirements: Mapping[str, JsonValue] = field(default_factory=dict)
     metrics_and_slices: tuple[str, ...] = ()
+    success: Mapping[str, EvaluationSuccessDefinition] = field(default_factory=dict)
+    breakdowns: Mapping[str, tuple[EvaluationBreakdownDefinition, ...]] = field(default_factory=dict)
     aggregation: Mapping[str, JsonValue] = field(default_factory=dict)
     comparison: Mapping[str, JsonValue] = field(default_factory=dict)
 
@@ -101,6 +175,32 @@ class EvaluationPlan:
         if not self.revision.strip():
             raise ValueError("evaluation plan revision cannot be empty")
         object.__setattr__(self, "inference_requirements", MappingProxyType(dict(self.inference_requirements)))
+        unknown_success = set(self.success) - set(ids)
+        if unknown_success:
+            raise ValueError(
+                "evaluation success definitions reference unknown environments: " + ", ".join(sorted(unknown_success))
+            )
+        object.__setattr__(self, "success", MappingProxyType(dict(self.success)))
+        unknown_breakdowns = set(self.breakdowns) - set(ids)
+        if unknown_breakdowns:
+            raise ValueError(
+                "evaluation breakdowns reference unknown environments: " + ", ".join(sorted(unknown_breakdowns))
+            )
+        environment_by_id = {environment.id: environment for environment in self.environments}
+        normalized_breakdowns: dict[str, tuple[EvaluationBreakdownDefinition, ...]] = {}
+        for environment_id, definitions in self.breakdowns.items():
+            if len({definition.id for definition in definitions}) != len(definitions):
+                raise ValueError(f"evaluation breakdown ids must be unique for {environment_id!r}")
+            available_dimensions = {facet.dimension for facet in environment_by_id[environment_id].observation.facets}
+            for definition in definitions:
+                missing_dimensions = set(definition.dimensions) - available_dimensions
+                if missing_dimensions:
+                    raise ValueError(
+                        f"evaluation breakdown {definition.id!r} references undeclared dimensions: "
+                        + ", ".join(sorted(missing_dimensions))
+                    )
+            normalized_breakdowns[environment_id] = tuple(definitions)
+        object.__setattr__(self, "breakdowns", MappingProxyType(normalized_breakdowns))
         object.__setattr__(self, "aggregation", MappingProxyType(dict(self.aggregation)))
         object.__setattr__(self, "comparison", MappingProxyType(dict(self.comparison)))
 
@@ -120,6 +220,20 @@ class EvaluationPlan:
         if missing:
             raise ValueError(f"unknown environment ids: {', '.join(sorted(missing))}")
         return selected
+
+    def success_for(self, environment_id: str) -> EvaluationSuccessDefinition:
+        self.environment(environment_id)
+        try:
+            return self.success[environment_id]
+        except KeyError as error:
+            raise ValueError(
+                f"evaluation plan {self.id!r} requires an explicit success definition "
+                f"for environment {environment_id!r}"
+            ) from error
+
+    def breakdowns_for(self, environment_id: str) -> tuple[EvaluationBreakdownDefinition, ...]:
+        self.environment(environment_id)
+        return self.breakdowns.get(environment_id, ())
 
 
 @dataclass(frozen=True, slots=True)
@@ -230,11 +344,17 @@ class EvaluationBudget:
     num_tasks: int | None = None
     num_rollouts: int | None = None
     max_concurrent: int | None = None
+    # ``None`` means inherit the request's legacy ``shuffle`` field.  Keeping
+    # this override on the invocation budget lets standard job definitions
+    # express the complete subset policy without constructing a custom request.
+    shuffle: bool | None = None
 
     def __post_init__(self) -> None:
         values = (self.num_tasks, self.num_rollouts, self.max_concurrent)
         if any(value is not None and value < 1 for value in values):
             raise ValueError("evaluation budget overrides must be positive")
+        if self.shuffle is not None and not isinstance(self.shuffle, bool):
+            raise TypeError("evaluation budget shuffle override must be a boolean")
 
     def resolve(self, environment: EnvironmentBinding) -> tuple[int, int, int]:
         return (
@@ -261,6 +381,7 @@ class EvaluateRequest:
 
     def __post_init__(self) -> None:
         environment = self.plan.environment(self.environment_id)
+        self.plan.success_for(self.environment_id)
         if self.context_window < 1:
             raise ValueError("evaluation context window must be positive")
         if environment.sampling.max_tokens >= self.context_window:
@@ -276,6 +397,21 @@ class EvaluateRequest:
                 raise ValueError("evaluation target conflicts with its inference binding")
             if "eval" not in self.inference.purpose:
                 raise ValueError("evaluation requires an inference binding with eval purpose")
+            missing_capabilities = sorted(
+                set(environment.required_inference_capabilities).difference(self.inference.capabilities)
+            )
+            if missing_capabilities:
+                raise ValueError(
+                    "evaluation inference binding is missing environment capabilities: "
+                    + ", ".join(missing_capabilities)
+                )
+            speculative = self.inference.engine.get("speculative_config", self.inference.engine.get("speculative"))
+            if (
+                isinstance(speculative, Mapping)
+                and speculative.get("method") == "mtp"
+                and not self.model.capabilities.mtp
+            ):
+                raise ValueError(f"evaluation MTP requires a model with a native MTP head: {self.model.id!r}")
             if self.context_window > self.model.capabilities.native_context_window:
                 raise ValueError("evaluation context exceeds the model's native context window")
             self.model.conversation.reasoning_mode(self.resolved_reasoning_mode)
@@ -288,6 +424,15 @@ class EvaluateRequest:
             raise ValueError("remote evaluation policy conflicts with its remote binding")
         if "eval" not in self.inference.purpose:
             raise ValueError("remote evaluation binding requires eval purpose")
+        missing_capabilities = sorted(
+            capability
+            for capability in environment.required_inference_capabilities
+            if self.model.capabilities.get(capability) is not True
+        )
+        if missing_capabilities:
+            raise ValueError(
+                "remote evaluation policy is missing environment capabilities: " + ", ".join(missing_capabilities)
+            )
         if self.context_window > self.model.context_window:
             raise ValueError("evaluation context exceeds the remote policy context window")
         if self.reasoning_mode is not None:
@@ -322,6 +467,12 @@ class EvaluateRequest:
     def resolved_budget(self) -> tuple[int, int, int]:
         return self.budget.resolve(self.environment)
 
+    @property
+    def resolved_shuffle(self) -> bool:
+        """Return the effective deterministic Verifiers subset policy."""
+
+        return self.budget.shuffle if self.budget.shuffle is not None else self.shuffle
+
 
 __all__ = [
     "EnvironmentActivation",
@@ -337,5 +488,8 @@ __all__ = [
     "EvaluationBudget",
     "EvaluationEndpoint",
     "EvaluationPlan",
+    "EvaluationNumericPredicate",
+    "EvaluationSignalRef",
+    "EvaluationSuccessDefinition",
     "SamplingPolicy",
 ]

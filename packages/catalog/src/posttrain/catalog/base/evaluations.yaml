@@ -1,4 +1,33 @@
 evaluation:
+  general-capability-balanced-v1:
+    revision: "1"
+    kind: general
+    environments:
+      - knowledge-mmlu-pro-cot-5shot-balanced-v1
+      - instruction-ifeval-full-v1
+      - reasoning-gym-balanced-eval-v1
+      - math-python-balanced-eval-v1
+    success:
+      knowledge-mmlu-pro-cot-5shot-balanced-v1:
+        id: answer-correct
+        label: Answer correct
+        source: {namespace: reward, name: answer_correct}
+        predicate: {operator: eq, value: 1}
+      instruction-ifeval-full-v1:
+        id: strict-prompt-success
+        label: Strict prompt success
+        source: {namespace: reward, name: strict_prompt_accuracy}
+        predicate: {operator: eq, value: 1}
+      reasoning-gym-balanced-eval-v1:
+        id: full-credit-solution
+        label: Full-credit solution
+        source: {namespace: metric, name: native_score}
+        predicate: {operator: gte, value: 0.99}
+      math-python-balanced-eval-v1:
+        id: symbolic-correctness
+        label: Symbolically correct
+        source: {namespace: metric, name: symbolic_correctness}
+        predicate: {operator: eq, value: 1}
   general-smoke-v1:
     revision: "1"
     kind: general
@@ -7,3 +36,24 @@ evaluation:
       - instruction-reverse-text
       - code-execution
       - multi-turn-alphabet-sort
+    success:
+      math-gsm8k:
+        id: exact-answer
+        label: Exact answer
+        source: {namespace: reward, name: reward}
+        predicate: {operator: eq, value: 1}
+      instruction-reverse-text:
+        id: exact-reversal
+        label: Exact reversal
+        source: {namespace: reward, name: reward}
+        predicate: {operator: eq, value: 1}
+      code-execution:
+        id: code-passes
+        label: Code passes
+        source: {namespace: reward, name: reward}
+        predicate: {operator: eq, value: 1}
+      multi-turn-alphabet-sort:
+        id: all-turns-correct
+        label: All turns correct
+        source: {namespace: reward, name: reward}
+        predicate: {operator: eq, value: 1}

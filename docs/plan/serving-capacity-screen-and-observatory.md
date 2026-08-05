@@ -94,8 +94,8 @@ The first demonstrable scenario uses a project requirement of at least 50 sustai
   declaring it.
   Evidence: Both `--package posttrain-data` and `--project packages/data`
   raised `ModuleNotFoundError`; the reproducible maintainer command is
-  `uv run --with 'datasets>=4.6.1,<4.7' python
-  scripts/materialize_serving_corpus.py --check`.
+  `uv run --with 'datasets>=4.6.1,<4.7' posttrain workload verify
+  workloads/general-serving-32k-sweep@1`.
 
 - Observation: The materialized corpus contains exactly 128 model-visible
   prompt records with digest
@@ -524,7 +524,13 @@ Keep the public seats of `ServeBenchmarkRequest` unchanged: inference binding, w
 
 Before changing the sweep runner, replace the naive prompt population. Extend `PromptRecord` in `packages/serve/src/posttrain/serve/prompts.py` with immutable provenance fields and add a strict `PromptCorpusManifest` containing corpus id, revision, schema version, digest, record count, category counts, sources, selection algorithm, and license notices. A workload references a packaged corpus by id, revision, and digest and declares `cohort: representative` or `cohort: controlled`.
 
-Add `scripts/materialize_serving_corpus.py` as a maintainer tool. It uses the workspace's existing `datasets` tooling, fetches only immutable revisions, normalizes source text, applies the recorded SHA-256 selection rule, and writes deterministic JSONL and manifest output. The generated resources are checked in under `packages/serve/src/posttrain/serve/benchmarks/resources/corpora/`; ordinary benchmark execution has no network or `datasets` dependency.
+Add generic `posttrain workload materialize|verify` commands backed by a public
+serve-owned operation beside the serving package resources. The operation uses
+the workspace's existing `datasets` tooling, fetches only immutable revisions,
+normalizes source text, applies the recorded SHA-256 selection rule, and writes
+deterministic JSONL and manifest output. The generated resources are checked in
+under `packages/serve/src/posttrain/serve/benchmarks/general_serving/resources/`;
+ordinary benchmark execution has no network or `datasets` dependency.
 
 Materialize `general-serving-v1` as:
 
@@ -716,7 +722,7 @@ Validate the frontend:
 
 Run the real backend integration after documenting the immutable model revision and target:
 
-    uv run --with 'datasets>=4.6.1,<4.7' python scripts/materialize_serving_corpus.py --check
+    uv run --with 'datasets>=4.6.1,<4.7' posttrain workload verify workloads/general-serving-32k-sweep@1
 
     POSTTRAIN_RUN_SERVE_GPU_INTEGRATION=1 \
     POSTTRAIN_SERVE_GPU_VARIANT=mtp \
@@ -846,8 +852,8 @@ In `packages/common/src/posttrain/common/selections.py`, retain `Workload` as th
 
 In `packages/serve/src/posttrain/serve/prompts.py`, define the strict
 prompt-record and corpus-manifest contracts and keep native renderer resolution.
-In `scripts/materialize_serving_corpus.py`, implement deterministic corpus
-materialization and `--check`. In
+In `posttrain.serve.workloads`, implement deterministic corpus materialization
+and verification. In
 `packages/serve/src/posttrain/serve/results.py`, define `BenchmarkResult` for
 one measured point, `BenchmarkPointFailure` for a safe terminal boundary, and
 `BenchmarkSweepResult` for the ordered schema-version-2 result. In
@@ -898,3 +904,9 @@ basis and Pareto frontier across all transports, added accessible run and
 work-package visualizations plus desktop/narrow browser coverage, updated
 catalog and developer guidance, and added the opt-in three-point Qwen 0.8B
 vLLM gate without touching the user's existing `obseratory.pen` changes.
+
+Revision note (2026-08-02): The checked-in representative corpus is now owned
+by `posttrain.serve.benchmarks.general_serving` and verified through the
+generic `posttrain workload verify workloads/general-serving-32k-sweep@1`
+command. Older package-specific materializer examples in this historical plan
+describe the pre-migration workflow.

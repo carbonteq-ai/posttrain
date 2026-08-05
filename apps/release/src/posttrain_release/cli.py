@@ -13,9 +13,16 @@ from typing import Annotated
 import typer
 from posttrain_execution_buildkit import BuildKitRuntimeBuilder
 
+from .artifacts import (
+    create_distribution_receipt,
+    verify_distribution_receipt,
+    verify_index_receipt,
+    write_distribution_receipt,
+)
+from .candidate import fetch_simple_artifacts, next_candidate_version
 from .publish import publish_release
 from .repository_audit import inspect_repository
-from .versioning import check_release, lock_dependencies, prepare_release, stage_release
+from .versioning import check_release, load_release_manifest, lock_dependencies, prepare_release, stage_release
 
 app = typer.Typer(help="publish framework runtime images and pin the release manifest")
 images_app = typer.Typer(help="runtime image release operations")
@@ -57,9 +64,72 @@ def stage_cmd(
         Path,
         typer.Option("--repository-root", help="framework checkout to stage"),
     ] = Path("."),
+    version: Annotated[
+        str | None,
+        typer.Option("--version", help="candidate version rendered only in the staged copy"),
+    ] = None,
 ) -> None:
-    result = stage_release(repository_root, destination)
+    result = stage_release(repository_root, destination, version=version)
     print(f"staged {result.version}: {result.package_count} packages and {result.internal_pin_count} exact pins")
+
+
+@app.command("candidate-version", help="allocate the next unused RC from the development index")
+def candidate_version_cmd(
+    simple_url: Annotated[
+        str,
+        typer.Option("--simple-url", help="PEP 503 page for the posttrain project on the development index"),
+    ] = "https://pypi.lan/carbonteq/dev/+simple/posttrain/",
+    repository_root: Annotated[
+        Path,
+        typer.Option("--repository-root", help="framework checkout containing release/manifest.toml"),
+    ] = Path("."),
+) -> None:
+    target = load_release_manifest(repository_root.resolve()).version
+    print(next_candidate_version(target, fetch_simple_artifacts(simple_url)))
+
+
+@app.command("receipt", help="write a hash-addressed receipt for one built distribution set")
+def receipt_cmd(
+    distribution_root: Annotated[Path, typer.Argument(help="directory containing wheels and source distributions")],
+    destination: Annotated[Path, typer.Option("--destination", help="receipt JSON destination")],
+    version: Annotated[str, typer.Option("--version", help="version expected in every wheel")],
+    revision: Annotated[str, typer.Option("--revision", help="source commit that produced the distributions")],
+    repository_root: Annotated[Path, typer.Option("--repository-root", help="framework checkout")] = Path("."),
+) -> None:
+    root = repository_root.resolve()
+    receipt = create_distribution_receipt(
+        distribution_root.resolve(),
+        version=version,
+        revision=revision,
+        uv_lock=root / "uv.lock",
+        image_manifest=root / _MANIFEST_RELATIVE,
+    )
+    write_distribution_receipt(receipt, destination.resolve())
+    artifacts = receipt.get("artifacts")
+    if not isinstance(artifacts, list):
+        raise RuntimeError("release receipt writer returned an invalid artifact list")
+    print(f"recorded {len(artifacts)} distributions in {destination}")
+
+
+@app.command("receipt-check", help="verify local distribution bytes against a release receipt")
+def receipt_check_cmd(
+    receipt: Annotated[Path, typer.Argument(help="release receipt JSON")],
+    distribution_root: Annotated[Path, typer.Option("--distribution-root", help="directory containing distributions")],
+) -> None:
+    result = verify_distribution_receipt(receipt.resolve(), distribution_root.resolve())
+    artifacts = result.get("artifacts")
+    if not isinstance(artifacts, list):
+        raise RuntimeError("release receipt verifier returned an invalid artifact list")
+    print(f"verified {len(artifacts)} local distributions")
+
+
+@app.command("index-check", help="download index artifacts and verify every byte against a release receipt")
+def index_check_cmd(
+    receipt: Annotated[Path, typer.Argument(help="release receipt JSON")],
+    simple_base_url: Annotated[str, typer.Option("--simple-base-url", help="PEP 503 index base URL")],
+) -> None:
+    verify_index_receipt(receipt.resolve(), simple_base_url)
+    print("verified every indexed distribution against the release receipt")
 
 
 @app.command("lock-dependencies", help="regenerate the catalog dependency-lock table")

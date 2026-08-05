@@ -969,10 +969,42 @@ def _validate_dataset_packages(
             raise ContractError("dataset package size differs from its lock")
         if _file_digest(data) != value.digest:
             raise ContractError("dataset package digest differs from its lock")
+        try:
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise ContractError("dataset package manifest is invalid") from error
+        if not isinstance(payload, dict):
+            raise ContractError("dataset package manifest must be an object")
+        _validate_dataset_manifest_lock(payload, value)
 
     observed_files = {path.relative_to(root) for path in (root / "datasets").rglob("*") if path.is_file()}
     if observed_files != {Path(*relative.parts) for relative in expected_files}:
         raise ContractError("dataset packager emitted files outside its declared locks")
+
+
+def _validate_dataset_manifest_lock(
+    manifest: Mapping[str, object],
+    lock: DatasetPackageLock,
+) -> None:
+    """Check optional typed-builder identity carried by the staged manifest."""
+
+    if manifest.get("schema_version") != lock.schema_version:
+        raise ContractError("dataset materializer schema differs from its lock")
+    if lock.build_key is not None and manifest.get("build_key") != lock.build_key:
+        raise ContractError("dataset build key differs from its lock")
+    if (
+        lock.materializer_schema_version is not None
+        and manifest.get("schema_version") != lock.materializer_schema_version
+    ):
+        raise ContractError("dataset materializer schema version differs from its lock")
+    for field_name in (
+        "builder_target",
+        "code_snapshot_digest",
+        "dependency_lock_digest",
+    ):
+        expected = getattr(lock, field_name)
+        if expected is not None and manifest.get(field_name) != expected:
+            raise ContractError(f"dataset {field_name.replace('_', ' ')} differs from its lock")
 
 
 def _verify_staged_context(

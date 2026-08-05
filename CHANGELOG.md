@@ -4,6 +4,60 @@ All notable changes to Posttrain are documented here. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with a coordinated
 version across first-party distributions.
 
+## 0.3.1 - 2026-08-05
+
+This release makes evaluation meaning part of immutable run evidence, expands
+the maintained Verifiers environment library, and completes the reviewable
+cross-plane purge workflow introduced after 0.3.0.
+
+### Added
+
+- Explicit `run purge` and `project purge` planning across provider, OCI,
+  tracking, and local state, with dependency closure, digest-bound previews,
+  confirmation gates, resumable receipts, and retained verification evidence.
+- Independently packaged GSM8K, AutomationBench, MMLU-Pro, IFEval, Reasoning
+  Gym, and Math Python Verifiers environments with immutable source/data
+  revisions, reproducible subset selection, and Lab qualification packages.
+- Versioned evaluation contracts that snapshot the selected population,
+  success predicate, reward and metric namespaces, task facets, and structured
+  compound breakdowns such as problem type by difficulty.
+- Evaluation-first Observatory Overview, Compare eligibility, performance
+  distributions, schema-driven reward/verifier columns, pass/fail outcomes,
+  and chat-style tool-aware trace inspection.
+- Reproducible Python dataset materialization and package-owned serving
+  workload definitions carried forward from the post-0.3.0 release branch.
+
+### Changed
+
+- Evaluation images install Verifiers, environment wheels, and runtime
+  dependencies during image construction. Job startup only resolves the
+  snapshotted configuration and executes the worker; it performs no package
+  installation or upgrade.
+- Tool-using environments declare portable inference capabilities. The Qwen
+  renderer contract selects the compatible vLLM reasoning/tool parser while
+  subprocess or MCP transport remains environment-owned.
+- Project run listings exclude foreign admissions and successfully purged runs
+  by default; `--include-purged` exposes labeled retained history for audit.
+- Trackio advances to the maintained post8 lifecycle API, and affected runtime
+  images resolve exclusively from the CarbonTeq OCI registry.
+- Release publication now runs through the protected LAN runner, private
+  `pypi.lan`/`registry.lan` channels, immutable candidate receipts, and a
+  verified idle RTX PRO dstack canary; GHCR and public PyPI are not part of the
+  release path.
+
+### Qualification
+
+- Real Qwen3.5-4B thinking evaluations qualified IFEval, Reasoning Gym, and the
+  full 200-task AutomationBench Simple population with native MTP, retained
+  Verifiers traces, and Observatory projections. The live Math Python schema-v3
+  run additionally demonstrated the frozen 500-task population, configured
+  success predicate, compound problem-type-by-difficulty reporting, subprocess
+  Python tools, MTP, and concurrency eight. It remains active for terminal
+  reconciliation and is not stopped by this release.
+- The source validation ladder passes Ruff lint and format, Pyright, all eight
+  import contracts, 1,030 Python tests with 18 expected skips, 32 Observatory
+  frontend tests, and the production frontend build.
+
 ## 0.3.0 - 2026-08-01
 
 This release starts the project-owned developer-experience redesign. Static

@@ -35,6 +35,23 @@ model:
       mtp: true
     provenance:
       source: huggingface
+  models/qwen3.5-4b@bf16:
+    artifact:
+      kind: hub
+      repo_id: Qwen/Qwen3.5-4B
+      revision: 851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a
+    form: foundation
+    weight_precision: bf16
+    family: qwen3.5
+    parameters: 4000000000
+    instruction_tuned: true
+    renderer_contract: qwen3.5-tools-thinking@1
+    capabilities:
+      modalities: [text, image]
+      native_context_window: 262144
+      mtp: true
+    provenance:
+      source: huggingface
   models/lfm2.5-1.2b-thinking@bf16:
     artifact:
       kind: hub

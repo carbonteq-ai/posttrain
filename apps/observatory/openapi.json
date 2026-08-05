@@ -298,6 +298,668 @@
         "title": "CompareRequest",
         "type": "object"
       },
+      "EvaluationBreakdown": {
+        "additionalProperties": false,
+        "description": "One declared compound report with structured groups.",
+        "properties": {
+          "dimension_labels": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Dimension Labels",
+            "type": "array"
+          },
+          "dimensions": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Dimensions",
+            "type": "array"
+          },
+          "excluded": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Excluded",
+            "type": "integer"
+          },
+          "groups": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/EvaluationBreakdownGroup"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "id": {
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "presentation": {
+            "const": "matrix",
+            "default": "matrix",
+            "title": "Presentation",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "dimensions",
+          "dimension_labels"
+        ],
+        "title": "EvaluationBreakdown",
+        "type": "object"
+      },
+      "EvaluationBreakdownGroup": {
+        "additionalProperties": false,
+        "description": "Coverage-aware aggregate for one compound facet combination.",
+        "properties": {
+          "count": {
+            "minimum": 0.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "failures": {
+            "minimum": 0.0,
+            "title": "Failures",
+            "type": "integer"
+          },
+          "key": {
+            "minLength": 1,
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "mean_reward": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Reward"
+          },
+          "scored": {
+            "minimum": 0.0,
+            "title": "Scored",
+            "type": "integer"
+          },
+          "success_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Success Rate"
+          },
+          "truncated": {
+            "minimum": 0.0,
+            "title": "Truncated",
+            "type": "integer"
+          },
+          "values": {
+            "items": {
+              "$ref": "#/components/schemas/EvaluationBreakdownValue"
+            },
+            "title": "Values",
+            "type": "array"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "values",
+          "count",
+          "scored",
+          "failures",
+          "truncated"
+        ],
+        "title": "EvaluationBreakdownGroup",
+        "type": "object"
+      },
+      "EvaluationBreakdownSpec": {
+        "additionalProperties": false,
+        "description": "Run-owned compound grouping over declared facet dimensions.",
+        "properties": {
+          "dimensions": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Dimensions",
+            "type": "array"
+          },
+          "id": {
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "missing": {
+            "default": "exclude",
+            "enum": [
+              "exclude",
+              "bucket"
+            ],
+            "title": "Missing",
+            "type": "string"
+          },
+          "multi_value": {
+            "default": "reject",
+            "enum": [
+              "reject",
+              "cross"
+            ],
+            "title": "Multi Value",
+            "type": "string"
+          },
+          "presentation": {
+            "const": "matrix",
+            "default": "matrix",
+            "title": "Presentation",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "dimensions"
+        ],
+        "title": "EvaluationBreakdownSpec",
+        "type": "object"
+      },
+      "EvaluationBreakdownValue": {
+        "additionalProperties": false,
+        "description": "One structured dimension value inside a compound group.",
+        "properties": {
+          "dimension": {
+            "minLength": 1,
+            "title": "Dimension",
+            "type": "string"
+          },
+          "dimension_label": {
+            "minLength": 1,
+            "title": "Dimension Label",
+            "type": "string"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "minLength": 1,
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dimension",
+          "dimension_label",
+          "value",
+          "label"
+        ],
+        "title": "EvaluationBreakdownValue",
+        "type": "object"
+      },
+      "EvaluationDistribution": {
+        "additionalProperties": false,
+        "description": "Observed distribution for one request-level evaluation signal.",
+        "properties": {
+          "maximum": {
+            "minimum": 0.0,
+            "title": "Maximum",
+            "type": "number"
+          },
+          "mean": {
+            "minimum": 0.0,
+            "title": "Mean",
+            "type": "number"
+          },
+          "p50": {
+            "minimum": 0.0,
+            "title": "P50",
+            "type": "number"
+          },
+          "p95": {
+            "minimum": 0.0,
+            "title": "P95",
+            "type": "number"
+          },
+          "samples": {
+            "minimum": 1.0,
+            "title": "Samples",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "samples",
+          "mean",
+          "p50",
+          "p95",
+          "maximum"
+        ],
+        "title": "EvaluationDistribution",
+        "type": "object"
+      },
+      "EvaluationFacet": {
+        "additionalProperties": false,
+        "description": "Multi-label aggregate used to explain a task population by capability.",
+        "properties": {
+          "count": {
+            "minimum": 0.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "dimension": {
+            "minLength": 1,
+            "title": "Dimension",
+            "type": "string"
+          },
+          "dimension_label": {
+            "minLength": 1,
+            "title": "Dimension Label",
+            "type": "string"
+          },
+          "key": {
+            "minLength": 1,
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "mean_reward": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Reward"
+          },
+          "success_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Success Rate"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "dimension",
+          "dimension_label",
+          "count"
+        ],
+        "title": "EvaluationFacet",
+        "type": "object"
+      },
+      "EvaluationFacetSpec": {
+        "additionalProperties": false,
+        "description": "Resolved environment declaration for one native task-data facet.",
+        "properties": {
+          "dimension": {
+            "minLength": 1,
+            "title": "Dimension",
+            "type": "string"
+          },
+          "field": {
+            "minLength": 1,
+            "title": "Field",
+            "type": "string"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "transform": {
+            "default": "identity",
+            "enum": [
+              "identity",
+              "prefix_before_colon"
+            ],
+            "title": "Transform",
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "dimension",
+          "label"
+        ],
+        "title": "EvaluationFacetSpec",
+        "type": "object"
+      },
+      "EvaluationMetadata": {
+        "additionalProperties": false,
+        "description": "Evaluation identity and metric semantics used to build the Overview.",
+        "properties": {
+          "breakdown_specs": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/EvaluationBreakdownSpec"
+            },
+            "title": "Breakdown Specs",
+            "type": "array"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "contract_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contract Id"
+          },
+          "contract_state": {
+            "default": "legacy",
+            "enum": [
+              "versioned",
+              "legacy",
+              "unsupported"
+            ],
+            "title": "Contract State",
+            "type": "string"
+          },
+          "contract_version": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contract Version"
+          },
+          "dataset": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset"
+          },
+          "dataset_revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset Revision"
+          },
+          "facet_specs": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/EvaluationFacetSpec"
+            },
+            "title": "Facet Specs",
+            "type": "array"
+          },
+          "key": {
+            "minLength": 1,
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "metrics": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/EvaluationMetricDefinition"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "package": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Package"
+          },
+          "pass_rate_basis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pass Rate Basis"
+          },
+          "pass_rate_metric": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pass Rate Metric"
+          },
+          "primary_metric": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Metric"
+          },
+          "primary_metric_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Metric Label"
+          },
+          "source_revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Revision"
+          },
+          "split": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Split"
+          },
+          "success_definition": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvaluationSuccessDefinition"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "EvaluationMetadata",
+        "type": "object"
+      },
+      "EvaluationMetricDefinition": {
+        "additionalProperties": false,
+        "description": "The native metric vocabulary advertised by an evaluation.",
+        "properties": {
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "primary_reward",
+              "reward_component",
+              "diagnostic",
+              "success"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "role"
+        ],
+        "title": "EvaluationMetricDefinition",
+        "type": "object"
+      },
+      "EvaluationPerformance": {
+        "additionalProperties": false,
+        "description": "Efficiency evidence computed from the same trace population as quality.",
+        "properties": {
+          "completion_tokens": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvaluationDistribution"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvaluationDistribution"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "thinking_tokens": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvaluationDistribution"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tool_calls": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvaluationDistribution"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "EvaluationPerformance",
+        "type": "object"
+      },
       "EvaluationRunView": {
         "additionalProperties": false,
         "properties": {
@@ -320,6 +982,11 @@
             },
             "title": "Charts",
             "type": "array"
+          },
+          "comparison_key": {
+            "minLength": 1,
+            "title": "Comparison Key",
+            "type": "string"
           },
           "completeness": {
             "$ref": "#/components/schemas/EvidenceCompleteness"
@@ -396,6 +1063,7 @@
           "completeness",
           "alerts",
           "evaluation",
+          "comparison_key",
           "artifacts",
           "capabilities"
         ],
@@ -410,9 +1078,25 @@
             "title": "Count",
             "type": "integer"
           },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
           "key": {
             "minLength": 1,
             "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
             "type": "string"
           },
           "mean_reward": {
@@ -425,6 +1109,16 @@
               }
             ],
             "title": "Mean Reward"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskSliceMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "success_rate": {
             "anyOf": [
@@ -440,9 +1134,91 @@
         },
         "required": [
           "key",
+          "label",
           "count"
         ],
         "title": "EvaluationSlice",
+        "type": "object"
+      },
+      "EvaluationSuccessDefinition": {
+        "additionalProperties": false,
+        "description": "Normalized run-owned predicate used to calculate semantic pass/fail.",
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "missing": {
+            "default": "error",
+            "enum": [
+              "error",
+              "exclude"
+            ],
+            "title": "Missing",
+            "type": "string"
+          },
+          "namespace": {
+            "enum": [
+              "reward",
+              "metric"
+            ],
+            "title": "Namespace",
+            "type": "string"
+          },
+          "operator": {
+            "enum": [
+              "eq",
+              "gt",
+              "gte",
+              "lt",
+              "lte",
+              "between"
+            ],
+            "title": "Operator",
+            "type": "string"
+          },
+          "signal": {
+            "minLength": 1,
+            "title": "Signal",
+            "type": "string"
+          },
+          "tolerance": {
+            "default": 0.0,
+            "minimum": 0.0,
+            "title": "Tolerance",
+            "type": "number"
+          },
+          "upper": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upper"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "namespace",
+          "signal",
+          "operator",
+          "value"
+        ],
+        "title": "EvaluationSuccessDefinition",
         "type": "object"
       },
       "EventRecord": {
@@ -2509,9 +3285,181 @@
         "title": "SummaryValue",
         "type": "object"
       },
+      "TaskFacet": {
+        "additionalProperties": false,
+        "description": "One native semantic attribute attached to an evaluation task.\n\nEnvironments own the values; Observatory only retains their stable\ndimension/value identity and a human-readable presentation.",
+        "properties": {
+          "dimension": {
+            "minLength": 1,
+            "title": "Dimension",
+            "type": "string"
+          },
+          "dimension_label": {
+            "minLength": 1,
+            "title": "Dimension Label",
+            "type": "string"
+          },
+          "key": {
+            "minLength": 1,
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "minLength": 1,
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "dimension",
+          "dimension_label",
+          "value",
+          "label"
+        ],
+        "title": "TaskFacet",
+        "type": "object"
+      },
+      "TaskSliceMetadata": {
+        "additionalProperties": false,
+        "description": "Stable, human-readable identity for one evaluation task slice.\n\n``key`` remains the source task identity (which may be numeric, as in\nIFEval). Semantic facets are optional and must not be confused with that\nidentity.",
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "dataset": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset"
+          },
+          "dataset_revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset Revision"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "facets": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/TaskFacet"
+            },
+            "title": "Facets",
+            "type": "array"
+          },
+          "index": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Index"
+          },
+          "instruction_families": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Instruction Families",
+            "type": "array"
+          },
+          "instruction_ids": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Instruction Ids",
+            "type": "array"
+          },
+          "key": {
+            "minLength": 1,
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed"
+          },
+          "split": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Split"
+          }
+        },
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "TaskSliceMetadata",
+        "type": "object"
+      },
       "TraceEvaluationView": {
         "additionalProperties": false,
         "properties": {
+          "breakdowns": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/EvaluationBreakdown"
+            },
+            "title": "Breakdowns",
+            "type": "array"
+          },
           "expected": {
             "anyOf": [
               {
@@ -2523,6 +3471,14 @@
               }
             ],
             "title": "Expected"
+          },
+          "facets": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/EvaluationFacet"
+            },
+            "title": "Facets",
+            "type": "array"
           },
           "failures": {
             "default": 0,
@@ -2551,6 +3507,16 @@
             ],
             "title": "Mean Reward"
           },
+          "metadata": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvaluationMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "next_cursor": {
             "anyOf": [
               {
@@ -2562,9 +3528,30 @@
             ],
             "title": "Next Cursor"
           },
+          "pass_scored": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Pass Scored",
+            "type": "integer"
+          },
+          "passed": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Passed",
+            "type": "integer"
+          },
+          "performance": {
+            "$ref": "#/components/schemas/EvaluationPerformance"
+          },
           "scanned": {
             "minimum": 0.0,
             "title": "Scanned",
+            "type": "integer"
+          },
+          "scored": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Scored",
             "type": "integer"
           },
           "slices": {
@@ -2618,9 +3605,32 @@
         "title": "TraceEvaluationView",
         "type": "object"
       },
+      "TraceOutcome": {
+        "enum": [
+          "pass",
+          "review",
+          "scored",
+          "error",
+          "truncated",
+          "unknown"
+        ],
+        "type": "string"
+      },
       "TraceSummary": {
         "additionalProperties": false,
         "properties": {
+          "completion_tokens": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completion Tokens"
+          },
           "error": {
             "anyOf": [
               {
@@ -2637,6 +3647,18 @@
             "title": "External Id",
             "type": "string"
           },
+          "input_tokens": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Tokens"
+          },
           "latency_ms": {
             "anyOf": [
               {
@@ -2649,6 +3671,71 @@
             ],
             "title": "Latency Ms"
           },
+          "metrics": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Metrics",
+            "type": "object"
+          },
+          "model_calls": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Calls"
+          },
+          "native_metrics": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Native Metrics",
+            "type": "object"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/TraceOutcome",
+            "default": "unknown"
+          },
+          "prompt_preview": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Preview"
+          },
+          "response_chars": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Response Chars"
+          },
+          "response_tokens": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Response Tokens"
+          },
           "reward": {
             "anyOf": [
               {
@@ -2659,6 +3746,13 @@
               }
             ],
             "title": "Reward"
+          },
+          "reward_components": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Reward Components",
+            "type": "object"
           },
           "success": {
             "anyOf": [
@@ -2681,6 +3775,51 @@
               }
             ],
             "title": "Task"
+          },
+          "task_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Label"
+          },
+          "task_metadata": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskSliceMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "thinking_chars": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thinking Chars"
+          },
+          "thinking_tokens": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thinking Tokens"
           },
           "tokens": {
             "anyOf": [
@@ -3148,6 +4287,56 @@
           }
         },
         "summary": "Alerts"
+      }
+    },
+    "/api/v1/runs/{run_key}/comparison-key": {
+      "get": {
+        "operationId": "comparison_key_api_v1_runs__run_key__comparison_key_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_key",
+            "required": true,
+            "schema": {
+              "title": "Run Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "title": "Response Comparison Key Api V1 Runs  Run Key  Comparison Key Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Comparison Key"
       }
     },
     "/api/v1/runs/{run_key}/delta": {

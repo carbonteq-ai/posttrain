@@ -66,6 +66,17 @@ Rejected because it would make reusable evaluation infrastructure own one
 domain's data and verification semantics, prevent independent publication, and
 create a second copy of the benchmark.
 
+## Superseded location note
+
+The implementation location described above was the migration state. The
+maintained `automationbench-v1` package now lives in the external
+`carbonteq-ai/verifiers-environments` repository under
+`environments/automationbench_v1`, pinned by full commit. The former
+`rl/environments/automationbench_v1` copy was removed after package, live
+qualification, and full validation gates passed. This note preserves the
+historical decision without making the framework repository a second source of
+truth.
+
 ### Run the published legacy AutomationBench environment through a bridge
 
 Rejected because it would make a transitional Verifiers API part of the new

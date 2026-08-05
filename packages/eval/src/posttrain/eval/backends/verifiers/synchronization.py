@@ -45,7 +45,7 @@ class VerifiersTraceSynchronizer:
         path: Path,
         emit: TraceBatchEmitter,
         *,
-        batch_size: int = 16,
+        batch_size: int = 1,
         validate: TraceValidator = validate_verifiers_record,
     ) -> None:
         if batch_size < 1:

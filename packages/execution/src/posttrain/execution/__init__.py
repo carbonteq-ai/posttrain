@@ -57,6 +57,7 @@ from .job_package_diff import (
     unchanged_fields,
 )
 from .lifecycle import wait_for_terminal
+from .local_purge import LocalStatePurgeExecutor
 from .manifest import (
     BUNDLE_MANIFEST_PATH,
     JOB_MANIFEST_PATH,
@@ -66,7 +67,25 @@ from .manifest import (
     ManifestMount,
     resolved_inputs_digest,
 )
+from .provider_purge import ExecutionProviderPurgeExecutor
 from .provider_source import ExecutionProviderSource
+from .purge import (
+    PurgeAction,
+    PurgeActionExecutor,
+    PurgeApplyError,
+    PurgeMode,
+    PurgePlan,
+    PurgePlane,
+    PurgeReceipt,
+    PurgeStore,
+    apply_purge_plan,
+)
+from .purge_planner import (
+    PurgeRunCandidate,
+    PurgeRunCatalog,
+    build_project_purge_plan,
+    build_run_purge_plan,
+)
 from .receipts import ExecutionJournal, latest_runtime_image
 from .reconciliation import (
     ExecutionReconciliation,
@@ -82,6 +101,12 @@ from .recovery import (
     TrackingRecoveryDisposition,
     recover_cancelled_tracking,
     save_tracking_recovery,
+)
+from .registry import (
+    RegistryLifecycleAdmin,
+    RegistryManifestDeletePlan,
+    RegistryManifestDeleteReceipt,
+    RegistryManifestRef,
 )
 from .service import (
     ExecutionEvidenceSource,
@@ -114,6 +139,7 @@ __all__ = [
     "ExecutionPolicy",
     "ExecutionProvider",
     "ExecutionProviderSource",
+    "ExecutionProviderPurgeExecutor",
     "ExecutionRecord",
     "ExecutionReconciliation",
     "ExecutionRequest",
@@ -124,6 +150,7 @@ __all__ = [
     "ExecutionState",
     "LogCursor",
     "LogPage",
+    "LocalStatePurgeExecutor",
     "JobExecutionService",
     "JOB_PACKAGE_MANIFEST_PATH",
     "JOB_PACKAGE_WORKER_COMMAND",
@@ -141,12 +168,29 @@ __all__ = [
     "ChangeKind",
     "FieldChange",
     "RuntimeImageRef",
+    "RegistryLifecycleAdmin",
+    "RegistryManifestDeletePlan",
+    "RegistryManifestDeleteReceipt",
+    "RegistryManifestRef",
+    "PurgeRunCandidate",
+    "PurgeRunCatalog",
+    "build_run_purge_plan",
+    "build_project_purge_plan",
     "compare_job_packages",
     "unchanged_fields",
     "TrackingCancellationRecovery",
     "TrackingRecoveryDisposition",
     "ProviderCleanupDisposition",
     "ProviderCleanupResult",
+    "PurgeAction",
+    "PurgeActionExecutor",
+    "PurgeApplyError",
+    "PurgeMode",
+    "PurgePlan",
+    "PurgePlane",
+    "PurgeReceipt",
+    "PurgeStore",
+    "apply_purge_plan",
     "ReconciledArtifact",
     "ReconciledOutcome",
     "ReconciliationState",

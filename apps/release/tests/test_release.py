@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 import tomllib
+import zipfile
 from pathlib import Path, PurePosixPath
 from shutil import which
 
@@ -15,6 +16,8 @@ from posttrain.runtime_images import (
     lock_digest,
 )
 from posttrain.runtime_images.manifest import ManifestError, PublishedImage, load_manifest
+from posttrain_release.artifacts import create_distribution_receipt, verify_distribution_receipt
+from posttrain_release.candidate import next_candidate_version
 from posttrain_release.cli import main
 from posttrain_release.manifest_render import render_manifest
 from posttrain_release.repository_audit import evaluate_repository, inspect_repository
@@ -256,6 +259,162 @@ def test_stage_expands_static_wheel_metadata_without_touching_source(tmp_path: P
     assert 'version = "0.3.0"' in (destination / "uv.lock").read_text(encoding="utf-8")
 
 
+def test_stage_uses_committed_source_and_excludes_runner_state(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    destination = tmp_path / "staged"
+    _version_repository(source, version="0.3.0")
+    (source / ".posttrain/state").mkdir(parents=True)
+    (source / ".posttrain/state" / "stale.json").write_text("stale", encoding="utf-8")
+    (source / ".venv").mkdir()
+    (source / ".venv" / "generated.txt").write_text("generated", encoding="utf-8")
+    subprocess.run(["git", "-C", str(source), "init", "--quiet"], check=True)
+    subprocess.run(["git", "-C", str(source), "config", "user.email", "test@example.invalid"], check=True)
+    subprocess.run(["git", "-C", str(source), "config", "user.name", "Release Test"], check=True)
+    subprocess.run(["git", "-C", str(source), "add", "release", "pyproject.toml", "packages", "uv.lock"], check=True)
+    subprocess.run(["git", "-C", str(source), "commit", "--quiet", "-m", "fixture"], check=True)
+
+    stage_release(source, destination)
+
+    assert not (destination / ".posttrain/state/stale.json").exists()
+    assert not (destination / ".venv/generated.txt").exists()
+    assert (destination / "packages/train/pyproject.toml").is_file()
+
+
+def test_stage_can_render_an_rc_without_changing_the_authored_target(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    destination = tmp_path / "staged"
+    _version_repository(source, version="0.3.1")
+
+    result = stage_release(source, destination, version="0.3.1rc2")
+
+    assert result.version == "0.3.1rc2"
+    assert 'version = "0.3.1"' in (source / "release/manifest.toml").read_text(encoding="utf-8")
+    assert 'version = "0.3.1rc2"' in (destination / "packages/train/pyproject.toml").read_text(encoding="utf-8")
+    assert 'version = "0.3.1rc2"' in (destination / "uv.lock").read_text(encoding="utf-8")
+
+
+def test_stage_rejects_an_override_outside_the_authored_release_line(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    _version_repository(source, version="0.3.1")
+
+    with pytest.raises(ValueError, match="must be a release candidate of 0.3.1"):
+        stage_release(source, tmp_path / "staged", version="0.3.2rc1")
+
+
+def test_next_candidate_version_skips_every_immutable_rc_already_on_the_index() -> None:
+    assert (
+        next_candidate_version(
+            "0.3.1",
+            (
+                "posttrain-0.3.1rc1-py3-none-any.whl",
+                "posttrain-0.3.1rc3.tar.gz",
+                "unrelated-0.3.1rc2-py3-none-any.whl",
+            ),
+        )
+        == "0.3.1rc2"
+    )
+
+
+def test_distribution_receipt_binds_wheel_sdist_lock_and_image_manifest(tmp_path: Path) -> None:
+    distributions = tmp_path / "dist"
+    distributions.mkdir()
+    wheel = distributions / "posttrain_widget-0.3.1rc2-py3-none-any.whl"
+    with zipfile.ZipFile(wheel, "w") as archive:
+        archive.writestr(
+            "posttrain_widget-0.3.1rc2.dist-info/METADATA",
+            "Metadata-Version: 2.3\nName: posttrain-widget\nVersion: 0.3.1rc2\n",
+        )
+    (distributions / "posttrain_widget-0.3.1rc2.tar.gz").write_bytes(b"sdist")
+    uv_lock = tmp_path / "uv.lock"
+    uv_lock.write_text("lock\n", encoding="utf-8")
+    image_manifest = tmp_path / "published.toml"
+    image_manifest.write_text("schema_version = 1\n", encoding="utf-8")
+
+    receipt = create_distribution_receipt(
+        distributions,
+        version="0.3.1rc2",
+        revision="a" * 40,
+        uv_lock=uv_lock,
+        image_manifest=image_manifest,
+    )
+    receipt_path = tmp_path / "receipt.json"
+    receipt_path.write_text(__import__("json").dumps(receipt), encoding="utf-8")
+
+    verified = verify_distribution_receipt(receipt_path, distributions)
+    assert verified["packages"] == ["posttrain-widget"]
+    artifacts = verified["artifacts"]
+    assert isinstance(artifacts, list)
+    assert len(artifacts) == 2
+
+
+def test_tag_workflow_builds_the_versioned_stage_not_the_source_workspace() -> None:
+    repository_root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+    workflow = (repository_root / ".github/workflows/release.yml").read_text(encoding="utf-8")
+
+    assert "scripts/release/build-python-distributions" in workflow
+    builder = (repository_root / "scripts/release/build-python-distributions").read_text(encoding="utf-8")
+    assert "uv build" in builder
+    assert "--all-packages" in builder
+    assert "--no-sources" in builder
+    assert "--python 3.13" in builder
+    assert 'build_cache_dir="${UV_CACHE_DIR:-$build_cache_dir}"' in builder
+    assert 'UV_CACHE_DIR="$build_cache_dir"' in builder
+    assert "uv build environments/" not in workflow
+
+
+def test_protected_release_workflows_keep_the_build_and_qualification_boundaries() -> None:
+    repository_root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+    candidate = (repository_root / ".github/workflows/release-candidate.yml").read_text(encoding="utf-8")
+    final = (repository_root / ".github/workflows/release.yml").read_text(encoding="utf-8")
+
+    for workflow in (candidate, final):
+        assert "runs-on: [self-hosted, linux, x64, lan-release]" in workflow
+        assert "uv pip install" in workflow
+        assert '--index-url "${PYPI_DEV_SIMPLE}"' in workflow
+        assert "runtime images verify" in workflow
+        assert 'XDG_CONFIG_HOME="${image_verify_config}"' in workflow
+        assert "printf 'POSTTRAIN_REGISTRY=%s\\n'" in workflow
+        assert "trap 'rm -f \"${image_verify_env}\"' EXIT" in workflow
+        assert "Prepare release evidence directory" in workflow
+        assert "--framework-wheelhouse .release/wheelhouse" in workflow
+        assert "posttrain[dstack,trackio]==" in workflow
+        assert "posttrain-lab==" in workflow
+        assert "if-no-files-found: error" in workflow
+        assert "include-hidden-files: true" in workflow
+        assert ".release/consumer-venv/bin/posttrain --project-root apps/lab job run" in workflow
+        assert "run wait" in workflow
+        assert 'run reconcile \\\n            "release-' in workflow
+        assert 'run cleanup \\\n            "release-' in workflow
+
+    assert "candidate-version --simple-url" in candidate
+    assert "for attempt in $(seq 1 120)" in candidate
+    assert 'select(.headSha == $sha and .event == "push")' in candidate
+    assert 'git ls-remote --exit-code origin "refs/tags/v${POSTTRAIN_RELEASE_VERSION}"' in final
+    assert '"${DEVPI_CLIENT}" push -y' in final
+    assert "exact final bytes are already present in the stable index" in final
+    assert final.index("exact final bytes are already present in the stable index") < final.index(
+        '"${DEVPI_CLIENT}" push -y'
+    )
+    assert final.index("Capture bounded cache evidence") < final.index("Tag and create the GitHub release last")
+    assert final.index("Retain final receipt and cache evidence") < final.index(
+        "Tag and create the GitHub release last"
+    )
+    assert "for attempt in $(seq 1 120)" in final
+    assert 'select(.headSha == $sha and .event == "push")' in final
+    assert "REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt" in final
+    assert "exact final bytes are already present in the development index" in final
+    assert "development index already contains" in final
+    assert "resume_from_run_id" in final
+    assert 'gh run view "${RESUME_FROM_RUN_ID}"' in final
+    assert "workflowName // empty" in final
+    assert "conclusion // empty" in final
+    assert "gh run download" in final
+    assert 'git merge-base --is-ancestor "${source_sha}"' in final
+    assert 'git tag -a "v${POSTTRAIN_RELEASE_VERSION}" "${RELEASE_SOURCE_SHA}"' in final
+    assert "Materialize and verify the retained release wheelhouse" in final
+    assert "receipt-check .release/python-release-receipt.json" in final
+
+
 @pytest.mark.skipif(which("uv") is None, reason="requires uv to validate the staged workspace lock")
 def test_staged_workspace_syncs_with_the_projected_lock(tmp_path: Path) -> None:
     """Staging must not require a second dependency resolution to be installable."""
@@ -444,6 +603,27 @@ def test_variant_subset_preserves_canonical_order() -> None:
     from posttrain_release.publish import _normalize_variants
 
     assert _normalize_variants(["transform", "eval"]) == ("eval", "transform")
+
+
+def test_public_ci_trackio_mirror_matches_locked_distribution() -> None:
+    root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+    lock = tomllib.loads((root / "uv.lock").read_text(encoding="utf-8"))
+    trackio = next(package for package in lock["package"] if package["name"] == "carbonteq-trackio")
+    wheel = next(item for item in trackio["wheels"] if item["url"].endswith(".whl"))
+    wheel_sha256 = wheel["hash"].removeprefix("sha256:")
+    version = trackio["version"]
+    filename = f"carbonteq_trackio-{version}-py3-none-any.whl"
+    workflow = (root / ".github/workflows/quality.yml").read_text(encoding="utf-8")
+
+    assert (
+        "CARBONTEQ_TRACKIO_WHEEL_URL: "
+        f"https://github.com/carbonteq-ai/trackio/releases/download/carbonteq-v{version}/{filename}"
+    ) in workflow
+    assert f"CARBONTEQ_TRACKIO_WHEEL_SHA256: {wheel_sha256}" in workflow
+    assert f"POSTTRAIN_CONSUMER_EXTRA_WHEELS: /tmp/{filename}" in workflow
+    assert "uv lock --check" not in workflow
+    assert workflow.count("uv sync --frozen") == 4
+    assert workflow.count("--no-install-package carbonteq-trackio") == 4
 
 
 def test_release_can_read_prior_manifest_while_adding_a_variant(

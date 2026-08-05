@@ -91,15 +91,24 @@ def test_package_registry_classifies_every_current_work_package() -> None:
 
     inventory = validate_qualification_project(layout, load_qualification_gates())
 
-    assert len(inventory.entries) == 28
-    assert len(inventory.active_gates) == 11
-    assert len(inventory.candidate_experiments) == 17
+    assert len(inventory.entries) == 50
+    assert len(inventory.active_gates) == 20
+    assert len(inventory.candidate_experiments) == 30
     assert inventory.retired_gates == ()
-    assert len(inventory.classified) == 28
+    assert len(inventory.classified) == 50
     assert inventory.unclassified == ()
     assert {gate.id for gate in inventory.active_gates if gate.tier == "release"} == {
         "qwen2b-gsm8k-evaluation",
         "sft-data-prepare",
+        "environment-library-gsm8k",
+        "environment-library-automationbench",
+        "environment-library-mmlu-pro",
+        "environment-library-ifeval",
+        "environment-library-reasoning-gym",
+        "qwen4b-thinking-ifeval-release",
+        "qwen4b-thinking-reasoning-gym-release",
+        "qwen4b-thinking-math-python-release-mtp-c8-32k",
+        "environment-library-math-python",
     }
     for candidate in inventory.candidate_experiments:
         assert candidate.tier == "experimental"
@@ -206,8 +215,8 @@ def test_qualification_list_emits_a_stable_json_inventory(capsys: pytest.Capture
     payload = json.loads(capsys.readouterr().out)
 
     assert payload["schema_version"] == 2
-    assert len(payload["active_gates"]) == 11
-    assert len(payload["candidate_experiments"]) == 17
+    assert len(payload["active_gates"]) == 20
+    assert len(payload["candidate_experiments"]) == 30
     assert payload["retired_gates"] == []
     assert payload["unclassified_work_packages"] == []
 
@@ -218,4 +227,4 @@ def test_qualification_list_labels_candidates_as_non_active_experiments(capsys: 
     output = capsys.readouterr().out
 
     assert "automationbench-grpo\tcandidate\texperimental" in output
-    assert "summary\tactive=11\tcandidates=17\tretired_gates=0" in output
+    assert "summary\tactive=20\tcandidates=30\tretired_gates=0" in output

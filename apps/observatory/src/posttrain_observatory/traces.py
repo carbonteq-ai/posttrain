@@ -2,18 +2,35 @@
 
 from __future__ import annotations
 
+import json
+import re
 from collections import defaultdict
 from collections.abc import Mapping
+from itertools import product
 from statistics import fmean
+from typing import cast
 
 from posttrain.common import JsonValue
 from posttrain.tracking import RunDataSource, TraceQuery, TraceRecord
 
 from .models import (
+    EvaluationBreakdown,
+    EvaluationBreakdownGroup,
+    EvaluationBreakdownSpec,
+    EvaluationBreakdownValue,
+    EvaluationDistribution,
+    EvaluationFacet,
+    EvaluationFacetSpec,
+    EvaluationMetadata,
+    EvaluationMetricDefinition,
+    EvaluationPerformance,
     EvaluationSlice,
     RewardComponent,
+    TaskFacet,
+    TaskSliceMetadata,
     TraceDetail,
     TraceEvaluationView,
+    TraceOutcome,
     TraceSummary,
 )
 from .redaction import RedactionPolicy
@@ -40,6 +57,24 @@ def _integer(value: object) -> int | None:
     if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
         return value
     return None
+
+
+def _distribution(values: list[float]) -> EvaluationDistribution | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+
+    def percentile(fraction: float) -> float:
+        index = max(0, min(len(ordered) - 1, int((len(ordered) - 1) * fraction + 0.5)))
+        return ordered[index]
+
+    return EvaluationDistribution(
+        samples=len(ordered),
+        mean=fmean(ordered),
+        p50=percentile(0.50),
+        p95=percentile(0.95),
+        maximum=ordered[-1],
+    )
 
 
 def _wire_reward(payload: Mapping[str, JsonValue]) -> float | None:
@@ -107,6 +142,34 @@ def _wire_truncated(payload: Mapping[str, JsonValue]) -> bool:
     return False
 
 
+def _wire_outcome(
+    *,
+    success: bool | None,
+    reward: float | None,
+    truncated: bool,
+    error: str | None,
+) -> TraceOutcome:
+    """Keep reward-based Verifiers traces distinct from failed boolean traces.
+
+    Verifiers environments commonly emit a native reward without a boolean
+    ``success`` field. Treating ``success is None`` as failure made scored
+    examples appear failed in Observatory, so the projection exposes an
+    explicit, provider-neutral outcome instead.
+    """
+
+    if error is not None:
+        return "error"
+    if truncated:
+        return "truncated"
+    if success is True:
+        return "pass"
+    if success is False:
+        return "review"
+    if reward is not None:
+        return "scored"
+    return "unknown"
+
+
 def _wire_tool_calls(payload: Mapping[str, JsonValue]) -> int | None:
     direct = _integer(payload.get("num_tool_calls"))
     if direct is not None:
@@ -128,6 +191,144 @@ def _wire_tool_calls(payload: Mapping[str, JsonValue]) -> int | None:
         if isinstance(nested_calls, list):
             count += len(nested_calls)
     return count
+
+
+def _wire_metrics(payload: Mapping[str, JsonValue]) -> dict[str, float]:
+    values: dict[str, float] = {}
+    for container_name in ("rewards", "metrics"):
+        container = payload.get(container_name)
+        if not isinstance(container, Mapping):
+            continue
+        for name, value in container.items():
+            number = _number(value)
+            if number is not None:
+                values[str(name)] = number
+    return values
+
+
+def _wire_numeric_container(payload: Mapping[str, JsonValue], name: str) -> dict[str, float]:
+    container = payload.get(name)
+    if not isinstance(container, Mapping):
+        return {}
+    return {str(key): number for key, value in container.items() if (number := _number(value)) is not None}
+
+
+def _messages(payload: Mapping[str, JsonValue]) -> tuple[Mapping[str, JsonValue], ...]:
+    nodes = payload.get("nodes")
+    if isinstance(nodes, list):
+        messages: list[Mapping[str, JsonValue]] = []
+        for node in nodes:
+            if not isinstance(node, Mapping):
+                continue
+            message = node.get("message")
+            if isinstance(message, Mapping):
+                messages.append(cast(Mapping[str, JsonValue], message))
+        if messages:
+            return tuple(messages)
+    message_values = payload.get("messages")
+    if isinstance(message_values, list):
+        return tuple(
+            cast(Mapping[str, JsonValue], message) for message in message_values if isinstance(message, Mapping)
+        )
+    return ()
+
+
+def _wire_text_stats(payload: Mapping[str, JsonValue]) -> tuple[int | None, int, int | None, int]:
+    response_text: list[str] = []
+    thinking_text: list[str] = []
+    for message in _messages(payload):
+        if message.get("role") != "assistant":
+            continue
+        content = message.get("content")
+        if isinstance(content, str):
+            response_text.append(content)
+        reasoning = message.get("reasoning_content")
+        if isinstance(reasoning, str):
+            thinking_text.append(reasoning)
+    usage_completion_tokens: list[int] = []
+    usage_thinking_tokens: list[int] = []
+    calls = payload.get("calls")
+    if isinstance(calls, list):
+        for call in calls:
+            if not isinstance(call, Mapping):
+                continue
+            usage = call.get("usage")
+            if not isinstance(usage, Mapping):
+                continue
+            completion = _integer(usage.get("completion_tokens"))
+            if completion is not None:
+                usage_completion_tokens.append(completion)
+            reasoning = _integer(usage.get("reasoning_tokens"))
+            if reasoning is not None:
+                usage_thinking_tokens.append(reasoning)
+    response_tokens = None
+    if usage_completion_tokens and len(usage_completion_tokens) == len(usage_thinking_tokens):
+        response_tokens = sum(usage_completion_tokens) - sum(usage_thinking_tokens)
+    return (
+        response_tokens,
+        sum(len(value) for value in response_text),
+        sum(usage_thinking_tokens) if usage_thinking_tokens else None,
+        sum(len(value) for value in thinking_text),
+    )
+
+
+def _wire_model_calls(payload: Mapping[str, JsonValue]) -> int | None:
+    calls = payload.get("calls")
+    return len(calls) if isinstance(calls, list) else None
+
+
+def _wire_usage(payload: Mapping[str, JsonValue]) -> tuple[int | None, int | None]:
+    input_tokens: list[int] = []
+    completion_tokens: list[int] = []
+    calls = payload.get("calls")
+    if isinstance(calls, list):
+        for call in calls:
+            if not isinstance(call, Mapping):
+                continue
+            usage = call.get("usage")
+            if not isinstance(usage, Mapping):
+                continue
+            prompt = _integer(usage.get("prompt_tokens"))
+            completion = _integer(usage.get("completion_tokens"))
+            if prompt is not None:
+                input_tokens.append(prompt)
+            if completion is not None:
+                completion_tokens.append(completion)
+    return (
+        sum(input_tokens) if input_tokens else None,
+        sum(completion_tokens) if completion_tokens else None,
+    )
+
+
+def _wire_latency_ms(payload: Mapping[str, JsonValue]) -> float | None:
+    explicit = _number(payload.get("latency_ms"))
+    if explicit is not None:
+        return explicit
+    timing = payload.get("timing")
+    if isinstance(timing, Mapping):
+        generation = timing.get("generation")
+        model = generation.get("model") if isinstance(generation, Mapping) else None
+        duration = _number(model.get("duration")) if isinstance(model, Mapping) else None
+        if duration is not None:
+            return duration * 1000
+    starts: list[float] = []
+    ends: list[float] = []
+    calls = payload.get("calls")
+    if isinstance(calls, list):
+        for call in calls:
+            if not isinstance(call, Mapping):
+                continue
+            clock = call.get("time")
+            if not isinstance(clock, Mapping):
+                continue
+            start = _number(clock.get("start"))
+            end = _number(clock.get("end"))
+            if start is not None and end is not None and end >= start:
+                starts.append(start)
+                ends.append(end)
+    if starts and ends:
+        return (max(ends) - min(starts)) * 1000
+    return None
 
 
 def _task_scalar(value: object) -> str | None:
@@ -160,6 +361,264 @@ def _task_from_record(value: object) -> str | None:
     return identity or task_type
 
 
+def _humanize(value: str) -> str:
+    value = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", value)
+    value = re.sub(r"Task(?=[:\s-]|$)", " Task", value)
+    value = value.replace("_", " ").replace("-", " ").replace(":", " ")
+    label = " ".join(part.capitalize() for part in value.split())
+    for source, target in (("Ifeval", "IFEval"), ("Gsm8k", "GSM8K"), ("Mmlu", "MMLU")):
+        label = label.replace(source, target)
+    return label
+
+
+_COMPATIBILITY_FACET_FIELDS: tuple[tuple[str, str, str], ...] = (
+    ("generator", "generator", "Generator"),
+    ("category", "category", "Category"),
+    ("domain", "domain", "Domain"),
+    ("problem_type", "problem_type", "Problem type"),
+    ("level", "difficulty", "Difficulty"),
+)
+
+
+def _facet(
+    *,
+    dimension: str,
+    dimension_label: str,
+    value: str,
+    label: str | None = None,
+) -> TaskFacet:
+    return TaskFacet(
+        key=f"{dimension}:{value}",
+        dimension=dimension,
+        dimension_label=dimension_label,
+        value=value,
+        label=label or _humanize(value),
+    )
+
+
+def _declared_facets(value: object) -> tuple[TaskFacet, ...]:
+    """Read the portable Verifiers task-facet convention when an env emits it."""
+
+    if not isinstance(value, list):
+        return ()
+    facets: list[TaskFacet] = []
+    for item in value:
+        if not isinstance(item, Mapping):
+            continue
+        dimension = _task_scalar(item.get("dimension"))
+        raw_value = _task_scalar(item.get("value"))
+        if dimension is None or raw_value is None:
+            continue
+        facets.append(
+            _facet(
+                dimension=dimension,
+                dimension_label=_task_scalar(item.get("dimension_label")) or _humanize(dimension),
+                value=raw_value,
+                label=_task_scalar(item.get("label")),
+            )
+        )
+    return tuple(facets)
+
+
+def _task_facets(
+    data: Mapping[str, object],
+    metadata: Mapping[str, object],
+    instruction_families: tuple[str, ...],
+    facet_specs: tuple[EvaluationFacetSpec, ...] = (),
+) -> tuple[TaskFacet, ...]:
+    """Project native environment semantics without an environment-name switch.
+
+    New environments can emit ``evaluation_facets`` directly. The field-based
+    fallback preserves semantic data already emitted by the current environment
+    packages, so historical traces become useful without migration.
+    """
+
+    if facet_specs:
+        configured: list[TaskFacet] = []
+        seen: set[str] = set()
+        for spec in facet_specs:
+            raw = data.get(spec.field, metadata.get(spec.field))
+            values = raw if isinstance(raw, list | tuple) else [raw]
+            for value in values:
+                text = _task_scalar(value)
+                if text is None:
+                    continue
+                if spec.transform == "prefix_before_colon":
+                    text = text.split(":", 1)[0]
+                item = _facet(dimension=spec.dimension, dimension_label=spec.label, value=text)
+                if item.key not in seen:
+                    configured.append(item)
+                    seen.add(item.key)
+        return tuple(configured)
+
+    declared = _declared_facets(data.get("evaluation_facets")) or _declared_facets(metadata.get("evaluation_facets"))
+    facets: list[TaskFacet] = list(declared)
+    seen = {item.key for item in facets}
+    for family in instruction_families:
+        item = _facet(
+            dimension="instruction_family",
+            dimension_label="Instruction family",
+            value=family,
+        )
+        if item.key not in seen:
+            facets.append(item)
+            seen.add(item.key)
+    for source_field, dimension, dimension_label in _COMPATIBILITY_FACET_FIELDS:
+        value = _task_scalar(data.get(source_field)) or _task_scalar(metadata.get(source_field))
+        if value is None:
+            continue
+        item = _facet(
+            dimension=dimension,
+            dimension_label=dimension_label,
+            value=value,
+        )
+        if item.key not in seen:
+            facets.append(item)
+            seen.add(item.key)
+    return tuple(facets)
+
+
+def _task_metadata(
+    payload: Mapping[str, JsonValue],
+    key: str | None,
+    fallback: object = None,
+    facet_specs: tuple[EvaluationFacetSpec, ...] = (),
+) -> TaskSliceMetadata | None:
+    task = payload.get("task") or fallback
+    if not isinstance(task, Mapping):
+        return None
+    task_type = _task_scalar(task.get("type"))
+    data = task.get("data")
+    data = data if isinstance(data, Mapping) else task
+    if key is None:
+        key = _task_from_record(task)
+    if key is None:
+        return None
+    name = _task_scalar(data.get("name")) or _task_scalar(data.get("generator")) or key
+    metadata = data.get("metadata")
+    metadata = metadata if isinstance(metadata, Mapping) else {}
+    raw_instruction_ids = data.get("instruction_id_list")
+    instruction_ids = (
+        tuple(str(item) for item in raw_instruction_ids if isinstance(item, (str, int, float)))
+        if isinstance(raw_instruction_ids, list)
+        else ()
+    )
+    instruction_families = tuple(dict.fromkeys(item.split(":", 1)[0] for item in instruction_ids if ":" in item))
+    instruction_category = " + ".join(_humanize(item) for item in instruction_families)
+    facets = _task_facets(data, metadata, instruction_families, facet_specs)
+    task_label = _humanize(name)
+    if instruction_category:
+        task_label = f"{instruction_category} · {task_label}"
+    dataset = (
+        _task_scalar(data.get("source_repo"))
+        or _task_scalar(data.get("source_repository"))
+        or _task_scalar(metadata.get("source_dataset"))
+    )
+    seed = data.get("seed")
+    index = data.get("idx")
+    return TaskSliceMetadata(
+        key=key,
+        label=task_label,
+        description=_task_scalar(data.get("description")),
+        category=instruction_category or (facets[0].label if facets else _humanize(task_type or "evaluation")),
+        instruction_ids=instruction_ids,
+        instruction_families=instruction_families,
+        facets=facets,
+        dataset=dataset,
+        dataset_revision=_task_scalar(data.get("source_revision")),
+        split=_task_scalar(data.get("source_split")),
+        seed=seed if isinstance(seed, int) and not isinstance(seed, bool) else None,
+        index=index if isinstance(index, int) and not isinstance(index, bool) else None,
+    )
+
+
+def _compound_breakdowns(
+    summaries: tuple[TraceSummary, ...],
+    specs: tuple[EvaluationBreakdownSpec, ...],
+) -> tuple[EvaluationBreakdown, ...]:
+    reports: list[EvaluationBreakdown] = []
+    for spec in specs:
+        buckets: dict[str, tuple[tuple[TaskFacet, ...], list[TraceSummary]]] = {}
+        excluded = 0
+        dimension_labels: dict[str, str] = {}
+        for item in summaries:
+            facets = item.task_metadata.facets if item.task_metadata is not None else ()
+            by_dimension: dict[str, list[TaskFacet]] = defaultdict(list)
+            for facet in facets:
+                by_dimension[facet.dimension].append(facet)
+                dimension_labels.setdefault(facet.dimension, facet.dimension_label)
+            values_by_dimension: list[list[TaskFacet]] = []
+            invalid = False
+            for dimension in spec.dimensions:
+                values = by_dimension.get(dimension, [])
+                if not values and spec.missing == "bucket":
+                    values = [
+                        _facet(
+                            dimension=dimension,
+                            dimension_label=dimension_labels.get(dimension, _humanize(dimension)),
+                            value="(missing)",
+                            label="Missing",
+                        )
+                    ]
+                if not values or (spec.multi_value == "reject" and len(values) != 1):
+                    invalid = True
+                    break
+                values_by_dimension.append(values)
+            if invalid:
+                excluded += 1
+                continue
+            for combination in product(*values_by_dimension):
+                key = json.dumps(
+                    {facet.dimension: facet.value for facet in combination},
+                    separators=(",", ":"),
+                )
+                bucket = buckets.get(key)
+                if bucket is None:
+                    buckets[key] = (tuple(combination), [item])
+                else:
+                    bucket[1].append(item)
+        groups: list[EvaluationBreakdownGroup] = []
+        for key, (combination, values) in sorted(buckets.items()):
+            rewards = [item.reward for item in values if item.reward is not None]
+            successes = [item.success for item in values if item.success is not None]
+            groups.append(
+                EvaluationBreakdownGroup(
+                    key=key,
+                    label=" · ".join(facet.label for facet in combination),
+                    values=tuple(
+                        EvaluationBreakdownValue(
+                            dimension=facet.dimension,
+                            dimension_label=facet.dimension_label,
+                            value=facet.value,
+                            label=facet.label,
+                        )
+                        for facet in combination
+                    ),
+                    count=len(values),
+                    scored=len(successes),
+                    failures=sum(1 for item in values if item.error is not None),
+                    truncated=sum(1 for item in values if item.truncated),
+                    mean_reward=fmean(rewards) if rewards else None,
+                    success_rate=(sum(1 for value in successes if value) / len(successes) if successes else None),
+                )
+            )
+        reports.append(
+            EvaluationBreakdown(
+                id=spec.id,
+                label=spec.label,
+                dimensions=spec.dimensions,
+                dimension_labels=(
+                    dimension_labels.get(spec.dimensions[0], _humanize(spec.dimensions[0])),
+                    dimension_labels.get(spec.dimensions[1], _humanize(spec.dimensions[1])),
+                ),
+                presentation=spec.presentation,
+                groups=tuple(groups),
+                excluded=excluded,
+            )
+        )
+    return tuple(reports)
+
+
 def _wire_task(
     payload: Mapping[str, JsonValue],
     metadata: Mapping[str, JsonValue],
@@ -179,23 +638,144 @@ def _wire_task(
     return None
 
 
-def _summary(record: TraceRecord) -> TraceSummary:
+def _wire_prompt_preview(payload: Mapping[str, JsonValue]) -> str | None:
+    """Return one bounded human-readable request preview for list surfaces."""
+
+    candidates: list[object] = []
+    info = payload.get("info")
+    for container in (payload.get("task"), info.get("task") if isinstance(info, Mapping) else None):
+        if not isinstance(container, Mapping):
+            continue
+        data = container.get("data")
+        data = data if isinstance(data, Mapping) else container
+        candidates.extend(data.get(field) for field in ("prompt", "question", "instruction"))
+
+    transcript = payload.get("messages") or payload.get("transcript") or payload.get("nodes")
+    if isinstance(transcript, list):
+        for item in transcript:
+            if not isinstance(item, Mapping):
+                continue
+            message = item.get("message")
+            message = message if isinstance(message, Mapping) else item
+            if str(message.get("role", "")).lower() == "user":
+                candidates.append(message.get("content"))
+                break
+
+    for candidate in candidates:
+        if not isinstance(candidate, str):
+            continue
+        preview = " ".join(candidate.split())
+        if preview:
+            return preview if len(preview) <= 240 else f"{preview[:239].rstrip()}…"
+    return None
+
+
+def _summary(record: TraceRecord, evaluation_metadata: EvaluationMetadata | None = None) -> TraceSummary:
     payload = record.payload
     metadata = payload.get("metadata")
     metadata = metadata if isinstance(metadata, Mapping) else {}
     info = payload.get("info")
     info = info if isinstance(info, Mapping) else {}
+    reward = _wire_reward(payload)
+    success = _wire_success(payload)
+    truncated = _wire_truncated(payload)
+    error = _wire_error(payload)
+    task = _wire_task(payload, metadata, info)
+    response_tokens, response_chars, thinking_tokens, thinking_chars = _wire_text_stats(payload)
+    input_tokens, completion_tokens = _wire_usage(payload)
+    explicit_tokens = _integer(payload.get("tokens"))
+    task_metadata = _task_metadata(
+        payload,
+        task,
+        info.get("task"),
+        evaluation_metadata.facet_specs if evaluation_metadata is not None else (),
+    )
     return TraceSummary(
         external_id=record.external_id,
         trace_type=record.trace_type,
-        task=_wire_task(payload, metadata, info),
-        reward=_wire_reward(payload),
-        success=_wire_success(payload),
-        truncated=_wire_truncated(payload),
-        error=_wire_error(payload),
+        prompt_preview=_wire_prompt_preview(payload),
+        task=task,
+        task_label=task_metadata.label if task_metadata is not None else None,
+        task_metadata=task_metadata,
+        reward=reward,
+        success=success,
+        outcome=_wire_outcome(success=success, reward=reward, truncated=truncated, error=error),
+        truncated=truncated,
+        error=error,
         tool_calls=_wire_tool_calls(payload),
-        latency_ms=_number(payload.get("latency_ms")),
-        tokens=_integer(payload.get("tokens")),
+        model_calls=_wire_model_calls(payload),
+        input_tokens=input_tokens,
+        completion_tokens=completion_tokens,
+        latency_ms=_wire_latency_ms(payload),
+        tokens=explicit_tokens if explicit_tokens is not None else completion_tokens,
+        response_tokens=response_tokens,
+        response_chars=response_chars,
+        thinking_tokens=thinking_tokens,
+        thinking_chars=thinking_chars,
+        reward_components=_wire_numeric_container(payload, "rewards"),
+        native_metrics=_wire_numeric_container(payload, "metrics"),
+        metrics=_wire_metrics(payload),
+    )
+
+
+def _predicate_matches(value: float, metadata: EvaluationMetadata) -> bool | None:
+    definition = metadata.success_definition
+    if definition is None:
+        return None
+    threshold = definition.value
+    tolerance = definition.tolerance
+    if definition.operator == "eq":
+        return abs(value - threshold) <= tolerance
+    if definition.operator == "gt":
+        return value > threshold
+    if definition.operator == "gte":
+        return value >= threshold
+    if definition.operator == "lt":
+        return value < threshold
+    if definition.operator == "lte":
+        return value <= threshold
+    assert definition.upper is not None
+    return threshold <= value <= definition.upper
+
+
+def _apply_evaluation_semantics(
+    summary: TraceSummary,
+    metadata: EvaluationMetadata | None,
+) -> TraceSummary:
+    """Apply the environment-declared score and pass-rate metrics to one trace."""
+
+    if metadata is None:
+        return summary
+    reward = summary.metrics.get(metadata.primary_metric) if metadata.primary_metric else None
+    success = None
+    definition = metadata.success_definition
+    if definition is not None:
+        # A versioned success definition is authoritative. Operationally
+        # incomplete traces stay outside the semantic pass-rate denominator;
+        # they must not fall through to the legacy binary-metric adapter.
+        if summary.error is None and not summary.truncated:
+            container = summary.reward_components if definition.namespace == "reward" else summary.native_metrics
+            signal_value = container.get(definition.signal)
+            if signal_value is not None:
+                success = _predicate_matches(signal_value, metadata)
+    elif metadata.pass_rate_metric is not None:
+        pass_value = summary.metrics.get(metadata.pass_rate_metric)
+        if pass_value in (0.0, 1.0):
+            success = pass_value == 1.0
+    if reward is None and success is summary.success:
+        return summary
+    resolved_reward = summary.reward if reward is None else reward
+    return summary.model_copy(
+        update={
+            "reward": resolved_reward,
+            "success": success,
+            "outcome": _wire_outcome(
+                success=success,
+                reward=resolved_reward,
+                truncated=summary.truncated,
+                error=summary.error,
+            ),
+        }
     )
 
 
@@ -214,7 +794,19 @@ def project_trace(record: TraceRecord, redaction: RedactionPolicy) -> TraceDetai
     transcript_value = payload.get("messages") or payload.get("transcript") or payload.get("nodes")
     transcript: list[dict[str, JsonValue]] = []
     if isinstance(transcript_value, list):
-        transcript = [dict(item) for item in transcript_value if isinstance(item, dict)]
+        for item in transcript_value:
+            if not isinstance(item, dict):
+                continue
+            entry = dict(item)
+            message = item.get("message")
+            if isinstance(message, Mapping):
+                entry.setdefault("role", message.get("role"))
+                entry.setdefault("content", message.get("content"))
+                if "reasoning_content" in message:
+                    entry["reasoning_content"] = message.get("reasoning_content")
+                if "tool_calls" in message:
+                    entry["tool_calls"] = message.get("tool_calls")
+            transcript.append(entry)
     return TraceDetail(
         summary=_summary(record),
         reward_components=tuple(components),
@@ -232,6 +824,7 @@ async def trace_evaluation_view(
     expected: int | None = None,
     trace_type: str = "verifiers",
     safety_limit: int = 5000,
+    metadata: EvaluationMetadata | None = None,
 ) -> TraceEvaluationView:
     cursor: str | None = None
     records: list[TraceRecord] = []
@@ -247,7 +840,8 @@ async def trace_evaluation_view(
             cursor = None
             break
         cursor = page.next_cursor
-    summaries = tuple(_summary(record) for record in records)
+    summaries = tuple(_summary(record, metadata) for record in records)
+    summaries = tuple(_apply_evaluation_semantics(item, metadata) for item in summaries)
     rewards = [item.reward for item in summaries if item.reward is not None]
     successes = [item.success for item in summaries if item.success is not None]
     grouped: dict[str, list[TraceSummary]] = defaultdict(list)
@@ -260,6 +854,9 @@ async def trace_evaluation_view(
         slices.append(
             EvaluationSlice(
                 key=key,
+                label=(values[0].task_label or key),
+                description=(values[0].task_metadata.description if values[0].task_metadata else None),
+                metadata=(values[0].task_metadata if values[0].task_metadata else None),
                 count=len(values),
                 mean_reward=fmean(slice_rewards) if slice_rewards else None,
                 success_rate=(
@@ -267,20 +864,103 @@ async def trace_evaluation_view(
                 ),
             )
         )
+    facet_groups: dict[str, tuple[TaskFacet, list[TraceSummary]]] = {}
+    for item in summaries:
+        metadata_for_item = item.task_metadata
+        if metadata_for_item is None:
+            continue
+        for facet in metadata_for_item.facets:
+            facet_bucket = facet_groups.get(facet.key)
+            if facet_bucket is None:
+                facet_groups[facet.key] = (facet, [item])
+            else:
+                facet_bucket[1].append(item)
+    facets = []
+    for key, (facet, values) in sorted(facet_groups.items()):
+        facet_rewards = [item.reward for item in values if item.reward is not None]
+        facet_successes = [item.success for item in values if item.success is not None]
+        facets.append(
+            EvaluationFacet(
+                key=key,
+                label=facet.label,
+                dimension=facet.dimension,
+                dimension_label=facet.dimension_label,
+                count=len(values),
+                mean_reward=fmean(facet_rewards) if facet_rewards else None,
+                success_rate=(
+                    sum(1 for value in facet_successes if value) / len(facet_successes) if facet_successes else None
+                ),
+            )
+        )
+    breakdowns = _compound_breakdowns(
+        summaries,
+        metadata.breakdown_specs if metadata is not None else (),
+    )
     complete = cursor is None and (expected is None or len(records) >= expected)
     state = "complete" if complete else "partial"
     if not records and expected in (None, 0):
         state = "unavailable"
+    definition = metadata.success_definition if metadata is not None else None
+    if state == "complete" and definition is not None and definition.missing == "error":
+        missing_success_signal = any(
+            item.error is None
+            and not item.truncated
+            and definition.signal
+            not in (item.reward_components if definition.namespace == "reward" else item.native_metrics)
+            for item in summaries
+        )
+        if missing_success_signal:
+            state = "partial"
+    metric_names = sorted({name for item in summaries for name in item.metrics})
+    metric_definitions = tuple(
+        EvaluationMetricDefinition(
+            name=name,
+            label=_humanize(name),
+            role=("primary_reward" if name == (metadata.primary_metric if metadata else None) else "diagnostic"),
+        )
+        for name in metric_names
+    )
+    resolved_metadata = metadata
+    if resolved_metadata is not None:
+        known = {item.name for item in resolved_metadata.metrics}
+        resolved_metadata = resolved_metadata.model_copy(
+            update={
+                "metrics": resolved_metadata.metrics
+                + tuple(item for item in metric_definitions if item.name not in known)
+            }
+        )
     return TraceEvaluationView(
         state=state,
+        metadata=resolved_metadata,
         scanned=len(records),
         expected=expected,
         included=len(records),
+        scored=len(rewards),
         mean_reward=fmean(rewards) if rewards else None,
         success_rate=(sum(1 for value in successes if value) / len(successes) if successes else None),
+        passed=sum(1 for value in successes if value),
+        pass_scored=len(successes),
         failures=sum(1 for item in summaries if item.error is not None),
         truncated=sum(1 for item in summaries if item.truncated),
         slices=tuple(slices),
+        facets=tuple(facets),
+        breakdowns=breakdowns,
+        performance=EvaluationPerformance(
+            latency_ms=_distribution([item.latency_ms for item in summaries if item.latency_ms is not None]),
+            completion_tokens=_distribution(
+                [
+                    float(item.completion_tokens)
+                    if item.completion_tokens is not None
+                    else float(cast(int, item.tokens))
+                    for item in summaries
+                    if item.completion_tokens is not None or item.tokens is not None
+                ]
+            ),
+            thinking_tokens=_distribution(
+                [float(item.thinking_tokens) for item in summaries if item.thinking_tokens is not None]
+            ),
+            tool_calls=_distribution([float(item.tool_calls) for item in summaries if item.tool_calls is not None]),
+        ),
         traces=summaries,
         next_cursor=cursor,
         live=live,
@@ -292,13 +972,15 @@ async def get_trace_detail(
     run_id: str,
     external_id: str,
     redaction: RedactionPolicy,
+    metadata: EvaluationMetadata | None = None,
 ) -> TraceDetail:
     cursor: str | None = None
     while True:
         page = await source.traces(run_id, TraceQuery(cursor=cursor, limit=1000))
         for record in page.items:
             if record.external_id == external_id:
-                return project_trace(record, redaction)
+                detail = project_trace(record, redaction)
+                return detail.model_copy(update={"summary": _apply_evaluation_semantics(detail.summary, metadata)})
         if page.next_cursor is None:
             break
         cursor = page.next_cursor

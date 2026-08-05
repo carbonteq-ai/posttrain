@@ -1,5 +1,7 @@
 """Tests for vLLM inference-binding translation."""
 
+from dataclasses import replace
+
 import pytest
 from posttrain.common import InferenceBinding, Workload
 from posttrain.serve import ServeBenchmarkRequest
@@ -28,6 +30,37 @@ def test_lfm_binding_uses_model_renderer_and_frontend_parsers(lfm_screen_binding
         "--reasoning-parser",
         "lfm2",
     )
+
+
+def test_qwen_tool_capability_uses_its_declared_xml_protocol(qwen_screen_binding: InferenceBinding) -> None:
+    binding = replace(
+        qwen_screen_binding,
+        capabilities=("tool-calling",),
+        engine={**qwen_screen_binding.engine, "reasoning_parser": "qwen3"},
+    )
+
+    assert binding.model.conversation.tool_calls is not None
+    assert binding.model.conversation.tool_calls.id == "qwen3_xml"
+    assert frontend_args(binding) == (
+        "--enable-auto-tool-choice",
+        "--tool-call-parser",
+        "qwen3_xml",
+        "--reasoning-parser",
+        "qwen3",
+    )
+
+
+def test_vllm_rejects_parser_override_that_conflicts_with_model_protocol(
+    qwen_screen_binding: InferenceBinding,
+) -> None:
+    binding = replace(
+        qwen_screen_binding,
+        capabilities=("tool-calling",),
+        engine={**qwen_screen_binding.engine, "tool_call_parser": "hermes"},
+    )
+
+    with pytest.raises(ValueError, match="conflicts with the selected model tool-call protocol"):
+        frontend_args(binding)
 
 
 def test_skip_mm_profiling_requires_text_only_mode() -> None:

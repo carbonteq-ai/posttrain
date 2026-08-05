@@ -42,6 +42,15 @@ def test_shipped_dockerfile_input_paths_resolve_against_the_definition_root() ->
                 assert (root / path).exists(), f"{level}/Dockerfile copies missing {path}"
 
 
+def test_eval_kind_installs_one_locked_runtime_and_marks_it_preinstalled() -> None:
+    with definition_root() as root:
+        dockerfile = (root / "containers/posttrain-job-kinds/Dockerfile").read_text()
+    assert "null_harness_warmup.py" not in dockerfile
+    assert "uv sync --script" not in dockerfile
+    assert "--constraint /opt/posttrain/locks/workspace.lock.txt" in dockerfile
+    assert 'POSTTRAIN_VERIFIERS_PREINSTALLED="1"' in dockerfile
+
+
 def test_base_accepts_a_build_secret_ca_bundle_without_disabling_tls() -> None:
     with definition_root() as root:
         dockerfile = (root / "containers/posttrain-base/Dockerfile").read_text()

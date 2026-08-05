@@ -88,7 +88,7 @@ def _validate_definition() -> None:
         "posttrain.train.backends.verl.worker",
         'ENTRYPOINT ["posttrain-runtime"]',
         'CMD ["execute", "--manifest", "/opt/posttrain/job/package.json"]',
-        "posttrain-runtime qualify --timeout-seconds 60 --manifest /opt/posttrain/job/package.json",
+        "posttrain-runtime qualify ${qualification_args} --timeout-seconds 60 --manifest /opt/posttrain/job/package.json",
         "ARG RUNTIME_DEPENDENCIES_DIGEST",
         "ARG CODE_REQUIREMENTS_DIGEST",
         "ARG RESOLVED_CONFIG_DIGEST",
@@ -122,11 +122,21 @@ def _validate_definition() -> None:
         "COPY --link --from=job-context" not in dockerfile,
         "mutable named-context inputs must not use stale-prone linked COPY layers",
     )
-    package_barrier = 'RUN test -n "${PACKAGE_KEY}"'
+    package_barrier = "COPY --from=job-context /package.json context-package-${PACKAGE_KEY}.json"
     first_context_copy = "COPY --from=job-context"
     _require(
-        package_barrier in dockerfile and dockerfile.index(package_barrier) < dockerfile.index(first_context_copy),
-        "actual-job layers must bind PACKAGE_KEY before copying mutable context",
+        package_barrier in dockerfile and dockerfile.index(package_barrier) == dockerfile.index(first_context_copy),
+        "actual-job layers must copy the package manifest before other mutable context",
+    )
+    _require(
+        'RUN python - "${PACKAGE_KEY}"' in dockerfile
+        and dockerfile.index('RUN python - "${PACKAGE_KEY}"') < dockerfile.index("/locks/ locks/"),
+        "actual-job layers must verify the named-context package key before copying other inputs",
+    )
+    _require(
+        'RUN cp "context-package-${PACKAGE_KEY}.json" package.json' in dockerfile
+        and "COPY --from=job-context /package.json package.json" not in dockerfile,
+        "the final manifest must come from the already verified context file",
     )
     for required in (
         "compression=zstd",

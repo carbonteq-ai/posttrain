@@ -4,10 +4,15 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import timedelta
+from typing import cast
 
 import pytest
+from posttrain.common import JsonValue
 from posttrain.tracking import MetricPoint, MetricSeries, TracePage, TraceRecord
 from posttrain_observatory import (
+    EvaluationBreakdownSpec,
+    EvaluationFacetSpec,
+    EvaluationMetadata,
     FixtureRunDataSource,
     FixtureSemanticSummaryProvider,
     GenericRunView,
@@ -17,8 +22,14 @@ from posttrain_observatory import (
     SemanticSummaryRequest,
     ServingBenchmarkRunView,
 )
-from posttrain_observatory.service import _inference_timing_summary
-from posttrain_observatory.traces import trace_evaluation_view
+from posttrain_observatory.models import EvaluationSuccessDefinition
+from posttrain_observatory.redaction import RedactionPolicy
+from posttrain_observatory.service import (
+    _evaluation_expected_traces,
+    _evaluation_metadata,
+    _inference_timing_summary,
+)
+from posttrain_observatory.traces import project_trace, trace_evaluation_view
 
 
 @pytest.fixture
@@ -384,6 +395,19 @@ async def test_serving_benchmark_projects_one_run_level_concurrency_sweep() -> N
 
 
 @pytest.mark.asyncio
+async def test_trace_population_uses_the_job_telemetry_trace_type() -> None:
+    source = FixtureRunDataSource()
+    service = ObservatoryService({"fixture": source})
+
+    evaluation = await service.get_trace_evaluation_view(
+        RunLocator(source_id="fixture", run_id="runs/serve-cedar-point")
+    )
+
+    assert evaluation.included > 0
+    assert {trace.trace_type for trace in evaluation.traces} == {"inference"}
+
+
+@pytest.mark.asyncio
 async def test_eval_population_is_trace_derived_and_drillable(service: ObservatoryService) -> None:
     locator = RunLocator(source_id="fixture", run_id="runs/eval-violet-river")
     response = await service.get_run_view_response(locator)
@@ -423,10 +447,22 @@ async def test_eval_population_projects_verifiers_v1_wire_trace_fields() -> None
                 "nodes": [
                     {
                         "sampled": True,
-                        "message": {"role": "assistant", "tool_calls": [{"name": "calculator"}]},
+                        "message": {
+                            "role": "assistant",
+                            "content": "42",
+                            "reasoning_content": "Check the arithmetic.",
+                            "tool_calls": [{"name": "calculator"}],
+                        },
                     }
                 ],
-                "calls": [{"finish_reason": "stop", "error": None}],
+                "calls": [
+                    {
+                        "finish_reason": "stop",
+                        "error": None,
+                        "usage": {"prompt_tokens": 8, "completion_tokens": 12, "reasoning_tokens": 5},
+                        "time": {"start": 10.0, "end": 12.5},
+                    }
+                ],
             },
         ),
         TraceRecord(
@@ -449,11 +485,515 @@ async def test_eval_population_projects_verifiers_v1_wire_trace_fields() -> None
     assert evaluation.state == "complete"
     assert evaluation.mean_reward == 0.5
     assert evaluation.success_rate == 0.5
+    assert evaluation.scored == 2
+    assert evaluation.passed == 1
+    assert evaluation.pass_scored == 2
     assert evaluation.failures == 1
     assert evaluation.truncated == 1
     assert evaluation.traces[0].task == "GSM8KTask:1"
+    assert evaluation.traces[0].prompt_preview == "must not become a slice label"
+    assert evaluation.traces[0].task_metadata is not None
+    assert evaluation.traces[0].task_metadata.label == "GSM8K Task 1"
     assert evaluation.traces[0].tool_calls == 1
+    assert evaluation.traces[0].response_tokens == 7
+    assert evaluation.traces[0].input_tokens == 8
+    assert evaluation.traces[0].completion_tokens == 12
+    assert evaluation.traces[0].tokens == 12
+    assert evaluation.traces[0].latency_ms == 2500
+    assert evaluation.performance.latency_ms is not None
+    assert evaluation.performance.latency_ms.model_dump() == {
+        "samples": 1,
+        "mean": 2500.0,
+        "p50": 2500.0,
+        "p95": 2500.0,
+        "maximum": 2500.0,
+    }
+    assert evaluation.performance.completion_tokens is not None
+    assert evaluation.performance.completion_tokens.p50 == 12
+    assert evaluation.performance.thinking_tokens is not None
+    assert evaluation.performance.thinking_tokens.p50 == 5
+    assert evaluation.traces[0].response_chars == 2
+    assert evaluation.traces[0].thinking_chars == len("Check the arithmetic.")
+    assert evaluation.traces[0].model_calls == 1
+    assert evaluation.traces[0].outcome == "pass"
     assert evaluation.traces[1].error == "model_timeout"
+    assert evaluation.traces[1].outcome == "error"
+    detail = project_trace(source._traces[run_id][0], RedactionPolicy())  # noqa: SLF001 - deterministic fixture inspection
+    assert detail.transcript[0]["reasoning_content"] == "Check the arithmetic."
+
+
+def test_ifeval_task_metadata_uses_instruction_families_not_numeric_key() -> None:
+    record = TraceRecord(
+        trace_type="verifiers",
+        external_id="ifeval-trace",
+        payload={
+            "task": {
+                "type": "IFEvalTask",
+                "data": {
+                    "idx": 13,
+                    "name": "ifeval-13",
+                    "instruction_id_list": [
+                        "detectable_format:json_format",
+                        "keywords:existence",
+                    ],
+                    "source_repo": "google/IFEval",
+                    "source_revision": "9" * 40,
+                    "source_split": "train",
+                },
+            },
+            "rewards": {"strict_prompt_accuracy": 1.0},
+            "metrics": {"strict_prompt_accuracy": 1.0},
+            "is_completed": True,
+            "nodes": [],
+            "calls": [],
+        },
+    )
+
+    detail = project_trace(record, RedactionPolicy())
+    metadata = detail.summary.task_metadata
+    assert metadata is not None
+    assert metadata.key == "IFEvalTask:ifeval-13"
+    assert metadata.label == "Detectable Format + Keywords · IFEval 13"
+    assert metadata.category == "Detectable Format + Keywords"
+    assert metadata.instruction_ids == (
+        "detectable_format:json_format",
+        "keywords:existence",
+    )
+    assert metadata.instruction_families == ("detectable_format", "keywords")
+    assert [(facet.dimension, facet.value) for facet in metadata.facets] == [
+        ("instruction_family", "detectable_format"),
+        ("instruction_family", "keywords"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_ifeval_evaluation_exposes_multi_label_instruction_facets() -> None:
+    source = FixtureRunDataSource()
+    source._traces["runs/ifeval-facets"] = (  # noqa: SLF001 - deterministic fixture construction
+        TraceRecord(
+            trace_type="verifiers",
+            external_id="ifeval-facet-trace",
+            payload={
+                "task": {
+                    "type": "IFEvalTask",
+                    "data": {
+                        "idx": 13,
+                        "name": "ifeval-13",
+                        "instruction_id_list": ["detectable_format:json_format", "keywords:existence"],
+                    },
+                },
+                "rewards": {"strict_prompt_accuracy": 1.0},
+                "metrics": {"strict_prompt_accuracy": 1.0},
+                "is_completed": True,
+                "nodes": [],
+                "calls": [],
+            },
+        ),
+    )
+
+    evaluation = await trace_evaluation_view(source, "runs/ifeval-facets", expected=1)
+
+    assert [(facet.key, facet.label, facet.count) for facet in evaluation.facets] == [
+        ("instruction_family:detectable_format", "Detectable Format", 1),
+        ("instruction_family:keywords", "Keywords", 1),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_native_environment_semantics_become_generic_evaluation_facets() -> None:
+    source = FixtureRunDataSource()
+    source._traces["runs/native-facets"] = (  # noqa: SLF001 - deterministic fixture construction
+        TraceRecord(
+            trace_type="verifiers",
+            external_id="reasoning-gym-trace",
+            payload={
+                "task": {
+                    "type": "ReasoningGymTask",
+                    "data": {"idx": 0, "name": "eval:countdown:0", "generator": "countdown"},
+                },
+                "rewards": {"native_reward": 1.0},
+                "nodes": [],
+                "calls": [],
+            },
+        ),
+        TraceRecord(
+            trace_type="verifiers",
+            external_id="math-python-trace",
+            payload={
+                "task": {
+                    "type": "MathPythonTask",
+                    "data": {
+                        "idx": 1,
+                        "name": "test:1",
+                        "problem_type": "algebra",
+                        "level": "Level 3",
+                    },
+                },
+                "rewards": {"math_reward": 1.0},
+                "nodes": [],
+                "calls": [],
+            },
+        ),
+        TraceRecord(
+            trace_type="verifiers",
+            external_id="mmlu-pro-trace",
+            payload={
+                "task": {
+                    "type": "MMLUProTask",
+                    "data": {"idx": 2, "name": "mmlu-pro-2", "category": "computer science"},
+                },
+                "rewards": {"answer_correct": 1.0},
+                "nodes": [],
+                "calls": [],
+            },
+        ),
+    )
+
+    evaluation = await trace_evaluation_view(source, "runs/native-facets", expected=3)
+
+    assert [(facet.key, facet.dimension_label, facet.count) for facet in evaluation.facets] == [
+        ("category:computer science", "Category", 1),
+        ("difficulty:Level 3", "Difficulty", 1),
+        ("generator:countdown", "Generator", 1),
+        ("problem_type:algebra", "Problem type", 1),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_resolved_environment_observation_selects_reward_pass_rate_and_facets() -> None:
+    source = FixtureRunDataSource()
+    source._traces["runs/declared-observation"] = (  # noqa: SLF001 - deterministic fixture construction
+        TraceRecord(
+            trace_type="verifiers",
+            external_id="automationbench-trace",
+            payload={
+                "task": {
+                    "type": "AutomationBenchTask",
+                    "data": {"idx": 0, "name": "simple-0", "domain": "simple"},
+                },
+                "rewards": {"partial_credit": 0.5, "task_completed_correctly": 1.0},
+                "metrics": {"partial_credit": 0.5, "task_completed_correctly": 1.0},
+                "nodes": [],
+                "calls": [],
+            },
+        ),
+    )
+    metadata = EvaluationMetadata(
+        key="automationbench-v1",
+        label="AutomationBench",
+        primary_metric="partial_credit",
+        primary_metric_label="Partial credit",
+        pass_rate_metric="task_completed_correctly",
+        facet_specs=(EvaluationFacetSpec(field="domain", dimension="domain", label="Domain"),),
+    )
+
+    evaluation = await trace_evaluation_view(source, "runs/declared-observation", expected=1, metadata=metadata)
+
+    assert evaluation.mean_reward == 0.5
+    assert evaluation.success_rate == 1.0
+    assert evaluation.traces[0].outcome == "pass"
+    assert [(facet.key, facet.label, facet.dimension_label) for facet in evaluation.facets] == [
+        ("domain:simple", "Simple", "Domain"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_declared_compound_breakdown_preserves_dimensions_and_coverage() -> None:
+    source = FixtureRunDataSource()
+    source._traces["runs/math-compound"] = tuple(  # noqa: SLF001 - deterministic fixture construction
+        TraceRecord(
+            trace_type="verifiers",
+            external_id=external_id,
+            payload={
+                "task": {
+                    "type": "MathPythonTask",
+                    "data": {"idx": index, "name": external_id, "problem_type": problem_type, "level": level},
+                },
+                "rewards": cast(dict[str, JsonValue], rewards),
+                "metrics": cast(dict[str, JsonValue], metrics),
+                "error": error,
+                "is_truncated": truncated,
+                "nodes": [],
+                "calls": [],
+            },
+        )
+        for index, (external_id, problem_type, level, rewards, metrics, error, truncated) in enumerate(
+            (
+                (
+                    "algebra-l1-pass",
+                    "Algebra",
+                    "Level 1",
+                    {"math_reward": 1.0},
+                    {"symbolic_correctness": 1.0},
+                    None,
+                    False,
+                ),
+                (
+                    "algebra-l2-fail",
+                    "Algebra",
+                    "Level 2",
+                    {"math_reward": 0.0},
+                    {"symbolic_correctness": 0.0},
+                    None,
+                    False,
+                ),
+                ("geometry-l1-error", "Geometry", "Level 1", {}, {}, "ProviderError", False),
+                ("geometry-l2-truncated", "Geometry", "Level 2", {}, {}, None, True),
+            )
+        )
+    )
+    metadata = EvaluationMetadata(
+        key="math-python-v1",
+        label="Math Python",
+        primary_metric="math_reward",
+        success_definition=EvaluationSuccessDefinition(
+            id="symbolic-correctness",
+            label="Symbolically correct",
+            namespace="metric",
+            signal="symbolic_correctness",
+            operator="eq",
+            value=1.0,
+        ),
+        facet_specs=(
+            EvaluationFacetSpec(field="problem_type", dimension="problem_type", label="Problem type"),
+            EvaluationFacetSpec(field="level", dimension="difficulty", label="Difficulty"),
+        ),
+        breakdown_specs=(
+            EvaluationBreakdownSpec(
+                id="problem-type-by-difficulty",
+                label="Problem type × difficulty",
+                dimensions=("problem_type", "difficulty"),
+            ),
+        ),
+    )
+
+    evaluation = await trace_evaluation_view(source, "runs/math-compound", expected=4, metadata=metadata)
+
+    assert len(evaluation.breakdowns) == 1
+    breakdown = evaluation.breakdowns[0]
+    assert breakdown.dimensions == ("problem_type", "difficulty")
+    assert breakdown.excluded == 0
+    assert [
+        (group.label, group.count, group.scored, group.failures, group.truncated) for group in breakdown.groups
+    ] == [
+        ("Algebra · Level 1", 1, 1, 0, 0),
+        ("Algebra · Level 2", 1, 1, 0, 0),
+        ("Geometry · Level 1", 1, 0, 1, 0),
+        ("Geometry · Level 2", 1, 0, 0, 1),
+    ]
+    assert breakdown.groups[0].success_rate == 1.0
+    assert breakdown.groups[1].success_rate == 0.0
+
+
+def test_versioned_contract_is_authoritative_over_current_environment_observation() -> None:
+    metadata = _evaluation_metadata(
+        {
+            "environment": {
+                "selection_id": "env/ifeval",
+                "resolved": {
+                    "category": "instruction-following",
+                    "package": "ifeval-v1",
+                    "source_revision": "legacy-source",
+                    "observation": {
+                        "primary_metric": "wrong_current_catalog_metric",
+                        "pass_rate_metric": "wrong_current_catalog_metric",
+                    },
+                },
+            },
+            "evaluation": {
+                "contract": {"id": "posttrain.eval.verifiers-observation", "schema_version": 1},
+                "environment": {
+                    "package": "ifeval-v1",
+                    "category": "instruction-following",
+                    "source_revision": "pinned-source",
+                },
+                "population": {
+                    "taskset": {
+                        "dataset_repo": "google/IFEval",
+                        "dataset_revision": "pinned-dataset",
+                        "split": "train",
+                    }
+                },
+                "signal_manifest": {
+                    "reward_components": ["strict_prompt_accuracy"],
+                    "observation": {
+                        "primary_metric": "strict_prompt_accuracy",
+                        "pass_rate_metric": "strict_prompt_accuracy",
+                        "facets": [],
+                    },
+                },
+            },
+        }
+    )
+
+    assert metadata is not None
+    assert metadata.contract_state == "versioned"
+    assert metadata.primary_metric == "strict_prompt_accuracy"
+    assert metadata.pass_rate_metric == "strict_prompt_accuracy"
+    assert metadata.dataset == "google/IFEval"
+    assert metadata.dataset_revision == "pinned-dataset"
+    assert metadata.source_revision == "pinned-source"
+
+
+def test_versioned_contract_normalizes_math_python_dataset_identity() -> None:
+    metadata = _evaluation_metadata(
+        {
+            "environment": {
+                "selection_id": "math-python",
+                "resolved": {
+                    "package": "math-python-v1",
+                    "category": "math-tool-use",
+                    "source_revision": "pinned-source",
+                },
+            },
+            "evaluation": {
+                "contract": {"id": "posttrain.eval.verifiers-observation", "schema_version": 2},
+                "environment": {
+                    "package": "math-python-v1",
+                    "category": "math-tool-use",
+                    "source_revision": "pinned-source",
+                },
+                "population": {
+                    "taskset": {
+                        "repository": "DigitalLearningGmbH/MATH-lighteval",
+                        "revision": "pinned-dataset",
+                        "split": "test",
+                    }
+                },
+                "signal_manifest": {"reward_components": [], "observation": {}},
+                "plan": {"success": None},
+            },
+        }
+    )
+
+    assert metadata is not None
+    assert metadata.dataset == "DigitalLearningGmbH/MATH-lighteval"
+    assert metadata.dataset_revision == "pinned-dataset"
+    assert metadata.split == "test"
+
+
+def test_versioned_evaluation_uses_frozen_population_for_expected_trace_count() -> None:
+    inputs = {
+        "evaluation": {
+            "contract": {"id": "posttrain.eval.verifiers-observation", "schema_version": 3},
+            "environment": {},
+            "population": {"num_tasks": 500, "num_rollouts": 2},
+            "signal_manifest": {},
+            "plan": {},
+            "native_evidence": {},
+        }
+    }
+
+    assert _evaluation_expected_traces(inputs, fallback=9) == 1000
+
+
+@pytest.mark.asyncio
+async def test_v2_success_predicate_and_reward_components_are_projected_from_run_contract() -> None:
+    inputs = {
+        "environment": {
+            "selection_id": "reasoning-gym",
+            "resolved": {
+                "package": "reasoning-gym-v1",
+                "category": "procedural-reasoning",
+                "source_revision": "pinned-source",
+                "reward_components": ["native_reward"],
+                "observation": {"primary_metric": "native_reward", "facets": []},
+            },
+        },
+        "evaluation": {
+            "contract": {"id": "posttrain.eval.verifiers-observation", "schema_version": 2},
+            "environment": {
+                "package": "reasoning-gym-v1",
+                "category": "procedural-reasoning",
+                "source_revision": "pinned-source",
+            },
+            "population": {"taskset": {"split": "eval"}},
+            "signal_manifest": {
+                "reward_components": ["native_reward"],
+                "observation": {"primary_metric": "native_reward", "facets": []},
+            },
+            "plan": {
+                "success": {
+                    "id": "full-credit-solution",
+                    "label": "Full-credit solution",
+                    "source": {"namespace": "metric", "name": "native_score"},
+                    "predicate": {"operator": "gte", "value": 0.99, "upper": None, "tolerance": 0.0},
+                    "missing": "error",
+                }
+            },
+            "native_evidence": {"schema_id": "verifiers.trace", "schema_version": "v1"},
+        },
+    }
+    metadata = _evaluation_metadata(inputs)
+    assert metadata is not None
+    assert metadata.success_definition is not None
+    assert metadata.pass_rate_basis == "metric.native_score gte 0.99"
+
+    source = FixtureRunDataSource()
+    source._traces["runs/reasoning-v2"] = (  # noqa: SLF001 - deterministic fixture construction
+        TraceRecord(
+            trace_type="verifiers",
+            external_id="pass",
+            payload={
+                "rewards": {"native_reward": 1.0, "format_bonus": 0.2},
+                "metrics": {"native_score": 1.0},
+                "nodes": [],
+                "calls": [],
+            },
+        ),
+        TraceRecord(
+            trace_type="verifiers",
+            external_id="fail",
+            payload={
+                "rewards": {"native_reward": 0.5, "format_bonus": 0.1},
+                "metrics": {"native_score": 0.5},
+                "nodes": [],
+                "calls": [],
+            },
+        ),
+        TraceRecord(
+            trace_type="verifiers",
+            external_id="truncated",
+            payload={
+                "rewards": {"native_reward": 0.0},
+                "metrics": {"native_score": 0.0},
+                "truncated": True,
+                "nodes": [],
+                "calls": [],
+            },
+        ),
+    )
+
+    evaluation = await trace_evaluation_view(source, "runs/reasoning-v2", expected=3, metadata=metadata)
+
+    assert evaluation.success_rate == 0.5
+    assert evaluation.passed == 1
+    assert evaluation.pass_scored == 2
+    assert [trace.outcome for trace in evaluation.traces] == ["pass", "review", "truncated"]
+    assert evaluation.traces[2].success is None
+    assert evaluation.traces[0].reward_components == {"native_reward": 1.0, "format_bonus": 0.2}
+    assert evaluation.traces[0].native_metrics == {"native_score": 1.0}
+
+
+def test_unsupported_contract_does_not_infer_metric_from_legacy_observation() -> None:
+    metadata = _evaluation_metadata(
+        {
+            "environment": {
+                "selection_id": "env/future",
+                "resolved": {
+                    "observation": {"primary_metric": "reward", "pass_rate_metric": "reward"},
+                    "reward_components": ["reward"],
+                },
+            },
+            "evaluation": {"contract": {"id": "posttrain.eval.verifiers-observation", "schema_version": 99}},
+        }
+    )
+
+    assert metadata is not None
+    assert metadata.contract_state == "unsupported"
+    assert metadata.primary_metric is None
+    assert metadata.pass_rate_metric is None
+    assert metadata.metrics == ()
 
 
 @pytest.mark.asyncio

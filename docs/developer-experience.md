@@ -200,8 +200,10 @@ Rules:
   belong under `.posttrain/state/` or the tracking artifact store.
 - Prefer Hub + immutable revision for shared/team datasets; use `data/` for
   small proprietary or fixture files that should be reviewed in Git.
-- `posttrain dataset validate datasets/support-sft@1` checks the catalog entry
-  and samples the source before a GPU job.
+- `posttrain dataset materialize datasets/support-sft@1` resolves and caches the
+  canonical dataset before a GPU job; `posttrain dataset verify ...` performs a
+  no-write reproducibility check. The older `dataset validate` spelling remains
+  only as a compatibility alias while projects migrate.
 
 ### Environments (Verifiers)
 
@@ -438,7 +440,7 @@ Illustrative flow:
 posttrain catalog show dataset datasets/ultrachat-sft@1
 # listed from global catalog — may not be on disk yet
 
-posttrain dataset validate datasets/ultrachat-sft@1
+posttrain dataset materialize datasets/ultrachat-sft@1
 # first resolve: fetch HF revision into .posttrain/state/…
 
 posttrain work-package run .posttrain/work_packages/sft.yaml --job train
@@ -494,7 +496,7 @@ projects only overlay what they own. Global registration still requires
 | --- | --- |
 | Is it installed? | Dependency / Hub cache / `import pkg` |
 | Is it registered? | `posttrain catalog list --family dataset\|environment` |
-| Can jobs use it? | `posttrain catalog show …` + `dataset validate` / work-package validate |
+| Can jobs use it? | `posttrain catalog show …` + `dataset materialize` / work-package validate |
 | Is it bound for this run? | Work package `bindings` |
 
 ### Hugging Face datasets
@@ -519,7 +521,7 @@ dataset:
 4. At run/validate time the job uses `posttrain.data`; cache lands under
    `.posttrain/state/`.
 5. **Know it works:** `posttrain catalog show dataset datasets/ultrachat-sft@1`
-   and `posttrain dataset validate datasets/ultrachat-sft@1`.
+   and `posttrain dataset materialize datasets/ultrachat-sft@1`.
 
 Moving `revision: main` is not acceptable for qualification; pin an immutable
 revision.
@@ -661,7 +663,7 @@ posttrain init support-agent --template sft
 cd support-agent
 # init already created the layout and installed framework + project extras
 
-posttrain dataset validate datasets/posttrain-sft-smoke@1
+posttrain dataset materialize datasets/posttrain-sft-smoke@1
 posttrain work-package validate sft.yaml
 # CUDA release gate:
 posttrain work-package run sft.yaml --job train
@@ -707,6 +709,12 @@ solutions, tests, and rewards are excluded because `serve.benchmark` measures
 capacity rather than correctness. Exact-token synthetic requests remain a
 separate controlled diagnostic cohort and are not merged into representative
 capacity evidence.
+
+Maintainers rebuild or verify that population through the primary CLI rather
+than a package-specific console script:
+
+    posttrain workload materialize workloads/general-serving-32k-sweep@1 --output <package-resource-directory>
+    posttrain workload verify workloads/general-serving-32k-sweep@1
 
 One `serve.benchmark` job:
 

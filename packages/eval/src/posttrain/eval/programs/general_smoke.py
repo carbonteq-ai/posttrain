@@ -14,6 +14,8 @@ from ..requests import (
 
 VERIFIERS_REVISION = "284a868d6a9022109b749710672a0460e8a996d4"
 VERIFIERS_REPOSITORY = "https://github.com/PrimeIntellect-ai/verifiers"
+ENVIRONMENTS_REVISION = "3e1582ef3cce8e6d355be3747be0427f700ef865"
+ENVIRONMENTS_REPOSITORY = "https://github.com/carbonteq-ai/verifiers-environments"
 
 
 def _activation(config: dict[str, JsonValue]) -> VerifiersV1ConfigActivation:
@@ -22,7 +24,13 @@ def _activation(config: dict[str, JsonValue]) -> VerifiersV1ConfigActivation:
 
 GSM8K_ACTIVATION = _activation(
     {
-        "taskset": {"id": "gsm8k-v1", "split": "test"},
+        "taskset": {
+            "id": "gsm8k-v1",
+            "dataset_repo": "openai/gsm8k",
+            "dataset_revision": "740312add88f781978c0658806c59bc2815b9866",
+            "dataset_config": "main",
+            "split": "test",
+        },
         "harness": {"id": "null", "runtime": {"type": "subprocess"}},
         "timeout": {"setup": 120, "rollout": 180, "finalize": 60, "scoring": 120},
     }
@@ -30,7 +38,13 @@ GSM8K_ACTIVATION = _activation(
 
 GSM8K_TRAIN_ACTIVATION = _activation(
     {
-        "taskset": {"id": "gsm8k-v1", "split": "train"},
+        "taskset": {
+            "id": "gsm8k-v1",
+            "dataset_repo": "openai/gsm8k",
+            "dataset_revision": "740312add88f781978c0658806c59bc2815b9866",
+            "dataset_config": "main",
+            "split": "train",
+        },
         "harness": {"id": "null", "runtime": {"type": "subprocess"}},
         "timeout": {"setup": 120, "rollout": 180, "finalize": 60, "scoring": 120},
     }
@@ -83,6 +97,15 @@ def _source(package: str, subdirectory: str) -> EnvironmentSource:
     )
 
 
+def _carbonteq_source(package: str, subdirectory: str) -> EnvironmentSource:
+    return EnvironmentSource(
+        package=package,
+        repository=ENVIRONMENTS_REPOSITORY,
+        revision=ENVIRONMENTS_REVISION,
+        subdirectory=subdirectory,
+    )
+
+
 GENERAL_SMOKE = EvaluationPlan(
     id="general-smoke-v1",
     kind="general",
@@ -90,7 +113,7 @@ GENERAL_SMOKE = EvaluationPlan(
         EnvironmentBinding(
             id="math-gsm8k",
             category="math-reasoning",
-            source=_source("gsm8k-v1", "environments/gsm8k_v1"),
+            source=_carbonteq_source("gsm8k-v1", "environments/gsm8k_v1"),
             activation=GSM8K_ACTIVATION,
             sampling=SamplingPolicy(max_tokens=4_096),
             num_tasks=8,
@@ -143,6 +166,8 @@ __all__ = [
     "GENERAL_SMOKE",
     "GSM8K_ACTIVATION",
     "GSM8K_TRAIN_ACTIVATION",
+    "ENVIRONMENTS_REPOSITORY",
+    "ENVIRONMENTS_REVISION",
     "REVERSE_TEXT_ACTIVATION",
     "VERIFIERS_REPOSITORY",
     "VERIFIERS_REVISION",

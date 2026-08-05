@@ -7,6 +7,7 @@ import typer
 from ..context import CliState
 from ..output import emit
 from ..project import layout_payload
+from ..purge_surface import render_plan, save_project_preview
 
 
 def register(app: typer.Typer) -> None:
@@ -38,3 +39,10 @@ def register(app: typer.Typer) -> None:
                 )
             ),
         )
+
+    @project_app.command("purge", help="preview destructive deletion for the opened project")
+    def project_purge_cmd(ctx: typer.Context) -> None:
+        state: CliState = ctx.obj
+        layout = state.layout()
+        plan = save_project_preview(layout)
+        emit(state, plan, render_plan(plan))

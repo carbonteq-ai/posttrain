@@ -199,8 +199,9 @@ uv run --package posttrain-lab --extra gpu-eval \
 uv run --package posttrain-lab --extra gpu-eval \
   posttrain-lab foundation-lfm-gsm8k --tracked --project posttrain-foundation
 
-uv run --project environments/automationbench_v1 --python 3.13 \
-  --with pytest --with pytest-asyncio pytest -q environments/automationbench_v1/tests
+cd /home/hammad/projects/verifiers-environments/environments/automationbench_v1
+uv sync --locked --python 3.12
+uv run pytest -q
 
 uv run --package posttrain-lab --extra gpu-posttrain \
   posttrain-lab gsm8k-qwen-sft-smoke --tracked --project posttrain-platform

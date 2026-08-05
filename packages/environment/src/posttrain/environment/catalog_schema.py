@@ -16,6 +16,8 @@ from .requests import (
     EnvironmentFactory,
     EnvironmentPackageSource,
     EnvironmentSource,
+    EvaluationFacetField,
+    EvaluationObservation,
     ProjectPathActivationResource,
     ProjectPathEnvironmentSource,
     PythonFactoryActivation,
@@ -50,6 +52,20 @@ class SamplingPolicySchema(EnvironmentCatalogSchema):
     temperature: float = Field(default=0.0, ge=0)
     top_p: float | None = Field(default=None, gt=0, le=1)
     reasoning_effort: str | None = None
+
+
+class EvaluationFacetFieldSchema(EnvironmentCatalogSchema):
+    field: str
+    dimension: str
+    label: str
+    transform: Literal["identity", "prefix_before_colon"] = "identity"
+
+
+class EvaluationObservationSchema(EnvironmentCatalogSchema):
+    primary_metric: str | None = None
+    primary_metric_label: str | None = None
+    pass_rate_metric: str | None = None
+    facets: tuple[EvaluationFacetFieldSchema, ...] = ()
 
 
 class ProjectPathActivationResourceSchema(EnvironmentCatalogSchema):
@@ -97,6 +113,8 @@ class EnvironmentBindingSchema(EnvironmentCatalogSchema):
     qualification: Literal["required", "deferred"] = "required"
     parameters: dict[str, JsonValue] = Field(default_factory=dict)
     reward_components: tuple[str, ...] = ()
+    observation: EvaluationObservationSchema = Field(default_factory=EvaluationObservationSchema)
+    required_inference_capabilities: tuple[str, ...] = ()
 
     @model_validator(mode="after")
     def require_one_activation(self) -> EnvironmentBindingSchema:
@@ -136,6 +154,21 @@ def environment_catalog_decoders(
             qualification=payload.qualification,
             parameters=payload.parameters,
             reward_components=payload.reward_components,
+            required_inference_capabilities=payload.required_inference_capabilities,
+            observation=EvaluationObservation(
+                primary_metric=payload.observation.primary_metric,
+                primary_metric_label=payload.observation.primary_metric_label,
+                pass_rate_metric=payload.observation.pass_rate_metric,
+                facets=tuple(
+                    EvaluationFacetField(
+                        field=facet.field,
+                        dimension=facet.dimension,
+                        label=facet.label,
+                        transform=facet.transform,
+                    )
+                    for facet in payload.observation.facets
+                ),
+            ),
         )
 
     return cast(Mapping[SelectionFamily, SelectionDecoder], {"environment": decode_environment})
@@ -187,6 +220,8 @@ __all__ = [
     "ActivationResourceSchema",
     "EnvironmentActivationSchema",
     "EnvironmentBindingSchema",
+    "EvaluationFacetFieldSchema",
+    "EvaluationObservationSchema",
     "EnvironmentPackageSourceSchema",
     "EnvironmentSourceSchema",
     "PythonFactoryActivationSchema",

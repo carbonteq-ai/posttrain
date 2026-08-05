@@ -1,0 +1,46 @@
+project_id: posttrain-lab
+work_package_id: eval/qwen3.5-4b/thinking/automationbench-success-v2
+stage: qualify
+description: Qualify typed pass/fail and component-rich AutomationBench evidence with the Qwen3.5-4B thinking MTP runtime and a 32K context window.
+recipe:
+  type: inline
+  id: recipes/qwen3.5-4b-thinking-automationbench-success-v2@1
+  revision: "1"
+  stage: qualify
+  seats:
+    model: model
+    evaluation_inference: inference
+    target: target
+    evaluation_plan: evaluation
+    environment: environment
+  jobs:
+    - id: evaluate
+      kind: eval.general
+      definition: eval/verifiers-managed-general@1
+  expected_artifacts:
+    - native evaluation result
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/qwen3.5-4b@bf16
+  evaluation_inference:
+    type: ref
+    family: inference
+    id: inference/qwen3.5-4b-vllm-thinking-eval-mtp-concurrent16-32k@1
+  target:
+    type: ref
+    family: target
+    id: targets/local-cuda-24gb
+  evaluation_plan:
+    type: ref
+    family: evaluation
+    id: environment-library-qualification-v1
+  environment:
+    type: ref
+    family: environment
+    id: automationbench-zapier-simple-qualification
+enabled_optional_jobs: []
+metadata:
+  question: Does component-rich AutomationBench evidence expose partial credit, strict task success, assertion diagnostics, and typed pass/fail without conflating their namespaces?
+  labels: [qualification, evaluation, qwen3.5-4b, thinking, mtp, context32k, automationbench, success-v2]
