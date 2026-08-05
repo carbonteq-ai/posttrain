@@ -32,7 +32,10 @@ uv run --no-sync posttrain-release stage "${stage_args[@]}"
 mkdir -p "$distribution_dir" "$bundle_dir"
 (
   cd "$stage_dir"
-  uv build --all-packages --no-sources --out-dir "$distribution_dir"
+  # The staged tree intentionally excludes the checkout's .venv. Pin the
+  # build interpreter explicitly so a runner's system Python cannot change
+  # PEP 517 behavior or select an incompatible interpreter.
+  uv build --all-packages --no-sources --python 3.13 --out-dir "$distribution_dir"
 )
 uv run --no-sync posttrain-release receipt "$distribution_dir" \
   --destination "${output_dir}/python-release-receipt.json" \
