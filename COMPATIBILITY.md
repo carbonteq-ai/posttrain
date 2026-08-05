@@ -6,7 +6,7 @@ install.
 
 | Surface | Supported baseline |
 | --- | --- |
-| Python | CPython 3.12 |
+| Python | CPython 3.13 |
 | Operating system | Linux |
 | Package transport | Versioned GitHub Release wheelhouse |
 | Project layout | `.posttrain/project.toml` schema version 1 |

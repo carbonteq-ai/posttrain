@@ -1,8 +1,9 @@
 # Publishing a release
 
-This is the maintainer's runbook. Consuming a release is
-[`consumer-setup.md`](./consumer-setup.md); the services a release is published
-to are operated from the `ai-infra` repository.
+This is the maintainer's runbook. Installing a release is
+[`install.md`](./install.md); the end-to-end release process is
+[`release-engineering.md`](./release-engineering.md); the services a release
+is published to are operated from the `ai-infra` repository.
 
 A release is two artifacts that must agree: the **distributions** on the
 internal index, and the **runtime images** in the registry. Publishing one

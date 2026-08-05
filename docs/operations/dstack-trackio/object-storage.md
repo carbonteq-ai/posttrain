@@ -11,7 +11,7 @@ other outputs as versioned Trackio artifacts. Later jobs consume a pinned
 `TrackioArtifactRef`. Project developers register that version as a catalog
 `ModelVariant` (`artifact.kind: trackio`) and bind it on the next work package
 — see
-[consumer-setup §9](../../consumer-setup.md#9-pass-one-jobs-model-into-the-next).
+[getting-started §9](../../getting-started.md#9-pass-one-jobs-model-into-the-next).
 
 Trackio owns:
 

@@ -2,7 +2,8 @@
 
 This repository develops and validates a post-training workflow and, for teams
 that repeat it, a reusable framework — using small open models on a consumer
-GPU. The local lab is a reference host; it is not the product boundary.
+GPU. The local lab is a reference project; it is not the product boundary.
+Terms of art used below are defined in the [glossary](./glossary.md).
 
 ## Product goal
 
@@ -47,18 +48,9 @@ See [Post-training platform architecture](./architecture.md) and [Architecture d
 
 ## Current implementation state
 
-The common execution contracts, code-defined lab host, Trackio observation
-adapter, typed foundation/serve profiles, packaged benchmark data, workload
-matrix, and vLLM benchmark operation are implemented. The legacy YAML eval and
-training paths are still being replaced and are not compatibility contracts.
-
-The next vertical slices will add:
-
-1. endpoint-neutral, code-defined Verifiers evaluation operations and programs;
-2. independently packaged Verifiers environments;
-3. renderer-aware SFT and DPO operations;
-4. a Verifiers-to-TRL GRPO operation;
-5. one end-to-end job proving model lineage and reevaluation.
+See the [v0.3 release notes](./releases/v0.3.md) for shipped capabilities,
+qualification coverage, and support boundaries, and the
+[CHANGELOG](../CHANGELOG.md) for individual versions.
 
 ## Design principles
 
@@ -72,9 +64,7 @@ The next vertical slices will add:
 
 ## Setup
 
-```bash
-cd /home/hammad/projects/rl
-mise install
-uv sync --all-packages --python 3.12
-uv run --package posttrain-lab posttrain-lab noop --tracked
-```
+To install a released version, see [install.md](./install.md). For a
+framework checkout (Python 3.13 `uv` workspace), see
+[contributing.md](./contributing.md) and
+[tooling/mise-uv/setup-environment.md](./tooling/mise-uv/setup-environment.md).

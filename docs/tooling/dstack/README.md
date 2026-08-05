@@ -3,7 +3,7 @@
 ## Consumer path
 
 Developers submitting remote GPU jobs should follow
-[consumer-setup.md](../../consumer-setup.md) § “Run on dstack”: install
+[getting-started.md](../../getting-started.md) § “Run on dstack”: install
 `posttrain[dstack]`, bind the client interpreter and a named protected
 credential source in `~/.config/posttrain/config.toml`, and use
 `posttrain job run --provider dstack --target …`. This page is the fork/ops
@@ -24,7 +24,7 @@ Optional catalog `placement.instances: [{hostname: …}]` is an exact instance
 constraint passed through to dstack; it is not a posttrain admission lock.
 Prefer capacity-only
 targets (`device_class` / `memory_gb`) unless you need a specific worker — see
-[consumer-setup.md](../../consumer-setup.md) § “Run on dstack”.
+[getting-started.md](../../getting-started.md) § “Run on dstack”.
 
 The protected dstack binding may set `capacity_wait_seconds`. Posttrain maps
 that only to dstack's persistent `no-capacity` retry event, leaving

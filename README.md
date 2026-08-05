@@ -1,15 +1,34 @@
 # Posttrain
 
 Posttrain is CarbonTeq's framework for taking a base model through screening,
-training, and qualification. It gives projects a shared way to select models,
-data, environments, inference engines, training methods, evaluation plans, and
-execution targets while keeping project policy in the project repository.
+training, and qualification — with every decision versioned, every run
+reproducible, and every result traceable to exactly what produced it.
 
-Posttrain is more than a trainer wrapper. It carries the same resolved model,
-data, environment, runtime, and evidence identities from an early serving or
-evaluation screen through training, qualification, artifact handoff, and
-operational cleanup. Backend adapters remain replaceable; the project-owned
-workflow and its lineage do not.
+## Why it exists
+
+Most post-training efforts fail as process, not as algorithms. A model gets
+fine-tuned with a pile of scripts; three weeks later nobody can say which
+dataset revision, which chat template, which inference settings, or which
+dependency set produced the eval numbers in the report. Comparisons quietly
+become invalid because one input drifted between runs. "Is this quantized
+model actually derived from that checkpoint?" is answered from memory, not
+evidence.
+
+Posttrain makes those questions mechanically answerable. Every input to a run
+— model, dataset, environment, inference engine, training method, execution
+target — is a versioned selection in a layered catalog. Your project never
+copies configuration; it *references* catalog selections, and the framework
+resolves, plans, and packs them into an immutable job before a GPU or provider
+is ever contacted. If any input changes after planning, packing fails instead
+of silently running something else. Every run records its resolved identity
+and its evidence — metrics, traces, produced and consumed artifacts — so
+lineage is a property the system enforces, not tribal knowledge.
+
+The result: raw-model comparison, SFT, preference training, GRPO, evaluation,
+serving qualification, and quantization all become one auditable workflow that
+a team can repeat, instead of a folder of scripts only one person understands.
+
+## How it works
 
 The framework is built around three stages:
 
@@ -19,118 +38,46 @@ The framework is built around three stages:
 | Train | Can we produce a better model variant? | SFT, preference training, GRPO, distillation, quantization |
 | Qualify | Is the resulting variant ready for its intended use? | General and domain evaluation, performance checks, evidence review |
 
-A **work package** captures one decision-making unit across those stages. It
-contains ordered jobs, resolved catalog selections, and the evidence needed to
-understand or reproduce a run.
+A **work package** captures one decision-making unit across those stages: an
+ordered list of jobs, the catalog selections they bind, and the evidence
+needed to understand or reproduce the outcome. You author it as YAML, validate
+it statically, and execute its jobs locally or on a remote GPU provider. The
+same resolved identities travel from an early screening run through training,
+qualification, artifact handoff, and cleanup — backend adapters (TRL, veRL,
+vLLM, Verifiers) are replaceable; the project-owned workflow and its lineage
+are not.
 
-## What you can build
+Execution is deliberately split into three steps, and each is a command:
 
-Posttrain gives a project one workflow for preparing data, training a model,
-screening its serving behavior, evaluating its capabilities, and retaining the
-evidence behind each decision.
+1. **Plan** (`posttrain job plan`) resolves every selection — no provider, no
+   GPU, no ML backend contacted.
+2. **Pack** (`posttrain job pack`) turns the plan into a content-addressed OCI
+   image containing source, wheels, dataset artifacts, and dependency locks.
+   Packing fails if any input drifted after planning.
+3. **Run** (`posttrain job run`, or `posttrain work-package run`) submits the
+   packed job. A durable run lifecycle (`posttrain run status|wait|logs|cancel|
+   retry-submit|reconcile`) and a reconciling controller keep it crash-safe
+   after your shell exits.
 
-| Workflow | Included capabilities |
-| --- | --- |
-| Project setup | Installable SFT and GRPO starters, project-local catalogs and work packages, and machine-level configuration for providers, tracking, registries, package indexes, storage, trust, and credentials |
-| Data and environments | Reproducible supervised and preference datasets, serving workloads, project-owned Verifiers packages, deterministic subsets, and immutable source and builder identities |
-| Training | SFT, DPO, GRPO, DAPO, SAMPO, and on-policy distillation through TRL or maintained veRL profiles, with full-parameter and adapter-based updates where supported |
-| Serving | vLLM smoke tests and capacity sweeps with latency, throughput, memory, KV-cache, MTP, eligibility, and Pareto evidence |
-| Evaluation | General and domain evaluation against local Verifiers environments or an OpenAI-compatible policy endpoint, with explicit success criteria and native traces |
-| Model production | AWQ and RTN W4A16 model transformation, immutable model variants, and artifact handoff between work packages |
-| Execution | Provider-free planning, immutable OCI packaging, local-container and dstack execution, shared GPU admission, queue inspection, logs, wait, cancel, retry, and recovery |
-| Operations | Continuous job reconciliation, evidence-preserving cleanup, digest-confirmed purge, and read-only evidence exploration through Observatory |
+`posttrain job diff` explains why two packed jobs have different identities —
+the "why did this run differ" question has a command, not a meeting.
 
-### Supported jobs
+All evidence lands in provider-neutral tracking (local Trackio by default,
+W&B optional) and is explored through **Observatory**, a read-only product
+showing metrics, traces, comparisons, and lineage without changing the meaning
+of earlier runs.
 
-| Capability | Job kind |
-| --- | --- |
-| Prepare supervised or preference data | `data.prepare` |
-| Supervised fine-tuning | `train.sft` |
-| Direct preference optimization | `train.dpo` |
-| GRPO and DAPO | `train.grpo` |
-| Multi-turn SAMPO | `train.sampo` |
-| On-policy distillation | `train.distill` |
-| Serving smoke and capacity tests | `serve.smoke`, `serve.benchmark` |
-| General and domain evaluation | `eval.general`, `eval.domain` |
-| AWQ or RTN quantization | `model.transform` |
-
-### Models and environments
-
-The base catalog includes Qwen 3.5 0.8B, 2B, and 4B; LFM 2.5 1.2B Thinking;
-and Gemma 4 E2B, E4B, 12B Unified, and 31B. Available training, serving, tool
-use, and acceleration profiles vary by model size.
-
-Six versioned Verifiers environments are available as independently installable
-packages:
-
-| Environment | Use |
-| --- | --- |
-| `gsm8k-v1` | Grade-school mathematical reasoning |
-| `automationbench-v1` | Multi-turn tool use over AutomationBench Simple tasks |
-| `mmlu-pro-v1` | Knowledge and reasoning across 14 categories |
-| `ifeval-v1` | Verifiable instruction following |
-| `reasoning-gym-v1` | Procedural reasoning across ten generators |
-| `math-python-v1` | Competition mathematics with Python tools and symbolic checking |
-
-Each run records the exact environment package, task population, model,
-inference settings, success criteria, and native traces used to produce its
-results. Observatory presents coverage, pass rate, rewards, latency,
-distributions, facets, compound breakdowns, tool-aware traces, comparisons,
-and lineage without changing the meaning of earlier runs.
-
-### Run jobs beyond the submitting shell
-
-`posttrain controller run` continuously reconciles queued and active jobs. It
-submits work when capacity becomes available, delivers cancellation requests,
-checks the provider recorded at submission, finalizes tracking evidence,
-releases settled GPU admissions, and writes recovery receipts. Use `controller
-run --once` for a single reconciliation pass and `controller status` for a
-health check.
-
-Run the controller under your service supervisor for unattended operation.
-Posttrain v0.3 does not include service installation, `controller enable` or
-`controller disable`, a systemd unit, or an Ansible role.
-
-### Reliability and performance
-
-- Plans and packages include the complete selected catalog, source, dataset,
-  environment, runtime, and dependency identity. Packing fails if those inputs
-  change after planning.
-- Job images contain their environment wheels and dependency locks before
-  submission, so workers do not install or upgrade packages at startup.
-- Cancellation, reconciliation, and admission release are safe to retry after
-  an interrupted client or controller process.
-- Verifiers rollout groups run concurrently, distillation scores the exact
-  student response tokens, and serving profiles expose batching, KV-cache,
-  native or paired-assistant MTP, and speculative-acceptance measurements.
-- Evaluation keeps reward, configured success, errors, truncations, missing
-  signals, and coverage separate. Partial traces remain visible while a run is
-  active.
-- Release artifacts are built from committed source, installed in a clean
-  consumer, checked against immutable image digests, and exercised through a
-  packed dstack GPU canary before promotion.
-
-### Current support boundaries
-
-- Online RL is synchronous; Posttrain does not currently provide asynchronous
-  learner and rollout execution.
-- Gemma 4 qualifications are bounded, text-only profiles. They do not establish
-  multimodal training or full native-context support.
-- Standard KV is the qualified default for hybrid Qwen training paths;
-  TurboQuant K8V4 long-context use remains experimental.
-- The six environment packages have provider-backed activation and execution
-  evidence, but that does not mean every full catalog population has completed.
-  See the [v0.3 release notes](./docs/releases/v0.3.md) for the exact coverage.
-
-See the [v0.3 release notes](./docs/releases/v0.3.md) for release-specific
-capabilities and qualification, the [CHANGELOG](./CHANGELOG.md) for individual
-versions, and the [product baseline](./docs/post-training/README.md) for the
-public contracts.
+New vocabulary in this README — work package, catalog, selection, binding,
+seat, evidence, screen, qualification — is defined in the
+[glossary](./docs/glossary.md).
 
 ## Quickstart
 
-Posttrain currently ships to the team as a versioned GitHub Release wheelhouse.
-Python 3.13, [`uv`](https://docs.astral.sh/uv/), and the GitHub CLI are required.
+Posttrain currently ships to the team as a versioned GitHub Release
+wheelhouse. Python 3.13, [`uv`](https://docs.astral.sh/uv/), and the GitHub
+CLI are required. On the internal network you can install from `pypi.lan`
+instead — both paths, plus CA trust and machine configuration, are covered in
+the [installation guide](./docs/install.md).
 
 Download and install one exact release:
 
@@ -163,7 +110,7 @@ UV_CONSTRAINT="$WHEELHOUSE/github-constraints.txt" \
 cd my-model-project
 
 .venv/bin/posttrain doctor
-.venv/bin/posttrain dataset validate datasets/posttrain-sft-smoke@1
+.venv/bin/posttrain dataset materialize datasets/posttrain-sft-smoke@1
 .venv/bin/posttrain work-package validate sft.yaml
 # CUDA release gate:
 .venv/bin/posttrain work-package run sft.yaml --job train
@@ -174,6 +121,14 @@ cd my-model-project
 creates the project-local `.venv`, and installs the selected extras. There is
 no separate Posttrain sync command. The wheelhouse constraints file pins the
 CarbonTeq forks to immutable Git commits.
+
+This exact sequence is exercised in CI by
+[`tests/consumer/test_wheel_project.py`](./tests/consumer/test_wheel_project.py);
+if the quickstart and that test ever disagree, the test is right.
+
+For the full first-day walkthrough — machine configuration, credentials,
+local Docker and dstack execution, and passing one job's model into the next —
+continue with [Getting started](./docs/getting-started.md).
 
 ## Project structure
 
@@ -196,8 +151,8 @@ Commit `project.toml`, catalog overlays, work packages, `pyproject.toml`, and
 `uv.lock`. Do not commit `.posttrain/state/`, credentials, downloaded model
 weights, or machine-local caches.
 
-The framework base catalog is included in `posttrain-catalog`; projects add only
-their own selections and overrides. Project discovery checks an explicit
+The framework base catalog is included in `posttrain-catalog`; projects add
+only their own selections and overrides. Project discovery checks an explicit
 `--project-root`, then `POSTTRAIN_PROJECT_ROOT`, then searches upward for
 `.posttrain/project.toml`.
 
@@ -265,10 +220,129 @@ posttrain work-package validate .posttrain/work_packages/cpu_check.yaml
 
 The primary CLI owns initialization, diagnostics, catalog inspection,
 materialization, work-package validation/execution, and local Observatory
-bring-up. Standard SFT, DPO, GRPO, DAPO, SAMPO, distillation, serve, evaluation,
-and model-transform definitions come from `posttrain.jobs`; projects do not
-need a host or `posttrain-lab` on the common path. An optional project entry may
-add unshipped definitions without redefining standard ids.
+bring-up. Standard SFT, DPO, GRPO, DAPO, SAMPO, distillation, serve,
+evaluation, and model-transform definitions come from `posttrain.jobs`;
+projects do not need a host or `posttrain-lab` on the common path. An optional
+project entry may add unshipped definitions without redefining standard ids.
+
+The smallest complete independent project is
+[`tests/consumer/fixture`](./tests/consumer/fixture) — a project overlay, one
+work package, a custom job definition, and evidence read-back in a handful of
+files.
+
+## What you can build
+
+| Workflow | Included capabilities |
+| --- | --- |
+| Project setup | Installable SFT and GRPO starters, project-local catalogs and work packages, and machine-level configuration for providers, tracking, registries, package indexes, storage, trust, and credentials |
+| Data and environments | Reproducible supervised and preference datasets, serving workloads, project-owned Verifiers packages, deterministic subsets, and immutable source and builder identities |
+| Training | SFT, DPO, GRPO, DAPO, SAMPO, and on-policy distillation through TRL or maintained veRL profiles, with full-parameter and adapter-based updates where supported |
+| Serving | vLLM smoke tests and capacity sweeps with latency, throughput, memory, KV-cache, MTP, eligibility, and Pareto evidence |
+| Evaluation | General and domain evaluation against local Verifiers environments or an OpenAI-compatible policy endpoint, with explicit success criteria and native traces |
+| Model production | AWQ and RTN W4A16 model transformation, immutable model variants, and artifact handoff between work packages |
+| Execution | Provider-free planning, immutable OCI packaging, local-container and dstack execution, shared GPU admission, queue inspection, logs, wait, cancel, retry, and recovery |
+| Operations | Continuous job reconciliation, evidence-preserving cleanup, digest-confirmed purge, and read-only evidence exploration through Observatory |
+
+### Supported jobs
+
+| Capability | Job kind |
+| --- | --- |
+| Prepare supervised or preference data | `data.prepare` |
+| Supervised fine-tuning | `train.sft` |
+| Direct preference optimization | `train.dpo` |
+| GRPO and DAPO | `train.grpo` |
+| Multi-turn SAMPO | `train.sampo` |
+| On-policy distillation | `train.distill` |
+| Serving smoke and capacity tests | `serve.smoke`, `serve.benchmark` |
+| General and domain evaluation | `eval.general`, `eval.domain` |
+| AWQ or RTN quantization | `model.transform` |
+
+### Models and environments
+
+The base catalog includes Qwen 3.5 0.8B, 2B, and 4B; LFM 2.5 1.2B Thinking;
+and Gemma 4 E2B, E4B, 12B Unified, and 31B. Available training, serving, tool
+use, and acceleration profiles vary by model size.
+
+Six versioned Verifiers environments are available as independently
+installable packages:
+
+| Environment | Use |
+| --- | --- |
+| `gsm8k-v1` | Grade-school mathematical reasoning |
+| `automationbench-v1` | Multi-turn tool use over AutomationBench Simple tasks |
+| `mmlu-pro-v1` | Knowledge and reasoning across 14 categories |
+| `ifeval-v1` | Verifiable instruction following |
+| `reasoning-gym-v1` | Procedural reasoning across ten generators |
+| `math-python-v1` | Competition mathematics with Python tools and symbolic checking |
+
+`posttrain environment new` scaffolds a project-owned environment package;
+`posttrain environment add local` binds it into the project catalog.
+
+Each run records the exact environment package, task population, model,
+inference settings, success criteria, and native traces used to produce its
+results. Observatory presents coverage, pass rate, rewards, latency,
+distributions, facets, compound breakdowns, tool-aware traces, comparisons,
+and lineage without changing the meaning of earlier runs.
+
+### The execution surface
+
+The prose above summarized the lifecycle; these are the actual commands:
+
+| Area | Commands |
+| --- | --- |
+| Project | `posttrain init`, `doctor`, `catalog list/show/validate`, `work-package validate/run`, `project show/purge` |
+| Data | `posttrain dataset materialize`, `dataset add hf\|jsonl\|nemo`, `workload materialize/verify` |
+| Jobs | `posttrain job plan`, `job pack`, `job run`, `job diff` |
+| Runs | `posttrain run list/queue/status/wait/logs/cancel/retry-submit/reconcile/cleanup/purge/show`, `run recover-cancelled-tracking` |
+| Machine | `posttrain machine init/show`, `machine project add`, `posttrain workers`, `posttrain state migrate/cache-prune` |
+| Images | `posttrain runtime images list/verify/mirror/build` |
+| Environments | `posttrain environment new`, `environment add local` |
+| Evidence | `posttrain observatory up` |
+| Controller | `posttrain controller run [--once]`, `controller status` |
+
+`posttrain controller run` continuously reconciles queued and active jobs
+beyond the submitting shell. It submits work when capacity becomes available,
+delivers cancellation requests, checks the provider recorded at submission,
+finalizes tracking evidence, releases settled GPU admissions, and writes
+recovery receipts. Run it under your service supervisor for unattended
+operation. Posttrain v0.3 does not include service installation, `controller
+enable` or `controller disable`, a systemd unit, or an Ansible role.
+
+### Reliability and performance
+
+- Plans and packages include the complete selected catalog, source, dataset,
+  environment, runtime, and dependency identity. Packing fails if those inputs
+  change after planning.
+- Job images contain their environment wheels and dependency locks before
+  submission, so workers do not install or upgrade packages at startup.
+- Cancellation, reconciliation, and admission release are safe to retry after
+  an interrupted client or controller process.
+- Verifiers rollout groups run concurrently, distillation scores the exact
+  student response tokens, and serving profiles expose batching, KV-cache,
+  native or paired-assistant MTP, and speculative-acceptance measurements.
+- Evaluation keeps reward, configured success, errors, truncations, missing
+  signals, and coverage separate. Partial traces remain visible while a run is
+  active.
+- Release artifacts are built from committed source, installed in a clean
+  consumer, checked against immutable image digests, and exercised through a
+  packed dstack GPU canary before promotion.
+
+### Current support boundaries
+
+- Online RL is synchronous; Posttrain does not currently provide asynchronous
+  learner and rollout execution.
+- Gemma 4 qualifications are bounded, text-only profiles. They do not establish
+  multimodal training or full native-context support.
+- Standard KV is the qualified default for hybrid Qwen training paths;
+  TurboQuant K8V4 long-context use remains experimental.
+- The six environment packages have provider-backed activation and execution
+  evidence, but that does not mean every full catalog population has completed.
+  See the [v0.3 release notes](./docs/releases/v0.3.md) for the exact coverage.
+
+See the [v0.3 release notes](./docs/releases/v0.3.md) for release-specific
+capabilities and qualification, the [CHANGELOG](./CHANGELOG.md) for individual
+versions, and the [product baseline](./docs/post-training/README.md) for the
+public contracts.
 
 ## Choose capabilities
 
@@ -285,6 +359,10 @@ Install only the packages a project needs from the same release wheelhouse:
 | `posttrain-observatory` | Read-only evidence queries, reports, HTTP, MCP, and UI |
 | `posttrain-jobs` | Standard cross-capability job definitions and project runtime |
 | `posttrain-lab` | Framework qualification scenarios and backend release gates |
+
+These are the packages meant for direct installation. The workspace contains
+further internal packages (contracts, catalog, execution providers, packing);
+they arrive as dependencies and are not installed by name.
 
 Backend-specific extras are opt-in. For example:
 
@@ -318,7 +396,12 @@ reviewed first-party chat, extraction, structured-output, and tool-use
 messages. It fixes decode work at 128 output tokens and never treats systems
 throughput as task correctness.
 
+The lab application is itself a Posttrain project
+(`apps/lab/.posttrain/project.toml`), so its qualification packages run from
+that directory in a framework checkout:
+
 ```bash
+cd apps/lab
 uv run --package posttrain posttrain work-package validate \
   .posttrain/work_packages/foundation_screen.yaml
 
@@ -357,9 +440,10 @@ uv pip install \
 ```
 
 From a framework checkout, YAML qualification packages also run through the
-primary CLI with no `--host` (repo-root `.posttrain/project.toml` entry):
+primary CLI using the lab project (`apps/lab/.posttrain/project.toml`):
 
 ```bash
+cd apps/lab
 uv run --package posttrain posttrain work-package validate \
   .posttrain/work_packages/foundation_screen.yaml
 ```
@@ -411,10 +495,9 @@ The repository is a Python 3.13 `uv` workspace:
 ```text
 packages/       reusable contracts, capabilities, catalog, tracking, and composition
 apps/cli/       primary `posttrain` command
-apps/lab/       reference execution host
+apps/lab/       reference project and qualification suite
 apps/observatory/ read-only evidence product
 environments/   independently versioned domain environment packages
-.posttrain/     this repository's project overlays and work packages
 ```
 
 Run the full validation ladder before submitting a change:
@@ -428,9 +511,22 @@ uv run pytest
 git diff --check
 ```
 
-## Learn the framework
+## Where to go next
 
-Read the documentation progressively:
+Pick the door that matches what you are doing:
+
+- **I want to train a model with Posttrain** →
+  [Installation](./docs/install.md), then
+  [Getting started](./docs/getting-started.md).
+- **I want to work on the framework itself** →
+  [Contributing](./docs/contributing.md) and
+  [Developer environment setup](./docs/tooling/mise-uv/setup-environment.md).
+- **I am cutting or auditing a release** →
+  [Release engineering](./docs/release-engineering.md) and
+  [Publishing](./docs/publishing.md).
+
+To learn the concepts behind the framework, read the baseline documents in
+order:
 
 1. [Workflow](./docs/post-training/01-workflow.md) — screen, train, and qualify.
 2. [Primitives](./docs/post-training/02-primitives.md) — reproducible
@@ -443,9 +539,7 @@ Read the documentation progressively:
 6. [Observation and lineage](./docs/post-training/06-observation-and-lineage.md)
    — metrics, traces, artifacts, and provenance.
 
-For release installation, remote-server use, package ordering, and known
-release gaps, see [Release and consumption](./docs/release-and-consumption.md).
+The [glossary](./docs/glossary.md) defines every term of art in one place.
 For the project-author journey and configuration ownership, see
-[Developer experience](./docs/developer-experience.md).
-The smallest independent project is
-[`tests/consumer/fixture`](./tests/consumer/fixture).
+[Developer experience](./docs/developer-experience.md). The full docs map is
+at [docs/README.md](./docs/README.md).

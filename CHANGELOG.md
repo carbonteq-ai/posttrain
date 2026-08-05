@@ -194,7 +194,7 @@ the 24 GB and 96 GB workers.
 
 - Produce → pin → rebind how-to for trained model handoff between work
   packages
-  ([consumer-setup §9](docs/consumer-setup.md#9-pass-one-jobs-model-into-the-next),
+  ([getting-started §9](docs/getting-started.md#9-pass-one-jobs-model-into-the-next),
   [developer-experience](docs/developer-experience.md#trained-model-handoff-produce--pin--rebind),
   [tooling/trackio](docs/tooling/trackio/README.md#project-developers-artifact-handoff)).
 
@@ -232,8 +232,9 @@ LAN digests match the Trackio workspace lock.
 
 Public developer-facing guides (no private ops required to start):
 
-- [consumer-setup](docs/consumer-setup.md) — trust, index install, local and
-  dstack providers, doctor, plan/pack/run, workers
+- [getting-started](docs/getting-started.md) (formerly consumer-setup) —
+  trust, index install, local and dstack providers, doctor, plan/pack/run,
+  workers
 - [developer-experience](docs/developer-experience.md) — project layout,
   catalog overlays, standard jobs, datasets/envs
 - [tooling/dstack](docs/tooling/dstack/README.md) — client binding, soft
@@ -294,10 +295,12 @@ First stable line after `v0.1.0-rc.2`. Requires **Python 3.13**.
 
 Public project-developer surfaces introduced with the consumer path:
 
-- [consumer-setup](docs/consumer-setup.md) — install from the internal index,
-  trust the CA, run local or dstack jobs (executed steps, not aspirational)
-- [release-and-consumption](docs/release-and-consumption.md) — how releases
-  are consumed and gated
+- [getting-started](docs/getting-started.md) (formerly consumer-setup) —
+  install from the internal index, trust the CA, run local or dstack jobs
+  (executed steps, not aspirational)
+- [install](docs/install.md) and
+  [release-engineering](docs/release-engineering.md) (formerly
+  release-and-consumption) — how releases are installed and gated
 - [remote-gpu-qualification](docs/remote-gpu-qualification.md) — remote GPU
   release-gate workflow
 - [UPGRADING](UPGRADING.md), [COMPATIBILITY](COMPATIBILITY.md),
