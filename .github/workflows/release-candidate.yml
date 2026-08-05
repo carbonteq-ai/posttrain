@@ -48,6 +48,10 @@ jobs:
 
       - name: Validate the source and lock
         run: |
+          # The runner service has production Trackio variables for real
+          # canaries. Keep the unit/integration suite hermetic so its SQLite
+          # fixtures cannot accidentally read or mutate live Trackio.
+          unset TRACKIO_SERVER_URL POSTTRAIN_TRACKIO_SERVER_URL TRACKIO_WRITE_TOKEN
           uv sync --all-packages --group dev --python 3.13
           uv run --no-sync posttrain-release check
           uv run --no-sync ruff check .
