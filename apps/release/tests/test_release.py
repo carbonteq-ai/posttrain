@@ -388,7 +388,7 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
 
     assert "candidate-version --simple-url" in candidate
     assert "for attempt in $(seq 1 120)" in candidate
-    assert 'select(.headSha == $sha and .event == "push")' in candidate
+    assert 'select(.headSha == $sha and (.event == "push" or .event == "pull_request"))' in candidate
     assert 'git ls-remote --exit-code origin "refs/tags/v${POSTTRAIN_RELEASE_VERSION}"' in final
     assert '"${DEVPI_CLIENT}" push -y' in final
     assert "exact final bytes are already present in the stable index" in final

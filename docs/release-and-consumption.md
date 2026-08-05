@@ -92,15 +92,34 @@ The fixture is the smallest executable consumer example:
 
 Two protected workflows run on a dedicated LAN-connected self-hosted runner.
 **Prepare candidate** derives immutable prerelease versions such as
-`0.3.1rc1`, publishes them only to `carbonteq/dev`, qualifies changed OCI
+`0.3.2rc1`, publishes them only to `carbonteq/dev`, qualifies changed OCI
 digests plus real packed jobs, and lets maintainers repair the release branch
 without consuming the final version. **Publish release** runs only after a
-candidate passed and the release PR merged. It builds final `0.3.1` once,
+candidate passed and the release PR merged. It builds final `0.3.2` once,
 qualifies those exact files through `carbonteq/dev`, promotes them unchanged to
 `carbonteq/stable`, and creates the final tag last. External Verifiers
 environments, including `automationbench-v1`, resolve from the immutable
 commits in the bundled constraints file instead of being copied into the
 framework bundle.
+
+### 0.3.2 Gemma qualification gate
+
+The 0.3.2 candidate must include the Gemma 4 dense matrix and the paired
+assistant MTP path. Before dispatching the candidate workflow, the release
+review must link the successful dstack/Trackio evidence from
+`docs/plan/gemma4-0.3.2-support-and-release.md`:
+
+- E2B, E4B, 12B Unified, and 31B each pass the model-neutral text-generation
+  smoke on `targets/carbonteq-rtx-pro-6000-96gb`.
+- The 12B TRL GRPO run has MTP enabled, complete non-truncated traces, reward,
+  and speculative draft/accepted plus KV-cache metrics.
+- The release candidate is built from the exact merged commit, publishes only
+  to `carbonteq/dev`, and runs the final packed canary from the candidate
+  wheelhouse. No mutable model tag or image tag is valid release evidence.
+
+These are product qualification inputs, not a request to run the full Gemma
+matrix on every ordinary pull request. A failed candidate is repaired as a new
+RC; it never mutates the target stable version or reuses an old run ID.
 
 Ordinary projects should use `pypi.lan`. The attached bundle is an exact
 offline installation and recovery surface for the already accepted release:

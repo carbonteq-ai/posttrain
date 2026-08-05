@@ -50,6 +50,7 @@ from .online_rl import (
     RolloutBatch,
 )
 from .profiles import (
+    GEMMA4_RENDERER,
     LFM25_DPO_SMOKE,
     LFM25_RENDERER,
     LFM25_SFT_SMOKE,
@@ -108,6 +109,7 @@ __all__ = [
     "OnPolicyDistillationSettings",
     "NormalizedGRPOStep",
     "FullParameterUpdate",
+    "GEMMA4_RENDERER",
     "LFM25_DPO_SMOKE",
     "LFM25_RENDERER",
     "LFM25_SFT_SMOKE",

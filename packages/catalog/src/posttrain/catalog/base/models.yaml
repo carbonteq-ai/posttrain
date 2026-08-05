@@ -69,3 +69,96 @@ model:
       mtp: false
     provenance:
       source: huggingface
+  models/gemma4-e2b-it@bf16:
+    artifact:
+      kind: hub
+      repo_id: google/gemma-4-E2B-it
+      revision: 3e22461f65e89153144f8adb70e3b8c2cc9845a7
+    form: foundation
+    weight_precision: bf16
+    family: gemma4
+    parameters: 5123178051
+    instruction_tuned: true
+    renderer_contract: gemma4-tools@1
+    capabilities:
+      modalities: [text, image, audio]
+      native_context_window: 131072
+      mtp: true
+    provenance:
+      source: huggingface
+      license: apache-2.0
+      upstream_model_type: gemma4
+      upstream_architecture: Gemma4ForConditionalGeneration
+      mtp_mode: paired-assistant
+      mtp_assistant_repo_id: google/gemma-4-E2B-it-assistant
+      mtp_assistant_revision: 2d874ef7d29f9a30599a1e4b3c1cbc9595f005df
+  models/gemma4-e4b-it@bf16:
+    artifact:
+      kind: hub
+      repo_id: google/gemma-4-E4B-it
+      revision: ee0ef6023621cff504d758262d4e04895a5af4a2
+    form: foundation
+    weight_precision: bf16
+    family: gemma4
+    parameters: 7996156490
+    instruction_tuned: true
+    renderer_contract: gemma4-tools@1
+    capabilities:
+      modalities: [text, image, audio]
+      native_context_window: 131072
+      mtp: true
+    provenance:
+      source: huggingface
+      license: apache-2.0
+      upstream_model_type: gemma4
+      upstream_architecture: Gemma4ForConditionalGeneration
+      mtp_mode: paired-assistant
+      mtp_assistant_repo_id: google/gemma-4-E4B-it-assistant
+      mtp_assistant_revision: 8d0031ea8c2109e2b1e86bb9368a4539b537f80a
+  models/gemma4-12b-it@bf16:
+    artifact:
+      kind: hub
+      repo_id: google/gemma-4-12B-it
+      revision: 707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7
+    form: foundation
+    weight_precision: bf16
+    family: gemma4
+    parameters: 11959730224
+    instruction_tuned: true
+    renderer_contract: gemma4-tools@1
+    tokenizer_fingerprint: 059d0f7dd1efb018ec9801f316c99ab31a7c39e712de08626ac90c1898b42416
+    capabilities:
+      modalities: [text, image, audio]
+      native_context_window: 262144
+      mtp: true
+    provenance:
+      source: huggingface
+      license: apache-2.0
+      upstream_model_type: gemma4_unified
+      upstream_architecture: Gemma4UnifiedForConditionalGeneration
+      mtp_mode: paired-assistant
+      mtp_assistant_repo_id: google/gemma-4-12B-it-assistant
+      mtp_assistant_revision: 364bd03c9952e5b7da73665ee30c9eccfc408345
+  models/gemma4-31b-it@bf16:
+    artifact:
+      kind: hub
+      repo_id: google/gemma-4-31B-it
+      revision: 842da3794eaa0b77d5f08bae87a17459d91ff475
+    form: foundation
+    weight_precision: bf16
+    family: gemma4
+    parameters: 31273088876
+    instruction_tuned: true
+    renderer_contract: gemma4-tools@1
+    capabilities:
+      modalities: [text, image]
+      native_context_window: 262144
+      mtp: true
+    provenance:
+      source: huggingface
+      license: apache-2.0
+      upstream_model_type: gemma4
+      upstream_architecture: Gemma4ForConditionalGeneration
+      mtp_mode: paired-assistant
+      mtp_assistant_repo_id: google/gemma-4-31B-it-assistant
+      mtp_assistant_revision: 627c5ec1458b9086b841a91e0512fd31fd2fbbf1

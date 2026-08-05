@@ -87,3 +87,19 @@ def test_project_planner_makes_unmatched_inventory_explicit() -> None:
     assert plan.run_ids == ("producer",)
     assert any("unmatched consumer 'missing'" in blocker for blocker in plan.blockers)
     assert any("unmatched run 'foreign'" in blocker for blocker in plan.blockers)
+
+
+def test_resume_plan_emits_only_unfinished_planes() -> None:
+    candidate = replace(
+        _candidate("resume"),
+        completed_planes=("provider", "registry", "tracking"),
+        local_paths=(Path("/tmp/posttrain-state/resume"),),
+    )
+    plan = build_run_purge_plan(Catalog({"resume": candidate}), root_run_id="resume")
+
+    assert plan.blockers == ()
+    assert plan.provider_actions == ()
+    assert plan.registry_actions == ()
+    assert plan.tracking_actions == ()
+    assert [action.action_id for action in plan.local_actions] == ["local:resume:0"]
+    assert plan.local_actions[0].depends_on == ()

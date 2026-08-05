@@ -185,8 +185,9 @@ def generate(
         "temperature": request.temperature,
         "stream": True,
         "stream_options": {"include_usage": True},
-        **extra,
     }
+    if extra:
+        payload["chat_template_kwargs"] = extra
     if request.tools:
         payload.update({"tools": list(request.tools), "tool_choice": "auto"})
 

@@ -35,10 +35,13 @@ from posttrain.eval import (
     general,
 )
 from posttrain.serve import (
+    GenerationRequest,
+    GenerationResult,
     ProbeResult,
     ServeBenchmarkRequest,
     ServeLaunchRequest,
     benchmark,
+    generate,
     launch,
     probe,
 )
@@ -365,6 +368,48 @@ def serve_smoke_definition(
     )
 
 
+def _serve_generation_smoke(context: RunContext, request: ServeLaunchRequest) -> GenerationResult:
+    model = request.inference.model
+    max_tokens = request.inference.sampling.get("max_tokens", 128)
+    if not isinstance(max_tokens, int) or isinstance(max_tokens, bool):
+        raise ValueError("generation smoke inference max_tokens must be an integer")
+    with launch(context, request) as endpoint:
+        health = probe(context, endpoint)
+        if not health.model_available:
+            raise RuntimeError(f"launched endpoint does not expose {endpoint.model!r}")
+        result = generate(
+            context,
+            GenerationRequest(
+                endpoint=endpoint,
+                messages=({"role": "user", "content": "What is 2 + 2? Answer concisely."},),
+                max_tokens=max_tokens,
+            ),
+            model,
+        )
+        if not result.content.strip():
+            raise RuntimeError(f"generation smoke produced no final answer (finish_reason={result.finish_reason!r})")
+        return result
+
+
+def serve_generation_smoke_definition(
+    operation: Callable[[RunContext, ServeLaunchRequest], object] = _serve_generation_smoke,
+    *,
+    definition_id: str = "serve/vllm-generation-smoke@1",
+) -> JobDefinition:
+    """Launch an inference binding and require one nonempty text completion."""
+
+    def run(context: RunContext, seats: ResolvedSeats) -> object:
+        return operation(context, ServeLaunchRequest(_seat(seats, "inference", InferenceBinding)))
+
+    return JobDefinition(
+        definition_id,
+        "serve.smoke",
+        {"inference": InferenceBinding},
+        run,
+        "Launch the selected inference binding and require one nonempty text completion.",
+    )
+
+
 def general_evaluation_definition(
     operation: Callable[[RunContext, EvaluateRequest], object] = general,
     *,
@@ -527,6 +572,7 @@ def standard_definitions() -> dict[str, JobDefinition]:
         distillation_definition(),
         serve_benchmark_definition(),
         serve_smoke_definition(),
+        serve_generation_smoke_definition(),
         general_evaluation_definition(),
         remote_evaluation_definition(),
         managed_evaluation_definition(),
@@ -651,6 +697,7 @@ __all__ = [
     "preference_data_prepare_definition",
     "serve_benchmark_definition",
     "serve_smoke_definition",
+    "serve_generation_smoke_definition",
     "sft_definition",
     "standard_definitions",
     "supervised_data_prepare_definition",

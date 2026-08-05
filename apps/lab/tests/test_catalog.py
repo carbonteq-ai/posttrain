@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
@@ -47,6 +48,90 @@ def test_slice_one_and_two_selections_load_from_the_base_filesystem_catalog() ->
     assert isinstance(sampo.value, SAMPOSettings)
     assert sampo.value.discount_gamma == 0.95
     assert sampo.value.dynamic_sampling == DynamicGroupSampling(max_candidate_batches=3)
+
+
+def test_gemma4_unified_qualification_selections_resolve_as_one_support_plane() -> None:
+    catalog = open_catalog(
+        scope="posttrain-lab",
+        overlays=(WORKSPACE / "apps" / "lab" / ".posttrain" / "catalog",),
+    )
+    model = catalog.resolve(CatalogRef("model", "models/gemma4-12b-it@bf16"))
+    settings = catalog.resolve(CatalogRef("training", "gemma4-12b-it/sft-qualification-v1"))
+    training = catalog.resolve(CatalogRef("training", "training/gemma4-12b-it-trl-lora-qualification@1"))
+    mtp_settings = catalog.resolve(CatalogRef("training", "gemma4-12b-it/grpo-mtp-qualification-v1"))
+    mtp_training = catalog.resolve(CatalogRef("training", "training/gemma4-12b-it-trl-grpo-mtp-qualification@1"))
+    mtp_inference = catalog.resolve(CatalogRef("inference", "inference/gemma4-12b-it-vllm-grpo-mtp@1"))
+    mtp_environment = catalog.resolve(CatalogRef("environment", "gemma4-gsm8k-mtp-qualification"))
+    inference = catalog.resolve(CatalogRef("inference", "inference/gemma4-12b-it-vllm-screen@1"))
+    evaluation_inference = catalog.resolve(CatalogRef("inference", "inference/gemma4-12b-it-vllm-eval@1"))
+
+    assert isinstance(model.value, ModelVariant)
+    assert model.value.family == "gemma4"
+    assert model.value.provenance["upstream_model_type"] == "gemma4_unified"
+    assert model.value.capabilities.mtp is True
+    assert model.value.provenance["mtp_assistant_repo_id"] == "google/gemma-4-12B-it-assistant"
+    assert model.value.renderer.id == "gemma4-tools@1"
+    assert model.source_layer == "base"
+    assert isinstance(settings.value, SFTSettings)
+    assert settings.value.loop.max_steps == 2
+    assert isinstance(training.value, TrainingBinding)
+    assert isinstance(training.value.update, LoRAUpdate)
+    assert training.value.renderer.implementation == "default"
+    assert training.value.renderer.reasoning_mode == "off"
+    assert training.value.target.id == "targets/carbonteq-rtx-pro-6000-96gb"
+    assert "language_model" in training.value.update.target_modules
+    assert isinstance(inference.value, InferenceBinding)
+    assert inference.value.model == model.value
+    assert inference.value.target == training.value.target
+    assert inference.value.engine["text_only"] is True
+    assert inference.value.engine["skip_mm_profiling"] is True
+    assert inference.value.engine["tool_call_parser"] == "gemma4"
+    assert inference.value.engine["reasoning_parser"] == "gemma4"
+    assert isinstance(evaluation_inference.value, InferenceBinding)
+    assert evaluation_inference.value.model == model.value
+    assert evaluation_inference.value.target == training.value.target
+    assert evaluation_inference.value.purpose == ("eval",)
+    assert evaluation_inference.value.engine["max_model_len"] == 32768
+    assert isinstance(mtp_settings.value, GRPOSettings)
+    assert mtp_settings.value.loop.max_steps == 1
+    assert mtp_settings.value.num_generations == 2
+    assert isinstance(mtp_training.value, TrainingBinding)
+    assert mtp_training.value.target == training.value.target
+    assert isinstance(mtp_inference.value, InferenceBinding)
+    speculative_config = mtp_inference.value.engine["speculative_config"]
+    assert isinstance(speculative_config, Mapping)
+    assert speculative_config["assistant_revision"] == ("364bd03c9952e5b7da73665ee30c9eccfc408345")
+    assert isinstance(mtp_environment.value, EnvironmentBinding)
+    assert mtp_environment.value.max_concurrent == 1
+    assert all(value.source_layer == "overlay" for value in (settings, training, inference, evaluation_inference))
+    assert all(
+        value.overlay_id == "posttrain-lab-serving-capacity-v1"
+        for value in (settings, training, inference, evaluation_inference)
+    )
+
+
+def test_gemma4_dense_matrix_selections_resolve_with_shared_runtime_contract() -> None:
+    catalog = open_catalog(
+        scope="posttrain-lab",
+        overlays=(WORKSPACE / "apps" / "lab" / ".posttrain" / "catalog",),
+    )
+    expected = {
+        "e2b": ("models/gemma4-e2b-it@bf16", "inference/gemma4-e2b-it-vllm-screen@1"),
+        "e4b": ("models/gemma4-e4b-it@bf16", "inference/gemma4-e4b-it-vllm-screen@1"),
+        "12b": ("models/gemma4-12b-it@bf16", "inference/gemma4-12b-it-vllm-screen@1"),
+        "31b": ("models/gemma4-31b-it@bf16", "inference/gemma4-31b-it-vllm-screen@1"),
+    }
+    for model_id, inference_id in expected.values():
+        model = catalog.resolve(CatalogRef("model", model_id)).value
+        inference = catalog.resolve(CatalogRef("inference", inference_id)).value
+        assert isinstance(model, ModelVariant)
+        assert isinstance(inference, InferenceBinding)
+        assert inference.model == model
+        assert model.family == "gemma4"
+        assert model.capabilities.mtp is True
+        assert inference.engine["text_only"] is True
+        assert inference.engine["tool_call_parser"] == "gemma4"
+        assert inference.engine["reasoning_parser"] == "gemma4"
 
 
 def test_every_evaluation_plan_declares_success_for_every_environment() -> None:

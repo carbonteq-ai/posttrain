@@ -53,10 +53,10 @@ jobs:
             runs="$(gh run list --workflow quality.yml --branch "${SOURCE_REF}" --limit 20 \
               --json headSha,conclusion,status,event,createdAt)"
             quality_conclusion="$(jq -r --arg sha "${source_sha}" \
-              '[.[] | select(.headSha == $sha and .event == "push")] | sort_by(.createdAt) | last.conclusion // empty' \
+              '[.[] | select(.headSha == $sha and (.event == "push" or .event == "pull_request"))] | sort_by(.createdAt) | last.conclusion // empty' \
               <<<"${runs}")"
             quality_status="$(jq -r --arg sha "${source_sha}" \
-              '[.[] | select(.headSha == $sha and .event == "push")] | sort_by(.createdAt) | last.status // empty' \
+              '[.[] | select(.headSha == $sha and (.event == "push" or .event == "pull_request"))] | sort_by(.createdAt) | last.status // empty' \
               <<<"${runs}")"
             case "${quality_conclusion}" in
               success) break ;;

@@ -239,7 +239,7 @@ Exact loadable weight state. Weight quantization (AWQ, GPTQ, GGUF Q4, …) is a
 | `quantization` | Optional method/scheme metadata when `form` is weight-quantized |
 | `parent` | Optional parent `ModelVariant` |
 | `renderer_contract` | Chat/tool/reasoning contract id |
-| `capabilities` | Context, modality claims |
+| `capabilities` | Context, modality, and rollout capabilities such as MTP |
 | `provenance` | Source / producing run |
 
 ### `DatasetSelection`
@@ -299,7 +299,7 @@ is a **field** (`engine`), not its own catalog family. See
 | `model` | `ModelVariant` (or catalog ref resolved to one) |
 | `backend` | Engine kind + version (e.g. `vllm@…`) |
 | `renderer` | Renderer contract |
-| `engine` | Backend-owned runtime settings (KV cache, TP, speculative, mem util, …) |
+| `engine` | Backend-owned runtime settings (KV cache, TP, speculative, mem util, …); paired-assistant MTP mappings include an immutable assistant repository and revision |
 | `sampling` | Defaults for generation or token scoring for this purpose |
 | `target` | `ExecutionTarget` |
 | `purpose` | screen \| eval \| rollout \| teacher-score \| smoke \| handoff |

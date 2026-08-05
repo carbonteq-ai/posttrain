@@ -97,6 +97,7 @@ def test_standard_definition_registry_covers_every_technique() -> None:
         "train/trl-sampo@1",
         "train/trl-distill@1",
         "serve/vllm-benchmark@1",
+        "serve/vllm-generation-smoke@1",
         "serve/vllm-smoke@1",
         "eval/verifiers-general@1",
         "eval/verifiers-remote-general@1",

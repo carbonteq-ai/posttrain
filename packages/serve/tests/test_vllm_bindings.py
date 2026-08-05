@@ -15,7 +15,7 @@ def test_qwen_screen_binding_captures_tested_8gb_constraints(qwen_screen_binding
     kwargs = engine_config(binding).as_vllm_kwargs()
     assert kwargs["enforce_eager"] is True
     assert kwargs["gpu_memory_utilization"] == 0.75
-    assert kwargs["limit_mm_per_prompt"] == {"image": 0, "video": 0}
+    assert kwargs["limit_mm_per_prompt"] == {"image": 0, "video": 0, "audio": 0}
     assert kwargs["skip_mm_profiling"] is True
     assert kwargs["max_num_seqs"] == 4
 

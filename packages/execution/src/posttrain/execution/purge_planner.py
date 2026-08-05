@@ -9,7 +9,7 @@ from typing import Protocol
 
 from posttrain.common import ContractError
 
-from .purge import PurgeAction, PurgeMode, PurgePlan
+from .purge import PurgeAction, PurgeMode, PurgePlan, PurgePlane
 from .registry import RegistryManifestRef
 
 
@@ -33,6 +33,7 @@ class PurgeRunCandidate:
     image: RegistryManifestRef | None = None
     workspace: Path | None = None
     local_paths: tuple[Path, ...] = ()
+    completed_planes: tuple[PurgePlane, ...] = ()
 
     def __post_init__(self) -> None:
         for label, value in (
@@ -58,6 +59,10 @@ class PurgeRunCandidate:
                 raise ContractError("purge candidate local paths must be absolute")
         if self.workspace is not None and not self.workspace.is_absolute():
             raise ContractError("purge candidate workspace must be absolute")
+        if len(set(self.completed_planes)) != len(self.completed_planes):
+            raise ContractError("purge candidate completed planes must be unique")
+        if any(plane not in {"provider", "registry", "tracking", "local"} for plane in self.completed_planes):
+            raise ContractError("purge candidate completed plane is invalid")
 
 
 class PurgeRunCatalog(Protocol):
@@ -205,64 +210,71 @@ def _assemble_plan(
 
     for candidate in selected.values():
         provider_id = f"provider:{candidate.run_id}"
-        provider_actions.append(
-            PurgeAction(
-                action_id=provider_id,
-                plane="provider",
-                kind="provider.cleanup",
-                target={
-                    "provider": candidate.provider,
-                    "provider_id": candidate.provider_id,
-                    "run_id": candidate.run_id,
-                },
-                precondition={"state": "terminal", "reconciled": candidate.reconciled},
+        if "provider" not in candidate.completed_planes:
+            provider_actions.append(
+                PurgeAction(
+                    action_id=provider_id,
+                    plane="provider",
+                    kind="provider.cleanup",
+                    target={
+                        "provider": candidate.provider,
+                        "provider_id": candidate.provider_id,
+                        "run_id": candidate.run_id,
+                    },
+                    precondition={"state": "terminal", "reconciled": candidate.reconciled},
+                )
             )
-        )
-        if candidate.image is None:
+        if candidate.image is None and "registry" not in candidate.completed_planes:
             blockers.append(f"run {candidate.run_id!r} has no digest-pinned actual-job image")
-        else:
+        elif candidate.image is not None and "registry" not in candidate.completed_planes:
             registry_actions.append(
                 PurgeAction(
                     action_id=f"registry:{candidate.run_id}",
                     plane="registry",
                     kind="registry.delete_manifest",
                     target={"reference": candidate.image.value, "run_id": candidate.run_id},
-                    depends_on=(provider_id,),
+                    depends_on=((provider_id,) if "provider" not in candidate.completed_planes else ()),
                 )
             )
 
     ordered_tracking = _leaf_first(selected, root_run_id)
     for candidate in ordered_tracking:
-        consumer_dependencies = tuple(
-            f"tracking:{consumer}" for consumer in candidate.consumers if consumer in selected
-        )
-        registry_id = f"registry:{candidate.run_id}"
-        tracking_actions.append(
-            PurgeAction(
-                action_id=f"tracking:{candidate.run_id}",
-                plane="tracking",
-                kind="tracking.delete_run",
-                target={
-                    "provider": candidate.evidence_provider,
-                    "project": candidate.evidence_project,
-                    "provider_run_id": candidate.tracking_provider_run_id,
-                },
-                depends_on=(*consumer_dependencies, registry_id),
+        if "tracking" in candidate.completed_planes:
+            warnings.append(f"run {candidate.run_id!r} tracking plane already completed; resuming remaining planes")
+        else:
+            consumer_dependencies = tuple(
+                f"tracking:{consumer}" for consumer in candidate.consumers if consumer in selected
             )
-        )
+            registry_id = f"registry:{candidate.run_id}"
+            registry_dependencies = (registry_id,) if "registry" not in candidate.completed_planes else ()
+            tracking_actions.append(
+                PurgeAction(
+                    action_id=f"tracking:{candidate.run_id}",
+                    plane="tracking",
+                    kind="tracking.delete_run",
+                    target={
+                        "provider": candidate.evidence_provider,
+                        "project": candidate.evidence_project,
+                        "provider_run_id": candidate.tracking_provider_run_id,
+                    },
+                    depends_on=(*consumer_dependencies, *registry_dependencies),
+                )
+            )
         paths = candidate.local_paths or ((candidate.workspace,) if candidate.workspace is not None else ())
         if not paths:
             warnings.append(f"run {candidate.run_id!r} has no local state target")
         for index, path in enumerate(paths):
             if path is None:
                 continue
+            tracking_id = f"tracking:{candidate.run_id}"
+            local_dependencies = (tracking_id,) if "tracking" not in candidate.completed_planes else ()
             local_actions.append(
                 PurgeAction(
                     action_id=f"local:{candidate.run_id}:{index}",
                     plane="local",
                     kind="local.remove_path",
                     target={"run_id": candidate.run_id, "path": str(path)},
-                    depends_on=(f"tracking:{candidate.run_id}",),
+                    depends_on=local_dependencies,
                 )
             )
 

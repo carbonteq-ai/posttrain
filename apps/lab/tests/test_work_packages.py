@@ -215,6 +215,22 @@ def test_same_work_package_config_can_enable_the_optional_eval_cell() -> None:
         assert run.run_id is not None
 
 
+@pytest.mark.parametrize(
+    ("filename", "expected_id"),
+    [
+        ("gemma4_31b_serve_smoke_qualification.yaml", "inference/gemma4-31b-it-vllm-screen@1"),
+        ("gemma4_31b_sft_qualification.yaml", "models/gemma4-31b-it@bf16"),
+    ],
+)
+def test_gemma4_31b_qualification_work_packages_resolve(filename: str, expected_id: str) -> None:
+    package = load_work_package(WORK_PACKAGES / filename)
+    catalog = open_catalog(scope=package.project_id, overlays=(WORKSPACE / "apps/lab/.posttrain/catalog",))
+    resolved = resolve_work_package(catalog, package)
+
+    assert package.work_package_id.endswith("qualification")
+    assert expected_id in str(resolved.snapshot)
+
+
 def test_run_snapshot_carries_work_package_and_job_definition_descriptions() -> None:
     package = load_work_package(WORK_PACKAGES / "foundation_screen.yaml")
     definition = serve_benchmark_definition(lambda context, request: request)

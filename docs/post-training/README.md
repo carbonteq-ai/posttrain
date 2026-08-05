@@ -143,6 +143,16 @@ environment runtime, not a framework inference capability. Details:
 [05 · APIs](./05-apis.md) and the
 [tool-using environment architecture](../architecture/tool-using-environment-execution.md).
 
+**Amendment — paired-assistant MTP rollout (2026-08-05):**
+`ModelCapabilities.mtp` means that a selected model can participate in
+rollout-only multi-token prediction through the selected backend. The
+capability may be supplied by a native checkpoint head (for example, Qwen) or
+by an explicitly declared, immutable assistant checkpoint (for example,
+Gemma 4). A paired assistant is part of the inference engine selection, is
+materialized at its pinned revision before a colocated TRL worker starts, and
+is never inferred from a moving model tag. MTP remains a rollout optimization;
+it does not add an MTP training objective or change the job kind.
+
 These six documents are the **product/design authority** for the post-training
 framework. Do not expand or redesign them while building the implementation
 plan or code slices unless a real product decision forces an unfreeze.

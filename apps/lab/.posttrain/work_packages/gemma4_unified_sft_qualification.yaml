@@ -1,0 +1,45 @@
+project_id: posttrain-lab
+work_package_id: train/gemma4-12b-it/sft-qualification
+stage: train
+description: Complete two Gemma 4 Unified 12B LoRA SFT optimizer updates through the current supervised capsule.
+recipe:
+  type: inline
+  id: recipes/gemma4-12b-it-sft-qualification@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    dataset: dataset
+    settings: training
+    training: training
+  jobs:
+    - id: train
+      kind: train.sft
+      definition: train/trl-sft@1
+  expected_artifacts:
+    - trained adapter
+    - training summary
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/gemma4-12b-it@bf16
+  dataset:
+    type: ref
+    family: dataset
+    id: datasets/posttrain-sft-smoke@1
+  settings:
+    type: ref
+    family: training
+    id: gemma4-12b-it/sft-qualification-v1
+  training:
+    type: ref
+    family: training
+    id: training/gemma4-12b-it-trl-lora-qualification@1
+enabled_optional_jobs: []
+metadata:
+  question: Can the current TRL capsule train and retain a Gemma 4 Unified language-model-only LoRA adapter?
+  labels:
+    - qualification
+    - gemma4
+    - sft

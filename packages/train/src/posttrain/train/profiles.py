@@ -296,6 +296,7 @@ def _validate_settings(identifier: str, revision: str) -> None:
 QWEN35_RENDERER = TrainingRenderer("qwen3.5-off-v1", "qwen3.5", "qwen3.5", "off")
 QWEN35_THINKING_RENDERER = TrainingRenderer("qwen3.5-thinking-v1", "qwen3.5", "qwen3.5", "thinking")
 LFM25_RENDERER = TrainingRenderer("lfm2.5-native-v1", "lfm2.5", "default", "native")
+GEMMA4_RENDERER = TrainingRenderer("gemma4-off-v1", "gemma4", "default", "off")
 
 QWEN35_SFT_SMOKE = SFTSettings("qwen3.5-2b/sft-smoke-v2", TrainingLoop(max_steps=2))
 QWEN35_DPO_SMOKE = DPOSettings(
@@ -329,6 +330,7 @@ __all__ = [
     "SAMPOSettings",
     "LFM25_DPO_SMOKE",
     "LFM25_RENDERER",
+    "GEMMA4_RENDERER",
     "LFM25_SFT_SMOKE",
     "QWEN35_DPO_SMOKE",
     "QWEN35_GRPO_MTP_SMOKE",
