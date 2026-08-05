@@ -1,116 +1,48 @@
-# Release and consumption
+# Release engineering
 
-This page defines how CarbonTeq projects consume the post-training framework and
-how maintainers publish it. The intended users are CarbonTeq-managed projects;
-the internal Python and OCI registries are the supported distribution
-infrastructure. GitHub provides source review, release orchestration, and an
-auditable copy of the accepted release bundle; it is not a second build plane
-or the framework's OCI registry.
+This page is for **framework maintainers** who prepare, qualify, and publish
+Posttrain releases. Project teams installing a release should read
+[install.md](./install.md) instead; the day-to-day publishing checklist is in
+[publishing.md](./publishing.md).
 
-The source repository is published at
-[`carbonteq-ai/posttrain`](https://github.com/carbonteq-ai/posttrain). Team
-projects install from `pypi.lan`, while job images resolve from
-`registry.lan/carbonteq`. The commands below distinguish source-checkout use,
-the internal-index contract, and the GitHub release bundle retained for audit
-and recovery.
+Distribution infrastructure: CarbonTeq-managed projects install from
+`pypi.lan`, and job images resolve from `registry.lan/carbonteq`. GitHub
+provides source review, release orchestration, and an auditable copy of the
+accepted release bundle; it is not a second build plane or the framework's OCI
+registry. The source repository is published at
+[`carbonteq-ai/posttrain`](https://github.com/carbonteq-ai/posttrain).
 
-## What a project installs
-
-CarbonTeq-managed projects install from the internal index with the release
-constraints file. That is the supported consumer path; see
-[consumer-setup.md](./consumer-setup.md) for the full walkthrough (trust, env,
-local Docker, and dstack).
-
-```bash
-uv venv --python 3.13 .venv
-VIRTUAL_ENV=.venv uv pip install --system-certs \
-  --index-url https://pypi.lan/carbonteq/stable/+simple/ \
-  --constraint github-constraints.txt \
-  "posttrain[observatory,trackio,trl]"
-```
-
-Add the `dstack` extra when submitting remote GPU jobs. Obtain
-`github-constraints.txt` from the framework release (repository
-`release/github-constraints.txt` or the wheelhouse attachment); it is not
-served by the index today.
-
-Most projects start with the primary command distribution `posttrain`. It
-supplies project initialization, diagnostics, catalog inspection, and
-work-package commands. It depends on the reusable catalog and composition
-packages; it does not make `posttrain-lab` a runtime requirement.
-
-Capability extras and packages (`trl`, `verifiers`, `vllm`, Trackio, W&B) are
-selected by what the project executes. Checkout developers may still use
-`uv add` against a workspace clone; that is a maintainer path, not the team
-install contract.
-
-Every consuming project commits:
-
-- `.posttrain/project.toml`
-- `.posttrain/catalog/` overlays
-- `.posttrain/work_packages/`
-- `pyproject.toml` and `uv.lock`
-
-It does not copy the framework base catalog. That catalog is a versioned
-resource inside `posttrain-catalog`. Machine-local scratch, caches, recovery
-files, and local Trackio storage live under `.posttrain/state/` or an explicit
-state-directory override. Durable artifacts are published through the selected
-tracking/artifact backend.
-
-## Current checkout workflow
-
-Before a registry release, use the workspace lock:
-
-```bash
-mise install
-uv sync --all-packages --locked --python 3.13
-uv run --package posttrain posttrain doctor
-uv run --package posttrain posttrain catalog validate
-uv run --package posttrain posttrain work-package validate foundation_screen.yaml
-```
-
-Create a separate project with:
-
-```bash
-uv run --package posttrain posttrain init ../my-posttrain-project \
-  --project-id my-posttrain-project
-```
-
-The installed-wheel acceptance builds distributions, creates a clean Python
-environment outside this repository, executes a deterministic CPU work
-package, writes a terminal run through local Trackio, and reads the same run
-through Observatory:
-
-```bash
-uv run pytest -q tests/consumer/test_wheel_project.py
-```
-
-The fixture is the smallest executable consumer example:
-[`tests/consumer/fixture`](../tests/consumer/fixture).
-
-## GitHub release bundle
+## Candidate and final workflows
 
 Two protected workflows run on a dedicated LAN-connected self-hosted runner.
+
 **Prepare candidate** derives immutable prerelease versions such as
 `0.3.2rc1`, publishes them only to `carbonteq/dev`, qualifies changed OCI
 digests plus real packed jobs, and lets maintainers repair the release branch
-without consuming the final version. **Publish release** runs only after a
-candidate passed and the release PR merged. It builds final `0.3.2` once,
-downloads the candidate's generated image manifest before building the final
-wheelhouse, qualifies those exact files through `carbonteq/dev`, promotes them
-unchanged to `carbonteq/stable`, and creates the final tag last. The final
-workflow therefore requires both the merged source SHA and the successful
-candidate run ID. External Verifiers
-environments, including `automationbench-v1`, resolve from the immutable
-commits in the bundled constraints file instead of being copied into the
-framework bundle.
+without consuming the final version.
+
+**Publish release** runs only after a candidate passed and the release PR
+merged. It builds final `0.3.2` once, downloads the candidate's generated
+image manifest before building the final wheelhouse, qualifies those exact
+files through `carbonteq/dev`, promotes them unchanged to `carbonteq/stable`,
+and creates the final tag last. The final workflow therefore requires both the
+merged source SHA and the successful candidate run ID.
+
+External Verifiers environments, including `automationbench-v1`, resolve from
+the immutable commits in the bundled constraints file instead of being copied
+into the framework bundle.
+
+A release remains reproducible because the receipt binds the merged source
+commit, framework version, distribution filenames and hashes, dependency-lock
+identity, and committed OCI manifest. The internal indexes and GitHub Release
+must contain those exact bytes.
 
 ### 0.3.2 Gemma qualification gate
 
 The 0.3.2 candidate must include the Gemma 4 dense matrix and the paired
 assistant MTP path. Before dispatching the candidate workflow, the release
 review must link the successful dstack/Trackio evidence from
-`docs/plan/gemma4-0.3.2-support-and-release.md`:
+[`docs/plan/gemma4-0.3.2-support-and-release.md`](./plan/gemma4-0.3.2-support-and-release.md):
 
 - E2B, E4B, 12B Unified, and 31B each pass the model-neutral text-generation
   smoke on `targets/carbonteq-rtx-pro-6000-96gb`.
@@ -123,40 +55,6 @@ review must link the successful dstack/Trackio evidence from
 These are product qualification inputs, not a request to run the full Gemma
 matrix on every ordinary pull request. A failed candidate is repaired as a new
 RC; it never mutates the target stable version or reuses an old run ID.
-
-Ordinary projects should use `pypi.lan`. The attached bundle is an exact
-offline installation and recovery surface for the already accepted release:
-
-```bash
-gh release download <release-tag> \
-  --repo carbonteq-ai/posttrain \
-  --pattern 'posttrain-wheelhouse-*.tar.gz'
-mkdir posttrain-wheelhouse
-tar -xzf posttrain-wheelhouse-*.tar.gz -C posttrain-wheelhouse
-uv venv --python 3.13
-uv pip install --python .venv/bin/python \
-  --constraint ./posttrain-wheelhouse/github-constraints.txt \
-  --find-links ./posttrain-wheelhouse \
-  posttrain posttrain-observatory
-```
-
-Install `posttrain-lab` from the same wheelhouse when a project needs the
-reference composition host. Published Trackio and AutomationBench forks resolve
-through the internal index; the bundled constraints retain only dependencies
-that still require immutable Git URLs. A release remains reproducible because
-the receipt binds the merged source commit, framework version, distribution
-filenames and hashes, dependency-lock identity, and committed OCI manifest. The
-internal indexes and GitHub Release must contain those exact bytes.
-
-For framework development or a complete reference checkout, clone the exact
-tag and use the checked-in lock:
-
-```bash
-git clone --branch <release-tag> --depth 1 \
-  https://github.com/carbonteq-ai/posttrain.git
-cd posttrain
-uv sync --all-packages --locked --python 3.13
-```
 
 ## Release artifact graph
 
@@ -174,8 +72,8 @@ uploaded.
 
 Use one coordinated pre-1.0 framework version for first-party distributions.
 Fork and environment distributions may follow their own upstream-derived
-versions, but framework metadata and release notes must name the exact accepted
-versions.
+versions, but framework metadata and release notes must name the exact
+accepted versions.
 
 ## Registry release contract
 
@@ -222,33 +120,39 @@ transaction:
 9. promotes the unchanged files server-side to `carbonteq/stable` and verifies
    stable readback hashes;
 10. creates the tag last and attaches the same bundle and receipt to the GitHub
-   Release.
+    Release.
 
 Do not upload a later dependency layer until the previous layer can be
 installed from the development index. Never overwrite an RC, replace an
 accepted stable version, or reinterpret an OCI digest. A repair before final
 publication increments the RC number; a repair after stable publication
-advances the framework version. Detailed trust, network, and retry semantics are in the
-[LAN release runner architecture](./architecture/lan-release-runner.md).
+advances the framework version. Detailed trust, network, and retry semantics
+are in the [LAN release runner architecture](./architecture/lan-release-runner.md).
 
-## Remote project workflow
+## Checkout validation before a release
 
-A remote CPU or GPU server receives a project repository, not this framework
-monorepo:
+Before a registry release, use the workspace lock:
 
 ```bash
-git clone <carbonteq-project>
-cd <carbonteq-project>
-uv sync --locked --python 3.13
-uv run posttrain doctor
-uv run posttrain catalog validate
-uv run posttrain work-package validate <name>.yaml
+mise install
+uv sync --all-packages --locked --python 3.13
+uv run --package posttrain posttrain doctor
+uv run --package posttrain posttrain catalog validate
+cd apps/lab && uv run --package posttrain posttrain work-package validate \
+  .posttrain/work_packages/foundation_screen.yaml
 ```
 
-The committed project lock selects exact framework, fork, environment, and
-accelerator artifacts. Secrets and provider endpoints arrive through the
-server's secret manager or environment, never through `.posttrain/` source.
-Large scratch or recovery state may use an absolute state-directory override.
+The installed-wheel acceptance builds distributions, creates a clean Python
+environment outside this repository, executes a deterministic CPU work
+package, writes a terminal run through local Trackio, and reads the same run
+through Observatory:
+
+```bash
+uv run pytest -q tests/consumer/test_wheel_project.py
+```
+
+The fixture is the smallest executable consumer example:
+[`tests/consumer/fixture`](../tests/consumer/fixture).
 
 Before stable release, one documented remote GPU gate must execute a supported
 training or evaluation work package, record evidence, and retrieve it through

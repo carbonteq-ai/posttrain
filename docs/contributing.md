@@ -1,7 +1,8 @@
 # Contributing to the framework
 
 This is for working **on** the framework. Using it as a library is
-[`consumer-setup.md`](./consumer-setup.md); cutting a release is
+[`install.md`](./install.md) + [`getting-started.md`](./getting-started.md);
+cutting a release is
 [`publishing.md`](./publishing.md). [`AGENTS.md`](../AGENTS.md) at the
 repository root carries the conventions in more detail and is worth reading
 before a first change.

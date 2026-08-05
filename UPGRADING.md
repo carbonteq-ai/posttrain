@@ -37,7 +37,7 @@ tar -xzf posttrain-wheelhouse-*.tar.gz -C posttrain-wheelhouse
 Create a fresh environment so stale transitive packages cannot survive:
 
 ```bash
-uv venv .venv-next --python 3.12
+uv venv .venv-next --python 3.13
 uv pip install \
   --python .venv-next/bin/python \
   --constraint posttrain-wheelhouse/github-constraints.txt \

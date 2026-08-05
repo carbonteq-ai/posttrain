@@ -1,7 +1,19 @@
-# Setting up as a developer
+# Getting started
 
-Every step here was executed against a real deployment before it was written.
-The commands come from a machine with no framework checkout anywhere on it.
+This is the first-day walkthrough for a **project developer**: someone using
+Posttrain to prepare data, train, evaluate, and serve models — not someone
+working on the framework itself (that path is [contributing.md](./contributing.md)).
+
+By the end you will have: the internal services trusted, the framework
+installed, this machine configured once for every project on it, a runnable
+project scaffolded from a starter template, one job executed (locally or on a
+remote GPU through dstack), and that job's trained model handed to a follow-up
+evaluation package. Every step here was executed against a real deployment
+before it was written; the commands come from a machine with no framework
+checkout anywhere on it.
+
+If a term is unfamiliar — work package, catalog, binding, admission, evidence
+— the [glossary](./glossary.md) defines all of them.
 
 ## What you need
 
@@ -13,18 +25,25 @@ The commands come from a machine with no framework checkout anywhere on it.
 
 The services this guide points at — the Python index at `pypi.lan`, the OCI
 registry at `registry.lan`, the tracking server at `trackio.lan`, and the
-dstack server — are operated from the `ai-infra` repository, not from this one.
-If a name does not resolve or a service is down, that repository owns it; its
-`docs/operations/` runbooks cover the index, worker enrollment, the image
+dstack server — are operated from the `ai-infra` repository, not from this
+one. If a name does not resolve or a service is down, that repository owns it;
+its `docs/operations/` runbooks cover the index, worker enrollment, the image
 builder, and workstation trust. This guide assumes they are already running.
+
+If something misbehaves along the way, check
+[Things that will bite you](#things-that-will-bite-you) at the end — it lists
+the known first-week traps.
 
 ## 1. Trust the internal certificate authority
 
-The internal services present certificates from a private CA, and it has to be
-installed in two places. They are read by different things: host tools such as
-`uv`, `curl`, and the Docker daemon consult the machine's own store, while a
-job container inherits nothing from the host and is given the authority
-separately.
+This comes first because nothing else works without it: the package index,
+registry, and tracking server all present certificates from a private CA, so
+until it is trusted, installs and job submissions fail with TLS errors.
+
+The CA has to be installed in two places because they are read by different
+things: host tools such as `uv`, `curl`, and the Docker daemon consult the
+machine's own store, while a job container inherits nothing from the host and
+is given the authority separately.
 
 ```bash
 sudo cp /path/to/ai-infra/.state/certs/caddy-local-root.crt \
@@ -35,6 +54,7 @@ sudo cp /path/to/ai-infra/.state/certs/caddy-local-root.crt \
 sudo install -D -m 644 /path/to/ai-infra/.state/certs/caddy-local-root.crt \
   /etc/posttrain/trust/internal-ca.pem
 ```
+
 The second path is where the framework looks by default, so a machine prepared
 this way needs no trust configuration in any project. That file holds the
 internal authority **alone** — never a hand-assembled union with the system
@@ -50,34 +70,15 @@ with `getent hosts pypi.lan` before assuming the service is down.
 
 ## 2. Install the framework
 
-The framework is served by the internal index, which also mirrors PyPI, so it
-is the only index you need. Some dependencies are maintained forks pinned to
-immutable commits; uv will not resolve a transitive direct URL unless it is
-also declared at the top level, so the constraints file is required rather than
-optional.
+Follow the [installation guide](./install.md) — it is the single source of
+truth for the install commands, covering both the internal index
+(`pypi.lan`, the standard path on the CarbonTeq network) and the GitHub
+release wheelhouse, plus the required release constraints file.
 
-```bash
-uv venv --python 3.13 .venv
-```
+After this step you should have a `.venv` whose `posttrain` command runs, for
+example installed as `posttrain[observatory,trackio,trl]` — add the `dstack`
+extra if you will submit remote GPU jobs (§6).
 
-Obtain `github-constraints.txt` from the framework release you are installing.
-It is `release/github-constraints.txt` in the framework repository, and the
-release workflow attaches it to the published wheelhouse. There is currently no
-way to fetch it from the index, which is a gap: the constraints are required to
-install, so they should travel with the distributions rather than beside them.
-
-```bash
-VIRTUAL_ENV=.venv uv pip install --system-certs --index-url https://pypi.lan/carbonteq/stable/+simple/ --constraint github-constraints.txt "posttrain[observatory,trackio,trl]"
-```
-
-For remote GPU through dstack, include the extra:
-
-```bash
-VIRTUAL_ENV=.venv uv pip install --system-certs --index-url https://pypi.lan/carbonteq/stable/+simple/ --constraint github-constraints.txt "posttrain[observatory,trackio,trl,dstack]"
-```
-
-Job images need **posttrain ≥ 0.2.1** for the trust merge. Re-run
-`posttrain job pack` for any image packed before that release.
 ## 3. Initialize this machine
 
 Machine defaults are shared by every project and load automatically; they do
@@ -130,10 +131,10 @@ posttrain job run .posttrain/work_packages/sft.yaml --registry registry.example/
 ## 5. Local execution provider
 
 Local execution derives the canonical hostname at runtime unless the operator
-explicitly passed `--machine-name`. Its admission ledger is machine-scoped, so local
-Docker jobs from every registered project serialize against the same physical
-resources. Mutable run and cache paths under `[storage]` resolve beneath
-`$XDG_STATE_HOME/posttrain`, not beneath the configuration directory.
+explicitly passed `--machine-name`. Its admission ledger is machine-scoped, so
+local Docker jobs from every registered project serialize against the same
+physical resources. Mutable run and cache paths under `[storage]` resolve
+beneath `$XDG_STATE_HOME/posttrain`, not beneath the configuration directory.
 
 Trust belongs in the machine config's `[trust]` table. Projects cannot replace
 the machine trust root. A named path must exist because silently substituting
@@ -146,7 +147,7 @@ dstack owns offers, placement, startup, and cancellation. Local Docker still
 uses the machine admission ledger (`posttrain workers`); dstack runs do not
 take a host lock inside posttrain.
 
-Install with the `dstack` extra (step 2), then initialize the client binding
+Install with the `dstack` extra (§2), then initialize the client binding
 with `posttrain machine init` or add this to the existing machine config:
 
 ```toml
@@ -165,7 +166,7 @@ file = "credentials/dstack.env"
 job image. The referenced credential file must be mode 0600. Worker storage is
 not a developer-machine setting: the execution-dstack contract and ai-infra
 Ansible deployment own `/var/lib/posttrain/runs`, model cache, compile cache,
-and the worker CA. Your laptop needs only the system CA (step 1) plus this
+and the worker CA. Your laptop needs only the system CA (§1) plus this
 client binding. `capacity_wait_seconds` is a server-side
 dstack queue retention window. It retries only `no-capacity` before the job
 starts; interruption and runtime errors remain fail-fast so user code is never
@@ -175,7 +176,7 @@ omitted retry duration to one hour and has no unbounded value.
 Targets declare capacity (`device_class` / `memory_gb`). That is enough for
 dstack to place the run on any matching worker. posttrain does **not** lock a
 hostname for dstack jobs; affinity is optional and lives only in the catalog
-target’s `placement`, which is forwarded to dstack as a soft pin.
+target's `placement`, which is forwarded to dstack as a soft pin.
 
 **Default (no pin)** — capacity only:
 

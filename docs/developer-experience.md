@@ -328,7 +328,7 @@ bindings:
 ```
 
 Step-by-step with CLI commands:
-[consumer-setup §9](./consumer-setup.md#9-pass-one-jobs-model-into-the-next).
+[getting-started §9](./getting-started.md#9-pass-one-jobs-model-into-the-next).
 Storage and alias rules:
 [operations/dstack-trackio/object-storage.md](./operations/dstack-trackio/object-storage.md).
 

@@ -5,7 +5,8 @@ artifacts on a clean remote NVIDIA GPU host. A local source checkout or
 workspace environment does not satisfy this gate.
 
 The supported consumer path is documented in
-[consumer-setup.md](./consumer-setup.md): install from the internal index with
+[install.md](./install.md) and [getting-started.md](./getting-started.md):
+install from the internal index with
 `github-constraints.txt`, trust the private CA, configure dstack storage, and
 submit with `posttrain job run --provider dstack`. The gate uses a project under
 `examples/` (or an equivalent consumer project), remote Trackio for evidence,
@@ -19,7 +20,8 @@ internal index / OCI registry / tracking service, and enough disk for the model
 and runtime images. Workers must already have `/etc/posttrain/trust/internal-ca.pem`
 and the storage paths named in `[providers.dstack.storage]`.
 
-On the remote host, after installing the release (see consumer-setup):
+On the remote host, after installing the release (see
+[install.md](./install.md)):
 
 ```bash
 posttrain job run .posttrain/work_packages/<gate>.yaml \

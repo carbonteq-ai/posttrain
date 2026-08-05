@@ -164,7 +164,7 @@ After a train run publishes a model artifact, pin the immutable Trackio `vN`
 as a project catalog `ModelVariant` (`artifact.kind: trackio`) and bind that
 id on the next work package. There is no in-YAML `from_job` wire.
 
-How-to: [consumer-setup §9](../../consumer-setup.md#9-pass-one-jobs-model-into-the-next) ·
+How-to: [getting-started §9](../../getting-started.md#9-pass-one-jobs-model-into-the-next) ·
 DX: [trained model handoff](../../developer-experience.md#trained-model-handoff-produce--pin--rebind) ·
 Storage: [operations/dstack-trackio/object-storage.md](../../operations/dstack-trackio/object-storage.md).
 
