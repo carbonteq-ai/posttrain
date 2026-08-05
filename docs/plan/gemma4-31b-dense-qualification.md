@@ -20,8 +20,8 @@ The observable proof mirrors the completed 12B qualification. The serving work p
 - [x] (2026-08-05 08:20Z) Added the exact 31B model variant, base-catalog row, exports, and identity/template tests.
 - [x] (2026-08-05 08:20Z) Added checkpoint-specific Lab training, serving, and evaluation bindings plus serving and SFT work packages and candidate gates.
 - [x] (2026-08-05 08:20Z) Ran focused tests, tokenizer-aware Gemma tests, both static work-package validations, locked sync, full Ruff, import boundaries, targeted Pyright, the full repository test suite, and diff checks.
-- [ ] Submit and track the serving and SFT work packages on `targets/carbonteq-rtx-pro-6000-96gb` (both submitted; serving run `ea43f44a-f46d-45f0-8482-f0a7d3647548` succeeded with complete evidence; SFT run `844b3f1c-c076-4d1c-b486-cb9e5fafd8ea` is provider-queued for the same host).
-- [ ] Prove clean PEFT reload, structured tool calling, and adapter serving where supported; record immutable evidence and finish the retrospective.
+- [x] (2026-08-05 09:02Z) Submitted and tracked both work packages on `targets/carbonteq-rtx-pro-6000-96gb`; serving run `ea43f44a-f46d-45f0-8482-f0a7d3647548` and SFT run `844b3f1c-c076-4d1c-b486-cb9e5fafd8ea` succeeded with complete retained evidence.
+- [x] (2026-08-05 09:08Z) Proved clean PEFT reload, a real structured tool call, and vLLM serving of the exact retained adapter; recorded immutable evidence and completed the retrospective.
 
 ## Surprises & Discoveries
 
@@ -46,6 +46,21 @@ The observable proof mirrors the completed 12B qualification. The serving work p
 - Observation: The pinned 31B foundation checkpoint fits and serves in BF16 on the single 96 GiB target with the planned conservative engine allocation.
   Evidence: serving run `ea43f44a-f46d-45f0-8482-f0a7d3647548` succeeded on an NVIDIA RTX PRO 6000 Blackwell Workstation Edition with `gpu_memory_utilization=0.8`, retained a nonempty inference-output artifact and server log, reported exact-model discovery and health as `1.0`, and produced a complete three-of-three required Observatory view.
 
+- Observation: SFT required no 31B-specific optimizer, offload, or target-expression change and stayed within the single-GPU envelope.
+  Evidence: run `844b3f1c-c076-4d1c-b486-cb9e5fafd8ea` completed two updates with finite losses `16.17289161682129` and `22.35516357421875`, finite gradient norms `28.759944915771484` and `51.32740783691406`, 61,214,720 trainable parameters out of 31,334,301,232 loaded parameters, and 66.97401714324951 GiB peak GPU allocation. It retained model, recovery, and summary artifacts.
+
+- Observation: A clean process can consume the exact 31B adapter through PEFT without relying on trainer state.
+  Evidence: dstack task `gemma4-31b-adapter-reload-validation-v1` verified tree digest `7b52ff86be9a8a6f4369fb50ac49c3d2e50605a22d8d267014d4c96c849f1393`, loaded `PeftModelForCausalLM` over `Gemma4ForConditionalGeneration`, produced finite logits and exactly one generated token, and peaked at 58.70683002471924 GiB.
+
+- Observation: The family parser and adapter-serving paths generalize from the 12B Unified checkpoint to the 31B tower-dense checkpoint.
+  Evidence: dstack task `gemma4-31b-serve-contract-validation-v1` returned a structured `get_weather` tool call with JSON arguments `{"city":"Paris"}` and `finish_reason="tool_calls"`, then served the exact retained adapter through vLLM and returned nonempty final content with `finish_reason="stop"`.
+
+- Observation: The provider queue delay was external capacity contention, not a model or package failure.
+  Evidence: the durable SFT run accumulated no-offer retries while another posttrain task held the only 96 GiB worker, then acquired the same host and succeeded unchanged when it became available. The 24-hour no-capacity retry policy preserved one canonical run identity.
+
+- Observation: Native dstack verbose JSON is unsafe as a routine diagnostic because it includes the task launch environment.
+  Evidence: a verbose provider query emitted credential-bearing environment fields. No values are recorded in this repository or plan; concise provider views and framework run commands were used thereafter. The affected credentials must be rotated outside this qualification after active jobs no longer depend on them.
+
 ## Decision Log
 
 - Decision: Keep `family="gemma4"` and reuse `gemma4-tools@1`, `gemma4-off-v1`, and family-level `AutoModelForMultimodalLM` dispatch.
@@ -66,7 +81,9 @@ The observable proof mirrors the completed 12B qualification. The serving work p
 
 ## Outcomes & Retrospective
 
-Implementation and real qualification are pending. Completion requires successful foundation serving, two-step SFT, clean adapter reload, structured tool-call parsing, and an honest adapter-serving result or explicitly recorded unsupported boundary.
+The Gemma 4 31B dense checkpoint is fully qualified for the deliberately bounded support plane. The exact pinned BF16 foundation checkpoint served successfully through vLLM; language-model-only rank-8 LoRA SFT completed two finite updates within 66.975 GiB peak allocation; the retained 277 MB adapter reloaded in a clean PEFT process with finite logits; the Gemma parser produced a real OpenAI-compatible structured tool call; and pinned vLLM served that exact adapter with nonempty output. This required only an exact model value plus checkpoint-specific Lab composition and evidence. The existing `gemma4` renderer, family-aware multimodal auto-loader, online request contract, and dense LoRA target expression generalized without modification, validating the intended family-level architecture.
+
+Local validation remains as recorded before submission: 1,043 repository tests passed with 20 skips, Ruff and all eight import contracts passed, targeted Pyright reported no diagnostics, both work packages composed statically, and the diff check was clean. Full-workspace Pyright remains the pre-existing nested-environment configuration issue documented in the 12B plan and was not broadened into this checkpoint qualification. The only operational follow-up is credential rotation after an unsafe native verbose provider diagnostic exposed launch-environment values; no secret is stored in tracked files.
 
 ## Context and Orientation
 
@@ -180,6 +197,29 @@ Submitted SFT identity:
     actual-job image: registry.lan/carbonteq/posttrain-job@sha256:98b970909da4987da0a50779491e0ea24aaedd115d14ca49e6122a972bfed8ed
     kind image: registry.lan/carbonteq/posttrain-kind-supervised@sha256:73b52ecf72953ae518907a6c6d82b2240ca19e8a1f96d57bd53ca22c9ba45bbd
     package key: 3dda7e3985e37c792c9866f0bfd3c6e8133c59964d668a0d70e856c93382da90
+    tracking run: d3c37a322dd843b8abbb9f00157b7e4e
+    tracking interval: 2026-08-05T09:01:06.731888Z to 2026-08-05T09:01:57.108045Z
+    loaded/trainable parameters: 31,334,301,232 / 61,214,720
+    trainable fraction: 0.001953600929114857
+    peak GPU allocation: 66.97401714324951 GiB
+    optimizer losses: 16.17289161682129, 22.35516357421875
+    gradient norms: 28.759944915771484, 51.32740783691406
+    adapter artifact: training-models-gemma4-31b-it-bf16-sft-lora-adapter:v0
+    adapter content digest: 7b52ff86be9a8a6f4369fb50ac49c3d2e50605a22d8d267014d4c96c849f1393
+    adapter size: 277,184,945 bytes
+    parameter-update digest: c96f88d91c6b43419b7ee595bb1219831e4a3ddc22268fbcaf1d04c42c1314f9
+    recovery content digest: d0b1e116ee1ab703c95cae31d681d163895af64ce0b8c2eeda65775ef59eb90e
+    summary content digest: 533946cbac1497f2674630501729287a7b25194093008d5fe14cf6c431d3e25f
+
+Downstream consumption evidence:
+
+    clean reload task: gemma4-31b-adapter-reload-validation-v1
+    clean reload result: exact digest, finite logits, one generated token
+    clean reload classes: Gemma4ForConditionalGeneration, PeftModelForCausalLM
+    clean reload peak GPU allocation: 58.70683002471924 GiB
+    tool and adapter serving task: gemma4-31b-serve-contract-validation-v1
+    structured tool result: get_weather, {"city":"Paris"}, finish_reason=tool_calls
+    adapter serving result: exact digest, nonempty content, finish_reason=stop
 
 Local validation before GPU submission:
 
@@ -203,3 +243,5 @@ No new reusable interface is expected. `packages/train/src/posttrain/train/backe
 Revision note (2026-08-05): Created the plan after reconciling the completed 12B qualification with the exact 31B checkpoint. The feasibility probe proved that family-level renderer and loader behavior generalize, while model identity, resource policy, and qualification evidence remain checkpoint-specific.
 
 Revision note (2026-08-05): Updated after implementation and local validation. The result adds only an exact reusable model value plus checkpoint-specific Lab policy; no new family, architecture flag, renderer, loader, dependency, or backend branch was needed.
+
+Revision note (2026-08-05): Completed real qualification on the 96 GiB workstation. Foundation serving, two-step SFT, clean adapter reload, structured tool parsing, and exact-adapter vLLM serving all passed; the evidence confirms that the existing family support generalizes to the tower-dense 31B checkpoint.
