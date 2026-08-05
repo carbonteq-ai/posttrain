@@ -296,6 +296,51 @@ def test_verl_profile_resolves_isolated_python313_closures(
     )
 
 
+def test_eval_profile_resolves_control_dependencies_for_python313(
+    tmp_path: Path,
+) -> None:
+    git_gateway = _git_gateway()
+    dependency_gateway = FakeDependencyGateway()
+    sources, wheels = _one_repository_requests()
+    packager = ImmutableEnvironmentPackager(
+        cache_roots=_cache_roots(tmp_path),
+        kind_constraints={
+            "eval": KindDependencyConstraints(
+                "eval",
+                "shared-runtime==1.0.0\n",
+            )
+        },
+        git_gateway=git_gateway,
+        wheel_gateway=FakeWheelGateway(),
+        dependency_gateway=dependency_gateway,
+    )
+
+    result = packager.package(
+        git_sources=sources,
+        wheel_requests=wheels,
+        kind_profile="eval",
+        output_root=(tmp_path / "work").absolute(),
+    )
+
+    assert [
+        (
+            item.lock.role,
+            item.lock.python_version,
+            item.lock.python_executable,
+            item.lock.requirements_path,
+        )
+        for item in result.runtime_dependencies
+    ] == [
+        (
+            "control",
+            "3.13.12",
+            "/opt/posttrain/venv/bin/python",
+            "locks/runtime.control.requirements.txt",
+        )
+    ]
+    assert [call["python_version"] for call in dependency_gateway.calls] == ["3.13.12"]
+
+
 def test_verl_profile_requires_exact_backend_kind_constraints(
     tmp_path: Path,
 ) -> None:
