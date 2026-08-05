@@ -203,7 +203,7 @@ First, finish the model matrix implementation already started in
 common/catalog tests. Verify that each selection retains exact upstream model
 type, architecture provenance, parameter count, modalities, context facts, and
 assistant provenance. Keep the execution bindings in
-`apps/lab/.posttrain/catalog/gemma4-unified-qualification.yaml` text-only and
+`apps/lab/.posttrain/catalog/gemma4-qualification.yaml` text-only and
 model-specific; do not put target or job policy in the base catalog.
 
 Second, keep the TRL MTP implementation in

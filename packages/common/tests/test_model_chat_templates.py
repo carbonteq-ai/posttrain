@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from posttrain.common.variants import GEMMA_4_12B_IT, LFM_25_12B_THINKING, QWEN_35_2B
+from posttrain.common.variants import GEMMA_4_12B_IT, GEMMA_4_31B_IT, LFM_25_12B_THINKING, QWEN_35_2B
 
 TOOLS = [
     {
@@ -76,8 +76,9 @@ def test_lfm_package_template_preserves_openai_tool_history() -> None:
     assert "null" not in rendered
 
 
-def test_pinned_gemma_template_renders_thinking_and_structured_tool_history() -> None:
-    tokenizer = _local_tokenizer(GEMMA_4_12B_IT)
+@pytest.mark.parametrize("variant", [GEMMA_4_12B_IT, GEMMA_4_31B_IT])
+def test_pinned_gemma_template_renders_thinking_and_structured_tool_history(variant) -> None:
+    tokenizer = _local_tokenizer(variant)
     prompt_off = tokenizer.apply_chat_template(
         [{"role": "user", "content": "Think briefly."}],
         enable_thinking=False,
