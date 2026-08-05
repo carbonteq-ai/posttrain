@@ -96,8 +96,11 @@ jobs:
         run: |
           # Runtime-image verification reads only registry and manifest state;
           # it must not inherit the runner's production Trackio credentials.
+          image_verify_config="${RUNNER_TEMP}/posttrain-image-verify-config"
+          mkdir -p "${image_verify_config}"
           env -u TRACKIO_SERVER_URL -u POSTTRAIN_TRACKIO_SERVER_URL -u TRACKIO_WRITE_TOKEN \
-            POSTTRAIN_REGISTRY="${JOB_REGISTRY}" uv run --no-sync posttrain \
+            XDG_CONFIG_HOME="${image_verify_config}" POSTTRAIN_REGISTRY="${JOB_REGISTRY}" \
+            uv run --no-sync posttrain \
             --project-root apps/lab runtime images verify > .release/runtime-images-verify.json
 
       - name: Run the final packed GPU canary through dstack
