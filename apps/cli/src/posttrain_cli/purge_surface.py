@@ -126,11 +126,7 @@ def _completed_purge_planes(
             events = store.journal(directory.name)
         except Exception:
             continue
-        settled = {
-            str(event["action_id"])
-            for event in events
-            if event.get("status") in {"completed", "skipped"}
-        }
+        settled = {str(event["action_id"]) for event in events if event.get("status") in {"completed", "skipped"}}
         for action in plan.actions:
             if action.action_id in settled:
                 completed.add(action.plane)

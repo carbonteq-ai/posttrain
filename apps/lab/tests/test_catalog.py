@@ -59,9 +59,7 @@ def test_gemma4_unified_qualification_selections_resolve_as_one_support_plane() 
     settings = catalog.resolve(CatalogRef("training", "gemma4-12b-it/sft-qualification-v1"))
     training = catalog.resolve(CatalogRef("training", "training/gemma4-12b-it-trl-lora-qualification@1"))
     mtp_settings = catalog.resolve(CatalogRef("training", "gemma4-12b-it/grpo-mtp-qualification-v1"))
-    mtp_training = catalog.resolve(
-        CatalogRef("training", "training/gemma4-12b-it-trl-grpo-mtp-qualification@1")
-    )
+    mtp_training = catalog.resolve(CatalogRef("training", "training/gemma4-12b-it-trl-grpo-mtp-qualification@1"))
     mtp_inference = catalog.resolve(CatalogRef("inference", "inference/gemma4-12b-it-vllm-grpo-mtp@1"))
     mtp_environment = catalog.resolve(CatalogRef("environment", "gemma4-gsm8k-mtp-qualification"))
     inference = catalog.resolve(CatalogRef("inference", "inference/gemma4-12b-it-vllm-screen@1"))
@@ -102,9 +100,7 @@ def test_gemma4_unified_qualification_selections_resolve_as_one_support_plane() 
     assert isinstance(mtp_inference.value, InferenceBinding)
     speculative_config = mtp_inference.value.engine["speculative_config"]
     assert isinstance(speculative_config, Mapping)
-    assert speculative_config["assistant_revision"] == (
-        "364bd03c9952e5b7da73665ee30c9eccfc408345"
-    )
+    assert speculative_config["assistant_revision"] == ("364bd03c9952e5b7da73665ee30c9eccfc408345")
     assert isinstance(mtp_environment.value, EnvironmentBinding)
     assert mtp_environment.value.max_concurrent == 1
     assert all(value.source_layer == "overlay" for value in (settings, training, inference, evaluation_inference))

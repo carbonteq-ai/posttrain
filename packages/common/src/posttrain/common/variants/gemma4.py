@@ -46,6 +46,7 @@ GEMMA4_RENDERER_CONTRACT = RendererContract(
     ),
 )
 
+
 def _gemma4_variant(
     *,
     id: str,
