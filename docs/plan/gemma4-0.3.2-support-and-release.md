@@ -100,8 +100,17 @@ and terminal state are retained in Trackio.
   `0.3.2rc2`, published the wheelhouse to the development index, rebuilt and
   verified all seven OCI profiles, and completed the packed dstack GPU
   qualification. Receipt artifact: `posttrain-0.3.2rc2-evidence`.
-- [ ] Update the release workflow inputs and 0.3.2 release notes; publish only
-  after the pre-release qualification gate passes.
+- [x] (2026-08-05) Merged PR #12 at `d459d6c9854dd93ea07240c569f44bc19816d8fe`,
+  passed post-merge quality, and published `v0.3.2` through final workflow
+  `30999750071`. The final wheelhouse is present in the stable index, the
+  packed dstack canary passed, and the GitHub release is
+  `https://github.com/carbonteq-ai/posttrain/releases/tag/v0.3.2`.
+- [ ] (2026-08-05) Repair the final workflow's candidate-manifest handoff. The
+  successful final run copied the committed 0.3.1 `published.toml` instead of
+  the candidate-generated 0.3.2 manifest, even though packages, registry
+  verification, and the dstack canary passed. The follow-up must require the
+  successful candidate run ID, restore its generated manifest before building
+  final wheels, and verify its source ancestry and framework version.
 
 ## Surprises & Discoveries
 
@@ -145,6 +154,13 @@ and terminal state are retained in Trackio.
   remains the model-specific proof. This separation is intentional: generic
   release health must not silently substitute for a Gemma MTP qualification,
   and the Gemma run must not be inferred from a static catalog flag.
+
+- Observation: A successful final package/canary transaction can still carry
+  stale image provenance if the candidate's generated manifest is not an
+  explicit final-workflow input. Evidence: final run `30999750071` retained a
+  `published.toml` with `framework_version = "0.3.1"` and the prior image
+  digests, while candidate `30997665099` generated a 0.3.2 manifest. This is a
+  release-plumbing defect, not a Gemma/MTP execution failure.
   Evidence: the E4B and 31B build logs show hashed wheel/code installation in
   BuildKit layers; runtime qualification only validates the prepared manifest.
 
@@ -194,14 +210,23 @@ and terminal state are retained in Trackio.
   fails with a reproducible backend error. Rationale: all four dense model
   paths currently pass the real serving contract. Date/Author: 2026-08-05 / Codex.
 
+- Decision: Make the successful candidate run ID a required final-release input
+  and restore its generated OCI manifest before final wheel construction.
+  Rationale: the 0.3.2 final transaction exposed that a committed manifest can
+  be stale even when the candidate and final canary are green; explicit
+  candidate provenance preserves digest continuity without hand-editing SHAs.
+  Date/Author: 2026-08-05 / Codex.
+
 ## Outcomes & Retrospective
 
-Current outcome is an implementation and qualification candidate, not a
-published release. The matrix, TRL MTP path, model-specific serving smokes,
-and diagnostic cleanup are complete. The remaining work is release hygiene:
-run the final validation ladder, update the 0.3.2 release workflow inputs and
-notes, and pass the documented pre-release workflow before any publication or
-tag claim.
+Current outcome is a published `v0.3.2` with the Gemma matrix, direct TRL MTP
+qualification, model-specific serving smokes, cleanup receipt, final package
+promotion, and packed dstack canary complete. Post-release inspection found a
+release-plumbing defect: the final evidence artifact retained the old committed
+image manifest instead of the generated candidate manifest. The follow-up
+workflow repair is required before the next release can claim candidate-to-final
+OCI provenance continuity; it does not invalidate the retained model or MTP
+qualification evidence.
 
 ## Context and Orientation
 
@@ -399,3 +424,9 @@ bounded recovery. Only stale `carbonteq/posttrain-job` manifests were removed;
 shared base/kind images, accepted Gemma evidence, active evaluation images, and
 unrelated repositories were preserved. The next candidate retry is the real
 MTP qualification gate.
+
+2026-08-05: Published `v0.3.2` after the candidate and final dstack gates
+passed. Post-release evidence review found that the final workflow copied the
+committed 0.3.1 image manifest rather than the candidate-generated 0.3.2
+manifest. The release remains published, but the next workflow change must
+make the candidate run and generated manifest explicit final inputs.

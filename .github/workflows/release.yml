@@ -7,6 +7,10 @@ on:
         description: Exact merged default-branch commit accepted by the candidate gate
         required: true
         type: string
+      candidate_run_id:
+        description: Successful release-candidate run whose generated OCI manifest is promoted
+        required: true
+        type: string
       resume_from_run_id:
         description: Optional prior final run whose retained receipt and wheelhouse must be resumed
         required: false
@@ -137,11 +141,39 @@ jobs:
         if: inputs.resume_from_run_id == ''
         run: buildctl --addr unix:///var/lib/github-runner/buildkit/buildkitd.sock du
 
-      - name: Capture the accepted runtime image manifest
+      - name: Restore the accepted candidate runtime image manifest
         if: inputs.resume_from_run_id == ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+          RELEASE_SOURCE_SHA: ${{ inputs.merged_sha }}
         run: |
-          mkdir -p .release
-          cp packages/runtime-images/src/posttrain/runtime_images/published.toml .release/published.toml
+          candidate_run="$(gh run view "${CANDIDATE_RUN_ID}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --json workflowName,event,status,conclusion,headSha)"
+          test "$(jq -r '.workflowName // empty' <<<"${candidate_run}")" = "Prepare release candidate"
+          test "$(jq -r '.event // empty' <<<"${candidate_run}")" = "workflow_dispatch"
+          test "$(jq -r '.status // empty' <<<"${candidate_run}")" = "completed"
+          test "$(jq -r '.conclusion // empty' <<<"${candidate_run}")" = "success"
+          candidate_sha="$(jq -r '.headSha // empty' <<<"${candidate_run}")"
+          git merge-base --is-ancestor "${candidate_sha}" "${RELEASE_SOURCE_SHA}"
+          candidate_artifact="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/runs/${CANDIDATE_RUN_ID}/artifacts" \
+            --jq '.artifacts[] | select(.expired == false and (.name | endswith("-evidence"))) | .name' \
+            | head -n 1)"
+          test -n "${candidate_artifact}"
+          mkdir -p .release/candidate
+          gh run download "${CANDIDATE_RUN_ID}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --name "${candidate_artifact}" \
+            --dir .release/candidate
+          candidate_manifest="$(find .release/candidate -type f -name published.toml -print -quit)"
+          test -n "${candidate_manifest}"
+          candidate_version="$(sed -n 's/^framework_version = "\([^"]*\)"$/\1/p' "${candidate_manifest}")"
+          release_version="$(sed -n 's/^version = "\([^"]*\)"$/\1/p' release/manifest.toml)"
+          test "${candidate_version}" = "${release_version}"
+          cp "${candidate_manifest}" packages/runtime-images/src/posttrain/runtime_images/published.toml
+          cp "${candidate_manifest}" .release/published.toml
 
       - name: Build and hash final distributions exactly once
         if: inputs.resume_from_run_id == ''
