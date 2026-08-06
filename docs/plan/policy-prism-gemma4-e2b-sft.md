@@ -194,6 +194,18 @@ model-neutral sequence of chat messages and is not rebuilt or republished.
   manifests. Publication verification was corrected without uploading a second
   commit.
 
+- Observation: repeated scope finalization is scientifically stable but not
+  byte-deterministic at the final IEEE-754 bit for a small number of span-IoU
+  sums. Evidence: native `traces.jsonl`, semantic diagnostics, inventories, and
+  validation results are identical, while independent finalizations differed
+  only by approximately `1e-16` in `node_span_f1`. The cause is the unsorted set
+  intersection iteration in Policy Prism's `span_comparison()` before floating
+  weights are accumulated. Recovery happened to be byte-identical across both
+  finalizations. The pushed canonical evidence is internally hash-consistent
+  and passes `validate-runs`; fixing the iteration order belongs in a separate
+  Policy Prism change with an evaluator-digest update, not a silent mutation of
+  this completed experiment.
+
 ## Decision Log
 
 - Decision: add a separate E2B `ModelVariant` but share the existing pinned
@@ -310,7 +322,9 @@ Policy Prism permanently stores the two standard five-file directories and
 catalog entries at commit `d409dc3`. Full-catalog validation passed with 81
 runs and 1,418 traces. The prior E2B base runs have different evaluator
 compatibility digests, so these absolute results must not be presented as a
-strict before/after delta.
+strict before/after delta. The committed artifacts are the canonical evidence;
+the known one-ULP span-summation ordering issue above should be fixed before a
+future byte-for-byte finalization reproducibility gate is required.
 
 Finally, PostTrain removed only the three successful E2B provider workspaces.
 It reports no placements held and continues to list the reconciled training,
