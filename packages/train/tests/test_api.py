@@ -71,6 +71,7 @@ from posttrain.train import (
 from posttrain.train.backends.trl.common import BackendTrainingResult, callback_type, trainer_lifecycle
 from posttrain.train.backends.trl.distillation import (
     _distillation_arguments,
+    _teacher_server_command,
 )
 from posttrain.train.backends.trl.distillation import (
     _rollout_function as _distillation_rollout_function,
@@ -379,6 +380,37 @@ def _distillation_request() -> OnPolicyDistillationRequest:
         training=_training(),
         rollout_inference=_inference(student),
         teacher_inference=_teacher_inference(teacher),
+    )
+
+
+def test_teacher_server_command_preserves_memory_and_kv_selections() -> None:
+    request = _distillation_request()
+    inference = replace(
+        request.teacher_inference,
+        engine={
+            **request.teacher_inference.engine,
+            "gpu_memory_utilization": 0.69,
+            "dtype": "bfloat16",
+            "kv_cache_dtype": "fp8",
+            "enable_prefix_caching": True,
+            "enforce_eager": True,
+        },
+    )
+
+    command = _teacher_server_command(
+        replace(request, teacher_inference=inference),
+        host="127.0.0.1",
+        port=8000,
+    )
+
+    assert command[-7:] == (
+        "--enforce_eager",
+        "--dtype",
+        "bfloat16",
+        "--kv_cache_dtype",
+        "fp8",
+        "--enable_prefix_caching",
+        "true",
     )
 
 

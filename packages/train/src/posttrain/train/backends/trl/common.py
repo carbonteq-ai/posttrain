@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
 import re
+import shutil
+import sqlite3
 import sys
 import time
 from collections.abc import Callable, Iterator, Mapping
@@ -14,7 +17,7 @@ from importlib.metadata import version
 from pathlib import Path
 from typing import Any, Literal
 
-from posttrain.common import JsonValue, LocalArtifactRef, ModelVariant, RunContext
+from posttrain.common import JsonValue, LocalArtifactRef, ModelVariant, ProducedArtifact, RunContext
 
 from ...bindings import FullParameterUpdate, LoRAUpdate, ParameterUpdatePlan, QLoRAUpdate, QuantizationAwareUpdate
 from ...profiles import TrainingLoop
@@ -87,6 +90,18 @@ def vllm_rollout_options(
         values["enforce_eager"] = enforce_eager
     if engine.get("kv_cache_memory_bytes") is not None:
         values["kv_cache_memory_bytes"] = engine["kv_cache_memory_bytes"]
+    for key in ("max_num_batched_tokens", "max_num_seqs"):
+        value = engine.get(key)
+        if value is not None:
+            if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+                raise ValueError(f"TRL rollout {key} must be a positive integer")
+            values[key] = value
+    for key in ("enable_chunked_prefill", "enable_prefix_caching", "disable_log_stats"):
+        value = engine.get(key)
+        if value is not None:
+            if not isinstance(value, bool):
+                raise ValueError(f"TRL rollout {key} must be a boolean")
+            values[key] = value
     kv_cache_dtype = engine.get("kv_cache_dtype")
     if kv_cache_dtype is not None:
         if not isinstance(kv_cache_dtype, str) or not kv_cache_dtype:
@@ -322,6 +337,101 @@ def callback_type(
     return ObservationCallback
 
 
+def checkpoint_artifact_callback_type(
+    context: RunContext,
+    imports: dict[str, Any],
+    *,
+    artifact_name: str,
+    runtime_state_paths: tuple[Path, ...] = (),
+    milestone_steps: frozenset[int] = frozenset(),
+) -> type[Any]:
+    """Publish each completed trainer checkpoint before it can be evicted locally."""
+
+    parent = imports["TrainerCallback"]
+
+    class CheckpointArtifactCallback(parent):
+        def on_save(self, args: Any, state: Any, control: Any, **_: Any) -> Any:
+            step = int(state.global_step)
+            checkpoint = Path(args.output_dir).resolve() / f"checkpoint-{step}"
+            if not checkpoint.is_dir():
+                raise FileNotFoundError(checkpoint)
+            _snapshot_runtime_states(checkpoint, runtime_state_paths)
+            digest = _tree_digest(checkpoint)
+            context.artifact(
+                ProducedArtifact(
+                    name=f"{artifact_name}/step-{step:04d}",
+                    kind="training-checkpoint",
+                    reference=LocalArtifactRef(checkpoint, digest),
+                    required=False,
+                    metadata={
+                        "global_step": step,
+                        "milestone": step in milestone_steps,
+                        "runtime_state_paths": [str(path) for path in runtime_state_paths],
+                    },
+                )
+            )
+            context.event(
+                "training_checkpoint_published",
+                {
+                    "global_step": step,
+                    "checkpoint_digest": digest,
+                    "milestone": step in milestone_steps,
+                },
+            )
+            return control
+
+    return CheckpointArtifactCallback
+
+
+def restore_checkpoint_runtime_states(
+    checkpoint: Path,
+    runtime_state_paths: tuple[Path, ...],
+) -> None:
+    """Restore backend-neutral sidecar state captured with a trainer checkpoint."""
+
+    root = checkpoint.resolve() / "posttrain-runtime-state"
+    for runtime_path in runtime_state_paths:
+        relative = _runtime_state_relative_path(runtime_path)
+        source = root / relative
+        if not source.is_file():
+            raise FileNotFoundError(
+                f"checkpoint {checkpoint} has no runtime state for {runtime_path}"
+            )
+        runtime_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, runtime_path)
+
+
+def _snapshot_runtime_states(checkpoint: Path, runtime_state_paths: tuple[Path, ...]) -> None:
+    for runtime_path in runtime_state_paths:
+        if not runtime_path.is_file():
+            raise FileNotFoundError(f"checkpoint runtime state does not exist: {runtime_path}")
+        relative = _runtime_state_relative_path(runtime_path)
+        destination = checkpoint / "posttrain-runtime-state" / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if runtime_path.suffix in {".sqlite", ".sqlite3", ".db"}:
+            with sqlite3.connect(runtime_path) as source, sqlite3.connect(destination) as target:
+                source.backup(target)
+        else:
+            shutil.copy2(runtime_path, destination)
+
+
+def _runtime_state_relative_path(path: Path) -> Path:
+    if path.is_absolute() or not path.parts or ".." in path.parts:
+        raise ValueError("checkpoint runtime-state paths must be normalized relative paths")
+    return path
+
+
+def _tree_digest(path: Path) -> str:
+    digest = hashlib.sha256()
+    for child in sorted(item for item in path.rglob("*") if item.is_file()):
+        digest.update(child.relative_to(path).as_posix().encode())
+        digest.update(b"\0")
+        with child.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+    return digest.hexdigest()
+
+
 def trainer_arguments(loop: TrainingLoop, output_dir: Path) -> dict[str, Any]:
     arguments: dict[str, Any] = {
         "output_dir": str(output_dir),
@@ -420,12 +530,14 @@ def finish_training(
 __all__ = [
     "BackendTrainingResult",
     "callback_type",
+    "checkpoint_artifact_callback_type",
     "emit_parameter_counts",
     "emit_runtime_versions",
     "finish_training",
     "framework_imports",
     "load_tokenizer",
     "load_trainable_model",
+    "restore_checkpoint_runtime_states",
     "trainable_model_factory",
     "trainer_lifecycle",
     "trainer_arguments",

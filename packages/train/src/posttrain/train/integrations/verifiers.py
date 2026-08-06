@@ -13,7 +13,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from random import Random
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, Protocol, cast
 
 from posttrain.common import (
     JsonValue,
@@ -360,6 +360,10 @@ class _PolicyClient:
             tail_start = turn.tail_start
         if sampling_args.max_tokens is None:
             raise ValueError("environment policy turns require an explicit max_tokens value")
+        response_format = body.get("response_format")
+        if response_format is not None and not isinstance(response_format, Mapping):
+            raise TypeError("environment response_format must be a JSON object")
+        generation_contract = _posttrain_generation_contract(body)
         request = PolicyTurnRequest(
             messages=tuple(_record(message) for message in messages),
             sampling=PolicySampling(
@@ -372,6 +376,13 @@ class _PolicyClient:
             previous_prompt_ids=tuple(anchor[0]) if anchor else (),
             previous_completion_ids=tuple(anchor[1]) if anchor else (),
             tail_start=tail_start,
+            response_format=(
+                cast(Mapping[str, JsonValue], dict(response_format))
+                if isinstance(response_format, Mapping)
+                else None
+            ),
+            max_prompt_tokens=generation_contract.get("prompt_limit"),
+            max_sequence_tokens=generation_contract.get("sequence_limit"),
         )
         result = await self._generator.generate(request)
         response = Response(
@@ -402,6 +413,24 @@ def _record(value: Any) -> Mapping[str, JsonValue]:
     if isinstance(value, Mapping):
         return dict(value)
     raise TypeError(f"cannot project {type(value).__name__} into a policy message record")
+
+
+def _posttrain_generation_contract(body: Mapping[str, Any]) -> dict[str, int]:
+    value = body.get("posttrain_generation")
+    if value is None:
+        extra_body = body.get("extra_body")
+        value = extra_body.get("posttrain_generation") if isinstance(extra_body, Mapping) else None
+    if value is None:
+        return {}
+    if not isinstance(value, Mapping):
+        raise TypeError("posttrain_generation must be a JSON object")
+    result: dict[str, int] = {}
+    for key in ("prompt_limit", "sequence_limit"):
+        raw = value.get(key)
+        if not isinstance(raw, int) or isinstance(raw, bool) or raw < 1:
+            raise ValueError(f"posttrain_generation.{key} must be a positive integer")
+        result[key] = raw
+    return result
 
 
 @dataclass(slots=True)
@@ -488,13 +517,13 @@ class VerifiersEnvironmentRolloutBridge:
 
     def _project(self, trace: Any, example_id: str, task_index: int) -> EnvironmentRollout:
         branches = trace.branches
-        if len(branches) != 1:
+        selected = _selected_opd_branch(trace, branches)
+        if selected is None and len(branches) != 1:
             error = trace.error
             detail = f"; trace error={error.type}: {error.message}" if error is not None else ""
             raise ValueError(f"online-RL MVP requires one trainable trace branch, got {len(branches)}{detail}")
-        branch = branches[0]
-        token_ids = tuple(int(value) for value in branch.token_ids)
-        sampled_mask = tuple(bool(value) for value in branch.sampled_mask)
+        branch_index, branch, selected_node = selected or (0, branches[0], None)
+        token_ids, sampled_mask, logprobs = _selected_training_sequence(branch, selected_node)
         if len(token_ids) != len(sampled_mask):
             raise ValueError("Verifiers branch token ids and sampled mask are misaligned")
         try:
@@ -504,8 +533,8 @@ class VerifiersEnvironmentRolloutBridge:
         prompt_ids = token_ids[:first_sampled]
         completion_ids = token_ids[first_sampled:]
         env_mask = sampled_mask[first_sampled:]
-        logprobs = tuple(float(value) for value in branch.logprobs[first_sampled:])
-        if len(logprobs) != len(completion_ids):
+        completion_logprobs = tuple(float(value) for value in logprobs[first_sampled:])
+        if len(completion_logprobs) != len(completion_ids):
             raise ValueError("Verifiers branch logprobs are not aligned to the training sequence")
         record = trace.to_record()
         turns = _agentic_turns(branch, first_sampled) if self.technique == "sampo" else ()
@@ -519,19 +548,25 @@ class VerifiersEnvironmentRolloutBridge:
                 "example_id": example_id,
                 "is_truncated": trace.is_truncated,
                 "model": trace.agent.model if trace.agent is not None else "",
+                "selected_branch_index": branch_index,
             },
         )
-        return EnvironmentRollout(
+        rollout = EnvironmentRollout(
             example_id=example_id,
             prompt_ids=prompt_ids,
             completion_ids=completion_ids,
-            sampling_logprobs=logprobs,
+            sampling_logprobs=completion_logprobs,
             env_mask=env_mask,
             reward=float(trace.reward),
-            is_truncated=bool(trace.is_truncated or trace.has_error),
+            is_truncated=(
+                False if selected is not None else bool(trace.is_truncated or trace.has_error)
+            ),
             trace=observation,
             turns=turns,
         )
+        if selected is not None and not all(rollout.env_mask):
+            raise ValueError("OPD selected completion contains non-target loss tokens")
+        return rollout
 
     def _preserve(self, record: dict[str, Any]) -> None:
         encoded = json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n"
@@ -727,6 +762,82 @@ def load_verifiers_bridge_snapshot(path: Path) -> VerifiersEnvironmentRolloutBri
     if not isinstance(snapshot, VerifiersBridgeSnapshot):
         raise TypeError("portable Verifiers bridge snapshot has an incompatible schema")
     return snapshot.create()
+
+
+def _selected_opd_branch(
+    trace: Any,
+    branches: Sequence[Any],
+) -> tuple[int, Any, Any] | None:
+    info = trace.info
+    policy = info.get("policy_prism") if isinstance(info, Mapping) else None
+    marker = policy.get("opd") if isinstance(policy, Mapping) else None
+    if not isinstance(marker, Mapping):
+        return None
+    if marker.get("admission_status") != "accepted":
+        raise ValueError("OPD trace target was not admitted")
+    branch_index = marker.get("selected_branch_index")
+    node_index = marker.get("selected_call_node")
+    if not isinstance(branch_index, int) or not 0 <= branch_index < len(branches):
+        raise ValueError("OPD selected branch index is invalid")
+    if not isinstance(node_index, int) or not 0 <= node_index < len(trace.nodes):
+        raise ValueError("OPD selected call node is invalid")
+    branch = branches[branch_index]
+    selected_node = trace.nodes[node_index]
+    if not any(node is selected_node for node in branch.nodes):
+        raise ValueError("OPD selected node is absent from the selected branch")
+    if not bool(getattr(selected_node, "sampled", False)):
+        raise ValueError("OPD selected node is not model sampled")
+    expected_completion = marker.get("selected_completion_sha256")
+    actual_completion = _token_ids_sha256(selected_node.token_ids)
+    if not isinstance(expected_completion, str) or expected_completion != actual_completion:
+        raise ValueError("OPD selected completion digest is missing or inconsistent")
+    selected_position = next(
+        index for index, node in enumerate(branch.nodes) if node is selected_node
+    )
+    prompt_ids = [
+        token_id
+        for node in branch.nodes[:selected_position]
+        for token_id in node.token_ids
+    ]
+    expected_prompt = marker.get("selected_prompt_sha256")
+    if not isinstance(expected_prompt, str) or expected_prompt != _token_ids_sha256(prompt_ids):
+        raise ValueError("OPD selected prompt digest is missing or inconsistent")
+    return branch_index, branch, selected_node
+
+
+def _selected_training_sequence(
+    branch: Any,
+    selected_node: Any | None,
+) -> tuple[tuple[int, ...], tuple[bool, ...], tuple[float, ...]]:
+    token_ids = tuple(int(value) for value in branch.token_ids)
+    sampled_mask = tuple(bool(value) for value in branch.sampled_mask)
+    logprobs = tuple(float(value) for value in branch.logprobs)
+    if selected_node is None:
+        return token_ids, sampled_mask, logprobs
+    endpoint = 0
+    selected_start: int | None = None
+    selected_mask: tuple[bool, ...] = ()
+    for node in branch.nodes:
+        node_ids = tuple(int(value) for value in node.token_ids)
+        if node is selected_node:
+            selected_start = endpoint
+            selected_mask = tuple(bool(value) for value in node.mask)
+            endpoint += len(node_ids)
+            break
+        endpoint += len(node_ids)
+    if selected_start is None or not selected_mask or not any(selected_mask):
+        raise ValueError("OPD selected node has no sampled token span")
+    if len(selected_mask) != endpoint - selected_start:
+        raise ValueError("OPD selected node tokens and mask are misaligned")
+    target_mask = (False,) * selected_start + selected_mask
+    return token_ids[:endpoint], target_mask, logprobs[:endpoint]
+
+
+def _token_ids_sha256(values: Sequence[int]) -> str:
+    digest = hashlib.sha256()
+    for value in values:
+        digest.update(int(value).to_bytes(4, "big", signed=False))
+    return digest.hexdigest()
 
 
 def _agentic_turns(branch: Any, first_sampled: int) -> tuple[AgenticTurn, ...]:

@@ -15,6 +15,9 @@ _GEMMA_4_E2B_REVISION = "3e22461f65e89153144f8adb70e3b8c2cc9845a7"
 _GEMMA_4_E4B_REVISION = "ee0ef6023621cff504d758262d4e04895a5af4a2"
 _GEMMA_4_12B_REVISION = "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7"
 _GEMMA_4_31B_REVISION = "842da3794eaa0b77d5f08bae87a17459d91ff475"
+_GEMMA_4_TOKEN_ID_MAPPING_FINGERPRINT = (
+    "059d0f7dd1efb018ec9801f316c99ab31a7c39e712de08626ac90c1898b42416"
+)
 
 _GEMMA_4_E2B_MTP_ASSISTANT_REPO = "google/gemma-4-E2B-it-assistant"
 _GEMMA_4_E2B_MTP_ASSISTANT_REVISION = "2d874ef7d29f9a30599a1e4b3c1cbc9595f005df"
@@ -101,6 +104,7 @@ GEMMA_4_E2B_IT = _gemma4_variant(
     upstream_architecture="Gemma4ForConditionalGeneration",
     assistant_repo=_GEMMA_4_E2B_MTP_ASSISTANT_REPO,
     assistant_revision=_GEMMA_4_E2B_MTP_ASSISTANT_REVISION,
+    tokenizer_fingerprint=_GEMMA_4_TOKEN_ID_MAPPING_FINGERPRINT,
 )
 
 GEMMA_4_E4B_IT = _gemma4_variant(
@@ -114,6 +118,7 @@ GEMMA_4_E4B_IT = _gemma4_variant(
     upstream_architecture="Gemma4ForConditionalGeneration",
     assistant_repo=_GEMMA_4_E4B_MTP_ASSISTANT_REPO,
     assistant_revision=_GEMMA_4_E4B_MTP_ASSISTANT_REVISION,
+    tokenizer_fingerprint=_GEMMA_4_TOKEN_ID_MAPPING_FINGERPRINT,
 )
 
 GEMMA_4_12B_IT = _gemma4_variant(
@@ -127,7 +132,7 @@ GEMMA_4_12B_IT = _gemma4_variant(
     upstream_architecture="Gemma4UnifiedForConditionalGeneration",
     assistant_repo=_GEMMA_4_12B_MTP_ASSISTANT_REPO,
     assistant_revision=_GEMMA_4_12B_MTP_ASSISTANT_REVISION,
-    tokenizer_fingerprint="059d0f7dd1efb018ec9801f316c99ab31a7c39e712de08626ac90c1898b42416",
+    tokenizer_fingerprint=_GEMMA_4_TOKEN_ID_MAPPING_FINGERPRINT,
 )
 
 GEMMA_4_31B_IT = _gemma4_variant(
@@ -141,6 +146,7 @@ GEMMA_4_31B_IT = _gemma4_variant(
     upstream_architecture="Gemma4ForConditionalGeneration",
     assistant_repo=_GEMMA_4_31B_MTP_ASSISTANT_REPO,
     assistant_revision=_GEMMA_4_31B_MTP_ASSISTANT_REVISION,
+    tokenizer_fingerprint=_GEMMA_4_TOKEN_ID_MAPPING_FINGERPRINT,
 )
 
 __all__ = [

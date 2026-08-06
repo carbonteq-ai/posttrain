@@ -22,12 +22,14 @@ from ...requests import OnPolicyDistillationRequest
 from .common import (
     BackendTrainingResult,
     callback_type,
+    checkpoint_artifact_callback_type,
     emit_parameter_counts,
     emit_runtime_versions,
     finish_training,
     framework_imports,
     load_tokenizer,
     load_trainable_model,
+    restore_checkpoint_runtime_states,
     trainer_arguments,
     trainer_lifecycle,
     vllm_rollout_options,
@@ -58,6 +60,13 @@ def run_distillation(
     except ImportError as error:
         raise RuntimeError("install posttrain-train with the trl-vllm extra") from error
     _patch_local_teacher_divergence_numerics(DistillationTrainer)
+    memory_safe_sparse = request.training.backend_options.get("memory_safe_sparse_loss", False)
+    if not isinstance(memory_safe_sparse, bool):
+        raise ValueError("memory_safe_sparse_loss must be a boolean")
+    if memory_safe_sparse:
+        _validate_memory_safe_sparse_request(request, teacher_product)
+    runtime_state_paths = _runtime_state_paths(request)
+    milestone_steps = _milestone_steps(request)
 
     imports = framework_imports()
     emit_runtime_versions(context, imports)
@@ -86,6 +95,41 @@ def run_distillation(
         )
 
         class ObservedDistillationTrainer(DistillationTrainer):
+            def _get_train_sampler(self, dataset=None):
+                if not memory_safe_sparse:
+                    return super()._get_train_sampler(dataset)
+                from torch.utils.data import SequentialSampler
+
+                selected = self.train_dataset if dataset is None else dataset
+                return SequentialSampler(selected)
+
+            def compute_loss(
+                self,
+                model: Any,
+                inputs: dict[str, Any],
+                return_outputs: bool = False,
+                num_items_in_batch: Any = None,
+            ) -> Any:
+                if not memory_safe_sparse:
+                    return super().compute_loss(
+                        model,
+                        inputs,
+                        return_outputs=return_outputs,
+                        num_items_in_batch=num_items_in_batch,
+                    )
+                return _memory_safe_server_sparse_loss(
+                    self,
+                    model,
+                    inputs,
+                    return_outputs=return_outputs,
+                    num_items_in_batch=num_items_in_batch,
+                    chunk_size=_positive_backend_integer(
+                        request,
+                        "logit_chunk_size",
+                        default=16,
+                    ),
+                )
+
             def _get_teacher_logits(self, inputs: dict[str, Any]) -> Any:
                 started_at = time.perf_counter()
                 with context.phase("teacher_scoring", {"backend": "trl"}):
@@ -113,7 +157,18 @@ def run_distillation(
                 args=DistillationConfig(**arguments),
                 train_dataset=dataset,
                 processing_class=tokenizer,
-                callbacks=[callback_type(context, imports)()],
+                callbacks=[
+                    callback_type(context, imports)(),
+                    checkpoint_artifact_callback_type(
+                        context,
+                        imports,
+                        artifact_name=(
+                            f"training/{request.student.id}/distill/checkpoint"
+                        ),
+                        runtime_state_paths=runtime_state_paths,
+                        milestone_steps=milestone_steps,
+                    )(),
+                ],
                 rollout_func=cast(Any, _rollout_function(context, request, tokenizer, ledger)),
             )
         if teacher_product == "vllm":
@@ -126,6 +181,8 @@ def run_distillation(
         elif trainer.teacher_model is None:
             raise RuntimeError("TRL did not initialize the colocated teacher model")
         resume = str(request.resume_from.path) if request.resume_from is not None else None
+        if request.resume_from is not None and runtime_state_paths:
+            restore_checkpoint_runtime_states(request.resume_from.path, runtime_state_paths)
         with trainer_lifecycle(trainer):
             with context.phase("actor_update", {"backend": "trl"}):
                 train_output = trainer.train(resume_from_checkpoint=resume)
@@ -247,6 +304,14 @@ def _teacher_server_command(
     dtype = engine.get("dtype")
     if isinstance(dtype, str) and dtype:
         command.extend(["--dtype", dtype])
+    kv_cache_dtype = engine.get("kv_cache_dtype")
+    if isinstance(kv_cache_dtype, str) and kv_cache_dtype:
+        command.extend(["--kv_cache_dtype", kv_cache_dtype])
+    enable_prefix_caching = engine.get("enable_prefix_caching")
+    if enable_prefix_caching is not None:
+        if not isinstance(enable_prefix_caching, bool):
+            raise ValueError("teacher enable_prefix_caching must be a boolean")
+        command.extend(["--enable_prefix_caching", str(enable_prefix_caching).lower()])
     return tuple(command)
 
 
@@ -490,6 +555,178 @@ def _distillation_arguments(
 def _sampling_number(request: OnPolicyDistillationRequest, key: str, default: float) -> float:
     value = request.rollout_inference.sampling.get(key)
     return float(value) if isinstance(value, (int, float)) else default
+
+
+def _validate_memory_safe_sparse_request(
+    request: OnPolicyDistillationRequest,
+    teacher_product: str,
+) -> None:
+    options = request.training.backend_options
+    if teacher_product != "vllm":
+        raise ValueError("memory-safe sparse OPD requires an external vLLM teacher")
+    if request.student.id != "gemma4-e2b-it":
+        raise ValueError("memory-safe sparse OPD is qualified only for gemma4-e2b-it")
+    if request.settings.num_generations != 1 or request.settings.num_prompts_per_step != 1:
+        raise ValueError("memory-safe sparse OPD requires one prompt and one generation per update")
+    if request.settings.loop.per_device_batch_size != 1:
+        raise ValueError("memory-safe sparse OPD requires per-device batch size 1")
+    if request.settings.loop.gradient_accumulation_steps != 1:
+        raise ValueError("memory-safe sparse OPD requires gradient accumulation 1")
+    expected: dict[str, object] = {
+        "distillation_lambda": 1.0,
+        "distillation_beta": 1.0,
+        "distillation_loss_top_k": 1,
+        "distillation_reverse_kl_top_1_mode": "sampled",
+        "distillation_loss_add_tail": True,
+    }
+    for key, wanted in expected.items():
+        actual = options.get(key, wanted)
+        if actual != wanted:
+            raise ValueError(f"memory-safe sparse OPD requires {key}={wanted!r}")
+    _positive_backend_integer(request, "logit_chunk_size", default=16)
+
+
+def _positive_backend_integer(
+    request: OnPolicyDistillationRequest,
+    key: str,
+    *,
+    default: int,
+) -> int:
+    value = request.training.backend_options.get(key, default)
+    if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+        raise ValueError(f"{key} must be a positive integer")
+    return value
+
+
+def _runtime_state_paths(request: OnPolicyDistillationRequest) -> tuple[Path, ...]:
+    raw = request.training.backend_options.get("checkpoint_runtime_state_paths", [])
+    if not isinstance(raw, list) or not all(isinstance(value, str) for value in raw):
+        raise ValueError("checkpoint_runtime_state_paths must be a list of relative paths")
+    paths = tuple(Path(value) for value in raw)
+    for path in paths:
+        if path.is_absolute() or not path.parts or ".." in path.parts:
+            raise ValueError(
+                "checkpoint_runtime_state_paths must contain normalized relative paths"
+            )
+    if len(set(paths)) != len(paths):
+        raise ValueError("checkpoint_runtime_state_paths cannot contain duplicates")
+    return paths
+
+
+def _milestone_steps(request: OnPolicyDistillationRequest) -> frozenset[int]:
+    raw = request.training.backend_options.get("checkpoint_milestone_steps", [])
+    if not isinstance(raw, list) or not all(
+        isinstance(value, int) and not isinstance(value, bool) and value > 0
+        for value in raw
+    ):
+        raise ValueError("checkpoint_milestone_steps must be a list of positive integers")
+    steps = frozenset(raw)
+    if any(step > request.settings.loop.max_steps for step in steps):
+        raise ValueError("checkpoint milestone cannot exceed the configured maximum steps")
+    return steps
+
+
+def _memory_safe_server_sparse_loss(
+    trainer: Any,
+    model: Any,
+    inputs: dict[str, Any],
+    *,
+    return_outputs: bool,
+    num_items_in_batch: Any,
+    chunk_size: int,
+) -> Any:
+    """Compute exact beta=1 top-1/tail OPD without a sequence-sized logits tensor."""
+
+    import torch
+    import torch.nn.functional as F
+
+    if not trainer.use_teacher_server or trainer.beta != 1 or trainer.loss_top_k != 1:
+        raise ValueError("memory-safe sparse loss received an unsupported distillation configuration")
+    if trainer.reverse_kl_top_1_mode != "sampled" or not trainer.loss_add_tail:
+        raise ValueError("memory-safe sparse loss requires sampled reverse tokens and a tail bucket")
+
+    prompt_length = trainer._compute_prompt_length(inputs)  # noqa: SLF001 - pinned TRL contract
+    teacher_result = trainer._get_teacher_token_logprobs_from_server(  # noqa: SLF001
+        inputs,
+        prompt_length,
+    )
+    completion_length = int(teacher_result["actual_logprobs"].shape[1])
+    labels = inputs["labels"][:, prompt_length : prompt_length + completion_length]
+    completion_tokens = inputs["input_ids"][
+        :, prompt_length : prompt_length + completion_length
+    ]
+    required = labels != -100
+    actual_teacher = teacher_result["actual_logprobs"]
+    missing = required & ~torch.isfinite(actual_teacher)
+    if missing.any():
+        raise ValueError(
+            "teacher server is missing actual-token logprobs for required reverse-KL positions"
+        )
+
+    unwrapped = trainer.accelerator.unwrap_model(model)
+    if trainer.accelerator.num_processes != 1:
+        raise ValueError("memory-safe sparse OPD is qualified only for one trainer process")
+    student_outputs = _gemma_hidden_forward(unwrapped, inputs)
+    hidden = student_outputs.last_hidden_state[
+        :, prompt_length - 1 : prompt_length - 1 + completion_length, :
+    ]
+    if hidden.shape[:2] != labels.shape:
+        raise RuntimeError("student hidden states do not align with teacher-scored completion positions")
+    base = _gemma_base_model(unwrapped)
+    head = base.get_output_embeddings()
+    softcap = base.config.get_text_config().final_logit_softcapping
+    denominator = required.sum().clamp_min(1)
+    loss = hidden.sum() * 0.0
+    for start in range(0, completion_length, chunk_size):
+        end = min(start + chunk_size, completion_length)
+        logits = head(hidden[:, start:end, :])
+        if softcap is not None:
+            logits = torch.tanh(logits / softcap) * softcap
+        student_log_probs = F.log_softmax(logits.float() / trainer.temperature, dim=-1)
+        chunk_labels = labels[:, start:end]
+        chunk_required = chunk_labels != -100
+        chunk_actual_teacher = torch.where(
+            chunk_required,
+            actual_teacher[:, start:end],
+            torch.zeros_like(actual_teacher[:, start:end]),
+        )
+        chunk_top_ids = teacher_result["topk_token_ids"][:, start:end, 0]
+        chunk_top_lps = torch.where(
+            chunk_required,
+            teacher_result["topk_logprobs"][:, start:end, 0],
+            torch.zeros_like(teacher_result["topk_logprobs"][:, start:end, 0]),
+        )
+        loss = loss + trainer._compute_sparse_top_1_divergence_loss(  # noqa: SLF001
+            student_log_probs=student_log_probs,
+            teacher_top1_token_ids=chunk_top_ids,
+            teacher_top1_logprobs=chunk_top_lps,
+            reverse_token_ids=completion_tokens[:, start:end],
+            reverse_teacher_logprobs=chunk_actual_teacher,
+            labels=chunk_labels,
+            num_items_in_batch=denominator,
+        )
+    return (loss, student_outputs) if return_outputs else loss
+
+
+def _gemma_hidden_forward(unwrapped: Any, inputs: dict[str, Any]) -> Any:
+    base = _gemma_base_model(unwrapped)
+    return base.model(
+        input_ids=inputs["input_ids"],
+        attention_mask=inputs["attention_mask"],
+        use_cache=False,
+        return_dict=True,
+    )
+
+
+def _gemma_base_model(model: Any) -> Any:
+    base = model.get_base_model() if hasattr(model, "get_base_model") else model
+    architecture = type(base).__name__
+    if architecture != "Gemma4ForConditionalGeneration":
+        raise TypeError(
+            "memory-safe sparse OPD requires Gemma4ForConditionalGeneration, "
+            f"got {architecture}"
+        )
+    return base
 
 
 __all__ = ["run_distillation"]

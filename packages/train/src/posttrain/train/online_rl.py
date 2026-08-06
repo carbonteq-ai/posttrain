@@ -58,6 +58,9 @@ class PolicyTurnRequest:
     previous_prompt_ids: tuple[int, ...] = ()
     previous_completion_ids: tuple[int, ...] = ()
     tail_start: int = 0
+    response_format: Mapping[str, JsonValue] | None = None
+    max_prompt_tokens: int | None = None
+    max_sequence_tokens: int | None = None
 
     def __post_init__(self) -> None:
         if not self.messages:
@@ -66,6 +69,16 @@ class PolicyTurnRequest:
             raise ValueError("policy turn tail_start is outside the message sequence")
         if bool(self.previous_prompt_ids) != bool(self.previous_completion_ids):
             raise ValueError("incremental policy turns require both previous prompt and completion ids")
+        if self.max_prompt_tokens is not None and self.max_prompt_tokens < 1:
+            raise ValueError("policy turn max_prompt_tokens must be positive")
+        if self.max_sequence_tokens is not None and self.max_sequence_tokens < 1:
+            raise ValueError("policy turn max_sequence_tokens must be positive")
+        if (
+            self.max_prompt_tokens is not None
+            and self.max_sequence_tokens is not None
+            and self.max_sequence_tokens <= self.max_prompt_tokens
+        ):
+            raise ValueError("policy turn sequence limit must exceed its prompt limit")
 
     @property
     def previous_token_ids(self) -> tuple[int, ...]:

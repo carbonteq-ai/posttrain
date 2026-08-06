@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 from contextlib import asynccontextmanager
 from itertools import count, islice
 from types import SimpleNamespace
@@ -258,7 +259,23 @@ def test_policy_client_preserves_exact_turn_tokens_and_response() -> None:
     response = asyncio.run(
         client.get_response(
             ChatDialect(),
-            {"messages": [{"role": "user", "content": "hello"}]},
+            {
+                "messages": [{"role": "user", "content": "hello"}],
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "answer",
+                        "strict": True,
+                        "schema": {"type": "object"},
+                    },
+                },
+                "extra_body": {
+                    "posttrain_generation": {
+                        "prompt_limit": 32_768,
+                        "sequence_limit": 40_960,
+                    }
+                },
+            },
             "model-profile-v1",
             Sampling(temperature=1.0, max_tokens=32),
             session_id="session-1",
@@ -267,6 +284,9 @@ def test_policy_client_preserves_exact_turn_tokens_and_response() -> None:
 
     assert generator.requests[0].messages[0]["content"] == "hello"
     assert generator.requests[0].session_id == "session-1"
+    assert generator.requests[0].response_format["type"] == "json_schema"
+    assert generator.requests[0].max_prompt_tokens == 32_768
+    assert generator.requests[0].max_sequence_tokens == 40_960
     assert response.tokens.prompt_ids == [1, 2]
     assert response.tokens.completion_ids == [3, 4]
     assert response.tokens.completion_logprobs == [-0.1, -0.2]
@@ -330,6 +350,46 @@ def test_native_bridge_projects_multiturn_masks_rewards_and_trace_artifact(tmp_p
     assert evidence.metrics[0].values["train/rl/rollouts_attempted"] == 2
     assert evidence.metrics[0].values["train/rl/rollouts_completed"] == 2
     assert evidence.metrics[0].values["train/rl/reward_std"] == pytest.approx(0.0)
+
+
+def test_native_bridge_projects_only_digest_bound_opd_target(tmp_path) -> None:
+    task = SimpleNamespace(data=TaskData(idx=7, prompt="OPD target"))
+    trace = _trace(task, 1)
+
+    def token_digest(values: list[int]) -> str:
+        digest = hashlib.sha256()
+        for value in values:
+            digest.update(value.to_bytes(4, "big", signed=False))
+        return digest.hexdigest()
+
+    trace.info["policy_prism"] = {
+        "opd": {
+            "selected_call_node": 1,
+            "selected_branch_index": 0,
+            "selected_prompt_sha256": token_digest([1, 2]),
+            "selected_completion_sha256": token_digest([3, 4]),
+            "admission_status": "accepted",
+        }
+    }
+    bridge = VerifiersEnvironmentRolloutBridge(
+        dataset_id="policy-prism/scope-opd",
+        revision="1",
+        tasks={7: task},
+        environment_factory=FakeEnvironment,
+        trace_path=tmp_path / "traces.jsonl",
+        environment_id="policy-prism-scope-opd-train-v1",
+        run_id="run-1",
+        sampling=PolicySampling(max_tokens=32),
+        technique="distill",
+    )
+
+    rollout = bridge._project(trace, "train/000007", 7)  # noqa: SLF001
+
+    assert rollout.prompt_ids == (1, 2)
+    assert rollout.completion_ids == (3, 4)
+    assert rollout.env_mask == (True, True)
+    assert rollout.sampling_logprobs == (-0.1, -0.2)
+    assert len(rollout.trace.payload["nodes"]) == 4
 
 
 def test_native_bridge_runs_distinct_prompt_groups_concurrently(tmp_path) -> None:

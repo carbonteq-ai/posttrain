@@ -39,7 +39,7 @@ class FakeRenderer:
         return FakeRendered()
 
     def parse_response(self, token_ids, *, tools):
-        assert token_ids == [3, 4]
+        assert token_ids in ([3, 4], [3])
         assert tools is None
         return SimpleNamespace(content="answer", reasoning_content="reason", tool_calls=[])
 
@@ -72,6 +72,30 @@ class BatchFakeTrainer:
         return (
             [[3, 4] for _prompt_ids in prompt_ids],
             [[-0.1, -0.2] for _prompt_ids in prompt_ids],
+        )
+
+
+class DynamicFakeTrainer(BatchFakeTrainer):
+    def __init__(self) -> None:
+        super().__init__()
+        self.vllm_generation = SimpleNamespace(
+            max_completion_length=99,
+            generation_kwargs={"seed": 7},
+        )
+        self.observed: list[tuple[int, dict[str, object]]] = []
+
+    def _generate_single_turn(self, prompt_ids, generation_config, extra):
+        self.prompt_batches.append(prompt_ids)
+        self.observed.append(
+            (
+                self.vllm_generation.max_completion_length,
+                dict(self.vllm_generation.generation_kwargs),
+            )
+        )
+        length = min(2, self.vllm_generation.max_completion_length)
+        return (
+            [[3, 4][:length] for _prompt_ids in prompt_ids],
+            [[-0.1, -0.2][:length] for _prompt_ids in prompt_ids],
         )
 
 
@@ -109,6 +133,10 @@ def test_trl_policy_generator_reuses_loaded_trainer_and_preserves_exact_tokens(m
         "object": "chat.completion",
         "created": 0,
         "choices": [{"index": 0, "message": result.message, "finish_reason": "stop"}],
+        "posttrain_generation": {
+            "prompt_tokens": 2,
+            "effective_max_tokens": 2,
+        },
     }
 
 
@@ -146,6 +174,61 @@ def test_trl_policy_generator_batches_concurrent_environment_turns(monkeypatch) 
     assert trainer.prompt_batches == [[[1, 2], [1, 2], [1, 2], [1, 2]]]
     assert [result.completion_ids for result in results] == [(3, 4)] * 4
     assert [result.completion_logprobs for result in results] == [(-0.1, -0.2)] * 4
+
+
+def test_trl_policy_generator_applies_dynamic_limit_and_strict_schema(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "posttrain.train.backends.trl.online_rl.create_renderer",
+        lambda *args: FakeRenderer(),
+    )
+    profile = replace(QWEN35_GRPO_SMOKE, max_prompt_length=8, max_completion_length=6)
+    trainer = DynamicFakeTrainer()
+    generator = TrlPolicyGenerator(trainer, object(), QWEN_35_2B, profile, _training())
+
+    result = asyncio.run(
+        generator.generate(
+            PolicyTurnRequest(
+                messages=({"role": "user", "content": "hello"},),
+                sampling=PolicySampling(max_tokens=6, temperature=0.7, top_p=0.9),
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "answer",
+                        "strict": True,
+                        "schema": {
+                            "type": "object",
+                            "properties": {},
+                            "required": [],
+                            "additionalProperties": False,
+                        },
+                    },
+                },
+                max_prompt_tokens=2,
+                max_sequence_tokens=3,
+            )
+        )
+    )
+
+    assert result.completion_ids == (3,)
+    assert result.finish_reason == "length"
+    assert trainer.observed == [
+        (
+            1,
+            {
+                "seed": 7,
+                "structured_outputs": {
+                    "json": {
+                        "type": "object",
+                        "properties": {},
+                        "required": [],
+                        "additionalProperties": False,
+                    }
+                },
+            },
+        )
+    ]
+    assert trainer.vllm_generation.max_completion_length == 99
+    assert trainer.vllm_generation.generation_kwargs == {"seed": 7}
 
 
 def test_trl_policy_generator_drains_turns_queued_while_waiting_for_the_lock(monkeypatch) -> None:

@@ -30,6 +30,8 @@ def test_foundation_variants_publish_explicit_model_and_renderer_contracts() -> 
     assert GEMMA_4_12B_IT.provenance["mtp_mode"] == "paired-assistant"
     assert GEMMA_4_12B_IT.provenance["mtp_assistant_revision"] == "364bd03c9952e5b7da73665ee30c9eccfc408345"
     assert GEMMA_4_12B_IT.renderer.id == "gemma4-tools@1"
+    assert GEMMA_4_12B_IT.tokenizer_fingerprint == GEMMA_4_E2B_IT.tokenizer_fingerprint
+    assert GEMMA_4_12B_IT.tokenizer_fingerprint == GEMMA_4_E4B_IT.tokenizer_fingerprint
     assert GEMMA_4_12B_IT.provenance["upstream_model_type"] == "gemma4_unified"
     assert GEMMA_4_12B_IT.provenance["upstream_architecture"] == "Gemma4UnifiedForConditionalGeneration"
 

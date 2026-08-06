@@ -80,6 +80,7 @@ model:
     parameters: 5123178051
     instruction_tuned: true
     renderer_contract: gemma4-tools@1
+    tokenizer_fingerprint: 059d0f7dd1efb018ec9801f316c99ab31a7c39e712de08626ac90c1898b42416
     capabilities:
       modalities: [text, image, audio]
       native_context_window: 131072
@@ -103,6 +104,7 @@ model:
     parameters: 7996156490
     instruction_tuned: true
     renderer_contract: gemma4-tools@1
+    tokenizer_fingerprint: 059d0f7dd1efb018ec9801f316c99ab31a7c39e712de08626ac90c1898b42416
     capabilities:
       modalities: [text, image, audio]
       native_context_window: 131072
@@ -150,6 +152,7 @@ model:
     parameters: 31273088876
     instruction_tuned: true
     renderer_contract: gemma4-tools@1
+    tokenizer_fingerprint: 059d0f7dd1efb018ec9801f316c99ab31a7c39e712de08626ac90c1898b42416
     capabilities:
       modalities: [text, image]
       native_context_window: 262144
