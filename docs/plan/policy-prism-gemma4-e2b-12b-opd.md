@@ -42,6 +42,8 @@ The user-visible proof is a reconciled PostTrain training run with 384 admitted 
   Evidence: the deterministic token audit reports maximum rendered prompts of 8,740 evidence, 10,940 rules, and 7,663 graph tokens, while preserving the full 2,048/16,384/8,192 output allowances under the 40,960 per-call cap.
 - Observation: PostTrain already materializes immutable Trackio model inputs inside consumer jobs; it does not expose a standalone artifact-download CLI.
   Evidence: managed evaluation calls `RunContext.input_artifact` for Trackio-backed adapter models, while the getting-started workflow requires pinning the producer artifact as a catalog model before qualification. A new local materialization command is not a launch dependency.
+- Observation: the first isolated pack attempt exposed a stale Python target in the environment dependency compiler.
+  Evidence: the published online-RL image runs Python 3.13.12 and all current framework and Policy Prism packages require Python 3.13, but `KindDependencyConstraints` defaulted dependency resolution to Python 3.12. The compiler target and its regression expectations now match the immutable runtime interpreter.
 - Observation: the repository-wide Pyright command currently reports 151 existing workspace import-resolution errors after a locked all-package sync, while targeted Pyright over every changed source and test file reports zero errors.
   Evidence: focused runtime tests passed before the canonical sync (62 tests), Ruff and all eight import-linter contracts pass, `uv lock --check` and `git diff --check` pass, and the targeted changed-file Pyright invocation is clean.
 
