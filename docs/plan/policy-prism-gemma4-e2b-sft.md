@@ -59,16 +59,31 @@ model-neutral sequence of chat messages and is not rebuilt or republished.
   `training-models-gemma4-e2b-it-bf16-sft-lora-adapter:v0`, committed the two
   qualification work packages in Policy Prism as `8ec8e90`, and packaged both
   isolated evaluation images successfully.
-- [ ] Run scope and recovery sequentially and pass their scientific gates. The
+- [x] (2026-08-06) Ran scope and recovery sequentially and retained their
+  complete scientific evidence. The
   scope attempts `policy-prism-e2b-sft-r32-v1-r1-scope` and
   `policy-prism-e2b-sft-r32-v1-r1-scope-r1` were externally stopped while
   managed vLLM was starting; neither produced a rollout. The second attempt has
-  consistent cancelled reconciliation and retained tracking evidence. Recovery
-  remains intentionally unsubmitted; another project currently owns the shared
-  workstation.
-- [ ] Publish and verify the private Hugging Face adapter.
-- [ ] Finalize, validate, commit, and push both Policy Prism evaluation runs.
-- [ ] Clean only the three new provider workspaces and record final outcomes.
+  consistent cancelled reconciliation and retained tracking evidence. After a
+  verified ten-minute continuous idle interval, unchanged attempt
+  `policy-prism-e2b-sft-r32-v1-r1-scope-r2` was submitted as provider run
+  `pt-69e72b0cc23543722d69983a` and completed consistently on the intended
+  workstation with all 18 traces, zero harness failures, complete trace sync,
+  and one genuine model-output truncation. The exact native artifact finalizes
+  and validates as a standard Policy Prism run. Recovery was then submitted as
+  `policy-prism-e2b-sft-r32-v1-r1-recovery` / provider
+  `pt-022d8f871ae87b6f7abdc069`; it completed consistently with all 17 traces,
+  zero harness failures, complete trace sync, and three genuine model-output
+  truncations.
+- [x] (2026-08-06) Published and independently redownloaded the private adapter
+  at Hugging Face commit `c9b6e4a457902b99d8c3d9a6721afc0c79f574eb`; all seven
+  required files are byte-identical to the staged publication and the
+  repository is private.
+- [x] (2026-08-06) Finalized and validated both standard five-file Policy Prism
+  runs, then committed and pushed them as Policy Prism commit `d409dc3`.
+- [x] (2026-08-06) Cleaned only the successful training, `scope-r2`, and recovery
+  provider workspaces. Durable run identities and promoted artifacts remain;
+  cancelled attempts and all Trackio/evaluation evidence were preserved.
 
 ## Surprises & Discoveries
 
@@ -146,6 +161,39 @@ model-neutral sequence of chat messages and is not rebuilt or republished.
   is shared-workstation scheduling interference rather than an E2B evaluation
   failure.
 
+- Observation: the workstation eventually remained continuously idle for the
+  full ten-minute admission gate after the unrelated ambient-agent sequence.
+  Evidence: only then was unchanged scope attempt `scope-r2` submitted; dstack
+  assigned provider run `pt-69e72b0cc23543722d69983a` to
+  `carbonteq-ai-workstation.lan` on its first attempt.
+
+- Observation: stable scope attempt `scope-r2` completed operationally and
+  retained all 18 traces, but one case is a real SFT quality regression rather
+  than a framework failure. Evidence: case `scope-v2-533ea438bf1c1c89` emitted
+  repetitive duplicate rules until the unchanged 16,384-token stage limit,
+  returned `finish_reason=length`, skipped its dependent graph stage, and has
+  no harness error. The immutable artifact passed Policy Prism preview
+  finalization and `validate-runs` with `trace_count=18` and complete semantic
+  status.
+
+- Observation: the recovery evaluation exposed a stronger repetitive-output
+  regression and therefore ran for about one hour rather than the E4B
+  reference's 22 minutes. Evidence: all 17 traces completed with zero harness
+  errors, but three rules stages reached the unchanged 65,536-token limit:
+  `recall-006-ohio-5122-14-10-complete`,
+  `recall-scope-audit-scope-v2-533ea438bf1c1c89`, and
+  `recall-scope-audit-scope-v2-5ead6765d258cf42`. Each has
+  `finish_reason=length` and complete retained trace evidence.
+
+- Observation: PEFT's adapter configuration records the exact base repository
+  but leaves its optional `revision` field null.
+  Evidence: the original Trackio and fresh Hugging Face `adapter_config.json`
+  files have identical SHA-256
+  `de3f11beec8a8630f46e779cf4bc010b0cf929e78aabbde95b1526865ebfb10f`;
+  the base revision is instead pinned in the model card and both evaluation
+  manifests. Publication verification was corrected without uploading a second
+  commit.
+
 ## Decision Log
 
 - Decision: add a separate E2B `ModelVariant` but share the existing pinned
@@ -211,11 +259,16 @@ model-neutral sequence of chat messages and is not rebuilt or republished.
   qualified E2B capsule.
   Date/Author: 2026-08-06 / Codex.
 
-## Outcomes & Retrospective
+- Decision: retain the completed `scope-r2` evidence and proceed to recovery
+  despite the former zero-truncation qualification check.
+  Rationale: all infrastructure, inventory, sync, and artifact-integrity checks
+  pass; the one truncation is deterministic model behavior under the same
+  16,384-token policy used by the prior evaluations. Rerunning until that
+  observed regression disappears would cherry-pick evidence, while increasing
+  the budget would make the comparison a different evaluation.
+  Date/Author: 2026-08-06 / Codex.
 
-Execution is in progress. Record final source commits, job image digests, target
-host, training runtime/loss/validation, checkpoint and adapter identities, HF
-commit, evaluation metrics, compatibility digests, and cleanup results here.
+## Outcomes & Retrospective
 
 The complete SFT finished successfully on `carbonteq-ai-workstation.lan` in
 about 3 h 34 min. It produced final loss `0.0407577`, held-out validation loss
@@ -225,8 +278,44 @@ about 3 h 34 min. It produced final loss `0.0407577`, held-out validation loss
 content digest
 `f58bac190bc25f1f37c6f2c013f74a29fc2fe2404e073fe8e51de5d9d0020028`.
 Scope package/image are `c14e1de...`/`a48bcdf...`; recovery package/image are
-`3a52b97e...`/`4781468e...`. Qualification, publication, permanent evidence,
-and cleanup remain in progress.
+`3a52b97e...`/`4781468e...`.
+
+The stable scope qualification ran as
+`policy-prism-e2b-sft-r32-v1-r1-scope-r2` on provider
+`pt-69e72b0cc23543722d69983a` in about 15m57s. It retained 18/18 traces, zero
+harness failures, one model-output truncation, complete semantic evidence, and
+evaluation artifact digest
+`9592d3291271d5bd51b3cd84475a29eaee17a17465d7ffd0847a3dd7d20a1132`.
+Its absolute business results include 94.4% operational reliability, 5.6%
+fully conformant interpretation, 70.8% expected-rules matched, and 79.1%
+Claude-diagnostic predicted-rule support. Its compatibility digest is
+`80b32e1429e5e663415bc3d109cb3cfdf6cfd5a9db8235f3f0c061e49c1336e8`.
+
+Recovery ran as `policy-prism-e2b-sft-r32-v1-r1-recovery` on provider
+`pt-022d8f871ae87b6f7abdc069` in about 1h00m20s. It retained 17/17 traces, zero
+harness failures, three model-output truncations, complete semantic evidence,
+and evaluation artifact digest
+`e7c09869c0d468b748f38abc1ad48ff9ffba1c3d5e664a2287080de20f0f6dd9`.
+Its absolute business results include 76.5% operational reliability, 27.4%
+expected-rules found, 0% complete-provision exact recovery, and 20.9%
+Claude-diagnostic recovered-rule meaning preservation. Its compatibility
+digest is
+`4077dd2f98fdd143d38f32acb42ecef4216b8d38c66b16b6f597a762c93534b4`.
+
+The exact seven-file adapter is private at
+`carbonteq/gemma-4-e2b-policy-prism-scope-sft-lora-v1@c9b6e4a457902b99d8c3d9a6721afc0c79f574eb`.
+The fresh-download weights retain SHA-256
+`2367b18f638096e501db1d5b2a66917b1d534ac256a9461ac9d84a19e3af2de9`.
+Policy Prism permanently stores the two standard five-file directories and
+catalog entries at commit `d409dc3`. Full-catalog validation passed with 81
+runs and 1,418 traces. The prior E2B base runs have different evaluator
+compatibility digests, so these absolute results must not be presented as a
+strict before/after delta.
+
+Finally, PostTrain removed only the three successful E2B provider workspaces.
+It reports no placements held and continues to list the reconciled training,
+scope, and recovery identities with their promoted Trackio artifacts. The two
+externally cancelled scope attempts remain retained as operational history.
 
 ## Context and Orientation
 
