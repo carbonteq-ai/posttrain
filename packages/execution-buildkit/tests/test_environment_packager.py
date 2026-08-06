@@ -215,6 +215,7 @@ def test_packages_two_environments_from_one_checkout_with_portable_locks(
     assert wheel_gateway.calls == ["math-env", "text-env"]
     assert sum(call[2] == "fetch" for call in git_gateway.calls if call[0] == "-C") == 1
     assert dependency_gateway.constraints == ["shared-runtime==1.0.0\n"]
+    assert dependency_gateway.calls[0]["python_version"] == "3.13.12"
     assert result.runtime_dependencies_digest == _file_digest(result.runtime_requirements)
     requirements = result.runtime_requirements.read_text(encoding="utf-8")
     assert "./wheels/environments/math_env-1.0.0-py3-none-any.whl" in requirements

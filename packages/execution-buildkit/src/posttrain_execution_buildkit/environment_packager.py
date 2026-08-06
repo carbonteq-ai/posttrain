@@ -223,11 +223,10 @@ def _runtime_closure_constraints(
     constraints: KindDependencyConstraints,
     backend_constraints: KindDependencyConstraints | None,
 ) -> tuple[KindDependencyConstraints, ...]:
-    control_python = "3.13.12" if constraints.profile == "online-rl-verl-py313" else "3.12"
     control = replace(
         constraints,
         role="control",
-        python_version=control_python,
+        python_version="3.13.12",
         python_executable="/opt/posttrain/venv/bin/python",
         requirements_filename="runtime.control.requirements.txt",
     )
