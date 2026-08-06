@@ -18,8 +18,8 @@ The user-visible proof is a reconciled PostTrain training run with 384 admitted 
 - [x] (2026-08-07) Build the deterministic 384-primary/96-reserve production plan with the pinned E2B tokenizer, package it in Policy Prism, pass the deterministic check, 17 focused tests, Ruff, strict mypy, diff check, and wheel resource audit, then commit and push Policy Prism commit `874e90205ed407126a7777221cb87dd3b58ee09e`.
 - [x] (2026-08-07) Implement generic structured rollout constraints, stable selected-target projection, sequential sampling/resume, memory-safe sparse OPD loss, and checkpoint publication in PostTrain.
 - [x] (2026-08-07) Add exact E2B/12B tokenizer compatibility metadata, catalog entries, project overlay, and one production work package.
-- [ ] Run focused tests, Ruff, Pyright, import-boundary checks, lock checks, and isolated job packaging/preflight; commit and push only `feat/gemma-policy-prism-opd-e2b-12b`.
-- [ ] Submit the one full 384-update GPU job, monitor it, preserve milestones 96/192/288/384, reconcile all required evidence, and diagnose/retry safely if necessary.
+- [x] (2026-08-07) Run focused tests, Ruff, targeted Pyright, import-boundary checks, lock checks, and isolated job packaging/preflight; commit and push only `feat/gemma-policy-prism-opd-e2b-12b` through commit `8ce8872`.
+- [ ] Submit the one full 384-update GPU job, monitor it, preserve milestones 96/192/288/384, reconcile all required evidence, and diagnose/retry safely if necessary. The first admission failed before GPU assignment because the shared workstation was occupied; the replacement uses native dstack capacity waiting.
 - [ ] Publish the final rank-16 LoRA adapter privately to `carbonteq/gemma-4-e2b-policy-prism-scope-opd-from-12b-lora-v1`, verify a fresh download, and record the immutable Hugging Face revision.
 - [ ] Register the exact adapter, run sealed scope then recovery evaluations sequentially, apply scientific gates, and reconcile them.
 - [ ] Materialize native evaluation artifacts, finalize them into Policy Prism `evaluation-runs`, validate compatibility and evidence, then commit/push final Policy Prism lineage.
@@ -46,6 +46,8 @@ The user-visible proof is a reconciled PostTrain training run with 384 admitted 
   Evidence: the published online-RL image runs Python 3.13.12 and all current framework and Policy Prism packages require Python 3.13, but both `KindDependencyConstraints` and the non-veRL runtime-closure override selected Python 3.12. The compiler defaults and every control closure now match the immutable runtime interpreter.
 - Observation: the repository-wide Pyright command currently reports 151 existing workspace import-resolution errors after a locked all-package sync, while targeted Pyright over every changed source and test file reports zero errors.
   Evidence: focused runtime tests passed before the canonical sync (62 tests), Ruff and all eight import-linter contracts pass, `uv lock --check` and `git diff --check` pass, and the targeted changed-file Pyright invocation is clean.
+- Observation: PostTrain's local placement ledger does not reveal dstack jobs submitted by other users, so `pt workers` can report an idle placement while the shared workstation is occupied externally.
+  Evidence: the first full admission `policy-prism-e2b-opd-12b-r16-v1` failed before assignment with dstack `no-capacity`, while a credential-safe dstack query showed another active run holding the sole RTX PRO 6000. The failed attempt ran no model code and created no Trackio training run.
 
 ## Decision Log
 
@@ -75,6 +77,9 @@ The user-visible proof is a reconciled PostTrain training run with 384 admitted 
   Date/Author: 2026-08-07 / Codex.
 - Decision: use PostTrain's existing recorded producer/consumer artifact flow rather than add a standalone `pt artifact materialize` command.
   Rationale: evaluation jobs already materialize pinned Trackio adapters in their run workspace, checkpoint recovery is handled by the trainer checkpoint contract, and Hugging Face publication should remain a separately recorded consumer operation rather than an untracked local copy.
+  Date/Author: 2026-08-07 / Codex.
+- Decision: bind the 96 GB execution target to fleet `local-gpu-workers` and enable a 24-hour provider-native no-capacity wait instead of pinning the hostname with zero wait.
+  Rationale: the 96 GB minimum still excludes the fleet's 24 GB RTX 4090, while dstack can safely queue for the RTX PRO 6000 rather than fail before assignment when another team temporarily owns it.
   Date/Author: 2026-08-07 / Codex.
 
 ## Outcomes & Retrospective
