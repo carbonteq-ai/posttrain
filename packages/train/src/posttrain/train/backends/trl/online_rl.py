@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from collections import defaultdict
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
@@ -17,6 +18,7 @@ from ...profiles import GRPOSettings, OnPolicyDistillationSettings, SAMPOSetting
 from ...rendering import create_renderer
 
 _GEMMA_JSON_WHITESPACE_PATTERN = r" ?"
+_LOGGER = logging.getLogger(__name__)
 
 
 class TrlPolicyGenerator:
@@ -31,6 +33,7 @@ class TrlPolicyGenerator:
         training: TrainingBinding,
     ) -> None:
         self._trainer = trainer
+        self._tokenizer = tokenizer
         self._renderer = create_renderer(tokenizer, model, training.renderer)
         self._model_family = model.family
         eos_token_id = getattr(tokenizer, "eos_token_id", None)
@@ -110,6 +113,22 @@ class TrlPolicyGenerator:
             raise RuntimeError("the policy generator exceeded the effective sequence limit")
         sampled_logprobs = () if logprobs is None else tuple(float(value) for value in logprobs)
         parsed = self._renderer.parse_response(list(token_ids), tools=tools or None)
+        if request.response_format is not None:
+            content = parsed.content or ""
+            try:
+                json.loads(content)
+            except (json.JSONDecodeError, TypeError, ValueError):
+                decoded = self._tokenizer.decode(list(token_ids), skip_special_tokens=False)
+                _LOGGER.warning(
+                    "structured policy completion is not valid JSON; "
+                    "token_count=%d; token_ids_prefix=%r; token_ids_suffix=%r; "
+                    "decoded_prefix=%r; parsed_content_prefix=%r",
+                    len(token_ids),
+                    list(token_ids[:16]),
+                    list(token_ids[-16:]),
+                    str(decoded)[:160],
+                    content[:160],
+                )
         tool_calls = [
             {
                 "id": item.id or f"call_{index}",

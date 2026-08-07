@@ -114,6 +114,38 @@ def vllm_rollout_options(
         # ``vllm`` prevents repository generation_config.json files from adding
         # alternate EOS ids that the grammar compiler did not receive.
         values["generation_config"] = generation_config
+    structured_outputs_config = engine.get("structured_outputs_config")
+    if structured_outputs_config is not None:
+        if engine.get("mode", "colocate") != "colocate":
+            raise ValueError("TRL rollout structured_outputs_config requires colocated vLLM mode")
+        if not isinstance(structured_outputs_config, Mapping):
+            raise ValueError("TRL rollout structured_outputs_config must be a mapping")
+        allowed_keys = {
+            "backend",
+            "disable_any_whitespace",
+            "disable_additional_properties",
+            "reasoning_parser",
+            "reasoning_parser_plugin",
+            "enable_in_reasoning",
+        }
+        unknown_keys = sorted(set(structured_outputs_config).difference(allowed_keys))
+        if unknown_keys:
+            raise ValueError(
+                "TRL rollout structured_outputs_config has unsupported keys: "
+                + ", ".join(unknown_keys)
+            )
+        backend = structured_outputs_config.get("backend", "auto")
+        if backend not in {"auto", "xgrammar", "guidance", "outlines", "lm-format-enforcer"}:
+            raise ValueError("TRL rollout structured-output backend is unsupported")
+        for key in ("disable_any_whitespace", "disable_additional_properties", "enable_in_reasoning"):
+            value = structured_outputs_config.get(key)
+            if value is not None and not isinstance(value, bool):
+                raise ValueError(f"TRL rollout structured_outputs_config.{key} must be a boolean")
+        for key in ("reasoning_parser", "reasoning_parser_plugin"):
+            value = structured_outputs_config.get(key)
+            if value is not None and not isinstance(value, str):
+                raise ValueError(f"TRL rollout structured_outputs_config.{key} must be a string")
+        values["structured_outputs_config"] = dict(structured_outputs_config)
     kv_cache_dtype = engine.get("kv_cache_dtype")
     if kv_cache_dtype is not None:
         if not isinstance(kv_cache_dtype, str) or not kv_cache_dtype:

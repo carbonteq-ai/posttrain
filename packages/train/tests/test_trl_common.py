@@ -38,6 +38,10 @@ def test_rollout_options_validate_but_omit_trl_controlled_scheduler_limits() -> 
             "enable_prefix_caching": False,
             "disable_log_stats": False,
             "generation_config": "vllm",
+            "structured_outputs_config": {
+                "backend": "xgrammar",
+                "disable_any_whitespace": True,
+            },
             "kv_cache_dtype": "fp8",
         },
     )
@@ -48,6 +52,10 @@ def test_rollout_options_validate_but_omit_trl_controlled_scheduler_limits() -> 
         "enable_prefix_caching": False,
         "disable_log_stats": False,
         "generation_config": "vllm",
+        "structured_outputs_config": {
+            "backend": "xgrammar",
+            "disable_any_whitespace": True,
+        },
         "kv_cache_dtype": "fp8",
     }
 
@@ -61,6 +69,37 @@ def test_rollout_options_reject_invalid_trl_controlled_scheduler_limits(key: str
 def test_rollout_options_reject_unknown_generation_config_mode() -> None:
     with pytest.raises(ValueError, match="generation_config"):
         vllm_rollout_options(GEMMA_4_12B_IT, {"generation_config": "model-defaults"})
+
+
+@pytest.mark.parametrize(
+    ("config", "message"),
+    [
+        ("xgrammar", "must be a mapping"),
+        ({"backend": "unsupported"}, "backend is unsupported"),
+        ({"disable_any_whitespace": 1}, "disable_any_whitespace must be a boolean"),
+        ({"unknown": True}, "unsupported keys: unknown"),
+    ],
+)
+def test_rollout_options_reject_invalid_structured_output_engine_config(
+    config: object,
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        vllm_rollout_options(GEMMA_4_12B_IT, {"structured_outputs_config": config})  # type: ignore[dict-item]
+
+
+def test_rollout_options_reject_structured_output_engine_config_in_server_mode() -> None:
+    with pytest.raises(ValueError, match="requires colocated vLLM mode"):
+        vllm_rollout_options(
+            GEMMA_4_12B_IT,
+            {
+                "mode": "server",
+                "structured_outputs_config": {
+                    "backend": "xgrammar",
+                    "disable_any_whitespace": True,
+                },
+            },
+        )
 
 
 def test_gemma_mtp_materializes_the_pinned_assistant_before_trl(monkeypatch) -> None:

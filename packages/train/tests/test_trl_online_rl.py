@@ -48,8 +48,18 @@ class FakeRenderer:
         return [4]
 
 
+class FakeStructuredRenderer(FakeRenderer):
+    def parse_response(self, token_ids, *, tools):
+        parsed = super().parse_response(token_ids, tools=tools)
+        return SimpleNamespace(content="{}", reasoning_content=parsed.reasoning_content, tool_calls=[])
+
+
 class FakeTokenizer:
     eos_token_id = 1
+
+    def decode(self, token_ids, *, skip_special_tokens):
+        assert skip_special_tokens is False
+        return "<raw-completion>"
 
 
 class FakeTrainer:
@@ -184,7 +194,7 @@ def test_trl_policy_generator_batches_concurrent_environment_turns(monkeypatch) 
 def test_trl_policy_generator_applies_dynamic_limit_and_strict_schema(monkeypatch) -> None:
     monkeypatch.setattr(
         "posttrain.train.backends.trl.online_rl.create_renderer",
-        lambda *args: FakeRenderer(),
+        lambda *args: FakeStructuredRenderer(),
     )
     profile = replace(QWEN35_GRPO_SMOKE, max_prompt_length=8, max_completion_length=6)
     trainer = DynamicFakeTrainer()
@@ -240,7 +250,7 @@ def test_trl_policy_generator_applies_dynamic_limit_and_strict_schema(monkeypatc
 def test_trl_policy_generator_bounds_gemma_json_whitespace(monkeypatch) -> None:
     monkeypatch.setattr(
         "posttrain.train.backends.trl.online_rl.create_renderer",
-        lambda *args: FakeRenderer(),
+        lambda *args: FakeStructuredRenderer(),
     )
     profile = replace(QWEN35_GRPO_SMOKE, max_prompt_length=8, max_completion_length=6)
     trainer = DynamicFakeTrainer()
@@ -301,7 +311,7 @@ def test_trl_policy_generator_bounds_gemma_json_whitespace(monkeypatch) -> None:
 def test_trl_policy_generator_preserves_larger_structured_output_minimum(monkeypatch) -> None:
     monkeypatch.setattr(
         "posttrain.train.backends.trl.online_rl.create_renderer",
-        lambda *args: FakeRenderer(),
+        lambda *args: FakeStructuredRenderer(),
     )
     profile = replace(QWEN35_GRPO_SMOKE, max_prompt_length=8, max_completion_length=6)
     trainer = DynamicFakeTrainer()
@@ -333,6 +343,40 @@ def test_trl_policy_generator_preserves_larger_structured_output_minimum(monkeyp
         )
     ]
     assert trainer.vllm_generation.generation_kwargs == {"seed": 7, "min_tokens": 2}
+
+
+def test_trl_policy_generator_reports_raw_invalid_structured_completion(monkeypatch, caplog) -> None:
+    monkeypatch.setattr(
+        "posttrain.train.backends.trl.online_rl.create_renderer",
+        lambda *args: FakeRenderer(),
+    )
+    profile = replace(QWEN35_GRPO_SMOKE, max_prompt_length=8, max_completion_length=6)
+    generator = TrlPolicyGenerator(
+        DynamicFakeTrainer(),
+        FakeTokenizer(),
+        QWEN_35_2B,
+        profile,
+        _training(),
+    )
+
+    result = asyncio.run(
+        generator.generate(
+            PolicyTurnRequest(
+                messages=({"role": "user", "content": "hello"},),
+                sampling=PolicySampling(max_tokens=6, temperature=0.7, top_p=0.9),
+                response_format={"type": "json_object"},
+                max_prompt_tokens=2,
+                max_sequence_tokens=8,
+            )
+        )
+    )
+
+    assert result.message["content"] == "answer"
+    message = caplog.text
+    assert "token_count=2" in message
+    assert "token_ids_prefix=[3, 4]" in message
+    assert "decoded_prefix='<raw-completion>'" in message
+    assert "parsed_content_prefix='answer'" in message
 
 
 def test_trl_policy_generator_drains_turns_queued_while_waiting_for_the_lock(monkeypatch) -> None:

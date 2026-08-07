@@ -19,7 +19,8 @@ The user-visible proof is a reconciled PostTrain training run with 384 admitted 
 - [x] (2026-08-07) Implement generic structured rollout constraints, stable selected-target projection, sequential sampling/resume, memory-safe sparse OPD loss, and checkpoint publication in PostTrain.
 - [x] (2026-08-07) Add exact E2B/12B tokenizer compatibility metadata, catalog entries, project overlay, and one production work package.
 - [x] (2026-08-07) Run focused tests, Ruff, targeted Pyright, import-boundary checks, lock checks, and isolated job packaging/preflight; commit and push only `feat/gemma-policy-prism-opd-e2b-12b` through commit `8ce8872`.
-- [ ] Submit the one full 384-update GPU job, monitor it, preserve milestones 96/192/288/384, reconcile all required evidence, and diagnose/retry safely if necessary. The first admission failed before GPU assignment because the shared workstation was occupied; the replacement uses native dstack capacity waiting.
+- [x] (2026-08-07) Diagnose eight pre-optimization admissions without weakening Policy Prism admission: correct TRL scheduler ownership, prevent empty structured generations, neutralize repository sampling defaults, constrain Gemma stop tokens, and replace vLLM 0.25.1's ignored request-level whitespace field with its validated engine-level XGrammar configuration. Add raw-token diagnostics for any remaining invalid structured completion.
+- [ ] Submit the corrected full 384-update GPU job, monitor it, preserve milestones 96/192/288/384, reconcile all required evidence, and diagnose/retry safely if necessary. Failed attempts remain operational evidence only; none reached optimizer step one.
 - [ ] Publish the final rank-16 LoRA adapter privately to `carbonteq/gemma-4-e2b-policy-prism-scope-opd-from-12b-lora-v1`, verify a fresh download, and record the immutable Hugging Face revision.
 - [ ] Register the exact adapter, run sealed scope then recovery evaluations sequentially, apply scientific gates, and reconcile them.
 - [ ] Materialize native evaluation artifacts, finalize them into Policy Prism `evaluation-runs`, validate compatibility and evidence, then commit/push final Policy Prism lineage.
@@ -64,6 +65,8 @@ The user-visible proof is a reconciled PostTrain training run with 384 admitted 
   Evidence: `origin/exp/policy-prism-gemma4-distill` defines `_GEMMA_JSON_WHITESPACE_PATTERN = r" ?"` and adds it to every Gemma JSON-schema request. Its E4B-from-31B eight-update qualification completed with finite loss and gradients. The current `_structured_outputs` passed the schema alone, allowing unbounded grammar whitespace before the root object. The old run is useful runtime evidence but not a scientific equivalent: it used E4B/31B, H200/RunPod, smaller output caps, and admitted length-bounded outputs that the current strict environment correctly rejects.
 - Observation: restoring bounded whitespace exposed that vLLM's `generation_config="vllm"` is neutral only for sampling defaults, not special-token configuration.
   Evidence: `policy-prism-e2b-opd-12b-r16-v1-r7` again rejected the primary and reserve at target zero before optimization. The exact vLLM 0.25.1 source shows `try_get_generation_config()` still loads repository EOS fields in `"vllm"` mode. E2B declares EOS IDs `1`, `106`, and `50`, while XGrammar's tokenizer metadata recognizes only canonical EOS `1`. A verified `SamplingParams(ignore_eos=True, stop_token_ids=[1])` leaves `eos_token_id=None` and the operative stop list `[1]`, so repository-only turn/tool delimiters cannot stop an incomplete grammar while canonical EOS remains grammar-controlled.
+- Observation: vLLM 0.25.1 accepts a request-level `whitespace_pattern` but its XGrammar backend ignores that field when compiling JSON schemas.
+  Evidence: `policy-prism-e2b-opd-12b-r16-v1-r8` still exhausted the first primary and reserve after the canonical-EOS correction. Inspection of the exact installed vLLM source showed `backend_xgrammar.py` reads only the engine-wide `StructuredOutputsConfig.disable_any_whitespace`; `get_structured_output_key()` forwards the JSON schema but not the request-level whitespace pattern. The installed `EngineArgs` and TRL `VLLMGeneration` path accept and forward `structured_outputs_config={"backend": "xgrammar", "disable_any_whitespace": true}` to `vllm.LLM`.
 
 ## Decision Log
 
@@ -108,6 +111,9 @@ The user-visible proof is a reconciled PostTrain training run with 384 admitted 
   Date/Author: 2026-08-07 / Codex.
 - Decision: for Gemma strict structured rollouts, ignore model-repository EOS injection and explicitly stop only on the tokenizer's canonical EOS ID.
   Rationale: XGrammar can mask canonical EOS until the schema is complete, but it cannot govern extra repository EOS IDs absent from its tokenizer stop metadata. This preserves natural valid completion and exact sampled tokens; it does not pad, repair, or rewrite student output. Non-Gemma and unstructured generation remain unchanged.
+  Date/Author: 2026-08-07 / Codex.
+- Decision: expose vLLM's structured-output compiler configuration as a validated colocated-rollout engine option and select XGrammar with arbitrary whitespace disabled for this Policy Prism OPD binding.
+  Rationale: current vLLM owns whitespace policy at engine construction rather than per request. Compact JSON remains schema-valid and preserves the exact sampled token sequence; the framework option is backend-generic while the project catalog owns its use.
   Date/Author: 2026-08-07 / Codex.
 
 ## Outcomes & Retrospective
