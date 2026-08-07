@@ -19,7 +19,8 @@ The user-visible proof is a reconciled PostTrain training run with 384 admitted 
 - [x] (2026-08-07) Implement generic structured rollout constraints, stable selected-target projection, sequential sampling/resume, memory-safe sparse OPD loss, and checkpoint publication in PostTrain.
 - [x] (2026-08-07) Add exact E2B/12B tokenizer compatibility metadata, catalog entries, project overlay, and one production work package.
 - [x] (2026-08-07) Run focused tests, Ruff, targeted Pyright, import-boundary checks, lock checks, and isolated job packaging/preflight; commit and push only `feat/gemma-policy-prism-opd-e2b-12b` through commit `8ce8872`.
-- [x] (2026-08-07) Diagnose eight pre-optimization admissions without weakening Policy Prism admission: correct TRL scheduler ownership, prevent empty structured generations, neutralize repository sampling defaults, constrain Gemma stop tokens, and replace vLLM 0.25.1's ignored request-level whitespace field with its validated engine-level XGrammar configuration. Add raw-token diagnostics for any remaining invalid structured completion.
+- [x] (2026-08-07) Diagnose nine pre-optimization admissions. Correct the verified TRL scheduler ownership defect, record the intervening generation hypotheses without claiming they worked, and use raw Trackio calls plus the earlier successful branch to identify the missing XGrammar wire-schema transformation as the actual r4-r9 cause.
+- [x] (2026-08-07) Stop the launch after the r9 failure, inspect raw Trackio call evidence across every live attempt, correct the earlier diagnosis, force-terminate only the orphaned r9 workspace, and verify all ten dstack attempts are terminal and the RTX PRO 6000 is healthy, reachable, idle, and has zero busy blocks.
 - [ ] Submit the corrected full 384-update GPU job, monitor it, preserve milestones 96/192/288/384, reconcile all required evidence, and diagnose/retry safely if necessary. Failed attempts remain operational evidence only; none reached optimizer step one.
 - [ ] Publish the final rank-16 LoRA adapter privately to `carbonteq/gemma-4-e2b-policy-prism-scope-opd-from-12b-lora-v1`, verify a fresh download, and record the immutable Hugging Face revision.
 - [ ] Register the exact adapter, run sealed scope then recovery evaluations sequentially, apply scientific gates, and reconcile them.
@@ -67,6 +68,58 @@ The user-visible proof is a reconciled PostTrain training run with 384 admitted 
   Evidence: `policy-prism-e2b-opd-12b-r16-v1-r7` again rejected the primary and reserve at target zero before optimization. The exact vLLM 0.25.1 source shows `try_get_generation_config()` still loads repository EOS fields in `"vllm"` mode. E2B declares EOS IDs `1`, `106`, and `50`, while XGrammar's tokenizer metadata recognizes only canonical EOS `1`. A verified `SamplingParams(ignore_eos=True, stop_token_ids=[1])` leaves `eos_token_id=None` and the operative stop list `[1]`, so repository-only turn/tool delimiters cannot stop an incomplete grammar while canonical EOS remains grammar-controlled.
 - Observation: vLLM 0.25.1 accepts a request-level `whitespace_pattern` but its XGrammar backend ignores that field when compiling JSON schemas.
   Evidence: `policy-prism-e2b-opd-12b-r16-v1-r8` still exhausted the first primary and reserve after the canonical-EOS correction. Inspection of the exact installed vLLM source showed `backend_xgrammar.py` reads only the engine-wide `StructuredOutputsConfig.disable_any_whitespace`; `get_structured_output_key()` forwards the JSON schema but not the request-level whitespace pattern. The installed `EngineArgs` and TRL `VLLMGeneration` path accept and forward `structured_outputs_config={"backend": "xgrammar", "disable_any_whitespace": true}` to `vllm.LLM`.
+- Observation: the compact-whitespace replacement exposed a separate wire-schema compatibility failure before generation, which Policy Prism's downstream admission summarized misleadingly as an empty JSON response.
+  Evidence: the raw Trackio call evidence for `policy-prism-e2b-opd-12b-r16-v1-r9` contains four `ValueError` calls with `The provided JSON schema contains features not supported by xgrammar`, no sampled nodes, and no token usage. Its canonical rules schema still contains nested `uniqueItems`. The OPD environment cannot infer its backend from PostTrain's embedded policy-client endpoint, so its usual local-vLLM wire transformation did not run. The corrected backend must strip only XGrammar's documented unsupported constraint keys from a private wire copy while leaving the environment's canonical schema unchanged for admission.
+- Correction: the r4-r8 EOS/whitespace explanations above were hypotheses derived from the downstream Policy ledger, not the root cause. Raw Trackio call evidence now proves that every one of r4, r5, r6, r7, and r8 failed before sampling with four identical `Grammar error: Unimplemented keys: ["uniqueItems"]` calls, zero sampled nodes, and no token usage. Those five fixes could not affect this error and must not be treated as validated runtime corrections.
+  Evidence: direct raw `TrackioDataSource(...)._provider_run(run_id).traces(...)` inspection for r4-r8. The same query for r9 reports the newer vLLM wrapper text `The provided JSON schema contains features not supported by xgrammar`, again with four calls and zero nodes. Policy Prism's candidate program converted transport errors into empty stage text, and the ledger then reported `response is not one JSON object`; that downstream message hid the actual compiler error.
+
+## Stopped launch incident report (2026-08-07)
+
+### Verdict
+
+No OPD optimization occurred. All ten admissions are failed operational attempts, not experiments: none reached optimizer step one, produced a checkpoint, or created a candidate adapter. The launch was stopped after r9. All corresponding dstack runs are now terminal, and the shared RTX PRO 6000 is released.
+
+### Attempt ledger
+
+| Attempt | Proven failure boundary | Result |
+|---|---|---|
+| `policy-prism-e2b-opd-12b-r16-v1` | dstack could not assign the occupied 96 GiB worker | Failed before container execution; no Trackio run |
+| `...-r1` | mandatory Trackio readiness probe failed transiently | Failed before model loading; an immediate identical probe later passed |
+| `...-r2` | sparse-loss qualification compared the catalog-qualified student ID with the unqualified family variant | Failed before model loading; corrected by canonical model qualification |
+| `...-r3` | PostTrain forwarded `max_num_batched_tokens` and `max_num_seqs` although pinned TRL owns those constructor arguments | Failed during colocated vLLM construction; corrected by omitting the duplicate keys |
+| `...-r4` | XGrammar rejected nested `uniqueItems` in the canonical rules schema | Four call errors, zero sampled nodes, zero optimizer updates |
+| `...-r5` | Same `uniqueItems` compiler rejection | The added structured-output `min_tokens` did not run because compilation failed first |
+| `...-r6` | Same `uniqueItems` compiler rejection | Neutral repository generation defaults did not run because compilation failed first |
+| `...-r7` | Same `uniqueItems` compiler rejection | Canonical-EOS overrides did not run because compilation failed first |
+| `...-r8` | Same `uniqueItems` compiler rejection | Request/global whitespace changes did not address schema compilation |
+| `...-r9` | Same unsupported-schema rejection, surfaced through vLLM's generic wrapper | Four call errors, zero sampled nodes; main process failed and left one orphaned engine until audited force termination |
+
+The Policy Prism ledger's `response is not one JSON object: Expecting value: line 1 column 1` and reserve-exhaustion messages were secondary symptoms. Its candidate subprocess received provider exceptions, represented each failed call as empty stage text, retried the primary and reserve, then reported that neither candidate was admissible. The authoritative cause lives in the native Verifiers call records, not the downstream ledger summary.
+
+### What was tried and why it did not work
+
+The changes after r4 attempted to prevent empty generation by requiring a token, neutralizing repository stop defaults, constraining EOS IDs, bounding Gemma JSON whitespace, and setting engine-wide XGrammar whitespace policy. Those mechanisms act only after a JSON grammar has compiled. r4-r9 never reached generation: XGrammar rejected `uniqueItems` while validating the request. These changes therefore supplied no evidence about EOS or whitespace behavior and should be removed or independently justified before restart.
+
+The diagnostic process also failed initially: it relied on terminal logs and the Policy ledger instead of querying raw Trackio call payloads. The native trace retained `calls[].error.message`, but trace finalization's missing-blob error caused the normalized view to omit those calls. Future triage must inspect raw native calls before changing generation behavior.
+
+### Why the earlier H200 experiment worked
+
+The earlier branch `origin/exp/policy-prism-gemma4-distill` at `84dcb6f` had already implemented `_xgrammar_json_schema()`. It recursively removed XGrammar's unsupported assertion keys—including `uniqueItems`—only from the temporary vLLM generation schema. Policy Prism retained and locally validated the untouched canonical Draft 2020-12 schema. Its first H200 smoke encountered the same error, recorded explicitly as `Grammar error: Unimplemented keys: ["uniqueItems"]`, and commit `b5396d0` added the correct boundary transformation before the successful one-step smoke and eight-step qualification.
+
+That run was otherwise easier and scientifically different: E4B/31B on a 141 GiB H200, short 512/1536/768 output caps, one-step and eight-step gates, and admission of environment-completed length-bounded samples. The present E2B/12B plan uses a 96 GiB RTX PRO 6000, strict `finish_reason=stop`, outputs up to 16,384 tokens, 384 targets, replacement accounting, and a memory-safe sparse loss. The H200 result proves the schema-boundary solution, not the end-to-end viability or throughput of the new configuration.
+
+### Correct restart path
+
+1. Retain the verified pre-generation fixes through commit `19bde5d`: canonical student identity and removal of TRL-owned scheduler keys.
+2. Revert or separately re-justify the unproven r4-r9 generation changes (`8a62cc0` through `7f67c90`). They did not execute in any live attempt and alter generation semantics beyond the known cause.
+3. Port the earlier branch's proven XGrammar wire-schema transformation into the current TRL backend: recursively strip only `multipleOf`, `uniqueItems`, `contains`, `minContains`, `maxContains`, `patternProperties`, and `propertyNames` from a private schema copy. Never mutate the environment request or canonical trace schema.
+4. Add a regression using the complete Policy Prism rules schema, not a toy schema. Assert the wire copy contains no nested `uniqueItems`, the canonical schema still contains it, and the exact pinned vLLM/XGrammar version accepts the transformed schema in a CPU-only compiler test.
+5. Fix native error precedence and trace finalization: provider errors must remain explicit and cannot be collapsed into empty-text JSON admission; raw calls must remain visible even if one blob upload fails.
+6. Repackage and stop at offline/isolated compiler proof. Do not submit another GPU job until the user authorizes restart. At restart, use a new run ID and inspect the first native call before allowing continued execution; this is an early gate inside the single full job, not a separate training experiment.
+
+### Teardown evidence
+
+The exact r0-r9 dstack provider runs report only `FAILED` or `TERMINATED`. r9 provider `pt-7d95d4ebb8a11409bf33e796` required `stop(abort=True)` because its main Python process had exited while `VLLM::EngineCore` remained alive. After termination, fleet `local-gpu-workers` reported `carbonteq-ai-workstation.lan` as `idle`, `unreachable=false`, `health_status=healthy`, `busy_blocks=0`, `total_blocks=1`. PostTrain and Trackio records were deliberately retained; no cleanup or evidence deletion was performed.
 
 ## Decision Log
 
@@ -115,10 +168,16 @@ The user-visible proof is a reconciled PostTrain training run with 384 admitted 
 - Decision: expose vLLM's structured-output compiler configuration as a validated colocated-rollout engine option and select XGrammar with arbitrary whitespace disabled for this Policy Prism OPD binding.
   Rationale: current vLLM owns whitespace policy at engine construction rather than per request. Compact JSON remains schema-valid and preserves the exact sampled token sequence; the framework option is backend-generic while the project catalog owns its use.
   Date/Author: 2026-08-07 / Codex.
+- Decision: adapt unsupported JSON Schema constraints at the private TRL-to-vLLM XGrammar boundary without mutating the environment request.
+  Rationale: the embedded policy client hides the concrete vLLM route from external environments. Removing only XGrammar-unsupported assertion keywords from the generated wire grammar permits token generation while Policy Prism continues to validate the exact sampled output against its untouched canonical schema, including `uniqueItems`.
+  Date/Author: 2026-08-07 / Codex.
+- Decision: withdraw live-validation claims for the r4-r9 EOS and whitespace changes and do not launch from the present branch head.
+  Rationale: raw native call evidence proves none of those changes reached token generation. They must be reverted or independently qualified after the known schema compiler defect is fixed; retaining them as if live-proven would confound the restart.
+  Date/Author: 2026-08-07 / Codex.
 
 ## Outcomes & Retrospective
 
-The implementation and live experiment are in progress. No training or evaluation success is claimed yet.
+The launch is intentionally stopped. Ten operational admissions were attempted; none reached optimizer step one. Raw native call evidence identifies the missing XGrammar wire-schema transformation as the r4-r9 root cause and invalidates the intervening EOS/whitespace diagnoses. All provider workspaces are terminal, the RTX PRO 6000 is released, and no training or evaluation success is claimed. Restart requires the six gates in the incident report and explicit user authorization.
 
 ## Context and Orientation
 
