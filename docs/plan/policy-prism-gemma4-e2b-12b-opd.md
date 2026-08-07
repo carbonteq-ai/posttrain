@@ -52,6 +52,8 @@ The user-visible proof is a reconciled PostTrain training run with 384 admitted 
   Evidence: `policy-prism-e2b-opd-12b-r16-v1-r1` exited in `require_remote_trackio_ready`, and the exact non-mutating `check_artifact_blobs` probe subsequently returned `trackio-readiness-ok`. No training compute occurred.
 - Observation: the next replacement initialized Trackio but exposed an overly literal sparse-loss qualification guard that compared the canonical catalog model ID with the unqualified family variant ID.
   Evidence: `policy-prism-e2b-opd-12b-r16-v1-r2` rejected `models/gemma4-e2b-it@bf16` while checking for `gemma4-e2b-it`, before model loading. The guard now qualifies the immutable hub model identity and family instead; 45 focused API/sparse-loss tests pass, including the canonical catalog-ID regression.
+- Observation: the corrected replacement passed tracking and request validation but the pinned TRL runtime rejected two scheduler keys duplicated through `vllm_engine_kwargs` before either model loaded.
+  Evidence: `policy-prism-e2b-opd-12b-r16-v1-r3` failed in `VLLMGeneration._init_vllm` because TRL owns `max_num_batched_tokens` and `max_num_seqs`. PostTrain now validates but omits those two engine kwargs; TRL derives one sequence from the batch schedule and uses chunked prefill for long prompts. The focused training suite passes 51 tests and Ruff/diff checks are clean.
 
 ## Decision Log
 

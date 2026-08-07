@@ -28,7 +28,7 @@ def test_trainable_model_factory_uses_multimodal_loader_for_gemma4() -> None:
     assert trainable_model_factory(GEMMA_4_12B_IT, IMPORTS) is MultimodalFactory
 
 
-def test_rollout_options_preserve_bounded_prefill_and_sequence_limits() -> None:
+def test_rollout_options_validate_but_omit_trl_controlled_scheduler_limits() -> None:
     speculative, kwargs = vllm_rollout_options(
         GEMMA_4_12B_IT,
         {
@@ -43,13 +43,17 @@ def test_rollout_options_preserve_bounded_prefill_and_sequence_limits() -> None:
 
     assert speculative is None
     assert kwargs == {
-        "max_num_batched_tokens": 40960,
-        "max_num_seqs": 1,
         "enable_chunked_prefill": True,
         "enable_prefix_caching": False,
         "disable_log_stats": False,
         "kv_cache_dtype": "fp8",
     }
+
+
+@pytest.mark.parametrize("key", ["max_num_batched_tokens", "max_num_seqs"])
+def test_rollout_options_reject_invalid_trl_controlled_scheduler_limits(key: str) -> None:
+    with pytest.raises(ValueError, match=key):
+        vllm_rollout_options(GEMMA_4_12B_IT, {key: 0})
 
 
 def test_gemma_mtp_materializes_the_pinned_assistant_before_trl(monkeypatch) -> None:

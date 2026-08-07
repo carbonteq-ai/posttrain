@@ -90,12 +90,16 @@ def vllm_rollout_options(
         values["enforce_eager"] = enforce_eager
     if engine.get("kv_cache_memory_bytes") is not None:
         values["kv_cache_memory_bytes"] = engine["kv_cache_memory_bytes"]
+    # Current TRL constructs these arguments itself: ``max_num_seqs`` follows
+    # the trainer batch schedule and ``max_num_batched_tokens`` is fixed by its
+    # colocated vLLM integration.  Keep validating catalog values so malformed
+    # selections fail early, but do not forward them through ``engine_kwargs``;
+    # VLLMGeneration rejects attempts to override TRL-controlled arguments.
     for key in ("max_num_batched_tokens", "max_num_seqs"):
         value = engine.get(key)
         if value is not None:
             if not isinstance(value, int) or isinstance(value, bool) or value < 1:
                 raise ValueError(f"TRL rollout {key} must be a positive integer")
-            values[key] = value
     for key in ("enable_chunked_prefill", "enable_prefix_caching", "disable_log_stats"):
         value = engine.get(key)
         if value is not None:
