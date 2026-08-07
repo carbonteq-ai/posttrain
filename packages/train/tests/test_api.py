@@ -24,7 +24,7 @@ from posttrain.common import (
     RunContext,
     TraceObservation,
 )
-from posttrain.common.variants import QWEN_35_2B
+from posttrain.common.variants import GEMMA_4_E2B_IT, QWEN_35_2B
 from posttrain.data import (
     DatasetDescriptor,
     PreferenceDataset,
@@ -72,6 +72,7 @@ from posttrain.train.backends.trl.common import BackendTrainingResult, callback_
 from posttrain.train.backends.trl.distillation import (
     _distillation_arguments,
     _teacher_server_command,
+    _validate_memory_safe_sparse_request,
 )
 from posttrain.train.backends.trl.distillation import (
     _rollout_function as _distillation_rollout_function,
@@ -381,6 +382,24 @@ def _distillation_request() -> OnPolicyDistillationRequest:
         rollout_inference=_inference(student),
         teacher_inference=_teacher_inference(teacher),
     )
+
+
+def test_memory_safe_sparse_guard_accepts_canonical_catalog_e2b_identity() -> None:
+    request = SimpleNamespace(
+        student=replace(GEMMA_4_E2B_IT, id="models/gemma4-e2b-it@bf16"),
+        settings=SimpleNamespace(
+            num_generations=1,
+            num_prompts_per_step=1,
+            loop=TrainingLoop(
+                max_steps=1,
+                per_device_batch_size=1,
+                gradient_accumulation_steps=1,
+            ),
+        ),
+        training=SimpleNamespace(backend_options={}),
+    )
+
+    _validate_memory_safe_sparse_request(request, "vllm")
 
 
 def test_teacher_server_command_preserves_memory_and_kv_selections() -> None:

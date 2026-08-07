@@ -48,6 +48,10 @@ The user-visible proof is a reconciled PostTrain training run with 384 admitted 
   Evidence: focused runtime tests passed before the canonical sync (62 tests), Ruff and all eight import-linter contracts pass, `uv lock --check` and `git diff --check` pass, and the targeted changed-file Pyright invocation is clean.
 - Observation: PostTrain's local placement ledger does not reveal dstack jobs submitted by other users, so `pt workers` can report an idle placement while the shared workstation is occupied externally.
   Evidence: the first full admission `policy-prism-e2b-opd-12b-r16-v1` failed before assignment with dstack `no-capacity`, while a credential-safe dstack query showed another active run holding the sole RTX PRO 6000. The failed attempt ran no model code and created no Trackio training run.
+- Observation: the first capacity-waiting replacement reached the freed worker but a transient mandatory Trackio readiness probe failed before tracking or model loading; an immediate host-side probe with the identical project, token, and CA then passed.
+  Evidence: `policy-prism-e2b-opd-12b-r16-v1-r1` exited in `require_remote_trackio_ready`, and the exact non-mutating `check_artifact_blobs` probe subsequently returned `trackio-readiness-ok`. No training compute occurred.
+- Observation: the next replacement initialized Trackio but exposed an overly literal sparse-loss qualification guard that compared the canonical catalog model ID with the unqualified family variant ID.
+  Evidence: `policy-prism-e2b-opd-12b-r16-v1-r2` rejected `models/gemma4-e2b-it@bf16` while checking for `gemma4-e2b-it`, before model loading. The guard now qualifies the immutable hub model identity and family instead; 45 focused API/sparse-loss tests pass, including the canonical catalog-ID regression.
 
 ## Decision Log
 

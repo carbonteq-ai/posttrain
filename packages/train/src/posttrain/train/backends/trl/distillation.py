@@ -564,7 +564,12 @@ def _validate_memory_safe_sparse_request(
     options = request.training.backend_options
     if teacher_product != "vllm":
         raise ValueError("memory-safe sparse OPD requires an external vLLM teacher")
-    if request.student.id != "gemma4-e2b-it":
+    student_artifact = request.student.artifact
+    if (
+        request.student.family != "gemma4"
+        or not isinstance(student_artifact, HubModelRef)
+        or student_artifact.repo_id != "google/gemma-4-E2B-it"
+    ):
         raise ValueError("memory-safe sparse OPD is qualified only for gemma4-e2b-it")
     if request.settings.num_generations != 1 or request.settings.num_prompts_per_step != 1:
         raise ValueError("memory-safe sparse OPD requires one prompt and one generation per update")
