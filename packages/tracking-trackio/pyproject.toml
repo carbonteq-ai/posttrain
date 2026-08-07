@@ -8,7 +8,7 @@ requires-python = ">=3.13,<3.14"
 dependencies = [
     "posttrain-common",
     "posttrain-tracking",
-    "carbonteq-trackio==0.31.5.post8",
+    "carbonteq-trackio==0.31.5.post10",
 ]
 
 [tool.uv.sources]

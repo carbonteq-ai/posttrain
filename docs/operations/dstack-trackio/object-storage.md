@@ -34,7 +34,7 @@ Verifiers environment + data  -> CarbonTeq code/package at an exact commit
 base model                    -> immutable HubModelRef, cached on each worker
 result model + checkpoints    -> versioned Trackio artifacts
 metrics, traces, and lineage  -> the same Trackio run
-artifact bytes                -> Trackio-managed private HF Storage Bucket
+artifact bytes                -> Trackio-selected S3-compatible bucket
 ```
 
 Do not provision a separate `ai-storage` VM or expose object-store credentials
@@ -130,9 +130,19 @@ GPU jobs receive only Trackio connectivity for artifact publication:
   environment file.
 
 The Trackio server alone receives backing-store configuration. The current
-deployment uses its durable server volume. A later deployment may select a
-private Hugging Face Storage Bucket or another Trackio-owned backend without
-changing job bindings.
+deployment defaults to its durable server volume. When an S3-compatible backend
+is selected, Trackio authorizes a short-lived multipart upload and returns
+presigned part URLs to the producing Trackio client. The client sends artifact
+bytes directly to the configured bucket; Trackio receives only part ETags,
+completes the provider upload, and verifies the completed object by streaming
+its size and SHA-256 before committing the manifest. Downloads may use a
+short-lived presigned GET URL as well. A private Hugging Face Storage Bucket,
+RustFS, AWS S3, MinIO, or another compatible endpoint can be selected without
+changing job bindings. The endpoint in `TRACKIO_ARTIFACT_S3_ENDPOINT` is the
+server's provider endpoint. It must also be client-reachable unless the
+optional `TRACKIO_ARTIFACT_S3_PRESIGN_ENDPOINT` is set to a worker-reachable
+endpoint used only when signing URLs. Workers do not receive credentials or
+need a private route to the Trackio server's storage network.
 
 Workers never receive `TRACKIO_BUCKET_ID`, bucket credentials, S3 endpoints, or
 storage-administrator credentials. They upload through Trackio's artifact API.
@@ -167,13 +177,13 @@ The current implementation candidate adds two missing pieces:
 - CarbonTeq Trackio `0.31.5.post2` adds resumable artifact-blob transport
   behind the existing `log_artifact` API.
 
-The resumable transport:
+The artifact transport:
 
 1. check whether the SHA-256 blob already exists;
-2. initiate an upload for the digest and expected size;
-3. stream bounded numbered chunks to server-side temporary storage;
-4. resume from acknowledged chunks after interruption;
-5. finalize only after size and SHA-256 verification;
+2. initiate a provider multipart upload for the digest and expected size;
+3. upload bounded numbered parts directly to presigned provider URLs;
+4. resume the deterministic provider session after interruption;
+5. complete the provider upload and verify size and SHA-256 server-side;
 6. atomically expose the content-addressed blob; and
 7. commit the artifact version only after every manifest blob is durable.
 
@@ -235,8 +245,10 @@ Trackio does not replace:
   or
 - bounded backups of Trackio control data and its backing bucket.
 
-A future local object store can replace the Trackio server's bucket backend
-without exposing storage-provider types to framework jobs.
+A local object store can replace the Trackio server's bucket backend without
+exposing storage-provider types to framework jobs. The migration command copies
+and verifies existing local CAS blobs before any optional local deletion; the
+receipt is the recovery and rollback boundary.
 
 ## Primary source
 
