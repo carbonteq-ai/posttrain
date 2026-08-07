@@ -56,6 +56,8 @@ The user-visible proof is a reconciled PostTrain training run with 384 admitted 
   Evidence: `policy-prism-e2b-opd-12b-r16-v1-r3` failed in `VLLMGeneration._init_vllm` because TRL owns `max_num_batched_tokens` and `max_num_seqs`. PostTrain now validates but omits those two engine kwargs; TRL derives one sequence from the batch schedule and uses chunked prefill for long prompts. The focused training suite passes 51 tests and Ruff/diff checks are clean.
 - Observation: the first replacement to load both CUDA/vLLM and the E2B policy reached logical target zero, but vLLM accepted an immediate model stop before emitting any JSON token on both provider attempts for the primary and its only compatible reserve.
   Evidence: `policy-prism-e2b-opd-12b-r16-v1-r4` recorded two rejected candidates with two provider attempts each and zero accepted targets. The exact first prompt renders correctly to 2,813 tokens and ends at `<|turn>model\n`; its strict root schema requires `resolution`, `rules`, and `completion`. The installed vLLM accepts the schema dictionary, but `SamplingParams.min_tokens` defaults to zero and removes an immediate stop token from returned token IDs. Structured policy turns now require at least one non-stop token while retaining the exact grammar for all subsequent tokens.
+- Observation: requiring one token did not solve the empty structured response because Gemma's repository generation configuration declares alternate stop IDs that vLLM merges after XGrammar has compiled the tokenizer contract.
+  Evidence: `policy-prism-e2b-opd-12b-r16-v1-r5` again exhausted the primary and reserve at logical target zero. The pinned tokenizer declares EOS `1`, while the model/generation configurations additionally declare `106` (`<turn|>`) and `50` (`<|tool_response>`). vLLM 0.25.1 adds those IDs to `SamplingParams.stop_token_ids`, but XGrammar's tokenizer metadata knows only canonical EOS `1`; a whitespace token can therefore satisfy `min_tokens=1` before an alternate stop is accepted and stripped, leaving no JSON object.
 
 ## Decision Log
 
@@ -91,6 +93,9 @@ The user-visible proof is a reconciled PostTrain training run with 384 admitted 
   Date/Author: 2026-08-07 / Codex.
 - Decision: set the effective vLLM `min_tokens` to at least one only when a structured-output contract is active, preserving any stricter configured minimum and restoring the original generation settings afterward.
   Rationale: an empty completion can never satisfy `json_object` or strict `json_schema`; suppressing only the initial stop token prevents a false operational success without weakening, rewriting, or repairing the model's schema-constrained output.
+  Date/Author: 2026-08-07 / Codex.
+- Decision: select vLLM's neutral generation configuration for the E2B structured-rollout engine and validate this as a generic TRL engine option.
+  Rationale: the renderer and structured-output grammar own the canonical tokenizer stop contract. `generation_config: vllm` prevents repository-specific alternate EOS IDs from bypassing XGrammar while preserving normal vLLM stopping and exact generated tokens; `ignore_eos`, arbitrary output padding, and schema repair would change the experiment semantics.
   Date/Author: 2026-08-07 / Codex.
 
 ## Outcomes & Retrospective

@@ -37,6 +37,7 @@ def test_rollout_options_validate_but_omit_trl_controlled_scheduler_limits() -> 
             "enable_chunked_prefill": True,
             "enable_prefix_caching": False,
             "disable_log_stats": False,
+            "generation_config": "vllm",
             "kv_cache_dtype": "fp8",
         },
     )
@@ -46,6 +47,7 @@ def test_rollout_options_validate_but_omit_trl_controlled_scheduler_limits() -> 
         "enable_chunked_prefill": True,
         "enable_prefix_caching": False,
         "disable_log_stats": False,
+        "generation_config": "vllm",
         "kv_cache_dtype": "fp8",
     }
 
@@ -54,6 +56,11 @@ def test_rollout_options_validate_but_omit_trl_controlled_scheduler_limits() -> 
 def test_rollout_options_reject_invalid_trl_controlled_scheduler_limits(key: str) -> None:
     with pytest.raises(ValueError, match=key):
         vllm_rollout_options(GEMMA_4_12B_IT, {key: 0})
+
+
+def test_rollout_options_reject_unknown_generation_config_mode() -> None:
+    with pytest.raises(ValueError, match="generation_config"):
+        vllm_rollout_options(GEMMA_4_12B_IT, {"generation_config": "model-defaults"})
 
 
 def test_gemma_mtp_materializes_the_pinned_assistant_before_trl(monkeypatch) -> None:

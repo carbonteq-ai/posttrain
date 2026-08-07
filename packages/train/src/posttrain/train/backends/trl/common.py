@@ -106,6 +106,14 @@ def vllm_rollout_options(
             if not isinstance(value, bool):
                 raise ValueError(f"TRL rollout {key} must be a boolean")
             values[key] = value
+    generation_config = engine.get("generation_config")
+    if generation_config is not None:
+        if generation_config not in {"auto", "vllm"}:
+            raise ValueError("TRL rollout generation_config must be 'auto' or 'vllm'")
+        # Structured rollout schemas own the valid stopping language.  Selecting
+        # ``vllm`` prevents repository generation_config.json files from adding
+        # alternate EOS ids that the grammar compiler did not receive.
+        values["generation_config"] = generation_config
     kv_cache_dtype = engine.get("kv_cache_dtype")
     if kv_cache_dtype is not None:
         if not isinstance(kv_cache_dtype, str) or not kv_cache_dtype:
