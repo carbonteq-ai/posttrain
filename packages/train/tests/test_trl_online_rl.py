@@ -9,8 +9,9 @@ from types import SimpleNamespace
 
 import pytest
 from posttrain.common import ExecutionTarget
-from posttrain.common.variants import QWEN_35_2B
+from posttrain.common.variants import GEMMA_4_E2B_IT, QWEN_35_2B
 from posttrain.train import (
+    GEMMA4_RENDERER,
     QWEN35_GRPO_SMOKE,
     QWEN35_RENDERER,
     PolicySampling,
@@ -230,6 +231,65 @@ def test_trl_policy_generator_applies_dynamic_limit_and_strict_schema(monkeypatc
     ]
     assert trainer.vllm_generation.max_completion_length == 99
     assert trainer.vllm_generation.generation_kwargs == {"seed": 7}
+
+
+def test_trl_policy_generator_bounds_gemma_json_whitespace(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "posttrain.train.backends.trl.online_rl.create_renderer",
+        lambda *args: FakeRenderer(),
+    )
+    profile = replace(QWEN35_GRPO_SMOKE, max_prompt_length=8, max_completion_length=6)
+    trainer = DynamicFakeTrainer()
+    generator = TrlPolicyGenerator(
+        trainer,
+        object(),
+        GEMMA_4_E2B_IT,
+        profile,
+        replace(_training(), renderer=GEMMA4_RENDERER),
+    )
+
+    asyncio.run(
+        generator.generate(
+            PolicyTurnRequest(
+                messages=({"role": "user", "content": "hello"},),
+                sampling=PolicySampling(max_tokens=6, temperature=0.7, top_p=0.9),
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "answer",
+                        "strict": True,
+                        "schema": {
+                            "type": "object",
+                            "properties": {},
+                            "required": [],
+                            "additionalProperties": False,
+                        },
+                    },
+                },
+                max_prompt_tokens=2,
+                max_sequence_tokens=8,
+            )
+        )
+    )
+
+    assert trainer.observed == [
+        (
+            6,
+            {
+                "seed": 7,
+                "structured_outputs": {
+                    "json": {
+                        "type": "object",
+                        "properties": {},
+                        "required": [],
+                        "additionalProperties": False,
+                    },
+                    "whitespace_pattern": r" ?",
+                },
+                "min_tokens": 1,
+            },
+        )
+    ]
 
 
 def test_trl_policy_generator_preserves_larger_structured_output_minimum(monkeypatch) -> None:

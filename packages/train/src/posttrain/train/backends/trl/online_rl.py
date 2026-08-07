@@ -16,6 +16,8 @@ from ...online_rl import PolicyTurnRequest, PolicyTurnResult
 from ...profiles import GRPOSettings, OnPolicyDistillationSettings, SAMPOSettings
 from ...rendering import create_renderer
 
+_GEMMA_JSON_WHITESPACE_PATTERN = r" ?"
+
 
 class TrlPolicyGenerator:
     """Expose the trainer's already-loaded policy as a backend-neutral turn generator."""
@@ -30,6 +32,7 @@ class TrlPolicyGenerator:
     ) -> None:
         self._trainer = trainer
         self._renderer = create_renderer(tokenizer, model, training.renderer)
+        self._model_family = model.family
         self._max_prompt_length = settings.max_prompt_length
         self._max_completion_length = settings.max_completion_length
         self._lock = asyncio.Lock()
@@ -85,7 +88,7 @@ class TrlPolicyGenerator:
         completion_ids, logprobs = await self._generate_tokens(
             rendered.token_ids,
             effective_max_tokens,
-            _structured_outputs(request.response_format),
+            _structured_outputs(request.response_format, model_family=self._model_family),
         )
         token_ids = tuple(int(value) for value in completion_ids)
         if not token_ids:
@@ -288,6 +291,8 @@ def _openai_response(
 
 def _structured_outputs(
     response_format: Mapping[str, object] | None,
+    *,
+    model_family: str,
 ) -> dict[str, object] | None:
     if response_format is None:
         return None
@@ -302,7 +307,14 @@ def _structured_outputs(
     schema = contract.get("schema")
     if not isinstance(schema, Mapping):
         raise ValueError("environment JSON Schema response_format has no schema")
-    return {"json": dict(schema)}
+    structured_outputs: dict[str, object] = {"json": dict(schema)}
+    if model_family == "gemma4":
+        # Gemma can otherwise spend its constrained prefix on unrestricted
+        # whitespace/control-token sequences without ever entering the JSON
+        # object. This bounded pattern is the proven XGrammar contract used by
+        # the earlier live Gemma distillation path.
+        structured_outputs["whitespace_pattern"] = _GEMMA_JSON_WHITESPACE_PATTERN
+    return structured_outputs
 
 
 @contextmanager

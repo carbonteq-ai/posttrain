@@ -58,6 +58,10 @@ The user-visible proof is a reconciled PostTrain training run with 384 admitted 
   Evidence: `policy-prism-e2b-opd-12b-r16-v1-r4` recorded two rejected candidates with two provider attempts each and zero accepted targets. The exact first prompt renders correctly to 2,813 tokens and ends at `<|turn>model\n`; its strict root schema requires `resolution`, `rules`, and `completion`. The installed vLLM accepts the schema dictionary, but `SamplingParams.min_tokens` defaults to zero and removes an immediate stop token from returned token IDs. Structured policy turns now require at least one non-stop token while retaining the exact grammar for all subsequent tokens.
 - Observation: requiring one token did not solve the empty structured response because Gemma's repository generation configuration declares alternate stop IDs that vLLM merges after XGrammar has compiled the tokenizer contract.
   Evidence: `policy-prism-e2b-opd-12b-r16-v1-r5` again exhausted the primary and reserve at logical target zero. The pinned tokenizer declares EOS `1`, while the model/generation configurations additionally declare `106` (`<turn|>`) and `50` (`<|tool_response>`). vLLM 0.25.1 adds those IDs to `SamplingParams.stop_token_ids`, but XGrammar's tokenizer metadata knows only canonical EOS `1`; a whitespace token can therefore satisfy `min_tokens=1` before an alternate stop is accepted and stripped, leaving no JSON object.
+- Observation: neutralizing repository generation defaults did not by itself make the first rules response enter a JSON object.
+  Evidence: `policy-prism-e2b-opd-12b-r16-v1-r6` loaded the corrected image and exhausted the primary plus its compatible reserve before optimizer step one with `response is not one JSON object: Expecting value: line 1 column 1`. Both candidates were attempted twice. Trace finalization then reported a missing blob, so this run is operational evidence only and is not a scientific training result.
+- Observation: the previous H200/RunPod Gemma distillation path contained an additional Gemma-specific XGrammar constraint that the current reimplementation omitted.
+  Evidence: `origin/exp/policy-prism-gemma4-distill` defines `_GEMMA_JSON_WHITESPACE_PATTERN = r" ?"` and adds it to every Gemma JSON-schema request. Its E4B-from-31B eight-update qualification completed with finite loss and gradients. The current `_structured_outputs` passed the schema alone, allowing unbounded grammar whitespace before the root object. The old run is useful runtime evidence but not a scientific equivalent: it used E4B/31B, H200/RunPod, smaller output caps, and admitted length-bounded outputs that the current strict environment correctly rejects.
 
 ## Decision Log
 
@@ -96,6 +100,9 @@ The user-visible proof is a reconciled PostTrain training run with 384 admitted 
   Date/Author: 2026-08-07 / Codex.
 - Decision: select vLLM's neutral generation configuration for the E2B structured-rollout engine and validate this as a generic TRL engine option.
   Rationale: the renderer and structured-output grammar own the canonical tokenizer stop contract. `generation_config: vllm` prevents repository-specific alternate EOS IDs from bypassing XGrammar while preserving normal vLLM stopping and exact generated tokens; `ignore_eos`, arbitrary output padding, and schema repair would change the experiment semantics.
+  Date/Author: 2026-08-07 / Codex.
+- Decision: restore the proven bounded-whitespace XGrammar contract for Gemma strict JSON-schema rollouts while leaving other model families unchanged.
+  Rationale: one optional space preserves valid JSON formatting but prevents the model from satisfying generation with an indefinite whitespace/control-token prefix. This is a generation constraint, not output repair, and matches the earlier live Gemma OPD implementation that successfully reached optimization.
   Date/Author: 2026-08-07 / Codex.
 
 ## Outcomes & Retrospective
