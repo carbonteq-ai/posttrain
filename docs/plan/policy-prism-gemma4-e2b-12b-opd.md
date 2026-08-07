@@ -62,6 +62,8 @@ The user-visible proof is a reconciled PostTrain training run with 384 admitted 
   Evidence: `policy-prism-e2b-opd-12b-r16-v1-r6` loaded the corrected image and exhausted the primary plus its compatible reserve before optimizer step one with `response is not one JSON object: Expecting value: line 1 column 1`. Both candidates were attempted twice. Trace finalization then reported a missing blob, so this run is operational evidence only and is not a scientific training result.
 - Observation: the previous H200/RunPod Gemma distillation path contained an additional Gemma-specific XGrammar constraint that the current reimplementation omitted.
   Evidence: `origin/exp/policy-prism-gemma4-distill` defines `_GEMMA_JSON_WHITESPACE_PATTERN = r" ?"` and adds it to every Gemma JSON-schema request. Its E4B-from-31B eight-update qualification completed with finite loss and gradients. The current `_structured_outputs` passed the schema alone, allowing unbounded grammar whitespace before the root object. The old run is useful runtime evidence but not a scientific equivalent: it used E4B/31B, H200/RunPod, smaller output caps, and admitted length-bounded outputs that the current strict environment correctly rejects.
+- Observation: restoring bounded whitespace exposed that vLLM's `generation_config="vllm"` is neutral only for sampling defaults, not special-token configuration.
+  Evidence: `policy-prism-e2b-opd-12b-r16-v1-r7` again rejected the primary and reserve at target zero before optimization. The exact vLLM 0.25.1 source shows `try_get_generation_config()` still loads repository EOS fields in `"vllm"` mode. E2B declares EOS IDs `1`, `106`, and `50`, while XGrammar's tokenizer metadata recognizes only canonical EOS `1`. A verified `SamplingParams(ignore_eos=True, stop_token_ids=[1])` leaves `eos_token_id=None` and the operative stop list `[1]`, so repository-only turn/tool delimiters cannot stop an incomplete grammar while canonical EOS remains grammar-controlled.
 
 ## Decision Log
 
@@ -103,6 +105,9 @@ The user-visible proof is a reconciled PostTrain training run with 384 admitted 
   Date/Author: 2026-08-07 / Codex.
 - Decision: restore the proven bounded-whitespace XGrammar contract for Gemma strict JSON-schema rollouts while leaving other model families unchanged.
   Rationale: one optional space preserves valid JSON formatting but prevents the model from satisfying generation with an indefinite whitespace/control-token prefix. This is a generation constraint, not output repair, and matches the earlier live Gemma OPD implementation that successfully reached optimization.
+  Date/Author: 2026-08-07 / Codex.
+- Decision: for Gemma strict structured rollouts, ignore model-repository EOS injection and explicitly stop only on the tokenizer's canonical EOS ID.
+  Rationale: XGrammar can mask canonical EOS until the schema is complete, but it cannot govern extra repository EOS IDs absent from its tokenizer stop metadata. This preserves natural valid completion and exact sampled tokens; it does not pad, repair, or rewrite student output. Non-Gemma and unstructured generation remain unchanged.
   Date/Author: 2026-08-07 / Codex.
 
 ## Outcomes & Retrospective

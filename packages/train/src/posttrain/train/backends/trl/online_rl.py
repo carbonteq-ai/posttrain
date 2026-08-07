@@ -33,6 +33,14 @@ class TrlPolicyGenerator:
         self._trainer = trainer
         self._renderer = create_renderer(tokenizer, model, training.renderer)
         self._model_family = model.family
+        eos_token_id = getattr(tokenizer, "eos_token_id", None)
+        if (
+            not isinstance(eos_token_id, int)
+            or isinstance(eos_token_id, bool)
+            or eos_token_id < 0
+        ):
+            raise ValueError("policy tokenizer must declare one non-negative EOS token id")
+        self._canonical_eos_token_id = eos_token_id
         self._max_prompt_length = settings.max_prompt_length
         self._max_completion_length = settings.max_completion_length
         self._lock = asyncio.Lock()
@@ -189,6 +197,8 @@ class TrlPolicyGenerator:
                             self._trainer,
                             max_tokens=max_tokens,
                             structured_outputs=structured_outputs,
+                            canonical_eos_token_id=self._canonical_eos_token_id,
+                            constrain_to_canonical_eos=self._model_family == "gemma4",
                         ):
                             completion_ids, logprobs = self._trainer._generate_single_turn(  # noqa: SLF001 - pinned adapter
                                 [list(item[0]) for item in group],
@@ -323,6 +333,8 @@ def _generation_overrides(
     *,
     max_tokens: int,
     structured_outputs: dict[str, object] | None,
+    canonical_eos_token_id: int,
+    constrain_to_canonical_eos: bool,
 ) -> Iterator[None]:
     generation = getattr(trainer, "vllm_generation", None)
     generation_config = getattr(trainer, "generation_config", None)
@@ -351,6 +363,15 @@ def _generation_overrides(
             ):
                 raise ValueError("vLLM min_tokens must be a non-negative integer")
             kwargs["min_tokens"] = max(1, configured_minimum)
+            if constrain_to_canonical_eos:
+                # vLLM's neutral generation-config mode still imports special
+                # EOS IDs from the model repository. Gemma declares turn/tool
+                # delimiters there, while XGrammar recognizes only the
+                # tokenizer's canonical EOS. Prevent those alternate IDs from
+                # terminating an incomplete schema, but retain canonical EOS
+                # as an explicit stop that the grammar can mask until valid.
+                kwargs["ignore_eos"] = True
+                kwargs["stop_token_ids"] = [canonical_eos_token_id]
         generation.generation_kwargs = kwargs
     if generation_config is not None:
         generation_config.max_new_tokens = max_tokens

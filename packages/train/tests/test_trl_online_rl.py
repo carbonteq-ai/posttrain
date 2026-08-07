@@ -48,6 +48,10 @@ class FakeRenderer:
         return [4]
 
 
+class FakeTokenizer:
+    eos_token_id = 1
+
+
 class FakeTrainer:
     temperature = 0.7
     top_p = 0.9
@@ -113,7 +117,7 @@ def test_trl_checkpoint_steps_zero_disables_recovery_saves(tmp_path: Path) -> No
 def test_trl_policy_generator_reuses_loaded_trainer_and_preserves_exact_tokens(monkeypatch) -> None:
     monkeypatch.setattr("posttrain.train.backends.trl.online_rl.create_renderer", lambda *args: FakeRenderer())
     profile = replace(QWEN35_GRPO_SMOKE, max_completion_length=2)
-    generator = TrlPolicyGenerator(FakeTrainer(), object(), QWEN_35_2B, profile, _training())
+    generator = TrlPolicyGenerator(FakeTrainer(), FakeTokenizer(), QWEN_35_2B, profile, _training())
 
     result = asyncio.run(
         generator.generate(
@@ -144,7 +148,7 @@ def test_trl_policy_generator_reuses_loaded_trainer_and_preserves_exact_tokens(m
 def test_trl_policy_generator_rejects_environment_sampling_drift(monkeypatch) -> None:
     monkeypatch.setattr("posttrain.train.backends.trl.online_rl.create_renderer", lambda *args: FakeRenderer())
     profile = replace(QWEN35_GRPO_SMOKE, max_completion_length=2)
-    generator = TrlPolicyGenerator(FakeTrainer(), object(), QWEN_35_2B, profile, _training())
+    generator = TrlPolicyGenerator(FakeTrainer(), FakeTokenizer(), QWEN_35_2B, profile, _training())
 
     with pytest.raises(ValueError, match="does not match"):
         asyncio.run(
@@ -161,7 +165,7 @@ def test_trl_policy_generator_batches_concurrent_environment_turns(monkeypatch) 
     monkeypatch.setattr("posttrain.train.backends.trl.online_rl.create_renderer", lambda *args: FakeRenderer())
     profile = replace(QWEN35_GRPO_SMOKE, max_completion_length=2)
     trainer = BatchFakeTrainer()
-    generator = TrlPolicyGenerator(trainer, object(), QWEN_35_2B, profile, _training())
+    generator = TrlPolicyGenerator(trainer, FakeTokenizer(), QWEN_35_2B, profile, _training())
     request = PolicyTurnRequest(
         messages=({"role": "user", "content": "hello"},),
         sampling=PolicySampling(max_tokens=2, temperature=0.7, top_p=0.9),
@@ -184,7 +188,7 @@ def test_trl_policy_generator_applies_dynamic_limit_and_strict_schema(monkeypatc
     )
     profile = replace(QWEN35_GRPO_SMOKE, max_prompt_length=8, max_completion_length=6)
     trainer = DynamicFakeTrainer()
-    generator = TrlPolicyGenerator(trainer, object(), QWEN_35_2B, profile, _training())
+    generator = TrlPolicyGenerator(trainer, FakeTokenizer(), QWEN_35_2B, profile, _training())
 
     result = asyncio.run(
         generator.generate(
@@ -242,7 +246,7 @@ def test_trl_policy_generator_bounds_gemma_json_whitespace(monkeypatch) -> None:
     trainer = DynamicFakeTrainer()
     generator = TrlPolicyGenerator(
         trainer,
-        object(),
+        FakeTokenizer(),
         GEMMA_4_E2B_IT,
         profile,
         replace(_training(), renderer=GEMMA4_RENDERER),
@@ -287,6 +291,8 @@ def test_trl_policy_generator_bounds_gemma_json_whitespace(monkeypatch) -> None:
                     "whitespace_pattern": r" ?",
                 },
                 "min_tokens": 1,
+                "ignore_eos": True,
+                "stop_token_ids": [1],
             },
         )
     ]
@@ -300,7 +306,7 @@ def test_trl_policy_generator_preserves_larger_structured_output_minimum(monkeyp
     profile = replace(QWEN35_GRPO_SMOKE, max_prompt_length=8, max_completion_length=6)
     trainer = DynamicFakeTrainer()
     trainer.vllm_generation.generation_kwargs["min_tokens"] = 2
-    generator = TrlPolicyGenerator(trainer, object(), QWEN_35_2B, profile, _training())
+    generator = TrlPolicyGenerator(trainer, FakeTokenizer(), QWEN_35_2B, profile, _training())
 
     asyncio.run(
         generator.generate(
@@ -333,7 +339,7 @@ def test_trl_policy_generator_drains_turns_queued_while_waiting_for_the_lock(mon
     monkeypatch.setattr("posttrain.train.backends.trl.online_rl.create_renderer", lambda *args: FakeRenderer())
     profile = replace(QWEN35_GRPO_SMOKE, max_completion_length=2)
     trainer = BatchFakeTrainer()
-    generator = TrlPolicyGenerator(trainer, object(), QWEN_35_2B, profile, _training())
+    generator = TrlPolicyGenerator(trainer, FakeTokenizer(), QWEN_35_2B, profile, _training())
     request = PolicyTurnRequest(
         messages=({"role": "user", "content": "hello"},),
         sampling=PolicySampling(max_tokens=2, temperature=0.7, top_p=0.9),
