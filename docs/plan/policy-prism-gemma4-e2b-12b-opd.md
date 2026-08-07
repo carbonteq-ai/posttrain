@@ -54,6 +54,8 @@ The user-visible proof is a reconciled PostTrain training run with 384 admitted 
   Evidence: `policy-prism-e2b-opd-12b-r16-v1-r2` rejected `models/gemma4-e2b-it@bf16` while checking for `gemma4-e2b-it`, before model loading. The guard now qualifies the immutable hub model identity and family instead; 45 focused API/sparse-loss tests pass, including the canonical catalog-ID regression.
 - Observation: the corrected replacement passed tracking and request validation but the pinned TRL runtime rejected two scheduler keys duplicated through `vllm_engine_kwargs` before either model loaded.
   Evidence: `policy-prism-e2b-opd-12b-r16-v1-r3` failed in `VLLMGeneration._init_vllm` because TRL owns `max_num_batched_tokens` and `max_num_seqs`. PostTrain now validates but omits those two engine kwargs; TRL derives one sequence from the batch schedule and uses chunked prefill for long prompts. The focused training suite passes 51 tests and Ruff/diff checks are clean.
+- Observation: the first replacement to load both CUDA/vLLM and the E2B policy reached logical target zero, but vLLM accepted an immediate model stop before emitting any JSON token on both provider attempts for the primary and its only compatible reserve.
+  Evidence: `policy-prism-e2b-opd-12b-r16-v1-r4` recorded two rejected candidates with two provider attempts each and zero accepted targets. The exact first prompt renders correctly to 2,813 tokens and ends at `<|turn>model\n`; its strict root schema requires `resolution`, `rules`, and `completion`. The installed vLLM accepts the schema dictionary, but `SamplingParams.min_tokens` defaults to zero and removes an immediate stop token from returned token IDs. Structured policy turns now require at least one non-stop token while retaining the exact grammar for all subsequent tokens.
 
 ## Decision Log
 
@@ -86,6 +88,9 @@ The user-visible proof is a reconciled PostTrain training run with 384 admitted 
   Date/Author: 2026-08-07 / Codex.
 - Decision: bind the 96 GB execution target to fleet `local-gpu-workers` and enable a 24-hour provider-native no-capacity wait instead of pinning the hostname with zero wait.
   Rationale: the 96 GB minimum still excludes the fleet's 24 GB RTX 4090, while dstack can safely queue for the RTX PRO 6000 rather than fail before assignment when another team temporarily owns it.
+  Date/Author: 2026-08-07 / Codex.
+- Decision: set the effective vLLM `min_tokens` to at least one only when a structured-output contract is active, preserving any stricter configured minimum and restoring the original generation settings afterward.
+  Rationale: an empty completion can never satisfy `json_object` or strict `json_schema`; suppressing only the initial stop token prevents a false operational success without weakening, rewriting, or repairing the model's schema-constrained output.
   Date/Author: 2026-08-07 / Codex.
 
 ## Outcomes & Retrospective

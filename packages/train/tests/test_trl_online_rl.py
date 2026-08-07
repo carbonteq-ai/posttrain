@@ -224,11 +224,49 @@ def test_trl_policy_generator_applies_dynamic_limit_and_strict_schema(monkeypatc
                         "additionalProperties": False,
                     }
                 },
+                "min_tokens": 1,
             },
         )
     ]
     assert trainer.vllm_generation.max_completion_length == 99
     assert trainer.vllm_generation.generation_kwargs == {"seed": 7}
+
+
+def test_trl_policy_generator_preserves_larger_structured_output_minimum(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "posttrain.train.backends.trl.online_rl.create_renderer",
+        lambda *args: FakeRenderer(),
+    )
+    profile = replace(QWEN35_GRPO_SMOKE, max_prompt_length=8, max_completion_length=6)
+    trainer = DynamicFakeTrainer()
+    trainer.vllm_generation.generation_kwargs["min_tokens"] = 2
+    generator = TrlPolicyGenerator(trainer, object(), QWEN_35_2B, profile, _training())
+
+    asyncio.run(
+        generator.generate(
+            PolicyTurnRequest(
+                messages=({"role": "user", "content": "hello"},),
+                sampling=PolicySampling(max_tokens=6, temperature=0.7, top_p=0.9),
+                response_format={
+                    "type": "json_object",
+                },
+                max_prompt_tokens=2,
+                max_sequence_tokens=8,
+            )
+        )
+    )
+
+    assert trainer.observed == [
+        (
+            6,
+            {
+                "seed": 7,
+                "min_tokens": 2,
+                "structured_outputs": {"json_object": True},
+            },
+        )
+    ]
+    assert trainer.vllm_generation.generation_kwargs == {"seed": 7, "min_tokens": 2}
 
 
 def test_trl_policy_generator_drains_turns_queued_while_waiting_for_the_lock(monkeypatch) -> None:

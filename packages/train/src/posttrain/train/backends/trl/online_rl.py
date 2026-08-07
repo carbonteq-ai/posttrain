@@ -89,7 +89,10 @@ class TrlPolicyGenerator:
         )
         token_ids = tuple(int(value) for value in completion_ids)
         if not token_ids:
-            raise RuntimeError("the policy generator returned an empty completion")
+            raise RuntimeError(
+                "the policy generator returned no completion token ids; "
+                "an immediate model stop is not a valid policy turn"
+            )
         if len(token_ids) > effective_max_tokens:
             raise RuntimeError("the policy generator exceeded the effective completion-token limit")
         if prompt_tokens + len(token_ids) > sequence_limit:
@@ -321,6 +324,21 @@ def _generation_overrides(
             kwargs.pop("structured_outputs", None)
         else:
             kwargs["structured_outputs"] = structured_outputs
+            # vLLM permits a model EOS token before its structured-output
+            # matcher has consumed anything. Such a request is operationally
+            # successful but cannot satisfy a JSON response contract, and the
+            # engine returns no completion token ids after removing the stop
+            # token. Require one non-stop token so the grammar can enter its
+            # first state; subsequent tokens remain constrained by the exact
+            # JSON schema.
+            configured_minimum = kwargs.get("min_tokens", 0)
+            if (
+                not isinstance(configured_minimum, int)
+                or isinstance(configured_minimum, bool)
+                or configured_minimum < 0
+            ):
+                raise ValueError("vLLM min_tokens must be a non-negative integer")
+            kwargs["min_tokens"] = max(1, configured_minimum)
         generation.generation_kwargs = kwargs
     if generation_config is not None:
         generation_config.max_new_tokens = max_tokens
