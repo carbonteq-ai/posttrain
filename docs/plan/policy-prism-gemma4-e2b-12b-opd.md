@@ -21,6 +21,9 @@ The user-visible proof is a reconciled PostTrain training run with 384 admitted 
 - [x] (2026-08-07) Run focused tests, Ruff, targeted Pyright, import-boundary checks, lock checks, and isolated job packaging/preflight; commit and push only `feat/gemma-policy-prism-opd-e2b-12b` through commit `8ce8872`.
 - [x] (2026-08-07) Diagnose nine pre-optimization admissions. Correct the verified TRL scheduler ownership defect, record the intervening generation hypotheses without claiming they worked, and use raw Trackio calls plus the earlier successful branch to identify the missing XGrammar wire-schema transformation as the actual r4-r9 cause.
 - [x] (2026-08-07) Stop the launch after the r9 failure, inspect raw Trackio call evidence across every live attempt, correct the earlier diagnosis, force-terminate only the orphaned r9 workspace, and verify all ten dstack attempts are terminal and the RTX PRO 6000 is healthy, reachable, idle, and has zero busy blocks.
+- [x] (2026-08-07) Restore the proven generation-only XGrammar schema projection from `f9bbb59`, remove the unproven active EOS/min-token/global-whitespace changes, preserve canonical Policy Prism validation, and pass the focused TRL suite (54 tests), Ruff, lock, and runtime-image static checks.
+- [x] (2026-08-07) Add Policy Prism recipe `@2`, neutral rollout binding `@3`, training binding `@2` with ledger/native-trace checkpoint sidecars, validate the 70-base/22-project catalog and composed production job, and verify all required credentials without displaying them.
+- [x] (2026-08-07) Align the feature branch and online-RL runtime closure to the deployed Trackio `0.31.5.post10` artifact protocol; no Trackio naming, UI, server, or generic artifact redesign is part of this launch.
 - [ ] Submit the corrected full 384-update GPU job, monitor it, preserve milestones 96/192/288/384, reconcile all required evidence, and diagnose/retry safely if necessary. Failed attempts remain operational evidence only; none reached optimizer step one.
 - [ ] Publish the final rank-16 LoRA adapter privately to `carbonteq/gemma-4-e2b-policy-prism-scope-opd-from-12b-lora-v1`, verify a fresh download, and record the immutable Hugging Face revision.
 - [ ] Register the exact adapter, run sealed scope then recovery evaluations sequentially, apply scientific gates, and reconcile them.
@@ -174,10 +177,16 @@ The exact r0-r9 dstack provider runs report only `FAILED` or `TERMINATED`. r9 pr
 - Decision: withdraw live-validation claims for the r4-r9 EOS and whitespace changes and do not launch from the present branch head.
   Rationale: raw native call evidence proves none of those changes reached token generation. They must be reverted or independently qualified after the known schema compiler defect is fixed; retaining them as if live-proven would confound the restart.
   Date/Author: 2026-08-07 / Codex.
+- Decision: restart from a minimal correction: strip only XGrammar-unsupported keywords from the temporary wire schema, retain Gemma's proven per-request `r" ?"` whitespace pattern, and remove the active `min_tokens`, manual EOS, repository generation-config, and engine-global whitespace selections.
+  Rationale: raw r4-r9 calls prove grammar compilation was the first failing boundary; this exactly reconciles with the earlier working OPD implementation without adding unrelated runtime behavior.
+  Date/Author: 2026-08-07 / Codex.
+- Decision: use uniquely prefixed run IDs (`opda01`, `opdsc01`, and `opdrc01`) rather than modify Trackio naming.
+  Rationale: the existing adapter and UI work; unique first-eight-character prefixes make the train and qualification runs distinguishable without framework or server changes.
+  Date/Author: 2026-08-07 / Codex.
 
 ## Outcomes & Retrospective
 
-The launch is intentionally stopped. Ten operational admissions were attempted; none reached optimizer step one. Raw native call evidence identifies the missing XGrammar wire-schema transformation as the r4-r9 root cause and invalidates the intervening EOS/whitespace diagnoses. All provider workspaces are terminal, the RTX PRO 6000 is released, and no training or evaluation success is claimed. Restart requires the six gates in the incident report and explicit user authorization.
+The failed r0-r9 evidence remains retained and none reached optimizer step one. The user has now explicitly authorized the corrected end-to-end restart. The minimal XGrammar correction and catalog revisions are implemented; packaging, live artifact qualification, the uniquely named full run, publication, and sealed qualification remain in progress.
 
 ## Context and Orientation
 

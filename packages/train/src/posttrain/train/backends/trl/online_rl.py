@@ -18,6 +18,17 @@ from ...profiles import GRPOSettings, OnPolicyDistillationSettings, SAMPOSetting
 from ...rendering import create_renderer
 
 _GEMMA_JSON_WHITESPACE_PATTERN = r" ?"
+_XGRAMMAR_UNSUPPORTED_JSON_SCHEMA_KEYS = frozenset(
+    {
+        "multipleOf",
+        "uniqueItems",
+        "contains",
+        "minContains",
+        "maxContains",
+        "patternProperties",
+        "propertyNames",
+    }
+)
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -36,14 +47,6 @@ class TrlPolicyGenerator:
         self._tokenizer = tokenizer
         self._renderer = create_renderer(tokenizer, model, training.renderer)
         self._model_family = model.family
-        eos_token_id = getattr(tokenizer, "eos_token_id", None)
-        if (
-            not isinstance(eos_token_id, int)
-            or isinstance(eos_token_id, bool)
-            or eos_token_id < 0
-        ):
-            raise ValueError("policy tokenizer must declare one non-negative EOS token id")
-        self._canonical_eos_token_id = eos_token_id
         self._max_prompt_length = settings.max_prompt_length
         self._max_completion_length = settings.max_completion_length
         self._lock = asyncio.Lock()
@@ -216,8 +219,6 @@ class TrlPolicyGenerator:
                             self._trainer,
                             max_tokens=max_tokens,
                             structured_outputs=structured_outputs,
-                            canonical_eos_token_id=self._canonical_eos_token_id,
-                            constrain_to_canonical_eos=self._model_family == "gemma4",
                         ):
                             completion_ids, logprobs = self._trainer._generate_single_turn(  # noqa: SLF001 - pinned adapter
                                 [list(item[0]) for item in group],
@@ -336,7 +337,9 @@ def _structured_outputs(
     schema = contract.get("schema")
     if not isinstance(schema, Mapping):
         raise ValueError("environment JSON Schema response_format has no schema")
-    structured_outputs: dict[str, object] = {"json": dict(schema)}
+    structured_outputs: dict[str, object] = {
+        "json": _xgrammar_json_schema(dict(schema))
+    }
     if model_family == "gemma4":
         # Gemma can otherwise spend its constrained prefix on unrestricted
         # whitespace/control-token sequences without ever entering the JSON
@@ -346,14 +349,31 @@ def _structured_outputs(
     return structured_outputs
 
 
+def _xgrammar_json_schema(value: object) -> object:
+    """Create the generation-only schema supported by XGrammar.
+
+    Policy environments retain and validate the canonical schema. Only the
+    temporary wire copy used for constrained generation loses keywords that
+    XGrammar 0.2.3 cannot compile.
+    """
+
+    if isinstance(value, list):
+        return [_xgrammar_json_schema(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    return {
+        key: _xgrammar_json_schema(item)
+        for key, item in value.items()
+        if key not in _XGRAMMAR_UNSUPPORTED_JSON_SCHEMA_KEYS
+    }
+
+
 @contextmanager
 def _generation_overrides(
     trainer: Any,
     *,
     max_tokens: int,
     structured_outputs: dict[str, object] | None,
-    canonical_eos_token_id: int,
-    constrain_to_canonical_eos: bool,
 ) -> Iterator[None]:
     generation = getattr(trainer, "vllm_generation", None)
     generation_config = getattr(trainer, "generation_config", None)
@@ -367,30 +387,6 @@ def _generation_overrides(
             kwargs.pop("structured_outputs", None)
         else:
             kwargs["structured_outputs"] = structured_outputs
-            # vLLM permits a model EOS token before its structured-output
-            # matcher has consumed anything. Such a request is operationally
-            # successful but cannot satisfy a JSON response contract, and the
-            # engine returns no completion token ids after removing the stop
-            # token. Require one non-stop token so the grammar can enter its
-            # first state; subsequent tokens remain constrained by the exact
-            # JSON schema.
-            configured_minimum = kwargs.get("min_tokens", 0)
-            if (
-                not isinstance(configured_minimum, int)
-                or isinstance(configured_minimum, bool)
-                or configured_minimum < 0
-            ):
-                raise ValueError("vLLM min_tokens must be a non-negative integer")
-            kwargs["min_tokens"] = max(1, configured_minimum)
-            if constrain_to_canonical_eos:
-                # vLLM's neutral generation-config mode still imports special
-                # EOS IDs from the model repository. Gemma declares turn/tool
-                # delimiters there, while XGrammar recognizes only the
-                # tokenizer's canonical EOS. Prevent those alternate IDs from
-                # terminating an incomplete schema, but retain canonical EOS
-                # as an explicit stop that the grammar can mask until valid.
-                kwargs["ignore_eos"] = True
-                kwargs["stop_token_ids"] = [canonical_eos_token_id]
         generation.generation_kwargs = kwargs
     if generation_config is not None:
         generation_config.max_new_tokens = max_tokens

@@ -239,7 +239,6 @@ def test_trl_policy_generator_applies_dynamic_limit_and_strict_schema(monkeypatc
                         "additionalProperties": False,
                     }
                 },
-                "min_tokens": 1,
             },
         )
     ]
@@ -261,6 +260,18 @@ def test_trl_policy_generator_bounds_gemma_json_whitespace(monkeypatch) -> None:
         profile,
         replace(_training(), renderer=GEMMA4_RENDERER),
     )
+    canonical_schema = {
+        "type": "object",
+        "properties": {
+            "rules": {
+                "type": "array",
+                "items": {"type": "string"},
+                "uniqueItems": True,
+            }
+        },
+        "required": ["rules"],
+        "additionalProperties": False,
+    }
 
     asyncio.run(
         generator.generate(
@@ -272,12 +283,7 @@ def test_trl_policy_generator_bounds_gemma_json_whitespace(monkeypatch) -> None:
                     "json_schema": {
                         "name": "answer",
                         "strict": True,
-                        "schema": {
-                            "type": "object",
-                            "properties": {},
-                            "required": [],
-                            "additionalProperties": False,
-                        },
+                        "schema": canonical_schema,
                     },
                 },
                 max_prompt_tokens=2,
@@ -294,18 +300,21 @@ def test_trl_policy_generator_bounds_gemma_json_whitespace(monkeypatch) -> None:
                 "structured_outputs": {
                     "json": {
                         "type": "object",
-                        "properties": {},
-                        "required": [],
+                        "properties": {
+                            "rules": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            }
+                        },
+                        "required": ["rules"],
                         "additionalProperties": False,
                     },
                     "whitespace_pattern": r" ?",
                 },
-                "min_tokens": 1,
-                "ignore_eos": True,
-                "stop_token_ids": [1],
             },
         )
     ]
+    assert canonical_schema["properties"]["rules"]["uniqueItems"] is True
 
 
 def test_trl_policy_generator_preserves_larger_structured_output_minimum(monkeypatch) -> None:
