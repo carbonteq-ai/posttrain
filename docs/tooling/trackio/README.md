@@ -6,7 +6,7 @@ an additive fork of upstream Trackio. Workspace packages keep the normal
 internal-index release `carbonteq-trackio==0.31.5.post10`, built from commit
 `f717ef438df88bc9cca20ea7e28752f618a8af49`. Its wheel SHA-256 is
 `df549d81a9ee087e213c7d02735997707abf06b2992e8e09de57f2c840a7611d`.
-The deployed shared and candidate services still report post8. `0.31.5.post4` on
+The deployed shared and candidate services now report post10. `0.31.5.post4` on
 `pypi.lan` is permanently skewed (metadata post4, import post3) and must not be
 installed. The five kind images affected by the workspace lock were rebuilt
 and published after this change.
@@ -16,8 +16,10 @@ artifact backend. With the S3 backend, Trackio issues short-lived multipart
 URLs and the producing client writes parts directly to the configured bucket;
 Trackio completes and verifies the object by SHA-256 before accepting the
 artifact manifest. The endpoint must be reachable by producing clients, and
-storage credentials remain server-only. Canary deployment and migration of the
-existing local CAS remain release gates.
+storage credentials remain server-only. The canary and migration gates passed
+on 2026-08-07; the shared service now uses the
+`trackio-artifacts/production` prefix. The original local CAS remains retained
+for rollback, and its deletion is a separate operator-approved retention gate.
 
 Post8 exposes authenticated digest-bound run and project purge. Exact provider
 run ids preview with consumer-aware blockers, and apply accepts only the

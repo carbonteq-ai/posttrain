@@ -63,8 +63,14 @@ report source/target counts and digests before local deletion is permitted.
   acknowledgement, candidate restart/resume, server-side SHA-256 verification,
   presigned download, SDK artifact-manifest commit in Doris, and receipt-bound
   project purge. Temporary canary objects were removed afterward.
-- [ ] Migrate existing projects, verify artifact downloads and purge behavior,
-  then remove local final blobs only after an explicit retention decision.
+- [x] (2026-08-07) Migrated and verified the existing local CAS into the
+  production S3 prefix: 275 objects and 5,428,407,070 bytes copied/verified
+  with zero failures and zero local deletions. The machine-readable receipt is
+  `/srv/ai-control/trackio/hf/trackio/migration-post10-verified.json`.
+- [x] (2026-08-07) Switched the shared Trackio service to the production S3
+  prefix and verified an existing production artifact through a presigned
+  download, byte-for-byte. The local CAS remains intact as the rollback source;
+  deleting it is a separate retention decision.
 - [x] (2026-08-07) Commit and publish the Trackio fork, update the exact
   consumer pin and deployment source, and record live qualification evidence.
 
@@ -134,21 +140,16 @@ report source/target counts and digests before local deletion is permitted.
 
 ## Outcomes & Retrospective
 
-Milestones 1 through 5 are implemented, including the canary deployment and
-live qualification, while production remains on local storage. The discovery
-phase established the current behavior and the required ownership boundary;
-the implementation now keeps that boundary while moving large bytes off the
-Trackio control plane. At the migration milestone record test counts, the RustFS
-bucket/prefix used (never credentials), migration counts/bytes, and any
-remaining local storage. At completion compare the result with the purpose:
-provider-neutral Trackio API, verified RustFS bytes, safe migration, and safe
-garbage collection.
-
-The production cutover remains intentionally incomplete: the shared Trackio
-service has not been switched, no existing artifact has been copied or deleted,
-and the current 5.1 GB local CAS remains the rollback source. The canary used
+Milestones 1 through 5 are implemented, including the canary deployment,
+live qualification, migration, and production cutover. The implementation
+keeps the provider-neutral API and moves artifact bytes off the Trackio
+control plane while retaining a rollback copy. The production migration
+receipt records 275 objects, 5,428,407,070 source bytes, 275 verified objects,
+and zero failures or deletions. The shared service uses
+`trackio-artifacts/production`; the canary used
 `trackio-artifacts-canary/post10-canary-20260807` and left no retained test
-objects after qualification.
+objects after qualification. The local CAS is still approximately 5.1 GB and
+must not be deleted until the operator chooses and records a retention window.
 
 ## Context and Orientation
 
@@ -354,3 +355,9 @@ of the current 5.1 GB local artifact store until verified migration.
 backend and direct producer uploads. The plan now makes presigned multipart
 transfer the primary path, keeps proxy upload for compatibility, and requires
 post-upload server-side SHA-256 verification before metadata commit.
+
+2026-08-07: Completed the post10 canary, copied and verified the production
+local CAS (275 objects / 5,428,407,070 bytes), switched the shared service to
+`trackio-artifacts/production`, and verified an existing artifact through a
+presigned download. Local blob deletion remains intentionally outside this
+execution and requires an explicit retention/rollback decision.

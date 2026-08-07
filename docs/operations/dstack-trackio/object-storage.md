@@ -1,7 +1,8 @@
 # Trackio artifact registry and backing storage
 
-Status: simplest first path selected; implementation alignment and large-model
-qualification remain pending.
+Status: generic S3-compatible backend qualified and enabled for production;
+local CAS retained as the rollback source pending an explicit retention
+decision.
 
 ## Decision
 
@@ -129,9 +130,11 @@ GPU jobs receive only Trackio connectivity for artifact publication:
 - `TRACKIO_WRITE_TOKEN`, injected as a dstack secret or a local mode-`0600`
   environment file.
 
-The Trackio server alone receives backing-store configuration. The current
-deployment defaults to its durable server volume. When an S3-compatible backend
-is selected, Trackio authorizes a short-lived multipart upload and returns
+The Trackio server alone receives backing-store configuration. The production
+deployment uses the verified `trackio-artifacts/production` prefix on the
+configured S3-compatible endpoint. The local CAS remains mounted and intact
+for rollback until the retention window is approved. When an S3-compatible
+backend is selected, Trackio authorizes a short-lived multipart upload and returns
 presigned part URLs to the producing Trackio client. The client sends artifact
 bytes directly to the configured bucket; Trackio receives only part ETags,
 completes the provider upload, and verifies the completed object by streaming
@@ -170,11 +173,11 @@ tracking contract. This is not a mismatch: it keeps train, eval, serve, and work
 contracts independent of Trackio while the Trackio adapter retains exact
 version and lineage behavior.
 
-The current implementation candidate adds two missing pieces:
+The released implementation adds two missing pieces:
 
 - `WorkPackageJobResult.published_artifacts` exposes provider-committed exact
   versions instead of returning only temporary local output paths; and
-- CarbonTeq Trackio `0.31.5.post2` adds resumable artifact-blob transport
+- CarbonTeq Trackio `0.31.5.post10` adds resumable artifact-blob transport
   behind the existing `log_artifact` API.
 
 The artifact transport:
@@ -188,9 +191,10 @@ The artifact transport:
 7. commit the artifact version only after every manifest blob is durable.
 
 This remains a Trackio API. Workers do not receive direct bucket credentials.
-The candidate has passed a separate-process 512 MiB round trip with 8 MiB
-chunks and approximately 15 MiB server RSS growth. Publication, deployment,
-and remote qualification remain pending.
+Post10 passed the live RustFS canary with direct multipart upload, restart/resume,
+server-side SHA-256 verification, presigned download, SDK manifest commit, and
+purge. The shared service is now on the verified production S3 prefix; the
+local CAS is retained only for rollback until its retention window is approved.
 
 ## Finalization and cleanup
 
