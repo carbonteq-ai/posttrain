@@ -379,6 +379,13 @@ def register(app: typer.Typer) -> None:
                 help="use this durable run identity and idempotency namespace",
             ),
         ] = None,
+        resume_from_run_id: Annotated[
+            str | None,
+            typer.Option(
+                "--resume-from-run",
+                help="materialize the source run's training checkpoint and resume it under this new run identity",
+            ),
+        ] = None,
         host: Annotated[
             str | None,
             typer.Option(
@@ -459,6 +466,7 @@ def register(app: typer.Typer) -> None:
             ),
             registry_prefix=registry,
             run_id=run_id,
+            resume_from_run_id=resume_from_run_id,
             project_packages=(tuple(project_packages) if project_packages is not None else None),
             source_includes=(tuple(source_includes) if source_includes is not None else None),
             build_missing=build_missing,

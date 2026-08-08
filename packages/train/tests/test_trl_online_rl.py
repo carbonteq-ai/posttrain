@@ -85,6 +85,16 @@ def test_trl_checkpoint_steps_zero_disables_recovery_saves(tmp_path: Path) -> No
     assert "save_steps" not in arguments
 
 
+def test_trl_constant_with_warmup_scheduler_is_forwarded(tmp_path: Path) -> None:
+    arguments = trainer_arguments(
+        TrainingLoop(max_steps=20, warmup_ratio=0.5, lr_scheduler_type="constant_with_warmup"),
+        tmp_path,
+    )
+
+    assert arguments["warmup_steps"] == 10
+    assert arguments["lr_scheduler_type"] == "constant_with_warmup"
+
+
 def test_trl_policy_generator_reuses_loaded_trainer_and_preserves_exact_tokens(monkeypatch) -> None:
     monkeypatch.setattr("posttrain.train.backends.trl.online_rl.create_renderer", lambda *args: FakeRenderer())
     profile = replace(QWEN35_GRPO_SMOKE, max_completion_length=2)

@@ -528,6 +528,7 @@ def _seat_attributes(
         )
     if isinstance(request, GRPORequest):
         attributes["online_rl_algorithm"] = request.settings.algorithm
+        attributes["advantage_scaling"] = request.settings.advantage_scaling
         attributes["clip_epsilon_low"] = request.settings.clip_epsilon_low
         attributes["clip_epsilon_high"] = request.settings.resolved_clip_epsilon_high
         attributes["mask_truncated_completions"] = request.settings.mask_truncated_completions

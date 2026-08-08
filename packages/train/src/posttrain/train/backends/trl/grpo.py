@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import math
+import os
 import time
 from collections.abc import Mapping
+from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Any, cast
 
@@ -26,6 +28,7 @@ from .common import (
     framework_imports,
     load_tokenizer,
     load_trainable_model,
+    preserve_recovery_checkpoint_after_error,
     trainer_arguments,
     trainer_lifecycle,
     vllm_rollout_options,
@@ -37,6 +40,127 @@ _TRACE_REPLAY_METRICS = frozenset(
         "train/rl/group_zero_variance_fraction",
     }
 )
+
+
+class _ActorUpdateTelemetry:
+    """Own one bounded actor-update phase between rollout and optimizer step."""
+
+    def __init__(self, context: RunContext) -> None:
+        self._context = context
+        self._phase: AbstractContextManager[str] | None = None
+        self._started_at: float | None = None
+        self._optimizer_step: int | None = None
+        self._completed_durations: dict[int, float] = {}
+        self._last_token_count = 0.0
+
+    @property
+    def active(self) -> bool:
+        return self._phase is not None
+
+    def start(self, optimizer_step: int) -> None:
+        if optimizer_step <= 0:
+            raise ValueError("actor optimizer step must be positive")
+        if self._phase is not None:
+            raise RuntimeError(
+                f"actor update for step {self._optimizer_step} is still active; cannot start step {optimizer_step}"
+            )
+        phase = self._context.phase(
+            "actor_update",
+            {"backend": "trl", "logical_step": optimizer_step},
+        )
+        phase.__enter__()
+        self._phase = phase
+        self._started_at = time.perf_counter()
+        self._optimizer_step = optimizer_step
+
+    def complete(self, optimizer_step: int) -> None:
+        if self._phase is None:
+            return
+        if optimizer_step != self._optimizer_step:
+            raise RuntimeError(f"actor update for step {self._optimizer_step} cannot complete at step {optimizer_step}")
+        phase, started_at = self._reset()
+        phase.__exit__(None, None, None)
+        if started_at is not None:
+            duration = time.perf_counter() - started_at
+            self._completed_durations[optimizer_step] = duration
+            self._context.metric(
+                "train/rl/time/actor_update_seconds",
+                duration,
+                step=optimizer_step,
+            )
+
+    def record_tokens(self, optimizer_step: int, cumulative_tokens: float) -> None:
+        """Emit actor throughput once TRL publishes the step's cumulative token count."""
+
+        completed_steps = [step for step in self._completed_durations if step <= optimizer_step]
+        if not completed_steps:
+            return
+        duration = sum(self._completed_durations.pop(step) for step in completed_steps)
+        token_delta = cumulative_tokens - self._last_token_count
+        self._last_token_count = cumulative_tokens
+        if duration <= 0 or token_delta < 0:
+            return
+        self._context.metrics(
+            {
+                "train/rl/actor_processed_tokens": token_delta,
+                "train/rl/actor_tokens_per_second": token_delta / duration,
+            },
+            step=optimizer_step,
+        )
+
+    def fail(self, error: BaseException) -> None:
+        if self._phase is None:
+            return
+        phase, _started_at = self._reset()
+        phase.__exit__(type(error), error, error.__traceback__)
+
+    def _reset(self) -> tuple[AbstractContextManager[str], float | None]:
+        phase = self._phase
+        if phase is None:
+            raise RuntimeError("actor update telemetry is not active")
+        started_at = self._started_at
+        self._phase = None
+        self._started_at = None
+        self._optimizer_step = None
+        return phase, started_at
+
+
+def _configure_torch_compile(engine: Mapping[str, object]) -> None:
+    """Apply compile policy before importing torch or constructing vLLM."""
+
+    value = engine.get("disable_torch_compile")
+    if value is not None and not isinstance(value, bool):
+        raise ValueError("TRL rollout disable_torch_compile must be a boolean")
+    if value:
+        # torch._dynamo reads this flag at import; setting it after importing
+        # torch is too late for compile-decorated MTP helper modules.
+        os.environ["TORCH_COMPILE_DISABLE"] = "1"
+
+
+def _actor_update_callback_type(imports: Mapping[str, Any], telemetry: _ActorUpdateTelemetry) -> type[Any]:
+    parent = imports["TrainerCallback"]
+
+    class ActorUpdateCallback(parent):
+        def on_step_end(self, args: Any, state: Any, control: Any, **_: Any) -> Any:
+            del args
+            telemetry.complete(int(state.global_step))
+            return control
+
+        def on_log(
+            self,
+            args: Any,
+            state: Any,
+            control: Any,
+            logs: Mapping[str, object] | None = None,
+            **_: Any,
+        ) -> Any:
+            del args
+            token_count = (logs or {}).get("num_tokens")
+            if isinstance(token_count, int | float) and not isinstance(token_count, bool):
+                telemetry.record_tokens(int(state.global_step), float(token_count))
+            return control
+
+    return ActorUpdateCallback
 
 
 def run_grpo(
@@ -60,6 +184,7 @@ def _run_online_rl(
     request: GRPORequest | SAMPORequest,
     output_dir: Path,
 ) -> BackendTrainingResult:
+    _configure_torch_compile(request.inference.engine)
     if request.inference.backend.split("@", 1)[0] == "vllm":
         try:
             import torch
@@ -110,6 +235,7 @@ def _run_online_rl(
     )
     technique = request.settings.algorithm if isinstance(request, GRPORequest) else "sampo"
     context.event("grpo_runtime_resolved", _online_rl_runtime_attributes(request))
+    actor_update = _ActorUpdateTelemetry(context)
 
     def normalize_metrics(step: int, native: Mapping[str, object]) -> Mapping[str, float]:
         metrics = dict(
@@ -132,34 +258,53 @@ def _run_online_rl(
         trainer = GRPOTrainer(
             model=model,
             reward_funcs=cast(Any, _bridge_reward),
-            rollout_func=cast(Any, _rollout_function(context, request, tokenizer)),
+            rollout_func=cast(Any, _rollout_function(context, request, tokenizer, actor_update)),
             args=GRPOConfig(**arguments),
             train_dataset=dataset,
             processing_class=tokenizer,
-            callbacks=[callback_type(context, imports, metric_normalizer=normalize_metrics)()],
+            callbacks=[
+                callback_type(context, imports, metric_normalizer=normalize_metrics)(),
+                _actor_update_callback_type(imports, actor_update)(),
+            ],
         )
         _configure_liger_loss(trainer, request)
     resume = str(request.resume_from.path) if request.resume_from is not None else None
     with trainer_lifecycle(trainer):
-        with context.phase("actor_update", {"backend": "trl"}):
+        try:
             train_output = trainer.train(resume_from_checkpoint=resume)
-        with context.phase("artifact_export", {"backend": "trl"}):
-            return finish_training(
+            if actor_update.active:
+                raise RuntimeError("TRL training completed before the active actor update reached an optimizer step")
+            with context.phase("artifact_export", {"backend": "trl"}):
+                return finish_training(
+                    context,
+                    trainer,
+                    train_output,
+                    tokenizer,
+                    output_dir.parent,
+                    technique,
+                    request.training.update,
+                    imports,
+                )
+        except BaseException as error:
+            actor_update.fail(error)
+            preserve_recovery_checkpoint_after_error(
                 context,
                 trainer,
-                train_output,
-                tokenizer,
-                output_dir.parent,
-                technique,
-                request.training.update,
-                imports,
+                error,
+                technique=technique,
+                model=request.policy,
+                settings=request.settings,
+                update=request.training.update,
+                imports=imports,
             )
+            raise
 
 
 def _rollout_function(
     context: RunContext,
     request: GRPORequest | SAMPORequest,
     tokenizer: Any,
+    actor_update: _ActorUpdateTelemetry | None = None,
 ) -> Any:
     """Translate TRL generation batches into the public environment-rollout bridge contract."""
 
@@ -254,6 +399,8 @@ def _rollout_function(
                 },
                 step=step,
             )
+        if actor_update is not None:
+            actor_update.start(step + 1)
         return result
 
     return run_rollouts
@@ -275,6 +422,7 @@ def _online_rl_arguments(
     settings = request.settings
     if isinstance(settings, SAMPOSettings):
         is_sampo = True
+        advantage_scaling = "group"
         loss_type = "grpo"
         epsilon_high = settings.clip_epsilon_high
         importance_sampling_mode = "sequence_truncate"
@@ -282,6 +430,7 @@ def _online_rl_arguments(
         importance_sampling_clip_max = 3.0
     else:
         is_sampo = False
+        advantage_scaling = settings.advantage_scaling
         loss_type = settings.algorithm
         epsilon_high = settings.resolved_clip_epsilon_high
         importance_sampling_mode = settings.importance_sampling_mode
@@ -312,7 +461,7 @@ def _online_rl_arguments(
             "loss_type": loss_type,
             "epsilon": request.settings.clip_epsilon_low,
             "epsilon_high": epsilon_high,
-            "scale_rewards": "group",
+            "scale_rewards": advantage_scaling,
             "dynamic_sampling": (request.settings.dynamic_sampling is not None if not is_sampo else True),
             "dynamic_sampling_max_batches": (
                 request.settings.dynamic_sampling.max_candidate_batches
@@ -402,6 +551,7 @@ def _online_rl_runtime_attributes(request: GRPORequest | SAMPORequest) -> dict[s
         "liger_loss_compiled": request.training.backend_options.get("liger_loss_compiled", True),
         "logits_chunk_size": request.training.backend_options.get("logits_chunk_size"),
         "online_rl_algorithm": request.settings.algorithm if isinstance(request, GRPORequest) else "sampo",
+        "advantage_scaling": (request.settings.advantage_scaling if isinstance(request, GRPORequest) else "group"),
         "clip_epsilon_low": request.settings.clip_epsilon_low,
         "clip_epsilon_high": (
             request.settings.resolved_clip_epsilon_high

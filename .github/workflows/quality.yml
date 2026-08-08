@@ -10,9 +10,9 @@ permissions:
   contents: read
 
 env:
-  CARBONTEQ_TRACKIO_WHEEL_URL: https://github.com/carbonteq-ai/trackio/releases/download/carbonteq-v0.31.5.post8/carbonteq_trackio-0.31.5.post8-py3-none-any.whl
-  CARBONTEQ_TRACKIO_WHEEL_SHA256: 9b5ce6df75a6daa40478d3d2d48f4ae8e2c6b8b507d0ca57556786d217fe8d62
-  POSTTRAIN_CONSUMER_EXTRA_WHEELS: /tmp/carbonteq_trackio-0.31.5.post8-py3-none-any.whl
+  CARBONTEQ_TRACKIO_WHEEL_URL: https://github.com/carbonteq-ai/trackio/releases/download/carbonteq-v0.31.5.post10/carbonteq_trackio-0.31.5.post10-py3-none-any.whl
+  CARBONTEQ_TRACKIO_WHEEL_SHA256: df549d81a9ee087e213c7d02735997707abf06b2992e8e09de57f2c840a7611d
+  POSTTRAIN_CONSUMER_EXTRA_WHEELS: /tmp/carbonteq_trackio-0.31.5.post10-py3-none-any.whl
 
 jobs:
   quality:

@@ -58,7 +58,7 @@ version = "0.0.0"
 dependencies = ["posttrain-common"]
 
 [project.optional-dependencies]
-trl = ["trl @ git+https://github.com/carbonteq-ai/trl.git@6e7739b8ec741d21ecd79c0c212694cd15ff20d8"]
+trl = ["trl @ git+https://github.com/carbonteq-ai/trl.git@91b0ce707631d503fbed337b42444a9d3fac3acb"]
 
 [build-system]
 requires = ["hatchling"]
@@ -93,7 +93,7 @@ dependencies = [
 
 [locks."trl-fork@current"]
 source = "uv.lock"
-source_revision = "6e7739b8ec741d21ecd79c0c212694cd15ff20d8"
+source_revision = "91b0ce707631d503fbed337b42444a9d3fac3acb"
 dependency_lock_sha256 = "{digest}"
 """,
         encoding="utf-8",

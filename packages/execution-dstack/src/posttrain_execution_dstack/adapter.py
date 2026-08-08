@@ -27,6 +27,10 @@ from posttrain.execution import (
 )
 
 TRUST_BUNDLE_CONTAINER_PATH = Path("/opt/posttrain/trust/ca-certificates.crt")
+# Online-RL environments and vLLM open many short-lived sockets/files while a
+# large rollout population is in flight. Keep this as a provider-side launch
+# guard rather than relying on the worker image's inherited shell limit.
+POSTTRAIN_NOFILE_LIMIT = 65536
 # The job image merges this with the authorities it already trusts. Setting
 # SSL_CERT_FILE here instead would replace that set rather than extend it,
 # leaving an internally-trusting job unable to verify anything public.
@@ -217,10 +221,12 @@ class DstackExecutionProvider:
         launch_environment = request.launch_environment(provider="dstack")
         if self._trust_bundle is not None:
             launch_environment.update({_EXTRA_TRUST_VARIABLE: str(TRUST_BUNDLE_CONTAINER_PATH)})
+        command = shlex.join(request.command)
+        command = f"ulimit -n {POSTTRAIN_NOFILE_LIMIT} 2>/dev/null || true; exec {command}"
         configuration: dict[str, Any] = {
             "name": _run_name(request.idempotency_key),
             "image": request.image.value,
-            "commands": [shlex.join(request.command)],
+            "commands": [command],
             "working_dir": "/opt/posttrain/job",
             "env": list(request.environment_names),
             "_posttrain_launch_env": launch_environment,

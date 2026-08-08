@@ -408,6 +408,56 @@ async def test_trace_population_uses_the_job_telemetry_trace_type() -> None:
 
 
 @pytest.mark.asyncio
+async def test_trace_summary_page_is_provider_bounded_and_cursor_driven() -> None:
+    source = FixtureRunDataSource()
+    service = ObservatoryService({"fixture": source})
+    locator = RunLocator(source_id="fixture", run_id="runs/eval-violet-river")
+
+    first = await service.get_trace_summary_page(locator, limit=3)
+    second = await service.get_trace_summary_page(locator, cursor=first.next_cursor, limit=3)
+
+    assert first.total == 12
+    assert len(first.items) == 3
+    assert first.next_cursor == "3"
+    assert len(second.items) == 3
+    assert second.next_cursor == "6"
+    assert {item.external_id for item in first.items}.isdisjoint(item.external_id for item in second.items)
+
+
+@pytest.mark.asyncio
+async def test_trace_evaluation_can_omit_trace_rows_without_losing_aggregates() -> None:
+    service = ObservatoryService({"fixture": FixtureRunDataSource()})
+    locator = RunLocator(source_id="fixture", run_id="runs/eval-violet-river")
+
+    evaluation = await service.get_trace_evaluation_view(locator, include_traces=False)
+
+    assert evaluation.included == 12
+    assert evaluation.scored == 12
+    assert evaluation.mean_reward is not None
+    assert evaluation.traces == ()
+
+
+@pytest.mark.asyncio
+async def test_trace_page_reuses_run_metadata_loaded_for_overview() -> None:
+    class CountingSource(FixtureRunDataSource):
+        get_run_calls = 0
+
+        async def get_run(self, run_id: str):
+            self.get_run_calls += 1
+            return await super().get_run(run_id)
+
+    source = CountingSource()
+    service = ObservatoryService({"fixture": source})
+    locator = RunLocator(source_id="fixture", run_id="runs/grpo-silver-pine")
+
+    await service.get_run_view_response(locator)
+    page = await service.get_trace_summary_page(locator, limit=2)
+
+    assert len(page.items) == 2
+    assert source.get_run_calls == 1
+
+
+@pytest.mark.asyncio
 async def test_eval_population_is_trace_derived_and_drillable(service: ObservatoryService) -> None:
     locator = RunLocator(source_id="fixture", run_id="runs/eval-violet-river")
     response = await service.get_run_view_response(locator)
@@ -1077,3 +1127,10 @@ async def test_nested_runtime_phases_do_not_double_count_host_samples(
     assert (
         sum(phase.sample_count for phase in system.phase_summary if phase.phase != "operation") == system.sample_count
     )
+    assert system.backend_runtime is not None
+    assert system.backend_runtime.rollout_samples == 6
+    assert system.backend_runtime.rollout_tokens_per_second_latest == 171
+    assert system.backend_runtime.rollout_tokens_per_second_mean == pytest.approx(157.1666666667)
+    assert system.backend_runtime.rollout_seconds_latest == 14
+    assert system.backend_runtime.rollouts_per_prompt == 4
+    assert system.backend_runtime.mtp_selected is False

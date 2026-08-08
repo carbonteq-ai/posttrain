@@ -97,7 +97,7 @@ def _source(*, include_loss: bool = True) -> FakeRunDataSource:
 
 
 @pytest.mark.asyncio
-async def test_metric_series_uses_replay_source_steps_and_collapses_equivalent_duplicates() -> None:
+async def test_metric_series_uses_replay_source_steps_and_preserves_distinct_waves() -> None:
     run_id = "runs/replayed"
     details = {
         run_id: RunDetail(
@@ -135,7 +135,74 @@ async def test_metric_series_uses_replay_source_steps_and_collapses_equivalent_d
 
     assert [point.step for point in result.series[0].points] == [0, 1]
     assert [point.value for point in result.series[0].points] == [0.1, 0.3]
-    assert [point.value for point in result.series[1].points] == [10.0]
+    assert [point.value for point in result.series[1].points] == [10.0, 10.01]
+
+
+@pytest.mark.asyncio
+async def test_metric_series_keeps_native_steps_outside_partial_replay() -> None:
+    run_id = "runs/partial-replay"
+    details = {
+        run_id: RunDetail(
+            summary=_summary(run_id, "train.grpo"),
+            metric_names=("train/rl/reward_std",),
+        )
+    }
+    series = {
+        "train/rl/reward_std": MetricSeries(
+            name="train/rl/reward_std",
+            points=(
+                MetricPoint(value=0.2, step=1),
+                MetricPoint(value=0.3, step=2),
+                MetricPoint(
+                    value=0.4,
+                    step=99,
+                    attributes={"observation_source": "verifiers", "source_step": 3},
+                ),
+            ),
+        )
+    }
+
+    result = await ObservatoryService(FakeRunDataSource(details, {run_id: series})).get_metric_series(
+        run_id,
+        MetricSeriesQuery(names=("train/rl/reward_std",)),
+    )
+
+    assert [point.step for point in result.series[0].points] == [1, 2, 3]
+    assert [point.value for point in result.series[0].points] == [0.2, 0.3, 0.4]
+
+
+@pytest.mark.asyncio
+async def test_metric_series_orders_native_provider_history_by_logical_step() -> None:
+    run_id = "runs/out-of-order"
+    details = {
+        run_id: RunDetail(
+            summary=_summary(run_id),
+            metric_names=("train/loss",),
+        )
+    }
+    series = {
+        "train/loss": MetricSeries(
+            name="train/loss",
+            points=(
+                MetricPoint(value=2.4, step=13),
+                MetricPoint(value=1.8, step=2),
+                MetricPoint(value=1.3, step=14),
+                MetricPoint(value=4.1, step=0),
+            ),
+        )
+    }
+
+    service = ObservatoryService(FakeRunDataSource(details, {run_id: series}))
+    result = await service.get_metric_series(
+        run_id,
+        MetricSeriesQuery(names=("train/loss",)),
+    )
+
+    assert [point.step for point in result.series[0].points] == [0, 2, 13, 14]
+    assert result.series[0].points[-1].value == 1.3
+    view = await service.get_run_view(run_id)
+    latest_loss = next(item for item in view.summary if item.metric == "train/loss")
+    assert latest_loss.value == 1.3
 
 
 def test_telemetry_models_reject_surface_specific_drift() -> None:

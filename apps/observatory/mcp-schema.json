@@ -266,7 +266,7 @@
       }
     },
     {
-      "description": "Return bounded Verifiers population aggregates and trace tips.",
+      "description": "Return bounded Verifiers population aggregates without trace rows.",
       "inputSchema": {
         "properties": {
           "run_id": {
@@ -289,6 +289,50 @@
       "outputSchema": {
         "additionalProperties": true,
         "title": "get_trace_evaluation_viewDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Return one bounded page of trace summaries for investigation.",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cursor"
+          },
+          "limit": {
+            "default": 100,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "run_id"
+        ],
+        "title": "get_trace_summary_pageArguments",
+        "type": "object"
+      },
+      "name": "get_trace_summary_page",
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "get_trace_summary_pageDictOutput",
         "type": "object"
       }
     },

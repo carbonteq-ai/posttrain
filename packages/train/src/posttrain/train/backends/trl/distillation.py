@@ -28,6 +28,7 @@ from .common import (
     framework_imports,
     load_tokenizer,
     load_trainable_model,
+    preserve_recovery_checkpoint_after_error,
     trainer_arguments,
     trainer_lifecycle,
     vllm_rollout_options,
@@ -127,19 +128,32 @@ def run_distillation(
             raise RuntimeError("TRL did not initialize the colocated teacher model")
         resume = str(request.resume_from.path) if request.resume_from is not None else None
         with trainer_lifecycle(trainer):
-            with context.phase("actor_update", {"backend": "trl"}):
-                train_output = trainer.train(resume_from_checkpoint=resume)
-            with context.phase("artifact_export", {"backend": "trl"}):
-                return finish_training(
+            try:
+                with context.phase("actor_update", {"backend": "trl"}):
+                    train_output = trainer.train(resume_from_checkpoint=resume)
+                with context.phase("artifact_export", {"backend": "trl"}):
+                    return finish_training(
+                        context,
+                        trainer,
+                        train_output,
+                        tokenizer,
+                        output_dir.parent,
+                        "distill",
+                        request.training.update,
+                        imports,
+                    )
+            except BaseException as error:
+                preserve_recovery_checkpoint_after_error(
                     context,
                     trainer,
-                    train_output,
-                    tokenizer,
-                    output_dir.parent,
-                    "distill",
-                    request.training.update,
-                    imports,
+                    error,
+                    technique="distill",
+                    model=request.student,
+                    settings=request.settings,
+                    update=request.training.update,
+                    imports=imports,
                 )
+                raise
 
 
 @contextmanager

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 from posttrain.train.backends import retention
-from posttrain.train.backends.retention import finalize_training_outputs
+from posttrain.train.backends.retention import finalize_training_outputs, validate_adapter_only_directory
 
 
 def _checkpoint(root: Path, step: int, payload: bytes) -> Path:
@@ -25,6 +25,37 @@ def _lora_model(root: Path) -> tuple[Path, Path]:
     (adapter / "adapter_model.safetensors").write_bytes(b"adapter")
     (model / "config.json").write_text('{"model_type": "test"}\n', encoding="utf-8")
     return model, adapter
+
+
+def test_adapter_only_validation_accepts_final_adapter_and_recovery_state(tmp_path: Path) -> None:
+    _, adapter = _lora_model(tmp_path)
+    recovery = tmp_path / "checkpoint-1"
+    recovery.mkdir()
+    (recovery / "adapter_config.json").write_text('{"r": 8}\n', encoding="utf-8")
+    (recovery / "adapter_model.safetensors").write_bytes(b"adapter")
+    (recovery / "trainer_state.json").write_text('{"global_step": 1}\n', encoding="utf-8")
+    (recovery / "optimizer.pt").write_bytes(b"optimizer")
+    (recovery / "scheduler.pt").write_bytes(b"scheduler")
+    (recovery / "rng_state.pth").write_bytes(b"rng")
+
+    validate_adapter_only_directory(adapter)
+    validate_adapter_only_directory(recovery, require_recovery_state=True)
+
+
+@pytest.mark.parametrize("name", ["model.safetensors", "pytorch_model.bin", "model-00001-of-00002.safetensors"])
+def test_adapter_only_validation_rejects_full_base_weight_exports(tmp_path: Path, name: str) -> None:
+    _, adapter = _lora_model(tmp_path)
+    (adapter / name).write_bytes(b"base")
+
+    with pytest.raises(RuntimeError, match="full base-model weights"):
+        validate_adapter_only_directory(adapter)
+
+
+def test_adapter_only_validation_requires_exact_resume_state(tmp_path: Path) -> None:
+    _, adapter = _lora_model(tmp_path)
+
+    with pytest.raises(RuntimeError, match="trainer_state.json, optimizer.pt, scheduler.pt, rng_state.*pth"):
+        validate_adapter_only_directory(adapter, require_recovery_state=True)
 
 
 def test_lora_finalizer_removes_base_weights_and_superseded_checkpoints(tmp_path: Path) -> None:

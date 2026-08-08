@@ -2084,7 +2084,7 @@ triton==3.6.0 \
     #   liger-kernel
     #   torch
     #   xgrammar
-trl @ git+https://github.com/carbonteq-ai/trl.git@6e7739b8ec741d21ecd79c0c212694cd15ff20d8
+trl @ git+https://github.com/carbonteq-ai/trl.git@91b0ce707631d503fbed337b42444a9d3fac3acb
     # via posttrain-train
 typer==0.25.1 \
     --hash=sha256:75caa44ed46a03fb2dab8808753ffacdbfea88495e74c85a28c5eefcf5f39c89 \

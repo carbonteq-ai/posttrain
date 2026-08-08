@@ -23,13 +23,13 @@ export function traceSurfaceMode(jobKind: string): TraceSurfaceMode {
     : optimizationJobKinds.has(jobKind) ? 'optimization' : 'generic';
 }
 
-export function tracePresentation(jobKind: string, evaluation: TraceEvaluation): TracePresentation {
+export function tracePresentation(jobKind: string, evaluation: TraceEvaluation | null): TracePresentation {
   const mode = traceSurfaceMode(jobKind);
-  const passRateAvailable = evaluation.success_rate != null
-    || evaluation.slices.some((slice) => slice.success_rate != null)
-    || evaluation.facets.some((facet) => facet.success_rate != null);
-  const passRateConfigured = evaluation.metadata?.pass_rate_metric != null
-    || evaluation.traces.some((trace) => trace.success != null);
+  const passRateAvailable = evaluation?.success_rate != null
+    || Boolean(evaluation?.slices.some((slice) => slice.success_rate != null))
+    || Boolean(evaluation?.facets.some((facet) => facet.success_rate != null));
+  const passRateConfigured = evaluation?.metadata?.pass_rate_metric != null
+    || Boolean(evaluation?.traces.some((trace) => trace.success != null));
   const copy = mode === 'evaluation'
     ? {
         eyebrow: 'SUPPORTING EVIDENCE',

@@ -3,13 +3,34 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./components/EvidenceChart', () => ({
-  EvidenceChart: ({ ariaLabel, showLegend = true }: { ariaLabel: string; showLegend?: boolean }) => <div role="img" aria-label={ariaLabel} data-show-legend={String(showLegend)} />,
+  EvidenceChart: ({ ariaLabel, showLegend = true, hoveredStep, onHoverStep, xDomain, xOrigin, xRange, series }: {
+    ariaLabel: string;
+    showLegend?: boolean;
+    hoveredStep?: number | null;
+    onHoverStep?: (step: number | null) => void;
+    xDomain?: string;
+    xOrigin?: string;
+    xRange?: readonly [number, number];
+    series: Array<{ points: unknown[] }>;
+  }) => <div
+    role="img"
+    aria-label={ariaLabel}
+    data-show-legend={String(showLegend)}
+    data-hovered-step={hoveredStep ?? ''}
+    data-x-domain={xDomain ?? 'logical-step'}
+    data-x-origin={xOrigin ?? ''}
+    data-x-min={xRange?.[0] ?? ''}
+    data-x-max={xRange?.[1] ?? ''}
+    data-point-count={Math.max(0, ...series.map((item) => item.points.length))}
+    onMouseEnter={() => onHoverStep?.(1)}
+    onMouseLeave={() => onHoverStep?.(null)}
+  />,
 }));
 vi.mock('./components/EvaluationCharts', () => ({
   EvaluationCharts: () => <div role="img" aria-label="Evaluation population charts" />,
 }));
 
-import App from './App';
+import App, { limitSystemSeriesToRecentWindow } from './App';
 
 const run = {
   locator: { source_id: 'fixture', run_id: 'runs/sft' },
@@ -557,6 +578,19 @@ describe('Observatory React product shell', () => {
                   sample_count: 4,
                   metrics: [{ metric: 'system/gpu_vram_used_bytes', label: 'GPU memory', unit: 'bytes', mean: 5_000_000_000, peak: 5_500_000_000, minimum: 4_500_000_000, samples: 4 }],
                 },
+                {
+                  phase: 'rollout',
+                  label: 'Rollout generation',
+                  group: 'training',
+                  group_label: 'Training',
+                  duration_s: 180,
+                  occurrences: 3,
+                  sample_count: 6,
+                  metrics: [
+                    { metric: 'system/gpu_utilization', label: 'GPU utilization', unit: '%', mean: 29, peak: 78, minimum: 0, samples: 6 },
+                    { metric: 'system/gpu_vram_used_bytes', label: 'GPU memory', unit: 'bytes', mean: 7_000_000_000, peak: 8_200_000_000, minimum: 6_000_000_000, samples: 6 },
+                  ],
+                },
               ],
               phase_issues: [],
               unclassified_sample_count: 0,
@@ -564,10 +598,44 @@ describe('Observatory React product shell', () => {
               vram_capacity_state: 'available',
               vram_capacity_bytes: 8 * 1024 ** 3,
               vram_observed_peak_bytes: 5_500_000_000,
+              backend_runtime: {
+                kv_cache_capacity_tokens: 483_328,
+                kv_cache_peak_usage_ratio: 0.3,
+                kv_cache_samples: 6,
+                mtp_selected: true,
+                mtp_acceptance_rate: 0.74,
+                mtp_accepted_length: 1.74,
+                mtp_samples: 6,
+                rollout_tokens_per_second_latest: 115,
+                rollout_tokens_per_second_mean: 152,
+                rollout_seconds_latest: 708,
+                rollout_seconds_mean: 549,
+                rollout_samples: 6,
+                environment_concurrency: 64,
+                inference_sequence_cap: 64,
+                rollouts_per_prompt: 4,
+                rollouts_per_update: 128,
+              },
             }
           : view;
       return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
     }));
+  });
+
+  it('limits system chart series to the latest hour without changing the source series', () => {
+    const series = [{
+      name: 'system/gpu_utilization',
+      points: [
+        { value: 20, step: 0, observed_at: '2026-08-07T10:00:00Z' },
+        { value: 40, step: 1, observed_at: '2026-08-07T11:30:00Z' },
+        { value: 60, step: 2, observed_at: '2026-08-07T12:30:00Z' },
+      ],
+    }];
+
+    const limited = limitSystemSeriesToRecentWindow(series, Date.parse('2026-08-07T12:30:00Z'));
+
+    expect(limited[0].points.map((point) => point.value)).toEqual([40, 60]);
+    expect(series[0].points).toHaveLength(3);
   });
 
   it('presents a useful job question and a dedicated system metrics view', async () => {
@@ -597,8 +665,19 @@ describe('Observatory React product shell', () => {
     const telemetryWindow = screen.getByRole('region', { name: 'Run telemetry window' });
     expect(telemetryWindow).toHaveTextContent('Started');
     expect(telemetryWindow).toHaveTextContent('Finished');
-    expect(telemetryWindow).toHaveTextContent('Samples6');
+    expect(telemetryWindow).toHaveTextContent('Run samples6');
     expect(telemetryWindow).not.toHaveClass('obs-card');
+    const chartRange = screen.getByRole('region', { name: 'System chart range' });
+    expect(chartRange).toHaveTextContent('Latest observed hour · 1 of 6 run samples');
+    expect(within(chartRange).getByRole('button', { name: 'Latest 1h' })).toHaveAttribute('aria-pressed', 'true');
+    const windowedComputeChart = screen.getByRole('img', { name: 'Compute utilization over run time' });
+    expect(windowedComputeChart).toHaveAttribute('data-x-min', '0');
+    expect(windowedComputeChart).toHaveAttribute('data-x-max', '480');
+    await user.click(within(chartRange).getByRole('button', { name: 'Full run' }));
+    expect(within(chartRange).getByRole('button', { name: 'Full run' })).toHaveAttribute('aria-pressed', 'true');
+    expect(chartRange).toHaveTextContent('Full run · 1 samples');
+    expect(windowedComputeChart).toHaveAttribute('data-x-min', '0');
+    expect(windowedComputeChart).toHaveAttribute('data-x-max', '720');
     const phaseProfile = screen.getByRole('region', { name: 'Runtime phase profile' });
     expect(phaseProfile).toBeVisible();
     expect(screen.getByRole('img', { name: 'Phase GPU memory against declared hardware capacity' })).toBeVisible();
@@ -606,11 +685,24 @@ describe('Observatory React product shell', () => {
     expect(within(phaseProfile).getAllByText('Actor update').length).toBeGreaterThan(0);
     expect(within(phaseProfile).getByRole('region', { name: 'Startup phases' })).toBeVisible();
     expect(within(phaseProfile).getByRole('region', { name: 'Training phases' })).toBeVisible();
+    const inferenceDetails = screen.getByRole('region', { name: 'Inference details' });
+    expect(inferenceDetails).toHaveTextContent('Rollout compute');
+    expect(inferenceDetails).toHaveTextContent('29.0% average');
+    expect(inferenceDetails).toHaveTextContent('MTP acceleration');
+    expect(inferenceDetails).toHaveTextContent('74.0% acceptance');
+    expect(inferenceDetails).toHaveTextContent('6 step samples');
+    expect(inferenceDetails).toHaveTextContent('Environment concurrency64');
+    expect(inferenceDetails).toHaveTextContent('vLLM sequence cap64');
+    expect(inferenceDetails).toHaveTextContent('Rollouts / update128');
     await user.click(within(phaseProfile).getByRole('tab', { name: 'timeline' }));
     expect(screen.getByRole('img', { name: 'Runtime phase and GPU utilization timeline' })).toBeVisible();
     const computeChart = screen.getByRole('region', { name: 'Compute utilization system chart' });
     const computeHeader = within(computeChart).getByRole('heading', { name: 'Compute utilization' }).parentElement;
     expect(computeHeader).toHaveTextContent('GPU utilization');
+    expect(within(computeChart).getByRole('img', { name: 'Compute utilization over run time' }))
+      .toHaveAttribute('data-x-domain', 'elapsed-time');
+    expect(within(computeChart).getByRole('img', { name: 'Compute utilization over run time' }))
+      .toHaveAttribute('data-x-origin', '2026-07-22T04:00:00Z');
   });
 
   it('explains serving constraints instead of falling back to generic evidence', async () => {
@@ -888,7 +980,7 @@ describe('Observatory React product shell', () => {
     expect(screen.getByRole('button', { name: 'Select run SFT calm harbor' })).toBeVisible();
   });
 
-  it('clears prior-provider evidence while the selected backend view is loading', async () => {
+  it('shows the selected run shell while the backend view is loading', async () => {
     const wandbRun = {
       ...dpoRun,
       locator: { source_id: 'wandb-cloud', run_id: 'runs/wandb-dpo' },
@@ -920,7 +1012,7 @@ describe('Observatory React product shell', () => {
     await user.click(screen.getByRole('button', { name: 'Backend: Fixture' }));
     await user.click(screen.getByRole('option', { name: /Weights & Biases.*wandb-cloud/ }));
 
-    expect(screen.getByText('Loading run evidence…')).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Run summary shell' })).toBeVisible();
     expect(screen.queryByRole('heading', { name: 'Learning & data evidence' })).not.toBeInTheDocument();
 
     await act(async () => {
@@ -1009,6 +1101,15 @@ describe('Observatory React product shell', () => {
     for (const chart of screen.getAllByRole('img', { name: /metric series$/ })) {
       expect(chart).toHaveAttribute('data-show-legend', 'false');
     }
+    const charts = screen.getAllByRole('img', { name: /metric series$/ });
+    await user.hover(charts[0]);
+    await waitFor(() => {
+      for (const chart of charts) expect(chart).toHaveAttribute('data-hovered-step', '1');
+    });
+    await user.unhover(charts[0]);
+    await waitFor(() => {
+      for (const chart of charts) expect(chart).toHaveAttribute('data-hovered-step', '');
+    });
   });
 
   it('explains registered metrics from the shared telemetry schema', async () => {
@@ -1205,5 +1306,175 @@ describe('Observatory React product shell', () => {
 
     expect(await screen.findByRole('heading', { name: 'Policy learning evidence' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Rollouts & rewards' })).toBeVisible();
+  });
+
+  it('pages optimization rollouts without requesting the evaluation population scan', async () => {
+    const { jobRun, jobView } = metricJob(
+      'train.grpo',
+      'GRPO paged cedar',
+      [{ key: 'reward_mean', label: 'Mean reward', metric: 'train/rl/reward_mean', value: 0.2, unit: null }],
+      {},
+      true,
+    );
+    jobView.view.trace_count = 250;
+    const trace = (externalId: string) => ({
+      external_id: externalId,
+      trace_type: 'verifiers',
+      prompt_preview: `Prompt ${externalId}`,
+      task: 'task-a',
+      task_label: 'Task A',
+      task_metadata: null,
+      reward: 0.25,
+      success: null,
+      outcome: 'scored',
+      truncated: false,
+      error: null,
+      tool_calls: 1,
+      model_calls: 1,
+      input_tokens: 10,
+      completion_tokens: 20,
+      latency_ms: 100,
+      tokens: 30,
+      response_tokens: 20,
+      response_chars: 80,
+      thinking_tokens: 5,
+      thinking_chars: 20,
+      reward_components: { correct: 0.25 },
+      native_metrics: {},
+      metrics: { correct: 0.25 },
+    });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === '/api/v1/runs') return new Response(JSON.stringify([jobRun]));
+      if (path.includes('/traces-evaluation')) throw new Error('optimization view must not request evaluation aggregation');
+      if (path.includes('/traces?')) {
+        const second = path.includes('cursor=100');
+        return new Response(JSON.stringify({
+          items: second ? [trace('rollout-3')] : [trace('rollout-1'), trace('rollout-2')],
+          next_cursor: second ? null : '100',
+          total: 250,
+          live: true,
+        }));
+      }
+      return new Response(JSON.stringify(jobView));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: 'Rollouts & rewards' }));
+    expect(await screen.findByText('2 of 250 loaded')).toBeVisible();
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/traces-evaluation'))).toBe(false);
+
+    await user.click(screen.getByRole('button', { name: 'Load 100 more' }));
+    expect(await screen.findByText('3 of 250 loaded')).toBeVisible();
+  });
+
+  it('keeps the GRPO decision metrics to one five-item headline group', async () => {
+    const { jobRun, jobView } = metricJob(
+      'train.grpo',
+      'GRPO compact ridge',
+      [
+        { key: 'reward_mean', label: 'Mean reward', metric: 'train/rl/reward_mean', value: -0.17, unit: null },
+        { key: 'entropy', label: 'Policy entropy', metric: 'train/rl/entropy', value: 1.42, unit: null },
+        { key: 'zero_variance', label: 'Zero-variance groups', metric: 'train/rl/group_zero_variance_fraction', value: 0.25, unit: 'ratio' },
+        { key: 'clip_fraction_low', label: 'Lower clip fraction', metric: 'train/rl/clip_fraction_low', value: 0.03, unit: 'ratio' },
+        { key: 'clip_fraction_high', label: 'Upper clip fraction', metric: 'train/rl/clip_fraction_high', value: 0.07, unit: 'ratio' },
+        { key: 'grad_norm', label: 'Gradient norm', metric: 'train/grad_norm', value: 0.88, unit: null },
+        { key: 'policy_loss', label: 'Policy loss', metric: 'train/rl/policy_loss', value: -0.4, unit: null },
+        { key: 'rollout_tps', label: 'Rollout throughput', metric: 'train/rl/rollout_tokens_per_second', value: 115, unit: 'tokens/s' },
+      ],
+      {
+        environment: { selection_id: 'environments/rollout', revision: 'v1', resolved: { max_concurrent: 160 } },
+        settings: {
+          selection_id: 'settings/dapo',
+          revision: 'v1',
+          resolved: {
+            beta: 0,
+            num_generations: 8,
+            max_prompt_length: 2048,
+            max_completion_length: 1536,
+            per_device_batch_size: 4,
+            gradient_accumulation_steps: 64,
+            learning_rate: 0.00001,
+            importance_sampling_mode: 'sequence_truncate',
+          },
+        },
+        training: {
+          selection_id: 'training/lora',
+          revision: 'v1',
+          resolved: { parameter_update_kind: 'lora', runtime: { global_batch_size: 256 } },
+        },
+        rollout_inference: {
+          selection_id: 'inference/rollout',
+          revision: 'v1',
+          resolved: {
+            engine: { max_num_seqs: 160, speculative_config: { method: 'mtp', num_speculative_tokens: 3 } },
+            sampling: { temperature: 1, top_p: 1 },
+          },
+        },
+      },
+      true,
+    );
+    const configuredJobView = {
+      ...jobView,
+      view: {
+        ...jobView.view,
+        charts: [
+          ...jobView.view.charts,
+          {
+            key: 'rollout_population',
+            title: 'Rollout population',
+            question: 'What happened to the requested rollout population?',
+            series: [{ name: 'train/rl/rollouts_completed', points: [{ value: 256, step: 1 }] }],
+          },
+        ],
+        grpo: {
+          rollout_population: {
+            attempted: { key: 'attempted', label: 'Attempted', metric: 'train/rl/rollouts_attempted', state: 'available', value: 256, unit: null },
+            completed: { key: 'completed', label: 'Completed', metric: 'train/rl/rollouts_completed', state: 'available', value: 256, unit: null },
+            failed: { key: 'failed', label: 'Failed', metric: 'train/rl/rollouts_failed', state: 'available', value: 0, unit: null },
+            truncated: { key: 'truncated', label: 'Truncated', metric: 'train/rl/rollouts_truncated', state: 'available', value: 0, unit: null },
+            unscorable: { key: 'unscorable', label: 'Unscorable', metric: 'train/rl/rollouts_unscorable', state: 'available', value: 0, unit: null },
+          },
+          acceleration: {
+            mtp_selected: true,
+            quantized_kv_cache_selected: false,
+            speculative_acceptance: { key: 'speculative_acceptance', label: 'MTP acceptance', metric: 'serve/backend/speculative_acceptance_rate', state: 'available', value: 0.51, unit: 'ratio' },
+            accepted_speculative_length: { key: 'accepted_speculative_length', label: 'Accepted length', metric: 'serve/backend/speculative_accepted_length', state: 'available', value: 2.5, unit: 'tokens' },
+            kv_cache_peak_usage: { key: 'kv_cache_peak_usage', label: 'Peak KV-cache usage', metric: 'serve/backend/kv_cache_peak_usage_ratio', state: 'available', value: 0.25, unit: 'ratio' },
+          },
+        },
+      },
+    };
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const body = String(input) === '/api/v1/runs' ? [jobRun] : configuredJobView;
+      return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+    }));
+
+    render(<App />);
+
+    const headline = await screen.findByRole('group', { name: 'GRPO headline metrics' });
+    expect(within(headline).getByText('Mean reward')).toBeVisible();
+    expect(within(headline).getByText('Policy entropy')).toBeVisible();
+    expect(within(headline).getByText('Usable groups')).toBeVisible();
+    expect(within(headline).getByText('75.0%')).toBeVisible();
+    expect(within(headline).getByText('Clip pressure')).toBeVisible();
+    expect(within(headline).getByText('3.0% / 7.0%')).toBeVisible();
+    expect(within(headline).getByText('Gradient norm')).toBeVisible();
+    expect(within(headline).queryByText('Policy loss')).not.toBeInTheDocument();
+    expect(within(headline).queryByText('Rollout throughput')).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'GRPO rollout population' })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Rollout population' })).toBeVisible();
+    const rolloutSetup = screen.getByRole('region', { name: 'Rollout setup' });
+    expect(rolloutSetup).toHaveTextContent('Prompt groups / update32 · derived');
+    expect(rolloutSetup).toHaveTextContent('Rollouts / prompt8');
+    expect(rolloutSetup).toHaveTextContent('Rollouts / update256');
+    expect(rolloutSetup).toHaveTextContent('Environment concurrency160');
+    expect(rolloutSetup).toHaveTextContent('Inference sequence cap160');
+    expect(rolloutSetup).toHaveTextContent('AccelerationMTP · 3 draft tokens');
+    const algorithm = screen.getByRole('region', { name: 'Algorithm settings' });
+    expect(algorithm).toHaveTextContent('Actor microbatch4');
+    expect(algorithm).toHaveTextContent('Grad accumulation64');
   });
 });

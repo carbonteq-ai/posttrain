@@ -26,6 +26,8 @@ from .models import (
     RunViewResponse,
     SemanticSummaryRequest,
     SourceRefreshStatus,
+    TraceEvaluationView,
+    TraceSummaryPage,
     ViewMode,
 )
 from .service import ObservatoryService
@@ -173,8 +175,23 @@ def create_http_app(
         return (await service.compare_runs(tuple(_locator(key) for key in request.run_keys))).model_dump(mode="json")
 
     @app.get("/api/v1/runs/{run_key}/traces-evaluation")
-    async def traces_evaluation(run_key: str) -> dict[str, object]:
-        return (await service.get_trace_evaluation_view(_locator(run_key))).model_dump(mode="json")
+    async def traces_evaluation(run_key: str, include_traces: bool = True) -> TraceEvaluationView:
+        return await service.get_trace_evaluation_view(
+            _locator(run_key),
+            include_traces=include_traces,
+        )
+
+    @app.get("/api/v1/runs/{run_key}/traces")
+    async def trace_summaries(
+        run_key: str,
+        cursor: str | None = None,
+        limit: int = Query(default=100, ge=1, le=250),
+    ) -> TraceSummaryPage:
+        return await service.get_trace_summary_page(
+            _locator(run_key),
+            cursor=cursor,
+            limit=limit,
+        )
 
     @app.get("/api/v1/runs/{run_key}/traces/{trace_id}")
     async def trace_detail(run_key: str, trace_id: str) -> dict[str, object]:

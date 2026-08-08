@@ -10,7 +10,7 @@ The lab's injected observation context maps those hooks to Trackio. Datasets,
 rewards, and Verifiers environment implementations remain independently owned.
 
 The workspace uses the `carbonteq-ai/trl` fork pinned to immutable commit
-`6e7739b8ec741d21ecd79c0c212694cd15ff20d8`. The fork preserves TRL 1.8.0 and
+`91b0ce707631d503fbed337b42444a9d3fac3acb`. The fork preserves TRL 1.8.0 and
 adds the upstream-validated vLLM 0.24/0.25 dependency support plus regression
 coverage. It also keeps the trainer runtime compatible with `datasets 4.6.1`
 so the application can install Verifiers v1 and TRL together. It does not
@@ -26,6 +26,15 @@ It also accepts non-conflicting colocated engine arguments while protecting
 TRL-controlled weight-sync and lifecycle options. Text-only runs of multimodal
 models use this to skip an irrelevant dummy vision profiling pass. This was
 merged in [`carbonteq-ai/trl#6`](https://github.com/carbonteq-ai/trl/pull/6).
+The bounded-wave follow-up additionally accepts validated `max_num_seqs` and
+`max_num_batched_tokens` engine caps. This lets a 256/512-completion logical
+batch execute as multiple resident-32 rollout waves instead of allowing TRL's
+derived generation batch to overcommit KV cache. The change is published on
+the fork branch [`codex/bounded-vllm-waves`](https://github.com/carbonteq-ai/trl/tree/codex/bounded-vllm-waves)
+at commit `91b0ce707631d503fbed337b42444a9d3fac3acb` and still requires consumer qualification. The commit
+also bounds the actual colocated `LLM.generate` request list to the configured
+resident sequence cap; engine caps alone do not prevent vLLM from queueing a
+large logical batch in one call.
 Composite vLLM implementations may retain a namespace around a text-only
 training model. The fork therefore exposes an explicit weight-name prefix at
 the synchronization boundary instead of placing model-name rewrites in a job.
@@ -41,6 +50,44 @@ bitsandbytes checkpoint in place, native-LoRA mode uses level-1 sleep. This
 CPU-backs the quantized base while still releasing its GPU allocation; full
 weight synchronization retains level 2. The lifecycle correction was merged
 in [`carbonteq-ai/trl#9`](https://github.com/carbonteq-ai/trl/pull/9).
+
+### Unpublished LoRA policy-parity repair
+
+The current local fork candidate fixes a namespace gap between these two
+generic seams. A Qwen3.5 PEFT actor exports keys below
+`base_model.model.model...`, while its text-only vLLM rollout model owns the
+same modules below `base_model.model.language_model.model...`. Full-weight
+synchronization already applied the inference binding's weight-name prefix;
+native-LoRA synchronization rejected that prefix and could therefore load an
+adapter without attaching it to the modules used for generation.
+
+The candidate now applies `weight_name_prefix` to only the disposable adapter
+export used to refresh vLLM. The actor checkpoint remains in PEFT's native
+namespace. A second generic guard compares sampler and actor log-probabilities
+over the first training rollout's selected tokens and fails before optimizer
+step one when the globally weighted mean absolute delta exceeds `0.05`.
+Importance-sampling correction remains active for small numerical drift; it is
+no longer allowed to conceal a structurally different rollout policy.
+
+All affected Qwen3.5 native-LoRA inference bindings select:
+
+    weight_sync_mode: lora
+    weight_name_prefix: language_model.
+
+This repair is tested locally but is not part of the immutable consumer pin
+yet. Publication requires a clean fork commit and push, an exact framework pin
+and lock update, a rebuilt job image, and a passing one-step parity canary.
+
+Framework recovery is independent of the online-RL algorithm. SFT, DPO,
+GRPO/DAPO, SAMPO, and on-policy distillation all accept an explicitly
+materialized `training-checkpoint`. LoRA and QLoRA checkpoints contain the
+adapter plus trainer, optimizer, scheduler, and RNG state and are rejected if
+they duplicate immutable base-model weights. On failure or cancellation, the
+latest complete checkpoint is committed before the worker workspace is
+released. A new `posttrain job run --resume-from-run RUN_ID` invocation uses a
+fresh run identity and requires exactly one checkpoint output from the source
+run. Recovery may lose work after the last configured checkpoint; interruption
+before the first checkpoint has no safe resume point.
 The current pinned fork also exposes that same generic
 `VLLMGeneration` synchronization choice through experimental
 `DistillationConfig`. This is required when an on-policy distillation student

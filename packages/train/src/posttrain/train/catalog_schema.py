@@ -104,6 +104,7 @@ class TrainingLoopSchema(TrainCatalogSchema):
     gradient_accumulation_steps: int = Field(default=1, gt=0)
     learning_rate: float = Field(default=2e-4, gt=0)
     warmup_ratio: float = Field(default=0.0, ge=0, lt=1)
+    lr_scheduler_type: Literal["linear", "constant", "constant_with_warmup"] = "linear"
     max_grad_norm: float = Field(default=1.0, gt=0)
     logging_steps: int = Field(default=1, gt=0)
     checkpoint_steps: int = Field(default=1, ge=0)
@@ -169,6 +170,7 @@ class GRPOSettingsSchema(TrainCatalogSchema):
     importance_sampling_clip_min: float | None = Field(default=0.1, gt=0)
     importance_sampling_clip_max: float | None = Field(default=3.0, gt=0)
     algorithm: Literal["grpo", "dapo"] = "grpo"
+    advantage_scaling: Literal["group", "batch", "none"] = "group"
     clip_epsilon_low: float = Field(default=0.2, gt=0, allow_inf_nan=False)
     clip_epsilon_high: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     dynamic_sampling: DynamicGroupSamplingSchema | None = None

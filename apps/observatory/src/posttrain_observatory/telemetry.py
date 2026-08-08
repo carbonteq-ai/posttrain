@@ -26,6 +26,7 @@ type EvidenceCondition = Literal[
     "mtp_rollout_enabled",
     "quantized_kv_cache",
     "tool_environment",
+    "dapo_algorithm_enabled",
 ]
 
 
@@ -475,6 +476,33 @@ _METRIC_HELP = {
             "Clip fraction",
             "Fraction of policy updates constrained by the objective's clipping range.",
             "High values mean many updates are hitting the trust-region guardrail and may be too aggressive.",
+            unit="ratio",
+        ),
+        _metric(
+            "train/rl/clip_fraction_low",
+            "Lower clip fraction",
+            "Fraction of active policy updates constrained by the lower DAPO clipping bound.",
+            "Read it separately from the upper clip fraction to see which asymmetric trust-region side is binding.",
+            unit="ratio",
+        ),
+        _metric(
+            "train/rl/clip_fraction_high",
+            "Upper clip fraction",
+            "Fraction of active policy updates constrained by the upper DAPO clipping bound.",
+            "A rising upper-side fraction can indicate aggressive positive-advantage updates even when total clipping looks small.",
+            unit="ratio",
+        ),
+        _metric(
+            "train/rl/dynamic_sampling_candidate_batches",
+            "Dynamic-sampling candidate batches",
+            "Number of candidate rollout batches consumed to fill one optimizer update.",
+            "Values near the configured bound indicate the current policy is producing too many reward-constant groups and may exhaust the sampler.",
+        ),
+        _metric(
+            "train/rl/dynamic_sampling_retained_fraction",
+            "Dynamic-sampling retained fraction",
+            "Fraction of candidate rollout rows retained after filtering for within-group reward variation.",
+            "A low fraction means the effective environment population is being spent on discarded groups rather than learning signal.",
             unit="ratio",
         ),
         _metric(
@@ -1195,8 +1223,41 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
             unit="ratio",
         ),
         SummaryFieldDefinition(key="policy_loss", label="Policy loss", metric="train/rl/policy_loss", required=True),
+        SummaryFieldDefinition(key="entropy", label="Policy entropy", metric="train/rl/entropy"),
+        SummaryFieldDefinition(key="grad_norm", label="Gradient norm", metric="train/grad_norm"),
+        SummaryFieldDefinition(
+            key="truncation_rate",
+            label="Completion truncation rate",
+            metric="train/rl/completion_truncation_rate",
+            unit="ratio",
+        ),
+        SummaryFieldDefinition(
+            key="importance_ratio_mean",
+            label="Mean importance ratio",
+            metric="train/rl/importance_sampling_ratio_mean",
+        ),
         SummaryFieldDefinition(
             key="rollout_tps", label="Rollout throughput", metric="train/rl/rollout_tokens_per_second", unit="tokens/s"
+        ),
+        SummaryFieldDefinition(
+            key="clip_fraction", label="Clip fraction", metric="train/rl/clip_fraction", unit="ratio"
+        ),
+        SummaryFieldDefinition(
+            key="clip_fraction_low", label="Lower clip fraction", metric="train/rl/clip_fraction_low", unit="ratio"
+        ),
+        SummaryFieldDefinition(
+            key="clip_fraction_high", label="Upper clip fraction", metric="train/rl/clip_fraction_high", unit="ratio"
+        ),
+        SummaryFieldDefinition(
+            key="dynamic_candidate_batches",
+            label="Candidate batches",
+            metric="train/rl/dynamic_sampling_candidate_batches",
+        ),
+        SummaryFieldDefinition(
+            key="dynamic_retained_fraction",
+            label="Retained fraction",
+            metric="train/rl/dynamic_sampling_retained_fraction",
+            unit="ratio",
         ),
         SummaryFieldDefinition(
             key="failed_rollouts", label="Failed rollouts", metric="train/rl/rollouts_failed", reducer="sum"
@@ -1213,7 +1274,23 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
             key="optimization",
             title="Policy optimization",
             question="Are updates controlled without collapsing exploration?",
-            metrics=("train/rl/policy_loss", "train/rl/entropy", "train/rl/kl", "train/rl/clip_fraction"),
+            metrics=(
+                "train/rl/policy_loss",
+                "train/rl/entropy",
+                "train/rl/kl",
+                "train/rl/clip_fraction",
+                "train/rl/clip_fraction_low",
+                "train/rl/clip_fraction_high",
+            ),
+        ),
+        ChartDefinition(
+            key="dynamic_sampling",
+            title="Dynamic sampling",
+            question="How much rollout population is discarded before the optimizer receives a usable group signal?",
+            metrics=(
+                "train/rl/dynamic_sampling_candidate_batches",
+                "train/rl/dynamic_sampling_retained_fraction",
+            ),
         ),
         ChartDefinition(
             key="stability",
@@ -1277,6 +1354,10 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
         "train/rl/kl",
         "train/rl/entropy",
         "train/rl/clip_fraction",
+        "train/rl/clip_fraction_low",
+        "train/rl/clip_fraction_high",
+        "train/rl/dynamic_sampling_candidate_batches",
+        "train/rl/dynamic_sampling_retained_fraction",
         "train/grad_norm",
         "train/learning_rate",
         "train/step_time_seconds",
@@ -1370,14 +1451,39 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
             message="One or more rollouts were truncated.",
             severity="warning",
         ),
+        HealthRuleDefinition(
+            id="grpo-high-truncation-rate",
+            kind="threshold",
+            metric="train/rl/completion_truncation_rate",
+            operator="gt",
+            threshold=0.05,
+            message="Completion truncation exceeds the approximate five-percent promotion guard.",
+            severity="warning",
+        ),
     ),
-    comparison_keys=("reward_mean", "policy_loss", "rollout_tps", "failed_rollouts"),
+    comparison_keys=(
+        "reward_mean",
+        "policy_loss",
+        "entropy",
+        "truncation_rate",
+        "importance_ratio_mean",
+        "rollout_tps",
+        "clip_fraction_low",
+        "clip_fraction_high",
+        "dynamic_candidate_batches",
+        "dynamic_retained_fraction",
+        "failed_rollouts",
+    ),
     trace_sections=(TraceSectionDefinition(trace_type="verifiers", label="Rollouts & rewards"),),
     artifact_roles=_training_artifacts(),
     delta_tip_metrics=(
         "train/rl/reward_mean",
         "train/rl/policy_loss",
         "train/rl/rollout_tokens_per_second",
+        "train/rl/clip_fraction_low",
+        "train/rl/clip_fraction_high",
+        "train/rl/dynamic_sampling_candidate_batches",
+        "train/rl/dynamic_sampling_retained_fraction",
         "serve/backend/speculative_acceptance_rate",
     ),
     evidence_requirements=(
@@ -1400,6 +1506,25 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
                 "train/learning_rate",
             ),
             reason="The policy objective must be paired with exploration, clipping, and gradient-scale evidence.",
+        ),
+        EvidenceRequirementDefinition(
+            key="dapo_sampling",
+            label="DAPO dynamic sampling",
+            level="conditional",
+            condition="dapo_algorithm_enabled",
+            metrics=(
+                "train/rl/dynamic_sampling_candidate_batches",
+                "train/rl/dynamic_sampling_retained_fraction",
+            ),
+            reason="DAPO must expose candidate-batch usage and retained population so sampler exhaustion is auditable.",
+        ),
+        EvidenceRequirementDefinition(
+            key="dapo_asymmetric_clipping",
+            label="DAPO asymmetric clipping",
+            level="conditional",
+            condition="dapo_algorithm_enabled",
+            metrics=("train/rl/clip_fraction_low", "train/rl/clip_fraction_high"),
+            reason="DAPO must expose lower- and upper-side clipping separately; one combined clip fraction is insufficient.",
         ),
         EvidenceRequirementDefinition(
             key="rollout_population",

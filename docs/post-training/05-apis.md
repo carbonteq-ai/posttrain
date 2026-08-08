@@ -138,7 +138,7 @@ posttrain work-package validate PATH
 posttrain work-package run PATH --job JOB_ID
 posttrain job plan WORK_PACKAGE --job JOB_ID
 posttrain job pack WORK_PACKAGE --job JOB_ID
-posttrain job run WORK_PACKAGE --job JOB_ID [--provider local|dstack] [--build-missing]
+posttrain job run WORK_PACKAGE --job JOB_ID [--provider local|dstack] [--build-missing] [--resume-from-run RUN_ID]
 posttrain job diff WORK_PACKAGE --job JOB_ID [--from KEY] [--to KEY]
 posttrain run list
 posttrain run status RUN_ID
@@ -160,6 +160,13 @@ and two for invalid command syntax. The primary CLI is built with Typer; that is
 an implementation detail and does not change the public noun surface. Readable
 terminal output is the default; `--json` provides deterministic automation
 output.
+
+`job run --resume-from-run` is valid only for a training job and always creates
+a new run identity. The source run must expose exactly one immutable
+`training-checkpoint` output. The host materializes that recovery artifact as
+`recovery_checkpoint`; it must not substitute the source run's promoted model
+or adapter artifact. The trainer restores optimizer, scheduler, RNG, trainer,
+and adapter state from that checkpoint before advancing the logical step.
 
 `job` owns immutable planning, packing, and submission. Once a canonical
 `run_id` exists, `run` owns provider lifecycle, admission state, retained

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import sys
 from contextlib import nullcontext, redirect_stdout
 from pathlib import Path
@@ -23,8 +24,9 @@ from ..execution_planning import (
     PlannedJobPackage,
     plan_job_execution,
     plan_job_package,
+    with_recovery_checkpoint,
 )
-from ..execution_provider import execution_admission_service
+from ..execution_provider import execution_admission_service, tracking_source_for_project
 from ..job_resolve import resolve_job_id
 from ..output import emit, json_value
 from ..package_history import packages_for, resolve_package
@@ -209,6 +211,7 @@ def run_work_package_cmd(
     overrides: ExecutionOverrides = _EMPTY_OVERRIDES,
     registry_prefix: str | None = None,
     run_id: str | None = None,
+    resume_from_run_id: str | None = None,
     project_packages: tuple[str, ...] | None = None,
     source_includes: tuple[str, ...] | None = None,
     build_missing: bool = False,
@@ -232,6 +235,22 @@ def run_work_package_cmd(
             env_file=state.env_file,
             framework_wheelhouse=framework_wheelhouse,
         )
+        if resume_from_run_id is not None:
+            source = tracking_source_for_project(layout)
+            candidates = tuple(
+                artifact
+                for artifact in asyncio.run(source.artifacts(resume_from_run_id)).outputs
+                if artifact.kind == "training-checkpoint"
+            )
+            if len(candidates) != 1:
+                raise ContractError(
+                    f"source run {resume_from_run_id!r} has {len(candidates)} output training checkpoints; expected 1"
+                )
+            planned = with_recovery_checkpoint(
+                planned,
+                source_run_id=resume_from_run_id,
+                artifact=candidates[0],
+            )
         _require_verified_kind_image(planned, build_missing=build_missing)
         packed = planned.pack(allow_deferred_qualification=allow_deferred_qualification)
         prepared_submission = packed.prepare_submission()
@@ -274,6 +293,9 @@ def run_work_package_cmd(
             ),
         )
         return
+
+    if resume_from_run_id is not None:
+        raise ContractError("--resume-from-run requires packaged local or remote execution")
 
     output_redirect = redirect_stdout(sys.stderr) if state.json_output else nullcontext()
     with output_redirect:

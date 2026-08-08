@@ -32,6 +32,7 @@ class TrainingLoop:
     gradient_accumulation_steps: int = 1
     learning_rate: float = 2e-4
     warmup_ratio: float = 0.0
+    lr_scheduler_type: Literal["linear", "constant", "constant_with_warmup"] = "linear"
     max_grad_norm: float = 1.0
     logging_steps: int = 1
     checkpoint_steps: int = 1
@@ -124,6 +125,7 @@ class GRPOSettings:
     importance_sampling_clip_max: float | None = 3.0
     revision: str = "1"
     algorithm: Literal["grpo", "dapo"] = "grpo"
+    advantage_scaling: Literal["group", "batch", "none"] = "group"
     clip_epsilon_low: float = 0.2
     clip_epsilon_high: float | None = None
     dynamic_sampling: DynamicGroupSampling | None = None
@@ -162,6 +164,8 @@ class GRPOSettings:
             raise ValueError("GRPO requires symmetric policy clipping")
         if self.algorithm == "dapo" and clip_high < self.clip_epsilon_low:
             raise ValueError("DAPO upper clipping epsilon cannot be smaller than its lower epsilon")
+        if self.advantage_scaling not in {"group", "batch", "none"}:
+            raise ValueError("unsupported GRPO advantage scaling")
         if self.dynamic_sampling is not None and self.algorithm != "dapo":
             raise ValueError("dynamic group sampling requires the DAPO algorithm")
         if self.overlong_buffer_tokens is not None:

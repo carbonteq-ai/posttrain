@@ -10,7 +10,7 @@ from pathlib import Path
 
 import yaml
 from posttrain.catalog import FamilyRegistryLock, ProjectLayout
-from posttrain.common import Catalog, CatalogRef, ContractError, ExecutionTarget
+from posttrain.common import Catalog, CatalogRef, ContractError, ExecutionTarget, StoredArtifactRef
 from posttrain.execution import (
     JOB_PACKAGE_WORKER_COMMAND,
     ExecutionEvidenceSource,
@@ -42,7 +42,7 @@ from posttrain.execution_pack import (
 )
 from posttrain.project import JobIntent, load_project_pack_config
 from posttrain.runtime_images import JOB_BAKE_FILE, cached_definition_root
-from posttrain.tracking import RunSpec
+from posttrain.tracking import ArtifactInput, ArtifactLink, RunSpec
 from posttrain.work import (
     PreparedWorkPackageJob,
     override_job_execution_target,
@@ -355,6 +355,51 @@ class PreparedJobSubmission:
     service: JobExecutionService
     evidence_source: ExecutionEvidenceSource | None
     provider_source: ExecutionProviderSource
+
+
+def with_recovery_checkpoint(
+    planned: PlannedJobExecution,
+    *,
+    source_run_id: str,
+    artifact: ArtifactLink,
+) -> PlannedJobExecution:
+    """Bind one immutable recovery artifact to a new training run."""
+
+    spec = planned.launch.run_spec
+    if not spec.job_kind.startswith("train."):
+        raise ContractError("recovery checkpoints can only resume training jobs")
+    if source_run_id == spec.run_id:
+        raise ContractError("a recovery run must use a new run identity")
+    if artifact.direction != "output" or artifact.kind != "training-checkpoint":
+        raise ContractError("resume input must be an output training-checkpoint artifact")
+    if "recovery_checkpoint" in spec.artifacts:
+        raise ContractError("run already has a selected recovery checkpoint")
+    stored = artifact.artifact
+    reference = StoredArtifactRef(
+        provider=stored.provider,
+        namespace=stored.namespace,
+        name=stored.name,
+        version=stored.version,
+        digest=stored.digest,
+        provider_metadata=stored.provider_metadata,
+    )
+    rebound_spec = replace(
+        spec,
+        artifacts={**dict(spec.artifacts), "recovery_checkpoint": ArtifactInput(reference, artifact.kind)},
+        resolved_inputs={
+            **dict(spec.resolved_inputs),
+            "recovery_checkpoint": {
+                "source_run_id": source_run_id,
+                "logical_name": artifact.logical_name,
+                "provider": stored.provider,
+                "namespace": stored.namespace,
+                "name": stored.name,
+                "version": stored.version,
+                "digest": stored.digest,
+            },
+        },
+    )
+    return replace(planned, launch=replace(planned.launch, run_spec=rebound_spec))
 
 
 def plan_job_execution(
@@ -1055,4 +1100,5 @@ __all__ = [
     "plan_job_package",
     "plan_job_launch",
     "plan_job_execution",
+    "with_recovery_checkpoint",
 ]

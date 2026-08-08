@@ -339,6 +339,13 @@ export type TraceEvaluation = {
   live: boolean;
 };
 
+export type TraceSummaryPage = {
+  items: TraceSummary[];
+  next_cursor: string | null;
+  total: number;
+  live: boolean;
+};
+
 export type EvaluationDistribution = {
   samples: number;
   mean: number;
@@ -545,6 +552,19 @@ export type SystemMetrics = {
     kv_cache_capacity_tokens: number | null;
     kv_cache_peak_usage_ratio: number | null;
     kv_cache_samples: number;
+    mtp_selected: boolean;
+    mtp_acceptance_rate: number | null;
+    mtp_accepted_length: number | null;
+    mtp_samples: number;
+    rollout_tokens_per_second_latest: number | null;
+    rollout_tokens_per_second_mean: number | null;
+    rollout_seconds_latest: number | null;
+    rollout_seconds_mean: number | null;
+    rollout_samples: number;
+    environment_concurrency: number | null;
+    inference_sequence_cap: number | null;
+    rollouts_per_prompt: number | null;
+    rollouts_per_update: number | null;
   } | null;
 };
 
@@ -652,8 +672,15 @@ export const api = {
   },
   comparisonKey: (key: string) => request<RunComparisonKey>(`/api/v1/runs/${key}/comparison-key`),
   system: (key: string) => request<SystemMetrics>(`/api/v1/runs/${key}/system-metrics`),
-  evaluation: (key: string) =>
-    request<TraceEvaluation>(`/api/v1/runs/${key}/traces-evaluation`),
+  evaluation: (key: string, includeTraces = true) => {
+    const query = new URLSearchParams({ include_traces: String(includeTraces) });
+    return request<TraceEvaluation>(`/api/v1/runs/${key}/traces-evaluation?${query}`);
+  },
+  tracePage: (key: string, cursor: string | null = null, limit = 100) => {
+    const query = new URLSearchParams({ limit: String(limit) });
+    if (cursor) query.set('cursor', cursor);
+    return request<TraceSummaryPage>(`/api/v1/runs/${key}/traces?${query}`);
+  },
   trace: (key: string, traceId: string) =>
     request<TraceDetail>(`/api/v1/runs/${key}/traces/${encodeURIComponent(traceId)}`),
   compare: (runKeys: string[]) =>

@@ -347,12 +347,13 @@ def test_native_bridge_runs_distinct_prompt_groups_concurrently(tmp_path) -> Non
         environment_id="custom-v1",
         run_id="run-1",
         sampling=PolicySampling(max_tokens=32),
+        max_concurrent=2,
     )
 
     rollouts = asyncio.run(
         bridge.run(
             RolloutBatch(
-                example_ids=("train/000007", "train/000008"),
+                example_ids=("train/000007", "train/000008", "train/000007", "train/000008"),
                 step=3,
                 model_id="model-profile-v1",
             ),
@@ -361,7 +362,12 @@ def test_native_bridge_runs_distinct_prompt_groups_concurrently(tmp_path) -> Non
     )
 
     assert environment.max_active == 2
-    assert [rollout.example_id for rollout in rollouts] == ["train/000007", "train/000008"]
+    assert [rollout.example_id for rollout in rollouts] == [
+        "train/000007",
+        "train/000008",
+        "train/000007",
+        "train/000008",
+    ]
 
 
 def test_native_bridge_portable_snapshot_reconstructs_without_live_environment_state(tmp_path) -> None:

@@ -4,8 +4,9 @@
 > **STALE — pending reconciliation (2026-07-21).**
 > Canonical design: [docs/post-training/](../post-training/README.md).
 > Do not treat this document as the current product contract. Gap list: [RECONCILIATION.md](./RECONCILIATION.md).
-> The explicitly accepted LAN release-runner document is a delivery architecture
-> and is not covered by this stale product-architecture warning.
+> The explicitly accepted LAN release-runner document and the source-grounded
+> infrastructure/job-lifecycle map are delivery architectures and are not
+> covered by this stale product-architecture warning.
 
 The architecture is a target MVP revamp derived from the post-training baseline:
 [01 · Workflow](../post-training/01-workflow.md),
@@ -25,6 +26,7 @@ existing code remains prototype evidence rather than an interface constraint.
 | [Evaluation and environments](./evaluation-and-environments.md) | How do general evaluation, domain evaluation, Verifiers, and serving benchmarks relate? |
 | [Proposed evaluation signal interpretation](./proposed-evaluation-signal-interpretation.md) | How should environment-native rewards, metrics, pass rate, task slices, aggregation, and comparison be modeled without reinterpreting traces? |
 | [Tool-using environment execution](./tool-using-environment-execution.md) | How do portable tool requirements, packed Verifiers/MCP execution, model protocols, and backend parsers compose without environment-specific framework code? |
+| [Infrastructure and job lifecycle](./infrastructure-and-job-lifecycle.md) | Which local infrastructure services exist, what roles do they own, and how does a digest-pinned job move from planning through scheduling, evidence reconciliation, and cleanup? |
 | [LAN release runner](./lan-release-runner.md) | How do GitHub approval, a private-network runner, development qualification, stable promotion, and tag-last finalization form one release transaction? |
 | [Training and inference](./training-and-inference.md) | What do the reusable train/eval/serve packages expose, and which framework details remain internal? |
 | [Observability](./observability.md) | What is recorded for runs, metrics, events, samples, and native artifacts? |
@@ -40,6 +42,7 @@ Canonical supervised and preference data ownership is defined by
 
 ## Revision history
 
+- 2026-08-06: Added the source-grounded local infrastructure and job-lifecycle map.
 - 2026-08-05: Added the accepted LAN release-runner delivery architecture.
 - 2026-07-21: Froze post-training baseline; marked architecture docs stale;
   added [RECONCILIATION.md](./RECONCILIATION.md) gap list (keep/rewrite/delete).

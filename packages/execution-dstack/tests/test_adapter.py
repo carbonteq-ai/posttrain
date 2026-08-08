@@ -144,7 +144,11 @@ def test_translation_and_submit_have_no_secret_values(tmp_path: Path) -> None:
     assert all(config["resources"]["gpu"]["memory"] == "24GB..30GB" for _, config in configurations)
     assert all(config["instances"] == [{"hostname": "remote.lan"}] for _, config in configurations)
     assert all(
-        config["commands"] == ["posttrain-runtime execute --manifest /opt/posttrain/job/package.json"]
+        config["commands"]
+        == [
+            "ulimit -n 65536 2>/dev/null || true; exec "
+            "posttrain-runtime execute --manifest /opt/posttrain/job/package.json"
+        ]
         for _, config in configurations
     )
     assert all(config["working_dir"] == "/opt/posttrain/job" for _, config in configurations)

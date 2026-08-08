@@ -55,6 +55,7 @@ from .models import (
     TaskSliceMetadata,
     TraceDetail,
     TraceEvaluationView,
+    TraceSummaryPage,
     WorkPackageView,
 )
 from .semantic import (
@@ -170,6 +171,7 @@ __all__ = [
     "TaskSliceMetadata",
     "TraceDetail",
     "TraceEvaluationView",
+    "TraceSummaryPage",
     "TraceSectionDefinition",
     "WorkPackageView",
     "create_service",

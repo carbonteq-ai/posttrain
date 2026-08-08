@@ -66,6 +66,99 @@ def test_job_help_exposes_product_path_not_compatibility_flags(capsys) -> None:
             assert "[tool.posttrain.execution] provider" in help_text
             assert "durable run identity" in help_text
             assert "idempotency namespace" in help_text
+        if command == "run":
+            assert "--resume-from-run" in help_text
+            assert "checkpoint" in help_text
+
+
+def test_recovery_checkpoint_rebinds_a_new_training_run() -> None:
+    from posttrain.tracking import ArtifactLink, StoredArtifact
+    from posttrain_cli.execution_config import ResolvedExecutionSettings
+    from posttrain_cli.execution_planning import (
+        PlannedJobExecution,
+        PlannedJobLaunch,
+        PlannedJobPackage,
+        with_recovery_checkpoint,
+    )
+
+    spec = RunSpec(
+        project_id="example",
+        work_package_id="train/example",
+        stage="train",
+        job_kind="train.grpo",
+        job_definition_version="train/trl-grpo@1",
+        run_id="new-run",
+    )
+    planned = PlannedJobExecution(
+        package=cast(PlannedJobPackage, SimpleNamespace()),
+        launch=PlannedJobLaunch(spec, cast(ResolvedExecutionSettings, SimpleNamespace()), ()),
+    )
+    artifact = ArtifactLink(
+        direction="output",
+        logical_name="training/model/grpo/recovery-checkpoint",
+        kind="training-checkpoint",
+        artifact=StoredArtifact(
+            provider="trackio",
+            namespace="example",
+            name="training-model-grpo-recovery-checkpoint",
+            version="v3",
+            digest="a" * 64,
+            provider_metadata={"global_step": 25},
+        ),
+    )
+
+    rebound = with_recovery_checkpoint(planned, source_run_id="old-run", artifact=artifact)
+
+    selected = rebound.launch.run_spec.artifacts["recovery_checkpoint"]
+    assert selected.kind == "training-checkpoint"
+    assert selected.reference.version == "v3"
+    assert rebound.launch.run_spec.resolved_inputs["recovery_checkpoint"] == {
+        "source_run_id": "old-run",
+        "logical_name": "training/model/grpo/recovery-checkpoint",
+        "provider": "trackio",
+        "namespace": "example",
+        "name": "training-model-grpo-recovery-checkpoint",
+        "version": "v3",
+        "digest": "a" * 64,
+    }
+
+
+def test_recovery_checkpoint_requires_a_new_run_identity() -> None:
+    from posttrain.tracking import ArtifactLink, StoredArtifact
+    from posttrain_cli.execution_config import ResolvedExecutionSettings
+    from posttrain_cli.execution_planning import (
+        PlannedJobExecution,
+        PlannedJobLaunch,
+        PlannedJobPackage,
+        with_recovery_checkpoint,
+    )
+
+    spec = RunSpec(
+        project_id="example",
+        work_package_id="train/example",
+        stage="train",
+        job_kind="train.sft",
+        job_definition_version="train/trl-sft@1",
+        run_id="same-run",
+    )
+    planned = PlannedJobExecution(
+        package=cast(PlannedJobPackage, SimpleNamespace()),
+        launch=PlannedJobLaunch(spec, cast(ResolvedExecutionSettings, SimpleNamespace()), ()),
+    )
+    artifact = ArtifactLink(
+        direction="output",
+        logical_name="training/model/sft/recovery-checkpoint",
+        kind="training-checkpoint",
+        artifact=StoredArtifact(
+            provider="trackio",
+            namespace="example",
+            name="checkpoint",
+            version="v0",
+        ),
+    )
+
+    with pytest.raises(ContractError, match="new run identity"):
+        with_recovery_checkpoint(planned, source_run_id="same-run", artifact=artifact)
 
 
 def test_controller_once_renders_one_bounded_sweep(
@@ -607,7 +700,7 @@ def test_init_sft_template_writes_installable_project_and_valid_standard_job(
     assert '"posttrain[observatory,trackio,trl]' in pyproject
     assert "carbonteq-ai/trackio.git" not in pyproject
     assert "carbonteq-trackio" not in pyproject
-    assert "carbonteq-ai/trl.git@6e7739b8" in pyproject
+    assert "carbonteq-ai/trl.git@91b0ce707631d503fbed337b42444a9d3fac3acb" in pyproject
     assert "selection_type: sft-settings" in settings
     assert "datasets/posttrain-sft-smoke@1" in work_package
     assert "train/trl-sft@1" in work_package
