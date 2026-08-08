@@ -97,6 +97,13 @@ bytes.
   Evidence: candidate workflow `31279099084` failed at the `cp` step in
   `scripts/release/build-python-distributions`; the guide is now present and
   release tests/checks pass locally.
+- Observation: After the guide fix, the candidate exposed a second release
+  pipeline defect: OCI publication happened after wheelhouse staging. The
+  consumer virtualenv therefore installed a wheelhouse containing the old
+  runtime-image manifest even though the registry had newly built images.
+  Evidence: candidate `31280341495` refused the transform canary because the
+  installed manifest expected lock `d26cadd4…` while its pinned registry image
+  still carried `a9a2f0c8…` / framework `0.3.2`.
 
 ## Decision Log
 
@@ -136,6 +143,13 @@ bytes.
   Rationale: the release script intentionally embeds this guide in every
   wheelhouse; omitting it makes a technically built release unusable to an
   independent consumer and caused the candidate build failure.
+  Date/Author: 2026-08-09 / Codex.
+- Decision: Publish changed OCI inputs before building the Python wheelhouse in
+  the candidate workflow.
+  Rationale: `published.toml` is packaged inside `posttrain-runtime-images`; a
+  clean consumer can only select the newly qualified image digests when the
+  wheelhouse is built after image publication. The canary must fail closed on
+  drift rather than bypassing the check with `--build-missing`.
   Date/Author: 2026-08-09 / Codex.
 
 ## Outcomes & Retrospective
