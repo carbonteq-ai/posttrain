@@ -50,6 +50,9 @@ bytes.
   inputs; leave unrelated edits untouched.
 - [ ] Choose the next unused release version, update `release/manifest.toml`,
   regenerate dependency locks, and pass the complete local quality ladder.
+- [x] (2026-08-09) Prepared the `0.3.3` release branch and draft PR, passed
+  the local quality ladder and exact-SHA quality CI, and resolved the Trackio
+  post10 wheelhouse asset required by the protected workflow.
 - [ ] Dispatch the protected release-candidate workflow from the exact branch,
   verify the dev-index wheelhouse and OCI receipts, then dispatch the final
   workflow for the exact merged SHA. Do not create a tag before final stable
@@ -87,6 +90,13 @@ bytes.
   `+0.647602 → +0.667955` and `−0.118092 → −0.212115` from the same SFT source
   tree. The corrected probe must therefore verify loading, parity, and learning
   telemetry before interpreting reward direction.
+- Observation: The first protected `0.3.3rc1` build reached distribution
+  receipt verification but stopped while assembling the wheelhouse because the
+  repository did not contain the developer-facing `docs/release-and-consumption.md`
+  file that the release script embeds as its README.
+  Evidence: candidate workflow `31279099084` failed at the `cp` step in
+  `scripts/release/build-python-distributions`; the guide is now present and
+  release tests/checks pass locally.
 
 ## Decision Log
 
@@ -120,17 +130,24 @@ bytes.
   Rationale: the release workflow is designed to preserve exact source,
   dependency, image, and distribution receipts and to create the final tag last.
   Date/Author: 2026-08-09 / Codex.
+- Decision: Make the release-consumption guide a first-class source document
+  and wheelhouse README rather than teaching consumers from a workflow-only
+  implementation detail.
+  Rationale: the release script intentionally embeds this guide in every
+  wheelhouse; omitting it makes a technically built release unusable to an
+  independent consumer and caused the candidate build failure.
+  Date/Author: 2026-08-09 / Codex.
 
 ## Outcomes & Retrospective
 
-At the current stopping point, no corrected DAPO conclusion and no new
-framework release can honestly be claimed. The experiment has a reproducible
-SFT input and a running high-concurrency diagnostic, but the selected catalog
-settings are not the intended advantage-scaling configuration. The framework
-release is still at the existing `0.3.2` manifest/tag and is blocked by a stale
-generated lock digest plus the mixed dirty tree. This section will be replaced
-with the two-step evidence summary and exact release receipts after the gates
-below pass.
+The corrected DAPO probe remains a separate, explicitly unfinished
+qualification item. The framework release is now prepared as `0.3.3` on
+branch `codex/release-0.3.3` (commit `59a4bcb9` plus the release-guide fix) with
+draft PR `carbonteq-ai/posttrain#34`. Local validation and exact-SHA quality CI
+pass. The first protected candidate build exposed and diagnosed the missing
+wheelhouse README; candidate publication and final promotion remain pending.
+This section will be replaced with the final workflow receipts and any
+experiment evidence after those gates pass.
 
 ## Context and Orientation
 
