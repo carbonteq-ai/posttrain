@@ -56,7 +56,10 @@ bytes.
 - [ ] Dispatch the protected release-candidate workflow from the exact branch,
   verify the dev-index wheelhouse and OCI receipts, then dispatch the final
   workflow for the exact merged SHA. Do not create a tag before final stable
-  readback succeeds.
+  readback succeeds. Candidate `31280782204` reached OCI publication and clean
+  consumer installation but stopped at the canary because the wheelhouse still
+  contained the pre-publication image manifest; the builder overlay fix is
+  queued for the next candidate.
 - [ ] Record final experiment and release receipts, update this plan’s outcome,
   and report the tag, release URL, package/image digests, and remaining gates.
 
@@ -104,6 +107,16 @@ bytes.
   Evidence: candidate `31280341495` refused the transform canary because the
   installed manifest expected lock `d26cadd4…` while its pinned registry image
   still carried `a9a2f0c8…` / framework `0.3.2`.
+- Observation: Moving OCI publication before wheelhouse construction was not
+  sufficient because the distribution builder deliberately stages from
+  `git archive HEAD`, which excludes the generated `published.toml` mutation.
+  Evidence: candidate `31280782204` published fresh transform digest
+  `c26e6451…`, but the clean consumer still packed old digest `c772968f…` and
+  the dstack canary reported framework `0.3.2` / lock `a9a2f0c8…`.
+- Observation: The correct ownership boundary is a narrow overlay of the
+  generated runtime manifest after immutable source staging, not a broad dirty
+  checkout copy. The overlay is covered by a release regression test and will
+  be requalified in the next protected candidate.
 
 ## Decision Log
 
@@ -151,17 +164,25 @@ bytes.
   wheelhouse is built after image publication. The canary must fail closed on
   drift rather than bypassing the check with `--build-missing`.
   Date/Author: 2026-08-09 / Codex.
+- Decision: Keep `git archive` as the release source boundary, but explicitly
+  overlay the generated runtime-image manifest into the staged tree before
+  building distributions.
+  Rationale: this preserves protection against arbitrary dirty state while
+  ensuring the wheelhouse and OCI registry carry identical image digests.
+  Date/Author: 2026-08-09 / Codex.
 
 ## Outcomes & Retrospective
 
 The corrected DAPO probe remains a separate, explicitly unfinished
 qualification item. The framework release is now prepared as `0.3.3` on
-branch `codex/release-0.3.3` (commit `59a4bcb9` plus the release-guide fix) with
-draft PR `carbonteq-ai/posttrain#34`. Local validation and exact-SHA quality CI
-pass. The first protected candidate build exposed and diagnosed the missing
-wheelhouse README; candidate publication and final promotion remain pending.
-This section will be replaced with the final workflow receipts and any
-experiment evidence after those gates pass.
+branch `codex/release-0.3.3` (current fix commit follows the release-guide fix)
+with draft PR `carbonteq-ai/posttrain#34`. Local validation and exact-SHA
+quality CI pass. Protected candidates caught and fixed two release defects:
+the missing wheelhouse README and the generated OCI manifest being omitted by
+`git archive` staging. Candidate `31280782204` therefore remains rejected at
+the canary; the next candidate must prove that the clean consumer carries the
+fresh image digests before merge or final promotion. No final tag has been
+created.
 
 ## Context and Orientation
 

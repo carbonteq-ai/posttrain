@@ -280,6 +280,14 @@ def test_stage_uses_committed_source_and_excludes_runner_state(tmp_path: Path) -
     assert (destination / "packages/train/pyproject.toml").is_file()
 
 
+def test_distribution_builder_overlays_generated_runtime_manifest() -> None:
+    repository_root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+    builder = (repository_root / "scripts/release/build-python-distributions").read_text(encoding="utf-8")
+    assert "generated_image_manifest=" in builder
+    assert "staged_image_manifest=" in builder
+    assert 'cp "${generated_image_manifest}" "${staged_image_manifest}"' in builder
+
+
 def test_stage_can_render_an_rc_without_changing_the_authored_target(tmp_path: Path) -> None:
     source = tmp_path / "source"
     destination = tmp_path / "staged"
