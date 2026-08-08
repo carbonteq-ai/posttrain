@@ -10,6 +10,7 @@ from .definitions import (
     model_transform_definition,
     preference_data_prepare_definition,
     remote_evaluation_definition,
+    resumable_distillation_definition,
     sampo_definition,
     serve_benchmark_definition,
     serve_generation_smoke_definition,
@@ -23,6 +24,7 @@ from .runtime import build_job_runtime
 __all__ = [
     "build_job_runtime",
     "distillation_definition",
+    "resumable_distillation_definition",
     "dpo_definition",
     "general_evaluation_definition",
     "grpo_definition",

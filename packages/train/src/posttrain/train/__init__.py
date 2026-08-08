@@ -23,12 +23,19 @@ from .bindings import (
     QuantizationAwareUpdate,
     QuantizationPlan,
     TrainingBinding,
+    TrainingCheckpoint,
     TrainingParallelism,
     TrainingRuntime,
     parameter_update_digest,
     validate_parameter_update,
 )
-from .catalog_schema import TRAIN_CATALOG_DECODERS, QuantizationPlanSchema, TrainingBindingSchema, TrainingRuntimeSchema
+from .catalog_schema import (
+    TRAIN_CATALOG_DECODERS,
+    QuantizationPlanSchema,
+    TrainingBindingSchema,
+    TrainingCheckpointSchema,
+    TrainingRuntimeSchema,
+)
 from .distillation import DistillationBatch, DistillationBatchLedger, DistillationBatchSource
 from .grpo_observations import (
     GRPOEvidenceStatus,
@@ -151,6 +158,8 @@ __all__ = [
     "TRAIN_CATALOG_DECODERS",
     "TrainingBinding",
     "TrainingBindingSchema",
+    "TrainingCheckpoint",
+    "TrainingCheckpointSchema",
     "TrainingParallelism",
     "TrainingRuntime",
     "TrainingRuntimeSchema",

@@ -11,7 +11,7 @@ from dataclasses import asdict, dataclass, field
 from types import MappingProxyType
 from typing import Literal
 
-from posttrain.common import ExecutionTarget, JsonValue, ModelVariant
+from posttrain.common import ExecutionTarget, JsonValue, ModelVariant, StoredArtifactRef
 from posttrain.common.selections import validate_revision, validate_selection_id
 
 from .profiles import TrainingRenderer
@@ -123,6 +123,28 @@ class TrainingBinding:
         if not isinstance(self.runtime, TrainingRuntime):
             raise TypeError("training binding runtime must be a TrainingRuntime")
         object.__setattr__(self, "backend_options", MappingProxyType(dict(self.backend_options)))
+
+
+@dataclass(frozen=True, slots=True)
+class TrainingCheckpoint:
+    """One immutable trainer checkpoint selected for an explicit resume job."""
+
+    id: str
+    revision: str
+    artifact: StoredArtifactRef
+
+    def __post_init__(self) -> None:
+        validate_selection_id(self.id, "training checkpoint id")
+        validate_revision(self.revision, "training checkpoint revision")
+        digest = self.artifact.provider_metadata.get("posttrain_content_digest")
+        if not isinstance(digest, str) or re.fullmatch(r"(?:sha256:)?[0-9a-f]{64}", digest) is None:
+            raise ValueError("training checkpoints require an immutable SHA-256 content digest")
+
+    @property
+    def content_digest(self) -> str:
+        value = self.artifact.provider_metadata["posttrain_content_digest"]
+        assert isinstance(value, str)
+        return value.removeprefix("sha256:")
 
 
 @dataclass(frozen=True, slots=True)

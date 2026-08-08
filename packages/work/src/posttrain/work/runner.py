@@ -35,6 +35,7 @@ from posttrain.train import (
     QuantizationPlan,
     SFTSettings,
     TrainingBinding,
+    TrainingCheckpoint,
     parameter_update_digest,
 )
 
@@ -683,6 +684,16 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
             },
             "runtime": asdict(value.runtime),
         }
+    if isinstance(value, TrainingCheckpoint):
+        return {
+            "artifact": {
+                "provider": value.artifact.provider,
+                "namespace": value.artifact.namespace,
+                "name": value.artifact.name,
+                "version": value.artifact.version,
+                "content_digest": value.content_digest,
+            }
+        }
     if isinstance(value, (SFTSettings, DPOSettings, GRPOSettings, OnPolicyDistillationSettings)):
         loop = value.loop
         details: dict[str, JsonValue] = {
@@ -937,6 +948,9 @@ def _evaluation_contract_snapshot(
 def _artifact_inputs(seats: ResolvedSeats) -> dict[str, ArtifactInput]:
     inputs: dict[str, ArtifactInput] = {}
     for value in seats.values():
+        if isinstance(value, TrainingCheckpoint):
+            inputs["training_checkpoint"] = ArtifactInput(value.artifact, "training-checkpoint")
+            continue
         if isinstance(value, ModelVariant) and isinstance(value.artifact, (StoredArtifactRef, TrackioArtifactRef)):
             reference = (
                 value.artifact

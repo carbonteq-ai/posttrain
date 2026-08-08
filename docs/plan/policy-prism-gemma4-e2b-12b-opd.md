@@ -28,7 +28,9 @@ The user-visible proof is a reconciled PostTrain training run with 384 admitted 
 - [x] (2026-08-07) Package the clean Policy Prism commit `075c35159d4af4485940ec1f33bf45a560314361` into job image `sha256:384b373c56badff5148924e2299945331de8fe1d502526999102b327719619b9`, pass isolated qualification, and prove Trackio post10 artifact upload/download byte integrity from that exact image (`sha256:4afe25b65381339710925097f450a76b2db5bab8650bd3194915d3ac1d8241f7`).
 - [x] (2026-08-07) Diagnose `opda01` through `opda05` from native traces: correct semantic admission ordering, checkpoint only the Policy Prism SQLite ledger, select XGrammar whitespace policy at the actual rollout-inference boundary, and retain the verified step-16 checkpoint from `opda05` as incident evidence.
 - [x] (2026-08-07) Correct full-trajectory replacement accounting in Policy Prism commit `36a7e38`: permit the primary plus both packaged same-stratum reserves, raise the matching call ceiling from six to nine, pass all 18 focused OPD tests and Ruff, and package qualified job image `sha256:c2ca3293d5ae5c68d29785191088e106c0b68fc099abfd6ab483684912316005`.
-- [ ] Submit the corrected full 384-update GPU job, monitor it, preserve milestones 96/192/288/384, reconcile all required evidence, and diagnose/retry safely if necessary. Failed attempts remain operational evidence only; none reached optimizer step one.
+- [x] (2026-08-08) Run corrected attempt `opda06-e2b12b-r16-scope384-v1` through 66 finite optimizer updates with 137,150 scored tokens, zero teacher failures, successful target 29, and durable checkpoints at steps 16/32/48/64; diagnose its abrupt provider failure as dstack `instance_unreachable`, not a training or admission failure.
+- [x] (2026-08-08) Add the explicit `training-checkpoint` catalog contract and `train/trl-distill-resume@1` job without changing the original distillation definition; validate immutable content-digest materialization and compose a step-64 resume work package.
+- [ ] Resume the corrected full job from immutable step 64, monitor it through update 384, preserve milestones 96/192/288/384, and reconcile all required evidence.
 - [ ] Publish the final rank-16 LoRA adapter privately to `carbonteq/gemma-4-e2b-policy-prism-scope-opd-from-12b-lora-v1`, verify a fresh download, and record the immutable Hugging Face revision.
 - [ ] Register the exact adapter, run sealed scope then recovery evaluations sequentially, apply scientific gates, and reconcile them.
 - [ ] Materialize native evaluation artifacts, finalize them into Policy Prism `evaluation-runs`, validate compatibility and evidence, then commit/push final Policy Prism lineage.
@@ -83,6 +85,10 @@ The user-visible proof is a reconciled PostTrain training run with 384 admitted 
   Evidence: `opda01` reached optimizer step one before exposing target-stage admission ordering; `opda02` exposed an invalid nonexistent native-trace checkpoint sidecar at step 16; `opda03` exposed arbitrary XGrammar whitespace at target seven; `opda04` proved the first whitespace selection was placed on the unused training binding; and `opda05` passed those gates, published a byte-addressed step-16 checkpoint, and completed 29 finite updates before a graph target exhausted its full-trajectory candidate limit.
 - Observation: `scope-opd-0029` was a determinate q1 benchmark graph target with two packaged compatible reserves, but the runtime admitted only the primary and one reserve. Both candidates produced valid evidence followed by a valid rules-stage abstention, leaving no graph output to optimize; the second reviewed reserve was never attempted.
   Evidence: the native Trackio trace contains four successful stop-terminated calls across the two candidate trajectories with no provider error or truncation. `_scope_opd_candidate_attempt_limit("full")` returned two while `task-plan.jsonl` named two reserves. Policy Prism commit `36a7e38` now permits three full candidates and exposes the corresponding nine-call environment ceiling without changing prompts, schemas, source distributions, or training settings.
+- Observation: the first fully corrected attempt passed every previously failing boundary and reached 66 optimizer updates before the workstation disappeared from dstack.
+  Evidence: `opda06-e2b12b-r16-scope384-v1` recorded finite loss and gradient metrics, zero teacher failures, 137,150 scored tokens, and published step-16/32/48/64 checkpoints. Its provider termination reason is `instance_unreachable`; the fleet subsequently reported the otherwise healthy workstation as unreachable and idle.
+- Observation: the step-64 checkpoint contains the trainer, optimizer, scheduler, adapter, RNG, and Policy Prism allocation-ledger state needed for exact continuation.
+  Evidence: `training-models-gemma4-e2b-it-bf16-distill-checkpoint-step-0064:v0` has content digest `820a1654acffe0f43adabcc93ca95a28767bb6eac1a84352cb5dcf8e24ad3e8e`, and the existing TRL backend restores both Hugging Face trainer state and configured runtime sidecars.
 
 ## Stopped launch incident report (2026-08-07)
 
@@ -197,10 +203,13 @@ The exact r0-r9 dstack provider runs report only `FAILED` or `TERMINATED`. r9 pr
 - Decision: restart the full job under a new run ID rather than add checkpoint selection/materialization to the standard distillation job during launch recovery.
   Rationale: the TRL backend can restore a local checkpoint, but `train/trl-distill@1` has no checkpoint input seat and its request builder cannot bind `resume_from`. Adding that feature now would widen the correction and risk reproducibility; the retained step-16 checkpoint remains evidence, not an implicitly resumed experiment.
   Date/Author: 2026-08-07 / Codex.
+- Decision: after the infrastructure-only loss of `opda06` at update 66, resume from its immutable step-64 checkpoint through a separate explicit job definition.
+  Rationale: this checkpoint comes from a run that passed every scientific and runtime gate for 66 updates. Repeating those updates would discard verified work and consume avoidable GPU time. The resume definition requires a content-digested checkpoint seat, materializes it through normal Trackio lineage, and leaves `train/trl-distill@1` unchanged.
+  Date/Author: 2026-08-08 / Codex.
 
 ## Outcomes & Retrospective
 
-The failed r0-r9 evidence remains retained and none reached optimizer step one. The user has now explicitly authorized the corrected end-to-end restart. The minimal XGrammar correction and catalog revisions are implemented; packaging, live artifact qualification, the uniquely named full run, publication, and sealed qualification remain in progress.
+The failed r0-r9 evidence remains retained and none reached optimizer step one. Corrected attempt `opda06` proved the complete training path through 66 updates before an external workstation-reachability failure. Its step-64 checkpoint is now an explicit, integrity-checked input to a separate resume job; completion, publication, and sealed qualification remain in progress.
 
 ## Context and Orientation
 

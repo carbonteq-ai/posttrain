@@ -58,6 +58,7 @@ from posttrain.train import (
     SFTRequest,
     SFTSettings,
     TrainingBinding,
+    TrainingCheckpoint,
     TransformRequest,
     TransformResult,
     build_verifiers_distillation_request,
@@ -273,6 +274,52 @@ def distillation_definition(
         },
         run,
         "Generate fresh student rollouts, score with the teacher, and apply distillation.",
+        required_artifact_roles=("model", "summary"),
+    )
+
+
+def resumable_distillation_definition(
+    operation: Callable[[RunContext, OnPolicyDistillationRequest], object] = distill,
+    *,
+    tasks: Mapping[int, Any] | None = None,
+    definition_id: str = "train/trl-distill-resume@1",
+) -> JobDefinition:
+    """Resume distillation from one explicitly selected immutable trainer checkpoint."""
+
+    def run(context: RunContext, seats: ResolvedSeats) -> object:
+        checkpoint = _seat(seats, "checkpoint", TrainingCheckpoint)
+        request = build_verifiers_distillation_request(
+            student=_seat(seats, "student", ModelVariant),
+            teacher=_seat(seats, "teacher", ModelVariant),
+            environment=_seat(seats, "environment", EnvironmentBinding),
+            settings=_seat(seats, "settings", OnPolicyDistillationSettings),
+            training=_seat(seats, "training", TrainingBinding),
+            rollout_inference=_seat(seats, "rollout_inference", InferenceBinding),
+            teacher_inference=_seat(seats, "teacher_inference", InferenceBinding),
+            trace_path=context.workspace / "training" / "distill" / "verifiers-traces.jsonl",
+            run_id=context.run_id,
+            tasks=tasks,
+            resume_from=context.input_artifact("training_checkpoint"),
+        )
+        if request.resume_from.digest != checkpoint.content_digest:
+            raise ContractError("materialized training checkpoint does not match its selected content digest")
+        return operation(context, request)
+
+    return JobDefinition(
+        definition_id,
+        "train.distill",
+        {
+            "student": ModelVariant,
+            "teacher": ModelVariant,
+            "environment": EnvironmentBinding,
+            "settings": OnPolicyDistillationSettings,
+            "training": TrainingBinding,
+            "rollout_inference": InferenceBinding,
+            "teacher_inference": InferenceBinding,
+            "checkpoint": TrainingCheckpoint,
+        },
+        run,
+        "Resume on-policy distillation from an immutable trainer checkpoint.",
         required_artifact_roles=("model", "summary"),
     )
 
@@ -570,6 +617,7 @@ def standard_definitions() -> dict[str, JobDefinition]:
         grpo_definition(),
         sampo_definition(),
         distillation_definition(),
+        resumable_distillation_definition(),
         serve_benchmark_definition(),
         serve_smoke_definition(),
         serve_generation_smoke_definition(),
@@ -687,6 +735,7 @@ def _seat[SelectionT: object](
 
 __all__ = [
     "distillation_definition",
+    "resumable_distillation_definition",
     "dpo_definition",
     "general_evaluation_definition",
     "grpo_definition",

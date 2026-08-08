@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Annotated, Literal
 
-from posttrain.common import CatalogRef, ContractError, ExecutionTarget, JsonValue
+from posttrain.common import CatalogRef, ContractError, ExecutionTarget, JsonValue, StoredArtifactRef
 from posttrain.common.catalog import SelectionDecoder
 from posttrain.common.selections import Selection, SelectionFamily
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
@@ -18,6 +18,7 @@ from .bindings import (
     QuantizationAwareUpdate,
     QuantizationPlan,
     TrainingBinding,
+    TrainingCheckpoint,
     TrainingParallelism,
     TrainingRuntime,
 )
@@ -125,6 +126,21 @@ class TrainingBindingSchema(TrainCatalogSchema):
     backend_options: dict[str, JsonValue] = Field(default_factory=dict)
 
 
+class TrainingCheckpointArtifactSchema(TrainCatalogSchema):
+    provider: str
+    namespace: str
+    name: str
+    version: str
+    content_digest: str = Field(pattern=r"^(?:sha256:)?[0-9a-f]{64}$")
+
+
+class TrainingCheckpointSchema(TrainCatalogSchema):
+    selection_type: Literal["training-checkpoint"]
+    id: str
+    revision: str
+    artifact: TrainingCheckpointArtifactSchema
+
+
 class SFTValidationSettingsSchema(TrainCatalogSchema):
     steps: int = Field(gt=0)
     per_device_batch_size: int | None = Field(default=None, gt=0)
@@ -212,6 +228,7 @@ class SAMPOSettingsSchema(TrainCatalogSchema):
 
 type TrainingSelectionSchema = Annotated[
     TrainingBindingSchema
+    | TrainingCheckpointSchema
     | SFTSettingsSchema
     | DPOSettingsSchema
     | GRPOSettingsSchema
@@ -254,6 +271,22 @@ def decode_training_selection(
     known: Mapping[CatalogRef, Selection],
 ) -> Selection:
     payload = TypeAdapter(TrainingSelectionSchema).validate_python(data)
+    if isinstance(payload, TrainingCheckpointSchema):
+        artifact = payload.artifact
+        return TrainingCheckpoint(
+            id=payload.id,
+            revision=payload.revision,
+            artifact=StoredArtifactRef(
+                provider=artifact.provider,
+                namespace=artifact.namespace,
+                name=artifact.name,
+                version=artifact.version,
+                provider_metadata={
+                    "posttrain_content_digest": artifact.content_digest.removeprefix("sha256:"),
+                    "posttrain_content_digest_kind": "tree",
+                },
+            ),
+        )
     if isinstance(payload, SFTSettingsSchema):
         validation = (
             SFTValidationSettings(**payload.validation.model_dump()) if payload.validation is not None else None
@@ -355,6 +388,7 @@ __all__ = [
     "SFTSettingsSchema",
     "TRAIN_CATALOG_DECODERS",
     "TrainingBindingSchema",
+    "TrainingCheckpointSchema",
     "TrainingRuntimeSchema",
     "TrainingLoopSchema",
     "decode_quantization_selection",

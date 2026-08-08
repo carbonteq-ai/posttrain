@@ -31,12 +31,15 @@ from posttrain.eval import (
     EvaluationSignalRef,
     EvaluationSuccessDefinition,
 )
+from posttrain.train import TrainingCheckpoint
 from posttrain.work import (
     FinalizedRunResult,
     JobDefinition,
     ProjectBrief,
+    Recipe,
     RecipeJob,
     RunSpec,
+    WorkPackage,
     WorkPackageContext,
     load_work_package,
     prepare_work_package_job,
@@ -174,6 +177,61 @@ def test_selected_job_can_be_prepared_without_execution(tmp_path: Path) -> None:
     assert prepared.definition.id == "data/cpu-check@1"
     assert prepared.spec.run_id == "run-planned-1"
     assert prepared.seats["target"] is target
+
+
+def test_training_checkpoint_is_materialized_as_a_named_run_input() -> None:
+    digest = "8" * 64
+    checkpoint = TrainingCheckpoint(
+        id="checkpoints/opd-step-64",
+        revision="1",
+        artifact=StoredArtifactRef(
+            provider="trackio",
+            namespace="policy-prism-scope-opd-e2b-12b",
+            name="training-checkpoint-step-0064",
+            version="v0",
+            provider_metadata={
+                "posttrain_content_digest": digest,
+                "posttrain_content_digest_kind": "tree",
+            },
+        ),
+    )
+    catalog = Catalog(
+        CatalogLayer(
+            "framework-v1",
+            {CatalogRef("training", checkpoint.id): checkpoint},
+        ),
+        (),
+        "example",
+    )
+    definition = JobDefinition(
+        "train/checkpoint-consumer@1",
+        "train.distill",
+        {"checkpoint": TrainingCheckpoint},
+        lambda context, seats: None,
+    )
+    package = WorkPackage(
+        project_id="example",
+        work_package_id="train/checkpoint-consumer",
+        stage="train",
+        recipe=Recipe(
+            id="recipes/checkpoint-consumer@1",
+            revision="1",
+            stage="train",
+            seats={"checkpoint": "training"},
+            jobs=(RecipeJob("train", "train.distill", definition.id),),
+        ),
+        bindings={"checkpoint": CatalogRef("training", checkpoint.id)},
+    )
+
+    prepared = prepare_work_package_job(
+        WorkPackageContext(catalog, {definition.id: definition}),
+        package,
+        "train",
+    )
+
+    artifact = prepared.spec.artifacts["training_checkpoint"]
+    assert artifact.kind == "training-checkpoint"
+    assert artifact.reference is checkpoint.artifact
 
 
 def test_run_snapshot_includes_project_brief_and_digest(tmp_path: Path) -> None:

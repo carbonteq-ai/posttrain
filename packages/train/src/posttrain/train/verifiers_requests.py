@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from posttrain.common import InferenceBinding, ModelVariant
+from posttrain.common import InferenceBinding, LocalArtifactRef, ModelVariant
 
 from .bindings import QuantizationPlan, TrainingBinding
 from .integrations.verifiers import (
@@ -67,6 +67,7 @@ def build_verifiers_distillation_request(
     run_id: str,
     tasks: Mapping[int, Any] | None = None,
     quantization: QuantizationPlan | None = None,
+    resume_from: LocalArtifactRef | None = None,
 ) -> OnPolicyDistillationRequest:
     """Build the public distillation request directly from an environment binding."""
 
@@ -90,6 +91,7 @@ def build_verifiers_distillation_request(
         rollout_inference=rollout_inference,
         teacher_inference=teacher_inference,
         quantization=quantization,
+        resume_from=resume_from,
     )
 
 

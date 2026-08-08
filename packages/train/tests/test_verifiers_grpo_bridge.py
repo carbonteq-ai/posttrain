@@ -11,7 +11,7 @@ from typing import Any, TypeVar, cast
 
 import pytest
 from posttrain.catalog import open_catalog
-from posttrain.common import CatalogRef, InferenceBinding, ModelVariant
+from posttrain.common import CatalogRef, InferenceBinding, LocalArtifactRef, ModelVariant
 from posttrain.eval import EnvironmentBinding
 from posttrain.train import (
     GRPORequest,
@@ -475,6 +475,9 @@ def test_catalog_environment_builds_public_grpo_and_distillation_requests(tmp_pa
         run_id="grpo-run",
         tasks=tasks,
     )
+    checkpoint = tmp_path / "checkpoint-64"
+    checkpoint.mkdir()
+    resume_from = LocalArtifactRef(checkpoint.resolve(), "a" * 64)
     distillation_request = build_verifiers_distillation_request(
         student=selection("model", "models/qwen3.5-0.8b@bf16", ModelVariant),
         teacher=selection("model", "models/qwen3.5-2b@bf16", ModelVariant),
@@ -502,6 +505,7 @@ def test_catalog_environment_builds_public_grpo_and_distillation_requests(tmp_pa
         trace_path=tmp_path / "distill-traces.jsonl",
         run_id="distill-run",
         tasks=tasks,
+        resume_from=resume_from,
     )
 
     assert config["taskset"]["split"] == "train"
@@ -509,3 +513,4 @@ def test_catalog_environment_builds_public_grpo_and_distillation_requests(tmp_pa
     assert isinstance(distillation_request, OnPolicyDistillationRequest)
     assert grpo_request.bridge.dataset.examples[0].prompt == "What is 2 + 2?"
     assert distillation_request.bridge.dataset.examples[0].prompt == "What is 2 + 2?"
+    assert distillation_request.resume_from is resume_from
