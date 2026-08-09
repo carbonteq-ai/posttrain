@@ -50,6 +50,12 @@ receipt instead of rebuilding or re-running completed checks.
 - [x] (2026-08-09T15:00Z) Final run `31319572261` succeeded: candidate
   provenance, final wheel build, dev/stable index checks, registry verification,
   real dstack canary, receipt retention, and `v0.3.5` tagging all passed.
+- [x] (2026-08-09T16:05Z) Measured the local readiness baseline on the merged
+  `main` checkout: `posttrain-release check` passed in 0.25s, Ruff and format
+  checks passed, Pyright passed in 11.7s, import-boundary checks passed, the
+  full suite passed (`1115 passed, 21 skipped`) in 18.3s, and the focused
+  release/checkpoint/CLI gate passed (`89 passed`) in 7.6s. These checks do not
+  require a package index, registry, dstack, or GitHub mutation.
 - [ ] Add a local readiness receipt and make the candidate workflow consume it.
 - [x] Remove duplicate full-suite execution from the final workflow while
   retaining exact-SHA, index, registry, dstack, and promotion checks.
@@ -199,11 +205,13 @@ merged-tree/candidate-tree equality, unchanged distribution and image hashes,
 successful stable-index promotion, a matching Git tag and GitHub release, and a
 retained receipt that allows a retry without rebuilding or republishing.
 
-The target timing budget is: local readiness under ten minutes on a warm
-workstation, candidate-specific remote work under ten minutes when images are
-unchanged, and final promotion under ten minutes excluding unavoidable dstack
-queue time. If dstack capacity is unavailable, the release remains safely
-deferred rather than claiming success.
+The measured local source gate is currently under one minute on this warm
+workstation. The remaining target is a first-class readiness receipt so the
+candidate workflow can consume that evidence without rerunning the same source
+checks. Candidate-specific remote work should remain under ten minutes when
+images are unchanged, and final promotion should remain under ten minutes
+excluding unavoidable dstack queue time. If dstack capacity is unavailable,
+the release remains safely deferred rather than claiming success.
 
 ## Idempotence and Recovery
 

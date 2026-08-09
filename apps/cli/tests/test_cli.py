@@ -162,7 +162,7 @@ def test_recovery_checkpoint_requires_a_new_run_identity() -> None:
 
 
 def test_model_checkpoint_rebinds_an_eval_with_an_immutable_adapter() -> None:
-    from posttrain.tracking import ArtifactLink, StoredArtifact
+    from posttrain.tracking import ArtifactInput, ArtifactLink, StoredArtifact, StoredArtifactRef
     from posttrain_cli.execution_config import ResolvedExecutionSettings
     from posttrain_cli.execution_planning import (
         PlannedJobExecution,
@@ -214,6 +214,38 @@ def test_model_checkpoint_rebinds_an_eval_with_an_immutable_adapter() -> None:
         "checkpoint_step": 25,
         "model_seat": "model",
     }
+
+    prebound = replace(
+        planned,
+        launch=replace(
+            planned.launch,
+            run_spec=replace(
+                planned.launch.run_spec,
+                artifacts={
+                    "model_adapter": ArtifactInput(
+                        StoredArtifactRef(
+                            provider="trackio",
+                            namespace="example",
+                            name="catalog-model",
+                            version="v0",
+                            digest="a" * 64,
+                        ),
+                        "model-adapter",
+                    )
+                },
+            ),
+        ),
+    )
+    with pytest.raises(ContractError, match="already has a selected model_adapter"):
+        with_model_checkpoint(prebound, source_run_id="old-run", artifact=artifact)
+
+    overridden = with_model_checkpoint(
+        prebound,
+        source_run_id="old-run",
+        artifact=artifact,
+        replace_existing=True,
+    )
+    assert overridden.launch.run_spec.artifacts["model_adapter"].reference.digest == "b" * 64
 
 
 def test_controller_once_renders_one_bounded_sweep(

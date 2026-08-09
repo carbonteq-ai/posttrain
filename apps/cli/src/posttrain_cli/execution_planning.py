@@ -408,8 +408,15 @@ def with_model_checkpoint(
     source_run_id: str,
     artifact: ArtifactLink,
     model_seat: str = "model",
+    replace_existing: bool = False,
 ) -> PlannedJobExecution:
-    """Bind one immutable loadable model view to a new train/eval/serve run."""
+    """Bind one immutable loadable model view to a new train/eval/serve run.
+
+    An explicit ``--model-from-run`` selection may replace the package's
+    catalog model input, but callers must opt into that replacement. Keeping
+    the default strict protects library callers from silently rebinding a
+    planned run while still giving the CLI an intentional override path.
+    """
 
     spec = planned.launch.run_spec
     if not spec.job_kind.startswith(("train.", "eval.", "serve.")):
@@ -424,7 +431,7 @@ def with_model_checkpoint(
     if stored.digest is None:
         raise ContractError("model source must have a committed content digest")
     input_name = "model_adapter" if artifact.kind == "model-adapter" else "model_weights"
-    if input_name in spec.artifacts:
+    if input_name in spec.artifacts and not replace_existing:
         raise ContractError(f"run already has a selected {input_name} model source")
     reference = StoredArtifactRef(
         provider=stored.provider,

@@ -302,6 +302,7 @@ def run_work_package_cmd(
                 source_run_id=model_from_run_id,
                 artifact=artifact,  # type: ignore[arg-type]
                 model_seat=model_seat,
+                replace_existing=True,
             )
         _require_verified_kind_image(planned, build_missing=build_missing)
         packed = planned.pack(allow_deferred_qualification=allow_deferred_qualification)
