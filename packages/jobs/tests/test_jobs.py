@@ -359,6 +359,43 @@ def test_standard_training_definition_forwards_materialized_recovery_checkpoint(
     assert result.resume_from == reference
 
 
+def test_training_definition_consumes_a_checkpoint_model_view_for_a_fresh_branch(tmp_path: Path) -> None:
+    request = _request(tmp_path)
+    runtime = build_job_runtime(request, tracking="none")
+    assert runtime.seat_resolver is not None
+    dataset_plan = _selection(request.catalog, "dataset", "datasets/posttrain-sft-smoke@1")
+    dataset = runtime.seat_resolver(
+        ResolvedSeat("dataset", dataset_plan, CatalogRef("dataset", dataset_plan.id), "base")
+    )
+    model = cast(ModelVariant, _selection(request.catalog, "model", "models/qwen3.5-2b@bf16"))
+    settings = cast(SFTSettings, _selection(request.catalog, "training", "qwen3.5-2b/sft-smoke-v2"))
+    training = cast(TrainingBinding, _selection(request.catalog, "training", "training/qwen3.5-trl-lora@1"))
+    adapter_path = (tmp_path / "model-adapter").resolve()
+    adapter_path.mkdir()
+    adapter = LocalArtifactRef(adapter_path, "c" * 64)
+    definition = sft_definition(lambda context, value: value)
+    context = RunContext(
+        project_id="jobs-test",
+        work_package_id="train/sft-branch",
+        run_id="run-branch",
+        job_kind="train.sft",
+        job_definition_version=definition.id,
+        workspace=(tmp_path / "workspace-branch").resolve(),
+        observer=NullObserver(),
+        input_artifacts={"model_adapter": adapter},
+    )
+
+    result = definition.operation(
+        context,
+        {"model": model, "dataset": dataset, "settings": settings, "training": training},
+    )
+
+    assert isinstance(result, SFTRequest)
+    assert result.resume_from is None
+    assert result.model.artifact is adapter
+    assert result.model.form == "adapter"
+
+
 def test_static_sft_preparation_retains_dataset_plan_without_materializing_it(
     tmp_path: Path,
 ) -> None:

@@ -10,6 +10,7 @@ import zipfile
 from pathlib import Path, PurePosixPath
 from shutil import which
 
+import posttrain_release.versioning as versioning
 import pytest
 from posttrain.runtime_images import (
     RUNTIME_VARIANTS,
@@ -258,6 +259,44 @@ def test_runtime_lock_materializes_published_internal_wheel_receipts(tmp_path: P
         "trl @ https://pypi.lan/carbonteq/stable/+f/abc/trl-1.9.2.post1-py3-none-any.whl#sha256=" + "c" * 64
     ) in lock.read_text(encoding="utf-8")
     assert check_release(tmp_path).runtime_lock_pending is False
+
+
+def test_pending_runtime_lock_allows_old_image_manifest_until_rebuild(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _version_repository(tmp_path)
+    runtime = tmp_path / "packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds"
+    (runtime / "profiles").mkdir(parents=True)
+    (runtime / "profiles/supervised.txt").write_text(
+        "carbonteq-trackio==0.31.5.post12\ntrl==1.9.2.post1\n", encoding="utf-8"
+    )
+    (runtime / "locks").mkdir()
+    (runtime / "locks/workspace.lock.txt").write_text(
+        "carbonteq-trackio @ git+https://example.invalid/trackio@" + "a" * 40 + "\n", encoding="utf-8"
+    )
+    with (tmp_path / "uv.lock").open("a", encoding="utf-8") as handle:
+        handle.write(
+            "\n[[package]]\n"
+            'name = "carbonteq-trackio"\n'
+            'version = "0.31.5.post12"\n'
+            'source = { registry = "https://pypi.lan/carbonteq/stable/+simple/" }\n'
+            'wheels = [{ url = "https://pypi.lan/carbonteq/stable/+f/abc/trackio.whl", '
+            'hash = "sha256:' + "c" * 64 + '" }]\n'
+        )
+    lock_dependencies(tmp_path)
+    versioning_lock_error = (
+        "base: published image records constraint lock digest old, but the shipped lock hashes to new"
+    )
+
+    def fake_load_manifest(*, verify_locks: bool = True, verify_variants: bool = True) -> object:
+        del verify_variants
+        if verify_locks:
+            raise ManifestError(versioning_lock_error)
+        return object()
+
+    monkeypatch.setattr(versioning, "load_manifest", fake_load_manifest)
+    pending = check_release(tmp_path, allow_pending_runtime_lock=True)
+    assert pending.runtime_lock_pending is True
 
 
 def test_release_check_ignores_a_virtual_root_but_checks_publishable_members(tmp_path: Path) -> None:
@@ -564,6 +603,8 @@ def test_tag_workflow_builds_the_versioned_stage_not_the_source_workspace() -> N
     assert 'build_cache_dir="${UV_CACHE_DIR:-$build_cache_dir}"' in builder
     assert 'UV_CACHE_DIR="$build_cache_dir"' in builder
     assert "uv build environments/" not in workflow
+    assert 'generated_runtime_lock="${repository_root}/packages/runtime-images' in builder
+    assert 'cp "${generated_runtime_lock}" "${staged_runtime_lock}"' in builder
 
 
 def test_protected_release_workflows_keep_the_build_and_qualification_boundaries() -> None:
@@ -841,6 +882,20 @@ def test_public_ci_trackio_mirror_matches_locked_distribution() -> None:
     assert "uv lock --check" not in workflow
     assert workflow.count("uv sync --frozen") == 4
     assert workflow.count("--no-install-package carbonteq-trackio") == 4
+
+
+def test_final_release_restores_candidate_runtime_lock_with_manifest() -> None:
+    root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+    workflow = (root / ".github/workflows/release.yml").read_text(encoding="utf-8")
+
+    assert 'candidate_workspace_lock="$(find .release/candidate' in workflow
+    assert 'test -n "${candidate_workspace_lock}"' in workflow
+    assert (
+        'cp "${candidate_workspace_lock}" \\\n'
+        "            packages/runtime-images/src/posttrain/runtime_images/containers/"
+        "posttrain-job-kinds/locks/workspace.lock.txt"
+    ) in workflow
+    assert 'cp "${candidate_workspace_lock}" .release/workspace.lock.txt' in workflow
 
 
 def test_release_can_read_prior_manifest_while_adding_a_variant(

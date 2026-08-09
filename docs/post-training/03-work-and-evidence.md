@@ -293,9 +293,21 @@ framework-shared foundation model
 
 ### Checkpoint versus artifact
 
-A recovery checkpoint is trainer state for resume. When the owner selects a
-checkpoint for qualification or further training, materialize it as an
-immutable model artifact.
+A recovery checkpoint is trainer state for exact resume. When it is retained
+durably, it remains a `training-checkpoint` recovery artifact and does not
+become a `ModelVariant` or a model-lineage node. The producing training run may
+also publish a model view for the same complete checkpoint: `model-adapter` for
+LoRA/QLoRA or `model-weights` for a full-parameter update. That view is the
+loadable input for a new training branch, evaluation, or serving run and is the
+only view that enters model lineage. Both views carry the same checkpoint
+snapshot identity, but consumers must never substitute one for the other.
+
+The original training run owns this projection at checkpoint time; ordinary
+reuse does not require a separate materialization job. A transform job remains
+appropriate when a backend must merge, quantize, export, or otherwise change
+representation before a model can be loaded. Packing can carry the policy and
+validate capabilities, but cannot create learned weights that do not yet
+exist.
 
 ### Candidate, retained, and handoff
 

@@ -169,11 +169,16 @@ jobs:
             --dir .release/candidate
           candidate_manifest="$(find .release/candidate -type f -name published.toml -print -quit)"
           test -n "${candidate_manifest}"
+          candidate_workspace_lock="$(find .release/candidate -type f -name workspace.lock.txt -print -quit)"
+          test -n "${candidate_workspace_lock}"
           candidate_version="$(sed -n 's/^framework_version = "\([^"]*\)"$/\1/p' "${candidate_manifest}")"
           release_version="$(sed -n 's/^version = "\([^"]*\)"$/\1/p' release/manifest.toml)"
           test "${candidate_version}" = "${release_version}"
           cp "${candidate_manifest}" packages/runtime-images/src/posttrain/runtime_images/published.toml
+          cp "${candidate_workspace_lock}" \
+            packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/workspace.lock.txt
           cp "${candidate_manifest}" .release/published.toml
+          cp "${candidate_workspace_lock}" .release/workspace.lock.txt
 
       - name: Build and hash final distributions exactly once
         if: inputs.resume_from_run_id == ''

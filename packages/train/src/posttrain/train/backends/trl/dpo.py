@@ -14,6 +14,7 @@ from ...requests import DPORequest
 from .common import (
     BackendTrainingResult,
     callback_type,
+    checkpoint_callback_type,
     emit_parameter_counts,
     emit_runtime_versions,
     finish_training,
@@ -80,6 +81,15 @@ def run_dpo(
         }
     )
     callback = callback_type(context, imports)()
+    checkpoint_callback = checkpoint_callback_type(
+        context,
+        imports,
+        model=request.model,
+        technique="dpo",
+        settings=request.settings,
+        update=request.training.update,
+        workspace=output_dir.parent,
+    )()
 
     class PretokenizedDPOTrainer(DPOTrainer):
         """Version-pinned adapter for renderer-produced TRL collator columns."""
@@ -97,7 +107,7 @@ def run_dpo(
             args=DPOConfig(**arguments),
             train_dataset=dataset,
             processing_class=tokenizer,
-            callbacks=[callback],
+            callbacks=[callback, checkpoint_callback],
         )
     resume = str(request.resume_from.path) if request.resume_from is not None else None
     with trainer_lifecycle(trainer):

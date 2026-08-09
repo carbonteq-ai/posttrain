@@ -13,6 +13,7 @@ from posttrain.common import (
     CatalogRef,
     LocalArtifactRef,
     ProducedArtifact,
+    PublishedArtifact,
     RunContext,
     TraceObservation,
 )
@@ -106,6 +107,10 @@ class FakeTrackedRun:
 
     def artifact(self, artifact: ProducedArtifact) -> None:
         self.observer.artifact(artifact)
+
+    def flush_artifacts(self, timeout: float | None = None) -> tuple[PublishedArtifact, ...]:
+        del timeout
+        return ()
 
     def finish(self, outcome: RunOutcome) -> None:
         if self.outcomes and self.outcomes[-1] != outcome:

@@ -167,7 +167,7 @@ The framework is feature-rich but not release-complete:
 
 - The primary CLI performs composition-level work-package validation; concrete
   first-party job-definition preflight and `posttrain work-package run` remain.
-- Trackio `carbonteq-v0.31.5.post11` is published to the internal index and
+- Trackio `carbonteq-v0.31.5.post12` is published to the internal index and
   deployed. Its manual compatibility receipt proves scalar read/write and a
   cache-independent S3 artifact round trip; a Trackio-owned automated release
   workflow remains operational follow-up rather than a 0.3.3 blocker.

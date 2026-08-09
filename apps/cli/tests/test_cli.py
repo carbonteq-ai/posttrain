@@ -161,6 +161,61 @@ def test_recovery_checkpoint_requires_a_new_run_identity() -> None:
         with_recovery_checkpoint(planned, source_run_id="same-run", artifact=artifact)
 
 
+def test_model_checkpoint_rebinds_an_eval_with_an_immutable_adapter() -> None:
+    from posttrain.tracking import ArtifactLink, StoredArtifact
+    from posttrain_cli.execution_config import ResolvedExecutionSettings
+    from posttrain_cli.execution_planning import (
+        PlannedJobExecution,
+        PlannedJobLaunch,
+        PlannedJobPackage,
+        with_model_checkpoint,
+    )
+
+    spec = RunSpec(
+        project_id="example",
+        work_package_id="eval/example",
+        stage="qualify",
+        job_kind="eval.general",
+        job_definition_version="eval/verifiers@1",
+        run_id="new-eval",
+    )
+    planned = PlannedJobExecution(
+        package=cast(PlannedJobPackage, SimpleNamespace()),
+        launch=PlannedJobLaunch(spec, cast(ResolvedExecutionSettings, SimpleNamespace()), ()),
+    )
+    artifact = ArtifactLink(
+        direction="output",
+        logical_name="training/model/grpo/checkpoint-00000025/model",
+        kind="model-adapter",
+        artifact=StoredArtifact(
+            provider="trackio",
+            namespace="example",
+            name="checkpoint-model",
+            version="v1",
+            digest="b" * 64,
+            provider_metadata={"checkpoint_step": 25},
+        ),
+    )
+
+    rebound = with_model_checkpoint(planned, source_run_id="old-run", artifact=artifact)
+
+    selected = rebound.launch.run_spec.artifacts["model_adapter"]
+    assert selected.kind == "model-adapter"
+    assert selected.reference.digest == "b" * 64
+    assert rebound.launch.run_spec.resolved_inputs["model_source"] == {
+        "source_run_id": "old-run",
+        "logical_name": "training/model/grpo/checkpoint-00000025/model",
+        "kind": "model-adapter",
+        "provider": "trackio",
+        "namespace": "example",
+        "name": "checkpoint-model",
+        "version": "v1",
+        "digest": "b" * 64,
+        "checkpoint_step": 25,
+        "model_seat": "model",
+    }
+
+
 def test_controller_once_renders_one_bounded_sweep(
     tmp_path: Path,
     capsys,

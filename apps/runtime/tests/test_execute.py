@@ -326,6 +326,10 @@ class _TrackedRun:
     def published_artifacts(self):
         return ()
 
+    def flush_artifacts(self, timeout: float | None = None):
+        del timeout
+        return ()
+
     def finish(self, outcome: RunOutcome) -> None:
         signal.raise_signal(self.repeat_signal)
         self.outcomes.append(outcome)

@@ -402,6 +402,60 @@ def with_recovery_checkpoint(
     return replace(planned, launch=replace(planned.launch, run_spec=rebound_spec))
 
 
+def with_model_checkpoint(
+    planned: PlannedJobExecution,
+    *,
+    source_run_id: str,
+    artifact: ArtifactLink,
+    model_seat: str = "model",
+) -> PlannedJobExecution:
+    """Bind one immutable loadable model view to a new train/eval/serve run."""
+
+    spec = planned.launch.run_spec
+    if not spec.job_kind.startswith(("train.", "eval.", "serve.")):
+        raise ContractError("model sources can only start train, eval, or serve jobs")
+    if source_run_id == spec.run_id:
+        raise ContractError("a model-source run must use a new run identity")
+    if not model_seat.strip():
+        raise ContractError("model source seat cannot be empty")
+    if artifact.direction != "output" or artifact.kind not in {"model-adapter", "model-weights"}:
+        raise ContractError("model source must be an output model-adapter or model-weights artifact")
+    stored = artifact.artifact
+    if stored.digest is None:
+        raise ContractError("model source must have a committed content digest")
+    input_name = "model_adapter" if artifact.kind == "model-adapter" else "model_weights"
+    if input_name in spec.artifacts:
+        raise ContractError(f"run already has a selected {input_name} model source")
+    reference = StoredArtifactRef(
+        provider=stored.provider,
+        namespace=stored.namespace,
+        name=stored.name,
+        version=stored.version,
+        digest=stored.digest,
+        provider_metadata=stored.provider_metadata,
+    )
+    rebound_spec = replace(
+        spec,
+        artifacts={**dict(spec.artifacts), input_name: ArtifactInput(reference, artifact.kind)},
+        resolved_inputs={
+            **dict(spec.resolved_inputs),
+            "model_source": {
+                "source_run_id": source_run_id,
+                "logical_name": artifact.logical_name,
+                "kind": artifact.kind,
+                "provider": stored.provider,
+                "namespace": stored.namespace,
+                "name": stored.name,
+                "version": stored.version,
+                "digest": stored.digest,
+                "checkpoint_step": stored.provider_metadata.get("checkpoint_step"),
+                "model_seat": model_seat,
+            },
+        },
+    )
+    return replace(planned, launch=replace(planned.launch, run_spec=rebound_spec))
+
+
 def plan_job_execution(
     state: CliState,
     path: Path,
@@ -1101,4 +1155,5 @@ __all__ = [
     "plan_job_launch",
     "plan_job_execution",
     "with_recovery_checkpoint",
+    "with_model_checkpoint",
 ]

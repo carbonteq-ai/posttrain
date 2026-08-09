@@ -203,3 +203,106 @@ class ModelVariant:
         if isinstance(self.artifact, StoredArtifactRef):
             return f"{self.artifact.provider}://{self.artifact.namespace}/{self.artifact.name}@{self.artifact.version}"
         return f"trackio://{self.artifact.project}/{self.artifact.name}@{self.artifact.version}"
+
+
+@dataclass(frozen=True, slots=True)
+class ModelArtifactDescriptor:
+    """Immutable model facts stored beside a checkpoint-derived model view."""
+
+    form: ModelForm
+    weight_precision: str
+    family: str
+    parameters: int
+    instruction_tuned: bool
+    renderer: RendererContract
+    capabilities: ModelCapabilities
+    base: HubModelRef
+    tokenizer_fingerprint: str | None = None
+    quantization: Mapping[str, JsonValue] = MappingProxyType({})
+    parent: str | None = None
+    source_run_id: str | None = None
+    checkpoint_step: int | None = None
+    checkpoint_snapshot_id: str | None = None
+    projection_schema: str = "model-view@1"
+
+    def __post_init__(self) -> None:
+        if not self.weight_precision.strip() or not self.family.strip():
+            raise ContractError("model artifact descriptor requires precision and family")
+        if self.parameters < 1:
+            raise ContractError("model artifact descriptor requires positive parameters")
+        if self.renderer.model_family != self.family:
+            raise ContractError("model artifact descriptor renderer is incompatible with family")
+        if self.tokenizer_fingerprint is not None and re.fullmatch(r"[0-9a-f]{64}", self.tokenizer_fingerprint) is None:
+            raise ContractError("model artifact descriptor tokenizer fingerprint must be a sha256 digest")
+        if self.checkpoint_step is not None and self.checkpoint_step < 0:
+            raise ContractError("model artifact descriptor checkpoint step cannot be negative")
+        if self.checkpoint_snapshot_id is not None and not self.checkpoint_snapshot_id.strip():
+            raise ContractError("model artifact descriptor checkpoint snapshot id cannot be empty")
+        if not self.projection_schema.strip():
+            raise ContractError("model artifact descriptor projection schema cannot be empty")
+        object.__setattr__(self, "quantization", MappingProxyType(dict(self.quantization)))
+
+    @classmethod
+    def from_model_variant(
+        cls,
+        model: ModelVariant,
+        *,
+        source_run_id: str | None = None,
+        checkpoint_step: int | None = None,
+        checkpoint_snapshot_id: str | None = None,
+        projection_schema: str = "model-view@1",
+    ) -> ModelArtifactDescriptor:
+        return cls(
+            form=model.form,
+            weight_precision=model.weight_precision,
+            family=model.family,
+            parameters=model.parameters,
+            instruction_tuned=model.instruction_tuned,
+            renderer=model.renderer,
+            capabilities=model.capabilities,
+            base=model.base,
+            tokenizer_fingerprint=model.tokenizer_fingerprint,
+            quantization=model.quantization,
+            parent=model.parent,
+            source_run_id=source_run_id,
+            checkpoint_step=checkpoint_step,
+            checkpoint_snapshot_id=checkpoint_snapshot_id,
+            projection_schema=projection_schema,
+        )
+
+    def to_model_variant(
+        self,
+        reference: StoredArtifactRef,
+        *,
+        variant_id: str,
+        kind: Literal["model-adapter", "model-weights"],
+    ) -> ModelVariant:
+        """Rebuild a catalog-independent model variant from a committed view."""
+
+        if kind == "model-adapter" and self.form not in {"adapter", "peft-adapter"}:
+            raise ContractError("model-adapter views require an adapter model form")
+        if kind == "model-weights" and self.form in {"adapter", "peft-adapter"}:
+            raise ContractError("model-weights views cannot use an adapter model form")
+        return ModelVariant(
+            id=variant_id,
+            artifact=reference,
+            form=self.form,
+            weight_precision=self.weight_precision,
+            family=self.family,
+            parameters=self.parameters,
+            instruction_tuned=self.instruction_tuned,
+            renderer=self.renderer,
+            capabilities=self.capabilities,
+            base=self.base,
+            revision=reference.version,
+            tokenizer_fingerprint=self.tokenizer_fingerprint,
+            quantization=self.quantization,
+            parent=self.parent,
+            provenance={
+                "projection_schema": self.projection_schema,
+                "source_run_id": self.source_run_id,
+                "checkpoint_step": self.checkpoint_step,
+                "checkpoint_snapshot_id": self.checkpoint_snapshot_id,
+                "artifact_kind": kind,
+            },
+        )

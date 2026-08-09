@@ -27,6 +27,7 @@ from posttrain.common import (
 )
 from posttrain.tracking import (
     ArtifactInput,
+    ArtifactIntegrityResult,
     ArtifactLink,
     ArtifactSet,
     EventRecord,
@@ -208,6 +209,7 @@ class TrackioTrackedRun:
         self._outcome: RunOutcome | None = None
         self._last_metric_step: int | None = None
         self._published_artifacts: list[PublishedArtifact] = []
+        self._pending_artifacts: list[tuple[ProducedArtifact, trackio.Artifact]] = []
 
     @property
     def run_id(self) -> str:
@@ -309,10 +311,11 @@ class TrackioTrackedRun:
     def artifact(self, artifact: ProducedArtifact) -> None:
         if not isinstance(artifact.reference, LocalArtifactRef):
             raise ContractError("Trackio output artifacts must be local before promotion")
-        path = artifact.reference.path
+        reference = cast(LocalArtifactRef, artifact.reference)
+        path = reference.path
         if not path.exists():
             raise FileNotFoundError(path)
-        if path.is_file() and _file_sha256(path) != artifact.reference.digest.removeprefix("sha256:"):
+        if path.is_file() and _file_sha256(path) != reference.digest.removeprefix("sha256:"):
             raise ContractError(f"artifact digest does not match file contents: {path}")
         logged = trackio.Artifact(
             _artifact_name(artifact.name),
@@ -321,12 +324,25 @@ class TrackioTrackedRun:
                 "logical_name": artifact.name,
                 **dict(artifact.metadata),
                 **({"posttrain_role": artifact.role} if artifact.role is not None else {}),
-                "posttrain_content_digest": artifact.reference.digest.removeprefix("sha256:"),
+                "posttrain_content_digest": reference.digest.removeprefix("sha256:"),
                 "posttrain_content_digest_kind": ("file" if path.is_file() else "tree"),
             },
         )
         logged.add_dir(path) if path.is_dir() else logged.add_file(path)
-        committed = self._run.log_artifact(logged)
+        try:
+            committed = cast(Any, self._run).log_artifact(logged, background=True)
+        except TypeError as error:
+            if "background" not in str(error):
+                raise
+            # Compatibility window for a previously released Trackio client;
+            # the immutable dependency pin is updated only after the fork
+            # release with background publication is qualified.
+            committed = cast(Any, self._run).log_artifact(logged)
+        self._pending_artifacts.append((artifact, committed))
+
+    def _record_committed_artifact(self, artifact: ProducedArtifact, committed: trackio.Artifact) -> PublishedArtifact:
+        reference = cast(LocalArtifactRef, artifact.reference)
+        path = reference.path
         version = committed.version
         digest = committed.digest
         project = committed.project
@@ -335,32 +351,54 @@ class TrackioTrackedRun:
         if any(item.logical_name == artifact.name for item in self._published_artifacts):
             raise ContractError(f"Trackio run published duplicate logical artifact name: {artifact.name}")
         size_bytes = committed.size
-        self._published_artifacts.append(
-            PublishedArtifact(
-                logical_name=artifact.name,
-                kind=artifact.kind,
-                reference=StoredArtifactRef(
-                    provider="trackio",
-                    namespace=project,
-                    name=committed.name,
-                    version=version,
-                    digest=str(digest),
-                    provider_metadata={
-                        "size_bytes": size_bytes,
-                        "posttrain_content_digest": artifact.reference.digest.removeprefix("sha256:"),
-                        "posttrain_content_digest_kind": ("file" if path.is_file() else "tree"),
-                    },
-                ),
-                required=artifact.required,
-                size_bytes=size_bytes,
-                metadata=artifact.metadata,
-                role=artifact.role,
-            )
+        return PublishedArtifact(
+            logical_name=artifact.name,
+            kind=artifact.kind,
+            reference=StoredArtifactRef(
+                provider="trackio",
+                namespace=project,
+                name=committed.name,
+                version=version,
+                digest=str(digest),
+                provider_metadata={
+                    "size_bytes": size_bytes,
+                    "posttrain_content_digest": reference.digest.removeprefix("sha256:"),
+                    "posttrain_content_digest_kind": ("file" if path.is_file() else "tree"),
+                },
+            ),
+            required=artifact.required,
+            size_bytes=size_bytes,
+            metadata=artifact.metadata,
+            role=artifact.role,
         )
 
-    def published_artifacts(self) -> tuple[PublishedArtifact, ...]:
-        """Return only identities synchronously committed by Trackio."""
+    def _flush_pending_artifacts(self, timeout: float | None = None) -> tuple[PublishedArtifact, ...]:
+        if not self._pending_artifacts:
+            return ()
+        committed: list[PublishedArtifact] = []
+        remaining: list[tuple[ProducedArtifact, trackio.Artifact]] = []
+        for artifact, handle in self._pending_artifacts:
+            try:
+                handle.wait(timeout=None if timeout is None else max(0, int(timeout)))
+            except TimeoutError:
+                remaining.append((artifact, handle))
+                raise
+            published = self._record_committed_artifact(artifact, handle)
+            self._published_artifacts.append(published)
+            committed.append(published)
+        self._pending_artifacts = remaining
+        return tuple(committed)
 
+    def flush_artifacts(self, timeout: float | None = None) -> tuple[PublishedArtifact, ...]:
+        """Drain queued Trackio publications before evidence reconciliation."""
+        flusher = getattr(self._run, "flush_artifacts", None)
+        if callable(flusher):
+            flusher(timeout=timeout)
+        return self._flush_pending_artifacts(timeout)
+
+    def published_artifacts(self) -> tuple[PublishedArtifact, ...]:
+        """Return only identities committed after an explicit bounded drain."""
+        self.flush_artifacts(timeout=30)
         return tuple(self._published_artifacts)
 
     def finish(self, outcome: RunOutcome) -> None:
@@ -368,6 +406,7 @@ class TrackioTrackedRun:
             if self._outcome == outcome:
                 return
             raise ContractError("Trackio run was already finalized with a different outcome")
+        self.flush_artifacts(timeout=30)
         values: dict[str, Any] = {
             "run/status": outcome.status,
             "run/started_at": outcome.started_at.isoformat(),
@@ -1154,6 +1193,15 @@ class TrackioDataSource:
         """Read artifact identities on the provider worker pool."""
 
         return await asyncio.to_thread(self._artifacts, run_id)
+
+    async def verify_artifact(self, reference: StoredArtifactRef, *, deep: bool = False) -> ArtifactIntegrityResult:
+        """Report provider verification support without downloading blobs implicitly."""
+
+        if reference.provider != "trackio" or reference.namespace != self.project:
+            return ArtifactIntegrityResult(
+                "failed", failures=("artifact belongs to another provider/project",), deep=deep
+            )
+        return ArtifactIntegrityResult("unsupported", deep=deep)
 
     def _artifacts(self, run_id: str) -> ArtifactSet:
         provider_run = self._provider_run(run_id)

@@ -29,6 +29,7 @@ from posttrain.common import (
 )
 from posttrain.tracking import (
     ArtifactInput,
+    ArtifactIntegrityResult,
     ArtifactLink,
     ArtifactSet,
     EventRecord,
@@ -344,6 +345,10 @@ class WandbTrackedRun:
             )
         return tuple(published)
 
+    def flush_artifacts(self, timeout: float | None = None) -> tuple[PublishedArtifact, ...]:
+        del timeout
+        return self.published_artifacts()
+
     def finish(self, outcome: RunOutcome) -> None:
         if self._outcome is not None:
             if self._outcome == outcome:
@@ -615,6 +620,13 @@ class WandbDataSource:
             (run_id,),
             lambda: self._artifact_set(run_id),
         )
+
+    async def verify_artifact(self, reference: StoredArtifactRef, *, deep: bool = False) -> ArtifactIntegrityResult:
+        if reference.provider != "wandb" or reference.namespace != self._path:
+            return ArtifactIntegrityResult(
+                "failed", failures=("artifact belongs to another provider/project",), deep=deep
+            )
+        return ArtifactIntegrityResult("unsupported", deep=deep)
 
     def _artifact_set(self, run_id: str) -> ArtifactSet:
         run = self._run(run_id)

@@ -39,6 +39,13 @@ _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _LOCK_REFERENCE = "trl-fork@current"
 
 
+def _is_pending_runtime_lock_manifest_error(error: BaseException) -> bool:
+    """Recognize the manifest failure expected before OCI rebuild."""
+
+    message = str(error)
+    return "published image records" in message and "lock digest" in message
+
+
 @dataclass(frozen=True, slots=True)
 class ReleaseManifest:
     schema_version: int
@@ -157,7 +164,20 @@ def check_release(repository_root: Path, *, allow_pending_runtime_lock: bool = F
     try:
         load_manifest()
     except (OSError, ValueError, ManifestError) as error:
-        errors.append(f"runtime image manifest is invalid: {error}")
+        if (
+            allow_pending_runtime_lock
+            and runtime_lock is not None
+            and runtime_lock.changed
+            and _is_pending_runtime_lock_manifest_error(error)
+        ):
+            # Validate TOML/schema/variant structure while allowing the old
+            # image lock label until candidate publication rebuilds the image.
+            try:
+                load_manifest(verify_locks=False)
+            except (OSError, ValueError, ManifestError) as structural_error:
+                errors.append(f"runtime image manifest is invalid: {structural_error}")
+        else:
+            errors.append(f"runtime image manifest is invalid: {error}")
 
     if errors:
         raise ValueError("release consistency check failed:\n- " + "\n- ".join(errors))
