@@ -169,6 +169,30 @@ class ExecutionRequest:
                 "placement": dict(self.target.placement),
                 "host_constraints": dict(self.target.host_constraints),
             },
+            # Artifact inputs are run-scoped selections.  Carrying them in
+            # the launch envelope lets an explicit checkpoint/model binding
+            # survive the worker's reconstruction of the packaged job.
+            "overrides": {
+                "artifacts": {
+                    name: {
+                        "kind": item.kind,
+                        "reference": {
+                            "provider": item.reference.provider,
+                            "namespace": item.reference.namespace,
+                            "name": item.reference.name,
+                            "version": item.reference.version,
+                            "digest": item.reference.digest,
+                            "provider_metadata": dict(item.reference.provider_metadata),
+                        },
+                    }
+                    for name, item in self.run_spec.artifacts.items()
+                },
+                "resolved_inputs": {
+                    name: value
+                    for name, value in self.run_spec.resolved_inputs.items()
+                    if name in {"model_source", "recovery_checkpoint"}
+                },
+            },
         }
         return {
             EXECUTION_LAUNCH_ENVIRONMENT: json.dumps(
