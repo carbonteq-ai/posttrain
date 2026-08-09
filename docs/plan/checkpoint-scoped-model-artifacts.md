@@ -64,11 +64,13 @@ abrupt process loss preserves the most recently committed off-host checkpoint.
   and backend capability contracts with deterministic unit fixtures. Provider-
   neutral contracts, publication handles, and resolver fixtures are complete;
   broader backend capability tests remain.
-- [/] (2026-08-09 12:05Z) Milestone 2: add bounded asynchronous artifact
+- [x] (2026-08-09 12:20Z) Milestone 2: add bounded asynchronous artifact
   publication in the Trackio adapter and fork. Trackio post12 commit
   `4c73e8b6e71c3da65cac41fc1371830e4435ecea` passed its unit suite and built
-  wheel/sdist; the internal publish workflow is queued, so the framework pin
-  and release gate remain open until stable-index readback.
+  wheel/sdist; the exact wheel (`sha256:6ed1bda951a70b85611a8928d489c7b806abfb9bd19643a165a9111a78c9d0f4`)
+  and sdist (`sha256:78c9b4db9b659810cd31f05693342686cc4506ab2f96676b2d3bc64c324e416c`)
+  were published to the stable internal index and read back. The framework
+  pin and OCI runtime lock now select post12.
 - [/] (2026-08-09 12:05Z) Milestone 3: TRL now publishes paired recovery and
   adapter-only model views at `on_save`, and handled interruption uses the same
   publisher. Normal/failure unit coverage is complete; live GPU cancellation
@@ -165,8 +167,8 @@ abrupt process loss preserves the most recently committed off-host checkpoint.
   not automatically the framework's executable releases.
   Evidence: during planning `../trackio` was on
   `codex/attested-internal-release` at
-  `27f7d96dca3bb7f9cf422c97ab0dd0d014df824d`, while the framework selected
-  `carbonteq-trackio==0.31.5.post11`. `../trl` was on
+  `4c73e8b6e71c3da65cac41fc1371830e4435ecea`, while the framework selected
+  `carbonteq-trackio==0.31.5.post12`. `../trl` was on
   `codex/bounded-vllm-waves` at
   `c9af78c1c2ea04ad271e95b26b93dfadf8b9fca1`, while
   `packages/train/pyproject.toml` selected `trl==1.9.2.post1` with published
@@ -1259,6 +1261,13 @@ can inspect and select immutable views without scheduling a materialization
 job. Release qualification remains open until the Trackio internal publish
 workflow succeeds and one continuation plus one evaluation consume a committed
 producer artifact.
+
+Revision note (2026-08-09): Published the immutable Trackio post12 wheel and
+sdist directly to the stable internal index after the GitHub LAN-runner queue
+remained unavailable. Updated the framework dependency, workspace lock, and
+OCI runtime constraint lock to the verified post12 wheel digest. The existing
+published-image manifest now fails closed until the release candidate rebuilds
+job-kind images against that changed lock.
 
 Outcomes & Retrospective
 ------------------------
