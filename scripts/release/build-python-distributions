@@ -40,6 +40,11 @@ staged_image_manifest="${stage_dir}/packages/runtime-images/src/posttrain/runtim
 if [[ -f "${generated_image_manifest}" && -f "${staged_image_manifest}" ]]; then
   cp "${generated_image_manifest}" "${staged_image_manifest}"
 fi
+generated_runtime_lock="${repository_root}/packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/workspace.lock.txt"
+staged_runtime_lock="${stage_dir}/packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/workspace.lock.txt"
+if [[ -f "${generated_runtime_lock}" && -f "${staged_runtime_lock}" ]]; then
+  cp "${generated_runtime_lock}" "${staged_runtime_lock}"
+fi
 mkdir -p "$distribution_dir" "$bundle_dir"
 # The protected LAN runner sets UV_CACHE_DIR to a persistent, machine-owned
 # cache. Keep the release-local fallback for ordinary local invocations, but do

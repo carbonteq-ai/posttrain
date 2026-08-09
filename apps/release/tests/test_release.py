@@ -603,6 +603,8 @@ def test_tag_workflow_builds_the_versioned_stage_not_the_source_workspace() -> N
     assert 'build_cache_dir="${UV_CACHE_DIR:-$build_cache_dir}"' in builder
     assert 'UV_CACHE_DIR="$build_cache_dir"' in builder
     assert "uv build environments/" not in workflow
+    assert 'generated_runtime_lock="${repository_root}/packages/runtime-images' in builder
+    assert 'cp "${generated_runtime_lock}" "${staged_runtime_lock}"' in builder
 
 
 def test_protected_release_workflows_keep_the_build_and_qualification_boundaries() -> None:
