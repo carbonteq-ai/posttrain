@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import os
 import subprocess
 import tomllib
 import zipfile
@@ -30,6 +32,66 @@ from posttrain_release.versioning import (
 )
 
 _REPOSITORY_ROOT_DEPTH = 3
+
+
+def _fake_dstack(tmp_path: Path, responses: list[str]) -> tuple[Path, Path]:
+    response_root = tmp_path / "dstack-responses"
+    response_root.mkdir()
+    for index, response in enumerate(responses, start=1):
+        (response_root / str(index)).write_text(response, encoding="utf-8")
+    (response_root / "last").write_text(responses[-1], encoding="utf-8")
+    state = tmp_path / "dstack-attempts"
+    executable = tmp_path / "dstack"
+    executable.write_text(
+        """#!/usr/bin/env bash
+set -euo pipefail
+state="${FAKE_DSTACK_STATE:?}"
+responses="${FAKE_DSTACK_RESPONSES:?}"
+attempt=0
+if [[ -f "${state}" ]]; then
+  attempt="$(<"${state}")"
+fi
+attempt="$((attempt + 1))"
+printf '%s' "${attempt}" >"${state}"
+response="${responses}/${attempt}"
+if [[ ! -f "${response}" ]]; then
+  response="${responses}/last"
+fi
+command cat "${response}"
+""",
+        encoding="utf-8",
+    )
+    executable.chmod(0o755)
+    return executable, state
+
+
+def _dstack_fleet(*, status: str = "idle") -> str:
+    return json.dumps(
+        {
+            "id": "fleet-1",
+            "name": "local-gpu-workers",
+            "status": "active",
+            "instances": [
+                {
+                    "id": "worker-1",
+                    "instance_num": 1,
+                    "hostname": "carbonteq-ai-workstation.lan",
+                    "status": status,
+                    "health_status": "healthy",
+                    "unreachable": False,
+                    "total_blocks": 1,
+                    "instance_type": {
+                        "resources": {
+                            "gpus": [{"name": "RTXPRO6000", "vendor": "nvidia", "memory_mib": 98304}],
+                            "cpus": 32,
+                            "memory_mib": 60856,
+                            "disk": {"size_mib": 1200803},
+                        }
+                    },
+                }
+            ],
+        }
+    )
 
 
 def _version_repository(root: Path, version: str = "0.2.5") -> None:
@@ -335,6 +397,91 @@ def test_distribution_builder_overlays_generated_runtime_manifest() -> None:
     assert "generated_image_manifest=" in builder
     assert "staged_image_manifest=" in builder
     assert 'cp "${generated_image_manifest}" "${staged_image_manifest}"' in builder
+
+
+def test_dstack_capacity_retries_a_malformed_response_and_retains_valid_receipt(tmp_path: Path) -> None:
+    repository_root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+    executable, state = _fake_dstack(tmp_path, ["temporary upstream response\n", _dstack_fleet()])
+    receipt = tmp_path / "capacity.json"
+
+    result = subprocess.run(
+        [str(repository_root / "scripts/release/verify-dstack-capacity"), str(receipt)],
+        env={
+            **os.environ,
+            "POSTTRAIN_DSTACK_BIN": str(executable),
+            "POSTTRAIN_DSTACK_CAPACITY_ATTEMPTS": "2",
+            "POSTTRAIN_DSTACK_CAPACITY_RETRY_SECONDS": "0",
+            "FAKE_DSTACK_STATE": str(state),
+            "FAKE_DSTACK_RESPONSES": str(tmp_path / "dstack-responses"),
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert state.read_text(encoding="utf-8") == "2"
+    payload = json.loads(receipt.read_text(encoding="utf-8"))
+    assert payload["status"] == "accepted"
+    assert payload["target_host"] == "carbonteq-ai-workstation.lan"
+    assert payload["instance"]["gpu"]["memory_mib"] == 98304
+
+
+def test_dstack_capacity_persists_sanitized_evidence_for_invalid_json(tmp_path: Path) -> None:
+    repository_root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+    executable, state = _fake_dstack(tmp_path, ["not-json\n"])
+    receipt = tmp_path / "capacity.json"
+
+    result = subprocess.run(
+        [str(repository_root / "scripts/release/verify-dstack-capacity"), str(receipt)],
+        env={
+            **os.environ,
+            "POSTTRAIN_DSTACK_BIN": str(executable),
+            "POSTTRAIN_DSTACK_CAPACITY_ATTEMPTS": "2",
+            "POSTTRAIN_DSTACK_CAPACITY_RETRY_SECONDS": "0",
+            "FAKE_DSTACK_STATE": str(state),
+            "FAKE_DSTACK_RESPONSES": str(tmp_path / "dstack-responses"),
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 3
+    assert state.read_text(encoding="utf-8") == "2"
+    payload = json.loads(receipt.read_text(encoding="utf-8"))
+    assert payload["status"] == "rejected"
+    assert payload["failure_kind"] == "invalid_json"
+    assert payload["attempts"] == 2
+    assert payload["response"]["stdout_bytes"] == len("not-json\n")
+    assert len(payload["response"]["stdout_sha256"]) == 64
+    assert "not-json" not in receipt.read_text(encoding="utf-8")
+
+
+def test_dstack_capacity_distinguishes_a_valid_but_busy_target(tmp_path: Path) -> None:
+    repository_root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+    executable, state = _fake_dstack(tmp_path, [_dstack_fleet(status="busy")])
+    receipt = tmp_path / "capacity.json"
+
+    result = subprocess.run(
+        [str(repository_root / "scripts/release/verify-dstack-capacity"), str(receipt)],
+        env={
+            **os.environ,
+            "POSTTRAIN_DSTACK_BIN": str(executable),
+            "POSTTRAIN_DSTACK_CAPACITY_ATTEMPTS": "1",
+            "POSTTRAIN_DSTACK_CAPACITY_RETRY_SECONDS": "0",
+            "FAKE_DSTACK_STATE": str(state),
+            "FAKE_DSTACK_RESPONSES": str(tmp_path / "dstack-responses"),
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 3
+    payload = json.loads(receipt.read_text(encoding="utf-8"))
+    assert payload["failure_kind"] == "target_not_ready"
+    assert '"status": "busy"' in result.stderr
 
 
 def test_stage_can_render_an_rc_without_changing_the_authored_target(tmp_path: Path) -> None:

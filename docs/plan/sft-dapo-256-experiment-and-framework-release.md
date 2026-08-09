@@ -113,6 +113,14 @@ ADR is accepted.
   retained digests passed readback. Machine-local plans, receipts, and GC logs
   are under
   `/home/hammad/.local/state/posttrain/operations/grpo-short-run-purge-20260809/`.
+- [x] (2026-08-09) Candidate `31291348503` proved the repaired registry,
+  generated all seven `0.3.3` runtime images, published `0.3.3rc5`, and passed a
+  clean index-only consumer install. Its dstack gate then received malformed
+  `--json` output and passed it directly to `jq`, even though the RTX PRO target
+  was idle and the same check passed immediately afterward. Added bounded
+  capacity-read retries, explicit JSON validation, sanitized failure receipts,
+  and regression coverage for malformed, persistently invalid, and valid-but-
+  busy responses.
 - [ ] Re-run the protected release candidate using the accepted manual Trackio
   and TRL receipts. Require dev-index/OCI readback, clean install, packed dstack
   job, Trackio artifact round trip, and Observatory readback before merge.
@@ -248,12 +256,14 @@ ADR is accepted.
   the recovery contract must preserve adapter, optimizer, scheduler, trainer,
   and RNG state.
   Date/Author: 2026-08-09 / Codex.
-- Decision: Use a two-step, 32 prompt groups × 4 generations probe before any
-  longer run. Keep environment and serving concurrency at 256 for the capacity
-  test, but retain global training batch 128 and the existing safe microbatch /
-  accumulation contract.
-  Rationale: this isolates setup and learning-signal correctness while keeping
-  the requested rollout capacity; a two-step run is not a quality claim.
+- Decision: Use one 32 prompt groups × 4 generations optimizer step before the
+  200-step campaign. Keep environment and serving concurrency at 256 for the
+  capacity test, but retain global training batch 128 and the existing safe
+  microbatch / accumulation contract. Submit 200 steps only when the one-step
+  evidence passes, then supervise its first five completed steps.
+  Rationale: one complete rollout and actor update is sufficient to verify the
+  algorithm contract without producing another disposable multi-step smoke run;
+  it is a gate, not a production-learning claim.
   Date/Author: 2026-08-09 / Codex.
 - Decision: Release only from one clean, reviewed commit and use the existing
   protected candidate/final workflows. Do not hand-build a tag from a dirty
@@ -384,13 +394,13 @@ learning schedule, truncation policy and active-refill budget explicit in the
 project catalog. Do not mutate or rename an existing DAPO selection.
 
 Bind the new setting to the retained 1,938-update SFT LoRA model variant and its
-matching vLLM inference binding. Run exactly two logical steps before any longer
-campaign. Retain reward components, group spread, active-sampling rounds,
-generated/retained rows, advantage statistics, truncation semantics, TIS ratios,
-clip fractions, entropy, rollout/runtime telemetry, actor/sampler parity,
-optimizer completion, recovery checkpoint and LoRA artifact. Independently
-recompute advantages and require a floating-point tolerance match before a
-longer run is considered.
+matching vLLM inference binding. Run exactly one logical optimizer step before
+the 200-step campaign. Retain reward components, group spread, active-sampling
+rounds, generated/retained rows, advantage statistics, truncation semantics,
+TIS ratios, clip fractions, entropy, rollout/runtime telemetry, actor/sampler
+parity, optimizer completion, recovery checkpoint and LoRA artifact.
+Independently recompute advantages and require a floating-point tolerance match
+before a longer run is considered.
 
 ## Concrete Steps
 
@@ -440,11 +450,17 @@ checkout.
    equal to prompt groups times generations. Verify the resolved trainer config
    is `Olmo3GRPOConfig` and that the immutable recipe fields match the release.
 
-8. Pack and run the two-step OLMo 3 canary. Save the package JSON, resolved
+8. Pack and run the one-step OLMo 3 canary. Save the package JSON, resolved
    inputs, dstack and Trackio identities, telemetry and final evidence query.
    Recompute mean-only advantages independently, verify actor/sampler parity,
    active-refill behavior and TIS bounds, and confirm both the recovery
    checkpoint and LoRA artifact before considering a longer run.
+
+9. If and only if the canary passes, create a distinct 200-step work package
+   with the same SFT input and algorithm contract, submit it to RTX PRO 6000,
+   and supervise the first five completed optimizer steps. Stop and diagnose
+   architecturally if reward spread, advantages, clipping/TIS, parity,
+   checkpoints, runtime health, or Trackio finalization violates the gate.
 
 ## Validation and Acceptance
 
@@ -452,8 +468,9 @@ The experiment is accepted only when the run snapshot resolves the SFT adapter,
 the intended environment and target, and `algorithm: olmo3`; the resolved
 configuration must prove active sampling, mean-only advantages, token-level
 global normalization, zero KL, `0.20/0.272` clipping and token-level TIS capped
-at `2.0`. Both logical steps complete rollout and actor-update phases; independent advantage
-recomputation matches telemetry within the documented tolerance; truncated
+at `2.0`. The logical step completes rollout and actor-update phases;
+independent advantage recomputation matches telemetry within the documented
+tolerance; truncated
 completions contribute neither group statistics nor loss; actor and sampler
 weights are equal at the parity gate; a recovery checkpoint and LoRA adapter
 artifact are linked to the run; and Trackio finalization succeeds.
@@ -465,12 +482,12 @@ passes; a clean environment installs exact index bytes without workspace/Git
 sources; OCI digests match registry readback; the dstack, Trackio artifact and
 Observatory readback gates succeed against one run; stable contains the exact
 final files; and tag `v<version>` points to the verified merged commit. A
-two-step probe remains diagnostic evidence, not a production-learning claim.
+one-step probe remains diagnostic evidence, not a production-learning claim.
 
 ## Idempotence and Recovery
 
 All catalog and plan edits are additive and versioned. Repacking after a config
-change creates a new content-addressed actual-job image. Re-running the two-step
+change creates a new content-addressed actual-job image. Re-running the one-step
 probe creates a new run identity and never overwrites prior evidence. If the
 probe fails before its first checkpoint, record that no safe resume point exists;
 otherwise resume only from its immutable training checkpoint and retain the

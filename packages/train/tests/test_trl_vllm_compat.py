@@ -20,7 +20,7 @@ class TrlVllmCompatibilityTest(unittest.TestCase):
 
     def test_olmo3_recipe_is_available_from_the_pinned_release(self) -> None:
         try:
-            from trl import Olmo3GRPOConfig
+            from trl.trainer.olmo3_grpo_config import Olmo3GRPOConfig
         except ImportError:
             self.skipTest("TRL optional dependency is not installed")
 
