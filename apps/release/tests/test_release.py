@@ -671,7 +671,8 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert "candidate_run_id:" in final
     assert "Restore the accepted candidate runtime image manifest" in final
     assert 'if git merge-base --is-ancestor "${candidate_sha}" "${RELEASE_SOURCE_SHA}"; then' in final
-    assert 'candidate_tree="$(git rev-parse "${candidate_sha}^{tree}")"' in final
+    assert '"repos/${GITHUB_REPOSITORY}/commits/${candidate_sha}"' in final
+    assert "--jq '.commit.tree.sha'" in final
     assert 'release_tree="$(git rev-parse "${RELEASE_SOURCE_SHA}^{tree}")"' in final
     assert 'test "${candidate_tree}" = "${release_tree}"' in final
     assert 'test "${candidate_version}" = "${release_version}"' in final

@@ -162,7 +162,12 @@ jobs:
           if git merge-base --is-ancestor "${candidate_sha}" "${RELEASE_SOURCE_SHA}"; then
             echo "candidate source is an ancestor of the merged source"
           else
-            candidate_tree="$(git rev-parse "${candidate_sha}^{tree}")"
+            # The candidate commit may not be present in a checkout of the
+            # squash-merged default branch. Read its immutable tree through
+            # GitHub instead of assuming the source ref still exists locally.
+            candidate_tree="$(gh api \
+              "repos/${GITHUB_REPOSITORY}/commits/${candidate_sha}" \
+              --jq '.commit.tree.sha')"
             release_tree="$(git rev-parse "${RELEASE_SOURCE_SHA}^{tree}")"
             test "${candidate_tree}" = "${release_tree}"
             echo "candidate source has the identical merged tree after squash merge"
