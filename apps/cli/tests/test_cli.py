@@ -700,7 +700,7 @@ def test_init_sft_template_writes_installable_project_and_valid_standard_job(
     assert '"posttrain[observatory,trackio,trl]' in pyproject
     assert "carbonteq-ai/trackio.git" not in pyproject
     assert "carbonteq-trackio" not in pyproject
-    assert "carbonteq-ai/trl.git@91b0ce707631d503fbed337b42444a9d3fac3acb" in pyproject
+    assert "carbonteq-ai/trl.git" not in pyproject
     assert "selection_type: sft-settings" in settings
     assert "datasets/posttrain-sft-smoke@1" in work_package
     assert "train/trl-sft@1" in work_package

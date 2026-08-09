@@ -16,7 +16,7 @@ from posttrain.common.cuda import TorchModule, activate_cuda_toolkit
 
 from ...grpo_observations import GRPOObservationFeatures, normalize_grpo_metrics
 from ...online_rl import RolloutBatch
-from ...profiles import SAMPOSettings, shape_online_reward
+from ...profiles import GRPOSettings, SAMPOSettings, shape_online_reward
 from ...requests import GRPORequest, SAMPORequest
 from ...sampo_advantages import compute_sampo_advantages
 from .common import (
@@ -194,6 +194,7 @@ def _run_online_rl(
     try:
         from trl.trainer.grpo_config import GRPOConfig  # pyright: ignore[reportMissingImports]
         from trl.trainer.grpo_trainer import GRPOTrainer  # pyright: ignore[reportMissingImports]
+        from trl.trainer.olmo3_grpo_config import Olmo3GRPOConfig  # pyright: ignore[reportMissingImports]
     except ImportError as error:
         raise RuntimeError("install posttrain-train with the trl extra") from error
 
@@ -234,6 +235,9 @@ def _run_online_rl(
         )
     )
     technique = request.settings.algorithm if isinstance(request, GRPORequest) else "sampo"
+    config_type = (
+        Olmo3GRPOConfig if isinstance(request, GRPORequest) and request.settings.algorithm == "olmo3" else GRPOConfig
+    )
     context.event("grpo_runtime_resolved", _online_rl_runtime_attributes(request))
     actor_update = _ActorUpdateTelemetry(context)
 
@@ -259,7 +263,7 @@ def _run_online_rl(
             model=model,
             reward_funcs=cast(Any, _bridge_reward),
             rollout_func=cast(Any, _rollout_function(context, request, tokenizer, actor_update)),
-            args=GRPOConfig(**arguments),
+            args=config_type(**arguments),
             train_dataset=dataset,
             processing_class=tokenizer,
             callbacks=[
@@ -436,6 +440,9 @@ def _online_rl_arguments(
         importance_sampling_mode = settings.importance_sampling_mode
         importance_sampling_clip_min = settings.importance_sampling_clip_min
         importance_sampling_clip_max = settings.importance_sampling_clip_max
+    is_olmo3 = isinstance(settings, GRPOSettings) and settings.algorithm == "olmo3"
+    if is_olmo3 and request.inference.backend.split("@", 1)[0] != "vllm":
+        raise ValueError("the OLMo 3 GRPO recipe requires a vLLM rollout binding")
     use_liger_kernel = request.training.backend_options.get("use_liger_kernel", False)
     if not isinstance(use_liger_kernel, bool):
         raise ValueError("TRL GRPO use_liger_kernel must be a boolean")
@@ -479,6 +486,25 @@ def _online_rl_arguments(
             "top_p": _sampling_number(request, "top_p", 1.0),
         }
     )
+    if is_olmo3:
+        # Olmo3GRPOConfig owns these recipe-defining fields as init=False
+        # invariants. Posttrain only supplies workload and capacity controls.
+        for name in (
+            "beta",
+            "loss_type",
+            "epsilon",
+            "epsilon_high",
+            "scale_rewards",
+            "dynamic_sampling",
+            "dynamic_sampling_max_batches",
+            "dynamic_sampling_reward_std_epsilon",
+            "importance_sampling_level",
+            "use_vllm",
+        ):
+            arguments.pop(name)
+        olmo3_settings = cast(GRPOSettings, settings)
+        assert olmo3_settings.active_sampling is not None
+        arguments["active_sampling_max_batches"] = olmo3_settings.active_sampling.max_candidate_batches
     if request.inference.backend.split("@", 1)[0] == "vllm":
         rollout = request.inference.engine
         speculative_config, engine_kwargs = vllm_rollout_options(request.policy, rollout)
@@ -500,6 +526,14 @@ def _online_rl_arguments(
                 "vllm_importance_sampling_clip_max": importance_sampling_clip_max,
             }
         )
+        if is_olmo3:
+            for name in (
+                "vllm_importance_sampling_correction",
+                "vllm_importance_sampling_mode",
+                "vllm_importance_sampling_clip_min",
+                "vllm_importance_sampling_clip_max",
+            ):
+                arguments.pop(name)
     return arguments
 
 
@@ -563,6 +597,12 @@ def _online_rl_runtime_attributes(request: GRPORequest | SAMPORequest) -> dict[s
         "dynamic_sampling_max_candidate_batches": (
             request.settings.dynamic_sampling.max_candidate_batches
             if request.settings.dynamic_sampling is not None
+            else None
+        ),
+        "active_sampling": (isinstance(request, GRPORequest) and request.settings.active_sampling is not None),
+        "active_sampling_max_candidate_batches": (
+            request.settings.active_sampling.max_candidate_batches
+            if isinstance(request, GRPORequest) and request.settings.active_sampling is not None
             else None
         ),
     }

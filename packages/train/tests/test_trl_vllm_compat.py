@@ -3,27 +3,34 @@
 from __future__ import annotations
 
 import importlib.metadata
-import json
 import unittest
 import warnings
 
-TRL_FORK_COMMIT = "91b0ce707631d503fbed337b42444a9d3fac3acb"
+TRL_RELEASE = "1.9.2.post1"
 
 
 class TrlVllmCompatibilityTest(unittest.TestCase):
-    def test_trl_is_installed_from_the_pinned_fork_commit(self) -> None:
+    def test_trl_is_installed_from_the_pinned_release(self) -> None:
         try:
             distribution = importlib.metadata.distribution("trl")
         except importlib.metadata.PackageNotFoundError:
             self.skipTest("TRL optional dependency is not installed")
-        direct_url = distribution.read_text("direct_url.json")
 
-        self.assertIsNotNone(direct_url)
-        assert direct_url is not None
-        source = json.loads(direct_url)
-        self.assertEqual(source["url"], "https://github.com/carbonteq-ai/trl.git")
-        self.assertEqual(source["vcs_info"]["commit_id"], TRL_FORK_COMMIT)
-        self.assertEqual(distribution.version, "1.8.0")
+        self.assertEqual(distribution.version, TRL_RELEASE)
+
+    def test_olmo3_recipe_is_available_from_the_pinned_release(self) -> None:
+        try:
+            from trl import Olmo3GRPOConfig
+        except ImportError:
+            self.skipTest("TRL optional dependency is not installed")
+
+        config = Olmo3GRPOConfig(output_dir="/tmp/posttrain-trl-contract", report_to="none")
+        self.assertTrue(config.active_sampling)
+        self.assertEqual(config.loss_type, "dapo")
+        self.assertEqual(config.scale_rewards, "none")
+        self.assertEqual(config.epsilon_high, 0.272)
+        self.assertEqual(config.vllm_importance_sampling_mode, "token_truncate")
+        self.assertEqual(config.vllm_importance_sampling_clip_max, 2.0)
 
     def test_trl_accepts_the_pinned_vllm_release(self) -> None:
         try:

@@ -39,9 +39,13 @@ Current durable decisions: [ADR 0004](../decisions/0004-lifecycle-driven-mvp-pla
 ownership is defined by [ADR 0008](../decisions/0008-model-conversation-contracts.md).
 Canonical supervised and preference data ownership is defined by
 [ADR 0011](../decisions/0011-canonical-posttraining-data.md).
+The proposed dependency-to-platform promotion contract is recorded in
+[ADR 0014](../decisions/0014-attested-release-promotion-graph.md).
 
 ## Revision history
 
+- 2026-08-09: Added the proposed attested release-promotion decision after the
+  0.3.3 candidate exposed implicit generated inputs and dependency deployment gaps.
 - 2026-08-06: Added the source-grounded local infrastructure and job-lifecycle map.
 - 2026-08-05: Added the accepted LAN release-runner delivery architecture.
 - 2026-07-21: Froze post-training baseline; marked architecture docs stale;

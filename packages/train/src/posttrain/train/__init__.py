@@ -60,6 +60,7 @@ from .profiles import (
     QWEN35_RENDERER,
     QWEN35_SFT_SMOKE,
     QWEN35_THINKING_RENDERER,
+    ActiveGroupSampling,
     DPOSettings,
     DynamicGroupSampling,
     GRPOSettings,
@@ -90,6 +91,7 @@ from .verifiers_requests import (
 )
 
 __all__ = [
+    "ActiveGroupSampling",
     "DPOBackend",
     "DistillationBackend",
     "CalibrationSelection",

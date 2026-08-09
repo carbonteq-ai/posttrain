@@ -52,13 +52,13 @@ def run_distillation(
         raise ValueError("TRL distillation currently requires a Hugging Face teacher model")
 
     try:
-        from trl.experimental.distillation import (  # pyright: ignore[reportMissingImports]
-            DistillationConfig,
-            DistillationTrainer,
+        from trl.experimental.iw_opd import (  # pyright: ignore[reportMissingImports]
+            IWOPDConfig,
+            IWOPDTrainer,
         )
     except ImportError as error:
         raise RuntimeError("install posttrain-train with the trl-vllm extra") from error
-    _patch_local_teacher_divergence_numerics(DistillationTrainer)
+    _patch_local_teacher_divergence_numerics(IWOPDTrainer)
 
     imports = framework_imports()
     emit_runtime_versions(context, imports)
@@ -86,7 +86,7 @@ def run_distillation(
             teacher_url if isinstance(teacher_url, str) else None,
         )
 
-        class ObservedDistillationTrainer(DistillationTrainer):
+        class ObservedIWOPDTrainer(IWOPDTrainer):
             def _get_teacher_logits(self, inputs: dict[str, Any]) -> Any:
                 started_at = time.perf_counter()
                 with context.phase("teacher_scoring", {"backend": "trl"}):
@@ -105,13 +105,13 @@ def run_distillation(
                         )
 
         with context.phase("runtime_initialization", {"backend": "trl"}):
-            trainer = ObservedDistillationTrainer(
+            trainer = ObservedIWOPDTrainer(
                 model=model,
                 teacher_model=cast(
                     Any,
                     (None if teacher_product == "vllm" else request.teacher.artifact.repo_id),
                 ),
-                args=DistillationConfig(**arguments),
+                args=IWOPDConfig(**arguments),
                 train_dataset=dataset,
                 processing_class=tokenizer,
                 callbacks=[callback_type(context, imports)()],
@@ -462,6 +462,7 @@ def _distillation_arguments(
             "remove_unused_columns": False,
             "use_liger_kernel": use_liger_kernel,
             "lmbda": 1.0,
+            "distillation_objective": "iw_opd",
             "beta": 1.0,
             "reverse_kl_top_1_mode": "sampled",
             "loss_top_k": 1,

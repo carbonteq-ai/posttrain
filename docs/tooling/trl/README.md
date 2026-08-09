@@ -9,12 +9,14 @@ semantics, and instrumentation hooks belong to the `train` package boundary.
 The lab's injected observation context maps those hooks to Trackio. Datasets,
 rewards, and Verifiers environment implementations remain independently owned.
 
-The workspace uses the `carbonteq-ai/trl` fork pinned to immutable commit
-`91b0ce707631d503fbed337b42444a9d3fac3acb`. The fork preserves TRL 1.8.0 and
-adds the upstream-validated vLLM 0.24/0.25 dependency support plus regression
-coverage. It also keeps the trainer runtime compatible with `datasets 4.6.1`
-so the application can install Verifiers v1 and TRL together. It does not
-contain project-specific trainers or environment logic.
+The workspace installs the immutable internal release `trl==1.9.2.post1`, built
+from `carbonteq-ai/trl` commit
+`a82ecebc0fa081efd58302a34a553445fc73271d`. The package is published under tag
+`carbonteq-v1.9.2.post1`; its hashes and source revision are recorded in
+`packages/train/pyproject.toml`. The fork is based on upstream TRL 1.9.2 and
+keeps the trainer runtime compatible with `datasets 4.6.1` so Verifiers v1 and
+TRL can share one environment. Project-specific job policy and environments
+remain outside the fork.
 Its entropy metrics also preserve chunked-memory behavior for non-contiguous
 sequence slices, which is required for DPO on large-vocabulary models.
 The fork also exposes colocated vLLM's engine-level speculative configuration
@@ -29,10 +31,10 @@ merged in [`carbonteq-ai/trl#6`](https://github.com/carbonteq-ai/trl/pull/6).
 The bounded-wave follow-up additionally accepts validated `max_num_seqs` and
 `max_num_batched_tokens` engine caps. This lets a 256/512-completion logical
 batch execute as multiple resident-32 rollout waves instead of allowing TRL's
-derived generation batch to overcommit KV cache. The change is published on
-the fork branch [`codex/bounded-vllm-waves`](https://github.com/carbonteq-ai/trl/tree/codex/bounded-vllm-waves)
-at commit `91b0ce707631d503fbed337b42444a9d3fac3acb` and still requires consumer qualification. The commit
-also bounds the actual colocated `LLM.generate` request list to the configured
+derived generation batch to overcommit KV cache. The behavior is included in
+`trl==1.9.2.post1` and still requires qualification for each selected
+model/runtime profile. It also bounds the actual colocated `LLM.generate`
+request list to the configured
 resident sequence cap; engine caps alone do not prevent vLLM from queueing a
 large logical batch in one call.
 Composite vLLM implementations may retain a namespace around a text-only
@@ -51,9 +53,9 @@ CPU-backs the quantized base while still releasing its GPU allocation; full
 weight synchronization retains level 2. The lifecycle correction was merged
 in [`carbonteq-ai/trl#9`](https://github.com/carbonteq-ai/trl/pull/9).
 
-### Unpublished LoRA policy-parity repair
+### LoRA policy parity and OLMo 3 OlmoRL
 
-The current local fork candidate fixes a namespace gap between these two
+The release fixes a namespace gap between these two
 generic seams. A Qwen3.5 PEFT actor exports keys below
 `base_model.model.model...`, while its text-only vLLM rollout model owns the
 same modules below `base_model.model.language_model.model...`. Full-weight
@@ -61,7 +63,7 @@ synchronization already applied the inference binding's weight-name prefix;
 native-LoRA synchronization rejected that prefix and could therefore load an
 adapter without attaching it to the modules used for generation.
 
-The candidate now applies `weight_name_prefix` to only the disposable adapter
+The release applies `weight_name_prefix` to only the disposable adapter
 export used to refresh vLLM. The actor checkpoint remains in PEFT's native
 namespace. A second generic guard compares sampler and actor log-probabilities
 over the first training rollout's selected tokens and fails before optimizer
@@ -74,9 +76,18 @@ All affected Qwen3.5 native-LoRA inference bindings select:
     weight_sync_mode: lora
     weight_name_prefix: language_model.
 
-This repair is tested locally but is not part of the immutable consumer pin
-yet. Publication requires a clean fork commit and push, an exact framework pin
-and lock update, a rebuilt job image, and a passing one-step parity canary.
+The package also exposes `Olmo3GRPOConfig`, a model-agnostic implementation of
+the combined OlmoRL objective: zero-gradient filtering with bounded active
+refill, token-level DAPO normalization, no KL loss, `0.2/0.272` clipping,
+token-level TIS capped at `2.0`, and mean-only group advantages. Its active
+sampler requests only the synchronized number of missing rows instead of
+generating another full DAPO candidate batch. The trainer path is released;
+Posttrain exposes it as `GRPOSettings.algorithm = "olmo3"` and includes the
+`qwen3.5-2b/olmo3-grpo-smoke-v1` catalog profile. The typed settings reject
+changes to the recipe-defining objective, while batch shape, rollout lengths,
+learning schedule, and bounded refill attempts remain profile-owned. The veRL
+adapter rejects this selection until it has equivalent active-refill and TIS
+semantics. Selected model/runtime profiles still require a live GPU canary.
 
 Framework recovery is independent of the online-RL algorithm. SFT, DPO,
 GRPO/DAPO, SAMPO, and on-policy distillation all accept an explicitly
@@ -88,9 +99,9 @@ released. A new `posttrain job run --resume-from-run RUN_ID` invocation uses a
 fresh run identity and requires exactly one checkpoint output from the source
 run. Recovery may lose work after the last configured checkpoint; interruption
 before the first checkpoint has no safe resume point.
-The current pinned fork also exposes that same generic
-`VLLMGeneration` synchronization choice through experimental
-`DistillationConfig`. This is required when an on-policy distillation student
+The current release exposes that same generic `VLLMGeneration`
+synchronization choice through experimental `IWOPDConfig`. This is required
+when an on-policy distillation student
 uses a PEFT update: full synchronization attempts to merge and push the
 adapter-shaped parameter set, while native LoRA synchronization keeps vLLM's
 base immutable and refreshes the adapter. It is part of the framework's
@@ -102,13 +113,13 @@ Every prior real training attempt died on step one with
 batch, whose labels are prompt-only for on-policy rows (the completion does
 not exist until generation fills the buffer). That always counted to zero for
 a fully on-policy accumulation window, so the divergence loss divided a finite
-JSD sum by zero. The fork's `DistillationTrainer` now recomputes the count
+JSD sum by zero. The fork's `IWOPDTrainer` now recomputes the count
 from the post-generation buffered labels and stamps it onto every
 micro-slice — the same pattern `GRPOTrainer` already used for its own
 post-generation count — and `compute_loss` prefers that value over the
 Trainer-level parameter. See `CARBONTEQ_FORK.md` in the fork for the full
 rationale and the added regression test.
-The candidate configuration and trainer wiring pass their focused tests. An
+The released configuration and trainer wiring pass their focused tests. An
 order-dependent CPU failure was traced to a vLLM-generation test leaking
 distributed-launch environment variables: a later GRPO test initialized NCCL,
 and the distillation test inherited that process group. The test module now
@@ -119,8 +130,8 @@ production trainer behavior was not changed. The complete repository release
 gate that previously failed now reports 153 passed and 60 skipped with
 distillation executing after vLLM and GRPO in the same interpreter. It leaves
 no process group, CUDA context, distributed environment, Ray process, or GPU
-client behind. Immutable fork publication and the live ten-backward-pass
-distillation run remain required.
+client behind. The live ten-backward-pass IW-OPD run remains a qualification
+gate for the selected production profile.
 DPO kernel choice is model-specific and recorded as `dpo_loss_kernel`. Liger's
 fused DPO loss can reduce projection memory for moderate vocabularies, but its
 current backward path creates a full FP32 LM-head gradient even when that head
@@ -138,9 +149,9 @@ compares chunked and unchunked numerical results. This control does not bound
 the differentiable train loss by itself; the current constrained profile pairs
 it with `use_liger_kernel=true`.
 
-## SAMPO candidate support
+## SAMPO support
 
-The next fork candidate adds two generic runtime seams used by `train.sampo`:
+The release adds two generic runtime seams used by `train.sampo`:
 bounded retained-group dynamic sampling and finite token-aligned advantages
 returned by `rollout_func`. TRL still computes rewards and group variance for
 filtering and evidence, while the framework-owned rollout layer supplies the
@@ -161,7 +172,7 @@ replace SFT, DPO, or GRPO acceptance for the two foundation profiles.
 
 ## Native MTP and TurboQuant rollouts
 
-The next fork candidate standardizes both controls through the same
+The release standardizes both controls through the same
 backend-neutral inference binding used by veRL:
 
     engine:

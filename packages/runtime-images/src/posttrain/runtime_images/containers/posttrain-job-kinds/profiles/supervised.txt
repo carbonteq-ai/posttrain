@@ -8,4 +8,4 @@ protobuf==7.35.1
 renderers==0.1.8
 sentencepiece==0.2.2
 transformers==5.14.1
-trl @ git+https://github.com/carbonteq-ai/trl.git@91b0ce707631d503fbed337b42444a9d3fac3acb
+trl==1.9.2.post1

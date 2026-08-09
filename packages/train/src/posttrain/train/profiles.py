@@ -110,6 +110,17 @@ class DynamicGroupSampling:
 
 
 @dataclass(frozen=True, slots=True)
+class ActiveGroupSampling:
+    """Bounded OLMo 3 refill sampling for reward-constant prompt groups."""
+
+    max_candidate_batches: int = 10
+
+    def __post_init__(self) -> None:
+        if self.max_candidate_batches < 1:
+            raise ValueError("active sampling max candidate batches must be positive")
+
+
+@dataclass(frozen=True, slots=True)
 class GRPOSettings:
     id: str
     loop: TrainingLoop
@@ -124,11 +135,12 @@ class GRPOSettings:
     importance_sampling_clip_min: float | None = 0.1
     importance_sampling_clip_max: float | None = 3.0
     revision: str = "1"
-    algorithm: Literal["grpo", "dapo"] = "grpo"
+    algorithm: Literal["grpo", "dapo", "olmo3"] = "grpo"
     advantage_scaling: Literal["group", "batch", "none"] = "group"
     clip_epsilon_low: float = 0.2
     clip_epsilon_high: float | None = None
     dynamic_sampling: DynamicGroupSampling | None = None
+    active_sampling: ActiveGroupSampling | None = None
     mask_truncated_completions: bool = False
     overlong_buffer_tokens: int | None = None
     overlong_penalty_factor: float = 1.0
@@ -164,10 +176,27 @@ class GRPOSettings:
             raise ValueError("GRPO requires symmetric policy clipping")
         if self.algorithm == "dapo" and clip_high < self.clip_epsilon_low:
             raise ValueError("DAPO upper clipping epsilon cannot be smaller than its lower epsilon")
+        if self.algorithm == "olmo3":
+            olmo3_recipe = {
+                "beta": self.beta == 0,
+                "advantage_scaling": self.advantage_scaling == "none",
+                "clip_epsilon_low": self.clip_epsilon_low == 0.2,
+                "clip_epsilon_high": clip_high == 0.272,
+                "importance_sampling_mode": self.importance_sampling_mode == "token_truncate",
+                "importance_sampling_clip_min": self.importance_sampling_clip_min is None,
+                "importance_sampling_clip_max": self.importance_sampling_clip_max == 2.0,
+            }
+            mismatched = [name for name, matches in olmo3_recipe.items() if not matches]
+            if mismatched:
+                raise ValueError(f"OLMo 3 GRPO recipe requires fixed settings: {', '.join(mismatched)}")
         if self.advantage_scaling not in {"group", "batch", "none"}:
             raise ValueError("unsupported GRPO advantage scaling")
         if self.dynamic_sampling is not None and self.algorithm != "dapo":
             raise ValueError("dynamic group sampling requires the DAPO algorithm")
+        if self.active_sampling is not None and self.algorithm != "olmo3":
+            raise ValueError("active group sampling requires the OLMo 3 algorithm")
+        if self.algorithm == "olmo3" and self.active_sampling is None:
+            raise ValueError("OLMo 3 requires active group sampling")
         if self.overlong_buffer_tokens is not None:
             if self.algorithm != "dapo":
                 raise ValueError("soft overlong punishment requires the DAPO algorithm")
@@ -180,7 +209,11 @@ class GRPOSettings:
     def resolved_clip_epsilon_high(self) -> float:
         if self.clip_epsilon_high is not None:
             return self.clip_epsilon_high
-        return 0.28 if self.algorithm == "dapo" else self.clip_epsilon_low
+        if self.algorithm == "dapo":
+            return 0.28
+        if self.algorithm == "olmo3":
+            return 0.272
+        return self.clip_epsilon_low
 
 
 @dataclass(frozen=True, slots=True)

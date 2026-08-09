@@ -40,6 +40,7 @@ from posttrain.train import (
     QWEN35_GRPO_SMOKE,
     QWEN35_RENDERER,
     QWEN35_SFT_SMOKE,
+    ActiveGroupSampling,
     DPORequest,
     DynamicGroupSampling,
     EnvironmentRollout,
@@ -918,6 +919,7 @@ def test_distillation_backend_fixes_fully_on_policy_reverse_kl_contract(tmp_path
     arguments = _distillation_arguments(request, tmp_path, "http://teacher.invalid:8000")
 
     assert arguments["lmbda"] == 1.0
+    assert arguments["distillation_objective"] == "iw_opd"
     assert arguments["beta"] == 1.0
     assert arguments["reverse_kl_top_1_mode"] == "sampled"
     assert arguments["loss_top_k"] == 1
@@ -1355,6 +1357,56 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
     assert dapo_arguments["dynamic_sampling"] is True
     assert dapo_arguments["dynamic_sampling_max_batches"] == 4
     assert dapo_arguments["mask_truncated_completions"] is False
+
+    olmo3_request = replace(
+        request,
+        settings=replace(
+            request.settings,
+            algorithm="olmo3",
+            advantage_scaling="none",
+            importance_sampling_mode="token_truncate",
+            importance_sampling_clip_min=None,
+            importance_sampling_clip_max=2.0,
+            active_sampling=ActiveGroupSampling(max_candidate_batches=6),
+        ),
+    )
+    olmo3_arguments = _grpo_arguments(olmo3_request, tmp_path, {"enable_thinking": False})
+    for invariant in (
+        "beta",
+        "loss_type",
+        "epsilon",
+        "epsilon_high",
+        "scale_rewards",
+        "dynamic_sampling",
+        "importance_sampling_level",
+        "use_vllm",
+        "vllm_importance_sampling_correction",
+        "vllm_importance_sampling_mode",
+        "vllm_importance_sampling_clip_min",
+        "vllm_importance_sampling_clip_max",
+    ):
+        assert invariant not in olmo3_arguments
+    assert olmo3_arguments["active_sampling_max_batches"] == 6
+    assert _grpo_runtime_attributes(olmo3_request)["active_sampling"] is True
+
+
+def test_olmo3_settings_reject_recipe_drift() -> None:
+    settings = GRPOSettings(
+        "tests/olmo3",
+        TrainingLoop(max_steps=1, per_device_batch_size=2),
+        algorithm="olmo3",
+        advantage_scaling="none",
+        importance_sampling_mode="token_truncate",
+        importance_sampling_clip_min=None,
+        importance_sampling_clip_max=2.0,
+        active_sampling=ActiveGroupSampling(max_candidate_batches=4),
+    )
+
+    assert settings.resolved_clip_epsilon_high == 0.272
+    with pytest.raises(ValueError, match="requires fixed settings: beta"):
+        replace(settings, beta=0.01)
+    with pytest.raises(ValueError, match="requires active group sampling"):
+        replace(settings, active_sampling=None)
 
 
 def test_grpo_runtime_event_attributes_describe_selected_acceleration_without_claiming_results() -> None:

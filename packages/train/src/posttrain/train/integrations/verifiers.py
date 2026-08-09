@@ -34,7 +34,7 @@ from ..online_rl import (
     RolloutBatch,
 )
 
-type OnlineRLTechnique = Literal["grpo", "dapo", "sampo", "distill"]
+type OnlineRLTechnique = Literal["grpo", "dapo", "olmo3", "sampo", "distill"]
 
 _NULL_HARNESS_UNBOUNDED_MCP = '"mcp"'
 _NULL_HARNESS_MCP_V1 = '"mcp>=1.24.0,<2"'

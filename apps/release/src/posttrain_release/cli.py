@@ -22,6 +22,7 @@ from .artifacts import (
 from .candidate import fetch_simple_artifacts, next_candidate_version
 from .publish import publish_release
 from .repository_audit import inspect_repository
+from .runtime_lock import materialize_runtime_lock
 from .versioning import check_release, load_release_manifest, lock_dependencies, prepare_release, stage_release
 
 app = typer.Typer(help="publish framework runtime images and pin the release manifest")
@@ -37,12 +38,45 @@ def check_cmd(
         Path,
         typer.Option("--repository-root", help="framework checkout to verify"),
     ] = Path("."),
+    allow_pending_runtime_lock: Annotated[
+        bool,
+        typer.Option(
+            "--allow-pending-runtime-lock",
+            help="validate authored release inputs before the candidate materializes the runtime lock",
+        ),
+    ] = False,
 ) -> None:
-    result = check_release(repository_root)
+    result = check_release(repository_root, allow_pending_runtime_lock=allow_pending_runtime_lock)
     print(f"authored version: release/manifest.toml = {result.version}")
     print(f"staged metadata: OK ({result.package_count} packages, {result.internal_pin_count} internal pins)")
     print("dependency locks: OK")
-    print("published images: OK")
+    if result.runtime_lock_pending:
+        print("runtime dependency lock: pending candidate materialization")
+        print("published images: current for the committed lock; candidate rebuild required")
+    else:
+        print("published images: OK")
+
+
+@app.command(
+    "lock-runtime-dependencies",
+    help="materialize immutable internal-package wheel receipts into the OCI constraint lock",
+)
+def lock_runtime_dependencies_cmd(
+    repository_root: Annotated[
+        Path,
+        typer.Option("--repository-root", help="framework checkout to update"),
+    ] = Path("."),
+    check: Annotated[
+        bool,
+        typer.Option("--check", help="report whether materialization is pending without writing"),
+    ] = False,
+) -> None:
+    result = materialize_runtime_lock(repository_root, check=check)
+    packages = ", ".join(result.packages) or "none"
+    if check and result.changed:
+        raise typer.Exit(code=1)
+    state = "updated" if result.changed else "current"
+    print(f"runtime dependency lock {state}: {result.path} ({packages})")
 
 
 @app.command("prepare", help="set the one authored release version without rewriting package metadata")

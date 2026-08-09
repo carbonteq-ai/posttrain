@@ -1,4 +1,4 @@
-# Qualify corrected SFT-backed DAPO and publish the RL framework release
+# Publish the RL framework and qualify SFT-backed OLMo 3 GRPO
 
 This ExecPlan is a living document. Keep `Progress`, `Surprises & Discoveries`,
 `Decision Log`, and `Outcomes & Retrospective` current after every milestone.
@@ -8,12 +8,14 @@ and documents the missing repository-local plan instructions explicitly.
 
 ## Purpose / Big Picture
 
-This work answers two related but separate questions. First, it establishes
-whether the corrected DAPO implementation can learn from the existing SFT LoRA
-adapter under the high-concurrency RTX PRO target, using a small run that is
-cheap to retry and rich enough to detect a broken learning signal. Second, it
-turns the reviewed framework changes into a reproducible RL-framework release
-that an independent project can install and use without this checkout.
+This work answers two related but separate questions in a deliberate order.
+First, it turns the reviewed framework, tracking and Observatory changes into a
+reproducible release that an independent project can install and use without
+this checkout. After that exact stable release is installed into Ambient Agent,
+it establishes whether the named OLMo 3 GRPO recipe can learn from the existing
+SFT LoRA adapter under the high-concurrency RTX PRO target, using a
+small run that is cheap to retry and rich enough to detect a broken learning
+signal.
 
 The current 256-concurrency run is not the final algorithm experiment: its
 selected project training settings enable DAPO and truncation handling but do
@@ -23,6 +25,11 @@ DAPO recipe. The release is also not allowed to start from the current dirty
 checkout: release checks must pass on one intentional commit, then the
 candidate and final protected workflows must build, qualify, and publish exact
 bytes.
+
+This work does not change the frozen post-training product meaning. It makes
+the existing artifact, observation, execution and read-product responsibilities
+enforceable at release time and changes implementation only after the proposed
+ADR is accepted.
 
 ## Progress
 
@@ -53,13 +60,47 @@ bytes.
 - [x] (2026-08-09) Prepared the `0.3.3` release branch and draft PR, passed
   the local quality ladder and exact-SHA quality CI, and resolved the Trackio
   post10 wheelhouse asset required by the protected workflow.
-- [ ] Dispatch the protected release-candidate workflow from the exact branch,
-  verify the dev-index wheelhouse and OCI receipts, then dispatch the final
-  workflow for the exact merged SHA. Do not create a tag before final stable
-  readback succeeds. Candidate `31280782204` reached OCI publication and clean
-  consumer installation but stopped at the canary because the wheelhouse still
-  contained the pre-publication image manifest; the builder overlay fix is
-  queued for the next candidate.
+- [x] (2026-08-09) Published Trackio
+  `carbonteq-v0.31.5.post11` from exact source `7a2b885b...`, including the
+  missing-completed-upload recovery fix and complete package/frontend tests.
+- [x] (2026-08-09) Stopped release retries after candidate `31281418857`
+  reached the real dstack canary and exposed a deployed Trackio artifact
+  compatibility failure. Recorded the cross-system cause and proposed
+  [ADR 0014](../decisions/0014-attested-release-promotion-graph.md).
+- [x] (2026-08-09) Manually published and deployed Trackio
+  `0.31.5.post11`, then qualified scalar history and a cache-independent S3
+  artifact upload/download against the live service. Producer run
+  `50f9a44eda0e4588b8b5ac4d88c8d8c8` and consumer run
+  `829d2776062a4825bbf3c228dfceac89` read back artifact SHA-256
+  `bf6e71abcbd1631441dbc2b45610f9d4c59648c6dc1039dc0106d930d7fc143c`.
+- [x] (2026-08-09) Manually published TRL `1.9.2.post1` from source
+  `a82ecebc0fa081efd58302a34a553445fc73271d`, retained wheel and sdist
+  hashes, and changed Posttrain to consume the stable package instead of a Git
+  checkout.
+- [x] (2026-08-09) Added the two-phase runtime-lock materialization boundary.
+  Pull-request CI validates authored dependency receipts while keeping the last
+  published OCI manifest strict; the protected candidate materializes the
+  internal wheel URLs, rebuilds affected images, then applies strict validation
+  and retains both generated lock and manifest.
+- [x] (2026-08-09) Passed the complete source ladder: release metadata and
+  repository audits, Ruff lint/format, Pyright, eight import contracts, 1,081
+  tests with 21 expected skips, and `git diff --check`. Installed the exact
+  published TRL `1.9.2.post1` extra and passed the focused TRL compatibility
+  suite (8 passed, 1 environment-dependent skip).
+- [ ] Re-run the protected release candidate using the accepted manual Trackio
+  and TRL receipts. Require dev-index/OCI readback, clean install, packed dstack
+  job, Trackio artifact round trip, and Observatory readback before merge.
+- [ ] Merge the release PR and dispatch the final workflow for the exact merged
+  SHA and accepted candidate materialization. Create no tag before stable
+  readback succeeds.
+- [ ] Update the local Ambient Agent project to the exact stable Posttrain
+  release, replace its direct legacy TRL/Trackio pins with the release-resolved
+  dependency graph, and revalidate its SFT-backed online-RL work packages.
+- [ ] Add a new versioned Ambient Agent `algorithm: olmo3` setting and work
+  package after that dependency update. Preserve the historical DAPO settings
+  and runs; do not relabel them as OLMo 3 evidence.
+- [ ] Pack the resolved OLMo 3 job and run a bounded two-step SFT-LoRA canary
+  before scheduling the longer campaign.
 - [ ] Record final experiment and release receipts, update this plan’s outcome,
   and report the tag, release URL, package/image digests, and remaining gates.
 
@@ -117,6 +158,34 @@ bytes.
   generated runtime manifest after immutable source staging, not a broad dirty
   checkout copy. The overlay is covered by a release regression test and will
   be requalified in the next protected candidate.
+- Observation: The narrow checkout overlay is a useful regression repair but
+  not a sufficient release architecture. It does not attest who generated the
+  manifest, which dependency deployment the canary exercised, or whether the
+  runtime-image dependency lock matches the Python wheelhouse.
+  Evidence: candidate `31281418857` successfully consumed the refreshed image
+  manifest and launched the packed job, then failed while Trackio committed an
+  artifact manifest whose referenced blob was absent from the deployed server.
+- Observation: a dedicated Trackio-owned release workflow is not required to
+  unblock this release because the operator completed the publication and
+  deployment manually and retained live readback evidence. Automation remains
+  a follow-up; Posttrain consumes and verifies Trackio rather than publishing it.
+  Evidence: the live post11 producer/consumer qualification succeeded only
+  after deleting the producer cache, proving the artifact was served by the
+  deployed S3-backed path rather than local residue.
+- Observation: Trackio dependency versions currently have more than one source
+  of truth across package metadata, `uv.lock` and runtime-image profiles/locks.
+  A framework release can therefore build a client wheelhouse and an execution
+  image against different Trackio versions unless CI rejects the drift.
+- Observation: Observatory is named in the supported release workflow but is
+  not yet qualified as a deployed read product with an immutable image/config
+  receipt. A local import or package test cannot prove production readback.
+- Observation: Ambient Agent cannot select `algorithm: olmo3` before the
+  Posttrain release is installed. Its current project metadata still resolves
+  `posttrain==0.3.2`, Trackio post10 and the legacy TRL Git commit `91b0ce...`,
+  none of which contains the named Posttrain OLMo 3 selection contract.
+  Evidence: `/home/hammad/projects/ambient-agent/pyproject.toml` and `uv.lock`
+  retain those exact constraints. Changing only the project YAML would fail
+  catalog decoding or execute the wrong trainer implementation.
 
 ## Decision Log
 
@@ -170,19 +239,53 @@ bytes.
   Rationale: this preserves protection against arbitrary dirty state while
   ensuring the wheelhouse and OCI registry carry identical image digests.
   Date/Author: 2026-08-09 / Codex.
+- Decision: Supersede the checkout-copy mechanism as the production boundary
+  with an explicit release materialization receipt. `git archive` remains the
+  committed-source input; only hash-declared generated inputs are projected
+  into the staged tree.
+  Rationale: a generated file is valid release input, but it is not source and
+  must not enter the build through ambient working-tree mutation.
+  Date/Author: 2026-08-09 / Codex.
+- Decision: Require maintained dependencies to publish, deploy and qualify
+  themselves before the Posttrain candidate begins. Posttrain verifies their
+  receipts and never publishes Trackio as an incidental workflow step.
+  Rationale: package availability, server deployment and live compatibility are
+  distinct states with different owners and credentials.
+  Date/Author: 2026-08-09 / Codex.
+- Decision: Treat Trackio artifact round trip and Observatory readback as
+  first-class candidate gates against the same packed run.
+  Rationale: a remote job that reaches terminal provider state is not a
+  supported Posttrain result if its artifacts cannot be committed or its
+  evidence cannot be read through the product surface.
+  Date/Author: 2026-08-09 / Codex.
+- Decision: Finish the framework release before updating Ambient Agent or
+  submitting further DAPO runs.
+  Rationale: experiments must consume the exact stable framework and dependency
+  graph being qualified; running from the release branch would recreate the
+  provenance ambiguity this release is intended to remove.
+  Date/Author: 2026-08-09 / Codex.
+- Decision: Use the named `Olmo3GRPOConfig` recipe for the next post-release
+  Ambient Agent learning canary rather than approximating it with another DAPO
+  settings combination.
+  Rationale: active refill and token-level TIS are trainer/runtime behavior, not
+  aliases for `loss_type`; selecting `algorithm: olmo3` binds the complete
+  recipe and its invariant checks while retaining the common `GRPOTrainer`.
+  Historical DAPO runs remain valid comparisons under their original labels.
+  Date/Author: 2026-08-09 / Codex.
 
 ## Outcomes & Retrospective
 
-The corrected DAPO probe remains a separate, explicitly unfinished
-qualification item. The framework release is now prepared as `0.3.3` on
-branch `codex/release-0.3.3` (current fix commit follows the release-guide fix)
-with draft PR `carbonteq-ai/posttrain#34`. Local validation and exact-SHA
-quality CI pass. Protected candidates caught and fixed two release defects:
-the missing wheelhouse README and the generated OCI manifest being omitted by
-`git archive` staging. Candidate `31280782204` therefore remains rejected at
-the canary; the next candidate must prove that the clean consumer carries the
-fresh image digests before merge or final promotion. No final tag has been
-created.
+The post-release OLMo 3 canary remains a separate, explicitly unfinished
+qualification item. The framework release is prepared as `0.3.3` on branch
+`codex/release-0.3.3` with draft PR `carbonteq-ai/posttrain#34`. Four candidate
+passes exposed a missing consumer guide, incorrect OCI/build ordering, an
+implicit generated-manifest input, and an unqualified deployed Trackio artifact
+path. Trackio post11 and TRL 1.9.2.post1 are now manually published with exact
+receipts, the live Trackio artifact path passes, and the runtime dependency lock
+has a deterministic candidate materialization step. The next action is local
+validation and a fresh protected candidate. No final tag has been created,
+Ambient Agent has not been updated, and no post-release OLMo 3 run has been
+submitted.
 
 ## Context and Orientation
 
@@ -214,114 +317,112 @@ the DAPO telemetry required by `docs/post-training/06-observation-and-lineage.md
 
 ## Plan of Work
 
-First, inspect the current run and cancel it before an optimizer update if it is
-still active. Preserve its Trackio and dstack IDs as a rejected diagnostic.
-In the ambient-agent overlay, select the existing `advfix` settings or add a
-new versioned settings entry whose full contract is explicit:
-`algorithm: dapo`, scalar reward bridge, `advantage_scaling: none`, no dynamic
-sampling, clip low/high `0.20/0.28`, zero KL, one on-policy iteration,
-truncation masking with soft overlength shaping, and the existing LR and batch
-contract. Update the 256-concurrency work package to that settings ID without
-changing the SFT adapter, environment revision, or target. Validate and pack a
-new actual-job image; never reuse the old package digest after changing config.
+First, finish the current release from the accepted manual dependency receipts.
+Trackio post11 and TRL 1.9.2.post1 are immutable inputs; the protected candidate
+must materialize their exact wheel URLs into the runtime constraint lock before
+publishing images. Retain the generated lock and `published.toml`, apply both to
+the release branch, rerun strict CI, and only then merge.
 
-Run exactly two logical steps. For every step, retain rollout-level scalar
-rewards and component diagnostics, group reward spread and zero-variance rate,
-advantage mean/std/absolute mean and positive/negative/zero fractions,
-corable/truncated fractions, importance-ratio range and clamp fraction, clip
-fractions, entropy, rollout throughput, KV-cache peak, VRAM capacity, GPU
-compute, actor/sampler parity, and optimizer-update completion. Recompute the
-advantages independently from retained rewards and require a floating-point
-tolerance match. Confirm that truncated completions have zero advantage and do
-not change the group statistics. Confirm that the produced recovery checkpoint
-and LoRA artifact are present and that a restart can identify the checkpoint;
-do not resume from a promoted model artifact in place of a training checkpoint.
+The corrected candidate must pass exact-SHA CI, registry and development-index
+readback, clean index-only installation, a bounded packed dstack job, Trackio
+artifact finalization and Observatory readback. The final workflow uses the
+exact merged SHA and accepted materialization, verifies identical stable bytes,
+and creates `v<version>` only after all gates pass. Update Ambient Agent to that
+stable version, remove its old direct Posttrain/TRL/Trackio resolution, and
+revalidate the SFT model, environment, inference and training bindings before
+scheduling work.
 
-Only after the two-step probe is valid, isolate the framework release scope.
-Review each dirty path against the current release objective, keep unrelated
-user edits out of the release commit, regenerate the catalog lock digest, and
-run the checker and full validation ladder. Select the next unused version after
-checking the existing dev/stable indexes; prepare the manifest in a release
-branch, not directly on `main`.
+Then add an additive, versioned Ambient Agent setting with `algorithm: olmo3`.
+It must resolve the released `Olmo3GRPOConfig`: zero-gradient filtering with
+bounded active refill, global token-level loss normalization, beta `0`, clipping
+`0.20/0.272`, token-level TIS with no lower cap and upper cap `2.0`, and
+mean-only group advantages. Keep the selected batch, generation, length,
+learning schedule, truncation policy and active-refill budget explicit in the
+project catalog. Do not mutate or rename an existing DAPO selection.
 
-The candidate workflow must pass exact-SHA CI, build and receipt-check the
-wheelhouse, publish only to the development index, verify a clean index-only
-consumer install, qualify changed OCI images and the bounded dstack canary, and
-retain the generated image manifest. The final workflow must use that exact
-merged SHA and candidate run, verify stable readback of identical bytes, and
-create `v<version>` only after all evidence passes.
+Bind the new setting to the retained 1,938-update SFT LoRA model variant and its
+matching vLLM inference binding. Run exactly two logical steps before any longer
+campaign. Retain reward components, group spread, active-sampling rounds,
+generated/retained rows, advantage statistics, truncation semantics, TIS ratios,
+clip fractions, entropy, rollout/runtime telemetry, actor/sampler parity,
+optimizer completion, recovery checkpoint and LoRA artifact. Independently
+recompute advantages and require a floating-point tolerance match before a
+longer run is considered.
 
 ## Concrete Steps
 
 Work from `/home/hammad/projects/rl` unless a command names the ambient-agent
 checkout.
 
-1. Refresh state without mutating anything:
+1. Refresh release state without mutating authoritative systems:
 
        git status --short
        uv run --no-sync posttrain-release check
        git show --stat --oneline HEAD
 
-   The checker is expected to fail until the generated lock digest is repaired;
-   do not bypass it.
+   Confirm the exact release branch, source SHA, candidate receipts and current
+   deployed dependency identities. Do not infer deployment from a GitHub tag.
 
-2. Inspect and, if necessary, stop the invalid diagnostic through the framework
-   lifecycle command. Verify the provider status first and retain the IDs above.
-   A cancelled diagnostic is evidence of configuration invalidity, not a failed
-   model result.
+2. In the Trackio and `ai-infra` repositories, implement the protected,
+   repository-scoped internal publication and deployment transaction. Produce a
+   receipt binding post11 source, wheel/sdist hashes, internal-index readback,
+   service image digest, deployed configuration identity and the dedicated S3
+   artifact compatibility canary.
 
-3. In `/home/hammad/projects/ambient-agent`, update only the project catalog and
-   work-package references needed to select the corrected DAPO settings. Run
-   `posttrain catalog validate`, `posttrain work-package validate`, and the
-   project’s existing package plan command. Ensure the resolved selection prints
-   `advantage_scaling=none` before submission.
+3. In Posttrain, add the materialization model and explicit `stage` input,
+   migrate the candidate/final workflows to it, enforce the single dependency
+   lock, and remove the temporary Posttrain-owned Trackio publisher. Add focused
+   receipt, tamper, stale-input and dependency-drift tests before changing the
+   workflow.
 
-4. Pack and run the two-step probe with the current source CLI and private
-   registry configuration. Save the package JSON, resolved inputs, dstack run
-   output, Trackio run ID, and the final evidence query under the ambient
-   project’s ignored state or a retained release-evidence directory. Do not
-   delete the rejected diagnostic until the corrected run has been inspected.
+4. Push the reviewed release branch and wait for exact-SHA quality CI. Dispatch
+   **Prepare release candidate** only after the dependency receipt is accepted.
+   Inspect every gate result independently; a candidate is rejected if Trackio
+   writes or Observatory readback fail even when dstack reaches terminal state.
 
-5. Recompute the DAPO advantage arrays from the retained scalar group rewards
-   in a small independent test/helper. Compare the result with the telemetry
-   emitted by the trainer and record the maximum absolute difference. Run the
-   focused train tests, then the two-step remote probe; do not infer learning
-   from reward movement alone.
+5. Merge the release PR only after the candidate passes. Dispatch **Publish
+   release** with the exact merged SHA and accepted materialization, verify
+   stable readback, and create the tag/GitHub Release last. Never rebuild or
+   repair a dependency inside final qualification.
 
-6. Create a release branch from the reviewed base, stage only the intended RL
-   framework changes, and update `release/manifest.toml` to the next unused
-   release line. Run `posttrain-release lock-dependencies`, then
-   `posttrain-release check`, `uv sync --all-packages --locked --python 3.13`,
-   Ruff, Pyright, import-linter, the full pytest suite, and `git diff --check`.
-   The source templates remain `0.0.0`; the manifest is the sole authored
-   version and staging renders release metadata into a temporary tree.
+6. Update `/home/hammad/projects/ambient-agent` to the exact stable framework
+   release. Update `pyproject.toml` and `uv.lock` so Posttrain, Trackio and TRL
+   resolve through the released framework graph rather than the current
+   `posttrain==0.3.2`, Trackio post10 and direct legacy TRL Git pin. Validate the
+   catalog and save the dependency receipt before editing the job selection.
 
-7. Push the release branch and wait for exact-SHA quality CI. Dispatch “Prepare
-   release candidate” with that branch, inspect its wheel, image, dstack, and
-   Observatory receipts, and merge only the reviewed generated manifest.
-   Dispatch “Publish release” with the exact merged SHA and candidate run ID.
-   If a final workflow fails after retaining receipts, resume from that run ID;
-   never rebuild different bytes under the same version.
+7. Add a new Ambient `algorithm: olmo3` catalog entry and new work package. Bind
+   it to `models/qwen3.5-2b-sft-10k-json@lora-v0`, the matching SFT-policy vLLM
+   inference binding, the selected verifier environment and an effective batch
+   equal to prompt groups times generations. Verify the resolved trainer config
+   is `Olmo3GRPOConfig` and that the immutable recipe fields match the release.
+
+8. Pack and run the two-step OLMo 3 canary. Save the package JSON, resolved
+   inputs, dstack and Trackio identities, telemetry and final evidence query.
+   Recompute mean-only advantages independently, verify actor/sampler parity,
+   active-refill behavior and TIS bounds, and confirm both the recovery
+   checkpoint and LoRA artifact before considering a longer run.
 
 ## Validation and Acceptance
 
 The experiment is accepted only when the run snapshot resolves the SFT adapter,
-the intended environment and target, and `advantage_scaling: none`; both logical
-steps complete rollout and actor-update phases; independent advantage
+the intended environment and target, and `algorithm: olmo3`; the resolved
+configuration must prove active sampling, mean-only advantages, token-level
+global normalization, zero KL, `0.20/0.272` clipping and token-level TIS capped
+at `2.0`. Both logical steps complete rollout and actor-update phases; independent advantage
 recomputation matches telemetry within the documented tolerance; truncated
 completions contribute neither group statistics nor loss; actor and sampler
 weights are equal at the parity gate; a recovery checkpoint and LoRA adapter
 artifact are linked to the run; and Trackio finalization succeeds.
 
-The release is accepted only when `posttrain-release check` reports the manifest,
-all staged package metadata, dependency locks, and published image shape as OK;
-the full quality ladder passes; a clean environment installs the exact staged
-wheelhouse without workspace sources; candidate artifacts and OCI manifests
-match receipts by hash; the dstack canary and Observatory readback succeed; the
-stable index contains the exact final bytes; and tag `v<version>` points to the
-verified merged commit. A two-step probe is diagnostic evidence, not a claim of
-production learning quality; a longer qualification run remains a separate
-decision.
+The release is accepted only when the maintained-dependency receipt proves the
+exact internally published and deployed Trackio version; the materialization
+binds source, locks and generated image evidence; the full quality ladder
+passes; a clean environment installs exact index bytes without workspace/Git
+sources; OCI digests match registry readback; the dstack, Trackio artifact and
+Observatory readback gates succeed against one run; stable contains the exact
+final files; and tag `v<version>` points to the verified merged commit. A
+two-step probe remains diagnostic evidence, not a production-learning claim.
 
 ## Idempotence and Recovery
 
@@ -355,14 +456,15 @@ Current evidence anchors:
     8277ce5cc5853db4048fbbaa64b1ccb6f35bf96c797658253b553e9a8efefae7
     SFT adapter source tree sha256:
     79b17299c7808b373eaa67f3c34153ab513e27d2f28105f0ef633c58cccaa7b7
-    current framework HEAD:
-    116b1fd1 (main, origin/main)
-    current authored release:
-    0.3.2 / tag v0.3.2
+    current release branch HEAD:
+    c8adbc37 (codex/release-0.3.3)
+    current target release:
+    0.3.3 (not tagged or published)
 
 ## Interfaces and Dependencies
 
-The experiment uses `posttrain.train.GRPOSettings` and the TRL DAPO adapter in
+The experiment uses `posttrain.train.GRPOSettings.algorithm = "olmo3"`, the
+released TRL `Olmo3GRPOConfig`, and the shared adapter in
 `packages/train/src/posttrain/train/backends/trl/grpo.py`; the project catalog
 and work-package files remain in `/home/hammad/projects/ambient-agent/.posttrain`.
 The run lifecycle uses dstack through `packages/execution-dstack` and evidence
@@ -382,3 +484,6 @@ immutable and the lockfile is regenerated, not hand-edited.
 Revision note (2026-08-09): created this combined living plan after discovering
 that the active 256-concurrency run did not select the explicit advantage fix
 and that the framework release checker failed on a stale generated lock digest.
+Revised it after the OLMo 3 recipe was implemented so the next experiment first
+updates Ambient Agent to the stable framework, then adds an additive OLMo 3
+selection and runs a two-step SFT-LoRA canary before any longer campaign.

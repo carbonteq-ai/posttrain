@@ -153,6 +153,25 @@ def test_trl_dapo_native_dynamic_sampling_and_asymmetric_clip_metrics_are_preser
     }
 
 
+def test_trl_olmo3_active_sampling_metrics_are_preserved() -> None:
+    step = normalize_grpo_metrics(
+        backend="trl",
+        step=5,
+        native={
+            "active_sampling/generation_rounds": 3,
+            "active_sampling/retained_fraction": 0.75,
+            "active_sampling/generated_rows": 40,
+        },
+        features=GRPOObservationFeatures(),
+    )
+
+    assert step.metrics == {
+        "train/rl/active_sampling_generation_rounds": 3.0,
+        "train/rl/active_sampling_retained_fraction": 0.75,
+        "train/rl/active_sampling_generated_rows": 40.0,
+    }
+
+
 def test_verl_runtime_totals_use_backend_neutral_names() -> None:
     step = normalize_grpo_metrics(
         backend="verl",

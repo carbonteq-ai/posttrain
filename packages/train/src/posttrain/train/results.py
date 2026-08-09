@@ -53,7 +53,7 @@ class TeacherScoringSummary:
 
 @dataclass(frozen=True, slots=True)
 class TrainingResult:
-    technique: Literal["sft", "dpo", "grpo", "dapo", "sampo", "distill"]
+    technique: Literal["sft", "dpo", "grpo", "dapo", "olmo3", "sampo", "distill"]
     source_model: ModelVariant
     model: ModelVariant
     summary: TrainingSummary

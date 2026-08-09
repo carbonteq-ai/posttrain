@@ -4,6 +4,48 @@ All notable changes to Posttrain are documented here. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with a coordinated
 version across first-party distributions.
 
+## 0.3.3 - 2026-08-09
+
+This release strengthens online-RL correctness and makes the maintained
+Trackio and TRL distributions reproducible inputs to Posttrain jobs.
+
+### Added
+
+- A named `algorithm: olmo3` GRPO recipe backed by TRL's
+  `Olmo3GRPOConfig`, including zero-gradient filtering, bounded active refill,
+  token-level loss normalization, asymmetric clipping, mean-only advantages,
+  zero KL, and truncated importance sampling.
+- Portable active-sampling settings and rollout telemetry for accepted,
+  rejected, replacement, exhausted, and usable prompt groups.
+- DAPO advantage diagnostics covering magnitude, sign balance, group reward
+  spread, zero-variance groups, scoreability, truncation, and importance-ratio
+  clamping.
+- Deterministic runtime-lock materialization for internally published
+  dependencies. Release candidates retain the generated lock together with the
+  immutable OCI manifest before merge.
+
+### Changed
+
+- DAPO reward scaling is configurable instead of hardcoded. Truncated
+  completions can be excluded from group statistics as well as from the loss,
+  preventing masked samples from changing another completion's advantage.
+- LoRA rollout synchronization and trainer configuration use the maintained
+  TRL `1.9.2.post1` distribution rather than an ambient Git checkout.
+- Trackio advances to `0.31.5.post11`, including the S3 artifact recovery path
+  used by remote jobs and Observatory evidence readers.
+- Runtime images consume the same exact Trackio and TRL wheel receipts as the
+  Python workspace, while GitHub-only consumers retain hash-verified public
+  release fallbacks.
+
+### Release safety
+
+- Pull-request validation distinguishes authored dependency changes from
+  candidate-generated OCI evidence. The stale-image guard remains strict after
+  materialization and for every merged/default-branch build.
+- Candidate artifacts include both `workspace.lock.txt` and `published.toml`,
+  so final distributions cannot silently package an earlier runtime image
+  graph.
+
 ## 0.3.2 - 2026-08-05
 
 This release adds the Gemma 4 dense support matrix and qualifies the TRL
