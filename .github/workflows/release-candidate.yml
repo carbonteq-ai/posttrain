@@ -101,12 +101,16 @@ jobs:
         run: |
           uv run --no-sync posttrain-release lock-runtime-dependencies
           git fetch --no-tags origin main
-          if git diff --quiet origin/main...HEAD -- containers packages/runtime-images packages/catalog uv.lock release; then
-            echo "No OCI input changed; committed immutable image manifest remains authoritative."
+          authored_framework_version="$(sed -n 's/^version = "\([^" ]*\)"$/\1/p' release/manifest.toml)"
+          published_framework_version="$(sed -n 's/^framework_version = "\([^" ]*\)"$/\1/p' \
+            packages/runtime-images/src/posttrain/runtime_images/published.toml)"
+          if [[ "${published_framework_version}" = "${authored_framework_version}" ]] \
+            && git diff --quiet origin/main...HEAD -- containers packages/runtime-images packages/catalog uv.lock release; then
+            echo "No OCI input or framework-version change; committed immutable image manifest remains authoritative."
           else
             uv run --no-sync posttrain-release images publish \
               --registry "${JOB_REGISTRY}" \
-              --framework-version "$(sed -n 's/^version = "\([^" ]*\)"$/\1/p' release/manifest.toml)" \
+              --framework-version "${authored_framework_version}" \
               --receipt-root .release/image-receipts \
               --trust-bundle /etc/ssl/certs/ca-certificates.crt
           fi
