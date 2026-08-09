@@ -882,6 +882,20 @@ def test_public_ci_trackio_mirror_matches_locked_distribution() -> None:
     assert workflow.count("--no-install-package carbonteq-trackio") == 4
 
 
+def test_final_release_restores_candidate_runtime_lock_with_manifest() -> None:
+    root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+    workflow = (root / ".github/workflows/release.yml").read_text(encoding="utf-8")
+
+    assert 'candidate_workspace_lock="$(find .release/candidate' in workflow
+    assert 'test -n "${candidate_workspace_lock}"' in workflow
+    assert (
+        'cp "${candidate_workspace_lock}" \\\n'
+        '            packages/runtime-images/src/posttrain/runtime_images/containers/'
+        'posttrain-job-kinds/locks/workspace.lock.txt'
+    ) in workflow
+    assert 'cp "${candidate_workspace_lock}" .release/workspace.lock.txt' in workflow
+
+
 def test_release_can_read_prior_manifest_while_adding_a_variant(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
