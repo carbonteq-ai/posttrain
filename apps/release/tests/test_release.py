@@ -285,8 +285,7 @@ def test_pending_runtime_lock_allows_old_image_manifest_until_rebuild(
         )
     lock_dependencies(tmp_path)
     versioning_lock_error = (
-        "base: published image records constraint lock digest old, "
-        "but the shipped lock hashes to new"
+        "base: published image records constraint lock digest old, but the shipped lock hashes to new"
     )
 
     def fake_load_manifest(*, verify_locks: bool = True, verify_variants: bool = True) -> object:

@@ -1198,7 +1198,9 @@ class TrackioDataSource:
         """Report provider verification support without downloading blobs implicitly."""
 
         if reference.provider != "trackio" or reference.namespace != self.project:
-            return ArtifactIntegrityResult("failed", failures=("artifact belongs to another provider/project",), deep=deep)
+            return ArtifactIntegrityResult(
+                "failed", failures=("artifact belongs to another provider/project",), deep=deep
+            )
         return ArtifactIntegrityResult("unsupported", deep=deep)
 
     def _artifacts(self, run_id: str) -> ArtifactSet:

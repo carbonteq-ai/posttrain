@@ -364,7 +364,9 @@ def test_training_definition_consumes_a_checkpoint_model_view_for_a_fresh_branch
     runtime = build_job_runtime(request, tracking="none")
     assert runtime.seat_resolver is not None
     dataset_plan = _selection(request.catalog, "dataset", "datasets/posttrain-sft-smoke@1")
-    dataset = runtime.seat_resolver(ResolvedSeat("dataset", dataset_plan, CatalogRef("dataset", dataset_plan.id), "base"))
+    dataset = runtime.seat_resolver(
+        ResolvedSeat("dataset", dataset_plan, CatalogRef("dataset", dataset_plan.id), "base")
+    )
     model = cast(ModelVariant, _selection(request.catalog, "model", "models/qwen3.5-2b@bf16"))
     settings = cast(SFTSettings, _selection(request.catalog, "training", "qwen3.5-2b/sft-smoke-v2"))
     training = cast(TrainingBinding, _selection(request.catalog, "training", "training/qwen3.5-trl-lora@1"))

@@ -244,9 +244,7 @@ def _assemble_plan(
 
     for reference, owners in selected_image_owners.items():
         external_owners = sorted(
-            run_id
-            for run_id in registry_image_owners.get(reference, ())
-            if run_id not in selected
+            run_id for run_id in registry_image_owners.get(reference, ()) if run_id not in selected
         )
         if external_owners:
             warnings.append(
@@ -262,9 +260,7 @@ def _assemble_plan(
                 kind="registry.delete_manifest",
                 target={"reference": reference, "run_id": owners[0].run_id},
                 depends_on=tuple(
-                    f"provider:{owner.run_id}"
-                    for owner in owners
-                    if "provider" not in owner.completed_planes
+                    f"provider:{owner.run_id}" for owner in owners if "provider" not in owner.completed_planes
                 ),
             )
         )

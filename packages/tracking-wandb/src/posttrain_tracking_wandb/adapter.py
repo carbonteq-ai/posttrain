@@ -623,7 +623,9 @@ class WandbDataSource:
 
     async def verify_artifact(self, reference: StoredArtifactRef, *, deep: bool = False) -> ArtifactIntegrityResult:
         if reference.provider != "wandb" or reference.namespace != self._path:
-            return ArtifactIntegrityResult("failed", failures=("artifact belongs to another provider/project",), deep=deep)
+            return ArtifactIntegrityResult(
+                "failed", failures=("artifact belongs to another provider/project",), deep=deep
+            )
         return ArtifactIntegrityResult("unsupported", deep=deep)
 
     def _artifact_set(self, run_id: str) -> ArtifactSet:

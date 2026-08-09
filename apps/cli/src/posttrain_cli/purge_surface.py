@@ -134,11 +134,7 @@ def _completed_purge_planes(
                 events = store.journal(directory.name)
             except Exception:
                 continue
-            settled = {
-                str(event["action_id"])
-                for event in events
-                if event.get("status") in {"completed", "skipped"}
-            }
+            settled = {str(event["action_id"]) for event in events if event.get("status") in {"completed", "skipped"}}
             for action in plan.actions:
                 if action.action_id in settled:
                     completed.add(action.plane)
@@ -442,8 +438,7 @@ def _registry_image_inventory(
             reference = RegistryManifestRef.parse(value)
         except Exception as error:
             blockers.append(
-                f"registry ownership source {source!r} has invalid image for run "
-                f"{run_id!r} ({type(error).__name__})"
+                f"registry ownership source {source!r} has invalid image for run {run_id!r} ({type(error).__name__})"
             )
             return
         owners.setdefault(reference.value, set()).add(run_id)
@@ -471,10 +466,7 @@ def _registry_image_inventory(
         try:
             owner = load_project_layout(root)
         except Exception as error:
-            blockers.append(
-                f"registered project image inventory {str(root)!r} is unavailable "
-                f"({type(error).__name__})"
-            )
+            blockers.append(f"registered project image inventory {str(root)!r} is unavailable ({type(error).__name__})")
             continue
         project_layouts.append(owner)
 
@@ -488,8 +480,7 @@ def _registry_image_inventory(
             submissions = ExecutionSubmissionStore(owner.state).list_submissions()
         except Exception as error:
             blockers.append(
-                f"project {owner.project_id!r} submission image inventory is unavailable "
-                f"({type(error).__name__})"
+                f"project {owner.project_id!r} submission image inventory is unavailable ({type(error).__name__})"
             )
             continue
         for submission in submissions:
@@ -518,8 +509,7 @@ def _registry_image_inventory(
                     raise ValueError("terminal admission image receipt fields are invalid")
             except (OSError, KeyError, ValueError, json.JSONDecodeError) as error:
                 blockers.append(
-                    f"machine admission terminal image receipt {path.name!r} is invalid "
-                    f"({type(error).__name__})"
+                    f"machine admission terminal image receipt {path.name!r} is invalid ({type(error).__name__})"
                 )
                 continue
             if run_id not in retired_runs:

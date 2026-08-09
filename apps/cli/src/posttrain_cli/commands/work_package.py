@@ -46,9 +46,7 @@ def _select_checkpoint_output(
     step: int | None,
 ) -> object:
     candidates = tuple(
-        link
-        for link in links
-        if getattr(link, "direction", None) == "output" and getattr(link, "kind", None) in kinds
+        link for link in links if getattr(link, "direction", None) == "output" and getattr(link, "kind", None) in kinds
     )
     if step is not None:
         candidates = tuple(

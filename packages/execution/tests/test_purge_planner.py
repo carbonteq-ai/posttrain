@@ -148,9 +148,7 @@ def test_run_plan_retains_image_referenced_by_cross_project_machine_owner() -> N
     )
 
     assert plan.registry_actions == ()
-    assert plan.warnings == (
-        f"job image {image.value!r} retained; referenced by unselected run(s): 'foreign-run'",
-    )
+    assert plan.warnings == (f"job image {image.value!r} retained; referenced by unselected run(s): 'foreign-run'",)
 
 
 def test_run_plan_blocks_when_machine_registry_inventory_is_incomplete() -> None:

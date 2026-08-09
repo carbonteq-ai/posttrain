@@ -222,7 +222,8 @@ def register(app: typer.Typer) -> None:
             "state": (
                 "verified"
                 if metadata_ok and deep_ok
-                else "unsupported" if deep and deep_states and any(state == "unsupported" for state in deep_states)
+                else "unsupported"
+                if deep and deep_states and any(state == "unsupported" for state in deep_states)
                 else "failed"
             ),
             "checks": checks,
@@ -254,9 +255,7 @@ def register(app: typer.Typer) -> None:
             "from_step": from_step,
             "to_step": to_step,
             "model_digest_changed": (
-                before.model is not None
-                and after.model is not None
-                and before.model.digest != after.model.digest
+                before.model is not None and after.model is not None and before.model.digest != after.model.digest
             ),
             "recovery_digest_changed": (
                 before.recovery is not None

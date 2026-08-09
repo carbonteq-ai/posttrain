@@ -1579,8 +1579,7 @@ def test_trl_rollout_adapter_preserves_identity_rewards_masks_and_native_traces(
         inputs=[{"example_id": "gsm8k/train/0"}],
     )
     assert [
-        (trace.attributes["optimizer_step"], trace.attributes["rollout_batch_ordinal"])
-        for trace in observer.traces
+        (trace.attributes["optimizer_step"], trace.attributes["rollout_batch_ordinal"]) for trace in observer.traces
     ] == [(4, 1), (4, 2), (5, 1)]
     assert all("reward" not in metric for batch in observer.metrics_seen for metric in batch.values)
 

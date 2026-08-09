@@ -404,8 +404,10 @@ def _materialize_selected_model(
 
 
 def _materialize_selected_model_variant(context: RunContext, model: ModelVariant) -> ModelVariant:
-    input_name = "model_adapter" if "model_adapter" in context.input_artifacts else (
-        "model_weights" if "model_weights" in context.input_artifacts else None
+    input_name = (
+        "model_adapter"
+        if "model_adapter" in context.input_artifacts
+        else ("model_weights" if "model_weights" in context.input_artifacts else None)
     )
     if input_name is None:
         if model.form not in {"adapter", "peft-adapter"} or not isinstance(
