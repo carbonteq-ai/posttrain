@@ -92,6 +92,12 @@ ADR is accepted.
   maintained Trackio and TRL release wheels before constructing an offline
   starter-project wheelhouse. The previously failing SFT starter acceptance
   passes locally against those exact two assets.
+- [x] (2026-08-09) Diagnosed candidate `31289887803` at the registry boundary:
+  the veRL image completed and three sibling images published, but the registry
+  invalidated its resumable upload with `invalid content range`. Added one
+  classified BuildKit retry that preserves content identity and reuses completed
+  layers; regression tests prove transient recovery and a bounded persistent
+  failure.
 - [ ] Re-run the protected release candidate using the accepted manual Trackio
   and TRL receipts. Require dev-index/OCI readback, clean install, packed dstack
   job, Trackio artifact round trip, and Observatory readback before merge.
@@ -191,6 +197,12 @@ ADR is accepted.
   Evidence: `/home/hammad/projects/ambient-agent/pyproject.toml` and `uv.lock`
   retain those exact constraints. Changing only the project YAML would fail
   catalog decoding or execute the wrong trainer implementation.
+- Observation: candidate `31289887803` did not fail compilation or dependency
+  resolution. The veRL image finished exporting, then the registry rejected its
+  push with `unknown: invalid content range`; eval, TRL online-RL and serve
+  images had already pushed successfully. This is a resumable registry-upload
+  failure and must be retried at the BuildKit boundary, not interpreted as an
+  invalid runtime image or handled by restarting the entire release manually.
 
 ## Decision Log
 
@@ -461,8 +473,8 @@ Current evidence anchors:
     8277ce5cc5853db4048fbbaa64b1ccb6f35bf96c797658253b553e9a8efefae7
     SFT adapter source tree sha256:
     79b17299c7808b373eaa67f3c34153ab513e27d2f28105f0ef633c58cccaa7b7
-    current release branch HEAD:
-    c8adbc37 (codex/release-0.3.3)
+    current release branch HEAD before registry-retry repair:
+    1825e52542a9d5366e8c317dd56be83dd11b89e2 (codex/release-0.3.3)
     current target release:
     0.3.3 (not tagged or published)
 

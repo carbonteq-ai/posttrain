@@ -23,6 +23,13 @@ _SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/@-]*$")
 _SCHEMA = "posttrain.runtime-build-receipt.v1"
 _IGNORED_PARTS = frozenset({"__pycache__", ".git", ".venv", ".venvs"})
 _IGNORED_SUFFIXES = frozenset({".pyc", ".pyo"})
+_TRANSIENT_REGISTRY_UPLOAD_MARKERS = (
+    # Distribution-compatible registries can invalidate one resumable upload
+    # while BuildKit is pushing shared layers concurrently. Repeating the
+    # content-addressed build starts a fresh upload session and reuses every
+    # completed layer from the first attempt.
+    "invalid content range",
+)
 
 
 class RemoteImageNotFoundError(RuntimeError):
@@ -259,7 +266,15 @@ class BuildKitRuntimeBuilder:
         self._root.mkdir(parents=True, exist_ok=True)
         metadata = self._root / f".metadata-{uuid.uuid4().hex}.json"
         try:
-            self._gateway.invoke(self._build_arguments(request, metadata))
+            arguments = self._build_arguments(request, metadata)
+            for attempt in range(2):
+                try:
+                    self._gateway.invoke(arguments)
+                    break
+                except RuntimeError as error:
+                    if attempt or not _is_transient_registry_upload_failure(error):
+                        raise
+                    metadata.unlink(missing_ok=True)
             image = RuntimeImageRef(f"{request.repository}@sha256:{_metadata_digest(metadata, request.target)}")
             self._verify_remote(image)
             result = RuntimeBuildResult(
@@ -463,6 +478,11 @@ def _metadata_digest(path: Path, target: str) -> str:
     if not _SHA256.fullmatch(value):
         raise RuntimeError("Buildx returned an invalid published image digest")
     return value
+
+
+def _is_transient_registry_upload_failure(error: RuntimeError) -> bool:
+    detail = str(error).lower()
+    return any(marker in detail for marker in _TRANSIENT_REGISTRY_UPLOAD_MARKERS)
 
 
 def _file_digest(path: Path) -> str:
