@@ -44,7 +44,7 @@ ADR is accepted.
   contains 69 dirty paths.
 - [x] (2026-08-09) Ran `uv run --no-sync posttrain-release check`; it fails on a
   stale `packages/catalog/src/posttrain/catalog/base/locks.toml` digest.
-- [ ] Add a dedicated project settings revision with `algorithm: olmo3`, while
+- [x] (2026-08-09) Added a dedicated project settings revision with `algorithm: olmo3`, while
   retaining scalar verifier rewards, asymmetric clipping, truncation masking,
   zero-gradient filtering with active refill, and the materialized SFT LoRA
   input.
@@ -54,10 +54,10 @@ ADR is accepted.
 - [ ] Run the corrected one-step OLMo 3 probe and verify actor/sampler parity,
   reward spread, advantage statistics, truncation exclusion, optimizer update,
   checkpoint/LoRA artifact output, and tracking finalization.
-- [ ] Inventory the dirty framework tree and create one intentional release
+- [x] (2026-08-09) Inventoried the dirty framework tree and created one intentional release
   commit containing only reviewed framework changes and regenerated release
   inputs; leave unrelated edits untouched.
-- [ ] Choose the next unused release version, update `release/manifest.toml`,
+- [x] (2026-08-09) Chose release `0.3.3`, updated `release/manifest.toml`,
   regenerate dependency locks, and pass the complete local quality ladder.
 - [x] (2026-08-09) Prepared the `0.3.3` release branch and draft PR, passed
   the local quality ladder and exact-SHA quality CI, and resolved the Trackio
@@ -121,28 +121,50 @@ ADR is accepted.
   capacity-read retries, explicit JSON validation, sanitized failure receipts,
   and regression coverage for malformed, persistently invalid, and valid-but-
   busy responses.
-- [ ] Re-run the protected release candidate using the accepted manual Trackio
+- [x] (2026-08-09) Re-ran the protected release candidate using the accepted manual Trackio
   and TRL receipts. Require dev-index/OCI readback, clean install, packed dstack
   job, Trackio artifact round trip, and Observatory readback before merge.
-- [ ] Merge the release PR and dispatch the final workflow for the exact merged
+- [x] (2026-08-09) Merged release PR #34 and dispatched the final workflow for exact merged
   SHA and accepted candidate materialization. Create no tag before stable
   readback succeeds.
-- [ ] Update the local Ambient Agent project to the exact stable Posttrain
+- [x] (2026-08-09) Updated the local Ambient Agent project to exact stable Posttrain
   release, replace its direct legacy TRL/Trackio pins with the release-resolved
   dependency graph, and revalidate its SFT-backed online-RL work packages.
-- [ ] Add a new versioned Ambient Agent `algorithm: olmo3` setting and work
+- [x] (2026-08-09) Added a new versioned Ambient Agent `algorithm: olmo3` setting and work
   package after that dependency update. Preserve the historical DAPO settings
   and runs; do not relabel them as OLMo 3 evidence.
 - [ ] Pack the resolved OLMo 3 job and run one SFT-LoRA-backed optimizer step on
   RTX PRO 6000 with rollout and verifier concurrency 256. Qualify reward spread,
   recomputed advantages, truncation exclusion, clipping/TIS, actor-sampler
   parity, LoRA-only checkpoint artifacts, and restart metadata.
+- [x] (2026-08-09) Diagnosed the first released OLMo 3 gate: the SFT LoRA
+  rollout binding omitted Qwen 3.5's `language_model.` namespace, causing a
+  systematic actor/sampler log-probability delta near `0.25`. Corrected all 19
+  project LoRA rollout bindings; the second gate passed parity and entered
+  active sampling.
+- [x] (2026-08-09) Diagnosed the second gate before its optimizer update:
+  Posttrain opened actor-update telemetry after every candidate rollout, so an
+  OLMo 3 refill looked like an overlapping update. Moved phase start to the
+  trainer's post-preparation boundary, where all candidate/refill rollouts have
+  completed and the retained batch is about to enter forward/backward. Focused
+  and broader TRL tests pass.
+- [ ] Publish Posttrain `0.3.4` with the actor-update boundary repair, update
+  Ambient Agent to that exact stable graph, and repeat the one-step gate.
 - [ ] If the one-step gate passes, submit 200 optimizer steps and monitor the
   first five completed steps before leaving the campaign unattended.
 - [ ] Record final experiment and release receipts, update this plan’s outcome,
   and report the tag, release URL, package/image digests, and remaining gates.
 
 ## Surprises & Discoveries
+
+- Observation: Active sampling may invoke the rollout bridge several times for
+  one optimizer step; a rollout return is therefore not an actor-update
+  boundary.
+  Evidence: the corrected LoRA canary passed parity and failed when its second
+  candidate batch tried to reopen step-one actor telemetry. TRL's
+  `_prepare_inputs` owns generation, reward scoring, filtering and all refills,
+  and returns only after selecting the retained batch.
+  Date/Author: 2026-08-09 / Codex.
 
 - Observation: The active 256-concurrency package is built from the current
   framework source and the SFT adapter, but its selected settings do not enable
@@ -327,18 +349,17 @@ ADR is accepted.
 
 ## Outcomes & Retrospective
 
-The post-release OLMo 3 canary remains a separate, explicitly unfinished
-qualification item. The framework release is prepared as `0.3.3` on branch
-`codex/release-0.3.3` with draft PR `carbonteq-ai/posttrain#34`. Four candidate
-passes exposed a missing consumer guide, incorrect OCI/build ordering, an
-implicit generated-manifest input, and an unqualified deployed Trackio artifact
-path. Trackio post11 and TRL 1.9.2.post1 are now manually published with exact
-receipts, the live Trackio artifact path passes, and the runtime dependency lock
-has a deterministic candidate materialization step. Exact retention and garbage
+Posttrain `0.3.3` is published from merged commit `982dbbe7`; Ambient Agent now
+consumes that stable release with Trackio post11 and TRL post1, and its named
+OLMo 3 work packages retain the SFT LoRA artifact. Exact retention and garbage
 collection restored 77 GiB of registry-host root capacity without losing any
-protected release image. The next action is a fresh protected candidate. No
-final tag has been created, Ambient Agent has not been updated, and no
-post-release OLMo 3 run has been submitted.
+protected release image. The first one-step canary rejected the missing Qwen
+3.5 LoRA namespace at the parity gate. After correcting the project binding,
+the second canary passed parity and exposed an actor-update observation-boundary
+bug during active refill, before any optimizer update. The framework repair is
+locally validated and prepared for patch release `0.3.4`; the one-step algorithm
+qualification and 200-step campaign remain unfinished until that stable patch
+is installed and the gate reaches an optimizer update.
 
 ## Context and Orientation
 
