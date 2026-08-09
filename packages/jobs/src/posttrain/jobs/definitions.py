@@ -10,6 +10,7 @@ from posttrain.common import (
     ContractError,
     ExecutionTarget,
     InferenceBinding,
+    LocalArtifactRef,
     ModelVariant,
     RunContext,
     StoredArtifactRef,
@@ -142,6 +143,7 @@ def sft_definition(
                 data=_seat(seats, "dataset", SupervisedDataSource),
                 settings=_seat(seats, "settings", SFTSettings),
                 training=_seat(seats, "training", TrainingBinding),
+                resume_from=_recovery_checkpoint(context),
                 validation_data=(_seat(seats, "validation_dataset", SupervisedDataSource) if with_validation else None),
             ),
         )
@@ -182,6 +184,7 @@ def dpo_definition(
                 data=_seat(seats, "dataset", PreferenceDataSource),
                 settings=_seat(seats, "settings", DPOSettings),
                 training=_seat(seats, "training", TrainingBinding),
+                resume_from=_recovery_checkpoint(context),
             ),
         )
 
@@ -209,17 +212,22 @@ def grpo_definition(
     definition_id: str = "train/trl-grpo@1",
 ) -> JobDefinition:
     def run(context: RunContext, seats: ResolvedSeats) -> object:
+        policy, inference = _materialize_grpo_policy(
+            context,
+            _seat(seats, "model", ModelVariant),
+            _seat(seats, "rollout_inference", InferenceBinding),
+        )
         request = build_verifiers_grpo_request(
-            policy=_seat(seats, "model", ModelVariant),
+            policy=policy,
             environment=_seat(seats, "environment", EnvironmentBinding),
             settings=_seat(seats, "settings", GRPOSettings),
             training=_seat(seats, "training", TrainingBinding),
-            inference=_seat(seats, "rollout_inference", InferenceBinding),
+            inference=inference,
             trace_path=context.workspace / "training" / "grpo" / "verifiers-traces.jsonl",
             run_id=context.run_id,
             tasks=tasks,
         )
-        return operation(context, request)
+        return operation(context, replace(request, resume_from=_recovery_checkpoint(context)))
 
     return JobDefinition(
         definition_id,
@@ -236,6 +244,29 @@ def grpo_definition(
         required_artifact_roles=("model", "summary"),
         static_validator=_validate_online_rl_batch_seats,
     )
+
+
+def _materialize_grpo_policy(
+    context: RunContext,
+    policy: ModelVariant,
+    inference: InferenceBinding,
+) -> tuple[ModelVariant, InferenceBinding]:
+    """Resolve a stored adapter input before constructing an online-RL request.
+
+    A catalog adapter reference identifies an artifact owned by the tracking
+    provider; it is not a path that exists inside the worker. The execution
+    runner declares it as ``model_adapter`` and materializes it before invoking
+    the job definition. Keep both policy and inference bound to that local
+    artifact so TRL and vLLM consume the same adapter weights.
+    """
+
+    if policy.form not in {"adapter", "peft-adapter"} or not isinstance(
+        policy.artifact, (StoredArtifactRef, TrackioArtifactRef)
+    ):
+        return policy, inference
+    materialized = context.input_artifact("model_adapter")
+    policy = replace(policy, artifact=materialized, revision=None, digest=materialized.digest)
+    return policy, replace(inference, model=policy)
 
 
 def distillation_definition(
@@ -257,7 +288,7 @@ def distillation_definition(
             run_id=context.run_id,
             tasks=tasks,
         )
-        return operation(context, request)
+        return operation(context, replace(request, resume_from=_recovery_checkpoint(context)))
 
     return JobDefinition(
         definition_id,
@@ -294,7 +325,7 @@ def sampo_definition(
             run_id=context.run_id,
             tasks=tasks,
         )
-        return operation(context, request)
+        return operation(context, replace(request, resume_from=_recovery_checkpoint(context)))
 
     return JobDefinition(
         definition_id,
@@ -672,6 +703,12 @@ def _validate_online_rl_batch_seats(seats: ResolvedSeats) -> None:
     global_batch = training.runtime.global_batch_size
     if isinstance(global_batch, int) and global_batch != expected_batch:
         raise ContractError("training global batch must equal prompt groups times generations")
+
+
+def _recovery_checkpoint(context: RunContext) -> LocalArtifactRef | None:
+    """Return explicitly materialized trainer state without treating it as a model selection."""
+
+    return context.input_artifacts.get("recovery_checkpoint")
 
 
 def _seat[SelectionT: object](

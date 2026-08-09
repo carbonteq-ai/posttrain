@@ -25,6 +25,7 @@ from posttrain.data import RolloutDataset, RolloutExample
 from posttrain.train import (
     LFM25_RENDERER,
     QWEN35_RENDERER,
+    ActiveGroupSampling,
     DynamicGroupSampling,
     FullParameterUpdate,
     GRPORequest,
@@ -369,6 +370,22 @@ def test_verl_dapo_uses_core_trainer_and_maps_all_dynamic_sampling_controls(
     assert "algorithm.filter_groups.enable=true" in overrides
     assert "algorithm.filter_groups.metric=seq_reward" in overrides
     assert "algorithm.filter_groups.max_num_gen_batches=7" in overrides
+
+
+def test_verl_rejects_trl_only_olmo3_recipe(tmp_path: Path) -> None:
+    request = _grpo_request()
+    settings = replace(
+        request.settings,
+        algorithm="olmo3",
+        advantage_scaling="none",
+        importance_sampling_mode="token_truncate",
+        importance_sampling_clip_min=None,
+        importance_sampling_clip_max=2.0,
+        active_sampling=ActiveGroupSampling(max_candidate_batches=4),
+    )
+
+    with pytest.raises(ValueError, match="currently supported by the TRL backend only"):
+        build_grpo_launch_plan(replace(request, settings=settings), tmp_path)
 
 
 def test_verl_maps_shared_checkpoint_retention_and_explicit_resume(

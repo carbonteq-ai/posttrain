@@ -220,6 +220,29 @@ def _validate_retained_output(path: Path, update_kind: Literal["full", "lora"]) 
         raise RuntimeError(f"LoRA update is incomplete under {path}")
 
 
+def validate_adapter_only_directory(path: Path, *, require_recovery_state: bool = False) -> None:
+    """Require a PEFT adapter directory and reject duplicated immutable base weights."""
+
+    resolved = path.resolve()
+    _validate_retained_output(resolved, "lora")
+    forbidden = sorted(
+        child.relative_to(resolved).as_posix()
+        for child in resolved.rglob("*")
+        if child.is_file() and _is_full_weight_export(child.name)
+    )
+    if forbidden:
+        raise RuntimeError("LoRA output contains full base-model weights: " + ", ".join(forbidden))
+    if not require_recovery_state:
+        return
+
+    required = ("trainer_state.json", "optimizer.pt", "scheduler.pt")
+    missing = [name for name in required if not (resolved / name).is_file()]
+    if not tuple(resolved.glob("rng_state*.pth")):
+        missing.append("rng_state*.pth")
+    if missing:
+        raise RuntimeError("LoRA recovery checkpoint is incomplete; missing " + ", ".join(missing))
+
+
 def _is_full_weight_export(name: str) -> bool:
     return (
         name == "model.safetensors"
@@ -310,4 +333,4 @@ def _write_manifest(path: Path, value: dict[str, Any]) -> None:
     temporary.replace(path)
 
 
-__all__ = ["TrainingRetentionResult", "finalize_training_outputs"]
+__all__ = ["TrainingRetentionResult", "finalize_training_outputs", "validate_adapter_only_directory"]

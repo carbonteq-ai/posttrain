@@ -41,6 +41,21 @@ class FakeBuildx:
         return ""
 
 
+class TransientUploadBuildx(FakeBuildx):
+    def __init__(self, *, always_fail: bool = False) -> None:
+        super().__init__()
+        self.always_fail = always_fail
+        self.failed_builds = 0
+
+    def invoke(self, arguments):
+        call = tuple(arguments)
+        if "--metadata-file" in call and (self.always_fail or self.failed_builds == 0):
+            self.calls.append(call)
+            self.failed_builds += 1
+            raise RuntimeError("failed to push image: unknown: invalid content range")
+        return super().invoke(arguments)
+
+
 def _request(tmp_path: Path) -> RuntimeBuildRequest:
     bake = tmp_path / "docker-bake.hcl"
     bake.write_text('target "training-verl" {}\n', encoding="utf-8")
@@ -110,6 +125,26 @@ def test_builder_checks_pushes_verifies_and_reuses_receipt(tmp_path: Path) -> No
         build_calls[0][build_calls[0].index("--var") + 1],
     )
     assert sum(call[:2] == ("imagetools", "inspect") for call in gateway.calls) == 2
+
+
+def test_builder_retries_a_transient_registry_upload_once(tmp_path: Path) -> None:
+    gateway = TransientUploadBuildx()
+    builder = BuildKitRuntimeBuilder(gateway, receipt_root=(tmp_path / "receipts").resolve())
+
+    result = builder.build(_request(tmp_path))
+
+    assert result.image.value == f"registry.lan/carbonteq/posttrain@sha256:{gateway.digest}"
+    assert len([call for call in gateway.calls if "--metadata-file" in call]) == 2
+
+
+def test_builder_stops_after_one_transient_registry_upload_retry(tmp_path: Path) -> None:
+    gateway = TransientUploadBuildx(always_fail=True)
+    builder = BuildKitRuntimeBuilder(gateway, receipt_root=(tmp_path / "receipts").resolve())
+
+    with pytest.raises(RuntimeError, match="invalid content range"):
+        builder.build(_request(tmp_path))
+
+    assert len([call for call in gateway.calls if "--metadata-file" in call]) == 2
 
 
 def test_builder_rejects_secret_build_variables(tmp_path: Path) -> None:

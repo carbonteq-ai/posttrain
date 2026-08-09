@@ -56,10 +56,10 @@ function phasePressure(peak: number, capacity: number): {
   className: string;
 } {
   const ratio = peak / capacity;
-  if (ratio >= 1) return { label: 'Exceeds target', className: 'text-rose-700' };
-  if (ratio >= 0.95) return { label: 'At limit', className: 'text-rose-700' };
-  if (ratio >= 0.8) return { label: 'Constrained', className: 'text-amber-700' };
-  return { label: 'Comfortable', className: 'text-emerald-700' };
+  if (ratio >= 1) return { label: 'Exceeds VRAM capacity', className: 'text-rose-700' };
+  if (ratio >= 0.95) return { label: 'VRAM capacity saturated', className: 'text-rose-700' };
+  if (ratio >= 0.8) return { label: 'VRAM capacity constrained', className: 'text-amber-700' };
+  return { label: 'VRAM capacity comfortable', className: 'text-emerald-700' };
 }
 
 function targetSummary(system: SystemMetrics): string {
@@ -94,9 +94,11 @@ function segmentTitle(segment: RuntimePhaseSegment): string {
 function PhaseSummaryCard({
   phase,
   capacity,
+  partial,
 }: {
   phase: RuntimePhaseSummary;
   capacity: number | null;
+  partial: boolean;
 }) {
   const vram = metric(phase.metrics, 'system/gpu_vram_used_bytes');
   const utilization = metric(phase.metrics, 'system/gpu_utilization');
@@ -104,14 +106,15 @@ function PhaseSummaryCard({
   return <article className="min-w-0 border-l-2 pl-3" style={{ borderColor: phaseColor(phase.phase) }}>
     <div className="flex items-baseline justify-between gap-3">
       <h3 className="truncate text-[11px] font-medium text-ink">{phase.label}</h3>
-      <span className="shrink-0 text-[10px] text-muted">{formatDuration(phase.duration_s)}</span>
+      <span className="shrink-0 text-[10px] text-muted">{partial ? 'recorded ' : ''}{formatDuration(phase.duration_s)}</span>
     </div>
     <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
       <div><dt className="text-muted">Average VRAM</dt><dd className="mt-0.5 font-medium text-secondary">{formatBytes(vram?.mean)}</dd></div>
       <div><dt className="text-muted">Peak VRAM</dt><dd className="mt-0.5 font-medium text-secondary">{formatBytes(vram?.peak)}</dd></div>
       <div><dt className="text-muted">GPU active</dt><dd className="mt-0.5 font-medium text-secondary">{utilization ? `${utilization.mean.toFixed(1)}%` : '—'}</dd></div>
-      <div><dt className="text-muted">Headroom</dt><dd className={`mt-0.5 font-medium ${pressure?.className ?? 'text-secondary'}`}>{vram && capacity ? `${Math.max(0, (1 - vram.peak / capacity) * 100).toFixed(1)}% · ${pressure?.label}` : '—'}</dd></div>
+      <div><dt className="text-muted">VRAM headroom</dt><dd className={`mt-0.5 font-medium ${pressure?.className ?? 'text-secondary'}`}>{vram && capacity ? `${Math.max(0, (1 - vram.peak / capacity) * 100).toFixed(1)}% · ${pressure?.label}` : '—'}</dd></div>
     </dl>
+    <p className={`mt-2 text-[9px] ${partial ? 'text-amber-700' : 'text-muted'}`}>{phase.occurrences} recorded window{phase.occurrences === 1 ? '' : 's'} · {phase.sample_count} host samples{partial ? ' · partial event coverage' : ''}</p>
   </article>;
 }
 
@@ -218,19 +221,33 @@ function phaseGroups(phases: RuntimePhaseSummary[]): Array<{
 function InferenceDetails({ system }: { system: SystemMetrics }) {
   const timing = system.inference_timing;
   const runtime = system.backend_runtime;
-  if (!timing && !runtime) return null;
+  const rollout = system.phase_summary.find((phase) => phase.phase === 'rollout');
+  if (!timing && !runtime && !rollout) return null;
   const peak = runtime?.kv_cache_peak_usage_ratio ?? null;
+  const rolloutUtilization = rollout ? metric(rollout.metrics, 'system/gpu_utilization') : null;
+  const rolloutVram = rollout ? metric(rollout.metrics, 'system/gpu_vram_used_bytes') : null;
+  const rolloutVramRatio = rolloutVram && system.vram_capacity_bytes
+    ? rolloutVram.peak / system.vram_capacity_bytes
+    : null;
+  const hasRolloutThroughput = runtime?.rollout_tokens_per_second_latest != null
+    || runtime?.rollout_tokens_per_second_mean != null
+    || runtime?.rollout_seconds_latest != null;
+  const hasRuntimeConfiguration = runtime != null && [
+    runtime.environment_concurrency,
+    runtime.inference_sequence_cap,
+    runtime.rollouts_per_prompt,
+    runtime.rollouts_per_update,
+  ].some((value) => value != null);
   return <section aria-label="Inference details" className="border-b border-divider bg-[#fbfaf8] px-4 py-4">
     <div className="flex flex-wrap items-baseline justify-between gap-2">
       <div>
         <h3 className="text-[12px] font-medium text-ink">Inference details</h3>
-        <p className="mt-1 text-[10px] text-muted">Per-request timings overlap at concurrency and do not sum to measured run wall time.</p>
+        <p className="mt-1 text-[10px] text-muted">{rollout ? 'GPU activity measures compute busy time; VRAM and KV-cache pressure are separate capacity signals.' : 'Per-request timings overlap at concurrency and do not sum to measured run wall time.'}</p>
       </div>
       {timing && <span className="text-[10px] text-muted">{timing.requests} measured requests</span>}
     </div>
-    <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(220px,1fr)]">
-      {timing && <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {timing.stages.map((stage) => <article key={stage.stage} className="rounded-[4px] border border-divider bg-surface p-3">
+    <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {timing && timing.stages.map((stage) => <article key={stage.stage} className="rounded-[4px] border border-divider bg-surface p-3">
           <div className="flex items-baseline justify-between gap-2">
             <h4 className="text-[11px] font-medium">{stage.label}</h4>
             <span className="text-[9px] text-muted">{stage.samples} samples</span>
@@ -238,19 +255,43 @@ function InferenceDetails({ system }: { system: SystemMetrics }) {
           <strong className="mt-2 block font-serif text-xl font-normal">{stage.p50_ms.toFixed(stage.p50_ms < 10 ? 1 : 0)} ms</strong>
           <p className="mt-1 text-[9px] text-muted">p50 · p95 {stage.p95_ms.toFixed(stage.p95_ms < 10 ? 1 : 0)} ms · mean {stage.mean_ms.toFixed(stage.mean_ms < 10 ? 1 : 0)} ms</p>
         </article>)}
-      </div>}
+      {rollout && <article className="rounded-[4px] border border-divider bg-surface p-3">
+        <div className="flex items-baseline justify-between gap-2"><h4 className="text-[11px] font-medium">Rollout compute</h4><span className={`text-[9px] ${system.phase_state === 'partial' ? 'text-amber-700' : 'text-muted'}`}>{rollout.occurrences} windows</span></div>
+        <strong className="mt-2 block font-serif text-xl font-normal">{rolloutUtilization ? `${rolloutUtilization.mean.toFixed(1)}% average` : 'Not sampled'}</strong>
+        <p className="mt-1 text-[9px] text-secondary">{rolloutUtilization ? `${rolloutUtilization.peak.toFixed(1)}% peak GPU activity` : 'GPU activity unavailable'}</p>
+        <p className="mt-1 text-[9px] text-muted">{rolloutVramRatio == null ? 'Peak VRAM unavailable' : `${(rolloutVramRatio * 100).toFixed(1)}% peak VRAM · ${phasePressure(rolloutVram?.peak ?? 0, system.vram_capacity_bytes ?? 1).label}`}</p>
+        {system.phase_state === 'partial' && <p className="mt-2 text-[9px] text-amber-700">Partial phase events; do not treat this as the full-run average.</p>}
+      </article>}
+      {runtime && hasRolloutThroughput && <article className="rounded-[4px] border border-divider bg-surface p-3">
+        <div className="flex items-baseline justify-between gap-2"><h4 className="text-[11px] font-medium">Rollout throughput</h4><span className="text-[9px] text-muted">{runtime.rollout_samples} steps</span></div>
+        <strong className="mt-2 block font-serif text-xl font-normal">{runtime.rollout_tokens_per_second_latest == null ? '—' : `${runtime.rollout_tokens_per_second_latest.toFixed(0)} tok/s`}</strong>
+        <p className="mt-1 text-[9px] text-secondary">latest · mean {runtime.rollout_tokens_per_second_mean == null ? '—' : `${runtime.rollout_tokens_per_second_mean.toFixed(0)} tok/s`}</p>
+        <p className="mt-1 text-[9px] text-muted">{runtime.rollout_seconds_latest == null ? 'Latest batch duration unavailable' : `${formatDuration(runtime.rollout_seconds_latest)} latest batch · ${runtime.rollout_seconds_mean == null ? 'mean unavailable' : `${formatDuration(runtime.rollout_seconds_mean)} mean`}`}</p>
+      </article>}
+      {runtime?.mtp_selected && <article className="rounded-[4px] border border-divider bg-surface p-3">
+        <div className="flex items-baseline justify-between gap-2"><h4 className="text-[11px] font-medium">MTP acceleration</h4><span className="text-[9px] text-muted">{runtime.mtp_samples} steps</span></div>
+        <strong className="mt-2 block font-serif text-xl font-normal">{runtime.mtp_acceptance_rate == null ? 'Enabled' : `${(runtime.mtp_acceptance_rate * 100).toFixed(1)}% acceptance`}</strong>
+        <p className="mt-1 text-[9px] text-secondary">{runtime.mtp_accepted_length == null ? 'Accepted length unavailable' : `${runtime.mtp_accepted_length.toFixed(2)} accepted tokens per verification cycle`}</p>
+        <p className="mt-1 text-[9px] text-muted">Rollout optimization only; no MTP training objective.</p>
+      </article>}
       {runtime && <article className="rounded-[4px] border border-divider bg-surface p-3">
         <div className="flex items-baseline justify-between gap-2">
           <h4 className="text-[11px] font-medium">KV-cache pressure</h4>
-          <span className="text-[9px] text-muted">{runtime.kv_cache_samples} samples</span>
+          <span className="text-[9px] text-muted">{runtime.kv_cache_samples} step samples</span>
         </div>
         <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#e8e3dd]">
           <div className="h-full rounded-full bg-violet-600" style={{ width: `${Math.min((peak ?? 0) * 100, 100)}%` }} />
         </div>
-        <p className="mt-2 text-[10px] text-secondary">{peak == null ? 'Peak not recorded' : `${(peak * 100).toFixed(1)}% peak scheduler usage`}</p>
+        <p className="mt-2 text-[10px] text-secondary">{peak == null ? 'Peak not recorded' : `${(peak * 100).toFixed(1)}% peak KV-cache occupancy`}</p>
         <p className="mt-1 text-[9px] text-muted">{runtime.kv_cache_capacity_tokens == null ? 'Capacity not reported by backend' : `${Math.round(runtime.kv_cache_capacity_tokens).toLocaleString()} token group-aware capacity`}</p>
       </article>}
     </div>
+    {runtime && hasRuntimeConfiguration && <dl className="mt-3 grid gap-x-5 gap-y-2 border-t border-divider pt-3 text-[9px] sm:grid-cols-2 xl:grid-cols-4">
+      <div><dt className="uppercase tracking-[.06em] text-muted">Environment concurrency</dt><dd className="mt-0.5 text-secondary">{runtime.environment_concurrency ?? '—'}</dd></div>
+      <div><dt className="uppercase tracking-[.06em] text-muted">vLLM sequence cap</dt><dd className="mt-0.5 text-secondary">{runtime.inference_sequence_cap ?? '—'}</dd></div>
+      <div><dt className="uppercase tracking-[.06em] text-muted">Rollouts / prompt</dt><dd className="mt-0.5 text-secondary">{runtime.rollouts_per_prompt ?? '—'}</dd></div>
+      <div><dt className="uppercase tracking-[.06em] text-muted">Rollouts / update</dt><dd className="mt-0.5 text-secondary">{runtime.rollouts_per_update ?? '—'}</dd></div>
+    </dl>}
   </section>;
 }
 
@@ -444,7 +485,7 @@ export function PhaseMemoryTimeline({ system }: { system: SystemMetrics }) {
       {phaseGroups(system.phase_summary).map((group) => <section key={group.group} aria-label={`${group.label} phases`}>
         <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">{group.label}</h3>
         <div className="grid gap-x-5 gap-y-4 sm:grid-cols-2 xl:grid-cols-4">
-          {group.phases.map((phase) => <PhaseSummaryCard key={phase.phase} phase={phase} capacity={system.vram_capacity_bytes} />)}
+          {group.phases.map((phase) => <PhaseSummaryCard key={phase.phase} phase={phase} capacity={system.vram_capacity_bytes} partial={system.phase_state === 'partial'} />)}
         </div>
       </section>)}
     </div>

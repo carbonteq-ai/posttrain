@@ -8,7 +8,7 @@ from collections import defaultdict
 from collections.abc import Mapping
 from itertools import product
 from statistics import fmean
-from typing import cast
+from typing import Any, cast
 
 from posttrain.common import JsonValue
 from posttrain.tracking import RunDataSource, TraceQuery, TraceRecord
@@ -32,6 +32,7 @@ from .models import (
     TraceEvaluationView,
     TraceOutcome,
     TraceSummary,
+    TraceSummaryPage,
 )
 from .redaction import RedactionPolicy
 
@@ -825,6 +826,7 @@ async def trace_evaluation_view(
     trace_type: str = "verifiers",
     safety_limit: int = 5000,
     metadata: EvaluationMetadata | None = None,
+    include_traces: bool = True,
 ) -> TraceEvaluationView:
     cursor: str | None = None
     records: list[TraceRecord] = []
@@ -961,9 +963,34 @@ async def trace_evaluation_view(
             ),
             tool_calls=_distribution([float(item.tool_calls) for item in summaries if item.tool_calls is not None]),
         ),
-        traces=summaries,
+        traces=summaries if include_traces else (),
         next_cursor=cursor,
         live=live,
+    )
+
+
+async def trace_summary_page(
+    source: RunDataSource,
+    run_id: str,
+    *,
+    total: int,
+    cursor: str | None = None,
+    limit: int = 100,
+    trace_type: str = "verifiers",
+    metadata: EvaluationMetadata | None = None,
+) -> TraceSummaryPage:
+    """Project one provider-bounded trace page without population aggregation."""
+
+    page = await source.traces(
+        run_id,
+        TraceQuery(trace_type=trace_type, cursor=cursor, limit=limit),
+    )
+    summaries = tuple(_apply_evaluation_semantics(_summary(record, metadata), metadata) for record in page.items)
+    return TraceSummaryPage(
+        items=summaries,
+        next_cursor=page.next_cursor,
+        total=total,
+        live=page.live,
     )
 
 
@@ -974,6 +1001,13 @@ async def get_trace_detail(
     redaction: RedactionPolicy,
     metadata: EvaluationMetadata | None = None,
 ) -> TraceDetail:
+    direct_reader = getattr(source, "get_trace", None)
+    if callable(direct_reader):
+        direct_record = await cast(Any, direct_reader)(run_id, external_id)
+        if direct_record is not None:
+            detail = project_trace(direct_record, redaction)
+            return detail.model_copy(update={"summary": _apply_evaluation_semantics(detail.summary, metadata)})
+
     cursor: str | None = None
     while True:
         page = await source.traces(run_id, TraceQuery(cursor=cursor, limit=1000))
@@ -987,4 +1021,4 @@ async def get_trace_detail(
     raise LookupError(f"trace {external_id!r} was not found in run {run_id!r}")
 
 
-__all__ = ["get_trace_detail", "project_trace", "trace_evaluation_view"]
+__all__ = ["get_trace_detail", "project_trace", "trace_evaluation_view", "trace_summary_page"]

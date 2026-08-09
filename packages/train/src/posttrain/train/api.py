@@ -55,7 +55,7 @@ def _digest(path: Path) -> str:
 def _finish(
     context: TrainingContext,
     request: SFTRequest | DPORequest | GRPORequest | SAMPORequest | OnPolicyDistillationRequest,
-    technique: Literal["sft", "dpo", "grpo", "dapo", "sampo", "distill"],
+    technique: Literal["sft", "dpo", "grpo", "dapo", "olmo3", "sampo", "distill"],
     backend: BackendTrainingResult,
     dataset: SupervisedDataset | PreferenceDataset | None = None,
     validation_dataset: SupervisedDataset | None = None,
@@ -528,9 +528,13 @@ def _seat_attributes(
         )
     if isinstance(request, GRPORequest):
         attributes["online_rl_algorithm"] = request.settings.algorithm
+        attributes["advantage_scaling"] = request.settings.advantage_scaling
         attributes["clip_epsilon_low"] = request.settings.clip_epsilon_low
         attributes["clip_epsilon_high"] = request.settings.resolved_clip_epsilon_high
         attributes["mask_truncated_completions"] = request.settings.mask_truncated_completions
+        attributes["active_sampling"] = request.settings.active_sampling is not None
+        if request.settings.active_sampling is not None:
+            attributes["active_sampling_max_candidate_batches"] = request.settings.active_sampling.max_candidate_batches
         attributes["overlong_penalty_factor"] = request.settings.overlong_penalty_factor
         if request.settings.overlong_buffer_tokens is not None:
             attributes["overlong_buffer_tokens"] = request.settings.overlong_buffer_tokens

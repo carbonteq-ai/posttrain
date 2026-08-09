@@ -610,6 +610,86 @@ async def test_trackio_trace_reader_pages_beyond_provider_batch(
 
 
 @pytest.mark.asyncio
+async def test_trackio_trace_reader_passes_verifiers_filter_before_paging(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+
+    class ProviderRun:
+        def traces(
+            self,
+            *,
+            limit: int,
+            offset: int,
+            sort: str,
+            trace_type: str | None = None,
+        ) -> list[dict[str, Any]]:
+            calls.append(
+                {
+                    "limit": limit,
+                    "offset": offset,
+                    "sort": sort,
+                    "trace_type": trace_type,
+                }
+            )
+            return [
+                {
+                    "id": "verifier-1",
+                    "trace_type": "verifiers",
+                    "external_id": "verifier-1",
+                    "metadata": {},
+                    "payload": {"rewards": {"correct": 1.0}},
+                }
+            ][offset : offset + limit]
+
+    source = TrackioDataSource("trackio-verifier-pages")
+    monkeypatch.setattr(source, "_provider_run", lambda _run_id: ProviderRun())
+
+    page = await source.traces("run-1", TraceQuery(trace_type="verifiers", limit=10))
+
+    assert calls == [{"limit": 10, "offset": 0, "sort": "step_asc", "trace_type": "verifiers"}]
+    assert [item.external_id for item in page.items] == ["verifier-1"]
+    assert page.next_cursor is None
+
+
+@pytest.mark.asyncio
+async def test_trackio_trace_detail_reads_one_full_record(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+
+    class ProviderRun:
+        def traces(self, **kwargs: Any) -> list[dict[str, Any]]:
+            calls.append(kwargs)
+            return [
+                {
+                    "id": "trace-1",
+                    "external_id": "trace-1",
+                    "trace_type": "verifiers",
+                    "metadata": {},
+                    "payload": {"messages": [{"role": "assistant", "content": "full"}]},
+                }
+            ]
+
+    source = TrackioDataSource("trackio-trace-detail")
+    monkeypatch.setattr(source, "_provider_run", lambda _run_id: ProviderRun())
+
+    record = await source.get_trace("run-1", "trace-1")
+
+    assert record is not None
+    assert record.payload["messages"] == [{"role": "assistant", "content": "full"}]
+    assert calls == [
+        {
+            "search": "trace-1",
+            "limit": 1,
+            "offset": 0,
+            "sort": "step_asc",
+            "include_payload": True,
+        }
+    ]
+
+
+@pytest.mark.asyncio
 async def test_trackio_shared_logical_conformance(trackio_dir: Path) -> None:
     project = "trackio-shared-conformance"
     backend = TrackioBackend(TrackioSettings(project=project))

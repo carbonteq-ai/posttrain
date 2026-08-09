@@ -113,6 +113,25 @@ training:
     mask_truncated_completions: false
     overlong_buffer_tokens: 64
     overlong_penalty_factor: 1.0
+  qwen3.5-2b/olmo3-grpo-smoke-v1:
+    selection_type: grpo-settings
+    revision: "1"
+    loop:
+      max_steps: 1
+      per_device_batch_size: 2
+      learning_rate: 0.00001
+    algorithm: olmo3
+    max_completion_length: 384
+    beta: 0.0
+    advantage_scaling: none
+    clip_epsilon_low: 0.2
+    clip_epsilon_high: 0.272
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling:
+      max_candidate_batches: 10
+    mask_truncated_completions: false
   qwen3.5-2b/sampo-smoke-v1:
     selection_type: sampo-settings
     revision: "1"

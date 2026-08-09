@@ -4,7 +4,7 @@ import { BarChart, ScatterChart } from 'echarts/charts';
 import { GridComponent, TooltipComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 
-import type { TraceEvaluation } from '../lib/api';
+import type { TraceEvaluation, TraceSummary } from '../lib/api';
 import type { TracePresentation } from '../lib/trace-presentation';
 
 echarts.use([BarChart, ScatterChart, GridComponent, TooltipComponent, CanvasRenderer]);
@@ -32,7 +32,15 @@ const axis = {
   splitLine: { lineStyle: { color: '#ebe7e1', type: 'dashed' } },
 };
 
-export function EvaluationCharts({ evaluation, presentation }: { evaluation: TraceEvaluation; presentation: TracePresentation }) {
+export function EvaluationCharts({
+  evaluation,
+  traces,
+  presentation,
+}: {
+  evaluation: TraceEvaluation;
+  traces: TraceSummary[];
+  presentation: TracePresentation;
+}) {
   const [scatterMetric, setScatterMetric] = useState<'tool_calls' | 'response_chars' | 'thinking_chars'>('tool_calls');
   const [breakdownMetric, setBreakdownMetric] = useState<'success_rate' | 'mean_reward'>(
     presentation.defaultBreakdownMetric,
@@ -51,7 +59,7 @@ export function EvaluationCharts({ evaluation, presentation }: { evaluation: Tra
     : 'task slice';
   const options = useMemo(() => {
     const breakdown = evaluation.facets.length ? evaluation.facets : evaluation.slices;
-    const rewards = evaluation.traces.flatMap((trace) => (trace.reward == null ? [] : [trace.reward]));
+    const rewards = traces.flatMap((trace) => (trace.reward == null ? [] : [trace.reward]));
     const minimum = rewards.length ? Math.floor(Math.min(...rewards) * 5) / 5 : 0;
     const maximum = rewards.length ? Math.ceil(Math.max(...rewards) * 5) / 5 : 1;
     const binCount = 12;
@@ -111,7 +119,7 @@ export function EvaluationCharts({ evaluation, presentation }: { evaluation: Tra
         yAxis: { type: 'value', name: 'Reward', ...axis },
         series: (['pass', 'review', 'scored', 'error', 'truncated', 'unknown'] as const).map((outcome) => {
           const groups = new Map<string, { x: number; y: number; count: number }>();
-          evaluation.traces
+          traces
             .filter((trace) => trace.outcome === outcome && trace.reward != null && trace[scatterMetric] != null)
             .forEach((trace) => {
               const x = trace[scatterMetric] as number;
@@ -134,17 +142,17 @@ export function EvaluationCharts({ evaluation, presentation }: { evaluation: Tra
         }),
       },
     };
-  }, [evaluation, facetLabel, scatterMetric]);
+  }, [breakdownMetric, evaluation.facets, evaluation.slices, facetLabel, scatterMetric, traces]);
 
-  const plotted = evaluation.traces.filter((trace) => trace.reward != null && trace[scatterMetric] != null).length;
-  const missing = evaluation.traces.filter((trace) => trace.reward == null || trace[scatterMetric] == null).length;
+  const plotted = traces.filter((trace) => trace.reward != null && trace[scatterMetric] != null).length;
+  const missing = traces.filter((trace) => trace.reward == null || trace[scatterMetric] == null).length;
   const scatterLabel = scatterMetric === 'tool_calls' ? 'Tool calls' : scatterMetric === 'response_chars' ? 'Response length' : 'Thinking output';
 
   return (
     <div className="obs-card grid overflow-hidden divide-x divide-divider lg:grid-cols-3">
       <section className="p-4">
         <h3 className="text-[13px] font-medium">Reward distribution</h3>
-        <p className="mt-1 text-xs text-muted">{evaluation.included} trace records</p>
+        <p className="mt-1 text-xs text-muted">{traces.length} loaded trace summaries</p>
         <MiniChart option={options.rewards} label="Histogram of trace rewards" />
       </section>
       <section className="p-4">

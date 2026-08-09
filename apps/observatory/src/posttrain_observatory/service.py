@@ -7,8 +7,10 @@ import base64
 import hashlib
 import json
 import math
+import time
 from collections import defaultdict
 from collections.abc import Mapping
+from dataclasses import dataclass
 from statistics import fmean
 from typing import Any, Literal, cast
 
@@ -18,6 +20,7 @@ from posttrain.tracking import (
     MetricPoint,
     MetricSeries,
     RunDataSource,
+    RunDetail,
     RunQuery,
     TraceQuery,
 )
@@ -71,6 +74,7 @@ from .models import (
     SystemMetricsView,
     TraceDetail,
     TraceEvaluationView,
+    TraceSummaryPage,
     ViewMode,
     WorkPackageView,
 )
@@ -86,7 +90,7 @@ from .telemetry import (
     JobTelemetryDefinition,
 )
 from .traces import get_trace_detail as load_trace_detail
-from .traces import trace_evaluation_view
+from .traces import trace_evaluation_view, trace_summary_page
 
 
 def _reduce(series: MetricSeries, reducer: str) -> float | None:
@@ -428,6 +432,13 @@ def _evaluation_expected_traces(
     return fallback if fallback is not None and fallback > 0 else None
 
 
+@dataclass(frozen=True, slots=True)
+class _TraceReadContext:
+    detail: RunDetail
+    trace_type: str
+    expires_at: float
+
+
 def _comparison_context(view: EvaluationRunView | RunView) -> dict[str, JsonValue]:
     inputs = view.resolved_inputs
     model_id, model_revision = _selection_identity(inputs.get("model"))
@@ -465,25 +476,34 @@ def _logical_metric_series(series: MetricSeries) -> MetricSeries:
         ):
             replay.append((point, source_step))
     if replay:
+        replay_steps = {source_step for _, source_step in replay}
+        # Replay is authoritative only for the optimizer steps it covers. Keep
+        # native points for other steps so a partially finalized run cannot
+        # silently lose its optimizer movement. Multiple replay points for one
+        # source step are intentional: they represent rollout waves and must
+        # remain available to population reducers.
+        native = [
+            point
+            for point in series.points
+            if point.attributes.get("observation_source") != "verifiers" and point.step not in replay_steps
+        ]
+        projected = [point.model_copy(update={"step": source_step}) for point, source_step in replay]
         return MetricSeries(
             name=series.name,
-            points=tuple(point.model_copy(update={"step": source_step}) for point, source_step in replay),
+            points=tuple(sorted((*native, *projected), key=lambda point: point.step if point.step is not None else -1)),
         )
 
     retained: list[MetricPoint] = []
     for point in series.points:
         if point.step is not None and any(
-            existing.step == point.step
-            and math.isclose(
-                existing.value,
-                point.value,
-                rel_tol=0.02,
-                abs_tol=1e-12,
-            )
-            for existing in retained
+            existing.step == point.step and existing.value == point.value for existing in retained
         ):
             continue
         retained.append(point)
+    # Provider history is append-only, but readers are not required to return
+    # rows in logical-step order. Sorting here keeps reducers (especially
+    # ``last``) and every presentation surface on the same timeline.
+    retained.sort(key=lambda point: point.step if point.step is not None else -1)
     return MetricSeries(name=series.name, points=tuple(retained))
 
 
@@ -677,7 +697,13 @@ def _downsample(series: MetricSeries, maximum: int) -> tuple[MetricSeries, bool]
         high = max(bucket, key=lambda point: point.value)
         candidates = [low] if low == high else [low, high]
         selected.extend(sorted(candidates, key=lambda point: point.step if point.step is not None else -1))
-    return MetricSeries(name=series.name, points=tuple(selected[:maximum])), True
+    selected = selected[:maximum]
+    # Preserve the terminal observation. Without this, a long campaign can
+    # render a chart whose apparent latest point predates the actual run end.
+    if points[-1] not in selected:
+        selected[-1] = points[-1]
+    selected.sort(key=lambda point: point.step if point.step is not None else -1)
+    return MetricSeries(name=series.name, points=tuple(selected)), True
 
 
 def _config_values(value: JsonValue, key: str) -> tuple[JsonValue, ...]:
@@ -691,6 +717,13 @@ def _config_values(value: JsonValue, key: str) -> tuple[JsonValue, ...]:
         for item in value:
             values.extend(_config_values(item, key))
     return tuple(values)
+
+
+def _config_positive_int(resolved_inputs: Mapping[str, JsonValue], key: str) -> int | None:
+    for value in _config_values(dict(resolved_inputs), key):
+        if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+            return value
+    return None
 
 
 def _condition_active(
@@ -756,6 +789,11 @@ def _condition_active(
             any(bool(value) for value in _config_values(dict(resolved_inputs), "tools"))
             or any(value is True for value in _config_values(dict(resolved_inputs), "tool_environment"))
             or any(isinstance(value, str) and "tool" in value.lower().split("-") for value in categories)
+        )
+    if condition == "dapo_algorithm_enabled":
+        return any(
+            isinstance(value, str) and value.lower() == "dapo"
+            for value in _config_values(dict(resolved_inputs), "algorithm")
         )
     raise ValueError(f"unknown evidence condition: {condition}")
 
@@ -858,6 +896,7 @@ class ObservatoryService:
         self._redaction = redaction or RedactionPolicy()
         self._semantic = SemanticAnalysisService(semantic_provider)
         self._source_discovery = source_discovery
+        self._trace_read_contexts: dict[tuple[str, str], _TraceReadContext] = {}
 
     def _locator(self, value: str | RunLocator) -> RunLocator:
         if isinstance(value, RunLocator):
@@ -865,6 +904,37 @@ class ObservatoryService:
         if not self.registry.source_ids:
             raise LookupError("Observatory has no configured sources")
         return RunLocator(source_id=self.registry.source_ids[0], run_id=value)
+
+    def _remember_trace_read_context(
+        self,
+        locator: RunLocator,
+        detail: RunDetail,
+    ) -> _TraceReadContext:
+        definition = self._definitions.get(detail.summary.job_kind)
+        trace_type = (
+            definition.trace_sections[0].trace_type
+            if definition is not None and definition.trace_sections
+            else "verifiers"
+        )
+        context = _TraceReadContext(
+            detail=detail,
+            trace_type=trace_type,
+            expires_at=time.monotonic() + (60.0 if detail.summary.status == "running" else 300.0),
+        )
+        key = (locator.source_id, locator.run_id)
+        self._trace_read_contexts[key] = context
+        if len(self._trace_read_contexts) > 512:
+            self._trace_read_contexts.pop(next(iter(self._trace_read_contexts)))
+        return context
+
+    async def _trace_read_context(self, locator: RunLocator) -> _TraceReadContext:
+        key = (locator.source_id, locator.run_id)
+        cached = self._trace_read_contexts.get(key)
+        if cached is not None and cached.expires_at > time.monotonic():
+            return cached
+        source = self.registry.resolve(locator)
+        detail = await source.get_run(locator.run_id)
+        return self._remember_trace_read_context(locator, detail)
 
     async def start_source_discovery(self) -> None:
         if self._source_discovery is not None:
@@ -916,10 +986,11 @@ class ObservatoryService:
         """
         locator = self._locator(run)
         detail = await self.registry.resolve(locator).get_run(locator.run_id)
+        self._remember_trace_read_context(locator, detail)
         definition = self.get_job_telemetry_schema(detail.summary.job_kind)
         if mode == "generic":
             raise ValueError("use get_run_view_response for generic mode")
-        return await self._metric_job_view(locator, definition)
+        return await self._metric_job_view(locator, definition, detail=detail)
 
     async def get_run_view_response(
         self,
@@ -930,11 +1001,12 @@ class ObservatoryService:
         locator = self._locator(run)
         source = self.registry.resolve(locator)
         detail = await source.get_run(locator.run_id)
+        self._remember_trace_read_context(locator, detail)
         definition = self._definitions.get(detail.summary.job_kind)
         if mode == "job" and definition is None:
             raise LookupError(f"job view is unavailable for {detail.summary.job_kind!r}")
         if mode == "generic" or definition is None:
-            generic = await self._generic_view(locator, metrics)
+            generic = await self._generic_view(locator, metrics, detail=detail)
             reason = None if mode == "generic" else f"No job view is registered for {detail.summary.job_kind}."
             return RunViewResponse(
                 requested_mode=mode,
@@ -950,7 +1022,7 @@ class ObservatoryService:
                 self._redaction,
             )
         else:
-            metric_view = await self._metric_job_view(locator, definition)
+            metric_view = await self._metric_job_view(locator, definition, detail=detail)
             if detail.summary.job_kind.startswith("eval."):
                 evaluation = await trace_evaluation_view(
                     source,
@@ -983,9 +1055,16 @@ class ObservatoryService:
                 view = metric_view
         return RunViewResponse(requested_mode=mode, resolved_mode="job", view=view)
 
-    async def _metric_job_view(self, locator: RunLocator, definition: JobTelemetryDefinition) -> RunView:
+    async def _metric_job_view(
+        self,
+        locator: RunLocator,
+        definition: JobTelemetryDefinition,
+        *,
+        detail: RunDetail | None = None,
+    ) -> RunView:
         source = self.registry.resolve(locator)
-        detail = await source.get_run(locator.run_id)
+        if detail is None:
+            detail = await source.get_run(locator.run_id)
         names = tuple(sorted(definition.metric_names))
         series_values, artifacts = await asyncio.gather(
             source.metric_series(locator.run_id, names), source.artifacts(locator.run_id)
@@ -1051,9 +1130,18 @@ class ObservatoryService:
             capabilities=source.capabilities,
         )
 
-    async def _generic_view(self, locator: RunLocator, metrics: tuple[str, ...]) -> GenericRunView:
+    async def _generic_view(
+        self,
+        locator: RunLocator,
+        metrics: tuple[str, ...],
+        *,
+        detail: RunDetail | None = None,
+    ) -> GenericRunView:
         source = self.registry.resolve(locator)
-        detail, artifacts = await asyncio.gather(source.get_run(locator.run_id), source.artifacts(locator.run_id))
+        if detail is None:
+            detail, artifacts = await asyncio.gather(source.get_run(locator.run_id), source.artifacts(locator.run_id))
+        else:
+            artifacts = await source.artifacts(locator.run_id)
         catalog = self._catalog(detail.metric_names)
         selected = None
         if metrics:
@@ -1168,6 +1256,14 @@ class ObservatoryService:
                         for name in detail.metric_names
                         if name.startswith(("system/", "tracking/", "serve/backend/"))
                     ),
+                    *(
+                        name
+                        for name in (
+                            "train/rl/rollout_tokens_per_second",
+                            "train/rl/time/rollout_seconds",
+                        )
+                        if name in detail.metric_names
+                    ),
                     *(metric for _, _, metric, *_ in cards),
                 }
             )
@@ -1227,6 +1323,7 @@ class ObservatoryService:
         capacity_state, capacity_bytes = execution_target_capacity(execution_targets)
         phase_projection = project_runtime_phases(detail, by_name)
         kv_usage = by_name.get("serve/backend/kv_cache_usage_ratio")
+        kv_peak_series = by_name.get("serve/backend/kv_cache_peak_usage_ratio")
         kv_capacity = _reduce(
             by_name.get(
                 "serve/backend/kv_cache_capacity_tokens",
@@ -1235,21 +1332,82 @@ class ObservatoryService:
             "last",
         )
         kv_peak = _reduce(
-            by_name.get(
-                "serve/backend/kv_cache_peak_usage_ratio",
-                MetricSeries(name="serve/backend/kv_cache_peak_usage_ratio"),
-            ),
+            kv_peak_series or MetricSeries(name="serve/backend/kv_cache_peak_usage_ratio"),
             "max",
         )
         if kv_peak is None and kv_usage is not None:
             kv_peak = _reduce(kv_usage, "max")
+        mtp_acceptance = by_name.get("serve/backend/speculative_acceptance_rate")
+        mtp_length = by_name.get("serve/backend/speculative_accepted_length")
+        rollout_throughput = by_name.get("train/rl/rollout_tokens_per_second")
+        rollout_seconds = by_name.get("train/rl/time/rollout_seconds")
+        mtp_selected = _condition_active("mtp_rollout_enabled", detail.resolved_inputs, by_name)
+        environment_concurrency = _config_positive_int(detail.resolved_inputs, "max_concurrent")
+        inference_sequence_cap = _config_positive_int(detail.resolved_inputs, "max_num_seqs")
+        rollouts_per_prompt = _config_positive_int(detail.resolved_inputs, "num_generations")
+        rollouts_per_update = _config_positive_int(detail.resolved_inputs, "global_batch_size")
         backend_runtime = (
             BackendRuntimeSummary(
                 kv_cache_capacity_tokens=kv_capacity,
                 kv_cache_peak_usage_ratio=kv_peak,
-                kv_cache_samples=len(kv_usage.points) if kv_usage is not None else 0,
+                kv_cache_samples=max(
+                    len(kv_usage.points) if kv_usage is not None else 0,
+                    len(kv_peak_series.points) if kv_peak_series is not None else 0,
+                ),
+                mtp_selected=mtp_selected,
+                mtp_acceptance_rate=_reduce(
+                    mtp_acceptance or MetricSeries(name="serve/backend/speculative_acceptance_rate"),
+                    "last",
+                ),
+                mtp_accepted_length=_reduce(
+                    mtp_length or MetricSeries(name="serve/backend/speculative_accepted_length"),
+                    "last",
+                ),
+                mtp_samples=max(
+                    len(mtp_acceptance.points) if mtp_acceptance is not None else 0,
+                    len(mtp_length.points) if mtp_length is not None else 0,
+                ),
+                rollout_tokens_per_second_latest=_reduce(
+                    rollout_throughput or MetricSeries(name="train/rl/rollout_tokens_per_second"),
+                    "last",
+                ),
+                rollout_tokens_per_second_mean=_reduce(
+                    rollout_throughput or MetricSeries(name="train/rl/rollout_tokens_per_second"),
+                    "mean",
+                ),
+                rollout_seconds_latest=_reduce(
+                    rollout_seconds or MetricSeries(name="train/rl/time/rollout_seconds"),
+                    "last",
+                ),
+                rollout_seconds_mean=_reduce(
+                    rollout_seconds or MetricSeries(name="train/rl/time/rollout_seconds"),
+                    "mean",
+                ),
+                rollout_samples=max(
+                    len(rollout_throughput.points) if rollout_throughput is not None else 0,
+                    len(rollout_seconds.points) if rollout_seconds is not None else 0,
+                ),
+                environment_concurrency=environment_concurrency,
+                inference_sequence_cap=inference_sequence_cap,
+                rollouts_per_prompt=rollouts_per_prompt,
+                rollouts_per_update=rollouts_per_update,
             )
-            if kv_capacity is not None or kv_peak is not None or kv_usage is not None
+            if any(
+                value is not None
+                for value in (
+                    kv_capacity,
+                    kv_peak,
+                    mtp_acceptance,
+                    mtp_length,
+                    rollout_throughput,
+                    rollout_seconds,
+                    environment_concurrency,
+                    inference_sequence_cap,
+                    rollouts_per_prompt,
+                    rollouts_per_update,
+                )
+            )
+            or mtp_selected
             else None
         )
         inference_timing = (
@@ -1440,16 +1598,16 @@ class ObservatoryService:
             basis=basis,
         )
 
-    async def get_trace_evaluation_view(self, run: str | RunLocator) -> TraceEvaluationView:
+    async def get_trace_evaluation_view(
+        self,
+        run: str | RunLocator,
+        *,
+        include_traces: bool = True,
+    ) -> TraceEvaluationView:
         locator = self._locator(run)
         source = self.registry.resolve(locator)
-        detail = await source.get_run(locator.run_id)
-        definition = self._definitions.get(detail.summary.job_kind)
-        trace_type = (
-            definition.trace_sections[0].trace_type
-            if definition is not None and definition.trace_sections
-            else "verifiers"
-        )
+        context = await self._trace_read_context(locator)
+        detail = context.detail
         return await trace_evaluation_view(
             source,
             locator.run_id,
@@ -1457,8 +1615,32 @@ class ObservatoryService:
                 detail.resolved_inputs,
                 fallback=detail.trace_count or None,
             ),
-            trace_type=trace_type,
+            trace_type=context.trace_type,
             metadata=_evaluation_metadata(detail.resolved_inputs),
+            include_traces=include_traces,
+        )
+
+    async def get_trace_summary_page(
+        self,
+        run: str | RunLocator,
+        *,
+        cursor: str | None = None,
+        limit: int = 100,
+    ) -> TraceSummaryPage:
+        locator = self._locator(run)
+        source = self.registry.resolve(locator)
+        context = await self._trace_read_context(locator)
+        detail = context.detail
+        return await trace_summary_page(
+            source,
+            locator.run_id,
+            total=detail.trace_count,
+            cursor=cursor,
+            limit=limit,
+            trace_type=context.trace_type,
+            metadata=(
+                _evaluation_metadata(detail.resolved_inputs) if detail.summary.job_kind.startswith("eval.") else None
+            ),
         )
 
     async def get_run_comparison_key(self, run: str | RunLocator) -> tuple[str, str] | None:
@@ -1476,7 +1658,7 @@ class ObservatoryService:
     async def get_trace_detail(self, run: str | RunLocator, trace_id: str) -> TraceDetail:
         locator = self._locator(run)
         source = self.registry.resolve(locator)
-        run_detail = await source.get_run(locator.run_id)
+        run_detail = (await self._trace_read_context(locator)).detail
         metadata = (
             _evaluation_metadata(run_detail.resolved_inputs)
             if run_detail.summary.job_kind.startswith("eval.")

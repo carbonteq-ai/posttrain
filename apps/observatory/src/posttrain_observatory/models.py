@@ -582,6 +582,15 @@ class TraceDetail(ObservatoryModel):
     projection_warning: str | None = None
 
 
+class TraceSummaryPage(ObservatoryModel):
+    """One bounded page of trace summaries for interactive investigation."""
+
+    items: tuple[TraceSummary, ...] = ()
+    next_cursor: str | None = None
+    total: int = Field(ge=0)
+    live: bool = False
+
+
 class EvaluationSlice(ObservatoryModel):
     key: str = Field(min_length=1)
     label: str = Field(min_length=1)
@@ -767,6 +776,19 @@ class BackendRuntimeSummary(ObservatoryModel):
     kv_cache_capacity_tokens: float | None = Field(default=None, gt=0)
     kv_cache_peak_usage_ratio: float | None = Field(default=None, ge=0, le=1)
     kv_cache_samples: int = Field(default=0, ge=0)
+    mtp_selected: bool = False
+    mtp_acceptance_rate: float | None = Field(default=None, ge=0, le=1)
+    mtp_accepted_length: float | None = Field(default=None, ge=0)
+    mtp_samples: int = Field(default=0, ge=0)
+    rollout_tokens_per_second_latest: float | None = Field(default=None, ge=0)
+    rollout_tokens_per_second_mean: float | None = Field(default=None, ge=0)
+    rollout_seconds_latest: float | None = Field(default=None, ge=0)
+    rollout_seconds_mean: float | None = Field(default=None, ge=0)
+    rollout_samples: int = Field(default=0, ge=0)
+    environment_concurrency: int | None = Field(default=None, ge=1)
+    inference_sequence_cap: int | None = Field(default=None, ge=1)
+    rollouts_per_prompt: int | None = Field(default=None, ge=1)
+    rollouts_per_update: int | None = Field(default=None, ge=1)
 
 
 class SystemMetricsView(ObservatoryModel):
@@ -1032,6 +1054,7 @@ __all__ = [
     "TraceDetail",
     "TraceEvaluationView",
     "TraceSummary",
+    "TraceSummaryPage",
     "ViewMode",
     "WorkPackageRun",
     "WorkPackageView",

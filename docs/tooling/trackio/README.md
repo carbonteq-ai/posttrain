@@ -21,6 +21,17 @@ on 2026-08-07; the shared service now uses the
 `trackio-artifacts/production` prefix. The original local CAS remains retained
 for rollback, and its deletion is a separate operator-approved retention gate.
 
+A 2026-08-08 two-step DAPO diagnostic exposed one remaining mixed-version
+compatibility defect. A post8 job client used the legacy resumable upload route
+against the S3-backed post10 service; that route verified a 11,952,582-byte
+Verifiers trace blob into the server's local CAS, while artifact-manifest
+validation correctly queried RustFS. The run therefore failed during evidence
+publication after both optimizer updates had completed. The exact blob was
+copied and SHA-256-verified in RustFS for preservation. The unreleased fork
+repair makes the legacy completion route publish through the configured
+artifact store and recover already-completed local sessions. A new client
+release in every job image is still required before the next production run.
+
 Post8 exposes authenticated digest-bound run and project purge. Exact provider
 run ids preview with consumer-aware blockers, and apply accepts only the
 returned SHA-256 digest. The provider transaction removes selected runs,

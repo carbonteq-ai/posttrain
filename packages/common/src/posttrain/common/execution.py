@@ -157,8 +157,10 @@ class RunContext:
         """Record one timestamped runtime phase without coupling to a provider.
 
         Phases may be nested. Readers assign a host sample to the most specific
-        active interval, so an outer ``actor_update`` phase can contain a
-        shorter ``rollout`` phase without double-counting the sample.
+        active interval, so an outer ``training`` phase can contain a shorter
+        ``rollout`` phase without double-counting the sample. A specific phase
+        name must still describe its complete interval; for example,
+        ``actor_update`` must not wrap rollout generation.
         """
 
         phase = name.strip()

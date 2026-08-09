@@ -40,6 +40,7 @@ from posttrain.train import (
     QWEN35_GRPO_SMOKE,
     QWEN35_RENDERER,
     QWEN35_SFT_SMOKE,
+    ActiveGroupSampling,
     DPORequest,
     DynamicGroupSampling,
     EnvironmentRollout,
@@ -76,6 +77,8 @@ from posttrain.train.backends.trl.distillation import (
     _rollout_function as _distillation_rollout_function,
 )
 from posttrain.train.backends.trl.grpo import (
+    _actor_update_callback_type,
+    _ActorUpdateTelemetry,
     _configure_liger_loss,
     _grpo_arguments,
     _grpo_runtime_attributes,
@@ -309,6 +312,7 @@ def _inference(
         "enforce_eager": True,
         "kv_cache_memory_bytes": 64 * 1024 * 1024,
         "weight_sync_mode": "lora",
+        "weight_name_prefix": "language_model.",
     }
     if speculative:
         engine["speculative_config"] = {
@@ -915,6 +919,7 @@ def test_distillation_backend_fixes_fully_on_policy_reverse_kl_contract(tmp_path
     arguments = _distillation_arguments(request, tmp_path, "http://teacher.invalid:8000")
 
     assert arguments["lmbda"] == 1.0
+    assert arguments["distillation_objective"] == "iw_opd"
     assert arguments["beta"] == 1.0
     assert arguments["reverse_kl_top_1_mode"] == "sampled"
     assert arguments["loss_top_k"] == 1
@@ -1069,6 +1074,129 @@ def test_grpo_rollout_adapter_emits_population_and_throughput_evidence(
     assert observer.metrics_seen[-1].step == 3
 
 
+def test_grpo_actor_update_phase_starts_after_rollout_and_ends_at_optimizer_step(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    observer = Observer()
+    context = _run_context(
+        tmp_path.resolve(),
+        observer,
+        job_kind="train.grpo",
+        run_id="runs/grpo-actor-update-phase",
+    )
+    model = QWEN_35_2B
+    request = GRPORequest(
+        model,
+        FakeRLBridge(),
+        QWEN35_GRPO_SMOKE,
+        FakeEnvironment(),
+        _training(),
+        _inference(model),
+    )
+    monkeypatch.setattr(
+        "posttrain.train.backends.trl.online_rl.TrlPolicyGenerator",
+        lambda *args: object(),
+    )
+    monotonic = iter((10.0, 12.0, 15.0, 18.5))
+    monkeypatch.setattr("posttrain.train.backends.trl.grpo.time.perf_counter", lambda: next(monotonic))
+    actor_update = _ActorUpdateTelemetry(context)
+    rollout = _rollout_function(context, request, object(), actor_update)
+
+    rollout(
+        [[{"role": "user", "content": "What is 2 + 2?"}]],
+        SimpleNamespace(state=SimpleNamespace(global_step=3)),
+        inputs=[{"example_id": "gsm8k/train/0"}],
+    )
+
+    phase_events = [
+        (event.name, event.attributes["phase"], event.attributes.get("logical_step"))
+        for event in observer.events
+        if "phase" in event.attributes
+    ]
+    assert phase_events == [
+        ("runtime_phase_started", "rollout", 3),
+        ("runtime_phase_completed", "rollout", 3),
+        ("runtime_phase_started", "actor_update", 4),
+    ]
+    callback = _actor_update_callback_type({"TrainerCallback": object}, actor_update)()
+    control = SimpleNamespace()
+    assert callback.on_step_end(SimpleNamespace(), SimpleNamespace(global_step=4), control) is control
+    assert observer.events[-1].name == "runtime_phase_completed"
+    assert observer.events[-1].attributes["phase"] == "actor_update"
+    assert observer.metrics_seen[-1].values == {"train/rl/time/actor_update_seconds": 3.5}
+    assert observer.metrics_seen[-1].step == 4
+    assert (
+        callback.on_log(
+            SimpleNamespace(),
+            SimpleNamespace(global_step=4),
+            control,
+            logs={"num_tokens": 21},
+        )
+        is control
+    )
+    assert observer.metrics_seen[-1].values == {
+        "train/rl/actor_processed_tokens": 21.0,
+        "train/rl/actor_tokens_per_second": 6.0,
+    }
+    assert observer.metrics_seen[-1].step == 4
+
+
+def test_grpo_actor_update_phase_rejects_overlap_and_records_failure(tmp_path: Path) -> None:
+    observer = Observer()
+    context = _run_context(
+        tmp_path.resolve(),
+        observer,
+        job_kind="train.grpo",
+        run_id="runs/grpo-actor-update-failure",
+    )
+    actor_update = _ActorUpdateTelemetry(context)
+    actor_update.start(1)
+
+    with pytest.raises(RuntimeError, match="still active"):
+        actor_update.start(2)
+
+    actor_update.fail(ValueError("optimizer failed"))
+    assert actor_update.active is False
+    assert observer.events[-1].name == "runtime_phase_failed"
+    assert observer.events[-1].attributes["phase"] == "actor_update"
+    assert observer.events[-1].attributes["error_type"] == "ValueError"
+
+
+def test_grpo_actor_throughput_aggregates_updates_between_log_records(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    observer = Observer()
+    context = _run_context(
+        tmp_path.resolve(),
+        observer,
+        job_kind="train.grpo",
+        run_id="runs/grpo-actor-update-throughput",
+    )
+    monotonic = iter((10.0, 12.0, 20.0, 23.0))
+    monkeypatch.setattr("posttrain.train.backends.trl.grpo.time.perf_counter", lambda: next(monotonic))
+    actor_update = _ActorUpdateTelemetry(context)
+    actor_update.start(1)
+    actor_update.complete(1)
+    actor_update.start(2)
+    actor_update.complete(2)
+
+    callback = _actor_update_callback_type({"TrainerCallback": object}, actor_update)()
+    callback.on_log(
+        SimpleNamespace(),
+        SimpleNamespace(global_step=2),
+        SimpleNamespace(),
+        logs={"num_tokens": 50},
+    )
+
+    assert observer.metrics_seen[-1].values == {
+        "train/rl/actor_processed_tokens": 50.0,
+        "train/rl/actor_tokens_per_second": 10.0,
+    }
+    assert observer.metrics_seen[-1].step == 2
+
+
 def test_grpo_callback_emits_normalized_names_without_trl_vocabulary(tmp_path: Path) -> None:
     observer = Observer()
     context = _run_context(
@@ -1125,7 +1253,7 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
     assert arguments["vllm_mode"] == "colocate"
     assert arguments["vllm_enable_sleep_mode"] is True
     assert arguments["vllm_max_model_length"] == 640
-    assert arguments["vllm_weight_name_prefix"] is None
+    assert arguments["vllm_weight_name_prefix"] == "language_model."
     assert arguments["vllm_weight_sync_mode"] == "lora"
     assert arguments["vllm_importance_sampling_mode"] == "sequence_truncate"
     assert arguments["vllm_importance_sampling_clip_min"] == 0.1
@@ -1215,17 +1343,70 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
         settings=replace(
             request.settings,
             algorithm="dapo",
+            advantage_scaling="none",
             dynamic_sampling=DynamicGroupSampling(max_candidate_batches=4),
             overlong_buffer_tokens=64,
         ),
     )
     dapo_arguments = _grpo_arguments(dapo_request, tmp_path, {"enable_thinking": False})
     assert dapo_arguments["loss_type"] == "dapo"
+    assert dapo_arguments["scale_rewards"] == "none"
+    assert _grpo_runtime_attributes(dapo_request)["advantage_scaling"] == "none"
     assert dapo_arguments["epsilon"] == 0.2
     assert dapo_arguments["epsilon_high"] == 0.28
     assert dapo_arguments["dynamic_sampling"] is True
     assert dapo_arguments["dynamic_sampling_max_batches"] == 4
     assert dapo_arguments["mask_truncated_completions"] is False
+
+    olmo3_request = replace(
+        request,
+        settings=replace(
+            request.settings,
+            algorithm="olmo3",
+            advantage_scaling="none",
+            importance_sampling_mode="token_truncate",
+            importance_sampling_clip_min=None,
+            importance_sampling_clip_max=2.0,
+            active_sampling=ActiveGroupSampling(max_candidate_batches=6),
+        ),
+    )
+    olmo3_arguments = _grpo_arguments(olmo3_request, tmp_path, {"enable_thinking": False})
+    for invariant in (
+        "beta",
+        "loss_type",
+        "epsilon",
+        "epsilon_high",
+        "scale_rewards",
+        "dynamic_sampling",
+        "importance_sampling_level",
+        "use_vllm",
+        "vllm_importance_sampling_correction",
+        "vllm_importance_sampling_mode",
+        "vllm_importance_sampling_clip_min",
+        "vllm_importance_sampling_clip_max",
+    ):
+        assert invariant not in olmo3_arguments
+    assert olmo3_arguments["active_sampling_max_batches"] == 6
+    assert _grpo_runtime_attributes(olmo3_request)["active_sampling"] is True
+
+
+def test_olmo3_settings_reject_recipe_drift() -> None:
+    settings = GRPOSettings(
+        "tests/olmo3",
+        TrainingLoop(max_steps=1, per_device_batch_size=2),
+        algorithm="olmo3",
+        advantage_scaling="none",
+        importance_sampling_mode="token_truncate",
+        importance_sampling_clip_min=None,
+        importance_sampling_clip_max=2.0,
+        active_sampling=ActiveGroupSampling(max_candidate_batches=4),
+    )
+
+    assert settings.resolved_clip_epsilon_high == 0.272
+    with pytest.raises(ValueError, match="requires fixed settings: beta"):
+        replace(settings, beta=0.01)
+    with pytest.raises(ValueError, match="requires active group sampling"):
+        replace(settings, active_sampling=None)
 
 
 def test_grpo_runtime_event_attributes_describe_selected_acceleration_without_claiming_results() -> None:

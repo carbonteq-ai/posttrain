@@ -142,6 +142,13 @@ gh pr checks <n>
    `uv lock` followed by `uv run posttrain-release lock-dependencies`. Training
    selections reference the one generated catalog lock record rather than
    copying its digest.
+   Internal packages used by runtime images have a second, deliberate phase:
+   keep the last published OCI lock intact while the pull request is reviewed,
+   then let the protected candidate run
+   `posttrain-release lock-runtime-dependencies`. The command projects the exact
+   wheel URLs and hashes already recorded in `uv.lock` without re-resolving the
+   public closure. The candidate retains that generated lock beside
+   `published.toml`; commit both before merge and return to strict validation.
 3. **Stage and inspect the target release metadata** with
    `uv run posttrain-release stage /tmp/posttrain-X.Y.Z`. Build all packages
    from that isolated tree using `uv build --all-packages --no-sources`; the

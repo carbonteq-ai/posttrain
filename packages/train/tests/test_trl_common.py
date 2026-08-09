@@ -1,11 +1,22 @@
 """Focused tests for family-aware TRL model loading."""
 
 import sys
-from types import ModuleType
+from dataclasses import dataclass, field
+from pathlib import Path
+from types import ModuleType, SimpleNamespace
+from typing import Any
 
 import pytest
+from posttrain.common import ProducedArtifact
 from posttrain.common.variants import GEMMA_4_12B_IT, LFM_25_12B_THINKING, QWEN_35_2B
-from posttrain.train.backends.trl.common import trainable_model_factory, vllm_rollout_options
+from posttrain.train import LoRAUpdate
+from posttrain.train.backends.trl.common import (
+    preserve_recovery_checkpoint_after_error,
+    publish_interrupted_recovery_checkpoint,
+    trainable_model_factory,
+    vllm_rollout_options,
+)
+from posttrain.train.backends.trl.grpo import _configure_torch_compile
 
 
 class CausalFactory:
@@ -20,6 +31,31 @@ IMPORTS = {
     "AutoModelForCausalLM": CausalFactory,
     "AutoModelForMultimodalLM": MultimodalFactory,
 }
+
+
+@dataclass
+class CaptureContext:
+    events: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
+    artifacts: list[ProducedArtifact] = field(default_factory=list)
+
+    def event(self, name: str, attributes: dict[str, Any]) -> None:
+        self.events.append((name, attributes))
+
+    def artifact(self, artifact: ProducedArtifact) -> None:
+        self.artifacts.append(artifact)
+
+
+def _write_lora_recovery_checkpoint(path: Path) -> None:
+    path.mkdir()
+    for name in (
+        "adapter_config.json",
+        "adapter_model.safetensors",
+        "trainer_state.json",
+        "optimizer.pt",
+        "scheduler.pt",
+        "rng_state.pth",
+    ):
+        (path / name).write_bytes(name.encode())
 
 
 def test_trainable_model_factory_uses_multimodal_loader_for_gemma4() -> None:
@@ -65,6 +101,20 @@ def test_gemma_mtp_rejects_an_unpinned_or_incomplete_assistant() -> None:
             GEMMA_4_12B_IT,
             {"mode": "colocate", "speculative_config": {"method": "mtp", "num_speculative_tokens": 1}},
         )
+
+
+def test_vllm_rollout_options_preserves_bounded_large_batch_wave_settings() -> None:
+    speculative, kwargs = vllm_rollout_options(
+        QWEN_35_2B,
+        {
+            "mode": "colocate",
+            "max_num_seqs": 32,
+            "max_num_batched_tokens": 32768,
+        },
+    )
+
+    assert speculative is None
+    assert kwargs == {"max_num_seqs": 32, "max_num_batched_tokens": 32768}
     with pytest.raises(ValueError, match="full 40-character commit SHA"):
         vllm_rollout_options(
             GEMMA_4_12B_IT,
@@ -78,3 +128,91 @@ def test_gemma_mtp_rejects_an_unpinned_or_incomplete_assistant() -> None:
                 },
             },
         )
+
+
+def test_mtp_compile_disable_is_applied_before_runtime_import(monkeypatch) -> None:
+    monkeypatch.delenv("TORCH_COMPILE_DISABLE", raising=False)
+    _configure_torch_compile({"disable_torch_compile": True})
+    assert __import__("os").environ["TORCH_COMPILE_DISABLE"] == "1"
+
+
+def test_mtp_compile_disable_requires_a_boolean() -> None:
+    with pytest.raises(ValueError, match="disable_torch_compile must be a boolean"):
+        _configure_torch_compile({"disable_torch_compile": "yes"})
+
+
+def test_interrupted_lora_run_publishes_only_complete_recovery_checkpoint(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "checkpoint-4"
+    _write_lora_recovery_checkpoint(checkpoint)
+    context = CaptureContext()
+    trainer = SimpleNamespace(
+        args=SimpleNamespace(output_dir=str(tmp_path)),
+        state=SimpleNamespace(global_step=4),
+    )
+
+    retained = publish_interrupted_recovery_checkpoint(
+        context,  # type: ignore[arg-type]
+        trainer,
+        technique="sft",
+        model=QWEN_35_2B,
+        settings=SimpleNamespace(id="training-settings/test", revision="1"),
+        update=LoRAUpdate(),
+        imports={"get_last_checkpoint": lambda _: str(checkpoint)},
+    )
+
+    assert retained == checkpoint
+    assert len(context.artifacts) == 1
+    artifact = context.artifacts[0]
+    assert artifact.kind == "training-checkpoint"
+    assert artifact.role == "recovery"
+    assert artifact.reference.path == checkpoint.resolve()  # type: ignore[union-attr]
+    assert artifact.metadata["global_step"] == 4
+    assert not tuple(checkpoint.glob("model*.safetensors"))
+    assert context.events[-1][0] == "checkpoint_saved"
+
+
+def test_interrupted_run_without_a_complete_checkpoint_is_not_published(tmp_path: Path) -> None:
+    context = CaptureContext()
+    trainer = SimpleNamespace(
+        args=SimpleNamespace(output_dir=str(tmp_path)),
+        state=SimpleNamespace(global_step=0),
+    )
+
+    retained = publish_interrupted_recovery_checkpoint(
+        context,  # type: ignore[arg-type]
+        trainer,
+        technique="dpo",
+        model=QWEN_35_2B,
+        settings=SimpleNamespace(id="training-settings/test", revision="1"),
+        update=LoRAUpdate(),
+        imports={"get_last_checkpoint": lambda _: None},
+    )
+
+    assert retained is None
+    assert context.artifacts == []
+    assert context.events == [("recovery_checkpoint_unavailable", {"technique": "dpo"})]
+
+
+def test_recovery_publication_failure_does_not_replace_training_error(tmp_path: Path) -> None:
+    context = CaptureContext()
+    trainer = SimpleNamespace(
+        args=SimpleNamespace(output_dir=str(tmp_path)),
+        state=SimpleNamespace(global_step=1),
+    )
+    error = RuntimeError("training failed")
+
+    preserve_recovery_checkpoint_after_error(
+        context,  # type: ignore[arg-type]
+        trainer,
+        error,
+        technique="grpo",
+        model=QWEN_35_2B,
+        settings=SimpleNamespace(id="training-settings/test", revision="1"),
+        update=LoRAUpdate(),
+        imports={"get_last_checkpoint": lambda _: str(tmp_path / "missing")},
+    )
+
+    assert str(error) == "training failed"
+    assert len(error.__notes__) == 1
+    assert error.__notes__[0].startswith("failed to retain the latest recovery checkpoint: FileNotFoundError(")
+    assert "missing" in error.__notes__[0]

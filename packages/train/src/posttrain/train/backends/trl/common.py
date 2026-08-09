@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
@@ -14,12 +15,13 @@ from importlib.metadata import version
 from pathlib import Path
 from typing import Any, Literal
 
-from posttrain.common import JsonValue, LocalArtifactRef, ModelVariant, RunContext
+from posttrain.common import JsonValue, LocalArtifactRef, ModelVariant, ProducedArtifact, RunContext
 
 from ...bindings import FullParameterUpdate, LoRAUpdate, ParameterUpdatePlan, QLoRAUpdate, QuantizationAwareUpdate
 from ...profiles import TrainingLoop
 from ...results import TrainingSummary
 from ..common import BackendTrainingResult
+from ..retention import validate_adapter_only_directory
 
 _COMMIT_SHA = re.compile(r"^[0-9a-f]{40}$")
 
@@ -80,11 +82,24 @@ def vllm_rollout_options(
         values["language_model_only"] = True
     if engine.get("skip_mm_profiling"):
         values["skip_mm_profiling"] = True
+    for key in ("max_num_seqs", "max_num_batched_tokens"):
+        requested = engine.get(key)
+        if requested is not None:
+            if isinstance(requested, bool) or not isinstance(requested, int) or requested < 1:
+                raise ValueError(f"TRL rollout {key} must be a positive integer")
+            values[key] = requested
     if engine.get("enforce_eager") is not None:
         enforce_eager = engine["enforce_eager"]
         if not isinstance(enforce_eager, bool):
             raise ValueError("TRL rollout enforce_eager must be a boolean")
         values["enforce_eager"] = enforce_eager
+    disable_torch_compile = engine.get("disable_torch_compile")
+    if disable_torch_compile is not None:
+        if not isinstance(disable_torch_compile, bool):
+            raise ValueError("TRL rollout disable_torch_compile must be a boolean")
+        # This is consumed by the job entrypoint before importing torch.  It
+        # is intentionally not passed as a vLLM constructor kwarg: the
+        # switch also disables compile-decorated MTP helper modules.
     if engine.get("kv_cache_memory_bytes") is not None:
         values["kv_cache_memory_bytes"] = engine["kv_cache_memory_bytes"]
     kv_cache_dtype = engine.get("kv_cache_dtype")
@@ -330,6 +345,7 @@ def trainer_arguments(loop: TrainingLoop, output_dir: Path) -> dict[str, Any]:
         "gradient_accumulation_steps": loop.gradient_accumulation_steps,
         "learning_rate": loop.learning_rate,
         "warmup_steps": math.ceil(loop.max_steps * loop.warmup_ratio),
+        "lr_scheduler_type": loop.lr_scheduler_type,
         "max_grad_norm": loop.max_grad_norm,
         "logging_strategy": "steps",
         "logging_steps": loop.logging_steps,
@@ -363,13 +379,103 @@ def trainer_lifecycle(trainer: Any) -> Iterator[None]:
         trainer.accelerator.end_training()
 
 
+def publish_interrupted_recovery_checkpoint(
+    context: RunContext,
+    trainer: Any,
+    *,
+    technique: Literal["sft", "dpo", "grpo", "dapo", "olmo3", "sampo", "distill"],
+    model: ModelVariant,
+    settings: Any,
+    update: ParameterUpdatePlan,
+    imports: Mapping[str, Any],
+) -> Path | None:
+    """Publish the latest complete TRL checkpoint while an interrupted run still owns its workspace."""
+
+    latest = imports["get_last_checkpoint"](trainer.args.output_dir)
+    if latest is None:
+        context.event("recovery_checkpoint_unavailable", {"technique": technique})
+        return None
+    checkpoint = Path(latest).resolve()
+    if isinstance(update, LoRAUpdate | QLoRAUpdate):
+        validate_adapter_only_directory(checkpoint, require_recovery_state=True)
+    reference = LocalArtifactRef(checkpoint, _digest_path(checkpoint))
+    context.artifact(
+        ProducedArtifact(
+            name=f"training/{model.id}/{technique}/recovery-checkpoint",
+            kind="training-checkpoint",
+            reference=reference,
+            metadata={
+                "technique": technique,
+                "model_variant_id": model.id,
+                "training_settings_id": settings.id,
+                "training_settings_revision": settings.revision,
+                "parameter_update_kind": update.kind,
+                "global_step": int(trainer.state.global_step),
+                "interrupted": True,
+            },
+            role="recovery",
+        )
+    )
+    context.event(
+        "checkpoint_saved",
+        {
+            "technique": technique,
+            "global_step": int(trainer.state.global_step),
+            "recovery_only": True,
+            "interrupted": True,
+        },
+    )
+    return checkpoint
+
+
+def preserve_recovery_checkpoint_after_error(
+    context: RunContext,
+    trainer: Any,
+    error: BaseException,
+    *,
+    technique: Literal["sft", "dpo", "grpo", "dapo", "olmo3", "sampo", "distill"],
+    model: ModelVariant,
+    settings: Any,
+    update: ParameterUpdatePlan,
+    imports: Mapping[str, Any],
+) -> None:
+    """Best-effort retention that never replaces the original training failure."""
+
+    try:
+        publish_interrupted_recovery_checkpoint(
+            context,
+            trainer,
+            technique=technique,
+            model=model,
+            settings=settings,
+            update=update,
+            imports=imports,
+        )
+    except BaseException as checkpoint_error:
+        error.add_note(f"failed to retain the latest recovery checkpoint: {checkpoint_error!r}")
+
+
+def _digest_path(path: Path) -> str:
+    digest = hashlib.sha256()
+    if path.is_file():
+        digest.update(path.read_bytes())
+        return digest.hexdigest()
+    for child in sorted(item for item in path.rglob("*") if item.is_file()):
+        digest.update(child.relative_to(path).as_posix().encode())
+        digest.update(b"\0")
+        with child.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+    return digest.hexdigest()
+
+
 def finish_training(
     context: RunContext,
     trainer: Any,
     train_output: Any,
     tokenizer: Any,
     workspace: Path,
-    technique: Literal["sft", "dpo", "grpo", "dapo", "sampo", "distill"],
+    technique: Literal["sft", "dpo", "grpo", "dapo", "olmo3", "sampo", "distill"],
     update: ParameterUpdatePlan,
     imports: dict[str, Any],
 ) -> BackendTrainingResult:
@@ -377,6 +483,11 @@ def finish_training(
     trainer.save_model(model_dir)
     tokenizer.save_pretrained(model_dir)
     latest = imports["get_last_checkpoint"](trainer.args.output_dir)
+    latest_path = Path(latest).resolve() if latest is not None else None
+    if isinstance(update, LoRAUpdate | QLoRAUpdate):
+        validate_adapter_only_directory(model_dir)
+        if latest_path is not None:
+            validate_adapter_only_directory(latest_path, require_recovery_state=True)
     metrics = train_output.metrics
     summary = TrainingSummary(
         global_step=int(trainer.state.global_step),
@@ -412,7 +523,7 @@ def finish_training(
     return BackendTrainingResult(
         summary,
         model_dir,
-        Path(latest).resolve() if latest is not None else None,
+        latest_path,
         summary_file,
     )
 
@@ -426,6 +537,8 @@ __all__ = [
     "framework_imports",
     "load_tokenizer",
     "load_trainable_model",
+    "preserve_recovery_checkpoint_after_error",
+    "publish_interrupted_recovery_checkpoint",
     "trainable_model_factory",
     "trainer_lifecycle",
     "trainer_arguments",

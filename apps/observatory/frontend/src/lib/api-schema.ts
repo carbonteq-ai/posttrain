@@ -225,6 +225,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/runs/{run_key}/traces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Trace Summaries */
+        get: operations["trace_summaries_api_v1_runs__run_key__traces_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs/{run_key}/traces-evaluation": {
         parameters: {
             query?: never;
@@ -1653,6 +1670,26 @@ export interface components {
              */
             truncated: boolean;
         };
+        /**
+         * TraceSummaryPage
+         * @description One bounded page of trace summaries for interactive investigation.
+         */
+        TraceSummaryPage: {
+            /**
+             * Items
+             * @default []
+             */
+            items: components["schemas"]["TraceSummary"][];
+            /**
+             * Live
+             * @default false
+             */
+            live: boolean;
+            /** Next Cursor */
+            next_cursor?: string | null;
+            /** Total */
+            total: number;
+        };
         /** TrackingCapabilities */
         TrackingCapabilities: {
             /**
@@ -2136,9 +2173,12 @@ export interface operations {
             };
         };
     };
-    traces_evaluation_api_v1_runs__run_key__traces_evaluation_get: {
+    trace_summaries_api_v1_runs__run_key__traces_get: {
         parameters: {
-            query?: never;
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+            };
             header?: never;
             path: {
                 run_key: string;
@@ -2153,9 +2193,40 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["TraceSummaryPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    traces_evaluation_api_v1_runs__run_key__traces_evaluation_get: {
+        parameters: {
+            query?: {
+                include_traces?: boolean;
+            };
+            header?: never;
+            path: {
+                run_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TraceEvaluationView"];
                 };
             };
             /** @description Validation Error */

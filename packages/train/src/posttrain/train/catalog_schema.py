@@ -22,6 +22,7 @@ from .bindings import (
     TrainingRuntime,
 )
 from .profiles import (
+    ActiveGroupSampling,
     DPOSettings,
     DynamicGroupSampling,
     GRPOSettings,
@@ -104,6 +105,7 @@ class TrainingLoopSchema(TrainCatalogSchema):
     gradient_accumulation_steps: int = Field(default=1, gt=0)
     learning_rate: float = Field(default=2e-4, gt=0)
     warmup_ratio: float = Field(default=0.0, ge=0, lt=1)
+    lr_scheduler_type: Literal["linear", "constant", "constant_with_warmup"] = "linear"
     max_grad_norm: float = Field(default=1.0, gt=0)
     logging_steps: int = Field(default=1, gt=0)
     checkpoint_steps: int = Field(default=1, ge=0)
@@ -153,6 +155,10 @@ class DynamicGroupSamplingSchema(TrainCatalogSchema):
     max_candidate_batches: int = Field(default=10, gt=0)
 
 
+class ActiveGroupSamplingSchema(TrainCatalogSchema):
+    max_candidate_batches: int = Field(default=10, gt=0)
+
+
 class GRPOSettingsSchema(TrainCatalogSchema):
     selection_type: Literal["grpo-settings"]
     id: str
@@ -168,10 +174,12 @@ class GRPOSettingsSchema(TrainCatalogSchema):
     )
     importance_sampling_clip_min: float | None = Field(default=0.1, gt=0)
     importance_sampling_clip_max: float | None = Field(default=3.0, gt=0)
-    algorithm: Literal["grpo", "dapo"] = "grpo"
+    algorithm: Literal["grpo", "dapo", "olmo3"] = "grpo"
+    advantage_scaling: Literal["group", "batch", "none"] = "group"
     clip_epsilon_low: float = Field(default=0.2, gt=0, allow_inf_nan=False)
     clip_epsilon_high: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     dynamic_sampling: DynamicGroupSamplingSchema | None = None
+    active_sampling: ActiveGroupSamplingSchema | None = None
     mask_truncated_completions: bool = False
     overlong_buffer_tokens: int | None = Field(default=None, gt=0)
     overlong_penalty_factor: float = Field(default=1.0, gt=0, allow_inf_nan=False)
@@ -277,6 +285,9 @@ def decode_training_selection(
         dynamic_sampling = values.pop("dynamic_sampling")
         if dynamic_sampling is not None:
             values["dynamic_sampling"] = DynamicGroupSampling(**dynamic_sampling)
+        active_sampling = values.pop("active_sampling")
+        if active_sampling is not None:
+            values["active_sampling"] = ActiveGroupSampling(**active_sampling)
         return GRPOSettings(
             payload.id,
             TrainingLoop(**payload.loop.model_dump()),

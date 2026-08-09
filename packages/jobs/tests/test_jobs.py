@@ -2,6 +2,7 @@
 
 from dataclasses import replace
 from pathlib import Path
+from typing import cast
 
 import pytest
 from posttrain.catalog import open_catalog
@@ -9,9 +10,12 @@ from posttrain.common import (
     CatalogRef,
     ContractError,
     ExecutionTarget,
+    InferenceBinding,
+    LocalArtifactRef,
     ModelVariant,
     NullObserver,
     RunContext,
+    StoredArtifactRef,
 )
 from posttrain.data import (
     DatasetLoadPlan,
@@ -44,6 +48,7 @@ from posttrain.jobs import (
     standard_definitions,
     supervised_data_prepare_definition,
 )
+from posttrain.jobs.definitions import _materialize_grpo_policy
 from posttrain.train import (
     GRPOSettings,
     SFTRequest,
@@ -321,6 +326,39 @@ def test_runtime_materializes_global_dataset_for_standard_sft_definition(tmp_pat
     assert result.data.descriptor.num_examples == 2
 
 
+def test_standard_training_definition_forwards_materialized_recovery_checkpoint(tmp_path: Path) -> None:
+    request = _request(tmp_path)
+    runtime = build_job_runtime(request, tracking="none")
+    assert runtime.seat_resolver is not None
+    plan = _selection(request.catalog, "dataset", "datasets/posttrain-sft-smoke@1")
+    dataset = runtime.seat_resolver(ResolvedSeat("dataset", plan, CatalogRef("dataset", plan.id), "base"))
+    model = _selection(request.catalog, "model", "models/qwen3.5-2b@bf16")
+    settings = _selection(request.catalog, "training", "qwen3.5-2b/sft-smoke-v2")
+    training = _selection(request.catalog, "training", "training/qwen3.5-trl-lora@1")
+    recovery = (tmp_path / "checkpoint-1").resolve()
+    recovery.mkdir()
+    reference = LocalArtifactRef(recovery, "a" * 64)
+    definition = sft_definition(lambda context, value: value)
+    context = RunContext(
+        project_id="jobs-test",
+        work_package_id="train/sft-resume",
+        run_id="run-resume",
+        job_kind="train.sft",
+        job_definition_version=definition.id,
+        workspace=(tmp_path / "workspace-resume").resolve(),
+        observer=NullObserver(),
+        input_artifacts={"recovery_checkpoint": reference},
+    )
+
+    result = definition.operation(
+        context,
+        {"model": model, "dataset": dataset, "settings": settings, "training": training},
+    )
+
+    assert isinstance(result, SFTRequest)
+    assert result.resume_from == reference
+
+
 def test_static_sft_preparation_retains_dataset_plan_without_materializing_it(
     tmp_path: Path,
 ) -> None:
@@ -399,6 +437,38 @@ def test_static_grpo_preparation_rejects_training_batch_mismatch() -> None:
                 "training": training,
             }
         )
+
+
+def test_grpo_materializes_stored_adapter_for_policy_and_inference(tmp_path: Path) -> None:
+    catalog = open_catalog(scope="jobs-test")
+    foundation = cast(ModelVariant, _selection(catalog, "model", "models/qwen3.5-2b@bf16"))
+    adapter = replace(
+        foundation,
+        id="models/qwen3.5-2b-sft-test@v0",
+        artifact=StoredArtifactRef("trackio", "ambient-agent", "sft-adapter", "v0"),
+        form="peft-adapter",
+        parent=foundation.id,
+    )
+    inference = cast(InferenceBinding, _selection(catalog, "inference", "inference/qwen3.5-2b-vllm-eval@1"))
+    materialized_path = (tmp_path / "model-adapter").resolve()
+    materialized_path.mkdir()
+    materialized = LocalArtifactRef(materialized_path, "a" * 64)
+    context = RunContext(
+        project_id="jobs-test",
+        work_package_id="train/grpo-materialize",
+        run_id="run-materialize",
+        job_kind="train.grpo",
+        job_definition_version="train/trl-grpo@1",
+        workspace=(tmp_path / "workspace").resolve(),
+        observer=NullObserver(),
+        input_artifacts={"model_adapter": materialized},
+    )
+
+    policy, rollout = _materialize_grpo_policy(context, adapter, inference)
+
+    assert policy.artifact is materialized
+    assert policy.digest == materialized.digest
+    assert rollout.model is policy
 
 
 def test_runtime_rejects_shadowing_standard_definition(tmp_path: Path) -> None:

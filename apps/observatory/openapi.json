@@ -3863,6 +3863,46 @@
         "title": "TraceSummary",
         "type": "object"
       },
+      "TraceSummaryPage": {
+        "additionalProperties": false,
+        "description": "One bounded page of trace summaries for interactive investigation.",
+        "properties": {
+          "items": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/TraceSummary"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "live": {
+            "default": false,
+            "title": "Live",
+            "type": "boolean"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "total": {
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total"
+        ],
+        "title": "TraceSummaryPage",
+        "type": "object"
+      },
       "TrackingCapabilities": {
         "additionalProperties": false,
         "properties": {
@@ -4580,6 +4620,73 @@
         "summary": "System Metrics"
       }
     },
+    "/api/v1/runs/{run_key}/traces": {
+      "get": {
+        "operationId": "trace_summaries_api_v1_runs__run_key__traces_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_key",
+            "required": true,
+            "schema": {
+              "title": "Run Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 250,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TraceSummaryPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Trace Summaries"
+      }
+    },
     "/api/v1/runs/{run_key}/traces-evaluation": {
       "get": {
         "operationId": "traces_evaluation_api_v1_runs__run_key__traces_evaluation_get",
@@ -4592,6 +4699,16 @@
               "title": "Run Key",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "include_traces",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Include Traces",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -4599,9 +4716,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Traces Evaluation Api V1 Runs  Run Key  Traces Evaluation Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/TraceEvaluationView"
                 }
               }
             },
