@@ -44,13 +44,15 @@ ADR is accepted.
   contains 69 dirty paths.
 - [x] (2026-08-09) Ran `uv run --no-sync posttrain-release check`; it fails on a
   stale `packages/catalog/src/posttrain/catalog/base/locks.toml` digest.
-- [ ] Add or select a dedicated project settings revision with
-  `advantage_scaling: none`, while retaining scalar DAPO rewards, asymmetric
-  clipping, truncation masking, no dynamic sampling, and the SFT LoRA input.
-- [ ] Stop or mark the current invalid 256-concurrency probe before its first
-  optimizer update; retain its partial evidence as a rejected diagnostic.
-- [ ] Run the corrected two-step probe and verify actor/sampler parity, reward
-  spread, advantage statistics, truncation exclusion, optimizer updates,
+- [ ] Add a dedicated project settings revision with `algorithm: olmo3`, while
+  retaining scalar verifier rewards, asymmetric clipping, truncation masking,
+  zero-gradient filtering with active refill, and the materialized SFT LoRA
+  input.
+- [x] (2026-08-09) Classified the prior 256-concurrency DAPO probe as rejected
+  historical evidence because it did not select the intended advantage
+  semantics; it will not be reused as OLMo 3 qualification.
+- [ ] Run the corrected one-step OLMo 3 probe and verify actor/sampler parity,
+  reward spread, advantage statistics, truncation exclusion, optimizer update,
   checkpoint/LoRA artifact output, and tracking finalization.
 - [ ] Inventory the dirty framework tree and create one intentional release
   commit containing only reviewed framework changes and regenerated release
@@ -98,6 +100,19 @@ ADR is accepted.
   classified BuildKit retry that preserves content identity and reuses completed
   layers; regression tests prove transient recovery and a bounded persistent
   failure.
+- [x] (2026-08-09) Proved candidate retry `31290415458` was not another
+  transport-only failure: the bounded retry exposed `no space left on device`
+  in the private registry. Purged 27 terminal GRPO smoke runs with at most two
+  reward-bearing logical steps across all Trackio projects, retaining exact
+  plans and receipts and excluding an indeterminate nonterminal run.
+- [x] (2026-08-09) Reclaimed the registry safely. Deleted 86 exact superseded
+  runtime manifest digests after proving no overlap with 13 retained stable and
+  candidate digests; native garbage collection removed 367 unreachable blobs
+  totaling 74.49 GiB. Registry storage fell from 154 GiB to 80 GiB, root free
+  space rose from 1.9 GiB to 77 GiB, the service restarted healthy, and all 13
+  retained digests passed readback. Machine-local plans, receipts, and GC logs
+  are under
+  `/home/hammad/.local/state/posttrain/operations/grpo-short-run-purge-20260809/`.
 - [ ] Re-run the protected release candidate using the accepted manual Trackio
   and TRL receipts. Require dev-index/OCI readback, clean install, packed dstack
   job, Trackio artifact round trip, and Observatory readback before merge.
@@ -110,8 +125,12 @@ ADR is accepted.
 - [ ] Add a new versioned Ambient Agent `algorithm: olmo3` setting and work
   package after that dependency update. Preserve the historical DAPO settings
   and runs; do not relabel them as OLMo 3 evidence.
-- [ ] Pack the resolved OLMo 3 job and run a bounded two-step SFT-LoRA canary
-  before scheduling the longer campaign.
+- [ ] Pack the resolved OLMo 3 job and run one SFT-LoRA-backed optimizer step on
+  RTX PRO 6000 with rollout and verifier concurrency 256. Qualify reward spread,
+  recomputed advantages, truncation exclusion, clipping/TIS, actor-sampler
+  parity, LoRA-only checkpoint artifacts, and restart metadata.
+- [ ] If the one-step gate passes, submit 200 optimizer steps and monitor the
+  first five completed steps before leaving the campaign unattended.
 - [ ] Record final experiment and release receipts, update this plan’s outcome,
   and report the tag, release URL, package/image digests, and remaining gates.
 
@@ -203,6 +222,12 @@ ADR is accepted.
   images had already pushed successfully. This is a resumable registry-upload
   failure and must be retried at the BuildKit boundary, not interpreted as an
   invalid runtime image or handled by restarting the entire release manually.
+- Observation: candidate retry `31290415458` showed that the registry's
+  resumable-upload symptom masked storage exhaustion. Its second classified
+  attempt reached the primary filesystem error: `/var/lib/registry` had no
+  space left. Deleting small actual-job manifests alone reclaimed little
+  because their layers were shared; superseded tagged runtime images owned the
+  reclaimable capacity.
 
 ## Decision Log
 
@@ -299,10 +324,11 @@ passes exposed a missing consumer guide, incorrect OCI/build ordering, an
 implicit generated-manifest input, and an unqualified deployed Trackio artifact
 path. Trackio post11 and TRL 1.9.2.post1 are now manually published with exact
 receipts, the live Trackio artifact path passes, and the runtime dependency lock
-has a deterministic candidate materialization step. The next action is local
-validation and a fresh protected candidate. No final tag has been created,
-Ambient Agent has not been updated, and no post-release OLMo 3 run has been
-submitted.
+has a deterministic candidate materialization step. Exact retention and garbage
+collection restored 77 GiB of registry-host root capacity without losing any
+protected release image. The next action is a fresh protected candidate. No
+final tag has been created, Ambient Agent has not been updated, and no
+post-release OLMo 3 run has been submitted.
 
 ## Context and Orientation
 
@@ -473,8 +499,8 @@ Current evidence anchors:
     8277ce5cc5853db4048fbbaa64b1ccb6f35bf96c797658253b553e9a8efefae7
     SFT adapter source tree sha256:
     79b17299c7808b373eaa67f3c34153ab513e27d2f28105f0ef633c58cccaa7b7
-    current release branch HEAD before registry-retry repair:
-    1825e52542a9d5366e8c317dd56be83dd11b89e2 (codex/release-0.3.3)
+    current release branch HEAD with bounded registry retry:
+    5323adf0983a24c2f066be38fd6f112a271fdf45 (codex/release-0.3.3)
     current target release:
     0.3.3 (not tagged or published)
 
@@ -503,4 +529,5 @@ that the active 256-concurrency run did not select the explicit advantage fix
 and that the framework release checker failed on a stale generated lock digest.
 Revised it after the OLMo 3 recipe was implemented so the next experiment first
 updates Ambient Agent to the stable framework, then adds an additive OLMo 3
-selection and runs a two-step SFT-LoRA canary before any longer campaign.
+selection, runs one SFT-LoRA-backed optimizer step at concurrency 256 on RTX PRO
+6000, and schedules 200 steps only after the algorithm evidence passes.
