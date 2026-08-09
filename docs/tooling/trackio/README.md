@@ -2,11 +2,10 @@
 
 The platform uses [`carbonteq-ai/trackio`](https://github.com/carbonteq-ai/trackio),
 an additive fork of upstream Trackio. Workspace packages keep the normal
-`import trackio` API. The next framework dependency is
+`import trackio` API. The current framework dependency is
 `carbonteq-trackio==0.31.5.post12`, built from an immutable fork release
-commit and verified before the Posttrain pin is updated. Until that stable-index
-publication is read back, consumers must continue using the currently pinned
-post11 bytes.
+commit `4c73e8b6e71c3da65cac41fc1371830e4435ecea`. Its wheel and sdist were
+read back from the stable internal index before the Posttrain pin was updated.
 The deployed shared and candidate services now report post10. `0.31.5.post4` on
 `pypi.lan` is permanently skewed (metadata post4, import post3) and must not be
 installed. The five kind images affected by the workspace lock were rebuilt

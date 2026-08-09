@@ -70,7 +70,8 @@ abrupt process loss preserves the most recently committed off-host checkpoint.
   wheel/sdist; the exact wheel (`sha256:6ed1bda951a70b85611a8928d489c7b806abfb9bd19643a165a9111a78c9d0f4`)
   and sdist (`sha256:78c9b4db9b659810cd31f05693342686cc4506ab2f96676b2d3bc64c324e416c`)
   were published to the stable internal index and read back. The framework
-  pin and OCI runtime lock now select post12.
+  metadata, workspace lock, and runtime profile select post12; the generated
+  OCI lock remains explicitly pending candidate image publication.
 - [/] (2026-08-09 12:05Z) Milestone 3: TRL now publishes paired recovery and
   adapter-only model views at `on_save`, and handled interruption uses the same
   publisher. Normal/failure unit coverage is complete; live GPU cancellation
@@ -1265,9 +1266,10 @@ producer artifact.
 Revision note (2026-08-09): Published the immutable Trackio post12 wheel and
 sdist directly to the stable internal index after the GitHub LAN-runner queue
 remained unavailable. Updated the framework dependency, workspace lock, and
-OCI runtime constraint lock to the verified post12 wheel digest. The existing
-published-image manifest now fails closed until the release candidate rebuilds
-job-kind images against that changed lock.
+runtime profile to the verified post12 bytes. The OCI lock is intentionally
+left pending candidate materialization; the release checker now validates the
+old manifest's structure while refusing to treat its stale image lock label as
+usable until candidate publication rebuilds the job-kind images.
 
 Outcomes & Retrospective
 ------------------------
