@@ -45,6 +45,7 @@ from posttrain.runtime_images import JOB_BAKE_FILE, cached_definition_root
 from posttrain.tracking import ArtifactInput, ArtifactLink, RunSpec
 from posttrain.work import (
     PreparedWorkPackageJob,
+    load_work_package,
     override_job_execution_target,
     prepare_work_package_job,
 )
@@ -899,6 +900,16 @@ def _project_config_bundle(
         selected.add(layout.project_brief)
     files = {_project_relative(layout, path): path.read_bytes() for path in sorted(selected)}
     roots = {seat.ref for seat in prepared.resolved.seats.values() if seat.ref is not None}
+    # Execution-target overrides replace a catalog-backed training or
+    # inference selection with an equivalent inline value.  The prepared
+    # seat then quite correctly has no ``ref``, but the worker still resolves
+    # the original work package from the packaged project catalog.  Retain
+    # every source binding as a closure root so that an override cannot
+    # silently omit the catalog entry the worker needs at activation time.
+    source_package = load_work_package(work_package_path)
+    roots.update(binding for binding in source_package.bindings.values() if isinstance(binding, CatalogRef))
+    if isinstance(source_package.recipe, CatalogRef):
+        roots.add(source_package.recipe)
     roots.update(catalog.refs_for_values(prepared.seats.values()))
     recipe = prepared.resolved.snapshot.get("recipe")
     if isinstance(recipe, dict) and isinstance((ref := recipe.get("ref")), dict):
