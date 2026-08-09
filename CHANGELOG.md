@@ -4,6 +4,24 @@ All notable changes to Posttrain are documented here. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with a coordinated
 version across first-party distributions.
 
+## 0.3.5 - 2026-08-09
+
+This release carries checkpoint-scoped model artifacts and the validated
+Trackio `0.31.5.post12` runtime through the same immutable Python and OCI
+release inputs.
+
+### Added
+
+- Job-scoped checkpoint inspection, verification, selection, and model-artifact
+  views for recovery, evaluation, and continuation across training jobs.
+- Adapter-only model artifacts for LoRA and QLoRA runs, paired with complete
+  recovery state for resumable training.
+
+### Release integrity
+
+- The published runtime lock and OCI manifest are committed and verified
+  together, including the exact Trackio post12 wheel hash.
+
 ## 0.3.3 - 2026-08-09
 
 This release strengthens online-RL correctness and makes the maintained
