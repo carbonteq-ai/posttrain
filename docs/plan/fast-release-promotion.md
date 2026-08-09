@@ -40,15 +40,23 @@ receipt instead of rebuilding or re-running completed checks.
 - [x] (2026-08-09T14:34Z) Added PR #42 to resolve the candidate tree through the
   GitHub commit API and compare it with the merged tree. Local release tests
   pass; remote checks are in progress.
-- [ ] Merge and qualify PR #42, then retry final promotion using candidate run
-  `31317350952` without rebuilding its unchanged candidate tree.
+- [x] (2026-08-09T14:34Z) Merged and qualified PR #42; candidate run
+  `31317350952` remains accepted after the GitHub tree lookup fix.
+- [x] (2026-08-09T14:45Z) Merged PR #44, which permits only release plumbing
+  and plan-document changes after candidate creation; build-input changes still
+  block promotion.
+- [x] (2026-08-09T14:51Z) Merged PR #45, removing the duplicate full test suite
+  from final promotion while retaining locked-environment validation.
+- [x] (2026-08-09T15:00Z) Final run `31319572261` succeeded: candidate
+  provenance, final wheel build, dev/stable index checks, registry verification,
+  real dstack canary, receipt retention, and `v0.3.5` tagging all passed.
 - [ ] Add a local readiness receipt and make the candidate workflow consume it.
-- [ ] Remove duplicate full-suite execution from the final workflow while
+- [x] Remove duplicate full-suite execution from the final workflow while
   retaining exact-SHA, index, registry, dstack, and promotion checks.
-- [ ] Add resume checkpoints between final remote stages and document the
-  expected timing budget.
-- [ ] Validate a successful 0.3.5 promotion and record the final receipt,
-  release URL, stable-index hashes, image digests, and dstack evidence.
+- [ ] Add explicit resume checkpoints between final remote stages; the existing
+  retained receipt remains the safe retry boundary for now.
+- [x] Validate the successful 0.3.5 promotion and retain its receipt, release
+  URL, stable-index evidence, image digests, and dstack evidence.
 
 ## Surprises & Discoveries
 
@@ -100,11 +108,12 @@ receipt instead of rebuilding or re-running completed checks.
 
 ## Outcomes & Retrospective
 
-At the current stopping point, no stable 0.3.5 bytes or tag have been created.
-The candidate remains valid and the final workflow has been prevented from
-publishing by two provenance bugs, both now addressed in PR #42. The release
-process is not complete until PR #42 is merged, the final workflow succeeds,
-and the stable index, registry, dstack, and GitHub release receipts agree.
+The 0.3.5 release is complete. Final run `31319572261` finished in 8m27s,
+reused the accepted candidate runtime inputs, built the final-version wheelhouse
+once, passed the real packed dstack canary, promoted unchanged bytes to stable,
+and created [GitHub release v0.3.5](https://github.com/carbonteq-ai/posttrain/releases/tag/v0.3.5).
+The remaining follow-up is a first-class local readiness receipt and more
+granular resume checkpoints; neither is required to consume this release.
 
 ## Context and Orientation
 
@@ -212,7 +221,10 @@ Relevant evidence from the current release investigation:
     candidate run 31317350952: succeeded; source 84c82cb7; real dstack qualification passed
     final run 31318113663: failed before publication; candidate commit was not an ancestor after squash merge
     final run 31318496543: source validation passed; candidate object was unavailable in checkout
+    final run 31319572261: success in 8m27s after fast final-validation path
     PR #42: tree comparison now uses the GitHub commit API
+    PR #44: release plumbing/build-input comparison
+    PR #45: duplicate final suite removed
 
 ## Interfaces and Dependencies
 
