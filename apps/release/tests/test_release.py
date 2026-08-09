@@ -892,8 +892,8 @@ def test_final_release_restores_candidate_runtime_lock_with_manifest() -> None:
     assert 'test -n "${candidate_workspace_lock}"' in workflow
     assert (
         'cp "${candidate_workspace_lock}" \\\n'
-        '            packages/runtime-images/src/posttrain/runtime_images/containers/'
-        'posttrain-job-kinds/locks/workspace.lock.txt'
+        "            packages/runtime-images/src/posttrain/runtime_images/containers/"
+        "posttrain-job-kinds/locks/workspace.lock.txt"
     ) in workflow
     assert 'cp "${candidate_workspace_lock}" .release/workspace.lock.txt' in workflow
 
