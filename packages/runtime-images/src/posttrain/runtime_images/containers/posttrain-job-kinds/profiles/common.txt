@@ -1,3 +1,3 @@
-carbonteq-trackio==0.31.5.post11
+carbonteq-trackio==0.31.5.post12
 pydantic==2.13.4
 pyyaml==6.0.3
