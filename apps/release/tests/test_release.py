@@ -635,6 +635,10 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert "posttrain-release check --allow-pending-runtime-lock" in candidate
     assert "posttrain-release lock-runtime-dependencies" in candidate
     assert ".release/workspace.lock.txt" in candidate
+    assert 'authored_framework_version="$(sed -n' in candidate
+    assert 'published_framework_version="$(sed -n' in candidate
+    assert '"${published_framework_version}" = "${authored_framework_version}"' in candidate
+    assert '--framework-version "${authored_framework_version}"' in candidate
     assert candidate.index("Build changed OCI inputs and retain the generated manifest") < candidate.index(
         "Build and hash the Python wheelhouse"
     )
