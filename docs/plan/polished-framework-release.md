@@ -12,6 +12,12 @@ in `docs/decisions/0013-portable-project-layout.md` and implemented through
 frozen meanings of selections, projects, work packages, jobs, runs, artifacts,
 or observation.
 
+The release-latency and provenance follow-up is tracked separately in
+[`docs/plan/fast-release-promotion.md`](./fast-release-promotion.md). That plan
+splits local readiness evidence from remote promotion and is the authority for
+the twenty-minute release target; this document remains the broader product
+release scope.
+
 ## Purpose / Big Picture
 
 After this work, a CarbonTeq developer can create or open an ordinary repository,
