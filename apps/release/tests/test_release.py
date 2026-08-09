@@ -670,7 +670,10 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert 'grep -Fq "${POSTTRAIN_RELEASE_VERSION}"' not in final
     assert "candidate_run_id:" in final
     assert "Restore the accepted candidate runtime image manifest" in final
-    assert 'git merge-base --is-ancestor "${candidate_sha}" "${RELEASE_SOURCE_SHA}"' in final
+    assert 'if git merge-base --is-ancestor "${candidate_sha}" "${RELEASE_SOURCE_SHA}"; then' in final
+    assert 'candidate_tree="$(git rev-parse "${candidate_sha}^{tree}")"' in final
+    assert 'release_tree="$(git rev-parse "${RELEASE_SOURCE_SHA}^{tree}")"' in final
+    assert 'test "${candidate_tree}" = "${release_tree}"' in final
     assert 'test "${candidate_version}" = "${release_version}"' in final
     assert 'cp "${candidate_manifest}" packages/runtime-images/src/posttrain/runtime_images/published.toml' in final
     assert "resume_from_run_id" in final

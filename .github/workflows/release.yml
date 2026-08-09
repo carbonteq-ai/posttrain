@@ -156,7 +156,17 @@ jobs:
           test "$(jq -r '.status // empty' <<<"${candidate_run}")" = "completed"
           test "$(jq -r '.conclusion // empty' <<<"${candidate_run}")" = "success"
           candidate_sha="$(jq -r '.headSha // empty' <<<"${candidate_run}")"
-          git merge-base --is-ancestor "${candidate_sha}" "${RELEASE_SOURCE_SHA}"
+          # A candidate normally comes from the merged commit's ancestry. A
+          # squash merge deliberately removes that ancestry, so accept the
+          # candidate only when the merged tree is byte-for-byte identical.
+          if git merge-base --is-ancestor "${candidate_sha}" "${RELEASE_SOURCE_SHA}"; then
+            echo "candidate source is an ancestor of the merged source"
+          else
+            candidate_tree="$(git rev-parse "${candidate_sha}^{tree}")"
+            release_tree="$(git rev-parse "${RELEASE_SOURCE_SHA}^{tree}")"
+            test "${candidate_tree}" = "${release_tree}"
+            echo "candidate source has the identical merged tree after squash merge"
+          fi
           candidate_artifact="$(gh api \
             "repos/${GITHUB_REPOSITORY}/actions/runs/${CANDIDATE_RUN_ID}/artifacts" \
             --jq '.artifacts[] | select(.expired == false and (.name | endswith("-evidence"))) | .name' \
