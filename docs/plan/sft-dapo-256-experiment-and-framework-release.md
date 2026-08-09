@@ -87,6 +87,11 @@ ADR is accepted.
   tests with 21 expected skips, and `git diff --check`. Installed the exact
   published TRL `1.9.2.post1` extra and passed the focused TRL compatibility
   suite (8 passed, 1 environment-dependent skip).
+- [x] (2026-08-09) Repaired the public clean-consumer bridge exposed by
+  exact-SHA CI `31289633742`: GitHub CI now downloads and SHA-256 verifies both
+  maintained Trackio and TRL release wheels before constructing an offline
+  starter-project wheelhouse. The previously failing SFT starter acceptance
+  passes locally against those exact two assets.
 - [ ] Re-run the protected release candidate using the accepted manual Trackio
   and TRL receipts. Require dev-index/OCI readback, clean install, packed dstack
   job, Trackio artifact round trip, and Observatory readback before merge.

@@ -12,7 +12,11 @@ permissions:
 env:
   CARBONTEQ_TRACKIO_WHEEL_URL: https://github.com/carbonteq-ai/trackio/releases/download/carbonteq-v0.31.5.post11/carbonteq_trackio-0.31.5.post11-py3-none-any.whl
   CARBONTEQ_TRACKIO_WHEEL_SHA256: bd0c13fc67b8115aa84b92f1cb031118d28559e9a028bc7cf4112ce6905b5105
-  POSTTRAIN_CONSUMER_EXTRA_WHEELS: /tmp/carbonteq_trackio-0.31.5.post11-py3-none-any.whl
+  CARBONTEQ_TRACKIO_WHEEL_PATH: /tmp/carbonteq_trackio-0.31.5.post11-py3-none-any.whl
+  CARBONTEQ_TRL_WHEEL_URL: https://github.com/carbonteq-ai/trl/releases/download/carbonteq-v1.9.2.post1/trl-1.9.2.post1-py3-none-any.whl
+  CARBONTEQ_TRL_WHEEL_SHA256: 7ac9bb20cc01526ce586016719efa2537a154c91844df31b1638e03328ca6e65
+  CARBONTEQ_TRL_WHEEL_PATH: /tmp/trl-1.9.2.post1-py3-none-any.whl
+  POSTTRAIN_CONSUMER_EXTRA_WHEELS: /tmp/carbonteq_trackio-0.31.5.post11-py3-none-any.whl:/tmp/trl-1.9.2.post1-py3-none-any.whl
 
 jobs:
   quality:
@@ -23,14 +27,18 @@ jobs:
         with:
           enable-cache: true
           python-version: "3.13"
-      - name: Bootstrap the internal Trackio distribution
+      - name: Bootstrap maintained internal distributions
         run: |
           uv venv --python 3.13
           curl --fail --location --silent --show-error \
-            --output "${POSTTRAIN_CONSUMER_EXTRA_WHEELS}" \
+            --output "${CARBONTEQ_TRACKIO_WHEEL_PATH}" \
             "${CARBONTEQ_TRACKIO_WHEEL_URL}"
-          echo "${CARBONTEQ_TRACKIO_WHEEL_SHA256}  ${POSTTRAIN_CONSUMER_EXTRA_WHEELS}" | sha256sum --check --strict
-          VIRTUAL_ENV=.venv uv pip install --no-deps "${POSTTRAIN_CONSUMER_EXTRA_WHEELS}"
+          echo "${CARBONTEQ_TRACKIO_WHEEL_SHA256}  ${CARBONTEQ_TRACKIO_WHEEL_PATH}" | sha256sum --check --strict
+          curl --fail --location --silent --show-error \
+            --output "${CARBONTEQ_TRL_WHEEL_PATH}" \
+            "${CARBONTEQ_TRL_WHEEL_URL}"
+          echo "${CARBONTEQ_TRL_WHEEL_SHA256}  ${CARBONTEQ_TRL_WHEEL_PATH}" | sha256sum --check --strict
+          VIRTUAL_ENV=.venv uv pip install --no-deps "${CARBONTEQ_TRACKIO_WHEEL_PATH}"
       - name: Install workspace and quality tools
         # The committed lock records the internal stable index. Public runners
         # consume its hash-identical GitHub Release wheel and must not resolve
@@ -94,14 +102,18 @@ jobs:
         with:
           enable-cache: true
           python-version: "3.13"
-      - name: Bootstrap the internal Trackio distribution
+      - name: Bootstrap maintained internal distributions
         run: |
           uv venv --python 3.13
           curl --fail --location --silent --show-error \
-            --output "${POSTTRAIN_CONSUMER_EXTRA_WHEELS}" \
+            --output "${CARBONTEQ_TRACKIO_WHEEL_PATH}" \
             "${CARBONTEQ_TRACKIO_WHEEL_URL}"
-          echo "${CARBONTEQ_TRACKIO_WHEEL_SHA256}  ${POSTTRAIN_CONSUMER_EXTRA_WHEELS}" | sha256sum --check --strict
-          VIRTUAL_ENV=.venv uv pip install --no-deps "${POSTTRAIN_CONSUMER_EXTRA_WHEELS}"
+          echo "${CARBONTEQ_TRACKIO_WHEEL_SHA256}  ${CARBONTEQ_TRACKIO_WHEEL_PATH}" | sha256sum --check --strict
+          curl --fail --location --silent --show-error \
+            --output "${CARBONTEQ_TRL_WHEEL_PATH}" \
+            "${CARBONTEQ_TRL_WHEEL_URL}"
+          echo "${CARBONTEQ_TRL_WHEEL_SHA256}  ${CARBONTEQ_TRL_WHEEL_PATH}" | sha256sum --check --strict
+          VIRTUAL_ENV=.venv uv pip install --no-deps "${CARBONTEQ_TRACKIO_WHEEL_PATH}"
       - name: Install package
         run: uv sync --frozen --package ${{ matrix.package }} --python 3.13 --no-install-package carbonteq-trackio --inexact
       - name: Import package
@@ -115,14 +127,18 @@ jobs:
         with:
           enable-cache: true
           python-version: "3.13"
-      - name: Bootstrap the internal Trackio distribution
+      - name: Bootstrap maintained internal distributions
         run: |
           uv venv --python 3.13
           curl --fail --location --silent --show-error \
-            --output "${POSTTRAIN_CONSUMER_EXTRA_WHEELS}" \
+            --output "${CARBONTEQ_TRACKIO_WHEEL_PATH}" \
             "${CARBONTEQ_TRACKIO_WHEEL_URL}"
-          echo "${CARBONTEQ_TRACKIO_WHEEL_SHA256}  ${POSTTRAIN_CONSUMER_EXTRA_WHEELS}" | sha256sum --check --strict
-          VIRTUAL_ENV=.venv uv pip install --no-deps "${POSTTRAIN_CONSUMER_EXTRA_WHEELS}"
+          echo "${CARBONTEQ_TRACKIO_WHEEL_SHA256}  ${CARBONTEQ_TRACKIO_WHEEL_PATH}" | sha256sum --check --strict
+          curl --fail --location --silent --show-error \
+            --output "${CARBONTEQ_TRL_WHEEL_PATH}" \
+            "${CARBONTEQ_TRL_WHEEL_URL}"
+          echo "${CARBONTEQ_TRL_WHEEL_SHA256}  ${CARBONTEQ_TRL_WHEEL_PATH}" | sha256sum --check --strict
+          VIRTUAL_ENV=.venv uv pip install --no-deps "${CARBONTEQ_TRACKIO_WHEEL_PATH}"
       - name: Install workspace and test tools
         run: uv sync --frozen --all-packages --group dev --python 3.13 --no-install-package carbonteq-trackio --inexact
       - name: Build wheels and run outside the workspace
@@ -136,14 +152,18 @@ jobs:
         with:
           enable-cache: true
           python-version: "3.13"
-      - name: Bootstrap the internal Trackio distribution
+      - name: Bootstrap maintained internal distributions
         run: |
           uv venv --python 3.13
           curl --fail --location --silent --show-error \
-            --output "${POSTTRAIN_CONSUMER_EXTRA_WHEELS}" \
+            --output "${CARBONTEQ_TRACKIO_WHEEL_PATH}" \
             "${CARBONTEQ_TRACKIO_WHEEL_URL}"
-          echo "${CARBONTEQ_TRACKIO_WHEEL_SHA256}  ${POSTTRAIN_CONSUMER_EXTRA_WHEELS}" | sha256sum --check --strict
-          VIRTUAL_ENV=.venv uv pip install --no-deps "${POSTTRAIN_CONSUMER_EXTRA_WHEELS}"
+          echo "${CARBONTEQ_TRACKIO_WHEEL_SHA256}  ${CARBONTEQ_TRACKIO_WHEEL_PATH}" | sha256sum --check --strict
+          curl --fail --location --silent --show-error \
+            --output "${CARBONTEQ_TRL_WHEEL_PATH}" \
+            "${CARBONTEQ_TRL_WHEEL_URL}"
+          echo "${CARBONTEQ_TRL_WHEEL_SHA256}  ${CARBONTEQ_TRL_WHEEL_PATH}" | sha256sum --check --strict
+          VIRTUAL_ENV=.venv uv pip install --no-deps "${CARBONTEQ_TRACKIO_WHEEL_PATH}"
       - name: Install the Verifiers integration
         run: uv sync --frozen --all-packages --extra verifiers --python 3.13 --no-install-package carbonteq-trackio --inexact
       - name: Test the Verifiers bridge
