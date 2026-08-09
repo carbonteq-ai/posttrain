@@ -677,7 +677,7 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert 'if [[ "${candidate_tree}" = "${release_tree}" ]]; then' in final
     assert '"repos/${GITHUB_REPOSITORY}/compare/${candidate_sha}...${RELEASE_SOURCE_SHA}"' in final
     assert ".github/*|apps/release/tests/*|docs/plan/*" in final
-    assert 'candidate build inputs changed:' in final
+    assert "candidate build inputs changed:" in final
     assert 'test "${candidate_version}" = "${release_version}"' in final
     assert 'cp "${candidate_manifest}" packages/runtime-images/src/posttrain/runtime_images/published.toml' in final
     assert "resume_from_run_id" in final
