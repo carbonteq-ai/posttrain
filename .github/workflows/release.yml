@@ -113,19 +113,13 @@ jobs:
           echo "RELEASE_SOURCE_SHA=${source_sha}" >> "$GITHUB_ENV"
           echo "resuming immutable ${version} artifacts from ${source_sha}"
 
-      - name: Validate the final source and lock
+      - name: Verify the final source and lock
         run: |
-          # The runner service has production Trackio variables for the real
-          # canary. Keep the unit/integration suite hermetic so its SQLite
-          # fixtures cannot accidentally read or mutate live Trackio.
-          unset TRACKIO_SERVER_URL POSTTRAIN_TRACKIO_SERVER_URL TRACKIO_WRITE_TOKEN
-          uv sync --all-packages --group dev --python 3.13
+          # Broad source checks run once on the exact merged SHA in required
+          # CI. The release runner only needs a locked environment and the
+          # release-specific manifest check before it handles remote state.
+          uv sync --all-packages --group dev --python 3.13 --locked
           uv run --no-sync posttrain-release check
-          uv run --no-sync ruff check .
-          uv run --no-sync ruff format --check .
-          uv run --no-sync pyright
-          uv run --no-sync lint-imports
-          uv run --no-sync pytest
 
       - name: Materialize and verify the retained release wheelhouse
         if: inputs.resume_from_run_id != ''
