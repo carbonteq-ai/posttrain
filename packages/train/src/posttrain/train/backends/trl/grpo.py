@@ -73,6 +73,13 @@ class _ActorUpdateTelemetry:
         self._started_at = time.perf_counter()
         self._optimizer_step = optimizer_step
 
+    def ensure_started(self, optimizer_step: int) -> None:
+        """Open the actor phase once for all microbatches in one optimizer step."""
+
+        if self._phase is not None and self._optimizer_step == optimizer_step:
+            return
+        self.start(optimizer_step)
+
     def complete(self, optimizer_step: int) -> None:
         if self._phase is None:
             return
@@ -163,6 +170,19 @@ def _actor_update_callback_type(imports: Mapping[str, Any], telemetry: _ActorUpd
     return ActorUpdateCallback
 
 
+def _actor_update_trainer_type(parent: type[Any], telemetry: _ActorUpdateTelemetry) -> type[Any]:
+    """Start actor telemetry after TRL finishes preparing the retained rollout batch."""
+
+    class ActorUpdateTrainer(parent):
+        def _prepare_inputs(self, generation_batch: dict[str, Any]) -> dict[str, Any]:
+            prepared = super()._prepare_inputs(generation_batch)
+            if self.model.training:
+                telemetry.ensure_started(int(self.state.global_step) + 1)
+            return cast(dict[str, Any], prepared)
+
+    return ActorUpdateTrainer
+
+
 def run_grpo(
     context: RunContext,
     request: GRPORequest,
@@ -240,6 +260,7 @@ def _run_online_rl(
     )
     context.event("grpo_runtime_resolved", _online_rl_runtime_attributes(request))
     actor_update = _ActorUpdateTelemetry(context)
+    trainer_type = _actor_update_trainer_type(GRPOTrainer, actor_update)
 
     def normalize_metrics(step: int, native: Mapping[str, object]) -> Mapping[str, float]:
         metrics = dict(
@@ -259,10 +280,10 @@ def _run_online_rl(
         return metrics
 
     with context.phase("runtime_initialization", {"backend": "trl"}):
-        trainer = GRPOTrainer(
+        trainer = trainer_type(
             model=model,
             reward_funcs=cast(Any, _bridge_reward),
-            rollout_func=cast(Any, _rollout_function(context, request, tokenizer, actor_update)),
+            rollout_func=cast(Any, _rollout_function(context, request, tokenizer)),
             args=config_type(**arguments),
             train_dataset=dataset,
             processing_class=tokenizer,
@@ -308,7 +329,6 @@ def _rollout_function(
     context: RunContext,
     request: GRPORequest | SAMPORequest,
     tokenizer: Any,
-    actor_update: _ActorUpdateTelemetry | None = None,
 ) -> Any:
     """Translate TRL generation batches into the public environment-rollout bridge contract."""
 
@@ -403,8 +423,6 @@ def _rollout_function(
                 },
                 step=step,
             )
-        if actor_update is not None:
-            actor_update.start(step + 1)
         return result
 
     return run_rollouts

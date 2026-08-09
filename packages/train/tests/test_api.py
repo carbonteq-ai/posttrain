@@ -78,6 +78,7 @@ from posttrain.train.backends.trl.distillation import (
 )
 from posttrain.train.backends.trl.grpo import (
     _actor_update_callback_type,
+    _actor_update_trainer_type,
     _ActorUpdateTelemetry,
     _configure_liger_loss,
     _grpo_arguments,
@@ -1074,7 +1075,7 @@ def test_grpo_rollout_adapter_emits_population_and_throughput_evidence(
     assert observer.metrics_seen[-1].step == 3
 
 
-def test_grpo_actor_update_phase_starts_after_rollout_and_ends_at_optimizer_step(
+def test_grpo_actor_update_phase_starts_after_retained_rollouts_and_ends_at_optimizer_step(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -1101,7 +1102,7 @@ def test_grpo_actor_update_phase_starts_after_rollout_and_ends_at_optimizer_step
     monotonic = iter((10.0, 12.0, 15.0, 18.5))
     monkeypatch.setattr("posttrain.train.backends.trl.grpo.time.perf_counter", lambda: next(monotonic))
     actor_update = _ActorUpdateTelemetry(context)
-    rollout = _rollout_function(context, request, object(), actor_update)
+    rollout = _rollout_function(context, request, object())
 
     rollout(
         [[{"role": "user", "content": "What is 2 + 2?"}]],
@@ -1117,8 +1118,39 @@ def test_grpo_actor_update_phase_starts_after_rollout_and_ends_at_optimizer_step
     assert phase_events == [
         ("runtime_phase_started", "rollout", 3),
         ("runtime_phase_completed", "rollout", 3),
-        ("runtime_phase_started", "actor_update", 4),
     ]
+
+    class PreparingTrainer:
+        def __init__(self) -> None:
+            self.model = SimpleNamespace(training=True)
+            self.state = SimpleNamespace(global_step=3)
+            self.prepare_calls = 0
+
+        def _prepare_inputs(self, generation_batch: dict[str, object]) -> dict[str, object]:
+            if self.prepare_calls == 0:
+                # OLMo3 may score several candidate batches inside one
+                # preparation call. None of those refills is actor work.
+                for _candidate_batch in range(2):
+                    assert actor_update.active is False
+            else:
+                assert actor_update.active is True
+            self.prepare_calls += 1
+            return generation_batch
+
+    trainer = _actor_update_trainer_type(PreparingTrainer, actor_update)()
+    prepared = trainer._prepare_inputs({"rollout_reward": [1.0]})
+    assert prepared == {"rollout_reward": [1.0]}
+    assert actor_update.active is True
+    # Gradient-accumulation microbatches for the same optimizer step do not
+    # create overlapping runtime phases.
+    trainer._prepare_inputs({"rollout_reward": [1.0]})
+    phase_events = [
+        (event.name, event.attributes["phase"], event.attributes.get("logical_step"))
+        for event in observer.events
+        if "phase" in event.attributes
+    ]
+    assert phase_events[-1] == ("runtime_phase_started", "actor_update", 4)
+    assert sum(event[1] == "actor_update" for event in phase_events) == 1
     callback = _actor_update_callback_type({"TrainerCallback": object}, actor_update)()
     control = SimpleNamespace()
     assert callback.on_step_end(SimpleNamespace(), SimpleNamespace(global_step=4), control) is control
