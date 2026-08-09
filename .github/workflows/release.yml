@@ -181,7 +181,7 @@ jobs:
                 --jq '.files[].filename' \
                 | while IFS= read -r path; do
                     case "${path}" in
-                      .github/*|apps/release/tests/*) ;;
+                      .github/*|apps/release/tests/*|docs/plan/*) ;;
                       *) printf '%s\\n' "${path}" ;;
                     esac
                   done)"
