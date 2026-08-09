@@ -169,8 +169,28 @@ jobs:
               "repos/${GITHUB_REPOSITORY}/commits/${candidate_sha}" \
               --jq '.commit.tree.sha')"
             release_tree="$(git rev-parse "${RELEASE_SOURCE_SHA}^{tree}")"
-            test "${candidate_tree}" = "${release_tree}"
-            echo "candidate source has the identical merged tree after squash merge"
+            if [[ "${candidate_tree}" = "${release_tree}" ]]; then
+              echo "candidate source has the identical merged tree after squash merge"
+            else
+              # Release-only workflow and release-test edits do not enter any
+              # wheel or runtime image. Permit those post-candidate changes,
+              # but reject every build-input change so candidate bytes cannot
+              # be promoted for a different package source.
+              unsafe_files="$(gh api \
+                "repos/${GITHUB_REPOSITORY}/compare/${candidate_sha}...${RELEASE_SOURCE_SHA}" \
+                --jq '.files[].filename' \
+                | while IFS= read -r path; do
+                    case "${path}" in
+                      .github/*|apps/release/tests/*|docs/plan/*) ;;
+                      *) printf '%s\\n' "${path}" ;;
+                    esac
+                  done)"
+              if [[ -n "${unsafe_files}" ]]; then
+                printf 'candidate build inputs changed:\\n%s\\n' "${unsafe_files}" >&2
+                exit 1
+              fi
+              echo "candidate build inputs are unchanged; only release plumbing differs"
+            fi
           fi
           candidate_artifact="$(gh api \
             "repos/${GITHUB_REPOSITORY}/actions/runs/${CANDIDATE_RUN_ID}/artifacts" \
