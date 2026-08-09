@@ -10,7 +10,14 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Literal, Protocol
 
-from posttrain.common import ContractError, JsonValue, LocalArtifactRef, Observer, StoredArtifactRef
+from posttrain.common import (
+    ContractError,
+    JsonValue,
+    LocalArtifactRef,
+    Observer,
+    PublishedArtifact,
+    StoredArtifactRef,
+)
 from posttrain.common.selections import validate_selection_id
 
 if TYPE_CHECKING:
@@ -28,6 +35,35 @@ if TYPE_CHECKING:
 type Stage = Literal["screen", "train", "qualify"]
 type RunStatus = Literal["running", "succeeded", "partial", "failed", "cancelled", "unsupported"]
 type RunOutcomeStatus = Literal["succeeded", "partial", "failed", "cancelled", "unsupported"]
+type ArtifactIntegrityState = Literal["verified", "failed", "unsupported"]
+
+
+@dataclass(frozen=True, slots=True)
+class ArtifactIntegrityResult:
+    """Bounded provider result for artifact presence and digest verification."""
+
+    state: ArtifactIntegrityState
+    checked_bytes: int = 0
+    failures: tuple[str, ...] = ()
+    deep: bool = False
+
+    def __post_init__(self) -> None:
+        if self.checked_bytes < 0:
+            raise ContractError("artifact integrity checked_bytes cannot be negative")
+        if any(not failure.strip() for failure in self.failures):
+            raise ContractError("artifact integrity failures must be non-empty")
+
+
+class ArtifactPublicationHandle(Protocol):
+    """A queued artifact publication that can be awaited during finalization."""
+
+    @property
+    def submission_id(self) -> str | None: ...
+
+    @property
+    def state(self) -> Literal["pending", "uploading", "committed", "failed", "aborted"]: ...
+
+    def wait(self, timeout: float | None = None) -> PublishedArtifact: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,6 +159,8 @@ class TrackedRun(Observer, Protocol):
 
     def finish(self, outcome: RunOutcome) -> None: ...
 
+    def flush_artifacts(self, timeout: float | None = None) -> tuple[PublishedArtifact, ...]: ...
+
 
 class TrackingBackend(Protocol):
     """Writer-side provider integration selected by a host."""
@@ -146,9 +184,14 @@ class RunDataSource(Protocol):
 
     async def artifacts(self, run_id: str) -> ArtifactSet: ...
 
+    async def verify_artifact(self, reference: StoredArtifactRef, *, deep: bool = False) -> ArtifactIntegrityResult: ...
+
 
 __all__ = [
     "ArtifactInput",
+    "ArtifactIntegrityResult",
+    "ArtifactIntegrityState",
+    "ArtifactPublicationHandle",
     "RunDataSource",
     "RunError",
     "RunOutcome",

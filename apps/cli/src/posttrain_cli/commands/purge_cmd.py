@@ -8,7 +8,7 @@ import typer
 
 from ..context import CliState
 from ..output import emit
-from ..purge_surface import apply_saved_plan, plan_store, render_plan
+from ..purge_surface import apply_saved_plan, load_saved_plan, render_plan
 
 
 def register(app: typer.Typer) -> None:
@@ -23,7 +23,7 @@ def register(app: typer.Typer) -> None:
         purge_id: Annotated[str, typer.Argument(help="content-addressed purge id")],
     ) -> None:
         state: CliState = ctx.obj
-        plan = plan_store(state.layout()).load_plan(purge_id)
+        plan = load_saved_plan(state.layout(), purge_id)
         emit(state, plan, render_plan(plan))
 
     @purge_app.command("apply", help="apply a reviewed purge plan")

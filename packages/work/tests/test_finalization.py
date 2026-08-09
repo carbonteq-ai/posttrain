@@ -71,6 +71,12 @@ class PublishingRun:
         assert all(path.exists() for path in self._source_paths)
         return tuple(self._published)
 
+    def flush_artifacts(self, timeout: float | None = None) -> tuple[PublishedArtifact, ...]:
+        del timeout
+        if "published_artifacts" in self.__dict__ and self.__dict__["published_artifacts"] is None:
+            return ()
+        return tuple(self._published)
+
     def finish(self, outcome: RunOutcome) -> None:
         self.outcomes.append(outcome)
 

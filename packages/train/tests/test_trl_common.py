@@ -11,6 +11,7 @@ from posttrain.common import ProducedArtifact
 from posttrain.common.variants import GEMMA_4_12B_IT, LFM_25_12B_THINKING, QWEN_35_2B
 from posttrain.train import LoRAUpdate
 from posttrain.train.backends.trl.common import (
+    checkpoint_callback_type,
     preserve_recovery_checkpoint_after_error,
     publish_interrupted_recovery_checkpoint,
     trainable_model_factory,
@@ -35,6 +36,7 @@ IMPORTS = {
 
 @dataclass
 class CaptureContext:
+    run_id: str = "run/example"
     events: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
     artifacts: list[ProducedArtifact] = field(default_factory=list)
 
@@ -50,12 +52,12 @@ def _write_lora_recovery_checkpoint(path: Path) -> None:
     for name in (
         "adapter_config.json",
         "adapter_model.safetensors",
-        "trainer_state.json",
         "optimizer.pt",
         "scheduler.pt",
         "rng_state.pth",
     ):
         (path / name).write_bytes(name.encode())
+    (path / "trainer_state.json").write_text('{"global_step": 4}\n', encoding="utf-8")
 
 
 def test_trainable_model_factory_uses_multimodal_loader_for_gemma4() -> None:
@@ -141,13 +143,13 @@ def test_mtp_compile_disable_requires_a_boolean() -> None:
         _configure_torch_compile({"disable_torch_compile": "yes"})
 
 
-def test_interrupted_lora_run_publishes_only_complete_recovery_checkpoint(tmp_path: Path) -> None:
+def test_interrupted_lora_run_publishes_recovery_and_model_views(tmp_path: Path) -> None:
     checkpoint = tmp_path / "checkpoint-4"
     _write_lora_recovery_checkpoint(checkpoint)
     context = CaptureContext()
     trainer = SimpleNamespace(
         args=SimpleNamespace(output_dir=str(tmp_path)),
-        state=SimpleNamespace(global_step=4),
+        state=SimpleNamespace(global_step=5),
     )
 
     retained = publish_interrupted_recovery_checkpoint(
@@ -161,14 +163,55 @@ def test_interrupted_lora_run_publishes_only_complete_recovery_checkpoint(tmp_pa
     )
 
     assert retained == checkpoint
-    assert len(context.artifacts) == 1
-    artifact = context.artifacts[0]
-    assert artifact.kind == "training-checkpoint"
-    assert artifact.role == "recovery"
-    assert artifact.reference.path == checkpoint.resolve()  # type: ignore[union-attr]
-    assert artifact.metadata["global_step"] == 4
+    assert len(context.artifacts) == 2
+    recovery, model = context.artifacts
+    assert recovery.kind == "training-checkpoint"
+    assert recovery.role == "recovery"
+    assert recovery.reference.path == checkpoint.resolve()  # type: ignore[union-attr]
+    assert recovery.metadata["global_step"] == 4
+    assert model.kind == "model-adapter"
+    assert model.role == "checkpoint-model"
+    assert model.metadata["checkpoint_snapshot_id"] == "run/example/step-00000004"
+    assert model.reference.path.is_dir()  # type: ignore[union-attr]
     assert not tuple(checkpoint.glob("model*.safetensors"))
     assert context.events[-1][0] == "checkpoint_saved"
+    assert context.events[-1][1]["global_step"] == 4
+
+
+def test_checkpoint_callback_publishes_paired_views_on_save(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "trainer" / "checkpoint-4"
+    checkpoint.parent.mkdir()
+    _write_lora_recovery_checkpoint(checkpoint)
+
+    class TrainerCallback:
+        pass
+
+    context = CaptureContext()
+    callback = checkpoint_callback_type(
+        context,  # type: ignore[arg-type]
+        {
+            "TrainerCallback": TrainerCallback,
+            "get_last_checkpoint": lambda _: str(checkpoint),
+        },
+        model=QWEN_35_2B,
+        technique="grpo",
+        settings=SimpleNamespace(id="training-settings/test", revision="1"),
+        update=LoRAUpdate(),
+        workspace=tmp_path,
+    )()
+
+    result = callback.on_save(
+        SimpleNamespace(output_dir=str(tmp_path / "trainer")),
+        SimpleNamespace(global_step=4),
+        "control",
+    )
+
+    assert result == "control"
+    assert [artifact.kind for artifact in context.artifacts] == ["training-checkpoint", "model-adapter"]
+    model_path = context.artifacts[1].reference.path  # type: ignore[union-attr]
+    assert model_path == (tmp_path / "checkpoints" / "step-00000004" / "model").resolve()
+    assert (model_path / "adapter_model.safetensors").is_file()
+    assert not (model_path / "optimizer.pt").exists()
 
 
 def test_interrupted_run_without_a_complete_checkpoint_is_not_published(tmp_path: Path) -> None:

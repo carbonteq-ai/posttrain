@@ -8,6 +8,7 @@ from posttrain.catalog import ProjectLayout
 from posttrain.common import ContractError
 from posttrain.execution import AdmissionEntry, ExecutionSubmissionStore, PurgeStore
 
+from .execution_config import resolve_admission_state_root
 from .execution_provider import execution_admission_service
 
 
@@ -21,21 +22,22 @@ class _RunRow:
 def purged_run_ids(layout: ProjectLayout) -> set[str]:
     """Return runs with a completed, unblocked cross-plane purge receipt."""
 
-    store = PurgeStore(layout.state)
-    if not store.root.is_dir():
-        return set()
     purged: set[str] = set()
-    for directory in store.root.iterdir():
-        if not directory.is_dir() or not (directory / "receipt.json").is_file():
+    stores = (PurgeStore(resolve_admission_state_root()), PurgeStore(layout.state))
+    for store in stores:
+        if not store.root.is_dir():
             continue
-        try:
-            plan = store.load_plan(directory.name)
-            receipt = store.load_receipt(directory.name)
-        except Exception:
-            continue
-        if plan.blockers or receipt.failed_action is not None:
-            continue
-        purged.update(plan.run_ids)
+        for directory in store.root.iterdir():
+            if not directory.is_dir() or not (directory / "receipt.json").is_file():
+                continue
+            try:
+                plan = store.load_plan(directory.name)
+                receipt = store.load_receipt(directory.name)
+            except Exception:
+                continue
+            if plan.project_id != layout.project_id or plan.blockers or receipt.failed_action is not None:
+                continue
+            purged.update(plan.run_ids)
     return purged
 
 

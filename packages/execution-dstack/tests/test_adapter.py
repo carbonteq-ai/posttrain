@@ -16,6 +16,7 @@ from posttrain.execution import (
     ExecutionPolicy,
     ExecutionRequest,
     LogCursor,
+    ProviderCleanupDeferred,
     RuntimeImageRef,
 )
 from posttrain.tracking import RunSpec
@@ -274,6 +275,134 @@ def test_sdk_cleanup_waits_through_transient_worker_capacity_gap(monkeypatch: py
     assert attempts == [0, 1]
 
 
+def test_sdk_cleanup_submits_durable_zero_offer_plan(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _sdk_bridge_module(monkeypatch)
+    plans: list[object] = []
+    configurations: list[dict] = []
+    applied = object()
+
+    class Runs:
+        def get(self, _name):
+            return None
+
+        def get_run_plan(self, *, configuration, repo):
+            del repo
+            configurations.append(configuration.values)
+            plan = types.SimpleNamespace(job_plans=(types.SimpleNamespace(offers=()),))
+            plans.append(plan)
+            return plan
+
+        def apply_plan(self, *, run_plan, repo, reserve_ports):
+            del repo, reserve_ports
+            assert run_plan is plans[0]
+            return applied
+
+    client = types.SimpleNamespace(runs=Runs())
+    result = module._apply_cleanup_when_worker_is_available(
+        client,
+        {
+            "name": "pt-clean-test",
+            "image": "registry.lan/posttrain@sha256:" + "a" * 64,
+            "retry": {"on_events": ["no-capacity"], "duration": 86_400},
+        },
+    )
+
+    assert result is applied
+    assert [value["resources"]["gpu"]["count"] for value in configurations] == [0, 1]
+    assert all(value["retry"]["on_events"] == ["no-capacity"] for value in configurations)
+
+
+def test_sdk_cleanup_resumes_existing_nonterminal_retry(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _sdk_bridge_module(monkeypatch)
+
+    class Run:
+        def __init__(self, status: str) -> None:
+            self.status = types.SimpleNamespace(value=status)
+
+        def refresh(self):
+            return None
+
+    failed = Run("failed")
+    queued = Run("submitted")
+
+    class Runs:
+        def get(self, name):
+            return {
+                "pt-clean-test": failed,
+                "pt-clean-test-retry-1": queued,
+            }.get(name)
+
+        def get_run_plan(self, **_kwargs):
+            raise AssertionError("an existing queued retry must be resumed")
+
+        def apply_plan(self, **_kwargs):
+            raise AssertionError("an existing queued retry must not be resubmitted")
+
+    result = module._apply_cleanup_when_worker_is_available(
+        types.SimpleNamespace(runs=Runs()),
+        {"name": "pt-clean-test", "image": "registry.lan/posttrain@sha256:" + "a" * 64},
+    )
+
+    assert result is queued
+
+
+def test_sdk_cleanup_returns_deferred_evidence_for_queued_exact_worker_task(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _sdk_bridge_module(monkeypatch)
+
+    class Run:
+        def __init__(self, name: str, status: str, *, hostname: str | None = None) -> None:
+            self.name = name
+            self.status = types.SimpleNamespace(value=status)
+            self.hostname = hostname
+            self._run = object()
+
+        def refresh(self):
+            return None
+
+    source = Run("source-run", "done", hostname="gpu-worker-a")
+    cleanup = Run("pt-clean-test", "pending")
+    configurations: list[dict] = []
+
+    class Runs:
+        def get(self, name):
+            return source if name == "source-run" else None
+
+        def get_run_plan(self, *, configuration, repo):
+            del repo
+            configurations.append(configuration.values)
+            return types.SimpleNamespace(job_plans=(types.SimpleNamespace(offers=()),))
+
+        def apply_plan(self, *, run_plan, repo, reserve_ports):
+            del run_plan, repo, reserve_ports
+            return cleanup
+
+    monkeypatch.setattr(module, "_client", lambda _payload: types.SimpleNamespace(runs=Runs()))
+    response = module.cleanup_workspace(
+        {
+            "project": "posttrain",
+            "source_run_name": "source-run",
+            "cleanup_run_name": "pt-clean-test",
+            "hostname": "gpu-worker-a",
+            "run_id": "test-run",
+            "workspace": "/var/lib/posttrain/runs/test-run",
+            "image": "registry.lan/posttrain@sha256:" + "a" * 64,
+        }
+    )
+
+    assert response == {
+        "cleanup_run_name": "pt-clean-test",
+        "cleanup_status": "pending",
+        "hostname": "gpu-worker-a",
+        "workspace": "/var/lib/posttrain/runs/test-run",
+        "workspace_state": "deferred",
+        "emptied": False,
+        "reclaimed_bytes": 0,
+    }
+    assert configurations[0]["retry"] == {"on_events": ["no-capacity"], "duration": 86_400}
+
+
 def test_dstack_maps_mandatory_instance_trust_bundle_as_additional_authorities(
     tmp_path: Path,
 ) -> None:
@@ -451,6 +580,31 @@ def test_cleanup_fails_closed_when_task_does_not_verify_scope(
     handle = provider.submit(provider.plan(request))
 
     with pytest.raises(RuntimeError, match="did not verify"):
+        provider.cleanup(
+            handle,
+            run_id="test-run",
+            run_workspace=Path("/var/lib/posttrain/runs/test-run"),
+            runtime_image=request.image,
+        )
+
+
+def test_cleanup_reports_exact_worker_capacity_wait_as_deferred(tmp_path: Path) -> None:
+    gateway = FakeGateway()
+    gateway.status = "done"
+    gateway.cleanup_response = {
+        "cleanup_run_name": "pt-clean-test",
+        "cleanup_status": "pending",
+        "hostname": "gpu-worker-a",
+        "workspace": "/var/lib/posttrain/runs/test-run",
+        "workspace_state": "deferred",
+        "emptied": False,
+        "reclaimed_bytes": 0,
+    }
+    provider = DstackExecutionProvider(gateway, project="posttrain")
+    request = _request(tmp_path)
+    handle = provider.submit(provider.plan(request))
+
+    with pytest.raises(ProviderCleanupDeferred, match="retry the same immutable purge"):
         provider.cleanup(
             handle,
             run_id="test-run",

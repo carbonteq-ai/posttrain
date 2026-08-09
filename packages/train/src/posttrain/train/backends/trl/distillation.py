@@ -22,6 +22,7 @@ from ...requests import OnPolicyDistillationRequest
 from .common import (
     BackendTrainingResult,
     callback_type,
+    checkpoint_callback_type,
     emit_parameter_counts,
     emit_runtime_versions,
     finish_training,
@@ -104,6 +105,15 @@ def run_distillation(
                             (time.perf_counter() - started_at) * 1_000,
                         )
 
+        checkpoint_callback = checkpoint_callback_type(
+            context,
+            imports,
+            model=request.student,
+            technique="distill",
+            settings=request.settings,
+            update=request.training.update,
+            workspace=output_dir.parent,
+        )()
         with context.phase("runtime_initialization", {"backend": "trl"}):
             trainer = ObservedIWOPDTrainer(
                 model=model,
@@ -114,7 +124,7 @@ def run_distillation(
                 args=IWOPDConfig(**arguments),
                 train_dataset=dataset,
                 processing_class=tokenizer,
-                callbacks=[callback_type(context, imports)()],
+                callbacks=[callback_type(context, imports)(), checkpoint_callback],
                 rollout_func=cast(Any, _rollout_function(context, request, tokenizer, ledger)),
             )
         if teacher_product == "vllm":

@@ -2,10 +2,11 @@
 
 The platform uses [`carbonteq-ai/trackio`](https://github.com/carbonteq-ai/trackio),
 an additive fork of upstream Trackio. Workspace packages keep the normal
-`import trackio` API. The current workspace dependency is the immutable
-internal-index release `carbonteq-trackio==0.31.5.post10`, built from commit
-`f717ef438df88bc9cca20ea7e28752f618a8af49`. Its wheel SHA-256 is
-`df549d81a9ee087e213c7d02735997707abf06b2992e8e09de57f2c840a7611d`.
+`import trackio` API. The next framework dependency is
+`carbonteq-trackio==0.31.5.post12`, built from an immutable fork release
+commit and verified before the Posttrain pin is updated. Until that stable-index
+publication is read back, consumers must continue using the currently pinned
+post11 bytes.
 The deployed shared and candidate services now report post10. `0.31.5.post4` on
 `pypi.lan` is permanently skewed (metadata post4, import post3) and must not be
 installed. The five kind images affected by the workspace lock were rebuilt
@@ -54,6 +55,15 @@ rollout traces. The complete native Verifiers trace artifact remains the replay
 authority. Do not describe this repair as deployed until its immutable Trackio
 commit, wheel, real-Doris backlog replay, and Observatory readback are
 qualified.
+
+## Background artifact publication
+
+Post12 adds an opt-in bounded client-side artifact queue. A producer may call
+`Run.log_artifact(..., background=True)` and receive an artifact with a stable
+submission id and `pending`/`uploading`/`committed`/`failed` state. The producer
+must call `wait()` or `Run.flush_artifacts()` before using the version. The
+existing synchronous API remains the default; Posttrain opts in only after the
+client capability is present and still performs an explicit final drain.
 
 ## Distribution transition
 

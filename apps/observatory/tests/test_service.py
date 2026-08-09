@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from posttrain.common import JsonValue
 from posttrain.tracking import (
+    ArtifactIntegrityResult,
     ArtifactSet,
     MetricPoint,
     MetricSeries,
@@ -56,6 +57,10 @@ class FakeRunDataSource:
     async def artifacts(self, run_id: str) -> ArtifactSet:
         del run_id
         return ArtifactSet()
+
+    async def verify_artifact(self, reference, *, deep: bool = False) -> ArtifactIntegrityResult:
+        del reference
+        return ArtifactIntegrityResult("unsupported", deep=deep)
 
 
 def _summary(run_id: str, job_kind: str = "train.sft") -> RunSummary:

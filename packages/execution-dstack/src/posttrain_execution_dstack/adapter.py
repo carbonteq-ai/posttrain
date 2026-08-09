@@ -22,6 +22,7 @@ from posttrain.execution import (
     ExecutionState,
     LogCursor,
     LogPage,
+    ProviderCleanupDeferred,
     ProviderCleanupResult,
     RuntimeImageRef,
 )
@@ -396,6 +397,21 @@ class DstackExecutionProvider:
                 "image": runtime_image.value,
             },
         )
+        if (
+            response.get("hostname") == hostname
+            and response.get("workspace") == str(run_workspace)
+            and response.get("workspace_state") == "deferred"
+            and response.get("emptied") is False
+            and response.get("reclaimed_bytes") == 0
+        ):
+            cleanup_run_name = response.get("cleanup_run_name")
+            if not isinstance(cleanup_run_name, str) or not cleanup_run_name:
+                raise RuntimeError("dstack deferred cleanup did not identify its provider task")
+            cleanup_status = str(response.get("cleanup_status") or "pending")
+            raise ProviderCleanupDeferred(
+                f"exact-worker cleanup task {cleanup_run_name!r} is {cleanup_status}; "
+                "retry the same immutable purge after dstack capacity is available"
+            )
         if (
             hostname == "unassigned"
             and response.get("hostname") is None

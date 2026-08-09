@@ -288,6 +288,19 @@ class PurgeApplyError(RuntimeError):
         super().__init__(f"purge action {action_id!r} failed: {cause}")
 
 
+class PurgeActionDeferred(RuntimeError):
+    """One action is safe to retry but its external precondition is not ready."""
+
+
+class PurgeApplyDeferred(RuntimeError):
+    """An immutable purge stopped before mutation could safely continue."""
+
+    def __init__(self, action_id: str, cause: PurgeActionDeferred) -> None:
+        self.action_id = action_id
+        self.cause = cause
+        super().__init__(f"purge action {action_id!r} is deferred: {cause}")
+
+
 class PurgeStore:
     """Durable machine-scoped plans, journals, and receipts."""
 
@@ -566,6 +579,14 @@ def apply_purge_plan(
         try:
             executor.revalidate(action)
             executor.apply(action)
+        except PurgeActionDeferred as error:
+            store.append_journal(
+                purge_id,
+                action_id=action.action_id,
+                status="deferred",
+                detail=str(error),
+            )
+            raise PurgeApplyDeferred(action.action_id, error) from error
         except Exception as error:
             store.append_journal(
                 purge_id,
@@ -591,6 +612,8 @@ def apply_purge_plan(
 __all__ = [
     "PurgeAction",
     "PurgeActionExecutor",
+    "PurgeActionDeferred",
+    "PurgeApplyDeferred",
     "PurgeApplyError",
     "apply_purge_plan",
     "PurgeMode",

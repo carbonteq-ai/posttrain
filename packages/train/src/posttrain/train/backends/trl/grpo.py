@@ -22,6 +22,7 @@ from ...sampo_advantages import compute_sampo_advantages
 from .common import (
     BackendTrainingResult,
     callback_type,
+    checkpoint_callback_type,
     emit_parameter_counts,
     emit_runtime_versions,
     finish_training,
@@ -261,6 +262,15 @@ def _run_online_rl(
     context.event("grpo_runtime_resolved", _online_rl_runtime_attributes(request))
     actor_update = _ActorUpdateTelemetry(context)
     trainer_type = _actor_update_trainer_type(GRPOTrainer, actor_update)
+    checkpoint_callback = checkpoint_callback_type(
+        context,
+        imports,
+        model=request.policy,
+        technique=technique,
+        settings=request.settings,
+        update=request.training.update,
+        workspace=output_dir.parent,
+    )()
 
     def normalize_metrics(step: int, native: Mapping[str, object]) -> Mapping[str, float]:
         metrics = dict(
@@ -290,6 +300,7 @@ def _run_online_rl(
             callbacks=[
                 callback_type(context, imports, metric_normalizer=normalize_metrics)(),
                 _actor_update_callback_type(imports, actor_update)(),
+                checkpoint_callback,
             ],
         )
         _configure_liger_loss(trainer, request)
@@ -332,12 +343,16 @@ def _rollout_function(
 ) -> Any:
     """Translate TRL generation batches into the public environment-rollout bridge contract."""
 
+    rollout_batch_step: int | None = None
+    rollout_batch_ordinal = 0
+
     def run_rollouts(
         prompts: list[Any],
         trainer: Any,
         *,
         inputs: list[dict[str, Any]] | None,
     ) -> dict[str, Any]:
+        nonlocal rollout_batch_ordinal, rollout_batch_step
         if inputs is None or len(inputs) != len(prompts):
             raise ValueError("TRL must provide dataset rows aligned with rollout prompts")
         try:
@@ -347,12 +362,16 @@ def _rollout_function(
         from .online_rl import TrlPolicyGenerator
 
         generator = TrlPolicyGenerator(trainer, tokenizer, request.policy, request.settings, request.training)
-        step = int(trainer.state.global_step)
+        optimizer_step = int(trainer.state.global_step) + 1
+        if rollout_batch_step != optimizer_step:
+            rollout_batch_step = optimizer_step
+            rollout_batch_ordinal = 0
+        rollout_batch_ordinal += 1
         started_at = time.perf_counter()
-        with context.phase("rollout", {"backend": "trl", "logical_step": step}):
+        with context.phase("rollout", {"backend": "trl", "logical_step": optimizer_step}):
             rollouts = asyncio.run(
                 request.bridge.run(
-                    RolloutBatch(example_ids=example_ids, step=step, model_id=request.policy.id),
+                    RolloutBatch(example_ids=example_ids, step=optimizer_step, model_id=request.policy.id),
                     generator,
                 )
             )
@@ -370,12 +389,14 @@ def _rollout_function(
                 "train/rl/time/rollout_seconds": elapsed,
                 "train/rl/rollout_tokens_per_second": completion_tokens / elapsed if elapsed > 0 else 0.0,
             },
-            step=step,
+            step=optimizer_step,
         )
         attributes = {
             "technique": request.settings.algorithm if isinstance(request, GRPORequest) else "sampo",
             "model_variant_id": request.policy.id,
             "training_settings_id": request.settings.id,
+            "optimizer_step": optimizer_step,
+            "rollout_batch_ordinal": rollout_batch_ordinal,
         }
         for rollout in rollouts:
             trace = rollout.trace
@@ -421,7 +442,7 @@ def _rollout_function(
                         sum(advantages.used_sparse_rewards) / len(advantages.used_sparse_rewards)
                     ),
                 },
-                step=step,
+                step=optimizer_step,
             )
         return result
 

@@ -7,6 +7,7 @@ import json
 import math
 import os
 import re
+import shutil
 import sys
 import time
 from collections.abc import Callable, Iterator, Mapping
@@ -337,6 +338,57 @@ def callback_type(
     return ObservationCallback
 
 
+def checkpoint_callback_type(
+    context: RunContext,
+    imports: Mapping[str, Any],
+    *,
+    model: ModelVariant,
+    technique: Literal["sft", "dpo", "grpo", "dapo", "olmo3", "sampo", "distill"],
+    settings: Any,
+    update: ParameterUpdatePlan,
+    workspace: Path,
+) -> type[Any]:
+    """Create a callback that publishes both views after a trainer save.
+
+    The callback only projects a loadable model view for adapter updates. Full
+    parameter checkpoints remain recovery-only until a backend explicitly
+    attests that its checkpoint representation is safe to load as a model.
+    """
+
+    parent = imports["TrainerCallback"]
+
+    class CheckpointPublicationCallback(parent):
+        def __init__(self) -> None:
+            super().__init__()
+            self._published_steps: set[int] = set()
+
+        def on_save(self, args: Any, state: Any, control: Any, **kwargs: Any) -> Any:
+            del kwargs
+            step = int(getattr(state, "global_step", 0))
+            if step < 1 or step in self._published_steps:
+                return control
+            output_dir = Path(str(args.output_dir)).resolve()
+            latest = imports["get_last_checkpoint"](str(output_dir))
+            if latest is None:
+                context.event("checkpoint_publication_unavailable", {"technique": technique, "global_step": step})
+                return control
+            checkpoint = Path(latest).resolve()
+            publish_checkpoint_views(
+                context,
+                checkpoint,
+                model=model,
+                technique=technique,
+                settings=settings,
+                update=update,
+                workspace=workspace,
+                interrupted=False,
+            )
+            self._published_steps.add(step)
+            return control
+
+    return CheckpointPublicationCallback
+
+
 def trainer_arguments(loop: TrainingLoop, output_dir: Path) -> dict[str, Any]:
     arguments: dict[str, Any] = {
         "output_dir": str(output_dir),
@@ -370,6 +422,106 @@ def trainer_arguments(loop: TrainingLoop, output_dir: Path) -> dict[str, Any]:
     return arguments
 
 
+def _project_checkpoint_model_view(checkpoint: Path, destination: Path) -> Path:
+    """Copy adapter/tokenizer files while excluding recovery-only state."""
+
+    temporary = destination.with_name(destination.name + ".tmp")
+    if temporary.exists():
+        shutil.rmtree(temporary)
+    temporary.mkdir(parents=True, exist_ok=False)
+    excluded = {
+        "trainer_state.json",
+        "optimizer.pt",
+        "scheduler.pt",
+        "scaler.pt",
+        "training_args.bin",
+    }
+    for source in checkpoint.iterdir():
+        if not source.is_file() or source.name in excluded or source.name.startswith("rng_state"):
+            continue
+        if source.name.startswith(("model-", "pytorch_model")) or source.name in {
+            "model.safetensors",
+            "pytorch_model.bin",
+        }:
+            raise RuntimeError(f"LoRA checkpoint contains full base-model weights: {source.name}")
+        shutil.copy2(source, temporary / source.name)
+    if destination.exists():
+        shutil.rmtree(destination)
+    temporary.rename(destination)
+    validate_adapter_only_directory(destination)
+    return destination.resolve()
+
+
+def publish_checkpoint_views(
+    context: RunContext,
+    checkpoint: Path,
+    *,
+    model: ModelVariant,
+    technique: Literal["sft", "dpo", "grpo", "dapo", "olmo3", "sampo", "distill"],
+    settings: Any,
+    update: ParameterUpdatePlan,
+    workspace: Path,
+    interrupted: bool,
+) -> None:
+    """Publish a recovery view and, for LoRA, a paired loadable model view."""
+
+    checkpoint = checkpoint.resolve()
+    if isinstance(update, LoRAUpdate | QLoRAUpdate):
+        validate_adapter_only_directory(checkpoint, require_recovery_state=True)
+    try:
+        trainer_state = json.loads((checkpoint / "trainer_state.json").read_text(encoding="utf-8"))
+        checkpoint_step = trainer_state["global_step"]
+    except (OSError, json.JSONDecodeError, KeyError, TypeError) as error:
+        raise RuntimeError(f"recovery checkpoint has invalid trainer state: {checkpoint}") from error
+    if isinstance(checkpoint_step, bool) or not isinstance(checkpoint_step, int) or checkpoint_step < 0:
+        raise RuntimeError(f"recovery checkpoint has invalid global_step: {checkpoint}")
+    snapshot_id = f"{context.run_id}/step-{checkpoint_step:08d}"
+    metadata = {
+        "technique": technique,
+        "model_variant_id": model.id,
+        "training_settings_id": settings.id,
+        "training_settings_revision": settings.revision,
+        "parameter_update_kind": update.kind,
+        "global_step": checkpoint_step,
+        "checkpoint_step": checkpoint_step,
+        "checkpoint_snapshot_id": snapshot_id,
+    }
+    recovery_ref = LocalArtifactRef(checkpoint, _digest_path(checkpoint))
+    context.artifact(
+        ProducedArtifact(
+            name=f"training/{model.id}/{technique}/checkpoint-{checkpoint_step:08d}/recovery",
+            kind="training-checkpoint",
+            reference=recovery_ref,
+            metadata={**metadata, "checkpoint_view": "recovery", "interrupted": interrupted},
+            role="recovery",
+        )
+    )
+    if isinstance(update, LoRAUpdate | QLoRAUpdate):
+        destination = workspace / "checkpoints" / f"step-{checkpoint_step:08d}" / "model"
+        model_dir = _project_checkpoint_model_view(checkpoint, destination)
+        model_ref = LocalArtifactRef(model_dir, _digest_path(model_dir))
+        context.artifact(
+            ProducedArtifact(
+                name=f"training/{model.id}/{technique}/checkpoint-{checkpoint_step:08d}/model",
+                kind="model-adapter",
+                reference=model_ref,
+                metadata={**metadata, "checkpoint_view": "model", "interrupted": interrupted},
+                role="checkpoint-model",
+            )
+        )
+    context.event(
+        "checkpoint_saved",
+        {
+            "technique": technique,
+            "global_step": checkpoint_step,
+            "checkpoint_snapshot_id": snapshot_id,
+            "recovery_only": not isinstance(update, LoRAUpdate | QLoRAUpdate),
+            "model_view_published": isinstance(update, LoRAUpdate | QLoRAUpdate),
+            "interrupted": interrupted,
+        },
+    )
+
+
 @contextmanager
 def trainer_lifecycle(trainer: Any) -> Iterator[None]:
     """Close Accelerate's distributed runtime after success or failure."""
@@ -396,34 +548,15 @@ def publish_interrupted_recovery_checkpoint(
         context.event("recovery_checkpoint_unavailable", {"technique": technique})
         return None
     checkpoint = Path(latest).resolve()
-    if isinstance(update, LoRAUpdate | QLoRAUpdate):
-        validate_adapter_only_directory(checkpoint, require_recovery_state=True)
-    reference = LocalArtifactRef(checkpoint, _digest_path(checkpoint))
-    context.artifact(
-        ProducedArtifact(
-            name=f"training/{model.id}/{technique}/recovery-checkpoint",
-            kind="training-checkpoint",
-            reference=reference,
-            metadata={
-                "technique": technique,
-                "model_variant_id": model.id,
-                "training_settings_id": settings.id,
-                "training_settings_revision": settings.revision,
-                "parameter_update_kind": update.kind,
-                "global_step": int(trainer.state.global_step),
-                "interrupted": True,
-            },
-            role="recovery",
-        )
-    )
-    context.event(
-        "checkpoint_saved",
-        {
-            "technique": technique,
-            "global_step": int(trainer.state.global_step),
-            "recovery_only": True,
-            "interrupted": True,
-        },
+    publish_checkpoint_views(
+        context,
+        checkpoint,
+        model=model,
+        technique=technique,
+        settings=settings,
+        update=update,
+        workspace=trainer.args.output_dir and Path(trainer.args.output_dir).parent,
+        interrupted=True,
     )
     return checkpoint
 
@@ -531,6 +664,7 @@ def finish_training(
 __all__ = [
     "BackendTrainingResult",
     "callback_type",
+    "checkpoint_callback_type",
     "emit_parameter_counts",
     "emit_runtime_versions",
     "finish_training",
@@ -538,6 +672,7 @@ __all__ = [
     "load_tokenizer",
     "load_trainable_model",
     "preserve_recovery_checkpoint_after_error",
+    "publish_checkpoint_views",
     "publish_interrupted_recovery_checkpoint",
     "trainable_model_factory",
     "trainer_lifecycle",

@@ -51,9 +51,11 @@ ADR is accepted.
 - [x] (2026-08-09) Classified the prior 256-concurrency DAPO probe as rejected
   historical evidence because it did not select the intended advantage
   semantics; it will not be reused as OLMo 3 qualification.
-- [ ] Run the corrected one-step OLMo 3 probe and verify actor/sampler parity,
+- [x] (2026-08-09) Ran the corrected one-step OLMo 3 probe and verified actor/sampler parity,
   reward spread, advantage statistics, truncation exclusion, optimizer update,
-  checkpoint/LoRA artifact output, and tracking finalization.
+  checkpoint/LoRA artifact output, and tracking finalization. The accepted r5
+  gate used a 2,048-token completion cap and published the retained LoRA adapter
+  and recovery checkpoint.
 - [x] (2026-08-09) Inventoried the dirty framework tree and created one intentional release
   commit containing only reviewed framework changes and regenerated release
   inputs; leave unrelated edits untouched.
@@ -133,7 +135,7 @@ ADR is accepted.
 - [x] (2026-08-09) Added a new versioned Ambient Agent `algorithm: olmo3` setting and work
   package after that dependency update. Preserve the historical DAPO settings
   and runs; do not relabel them as OLMo 3 evidence.
-- [ ] Pack the resolved OLMo 3 job and run one SFT-LoRA-backed optimizer step on
+- [x] (2026-08-09) Packed the resolved OLMo 3 job and ran one SFT-LoRA-backed optimizer step on
   RTX PRO 6000 with rollout and verifier concurrency 256. Qualify reward spread,
   recomputed advantages, truncation exclusion, clipping/TIS, actor-sampler
   parity, LoRA-only checkpoint artifacts, and restart metadata.
@@ -148,14 +150,309 @@ ADR is accepted.
   trainer's post-preparation boundary, where all candidate/refill rollouts have
   completed and the retained batch is about to enter forward/backward. Focused
   and broader TRL tests pass.
-- [ ] Publish Posttrain `0.3.4` with the actor-update boundary repair, update
+- [x] (2026-08-09) Published Posttrain `0.3.4` with the actor-update boundary repair, updated
   Ambient Agent to that exact stable graph, and repeat the one-step gate.
-- [ ] If the one-step gate passes, submit 200 optimizer steps and monitor the
-  first five completed steps before leaving the campaign unattended.
+- [x] (2026-08-09) After the r5 gate passed, submitted 200 optimizer steps and monitored the
+  first five completed steps before leaving the campaign unattended. The
+  campaign ran on the RTX PRO 6000 as
+  `ambient-k1-olmo3-sft10k-rtxpro-c256-l2048-200step-20260809-r1`. A later
+  health check through step twelve remained finite and exploratory. Step ten
+  had reward `0.6913`, advantage standard deviation `0.1458`, entropy
+  `0.2464`, TIS mean `0.9996` with no clamping, `1.5625%` zero-variance
+  candidate groups, and controlled upper clipping. Step twelve showed an
+  isolated `13.28%` candidate-batch truncation spike, but the authoritative
+  run population remained 39 truncated of 1,788 completed rollouts (`2.18%`),
+  below the five-percent campaign guard. Truncated rows remained zero-loss,
+  TIS remained unclamped, and usable advantage spread remained present. Both
+  asymmetric clipping sides were exercised across the first twelve steps.
+  Training remained healthy through the full-LR transition and step 25. The
+  exact mounted `checkpoint-25` was then validated in the packaged training
+  environment: trainer global step 25, 372 rank-8 LoRA tensors matching 372
+  optimizer states, scheduler state, CPU/CUDA/NumPy/Python RNG state, and no
+  full-model weight file. The checkpoint adapter is not a copy of the starter:
+  all 372 corresponding tensors changed across 8,409,600 compared elements,
+  with aggregate L2 delta `0.09549` and maximum absolute element delta
+  `0.0001261`; its SHA-256 differs from the materialized SFT adapter. This is
+  direct weight evidence that the actor updates are being applied, independent
+  of the metric trend. The run then completed step 26 after that checkpoint
+  with reward `0.8114`, advantage standard deviation `0.0998`, positive and
+  negative advantage fractions `0.4654` and `0.3664`, entropy `0.2170`, zero
+  truncation, TIS mean `0.9998` with `0.000004814` clamping, and both
+  asymmetric clipping directions exercised. This proves the checkpoint write
+  did not stall or destabilize the next update.
+  Across all 26 completed updates, five-to-six-step windows show mean reward
+  increasing from `0.6011` at steps 1--5 to `0.6410`, `0.7256`, `0.7612`, and
+  finally `0.7815` at steps 21--26. Over the same windows advantage standard
+  deviation narrowed from `0.3084` to `0.1205`, entropy declined gradually
+  from `0.2592` to `0.2189` without collapse, and truncation fell from `1.72%`
+  to `0.43%`. TIS clamping remained effectively zero and asymmetric clipping
+  stayed small but active. This is evidence that the online updates are
+  learning while retaining usable exploration; it is not a final campaign
+  qualification until the run finishes and held-out evaluation is compared.
+  Steps 27 and 28 then completed with rewards `0.8420` and `0.7856`, advantage
+  standard deviations `0.0863` and `0.1378`, entropy `0.2076` and `0.2231`,
+  zero truncation, unclamped TIS, and both clipping directions active. The
+  post-checkpoint full-learning-rate continuation therefore remains healthy
+  through step 28. Step 29 remained finite at reward `0.7968`, advantage
+  standard deviation `0.0879`, entropy `0.1981`, truncation `1.45%`, unclamped
+  TIS, and two-sided clipping. Entropy is now about 24% below the opening
+  five-step mean; this is not a collapse, but entropy and zero-variance group
+  fraction are the primary watch metrics for the next monitoring window.
+  The 29-step invariant audit found maximum absolute advantage mean
+  `1.16e-8`; all 29 updates contained both positive and negative advantages;
+  mean truncation was `1.44%`; TIS mean stayed within `0.0004` of one and only
+  steps 21 and 26 clamped approximately `0.00048%` of tokens. Lower clipping
+  activated on 23 steps, upper clipping on 24, and both sides on 20. The last
+  five-step reward mean is `0.8029` versus `0.6011` initially. Zero-variance
+  groups increased from `9.0%` to `18.8%`, but active refill retained at least
+  `76.2%` of candidates and every update kept usable two-sided advantage
+  signal. Continue watching that curriculum saturation signal rather than
+  treating the higher reward alone as proof of final generalization.
+  Steps 30--32 then remained healthy at full learning rate. Their rewards were
+  `0.8033`, `0.7123`, and `0.8336`; advantage standard deviations were
+  `0.1283`, `0.0736`, and `0.0971`; and entropies were `0.2135`, `0.2057`,
+  and `0.2033`. Every advantage mean remained within `1e-8` of zero and every
+  update retained both positive and negative advantages. TIS means remained
+  within `0.0003` of one with zero clamping, both asymmetric clipping
+  directions remained active, and active sampling retained `76.2%`--`82.1%`
+  of generated candidates. Only step 32 truncated completions in this window,
+  at `1.04%`; those completions remained excluded from the advantage and loss.
+  The run is therefore healthy through 32 completed optimizer updates. This is
+  an interim online-training verdict, not the final held-out qualification.
+  Step 33 then persisted to Trackio with reward `0.8009`, centered advantage
+  mean `-4.24e-10`, advantage standard deviation `0.1220`, entropy `0.2273`,
+  zero truncation, TIS mean `0.9998` with no clamping, and both clipping
+  directions active. Its zero-advantage row fraction rose to `39.8%`, so active
+  sampling needed five generation rounds and retained `68.1%` of 188 generated
+  candidates. Both positive and negative advantages remained present. This is
+  not an algorithm failure, but it is the strongest curriculum-saturation
+  warning so far and makes retained fraction plus zero-advantage share the
+  primary monitoring pair through the next checkpoint.
+  Step 34 showed that the warning was not a monotonic collapse: reward was
+  `0.8104`, advantage mean `1.35e-9`, advantage standard deviation `0.0871`,
+  entropy `0.2191`, truncation `0.20%`, and step time `323.7` seconds. TIS
+  remained unclamped and both clipping directions remained active. The
+  zero-advantage row fraction fell to `23.9%`; active sampling used four rounds
+  and retained `69.6%` of 184 generated candidates. Retention remains below the
+  earlier run average, so continue watching the pair, but the update preserved
+  centered, two-sided learning signal and normal runtime behavior.
+  Step 35 further recovered active-sampling retention to `82.1%` of 156
+  generated candidates while completing in `247.6` seconds. Reward was
+  `0.8798`, advantage mean `3.49e-9`, advantage standard deviation `0.1270`,
+  zero-advantage rows `28.1%`, entropy `0.1969`, and truncation zero. TIS
+  remained unclamped and both clip directions were active. Comparing the first
+  five updates with steps 31--35, mean reward rose from `0.6011` to `0.8074`,
+  advantage standard deviation narrowed from `0.3084` to `0.1014`, entropy
+  declined from `0.2592` to `0.2105`, truncation fell from `1.72%` to `0.25%`,
+  and active-sampling retention moved from `93.8%` to `75.6%`. This is a
+  coherent learning signature with reduced but still usable relative signal;
+  the rising zero-advantage share (`9.2%` to `24.2%`) and lower retention are
+  curriculum-saturation guardrails, not yet stopping conditions.
+  Step 36 remained stable in `290.8` seconds: reward `0.8664`, centered
+  advantage standard deviation `0.1288`, entropy `0.1992`, zero truncation,
+  TIS mean `0.9998` without clamping, and both clip directions active. Active
+  sampling retained `72.7%` of 176 generated candidates across four rounds;
+  zero-advantage rows were `26.2%`. The paired saturation indicators therefore
+  oscillate within a usable range rather than worsening monotonically.
+  Step 37 completed in `289.0` seconds with reward `0.8419`, centered
+  advantage standard deviation `0.1055`, entropy `0.2179`, `0.52%`
+  truncation, TIS mean `1.00004` without clamping, and both clip directions
+  active. Zero-advantage rows fell to `21.0%`; active sampling needed three
+  rounds and retained `74.4%` of 172 generated candidates. This second
+  consecutive recovery in zero-advantage share confirms that the step-33 spike
+  was prompt-batch variation rather than a monotonic loss of learning signal.
+  Step 38 completed in `373.1` seconds with reward `0.7758`, centered
+  advantage standard deviation `0.1444`, `0.26%` truncation, TIS mean
+  `0.99993` without clamping, and both clip directions active. Zero-advantage
+  rows fell to `11.9%` and active sampling retained `82.1%` of 156 candidates,
+  so relative learning signal strengthened even though reward varied downward.
+  Entropy reached a new single-step low of `0.1924`; the steps 34--38 mean is
+  still `0.2051`, versus `0.2592` initially, so this is not entropy collapse.
+  Entropy is nevertheless the sharper guardrail now that reward and advantage
+  spread remain healthy.
+  Step 39 was the strongest curriculum-saturation event so far. It completed
+  in `407.7` seconds with reward `0.8752`, centered advantage standard
+  deviation `0.0528`, entropy `0.1945`, zero truncation, TIS mean `0.99992`
+  without clamping, and both clip directions active. Zero-advantage rows rose
+  to `59.9%`; active sampling needed eight rounds and retained only `60.4%` of
+  212 generated candidates. Positive and negative advantages still remained
+  (`23.6%` and `16.5%`), so this is not a zero-gradient update or an algorithm
+  failure. Step 40 is now a confirmation gate: a similar result would indicate
+  sustained curriculum saturation, while recovery would classify step 39 as
+  another prompt-batch spike.
+  Step 40 confirmed an elevated saturation regime but not collapse. It
+  completed in `331.8` seconds with reward `0.8338`, centered advantage
+  standard deviation `0.1131`, entropy `0.2086`, zero truncation, and TIS mean
+  `0.9998` without clamping. Both advantage signs remained; only lower clipping
+  activated on this batch, while the surrounding window exercised both sides.
+  Zero-advantage rows recovered to `38.9%`, and active sampling needed five
+  rounds with `68.1%` retention of 188 generated candidates. Comparing steps
+  31--35 with 36--40, mean reward rose from `0.8074` to `0.8386` and advantage
+  standard deviation held at `0.1014` versus `0.1089`, but zero-advantage rows
+  rose from `24.2%` to `31.6%`, retention fell from `75.6%` to `71.5%`, rounds
+  rose from `3.8` to `4.6`, entropy moved from `0.2105` to `0.2025`, and mean
+  step time increased from `297.7` to `338.5` seconds. OLMo 3 active sampling
+  is still preserving a full, two-sided update batch; it is paying a growing
+  rollout-cost premium as the current prompt distribution becomes easier.
+  Step 41 recovered toward the healthier end of that regime in `322.6`
+  seconds: reward `0.8239`, centered advantage standard deviation `0.0963`,
+  entropy `0.2006`, `0.20%` truncation, TIS mean `0.99996` without clamping,
+  and both clip directions active. Zero-advantage rows fell to `25.6%`, and
+  active sampling retained `78.0%` of 164 candidates across four rounds. The
+  rollout premium is therefore variable rather than steadily worsening.
+  Steps 42--45 preserved the same usable but increasingly saturated regime.
+  Step 42 set a single-step entropy low of `0.1860` with `40.8%`
+  zero-advantage rows, but step 43 immediately recovered to entropy `0.2040`,
+  advantage standard deviation `0.2012`, and `17.4%` zero-advantage rows.
+  Step 44 reproduced the step-39 high-saturation shape (`59.1%` zero rows,
+  eight rounds, `60.4%` retention, advantage standard deviation `0.0456`),
+  then step 45 recovered to `26.0%` zero rows, four rounds, `72.7%` retention,
+  and advantage standard deviation `0.1112`. Across steps 41--45, mean reward
+  was `0.8706`, entropy `0.1957`, advantage standard deviation `0.1077`,
+  zero-row share `33.8%`, retention `71.0%`, rounds `4.8`, truncation `0.09%`,
+  and step time `312.7` seconds. OLMo 3 continues to preserve informative
+  two-sided batches, but the campaign is now clearly in a higher-reward,
+  lower-entropy, more rollout-expensive phase.
+  Step 46 extended that regime rather than invalidating the update: reward was
+  `0.8985`, centered advantage standard deviation `0.0751`, entropy `0.1693`,
+  zero-advantage rows `43.8%`, zero truncation, and TIS mean `0.99991` without
+  clamping. Active sampling retained `54.2%` of 236 candidates across six
+  rounds; both advantage signs and both asymmetric clipping directions were
+  present. Across all 46 updates, maximum absolute advantage mean remains
+  `1.17e-8`, every retained update is two-sided, maximum TIS-mean displacement
+  from one is `0.00037`, and the maximum clamped TIS fraction is
+  `0.000004814`. The live evidence therefore still shows correct advantage,
+  TIS, and clipping mechanics. It also makes the late-run curriculum pressure
+  explicit: the next four steps and the step-50 recovery checkpoint are the
+  next qualification boundary rather than treating one low-entropy batch as
+  either a collapse or a success.
+- [x] (2026-08-09) At the user's requested stopping point, gracefully cancelled
+  the production campaign after optimizer step 51 instead of aborting its
+  provider process. The latest complete checkpoint is `checkpoint-50`: its
+  `trainer_state.json` reports step 50; it contains 372 LoRA tensors, 372
+  optimizer states, scheduler state, and CPU/CUDA/NumPy/Python RNG state; and
+  it contains no full-model weight file. Trackio retained it as the run's
+  `recovery` artifact (121,449,914 bytes, content-tree SHA-256
+  `0da9494ddc4cd886d571e69b60f662418e3ae660997e159b3e007cca9cce8839`).
+  An independently copied controller fallback under
+  `/home/hammad/.local/state/posttrain/recovery/ambient-k1-olmo3-sft10k-rtxpro-c256-l2048-200step-20260809-r1/checkpoint-50`
+  has the same byte count and tree digest. Provider state is terminal
+  `cancelled`; reconciliation reports provider and Trackio evidence consistent,
+  tracking status `cancelled`, and admission `completed`. A future invocation
+  can use `posttrain job run ... --resume-from-run <source-run> --run-id
+  <new-run>` to materialize the retained state under a new run identity.
+- [x] (2026-08-09) Found and locally corrected a recovery-lineage metadata bug:
+  interrupted publication previously labeled the latest complete checkpoint
+  with the live trainer step, so this step-50 payload was advertised as step
+  51. The generic TRL adapter now derives the published step from the retained
+  checkpoint's own `trainer_state.json` and rejects malformed state. Focused
+  recovery tests, Ruff, Pyright, and diff validation pass. This correction is
+  not part of the already released `0.3.4`; the actual retained checkpoint
+  remains safely resumable at its authoritative step 50.
+- [x] (2026-08-09) Purged the failed r3 smoke run. Added shared-image ownership
+  protection after its first preview showed that the released planner could
+  delete a manifest still referenced by r4. The r1, r2, and superseded r4
+  cleanups are durably deferred on the occupied exact worker; registry,
+  Trackio, and local deletion remain blocked until workspace cleanup is
+  verified. A transient five-minute user timer reapplies only those three exact
+  immutable plans and stops itself after all receipts exist. Its first
+  automatic reconciliation completed successfully at 11:11 PKT, reused the
+  same three provider tasks without duplicates, and kept all downstream
+  actions deferred. A subsequent code review found that project-local image
+  ownership was insufficient for a registry-global manifest deletion. Purge
+  previews now combine the opened and registered project submission stores
+  with current and archived machine-admission image references, retire owners
+  only through complete unblocked purge receipts, and block registry deletion
+  if any registered ownership source is unreadable. Live inspection proves
+  the three queued smoke digests each have exactly one remaining owner; the
+  already-purged r3 is correctly retired from r4's shared digest. The final
+  planner also revalidates the complete machine ownership snapshot immediately
+  before apply, so a newer run that acquires the same digest after preview
+  blocks deletion instead of becoming a time-of-check/time-of-use victim. A
+  live apply of the existing r4 plan passed this ownership gate and then
+  returned the expected provider `deferred` result without advancing registry
+  or Trackio mutation. New purge plans, journals, and receipts now use the
+  machine-scoped admission state root, matching their cross-project ownership;
+  `show`, `apply`, completed-plane recovery, and run-list filtering retain
+  read compatibility with existing project-local plans. The live r4 legacy
+  plan resolves through that compatibility path and the five-minute timer
+  continues to defer it safely. The final local cleanup implementation passes
+  200 focused execution, dstack, and CLI tests plus the complete repository
+  suite of 1,109 tests with 18 expected skips. Ruff, full Pyright, all eight
+  import contracts, and `git diff --check` also pass.
+  The transient reconciler now checks the production provider state before
+  reapplying any plan. While production is nonterminal it writes one bounded
+  status line and exits; the three provider-native no-capacity cleanup tasks
+  continue retrying independently. Live dstack inspection confirms each
+  current task is `pending` with status message `retrying`, exact
+  `retry.on_events: [no-capacity]`, a 24-hour retry duration, and a bounded
+  five-minute cleanup execution once placed. The production forecast leaves
+  several hours of margin before those durable retries expire. A manual cycle
+  proved this path added no
+  purge journal or provider mutation; the scheduled 13:18 PKT cycle then
+  produced the same single nonterminal status line automatically. This
+  eliminates redundant five-minute apply traffic without delaying cleanup once
+  the worker is released.
 - [ ] Record final experiment and release receipts, update this plan’s outcome,
   and report the tag, release URL, package/image digests, and remaining gates.
 
 ## Surprises & Discoveries
+
+- Observation: OLMo 3 candidate/refill metrics and retained actor-batch metrics
+  have different populations when active sampling needs more than one
+  generation round.
+  Evidence: steps one through four used multiple generation rounds, so native
+  reward and advantage summaries aggregate candidate rounds. Step five used
+  exactly one round, generated and retained 128/128 rows, and is therefore an
+  exact retained-batch audit: reward `0.6723 ± 0.3878`, advantage mean near
+  zero with standard deviation `0.3023`, positive/negative fractions
+  `0.6614/0.3386`, zero-advantage fraction `0`, and truncation `0.7812%`.
+  Clipping is computed during the retained actor loss and is not affected by
+  this candidate-population distinction.
+  Date/Author: 2026-08-09 / Codex.
+
+- Observation: the first fourteen production steps show an encouraging but
+  non-qualifying early reward movement without an entropy collapse.
+  Evidence: the unadjusted mean reward increased from approximately `0.625`
+  over steps 1-7 to `0.674` over steps 8-14, while mean entropy moved only from
+  approximately `0.258` to `0.251`. Step 14 retained finite gradients and
+  usable advantage spread, TIS mean `1.0` without clamping, both asymmetric
+  clip sides, and `0.7812%` truncation. These batches mix prompts and, when
+  refill occurs, candidate populations, so this is a health observation rather
+  than evidence of final policy improvement.
+  Date/Author: 2026-08-09 / Codex.
+
+- Observation: live Observatory omits reward standard deviation and
+  zero-variance groups while a TRL run is active because the adapter suppresses
+  those trainer aggregates in favor of a bridge replay that only occurs during
+  finalization.
+  Evidence: provider logs contain `reward_std` and `frac_reward_zero_std` for
+  each step, while the live run view reports both canonical series missing.
+  The eventual correction must distinguish candidate rollout population from
+  the retained actor-update population rather than simply duplicating the same
+  metric name.
+  Date/Author: 2026-08-09 / Codex.
+
+- Observation: an exact-worker cleanup can be valid but temporarily
+  unschedulable when a production run occupies the same single-slot dstack
+  worker.
+  Evidence: the initial r4 cleanup failed placement with `no offers`. The
+  corrected provider path now retains a 24-hour dstack no-capacity retry,
+  journals the purge action as `deferred`, and prevents registry, tracking, or
+  local deletion until the exact workspace reports verified cleanup.
+  Date/Author: 2026-08-09 / Codex.
+
+- Observation: a normal TRL checkpoint is retained in the run workspace at its
+  configured save step but is published to Trackio only during successful
+  finalization or interruption handling.
+  Evidence: the production run exposes its exact host volume inside the task at
+  `/opt/posttrain/run/ambient-k1-olmo3-sft10k-rtxpro-c256-l2048-200step-20260809-r1`.
+  A read-only dstack attach before step 25 found only the immutable
+  `scratch/.../inputs/model_adapter/adapter_model.safetensors` and no
+  `checkpoint-*` directory, as expected. The monitoring heartbeat now checks
+  this mounted workspace at or after step 25 and distinguishes the input
+  adapter from adapter-only recovery state.
+  Date/Author: 2026-08-09 / Codex.
 
 - Observation: Active sampling may invoke the rollout bridge several times for
   one optimizer step; a rollout return is therefore not an actor-update
@@ -164,6 +461,23 @@ ADR is accepted.
   candidate batch tried to reopen step-one actor telemetry. TRL's
   `_prepare_inputs` owns generation, reward scoring, filtering and all refills,
   and returns only after selecting the retained batch.
+  Date/Author: 2026-08-09 / Codex.
+
+- Observation: persisted Verifiers traces from online-RL runs were not
+  joinable to optimizer-step metrics or to the active-sampling candidate batch
+  that produced them.
+  Evidence: the Trackio trace `step` is a provider ingestion/index value; the
+  sampled records exposed `task_index` and environment identity but no logical
+  optimizer step. A request for traces with `step=39` returned a trace observed
+  near run startup, not the rollout population that produced optimizer update
+  39. The local generic TRL adapter fix now uses upcoming optimizer step
+  `trainer.state.global_step + 1` consistently for rollout phases, population
+  metrics, and the bridge, and adds `optimizer_step` plus a per-step
+  `rollout_batch_ordinal` to every trace. The ordinal resets when the optimizer
+  step changes. All 47 train API tests, the complete 161-test train suite, and
+  the 1,109-test repository suite pass; full Ruff, Pyright, import contracts,
+  and diff hygiene also pass. This
+  improves future runs only; it does not retroactively relabel this live run.
   Date/Author: 2026-08-09 / Codex.
 
 - Observation: The active 256-concurrency package is built from the current
@@ -261,11 +575,39 @@ ADR is accepted.
 
 ## Decision Log
 
-- Decision: Treat the current 256-concurrency run as a rejected diagnostic, not
-  as corrected-DAPO evidence, until `advantage_scaling: none` is resolved in the
-  selected settings.
-  Rationale: otherwise the comparison confounds the algorithm fix with the
-  previous group-normalized behavior.
+- Decision: Use step five as the exact retained-batch algorithm audit and treat
+  earlier multi-round reward/advantage summaries as candidate-population
+  diagnostics.
+  Rationale: step five required one generation round and retained all 128
+  generated rows, eliminating the active-refill population ambiguity without
+  stopping or relabeling the production campaign.
+  Date/Author: 2026-08-09 / Codex.
+
+- Decision: Defer exact-worker smoke cleanup instead of bypassing provider
+  verification or deleting downstream evidence first.
+  Rationale: the active production run owns the worker. A durable provider
+  retry preserves exact-host/path verification and keeps image, Trackio, and
+  local evidence available until cleanup actually succeeds.
+  Date/Author: 2026-08-09 / Codex.
+
+- Decision: Do not cancel the healthy production run merely to release its
+  worker for deferred smoke cleanup, even after checkpoint 25 exists.
+  Rationale: the runtime has a cooperative SIGTERM/SIGINT finalizer and the
+  framework can resume a new run through `job run --resume-from-run`, but the
+  live dstack deployment still uses upstream `0.20.29`. The maintained dstack
+  consumer ledger explicitly says that deployment has not qualified the
+  greater-than-ten-second stop-duration propagation needed to guarantee
+  Trackio checkpoint publication before forced removal. The local checkpoint
+  proves recoverability of the retained workspace, not safe interruption and
+  remote publication. Let production continue; keep exact cleanup queued.
+  Date/Author: 2026-08-09 / Codex.
+
+- Decision: Treat the earlier pre-release 256-concurrency diagnostic as
+  rejected DAPO evidence; it was superseded by the released OLMo 3 campaign
+  whose artifact metadata records `advantage_scaling: none`.
+  Rationale: the earlier comparison confounded the algorithm fix with the
+  previous group-normalized behavior, while the accepted r5 gate and current
+  production package use the corrected named algorithm contract.
   Date/Author: 2026-08-09 / Codex.
 - Decision: Keep the DAPO reward scalar and retain component rewards only as
   diagnostic telemetry.
@@ -349,17 +691,32 @@ ADR is accepted.
 
 ## Outcomes & Retrospective
 
-Posttrain `0.3.3` is published from merged commit `982dbbe7`; Ambient Agent now
-consumes that stable release with Trackio post11 and TRL post1, and its named
-OLMo 3 work packages retain the SFT LoRA artifact. Exact retention and garbage
-collection restored 77 GiB of registry-host root capacity without losing any
-protected release image. The first one-step canary rejected the missing Qwen
-3.5 LoRA namespace at the parity gate. After correcting the project binding,
-the second canary passed parity and exposed an actor-update observation-boundary
-bug during active refill, before any optimizer update. The framework repair is
-locally validated and prepared for patch release `0.3.4`; the one-step algorithm
-qualification and 200-step campaign remain unfinished until that stable patch
-is installed and the gate reaches an optimizer update.
+Posttrain `0.3.4` is published from release commit
+`6b64b067` and merged main commit `5a311a5`. Ambient Agent consumes that stable
+release with Trackio post11 and TRL `1.9.2.post1`, and its named OLMo 3 work
+packages retain the SFT LoRA lineage. Registry cleanup restored 77 GiB of
+host-root capacity without losing any protected release image.
+
+The accepted r5 gate corrected both the Qwen 3.5 LoRA namespace and the
+actor-update observation boundary, completed one optimizer step on RTX PRO
+6000, and published a LoRA-only model artifact plus recovery checkpoint. Its
+first 1,536-token version was rejected for excessive truncation; revision 2
+raised the completion cap to 2,048 and reduced truncation to `0.7812%`.
+
+The 200-step production campaign is running from the materialized r5 adapter.
+Five monitored steps completed with finite loss and gradients, centered
+advantages, nonzero reward spread, stable entropy (`0.2446` to `0.2714`), mean
+TIS ratio near one with no clamping, and both asymmetric clip boundaries
+exercised during warmup. The exact step-five retained batch had no zero-gradient
+groups. This is sufficient to accept algorithm execution and continue the
+campaign; five steps are not sufficient to claim a reward trend or final model
+improvement.
+
+Remaining operational work is bounded: the three superseded smoke workspaces
+are queued for exact-worker cleanup after production capacity becomes
+available, and the live Observatory population semantics for retained versus
+candidate reward/advantage summaries need a follow-up implementation before a
+future release. The r5 lineage starter and production run remain protected.
 
 ## Context and Orientation
 
@@ -537,10 +894,12 @@ Current evidence anchors:
     8277ce5cc5853db4048fbbaa64b1ccb6f35bf96c797658253b553e9a8efefae7
     SFT adapter source tree sha256:
     79b17299c7808b373eaa67f3c34153ab513e27d2f28105f0ef633c58cccaa7b7
-    current release branch HEAD with bounded registry retry:
-    5323adf0983a24c2f066be38fd6f112a271fdf45 (codex/release-0.3.3)
-    current target release:
-    0.3.3 (not tagged or published)
+    published Posttrain release commit:
+    6b64b067 (v0.3.4)
+    merged main commit containing the release:
+    5a311a5
+    stable release:
+    https://github.com/carbonteq-ai/posttrain/releases/tag/v0.3.4
 
 ## Interfaces and Dependencies
 

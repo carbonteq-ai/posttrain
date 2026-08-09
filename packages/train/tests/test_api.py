@@ -1072,7 +1072,7 @@ def test_grpo_rollout_adapter_emits_population_and_throughput_evidence(
     assert values["train/rl/rollouts_unscorable"] == 0
     assert values["train/rl/time/rollout_seconds"] > 0
     assert values["train/rl/rollout_tokens_per_second"] > 0
-    assert observer.metrics_seen[-1].step == 3
+    assert observer.metrics_seen[-1].step == 4
 
 
 def test_grpo_actor_update_phase_starts_after_retained_rollouts_and_ends_at_optimizer_step(
@@ -1116,8 +1116,8 @@ def test_grpo_actor_update_phase_starts_after_retained_rollouts_and_ends_at_opti
         if "phase" in event.attributes
     ]
     assert phase_events == [
-        ("runtime_phase_started", "rollout", 3),
-        ("runtime_phase_completed", "rollout", 3),
+        ("runtime_phase_started", "rollout", 4),
+        ("runtime_phase_completed", "rollout", 4),
     ]
 
     class PreparingTrainer:
@@ -1548,7 +1548,8 @@ def test_trl_rollout_adapter_preserves_identity_rewards_masks_and_native_traces(
         lambda *args: object(),
     )
 
-    output = _rollout_function(context, request, object())(
+    rollout = _rollout_function(context, request, object())
+    output = rollout(
         [[{"role": "user", "content": "What is 2 + 2?"}]],
         SimpleNamespace(state=SimpleNamespace(global_step=3)),
         inputs=[{"example_id": "gsm8k/train/0"}],
@@ -1561,9 +1562,26 @@ def test_trl_rollout_adapter_preserves_identity_rewards_masks_and_native_traces(
     assert output["is_truncated"] == [False]
     assert observer.traces[0].external_id == "trace-0"
     assert observer.traces[0].payload["example_id"] == "gsm8k/train/0"
-    assert observer.traces[0].payload["step"] == 3
+    assert observer.traces[0].payload["step"] == 4
     assert observer.traces[0].attributes["technique"] == "grpo"
     assert observer.traces[0].attributes["model_variant_id"] == QWEN_35_2B.id
+    assert observer.traces[0].attributes["optimizer_step"] == 4
+    assert observer.traces[0].attributes["rollout_batch_ordinal"] == 1
+
+    rollout(
+        [[{"role": "user", "content": "What is 2 + 2?"}]],
+        SimpleNamespace(state=SimpleNamespace(global_step=3)),
+        inputs=[{"example_id": "gsm8k/train/0"}],
+    )
+    rollout(
+        [[{"role": "user", "content": "What is 2 + 2?"}]],
+        SimpleNamespace(state=SimpleNamespace(global_step=4)),
+        inputs=[{"example_id": "gsm8k/train/0"}],
+    )
+    assert [
+        (trace.attributes["optimizer_step"], trace.attributes["rollout_batch_ordinal"])
+        for trace in observer.traces
+    ] == [(4, 1), (4, 2), (5, 1)]
     assert all("reward" not in metric for batch in observer.metrics_seen for metric in batch.values)
 
 

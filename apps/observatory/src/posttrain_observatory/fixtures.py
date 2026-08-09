@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from posttrain.tracking import (
+    ArtifactIntegrityResult,
     ArtifactLink,
     ArtifactSet,
     EventRecord,
@@ -572,6 +573,10 @@ class FixtureRunDataSource(RunDataSource):
 
     async def artifacts(self, run_id: str) -> ArtifactSet:
         return self._artifacts[run_id]
+
+    async def verify_artifact(self, reference, *, deep: bool = False) -> ArtifactIntegrityResult:
+        del reference
+        return ArtifactIntegrityResult("unsupported", deep=deep)
 
 
 __all__ = ["FixtureRunDataSource"]

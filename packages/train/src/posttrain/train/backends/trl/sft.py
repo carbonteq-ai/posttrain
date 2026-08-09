@@ -15,6 +15,7 @@ from ...requests import SFTRequest
 from .common import (
     BackendTrainingResult,
     callback_type,
+    checkpoint_callback_type,
     emit_parameter_counts,
     emit_runtime_versions,
     finish_training,
@@ -93,6 +94,15 @@ def run_sft(
     arguments = _sft_arguments(request, output_dir)
     validation = request.settings.validation
     callback = callback_type(context, imports)()
+    checkpoint_callback = checkpoint_callback_type(
+        context,
+        imports,
+        model=request.model,
+        technique="sft",
+        settings=request.settings,
+        update=request.training.update,
+        workspace=output_dir.parent,
+    )()
 
     ObservedSFTTrainer = _observed_sft_trainer_type(SFTTrainer, context)
     with context.phase("runtime_initialization", {"backend": "trl"}):
@@ -102,7 +112,7 @@ def run_sft(
             train_dataset=dataset,
             eval_dataset=validation_dataset,
             processing_class=tokenizer,
-            callbacks=[callback],
+            callbacks=[callback, checkpoint_callback],
         )
     resume = str(request.resume_from.path) if request.resume_from is not None else None
     with trainer_lifecycle(trainer):

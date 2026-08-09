@@ -7,10 +7,12 @@ import importlib
 import json
 import time
 from collections.abc import Mapping, Sequence
+from dataclasses import asdict
 from typing import Annotated, Any
 
 import click
 import typer
+from posttrain.common import ContractError, StoredArtifactRef
 from posttrain.execution import (
     ExecutionSubmissionStore,
     LogCursor,
@@ -29,6 +31,7 @@ from ..execution_provider import (
     execution_admission_service,
     execution_service_for_run,
     reconciliation_source_for_run,
+    tracking_source_for_project,
     tracking_source_for_run,
 )
 from ..output import emit, json_value
@@ -78,6 +81,190 @@ def register(app: typer.Typer) -> None:
         help="inspect and control submitted runs",
     )
     app.add_typer(run_app, name="run")
+    checkpoint_app = typer.Typer(
+        rich_markup_mode=None,
+        no_args_is_help=True,
+        help="inspect committed checkpoint views for one run",
+    )
+    run_app.add_typer(checkpoint_app, name="checkpoint")
+
+    def _checkpoint_links(layout, run_id: str):
+        source = tracking_source_for_project(layout)
+        return source, asyncio.run(source.artifacts(run_id)).outputs
+
+    def _checkpoint_records(layout, run_id: str) -> tuple[dict[str, object], ...]:
+        _source, links = _checkpoint_links(layout, run_id)
+        return tuple(link.model_dump(mode="json") for link in links)
+
+    @checkpoint_app.command("list", help="list bounded checkpoint snapshot summaries")
+    def checkpoint_list_cmd(
+        ctx: typer.Context,
+        run_id: _RUN_ID_ARGUMENT = None,
+        last: _LAST_OPTION = False,
+        limit: Annotated[int, typer.Option("--limit", min=1, max=200)] = 50,
+    ) -> None:
+        state: CliState = ctx.obj
+        layout = state.layout()
+        resolved = _resolved_run_id(layout, run_id, last=last)
+        from posttrain.train import inspect_checkpoint_artifacts
+
+        inspections = inspect_checkpoint_artifacts(_checkpoint_records(layout, resolved))[:limit]
+        payload = [
+            {
+                "run_id": resolved,
+                "checkpoint_snapshot_id": item.snapshot_id,
+                "step": item.step,
+                "ready": item.ready,
+                "recovery": (item.recovery is not None),
+                "model": (item.model is not None),
+                "recovery_version": item.recovery.version if item.recovery is not None else None,
+                "model_version": item.model.version if item.model is not None else None,
+            }
+            for item in inspections
+        ]
+        lines = [
+            f"step={item['step']}  state={'ready' if item['ready'] else 'partial'}  "
+            f"recovery={'yes' if item['recovery'] else 'no'}  model={'yes' if item['model'] else 'no'}"
+            for item in payload
+        ]
+        emit(state, payload, "\n".join(lines) if lines else "No committed checkpoint views.")
+
+    @checkpoint_app.command("show", help="show one checkpoint snapshot and its two views")
+    def checkpoint_show_cmd(
+        ctx: typer.Context,
+        run_id: _RUN_ID_ARGUMENT = None,
+        last: _LAST_OPTION = False,
+        step: Annotated[int, typer.Option("--step", min=0)] = 0,
+        files: Annotated[bool, typer.Option("--files", help="include bounded manifest metadata")] = False,
+    ) -> None:
+        state: CliState = ctx.obj
+        layout = state.layout()
+        resolved = _resolved_run_id(layout, run_id, last=last)
+        from posttrain.train import inspect_checkpoint_artifacts
+
+        inspection = next(
+            (item for item in inspect_checkpoint_artifacts(_checkpoint_records(layout, resolved)) if item.step == step),
+            None,
+        )
+        if inspection is None:
+            raise ContractError(f"run {resolved!r} has no checkpoint at step {step}")
+        payload: dict[str, object] = {
+            "run_id": resolved,
+            "checkpoint_snapshot_id": inspection.snapshot_id,
+            "step": inspection.step,
+            "ready": inspection.ready,
+            "recovery": (asdict(inspection.recovery) if inspection.recovery is not None else None),
+            "model": (asdict(inspection.model) if inspection.model is not None else None),
+        }
+        if not files:
+            for key in ("recovery", "model"):
+                value = payload[key]
+                if isinstance(value, dict):
+                    value.pop("metadata", None)
+        emit(state, payload, json.dumps(payload, indent=2, sort_keys=True, default=str))
+
+    @checkpoint_app.command("verify", help="verify checkpoint metadata and committed digests")
+    def checkpoint_verify_cmd(
+        ctx: typer.Context,
+        run_id: _RUN_ID_ARGUMENT = None,
+        last: _LAST_OPTION = False,
+        step: Annotated[int, typer.Option("--step", min=0)] = 0,
+        deep: Annotated[bool, typer.Option("--deep", help="request provider blob verification")] = False,
+    ) -> None:
+        state: CliState = ctx.obj
+        layout = state.layout()
+        resolved = _resolved_run_id(layout, run_id, last=last)
+        from posttrain.train import inspect_checkpoint_artifacts
+
+        inspection = next(
+            (item for item in inspect_checkpoint_artifacts(_checkpoint_records(layout, resolved)) if item.step == step),
+            None,
+        )
+        if inspection is None:
+            raise ContractError(f"run {resolved!r} has no checkpoint at step {step}")
+        checks: dict[str, object] = {
+            "paired_views": inspection.ready,
+            "recovery_digest": inspection.recovery is not None and inspection.recovery.digest is not None,
+            "model_digest": inspection.model is not None and inspection.model.digest is not None,
+            "deep": "unsupported" if deep else "not_requested",
+        }
+        if deep:
+            source, _links = _checkpoint_links(layout, resolved)
+            deep_results: dict[str, object] = {}
+            for label, record in (("recovery", inspection.recovery), ("model", inspection.model)):
+                if record is None or record.digest is None:
+                    continue
+                integrity = asyncio.run(
+                    source.verify_artifact(
+                        StoredArtifactRef(
+                            provider=record.provider,
+                            namespace=record.namespace,
+                            name=record.name,
+                            version=record.version,
+                            digest=record.digest,
+                        ),
+                        deep=True,
+                    )
+                )
+                deep_results[label] = asdict(integrity)
+            checks["deep"] = deep_results
+        deep_states = (
+            [value.get("state") for value in checks["deep"].values() if isinstance(value, Mapping)]
+            if isinstance(checks["deep"], dict)
+            else []
+        )
+        metadata_ok = all(value is True for value in checks.values() if isinstance(value, bool))
+        deep_ok = not deep or (bool(deep_states) and all(state == "verified" for state in deep_states))
+        payload = {
+            "run_id": resolved,
+            "step": step,
+            "checkpoint_snapshot_id": inspection.snapshot_id,
+            "state": (
+                "verified"
+                if metadata_ok and deep_ok
+                else "unsupported" if deep and deep_states and any(state == "unsupported" for state in deep_states)
+                else "failed"
+            ),
+            "checks": checks,
+        }
+        emit(state, payload, json.dumps(payload, indent=2, sort_keys=True))
+        if payload["state"] != "verified":
+            raise typer.Exit(code=2)
+
+    @checkpoint_app.command("diff", help="compare checkpoint view metadata between two steps")
+    def checkpoint_diff_cmd(
+        ctx: typer.Context,
+        run_id: _RUN_ID_ARGUMENT = None,
+        last: _LAST_OPTION = False,
+        from_step: Annotated[int, typer.Option("--from-step", min=0)] = 0,
+        to_step: Annotated[int, typer.Option("--to-step", min=0)] = 0,
+    ) -> None:
+        state: CliState = ctx.obj
+        layout = state.layout()
+        resolved = _resolved_run_id(layout, run_id, last=last)
+        from posttrain.train import inspect_checkpoint_artifacts
+
+        by_step = {item.step: item for item in inspect_checkpoint_artifacts(_checkpoint_records(layout, resolved))}
+        before = by_step.get(from_step)
+        after = by_step.get(to_step)
+        if before is None or after is None:
+            raise ContractError(f"run {resolved!r} does not contain both requested checkpoint steps")
+        payload = {
+            "run_id": resolved,
+            "from_step": from_step,
+            "to_step": to_step,
+            "model_digest_changed": (
+                before.model is not None
+                and after.model is not None
+                and before.model.digest != after.model.digest
+            ),
+            "recovery_digest_changed": (
+                before.recovery is not None
+                and after.recovery is not None
+                and before.recovery.digest != after.recovery.digest
+            ),
+        }
+        emit(state, payload, json.dumps(payload, indent=2, sort_keys=True))
 
     @run_app.command("list", help="list durable submitted run identities")
     def run_list_cmd(

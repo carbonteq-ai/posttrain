@@ -70,6 +70,10 @@ class PurgeRunCatalog(Protocol):
 
     def list(self) -> tuple[PurgeRunCandidate, ...]: ...
 
+    def registry_image_owners(self) -> Mapping[str, tuple[str, ...]]: ...
+
+    def registry_inventory_blockers(self) -> tuple[str, ...]: ...
+
 
 def build_run_purge_plan(
     catalog: PurgeRunCatalog,
@@ -130,6 +134,7 @@ def build_run_purge_plan(
         project_id=root.project_id,
         root_run_id=root_run_id,
         selected=selected,
+        registry_image_owners=catalog.registry_image_owners(),
         dependency_edges=tuple(
             (candidate.run_id, consumer)
             for candidate in selected.values()
@@ -137,7 +142,7 @@ def build_run_purge_plan(
             if consumer in selected
         ),
         warnings=warnings,
-        blockers=blockers,
+        blockers=[*blockers, *catalog.registry_inventory_blockers()],
     )
 
 
@@ -173,6 +178,7 @@ def build_project_purge_plan(
             project_id=project_id,
             root_run_id=None,
             selected=selected,
+            registry_image_owners=catalog.registry_image_owners(),
             dependency_edges=tuple(
                 (candidate.run_id, consumer)
                 for candidate in selected.values()
@@ -180,7 +186,7 @@ def build_project_purge_plan(
                 if consumer in selected
             ),
             warnings=warnings,
-            blockers=blockers,
+            blockers=[*blockers, *catalog.registry_inventory_blockers()],
         )
     return PurgePlan.build(
         mode="project",
@@ -198,6 +204,7 @@ def _assemble_plan(
     project_id: str,
     root_run_id: str | None,
     selected: Mapping[str, PurgeRunCandidate],
+    registry_image_owners: Mapping[str, tuple[str, ...]],
     dependency_edges: tuple[tuple[str, str], ...],
     warnings: list[str],
     blockers: list[str],
@@ -224,18 +231,44 @@ def _assemble_plan(
                     precondition={"state": "terminal", "reconciled": candidate.reconciled},
                 )
             )
-        if candidate.image is None and "registry" not in candidate.completed_planes:
+
+    registry_action_by_run: dict[str, str] = {}
+    selected_image_owners: dict[str, list[PurgeRunCandidate]] = {}
+    for candidate in selected.values():
+        if "registry" in candidate.completed_planes:
+            continue
+        if candidate.image is None:
             blockers.append(f"run {candidate.run_id!r} has no digest-pinned actual-job image")
-        elif candidate.image is not None and "registry" not in candidate.completed_planes:
-            registry_actions.append(
-                PurgeAction(
-                    action_id=f"registry:{candidate.run_id}",
-                    plane="registry",
-                    kind="registry.delete_manifest",
-                    target={"reference": candidate.image.value, "run_id": candidate.run_id},
-                    depends_on=((provider_id,) if "provider" not in candidate.completed_planes else ()),
-                )
+            continue
+        selected_image_owners.setdefault(candidate.image.value, []).append(candidate)
+
+    for reference, owners in selected_image_owners.items():
+        external_owners = sorted(
+            run_id
+            for run_id in registry_image_owners.get(reference, ())
+            if run_id not in selected
+        )
+        if external_owners:
+            warnings.append(
+                f"job image {reference!r} retained; referenced by unselected "
+                f"run(s): {', '.join(repr(run_id) for run_id in external_owners)}"
             )
+            continue
+        action_id = f"registry:{owners[0].run_id}"
+        registry_actions.append(
+            PurgeAction(
+                action_id=action_id,
+                plane="registry",
+                kind="registry.delete_manifest",
+                target={"reference": reference, "run_id": owners[0].run_id},
+                depends_on=tuple(
+                    f"provider:{owner.run_id}"
+                    for owner in owners
+                    if "provider" not in owner.completed_planes
+                ),
+            )
+        )
+        registry_action_by_run.update((owner.run_id, action_id) for owner in owners)
 
     ordered_tracking = _leaf_first(selected, root_run_id)
     for candidate in ordered_tracking:
@@ -245,8 +278,8 @@ def _assemble_plan(
             consumer_dependencies = tuple(
                 f"tracking:{consumer}" for consumer in candidate.consumers if consumer in selected
             )
-            registry_id = f"registry:{candidate.run_id}"
-            registry_dependencies = (registry_id,) if "registry" not in candidate.completed_planes else ()
+            registry_id = registry_action_by_run.get(candidate.run_id)
+            registry_dependencies = (registry_id,) if registry_id is not None else ()
             tracking_actions.append(
                 PurgeAction(
                     action_id=f"tracking:{candidate.run_id}",

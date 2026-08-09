@@ -30,6 +30,11 @@ type ProviderCleanupDisposition = Literal[
     "provider-managed",
 ]
 
+
+class ProviderCleanupDeferred(RuntimeError):
+    """Exact provider cleanup is safe to retry but cannot complete yet."""
+
+
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _ACTUAL_JOB_COMMAND = (
     "posttrain-runtime",

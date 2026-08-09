@@ -315,7 +315,7 @@ Discrete occurrences distinct from continuous metric series:
 | --- | --- | --- |
 | `run_started` / `run_finished` | all | status, timestamps |
 | `checkpoint_saved` | train | path/step, recovery-only flag |
-| `checkpoint_materialized` | train/transform | new `ModelVariant`, parent |
+| `checkpoint_materialized` | train/transform | checkpoint snapshot view, model kind, parent when a model view enters lineage |
 | `artifact_published` | any | artifact kind + ref |
 | `trace_ingest_batch` | eval/rl/serve | counts, idempotent range |
 | `validation_failed` | any | typed error class |
@@ -446,8 +446,22 @@ immutable digests/revisions.
 
 ### Checkpoint vs artifact
 
-Recovery checkpoints are **workspace state**. They enter lineage only when
-materialized to a `model` artifact via the train/transform API.
+Recovery checkpoints are trainer state for exact resume. A retained
+`training-checkpoint` artifact is still recovery state: it is not a
+`ModelVariant` and does not create a model-lineage edge. The producing training
+run may publish a paired model view at the same complete snapshot step:
+`model-adapter` for LoRA/QLoRA or `model-weights` for a full-parameter update.
+Only that loadable model view enters model lineage and can be consumed by a
+new train branch, eval, or serve run. The pair shares an immutable
+`checkpoint_snapshot_id`, while each view keeps its own artifact kind,
+manifest, compatibility descriptor, and provider version.
+
+Publishing the pair is an output action of the original training run and does
+not create a separate materialization run for ordinary projection. A
+`model.transform` run remains required when merging, quantizing, exporting, or
+resharding changes representation or needs dedicated resources. The packing
+phase can validate and carry this policy but cannot produce future learned
+weights.
 
 ## Execution workspace
 
