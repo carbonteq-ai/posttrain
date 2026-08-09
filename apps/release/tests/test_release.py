@@ -621,7 +621,6 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
         assert "printf 'POSTTRAIN_REGISTRY=%s\\n'" in workflow
         assert "trap 'rm -f \"${image_verify_env}\"' EXIT" in workflow
         assert "Prepare release evidence directory" in workflow
-        assert "--framework-wheelhouse .release/wheelhouse" in workflow
         assert "posttrain[dstack,trackio]==" in workflow
         assert "posttrain-lab==" in workflow
         assert "if-no-files-found: error" in workflow
@@ -630,6 +629,11 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
         assert "run wait" in workflow
         assert 'run reconcile \\\n            "release-' in workflow
         assert 'run cleanup \\\n            "release-' in workflow
+
+    assert 'framework_wheelhouse="$(realpath .release/wheelhouse)"' in candidate
+    assert 'consumer-venv/bin/python - "${candidate_version}" "${framework_wheelhouse}"' in candidate
+    assert "framework wheelhouse contains non-candidate wheels" in candidate
+    assert '--framework-wheelhouse "${framework_wheelhouse}"' in candidate
 
     assert "candidate-version --simple-url" in candidate
     assert "posttrain-release check --allow-pending-runtime-lock" in candidate

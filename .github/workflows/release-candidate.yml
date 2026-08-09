@@ -186,6 +186,36 @@ jobs:
         id: qualification
         run: |
           set +e
+          candidate_version="${{ steps.version.outputs.version }}"
+          framework_wheelhouse="$(realpath .release/wheelhouse)"
+          # The qualification must pack the same immutable framework bytes that
+          # the clean consumer just installed.  Keep this check immediately
+          # before packing so a stale runner directory, relative-path change,
+          # or versioned candidate mismatch fails with an actionable error.
+          .release/consumer-venv/bin/python - "${candidate_version}" "${framework_wheelhouse}" <<'PY'
+          import importlib.metadata as metadata
+          import sys
+          from pathlib import Path
+
+          expected, wheelhouse_name = sys.argv[1:]
+          wheelhouse = Path(wheelhouse_name)
+          if not wheelhouse.is_dir():
+              raise SystemExit(f"framework wheelhouse is not a directory: {wheelhouse}")
+          if metadata.version("posttrain") != expected:
+              raise SystemExit(
+                  "consumer framework version differs from candidate: "
+                  f"{metadata.version('posttrain')} != {expected}"
+              )
+          names = sorted(path.name for path in wheelhouse.glob("*.whl"))
+          if not names:
+              raise SystemExit(f"framework wheelhouse is empty: {wheelhouse}")
+          mismatched = [name for name in names if f"-{expected}-" not in name]
+          if mismatched:
+              raise SystemExit(
+                  f"framework wheelhouse contains non-candidate wheels: {mismatched}"
+              )
+          print(f"verified consumer and {len(names)} staged framework wheels at {expected}")
+          PY
           scripts/release/verify-dstack-capacity .release/dstack-capacity.json
           capacity_status=$?
           if [[ "${capacity_status}" -ne 0 ]]; then
@@ -196,7 +226,7 @@ jobs:
             --job transform \
             --provider dstack \
             --registry "${JOB_REGISTRY}" \
-            --framework-wheelhouse .release/wheelhouse \
+            --framework-wheelhouse "${framework_wheelhouse}" \
             --run-id "release-candidate-${{ github.run_id }}"
           status=$?
           if [[ "${status}" -eq 0 ]]; then
