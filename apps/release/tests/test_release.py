@@ -669,6 +669,10 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert 'grep -Eqi -- "${normalized}-${POSTTRAIN_RELEASE_VERSION}([.]|$)"' in final
     assert 'grep -Fq "${POSTTRAIN_RELEASE_VERSION}"' not in final
     assert "candidate_run_id:" in final
+    assert "Verify the final source and lock" in final
+    assert "uv sync --all-packages --group dev --python 3.13 --locked" in final
+    assert "uv run --no-sync ruff check ." not in final
+    assert "uv run --no-sync pytest" not in final
     assert "Restore the accepted candidate runtime image manifest" in final
     assert 'if git merge-base --is-ancestor "${candidate_sha}" "${RELEASE_SOURCE_SHA}"; then' in final
     assert '"repos/${GITHUB_REPOSITORY}/commits/${candidate_sha}"' in final
