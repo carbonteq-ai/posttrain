@@ -87,8 +87,15 @@ abrupt process loss preserves the most recently committed off-host checkpoint.
   checkpoint ledger in Observatory.
 - [ ] Milestone 7: integrate reference-aware retention, purge, and historical
   recovery-only adapter backfill.
-- [ ] Milestone 8: run local, remote, cancellation, crash, lineage, and release
-  qualification and record exact immutable evidence.
+- [/] Milestone 8: run local, remote, cancellation, crash, lineage, and release
+  qualification and record exact immutable evidence. The local validation
+  ladder is green (`1115 passed, 21 skipped`; Ruff, format, Pyright,
+  import-boundary checks, and `git diff --check` pass). The first live
+  continuation reached two real updates but dstack failed before Trackio
+  became terminal, so it produced no committed checkpoint views. A fresh
+  continuation is submitted with the corrected resume API and is waiting for
+  the RTX PRO worker; release promotion and the dependent eval remain gated on
+  a verified terminal run.
 
 ## Surprises & Discoveries
 
@@ -202,6 +209,23 @@ abrupt process loss preserves the most recently committed off-host checkpoint.
   Evidence: selected `model_adapter`/`model_weights` inputs are now honored by
   SFT, DPO, GRPO, distillation, eval, and serve definitions, with the model
   interface and inference binding updated together.
+
+- Observation: the first post-fix live continuation proved the recovery input
+  reached the worker and produced two update records, but provider failure
+  prevented the tracking finalizer from committing outputs.
+  Evidence: dstack emitted steps 51 and 52 with centered advantages,
+  non-zero reward spread, entropy, TIS, clipping, active-sampling, and step
+  time metrics; the resulting provider state was `job_failed` while the
+  Trackio run remained `running`, and `posttrain run checkpoint list` reported
+  no committed views.
+
+- Observation: the replacement continuation is correctly durable but cannot be
+  scheduled while the RTX PRO fleet member is unreachable.
+  Evidence: dstack reports the RTX 4090 member idle and the
+  `RTXPRO6000BlackwellWorkstationEdition:96GB` member `idle (unreachable)`;
+  direct SSH to `carbonteq-ai-workstation.lan` returns `No route to host`.
+  The run remains queued with provider retry enabled rather than being moved
+  to another GPU and invalidating the qualification target.
 
 ## Decision Log
 
