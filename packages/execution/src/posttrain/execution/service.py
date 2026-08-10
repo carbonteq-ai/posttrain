@@ -10,7 +10,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlsplit
 
 from posttrain.common import ContractError
@@ -39,8 +39,9 @@ _SUPPORTED_SCHEMAS = frozenset(
         "posttrain.execution-submission.v1",
         "posttrain.execution-submission.v2",
         "posttrain.execution-submission.v3",
-        "posttrain.execution-submission.v4",
-        "posttrain.execution-submission.v5",
+            "posttrain.execution-submission.v4",
+            "posttrain.execution-submission.v5",
+            "posttrain.execution-submission.v6",
         _SCHEMA,
     }
 )
@@ -110,6 +111,7 @@ class ExecutionSubmission:
     provider_source: ExecutionProviderSource | None = None
     provider_source_recorded: bool = True
     legacy_bundle_digest: str | None = None
+    local_image: str | None = None
 
     def __post_init__(self) -> None:
         if not _RUN_ID.fullmatch(self.run_id):
@@ -119,6 +121,13 @@ class ExecutionSubmission:
         if not self.idempotency_key.strip():
             raise ContractError("execution submission idempotency key cannot be empty")
         RuntimeImageRef(self.job_image)
+        if self.local_image is not None and (
+            not self.local_image.startswith("posttrain-local:")
+            or not self.local_image.strip()
+            or "@" in self.local_image
+            or any(character.isspace() for character in self.local_image)
+        ):
+            raise ContractError("execution submission local image tag is invalid")
         if self.legacy_bundle_digest is not None and not _SHA256.fullmatch(self.legacy_bundle_digest):
             raise ContractError("legacy execution submission bundle digest must be SHA-256")
         if self.submitted_at.tzinfo is None or self.submitted_at.utcoffset() is None:
@@ -155,6 +164,7 @@ class ExecutionSubmission:
             self.provider_id,
             self.idempotency_key,
             self.job_image,
+            self.local_image or "",
             *self.required_artifact_roles,
             str(self.run_workspace) if self.run_workspace is not None else "",
             str(self.evidence_source_recorded),
@@ -219,6 +229,7 @@ class ExecutionSubmissionStore:
             "native_plan_id": plan.native_plan_id,
             "idempotency_key": plan.request.idempotency_key,
             "job_image": plan.request.image.value,
+            "local_image": plan.request.local_image,
             "evidence_source": (
                 {
                     "provider": evidence_source.provider,
@@ -458,6 +469,7 @@ class ExecutionSubmissionStore:
                     "provider_id": submission.provider_id,
                     "idempotency_key": submission.idempotency_key,
                     "job_image": submission.job_image,
+                    "local_image": submission.local_image,
                     "submitted_at": submission.submitted_at.isoformat(),
                     "required_artifact_roles": submission.required_artifact_roles,
                     "run_workspace": (str(submission.run_workspace) if submission.run_workspace is not None else None),
@@ -570,6 +582,7 @@ class JobExecutionService:
             evidence_source_recorded=True,
             provider_source=self._provider_source,
             provider_source_recorded=True,
+            local_image=plan.request.local_image,
         )
         return self._store.save(submission)
 
@@ -634,12 +647,22 @@ class JobExecutionService:
 
     def cleanup(self, run_id: str) -> ProviderCleanupResult:
         submission = self._submission(run_id)
-        result = self._provider.cleanup(
-            submission.handle,
-            run_id=run_id,
-            run_workspace=(submission.run_workspace or self._store.default_run_workspace(run_id)),
-            runtime_image=RuntimeImageRef(submission.job_image),
-        )
+        if submission.local_image is not None:
+            cleanup = cast(Any, self._provider.cleanup)
+            result = cleanup(
+                submission.handle,
+                run_id=run_id,
+                run_workspace=(submission.run_workspace or self._store.default_run_workspace(run_id)),
+                runtime_image=RuntimeImageRef(submission.job_image),
+                local_image=submission.local_image,
+            )
+        else:
+            result = self._provider.cleanup(
+                submission.handle,
+                run_id=run_id,
+                run_workspace=(submission.run_workspace or self._store.default_run_workspace(run_id)),
+                runtime_image=RuntimeImageRef(submission.job_image),
+            )
         if result.handle != submission.handle:
             raise ContractError("execution provider changed the handle during cleanup")
         return result
@@ -667,11 +690,12 @@ def _submission_from_payload(payload: dict[str, Any]) -> ExecutionSubmission:
                 "posttrain.execution-submission.v4",
                 "posttrain.execution-submission.v5",
                 "posttrain.execution-submission.v6",
+                "posttrain.execution-submission.v7",
             }
             else "runtime_image"
         )
         recorded_payload = payload.get("evidence_source_recorded")
-        evidence_source_recorded = schema in {"posttrain.execution-submission.v5", _SCHEMA}
+        evidence_source_recorded = schema in {"posttrain.execution-submission.v5", "posttrain.execution-submission.v6", _SCHEMA}
         if evidence_source_recorded and recorded_payload is not True:
             raise ContractError("execution submission must record whether tracking was configured")
         evidence_payload = payload.get("evidence_source")
@@ -688,9 +712,9 @@ def _submission_from_payload(payload: dict[str, Any]) -> ExecutionSubmission:
             if evidence_source_recorded and isinstance(evidence_payload, dict)
             else None
         )
-        provider_source_recorded = schema == _SCHEMA
+        provider_source_recorded = schema in {"posttrain.execution-submission.v6", _SCHEMA}
         if provider_source_recorded and payload.get("provider_source_recorded") is not True:
-            raise ContractError("execution submission v6 must record its provider source")
+            raise ContractError("execution submission must record its provider source")
         provider_payload = payload.get("provider_source")
         provider_source = (
             ExecutionProviderSource.from_dict(provider_payload)
@@ -711,6 +735,7 @@ def _submission_from_payload(payload: dict[str, Any]) -> ExecutionSubmission:
             provider_source=provider_source,
             provider_source_recorded=provider_source_recorded,
             legacy_bundle_digest=(str(payload["bundle_digest"]) if payload.get("bundle_digest") is not None else None),
+            local_image=(str(payload["local_image"]) if payload.get("local_image") is not None else None),
         )
     except (KeyError, TypeError, ValueError) as error:
         raise ContractError("execution submission fields are invalid") from error
@@ -741,6 +766,7 @@ def _validate_plan_identity(
         submission.provider != plan.provider
         or submission.idempotency_key != request.idempotency_key
         or submission.job_image != request.image.value
+        or submission.local_image != request.local_image
     ):
         raise ContractError(f"execution run {submission.run_id} already has a conflicting immutable submission")
 

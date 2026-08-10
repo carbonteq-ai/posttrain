@@ -53,14 +53,17 @@ from .grpo_observations import (
 )
 from .online_rl import (
     AgenticTurn,
+    AsyncRolloutCompletionObserver,
     EnvironmentRollout,
     EnvironmentRolloutBridge,
     EnvironmentRolloutEvidence,
+    ObservedEnvironmentRolloutBridge,
     PolicyGenerator,
     PolicySampling,
     PolicyTurnRequest,
     PolicyTurnResult,
     RolloutBatch,
+    RolloutCompletionObserver,
 )
 from .profiles import (
     GEMMA4_RENDERER,
@@ -158,8 +161,10 @@ __all__ = [
     "resolve_checkpoint_artifacts",
     "EnvironmentRollout",
     "AgenticTurn",
+    "AsyncRolloutCompletionObserver",
     "EnvironmentRolloutBridge",
     "EnvironmentRolloutEvidence",
+    "ObservedEnvironmentRolloutBridge",
     "DistillationBatch",
     "DistillationBatchLedger",
     "DistillationBatchSource",
@@ -168,6 +173,7 @@ __all__ = [
     "PolicyTurnRequest",
     "PolicyTurnResult",
     "RolloutBatch",
+    "RolloutCompletionObserver",
     "SFTBackend",
     "SFTSettings",
     "SFTValidationSettings",

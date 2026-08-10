@@ -190,7 +190,7 @@ subject to this evaluation-only requirement.
   answer-format, and unbounded-reasoning defects, plus an upstream Verifiers
   fixed-per-turn output reservation that can overrun a growing multi-turn
   prompt. The environment fixes are published at revision
-  `3e1582ef3cce8e6d355be3747be0427f700ef865`. Package
+  `ee096746ec3cf28eceffd49f29226e8a8dc7bc31`. Package
   `d79782ef7555...` and private OCI image `sha256:242ca3b9d704...`
   are running the final full population as
   `observatory-qwen4b-math-python-mtp-c8-budget32k-context64k-final-20260805`.
@@ -266,7 +266,7 @@ subject to this evaluation-only requirement.
   answer contract. The environment package now tests server port reporting,
   task/tool state compatibility, and the boxed-answer instruction; framework
   consumers are pinned to published commit
-  `3e1582ef3cce8e6d355be3747be0427f700ef865`.
+  `ee096746ec3cf28eceffd49f29226e8a8dc7bc31`.
 - Observation: Verifiers v1 applies one fixed `sampling.max_tokens` value to
   every turn and treats token limits as soft between turns. With a 24K output
   reservation, a valid 10K first response plus tool result caused vLLM to

@@ -93,6 +93,17 @@ class MachineServicesBinding:
 
 
 @dataclass(frozen=True, slots=True)
+class MachineCachePolicy:
+    """Operator-owned bounds for project-local pack material."""
+
+    total_budget_bytes: int = 40 * 1024**3
+    minimum_free_bytes: int = 10 * 1024**3
+    reusable_max_age_seconds: int = 30 * 24 * 60 * 60
+    failed_debug_max_age_seconds: int = 24 * 60 * 60
+    retain_failed_debug: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class MachineHuggingFaceBinding:
     """Hugging Face credential selection shared by jobs on one machine."""
 
@@ -113,6 +124,7 @@ class MachineConfig:
     huggingface: MachineHuggingFaceBinding | None
     services: MachineServicesBinding
     credentials: Mapping[str, Path]
+    cache: MachineCachePolicy = MachineCachePolicy()
 
 
 @dataclass(frozen=True, slots=True)
@@ -471,6 +483,7 @@ def load_machine_config() -> MachineConfig | None:
             "trust",
             "storage",
             "providers",
+            "cache",
         },
         "machine config",
     )
@@ -623,6 +636,39 @@ def load_machine_config() -> MachineConfig | None:
         ),
         job_registry=_optional_config_string(services_payload.get("job_registry"), "services.job_registry"),
     )
+    cache_payload = _mapping(payload.get("cache"), context="cache", allow_none=True)
+    _reject_unknown(
+        cache_payload,
+        {
+            "total_budget_bytes",
+            "minimum_free_bytes",
+            "reusable_max_age_seconds",
+            "failed_debug_max_age_seconds",
+            "retain_failed_debug",
+        },
+        "cache",
+    )
+    cache_defaults = MachineCachePolicy()
+    cache = MachineCachePolicy(
+        total_budget_bytes=_optional_positive_int(
+            cache_payload.get("total_budget_bytes"), "cache.total_budget_bytes"
+        )
+        or cache_defaults.total_budget_bytes,
+        minimum_free_bytes=_optional_positive_int(
+            cache_payload.get("minimum_free_bytes"), "cache.minimum_free_bytes"
+        )
+        or cache_defaults.minimum_free_bytes,
+        reusable_max_age_seconds=_optional_positive_int(
+            cache_payload.get("reusable_max_age_seconds"), "cache.reusable_max_age_seconds"
+        )
+        or cache_defaults.reusable_max_age_seconds,
+        failed_debug_max_age_seconds=_optional_positive_int(
+            cache_payload.get("failed_debug_max_age_seconds"), "cache.failed_debug_max_age_seconds"
+        )
+        or cache_defaults.failed_debug_max_age_seconds,
+        retain_failed_debug=_optional_bool(cache_payload.get("retain_failed_debug"), "cache.retain_failed_debug")
+        or False,
+    )
     return MachineConfig(
         machine_name,
         path,
@@ -634,6 +680,7 @@ def load_machine_config() -> MachineConfig | None:
         huggingface,
         services,
         MappingProxyType(credential_sources),
+        cache,
     )
 
 
@@ -1220,6 +1267,14 @@ def _optional_int(value: object, context: str) -> int | None:
     return value
 
 
+def _optional_bool(value: object, context: str) -> bool | None:
+    if value is None:
+        return None
+    if not isinstance(value, bool):
+        raise ContractError(f"execution configuration {context} must be a boolean")
+    return value
+
+
 def _string_tuple(
     value: object,
     *,
@@ -1370,6 +1425,7 @@ __all__ = [
     "ResolvedExecutionSettings",
     "SettingSource",
     "MachineConfig",
+    "MachineCachePolicy",
     "MachineServicesBinding",
     "MachineTrackingBinding",
     "load_local_execution_config",

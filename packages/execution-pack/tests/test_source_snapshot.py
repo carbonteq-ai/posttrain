@@ -43,6 +43,10 @@ def test_snapshot_is_content_addressed_and_selective(tmp_path: Path) -> None:
     second = snapshotter.materialize(request)
 
     assert snapshotter.inspect(request) == first.digest
+    inspection = snapshotter.inspect_details(request)
+    assert inspection.digest == first.digest
+    assert inspection.file_count == 2
+    assert inspection.byte_count == len("[project]\nname='example'\nversion='1.0.0'\n") + len("VALUE = 1\n")
     assert first.created is True
     assert second.created is False
     assert first.digest == second.digest

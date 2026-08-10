@@ -3,6 +3,7 @@
 from posttrain.execution_pack import (
     EnvironmentWheelRequest,
     GitSourceRequest,
+    LocalDaemonJobImage,
     LocalJobImagePublisher,
     LocalPublishedJobImage,
 )
@@ -91,6 +92,7 @@ __all__ = [
     "ImmutableEnvironmentPackager",
     "KindDependencyConstraints",
     "LocalJobImagePublisher",
+    "LocalDaemonJobImage",
     "LocalPublishedJobImage",
     "LockedEnvironmentWheel",
     "LockedGitSource",

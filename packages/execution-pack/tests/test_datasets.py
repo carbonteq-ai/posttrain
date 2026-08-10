@@ -171,3 +171,100 @@ def test_typed_builder_is_materialized_and_locked_in_the_job_context(tmp_path: P
     assert manifest["content_sha256"] == lock.digest
     assert manifest["builder_target"] == lock.builder_target
     assert (context / lock.package_path).read_text(encoding="utf-8").count("hello") == 1
+
+
+def test_packager_reads_only_selected_dataset_from_separate_input_root(tmp_path: Path) -> None:
+    code_root = tmp_path / "code-snapshot"
+    code_root.mkdir()
+    input_root = tmp_path / "project"
+    data_root = input_root / "data"
+    data_root.mkdir(parents=True)
+    selected = data_root / "selected.jsonl"
+    selected.write_text(
+        json.dumps(
+            {
+                "messages": [
+                    {"role": "user", "content": "selected prompt"},
+                    {"role": "assistant", "content": "selected answer"},
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    unselected = data_root / "unselected.jsonl"
+    unselected.write_text('{"secret":"must-not-be-packed"}\n', encoding="utf-8")
+    plan = DatasetLoadPlan(
+        id="datasets/selected@1",
+        revision="1",
+        kind="supervised",
+        source={"kind": "nemo", "path": "data/selected.jsonl"},
+        format="messages",
+    )
+    packager = ImmutableDatasetPackager(
+        state_dir=(tmp_path / "state").resolve(),
+        project_root=code_root.resolve(),
+        input_root=input_root.resolve(),
+        code_snapshot_digest="c" * 64,
+    )
+
+    first = packager.package(
+        (DatasetPackRequest("dataset", plan),),
+        output_root=(tmp_path / "first-context").resolve(),
+    )
+    unselected.write_text('{"secret":"changed-but-still-unselected"}\n', encoding="utf-8")
+    second = packager.package(
+        (DatasetPackRequest("dataset", plan),),
+        output_root=(tmp_path / "second-context").resolve(),
+    )
+
+    assert len(first.locks) == len(second.locks) == 1
+    assert first.locks[0] == second.locks[0]
+    first_files = tuple(path.relative_to(first.root).as_posix() for path in first.root.rglob("*") if path.is_file())
+    assert all("unselected" not in path for path in first_files)
+    assert "must-not-be-packed" not in "".join(
+        path.read_text(encoding="utf-8")
+        for path in first.root.rglob("*")
+        if path.is_file()
+    )
+
+
+def test_typed_builder_uses_snapshot_code_and_separate_selected_input_root(tmp_path: Path) -> None:
+    code_root = tmp_path / "code-snapshot"
+    code_root.mkdir()
+    (code_root / "builder.py").write_text(
+        "def build(ctx):\n"
+        "    for row in ctx.records('raw'):\n"
+        "        yield {'messages': [{'role': 'user', 'content': row['value']}, "
+        "{'role': 'assistant', 'content': 'ok'}]}\n",
+        encoding="utf-8",
+    )
+    input_root = tmp_path / "project-inputs"
+    input_root.mkdir()
+    (input_root / "selected.jsonl").write_text('{"value":"selected"}\n', encoding="utf-8")
+    (input_root / "unselected.jsonl").write_text('{"value":"unselected"}\n', encoding="utf-8")
+    plan = DatasetLoadPlan(
+        id="datasets/built-selected@1",
+        revision="1",
+        kind="supervised",
+        source=BuiltDatasetSource(
+            builder=PythonDatasetBuilder("builder:build"),
+            inputs={"raw": LocalDatasetInput("selected.jsonl")},
+        ),
+        format="messages",
+    )
+
+    result = ImmutableDatasetPackager(
+        state_dir=(tmp_path / "state").resolve(),
+        project_root=code_root.resolve(),
+        input_root=input_root.resolve(),
+        code_snapshot_digest="c" * 64,
+        dependency_lock_digest="d" * 64,
+    ).package(
+        (DatasetPackRequest("dataset", plan),),
+        output_root=(tmp_path / "context").resolve(),
+    )
+
+    packaged = (result.root / result.locks[0].package_path).read_text(encoding="utf-8")
+    assert "selected" in packaged
+    assert "unselected" not in packaged

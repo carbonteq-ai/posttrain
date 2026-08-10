@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
 from posttrain.catalog import ProjectLayout
 from posttrain.common import ContractError
+from posttrain.execution_pack import PackageMaterializationRecord
 
 from .state_layout import cache_path
 
 _MANIFEST_NAME = "package.json"
 _CONTEXTS = "pack/contexts"
+_RECORDS = Path("packages") / "materializations"
+_LEGACY_RECORDS = "pack/records"
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,7 +25,7 @@ class RetainedPackage:
 
     package_key: str
     root: Path
-    payload: dict[str, object]
+    payload: Mapping[str, object]
     packed_at: float
 
     @property
@@ -34,32 +38,49 @@ class RetainedPackage:
 
 
 def retained_packages(layout: ProjectLayout) -> tuple[RetainedPackage, ...]:
-    """Return every retained package, newest first."""
-    root = cache_path(layout, _CONTEXTS)
-    if not root.is_dir():
-        return ()
-    found: list[RetainedPackage] = []
-    for entry in root.iterdir():
-        manifest = entry / _MANIFEST_NAME
-        if not manifest.is_file():
+    """Return compact package records, with a legacy context fallback."""
+
+    found: dict[str, RetainedPackage] = {}
+    record_roots = [(layout.state / _RECORDS).resolve(), cache_path(layout, _LEGACY_RECORDS)]
+    for records in record_roots:
+        if not records.is_dir():
             continue
-        try:
-            payload = json.loads(manifest.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            # A partially written or unreadable context is not worth failing a
-            # diagnostic over; it simply cannot participate in a comparison.
-            continue
-        if not isinstance(payload, dict):
-            continue
-        found.append(
-            RetainedPackage(
+        for entry in records.iterdir():
+            if entry.suffix != ".json" or entry.is_symlink() or not entry.is_file():
+                continue
+            try:
+                record = PackageMaterializationRecord.from_bytes(entry.read_bytes())
+            except (OSError, ContractError):
+                continue
+            context = cache_path(layout, _CONTEXTS, record.package_key)
+            found[record.package_key] = RetainedPackage(
+                package_key=record.package_key,
+                root=context if context.is_dir() else entry,
+                payload=record.manifest.to_payload(),
+                packed_at=entry.stat().st_mtime,
+            )
+
+    contexts = cache_path(layout, _CONTEXTS)
+    if contexts.is_dir():
+        for entry in contexts.iterdir():
+            manifest = entry / _MANIFEST_NAME
+            if entry.name in found or not manifest.is_file():
+                continue
+            try:
+                payload = json.loads(manifest.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                # A partially written or unreadable legacy context is not
+                # worth failing a diagnostic over.
+                continue
+            if not isinstance(payload, dict):
+                continue
+            found[entry.name] = RetainedPackage(
                 package_key=entry.name,
                 root=entry,
                 payload=payload,
                 packed_at=manifest.stat().st_mtime,
             )
-        )
-    return tuple(sorted(found, key=lambda item: item.packed_at, reverse=True))
+    return tuple(sorted(found.values(), key=lambda item: item.packed_at, reverse=True))
 
 
 def packages_for(

@@ -33,7 +33,9 @@ from .contracts import (
     MaterializedRuntimeDependency,
     SourcePackage,
 )
+from .leases import CacheLease
 from .planning import JobPackPlan
+from .records import PackageMaterializationRecord
 
 _FORBIDDEN_SOURCE_NAMES = {
     ".env",
@@ -202,6 +204,7 @@ class PackedJobContext:
     manifest: JobPackageManifest
     context_digest: str
     publication_key: str
+    lease: CacheLease | None = field(default=None, compare=False, repr=False)
 
     def __post_init__(self) -> None:
         if not self.root.is_absolute():
@@ -213,6 +216,12 @@ class PackedJobContext:
             if re.fullmatch(r"[0-9a-f]{64}", value) is None:
                 raise ContractError(f"packed job {label} digest must be SHA-256")
 
+    def close(self) -> None:
+        """Release the short-lived lease held while this context is in use."""
+
+        if self.lease is not None:
+            self.lease.release()
+
 
 class JobPackService:
     """Materialize, verify, and atomically retain one actual-job context."""
@@ -223,10 +232,18 @@ class JobPackService:
         output_root: Path,
         dataset_packager: DatasetPackager,
         environment_packager: EnvironmentPackager | None = None,
+        record_root: Path | None = None,
+        lease_root: Path | None = None,
     ) -> None:
         if not output_root.is_absolute():
             raise ContractError("job package output root must be absolute")
+        if record_root is not None and not record_root.is_absolute():
+            raise ContractError("job package record root must be absolute")
+        if lease_root is not None and not lease_root.is_absolute():
+            raise ContractError("job package lease root must be absolute")
         self._output_root = output_root
+        self._record_root = record_root or output_root.parent / "records"
+        self._lease_root = lease_root or output_root.parent / "leases"
         self._dataset_packager = dataset_packager
         self._environment_packager = environment_packager
 
@@ -363,22 +380,38 @@ class JobPackService:
             _normalize_tree_metadata(stage)
             _verify_staged_context(stage, manifest)
             context_digest = _tree_digest(stage)
-            destination = self._retain(
-                stage,
-                package_key=manifest.package_key,
-                context_digest=context_digest,
-            )
-            publication_key = _semantic_digest(
-                {
-                    "package_key": manifest.package_key,
-                    "publication": plan.publication.to_payload(),
-                }
-            )
+            lease = CacheLease.acquire(self._lease_root, manifest.package_key)
+            try:
+                destination = self._retain(
+                    stage,
+                    package_key=manifest.package_key,
+                    context_digest=context_digest,
+                )
+                publication_key = _semantic_digest(
+                    {
+                        "package_key": manifest.package_key,
+                        "publication": plan.publication.to_payload(),
+                    }
+                )
+                _write_materialization_record(
+                    self._record_root,
+                    PackageMaterializationRecord(
+                        package_key=manifest.package_key,
+                        context_digest=context_digest,
+                        publication_key=publication_key,
+                        manifest=manifest,
+                        plan_key=plan.plan_key,
+                    ),
+                )
+            except BaseException:
+                lease.release()
+                raise
             return PackedJobContext(
                 root=destination,
                 manifest=manifest,
                 context_digest=context_digest,
                 publication_key=publication_key,
+                lease=lease,
             )
         finally:
             shutil.rmtree(stage, ignore_errors=True)
@@ -433,6 +466,49 @@ class JobPackService:
                 context_digest=context_digest,
             )
         return destination
+
+
+def _write_materialization_record(
+    record_root: Path,
+    record: PackageMaterializationRecord,
+) -> Path:
+    """Atomically create or verify one compact materialization record."""
+
+    record_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    record_root.chmod(0o700)
+    destination = record_root / f"{record.package_key}.json"
+    if destination.exists():
+        if destination.is_symlink() or not destination.is_file():
+            raise ContractError("materialization record path is not a regular file")
+        try:
+            retained = PackageMaterializationRecord.from_bytes(destination.read_bytes())
+        except OSError as error:
+            raise ContractError("materialization record cannot be read") from error
+        if retained != record:
+            raise ContractError("materialization record conflicts with an existing package")
+        return destination
+
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{record.package_key}.", suffix=".tmp", dir=record_root)
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(record.to_bytes())
+            stream.flush()
+            os.fsync(stream.fileno())
+        temporary.chmod(0o600)
+        try:
+            os.link(temporary, destination)
+        except FileExistsError:
+            if destination.is_symlink() or not destination.is_file():
+                raise ContractError("materialization record path is not a regular file") from None
+            retained = PackageMaterializationRecord.from_bytes(destination.read_bytes())
+            if retained != record:
+                raise ContractError("materialization record conflicts with an existing package") from None
+    except OSError as error:
+        raise ContractError("materialization record could not be written") from error
+    finally:
+        temporary.unlink(missing_ok=True)
+    return destination
 
 
 def digest_source_package(source: SourcePackage) -> str:

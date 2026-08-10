@@ -1012,6 +1012,13 @@ def test_machine_config_example_supplies_every_project_with_shared_defaults(
                 "[providers.local]",
                 'dns_servers = ["192.0.2.53", "2001:db8::53"]',
                 "",
+                "[cache]",
+                "total_budget_bytes = 123456",
+                "minimum_free_bytes = 7890",
+                "reusable_max_age_seconds = 3600",
+                "failed_debug_max_age_seconds = 120",
+                "retain_failed_debug = true",
+                "",
             )
         ),
         encoding="utf-8",
@@ -1032,6 +1039,11 @@ def test_machine_config_example_supplies_every_project_with_shared_defaults(
     assert loaded.local.storage.run_root == state_home / "posttrain" / "runs"
     assert loaded.local.storage.model_cache == state_home / "posttrain" / "cache" / "huggingface"
     assert loaded.local.storage.compile_cache == state_home / "posttrain" / "cache" / "compile"
+    assert loaded.machine.cache.total_budget_bytes == 123456
+    assert loaded.machine.cache.minimum_free_bytes == 7890
+    assert loaded.machine.cache.reusable_max_age_seconds == 3600
+    assert loaded.machine.cache.failed_debug_max_age_seconds == 120
+    assert loaded.machine.cache.retain_failed_debug
     assert load_execution_environment(loaded)["POSTTRAIN_TRACKIO_SERVER_URL"] == "https://trackio.lan"
     evidence = evidence_source_for_project(layout)
     assert evidence is not None

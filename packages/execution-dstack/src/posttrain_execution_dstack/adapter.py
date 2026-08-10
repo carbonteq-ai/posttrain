@@ -368,6 +368,7 @@ class DstackExecutionProvider:
         run_id: str,
         run_workspace: Path | None,
         runtime_image: RuntimeImageRef,
+        local_image: str | None = None,
     ) -> ProviderCleanupResult:
         if not _RUN_ID.fullmatch(run_id):
             raise RuntimeError("dstack cleanup run id is not path-safe")

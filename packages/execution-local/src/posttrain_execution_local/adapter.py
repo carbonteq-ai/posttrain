@@ -87,6 +87,14 @@ class DockerCli:
                 "{{json .RepoDigests}}",
             )
             return {"repo_digests": json.loads(inspected.stdout)}
+        if action == "image_exists":
+            result = self._run("image", "inspect", name, check=False)
+            return {"exists": result.returncode == 0}
+        if action == "image_cleanup":
+            result = self._run("image", "rm", name, check=False)
+            if result.returncode != 0 and "no such image" not in result.stderr.lower():
+                raise RuntimeError(result.stderr.strip() or "docker image removal failed")
+            return {"removed": result.returncode == 0}
         if action == "submit":
             arguments = ["run", "--detach", "--name", name]
             for key, value in cast_mapping(payload.get("labels")).items():
@@ -210,7 +218,7 @@ class LocalDockerExecutionProvider:
             )
         return {
             "name": _container_name(request.idempotency_key),
-            "image": request.image.value,
+            "image": request.local_image or request.image.value,
             "gpu": request.target.device_class in {"cuda", "nvidia-cuda"},
             "environment_names": list(request.environment_names),
             "launch_environment": self._launch_environment(request),
@@ -254,10 +262,14 @@ class LocalDockerExecutionProvider:
         payload = self._payload(request)
         name = str(payload["name"])
         if not bool(self._gateway.invoke("exists", {"name": name}).get("exists")):
-            pulled = self._gateway.invoke("pull", {"image": request.image.value})
-            repo_digests = [str(value) for value in cast_sequence(pulled.get("repo_digests"))]
-            if request.image.value not in repo_digests:
-                raise RuntimeError("Docker did not resolve the requested immutable image digest")
+            if request.local_image is not None:
+                if not bool(self._gateway.invoke("image_exists", {"name": request.local_image}).get("exists")):
+                    raise RuntimeError(f"local daemon image is missing: {request.local_image}")
+            else:
+                pulled = self._gateway.invoke("pull", {"image": request.image.value})
+                repo_digests = [str(value) for value in cast_sequence(pulled.get("repo_digests"))]
+                if request.image.value not in repo_digests:
+                    raise RuntimeError("Docker did not resolve the requested immutable image digest")
             self._gateway.invoke("submit", payload)
         else:
             identity = self._gateway.invoke("identity", {"name": name})
@@ -337,6 +349,7 @@ class LocalDockerExecutionProvider:
         run_id: str,
         run_workspace: Path | None,
         runtime_image: RuntimeImageRef,
+        local_image: str | None = None,
     ) -> ProviderCleanupResult:
         record = self.status(handle)
         container_disposition = "already-absent"
@@ -360,11 +373,21 @@ class LocalDockerExecutionProvider:
                 "cleanup_workspace",
                 {
                     "workspace": str(run_workspace),
-                    "image": runtime_image.value,
+                    "image": local_image or runtime_image.value,
                 },
             )
+        image_disposition = ""
+        if local_image is not None:
+            if (
+                not local_image.startswith("posttrain-local:")
+                or "@" in local_image
+                or any(character.isspace() for character in local_image)
+            ):
+                raise RuntimeError("local daemon cleanup image tag is invalid")
+            self._gateway.invoke("image_cleanup", {"name": local_image})
+            image_disposition = f" and removed the exact Posttrain-owned daemon image {local_image}"
         return ProviderCleanupResult(
             handle,
             container_disposition,
-            ("released the exact local Docker container and emptied its run-scoped workspace"),
+            ("released the exact local Docker container and emptied its run-scoped workspace" + image_disposition),
         )

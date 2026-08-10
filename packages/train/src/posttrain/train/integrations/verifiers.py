@@ -26,6 +26,7 @@ from posttrain.data import RolloutDataset, RolloutExample
 
 from ..online_rl import (
     AgenticTurn,
+    AsyncRolloutCompletionObserver,
     EnvironmentRollout,
     EnvironmentRolloutEvidence,
     PolicyGenerator,
@@ -305,7 +306,11 @@ def _load_selected_tasks(
             indexed[index] = task
         return dict(sorted(indexed.items()))
 
-    available = taskset.load()
+    # Native tasksets are allowed to return any iterable.  In particular,
+    # Reasoning Gym exposes a generator here rather than a sized sequence.
+    # Materialize it once so selection remains deterministic and the
+    # cardinality/indexing checks below apply uniformly to finite tasksets.
+    available = tuple(taskset.load())
     size = len(available)
     if environment.num_tasks > size:
         raise ValueError(
@@ -427,6 +432,7 @@ class VerifiersEnvironmentRolloutBridge:
     enrichers: tuple[TraceEnricher, ...] = ()
     _write_lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
     _trace_count: int = field(default=0, init=False)
+    _live_observed_trace_ids: set[str] = field(default_factory=set, init=False, repr=False)
     _dataset: RolloutDataset = field(init=False, repr=False)
     _tasks_by_example_id: dict[str, tuple[int, Any]] = field(init=False, repr=False)
     _environment: Any = field(init=False, repr=False)
@@ -444,6 +450,24 @@ class VerifiersEnvironmentRolloutBridge:
         return self._dataset
 
     async def run(self, batch: RolloutBatch, generator: PolicyGenerator) -> Sequence[EnvironmentRollout]:
+        return await self._run(batch, generator, on_completed=None)
+
+    async def run_observed(
+        self,
+        batch: RolloutBatch,
+        generator: PolicyGenerator,
+        *,
+        on_completed: AsyncRolloutCompletionObserver,
+    ) -> Sequence[EnvironmentRollout]:
+        return await self._run(batch, generator, on_completed=on_completed)
+
+    async def _run(
+        self,
+        batch: RolloutBatch,
+        generator: PolicyGenerator,
+        *,
+        on_completed: AsyncRolloutCompletionObserver | None,
+    ) -> Sequence[EnvironmentRollout]:
         _, _, ModelContext, _, Sampling, TrainRunInfo, _, _, _, _ = _imports()
         client = _PolicyClient(generator)
         context = ModelContext(
@@ -455,7 +479,6 @@ class VerifiersEnvironmentRolloutBridge:
                 top_p=self.sampling.top_p,
             ),
         )
-        by_id: dict[str, list[EnvironmentRollout]] = {}
         counts = Counter(batch.example_ids)
         if sum(counts.values()) != len(batch.example_ids):
             raise AssertionError("rollout identity accounting failed")
@@ -471,7 +494,7 @@ class VerifiersEnvironmentRolloutBridge:
             raise ValueError("Verifiers bridge max_concurrent must be positive")
         semaphore = asyncio.Semaphore(limit) if limit is not None else None
 
-        async def run_example(example_id: str) -> tuple[str, int, Sequence[Any]]:
+        async def run_example(rollout_ordinal: int, example_id: str) -> tuple[int, EnvironmentRollout]:
             try:
                 task_index, task = self._tasks_by_example_id[example_id]
             except KeyError as error:
@@ -485,34 +508,42 @@ class VerifiersEnvironmentRolloutBridge:
                 raise ValueError(
                     f"Verifiers episode returned {len(traces)} traces for one scheduled branch; expected exactly one"
                 )
-            return example_id, task_index, traces
+            trace = traces[0]
+            trace.stamp(
+                run=TrainRunInfo(id=self.run_id, step=batch.step),
+                environment_id=self.environment_id,
+                task_index=task_index,
+                example_id=example_id,
+            )
+            for enrich in self.enrichers:
+                enrich(trace)
+            self._preserve(trace.to_record())
+            rollout = self._project(trace, example_id, task_index, rollout_ordinal)
+            if on_completed is not None:
+                await on_completed(rollout)
+                # The observer accepted this trace into the provider's local
+                # submission path. Keep the JSONL record as the durable
+                # run-scoped artifact source, but do not replay the same trace
+                # during host finalization.
+                with self._write_lock:
+                    self._live_observed_trace_ids.add(rollout.trace.external_id)
+            return rollout_ordinal, rollout
 
         occurrences = [example_id for example_id in batch.example_ids]
         async with self._environment.serving():
-            results = await asyncio.gather(*(run_example(example_id) for example_id in occurrences))
-        for example_id, task_index, traces in results:
-            projected: list[EnvironmentRollout] = []
-            for trace in traces:
-                trace.stamp(
-                    run=TrainRunInfo(id=self.run_id, step=batch.step),
-                    environment_id=self.environment_id,
-                    task_index=task_index,
-                    example_id=example_id,
-                )
-                for enrich in self.enrichers:
-                    enrich(trace)
-                self._preserve(trace.to_record())
-                projected.append(self._project(trace, example_id, task_index))
-            by_id.setdefault(example_id, []).extend(projected)
-        positions = {identifier: 0 for identifier in by_id}
-        aligned: list[EnvironmentRollout] = []
-        for example_id in batch.example_ids:
-            position = positions[example_id]
-            aligned.append(by_id[example_id][position])
-            positions[example_id] = position + 1
-        return aligned
+            results = await asyncio.gather(
+                *(run_example(ordinal, example_id) for ordinal, example_id in enumerate(occurrences))
+            )
+        results.sort(key=lambda item: item[0])
+        return [rollout for _, rollout in results]
 
-    def _project(self, trace: Any, example_id: str, task_index: int) -> EnvironmentRollout:
+    def _project(
+        self,
+        trace: Any,
+        example_id: str,
+        task_index: int,
+        rollout_ordinal: int,
+    ) -> EnvironmentRollout:
         branches = trace.branches
         if len(branches) != 1:
             error = trace.error
@@ -534,6 +565,7 @@ class VerifiersEnvironmentRolloutBridge:
         if len(logprobs) != len(completion_ids):
             raise ValueError("Verifiers branch logprobs are not aligned to the training sequence")
         record = trace.to_record()
+        is_truncated = _trace_is_truncated(record)
         turns = _agentic_turns(branch, first_sampled) if self.technique == "sampo" else ()
         observation = TraceObservation(
             trace_type="verifiers",
@@ -543,7 +575,10 @@ class VerifiersEnvironmentRolloutBridge:
                 "environment_id": self.environment_id,
                 "task_index": task_index,
                 "example_id": example_id,
-                "is_truncated": trace.is_truncated,
+                "rollout_ordinal": rollout_ordinal,
+                "is_truncated": is_truncated,
+                "completion_token_count": len(completion_ids),
+                "selected_token_count": sum(env_mask),
                 "model": trace.agent.model if trace.agent is not None else "",
             },
         )
@@ -554,7 +589,7 @@ class VerifiersEnvironmentRolloutBridge:
             sampling_logprobs=logprobs,
             env_mask=env_mask,
             reward=float(trace.reward),
-            is_truncated=bool(trace.is_truncated or trace.has_error),
+            is_truncated=is_truncated,
             trace=observation,
             turns=turns,
         )
@@ -627,6 +662,8 @@ class VerifiersEnvironmentRolloutBridge:
         records = [
             json.loads(line) for line in self.trace_path.read_text(encoding="utf-8").splitlines() if line.strip()
         ]
+        with self._write_lock:
+            live_observed_trace_ids = frozenset(self._live_observed_trace_ids)
         traces: list[TraceObservation] = []
         records_by_step: dict[int, list[dict[str, Any]]] = {}
         for record in records:
@@ -637,23 +674,25 @@ class VerifiersEnvironmentRolloutBridge:
                 raise ValueError("preserved Verifiers traces require an integer run step")
             info = record.get("info")
             info = info if isinstance(info, dict) else {}
-            traces.append(
-                TraceObservation(
-                    trace_type="verifiers",
-                    external_id=str(record.get("id") or ""),
-                    payload=record,
-                    attributes={
-                        "environment_id": str(info.get("environment_id") or self.environment_id),
-                        "task_index": int(info.get("task_index", -1)),
-                        "example_id": str(info.get("example_id") or ""),
-                        "is_truncated": _trace_is_truncated(record),
-                        "model": _trace_model(record),
-                    },
+            external_id = str(record.get("id") or "")
+            if not external_id:
+                raise ValueError("preserved Verifiers traces require stable trace ids")
+            if external_id not in live_observed_trace_ids:
+                traces.append(
+                    TraceObservation(
+                        trace_type="verifiers",
+                        external_id=external_id,
+                        payload=record,
+                        attributes={
+                            "environment_id": str(info.get("environment_id") or self.environment_id),
+                            "task_index": int(info.get("task_index", -1)),
+                            "example_id": str(info.get("example_id") or ""),
+                            "is_truncated": _trace_is_truncated(record),
+                            "model": _trace_model(record),
+                        },
+                    )
                 )
-            )
             records_by_step.setdefault(run["step"], []).append(record)
-        if any(not trace.external_id for trace in traces):
-            raise ValueError("preserved Verifiers traces require stable trace ids")
         metrics = tuple(
             MetricBatchObservation(
                 _trace_metrics(step_records),
@@ -681,7 +720,30 @@ def _trace_reward(record: Mapping[str, Any]) -> float | None:
 
 
 def _trace_is_truncated(record: Mapping[str, Any]) -> bool:
-    return not bool(record.get("is_completed")) and not bool(record.get("errors"))
+    if bool(record.get("errors")):
+        return True
+    if record.get("stop_condition") in {
+        "max_turns",
+        "max_input_tokens",
+        "max_output_tokens",
+        "max_total_tokens",
+        "context_length",
+        "harness_timeout",
+    }:
+        return True
+    calls = record.get("calls")
+    if isinstance(calls, list):
+        last_successful_call = next(
+            (
+                call
+                for call in reversed(calls)
+                if isinstance(call, Mapping) and not call.get("error")
+            ),
+            None,
+        )
+        if last_successful_call is not None and last_successful_call.get("finish_reason") == "length":
+            return True
+    return not bool(record.get("is_completed"))
 
 
 def _trace_has_tool_call(record: Mapping[str, Any]) -> bool:

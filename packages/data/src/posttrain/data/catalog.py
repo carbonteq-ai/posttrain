@@ -285,6 +285,7 @@ def materialize_dataset(
     *,
     state_dir: Path,
     project_root: Path,
+    input_root: Path | None = None,
     code_snapshot_digest: str | None = None,
     dependency_lock_digest: str | None = None,
 ) -> DatasetMaterialization:
@@ -295,18 +296,32 @@ def materialize_dataset(
             plan,
             state_dir=state_dir,
             project_root=project_root,
+            input_root=input_root,
             code_snapshot_digest=code_snapshot_digest,
             dependency_lock_digest=dependency_lock_digest,
         )
 
-    fingerprint = hashlib.sha256(_plan_json(plan, project_root=project_root).encode("utf-8")).hexdigest()
+    resolved_input_root = input_root or project_root
+    fingerprint = hashlib.sha256(
+        _plan_json(
+            plan,
+            project_root=project_root,
+            input_root=resolved_input_root,
+        ).encode("utf-8")
+    ).hexdigest()
     destination = state_dir / "datasets" / fingerprint
     data_path = destination / "data.jsonl"
     manifest_path = destination / "manifest.json"
     if data_path.is_file() and manifest_path.is_file():
         return _read_materialization(plan, data_path, manifest_path, created=False)
 
-    rows = tuple(_source_rows(plan, project_root=project_root))
+    rows = tuple(
+        _source_rows(
+            plan,
+            project_root=project_root,
+            input_root=resolved_input_root,
+        )
+    )
     dataset_id = plan.id.rsplit("@", maxsplit=1)[0]
     try:
         dataset = _adapt_rows(plan, rows, dataset_id=dataset_id)
@@ -336,11 +351,32 @@ def materialize_dataset(
     return _read_materialization(plan, data_path, manifest_path, created=True)
 
 
+def project_dataset_input_paths(plan: DatasetLoadPlan) -> tuple[str, ...]:
+    """Return project-relative data inputs declared by one dataset selection.
+
+    Builder source code is deliberately excluded. This closure is used by job
+    packing to keep declared dataset bytes out of the generic project source
+    snapshot while still admitting the code that produces a built dataset.
+    """
+
+    source = plan.source
+    if isinstance(source, BuiltDatasetSource):
+        paths = [item.path for item in source.inputs.values() if isinstance(item, LocalDatasetInput)]
+    elif plan.source_kind in _PATH_SOURCE_KINDS:
+        paths = [cast(str, cast(Mapping[str, JsonValue], source)["path"])]
+    elif plan.source_kind == "built":
+        paths = list(cast(list[str], cast(Mapping[str, JsonValue], source)["inputs"]))
+    else:
+        paths = []
+    return tuple(sorted({_normalized_project_input_path(path) for path in paths}))
+
+
 def _materialize_typed_dataset(
     plan: DatasetLoadPlan,
     *,
     state_dir: Path,
     project_root: Path,
+    input_root: Path | None,
     code_snapshot_digest: str | None,
     dependency_lock_digest: str | None,
 ) -> DatasetMaterialization:
@@ -354,11 +390,13 @@ def _materialize_typed_dataset(
     )
 
     source = cast(BuiltDatasetSource, plan.source)
+    resolved_input_root = input_root or project_root
     code_digest = code_snapshot_digest or source.builder.code_digest or source_code_digest(project_root)
     dependency_digest = dependency_lock_digest or source.builder.dependency_lock_digest or lock_digest(project_root)
     fingerprint = build_key(
         plan,
         project_root=project_root,
+        input_root=resolved_input_root,
         code_snapshot_digest=code_digest,
         dependency_lock_digest=dependency_digest,
     )
@@ -372,7 +410,12 @@ def _materialize_typed_dataset(
     cache_parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=f".{fingerprint[:12]}-", dir=cache_parent))
     try:
-        rows = run_typed_builder(source, project_root=project_root, workspace=staging / "builder")
+        rows = run_typed_builder(
+            source,
+            project_root=project_root,
+            input_root=resolved_input_root,
+            workspace=staging / "builder",
+        )
         dataset_id = plan.id.rsplit("@", maxsplit=1)[0]
         try:
             dataset = _adapt_rows(plan, rows, dataset_id=dataset_id)
@@ -403,7 +446,7 @@ def _materialize_typed_dataset(
             "dataset_schema_version": plan.schema_version,
             "source_kind": "built",
             "source": source.identity(),
-            "inputs": input_identities(source, project_root=project_root),
+            "inputs": input_identities(source, project_root=resolved_input_root),
             "provenance": {
                 "upstream": list(plan.provenance.upstream),
                 "transformation": plan.provenance.transformation,
@@ -594,16 +637,23 @@ def _project_path(plan: DatasetLoadPlan, *, project_root: Path) -> Path:
     configured = Path(cast(str, source["path"]))
     if configured.is_absolute():
         raise ContractError(f"{plan.source_kind} dataset path must be relative to the project root")
+    _reject_symlinked_project_path(project_root, configured, f"{plan.source_kind} dataset source")
     path = (project_root / configured).resolve()
     if not path.is_relative_to(project_root.resolve()):
         raise ContractError(f"{plan.source_kind} dataset path escapes the project root: {configured}")
     return path
 
 
-def _source_rows(plan: DatasetLoadPlan, *, project_root: Path) -> Iterable[Mapping[str, Any]]:
+def _source_rows(
+    plan: DatasetLoadPlan,
+    *,
+    project_root: Path,
+    input_root: Path | None = None,
+) -> Iterable[Mapping[str, Any]]:
     if isinstance(plan.source, BuiltDatasetSource):
         raise ContractError("typed built dataset sources must use the child-process materializer")
     source = cast(Mapping[str, JsonValue], plan.source)
+    resolved_input_root = input_root or project_root
     if plan.source_kind == "built":
         warnings.warn(
             "dataset source builder kind 'python-file' is deprecated; use PythonDatasetBuilder(module:callable)",
@@ -629,7 +679,7 @@ def _source_rows(plan: DatasetLoadPlan, *, project_root: Path) -> Iterable[Mappi
         return _jsonl_rows(text, source=resource)
     if plan.source_kind in _PATH_SOURCE_KINDS:
         configured = cast(str, source["path"])
-        path = _project_path(plan, project_root=project_root)
+        path = _project_path(plan, project_root=resolved_input_root)
         if plan.source_kind in {"jsonl", "nemo"}:
             try:
                 return _jsonl_rows(path.read_text(encoding="utf-8"), source=configured)
@@ -679,16 +729,29 @@ def _jsonl_rows(text: str, *, source: str) -> tuple[Mapping[str, Any], ...]:
     return tuple(rows)
 
 
-def _plan_json(plan: DatasetLoadPlan, *, project_root: Path | None = None) -> str:
+def _plan_json(
+    plan: DatasetLoadPlan,
+    *,
+    project_root: Path | None = None,
+    input_root: Path | None = None,
+) -> str:
     if isinstance(plan.source, BuiltDatasetSource):
         raise ContractError("typed built dataset sources use the typed materialization plan")
     source: dict[str, JsonValue] = dict(cast(Mapping[str, JsonValue], plan.source))
     if plan.source_kind == "built" and project_root is not None:
         builder = cast(Mapping[str, str], source["builder"])
         inputs = cast(list[str], source["inputs"])
+        resolved_input_root = input_root or project_root
         source["input_digests"] = {
-            path: hashlib.sha256(_safe_project_file(project_root, path, "built dataset input").read_bytes()).hexdigest()
-            for path in sorted({builder["path"], *inputs})
+            builder["path"]: hashlib.sha256(
+                _safe_project_file(project_root, builder["path"], "built dataset builder").read_bytes()
+            ).hexdigest(),
+            **{
+                path: hashlib.sha256(
+                    _safe_project_file(resolved_input_root, path, "built dataset input").read_bytes()
+                ).hexdigest()
+                for path in sorted(set(inputs))
+            },
         }
     return json.dumps(
         {
@@ -718,10 +781,33 @@ def _safe_project_file(project_root: Path, configured: str, label: str) -> Path:
     path = Path(configured)
     if path.is_absolute() or not configured or ".." in path.parts:
         raise ContractError(f"{label} path must be relative to the project root")
+    _reject_symlinked_project_path(project_root, path, label)
     resolved = (project_root / path).resolve()
     if not resolved.is_relative_to(project_root.resolve()) or not resolved.is_file():
         raise ContractError(f"{label} file not found: {configured}")
     return resolved
+
+
+def _reject_symlinked_project_path(root: Path, path: Path, label: str) -> None:
+    current = root
+    for part in path.parts:
+        current /= part
+        if current.is_symlink():
+            raise ContractError(f"{label} cannot traverse symlinks: {path.as_posix()}")
+
+
+def _normalized_project_input_path(configured: str) -> str:
+    path = Path(configured)
+    if (
+        not configured
+        or configured != configured.strip()
+        or "\\" in configured
+        or path.is_absolute()
+        or any(part in {"", ".", ".."} for part in path.parts)
+        or path.as_posix() != configured
+    ):
+        raise ContractError("dataset project input must be a normalized relative POSIX path")
+    return configured
 
 
 def _read_materialization(

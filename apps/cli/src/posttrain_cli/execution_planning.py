@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import hashlib
+import re
+import shutil
 import uuid
 import warnings
 from dataclasses import dataclass, replace
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import yaml
 from posttrain.catalog import FamilyRegistryLock, ProjectLayout
 from posttrain.common import Catalog, CatalogRef, ContractError, ExecutionTarget, StoredArtifactRef
+from posttrain.data import DatasetLoadPlan, project_dataset_input_paths
 from posttrain.execution import (
     JOB_PACKAGE_WORKER_COMMAND,
     ExecutionEvidenceSource,
@@ -21,6 +24,7 @@ from posttrain.execution import (
     ExecutionRequest,
     ExecutionSubmissionStore,
     JobExecutionService,
+    JobPackageManifest,
     RuntimeImageRef,
 )
 from posttrain.execution_pack import (
@@ -28,17 +32,22 @@ from posttrain.execution_pack import (
     ImmutableDatasetPackager,
     ImmutableSourceSnapshotter,
     JobImagePublicationRequest,
+    JobImageResolutionRequest,
     JobPackInputs,
     JobPackPlan,
     JobPackService,
+    LocalDaemonJobImage,
     LocalPublishedJobImage,
+    PackageMaterializationStore,
     PackedJobContext,
     ProjectConfigBundle,
     PublishedJobImage,
+    SourceSnapshotInspection,
     SourceSnapshotRequest,
     activation_resource_sources,
     environment_bindings,
     plan_job_pack,
+    publication_key_for,
 )
 from posttrain.project import JobIntent, load_project_pack_config
 from posttrain.runtime_images import JOB_BAKE_FILE, cached_definition_root
@@ -84,6 +93,7 @@ from .work_runtime import load_work_package_bundle, runtime_context
 _EMPTY_OVERRIDES = ExecutionOverrides()
 _EMPTY_PACKAGE_OVERRIDES = PackageOverrides()
 _EMPTY_LAUNCH_OVERRIDES = LaunchOverrides()
+_PACKAGE_KEY = re.compile(r"^[0-9a-f]{64}$")
 _FRAMEWORK_INSTALL_ROOTS = (
     "apps/runtime",
     "packages/catalog",
@@ -121,6 +131,9 @@ class PlannedJobPackage:
     runtime_profile: str
     target_source: SettingSource
     runtime_profile_source: SettingSource
+    project_source_inspection: SourceSnapshotInspection
+    framework_source_inspection: SourceSnapshotInspection | None = None
+    dataset_source_estimates: tuple[dict[str, object], ...] = ()
 
     def materialize(self) -> PackedJobContext:
         """Materialize the immutable job context without publishing an image."""
@@ -212,9 +225,12 @@ class PlannedJobPackage:
         )
         pack_service = JobPackService(
             output_root=cache_path(self.layout, "pack", "contexts"),
+            record_root=(self.layout.state / "packages" / "materializations").resolve(),
+            lease_root=cache_path(self.layout, "pack", "leases"),
             dataset_packager=ImmutableDatasetPackager(
                 state_dir=cache_path(self.layout, "datasets"),
                 project_root=project_source.package.root,
+                input_root=self.layout.root,
                 code_snapshot_digest=project_source.digest,
             ),
             environment_packager=environment_packager,
@@ -249,7 +265,8 @@ class PlannedJobPackage:
         execution_environment = load_execution_environment(self.local_config)
         return BuildKitJobImagePublisher(
             bake_file=_bake_file(registry),
-            receipt_root=(registry.receipt_root or cache_path(self.layout, "pack", "publications")),
+            receipt_root=(registry.receipt_root or (self.layout.state / "publications").resolve()),
+            local_layout_root=cache_path(self.layout, "pack", "local-layouts"),
             builder=registry.buildx_builder,
             python_index_url=execution_environment.get("UV_INDEX_URL"),
         )
@@ -257,34 +274,125 @@ class PlannedJobPackage:
     def pack(self, *, allow_deferred_qualification: bool = False) -> PackedJobPackage:
         """Materialize the exact inputs and publish or reuse the actual-job image."""
 
-        context = self.materialize()
-        image = self._publisher().publish(
-            JobImagePublicationRequest(
-                manifest=context.manifest,
-                staged_context=context.root,
-                publication=self.pack_plan.publication,
-                allow_deferred_qualification=allow_deferred_qualification,
-            )
+        record = PackageMaterializationStore(
+            (self.layout.state / "packages" / "materializations").resolve()
+        ).resolve(
+            self.pack_plan.plan_key
         )
-        if image.publication_key != context.publication_key:
-            raise ContractError("published image identity conflicts with the retained job context")
-        return PackedJobPackage(self, context, image)
+        if record is not None and record.publication_key == _publication_key(record.manifest, self.pack_plan.publication):
+            resolver = getattr(self._publisher(), "resolve", None)
+            if resolver is not None:
+                image = resolver(
+                    JobImageResolutionRequest(
+                        manifest=record.manifest,
+                        publication=self.pack_plan.publication,
+                        publication_key=record.publication_key,
+                        allow_deferred_qualification=allow_deferred_qualification,
+                    )
+                )
+                if image is not None:
+                    context = PackedJobContext(
+                        root=cache_path(self.layout, "pack", "contexts", record.package_key),
+                        manifest=record.manifest,
+                        context_digest=record.context_digest,
+                        publication_key=record.publication_key,
+                    )
+                    return PackedJobPackage(self, context, image)
 
-    def pack_local(self, *, allow_deferred_qualification: bool = False) -> LocalPackedJobPackage:
+        context = self.materialize()
+        try:
+            image = self._publisher().publish(
+                JobImagePublicationRequest(
+                    manifest=context.manifest,
+                    staged_context=context.root,
+                    publication=self.pack_plan.publication,
+                    allow_deferred_qualification=allow_deferred_qualification,
+                )
+            )
+            if image.publication_key != context.publication_key:
+                raise ContractError("published image identity conflicts with the retained job context")
+            return PackedJobPackage(self, context, image)
+        finally:
+            context.close()
+            _discard_materialized_context(self.layout, context.root)
+
+    def pack_local(
+        self,
+        *,
+        allow_deferred_qualification: bool = False,
+        local_output: Path | None = None,
+    ) -> LocalPackedJobPackage:
         """Export a qualified OCI layout without publishing to a registry."""
 
         context = self.materialize()
-        image = self._publisher().publish_local(
-            JobImagePublicationRequest(
-                manifest=context.manifest,
-                staged_context=context.root,
-                publication=self.pack_plan.publication,
-                allow_deferred_qualification=allow_deferred_qualification,
+        try:
+            image = self._publisher().publish_local(
+                JobImagePublicationRequest(
+                    manifest=context.manifest,
+                    staged_context=context.root,
+                    publication=self.pack_plan.publication,
+                    allow_deferred_qualification=allow_deferred_qualification,
+                    local_output=local_output,
+                )
             )
-        )
-        if image.publication_key != context.publication_key:
-            raise ContractError("local image identity conflicts with the retained job context")
-        return LocalPackedJobPackage(self, context, image)
+            if image.publication_key != context.publication_key:
+                raise ContractError("local image identity conflicts with the retained job context")
+            return LocalPackedJobPackage(self, context, image)
+        finally:
+            context.close()
+            _discard_materialized_context(self.layout, context.root)
+
+    def pack_local_daemon(
+        self,
+        *,
+        allow_deferred_qualification: bool = False,
+        run_id: str | None = None,
+    ) -> LocalDaemonPackedJobPackage:
+        """Load one single-platform image into the local daemon for execution."""
+
+        context = self.materialize()
+        try:
+            publisher = self._publisher()
+            publish_local_daemon = getattr(publisher, "publish_local_daemon", None)
+            if publish_local_daemon is None:
+                raise ContractError("configured job image publisher does not support local daemon loading")
+            image = publish_local_daemon(
+                JobImagePublicationRequest(
+                    manifest=context.manifest,
+                    staged_context=context.root,
+                    publication=self.pack_plan.publication,
+                    allow_deferred_qualification=allow_deferred_qualification,
+                    local_tag=(
+                        f"posttrain-local:{context.publication_key}-{hashlib.sha256(run_id.encode()).hexdigest()[:16]}"
+                        if run_id is not None
+                        else None
+                    ),
+                )
+            )
+            if image.publication_key != context.publication_key:
+                raise ContractError("local daemon image identity conflicts with the retained job context")
+            return LocalDaemonPackedJobPackage(self, context, image)
+        finally:
+            context.close()
+            _discard_materialized_context(self.layout, context.root)
+
+
+def _publication_key(manifest: JobPackageManifest, publication: ImagePublicationSpec) -> str:
+    """Compute a publication key for a compact-record cache lookup."""
+
+    return publication_key_for(manifest, publication)
+
+
+def _discard_materialized_context(layout: ProjectLayout, root: Path) -> None:
+    """Remove only a framework-owned retained context after publication."""
+
+    contexts = cache_path(layout, "pack", "contexts").resolve()
+    candidate = root.resolve(strict=False)
+    if candidate.parent != contexts or not _PACKAGE_KEY.fullmatch(candidate.name):
+        return
+    if root.is_symlink() or not root.is_dir():
+        return
+    shutil.rmtree(root)
 
 
 @dataclass(frozen=True, slots=True)
@@ -303,6 +411,15 @@ class LocalPackedJobPackage:
     planned: PlannedJobPackage
     context: PackedJobContext
     image: LocalPublishedJobImage
+
+
+@dataclass(frozen=True, slots=True)
+class LocalDaemonPackedJobPackage:
+    """Daemon-loaded image handle used only by a local execution."""
+
+    planned: PlannedJobPackage
+    context: PackedJobContext
+    image: LocalDaemonJobImage
 
 
 @dataclass(frozen=True, slots=True)
@@ -325,7 +442,17 @@ class PlannedJobExecution:
         return self.launch.mounts
 
     def pack(self, *, allow_deferred_qualification: bool = False) -> PackedJobExecution:
-        packed = self.package.pack(allow_deferred_qualification=allow_deferred_qualification)
+        publisher_supports_daemon = (
+            self.settings.provider == "local"
+            and hasattr(self.package._publisher(), "publish_local_daemon")
+        )
+        if publisher_supports_daemon:
+            packed = self.package.pack_local_daemon(
+                allow_deferred_qualification=allow_deferred_qualification,
+                run_id=self.launch.run_spec.run_id,
+            )
+        else:
+            packed = self.package.pack(allow_deferred_qualification=allow_deferred_qualification)
         return PackedJobExecution(self, packed.context, packed.image)
 
 
@@ -342,7 +469,7 @@ class PlannedJobLaunch:
 class PackedJobExecution:
     planned: PlannedJobExecution
     context: PackedJobContext
-    image: PublishedJobImage
+    image: PublishedJobImage | LocalDaemonJobImage
 
     def prepare_submission(self) -> PreparedJobSubmission:
         return _prepared_submission(self)
@@ -705,6 +832,7 @@ def _plan_job_package_from_intent(
         project_packages=project_packages,
         source_includes=source_includes,
     )
+    _reject_dataset_inputs_in_project_source(project_config.source_includes, catalog)
     project_source_request = project_config.source_request(layout.root)
     # A supplied wheelhouse is an explicit request to pack the staged framework
     # distributions.  In particular, a maintainer qualifying a nested project
@@ -715,7 +843,8 @@ def _plan_job_package_from_intent(
     )
     inspector = ImmutableSourceSnapshotter(cache_root=cache_path(layout, "pack", "sources"))
     if framework_source_request is not None:
-        framework_digest = inspector.inspect(framework_source_request)
+        framework_inspection = inspector.inspect_details(framework_source_request)
+        framework_digest = framework_inspection.digest
         framework_distributions = None
     else:
         # No checkout: the framework is installed, so its own distributions are
@@ -726,7 +855,9 @@ def _plan_job_package_from_intent(
             wheelhouse=framework_wheelhouse,
         )
         framework_digest = framework_distributions.digest
-    project_digest = inspector.inspect(project_source_request)
+        framework_inspection = None
+    project_inspection = inspector.inspect_details(project_source_request)
+    project_digest = project_inspection.digest
     runtime_variant = _runtime_variant(
         inferred_variant,
         profile,
@@ -769,7 +900,40 @@ def _plan_job_package_from_intent(
         runtime_profile=settings.runtime_profile,
         target_source=settings.sources.get("target", "job"),
         runtime_profile_source=settings.sources["runtime_profile"],
+        project_source_inspection=project_inspection,
+        framework_source_inspection=framework_inspection,
+        dataset_source_estimates=_dataset_source_estimates(layout.root, pack_plan),
     )
+
+
+def _dataset_source_estimates(layout_root: Path, pack_plan: JobPackPlan) -> tuple[dict[str, object], ...]:
+    estimates: list[dict[str, object]] = []
+    for request in pack_plan.spec.datasets:
+        paths = project_dataset_input_paths(request.selection)
+        byte_count = 0
+        for relative in paths:
+            candidate = (layout_root / relative).resolve()
+            if not candidate.is_relative_to(layout_root.resolve()) or candidate.is_symlink():
+                continue
+            if candidate.is_file():
+                byte_count += candidate.stat().st_size
+            elif candidate.is_dir():
+                byte_count += sum(
+                    path.stat().st_size
+                    for path in candidate.rglob("*")
+                    if path.is_file() and not path.is_symlink()
+                )
+        estimates.append(
+            {
+                "seat_name": request.seat_name,
+                "selection_id": request.selection.id,
+                "selection_revision": request.selection.revision,
+                "paths": list(paths),
+                "byte_count": byte_count,
+                "materialization_estimate": "source-inputs" if paths else "generated-or-remote",
+            }
+        )
+    return tuple(estimates)
 
 
 def _prepared_submission(packed: PackedJobExecution) -> PreparedJobSubmission:
@@ -781,6 +945,7 @@ def _prepared_submission(packed: PackedJobExecution) -> PreparedJobSubmission:
         run_spec=planned.launch.run_spec,
         job_definition_id=package.prepared.definition.id,
         image=image.image,
+        local_image=(image.tag if isinstance(image, LocalDaemonJobImage) else None),
         target=planned.target,
         command=JOB_PACKAGE_WORKER_COMMAND,
         idempotency_key=_idempotency_key(
@@ -972,6 +1137,43 @@ def _project_relative(layout: ProjectLayout, path: Path) -> str:
         return path.resolve().relative_to(layout.root).as_posix()
     except ValueError as error:
         raise ContractError(f"packed project configuration is outside the project: {path}") from error
+
+
+def _reject_dataset_inputs_in_project_source(
+    source_includes: tuple[str, ...],
+    catalog: Catalog,
+) -> None:
+    """Keep every catalog-declared local dataset out of generic code source."""
+
+    conflicts: list[tuple[str, str, str]] = []
+    includes = tuple(PurePosixPath(value) for value in source_includes)
+    for ref in catalog.list("dataset"):
+        value = catalog.resolve(ref).value
+        if not isinstance(value, DatasetLoadPlan):
+            continue
+        for configured in project_dataset_input_paths(value):
+            path = PurePosixPath(configured)
+            covering = next(
+                (
+                    include.as_posix()
+                    for include in includes
+                    if include == PurePosixPath(".") or include == path or include in path.parents
+                ),
+                None,
+            )
+            if covering is not None:
+                conflicts.append((ref.id, configured, covering))
+    if conflicts:
+        examples = ", ".join(
+            f"{selection} input {path} via {include}"
+            for selection, path, include in conflicts[:3]
+        )
+        extra = f" (+{len(conflicts) - 3} more)" if len(conflicts) > 3 else ""
+        raise ContractError(
+            "project source includes catalog dataset inputs; datasets must be "
+            "packaged only through the selected job's dataset seats. Remove the "
+            f"covering source include(s): {examples}{extra}"
+        )
 
 
 def _job_defaults(

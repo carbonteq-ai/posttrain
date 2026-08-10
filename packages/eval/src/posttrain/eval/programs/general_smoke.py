@@ -14,7 +14,7 @@ from ..requests import (
 
 VERIFIERS_REVISION = "284a868d6a9022109b749710672a0460e8a996d4"
 VERIFIERS_REPOSITORY = "https://github.com/PrimeIntellect-ai/verifiers"
-ENVIRONMENTS_REVISION = "3e1582ef3cce8e6d355be3747be0427f700ef865"
+ENVIRONMENTS_REVISION = "ee096746ec3cf28eceffd49f29226e8a8dc7bc31"
 ENVIRONMENTS_REPOSITORY = "https://github.com/carbonteq-ai/verifiers-environments"
 
 

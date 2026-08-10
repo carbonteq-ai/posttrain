@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import math
-from collections.abc import Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Literal, Protocol
+from typing import Literal, Protocol, cast
 
 from posttrain.common import JsonValue, MetricBatchObservation, ProducedArtifact, TraceObservation
 from posttrain.data import MessageRecord, RolloutDataset
@@ -160,6 +161,52 @@ class EnvironmentRolloutBridge(Protocol):
     def finalize(self) -> tuple[ProducedArtifact, ...]: ...
 
 
+type RolloutCompletionObserver = Callable[[EnvironmentRollout], None]
+type AsyncRolloutCompletionObserver = Callable[[EnvironmentRollout], Awaitable[None]]
+
+
+class ObservedEnvironmentRolloutBridge(Protocol):
+    """Optional bridge extension that exposes trajectories as they complete."""
+
+    async def run_observed(
+        self,
+        batch: RolloutBatch,
+        generator: PolicyGenerator,
+        *,
+        on_completed: AsyncRolloutCompletionObserver,
+    ) -> Sequence[EnvironmentRollout]: ...
+
+
+async def run_observed_rollouts(
+    bridge: EnvironmentRolloutBridge,
+    batch: RolloutBatch,
+    generator: PolicyGenerator,
+    observer: RolloutCompletionObserver,
+) -> Sequence[EnvironmentRollout]:
+    """Run a batch while submitting each completed rollout off the event loop.
+
+    Observation is serialized because provider clients commonly maintain a
+    run-local step counter. The provider is still responsible for queueing the
+    remote write, so rollout workers wait only for bounded local submission,
+    never for network persistence. Bridges without the optional streaming
+    extension retain their batch-complete compatibility behavior.
+    """
+
+    observation_lock = asyncio.Lock()
+
+    async def observe(rollout: EnvironmentRollout) -> None:
+        async with observation_lock:
+            await asyncio.to_thread(observer, rollout)
+
+    if callable(getattr(bridge, "run_observed", None)):
+        observed_bridge = cast(ObservedEnvironmentRolloutBridge, bridge)
+        return await observed_bridge.run_observed(batch, generator, on_completed=observe)
+    rollouts = await bridge.run(batch, generator)
+    for rollout in rollouts:
+        await observe(rollout)
+    return rollouts
+
+
 @dataclass(frozen=True, slots=True)
 class EnvironmentRolloutEvidence:
     """Provider-neutral observations recovered from an isolated rollout runtime."""
@@ -170,14 +217,18 @@ class EnvironmentRolloutEvidence:
 
 __all__ = [
     "AgenticTurn",
+    "AsyncRolloutCompletionObserver",
     "EnvironmentRolloutEvidence",
     "EnvironmentRolloutBridge",
     "EnvironmentRollout",
+    "ObservedEnvironmentRolloutBridge",
     "PolicyGenerator",
     "PolicySampling",
     "PolicyTurnRequest",
     "PolicyTurnResult",
     "RolloutBatch",
+    "RolloutCompletionObserver",
     "TokenSpan",
     "ToolRecord",
+    "run_observed_rollouts",
 ]

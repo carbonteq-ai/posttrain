@@ -30,12 +30,14 @@ def build_key(
     plan: Any,
     *,
     project_root: Path,
+    input_root: Path | None = None,
     code_snapshot_digest: str | None = None,
     dependency_lock_digest: str | None = None,
 ) -> str:
     """Return the cache identity for a selection and its executable recipe."""
 
     source = plan.source
+    resolved_input_root = input_root or project_root
     payload: dict[str, Any] = {
         "materializer_schema_version": MATERIALIZER_SCHEMA_VERSION,
         "selection": {
@@ -48,7 +50,7 @@ def build_key(
             "provenance": _jsonable(plan.provenance),
             "access": _jsonable(plan.access),
         },
-        "source": _source_identity(source, project_root=project_root),
+        "source": _source_identity(source, project_root=resolved_input_root),
     }
     if isinstance(source, BuiltDatasetSource):
         builder = source.builder
@@ -101,6 +103,7 @@ def run_typed_builder(
     source: BuiltDatasetSource,
     *,
     project_root: Path,
+    input_root: Path | None = None,
     workspace: Path,
     timeout_seconds: float = 300.0,
 ) -> tuple[Mapping[str, Any], ...]:
@@ -111,6 +114,9 @@ def run_typed_builder(
     project_root = project_root.resolve()
     if not project_root.is_dir():
         raise ContractError(f"dataset project root is not a directory: {project_root}")
+    resolved_input_root = (input_root or project_root).resolve()
+    if not resolved_input_root.is_dir():
+        raise ContractError(f"dataset input root is not a directory: {resolved_input_root}")
     workspace = workspace.resolve()
     workspace.mkdir(parents=True, exist_ok=True)
     inputs_dir = workspace / "inputs"
@@ -119,7 +125,12 @@ def run_typed_builder(
     temporary_paths: list[Path] = []
     try:
         for name, item in source.inputs.items():
-            resolved_item, temporary = _resolve_input(name, item, project_root=project_root, inputs_dir=inputs_dir)
+            resolved_item, temporary = _resolve_input(
+                name,
+                item,
+                project_root=resolved_input_root,
+                inputs_dir=inputs_dir,
+            )
             resolved[name] = resolved_item
             if temporary:
                 temporary_paths.append(temporary)
@@ -296,6 +307,11 @@ def _safe_local_path(root: Path, configured: str) -> Path:
     path = Path(configured)
     if path.is_absolute() or not configured or ".." in path.parts:
         raise ContractError("dataset build input path must be relative to the project root")
+    current = root
+    for part in path.parts:
+        current /= part
+        if current.is_symlink():
+            raise ContractError(f"dataset build input cannot traverse symlinks: {configured}")
     resolved = (root / path).resolve()
     if not resolved.is_relative_to(root.resolve()) or not resolved.is_file():
         raise ContractError(f"dataset build input file not found: {configured}")

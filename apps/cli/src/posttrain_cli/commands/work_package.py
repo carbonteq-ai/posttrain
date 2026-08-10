@@ -175,10 +175,14 @@ def pack_work_package_cmd(
     source_includes: tuple[str, ...] | None = None,
     build_missing: bool = False,
     local: bool = False,
+    local_output: Path | None = None,
     framework_wheelhouse: Path | None = None,
     allow_deferred_qualification: bool = False,
 ) -> PackedJobPackage | LocalPackedJobPackage:
     """Pack one job to an immutable registry image or local OCI layout."""
+
+    if local_output is not None and not local:
+        raise ContractError("--local-output requires --local")
 
     _layout, catalog, _resolved_path, package = load_work_package_bundle(state, path)
     job = resolve_job_id(catalog, package, job)
@@ -197,7 +201,10 @@ def pack_work_package_cmd(
     )
     _require_verified_kind_image(planned, build_missing=build_missing)
     if local:
-        packed = planned.pack_local(allow_deferred_qualification=allow_deferred_qualification)
+        packed = planned.pack_local(
+            allow_deferred_qualification=allow_deferred_qualification,
+            local_output=(local_output.expanduser().absolute() if local_output is not None else None),
+        )
         emit(
             state,
             _local_packed_job_payload(packed),
@@ -490,6 +497,20 @@ def _package_plan_payload(planned: PlannedJobPackage) -> dict[str, object]:
             "publication_plan_key": planned.pack_plan.publication_plan_key,
             "framework_source_digest": planned.pack_plan.spec.framework_source_digest,
             "project_source_digest": planned.pack_plan.spec.project_source_digest,
+            "source_estimates": {
+                "project": {
+                    "file_count": planned.project_source_inspection.file_count,
+                    "byte_count": planned.project_source_inspection.byte_count,
+                },
+                "framework": (
+                    None
+                    if planned.framework_source_inspection is None
+                    else {
+                        "file_count": planned.framework_source_inspection.file_count,
+                        "byte_count": planned.framework_source_inspection.byte_count,
+                    }
+                ),
+            },
             "kind_profile": planned.pack_plan.spec.kind_profile,
             "runtime_variant": planned.pack_plan.spec.runtime_variant,
             "constraint_profile_digest": constraint.digest,
@@ -497,6 +518,7 @@ def _package_plan_payload(planned: PlannedJobPackage) -> dict[str, object]:
             "provided_packages": list(constraint.provided_packages),
             "publication_repository": planned.pack_plan.publication.repository,
             "datasets": [request.to_payload() for request in planned.pack_plan.spec.datasets],
+            "dataset_source_estimates": list(planned.dataset_source_estimates),
             "environment_sources": [
                 {
                     "repository": source.repository,

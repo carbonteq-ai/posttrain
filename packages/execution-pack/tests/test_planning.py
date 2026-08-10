@@ -172,6 +172,63 @@ def test_plan_retains_dataset_seats_without_materializing_them() -> None:
     assert plan.spec.datasets[0].selection is dataset
 
 
+def test_plan_dataset_closure_contains_only_selected_job_seats() -> None:
+    first = DatasetLoadPlan(
+        id="datasets/first@1",
+        revision="1",
+        kind="supervised",
+        source={"kind": "fixture", "resource": "example:first.jsonl"},
+        format="messages",
+    )
+    second = DatasetLoadPlan(
+        id="datasets/second@1",
+        revision="1",
+        kind="supervised",
+        source={"kind": "fixture", "resource": "example:second.jsonl"},
+        format="messages",
+    )
+    catalog_only = DatasetLoadPlan(
+        id="datasets/catalog-only@1",
+        revision="1",
+        kind="supervised",
+        source={"kind": "fixture", "resource": "example:unused.jsonl"},
+        format="messages",
+    )
+
+    empty = plan_job_pack(
+        _prepared(cast(ResolvedSeats, {})),
+        framework_source_digest=DIGEST,
+        project_source_digest="d" * 64,
+        universal_image=BASE,
+        kind_image=KIND,
+        publication=PUBLICATION,
+    )
+    selected = plan_job_pack(
+        _prepared(
+            cast(
+                ResolvedSeats,
+                {
+                    "z_second_dataset": second,
+                    "environment": _environment("math", "math-v1", "environments/math_v1"),
+                    "a_first_dataset": first,
+                },
+            )
+        ),
+        framework_source_digest=DIGEST,
+        project_source_digest="d" * 64,
+        universal_image=BASE,
+        kind_image=KIND,
+        publication=PUBLICATION,
+    )
+
+    assert empty.spec.datasets == ()
+    assert [(request.seat_name, request.selection.id) for request in selected.spec.datasets] == [
+        ("a_first_dataset", first.id),
+        ("z_second_dataset", second.id),
+    ]
+    assert catalog_only.id not in str(selected.spec.to_payload())
+
+
 def test_plan_locks_declared_project_activation_resources(tmp_path) -> None:
     data = tmp_path / "data" / "train.jsonl"
     data.parent.mkdir()

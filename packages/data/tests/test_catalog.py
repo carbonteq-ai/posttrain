@@ -6,11 +6,15 @@ from pathlib import Path
 import pytest
 from posttrain.common import CatalogRef, ContractError
 from posttrain.data import (
+    BuiltDatasetSource,
     DatasetLoadPlan,
+    LocalDatasetInput,
     PreferenceDataset,
+    PythonDatasetBuilder,
     SupervisedDataset,
     decode_dataset_selection,
     materialize_dataset,
+    project_dataset_input_paths,
     resolve_dataset_source,
 )
 
@@ -124,6 +128,72 @@ def test_nemo_supervised_catalog_source_materializes(tmp_path: Path) -> None:
     assert source.metadata["source_kind"] == "nemo"
     assert source.examples[0].messages[-1]["content"] == "Done."
     assert source.examples[0].metadata["source_format"] == "messages"
+
+
+def test_project_dataset_input_paths_returns_only_declared_data_inputs() -> None:
+    static = DatasetLoadPlan(
+        id="datasets/static@1",
+        revision="1",
+        kind="supervised",
+        source={"kind": "nemo", "path": "data/selected.jsonl"},
+        format="messages",
+    )
+    typed = DatasetLoadPlan(
+        id="datasets/typed@1",
+        revision="1",
+        kind="supervised",
+        source=BuiltDatasetSource(
+            builder=PythonDatasetBuilder("builder:build"),
+            inputs={
+                "second": LocalDatasetInput("data/second.jsonl"),
+                "first": LocalDatasetInput("data/first.jsonl"),
+            },
+        ),
+        format="messages",
+    )
+    fixture = DatasetLoadPlan(
+        id="datasets/fixture@1",
+        revision="1",
+        kind="supervised",
+        source={"kind": "fixture", "resource": "posttrain.data.fixtures:sft_messages.jsonl"},
+        format="messages",
+    )
+
+    assert project_dataset_input_paths(static) == ("data/selected.jsonl",)
+    assert project_dataset_input_paths(typed) == (
+        "data/first.jsonl",
+        "data/second.jsonl",
+    )
+    assert project_dataset_input_paths(fixture) == ()
+
+
+def test_project_dataset_source_rejects_symlinked_input(tmp_path: Path) -> None:
+    outside = tmp_path / "outside.jsonl"
+    outside.write_text(
+        json.dumps(
+            {
+                "messages": [
+                    {"role": "user", "content": "q"},
+                    {"role": "assistant", "content": "a"},
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "selected.jsonl").symlink_to(outside)
+    plan = DatasetLoadPlan(
+        id="datasets/symlink@1",
+        revision="1",
+        kind="supervised",
+        source={"kind": "nemo", "path": "data/selected.jsonl"},
+        format="messages",
+    )
+
+    with pytest.raises(ContractError, match="cannot traverse symlinks"):
+        materialize_dataset(plan, state_dir=tmp_path / "state", project_root=tmp_path)
 
 
 def test_nemo_preference_catalog_source_materializes(tmp_path: Path) -> None:

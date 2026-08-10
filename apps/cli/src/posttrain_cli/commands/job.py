@@ -268,6 +268,13 @@ def register(app: typer.Typer) -> None:
                 help="export a verified local OCI layout without publishing to a registry",
             ),
         ] = False,
+        local_output: Annotated[
+            Path | None,
+            typer.Option(
+                "--local-output",
+                help="write an explicit user-owned OCI layout; requires --local",
+            ),
+        ] = None,
         framework_wheelhouse: Annotated[
             Path | None,
             typer.Option(
@@ -299,6 +306,7 @@ def register(app: typer.Typer) -> None:
             source_includes=(tuple(source_includes) if source_includes is not None else None),
             build_missing=build_missing,
             local=local,
+            local_output=local_output,
             framework_wheelhouse=framework_wheelhouse,
             allow_deferred_qualification=allow_deferred_qualification,
         )

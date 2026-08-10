@@ -4,6 +4,31 @@ All notable changes to Posttrain are documented here. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with a coordinated
 version across first-party distributions.
 
+## 0.3.6 - 2026-08-10
+
+This release tightens local job lifecycle handling, selected-input packaging,
+and online-RL evidence delivery.
+
+### Added
+
+- Bounded cache inspection, explanation, lease-aware pruning, compact package
+  records, and receipt-backed image reuse for job packing.
+- Completion-time rollout observation with asynchronous Trackio delivery while
+  preserving crash-recoverable native trace artifacts.
+- Job-local cleanup that removes disposable provider workspaces only after
+  terminal evidence reconciliation.
+- The published Reasoning Gym environment revision with bounded-reasoning
+  termination guidance.
+
+### Changed
+
+- Job packing includes only datasets reachable from the selected job's resolved
+  seats; unrelated project data is rejected before materialization.
+- Live-streamed traces are not replayed during finalization, while aggregate
+  trace-derived metrics still cover the complete local spool.
+- Local daemon image tags and temporary build material have explicit ownership
+  and terminal cleanup boundaries.
+
 ## 0.3.5 - 2026-08-09
 
 This release carries checkpoint-scoped model artifacts and the validated
