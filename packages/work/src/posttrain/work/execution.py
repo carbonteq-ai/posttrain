@@ -29,6 +29,7 @@ from posttrain.tracking import (
 
 type RunOperation[ResultT] = Callable[[RunContext], ResultT]
 type RunFinalizer[ResultT] = Callable[[RunContext, ResultT], None]
+type RunFailureFinalizer = Callable[[RunContext, BaseException], None]
 type ArtifactMaterializer = Callable[[Mapping[str, ArtifactInput], Path], Mapping[str, LocalArtifactRef]]
 
 
@@ -52,6 +53,7 @@ def execute_run[ResultT](
     scratch_root: Path | None = None,
     materialize: ArtifactMaterializer | None = None,
     finalize: RunFinalizer[ResultT] | None = None,
+    finalize_failure: RunFailureFinalizer | None = None,
 ) -> ResultT:
     """Execute one canonical job-kind run in an ephemeral workspace."""
 
@@ -83,6 +85,20 @@ def execute_run[ResultT](
                 result = operation(context)
         except BaseException as error:
             context.event("operation_failed", {"error_type": type(error).__name__})
+            if finalize_failure is not None:
+                try:
+                    finalize_failure(context, error)
+                except BaseException as finalization_error:
+                    error.add_note(
+                        "failure artifact finalization also failed: "
+                        f"{type(finalization_error).__name__}: {finalization_error}"
+                    )
+                    context.event(
+                        "failure_artifact_finalization_failed",
+                        {"error_type": type(finalization_error).__name__},
+                    )
+                else:
+                    context.event("failure_artifact_finalization_completed")
             raise
         context.event("operation_completed")
         if finalize is not None:
@@ -122,6 +138,12 @@ def execute_run_tracked[ResultT](
     def materialize(inputs: Mapping[str, ArtifactInput], workspace: Path) -> Mapping[str, LocalArtifactRef]:
         return tracked.materialize_inputs(inputs, workspace / "inputs")
 
+    def flush_artifacts(context: RunContext, value: object) -> None:
+        del context, value
+        flusher = getattr(tracked, "flush_artifacts", None)
+        if callable(flusher):
+            flusher(timeout=120)
+
     try:
         result = execute_run(
             spec,
@@ -129,19 +151,32 @@ def execute_run_tracked[ResultT](
             observer=tracked,
             scratch_root=scratch_root,
             materialize=materialize,
+            finalize=flush_artifacts,
+            finalize_failure=flush_artifacts,
         )
-    except (KeyboardInterrupt, SystemExit, OperationCancelled):
-        tracked.finish(RunOutcome("cancelled", started_at, datetime.now(UTC)))
+    except (KeyboardInterrupt, SystemExit, OperationCancelled) as error:
+        try:
+            tracked.finish(RunOutcome("cancelled", started_at, datetime.now(UTC)))
+        except BaseException as finalization_error:
+            error.add_note(
+                f"tracking cancellation finalization also failed: {type(finalization_error).__name__}: "
+                f"{finalization_error}"
+            )
         raise
     except BaseException as error:
-        tracked.finish(
-            RunOutcome(
-                "failed",
-                started_at,
-                datetime.now(UTC),
-                RunError(type(error).__name__, "operation failed; inspect run logs"),
+        try:
+            tracked.finish(
+                RunOutcome(
+                    "failed",
+                    started_at,
+                    datetime.now(UTC),
+                    RunError(type(error).__name__, "operation failed; inspect run logs"),
+                )
             )
-        )
+        except BaseException as finalization_error:
+            error.add_note(
+                f"tracking failure finalization also failed: {type(finalization_error).__name__}: {finalization_error}"
+            )
         raise
     tracked.finish(RunOutcome(success_status, started_at, datetime.now(UTC)))
     return result
@@ -166,6 +201,12 @@ def execute_run_tracked_finalized[ResultT](
 
     def materialize(inputs: Mapping[str, ArtifactInput], workspace: Path) -> Mapping[str, LocalArtifactRef]:
         return tracked.materialize_inputs(inputs, workspace / "inputs")
+
+    def finalize_failure(context: RunContext, error: BaseException) -> None:
+        del context, error
+        flusher = getattr(tracked, "flush_artifacts", None)
+        if callable(flusher):
+            flusher(timeout=120)
 
     def finalize(context: RunContext, result: ResultT) -> None:
         del context, result
@@ -200,19 +241,31 @@ def execute_run_tracked_finalized[ResultT](
             scratch_root=scratch_root,
             materialize=materialize,
             finalize=finalize,
+            finalize_failure=finalize_failure,
         )
-    except (KeyboardInterrupt, SystemExit, OperationCancelled):
-        tracked.finish(RunOutcome("cancelled", started_at, datetime.now(UTC)))
+    except (KeyboardInterrupt, SystemExit, OperationCancelled) as error:
+        try:
+            tracked.finish(RunOutcome("cancelled", started_at, datetime.now(UTC)))
+        except BaseException as finalization_error:
+            error.add_note(
+                f"tracking cancellation finalization also failed: {type(finalization_error).__name__}: "
+                f"{finalization_error}"
+            )
         raise
     except BaseException as error:
-        tracked.finish(
-            RunOutcome(
-                "failed",
-                started_at,
-                datetime.now(UTC),
-                RunError(type(error).__name__, "operation failed; inspect run logs"),
+        try:
+            tracked.finish(
+                RunOutcome(
+                    "failed",
+                    started_at,
+                    datetime.now(UTC),
+                    RunError(type(error).__name__, "operation failed; inspect run logs"),
+                )
             )
-        )
+        except BaseException as finalization_error:
+            error.add_note(
+                f"tracking failure finalization also failed: {type(finalization_error).__name__}: {finalization_error}"
+            )
         raise
     tracked.finish(RunOutcome(success_status, started_at, datetime.now(UTC)))
     return FinalizedRunResult(result, published)

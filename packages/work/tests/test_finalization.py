@@ -16,7 +16,7 @@ from posttrain.common import (
     StoredArtifactRef,
 )
 from posttrain.tracking import ArtifactInput, RunOutcome, RunSpec
-from posttrain.work import execute_run_tracked_finalized
+from posttrain.work import execute_run_tracked, execute_run_tracked_finalized
 
 
 class PublishingRun:
@@ -137,6 +137,100 @@ def test_finalized_execution_returns_exact_identity_before_cleanup(
     assert source_path is not None and not source_path.exists()
     assert backend.tracked is not None
     assert backend.tracked.outcomes[-1].status == "succeeded"
+
+
+@pytest.mark.parametrize(
+    "executor",
+    [execute_run_tracked, execute_run_tracked_finalized],
+    ids=["tracked", "tracked-finalized"],
+)
+def test_failure_artifacts_are_flushed_before_workspace_cleanup(
+    tmp_path: Path,
+    executor,
+) -> None:
+    class DeferredPublishingRun(PublishingRun):
+        def __init__(self, run_id: str) -> None:
+            super().__init__(run_id)
+            self.pending: list[ProducedArtifact] = []
+            self.flush_source_states: list[bool] = []
+
+        def artifact(self, artifact: ProducedArtifact) -> None:
+            assert isinstance(artifact.reference, LocalArtifactRef)
+            self.pending.append(artifact)
+
+        def flush_artifacts(self, timeout: float | None = None) -> tuple[PublishedArtifact, ...]:
+            del timeout
+            committed: list[PublishedArtifact] = []
+            while self.pending:
+                artifact = self.pending.pop(0)
+                assert isinstance(artifact.reference, LocalArtifactRef)
+                path = artifact.reference.path
+                self.flush_source_states.append(path.exists())
+                if not path.exists():
+                    raise FileNotFoundError(path)
+                published = PublishedArtifact(
+                    logical_name=artifact.name,
+                    kind=artifact.kind,
+                    reference=StoredArtifactRef(
+                        provider="test",
+                        namespace="tests",
+                        name=artifact.name,
+                        version="v0",
+                        digest=artifact.reference.digest,
+                    ),
+                    required=artifact.required,
+                    size_bytes=path.stat().st_size,
+                    role=artifact.role,
+                )
+                self._published.append(published)
+                committed.append(published)
+            return tuple(committed)
+
+        def finish(self, outcome: RunOutcome) -> None:
+            # Trackio drains pending asynchronous uploads during finish. This
+            # second drain must be empty because execution flushed while the
+            # ephemeral source path still existed.
+            self.flush_artifacts(timeout=30)
+            super().finish(outcome)
+
+    class DeferredPublishingBackend:
+        def __init__(self) -> None:
+            self.tracked: DeferredPublishingRun | None = None
+
+        def start_run(self, spec: RunSpec) -> DeferredPublishingRun:
+            self.tracked = DeferredPublishingRun(spec.run_id)
+            return self.tracked
+
+    backend = DeferredPublishingBackend()
+    source_path: Path | None = None
+
+    def fail_after_artifact(context) -> None:
+        nonlocal source_path
+        path = context.workspace / "verifiers-traces.jsonl"
+        source_path = path
+        path.write_text('{"id":"trace-1"}\n', encoding="utf-8")
+        context.artifact(
+            ProducedArtifact(
+                "training/rollouts/verifiers-traces",
+                "evaluation-traces",
+                LocalArtifactRef(path.resolve(), hashlib.sha256(path.read_bytes()).hexdigest()),
+            )
+        )
+        raise RuntimeError("all rollouts were truncated")
+
+    with pytest.raises(RuntimeError, match="all rollouts were truncated"):
+        executor(
+            _spec(),
+            fail_after_artifact,
+            backend=backend,
+            scratch_root=tmp_path,
+        )
+
+    assert backend.tracked is not None
+    assert backend.tracked.flush_source_states == [True]
+    assert backend.tracked.pending == []
+    assert backend.tracked.outcomes[-1].status == "failed"
+    assert source_path is not None and not source_path.exists()
 
 
 def test_finalization_failure_marks_run_failed(tmp_path: Path) -> None:
