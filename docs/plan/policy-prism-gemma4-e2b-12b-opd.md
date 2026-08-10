@@ -31,7 +31,8 @@ The user-visible proof is a reconciled PostTrain training run with 384 admitted 
 - [x] (2026-08-08) Run corrected attempt `opda06-e2b12b-r16-scope384-v1` through 66 finite optimizer updates with 137,150 scored tokens, zero teacher failures, successful target 29, and durable checkpoints at steps 16/32/48/64; diagnose its abrupt provider failure as dstack `instance_unreachable`, not a training or admission failure.
 - [x] (2026-08-08) Add the explicit `training-checkpoint` catalog contract and `train/trl-distill-resume@1` job without changing the original distillation definition; validate immutable content-digest materialization and compose a step-64 resume work package.
 - [x] (2026-08-08) Materialize and inspect the complete step-64 checkpoint, verify trainer global step 64/384, SQLite integrity and 64 accepted targets, correct the Trackio manifest-digest versus downloaded-tree-digest declaration, cancel the unassigned `opda07rs` admission, and isolated-qualify corrected image `sha256:64fcbaf45f3f8581051b5445efd64edf0af45a3f494e76d8c689c87c34737d65`.
-- [ ] (2026-08-08) Resume run `opda08rs-e2b12b-r16-resume64-scope384-v1` is admitted to dstack as provider run `pt-fb440d01bcd20af11d36778b` with the verified step-64 checkpoint and a 24-hour capacity-wait window. It remains queued while `carbonteq-ai-workstation.lan` is healthy and idle but externally unreachable; no replacement run or configuration change is warranted.
+- [x] (2026-08-10) Resume attempt `opda08rs-e2b12b-r16-resume64-scope384-v1` restored step 64 correctly, produced finite updates through target 78, then failed before checkpoint 80 because the ten-target rules/source-faithful/q1/determinate stratum had only one compatible reserve and both candidates were structurally rejected.
+- [x] (2026-08-10) Correct Policy Prism replacement semantics in code commit `3976d993a2e96dd4c91c3ad91481767299755364` and catalog commit `47ee4f43366e3a1a68fa59db8ed3ab46613c677c`: reserves now preserve stage/quartile/decision while inheriting the logical target's prompt profile and shape. Deterministic plan v2, 19 focused tests, Ruff, strict mypy, resume-ledger compatibility, and three-claim target-78 audit pass.
 - [ ] Resume the corrected full job from immutable step 64, monitor it through update 384, preserve milestones 96/192/288/384, and reconcile all required evidence.
 - [ ] Publish the final rank-16 LoRA adapter privately to `carbonteq/gemma-4-e2b-policy-prism-scope-opd-from-12b-lora-v1`, verify a fresh download, and record the immutable Hugging Face revision.
 - [ ] Register the exact adapter, run sealed scope then recovery evaluations sequentially, apply scientific gates, and reconcile them.
@@ -57,6 +58,8 @@ The user-visible proof is a reconciled PostTrain training run with 384 admitted 
   Evidence: managed evaluation calls `RunContext.input_artifact` for Trackio-backed adapter models, while the getting-started workflow requires pinning the producer artifact as a catalog model before qualification. A new local materialization command is not a launch dependency.
 - Observation: the corrected step-64 resume is waiting on worker reachability rather than framework admission, model code, or GPU capacity.
   Evidence: PostTrain reports `queued` / provider `pending` / target `unassigned`; the dstack fleet reports the RTX PRO 6000 as healthy, idle, and holding zero busy blocks, but `unreachable: true`. The immutable provider admission remains active until its configured 24-hour capacity-wait expires and will start automatically if the host returns.
+- Observation: `opda08rs` proved checkpoint restoration and optimization but exposed a reserve-pool modeling defect at logical target 78.
+  Evidence: the restored ledger continued from 64 accepted targets and finite losses, then the harness rejected the primary and sole same-profile reserve for target 78 and raised `no compatible unclaimed reserve remains`. The 96 reserves were fragmented across 61 profile-specific strata; 46 strata had only one reserve, while target 78's broader stage/quartile/decision pool contains ten reviewed sources.
 - Observation: the first isolated pack attempt exposed two stale Python targets in environment dependency packaging.
   Evidence: the published online-RL image runs Python 3.13.12 and all current framework and Policy Prism packages require Python 3.13, but both `KindDependencyConstraints` and the non-veRL runtime-closure override selected Python 3.12. The compiler defaults and every control closure now match the immutable runtime interpreter.
 - Observation: the repository-wide Pyright command currently reports 151 existing workspace import-resolution errors after a locked all-package sync, while targeted Pyright over every changed source and test file reports zero errors.
@@ -212,10 +215,13 @@ The exact r0-r9 dstack provider runs report only `FAILED` or `TERMINATED`. r9 pr
 - Decision: after the infrastructure-only loss of `opda06` at update 66, resume from its immutable step-64 checkpoint through a separate explicit job definition.
   Rationale: this checkpoint comes from a run that passed every scientific and runtime gate for 66 updates. Repeating those updates would discard verified work and consume avoidable GPU time. The resume definition requires a content-digested checkpoint seat, materializes it through normal Trackio lineage, and leaves `train/trl-distill@1` unchanged.
   Date/Author: 2026-08-08 / Codex.
+- Decision: treat a reserve as a replacement source and apply the logical target's prompt profile and task shape when materializing it.
+  Rationale: prompt profile and shape belong to the target, not the source. Preserving stage, source-length quartile, and reviewed decision class keeps every scientific quota intact while pooling the fixed 96 reserves into 20 proportional strata. The step-64 ledger remains byte-valid and target 78 can claim all three permitted replacements without changing already optimized targets.
+  Date/Author: 2026-08-10 / Codex.
 
 ## Outcomes & Retrospective
 
-The failed r0-r9 evidence remains retained and none reached optimizer step one. Corrected attempt `opda06` proved the complete training path through 66 updates before an external workstation-reachability failure. Its step-64 checkpoint is now an explicit, integrity-checked input to a separate resume job; completion, publication, and sealed qualification remain in progress.
+The failed r0-r9 evidence remains retained and none reached optimizer step one. Corrected attempt `opda06` proved the complete training path through 66 updates before an external workstation-reachability failure. `opda08rs` then proved exact step-64 restoration and exposed the finite reserve-pool defect at target 78. Policy Prism plan v2 corrects that defect without changing the primary corpus or checkpoint; completion, publication, and sealed qualification remain in progress.
 
 ## Context and Orientation
 
@@ -284,7 +290,8 @@ Only the authorized feature branches may be force-updated, and only with `--forc
 Current immutable inputs:
 
     Policy Prism foundation: de5ca4ccd8de1cbdf1b5066ad034c815426c5b00
-    Policy Prism plan:       874e90205ed407126a7777221cb87dd3b58ee09e
+    Policy Prism OPD code:   3976d993a2e96dd4c91c3ad91481767299755364
+    Policy Prism catalog:    47ee4f43366e3a1a68fa59db8ed3ab46613c677c
     PostTrain base:       78d329fae89a3448cbe4f89b1744ae684e8e6358
     E2B revision:        3e22461f65e89153144f8adb70e3b8c2cc9845a7
     12B revision:        707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7
