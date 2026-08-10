@@ -597,7 +597,11 @@ def _validate_iw_opd_private_contract(trainer_type: Any) -> None:
 
     expected = {
         "_compute_prompt_length": ("self", "inputs"),
-        "_get_teacher_token_logprobs_from_server": ("self", "inputs", "prompt_length"),
+        "_get_teacher_token_logprobs_from_server": (
+            "self",
+            "inputs",
+            "aligned_prompt_length",
+        ),
     }
     for name, parameters in expected.items():
         method = getattr(trainer_type, name, None)

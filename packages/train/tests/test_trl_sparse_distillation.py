@@ -14,6 +14,7 @@ from posttrain.train.backends.trl.distillation import (  # noqa: E402
     _buffered_selected_token_count,
     _generate_heterogeneous_colocated_iw_opd_turns,
     _memory_safe_server_iw_opd_loss,
+    _validate_iw_opd_private_contract,
 )
 
 
@@ -69,13 +70,19 @@ def _trainer(teacher_result):
             return int(inputs["prompt_length"])
 
         @staticmethod
-        def _get_teacher_token_logprobs_from_server(inputs, prompt_length):
-            del inputs, prompt_length
+        def _get_teacher_token_logprobs_from_server(inputs, aligned_prompt_length):
+            del inputs, aligned_prompt_length
             return teacher_result
 
         _compute_iw_opd_loss = IWOPDTrainer._compute_iw_opd_loss
 
     return FakeTrainer()
+
+
+def test_pinned_iw_opd_private_contract_matches_installed_backend() -> None:
+    from trl.experimental.iw_opd import IWOPDTrainer
+
+    _validate_iw_opd_private_contract(IWOPDTrainer)
 
 
 def _inputs(*, batch_size: int = 1):
