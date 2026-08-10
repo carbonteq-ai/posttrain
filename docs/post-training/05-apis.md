@@ -138,7 +138,8 @@ posttrain work-package validate PATH
 posttrain work-package run PATH --job JOB_ID
 posttrain job plan WORK_PACKAGE --job JOB_ID
 posttrain job pack WORK_PACKAGE --job JOB_ID
-posttrain job run WORK_PACKAGE --job JOB_ID [--provider local|dstack] [--build-missing]
+posttrain job run WORK_PACKAGE --job JOB_ID [--provider local|dstack] [--build-missing] [--resume-from-run RUN_ID] [--checkpoint-step STEP]
+posttrain job run WORK_PACKAGE --job JOB_ID [--model-from-run RUN_ID] [--checkpoint-step STEP] [--model-seat SEAT]
 posttrain job diff WORK_PACKAGE --job JOB_ID [--from KEY] [--to KEY]
 posttrain run list
 posttrain run status RUN_ID
@@ -149,6 +150,10 @@ posttrain run retry-submit RUN_ID
 posttrain run reconcile RUN_ID
 posttrain run cleanup RUN_ID
 posttrain run show RUN_ID
+posttrain run checkpoint list RUN_ID
+posttrain run checkpoint show RUN_ID --step STEP
+posttrain run checkpoint verify RUN_ID --step STEP
+posttrain run checkpoint diff RUN_ID --from-step STEP --to-step STEP
 posttrain observatory up [--port PORT]
 ```
 
@@ -160,6 +165,36 @@ and two for invalid command syntax. The primary CLI is built with Typer; that is
 an implementation detail and does not change the public noun surface. Readable
 terminal output is the default; `--json` provides deterministic automation
 output.
+
+`job` names a reusable job definition; `run` names one observed execution.
+Checkpoint inspection is therefore a read-only subcommand of `run`, scoped to
+one concrete source run. It reports exact checkpoint steps and publication
+views without creating a new run or changing an alias.
+
+`job run --resume-from-run` is valid only for a compatible training job and
+always creates a new run identity. It selects one immutable
+`training-checkpoint` view by `--checkpoint-step`; `latest` is allowed as an
+interactive selector but is resolved during planning to an exact complete step,
+artifact version, and digest. The host injects that recovery artifact as
+`recovery_checkpoint`; it must not substitute the source run's model or adapter
+view. The trainer restores optimizer, scheduler, RNG, trainer, and adapter or
+weight state from that checkpoint before advancing the logical step.
+
+`job run --model-from-run` selects the immutable model view for the requested
+checkpoint step and is valid for any job definition that declares a compatible
+model input seat, including train, eval, and serve. A LoRA source supplies only
+the adapter view; the consumer resolves the immutable base model separately.
+When a job has multiple model seats, `--model-seat` is required unless the job
+definition declares one unambiguous default. The resume and model-source modes
+are mutually exclusive.
+
+The run-scoped inspection commands are bounded and read-only. `checkpoint list`
+returns snapshot summaries newest-first without fetching tensor manifests;
+`show` fetches the selected small manifest and compatibility descriptor;
+`verify` checks provider metadata and, with `--deep`, downloads into temporary
+state to recompute file digests; `diff` compares two manifests without loading
+weights. Only committed views are selectable, and unsupported provider
+integrity checks are reported as `unsupported`, never as verified.
 
 `job` owns immutable planning, packing, and submission. Once a canonical
 `run_id` exists, `run` owns provider lifecycle, admission state, retained

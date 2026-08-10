@@ -12,7 +12,7 @@ import json
 import unicodedata
 from collections.abc import Iterable, Mapping
 from importlib.resources import files
-from typing import Any
+from typing import Any, cast
 
 GSM8K_REVISION = "e53f048856ff4f594e959d75785d2c2d37b678ee"
 HUMANEVAL_REVISION = "e9b53e1677523f1e61e4d0960fd7502694a24bd4"
@@ -226,7 +226,10 @@ def build() -> tuple[str, str]:
 
     gsm8k = load_dataset("openai/gsm8k", "main", split="train", revision=GSM8K_REVISION)
     humaneval = load_dataset("openai/openai_humaneval", split="test", revision=HUMANEVAL_REVISION)
-    return build_from_rows(gsm8k, humaneval)
+    return build_from_rows(
+        cast(Iterable[Mapping[str, Any]], gsm8k),
+        cast(Iterable[Mapping[str, Any]], humaneval),
+    )
 
 
 __all__ = [

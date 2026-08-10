@@ -379,6 +379,43 @@ def register(app: typer.Typer) -> None:
                 help="use this durable run identity and idempotency namespace",
             ),
         ] = None,
+        resume_from_run_id: Annotated[
+            str | None,
+            typer.Option(
+                "--resume-from-run",
+                help="materialize the source run's training checkpoint and resume it under this new run identity",
+            ),
+        ] = None,
+        checkpoint_step: Annotated[
+            int | None,
+            typer.Option(
+                "--checkpoint-step",
+                min=0,
+                help="select this exact checkpoint step for --resume-from-run or --model-from-run",
+            ),
+        ] = None,
+        model_from_run_id: Annotated[
+            str | None,
+            typer.Option(
+                "--model-from-run",
+                help="start from a committed model view owned by another run (model-adapter or model-weights)",
+            ),
+        ] = None,
+        model_checkpoint_step: Annotated[
+            int | None,
+            typer.Option(
+                "--model-checkpoint-step",
+                min=0,
+                help="select an exact checkpoint step for --model-from-run; omit for an unscoped terminal model",
+            ),
+        ] = None,
+        model_seat: Annotated[
+            str,
+            typer.Option(
+                "--model-seat",
+                help="model seat replaced by --model-from-run when a job has more than one model (default: model)",
+            ),
+        ] = "model",
         host: Annotated[
             str | None,
             typer.Option(
@@ -459,6 +496,11 @@ def register(app: typer.Typer) -> None:
             ),
             registry_prefix=registry,
             run_id=run_id,
+            resume_from_run_id=resume_from_run_id,
+            checkpoint_step=checkpoint_step,
+            model_from_run_id=model_from_run_id,
+            model_checkpoint_step=model_checkpoint_step,
+            model_seat=model_seat,
             project_packages=(tuple(project_packages) if project_packages is not None else None),
             source_includes=(tuple(source_includes) if source_includes is not None else None),
             build_missing=build_missing,

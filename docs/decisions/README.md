@@ -22,6 +22,8 @@ Architecture and stack choices for this lab.
 | [0011](./0011-canonical-posttraining-data.md) | Canonical SFT/preference data with HF, NeMo, and Verifiers adapters |
 | [0012](./0012-observatory-read-product.md) | Observatory as the single post-training read and analysis product |
 | [0013](./0013-portable-project-layout.md) | Portable `.posttrain` project layout and runtime-state boundary |
+| [0014](./0014-attested-release-promotion-graph.md) | Attested dependency-to-platform release promotion graph |
+| [0015](./0015-checkpoint-scoped-model-artifacts.md) | Checkpoint-scoped recovery and model artifacts |
 
 ADRs 0001–0003 describe the prototype and were superseded by ADR 0004 for the
 previous platform architecture. ADR 0004–0006 are themselves pending rewrite

@@ -22,11 +22,16 @@ from posttrain.execution import (
     ExecutionState,
     LogCursor,
     LogPage,
+    ProviderCleanupDeferred,
     ProviderCleanupResult,
     RuntimeImageRef,
 )
 
 TRUST_BUNDLE_CONTAINER_PATH = Path("/opt/posttrain/trust/ca-certificates.crt")
+# Online-RL environments and vLLM open many short-lived sockets/files while a
+# large rollout population is in flight. Keep this as a provider-side launch
+# guard rather than relying on the worker image's inherited shell limit.
+POSTTRAIN_NOFILE_LIMIT = 65536
 # The job image merges this with the authorities it already trusts. Setting
 # SSL_CERT_FILE here instead would replace that set rather than extend it,
 # leaving an internally-trusting job unable to verify anything public.
@@ -217,10 +222,12 @@ class DstackExecutionProvider:
         launch_environment = request.launch_environment(provider="dstack")
         if self._trust_bundle is not None:
             launch_environment.update({_EXTRA_TRUST_VARIABLE: str(TRUST_BUNDLE_CONTAINER_PATH)})
+        command = shlex.join(request.command)
+        command = f"ulimit -n {POSTTRAIN_NOFILE_LIMIT} 2>/dev/null || true; exec {command}"
         configuration: dict[str, Any] = {
             "name": _run_name(request.idempotency_key),
             "image": request.image.value,
-            "commands": [shlex.join(request.command)],
+            "commands": [command],
             "working_dir": "/opt/posttrain/job",
             "env": list(request.environment_names),
             "_posttrain_launch_env": launch_environment,
@@ -390,6 +397,21 @@ class DstackExecutionProvider:
                 "image": runtime_image.value,
             },
         )
+        if (
+            response.get("hostname") == hostname
+            and response.get("workspace") == str(run_workspace)
+            and response.get("workspace_state") == "deferred"
+            and response.get("emptied") is False
+            and response.get("reclaimed_bytes") == 0
+        ):
+            cleanup_run_name = response.get("cleanup_run_name")
+            if not isinstance(cleanup_run_name, str) or not cleanup_run_name:
+                raise RuntimeError("dstack deferred cleanup did not identify its provider task")
+            cleanup_status = str(response.get("cleanup_status") or "pending")
+            raise ProviderCleanupDeferred(
+                f"exact-worker cleanup task {cleanup_run_name!r} is {cleanup_status}; "
+                "retry the same immutable purge after dstack capacity is available"
+            )
         if (
             hostname == "unassigned"
             and response.get("hostname") is None

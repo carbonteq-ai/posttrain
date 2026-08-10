@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import importlib
 import json
+from pathlib import Path
 from typing import Any
 
+from posttrain.catalog import load_project_layout
+from posttrain.common import ContractError
 from posttrain.execution import (
     ExecutionProviderPurgeExecutor,
     ExecutionSubmissionStore,
@@ -22,8 +25,12 @@ from posttrain.execution import (
 )
 
 from .context import CliState
-from .execution_config import load_local_execution_config
-from .execution_provider import execution_service_for_run
+from .execution_config import (
+    load_local_execution_config,
+    load_machine_config,
+    resolve_admission_state_root,
+)
+from .execution_provider import execution_admission_service, execution_service_for_run
 from .state_layout import cache_path
 from .tracking_config import project_tracking_environment
 
@@ -32,7 +39,7 @@ def candidate_catalog(layout: Any) -> dict[str, PurgeRunCandidate]:
     """Build a deliberately fail-closed local inventory for preview commands."""
 
     store = ExecutionSubmissionStore(layout.state)
-    purge_store = PurgeStore(layout.state)
+    purge_stores = _plan_stores(layout)
     candidates: dict[str, PurgeRunCandidate] = {}
     for submission in store.list_submissions():
         evidence = submission.evidence_source
@@ -88,7 +95,7 @@ def candidate_catalog(layout: Any) -> dict[str, PurgeRunCandidate]:
             workspace=workspace,
             local_paths=tuple(local_paths),
             completed_planes=_completed_purge_planes(
-                purge_store,
+                purge_stores,
                 run_id=submission.run_id,
                 project_id=layout.project_id,
             ),
@@ -99,7 +106,7 @@ def candidate_catalog(layout: Any) -> dict[str, PurgeRunCandidate]:
 
 
 def _completed_purge_planes(
-    store: PurgeStore,
+    stores: tuple[PurgeStore, ...],
     *,
     run_id: str,
     project_id: str,
@@ -114,22 +121,23 @@ def _completed_purge_planes(
     """
 
     completed: set[PurgePlane] = set()
-    if not store.root.is_dir():
-        return ()
-    for directory in store.root.iterdir():
-        if not directory.is_dir():
+    for store in stores:
+        if not store.root.is_dir():
             continue
-        try:
-            plan = store.load_plan(directory.name)
-            if plan.project_id != project_id or run_id not in plan.run_ids:
+        for directory in store.root.iterdir():
+            if not directory.is_dir():
                 continue
-            events = store.journal(directory.name)
-        except Exception:
-            continue
-        settled = {str(event["action_id"]) for event in events if event.get("status") in {"completed", "skipped"}}
-        for action in plan.actions:
-            if action.action_id in settled:
-                completed.add(action.plane)
+            try:
+                plan = store.load_plan(directory.name)
+                if plan.project_id != project_id or run_id not in plan.run_ids:
+                    continue
+                events = store.journal(directory.name)
+            except Exception:
+                continue
+            settled = {str(event["action_id"]) for event in events if event.get("status") in {"completed", "skipped"}}
+            for action in plan.actions:
+                if action.action_id in settled:
+                    completed.add(action.plane)
     return tuple(sorted(completed))
 
 
@@ -207,13 +215,49 @@ def _lineage_failure(candidate: PurgeRunCandidate, blocker: str) -> PurgeRunCand
 
 
 def plan_store(layout: Any) -> PurgeStore:
+    del layout
+    return PurgeStore(resolve_admission_state_root())
+
+
+def _legacy_plan_store(layout: Any) -> PurgeStore:
     return PurgeStore(layout.state)
+
+
+def _plan_stores(layout: Any) -> tuple[PurgeStore, ...]:
+    primary = plan_store(layout)
+    legacy = _legacy_plan_store(layout)
+    return (primary,) if primary.root == legacy.root else (primary, legacy)
+
+
+def saved_plan_store(layout: Any, purge_id: str) -> PurgeStore:
+    """Locate one plan across the machine store and legacy project store."""
+
+    matches = tuple(store for store in _plan_stores(layout) if store.plan_path(purge_id).is_file())
+    if not matches:
+        return plan_store(layout)
+    if len(matches) == 1:
+        return matches[0]
+    first = matches[0].load_plan(purge_id)
+    for store in matches[1:]:
+        candidate = store.load_plan(purge_id)
+        if candidate.digest != first.digest or candidate.semantic_payload() != first.semantic_payload():
+            raise ContractError(f"purge id {purge_id!r} conflicts across durable stores")
+    return matches[0]
+
+
+def load_saved_plan(layout: Any, purge_id: str) -> PurgePlan:
+    return saved_plan_store(layout, purge_id).load_plan(purge_id)
 
 
 def save_run_preview(layout: Any, run_id: str, *, cascade: bool) -> PurgePlan:
     candidates = candidate_catalog(layout)
+    registry_owners, registry_blockers = _registry_image_inventory(layout, candidates)
     plan = build_run_purge_plan(
-        _Catalog(candidates),
+        _Catalog(
+            candidates,
+            registry_owners=registry_owners,
+            registry_blockers=registry_blockers,
+        ),
         root_run_id=run_id,
         cascade=cascade,
     )
@@ -222,7 +266,15 @@ def save_run_preview(layout: Any, run_id: str, *, cascade: bool) -> PurgePlan:
 
 def save_project_preview(layout: Any) -> PurgePlan:
     candidates = candidate_catalog(layout)
-    plan = build_project_purge_plan(_Catalog(candidates), project_id=layout.project_id)
+    registry_owners, registry_blockers = _registry_image_inventory(layout, candidates)
+    plan = build_project_purge_plan(
+        _Catalog(
+            candidates,
+            registry_owners=registry_owners,
+            registry_blockers=registry_blockers,
+        ),
+        project_id=layout.project_id,
+    )
     if not plan.blockers:
         plan = PurgePlan.build(
             mode=plan.mode,
@@ -275,7 +327,7 @@ def apply_saved_plan(
     assume_yes: bool,
 ) -> Any:
     layout = state.layout()
-    store = plan_store(layout)
+    store = saved_plan_store(layout, purge_id)
     plan = store.load_plan(purge_id)
     if expected_digest is not None and expected_digest != plan.digest:
         raise ValueError("purge plan digest does not match --expect-digest")
@@ -291,12 +343,32 @@ def apply_saved_plan(
     if assume_yes and expected_digest is None:
         raise ValueError("non-interactive purge apply requires --expect-digest")
 
+    _revalidate_registry_ownership(layout, plan)
     executors = _apply_executors(layout, plan)
     return apply_purge_plan(
         store,
         purge_id,
         executors,
     )
+
+
+def _revalidate_registry_ownership(layout: Any, plan: PurgePlan) -> None:
+    """Fail closed if a delayed plan's image acquired a new run owner."""
+
+    if not plan.registry_actions:
+        return
+    owners, blockers = _registry_image_inventory(layout, {})
+    if blockers:
+        raise RuntimeError("registry ownership revalidation failed: " + "; ".join(blockers))
+    selected = set(plan.run_ids)
+    for action in plan.registry_actions:
+        reference = str(action.target["reference"])
+        external = tuple(run_id for run_id in owners.get(reference, ()) if run_id not in selected)
+        if external:
+            raise RuntimeError(
+                f"registry image {reference!r} acquired unselected owner(s) after preview: "
+                + ", ".join(repr(run_id) for run_id in external)
+            )
 
 
 def _apply_executors(layout: Any, plan: PurgePlan) -> dict[PurgePlane, PurgeActionExecutor]:
@@ -343,9 +415,143 @@ def _apply_executors(layout: Any, plan: PurgePlan) -> dict[PurgePlane, PurgeActi
     return executors
 
 
+def _registry_image_inventory(
+    layout: Any,
+    candidates: dict[str, PurgeRunCandidate],
+) -> tuple[dict[str, tuple[str, ...]], tuple[str, ...]]:
+    """Inventory actual-job image owners across the machine control boundary.
+
+    OCI manifest deletion is registry-global, while an opened project only
+    owns one submission store. The machine admission ledger is the durable
+    cross-project index for every admitted run and retains immutable job-image
+    references even for legacy entries without a project locator. Registered
+    project stores supplement that ledger for submissions created before
+    machine admission. Any unreadable registered source blocks registry
+    deletion instead of silently narrowing the ownership scope.
+    """
+
+    owners: dict[str, set[str]] = {}
+    blockers: list[str] = []
+
+    def add(run_id: str, value: str, *, source: str) -> None:
+        try:
+            reference = RegistryManifestRef.parse(value)
+        except Exception as error:
+            blockers.append(
+                f"registry ownership source {source!r} has invalid image for run {run_id!r} ({type(error).__name__})"
+            )
+            return
+        owners.setdefault(reference.value, set()).add(run_id)
+
+    for candidate in candidates.values():
+        if candidate.image is not None and "registry" not in candidate.completed_planes:
+            owners.setdefault(candidate.image.value, set()).add(candidate.run_id)
+
+    try:
+        entries = execution_admission_service(layout).list()
+    except Exception as error:
+        entries = ()
+        blockers.append(f"machine admission image inventory is unavailable ({type(error).__name__})")
+    project_roots: set[Path] = {layout.root.resolve()}
+    try:
+        machine = load_machine_config()
+    except Exception as error:
+        machine = None
+        blockers.append(f"registered project image inventory is unavailable ({type(error).__name__})")
+    if machine is not None:
+        project_roots.update(path.resolve() for path in machine.projects)
+
+    project_layouts: list[Any] = []
+    for root in sorted(project_roots):
+        try:
+            owner = load_project_layout(root)
+        except Exception as error:
+            blockers.append(f"registered project image inventory {str(root)!r} is unavailable ({type(error).__name__})")
+            continue
+        project_layouts.append(owner)
+
+    retired_runs: set[str] = set()
+    retired_runs.update(_completed_purge_run_ids(resolve_admission_state_root()))
+    for owner in project_layouts:
+        retired_runs.update(_completed_purge_run_ids(owner.state))
+
+    for owner in project_layouts:
+        try:
+            submissions = ExecutionSubmissionStore(owner.state).list_submissions()
+        except Exception as error:
+            blockers.append(
+                f"project {owner.project_id!r} submission image inventory is unavailable ({type(error).__name__})"
+            )
+            continue
+        for submission in submissions:
+            if submission.run_id in retired_runs:
+                continue
+            add(
+                submission.run_id,
+                submission.job_image,
+                source=f"project {owner.project_id}",
+            )
+
+    for entry in entries:
+        if entry.run_id not in retired_runs:
+            add(entry.run_id, entry.plan.request.image.value, source="machine admission")
+
+    archive_root = resolve_admission_state_root() / "admission" / "terminal"
+    if archive_root.exists() and not archive_root.is_dir():
+        blockers.append("machine admission terminal image inventory is not a directory")
+    elif archive_root.is_dir():
+        for path in sorted(archive_root.glob("*.json")):
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                run_id = payload["run_id"]
+                image = payload["job_image"]
+                if not isinstance(run_id, str) or not isinstance(image, str):
+                    raise ValueError("terminal admission image receipt fields are invalid")
+            except (OSError, KeyError, ValueError, json.JSONDecodeError) as error:
+                blockers.append(
+                    f"machine admission terminal image receipt {path.name!r} is invalid ({type(error).__name__})"
+                )
+                continue
+            if run_id not in retired_runs:
+                add(run_id, image, source="machine admission terminal archive")
+
+    return (
+        {reference: tuple(sorted(run_ids)) for reference, run_ids in sorted(owners.items())},
+        tuple(dict.fromkeys(blockers)),
+    )
+
+
+def _completed_purge_run_ids(state_root: Path) -> set[str]:
+    """Return run owners retired by complete, unblocked purge receipts."""
+
+    store = PurgeStore(state_root)
+    if not store.root.is_dir():
+        return set()
+    retired: set[str] = set()
+    for directory in store.root.iterdir():
+        if not directory.is_dir() or not (directory / "receipt.json").is_file():
+            continue
+        try:
+            plan = store.load_plan(directory.name)
+            receipt = store.load_receipt(directory.name)
+        except Exception:
+            continue
+        if not plan.blockers and receipt.failed_action is None:
+            retired.update(plan.run_ids)
+    return retired
+
+
 class _Catalog:
-    def __init__(self, values: dict[str, PurgeRunCandidate]) -> None:
+    def __init__(
+        self,
+        values: dict[str, PurgeRunCandidate],
+        *,
+        registry_owners: dict[str, tuple[str, ...]],
+        registry_blockers: tuple[str, ...],
+    ) -> None:
         self._values = values
+        self._registry_owners = registry_owners
+        self._registry_blockers = registry_blockers
 
     def get(self, run_id: str) -> PurgeRunCandidate | None:
         return self._values.get(run_id)
@@ -353,10 +559,17 @@ class _Catalog:
     def list(self) -> tuple[PurgeRunCandidate, ...]:
         return tuple(self._values.values())
 
+    def registry_image_owners(self) -> dict[str, tuple[str, ...]]:
+        return dict(self._registry_owners)
+
+    def registry_inventory_blockers(self) -> tuple[str, ...]:
+        return self._registry_blockers
+
 
 __all__ = [
     "apply_saved_plan",
     "candidate_catalog",
+    "load_saved_plan",
     "plan_store",
     "render_plan",
     "save_project_preview",

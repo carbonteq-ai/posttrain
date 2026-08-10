@@ -10,7 +10,7 @@ from pathlib import Path
 
 import yaml
 from posttrain.catalog import FamilyRegistryLock, ProjectLayout
-from posttrain.common import Catalog, CatalogRef, ContractError, ExecutionTarget
+from posttrain.common import Catalog, CatalogRef, ContractError, ExecutionTarget, StoredArtifactRef
 from posttrain.execution import (
     JOB_PACKAGE_WORKER_COMMAND,
     ExecutionEvidenceSource,
@@ -42,9 +42,10 @@ from posttrain.execution_pack import (
 )
 from posttrain.project import JobIntent, load_project_pack_config
 from posttrain.runtime_images import JOB_BAKE_FILE, cached_definition_root
-from posttrain.tracking import RunSpec
+from posttrain.tracking import ArtifactInput, ArtifactLink, RunSpec
 from posttrain.work import (
     PreparedWorkPackageJob,
+    load_work_package,
     override_job_execution_target,
     prepare_work_package_job,
 )
@@ -355,6 +356,112 @@ class PreparedJobSubmission:
     service: JobExecutionService
     evidence_source: ExecutionEvidenceSource | None
     provider_source: ExecutionProviderSource
+
+
+def with_recovery_checkpoint(
+    planned: PlannedJobExecution,
+    *,
+    source_run_id: str,
+    artifact: ArtifactLink,
+) -> PlannedJobExecution:
+    """Bind one immutable recovery artifact to a new training run."""
+
+    spec = planned.launch.run_spec
+    if not spec.job_kind.startswith("train."):
+        raise ContractError("recovery checkpoints can only resume training jobs")
+    if source_run_id == spec.run_id:
+        raise ContractError("a recovery run must use a new run identity")
+    if artifact.direction != "output" or artifact.kind != "training-checkpoint":
+        raise ContractError("resume input must be an output training-checkpoint artifact")
+    if "recovery_checkpoint" in spec.artifacts:
+        raise ContractError("run already has a selected recovery checkpoint")
+    stored = artifact.artifact
+    reference = StoredArtifactRef(
+        provider=stored.provider,
+        namespace=stored.namespace,
+        name=stored.name,
+        version=stored.version,
+        digest=stored.digest,
+        provider_metadata=stored.provider_metadata,
+    )
+    rebound_spec = replace(
+        spec,
+        artifacts={**dict(spec.artifacts), "recovery_checkpoint": ArtifactInput(reference, artifact.kind)},
+        resolved_inputs={
+            **dict(spec.resolved_inputs),
+            "recovery_checkpoint": {
+                "source_run_id": source_run_id,
+                "logical_name": artifact.logical_name,
+                "provider": stored.provider,
+                "namespace": stored.namespace,
+                "name": stored.name,
+                "version": stored.version,
+                "digest": stored.digest,
+            },
+        },
+    )
+    return replace(planned, launch=replace(planned.launch, run_spec=rebound_spec))
+
+
+def with_model_checkpoint(
+    planned: PlannedJobExecution,
+    *,
+    source_run_id: str,
+    artifact: ArtifactLink,
+    model_seat: str = "model",
+    replace_existing: bool = False,
+) -> PlannedJobExecution:
+    """Bind one immutable loadable model view to a new train/eval/serve run.
+
+    An explicit ``--model-from-run`` selection may replace the package's
+    catalog model input, but callers must opt into that replacement. Keeping
+    the default strict protects library callers from silently rebinding a
+    planned run while still giving the CLI an intentional override path.
+    """
+
+    spec = planned.launch.run_spec
+    if not spec.job_kind.startswith(("train.", "eval.", "serve.")):
+        raise ContractError("model sources can only start train, eval, or serve jobs")
+    if source_run_id == spec.run_id:
+        raise ContractError("a model-source run must use a new run identity")
+    if not model_seat.strip():
+        raise ContractError("model source seat cannot be empty")
+    if artifact.direction != "output" or artifact.kind not in {"model-adapter", "model-weights"}:
+        raise ContractError("model source must be an output model-adapter or model-weights artifact")
+    stored = artifact.artifact
+    if stored.digest is None:
+        raise ContractError("model source must have a committed content digest")
+    input_name = "model_adapter" if artifact.kind == "model-adapter" else "model_weights"
+    if input_name in spec.artifacts and not replace_existing:
+        raise ContractError(f"run already has a selected {input_name} model source")
+    reference = StoredArtifactRef(
+        provider=stored.provider,
+        namespace=stored.namespace,
+        name=stored.name,
+        version=stored.version,
+        digest=stored.digest,
+        provider_metadata=stored.provider_metadata,
+    )
+    rebound_spec = replace(
+        spec,
+        artifacts={**dict(spec.artifacts), input_name: ArtifactInput(reference, artifact.kind)},
+        resolved_inputs={
+            **dict(spec.resolved_inputs),
+            "model_source": {
+                "source_run_id": source_run_id,
+                "logical_name": artifact.logical_name,
+                "kind": artifact.kind,
+                "provider": stored.provider,
+                "namespace": stored.namespace,
+                "name": stored.name,
+                "version": stored.version,
+                "digest": stored.digest,
+                "checkpoint_step": stored.provider_metadata.get("checkpoint_step"),
+                "model_seat": model_seat,
+            },
+        },
+    )
+    return replace(planned, launch=replace(planned.launch, run_spec=rebound_spec))
 
 
 def plan_job_execution(
@@ -793,6 +900,16 @@ def _project_config_bundle(
         selected.add(layout.project_brief)
     files = {_project_relative(layout, path): path.read_bytes() for path in sorted(selected)}
     roots = {seat.ref for seat in prepared.resolved.seats.values() if seat.ref is not None}
+    # Execution-target overrides replace a catalog-backed training or
+    # inference selection with an equivalent inline value.  The prepared
+    # seat then quite correctly has no ``ref``, but the worker still resolves
+    # the original work package from the packaged project catalog.  Retain
+    # every source binding as a closure root so that an override cannot
+    # silently omit the catalog entry the worker needs at activation time.
+    source_package = load_work_package(work_package_path)
+    roots.update(binding for binding in source_package.bindings.values() if isinstance(binding, CatalogRef))
+    if isinstance(source_package.recipe, CatalogRef):
+        roots.add(source_package.recipe)
     roots.update(catalog.refs_for_values(prepared.seats.values()))
     recipe = prepared.resolved.snapshot.get("recipe")
     if isinstance(recipe, dict) and isinstance((ref := recipe.get("ref")), dict):
@@ -1055,4 +1172,6 @@ __all__ = [
     "plan_job_package",
     "plan_job_launch",
     "plan_job_execution",
+    "with_recovery_checkpoint",
+    "with_model_checkpoint",
 ]

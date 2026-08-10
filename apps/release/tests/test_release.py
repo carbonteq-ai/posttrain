@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import json
+import os
 import subprocess
 import tomllib
 import zipfile
 from pathlib import Path, PurePosixPath
 from shutil import which
 
+import posttrain_release.versioning as versioning
 import pytest
 from posttrain.runtime_images import (
     RUNTIME_VARIANTS,
@@ -21,6 +24,7 @@ from posttrain_release.candidate import next_candidate_version
 from posttrain_release.cli import main
 from posttrain_release.manifest_render import render_manifest
 from posttrain_release.repository_audit import evaluate_repository, inspect_repository
+from posttrain_release.runtime_lock import materialize_runtime_lock
 from posttrain_release.versioning import (
     check_release,
     lock_dependencies,
@@ -29,6 +33,66 @@ from posttrain_release.versioning import (
 )
 
 _REPOSITORY_ROOT_DEPTH = 3
+
+
+def _fake_dstack(tmp_path: Path, responses: list[str]) -> tuple[Path, Path]:
+    response_root = tmp_path / "dstack-responses"
+    response_root.mkdir()
+    for index, response in enumerate(responses, start=1):
+        (response_root / str(index)).write_text(response, encoding="utf-8")
+    (response_root / "last").write_text(responses[-1], encoding="utf-8")
+    state = tmp_path / "dstack-attempts"
+    executable = tmp_path / "dstack"
+    executable.write_text(
+        """#!/usr/bin/env bash
+set -euo pipefail
+state="${FAKE_DSTACK_STATE:?}"
+responses="${FAKE_DSTACK_RESPONSES:?}"
+attempt=0
+if [[ -f "${state}" ]]; then
+  attempt="$(<"${state}")"
+fi
+attempt="$((attempt + 1))"
+printf '%s' "${attempt}" >"${state}"
+response="${responses}/${attempt}"
+if [[ ! -f "${response}" ]]; then
+  response="${responses}/last"
+fi
+command cat "${response}"
+""",
+        encoding="utf-8",
+    )
+    executable.chmod(0o755)
+    return executable, state
+
+
+def _dstack_fleet(*, status: str = "idle") -> str:
+    return json.dumps(
+        {
+            "id": "fleet-1",
+            "name": "local-gpu-workers",
+            "status": "active",
+            "instances": [
+                {
+                    "id": "worker-1",
+                    "instance_num": 1,
+                    "hostname": "carbonteq-ai-workstation.lan",
+                    "status": status,
+                    "health_status": "healthy",
+                    "unreachable": False,
+                    "total_blocks": 1,
+                    "instance_type": {
+                        "resources": {
+                            "gpus": [{"name": "RTXPRO6000", "vendor": "nvidia", "memory_mib": 98304}],
+                            "cpus": 32,
+                            "memory_mib": 60856,
+                            "disk": {"size_mib": 1200803},
+                        }
+                    },
+                }
+            ],
+        }
+    )
 
 
 def _version_repository(root: Path, version: str = "0.2.5") -> None:
@@ -58,7 +122,14 @@ version = "0.0.0"
 dependencies = ["posttrain-common"]
 
 [project.optional-dependencies]
-trl = ["trl @ git+https://github.com/carbonteq-ai/trl.git@6e7739b8ec741d21ecd79c0c212694cd15ff20d8"]
+trl = ["trl==1.9.2.post1"]
+
+[tool.posttrain.trl]
+version = "1.9.2.post1"
+release-tag = "carbonteq-v1.9.2.post1"
+source-revision = "91b0ce707631d503fbed337b42444a9d3fac3acb"
+wheel-sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+sdist-sha256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 
 [build-system]
 requires = ["hatchling"]
@@ -93,7 +164,7 @@ dependencies = [
 
 [locks."trl-fork@current"]
 source = "uv.lock"
-source_revision = "6e7739b8ec741d21ecd79c0c212694cd15ff20d8"
+source_revision = "91b0ce707631d503fbed337b42444a9d3fac3acb"
 dependency_lock_sha256 = "{digest}"
 """,
         encoding="utf-8",
@@ -147,6 +218,85 @@ def test_release_check_uses_the_manifest_as_version_authority(tmp_path: Path) ->
     assert result.version == "0.2.5"
     assert result.package_count == 1
     assert result.internal_pin_count == 1
+
+
+def test_runtime_lock_materializes_published_internal_wheel_receipts(tmp_path: Path) -> None:
+    _version_repository(tmp_path)
+    runtime = tmp_path / "packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds"
+    (runtime / "profiles").mkdir(parents=True)
+    (runtime / "profiles/supervised.txt").write_text("trl==1.9.2.post1\n", encoding="utf-8")
+    (runtime / "locks").mkdir()
+    lock = runtime / "locks/workspace.lock.txt"
+    lock.write_text(
+        "--index-url https://pypi.org/simple\n\n"
+        "trl @ git+https://github.com/carbonteq-ai/trl.git@" + "a" * 40 + "\n"
+        "    # via posttrain-train\n"
+        "typer==0.25.1 \\\n"
+        "    --hash=sha256:" + "b" * 64 + "\n",
+        encoding="utf-8",
+    )
+    with (tmp_path / "uv.lock").open("a", encoding="utf-8") as handle:
+        handle.write(
+            "\n[[package]]\n"
+            'name = "trl"\n'
+            'version = "1.9.2.post1"\n'
+            'source = { registry = "https://pypi.lan/carbonteq/stable/+simple/" }\n'
+            'wheels = [{ url = "https://pypi.lan/carbonteq/stable/+f/abc/trl-1.9.2.post1-py3-none-any.whl", '
+            'hash = "sha256:' + "c" * 64 + '" }]\n'
+        )
+    lock_dependencies(tmp_path)
+
+    pending = check_release(tmp_path, allow_pending_runtime_lock=True)
+    assert pending.runtime_lock_pending is True
+    with pytest.raises(ValueError, match="lock-runtime-dependencies"):
+        check_release(tmp_path)
+
+    result = materialize_runtime_lock(tmp_path)
+
+    assert result.changed is True
+    assert result.packages == ("trl",)
+    assert (
+        "trl @ https://pypi.lan/carbonteq/stable/+f/abc/trl-1.9.2.post1-py3-none-any.whl#sha256=" + "c" * 64
+    ) in lock.read_text(encoding="utf-8")
+    assert check_release(tmp_path).runtime_lock_pending is False
+
+
+def test_pending_runtime_lock_allows_old_image_manifest_until_rebuild(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _version_repository(tmp_path)
+    runtime = tmp_path / "packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds"
+    (runtime / "profiles").mkdir(parents=True)
+    (runtime / "profiles/supervised.txt").write_text(
+        "carbonteq-trackio==0.31.5.post12\ntrl==1.9.2.post1\n", encoding="utf-8"
+    )
+    (runtime / "locks").mkdir()
+    (runtime / "locks/workspace.lock.txt").write_text(
+        "carbonteq-trackio @ git+https://example.invalid/trackio@" + "a" * 40 + "\n", encoding="utf-8"
+    )
+    with (tmp_path / "uv.lock").open("a", encoding="utf-8") as handle:
+        handle.write(
+            "\n[[package]]\n"
+            'name = "carbonteq-trackio"\n'
+            'version = "0.31.5.post12"\n'
+            'source = { registry = "https://pypi.lan/carbonteq/stable/+simple/" }\n'
+            'wheels = [{ url = "https://pypi.lan/carbonteq/stable/+f/abc/trackio.whl", '
+            'hash = "sha256:' + "c" * 64 + '" }]\n'
+        )
+    lock_dependencies(tmp_path)
+    versioning_lock_error = (
+        "base: published image records constraint lock digest old, but the shipped lock hashes to new"
+    )
+
+    def fake_load_manifest(*, verify_locks: bool = True, verify_variants: bool = True) -> object:
+        del verify_variants
+        if verify_locks:
+            raise ManifestError(versioning_lock_error)
+        return object()
+
+    monkeypatch.setattr(versioning, "load_manifest", fake_load_manifest)
+    pending = check_release(tmp_path, allow_pending_runtime_lock=True)
+    assert pending.runtime_lock_pending is True
 
 
 def test_release_check_ignores_a_virtual_root_but_checks_publishable_members(tmp_path: Path) -> None:
@@ -280,6 +430,99 @@ def test_stage_uses_committed_source_and_excludes_runner_state(tmp_path: Path) -
     assert (destination / "packages/train/pyproject.toml").is_file()
 
 
+def test_distribution_builder_overlays_generated_runtime_manifest() -> None:
+    repository_root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+    builder = (repository_root / "scripts/release/build-python-distributions").read_text(encoding="utf-8")
+    assert "generated_image_manifest=" in builder
+    assert "staged_image_manifest=" in builder
+    assert 'cp "${generated_image_manifest}" "${staged_image_manifest}"' in builder
+
+
+def test_dstack_capacity_retries_a_malformed_response_and_retains_valid_receipt(tmp_path: Path) -> None:
+    repository_root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+    executable, state = _fake_dstack(tmp_path, ["temporary upstream response\n", _dstack_fleet()])
+    receipt = tmp_path / "capacity.json"
+
+    result = subprocess.run(
+        [str(repository_root / "scripts/release/verify-dstack-capacity"), str(receipt)],
+        env={
+            **os.environ,
+            "POSTTRAIN_DSTACK_BIN": str(executable),
+            "POSTTRAIN_DSTACK_CAPACITY_ATTEMPTS": "2",
+            "POSTTRAIN_DSTACK_CAPACITY_RETRY_SECONDS": "0",
+            "FAKE_DSTACK_STATE": str(state),
+            "FAKE_DSTACK_RESPONSES": str(tmp_path / "dstack-responses"),
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert state.read_text(encoding="utf-8") == "2"
+    payload = json.loads(receipt.read_text(encoding="utf-8"))
+    assert payload["status"] == "accepted"
+    assert payload["target_host"] == "carbonteq-ai-workstation.lan"
+    assert payload["instance"]["gpu"]["memory_mib"] == 98304
+
+
+def test_dstack_capacity_persists_sanitized_evidence_for_invalid_json(tmp_path: Path) -> None:
+    repository_root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+    executable, state = _fake_dstack(tmp_path, ["not-json\n"])
+    receipt = tmp_path / "capacity.json"
+
+    result = subprocess.run(
+        [str(repository_root / "scripts/release/verify-dstack-capacity"), str(receipt)],
+        env={
+            **os.environ,
+            "POSTTRAIN_DSTACK_BIN": str(executable),
+            "POSTTRAIN_DSTACK_CAPACITY_ATTEMPTS": "2",
+            "POSTTRAIN_DSTACK_CAPACITY_RETRY_SECONDS": "0",
+            "FAKE_DSTACK_STATE": str(state),
+            "FAKE_DSTACK_RESPONSES": str(tmp_path / "dstack-responses"),
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 3
+    assert state.read_text(encoding="utf-8") == "2"
+    payload = json.loads(receipt.read_text(encoding="utf-8"))
+    assert payload["status"] == "rejected"
+    assert payload["failure_kind"] == "invalid_json"
+    assert payload["attempts"] == 2
+    assert payload["response"]["stdout_bytes"] == len("not-json\n")
+    assert len(payload["response"]["stdout_sha256"]) == 64
+    assert "not-json" not in receipt.read_text(encoding="utf-8")
+
+
+def test_dstack_capacity_distinguishes_a_valid_but_busy_target(tmp_path: Path) -> None:
+    repository_root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+    executable, state = _fake_dstack(tmp_path, [_dstack_fleet(status="busy")])
+    receipt = tmp_path / "capacity.json"
+
+    result = subprocess.run(
+        [str(repository_root / "scripts/release/verify-dstack-capacity"), str(receipt)],
+        env={
+            **os.environ,
+            "POSTTRAIN_DSTACK_BIN": str(executable),
+            "POSTTRAIN_DSTACK_CAPACITY_ATTEMPTS": "1",
+            "POSTTRAIN_DSTACK_CAPACITY_RETRY_SECONDS": "0",
+            "FAKE_DSTACK_STATE": str(state),
+            "FAKE_DSTACK_RESPONSES": str(tmp_path / "dstack-responses"),
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 3
+    payload = json.loads(receipt.read_text(encoding="utf-8"))
+    assert payload["failure_kind"] == "target_not_ready"
+    assert '"status": "busy"' in result.stderr
+
+
 def test_stage_can_render_an_rc_without_changing_the_authored_target(tmp_path: Path) -> None:
     source = tmp_path / "source"
     destination = tmp_path / "staged"
@@ -360,6 +603,8 @@ def test_tag_workflow_builds_the_versioned_stage_not_the_source_workspace() -> N
     assert 'build_cache_dir="${UV_CACHE_DIR:-$build_cache_dir}"' in builder
     assert 'UV_CACHE_DIR="$build_cache_dir"' in builder
     assert "uv build environments/" not in workflow
+    assert 'generated_runtime_lock="${repository_root}/packages/runtime-images' in builder
+    assert 'cp "${generated_runtime_lock}" "${staged_runtime_lock}"' in builder
 
 
 def test_protected_release_workflows_keep_the_build_and_qualification_boundaries() -> None:
@@ -376,7 +621,6 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
         assert "printf 'POSTTRAIN_REGISTRY=%s\\n'" in workflow
         assert "trap 'rm -f \"${image_verify_env}\"' EXIT" in workflow
         assert "Prepare release evidence directory" in workflow
-        assert "--framework-wheelhouse .release/wheelhouse" in workflow
         assert "posttrain[dstack,trackio]==" in workflow
         assert "posttrain-lab==" in workflow
         assert "if-no-files-found: error" in workflow
@@ -386,9 +630,27 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
         assert 'run reconcile \\\n            "release-' in workflow
         assert 'run cleanup \\\n            "release-' in workflow
 
+    assert 'framework_wheelhouse="$(realpath .release/wheelhouse)"' in candidate
+    assert 'consumer-venv/bin/python - "${candidate_version}" "${framework_wheelhouse}"' in candidate
+    assert "framework wheelhouse contains non-candidate wheels" in candidate
+    assert '--framework-wheelhouse "${framework_wheelhouse}"' in candidate
+
     assert "candidate-version --simple-url" in candidate
+    assert "posttrain-release check --allow-pending-runtime-lock" in candidate
+    assert "posttrain-release lock-runtime-dependencies" in candidate
+    assert ".release/workspace.lock.txt" in candidate
+    assert 'authored_framework_version="$(sed -n' in candidate
+    assert 'published_framework_version="$(sed -n' in candidate
+    assert '"${published_framework_version}" = "${authored_framework_version}"' in candidate
+    assert '--framework-version "${authored_framework_version}"' in candidate
+    assert candidate.index("Build changed OCI inputs and retain the generated manifest") < candidate.index(
+        "Build and hash the Python wheelhouse"
+    )
     assert "for attempt in $(seq 1 120)" in candidate
-    assert 'select(.headSha == $sha and (.event == "push" or .event == "pull_request"))' in candidate
+    assert (
+        'select(.headSha == $sha and (.event == "push" or .event == "pull_request" or .event == "workflow_dispatch"))'
+        in candidate
+    )
     assert 'git ls-remote --exit-code origin "refs/tags/v${POSTTRAIN_RELEASE_VERSION}"' in final
     assert '"${DEVPI_CLIENT}" push -y' in final
     assert "exact final bytes are already present in the stable index" in final
@@ -407,8 +669,19 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert 'grep -Eqi -- "${normalized}-${POSTTRAIN_RELEASE_VERSION}([.]|$)"' in final
     assert 'grep -Fq "${POSTTRAIN_RELEASE_VERSION}"' not in final
     assert "candidate_run_id:" in final
+    assert "Verify the final source and lock" in final
+    assert "uv sync --all-packages --group dev --python 3.13 --locked" in final
+    assert "uv run --no-sync ruff check ." not in final
+    assert "uv run --no-sync pytest" not in final
     assert "Restore the accepted candidate runtime image manifest" in final
-    assert 'git merge-base --is-ancestor "${candidate_sha}" "${RELEASE_SOURCE_SHA}"' in final
+    assert 'if git merge-base --is-ancestor "${candidate_sha}" "${RELEASE_SOURCE_SHA}"; then' in final
+    assert '"repos/${GITHUB_REPOSITORY}/commits/${candidate_sha}"' in final
+    assert "--jq '.commit.tree.sha'" in final
+    assert 'release_tree="$(git rev-parse "${RELEASE_SOURCE_SHA}^{tree}")"' in final
+    assert 'if [[ "${candidate_tree}" = "${release_tree}" ]]; then' in final
+    assert '"repos/${GITHUB_REPOSITORY}/compare/${candidate_sha}...${RELEASE_SOURCE_SHA}"' in final
+    assert ".github/*|apps/release/tests/*|docs/plan/*" in final
+    assert "candidate build inputs changed:" in final
     assert 'test "${candidate_version}" = "${release_version}"' in final
     assert 'cp "${candidate_manifest}" packages/runtime-images/src/posttrain/runtime_images/published.toml' in final
     assert "resume_from_run_id" in final
@@ -631,6 +904,20 @@ def test_public_ci_trackio_mirror_matches_locked_distribution() -> None:
     assert "uv lock --check" not in workflow
     assert workflow.count("uv sync --frozen") == 4
     assert workflow.count("--no-install-package carbonteq-trackio") == 4
+
+
+def test_final_release_restores_candidate_runtime_lock_with_manifest() -> None:
+    root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+    workflow = (root / ".github/workflows/release.yml").read_text(encoding="utf-8")
+
+    assert 'candidate_workspace_lock="$(find .release/candidate' in workflow
+    assert 'test -n "${candidate_workspace_lock}"' in workflow
+    assert (
+        'cp "${candidate_workspace_lock}" \\\n'
+        "            packages/runtime-images/src/posttrain/runtime_images/containers/"
+        "posttrain-job-kinds/locks/workspace.lock.txt"
+    ) in workflow
+    assert 'cp "${candidate_workspace_lock}" .release/workspace.lock.txt' in workflow
 
 
 def test_release_can_read_prior_manifest_while_adding_a_variant(

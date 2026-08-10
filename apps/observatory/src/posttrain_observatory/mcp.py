@@ -80,10 +80,26 @@ def create_mcp(service: ObservatoryService) -> FastMCP:
 
     @server.tool()
     async def get_trace_evaluation_view(source_id: str, run_id: str) -> dict[str, object]:
-        """Return bounded Verifiers population aggregates and trace tips."""
-        return (await service.get_trace_evaluation_view(RunLocator(source_id=source_id, run_id=run_id))).model_dump(
-            mode="json"
-        )
+        """Return bounded Verifiers population aggregates without trace rows."""
+        return (
+            await service.get_trace_evaluation_view(
+                RunLocator(source_id=source_id, run_id=run_id), include_traces=False
+            )
+        ).model_dump(mode="json")
+
+    @server.tool()
+    async def get_trace_summary_page(
+        source_id: str,
+        run_id: str,
+        cursor: str | None = None,
+        limit: int = 100,
+    ) -> dict[str, object]:
+        """Return one bounded page of trace summaries for investigation."""
+        return (
+            await service.get_trace_summary_page(
+                RunLocator(source_id=source_id, run_id=run_id), cursor=cursor, limit=limit
+            )
+        ).model_dump(mode="json")
 
     @server.tool()
     async def get_trace_detail(source_id: str, run_id: str, trace_id: str) -> dict[str, object]:

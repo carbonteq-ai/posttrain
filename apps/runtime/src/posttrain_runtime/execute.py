@@ -51,8 +51,10 @@ from posttrain.execution import (
     resolved_inputs_digest,
 )
 from posttrain.jobs import build_job_runtime
+from posttrain.tracking import ArtifactInput, StoredArtifactRef
 from posttrain.work import (
     JobRuntime,
+    PreparedWorkPackageJob,
     ProjectEntry,
     ProjectExecutionRequest,
     ResolvedSeat,
@@ -89,6 +91,7 @@ _LAUNCH_FIELDS = {
     "job_image",
     "target",
 }
+_OPTIONAL_LAUNCH_FIELDS = {"overrides"}
 _LAUNCH_RUN_FIELDS = {
     "run_id",
     "project_id",
@@ -124,6 +127,8 @@ class _ExecutionLaunch:
     provider: str
     job_image: RuntimeImageRef
     target: Mapping[str, JsonValue]
+    artifacts: Mapping[str, ArtifactInput]
+    resolved_inputs: Mapping[str, JsonValue]
 
 
 @dataclass(frozen=True, slots=True)
@@ -247,12 +252,14 @@ def _execute_manifest(path: Path) -> WorkerExecutionResult:
             run_id=launch.run_id,
         )
         _verify_prepared_job(package, prepared, launch)
+        prepared = _apply_launch_overrides(prepared, launch)
 
         result = run_work_package_job(
             runtime,
             work_package,
             package.manifest.job_id,
             run_id=launch.run_id,
+            prepared=prepared,
         )
         job = result.jobs[0]
         return WorkerExecutionResult(
@@ -576,7 +583,7 @@ def _load_launch() -> _ExecutionLaunch:
         raise ContractError("execution launch envelope is invalid JSON") from error
     if not isinstance(payload, dict) or payload.get("schema") != _LAUNCH_SCHEMA:
         raise ContractError("execution launch envelope schema is unsupported")
-    if set(payload) != _LAUNCH_FIELDS:
+    if _LAUNCH_FIELDS - set(payload) or set(payload) - _LAUNCH_FIELDS - _OPTIONAL_LAUNCH_FIELDS:
         raise ContractError("execution launch envelope fields are invalid")
     run = payload.get("run")
     target = payload.get("target")
@@ -594,6 +601,30 @@ def _load_launch() -> _ExecutionLaunch:
         image = RuntimeImageRef(_required_string(payload.get("job_image"), "launch job image"))
     except ContractError as error:
         raise ContractError("execution launch job image is invalid") from error
+    overrides = payload.get("overrides", {})
+    if not isinstance(overrides, dict):
+        raise ContractError("execution launch overrides are invalid")
+    raw_artifacts = overrides.get("artifacts", {})
+    if not isinstance(raw_artifacts, dict):
+        raise ContractError("execution launch artifact overrides are invalid")
+    artifacts: dict[str, ArtifactInput] = {}
+    for name, value in raw_artifacts.items():
+        if not isinstance(name, str) or not isinstance(value, dict):
+            raise ContractError("execution launch artifact override is invalid")
+        kind = value.get("kind")
+        reference = value.get("reference")
+        if not isinstance(kind, str) or not isinstance(reference, dict):
+            raise ContractError("execution launch artifact override is invalid")
+        try:
+            artifacts[name] = ArtifactInput(
+                reference=StoredArtifactRef(**reference),
+                kind=kind,
+            )
+        except (TypeError, ContractError) as error:
+            raise ContractError("execution launch artifact reference is invalid") from error
+    raw_inputs = overrides.get("resolved_inputs", {})
+    if not isinstance(raw_inputs, dict):
+        raise ContractError("execution launch resolved-input overrides are invalid")
     return _ExecutionLaunch(
         run_id=_required_string(run.get("run_id"), "launch run id"),
         project_id=_required_string(run.get("project_id"), "launch project id"),
@@ -605,6 +636,8 @@ def _load_launch() -> _ExecutionLaunch:
         provider=provider,
         job_image=image,
         target=cast(Mapping[str, JsonValue], target),
+        artifacts=artifacts,
+        resolved_inputs=cast(Mapping[str, JsonValue], raw_inputs),
     )
 
 
@@ -782,6 +815,22 @@ def _verify_prepared_job(
     for name, plan in selected_datasets.items():
         lock, dataset_manifest = package.datasets[name]
         _verify_dataset_selection(plan, lock, dataset_manifest)
+
+
+def _apply_launch_overrides(
+    prepared: PreparedWorkPackageJob,
+    launch: _ExecutionLaunch,
+) -> PreparedWorkPackageJob:
+    """Apply run-scoped artifact selections after packaged-job verification."""
+
+    if not launch.artifacts and not launch.resolved_inputs:
+        return prepared
+    spec = replace(
+        prepared.spec,
+        artifacts={**dict(prepared.spec.artifacts), **dict(launch.artifacts)},
+        resolved_inputs={**dict(prepared.spec.resolved_inputs), **dict(launch.resolved_inputs)},
+    )
+    return replace(prepared, spec=spec)
 
 
 def _verify_execution_target(

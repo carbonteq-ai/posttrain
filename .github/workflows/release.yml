@@ -113,19 +113,13 @@ jobs:
           echo "RELEASE_SOURCE_SHA=${source_sha}" >> "$GITHUB_ENV"
           echo "resuming immutable ${version} artifacts from ${source_sha}"
 
-      - name: Validate the final source and lock
+      - name: Verify the final source and lock
         run: |
-          # The runner service has production Trackio variables for the real
-          # canary. Keep the unit/integration suite hermetic so its SQLite
-          # fixtures cannot accidentally read or mutate live Trackio.
-          unset TRACKIO_SERVER_URL POSTTRAIN_TRACKIO_SERVER_URL TRACKIO_WRITE_TOKEN
-          uv sync --all-packages --group dev --python 3.13
+          # Broad source checks run once on the exact merged SHA in required
+          # CI. The release runner only needs a locked environment and the
+          # release-specific manifest check before it handles remote state.
+          uv sync --all-packages --group dev --python 3.13 --locked
           uv run --no-sync posttrain-release check
-          uv run --no-sync ruff check .
-          uv run --no-sync ruff format --check .
-          uv run --no-sync pyright
-          uv run --no-sync lint-imports
-          uv run --no-sync pytest
 
       - name: Materialize and verify the retained release wheelhouse
         if: inputs.resume_from_run_id != ''
@@ -156,7 +150,42 @@ jobs:
           test "$(jq -r '.status // empty' <<<"${candidate_run}")" = "completed"
           test "$(jq -r '.conclusion // empty' <<<"${candidate_run}")" = "success"
           candidate_sha="$(jq -r '.headSha // empty' <<<"${candidate_run}")"
-          git merge-base --is-ancestor "${candidate_sha}" "${RELEASE_SOURCE_SHA}"
+          # A candidate normally comes from the merged commit's ancestry. A
+          # squash merge deliberately removes that ancestry, so accept the
+          # candidate only when the merged tree is byte-for-byte identical.
+          if git merge-base --is-ancestor "${candidate_sha}" "${RELEASE_SOURCE_SHA}"; then
+            echo "candidate source is an ancestor of the merged source"
+          else
+            # The candidate commit may not be present in a checkout of the
+            # squash-merged default branch. Read its immutable tree through
+            # GitHub instead of assuming the source ref still exists locally.
+            candidate_tree="$(gh api \
+              "repos/${GITHUB_REPOSITORY}/commits/${candidate_sha}" \
+              --jq '.commit.tree.sha')"
+            release_tree="$(git rev-parse "${RELEASE_SOURCE_SHA}^{tree}")"
+            if [[ "${candidate_tree}" = "${release_tree}" ]]; then
+              echo "candidate source has the identical merged tree after squash merge"
+            else
+              # Release-only workflow and release-test edits do not enter any
+              # wheel or runtime image. Permit those post-candidate changes,
+              # but reject every build-input change so candidate bytes cannot
+              # be promoted for a different package source.
+              unsafe_files="$(gh api \
+                "repos/${GITHUB_REPOSITORY}/compare/${candidate_sha}...${RELEASE_SOURCE_SHA}" \
+                --jq '.files[].filename' \
+                | while IFS= read -r path; do
+                    case "${path}" in
+                      .github/*|apps/release/tests/*|docs/plan/*) ;;
+                      *) printf '%s\\n' "${path}" ;;
+                    esac
+                  done)"
+              if [[ -n "${unsafe_files}" ]]; then
+                printf 'candidate build inputs changed:\\n%s\\n' "${unsafe_files}" >&2
+                exit 1
+              fi
+              echo "candidate build inputs are unchanged; only release plumbing differs"
+            fi
+          fi
           candidate_artifact="$(gh api \
             "repos/${GITHUB_REPOSITORY}/actions/runs/${CANDIDATE_RUN_ID}/artifacts" \
             --jq '.artifacts[] | select(.expired == false and (.name | endswith("-evidence"))) | .name' \
@@ -169,11 +198,16 @@ jobs:
             --dir .release/candidate
           candidate_manifest="$(find .release/candidate -type f -name published.toml -print -quit)"
           test -n "${candidate_manifest}"
+          candidate_workspace_lock="$(find .release/candidate -type f -name workspace.lock.txt -print -quit)"
+          test -n "${candidate_workspace_lock}"
           candidate_version="$(sed -n 's/^framework_version = "\([^"]*\)"$/\1/p' "${candidate_manifest}")"
           release_version="$(sed -n 's/^version = "\([^"]*\)"$/\1/p' release/manifest.toml)"
           test "${candidate_version}" = "${release_version}"
           cp "${candidate_manifest}" packages/runtime-images/src/posttrain/runtime_images/published.toml
+          cp "${candidate_workspace_lock}" \
+            packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/workspace.lock.txt
           cp "${candidate_manifest}" .release/published.toml
+          cp "${candidate_workspace_lock}" .release/workspace.lock.txt
 
       - name: Build and hash final distributions exactly once
         if: inputs.resume_from_run_id == ''

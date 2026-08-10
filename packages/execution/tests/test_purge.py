@@ -7,6 +7,8 @@ import pytest
 from posttrain.common import ContractError
 from posttrain.execution import (
     PurgeAction,
+    PurgeActionDeferred,
+    PurgeApplyDeferred,
     PurgeApplyError,
     PurgePlan,
     PurgeReceipt,
@@ -170,3 +172,37 @@ def test_apply_is_journaled_and_resumes_after_failure(tmp_path: Path) -> None:
         "check:tracking:run-1",
         "apply:tracking:run-1",
     ]
+
+
+def test_apply_records_deferred_action_without_unblocking_dependents(tmp_path: Path) -> None:
+    store = PurgeStore(tmp_path.resolve())
+    plan = _plan()
+    store.save_plan(plan)
+    calls: list[str] = []
+
+    class Executor:
+        def revalidate(self, action: PurgeAction) -> None:
+            calls.append(f"check:{action.action_id}")
+
+        def apply(self, action: PurgeAction) -> None:
+            calls.append(f"apply:{action.action_id}")
+            if action.action_id == "provider:run-1" and calls.count("apply:provider:run-1") == 1:
+                raise PurgeActionDeferred("exact worker is occupied")
+
+    executor = Executor()
+    with pytest.raises(PurgeApplyDeferred, match="provider:run-1"):
+        apply_purge_plan(
+            store,
+            plan.purge_id,
+            {"provider": executor, "tracking": executor, "registry": executor, "local": executor},
+        )
+
+    assert [event["status"] for event in store.journal(plan.purge_id)] == ["started", "deferred"]
+    assert calls == ["check:provider:run-1", "apply:provider:run-1"]
+
+    receipt = apply_purge_plan(
+        store,
+        plan.purge_id,
+        {"provider": executor, "tracking": executor, "registry": executor, "local": executor},
+    )
+    assert receipt.completed_actions == ("provider:run-1", "tracking:run-1")

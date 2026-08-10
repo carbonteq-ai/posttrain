@@ -53,10 +53,10 @@ jobs:
             runs="$(gh run list --workflow quality.yml --branch "${SOURCE_REF}" --limit 20 \
               --json headSha,conclusion,status,event,createdAt)"
             quality_conclusion="$(jq -r --arg sha "${source_sha}" \
-              '[.[] | select(.headSha == $sha and (.event == "push" or .event == "pull_request"))] | sort_by(.createdAt) | last.conclusion // empty' \
+              '[.[] | select(.headSha == $sha and (.event == "push" or .event == "pull_request" or .event == "workflow_dispatch"))] | sort_by(.createdAt) | last.conclusion // empty' \
               <<<"${runs}")"
             quality_status="$(jq -r --arg sha "${source_sha}" \
-              '[.[] | select(.headSha == $sha and (.event == "push" or .event == "pull_request"))] | sort_by(.createdAt) | last.status // empty' \
+              '[.[] | select(.headSha == $sha and (.event == "push" or .event == "pull_request" or .event == "workflow_dispatch"))] | sort_by(.createdAt) | last.status // empty' \
               <<<"${runs}")"
             case "${quality_conclusion}" in
               success) break ;;
@@ -77,7 +77,7 @@ jobs:
           # fixtures cannot accidentally read or mutate live Trackio.
           unset TRACKIO_SERVER_URL POSTTRAIN_TRACKIO_SERVER_URL TRACKIO_WRITE_TOKEN
           uv sync --all-packages --group dev --python 3.13
-          uv run --no-sync posttrain-release check
+          uv run --no-sync posttrain-release check --allow-pending-runtime-lock
           uv run --no-sync ruff check .
           uv run --no-sync ruff format --check .
           uv run --no-sync pyright
@@ -93,6 +93,42 @@ jobs:
 
       - name: Capture the pre-build BuildKit cache
         run: buildctl --addr unix:///var/lib/github-runner/buildkit/buildkitd.sock du
+
+      # Publish OCI inputs before building the wheelhouse. The runtime image
+      # manifest is packaged into posttrain-runtime-images, so the consumer
+      # venv used by the canary must contain the freshly generated digests.
+      - name: Build changed OCI inputs and retain the generated manifest
+        run: |
+          uv run --no-sync posttrain-release lock-runtime-dependencies
+          git fetch --no-tags origin main
+          authored_framework_version="$(sed -n 's/^version = "\([^" ]*\)"$/\1/p' release/manifest.toml)"
+          published_framework_version="$(sed -n 's/^framework_version = "\([^" ]*\)"$/\1/p' \
+            packages/runtime-images/src/posttrain/runtime_images/published.toml)"
+          if [[ "${published_framework_version}" = "${authored_framework_version}" ]] \
+            && git diff --quiet origin/main...HEAD -- containers packages/runtime-images packages/catalog uv.lock release; then
+            echo "No OCI input or framework-version change; committed immutable image manifest remains authoritative."
+          else
+            uv run --no-sync posttrain-release images publish \
+              --registry "${JOB_REGISTRY}" \
+              --framework-version "${authored_framework_version}" \
+              --receipt-root .release/image-receipts \
+              --trust-bundle /etc/ssl/certs/ca-certificates.crt
+          fi
+          cp packages/runtime-images/src/posttrain/runtime_images/published.toml .release/published.toml
+          cp packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/workspace.lock.txt \
+            .release/workspace.lock.txt
+          uv run --no-sync posttrain-release check
+          image_verify_config="${RUNNER_TEMP}/posttrain-image-verify-config"
+          mkdir -p "${image_verify_config}"
+          image_verify_env="apps/lab/posttrain.env"
+          test ! -e "${image_verify_env}"
+          printf 'POSTTRAIN_REGISTRY=%s\n' "${JOB_REGISTRY}" > "${image_verify_env}"
+          chmod 600 "${image_verify_env}"
+          trap 'rm -f "${image_verify_env}"' EXIT
+          env -u TRACKIO_SERVER_URL -u POSTTRAIN_TRACKIO_SERVER_URL -u TRACKIO_WRITE_TOKEN \
+            XDG_CONFIG_HOME="${image_verify_config}" \
+            uv run --no-sync posttrain \
+            --project-root apps/lab runtime images verify > .release/runtime-images-verify.json
 
       - name: Build and hash the Python wheelhouse
         run: |
@@ -116,7 +152,9 @@ jobs:
             "posttrain-lab==${{ steps.version.outputs.version }}"
           .release/consumer-venv/bin/posttrain --help >/dev/null
 
-      - name: Build changed OCI inputs and retain the generated manifest
+      # The OCI manifest was generated before the wheelhouse was staged.
+      - name: Legacy OCI publication location (disabled)
+        if: ${{ false }}
         run: |
           git fetch --no-tags origin main
           if git diff --quiet origin/main...HEAD -- containers packages/runtime-images packages/catalog uv.lock release; then
@@ -148,6 +186,36 @@ jobs:
         id: qualification
         run: |
           set +e
+          candidate_version="${{ steps.version.outputs.version }}"
+          framework_wheelhouse="$(realpath .release/wheelhouse)"
+          # The qualification must pack the same immutable framework bytes that
+          # the clean consumer just installed.  Keep this check immediately
+          # before packing so a stale runner directory, relative-path change,
+          # or versioned candidate mismatch fails with an actionable error.
+          .release/consumer-venv/bin/python - "${candidate_version}" "${framework_wheelhouse}" <<'PY'
+          import importlib.metadata as metadata
+          import sys
+          from pathlib import Path
+
+          expected, wheelhouse_name = sys.argv[1:]
+          wheelhouse = Path(wheelhouse_name)
+          if not wheelhouse.is_dir():
+              raise SystemExit(f"framework wheelhouse is not a directory: {wheelhouse}")
+          if metadata.version("posttrain") != expected:
+              raise SystemExit(
+                  "consumer framework version differs from candidate: "
+                  f"{metadata.version('posttrain')} != {expected}"
+              )
+          names = sorted(path.name for path in wheelhouse.glob("*.whl"))
+          if not names:
+              raise SystemExit(f"framework wheelhouse is empty: {wheelhouse}")
+          mismatched = [name for name in names if f"-{expected}-" not in name]
+          if mismatched:
+              raise SystemExit(
+                  f"framework wheelhouse contains non-candidate wheels: {mismatched}"
+              )
+          print(f"verified consumer and {len(names)} staged framework wheels at {expected}")
+          PY
           scripts/release/verify-dstack-capacity .release/dstack-capacity.json
           capacity_status=$?
           if [[ "${capacity_status}" -ne 0 ]]; then
@@ -158,7 +226,7 @@ jobs:
             --job transform \
             --provider dstack \
             --registry "${JOB_REGISTRY}" \
-            --framework-wheelhouse .release/wheelhouse \
+            --framework-wheelhouse "${framework_wheelhouse}" \
             --run-id "release-candidate-${{ github.run_id }}"
           status=$?
           if [[ "${status}" -eq 0 ]]; then
@@ -194,6 +262,7 @@ jobs:
             .release/SHA256SUMS
             .release/image-receipts/**
             .release/published.toml
+            .release/workspace.lock.txt
             .release/published-manifest.diff
             .release/runtime-images-verify.json
             .release/dstack-capacity.json

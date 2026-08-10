@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import inspect
+import math
 import subprocess
 import sys
 import time
@@ -22,13 +24,14 @@ from ...requests import OnPolicyDistillationRequest
 from .common import (
     BackendTrainingResult,
     callback_type,
-    checkpoint_artifact_callback_type,
+    checkpoint_callback_type,
     emit_parameter_counts,
     emit_runtime_versions,
     finish_training,
     framework_imports,
     load_tokenizer,
     load_trainable_model,
+    preserve_recovery_checkpoint_after_error,
     restore_checkpoint_runtime_states,
     trainer_arguments,
     trainer_lifecycle,
@@ -53,20 +56,20 @@ def run_distillation(
         raise ValueError("TRL distillation currently requires a Hugging Face teacher model")
 
     try:
-        from trl.experimental.distillation import (  # pyright: ignore[reportMissingImports]
-            DistillationConfig,
-            DistillationTrainer,
+        from trl.experimental.iw_opd import (  # pyright: ignore[reportMissingImports]
+            IWOPDConfig,
+            IWOPDTrainer,
         )
     except ImportError as error:
         raise RuntimeError("install posttrain-train with the trl-vllm extra") from error
-    _patch_local_teacher_divergence_numerics(DistillationTrainer)
-    memory_safe_sparse = request.training.backend_options.get("memory_safe_sparse_loss", False)
-    if not isinstance(memory_safe_sparse, bool):
-        raise ValueError("memory_safe_sparse_loss must be a boolean")
-    if memory_safe_sparse:
-        _validate_memory_safe_sparse_request(request, teacher_product)
+    _patch_local_teacher_divergence_numerics(IWOPDTrainer)
+    memory_safe_iw_opd = request.training.backend_options.get("memory_safe_iw_opd_loss", False)
+    if not isinstance(memory_safe_iw_opd, bool):
+        raise ValueError("memory_safe_iw_opd_loss must be a boolean")
+    if memory_safe_iw_opd:
+        _validate_memory_safe_iw_opd_request(request, teacher_product)
+        _validate_iw_opd_private_contract(IWOPDTrainer)
     runtime_state_paths = _runtime_state_paths(request)
-    milestone_steps = _milestone_steps(request)
 
     imports = framework_imports()
     emit_runtime_versions(context, imports)
@@ -94,14 +97,18 @@ def run_distillation(
             teacher_url if isinstance(teacher_url, str) else None,
         )
 
-        class ObservedDistillationTrainer(DistillationTrainer):
-            def _get_train_sampler(self, dataset=None):
-                if not memory_safe_sparse:
-                    return super()._get_train_sampler(dataset)
-                from torch.utils.data import SequentialSampler
-
-                selected = self.train_dataset if dataset is None else dataset
-                return SequentialSampler(selected)
+        class ObservedIWOPDTrainer(IWOPDTrainer):
+            def _generate_policy_turns(
+                self,
+                prompt_ids: list[list[int]],
+                generation_overrides: list[dict[str, Any]],
+            ) -> tuple[list[list[int]], list[list[float]]]:
+                return _generate_heterogeneous_colocated_iw_opd_turns(
+                    context,
+                    self,
+                    prompt_ids,
+                    generation_overrides,
+                )
 
             def compute_loss(
                 self,
@@ -110,25 +117,43 @@ def run_distillation(
                 return_outputs: bool = False,
                 num_items_in_batch: Any = None,
             ) -> Any:
-                if not memory_safe_sparse:
+                if not memory_safe_iw_opd:
                     return super().compute_loss(
                         model,
                         inputs,
                         return_outputs=return_outputs,
                         num_items_in_batch=num_items_in_batch,
                     )
-                return _memory_safe_server_sparse_loss(
+                effective_items = num_items_in_batch
+                trainer_scale = 1
+                if effective_items is None:
+                    effective_items = _buffered_selected_token_count(self)
+                    # Transformers divides a custom loss by the accumulation
+                    # window when its pre-generation batch has no labels. Undo
+                    # that division after normalizing over the generated window.
+                    trainer_scale = int(
+                        getattr(
+                            self,
+                            "current_gradient_accumulation_steps",
+                            self.args.gradient_accumulation_steps,
+                        )
+                    )
+                result = _memory_safe_server_iw_opd_loss(
                     self,
                     model,
                     inputs,
                     return_outputs=return_outputs,
-                    num_items_in_batch=num_items_in_batch,
+                    num_items_in_batch=effective_items,
                     chunk_size=_positive_backend_integer(
                         request,
                         "logit_chunk_size",
                         default=16,
                     ),
                 )
+                if return_outputs:
+                    loss, outputs = result
+                    return loss * trainer_scale, outputs
+                return result * trainer_scale
 
             def _get_teacher_logits(self, inputs: dict[str, Any]) -> Any:
                 started_at = time.perf_counter()
@@ -147,28 +172,27 @@ def run_distillation(
                             (time.perf_counter() - started_at) * 1_000,
                         )
 
+        checkpoint_callback = checkpoint_callback_type(
+            context,
+            imports,
+            model=request.student,
+            technique="distill",
+            settings=request.settings,
+            update=request.training.update,
+            workspace=output_dir.parent,
+            runtime_state_paths=runtime_state_paths,
+        )()
         with context.phase("runtime_initialization", {"backend": "trl"}):
-            trainer = ObservedDistillationTrainer(
+            trainer = ObservedIWOPDTrainer(
                 model=model,
                 teacher_model=cast(
                     Any,
                     (None if teacher_product == "vllm" else request.teacher.artifact.repo_id),
                 ),
-                args=DistillationConfig(**arguments),
+                args=IWOPDConfig(**arguments),
                 train_dataset=dataset,
                 processing_class=tokenizer,
-                callbacks=[
-                    callback_type(context, imports)(),
-                    checkpoint_artifact_callback_type(
-                        context,
-                        imports,
-                        artifact_name=(
-                            f"training/{request.student.id}/distill/checkpoint"
-                        ),
-                        runtime_state_paths=runtime_state_paths,
-                        milestone_steps=milestone_steps,
-                    )(),
-                ],
+                callbacks=[callback_type(context, imports)(), checkpoint_callback],
                 rollout_func=cast(Any, _rollout_function(context, request, tokenizer, ledger)),
             )
         if teacher_product == "vllm":
@@ -184,19 +208,32 @@ def run_distillation(
         if request.resume_from is not None and runtime_state_paths:
             restore_checkpoint_runtime_states(request.resume_from.path, runtime_state_paths)
         with trainer_lifecycle(trainer):
-            with context.phase("actor_update", {"backend": "trl"}):
-                train_output = trainer.train(resume_from_checkpoint=resume)
-            with context.phase("artifact_export", {"backend": "trl"}):
-                return finish_training(
+            try:
+                with context.phase("actor_update", {"backend": "trl"}):
+                    train_output = trainer.train(resume_from_checkpoint=resume)
+                with context.phase("artifact_export", {"backend": "trl"}):
+                    return finish_training(
+                        context,
+                        trainer,
+                        train_output,
+                        tokenizer,
+                        output_dir.parent,
+                        "distill",
+                        request.training.update,
+                        imports,
+                    )
+            except BaseException as error:
+                preserve_recovery_checkpoint_after_error(
                     context,
                     trainer,
-                    train_output,
-                    tokenizer,
-                    output_dir.parent,
-                    "distill",
-                    request.training.update,
-                    imports,
+                    error,
+                    technique="distill",
+                    model=request.student,
+                    settings=request.settings,
+                    update=request.training.update,
+                    imports=imports,
                 )
+                raise
 
 
 @contextmanager
@@ -513,6 +550,9 @@ def _distillation_arguments(
             "remove_unused_columns": False,
             "use_liger_kernel": use_liger_kernel,
             "lmbda": 1.0,
+            "distillation_objective": "iw_opd",
+            "iw_opd_gamma": _backend_number(request, "iw_opd_gamma", 0.5),
+            "iw_opd_epsilon": _backend_number(request, "iw_opd_epsilon", 1e-8),
             "beta": 1.0,
             "reverse_kl_top_1_mode": "sampled",
             "loss_top_k": 1,
@@ -552,42 +592,147 @@ def _distillation_arguments(
     return arguments
 
 
-def _sampling_number(request: OnPolicyDistillationRequest, key: str, default: float) -> float:
-    value = request.rollout_inference.sampling.get(key)
-    return float(value) if isinstance(value, (int, float)) else default
+def _validate_iw_opd_private_contract(trainer_type: Any) -> None:
+    """Fail closed when the pinned IW-OPD seams used by the bounded loss move."""
+
+    expected = {
+        "_compute_prompt_length": ("self", "inputs"),
+        "_get_teacher_token_logprobs_from_server": ("self", "inputs", "prompt_length"),
+    }
+    for name, parameters in expected.items():
+        method = getattr(trainer_type, name, None)
+        if method is None:
+            raise RuntimeError(f"pinned IWOPDTrainer is missing required method {name}")
+        actual = tuple(inspect.signature(method).parameters)
+        if actual != parameters:
+            raise RuntimeError(
+                f"pinned IWOPDTrainer method {name} has parameters {actual}, expected {parameters}"
+            )
 
 
-def _validate_memory_safe_sparse_request(
+def _generate_heterogeneous_colocated_iw_opd_turns(
+    context: RunContext,
+    trainer: Any,
+    prompt_ids: list[list[int]],
+    generation_overrides: list[dict[str, Any]],
+) -> tuple[list[list[int]], list[list[float]]]:
+    """Generate a bounded colocated-vLLM batch with per-request schemas and limits."""
+
+    if len(prompt_ids) != len(generation_overrides) or not prompt_ids:
+        raise ValueError("policy prompts and generation overrides must be non-empty and aligned")
+    if not trainer.use_vllm:
+        raise RuntimeError("heterogeneous Policy rollouts require colocated vLLM")
+    generation = trainer.vllm_generation
+    if generation.mode != "colocate" or generation.tensor_parallel_size != 1:
+        raise RuntimeError("heterogeneous Policy rollouts require single-GPU colocated vLLM")
+
+    if (
+        trainer.state.global_step != trainer._last_vllm_sync_step
+        and trainer.state.global_step % trainer.vllm_sync_frequency == 0
+    ):
+        generation.sync_weights()
+        trainer._last_vllm_sync_step = trainer.state.global_step
+
+    try:
+        from trl.experimental.iw_opd.iw_opd_trainer import (  # pyright: ignore[reportMissingImports]
+            _accumulate_spec_decode_metrics,
+        )
+        from trl.generation.vllm_generation import extract_logprobs  # pyright: ignore[reportMissingImports]
+        from vllm import SamplingParams  # pyright: ignore[reportMissingImports]
+        from vllm.sampling_params import StructuredOutputsParams  # pyright: ignore[reportMissingImports]
+    except ImportError as error:
+        raise RuntimeError("install posttrain-train with the trl-vllm extra") from error
+
+    common_kwargs = {
+        "n": 1,
+        "repetition_penalty": generation.repetition_penalty,
+        "temperature": generation.temperature,
+        "top_p": generation.top_p,
+        "top_k": generation.top_k,
+        "min_p": 0.0 if generation.min_p is None else generation.min_p,
+        "logprobs": generation.logprobs,
+        **dict(generation.generation_kwargs),
+    }
+    common_kwargs.pop("max_tokens", None)
+    common_kwargs.pop("structured_outputs", None)
+    sampling_params = []
+    for override in generation_overrides:
+        max_tokens = override.get("max_tokens")
+        if isinstance(max_tokens, bool) or not isinstance(max_tokens, int) or max_tokens < 1:
+            raise ValueError("each Policy rollout requires a positive max_tokens override")
+        structured = override.get("structured_outputs")
+        if structured is not None and not isinstance(structured, dict):
+            raise TypeError("structured_outputs must be a mapping when supplied")
+        parameters = {**common_kwargs, "max_tokens": max_tokens}
+        if structured is not None:
+            parameters["structured_outputs"] = StructuredOutputsParams(**structured)
+        sampling_params.append(SamplingParams(**parameters))
+
+    generation._wake_weights_for_generation()
+    if generation.enable_sleep_mode:
+        generation.llm.wake_up(tags=["kv_cache"])
+    prompts = [{"prompt_token_ids": ids} for ids in prompt_ids]
+    wave_size = generation.max_num_seqs or len(prompts)
+    outputs = []
+    if generation._kv_cache_peak_tracker is not None:
+        generation._kv_cache_peak_tracker.reset()
+    for start in range(0, len(prompts), wave_size):
+        outputs.extend(
+            generation.llm.generate(
+                prompts[start : start + wave_size],
+                sampling_params=sampling_params[start : start + wave_size],
+                use_tqdm=False,
+                lora_request=generation._lora_request,
+            )
+        )
+    completion_ids = [output.token_ids for request in outputs for output in request.outputs]
+    logprobs, _logprob_token_ids = extract_logprobs(outputs)
+    generation._collect_generation_metrics()
+    generation._sleep_colocated_engine()
+    mode = "train" if trainer.model.training else "eval"
+    _accumulate_spec_decode_metrics(trainer._metrics[mode], generation.last_generation_metrics)
+    if logprobs is None:
+        raise RuntimeError("vLLM must return sampled-token logprobs for Policy IW-OPD rollouts")
+    context.metric("train/rollout/request_batch_size", len(prompts))
+    context.metric("train/rollout/resident_wave_size", min(wave_size, len(prompts)))
+    return completion_ids, [
+        [float(token_logprobs[0]) for token_logprobs in row]
+        for row in logprobs
+    ]
+
+
+def _validate_memory_safe_iw_opd_request(
     request: OnPolicyDistillationRequest,
     teacher_product: str,
 ) -> None:
-    options = request.training.backend_options
     if teacher_product != "vllm":
-        raise ValueError("memory-safe sparse OPD requires an external vLLM teacher")
+        raise ValueError("memory-safe IW-OPD requires an external vLLM teacher")
     student_artifact = request.student.artifact
     if (
         request.student.family != "gemma4"
         or not isinstance(student_artifact, HubModelRef)
         or student_artifact.repo_id != "google/gemma-4-E2B-it"
     ):
-        raise ValueError("memory-safe sparse OPD is qualified only for gemma4-e2b-it")
-    if request.settings.num_generations != 1 or request.settings.num_prompts_per_step != 1:
-        raise ValueError("memory-safe sparse OPD requires one prompt and one generation per update")
-    if request.settings.loop.per_device_batch_size != 1:
-        raise ValueError("memory-safe sparse OPD requires per-device batch size 1")
-    if request.settings.loop.gradient_accumulation_steps != 1:
-        raise ValueError("memory-safe sparse OPD requires gradient accumulation 1")
-    expected: dict[str, object] = {
-        "distillation_lambda": 1.0,
-        "distillation_beta": 1.0,
-        "distillation_loss_top_k": 1,
-        "distillation_reverse_kl_top_1_mode": "sampled",
-        "distillation_loss_add_tail": True,
-    }
-    for key, wanted in expected.items():
-        actual = options.get(key, wanted)
-        if actual != wanted:
-            raise ValueError(f"memory-safe sparse OPD requires {key}={wanted!r}")
+        raise ValueError("memory-safe IW-OPD is qualified only for gemma4-e2b-it")
+    if request.settings.num_generations != 1:
+        raise ValueError("memory-safe IW-OPD requires one generation per prompt")
+    loop = request.settings.loop
+    if loop.per_device_batch_size != 1:
+        raise ValueError("memory-safe IW-OPD requires physical per-device batch size 1")
+    expected_logical_batch = loop.per_device_batch_size * loop.gradient_accumulation_steps
+    if request.settings.num_prompts_per_step != expected_logical_batch:
+        raise ValueError(
+            "memory-safe IW-OPD requires num_prompts_per_step to equal physical batch times "
+            "gradient accumulation"
+        )
+    if request.training.backend_options.get("use_liger_kernel", False):
+        raise ValueError("memory-safe IW-OPD is incompatible with the Liger full-logits path")
+    gamma = _backend_number(request, "iw_opd_gamma", 0.5)
+    epsilon = _backend_number(request, "iw_opd_epsilon", 1e-8)
+    if gamma < 0:
+        raise ValueError("iw_opd_gamma must be non-negative")
+    if epsilon <= 0:
+        raise ValueError("iw_opd_epsilon must be positive")
     _positive_backend_integer(request, "logit_chunk_size", default=16)
 
 
@@ -618,20 +763,7 @@ def _runtime_state_paths(request: OnPolicyDistillationRequest) -> tuple[Path, ..
     return paths
 
 
-def _milestone_steps(request: OnPolicyDistillationRequest) -> frozenset[int]:
-    raw = request.training.backend_options.get("checkpoint_milestone_steps", [])
-    if not isinstance(raw, list) or not all(
-        isinstance(value, int) and not isinstance(value, bool) and value > 0
-        for value in raw
-    ):
-        raise ValueError("checkpoint_milestone_steps must be a list of positive integers")
-    steps = frozenset(raw)
-    if any(step > request.settings.loop.max_steps for step in steps):
-        raise ValueError("checkpoint milestone cannot exceed the configured maximum steps")
-    return steps
-
-
-def _memory_safe_server_sparse_loss(
+def _memory_safe_server_iw_opd_loss(
     trainer: Any,
     model: Any,
     inputs: dict[str, Any],
@@ -640,77 +772,124 @@ def _memory_safe_server_sparse_loss(
     num_items_in_batch: Any,
     chunk_size: int,
 ) -> Any:
-    """Compute exact beta=1 top-1/tail OPD without a sequence-sized logits tensor."""
+    """Compute exact sampled-token IW-OPD without retaining sequence-wide logits."""
 
     import torch
-    import torch.nn.functional as F
 
-    if not trainer.use_teacher_server or trainer.beta != 1 or trainer.loss_top_k != 1:
-        raise ValueError("memory-safe sparse loss received an unsupported distillation configuration")
-    if trainer.reverse_kl_top_1_mode != "sampled" or not trainer.loss_add_tail:
-        raise ValueError("memory-safe sparse loss requires sampled reverse tokens and a tail bucket")
+    if not trainer.use_teacher_server or trainer.distillation_objective != "iw_opd":
+        raise ValueError("memory-safe IW-OPD received an unsupported trainer configuration")
+    if trainer.accelerator.num_processes != 1:
+        raise ValueError("memory-safe IW-OPD is qualified only for one trainer process")
 
-    prompt_length = trainer._compute_prompt_length(inputs)  # noqa: SLF001 - pinned TRL contract
+    prompt_length = trainer._compute_prompt_length(inputs)  # noqa: SLF001 - pinned fork contract
     teacher_result = trainer._get_teacher_token_logprobs_from_server(  # noqa: SLF001
         inputs,
         prompt_length,
     )
     completion_length = int(teacher_result["actual_logprobs"].shape[1])
-    labels = inputs["labels"][:, prompt_length : prompt_length + completion_length]
+    all_labels = inputs["labels"][:, prompt_length:]
+    if (all_labels[:, completion_length:] != -100).any():
+        raise ValueError(
+            "teacher server returned fewer completion logprobs than the selected IW-OPD tokens"
+        )
+    labels = all_labels[:, :completion_length]
     completion_tokens = inputs["input_ids"][
         :, prompt_length : prompt_length + completion_length
     ]
-    required = labels != -100
-    actual_teacher = teacher_result["actual_logprobs"]
-    missing = required & ~torch.isfinite(actual_teacher)
-    if missing.any():
+    valid_mask = labels != -100
+    valid_count = valid_mask.sum()
+    if int(valid_count.item()) == 0:
+        raise ValueError("memory-safe IW-OPD requires at least one selected completion token")
+
+    teacher_actual_logprobs = teacher_result["actual_logprobs"]
+    missing_teacher = valid_mask & ~torch.isfinite(teacher_actual_logprobs)
+    if missing_teacher.any():
         raise ValueError(
-            "teacher server is missing actual-token logprobs for required reverse-KL positions"
+            "teacher logprobs are missing for "
+            f"{int(missing_teacher.sum().item())}/{int(valid_count.item())} selected IW-OPD tokens"
         )
 
+    rollout_logprobs = inputs.get("rollout_logprobs")
+    if rollout_logprobs is None:
+        raise ValueError("memory-safe IW-OPD requires the exact rollout logprobs")
+    rollout_logprobs = rollout_logprobs[
+        :, prompt_length : prompt_length + completion_length
+    ]
+
     unwrapped = trainer.accelerator.unwrap_model(model)
-    if trainer.accelerator.num_processes != 1:
-        raise ValueError("memory-safe sparse OPD is qualified only for one trainer process")
     student_outputs = _gemma_hidden_forward(unwrapped, inputs)
     hidden = student_outputs.last_hidden_state[
         :, prompt_length - 1 : prompt_length - 1 + completion_length, :
     ]
     if hidden.shape[:2] != labels.shape:
-        raise RuntimeError("student hidden states do not align with teacher-scored completion positions")
+        raise RuntimeError("student hidden states do not align with IW-OPD completion positions")
     base = _gemma_base_model(unwrapped)
     head = base.get_output_embeddings()
     softcap = base.config.get_text_config().final_logit_softcapping
-    denominator = required.sum().clamp_min(1)
-    loss = hidden.sum() * 0.0
+    student_actual_chunks: list[Any] = []
     for start in range(0, completion_length, chunk_size):
         end = min(start + chunk_size, completion_length)
         logits = head(hidden[:, start:end, :])
         if softcap is not None:
             logits = torch.tanh(logits / softcap) * softcap
-        student_log_probs = F.log_softmax(logits.float() / trainer.temperature, dim=-1)
-        chunk_labels = labels[:, start:end]
-        chunk_required = chunk_labels != -100
-        chunk_actual_teacher = torch.where(
-            chunk_required,
-            actual_teacher[:, start:end],
-            torch.zeros_like(actual_teacher[:, start:end]),
-        )
-        chunk_top_ids = teacher_result["topk_token_ids"][:, start:end, 0]
-        chunk_top_lps = torch.where(
-            chunk_required,
-            teacher_result["topk_logprobs"][:, start:end, 0],
-            torch.zeros_like(teacher_result["topk_logprobs"][:, start:end, 0]),
-        )
-        loss = loss + trainer._compute_sparse_top_1_divergence_loss(  # noqa: SLF001
-            student_log_probs=student_log_probs,
-            teacher_top1_token_ids=chunk_top_ids,
-            teacher_top1_logprobs=chunk_top_lps,
-            reverse_token_ids=completion_tokens[:, start:end],
-            reverse_teacher_logprobs=chunk_actual_teacher,
-            labels=chunk_labels,
-            num_items_in_batch=denominator,
-        )
+        scaled = logits.float() / trainer.temperature
+        selected = scaled.gather(
+            dim=-1,
+            index=completion_tokens[:, start:end].unsqueeze(-1),
+        ).squeeze(-1)
+        student_actual_chunks.append(selected - torch.logsumexp(scaled, dim=-1))
+    student_actual_logprobs = torch.cat(student_actual_chunks, dim=1)
+
+    safe_teacher = torch.where(valid_mask, teacher_actual_logprobs, 0.0)
+    safe_rollout = torch.where(valid_mask, rollout_logprobs, 0.0)
+    advantages_base = (safe_teacher - safe_rollout).detach()
+    advantages_base = torch.where(valid_mask, advantages_base, 0.0)
+    absolute = advantages_base.abs()
+    prefix_absolute = absolute.cumsum(dim=1) - absolute
+    total_absolute = absolute.sum(dim=1, keepdim=True).clamp_min(trainer.iw_opd_epsilon)
+    weights = (
+        1.0 + trainer.iw_opd_gamma * (1.0 - prefix_absolute / total_absolute)
+    ).detach()
+    advantages = weights * advantages_base
+    token_loss = torch.where(
+        valid_mask,
+        -student_actual_logprobs * advantages,
+        torch.zeros_like(student_actual_logprobs),
+    )
+
+    with torch.no_grad():
+        mode = "train" if model.training else "eval"
+        valid_advantages = advantages[valid_mask]
+        valid_absolute = absolute[valid_mask]
+        valid_weights = weights[valid_mask]
+        trainer._metrics[mode]["iw_opd/mean_advantage"].append(valid_advantages.mean().item())
+        trainer._metrics[mode]["iw_opd/mean_abs_advantage"].append(valid_absolute.mean().item())
+        trainer._metrics[mode]["iw_opd/mean_weight"].append(valid_weights.mean().item())
+        trainer._metrics[mode]["iw_opd/min_weight"].append(valid_weights.min().item())
+        trainer._metrics[mode]["iw_opd/max_weight"].append(valid_weights.max().item())
+
+    denominator = valid_count if num_items_in_batch is None else num_items_in_batch
+    if isinstance(denominator, torch.Tensor):
+        denominator = denominator.to(token_loss.device)
+        if not torch.isfinite(denominator).all() or (denominator <= 0).any():
+            raise ValueError("IW-OPD accumulation denominator must be finite and positive")
+    elif not isinstance(denominator, int | float) or denominator <= 0:
+        raise ValueError("IW-OPD accumulation denominator must be positive")
+    loss = token_loss.sum() / denominator
     return (loss, student_outputs) if return_outputs else loss
+
+
+def _buffered_selected_token_count(trainer: Any) -> Any:
+    import torch
+
+    buffered = getattr(trainer, "_buffered_inputs", None)
+    if not isinstance(buffered, list) or not buffered or any(item is None for item in buffered):
+        raise RuntimeError("IW-OPD accumulation buffer is unavailable after rollout generation")
+    counts = [item["labels"].ne(-100).sum() for item in buffered]
+    total = torch.stack(counts).sum()
+    if int(total.item()) <= 0:
+        raise ValueError("IW-OPD accumulation window contains no selected tokens")
+    return total
 
 
 def _gemma_hidden_forward(unwrapped: Any, inputs: dict[str, Any]) -> Any:
@@ -728,10 +907,25 @@ def _gemma_base_model(model: Any) -> Any:
     architecture = type(base).__name__
     if architecture != "Gemma4ForConditionalGeneration":
         raise TypeError(
-            "memory-safe sparse OPD requires Gemma4ForConditionalGeneration, "
+            "memory-safe IW-OPD requires Gemma4ForConditionalGeneration, "
             f"got {architecture}"
         )
     return base
+
+
+def _sampling_number(request: OnPolicyDistillationRequest, key: str, default: float) -> float:
+    value = request.rollout_inference.sampling.get(key)
+    return float(value) if isinstance(value, (int, float)) else default
+
+
+def _backend_number(request: OnPolicyDistillationRequest, key: str, default: float) -> float:
+    value = request.training.backend_options.get(key, default)
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise ValueError(f"{key} must be numeric")
+    numeric = float(value)
+    if not math.isfinite(numeric):
+        raise ValueError(f"{key} must be finite")
+    return numeric
 
 
 __all__ = ["run_distillation"]

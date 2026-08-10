@@ -27,6 +27,7 @@ from posttrain.common import (
 )
 from posttrain.tracking import (
     ArtifactInput,
+    ArtifactIntegrityResult,
     ArtifactLink,
     ArtifactSet,
     EventRecord,
@@ -208,6 +209,7 @@ class TrackioTrackedRun:
         self._outcome: RunOutcome | None = None
         self._last_metric_step: int | None = None
         self._published_artifacts: list[PublishedArtifact] = []
+        self._pending_artifacts: list[tuple[ProducedArtifact, trackio.Artifact]] = []
 
     @property
     def run_id(self) -> str:
@@ -309,10 +311,11 @@ class TrackioTrackedRun:
     def artifact(self, artifact: ProducedArtifact) -> None:
         if not isinstance(artifact.reference, LocalArtifactRef):
             raise ContractError("Trackio output artifacts must be local before promotion")
-        path = artifact.reference.path
+        reference = cast(LocalArtifactRef, artifact.reference)
+        path = reference.path
         if not path.exists():
             raise FileNotFoundError(path)
-        if path.is_file() and _file_sha256(path) != artifact.reference.digest.removeprefix("sha256:"):
+        if path.is_file() and _file_sha256(path) != reference.digest.removeprefix("sha256:"):
             raise ContractError(f"artifact digest does not match file contents: {path}")
         logged = trackio.Artifact(
             _artifact_name(artifact.name),
@@ -321,12 +324,25 @@ class TrackioTrackedRun:
                 "logical_name": artifact.name,
                 **dict(artifact.metadata),
                 **({"posttrain_role": artifact.role} if artifact.role is not None else {}),
-                "posttrain_content_digest": artifact.reference.digest.removeprefix("sha256:"),
+                "posttrain_content_digest": reference.digest.removeprefix("sha256:"),
                 "posttrain_content_digest_kind": ("file" if path.is_file() else "tree"),
             },
         )
         logged.add_dir(path) if path.is_dir() else logged.add_file(path)
-        committed = self._run.log_artifact(logged)
+        try:
+            committed = cast(Any, self._run).log_artifact(logged, background=True)
+        except TypeError as error:
+            if "background" not in str(error):
+                raise
+            # Compatibility window for a previously released Trackio client;
+            # the immutable dependency pin is updated only after the fork
+            # release with background publication is qualified.
+            committed = cast(Any, self._run).log_artifact(logged)
+        self._pending_artifacts.append((artifact, committed))
+
+    def _record_committed_artifact(self, artifact: ProducedArtifact, committed: trackio.Artifact) -> PublishedArtifact:
+        reference = cast(LocalArtifactRef, artifact.reference)
+        path = reference.path
         version = committed.version
         digest = committed.digest
         project = committed.project
@@ -335,32 +351,54 @@ class TrackioTrackedRun:
         if any(item.logical_name == artifact.name for item in self._published_artifacts):
             raise ContractError(f"Trackio run published duplicate logical artifact name: {artifact.name}")
         size_bytes = committed.size
-        self._published_artifacts.append(
-            PublishedArtifact(
-                logical_name=artifact.name,
-                kind=artifact.kind,
-                reference=StoredArtifactRef(
-                    provider="trackio",
-                    namespace=project,
-                    name=committed.name,
-                    version=version,
-                    digest=str(digest),
-                    provider_metadata={
-                        "size_bytes": size_bytes,
-                        "posttrain_content_digest": artifact.reference.digest.removeprefix("sha256:"),
-                        "posttrain_content_digest_kind": ("file" if path.is_file() else "tree"),
-                    },
-                ),
-                required=artifact.required,
-                size_bytes=size_bytes,
-                metadata=artifact.metadata,
-                role=artifact.role,
-            )
+        return PublishedArtifact(
+            logical_name=artifact.name,
+            kind=artifact.kind,
+            reference=StoredArtifactRef(
+                provider="trackio",
+                namespace=project,
+                name=committed.name,
+                version=version,
+                digest=str(digest),
+                provider_metadata={
+                    "size_bytes": size_bytes,
+                    "posttrain_content_digest": reference.digest.removeprefix("sha256:"),
+                    "posttrain_content_digest_kind": ("file" if path.is_file() else "tree"),
+                },
+            ),
+            required=artifact.required,
+            size_bytes=size_bytes,
+            metadata=artifact.metadata,
+            role=artifact.role,
         )
 
-    def published_artifacts(self) -> tuple[PublishedArtifact, ...]:
-        """Return only identities synchronously committed by Trackio."""
+    def _flush_pending_artifacts(self, timeout: float | None = None) -> tuple[PublishedArtifact, ...]:
+        if not self._pending_artifacts:
+            return ()
+        committed: list[PublishedArtifact] = []
+        remaining: list[tuple[ProducedArtifact, trackio.Artifact]] = []
+        for artifact, handle in self._pending_artifacts:
+            try:
+                handle.wait(timeout=None if timeout is None else max(0, int(timeout)))
+            except TimeoutError:
+                remaining.append((artifact, handle))
+                raise
+            published = self._record_committed_artifact(artifact, handle)
+            self._published_artifacts.append(published)
+            committed.append(published)
+        self._pending_artifacts = remaining
+        return tuple(committed)
 
+    def flush_artifacts(self, timeout: float | None = None) -> tuple[PublishedArtifact, ...]:
+        """Drain queued Trackio publications before evidence reconciliation."""
+        flusher = getattr(self._run, "flush_artifacts", None)
+        if callable(flusher):
+            flusher(timeout=timeout)
+        return self._flush_pending_artifacts(timeout)
+
+    def published_artifacts(self) -> tuple[PublishedArtifact, ...]:
+        """Return only identities committed after an explicit bounded drain."""
+        self.flush_artifacts(timeout=30)
         return tuple(self._published_artifacts)
 
     def finish(self, outcome: RunOutcome) -> None:
@@ -368,6 +406,7 @@ class TrackioTrackedRun:
             if self._outcome == outcome:
                 return
             raise ContractError("Trackio run was already finalized with a different outcome")
+        self.flush_artifacts(timeout=30)
         values: dict[str, Any] = {
             "run/status": outcome.status,
             "run/started_at": outcome.started_at.isoformat(),
@@ -730,6 +769,8 @@ class TrackioPurgeActionExecutor:
 
 
 class TrackioDataSource:
+    _DETAIL_EVENT_LIMIT = 256
+
     def __init__(self, project: str, *, server_url: str | None = None) -> None:
         self.project = project
         self._api = trackio.Api(server_url=server_url)
@@ -750,7 +791,12 @@ class TrackioDataSource:
         raw = run.summary()
         config = raw.get("config")
         lifecycle: dict[str, Any] = {}
-        for row in run.history(keys=list(_LIFECYCLE_KEYS)):
+        # Lifecycle is written at run start and completion. Read only the tail
+        # of the history; the old full-history call made opening one run scale
+        # with every rollout metric ever recorded.
+        log_count = raw.get("num_logs")
+        offset = max(int(log_count) - 1000, 0) if isinstance(log_count, int) else 0
+        for row in self._history_page(run, tuple(_LIFECYCLE_KEYS), limit=1000, offset=offset):
             if "run/status" in row:
                 lifecycle = row
         return self._compose_summary(
@@ -759,6 +805,24 @@ class TrackioDataSource:
             config=config,
             lifecycle=lifecycle,
         )
+
+    @staticmethod
+    def _history_page(
+        run: Any,
+        keys: tuple[str, ...],
+        *,
+        limit: int,
+        offset: int,
+    ) -> list[dict[str, Any]]:
+        """Read one bounded page, with compatibility for pre-paged clients."""
+
+        try:
+            return run.history(keys=keys, limit=limit, offset=offset)
+        except TypeError as error:
+            if "unexpected keyword argument" not in str(error):
+                raise
+            rows = run.history(keys=keys)
+            return rows[offset : offset + limit]
 
     def _compose_summary(
         self,
@@ -863,44 +927,74 @@ class TrackioDataSource:
         return tuple(summaries)
 
     async def get_run(self, run_id: str) -> RunDetail:
+        """Read run metadata without blocking Observatory's event loop."""
+
+        return await asyncio.to_thread(self._get_run, run_id)
+
+    def _get_run(self, run_id: str) -> RunDetail:
         provider_run = self._provider_run(run_id)
         summary = self._summary(provider_run)
         config = provider_run.config or {}
+        # Run detail is a metadata request, not a request for the complete
+        # time-series payload.  The summary already carries the metric catalog;
+        # fetching every history row here made a large RL run block the
+        # Observatory event loop before the page could render.
+        raw_summary = provider_run.summary()
+        metric_names = {
+            str(name)
+            for name in raw_summary.get("metrics", [])
+            if isinstance(name, str)
+            and name
+            and name not in _RESERVED_HISTORY_KEYS
+            and not name.startswith(("event/", "run/"))
+            and not name.endswith("/attributes")
+            and name != "metric/attributes"
+        }
         events: list[EventRecord] = []
-        metric_names: set[str] = set()
-        for row in provider_run.history():
-            if "event/name" in row:
-                events.append(
-                    EventRecord(
-                        name=str(row["event/name"]),
-                        occurred_at=_datetime(row["event/occurred_at"], field="event occurred_at"),
-                        attributes=_json_mapping(row.get("event/attributes")),
-                    )
+        for row in self._history_page(
+            provider_run,
+            ("event/name", "event/occurred_at", "event/attributes", "step", "timestamp"),
+            limit=self._DETAIL_EVENT_LIMIT,
+            offset=0,
+        ):
+            if "event/name" not in row:
+                continue
+            events.append(
+                EventRecord(
+                    name=str(row["event/name"]),
+                    occurred_at=_datetime(row["event/occurred_at"], field="event occurred_at"),
+                    attributes=_json_mapping(row.get("event/attributes")),
                 )
-            for name, value in row.items():
-                if name in _RESERVED_HISTORY_KEYS or name.startswith(("event/", "run/")):
-                    continue
-                if name.endswith("/attributes") or name == "metric/attributes":
-                    continue
-                if isinstance(value, int | float) and not isinstance(value, bool):
-                    metric_names.add(name)
+            )
         system_names = set(provider_run.system_metric_names())
         metric_names.update(
             canonical for canonical, (provider_name, _) in _SYSTEM_METRICS.items() if provider_name in system_names
         )
         if system_names:
             metric_names.add("system/wall_time_s")
-        traces = provider_run.traces()
+        trace_counter = getattr(provider_run, "trace_count", None)
+        if callable(trace_counter):
+            trace_count = int(cast(Any, trace_counter)())
+        else:
+            # Compatibility with a pre-count client. The old client has no
+            # count endpoint, so retain its exact (but temporary) behavior;
+            # the pinned client path above is the production bounded path.
+            trace_count = len(provider_run.traces())
         return RunDetail(
             summary=summary,
             resolved_inputs=_json_mapping(config.get("resolved_selections")),
             source_metadata=_json_mapping(config.get("source_metadata")),
             metric_names=tuple(sorted(metric_names)),
             events=tuple(events),
-            trace_count=len(traces),
+            trace_count=trace_count,
         )
 
     async def metric_series(self, run_id: str, names: tuple[str, ...]) -> tuple[MetricSeries, ...]:
+        """Read selected metric history on the provider worker pool."""
+
+        return await asyncio.to_thread(self._metric_series, run_id, names)
+
+    def _metric_series(self, run_id: str, names: tuple[str, ...]) -> tuple[MetricSeries, ...]:
         provider_run = self._provider_run(run_id)
         raw: dict[str, list[dict[str, object]]] = {name: [] for name in names}
         attribute_names = tuple(f"{name}/attributes" for name in names)
@@ -943,9 +1037,21 @@ class TrackioDataSource:
             summary = self._summary(provider_run)
             started_at = summary.started_at
             finished_at = summary.finished_at
+            system_source_names = tuple(
+                source_name
+                for name in requested_system_names
+                if (source := _SYSTEM_METRICS.get(name)) is not None
+                for source_name in (source[0],)
+            )
+            try:
+                system_rows = provider_run.system_history(keys=system_source_names)
+            except TypeError as error:
+                if "unexpected keyword argument" not in str(error):
+                    raise
+                system_rows = provider_run.system_history()
             rows = [
                 (row, observed_at)
-                for row in provider_run.system_history()
+                for row in system_rows
                 if started_at <= (observed_at := _datetime(row["timestamp"], field="system metric timestamp"))
                 and (finished_at is None or observed_at <= finished_at)
             ]
@@ -975,60 +1081,129 @@ class TrackioDataSource:
                 values_by_name[name] = MetricSeries(name=name, points=tuple(points))
         return tuple(values_by_name.get(name, MetricSeries(name=name)) for name in names)
 
+    @staticmethod
+    def _normalize_trace_record(record: Mapping[str, Any]) -> TraceRecord:
+        metadata = _json_mapping(record.get("metadata"))
+        payload = record.get("payload")
+        if not isinstance(payload, dict):
+            payload = {"messages": record.get("messages") or []}
+        payload_extra = metadata.get("posttrain_payload_extra")
+        if isinstance(payload_extra, dict):
+            payload = {**payload, **payload_extra}
+        external_id = record.get("external_id") or metadata.get("external_id") or record["id"]
+        trace_type = str(metadata.get("observation_type") or record.get("trace_type") or "trackio")
+        attributes = metadata.get("posttrain_attributes")
+        if not isinstance(attributes, dict):
+            attributes = {
+                key: value
+                for key, value in metadata.items()
+                if key
+                not in {
+                    "external_id",
+                    "observation_type",
+                    "posttrain_payload_extra",
+                    "posttrain_attributes",
+                }
+            }
+        return TraceRecord(
+            trace_type=trace_type,
+            external_id=str(external_id),
+            payload=dict(payload),
+            attributes=dict(attributes),
+        )
+
+    async def get_trace(self, run_id: str, external_id: str) -> TraceRecord | None:
+        """Fetch one complete trace payload by its stable external ID."""
+
+        return await asyncio.to_thread(self._get_trace, run_id, external_id)
+
+    def _get_trace(self, run_id: str, external_id: str) -> TraceRecord | None:
+
+        provider_run = self._provider_run(run_id)
+        kwargs = {
+            "search": external_id,
+            "limit": 1,
+            "offset": 0,
+            "sort": "step_asc",
+            "include_payload": True,
+        }
+        try:
+            raw = provider_run.traces(**kwargs)
+        except TypeError as error:
+            if "unexpected keyword argument" not in str(error):
+                raise
+            kwargs.pop("include_payload", None)
+            raw = provider_run.traces(**kwargs)
+        for record in raw:
+            normalized = self._normalize_trace_record(record)
+            if normalized.external_id == external_id:
+                return normalized
+        return None
+
     async def traces(self, run_id: str, query: TraceQuery) -> TracePage:
+        """Read one bounded trace page without blocking other HTTP requests."""
+
+        return await asyncio.to_thread(self._traces, run_id, query)
+
+    def _traces(self, run_id: str, query: TraceQuery) -> TracePage:
         provider_run = self._provider_run(run_id)
         offset = int(query.cursor) if query.cursor is not None else 0
-        raw = []
-        provider_offset = 0
+        provider_kwargs = {
+            "limit": query.limit,
+            "offset": offset,
+            "sort": "step_asc",
+            "include_payload": False,
+        }
+        # Trackio's physical trace_type distinguishes Verifiers traces from
+        # ordinary Trackio traces. Other post-training trace kinds live in
+        # metadata, so those remain a bounded page followed by local shaping.
+        if query.trace_type == "verifiers":
+            provider_kwargs["trace_type"] = "verifiers"
         while True:
-            page = provider_run.traces(limit=1000, offset=provider_offset, sort="step_asc")
-            raw.extend(page)
-            if len(page) < 1000:
+            try:
+                raw = provider_run.traces(**provider_kwargs)
                 break
-            provider_offset += len(page)
+            except TypeError as error:
+                message = str(error)
+                if "unexpected keyword argument" not in message:
+                    raise
+                if "include_payload" in message and "include_payload" in provider_kwargs:
+                    provider_kwargs.pop("include_payload")
+                    continue
+                if "trace_type" in message and "trace_type" in provider_kwargs:
+                    provider_kwargs.pop("trace_type")
+                    continue
+                raise
         normalized = []
         for record in raw:
-            metadata = _json_mapping(record.get("metadata"))
-            payload = record.get("payload")
-            if not isinstance(payload, dict):
-                payload = {"messages": record.get("messages") or []}
-            payload_extra = metadata.get("posttrain_payload_extra")
-            if isinstance(payload_extra, dict):
-                payload = {**payload, **payload_extra}
-            external_id = record.get("external_id") or metadata.get("external_id") or record["id"]
-            trace_type = str(metadata.get("observation_type") or record.get("trace_type") or "trackio")
+            normalized_record = self._normalize_trace_record(record)
+            trace_type = normalized_record.trace_type
             if query.trace_type is not None and trace_type != query.trace_type:
                 continue
-            attributes = metadata.get("posttrain_attributes")
-            if not isinstance(attributes, dict):
-                attributes = {
-                    key: value
-                    for key, value in metadata.items()
-                    if key
-                    not in {
-                        "external_id",
-                        "observation_type",
-                        "posttrain_payload_extra",
-                        "posttrain_attributes",
-                    }
-                }
-            normalized.append(
-                TraceRecord(
-                    trace_type=trace_type,
-                    external_id=str(external_id),
-                    payload=dict(payload),
-                    attributes=dict(attributes),
-                )
-            )
-        page = normalized[offset : offset + query.limit]
-        has_more = offset + query.limit < len(normalized)
+            normalized.append(normalized_record)
+        page = normalized
+        has_more = len(raw) == query.limit
         return TracePage(
             items=tuple(page),
-            next_cursor=str(offset + query.limit) if has_more else None,
+            next_cursor=str(offset + len(raw)) if has_more else None,
             live=True,
         )
 
     async def artifacts(self, run_id: str) -> ArtifactSet:
+        """Read artifact identities on the provider worker pool."""
+
+        return await asyncio.to_thread(self._artifacts, run_id)
+
+    async def verify_artifact(self, reference: StoredArtifactRef, *, deep: bool = False) -> ArtifactIntegrityResult:
+        """Report provider verification support without downloading blobs implicitly."""
+
+        if reference.provider != "trackio" or reference.namespace != self.project:
+            return ArtifactIntegrityResult(
+                "failed", failures=("artifact belongs to another provider/project",), deep=deep
+            )
+        return ArtifactIntegrityResult("unsupported", deep=deep)
+
+    def _artifacts(self, run_id: str) -> ArtifactSet:
         provider_run = self._provider_run(run_id)
         raw = provider_run.artifacts()
         links = []

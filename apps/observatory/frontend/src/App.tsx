@@ -47,6 +47,7 @@ import {
   type TraceDetail,
   type TraceEvaluation,
   type TraceSummary,
+  type TraceSummaryPage,
   type WorkPackageView,
 } from './lib/api';
 import { tracePresentation, traceSignalColumns, traceSurfaceMode, type TracePresentation } from './lib/trace-presentation';
@@ -62,6 +63,23 @@ const TraceTable = lazy(() =>
 );
 
 type Section = 'Overview' | 'Metrics' | 'System metrics' | 'Traces & evaluation' | 'Artifacts & lineage' | 'Run config';
+
+const SYSTEM_METRIC_CHART_WINDOW_MS = 60 * 60 * 1000;
+
+export function limitSystemSeriesToRecentWindow(
+  series: MetricSeries[],
+  latestObservedAtMs: number,
+  windowMs = SYSTEM_METRIC_CHART_WINDOW_MS,
+): MetricSeries[] {
+  const cutoff = latestObservedAtMs - windowMs;
+  return series.map((item) => ({
+    ...item,
+    points: item.points.filter((point) => {
+      const observedAtMs = Date.parse(point.observed_at ?? '');
+      return Number.isFinite(observedAtMs) && observedAtMs >= cutoff && observedAtMs <= latestObservedAtMs;
+    }),
+  }));
+}
 
 function sectionLabel(section: Section, jobKind: string): string {
   return section === 'Traces & evaluation' && traceSurfaceMode(jobKind) === 'optimization'
@@ -426,13 +444,17 @@ function methodParameters(
     : jobKind === 'train.grpo'
       ? [
           ['Update', common.update],
-          ['Group size', methodValue(nestedValue(settings, 'num_generations'))],
           ['KL beta', methodValue(nestedValue(settings, 'beta'))],
-          ['Prompt limit', methodValue(nestedValue(settings, 'max_prompt_length'), 'tokens')],
-          ['Completion limit', methodValue(nestedValue(settings, 'max_completion_length'), 'tokens')],
-          ['Importance sampling', methodValue(nestedValue(settings, 'importance_sampling_mode'))],
+          ['Algorithm', methodValue(nestedValue(settings, 'algorithm'))],
+          ['Clip range', [
+            methodValue(nestedValue(settings, 'clip_epsilon_low')),
+            methodValue(nestedValue(settings, 'clip_epsilon_high')),
+          ].filter(Boolean).join(' / ') || null],
+          ['Dynamic sampling', nestedValue(settings, 'dynamic_sampling') != null ? 'Enabled' : 'Disabled'],
           ['Learning rate', common.learningRate],
-          ['Global batch', common.globalBatch],
+          ['Actor microbatch', common.deviceBatch],
+          ['Grad accumulation', methodValue(nestedValue(settings, 'gradient_accumulation_steps'))],
+          ['Importance sampling', methodValue(nestedValue(settings, 'importance_sampling_mode'))],
         ]
       : jobKind === 'train.sampo'
         ? [
@@ -478,6 +500,48 @@ function methodParameters(
   return definition
     .filter((item): item is [string, string] => item[1] !== null)
     .slice(0, 8)
+    .map(([label, value]) => ({ label, value }));
+}
+
+function grpoRolloutParameters(
+  environment: SelectionValue | null,
+  settings: SelectionValue | null,
+  training: SelectionValue | null,
+  rolloutInference: SelectionValue | null,
+): MethodParameter[] {
+  const generations = nestedValue(settings, 'num_generations');
+  const configuredPromptGroups = nestedValue(settings, 'num_prompts_per_step');
+  const globalBatch = nestedValue(training, 'runtime', 'global_batch_size');
+  const derivedPromptGroups = typeof globalBatch === 'number'
+    && typeof generations === 'number'
+    && globalBatch % generations === 0
+    ? globalBatch / generations
+    : null;
+  const promptGroups = configuredPromptGroups ?? derivedPromptGroups;
+  const promptGroupsValue = methodValue(promptGroups);
+  const speculativeMethod = nestedValue(rolloutInference, 'engine', 'speculative_config', 'method');
+  const speculativeTokens = nestedValue(rolloutInference, 'engine', 'speculative_config', 'num_speculative_tokens');
+  const acceleration = typeof speculativeMethod === 'string'
+    ? `${speculativeMethod.toUpperCase()}${typeof speculativeTokens === 'number' ? ` · ${speculativeTokens} draft tokens` : ''}`
+    : 'Off';
+  const contextShape = [
+    methodValue(nestedValue(settings, 'max_prompt_length'), 'tokens'),
+    methodValue(nestedValue(settings, 'max_completion_length'), 'tokens'),
+  ].filter(Boolean).join(' / ') || null;
+  return [
+    ['Prompt groups / update', promptGroupsValue && configuredPromptGroups == null ? `${promptGroupsValue} · derived` : promptGroupsValue],
+    ['Rollouts / prompt', methodValue(generations)],
+    ['Rollouts / update', methodValue(globalBatch)],
+    ['Environment concurrency', methodValue(nestedValue(environment, 'max_concurrent'))],
+    ['Inference sequence cap', methodValue(nestedValue(rolloutInference, 'engine', 'max_num_seqs'))],
+    ['Temperature / top-p', [
+      methodValue(nestedValue(rolloutInference, 'sampling', 'temperature')),
+      methodValue(nestedValue(rolloutInference, 'sampling', 'top_p')),
+    ].filter(Boolean).join(' / ') || null],
+    ['Prompt / completion', contextShape],
+    ['Acceleration', acceleration],
+  ]
+    .filter((item): item is [string, string] => item[1] !== null)
     .map(([label, value]) => ({ label, value }));
 }
 
@@ -643,6 +707,22 @@ function MetricLabel({ label, metric, help, className = '' }: { label: string; m
   return <span className={`inline-flex items-center gap-0.5 ${className}`}><span>{label}</span>{metric && <MetricInfo label={label} metric={metric} help={help} />}</span>;
 }
 
+function HeadlineMetric({ label, value, metric, help, state, note }: {
+  label: string;
+  value: string;
+  metric: string | null;
+  help?: MetricHelp;
+  state?: string;
+  note?: string;
+}) {
+  const unavailable = state != null && state !== 'available';
+  return <div className="min-w-0 border-b border-r border-divider px-4 py-3 xl:border-b-0">
+    <MetricLabel label={label} metric={metric} help={help} className="text-[10px] text-muted" />
+    <strong className="mt-1 block truncate font-serif text-2xl font-normal leading-tight" title={value}>{value}</strong>
+    {(unavailable || note) && <small className={`mt-1 block truncate text-[10px] ${unavailable ? 'text-amber-700' : 'text-muted'}`}>{unavailable ? 'Not recorded' : note}</small>}
+  </div>;
+}
+
 function ContextValue({ label, value }: { label: string; value: string }) {
   return <div className="border-b border-r border-divider px-4 py-3"><span className="type-label block">{label}</span><strong className="mt-1 block text-xs font-medium text-ink">{value}</strong></div>;
 }
@@ -664,6 +744,8 @@ export default function App() {
   const [search, setSearch] = useState('');
   const [system, setSystem] = useState<SystemMetrics | null>(null);
   const [evaluation, setEvaluation] = useState<TraceEvaluation | null>(null);
+  const [tracePage, setTracePage] = useState<TraceSummaryPage | null>(null);
+  const [traceLoadingMore, setTraceLoadingMore] = useState(false);
   const [traceDetail, setTraceDetail] = useState<TraceDetail | null>(null);
   const [activeChart, setActiveChart] = useState(0);
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
@@ -692,7 +774,7 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     api.runs()
-      .then(async (items) => {
+      .then((items) => {
         if (cancelled) return;
         setRuns(items);
         if (items[0]) {
@@ -700,7 +782,14 @@ export default function App() {
           setSelected(items[0]);
           setSelectedSourceId(items[0].locator.source_id);
           setSelectedProject(items[0].run.project_id);
-          await loadView(items[0], 'auto');
+          // The run list is the high-level shell.  Start the overview after
+          // that shell is paintable so a large provider read cannot block the
+          // sidebar and run identity from appearing.
+          void loadView(items[0], 'auto').catch((cause: unknown) => {
+            if (!cancelled && selectedRunKeyRef.current === items[0].run_key) {
+              setError(cause instanceof Error ? cause.message : String(cause));
+            }
+          });
         }
       })
       .catch((cause: unknown) => { if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause)); })
@@ -725,14 +814,19 @@ export default function App() {
     setMode('auto');
     setSystem(null);
     setEvaluation(null);
+    setTracePage(null);
+    setTraceLoadingMore(false);
     setTraceDetail(null);
     setLoadedView(null);
     setError('');
-    try {
-      await loadView(run, 'auto');
-    } catch (cause) {
-      if (selectedRunKeyRef.current === run.run_key) setError(cause instanceof Error ? cause.message : String(cause));
-    }
+    // Keep run selection responsive; the selected tab's payload may be large
+    // (for example, a GRPO overview or trace population) and must not block
+    // the high-level run shell from updating.
+    void loadView(run, 'auto').catch((cause: unknown) => {
+      if (selectedRunKeyRef.current === run.run_key) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+      }
+    });
   }, [loadView]);
 
   const toggleCompareRun = useCallback((runKey: string) => {
@@ -864,13 +958,20 @@ export default function App() {
         const value = await api.system(runKey);
         if (selectedRunKeyRef.current === runKey) setSystem(value);
       }
-      if (next === 'Traces & evaluation' && !evaluation) {
-        const value = await api.evaluation(runKey);
-        if (selectedRunKeyRef.current !== runKey) return;
-        setEvaluation(value);
-        if (value.traces[0]) {
-          const detail = await api.trace(runKey, value.traces[0].external_id);
-          if (selectedRunKeyRef.current === runKey) setTraceDetail(detail);
+      if (next === 'Traces & evaluation') {
+        if (!tracePage) {
+          const page = await api.tracePage(runKey);
+          if (selectedRunKeyRef.current !== runKey) return;
+          setTracePage(page);
+        }
+        if (!evaluation && selected.run.job_kind.startsWith('eval.')) {
+          void api.evaluation(runKey, false).then((value) => {
+            if (selectedRunKeyRef.current === runKey) setEvaluation(value);
+          }).catch((cause: unknown) => {
+            if (selectedRunKeyRef.current === runKey) {
+              setError(cause instanceof Error ? cause.message : String(cause));
+            }
+          });
         }
       }
       if (next === 'Metrics' && mode !== 'generic') {
@@ -884,7 +985,30 @@ export default function App() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     }
-  }, [evaluation, loadView, mode, selected, system]);
+  }, [evaluation, loadView, mode, selected, system, tracePage]);
+
+  const loadMoreTraces = useCallback(async () => {
+    if (!selected || !tracePage?.next_cursor || traceLoadingMore) return;
+    const runKey = selected.run_key;
+    setTraceLoadingMore(true);
+    try {
+      const nextPage = await api.tracePage(runKey, tracePage.next_cursor);
+      if (selectedRunKeyRef.current !== runKey) return;
+      setTracePage((current) => current ? {
+        ...nextPage,
+        items: [
+          ...current.items,
+          ...nextPage.items.filter((item) => !current.items.some((existing) => existing.external_id === item.external_id)),
+        ],
+      } : nextPage);
+    } catch (cause) {
+      if (selectedRunKeyRef.current === runKey) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+      }
+    } finally {
+      if (selectedRunKeyRef.current === runKey) setTraceLoadingMore(false);
+    }
+  }, [selected, traceLoadingMore, tracePage]);
 
   const activeProject = selectedProject ?? selected?.run.project_id ?? '';
   const activeSourceId = selectedSourceId ?? selected?.locator.source_id ?? '';
@@ -1077,7 +1201,7 @@ export default function App() {
           {activeWorkPackageId ? <WorkPackagePage view={workPackage} servingCapacity={servingCapacity} loading={workPackageLoading} onOpenRun={(runKey) => {
             const run = runs.find((item) => item.run_key === runKey);
             if (run) void chooseRun(run);
-          }} /> : surface === 'compare' ? <CompareView runs={compareCandidates} candidateLoading={compareCandidateLoading} selectedKeys={compareKeys} comparison={comparison} loading={comparisonLoading} onToggle={toggleCompareRun} onCompare={() => void runCompare()} jobKind={selected.run.job_kind} /> : !response ? <div className="grid min-h-[420px] place-items-center text-xs text-muted">{error || 'Loading run evidence…'}</div> : <>
+          }} /> : surface === 'compare' ? <CompareView runs={compareCandidates} candidateLoading={compareCandidateLoading} selectedKeys={compareKeys} comparison={comparison} loading={comparisonLoading} onToggle={toggleCompareRun} onCompare={() => void runCompare()} jobKind={selected.run.job_kind} /> : !response ? <RunShell selected={selected} section={section} error={error} /> : <>
           {section === 'Overview' && (
             response.view.view_kind === 'job.serving'
               ? <ServingBenchmarkOverview response={response} sourceId={selected.locator.source_id} onRunConfig={() => void openSection('Run config')} />
@@ -1097,7 +1221,11 @@ export default function App() {
             <TraceView
               jobKind={selected.run.job_kind}
               evaluation={evaluation}
+              page={tracePage}
+              total={tracePage?.total ?? response.view.trace_count ?? 0}
               detail={traceDetail}
+              loadingMore={traceLoadingMore}
+              onLoadMore={() => void loadMoreTraces()}
               onSelect={async (trace) => {
                 const runKey = selected.run_key;
                 const detail = await api.trace(runKey, trace.external_id);
@@ -1116,6 +1244,30 @@ export default function App() {
 
 function Crumb({ label, value, grow = false, mobileGrow = false }: { label: string; value: string; grow?: boolean; mobileGrow?: boolean }) {
   return <div className={grow ? 'min-w-0 flex-1' : mobileGrow ? 'min-w-0 flex-1 sm:flex-none' : ''}><span className="type-label block">{label}</span><strong className="mt-1 block max-w-[240px] truncate text-[13px] font-medium leading-tight">{value}</strong></div>;
+}
+
+function RunShell({ selected, section, error }: { selected: RunItem; section: Section; error: string }) {
+  return (
+    <section aria-label="Run summary shell" className="obs-card max-w-4xl p-6">
+      <p className="type-eyebrow">RUN SUMMARY</p>
+      <h1 className="type-page-title mt-1.5">{selected.run.display_name}</h1>
+      <p className="mt-2 text-xs text-muted">The {section.toLowerCase()} payload is loading independently from this run identity.</p>
+      <dl className="mt-6 grid gap-px overflow-hidden rounded border border-divider bg-divider sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          ['Job kind', selected.run.job_kind],
+          ['Stage', selected.run.stage],
+          ['Status', selected.run.status],
+          ['Started', formatTimestamp(selected.run.started_at)],
+        ].map(([label, value]) => (
+          <div key={label} className="bg-surface px-3 py-3">
+            <dt className="type-label">{label}</dt>
+            <dd className="mt-1 truncate text-xs font-medium text-ink" title={value}>{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {error ? <p role="alert" className="mt-4 text-xs text-rose-600">{error}</p> : <p className="mt-4 text-xs text-muted">Run-level identity is available while Observatory fetches the selected evidence.</p>}
+    </section>
+  );
 }
 
 function WorkPackagePage({ view, servingCapacity, loading, onOpenRun }: { view: WorkPackageView | null; servingCapacity: ServingCapacityWorkPackage | null; loading: boolean; onOpenRun: (runKey: string) => void }) {
@@ -1395,6 +1547,10 @@ function GenericOverview({ selected, response, copy, activeChart, onChart, onTra
     () => Object.fromEntries((view.metric_help ?? []).map((item) => [item.metric, item.label])),
     [view.metric_help],
   );
+  const chartUnits = useMemo(
+    () => Object.fromEntries((view.metric_help ?? []).map((item) => [item.metric, item.unit])),
+    [view.metric_help],
+  );
   const chart = charts[Math.min(activeChart, Math.max(charts.length - 1, 0))];
   const lead = summary[0];
   const leadPoints = charts
@@ -1418,6 +1574,8 @@ function GenericOverview({ selected, response, copy, activeChart, onChart, onTra
   const teacher = selectionValue(view.resolved_inputs, 'teacher')
     ?? selectionValue(view.resolved_inputs, 'teacher_model');
   const inference = selectionValue(view.resolved_inputs, 'inference');
+  const rolloutInference = selectionValue(view.resolved_inputs, 'rollout_inference') ?? inference;
+  const environment = selectionValue(view.resolved_inputs, 'environment');
   const dataset = selectionValue(view.resolved_inputs, 'dataset');
   const validationDataset = selectionValue(view.resolved_inputs, 'validation_dataset');
   const training = selectionValue(view.resolved_inputs, 'training');
@@ -1426,7 +1584,6 @@ function GenericOverview({ selected, response, copy, activeChart, onChart, onTra
   const jobDefinitionDescription = typeof jobDefinition?.detail.description === 'string'
     ? jobDefinition.detail.description
     : null;
-  const method = methodParameters(selected.run.job_kind, dataset, validationDataset, settings, training);
   const executionTargets = view.execution_targets ?? [];
   const inputArtifacts = view.artifacts.items.filter((artifact) => artifact.direction === 'input');
   const outputArtifacts = view.artifacts.items.filter((artifact) => artifact.direction === 'output');
@@ -1437,6 +1594,10 @@ function GenericOverview({ selected, response, copy, activeChart, onChart, onTra
   const isDistill = selected.run.job_kind === 'train.distill';
   const isServeSmoke = selected.run.job_kind === 'serve.smoke';
   const isDataPrepare = selected.run.job_kind === 'data.prepare';
+  const method = methodParameters(selected.run.job_kind, dataset, validationDataset, settings, training);
+  const rolloutSetup = isGrpo
+    ? grpoRolloutParameters(environment, settings, training, rolloutInference)
+    : [];
   const completeness = view.completeness;
   const missingRequirement = completeness?.requirements.find(
     (item) => item.state === 'missing' && item.level !== 'diagnostic',
@@ -1444,11 +1605,42 @@ function GenericOverview({ selected, response, copy, activeChart, onChart, onTra
   const healthAlert = view.alerts?.find(
     (item) => !item.id.startsWith('evidence-') && !item.id.startsWith('missing-'),
   );
+  const summaryByKey = new Map(summary.map((item) => [item.key, item]));
+  const grpoReward = summaryByKey.get('reward_mean');
+  const grpoEntropy = summaryByKey.get('entropy');
+  const grpoZeroVariance = summaryByKey.get('zero_variance');
+  const grpoGradNorm = summaryByKey.get('grad_norm');
+  const grpoClip = summaryByKey.get('clip_fraction');
+  const grpoClipLow = summaryByKey.get('clip_fraction_low');
+  const grpoClipHigh = summaryByKey.get('clip_fraction_high');
+  const zeroVarianceValue = typeof grpoZeroVariance?.value === 'number' ? grpoZeroVariance.value : null;
+  const usableGroupValue = zeroVarianceValue == null ? null : Math.max(0, Math.min(1, 1 - zeroVarianceValue));
+  const hasAsymmetricClip = grpoClipLow?.state === 'available' || grpoClipHigh?.state === 'available';
+  const clipMetric = hasAsymmetricClip ? grpoClipLow : grpoClip;
+  const clipValue = hasAsymmetricClip
+    ? `${formatValue(grpoClipLow?.value, 'ratio')} / ${formatValue(grpoClipHigh?.value, 'ratio')}`
+    : formatValue(grpoClip?.value, 'ratio');
+  const clipState = hasAsymmetricClip
+    ? (grpoClipLow?.state === 'available' && grpoClipHigh?.state === 'available' ? 'available' : 'partial')
+    : grpoClip?.state;
   const primarySummary = isSft
     ? summary.filter((item) => ['validation_loss', 'token_accuracy', 'grad_norm', 'tokens_per_second', 'step_time'].includes(item.key))
     : isDpo
       ? summary.filter((item) => ['preference_accuracy', 'chosen_reward', 'rejected_reward', 'chosen_logp', 'grad_norm', 'entropy'].includes(item.key))
-    : summary.slice(1, 7);
+    : summary.filter((item) => [
+      'reward_mean',
+      'reward_std',
+      'zero_variance',
+      'policy_loss',
+      'entropy',
+      'truncation_rate',
+      'clip_fraction_low',
+      'clip_fraction_high',
+      'dynamic_candidate_batches',
+      'dynamic_retained_fraction',
+      'importance_ratio_mean',
+      'rollout_tps',
+    ].includes(item.key));
   const dataSummary = isSft
     ? summary.filter((item) => ['supervision_ratio', 'truncation_rate', 'max_length_utilization'].includes(item.key))
     : isDpo
@@ -1478,29 +1670,59 @@ function GenericOverview({ selected, response, copy, activeChart, onChart, onTra
           )}
         </section>
       )}
-      {isGrpo && view.grpo && (
-        <section aria-label="GRPO rollout population" className="obs-card mt-3 overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-divider px-4 py-2.5">
-            <div><p className="type-eyebrow">ROLLOUT POPULATION</p><h2 className="mt-1 font-serif text-lg">Requested to usable evidence</h2></div>
-            <div className="flex items-center gap-3 text-[10px] text-muted">
-              <span>MTP {view.grpo.acceleration.mtp_selected ? 'selected' : 'off'}</span>
-              <span>Quantized KV {view.grpo.acceleration.quantized_kv_cache_selected ? 'selected' : 'off'}</span>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-5">
-            {Object.values(view.grpo.rollout_population).map((metric) => <div key={metric.key} className="border-b border-r border-divider px-4 py-3"><MetricLabel label={metric.label} metric={metric.metric} help={metric.metric ? helpByMetric.get(metric.metric) : undefined} className="text-[10px] text-muted" /><strong className="mt-1 block font-serif text-xl font-normal">{formatValue(metric.value, metric.unit)}</strong></div>)}
-          </div>
-          {(view.grpo.acceleration.mtp_selected || view.grpo.acceleration.quantized_kv_cache_selected) && <div className="grid border-t border-divider sm:grid-cols-3">{[view.grpo.acceleration.speculative_acceptance, view.grpo.acceleration.accepted_speculative_length, view.grpo.acceleration.kv_cache_peak_usage].map((metric) => <div key={metric.key} className="border-r border-divider px-4 py-3"><MetricLabel label={metric.label} metric={metric.metric} help={metric.metric ? helpByMetric.get(metric.metric) : undefined} className="text-[10px] text-muted" /><strong className="mt-1 block font-serif text-lg font-normal">{formatValue(metric.value, metric.unit)}</strong>{metric.state !== 'available' && <small className="text-[10px] text-amber-700">Runtime evidence missing</small>}</div>)}</div>}
-        </section>
-      )}
       <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_292px]">
         <section className="min-w-0">
           {lead ? (
             <section className="obs-card overflow-hidden">
-              <div className="grid border-b border-divider lg:grid-cols-[260px_minmax(0,1fr)]">
-                <div className="px-5 py-4"><MetricLabel label={lead.label} metric={lead.metric} help={lead.metric ? helpByMetric.get(lead.metric) : undefined} className="text-xs text-secondary" /><div className="mt-1 flex items-end gap-3"><strong className="font-serif text-[52px] font-normal leading-none">{formatValue(lead.value, lead.unit)}</strong>{lead.state !== 'available' && <span className="pb-1 text-[11px] text-amber-700">{lead.state}</span>}</div>{leadDelta != null && <p className="mt-2 text-[10px] text-muted">{leadDelta >= 0 ? '+' : ''}{formatValue(leadDelta, lead.unit)} vs step {previousLeadPoint?.step ?? leadPoints.length - 1}</p>}</div>
-                <div className="grid grid-cols-2 border-divider sm:grid-cols-3 lg:border-l">{primarySummary.map((metric) => <div key={metric.key} className="border-b border-l border-divider px-4 py-3 first:border-l-0 lg:first:border-l"><MetricLabel label={metric.label} metric={metric.metric} help={metric.metric ? helpByMetric.get(metric.metric) : undefined} className="text-[11px] text-muted" /><strong className="mt-1 block font-serif text-xl font-normal">{formatValue(metric.value, metric.unit)}</strong>{metric.state !== 'available' && <small className="text-[10px] text-amber-700">{metric.state}</small>}</div>)}</div>
-              </div>
+              {isGrpo ? (
+                <div role="group" aria-label="GRPO headline metrics" className="grid grid-cols-2 border-b border-divider sm:grid-cols-3 xl:grid-cols-5">
+                  <HeadlineMetric
+                    label="Mean reward"
+                    value={formatValue(grpoReward?.value, grpoReward?.unit)}
+                    metric={grpoReward?.metric ?? null}
+                    help={grpoReward?.metric ? helpByMetric.get(grpoReward.metric) : undefined}
+                    state={grpoReward?.state ?? 'missing'}
+                    note={leadDelta == null ? undefined : `${leadDelta >= 0 ? '+' : ''}${formatValue(leadDelta, grpoReward?.unit)} vs step ${previousLeadPoint?.step ?? leadPoints.length - 1}`}
+                  />
+                  <HeadlineMetric
+                    label="Policy entropy"
+                    value={formatValue(grpoEntropy?.value, grpoEntropy?.unit)}
+                    metric={grpoEntropy?.metric ?? null}
+                    help={grpoEntropy?.metric ? helpByMetric.get(grpoEntropy.metric) : undefined}
+                    state={grpoEntropy?.state ?? 'missing'}
+                    note="exploration"
+                  />
+                  <HeadlineMetric
+                    label="Usable groups"
+                    value={formatValue(usableGroupValue, 'ratio')}
+                    metric={grpoZeroVariance?.metric ?? null}
+                    help={grpoZeroVariance?.metric ? helpByMetric.get(grpoZeroVariance.metric) : undefined}
+                    state={grpoZeroVariance?.state ?? 'missing'}
+                    note="groups with reward variance"
+                  />
+                  <HeadlineMetric
+                    label="Clip pressure"
+                    value={clipValue}
+                    metric={clipMetric?.metric ?? null}
+                    help={clipMetric?.metric ? helpByMetric.get(clipMetric.metric) : undefined}
+                    state={clipState ?? 'missing'}
+                    note={hasAsymmetricClip ? 'lower / upper' : 'overall'}
+                  />
+                  <HeadlineMetric
+                    label="Gradient norm"
+                    value={formatValue(grpoGradNorm?.value, grpoGradNorm?.unit)}
+                    metric={grpoGradNorm?.metric ?? null}
+                    help={grpoGradNorm?.metric ? helpByMetric.get(grpoGradNorm.metric) : undefined}
+                    state={grpoGradNorm?.state ?? 'missing'}
+                    note="update scale"
+                  />
+                </div>
+              ) : (
+                <div className="grid border-b border-divider lg:grid-cols-[260px_minmax(0,1fr)]">
+                  <div className="px-5 py-4"><MetricLabel label={lead.label} metric={lead.metric} help={lead.metric ? helpByMetric.get(lead.metric) : undefined} className="text-xs text-secondary" /><div className="mt-1 flex items-end gap-3"><strong className="font-serif text-[52px] font-normal leading-none">{formatValue(lead.value, lead.unit)}</strong>{lead.state !== 'available' && <span className="pb-1 text-[11px] text-amber-700">{lead.state}</span>}</div>{leadDelta != null && <p className="mt-2 text-[10px] text-muted">{leadDelta >= 0 ? '+' : ''}{formatValue(leadDelta, lead.unit)} vs step {previousLeadPoint?.step ?? leadPoints.length - 1}</p>}</div>
+                  <div className="grid grid-cols-2 border-divider sm:grid-cols-3 lg:border-l">{primarySummary.map((metric) => <div key={metric.key} className="border-b border-l border-divider px-4 py-3 first:border-l-0 lg:first:border-l"><MetricLabel label={metric.label} metric={metric.metric} help={metric.metric ? helpByMetric.get(metric.metric) : undefined} className="text-[11px] text-muted" /><strong className="mt-1 block font-serif text-xl font-normal">{formatValue(metric.value, metric.unit)}</strong>{metric.state !== 'available' && <small className="text-[10px] text-amber-700">{metric.state}</small>}</div>)}</div>
+                </div>
+              )}
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-divider px-4 py-2.5">
                 {charts.length > 1 ? <div className="inline-flex rounded-[5px] border border-divider bg-subtle p-0.5" role="tablist" aria-label="Training evidence chart"><>{charts.map((item, index) => <button key={item.key} type="button" role="tab" aria-selected={activeChart === index} onClick={() => onChart(index)} className={`rounded-[3px] px-3 py-1.5 text-xs ${activeChart === index ? 'bg-surface text-violet-800 shadow-sm' : 'text-muted hover:text-ink'}`}>{item.title}</button>)}</></div> : <span className="text-xs font-medium">{chart?.title}</span>}
                 <span className="max-w-xl text-right text-[11px] text-muted">{chart?.question ?? 'Select a point to inspect exact evidence'}</span>
@@ -1509,7 +1731,7 @@ function GenericOverview({ selected, response, copy, activeChart, onChart, onTra
                 <span className="font-medium text-ink">Step {selectedStep ?? '—'}</span>
                 {selectedSeries.map((item) => <span key={item.name} className="inline-flex items-center text-secondary"><MetricLabel label={helpByMetric.get(item.name)?.label ?? metricLabel(item.name)} metric={item.name} help={helpByMetric.get(item.name)} className="text-muted" /> <strong className="ml-1 font-medium text-ink">{formatValue(item.value, metricUnits[item.name] ?? helpByMetric.get(item.name)?.unit)}</strong></span>)}
               </div>
-              {chart && <div className="px-2 pb-1 pt-2"><Suspense fallback={<ChartFallback height={330} />}><EvidenceChart series={chart.series} metricLabels={chartLabels} selectedStep={selectedStep} onPointSelect={setSelectedStep} ariaLabel={`${chart.title} metric series for ${selected.run.display_name}`} /></Suspense></div>}
+              {chart && <div className="px-2 pb-1 pt-2"><Suspense fallback={<ChartFallback height={330} />}><EvidenceChart series={chart.series} metricLabels={chartLabels} metricUnits={chartUnits} selectedStep={selectedStep} onPointSelect={setSelectedStep} ariaLabel={`${chart.title} metric series for ${selected.run.display_name}`} /></Suspense></div>}
             </section>
           ) : <EmptyState title="No registered job summary" body="Use Metrics for raw, bounded evidence. Observatory will not infer job semantics that are not registered." />}
           {dataSummary.length > 0 && (
@@ -1544,6 +1766,7 @@ function GenericOverview({ selected, response, copy, activeChart, onChart, onTra
             ].filter(Boolean).join(' · ')}
           />)}
           {inputArtifacts.length > 0 && <section aria-label="Input artifacts" className="border-b border-divider px-4 py-3"><p className="type-label">Input artifacts</p>{inputArtifacts.map((artifact) => <div key={artifact.logical_name} className="mt-3 flex gap-2.5"><TreeStructure size={18} className="mt-0.5 shrink-0 text-muted" /><div className="min-w-0"><strong className="block text-xs font-medium">{artifactLabel(artifact.kind)}</strong><small title={artifact.logical_name} className="block truncate text-[10px] text-muted">{artifact.logical_name} · {artifact.artifact.version}</small></div></div>)}</section>}
+          {rolloutSetup.length > 0 && <section aria-label="Rollout setup" className="border-b border-divider px-4 py-3"><p className="type-label">Rollout setup</p><h3 className="mt-1 font-serif text-base">Generation shape</h3><dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-3">{rolloutSetup.map((item) => <div key={item.label} className="min-w-0"><dt className="text-[9px] uppercase tracking-[.12em] text-muted">{item.label}</dt><dd className="mt-0.5 break-words text-[11px] font-medium text-ink">{item.value}</dd></div>)}</dl></section>}
           {method.length > 0 && <section aria-label="Algorithm settings" className="border-b border-divider px-4 py-3"><p className="type-label">Algorithm settings</p><h3 className="mt-1 font-serif text-base">Method context</h3><dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-3">{method.map((item) => <div key={item.label} className="min-w-0"><dt className="text-[9px] uppercase tracking-[.12em] text-muted">{item.label}</dt><dd className="mt-0.5 break-words text-[11px] font-medium text-ink">{item.value}</dd></div>)}</dl></section>}
           <section aria-label="Produced evidence" className="border-t border-divider px-4 py-3"><p className="type-label">Produced evidence</p>{outputArtifacts.length ? outputArtifacts.map((artifact) => <div key={artifact.logical_name} className="mt-3 flex gap-2.5"><TreeStructure size={18} className="mt-0.5 shrink-0 text-violet-700" /><div className="min-w-0"><strong className="block text-xs font-medium">{artifactLabel(artifact.kind)}</strong><small title={artifact.logical_name} className="block truncate text-[10px] text-muted">{artifact.logical_name} · {artifact.artifact.version}</small></div></div>) : <p className="mt-2 text-xs text-muted">No produced artifacts recorded.</p>}</section>
           {view.trace_evaluation_enabled && !!view.trace_count && <button onClick={onTraces} className="mt-4 inline-flex items-center gap-1 text-xs text-violet-700">Inspect {view.trace_count} traces <ArrowSquareOut size={13} /></button>}
@@ -1559,7 +1782,13 @@ function LineageItem({ icon, label, value, detail }: { icon: ReactNode; label: s
 
 const MAX_SELECTED_METRICS = 12;
 
-function GenericMetricCard({ metric, onRemove }: { metric: MetricSeries; onRemove: () => void }) {
+function GenericMetricCard({ metric, onRemove, hoveredStep, onHoverStep }: {
+  metric: MetricSeries;
+  onRemove: () => void;
+  hoveredStep: number | null;
+  onHoverStep: (step: number | null) => void;
+}) {
+  const chartSeries = useMemo(() => [metric], [metric]);
   const latest = metric.points.at(-1);
   const previous = metric.points.at(-2);
   const delta = latest && previous ? latest.value - previous.value : null;
@@ -1576,7 +1805,7 @@ function GenericMetricCard({ metric, onRemove }: { metric: MetricSeries; onRemov
       <strong className="font-serif text-3xl font-normal">{formatValue(latest?.value, metricUnits[metric.name])}</strong>
       <div className="text-right text-[10px] text-muted"><span className="block">{metric.points.length} points</span>{delta != null && <span className={delta > 0 ? 'text-emerald-700' : delta < 0 ? 'text-rose-700' : ''}>{delta > 0 ? '+' : ''}{formatValue(delta, metricUnits[metric.name])} latest change</span>}</div>
     </div>
-    <div className="px-2 pb-1"><Suspense fallback={<ChartFallback height={190} />}><EvidenceChart series={[metric]} height={190} compact showLegend={false} ariaLabel={`${metric.name} metric series`} /></Suspense></div>
+    <div className="px-2 pb-1"><Suspense fallback={<ChartFallback height={190} />}><EvidenceChart series={chartSeries} height={190} compact showLegend={false} hoveredStep={hoveredStep} onHoverStep={onHoverStep} ariaLabel={`${metric.name} metric series`} /></Suspense></div>
   </section>;
 }
 
@@ -1615,10 +1844,13 @@ function GenericMetrics({ response, runKey }: { response: RunView; runKey: strin
   const [series, setSeries] = useState(response.view.selected_series ?? null);
   const [loadingSeries, setLoadingSeries] = useState(false);
   const [query, setQuery] = useState('');
+  const [hoveredStep, setHoveredStep] = useState<number | null>(null);
+  const onHoverStep = useCallback((step: number | null) => setHoveredStep(step), []);
   useEffect(() => {
     setSelected(initial);
     setSeries(null);
     setQuery('');
+    setHoveredStep(null);
   }, [initial, runKey]);
   useEffect(() => {
     if (!selected.length) {
@@ -1641,52 +1873,130 @@ function GenericMetrics({ response, runKey }: { response: RunView; runKey: strin
   const visibleNamespaces = catalog.namespaces
     .map((namespace) => ({ ...namespace, metrics: namespace.metrics.filter((metric) => metric.toLowerCase().includes(normalizedQuery)) }))
     .filter((namespace) => namespace.metrics.length > 0);
-  return <><PageHeading eyebrow="RAW, BOUNDED EVIDENCE" title="Metric workspace" subtitle="Select recorded metrics for independent, unit-safe inspection. Each metric keeps its own card, scale, and latest value." /><div className="mt-6 grid gap-4 xl:grid-cols-[292px_minmax(0,1fr)]"><aside className="obs-card self-start p-4"><div className="flex items-center justify-between"><h2 className="text-[13px] font-medium">Metric catalog</h2><span className="text-[11px] text-muted">{selected.length}/{MAX_SELECTED_METRICS} selected</span></div><label className="obs-control mt-3 flex h-8 items-center gap-2 px-2.5"><MagnifyingGlass size={13} /><input aria-label="Filter metrics" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`${catalog.total} recorded metrics`} className="w-full bg-transparent text-[11px] outline-none" /></label><div className="mt-4 max-h-[640px] space-y-4 overflow-auto pr-1">{visibleNamespaces.map((namespace) => <section key={namespace.name}><h3 className="type-label">{namespace.name}</h3><div className="mt-2 space-y-0.5">{namespace.metrics.map((metric) => { const checked = selected.includes(metric); const atLimit = !checked && selected.length >= MAX_SELECTED_METRICS; return <label key={metric} className={`flex items-start gap-2 border-b border-divider py-2 text-xs ${atLimit ? 'cursor-not-allowed text-muted' : 'cursor-pointer'}`} title={atLimit ? `Remove a card before selecting more than ${MAX_SELECTED_METRICS} metrics.` : undefined}><input type="checkbox" checked={checked} disabled={atLimit} onChange={() => setSelected((values) => checked ? values.filter((name) => name !== metric) : [...values, metric])} className="mt-0.5 accent-violet-700" /><code className="break-all">{metric}</code></label>; })}</div></section>)}</div></aside><section aria-label="Selected metric cards" className="min-w-0"><div className="mb-3 flex items-end justify-between gap-3"><div><h2 className="text-[13px] font-medium">Selected metrics</h2><p className="mt-1 text-xs text-muted">Raw evidence only; no job-specific health judgment is applied.</p></div>{series && <span className="text-[11px] text-muted">{series.returned_points}/{series.requested_points} points{series.downsampled ? ' · downsampled' : ''}</span>}</div>{loadingSeries && !series ? <div className="grid gap-4 md:grid-cols-2"><div className="obs-card"><ChartFallback height={280} /></div><div className="obs-card"><ChartFallback height={280} /></div></div> : series?.series.length ? <><div className="grid gap-4 md:grid-cols-2">{series.series.map((metric) => <GenericMetricCard key={metric.name} metric={metric} onRemove={() => setSelected((values) => values.filter((name) => name !== metric.name))} />)}</div>{loadingSeries && <p className="mt-3 text-[11px] text-muted">Refreshing selected metrics…</p>}</> : <div className="obs-card"><EmptyState title="Select a metric" body={`Choose up to ${MAX_SELECTED_METRICS} recorded metrics. Each selection appears as an independent card.`} /></div>}</section></div></>;
+  return <><PageHeading eyebrow="RAW, BOUNDED EVIDENCE" title="Metric workspace" subtitle="Select recorded metrics for independent, unit-safe inspection. Each metric keeps its own card, scale, and latest value." /><div className="mt-6 grid gap-4 xl:grid-cols-[292px_minmax(0,1fr)]"><aside className="obs-card self-start p-4"><div className="flex items-center justify-between"><h2 className="text-[13px] font-medium">Metric catalog</h2><span className="text-[11px] text-muted">{selected.length}/{MAX_SELECTED_METRICS} selected</span></div><label className="obs-control mt-3 flex h-8 items-center gap-2 px-2.5"><MagnifyingGlass size={13} /><input aria-label="Filter metrics" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`${catalog.total} recorded metrics`} className="w-full bg-transparent text-[11px] outline-none" /></label><div className="mt-4 max-h-[640px] space-y-4 overflow-auto pr-1">{visibleNamespaces.map((namespace) => <section key={namespace.name}><h3 className="type-label">{namespace.name}</h3><div className="mt-2 space-y-0.5">{namespace.metrics.map((metric) => { const checked = selected.includes(metric); const atLimit = !checked && selected.length >= MAX_SELECTED_METRICS; return <label key={metric} className={`flex items-start gap-2 border-b border-divider py-2 text-xs ${atLimit ? 'cursor-not-allowed text-muted' : 'cursor-pointer'}`} title={atLimit ? `Remove a card before selecting more than ${MAX_SELECTED_METRICS} metrics.` : undefined}><input type="checkbox" checked={checked} disabled={atLimit} onChange={() => setSelected((values) => checked ? values.filter((name) => name !== metric) : [...values, metric])} className="mt-0.5 accent-violet-700" /><code className="break-all">{metric}</code></label>; })}</div></section>)}</div></aside><section aria-label="Selected metric cards" className="min-w-0"><div className="mb-3 flex items-end justify-between gap-3"><div><h2 className="text-[13px] font-medium">Selected metrics</h2><p className="mt-1 text-xs text-muted">Raw evidence only; no job-specific health judgment is applied.</p></div>{series && <span className="text-[11px] text-muted">{series.returned_points}/{series.requested_points} points{series.downsampled ? ' · downsampled' : ''}</span>}</div>{loadingSeries && !series ? <div className="grid gap-4 md:grid-cols-2"><div className="obs-card"><ChartFallback height={280} /></div><div className="obs-card"><ChartFallback height={280} /></div></div> : series?.series.length ? <><div className="grid gap-4 md:grid-cols-2">{series.series.map((metric) => <GenericMetricCard key={metric.name} metric={metric} hoveredStep={hoveredStep} onHoverStep={onHoverStep} onRemove={() => setSelected((values) => values.filter((name) => name !== metric.name))} />)}</div>{loadingSeries && <p className="mt-3 text-[11px] text-muted">Refreshing selected metrics…</p>}</> : <div className="obs-card"><EmptyState title="Select a metric" body={`Choose up to ${MAX_SELECTED_METRICS} recorded metrics. Each selection appears as an independent card.`} /></div>}</section></div></>;
 }
 
 function SystemView({ system }: { system: SystemMetrics | null }) {
+  const [chartRange, setChartRange] = useState<'recent' | 'full'>('recent');
   if (!system) return <EmptyState title="Loading system telemetry" body="Fetching canonical system/* and tracking/* evidence for this run." />;
+  let latestObservedAtMs = Number.NEGATIVE_INFINITY;
+  for (const group of system.groups) {
+    for (const series of group.series) {
+      for (const point of series.points) {
+        const observedAtMs = Date.parse(point.observed_at ?? '');
+        if (Number.isFinite(observedAtMs)) latestObservedAtMs = Math.max(latestObservedAtMs, observedAtMs);
+      }
+    }
+  }
+  const chartGroups = chartRange === 'recent' && Number.isFinite(latestObservedAtMs)
+    ? system.groups.map((group) => ({
+        ...group,
+        series: limitSystemSeriesToRecentWindow(group.series, latestObservedAtMs),
+      }))
+    : system.groups;
+  const chartSampleCount = Math.max(
+    0,
+    ...chartGroups.flatMap((group) => group.series.map((series) => series.points.length)),
+  );
+  const runStartedAtMs = Date.parse(system.window_started_at);
+  const runFinishedAtMs = Date.parse(system.window_finished_at ?? '');
+  const chartWindowStartMs = chartRange === 'recent'
+    ? Math.max(runStartedAtMs, latestObservedAtMs - SYSTEM_METRIC_CHART_WINDOW_MS)
+    : runStartedAtMs;
+  const chartWindowEndMs = chartRange === 'recent' || !Number.isFinite(runFinishedAtMs)
+    ? latestObservedAtMs
+    : Math.max(runFinishedAtMs, latestObservedAtMs);
+  const chartXRange = Number.isFinite(runStartedAtMs)
+    && Number.isFinite(chartWindowStartMs)
+    && Number.isFinite(chartWindowEndMs)
+    ? [
+        Math.max(0, (chartWindowStartMs - runStartedAtMs) / 1000),
+        Math.max(0, (chartWindowEndMs - runStartedAtMs) / 1000),
+      ] as const
+    : undefined;
+  const chartWindowLabel = Number.isFinite(chartWindowStartMs) && Number.isFinite(chartWindowEndMs)
+    ? `${formatSidebarTimestamp(new Date(chartWindowStartMs).toISOString())} – ${formatSidebarTimestamp(new Date(chartWindowEndMs).toISOString())}`
+    : 'Recorded telemetry';
   const heading = <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
-    <PageHeading eyebrow="CROSS-JOB RUNTIME EVIDENCE" title="System metrics" subtitle={system.state === 'unavailable' ? "Host telemetry is queried only for the selected run's start-to-finish window." : "Host telemetry is restricted to this run's start-to-finish window so machine activity is not attributed across jobs."} />
+    <PageHeading
+      eyebrow="CROSS-JOB RUNTIME EVIDENCE"
+      title="System metrics"
+      subtitle={system.state === 'unavailable'
+        ? "Host telemetry is queried only for the selected run's start-to-finish window."
+        : system.phase_state === 'partial'
+          ? 'System summaries cover the observed run telemetry; runtime phase intervals are partial. Charts default to the latest hour.'
+          : 'System summaries and phase evidence cover the full run. Charts default to the latest hour.'}
+    />
     <section aria-label="Run telemetry window" className="pb-0.5"><dl className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-[10px] text-muted">
       <div className="flex items-baseline gap-1.5"><dt className="text-[9px] uppercase tracking-[.1em]">Started</dt><dd title={formatTimestamp(system.window_started_at)}>{system.window_started_at ? formatSidebarTimestamp(system.window_started_at) : 'In progress'}</dd></div>
       <div className="flex items-baseline gap-1.5"><dt className="text-[9px] uppercase tracking-[.1em]">Finished</dt><dd title={formatTimestamp(system.window_finished_at)}>{system.window_finished_at ? formatSidebarTimestamp(system.window_finished_at) : 'In progress'}</dd></div>
-      <div className="flex items-baseline gap-1.5"><dt className="text-[9px] uppercase tracking-[.1em]">Samples</dt><dd>{system.sample_count.toLocaleString()}</dd></div>
+      <div className="flex items-baseline gap-1.5"><dt className="text-[9px] uppercase tracking-[.1em]">Run samples</dt><dd>{system.sample_count.toLocaleString()}</dd></div>
     </dl></section>
   </div>;
   if (system.state === 'unavailable') return <>{heading}<div className="obs-card mt-5 border-amber-200 bg-[#fffaf1] p-5"><h2 className="text-[13px] font-medium">No host samples were found in this window</h2><p className="mt-2 max-w-3xl text-xs leading-5 text-secondary">The selected evidence backend has no existing host telemetry for this run interval. Observatory leaves the evidence missing instead of attributing samples from another run or synthesizing boundary values.</p></div></>;
   const helpByMetric = new Map(system.summary.map((metric) => [metric.metric, metric]));
   const labels = Object.fromEntries(system.summary.map((metric) => [metric.metric, metric.label]));
-  return <>{heading}<PhaseMemoryTimeline system={system} /><div className="obs-card mt-4 grid overflow-hidden sm:grid-cols-2 xl:grid-cols-6">{system.summary.map((metric) => <div key={metric.key} className="border-b border-r border-divider px-4 py-3"><MetricLabel label={metric.label} metric={metric.metric} help={metric} className="text-[11px] text-muted" /><strong className="mt-1 block font-serif text-xl font-normal">{formatValue(metric.value, metric.unit)}</strong>{metric.state !== 'available' && <small className="text-[10px] text-amber-700">{metric.state}</small>}</div>)}</div><div className="mt-4 grid gap-4 xl:grid-cols-2">{system.groups.map((group) => <section key={group.key} aria-label={`${group.title} system chart`} className={`obs-card p-4 ${group.key === 'runtime' ? 'xl:col-span-2' : ''}`}><div className="flex flex-wrap items-center gap-x-3 gap-y-1"><h2 className="text-[13px] font-medium">{group.title}</h2><span className="hidden h-3 w-px bg-divider sm:block" aria-hidden="true" /><div className="flex flex-wrap items-center gap-x-2 text-[10px] text-muted">{group.series.map((item) => <MetricLabel key={item.name} label={helpByMetric.get(item.name)?.label ?? metricLabel(item.name)} metric={item.name} help={helpByMetric.get(item.name)} />)}</div></div><Suspense fallback={<ChartFallback />}><EvidenceChart series={group.series} metricLabels={labels} compact height={250} ariaLabel={`${group.title} over run time`} /></Suspense></section>)}</div>{system.missing.length > 0 && <p className="mt-4 text-xs text-muted">Not recorded: {system.missing.join(', ')}</p>}</>;
+  const units = Object.fromEntries(system.summary.map((metric) => [metric.metric, metric.unit]));
+  return <>{heading}<PhaseMemoryTimeline system={system} /><div className="obs-card mt-4 grid overflow-hidden sm:grid-cols-2 xl:grid-cols-6">{system.summary.map((metric) => <div key={metric.key} className="border-b border-r border-divider px-4 py-3"><MetricLabel label={metric.label} metric={metric.metric} help={metric} className="text-[11px] text-muted" /><strong className="mt-1 block font-serif text-xl font-normal">{formatValue(metric.value, metric.unit)}</strong>{metric.state !== 'available' && <small className="text-[10px] text-amber-700">{metric.state}</small>}</div>)}</div><section aria-label="System chart range" className="mt-4 flex flex-wrap items-center justify-between gap-3 border-y border-divider py-2.5"><div><p className="text-[10px] font-medium uppercase tracking-[.08em] text-muted">Chart window</p><p className="mt-0.5 text-[11px] text-secondary">{chartRange === 'recent' ? `Latest observed hour · ${chartSampleCount.toLocaleString()} of ${system.sample_count.toLocaleString()} run samples` : `Full run · ${chartSampleCount.toLocaleString()} samples`} · {chartWindowLabel}</p></div><div className="inline-flex rounded-[5px] border border-divider bg-subtle p-0.5" role="group" aria-label="Choose system chart range"><button type="button" aria-pressed={chartRange === 'recent'} onClick={() => setChartRange('recent')} className={`rounded-[3px] px-3 py-1 text-[10px] ${chartRange === 'recent' ? 'bg-surface font-medium text-violet-800 shadow-sm' : 'text-muted hover:text-ink'}`}>Latest 1h</button><button type="button" aria-pressed={chartRange === 'full'} onClick={() => setChartRange('full')} className={`rounded-[3px] px-3 py-1 text-[10px] ${chartRange === 'full' ? 'bg-surface font-medium text-violet-800 shadow-sm' : 'text-muted hover:text-ink'}`}>Full run</button></div></section><div className="mt-4 grid gap-4 xl:grid-cols-2">{chartGroups.map((group) => <section key={group.key} aria-label={`${group.title} system chart`} className={`obs-card p-4 ${group.key === 'runtime' ? 'xl:col-span-2' : ''}`}><div className="flex flex-wrap items-center gap-x-3 gap-y-1"><h2 className="text-[13px] font-medium">{group.title}</h2><span className="hidden h-3 w-px bg-divider sm:block" aria-hidden="true" /><div className="flex flex-wrap items-center gap-x-2 text-[10px] text-muted">{group.series.map((item) => <MetricLabel key={item.name} label={helpByMetric.get(item.name)?.label ?? metricLabel(item.name)} metric={item.name} help={helpByMetric.get(item.name)} />)}</div></div><Suspense fallback={<ChartFallback />}><EvidenceChart series={group.series} metricLabels={labels} metricUnits={units} compact height={250} xDomain="elapsed-time" xOrigin={system.window_started_at} xRange={chartXRange} ariaLabel={`${group.title} over run time`} /></Suspense></section>)}</div>{system.missing.length > 0 && <p className="mt-4 text-xs text-muted">Not recorded: {system.missing.join(', ')}</p>}</>;
 }
 
-function TraceView({ jobKind, evaluation, detail, onSelect }: { jobKind: string; evaluation: TraceEvaluation | null; detail: TraceDetail | null; onSelect: (trace: TraceSummary) => Promise<void> }) {
+function TraceView({
+  jobKind,
+  evaluation,
+  page,
+  total,
+  detail,
+  loadingMore,
+  onLoadMore,
+  onSelect,
+}: {
+  jobKind: string;
+  evaluation: TraceEvaluation | null;
+  page: TraceSummaryPage | null;
+  total: number;
+  detail: TraceDetail | null;
+  loadingMore: boolean;
+  onLoadMore: () => void;
+  onSelect: (trace: TraceSummary) => Promise<void>;
+}) {
   const [slice, setSlice] = useState('all');
   const [outcome, setOutcome] = useState('all');
   const [query, setQuery] = useState('');
   const [sorting, setSorting] = useState<SortingState>([{ id: 'reward', desc: false }]);
-  const presentation = useMemo(() => evaluation ? tracePresentation(jobKind, evaluation) : null, [evaluation, jobKind]);
-  const metricColumns = useMemo(() => evaluation ? traceSignalColumns(evaluation) : [], [evaluation]);
-  const traces = useMemo(() => evaluation?.traces.filter((trace) => {
+  const presentation = useMemo(() => tracePresentation(jobKind, evaluation), [evaluation, jobKind]);
+  const pageTraces = page?.items ?? [];
+  const metricColumns = useMemo(() => {
+    if (evaluation) return traceSignalColumns(evaluation);
+    const names = [...new Set(pageTraces.flatMap((trace) => Object.keys(trace.reward_components)))].slice(0, 4);
+    return names.map((name) => ({
+      name,
+      label: name.replaceAll('_', ' ').replace(/\b\w/g, (character) => character.toUpperCase()),
+    }));
+  }, [evaluation, pageTraces]);
+  const traces = useMemo(() => pageTraces.filter((trace) => {
     const matchesTask = trace.task === slice;
     const matchesFacet = slice.startsWith('facet:') && Boolean(trace.task_metadata?.facets.some((facet) => facet.key === slice.slice('facet:'.length)));
     return (slice === 'all' || matchesTask || matchesFacet)
       && (outcome === 'all' || trace.outcome === outcome)
       && (!query || `${trace.external_id} ${trace.task} ${trace.task_label ?? ''}`.toLowerCase().includes(query.toLowerCase()));
-  }) ?? [], [evaluation, outcome, query, slice]);
-  if (!evaluation || !presentation) return <EmptyState title="Loading trace population" body="Scanning a bounded trace population and computing aggregate views." />;
-  if (!evaluation.included) return <EmptyState title="No traces were captured" body="This job has run-level evidence only. Trace-derived evaluation and example-level investigation are unavailable." />;
+  }), [outcome, pageTraces, query, slice]);
+  if (!page) return <EmptyState title="Loading trace summaries" body="Fetching the first bounded page without loading transcript bodies." />;
+  if (!total && !page.items.length) return <EmptyState title="No traces were captured" body="This job has run-level evidence only. Trace-derived evaluation and example-level investigation are unavailable." />;
   const activeFilters = Number(slice !== 'all') + Number(outcome !== 'all') + Number(Boolean(query));
+  const pageSlices = [...new Map(pageTraces.flatMap((trace) => trace.task
+    ? [[trace.task, trace.task_label ?? trace.task] as const]
+    : [])).entries()];
   const filterOptions = [
     { value: 'all', label: 'Any' },
-    ...evaluation.slices.map((item) => ({ value: item.key, label: item.label })),
-    ...evaluation.facets.map((item) => ({
+    ...(evaluation?.slices.map((item) => ({ value: item.key, label: item.label }))
+      ?? pageSlices.map(([value, label]) => ({ value, label }))),
+    ...(evaluation?.facets ?? []).map((item) => ({
       value: `facet:${item.key}`,
       label: `${item.label} · ${item.dimension_label}`,
     })),
   ];
-  const hasRewardEvidence = evaluation.traces.some((trace) => trace.reward != null);
-  const summaryItems = [
+  const hasRewardEvidence = evaluation?.mean_reward != null || pageTraces.some((trace) => trace.reward != null);
+  const summaryItems = evaluation ? [
     ...(hasRewardEvidence ? [{ label: 'Mean reward', value: evaluation.mean_reward?.toFixed(3) ?? '—', note: evaluation.metadata?.primary_metric_label ?? 'Native reward' }] : []),
     ...(presentation.mode === 'evaluation' || presentation.passRateConfigured ? [{
       label: 'Pass rate',
@@ -1700,8 +2010,14 @@ function TraceView({ jobKind, evaluation, detail, onSelect }: { jobKind: string;
     { label: 'Errors', value: evaluation.failures, note: 'Task or harness errors' },
     { label: 'Truncated', value: evaluation.truncated, note: 'Output boundary reached' },
     { label: 'Trace sync', value: evaluation.state, note: `${evaluation.scanned}/${evaluation.expected ?? evaluation.included} observed` },
+  ] : [
+    { label: presentation.mode === 'optimization' ? 'Recorded rollouts' : 'Recorded traces', value: total, note: 'Provider count' },
+    { label: 'Loaded summaries', value: pageTraces.length, note: 'Paged rows without transcripts' },
+    ...(hasRewardEvidence ? [{ label: 'Rewarded in page', value: pageTraces.filter((trace) => trace.reward != null).length, note: `${pageTraces.length} loaded` }] : []),
+    { label: 'Errors in page', value: pageTraces.filter((trace) => trace.error != null).length, note: 'Loaded summaries only' },
+    { label: 'Truncated in page', value: pageTraces.filter((trace) => trace.truncated).length, note: 'Loaded summaries only' },
   ];
-  const observedOutcomes = new Set(evaluation.traces.map((trace) => trace.outcome));
+  const observedOutcomes = new Set(pageTraces.map((trace) => trace.outcome));
   const outcomeOptions = [
     { value: 'all', label: 'Any' },
     ...(['pass', 'review', 'scored', 'error', 'truncated', 'unknown'] as const)
@@ -1719,21 +2035,21 @@ function TraceView({ jobKind, evaluation, detail, onSelect }: { jobKind: string;
     </div>
     <div className="obs-card mt-3 flex flex-wrap items-center gap-2 px-2.5 py-2 text-xs">
       <SlidersHorizontal size={15} className="mx-0.5 text-muted" />
-      <FilterPopover label={evaluation.facets.length ? 'Slice / facet' : 'Slice'} value={slice} onChange={setSlice} options={filterOptions} />
+      <FilterPopover label={evaluation?.facets.length ? 'Slice / facet' : 'Slice'} value={slice} onChange={setSlice} options={filterOptions} />
       <FilterPopover label={presentation.outcomeHeading} value={outcome} onChange={setOutcome} options={outcomeOptions} />
       {activeFilters > 0 && <button type="button" onClick={() => { setSlice('all'); setOutcome('all'); setQuery(''); }} className="inline-flex h-8 items-center gap-1 px-2 text-[11px] text-violet-700 hover:text-violet-900"><X size={12} /> Clear {activeFilters}</button>}
       <label className="obs-control ml-auto flex h-8 min-w-[250px] items-center gap-2 px-2.5 focus-within:border-violet-400"><MagnifyingGlass size={13} /><input aria-label="Search traces" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search tasks, prompts, IDs…" className="w-full bg-transparent outline-none" /></label>
     </div>
-    {hasRewardEvidence ? <div className="mt-3"><Suspense fallback={<ChartFallback height={230} />}><EvaluationCharts evaluation={evaluation} presentation={presentation} /></Suspense></div> : <section className="obs-card mt-3 px-4 py-3" aria-label="Trace evidence semantics"><h2 className="text-[13px] font-medium">Request-level evidence</h2><p className="mt-1 text-xs leading-5 text-muted">This job exposes latency, token, tool-call, and terminal-state evidence without a reward contract. Reward charts and pass-rate controls are intentionally omitted.</p></section>}
+    {evaluation && hasRewardEvidence ? <div className="mt-3"><Suspense fallback={<ChartFallback height={230} />}><EvaluationCharts evaluation={evaluation} traces={pageTraces} presentation={presentation} /></Suspense></div> : <section className="obs-card mt-3 px-4 py-3" aria-label="Trace evidence semantics"><h2 className="text-[13px] font-medium">Paged request evidence</h2><p className="mt-1 text-xs leading-5 text-muted">Aggregate learning signals remain on Overview. This tab loads summary rows in bounded pages; selecting one row fetches its complete transcript and verifier evidence.</p></section>}
     <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_410px]">
       <div>
-        <Suspense fallback={<ChartFallback height={430} />}><TraceTable traces={traces} selectedId={detail?.summary.external_id ?? null} metricColumns={metricColumns} presentation={presentation} sorting={sorting} onSortingChange={setSorting} onSelect={(trace) => void onSelect(trace)} /></Suspense>
+        <Suspense fallback={<ChartFallback height={430} />}><TraceTable traces={traces} total={total} hasMore={page.next_cursor != null} loadingMore={loadingMore} onLoadMore={onLoadMore} selectedId={detail?.summary.external_id ?? null} metricColumns={metricColumns} presentation={presentation} sorting={sorting} onSortingChange={setSorting} onSelect={(trace) => void onSelect(trace)} /></Suspense>
       </div>
       <TraceInspector
         detail={detail}
         presentation={presentation}
         metricColumns={metricColumns}
-        successMetric={evaluation.metadata?.pass_rate_metric ?? null}
+        successMetric={evaluation?.metadata?.pass_rate_metric ?? null}
       />
     </div>
   </>;

@@ -23,6 +23,7 @@ from ...bindings import FullParameterUpdate, LoRAUpdate, ParameterUpdatePlan, QL
 from ...profiles import TrainingLoop
 from ...results import TrainingSummary
 from ..common import BackendTrainingResult
+from ..retention import validate_adapter_only_directory
 
 _COMMIT_SHA = re.compile(r"^[0-9a-f]{40}$")
 
@@ -83,23 +84,26 @@ def vllm_rollout_options(
         values["language_model_only"] = True
     if engine.get("skip_mm_profiling"):
         values["skip_mm_profiling"] = True
+    for key in ("max_num_seqs", "max_num_batched_tokens"):
+        requested = engine.get(key)
+        if requested is not None:
+            if isinstance(requested, bool) or not isinstance(requested, int) or requested < 1:
+                raise ValueError(f"TRL rollout {key} must be a positive integer")
+            values[key] = requested
     if engine.get("enforce_eager") is not None:
         enforce_eager = engine["enforce_eager"]
         if not isinstance(enforce_eager, bool):
             raise ValueError("TRL rollout enforce_eager must be a boolean")
         values["enforce_eager"] = enforce_eager
+    disable_torch_compile = engine.get("disable_torch_compile")
+    if disable_torch_compile is not None:
+        if not isinstance(disable_torch_compile, bool):
+            raise ValueError("TRL rollout disable_torch_compile must be a boolean")
+        # This is consumed by the job entrypoint before importing torch.  It
+        # is intentionally not passed as a vLLM constructor kwarg: the
+        # switch also disables compile-decorated MTP helper modules.
     if engine.get("kv_cache_memory_bytes") is not None:
         values["kv_cache_memory_bytes"] = engine["kv_cache_memory_bytes"]
-    # Current TRL constructs these arguments itself: ``max_num_seqs`` follows
-    # the trainer batch schedule and ``max_num_batched_tokens`` is fixed by its
-    # colocated vLLM integration.  Keep validating catalog values so malformed
-    # selections fail early, but do not forward them through ``engine_kwargs``;
-    # VLLMGeneration rejects attempts to override TRL-controlled arguments.
-    for key in ("max_num_batched_tokens", "max_num_seqs"):
-        value = engine.get(key)
-        if value is not None:
-            if not isinstance(value, int) or isinstance(value, bool) or value < 1:
-                raise ValueError(f"TRL rollout {key} must be a positive integer")
     for key in ("enable_chunked_prefill", "enable_prefix_caching", "disable_log_stats"):
         value = engine.get(key)
         if value is not None:
@@ -110,9 +114,6 @@ def vllm_rollout_options(
     if generation_config is not None:
         if generation_config not in {"auto", "vllm"}:
             raise ValueError("TRL rollout generation_config must be 'auto' or 'vllm'")
-        # Structured rollout schemas own the valid stopping language.  Selecting
-        # ``vllm`` prevents repository generation_config.json files from adding
-        # alternate EOS ids that the grammar compiler did not receive.
         values["generation_config"] = generation_config
     structured_outputs_config = engine.get("structured_outputs_config")
     if structured_outputs_config is not None:
@@ -381,57 +382,64 @@ def callback_type(
     return ObservationCallback
 
 
-def checkpoint_artifact_callback_type(
+def checkpoint_callback_type(
     context: RunContext,
-    imports: dict[str, Any],
+    imports: Mapping[str, Any],
     *,
-    artifact_name: str,
+    model: ModelVariant,
+    technique: Literal["sft", "dpo", "grpo", "dapo", "olmo3", "sampo", "distill"],
+    settings: Any,
+    update: ParameterUpdatePlan,
+    workspace: Path,
     runtime_state_paths: tuple[Path, ...] = (),
-    milestone_steps: frozenset[int] = frozenset(),
 ) -> type[Any]:
-    """Publish each completed trainer checkpoint before it can be evicted locally."""
+    """Create a callback that publishes both views after a trainer save.
+
+    The callback only projects a loadable model view for adapter updates. Full
+    parameter checkpoints remain recovery-only until a backend explicitly
+    attests that its checkpoint representation is safe to load as a model.
+    """
 
     parent = imports["TrainerCallback"]
 
-    class CheckpointArtifactCallback(parent):
-        def on_save(self, args: Any, state: Any, control: Any, **_: Any) -> Any:
-            step = int(state.global_step)
-            checkpoint = Path(args.output_dir).resolve() / f"checkpoint-{step}"
-            if not checkpoint.is_dir():
-                raise FileNotFoundError(checkpoint)
+    class CheckpointPublicationCallback(parent):
+        def __init__(self) -> None:
+            super().__init__()
+            self._published_steps: set[int] = set()
+
+        def on_save(self, args: Any, state: Any, control: Any, **kwargs: Any) -> Any:
+            del kwargs
+            step = int(getattr(state, "global_step", 0))
+            if step < 1 or step in self._published_steps:
+                return control
+            output_dir = Path(str(args.output_dir)).resolve()
+            latest = imports["get_last_checkpoint"](str(output_dir))
+            if latest is None:
+                context.event("checkpoint_publication_unavailable", {"technique": technique, "global_step": step})
+                return control
+            checkpoint = Path(latest).resolve()
             _snapshot_runtime_states(checkpoint, runtime_state_paths)
-            digest = _tree_digest(checkpoint)
-            context.artifact(
-                ProducedArtifact(
-                    name=f"{artifact_name}/step-{step:04d}",
-                    kind="training-checkpoint",
-                    reference=LocalArtifactRef(checkpoint, digest),
-                    required=False,
-                    metadata={
-                        "global_step": step,
-                        "milestone": step in milestone_steps,
-                        "runtime_state_paths": [str(path) for path in runtime_state_paths],
-                    },
-                )
+            publish_checkpoint_views(
+                context,
+                checkpoint,
+                model=model,
+                technique=technique,
+                settings=settings,
+                update=update,
+                workspace=workspace,
+                interrupted=False,
             )
-            context.event(
-                "training_checkpoint_published",
-                {
-                    "global_step": step,
-                    "checkpoint_digest": digest,
-                    "milestone": step in milestone_steps,
-                },
-            )
+            self._published_steps.add(step)
             return control
 
-    return CheckpointArtifactCallback
+    return CheckpointPublicationCallback
 
 
 def restore_checkpoint_runtime_states(
     checkpoint: Path,
     runtime_state_paths: tuple[Path, ...],
 ) -> None:
-    """Restore backend-neutral sidecar state captured with a trainer checkpoint."""
+    """Restore backend-owned sidecars captured atomically with a checkpoint."""
 
     root = checkpoint.resolve() / "posttrain-runtime-state"
     for runtime_path in runtime_state_paths:
@@ -442,7 +450,11 @@ def restore_checkpoint_runtime_states(
                 f"checkpoint {checkpoint} has no runtime state for {runtime_path}"
             )
         runtime_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, runtime_path)
+        if runtime_path.suffix in {".sqlite", ".sqlite3", ".db"}:
+            with sqlite3.connect(source) as source_db, sqlite3.connect(runtime_path) as target_db:
+                source_db.backup(target_db)
+        else:
+            shutil.copy2(source, runtime_path)
 
 
 def _snapshot_runtime_states(checkpoint: Path, runtime_state_paths: tuple[Path, ...]) -> None:
@@ -452,9 +464,11 @@ def _snapshot_runtime_states(checkpoint: Path, runtime_state_paths: tuple[Path, 
         relative = _runtime_state_relative_path(runtime_path)
         destination = checkpoint / "posttrain-runtime-state" / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
+        if destination.exists():
+            destination.unlink()
         if runtime_path.suffix in {".sqlite", ".sqlite3", ".db"}:
-            with sqlite3.connect(runtime_path) as source, sqlite3.connect(destination) as target:
-                source.backup(target)
+            with sqlite3.connect(runtime_path) as source_db, sqlite3.connect(destination) as target_db:
+                source_db.backup(target_db)
         else:
             shutil.copy2(runtime_path, destination)
 
@@ -465,17 +479,6 @@ def _runtime_state_relative_path(path: Path) -> Path:
     return path
 
 
-def _tree_digest(path: Path) -> str:
-    digest = hashlib.sha256()
-    for child in sorted(item for item in path.rglob("*") if item.is_file()):
-        digest.update(child.relative_to(path).as_posix().encode())
-        digest.update(b"\0")
-        with child.open("rb") as stream:
-            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-                digest.update(chunk)
-    return digest.hexdigest()
-
-
 def trainer_arguments(loop: TrainingLoop, output_dir: Path) -> dict[str, Any]:
     arguments: dict[str, Any] = {
         "output_dir": str(output_dir),
@@ -484,6 +487,7 @@ def trainer_arguments(loop: TrainingLoop, output_dir: Path) -> dict[str, Any]:
         "gradient_accumulation_steps": loop.gradient_accumulation_steps,
         "learning_rate": loop.learning_rate,
         "warmup_steps": math.ceil(loop.max_steps * loop.warmup_ratio),
+        "lr_scheduler_type": loop.lr_scheduler_type,
         "max_grad_norm": loop.max_grad_norm,
         "logging_strategy": "steps",
         "logging_steps": loop.logging_steps,
@@ -508,6 +512,106 @@ def trainer_arguments(loop: TrainingLoop, output_dir: Path) -> dict[str, Any]:
     return arguments
 
 
+def _project_checkpoint_model_view(checkpoint: Path, destination: Path) -> Path:
+    """Copy adapter/tokenizer files while excluding recovery-only state."""
+
+    temporary = destination.with_name(destination.name + ".tmp")
+    if temporary.exists():
+        shutil.rmtree(temporary)
+    temporary.mkdir(parents=True, exist_ok=False)
+    excluded = {
+        "trainer_state.json",
+        "optimizer.pt",
+        "scheduler.pt",
+        "scaler.pt",
+        "training_args.bin",
+    }
+    for source in checkpoint.iterdir():
+        if not source.is_file() or source.name in excluded or source.name.startswith("rng_state"):
+            continue
+        if source.name.startswith(("model-", "pytorch_model")) or source.name in {
+            "model.safetensors",
+            "pytorch_model.bin",
+        }:
+            raise RuntimeError(f"LoRA checkpoint contains full base-model weights: {source.name}")
+        shutil.copy2(source, temporary / source.name)
+    if destination.exists():
+        shutil.rmtree(destination)
+    temporary.rename(destination)
+    validate_adapter_only_directory(destination)
+    return destination.resolve()
+
+
+def publish_checkpoint_views(
+    context: RunContext,
+    checkpoint: Path,
+    *,
+    model: ModelVariant,
+    technique: Literal["sft", "dpo", "grpo", "dapo", "olmo3", "sampo", "distill"],
+    settings: Any,
+    update: ParameterUpdatePlan,
+    workspace: Path,
+    interrupted: bool,
+) -> None:
+    """Publish a recovery view and, for LoRA, a paired loadable model view."""
+
+    checkpoint = checkpoint.resolve()
+    if isinstance(update, LoRAUpdate | QLoRAUpdate):
+        validate_adapter_only_directory(checkpoint, require_recovery_state=True)
+    try:
+        trainer_state = json.loads((checkpoint / "trainer_state.json").read_text(encoding="utf-8"))
+        checkpoint_step = trainer_state["global_step"]
+    except (OSError, json.JSONDecodeError, KeyError, TypeError) as error:
+        raise RuntimeError(f"recovery checkpoint has invalid trainer state: {checkpoint}") from error
+    if isinstance(checkpoint_step, bool) or not isinstance(checkpoint_step, int) or checkpoint_step < 0:
+        raise RuntimeError(f"recovery checkpoint has invalid global_step: {checkpoint}")
+    snapshot_id = f"{context.run_id}/step-{checkpoint_step:08d}"
+    metadata = {
+        "technique": technique,
+        "model_variant_id": model.id,
+        "training_settings_id": settings.id,
+        "training_settings_revision": settings.revision,
+        "parameter_update_kind": update.kind,
+        "global_step": checkpoint_step,
+        "checkpoint_step": checkpoint_step,
+        "checkpoint_snapshot_id": snapshot_id,
+    }
+    recovery_ref = LocalArtifactRef(checkpoint, _digest_path(checkpoint))
+    context.artifact(
+        ProducedArtifact(
+            name=f"training/{model.id}/{technique}/checkpoint-{checkpoint_step:08d}/recovery",
+            kind="training-checkpoint",
+            reference=recovery_ref,
+            metadata={**metadata, "checkpoint_view": "recovery", "interrupted": interrupted},
+            role="recovery",
+        )
+    )
+    if isinstance(update, LoRAUpdate | QLoRAUpdate):
+        destination = workspace / "checkpoints" / f"step-{checkpoint_step:08d}" / "model"
+        model_dir = _project_checkpoint_model_view(checkpoint, destination)
+        model_ref = LocalArtifactRef(model_dir, _digest_path(model_dir))
+        context.artifact(
+            ProducedArtifact(
+                name=f"training/{model.id}/{technique}/checkpoint-{checkpoint_step:08d}/model",
+                kind="model-adapter",
+                reference=model_ref,
+                metadata={**metadata, "checkpoint_view": "model", "interrupted": interrupted},
+                role="checkpoint-model",
+            )
+        )
+    context.event(
+        "checkpoint_saved",
+        {
+            "technique": technique,
+            "global_step": checkpoint_step,
+            "checkpoint_snapshot_id": snapshot_id,
+            "recovery_only": not isinstance(update, LoRAUpdate | QLoRAUpdate),
+            "model_view_published": isinstance(update, LoRAUpdate | QLoRAUpdate),
+            "interrupted": interrupted,
+        },
+    )
+
+
 @contextmanager
 def trainer_lifecycle(trainer: Any) -> Iterator[None]:
     """Close Accelerate's distributed runtime after success or failure."""
@@ -517,13 +621,84 @@ def trainer_lifecycle(trainer: Any) -> Iterator[None]:
         trainer.accelerator.end_training()
 
 
+def publish_interrupted_recovery_checkpoint(
+    context: RunContext,
+    trainer: Any,
+    *,
+    technique: Literal["sft", "dpo", "grpo", "dapo", "olmo3", "sampo", "distill"],
+    model: ModelVariant,
+    settings: Any,
+    update: ParameterUpdatePlan,
+    imports: Mapping[str, Any],
+) -> Path | None:
+    """Publish the latest complete TRL checkpoint while an interrupted run still owns its workspace."""
+
+    latest = imports["get_last_checkpoint"](trainer.args.output_dir)
+    if latest is None:
+        context.event("recovery_checkpoint_unavailable", {"technique": technique})
+        return None
+    checkpoint = Path(latest).resolve()
+    publish_checkpoint_views(
+        context,
+        checkpoint,
+        model=model,
+        technique=technique,
+        settings=settings,
+        update=update,
+        workspace=trainer.args.output_dir and Path(trainer.args.output_dir).parent,
+        interrupted=True,
+    )
+    return checkpoint
+
+
+def preserve_recovery_checkpoint_after_error(
+    context: RunContext,
+    trainer: Any,
+    error: BaseException,
+    *,
+    technique: Literal["sft", "dpo", "grpo", "dapo", "olmo3", "sampo", "distill"],
+    model: ModelVariant,
+    settings: Any,
+    update: ParameterUpdatePlan,
+    imports: Mapping[str, Any],
+) -> None:
+    """Best-effort retention that never replaces the original training failure."""
+
+    try:
+        publish_interrupted_recovery_checkpoint(
+            context,
+            trainer,
+            technique=technique,
+            model=model,
+            settings=settings,
+            update=update,
+            imports=imports,
+        )
+    except BaseException as checkpoint_error:
+        error.add_note(f"failed to retain the latest recovery checkpoint: {checkpoint_error!r}")
+
+
+def _digest_path(path: Path) -> str:
+    digest = hashlib.sha256()
+    if path.is_file():
+        digest.update(path.read_bytes())
+        return digest.hexdigest()
+    for child in sorted(item for item in path.rglob("*") if item.is_file()):
+        digest.update(child.relative_to(path).as_posix().encode())
+        digest.update(b"\0")
+        with child.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+    return digest.hexdigest()
+
+
 def finish_training(
     context: RunContext,
     trainer: Any,
     train_output: Any,
     tokenizer: Any,
     workspace: Path,
-    technique: Literal["sft", "dpo", "grpo", "dapo", "sampo", "distill"],
+    technique: Literal["sft", "dpo", "grpo", "dapo", "olmo3", "sampo", "distill"],
     update: ParameterUpdatePlan,
     imports: dict[str, Any],
 ) -> BackendTrainingResult:
@@ -531,6 +706,11 @@ def finish_training(
     trainer.save_model(model_dir)
     tokenizer.save_pretrained(model_dir)
     latest = imports["get_last_checkpoint"](trainer.args.output_dir)
+    latest_path = Path(latest).resolve() if latest is not None else None
+    if isinstance(update, LoRAUpdate | QLoRAUpdate):
+        validate_adapter_only_directory(model_dir)
+        if latest_path is not None:
+            validate_adapter_only_directory(latest_path, require_recovery_state=True)
     metrics = train_output.metrics
     summary = TrainingSummary(
         global_step=int(trainer.state.global_step),
@@ -566,7 +746,7 @@ def finish_training(
     return BackendTrainingResult(
         summary,
         model_dir,
-        Path(latest).resolve() if latest is not None else None,
+        latest_path,
         summary_file,
     )
 
@@ -574,13 +754,16 @@ def finish_training(
 __all__ = [
     "BackendTrainingResult",
     "callback_type",
-    "checkpoint_artifact_callback_type",
+    "checkpoint_callback_type",
     "emit_parameter_counts",
     "emit_runtime_versions",
     "finish_training",
     "framework_imports",
     "load_tokenizer",
     "load_trainable_model",
+    "preserve_recovery_checkpoint_after_error",
+    "publish_checkpoint_views",
+    "publish_interrupted_recovery_checkpoint",
     "restore_checkpoint_runtime_states",
     "trainable_model_factory",
     "trainer_lifecycle",

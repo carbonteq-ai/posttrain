@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import sys
 from contextlib import nullcontext, redirect_stdout
 from pathlib import Path
@@ -23,8 +24,10 @@ from ..execution_planning import (
     PlannedJobPackage,
     plan_job_execution,
     plan_job_package,
+    with_model_checkpoint,
+    with_recovery_checkpoint,
 )
-from ..execution_provider import execution_admission_service
+from ..execution_provider import execution_admission_service, tracking_source_for_project
 from ..job_resolve import resolve_job_id
 from ..output import emit, json_value
 from ..package_history import packages_for, resolve_package
@@ -33,6 +36,34 @@ from ..work_runtime import load_work_package_bundle, runtime_context
 
 _EMPTY_OVERRIDES = ExecutionOverrides()
 _EMPTY_PACKAGE_OVERRIDES = PackageOverrides()
+
+
+def _select_checkpoint_output(
+    links: tuple[object, ...],
+    *,
+    source_run_id: str,
+    kinds: frozenset[str],
+    step: int | None,
+) -> object:
+    candidates = tuple(
+        link for link in links if getattr(link, "direction", None) == "output" and getattr(link, "kind", None) in kinds
+    )
+    if step is not None:
+        candidates = tuple(
+            link
+            for link in candidates
+            if getattr(getattr(link, "artifact", None), "provider_metadata", {}).get(
+                "checkpoint_step",
+                getattr(getattr(link, "artifact", None), "provider_metadata", {}).get("global_step"),
+            )
+            == step
+        )
+    if len(candidates) != 1:
+        requested = f" at step {step}" if step is not None else ""
+        raise ContractError(
+            f"source run {source_run_id!r} has {len(candidates)} matching checkpoint model outputs{requested}; expected 1"
+        )
+    return candidates[0]
 
 
 def validate_work_package_cmd(
@@ -209,12 +240,23 @@ def run_work_package_cmd(
     overrides: ExecutionOverrides = _EMPTY_OVERRIDES,
     registry_prefix: str | None = None,
     run_id: str | None = None,
+    resume_from_run_id: str | None = None,
+    checkpoint_step: int | None = None,
+    model_from_run_id: str | None = None,
+    model_checkpoint_step: int | None = None,
+    model_seat: str = "model",
     project_packages: tuple[str, ...] | None = None,
     source_includes: tuple[str, ...] | None = None,
     build_missing: bool = False,
     framework_wheelhouse: Path | None = None,
     allow_deferred_qualification: bool = False,
 ) -> None:
+    if resume_from_run_id is not None and model_from_run_id is not None:
+        raise ContractError("choose either --resume-from-run or --model-from-run, not both")
+    if checkpoint_step is not None and resume_from_run_id is None and model_from_run_id is None:
+        raise ContractError("--checkpoint-step requires --resume-from-run or --model-from-run")
+    if model_checkpoint_step is not None and model_from_run_id is None:
+        raise ContractError("--model-checkpoint-step requires --model-from-run")
     layout, catalog, resolved_path, package = load_work_package_bundle(state, path)
     job = resolve_job_id(catalog, package, job)
     if not in_process:
@@ -232,6 +274,36 @@ def run_work_package_cmd(
             env_file=state.env_file,
             framework_wheelhouse=framework_wheelhouse,
         )
+        if resume_from_run_id is not None:
+            source = tracking_source_for_project(layout)
+            candidates = asyncio.run(source.artifacts(resume_from_run_id)).outputs
+            artifact = _select_checkpoint_output(
+                candidates,
+                source_run_id=resume_from_run_id,
+                kinds=frozenset({"training-checkpoint"}),
+                step=checkpoint_step,
+            )
+            planned = with_recovery_checkpoint(
+                planned,
+                source_run_id=resume_from_run_id,
+                artifact=artifact,  # type: ignore[arg-type]
+            )
+        if model_from_run_id is not None:
+            source = tracking_source_for_project(layout)
+            candidates = asyncio.run(source.artifacts(model_from_run_id)).outputs
+            artifact = _select_checkpoint_output(
+                candidates,
+                source_run_id=model_from_run_id,
+                kinds=frozenset({"model-adapter", "model-weights"}),
+                step=model_checkpoint_step,
+            )
+            planned = with_model_checkpoint(
+                planned,
+                source_run_id=model_from_run_id,
+                artifact=artifact,  # type: ignore[arg-type]
+                model_seat=model_seat,
+                replace_existing=True,
+            )
         _require_verified_kind_image(planned, build_missing=build_missing)
         packed = planned.pack(allow_deferred_qualification=allow_deferred_qualification)
         prepared_submission = packed.prepare_submission()
@@ -274,6 +346,9 @@ def run_work_package_cmd(
             ),
         )
         return
+
+    if resume_from_run_id is not None or model_from_run_id is not None:
+        raise ContractError("--resume-from-run requires packaged local or remote execution")
 
     output_redirect = redirect_stdout(sys.stderr) if state.json_output else nullcontext()
     with output_redirect:

@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from collections import defaultdict
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from typing import Any, Literal, cast
@@ -208,10 +207,29 @@ class TrlPolicyGenerator:
                 active = [item for item in pending if not item[3].cancelled()]
                 if not active:
                     continue
-                groups: dict[tuple[int, str], list[tuple[Any, ...]]] = defaultdict(list)
+                heterogeneous_generate = getattr(
+                    self._trainer,
+                    "_generate_policy_turns",
+                    None,
+                )
+                if callable(heterogeneous_generate):
+                    async with self._lock:
+                        completion_ids, logprobs = cast(Any, heterogeneous_generate)(
+                            [list(item[0]) for item in active],
+                            [
+                                {
+                                    "max_tokens": item[1],
+                                    "structured_outputs": item[2],
+                                }
+                                for item in active
+                            ],
+                        )
+                    _resolve_generation_results(active, completion_ids, logprobs)
+                    continue
+                groups: dict[tuple[int, str], list[tuple[Any, ...]]] = {}
                 for item in active:
                     schema_key = json.dumps(item[2], sort_keys=True, separators=(",", ":"))
-                    groups[(item[1], schema_key)].append(item)
+                    groups.setdefault((item[1], schema_key), []).append(item)
                 for (max_tokens, _schema_key), group in groups.items():
                     structured_outputs = group[0][2]
                     async with self._lock:
@@ -225,25 +243,7 @@ class TrlPolicyGenerator:
                                 None,
                                 {},
                             )
-                    if len(completion_ids) != len(group):
-                        raise RuntimeError(
-                            "the policy generator returned a different completion count from "
-                            "the effective-limit group"
-                        )
-                    if logprobs is not None and len(logprobs) != len(group):
-                        raise RuntimeError(
-                            "the policy generator returned a different logprob count from the "
-                            "effective-limit group"
-                        )
-                    for index, item in enumerate(group):
-                        future = item[3]
-                        if not future.cancelled():
-                            future.set_result(
-                                (
-                                    completion_ids[index],
-                                    None if logprobs is None else logprobs[index],
-                                )
-                            )
+                    _resolve_generation_results(group, completion_ids, logprobs)
         except BaseException as exc:
             for _prompt_ids, _limit, _structured, future in [*pending, *self._pending]:
                 if not future.done():
@@ -253,6 +253,30 @@ class TrlPolicyGenerator:
             self._flush_task = None
             if self._pending:
                 self._flush_task = asyncio.create_task(self._flush_pending())
+
+
+def _resolve_generation_results(
+    pending: Sequence[tuple[Any, ...]],
+    completion_ids: Sequence[Sequence[int]],
+    logprobs: Sequence[Sequence[float]] | None,
+) -> None:
+    if len(completion_ids) != len(pending):
+        raise RuntimeError(
+            "the policy generator returned a different completion count from the request batch"
+        )
+    if logprobs is not None and len(logprobs) != len(pending):
+        raise RuntimeError(
+            "the policy generator returned a different logprob count from the request batch"
+        )
+    for index, item in enumerate(pending):
+        future = item[3]
+        if not future.cancelled():
+            future.set_result(
+                (
+                    completion_ids[index],
+                    None if logprobs is None else logprobs[index],
+                )
+            )
 
 
 def _bridged_message_spans(rendered: Any, tail_start: int, prefix_tokens: int) -> tuple[tuple[int, int] | None, ...]:

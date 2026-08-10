@@ -261,15 +261,28 @@ def run_work_package_job(
     job_id: str,
     *,
     run_id: str | None = None,
+    prepared: PreparedWorkPackageJob | None = None,
 ) -> WorkPackageResult:
-    """Run one enabled job, optionally preserving a preallocated run identity."""
+    """Run one enabled job, optionally preserving a prepared run binding.
 
-    prepared = prepare_work_package_job(
-        context,
-        package,
-        job_id,
-        run_id=run_id,
-    )
+    ``prepared`` is used by execution workers when a provider launch carries
+    an explicit model or recovery artifact override.  The packaged work
+    package remains the source of truth for static selections; the prepared
+    object lets the run-scoped binding survive into the executor.
+    """
+
+    if prepared is None:
+        prepared = prepare_work_package_job(
+            context,
+            package,
+            job_id,
+            run_id=run_id,
+        )
+    else:
+        if prepared.recipe_job.id != job_id:
+            raise ContractError("prepared job does not match the requested job")
+        if run_id is not None and prepared.spec.run_id != run_id:
+            raise ContractError("prepared job run identity does not match the requested run")
     execution_value = context.executor(
         prepared.spec,
         lambda run_context: prepared.definition.operation(run_context, prepared.seats),

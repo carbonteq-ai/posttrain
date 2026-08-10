@@ -48,6 +48,8 @@ VerlLaunchPlan = VerlLaunchManifest
 def build_grpo_launch_plan(request: GRPORequest, output_dir: Path) -> VerlLaunchPlan:
     _validate_backend(request.training.backend)
     _validate_model(request.policy, "policy")
+    if request.settings.algorithm == "olmo3":
+        raise ValueError("the OLMo 3 GRPO recipe is currently supported by the TRL backend only")
     return _plan(
         request,
         output_dir,

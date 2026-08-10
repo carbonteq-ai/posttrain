@@ -36,6 +36,19 @@ from .catalog_schema import (
     TrainingCheckpointSchema,
     TrainingRuntimeSchema,
 )
+from .checkpoints import (
+    CheckpointArtifactRecord,
+    CheckpointComponent,
+    CheckpointInspection,
+    CheckpointProjectionCapability,
+    CheckpointPublicationPolicy,
+    CheckpointSelector,
+    CheckpointSnapshotId,
+    CheckpointSnapshotManifest,
+    ResolvedCheckpointSource,
+    inspect_checkpoint_artifacts,
+    resolve_checkpoint_artifacts,
+)
 from .distillation import DistillationBatch, DistillationBatchLedger, DistillationBatchSource
 from .grpo_observations import (
     GRPOEvidenceStatus,
@@ -67,6 +80,7 @@ from .profiles import (
     QWEN35_RENDERER,
     QWEN35_SFT_SMOKE,
     QWEN35_THINKING_RENDERER,
+    ActiveGroupSampling,
     DPOSettings,
     DynamicGroupSampling,
     GRPOSettings,
@@ -97,9 +111,18 @@ from .verifiers_requests import (
 )
 
 __all__ = [
+    "ActiveGroupSampling",
     "DPOBackend",
     "DistillationBackend",
     "CalibrationSelection",
+    "CheckpointArtifactRecord",
+    "CheckpointComponent",
+    "CheckpointInspection",
+    "CheckpointProjectionCapability",
+    "CheckpointPublicationPolicy",
+    "CheckpointSelector",
+    "CheckpointSnapshotId",
+    "CheckpointSnapshotManifest",
     "DPOSettings",
     "DynamicGroupSampling",
     "DPORequest",
@@ -134,9 +157,12 @@ __all__ = [
     "QWEN35_SFT_SMOKE",
     "RenderedPreferenceExample",
     "RenderedSFTExample",
+    "ResolvedCheckpointSource",
     "TrainingRenderer",
     "shape_online_reward",
     "shape_soft_overlong_reward",
+    "inspect_checkpoint_artifacts",
+    "resolve_checkpoint_artifacts",
     "EnvironmentRollout",
     "AgenticTurn",
     "EnvironmentRolloutBridge",

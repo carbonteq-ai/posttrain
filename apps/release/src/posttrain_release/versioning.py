@@ -16,10 +16,15 @@ from typing import Any
 
 from posttrain.runtime_images.manifest import ManifestError, load_manifest
 
+from .runtime_lock import materialize_runtime_lock
+
 _MANIFEST = Path("release/manifest.toml")
 _TRAINING_CATALOG = Path("packages/catalog/src/posttrain/catalog/base/training.yaml")
 _DEPENDENCY_LOCKS = Path("packages/catalog/src/posttrain/catalog/base/locks.toml")
 _TRAIN_PROJECT = Path("packages/train/pyproject.toml")
+_RUNTIME_WORKSPACE_LOCK = Path(
+    "packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/workspace.lock.txt"
+)
 _SOURCE_VERSION = "0.0.0"
 _VERSION = re.compile(r"^[0-9]+[.][0-9]+[.][0-9]+(?:[a-zA-Z0-9.-]+)?$")
 _PROJECT_VERSION_LINE = re.compile(r'(?m)^(version\s*=\s*)"0[.]0[.]0"\s*$')
@@ -29,8 +34,16 @@ _LOCK_PACKAGE_VERSION = re.compile(r'(?m)^(version\s*=\s*)"(?P<version>[^"]+)"\s
 _INTERNAL_REQUIREMENT = re.compile(
     r"^(?P<requirement>posttrain(?:-[A-Za-z0-9._-]+)?(?:\[[^]]+\])?)(?P<constraint>[^;\s]*)(?P<marker>\s*;.*)?$"
 )
-_TRL_SOURCE = re.compile(r"^trl\s*@\s*git\+https://github[.]com/carbonteq-ai/trl[.]git@(?P<revision>[0-9a-f]{40})$")
+_TRL_REQUIREMENT = re.compile(r"^trl==(?P<version>[0-9]+[.][0-9]+[.][0-9]+(?:[a-zA-Z0-9.-]+)?)$")
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _LOCK_REFERENCE = "trl-fork@current"
+
+
+def _is_pending_runtime_lock_manifest_error(error: BaseException) -> bool:
+    """Recognize the manifest failure expected before OCI rebuild."""
+
+    message = str(error)
+    return "published image records" in message and "lock digest" in message
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,6 +57,7 @@ class ReleaseCheck:
     version: str
     package_count: int
     internal_pin_count: int
+    runtime_lock_pending: bool = False
 
 
 def load_release_manifest(repository_root: Path) -> ReleaseManifest:
@@ -94,7 +108,7 @@ def _publishable_project_names(paths: tuple[Path, ...]) -> set[str]:
     return names
 
 
-def check_release(repository_root: Path) -> ReleaseCheck:
+def check_release(repository_root: Path, *, allow_pending_runtime_lock: bool = False) -> ReleaseCheck:
     root = repository_root.resolve()
     manifest = load_release_manifest(root)
     errors: list[str] = []
@@ -139,14 +153,40 @@ def check_release(repository_root: Path) -> ReleaseCheck:
         pin_count += rendered_pins
 
     errors.extend(_dependency_lock_errors(root))
+    runtime_lock = None
+    if (root / _RUNTIME_WORKSPACE_LOCK).is_file():
+        runtime_lock = materialize_runtime_lock(root, check=True)
+        if runtime_lock.changed and not allow_pending_runtime_lock:
+            errors.append(
+                f"{runtime_lock.path.relative_to(root)} does not contain the published internal-package receipts "
+                "from uv.lock; run 'posttrain-release lock-runtime-dependencies' before strict validation"
+            )
     try:
         load_manifest()
     except (OSError, ValueError, ManifestError) as error:
-        errors.append(f"runtime image manifest is invalid: {error}")
+        if (
+            allow_pending_runtime_lock
+            and runtime_lock is not None
+            and runtime_lock.changed
+            and _is_pending_runtime_lock_manifest_error(error)
+        ):
+            # Validate TOML/schema/variant structure while allowing the old
+            # image lock label until candidate publication rebuilds the image.
+            try:
+                load_manifest(verify_locks=False)
+            except (OSError, ValueError, ManifestError) as structural_error:
+                errors.append(f"runtime image manifest is invalid: {structural_error}")
+        else:
+            errors.append(f"runtime image manifest is invalid: {error}")
 
     if errors:
         raise ValueError("release consistency check failed:\n- " + "\n- ".join(errors))
-    return ReleaseCheck(version=manifest.version, package_count=len(publishable), internal_pin_count=pin_count)
+    return ReleaseCheck(
+        version=manifest.version,
+        package_count=len(publishable),
+        internal_pin_count=pin_count,
+        runtime_lock_pending=runtime_lock.changed if runtime_lock is not None else False,
+    )
 
 
 def prepare_release(repository_root: Path, version: str) -> ReleaseCheck:
@@ -381,11 +421,35 @@ def _dependency_lock_errors(root: Path) -> list[str]:
 def _trl_revision(path: Path) -> str:
     payload = tomllib.loads(path.read_text(encoding="utf-8"))
     project = payload.get("project")
+    versions = []
     for requirement in _project_requirements(project if isinstance(project, dict) else {}):
-        match = _TRL_SOURCE.fullmatch(requirement)
+        match = _TRL_REQUIREMENT.fullmatch(requirement)
         if match is not None:
-            return match.group("revision")
-    raise ValueError(f"cannot locate the pinned CarbonTeq TRL revision in {path}")
+            versions.append(match.group("version"))
+    if len(versions) != 1:
+        raise ValueError(f"expected exactly one pinned TRL package requirement in {path}, found {versions!r}")
+
+    tool = payload.get("tool")
+    posttrain = tool.get("posttrain") if isinstance(tool, dict) else None
+    receipt = posttrain.get("trl") if isinstance(posttrain, dict) else None
+    if not isinstance(receipt, dict):
+        raise ValueError(f"missing [tool.posttrain.trl] release receipt in {path}")
+    version = receipt.get("version")
+    release_tag = receipt.get("release-tag")
+    revision = receipt.get("source-revision")
+    wheel_sha256 = receipt.get("wheel-sha256")
+    sdist_sha256 = receipt.get("sdist-sha256")
+    if version != versions[0]:
+        raise ValueError(f"TRL receipt version {version!r} does not match package requirement {versions[0]!r}")
+    if release_tag != f"carbonteq-v{version}":
+        raise ValueError(f"TRL release tag {release_tag!r} does not match version {version!r}")
+    if not isinstance(revision, str) or re.fullmatch(r"[0-9a-f]{40}", revision) is None:
+        raise ValueError(f"invalid TRL source revision in {path}")
+    if not isinstance(wheel_sha256, str) or _SHA256.fullmatch(wheel_sha256) is None:
+        raise ValueError(f"invalid TRL wheel hash in {path}")
+    if not isinstance(sdist_sha256, str) or _SHA256.fullmatch(sdist_sha256) is None:
+        raise ValueError(f"invalid TRL source-distribution hash in {path}")
+    return revision
 
 
 def _strings(value: Any) -> Iterator[str]:

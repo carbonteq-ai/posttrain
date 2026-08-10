@@ -25,6 +25,7 @@ from .execution import (
 from .models import (
     ChatTemplate,
     ConversationProfile,
+    ModelArtifactDescriptor,
     ModelCapabilities,
     ModelVariant,
     ReasoningMode,
@@ -50,6 +51,7 @@ __all__ = [
     "MetricObservation",
     "MetricBatchObservation",
     "ModelCapabilities",
+    "ModelArtifactDescriptor",
     "ModelVariant",
     "ConversationProfile",
     "ReasoningMode",

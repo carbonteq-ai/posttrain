@@ -6,7 +6,8 @@ from collections.abc import Mapping
 
 from posttrain.common import ContractError
 
-from .purge import PurgeAction
+from .contracts import ProviderCleanupDeferred
+from .purge import PurgeAction, PurgeActionDeferred
 from .service import JobExecutionService
 
 
@@ -36,7 +37,10 @@ class ExecutionProviderPurgeExecutor:
 
     def apply(self, action: PurgeAction) -> None:
         service, run_id = self._service(action)
-        service.cleanup(run_id)
+        try:
+            service.cleanup(run_id)
+        except ProviderCleanupDeferred as error:
+            raise PurgeActionDeferred(str(error)) from error
 
 
 __all__ = ["ExecutionProviderPurgeExecutor"]

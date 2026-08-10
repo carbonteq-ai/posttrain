@@ -17,16 +17,16 @@ registry. The source repository is published at
 Two protected workflows run on a dedicated LAN-connected self-hosted runner.
 
 **Prepare candidate** derives immutable prerelease versions such as
-`0.3.2rc1`, publishes them only to `carbonteq/dev`, qualifies changed OCI
+`0.3.3rc1`, publishes them only to `carbonteq/dev`, qualifies changed OCI
 digests plus real packed jobs, and lets maintainers repair the release branch
 without consuming the final version.
 
 **Publish release** runs only after a candidate passed and the release PR
-merged. It builds final `0.3.2` once, downloads the candidate's generated
-image manifest before building the final wheelhouse, qualifies those exact
-files through `carbonteq/dev`, promotes them unchanged to `carbonteq/stable`,
-and creates the final tag last. The final workflow therefore requires both the
-merged source SHA and the successful candidate run ID.
+merged. It builds the final version once from the exact merged source plus the
+candidate's accepted release materialization, qualifies those files through
+`carbonteq/dev`, promotes them unchanged to `carbonteq/stable`, and creates the
+final tag last. The final workflow therefore requires both the merged source
+SHA and the successful candidate receipt.
 
 External Verifiers environments, including `automationbench-v1`, resolve from
 the immutable commits in the bundled constraints file instead of being copied
@@ -34,41 +34,41 @@ into the framework bundle.
 
 A release remains reproducible because the receipt binds the merged source
 commit, framework version, distribution filenames and hashes, dependency-lock
-identity, and committed OCI manifest. The internal indexes and GitHub Release
-must contain those exact bytes.
+identity, maintained-dependency receipts, and accepted OCI manifest. The
+internal indexes, registry and GitHub Release must expose those exact
+identities.
 
-### 0.3.2 Gemma qualification gate
+### Release-specific qualification inputs
 
-The 0.3.2 candidate must include the Gemma 4 dense matrix and the paired
-assistant MTP path. Before dispatching the candidate workflow, the release
-review must link the successful dstack/Trackio evidence from
-[`docs/plan/gemma4-0.3.2-support-and-release.md`](./plan/gemma4-0.3.2-support-and-release.md):
+Algorithm, model and environment qualification is release input rather than a
+reason to rerun every expensive experiment during publication. The release PR
+must link the living plan and exact retained evidence for every capability it
+claims. For example, the 0.3.2 Gemma qualification is retained in
+[`docs/plan/gemma4-0.3.2-support-and-release.md`](./plan/gemma4-0.3.2-support-and-release.md),
+while the corrected DAPO and 0.3.3 release work is tracked in
+[`docs/plan/sft-dapo-256-experiment-and-framework-release.md`](./plan/sft-dapo-256-experiment-and-framework-release.md).
 
-- E2B, E4B, 12B Unified, and 31B each pass the model-neutral text-generation
-  smoke on `targets/carbonteq-rtx-pro-6000-96gb`.
-- The 12B TRL GRPO run has MTP enabled, complete non-truncated traces, reward,
-  and speculative draft/accepted plus KV-cache metrics.
-- The release candidate is built from the exact merged commit, publishes only
-  to `carbonteq/dev`, and runs the final packed canary from the candidate
-  wheelhouse. No mutable model tag or image tag is valid release evidence.
-
-These are product qualification inputs, not a request to run the full Gemma
-matrix on every ordinary pull request. A failed candidate is repaired as a new
-RC; it never mutates the target stable version or reuses an old run ID.
+Each linked result names the source, model/environment revisions, execution
+target, image digest, run identity and evidence location. Mutable model or
+image tags are not accepted. A failed candidate is repaired as a new RC; it
+never mutates the target stable version or reuses an old run as proof for a
+different source or configuration.
 
 ## Release artifact graph
 
-Publish in dependency order. A release candidate must install from its
-published artifacts with workspace sources disabled before later layers are
-uploaded.
+Publish in dependency order. A Posttrain candidate does not build or publish a
+maintained dependency on its behalf. Each earlier layer must have its own
+readback and compatibility receipt before the next layer starts.
 
 | Order | Artifacts | Purpose |
 | --- | --- | --- |
-| 1 | CarbonTeq Trackio fork, `automationbench-v1`, other maintained fork/environment distributions | Replace transitive Git or unpublished path dependencies |
-| 2 | `posttrain-common`, `posttrain-data`, `posttrain-eval`, `posttrain-serve`, `posttrain-tracking`, `posttrain-train`, `posttrain-work` | Reusable contracts and capabilities |
-| 3 | `posttrain-catalog`, `posttrain-tracking-trackio`, `posttrain-tracking-wandb` | Versioned selections and provider adapters |
-| 4 | `posttrain`, `posttrain-lab`, `posttrain-observatory` | User-facing command and application distributions |
-| 5 | Observatory OCI image | Immutable deployed read product |
+| 1 | Trackio and other maintained dependency distributions/service images | Prove independent publication, deployment and live compatibility |
+| 2 | Posttrain runtime-image digests and generated image receipts | Bind executable dependencies before building consumer distributions |
+| 3 | Posttrain source plus declared generated inputs | Create one hash-addressed release materialization |
+| 4 | `posttrain-*` distributions | Publish reusable contracts, adapters, CLI and applications as one coordinated version |
+| 5 | Clean consumer and packed job | Prove index-only installation, OCI selection and remote execution |
+| 6 | Trackio artifact round trip and Observatory readback | Prove the supported write and read products against the same run |
+| 7 | Exact final files promoted to stable | Make accepted bytes consumable without rebuilding |
 
 Use one coordinated pre-1.0 framework version for first-party distributions.
 Fork and environment distributions may follow their own upstream-derived
@@ -84,43 +84,46 @@ inbound connection.
 
 The candidate transaction:
 
-1. verifies an internal release branch and green normal CI;
-2. allocates the next unused `X.Y.ZrcN` from the target version in
+1. verifies accepted receipts for maintained dependencies, including the exact
+   Trackio client/server/storage combination;
+2. verifies an internal release branch and green exact-SHA CI;
+3. allocates the next unused `X.Y.ZrcN` from the target version in
    `release/manifest.toml`;
-3. builds wheels and source distributions once and records their hashes;
-4. uploads the exact candidate files to `carbonteq/dev`;
-5. runs an index-only consumer install, job packing, and a bounded dstack
-   canary;
-6. builds OCI images only when their inputs changed, pushes directly to
-   `registry.lan`, verifies registry readback, and executes one bounded packed
-   transformation canary through dstack on the explicitly verified idle
-   `carbonteq-ai-workstation.lan` RTX PRO worker. A changed-kind real-job
-   matrix is a follow-up gate, not an implicit property of the first runner
-   rollout;
-7. retains Trackio and Observatory evidence and generates `published.toml`
-   only for accepted image digests.
+4. builds OCI images only when their inputs changed, pushes directly to
+   `registry.lan`, verifies registry readback, and records which changed job
+   kinds require a bounded canary;
+5. writes `published.toml` and image receipts outside the source checkout,
+   then creates a release materialization binding those generated inputs to
+   the source, dependency receipts and locks;
+6. stages from exact committed source plus that declared materialization,
+   builds wheels and source distributions once, and records their hashes;
+7. uploads the exact candidate files to `carbonteq/dev`, verifies readback and
+   performs an index-only consumer install with workspace and Git sources
+   disabled;
+8. packs and runs the bounded dstack canary on an explicitly qualified worker;
+9. proves artifact upload, manifest commit, finalization and cleanup through
+   the deployed Trackio service, then reads that same run through the deployed
+   Observatory;
+10. retains the complete candidate materialization and classified gate results.
 
 A failed candidate is repaired as the next RC and never reaches stable. After
-one candidate passes and the generated image records merge, the final
-transaction:
+one candidate passes, its accepted materialization is retained and the release
+PR merges. The final transaction:
 
-1. validates source and lock state;
-2. builds wheels and source distributions;
+1. validates the exact merged source, dependency receipts, locks and accepted
+   candidate materialization;
+2. stages the final version from committed source plus the declared generated
+   inputs and builds wheels and source distributions once;
 3. inspects wheel metadata and hashes;
-4. installs into a clean environment with workspace sources disabled;
-5. runs the independent-consumer test against those exact artifacts;
-6. runs package, import-boundary, type, and documentation checks;
-7. restores the generated `published.toml` from the successful candidate run,
-   verifies that its image revision is an ancestor of the merged source and
-   that its framework version matches the final version, then builds the final
-   wheelhouse with those exact image digests;
-8. uploads the exact final files to `carbonteq/dev`, qualifies installation
+4. uploads the exact final files to `carbonteq/dev`, qualifies installation
    from that index, and retains the final receipt and cache evidence as a
    GitHub Actions artifact;
-9. promotes the unchanged files server-side to `carbonteq/stable` and verifies
+5. runs the independent consumer, packed dstack job, Trackio artifact and
+   Observatory readback gates without rebuilding or repairing dependencies;
+6. promotes the unchanged files server-side to `carbonteq/stable` and verifies
    stable readback hashes;
-10. creates the tag last and attaches the same bundle and receipt to the GitHub
-    Release.
+7. creates the tag last and attaches the same bundle and receipt to the GitHub
+   Release.
 
 Do not upload a later dependency layer until the previous layer can be
 installed from the development index. Never overwrite an RC, replace an
@@ -164,20 +167,24 @@ The framework is feature-rich but not release-complete:
 
 - The primary CLI performs composition-level work-package validation; concrete
   first-party job-definition preflight and `posttrain work-package run` remain.
-- The Trackio and AutomationBench forks are merged and pinned by immutable
-  public GitHub commits. Their renamed distributions can therefore travel as
-  direct Git dependencies in the retained release bundle, but must still be
-  published before a Git-free internal-index install is claimed.
+- Trackio `carbonteq-v0.31.5.post12` is published to the internal index and
+  deployed. Its manual compatibility receipt proves scalar read/write and a
+  cache-independent S3 artifact round trip; a Trackio-owned automated release
+  workflow remains operational follow-up rather than a 0.3.3 blocker.
+- Other maintained forks and external environments need the same independent
+  receipt whenever a clean consumer cannot resolve them from the internal
+  index.
 - License, security/contact policy, changelog, package metadata, compatibility
   window, and upgrade policy need an explicit owner decision and repository
   files.
-- The former tag-triggered GitHub-hosted workflow has been replaced on the
-  release branch by the protected LAN-runner candidate/final workflows. The
-  runner is live-qualified in `../ai-infra`; merge plus GitHub environment
-  reviewer configuration is still required before the first production
-  dispatch.
-- The Observatory image, deployment configuration, authentication boundary,
-  and production readback gate remain.
+- The Posttrain LAN runner is live. `ai-infra` still needs a protected,
+  repository-scoped Trackio release path for later unattended releases;
+  Posttrain remains a verifier and consumer, not Trackio's publisher.
+- Release tooling still needs the explicit materialization receipt and stage
+  input; copying the checkout's generated `published.toml` is temporary and is
+  not an accepted production boundary.
+- The Observatory image, deployment receipt, authentication boundary and
+  production readback gate remain.
 - Installation and task guides still need CI-executed examples.
 - A clean CarbonTeq project and a remote GPU machine must pass the release
   candidate gate.

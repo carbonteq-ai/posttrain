@@ -2,14 +2,35 @@
 
 The platform uses [`carbonteq-ai/trackio`](https://github.com/carbonteq-ai/trackio),
 an additive fork of upstream Trackio. Workspace packages keep the normal
-`import trackio` API. The current workspace dependency is the immutable
-internal-index release `carbonteq-trackio==0.31.5.post8`, built from merged
-commit `77db6f5c7ec60e991009c7845462da46b4a3debd`. Its wheel SHA-256 is
-`9b5ce6df75a6daa40478d3d2d48f4ae8e2c6b8b507d0ca57556786d217fe8d62`.
-The deployed shared and candidate services report post8. `0.31.5.post4` on
+`import trackio` API. The current framework dependency is
+`carbonteq-trackio==0.31.5.post12`, built from an immutable fork release
+commit `4c73e8b6e71c3da65cac41fc1371830e4435ecea`. Its wheel and sdist were
+read back from the stable internal index before the Posttrain pin was updated.
+The deployed shared and candidate services now report post10. `0.31.5.post4` on
 `pypi.lan` is permanently skewed (metadata post4, import post3) and must not be
 installed. The five kind images affected by the workspace lock were rebuilt
 and published after this change.
+
+Post10 keeps `local` as the safe default and adds a generic S3-compatible
+artifact backend. With the S3 backend, Trackio issues short-lived multipart
+URLs and the producing client writes parts directly to the configured bucket;
+Trackio completes and verifies the object by SHA-256 before accepting the
+artifact manifest. The endpoint must be reachable by producing clients, and
+storage credentials remain server-only. The canary and migration gates passed
+on 2026-08-07; the shared service now uses the
+`trackio-artifacts/production` prefix. The original local CAS remains retained
+for rollback, and its deletion is a separate operator-approved retention gate.
+
+A 2026-08-08 two-step DAPO diagnostic exposed one remaining mixed-version
+compatibility defect. A post8 job client used the legacy resumable upload route
+against the S3-backed post10 service; that route verified a 11,952,582-byte
+Verifiers trace blob into the server's local CAS, while artifact-manifest
+validation correctly queried RustFS. The run therefore failed during evidence
+publication after both optimizer updates had completed. The exact blob was
+copied and SHA-256-verified in RustFS for preservation. The unreleased fork
+repair makes the legacy completion route publish through the configured
+artifact store and recover already-completed local sessions. A new client
+release in every job image is still required before the next production run.
 
 Post8 exposes authenticated digest-bound run and project purge. Exact provider
 run ids preview with consumer-aware blockers, and apply accepts only the
@@ -20,6 +41,28 @@ equivalent SQLite and Doris semantics. Stale previews return actionable HTTP
 the framework's three-run cross-plane interruption/resume fixture passed on
 2026-08-02; sanitized receipts live in
 `release-evidence/cross-plane-purge/`.
+
+## Unreleased inbox-throughput repair
+
+The current candidate work addresses a production lag mode in the Doris
+fragment importer. `TRACKIO_ASYNC_DORIS_WRITES=true` means durable JSONL
+fragments plus background threads; it is not asyncio-based concurrent Doris
+I/O. The repair changes startup to serve HTTP immediately, uses one scanner to
+claim bounded batches, groups records before synchronous Doris writes, and
+gives scalar step/reward/event fragments a separate priority lane from large
+rollout traces. The complete native Verifiers trace artifact remains the replay
+authority. Do not describe this repair as deployed until its immutable Trackio
+commit, wheel, real-Doris backlog replay, and Observatory readback are
+qualified.
+
+## Background artifact publication
+
+Post12 adds an opt-in bounded client-side artifact queue. A producer may call
+`Run.log_artifact(..., background=True)` and receive an artifact with a stable
+submission id and `pending`/`uploading`/`committed`/`failed` state. The producer
+must call `wait()` or `Run.flush_artifacts()` before using the version. The
+existing synchronous API remains the default; Posttrain opts in only after the
+client capability is present and still performs an explicit final drain.
 
 ## Distribution transition
 
@@ -116,7 +159,10 @@ resumable self-hosted artifact transport. Apache Doris is implemented and live
 as a first-class database engine candidate. The corrected `post3` source is not
 yet released from an immutable fork commit or deployed.
 It does not replace Trackio's SDK, HTTP API, artifact implementation, Parquet
-interchange, standard `Trace`, or standard trace UI. Set
+interchange, standard `Trace`, or standard trace UI. Trackio's artifact store
+defaults to its local CAS, but the server can select any S3-compatible endpoint.
+New clients receive presigned multipart part URLs and upload large blobs
+directly; Trackio verifies the final SHA-256 before committing metadata. Set
 `TRACKIO_DATABASE_ENGINE=sqlite` when the stdlib SQLite fallback is required.
 
 ## Updating from upstream

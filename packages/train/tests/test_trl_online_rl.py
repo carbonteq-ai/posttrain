@@ -114,6 +114,19 @@ class DynamicFakeTrainer(BatchFakeTrainer):
         )
 
 
+class HeterogeneousFakeTrainer(BatchFakeTrainer):
+    def __init__(self) -> None:
+        super().__init__()
+        self.calls: list[tuple[list[list[int]], list[dict[str, object]]]] = []
+
+    def _generate_policy_turns(self, prompt_ids, generation_overrides):
+        self.calls.append((prompt_ids, generation_overrides))
+        return (
+            [[3] if item["max_tokens"] == 1 else [3, 4] for item in generation_overrides],
+            [[-0.1] if item["max_tokens"] == 1 else [-0.1, -0.2] for item in generation_overrides],
+        )
+
+
 def test_trl_checkpoint_steps_zero_disables_recovery_saves(tmp_path: Path) -> None:
     arguments = trainer_arguments(
         TrainingLoop(max_steps=2, checkpoint_steps=0),
@@ -122,6 +135,16 @@ def test_trl_checkpoint_steps_zero_disables_recovery_saves(tmp_path: Path) -> No
 
     assert arguments["save_strategy"] == "no"
     assert "save_steps" not in arguments
+
+
+def test_trl_constant_with_warmup_scheduler_is_forwarded(tmp_path: Path) -> None:
+    arguments = trainer_arguments(
+        TrainingLoop(max_steps=20, warmup_ratio=0.5, lr_scheduler_type="constant_with_warmup"),
+        tmp_path,
+    )
+
+    assert arguments["warmup_steps"] == 10
+    assert arguments["lr_scheduler_type"] == "constant_with_warmup"
 
 
 def test_trl_policy_generator_reuses_loaded_trainer_and_preserves_exact_tokens(monkeypatch) -> None:
@@ -189,6 +212,52 @@ def test_trl_policy_generator_batches_concurrent_environment_turns(monkeypatch) 
     assert trainer.prompt_batches == [[[1, 2], [1, 2], [1, 2], [1, 2]]]
     assert [result.completion_ids for result in results] == [(3, 4)] * 4
     assert [result.completion_logprobs for result in results] == [(-0.1, -0.2)] * 4
+
+
+def test_trl_policy_generator_batches_heterogeneous_schemas_in_one_wave(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "posttrain.train.backends.trl.online_rl.create_renderer",
+        lambda *args: FakeStructuredRenderer(),
+    )
+    profile = replace(QWEN35_GRPO_SMOKE, max_prompt_length=8, max_completion_length=2)
+    trainer = HeterogeneousFakeTrainer()
+    generator = TrlPolicyGenerator(trainer, FakeTokenizer(), QWEN_35_2B, profile, _training())
+
+    def request(name: str, max_tokens: int) -> PolicyTurnRequest:
+        return PolicyTurnRequest(
+            messages=({"role": "user", "content": "hello"},),
+            sampling=PolicySampling(max_tokens=max_tokens, temperature=0.7, top_p=0.9),
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": name,
+                    "strict": True,
+                    "schema": {
+                        "type": "object",
+                        "properties": {name: {"type": "string"}},
+                        "required": [name],
+                        "additionalProperties": False,
+                    },
+                },
+            },
+        )
+
+    async def generate_all():
+        return await asyncio.gather(
+            generator.generate(request("first", 1)),
+            generator.generate(request("second", 2)),
+        )
+
+    results = asyncio.run(generate_all())
+
+    assert len(trainer.calls) == 1
+    assert trainer.calls[0][0] == [[1, 2], [1, 2]]
+    assert [item["max_tokens"] for item in trainer.calls[0][1]] == [1, 2]
+    assert [
+        item["structured_outputs"]["json"]["required"]
+        for item in trainer.calls[0][1]
+    ] == [["first"], ["second"]]
+    assert [result.completion_ids for result in results] == [(3,), (3, 4)]
 
 
 def test_trl_policy_generator_applies_dynamic_limit_and_strict_schema(monkeypatch) -> None:

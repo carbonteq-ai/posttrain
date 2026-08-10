@@ -10,6 +10,7 @@ from posttrain.common import (
     ContractError,
     ExecutionTarget,
     InferenceBinding,
+    LocalArtifactRef,
     ModelVariant,
     RunContext,
     StoredArtifactRef,
@@ -136,13 +137,15 @@ def sft_definition(
     with_validation: bool = False,
 ) -> JobDefinition:
     def run(context: RunContext, seats: ResolvedSeats) -> object:
+        model = _materialize_selected_model_variant(context, _seat(seats, "model", ModelVariant))
         return operation(
             context,
             SFTRequest(
-                model=_seat(seats, "model", ModelVariant),
+                model=model,
                 data=_seat(seats, "dataset", SupervisedDataSource),
                 settings=_seat(seats, "settings", SFTSettings),
                 training=_seat(seats, "training", TrainingBinding),
+                resume_from=_recovery_checkpoint(context),
                 validation_data=(_seat(seats, "validation_dataset", SupervisedDataSource) if with_validation else None),
             ),
         )
@@ -176,13 +179,15 @@ def dpo_definition(
     definition_id: str = "train/trl-dpo@1",
 ) -> JobDefinition:
     def run(context: RunContext, seats: ResolvedSeats) -> object:
+        model = _materialize_selected_model_variant(context, _seat(seats, "model", ModelVariant))
         return operation(
             context,
             DPORequest(
-                model=_seat(seats, "model", ModelVariant),
+                model=model,
                 data=_seat(seats, "dataset", PreferenceDataSource),
                 settings=_seat(seats, "settings", DPOSettings),
                 training=_seat(seats, "training", TrainingBinding),
+                resume_from=_recovery_checkpoint(context),
             ),
         )
 
@@ -210,17 +215,22 @@ def grpo_definition(
     definition_id: str = "train/trl-grpo@1",
 ) -> JobDefinition:
     def run(context: RunContext, seats: ResolvedSeats) -> object:
+        policy, inference = _materialize_grpo_policy(
+            context,
+            _seat(seats, "model", ModelVariant),
+            _seat(seats, "rollout_inference", InferenceBinding),
+        )
         request = build_verifiers_grpo_request(
-            policy=_seat(seats, "model", ModelVariant),
+            policy=policy,
             environment=_seat(seats, "environment", EnvironmentBinding),
             settings=_seat(seats, "settings", GRPOSettings),
             training=_seat(seats, "training", TrainingBinding),
-            inference=_seat(seats, "rollout_inference", InferenceBinding),
+            inference=inference,
             trace_path=context.workspace / "training" / "grpo" / "verifiers-traces.jsonl",
             run_id=context.run_id,
             tasks=tasks,
         )
-        return operation(context, request)
+        return operation(context, replace(request, resume_from=_recovery_checkpoint(context)))
 
     return JobDefinition(
         definition_id,
@@ -239,6 +249,31 @@ def grpo_definition(
     )
 
 
+def _materialize_grpo_policy(
+    context: RunContext,
+    policy: ModelVariant,
+    inference: InferenceBinding,
+) -> tuple[ModelVariant, InferenceBinding]:
+    """Resolve a stored adapter input before constructing an online-RL request.
+
+    A catalog adapter reference identifies an artifact owned by the tracking
+    provider; it is not a path that exists inside the worker. The execution
+    runner declares it as ``model_adapter`` and materializes it before invoking
+    the job definition. Keep both policy and inference bound to that local
+    artifact so TRL and vLLM consume the same adapter weights.
+    """
+
+    if "model_adapter" in context.input_artifacts or "model_weights" in context.input_artifacts:
+        policy = _materialize_selected_model_variant(context, policy)
+        return policy, replace(inference, model=policy)
+    if policy.form not in {"adapter", "peft-adapter"} or not isinstance(
+        policy.artifact, (StoredArtifactRef, TrackioArtifactRef)
+    ):
+        return policy, inference
+    policy = _materialize_selected_model_variant(context, policy)
+    return policy, replace(inference, model=policy)
+
+
 def distillation_definition(
     operation: Callable[[RunContext, OnPolicyDistillationRequest], object] = distill,
     *,
@@ -246,19 +281,24 @@ def distillation_definition(
     definition_id: str = "train/trl-distill@1",
 ) -> JobDefinition:
     def run(context: RunContext, seats: ResolvedSeats) -> object:
+        student, rollout_inference = _materialize_selected_model(
+            context,
+            _seat(seats, "student", ModelVariant),
+            _seat(seats, "rollout_inference", InferenceBinding),
+        )
         request = build_verifiers_distillation_request(
-            student=_seat(seats, "student", ModelVariant),
+            student=student,
             teacher=_seat(seats, "teacher", ModelVariant),
             environment=_seat(seats, "environment", EnvironmentBinding),
             settings=_seat(seats, "settings", OnPolicyDistillationSettings),
             training=_seat(seats, "training", TrainingBinding),
-            rollout_inference=_seat(seats, "rollout_inference", InferenceBinding),
+            rollout_inference=rollout_inference,
             teacher_inference=_seat(seats, "teacher_inference", InferenceBinding),
             trace_path=context.workspace / "training" / "distill" / "verifiers-traces.jsonl",
             run_id=context.run_id,
             tasks=tasks,
         )
-        return operation(context, request)
+        return operation(context, replace(request, resume_from=_recovery_checkpoint(context)))
 
     return JobDefinition(
         definition_id,
@@ -341,7 +381,7 @@ def sampo_definition(
             run_id=context.run_id,
             tasks=tasks,
         )
-        return operation(context, request)
+        return operation(context, replace(request, resume_from=_recovery_checkpoint(context)))
 
     return JobDefinition(
         definition_id,
@@ -367,6 +407,7 @@ def serve_benchmark_definition(
     def run(context: RunContext, seats: ResolvedSeats) -> object:
         model = _seat(seats, "model", ModelVariant)
         inference = _seat(seats, "screen_inference", InferenceBinding)
+        model, inference = _materialize_selected_model(context, model, inference)
         if inference.model != model:
             raise ValueError("serve benchmark model conflicts with its inference binding")
         return operation(
@@ -398,13 +439,54 @@ def _serve_smoke(context: RunContext, request: ServeLaunchRequest) -> ProbeResul
         return probe(context, endpoint)
 
 
+def _materialize_selected_model(
+    context: RunContext,
+    model: ModelVariant,
+    inference: InferenceBinding,
+) -> tuple[ModelVariant, InferenceBinding]:
+    """Use a run-selected model view while retaining the catalog interface facts."""
+
+    model = _materialize_selected_model_variant(context, model)
+    return model, replace(inference, model=model)
+
+
+def _materialize_selected_model_variant(context: RunContext, model: ModelVariant) -> ModelVariant:
+    input_name = (
+        "model_adapter"
+        if "model_adapter" in context.input_artifacts
+        else ("model_weights" if "model_weights" in context.input_artifacts else None)
+    )
+    if input_name is None:
+        if model.form not in {"adapter", "peft-adapter"} or not isinstance(
+            model.artifact, (StoredArtifactRef, TrackioArtifactRef)
+        ):
+            return model
+        input_name = "model_adapter"
+    local = context.input_artifact(input_name)
+    form = "adapter" if input_name == "model_adapter" else "full-finetuned"
+    return replace(
+        model,
+        artifact=local,
+        form=form,
+        revision=None,
+        digest=local.digest,
+        parent=(model.parent or model.id) if form == "adapter" else model.parent,
+    )
+
+
 def serve_smoke_definition(
     operation: Callable[[RunContext, ServeLaunchRequest], object] = _serve_smoke,
     *,
     definition_id: str = "serve/vllm-smoke@1",
 ) -> JobDefinition:
     def run(context: RunContext, seats: ResolvedSeats) -> object:
-        return operation(context, ServeLaunchRequest(_seat(seats, "inference", InferenceBinding)))
+        model, inference = _materialize_selected_model(
+            context,
+            _seat(seats, "inference", InferenceBinding).model,
+            _seat(seats, "inference", InferenceBinding),
+        )
+        del model
+        return operation(context, ServeLaunchRequest(inference))
 
     return JobDefinition(
         definition_id,
@@ -446,7 +528,9 @@ def serve_generation_smoke_definition(
     """Launch an inference binding and require one nonempty text completion."""
 
     def run(context: RunContext, seats: ResolvedSeats) -> object:
-        return operation(context, ServeLaunchRequest(_seat(seats, "inference", InferenceBinding)))
+        inference = _seat(seats, "inference", InferenceBinding)
+        _model, inference = _materialize_selected_model(context, inference.model, inference)
+        return operation(context, ServeLaunchRequest(inference))
 
     return JobDefinition(
         definition_id,
@@ -663,10 +747,19 @@ def _evaluation_request(
 ) -> EvaluateRequest:
     model = _seat(seats, "model", ModelVariant)
     inference = _seat(seats, "evaluation_inference", InferenceBinding)
-    if materialize_model is not None and isinstance(model.artifact, (StoredArtifactRef, TrackioArtifactRef)):
-        input_name = "model_adapter" if model.form in {"adapter", "peft-adapter"} else "model_weights"
+    if materialize_model is not None and (
+        "model_adapter" in materialize_model.input_artifacts
+        or "model_weights" in materialize_model.input_artifacts
+        or isinstance(model.artifact, (StoredArtifactRef, TrackioArtifactRef))
+    ):
+        input_name = (
+            "model_adapter"
+            if "model_adapter" in materialize_model.input_artifacts or model.form in {"adapter", "peft-adapter"}
+            else "model_weights"
+        )
         local = materialize_model.input_artifact(input_name)
-        model = replace(model, artifact=local, revision=None, digest=local.digest)
+        form = "adapter" if input_name == "model_adapter" else "full-finetuned"
+        model = replace(model, artifact=local, form=form, revision=None, digest=local.digest)
         inference = replace(inference, model=model)
     plan = _seat(seats, "evaluation_plan", EvaluationPlan)
     environment = _seat(seats, "environment", EnvironmentBinding)
@@ -720,6 +813,12 @@ def _validate_online_rl_batch_seats(seats: ResolvedSeats) -> None:
     global_batch = training.runtime.global_batch_size
     if isinstance(global_batch, int) and global_batch != expected_batch:
         raise ContractError("training global batch must equal prompt groups times generations")
+
+
+def _recovery_checkpoint(context: RunContext) -> LocalArtifactRef | None:
+    """Return explicitly materialized trainer state without treating it as a model selection."""
+
+    return context.input_artifacts.get("recovery_checkpoint")
 
 
 def _seat[SelectionT: object](

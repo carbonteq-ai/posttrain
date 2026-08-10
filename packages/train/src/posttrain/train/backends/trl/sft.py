@@ -15,12 +15,14 @@ from ...requests import SFTRequest
 from .common import (
     BackendTrainingResult,
     callback_type,
+    checkpoint_callback_type,
     emit_parameter_counts,
     emit_runtime_versions,
     finish_training,
     framework_imports,
     load_tokenizer,
     load_trainable_model,
+    preserve_recovery_checkpoint_after_error,
     trainer_arguments,
     trainer_lifecycle,
 )
@@ -92,6 +94,15 @@ def run_sft(
     arguments = _sft_arguments(request, output_dir)
     validation = request.settings.validation
     callback = callback_type(context, imports)()
+    checkpoint_callback = checkpoint_callback_type(
+        context,
+        imports,
+        model=request.model,
+        technique="sft",
+        settings=request.settings,
+        update=request.training.update,
+        workspace=output_dir.parent,
+    )()
 
     ObservedSFTTrainer = _observed_sft_trainer_type(SFTTrainer, context)
     with context.phase("runtime_initialization", {"backend": "trl"}):
@@ -101,32 +112,45 @@ def run_sft(
             train_dataset=dataset,
             eval_dataset=validation_dataset,
             processing_class=tokenizer,
-            callbacks=[callback],
+            callbacks=[callback, checkpoint_callback],
         )
     resume = str(request.resume_from.path) if request.resume_from is not None else None
     with trainer_lifecycle(trainer):
-        with context.phase("actor_update", {"backend": "trl"}):
-            train_output = trainer.train(resume_from_checkpoint=resume)
-        if (
-            validation is not None
-            and validation.at_end
-            and not _evaluated_at_step(
-                trainer.state.log_history,
-                int(trainer.state.global_step),
-            )
-        ):
-            trainer.evaluate()
-        with context.phase("artifact_export", {"backend": "trl"}):
-            return finish_training(
+        try:
+            with context.phase("actor_update", {"backend": "trl"}):
+                train_output = trainer.train(resume_from_checkpoint=resume)
+            if (
+                validation is not None
+                and validation.at_end
+                and not _evaluated_at_step(
+                    trainer.state.log_history,
+                    int(trainer.state.global_step),
+                )
+            ):
+                trainer.evaluate()
+            with context.phase("artifact_export", {"backend": "trl"}):
+                return finish_training(
+                    context,
+                    trainer,
+                    train_output,
+                    tokenizer,
+                    output_dir.parent,
+                    "sft",
+                    request.training.update,
+                    imports,
+                )
+        except BaseException as error:
+            preserve_recovery_checkpoint_after_error(
                 context,
                 trainer,
-                train_output,
-                tokenizer,
-                output_dir.parent,
-                "sft",
-                request.training.update,
-                imports,
+                error,
+                technique="sft",
+                model=request.model,
+                settings=request.settings,
+                update=request.training.update,
+                imports=imports,
             )
+            raise
 
 
 def _observed_sft_trainer_type(parent: type[Any], context: RunContext) -> type[Any]:

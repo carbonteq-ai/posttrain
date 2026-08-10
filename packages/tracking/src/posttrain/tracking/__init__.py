@@ -2,6 +2,9 @@
 
 from .contracts import (
     ArtifactInput,
+    ArtifactIntegrityResult,
+    ArtifactIntegrityState,
+    ArtifactPublicationHandle,
     RunDataSource,
     RunError,
     RunOutcome,
@@ -47,6 +50,9 @@ from .phases import (
 
 __all__ = [
     "ArtifactInput",
+    "ArtifactIntegrityResult",
+    "ArtifactIntegrityState",
+    "ArtifactPublicationHandle",
     "ArtifactLink",
     "ArtifactSet",
     "EventRecord",

@@ -34,7 +34,7 @@ from ..online_rl import (
     RolloutBatch,
 )
 
-type OnlineRLTechnique = Literal["grpo", "dapo", "sampo", "distill"]
+type OnlineRLTechnique = Literal["grpo", "dapo", "olmo3", "sampo", "distill"]
 
 _NULL_HARNESS_UNBOUNDED_MCP = '"mcp"'
 _NULL_HARNESS_MCP_V1 = '"mcp>=1.24.0,<2"'
@@ -96,6 +96,9 @@ class VerifiersEnvironmentSelection(Protocol):
     @property
     def revision(self) -> str: ...
 
+    @property
+    def max_concurrent(self) -> int: ...
+
 
 @dataclass(frozen=True, slots=True)
 class NativeVerifiersEnvironmentFactory:
@@ -123,6 +126,7 @@ class VerifiersBridgeSnapshot:
     environment_id: str
     run_id: str
     sampling: PolicySampling
+    max_concurrent: int | None
     technique: OnlineRLTechnique
     enrichers: tuple[TraceEnricher, ...]
 
@@ -136,6 +140,7 @@ class VerifiersBridgeSnapshot:
             environment_id=self.environment_id,
             run_id=self.run_id,
             sampling=self.sampling,
+            max_concurrent=self.max_concurrent,
             technique=self.technique,
             enrichers=self.enrichers,
         )
@@ -230,6 +235,7 @@ def create_verifiers_training_bridge(
         environment_id=environment.id,
         run_id=run_id,
         sampling=PolicySampling(max_tokens=max_tokens, temperature=temperature, top_p=top_p),
+        max_concurrent=getattr(environment, "max_concurrent", None),
         technique=purpose,
     )
 
@@ -445,6 +451,7 @@ class VerifiersEnvironmentRolloutBridge:
     environment_id: str
     run_id: str
     sampling: PolicySampling
+    max_concurrent: int | None = None
     technique: OnlineRLTechnique = "grpo"
     enrichers: tuple[TraceEnricher, ...] = ()
     _write_lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
@@ -467,10 +474,6 @@ class VerifiersEnvironmentRolloutBridge:
 
     async def run(self, batch: RolloutBatch, generator: PolicyGenerator) -> Sequence[EnvironmentRollout]:
         _, _, ModelContext, _, Sampling, TrainRunInfo, _, _, _, _ = _imports()
-        counts = Counter(batch.example_ids)
-        order = tuple(dict.fromkeys(batch.example_ids))
-        if sum(counts.values()) != len(batch.example_ids):
-            raise AssertionError("rollout identity accounting failed")
         client = _PolicyClient(generator)
         context = ModelContext(
             model=batch.model_id,
@@ -482,17 +485,40 @@ class VerifiersEnvironmentRolloutBridge:
             ),
         )
         by_id: dict[str, list[EnvironmentRollout]] = {}
+        counts = Counter(batch.example_ids)
+        if sum(counts.values()) != len(batch.example_ids):
+            raise AssertionError("rollout identity accounting failed")
+
+        # ``Environment.episode(..., n=G).run()`` starts all G branches for a
+        # task concurrently.  Calling it once for every prompt group would
+        # therefore turn a 32-group/G=8 update into 256 live subprocesses even
+        # when the catalog declares max_concurrent=32.  Schedule one branch per
+        # task occurrence so the declared bound covers the full rollout
+        # population, not only the number of prompt groups.
+        limit = self.max_concurrent
+        if limit is not None and limit < 1:
+            raise ValueError("Verifiers bridge max_concurrent must be positive")
+        semaphore = asyncio.Semaphore(limit) if limit is not None else None
 
         async def run_example(example_id: str) -> tuple[str, int, Sequence[Any]]:
             try:
                 task_index, task = self._tasks_by_example_id[example_id]
             except KeyError as error:
                 raise ValueError(f"unknown rollout example {example_id!r}") from error
-            traces = await self._environment.episode(task, context, n=counts[example_id]).run()
+            if semaphore is None:
+                traces = await self._environment.episode(task, context, n=1).run()
+            else:
+                async with semaphore:
+                    traces = await self._environment.episode(task, context, n=1).run()
+            if len(traces) != 1:
+                raise ValueError(
+                    f"Verifiers episode returned {len(traces)} traces for one scheduled branch; expected exactly one"
+                )
             return example_id, task_index, traces
 
+        occurrences = [example_id for example_id in batch.example_ids]
         async with self._environment.serving():
-            results = await asyncio.gather(*(run_example(example_id) for example_id in order))
+            results = await asyncio.gather(*(run_example(example_id) for example_id in occurrences))
         for example_id, task_index, traces in results:
             projected: list[EnvironmentRollout] = []
             for trace in traces:
@@ -506,7 +532,7 @@ class VerifiersEnvironmentRolloutBridge:
                     enrich(trace)
                 self._preserve(trace.to_record())
                 projected.append(self._project(trace, example_id, task_index))
-            by_id[example_id] = projected
+            by_id.setdefault(example_id, []).extend(projected)
         positions = {identifier: 0 for identifier in by_id}
         aligned: list[EnvironmentRollout] = []
         for example_id in batch.example_ids:
@@ -599,6 +625,7 @@ class VerifiersEnvironmentRolloutBridge:
             environment_id=self.environment_id,
             run_id=self.run_id,
             sampling=self.sampling,
+            max_concurrent=self.max_concurrent,
             technique=self.technique,
             enrichers=self.enrichers,
         )

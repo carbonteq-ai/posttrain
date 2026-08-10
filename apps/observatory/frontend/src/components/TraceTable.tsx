@@ -35,6 +35,10 @@ type TraceTableProps = {
   sorting: SortingState;
   onSortingChange: (sorting: SortingState) => void;
   onSelect: (trace: TraceSummary) => void;
+  total: number;
+  hasMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
 };
 
 export function TraceTable({
@@ -45,6 +49,10 @@ export function TraceTable({
   sorting,
   onSortingChange,
   onSelect,
+  total,
+  hasMore,
+  loadingMore,
+  onLoadMore,
 }: TraceTableProps) {
   const hasReward = traces.some((trace) => trace.reward != null);
   const columns = useMemo(
@@ -239,7 +247,15 @@ export function TraceTable({
         </table>
       </div>
       <div className="border-t border-divider bg-subtle/35 px-3 py-2 text-[10px] text-muted">
-        {traces.length.toLocaleString()} visible traces
+        <div className="flex items-center justify-between gap-3">
+          <span>{traces.length.toLocaleString()} of {total.toLocaleString()} loaded</span>
+          {hasMore && <button
+            type="button"
+            disabled={loadingMore}
+            onClick={onLoadMore}
+            className="rounded border border-divider bg-white px-2.5 py-1 text-[10px] font-medium text-violet-700 hover:border-violet-300 disabled:cursor-wait disabled:text-muted"
+          >{loadingMore ? 'Loading…' : 'Load 100 more'}</button>}
+        </div>
       </div>
     </div>
   );

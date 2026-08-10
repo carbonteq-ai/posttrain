@@ -132,6 +132,46 @@ def test_trl_trainer_loss_is_the_grpo_policy_loss() -> None:
     assert step.metrics == {"train/rl/policy_loss": 0.125}
 
 
+def test_trl_dapo_native_dynamic_sampling_and_asymmetric_clip_metrics_are_preserved() -> None:
+    step = normalize_grpo_metrics(
+        backend="trl",
+        step=4,
+        native={
+            "dynamic_sampling/candidate_batches": 2,
+            "dynamic_sampling/retained_fraction": 0.875,
+            "clip_ratio/low_mean": 0.0125,
+            "clip_ratio/high_mean": 0.03125,
+        },
+        features=GRPOObservationFeatures(),
+    )
+
+    assert step.metrics == {
+        "train/rl/dynamic_sampling_candidate_batches": 2.0,
+        "train/rl/dynamic_sampling_retained_fraction": 0.875,
+        "train/rl/clip_fraction_low": 0.0125,
+        "train/rl/clip_fraction_high": 0.03125,
+    }
+
+
+def test_trl_olmo3_active_sampling_metrics_are_preserved() -> None:
+    step = normalize_grpo_metrics(
+        backend="trl",
+        step=5,
+        native={
+            "active_sampling/generation_rounds": 3,
+            "active_sampling/retained_fraction": 0.75,
+            "active_sampling/generated_rows": 40,
+        },
+        features=GRPOObservationFeatures(),
+    )
+
+    assert step.metrics == {
+        "train/rl/active_sampling_generation_rounds": 3.0,
+        "train/rl/active_sampling_retained_fraction": 0.75,
+        "train/rl/active_sampling_generated_rows": 40.0,
+    }
+
+
 def test_verl_runtime_totals_use_backend_neutral_names() -> None:
     step = normalize_grpo_metrics(
         backend="verl",
@@ -258,3 +298,36 @@ def test_unknown_metrics_are_ignored_instead_of_leaking_backend_vocabulary() -> 
     )
 
     assert step.metrics == {"train/rl/reward_mean": 0.5}
+
+
+def test_trl_advantage_diagnostics_normalize_to_backend_neutral_names() -> None:
+    step = normalize_grpo_metrics(
+        backend="trl",
+        step=2,
+        native={
+            "advantages/mean": 0.0,
+            "advantages/std": 0.82,
+            "advantages/abs_mean": 0.70,
+            "advantages/positive_fraction": 0.5,
+            "advantages/negative_fraction": 0.5,
+            "advantages/zero_fraction": 0.0,
+            "advantages/scorable_fraction": 0.96875,
+            "advantages/truncated_fraction": 0.03125,
+            "group_reward_std/mean": 0.41,
+            "sampling/importance_sampling_ratio/clamped_fraction": 0.02,
+        },
+        features=GRPOObservationFeatures(),
+    )
+
+    assert step.metrics == {
+        "train/rl/advantage_mean": 0.0,
+        "train/rl/advantage_std": 0.82,
+        "train/rl/advantage_abs_mean": 0.70,
+        "train/rl/advantage_positive_fraction": 0.5,
+        "train/rl/advantage_negative_fraction": 0.5,
+        "train/rl/advantage_zero_fraction": 0.0,
+        "train/rl/advantage_scorable_fraction": 0.96875,
+        "train/rl/advantage_truncated_fraction": 0.03125,
+        "train/rl/group_reward_std_mean": 0.41,
+        "train/rl/importance_sampling_ratio_clamped_fraction": 0.02,
+    }

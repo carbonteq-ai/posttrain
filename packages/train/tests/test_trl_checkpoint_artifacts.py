@@ -8,8 +8,10 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from posttrain.common import ProducedArtifact, RunContext
+from posttrain.common.variants import GEMMA_4_E2B_IT
+from posttrain.train import LoRAUpdate
 from posttrain.train.backends.trl.common import (
-    checkpoint_artifact_callback_type,
+    checkpoint_callback_type,
     restore_checkpoint_runtime_states,
 )
 
@@ -73,14 +75,30 @@ def test_checkpoint_callback_snapshots_sqlite_state_and_publishes_artifact(
     output = tmp_path / "trainer"
     checkpoint = output / "checkpoint-16"
     checkpoint.mkdir(parents=True)
-    (checkpoint / "adapter.bin").write_bytes(b"adapter")
+    for name in (
+        "adapter_config.json",
+        "adapter_model.safetensors",
+        "optimizer.pt",
+        "scheduler.pt",
+        "rng_state.pth",
+    ):
+        (checkpoint / name).write_bytes(name.encode())
+    (checkpoint / "trainer_state.json").write_text(
+        '{"global_step": 16}\n', encoding="utf-8"
+    )
 
-    callback = checkpoint_artifact_callback_type(
+    callback = checkpoint_callback_type(
         context,
-        {"TrainerCallback": _Callback},
-        artifact_name="training/gemma4-e2b-it/distill/checkpoint",
+        {
+            "TrainerCallback": _Callback,
+            "get_last_checkpoint": lambda _: str(checkpoint),
+        },
+        model=GEMMA_4_E2B_IT,
+        technique="distill",
+        settings=SimpleNamespace(id="training/opd-test", revision="1"),
+        update=LoRAUpdate(),
+        workspace=tmp_path,
         runtime_state_paths=(runtime_path,),
-        milestone_steps=frozenset({16}),
     )()
     callback.on_save(
         SimpleNamespace(output_dir=str(output)),
@@ -88,12 +106,13 @@ def test_checkpoint_callback_snapshots_sqlite_state_and_publishes_artifact(
         object(),
     )
 
-    assert len(observer.artifacts) == 1
-    artifact = observer.artifacts[0]
-    assert artifact.name.endswith("/step-0016")
-    assert artifact.kind == "training-checkpoint"
-    assert artifact.required is False
-    assert artifact.metadata["milestone"] is True
+    assert len(observer.artifacts) == 2
+    recovery = next(artifact for artifact in observer.artifacts if artifact.role == "recovery")
+    model = next(artifact for artifact in observer.artifacts if artifact.role == "checkpoint-model")
+    assert recovery.name.endswith("/checkpoint-00000016/recovery")
+    assert recovery.kind == "training-checkpoint"
+    assert model.name.endswith("/checkpoint-00000016/model")
+    assert model.kind == "model-adapter"
     snapshot = checkpoint / "posttrain-runtime-state" / runtime_path
     assert _read_ledger(snapshot) == "step-16"
 

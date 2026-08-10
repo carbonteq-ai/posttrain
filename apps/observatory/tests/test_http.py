@@ -54,6 +54,19 @@ def test_run_list_view_metrics_semantics_and_traces_share_one_api() -> None:
         assert comparison_key["comparison_key"]
         traces = client.get(f"/api/v1/runs/{evaluation['run_key']}/traces-evaluation").json()
         assert traces["included"] == 12
+        aggregate_only = client.get(
+            f"/api/v1/runs/{evaluation['run_key']}/traces-evaluation",
+            params={"include_traces": False},
+        ).json()
+        assert aggregate_only["included"] == 12
+        assert aggregate_only["traces"] == []
+        first_page = client.get(
+            f"/api/v1/runs/{evaluation['run_key']}/traces",
+            params={"limit": 3},
+        ).json()
+        assert first_page["total"] == 12
+        assert len(first_page["items"]) == 3
+        assert first_page["next_cursor"] == "3"
 
 
 def test_openapi_contains_bounded_product_routes() -> None:
@@ -63,6 +76,7 @@ def test_openapi_contains_bounded_product_routes() -> None:
     assert "/api/v1/runs/{run_key}/system-metrics" in schema["paths"]
     assert "/api/v1/runs/{run_key}/semantic-summary" in schema["paths"]
     assert "/api/v1/runs/{run_key}/traces-evaluation" in schema["paths"]
+    assert "/api/v1/runs/{run_key}/traces" in schema["paths"]
     assert "/api/v1/runs/{run_key}/comparison-key" in schema["paths"]
     assert "/api/v1/serving-capacity/work-packages/{work_package_id}" in schema["paths"]
     assert set(schema["paths"]["/api/v1/sources/refresh"]) == {"post"}
@@ -71,6 +85,12 @@ def test_openapi_contains_bounded_product_routes() -> None:
     assert schemas["RunView"]["properties"]["completeness"] == {"$ref": "#/components/schemas/EvidenceCompleteness"}
     assert schemas["TraceEvaluationView"]["properties"]["performance"] == {
         "$ref": "#/components/schemas/EvaluationPerformance"
+    }
+    assert schemas["TraceSummaryPage"]["properties"]["items"] == {
+        "default": [],
+        "items": {"$ref": "#/components/schemas/TraceSummary"},
+        "title": "Items",
+        "type": "array",
     }
     assert schemas["JsonValue"] == {
         "description": "Any JSON-compatible value.",

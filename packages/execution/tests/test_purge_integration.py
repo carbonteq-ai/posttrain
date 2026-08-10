@@ -26,6 +26,16 @@ class Catalog:
     def list(self) -> tuple[PurgeRunCandidate, ...]:
         return tuple(self.values.values())
 
+    def registry_image_owners(self) -> dict[str, tuple[str, ...]]:
+        owners: dict[str, list[str]] = {}
+        for candidate in self.values.values():
+            if candidate.image is not None and "registry" not in candidate.completed_planes:
+                owners.setdefault(candidate.image.value, []).append(candidate.run_id)
+        return {reference: tuple(run_ids) for reference, run_ids in owners.items()}
+
+    def registry_inventory_blockers(self) -> tuple[str, ...]:
+        return ()
+
 
 class FixtureExecutor:
     def __init__(self, events: list[str], *, fail_once_on: str | None = None) -> None:

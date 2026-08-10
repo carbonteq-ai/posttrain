@@ -18,8 +18,7 @@ from native_state import assignment_state
 _RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _TERMINAL = frozenset({"terminated", "failed", "done"})
 _RECLAIMED_PREFIX = "POSTTRAIN_CLEANUP_RECLAIMED_BYTES="
-_CLEANUP_OFFER_WAIT_SECONDS = 300
-_CLEANUP_OFFER_POLL_SECONDS = 5
+_CLEANUP_CAPACITY_WAIT_SECONDS = 86_400
 
 
 def _client(payload):
@@ -145,51 +144,63 @@ def _cleanup_command():
 
 
 def _apply_cleanup_when_worker_is_available(client, base_configuration):
-    """Submit an exact-worker cleanup task, waiting through transient capacity gaps.
+    """Submit or resume one exact-worker cleanup task.
 
     A terminal training run can be followed immediately by another job on the
-    same single-slot worker.  dstack then reports no offer even though the
-    worker is healthy and will become idle shortly.  Cleanup is resumable
-    control-plane work, so polling the exact worker is safer than turning this
-    normal race into a failed purge.
+    same single-slot worker. dstack then reports no offer even though the
+    worker is healthy and will become idle later. Cleanup is resumable
+    control-plane work, so persist a provider-native no-capacity retry instead
+    of holding the caller open or turning this normal race into a failed purge.
     """
 
     cleanup_name = str(base_configuration["name"])
     cleanup_run = client.runs.get(cleanup_name)
     if cleanup_run is not None and _native_status(cleanup_run) in {"failed", "terminated"}:
-        # Keep the failed task as diagnostic history, but do not make a retry
-        # inherit its terminal state.  Names remain deterministic and bounded.
+        # Keep failed tasks as diagnostic history. Resume the first existing
+        # non-failed retry before allocating another deterministic name; a
+        # polling purge must never multiply queued exact-worker tasks.
         for retry in range(1, 100):
             retry_name = f"{cleanup_name}-retry-{retry}"
-            if client.runs.get(retry_name) is None:
+            retry_run = client.runs.get(retry_name)
+            if retry_run is None:
                 base_configuration = {**base_configuration, "name": retry_name}
                 cleanup_run = None
                 break
+            if _native_status(retry_run) not in {"failed", "terminated"}:
+                return retry_run
         else:
             raise RuntimeError("dstack cleanup task retry names are exhausted")
     if cleanup_run is not None:
         return cleanup_run
 
-    deadline = time.monotonic() + _CLEANUP_OFFER_WAIT_SECONDS
-    while True:
-        for gpu_count in (0, 1):
-            configuration = Task(
-                **base_configuration,
-                resources={"gpu": {"count": gpu_count}, "disk": {"size": "100GB.."}},
-            )
-            plan = client.runs.get_run_plan(
-                configuration=configuration,
+    deferred_plan = None
+    for gpu_count in (0, 1):
+        configuration = Task(
+            **base_configuration,
+            resources={"gpu": {"count": gpu_count}, "disk": {"size": "100GB.."}},
+        )
+        plan = client.runs.get_run_plan(
+            configuration=configuration,
+            repo=VirtualRepo(),
+        )
+        if deferred_plan is None:
+            deferred_plan = plan
+        if any(job.offers for job in plan.job_plans):
+            return client.runs.apply_plan(
+                run_plan=plan,
                 repo=VirtualRepo(),
+                reserve_ports=False,
             )
-            if any(job.offers for job in plan.job_plans):
-                return client.runs.apply_plan(
-                    run_plan=plan,
-                    repo=VirtualRepo(),
-                    reserve_ports=False,
-                )
-        if time.monotonic() >= deadline:
-            raise RuntimeError("exact-worker cleanup task has no matching dstack offer")
-        time.sleep(_CLEANUP_OFFER_POLL_SECONDS)
+    # With retry.on_events=no-capacity, applying the first zero-offer plan is
+    # intentional: dstack durably holds the exact-worker task until capacity is
+    # available. A later purge apply observes this same deterministic task.
+    if deferred_plan is None:
+        raise RuntimeError("exact-worker cleanup planning returned no resource shapes")
+    return client.runs.apply_plan(
+        run_plan=deferred_plan,
+        repo=VirtualRepo(),
+        reserve_ports=False,
+    )
 
 
 def cleanup_workspace(payload):
@@ -243,7 +254,10 @@ def cleanup_workspace(payload):
                 "optional": False,
             }
         ],
-        "retry": False,
+        "retry": {
+            "on_events": ["no-capacity"],
+            "duration": _CLEANUP_CAPACITY_WAIT_SECONDS,
+        },
         "max_duration": 300,
         "tags": {
             "posttrain_cleanup_run_id": run_id,
@@ -254,6 +268,16 @@ def cleanup_workspace(payload):
 
     deadline = time.monotonic() + 300
     cleanup_status = _native_status(cleanup_run)
+    if cleanup_status in {"pending", "submitted", "provisioning"}:
+        return {
+            "cleanup_run_name": cleanup_run.name,
+            "cleanup_status": cleanup_status,
+            "hostname": expected_hostname,
+            "workspace": workspace,
+            "workspace_state": "deferred",
+            "emptied": False,
+            "reclaimed_bytes": 0,
+        }
     while cleanup_status not in _TERMINAL and time.monotonic() < deadline:
         time.sleep(2)
         cleanup_status = _native_status(cleanup_run)
