@@ -129,6 +129,7 @@ def test_submission_store_is_idempotent_and_rejects_conflicts(tmp_path: Path) ->
         idempotency_key="key-1",
         job_image=f"registry.lan/posttrain@sha256:{'c' * 64}",
         submitted_at=datetime.now(UTC),
+        local_image="posttrain-local:" + ("d" * 64),
     )
 
     assert store.save(submission) == submission
@@ -139,6 +140,7 @@ def test_submission_store_is_idempotent_and_rejects_conflicts(tmp_path: Path) ->
     assert payload["evidence_source_recorded"] is True
     assert payload["evidence_source"] is None
     assert payload["job_image"] == submission.job_image
+    assert payload["local_image"] == submission.local_image
     assert "bundle_digest" not in payload
     assert "runtime_image" not in payload
     assert store.save(replace(submission, submitted_at=datetime.now(UTC))) == submission

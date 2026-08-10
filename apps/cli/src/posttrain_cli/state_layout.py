@@ -9,6 +9,7 @@ from pathlib import Path
 
 from posttrain.catalog import ProjectLayout
 from posttrain.common import ContractError
+from posttrain.execution_pack import has_active_lease
 
 _CACHE_CHILDREN = frozenset({"datasets", "pack", "runs", "runtime-builds", "scratch"})
 _TERMINAL_STATES = frozenset({"succeeded", "failed", "cancelled", "lost"})
@@ -84,12 +85,22 @@ class CachePruneReport:
     def removed_bytes(self) -> int:
         return sum(entry.bytes for entry in self.entries if entry.removed)
 
+    @property
+    def protected_bytes(self) -> int:
+        return sum(entry.bytes for entry in self.entries if entry.classification == "protected")
+
+    @property
+    def total_bytes(self) -> int:
+        return sum(entry.bytes for entry in self.entries)
+
     def as_json(self) -> dict[str, object]:
         return {
             "state_root": str(self.state_root),
             "apply": self.apply,
             "reclaimable_bytes": self.reclaimable_bytes,
             "removed_bytes": self.removed_bytes,
+            "protected_bytes": self.protected_bytes,
+            "total_bytes": self.total_bytes,
             "entries": [
                 {
                     "path": str(entry.path),
@@ -101,6 +112,32 @@ class CachePruneReport:
                 for entry in self.entries
             ],
         }
+
+
+def explain_cache(
+    layout: ProjectLayout,
+    selector: str,
+    *,
+    state_root: Path | None = None,
+) -> tuple[CachePruneEntry, ...]:
+    """Explain one cache object by path, basename, or content key."""
+
+    if not selector.strip():
+        raise ContractError("cache object selector cannot be empty")
+    report = prune_cache(layout, state_root=state_root)
+    root = report.state_root
+    requested = Path(selector).expanduser()
+    candidates = tuple(
+        entry
+        for entry in report.entries
+        if entry.path.name == selector
+        or entry.path.stem == selector
+        or entry.path == requested
+        or entry.path == (root / requested).resolve()
+    )
+    if not candidates:
+        raise ContractError(f"no cache object matches {selector!r}")
+    return candidates
 
 
 def migrate_state(
@@ -205,11 +242,163 @@ def _classify_cache_root(cache: Path, *, apply: bool) -> list[CachePruneEntry]:
     for child in sorted(cache.iterdir(), key=lambda value: value.name):
         if child.is_symlink():
             entries.append(CachePruneEntry(child, "protected", "symlinked cache entry is never traversed", 0, False))
+        elif child.name == "pack" and child.is_dir():
+            entries.extend(_classify_pack_cache(child, apply=apply))
         elif child.name in _CACHE_CHILDREN and child.is_dir():
             entries.append(_prune_entry(child, "rebuildable cache", apply=apply))
         else:
             entries.append(CachePruneEntry(child, "protected", "unknown cache entry", _tree_bytes(child), False))
     return entries
+
+
+def _classify_pack_cache(pack: Path, *, apply: bool) -> list[CachePruneEntry]:
+    """Classify pack material without treating durable evidence as cache.
+
+    Package contexts and source snapshots still lack compact replacement
+    records, so they remain protected during this transitional migration.  A
+    local OCI layout is reclaimable only when its sibling receipt proves that
+    the same image was published to the configured registry.  Hidden staging
+    directories are always disposable once no pack process is using them.
+    """
+
+    entries: list[CachePruneEntry] = []
+    for child in sorted(pack.iterdir(), key=lambda value: value.name):
+        if child.is_symlink():
+            entries.append(CachePruneEntry(child, "protected", "symlinked pack entries are never traversed", 0, False))
+            continue
+        if child.name == "contexts" and child.is_dir():
+            for staged in sorted(child.iterdir(), key=lambda value: value.name):
+                if staged.is_symlink():
+                    entries.append(
+                        CachePruneEntry(staged, "protected", "symlinked context entries are never traversed", 0, False)
+                    )
+                elif staged.is_dir() and staged.name.startswith((".job-context-stage-", ".job-context-work-")):
+                    entries.append(_prune_entry(staged, "abandoned pack staging directory", apply=apply))
+                else:
+                    reason = (
+                        "assembled context has an active lease"
+                        if has_active_lease(pack / "leases", staged.name)
+                        else "assembled contexts need compact package records before pruning"
+                    )
+                    entries.append(
+                        CachePruneEntry(
+                            staged,
+                            "protected",
+                            reason,
+                            _tree_bytes(staged),
+                            False,
+                        )
+                    )
+            continue
+        if child.name == "local-layouts" and child.is_dir():
+            receipt_root = pack.parent.parent / "publications"
+            entries.extend(
+                _classify_local_layouts(
+                    child,
+                    receipt_root=receipt_root,
+                    lease_root=pack / "leases",
+                    apply=apply,
+                )
+            )
+            continue
+        if child.name == "publications" and child.is_dir():
+            entries.extend(_classify_publications(child, apply=apply))
+            continue
+        entries.append(
+            CachePruneEntry(
+                child,
+                "protected",
+                "pack material needs a durable record or migration policy",
+                _tree_bytes(child),
+                False,
+            )
+        )
+    return entries
+
+
+def _classify_publications(publications: Path, *, apply: bool) -> list[CachePruneEntry]:
+    entries: list[CachePruneEntry] = []
+    layouts = publications / "local-layouts"
+    for child in sorted(publications.iterdir(), key=lambda value: value.name):
+        if child.is_symlink():
+            entries.append(
+                CachePruneEntry(child, "protected", "symlinked publication entries are never traversed", 0, False)
+            )
+            continue
+        if child != layouts or not child.is_dir():
+            entries.append(
+                CachePruneEntry(
+                    child,
+                    "protected",
+                    "publication receipts are durable evidence",
+                    _tree_bytes(child),
+                    False,
+                )
+            )
+            continue
+        entries.extend(
+            _classify_local_layouts(
+                child,
+                receipt_root=publications,
+                lease_root=publications.parent / "leases",
+                apply=apply,
+            )
+        )
+    return entries
+
+
+def _classify_local_layouts(
+    layouts: Path,
+    *,
+    receipt_root: Path,
+    lease_root: Path,
+    apply: bool,
+) -> list[CachePruneEntry]:
+    entries: list[CachePruneEntry] = []
+    for layout in sorted(layouts.iterdir(), key=lambda value: value.name):
+        if layout.is_symlink():
+            entries.append(
+                CachePruneEntry(layout, "protected", "symlinked local layouts are never traversed", 0, False)
+            )
+        elif layout.is_dir() and has_active_lease(lease_root, layout.name):
+            entries.append(
+                CachePruneEntry(
+                    layout,
+                    "protected",
+                    "local layout has an active lease",
+                    _tree_bytes(layout),
+                    False,
+                )
+            )
+        elif layout.is_dir() and _has_registry_publication_receipt(receipt_root, layout.name):
+            entries.append(_prune_entry(layout, "registry-backed local OCI layout", apply=apply))
+        else:
+            entries.append(
+                CachePruneEntry(
+                    layout,
+                    "protected",
+                    "local layout has no verified registry publication receipt",
+                    _tree_bytes(layout),
+                    False,
+                )
+            )
+    return entries
+
+
+def _has_registry_publication_receipt(publications: Path, publication_key: str) -> bool:
+    receipt = publications / f"{publication_key}.json"
+    if not receipt.is_file() or receipt.is_symlink():
+        return False
+    try:
+        payload = json.loads(receipt.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return False
+    image = payload.get("image")
+    return (
+        payload.get("schema") == "posttrain.job-image-publication-receipt.v1"
+        and isinstance(image, str)
+        and "@sha256:" in image
+    )
 
 
 def _prune_entry(path: Path, reason: str, *, apply: bool) -> CachePruneEntry:

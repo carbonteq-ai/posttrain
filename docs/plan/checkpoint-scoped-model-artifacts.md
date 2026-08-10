@@ -90,12 +90,14 @@ abrupt process loss preserves the most recently committed off-host checkpoint.
 - [/] Milestone 8: run local, remote, cancellation, crash, lineage, and release
   qualification and record exact immutable evidence. The local validation
   ladder is green (`1115 passed, 21 skipped`; Ruff, format, Pyright,
-  import-boundary checks, and `git diff --check` pass). The first live
-  continuation reached two real updates but dstack failed before Trackio
-  became terminal, so it produced no committed checkpoint views. A fresh
-  continuation is submitted with the corrected resume API and is waiting for
-  the RTX PRO worker; release promotion and the dependent eval remain gated on
-  a verified terminal run.
+  import-boundary checks, and `git diff --check` pass). The RTX 4090
+  continuation `ambient-k1-olmo3-recovery-continuation-2step-20260809-4090-r8`
+  reached steps 51, 52, and terminal checkpoint boundary 53, then committed
+  paired recovery/model artifacts in Trackio. A first eval submission exposed
+  a target-seat mismatch and failed before evaluation; the package now pins
+  its top-level and nested inference target to the same RTX 4090 target, and
+  the corrected eval is being qualified. Release promotion remains gated on
+  the eval result and Ambient's exact dependency update.
 
 ## Surprises & Discoveries
 
@@ -219,13 +221,26 @@ abrupt process loss preserves the most recently committed off-host checkpoint.
   Trackio run remained `running`, and `posttrain run checkpoint list` reported
   no committed views.
 
-- Observation: the replacement continuation is correctly durable but cannot be
-  scheduled while the RTX PRO fleet member is unreachable.
-  Evidence: dstack reports the RTX 4090 member idle and the
-  `RTXPRO6000BlackwellWorkstationEdition:96GB` member `idle (unreachable)`;
-  direct SSH to `carbonteq-ai-workstation.lan` returns `No route to host`.
-  The run remains queued with provider retry enabled rather than being moved
-  to another GPU and invalidating the qualification target.
+- Observation: the corrected RTX 4090 continuation completed the full paired
+  publication path. Evidence: provider `pt-054f7cf518514ce8d55a4c0c` and
+  Trackio run `a80848ffe4f448478ceca0a317105fae` reached terminal success;
+  Trackio committed recovery artifact version `940019555057304091` and
+  adapter model artifact version `1017256581578731502` for checkpoint 53.
+  Steps 51--53 recorded centered advantages, reward spread, entropy/TIS and
+  clipping telemetry; step 53 reward mean was `0.9019`, advantage std
+  `0.08526`, truncation `0`, TIS delta mean `0.006363`, and clamp fraction `0`.
+
+- Observation: eval target selection is a coupled contract. Evidence: the
+  first eval package left its top-level target at `targets/local-cuda-24gb`
+  while its nested inference binding selected
+  `targets/local-cuda-24gb-pop-os`; runtime rejected the conflicting seats
+  before loading the model. The package and inference profile now use the
+  same exact target, and a replacement eval submission is in progress.
+
+- Observation: the RTX 4090 pack path validates the generic catalog-closure
+  fix. Evidence: commit `6ffe6344` retains source work-package catalog
+  bindings as project-config closure roots when a target override removes the
+  prepared seat ref; focused Ruff, Pyright, and CLI regression checks pass.
 
 ## Decision Log
 

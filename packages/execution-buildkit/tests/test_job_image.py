@@ -11,6 +11,7 @@ from posttrain.execution import EnvironmentActivationLock, EnvironmentPackageLoc
 from posttrain.execution_pack import (
     ImagePublicationSpec,
     JobImagePublicationRequest,
+    JobImageResolutionRequest,
 )
 from posttrain_execution_buildkit import (
     BuildKitJobImagePublisher,
@@ -193,6 +194,91 @@ def test_publishes_a_verified_local_oci_layout(tmp_path: Path) -> None:
     assert not any("push=true" in argument for call in gateway.calls for argument in call)
 
 
+def test_loads_a_single_platform_image_into_the_local_daemon(tmp_path: Path) -> None:
+    gateway = FakeBuildx()
+    publisher = BuildKitJobImagePublisher(
+        bake_file=_definition(tmp_path),
+        receipt_root=(tmp_path / "receipts").resolve(),
+        gateway=gateway,
+    )
+
+    result = publisher.publish_local_daemon(_request(tmp_path))
+
+    assert result.image.value == f"registry.lan/carbonteq/posttrain-job@sha256:{gateway.digest}"
+    assert result.tag.startswith("posttrain-local:")
+    assert result.receipt.name.endswith(".local-daemon.json")
+    daemon_output = next(
+        argument
+        for call in gateway.calls
+        for argument in call
+        if isinstance(argument, str) and argument.endswith("output=type=docker")
+    )
+    daemon_build = next(call for call in gateway.calls if daemon_output in call)
+    assert f"posttrain-job.tags={result.tag}" in daemon_build
+    assert daemon_build[daemon_build.index("--provenance") + 1] == "false"
+    assert daemon_build[daemon_build.index("--sbom") + 1] == "false"
+    assert not any("output=type=oci" in argument for call in gateway.calls for argument in call)
+
+
+def test_local_daemon_loading_rejects_multi_platform_publication(tmp_path: Path) -> None:
+    gateway = FakeBuildx()
+    request = _request(tmp_path)
+    request = replace(
+        request,
+        publication=replace(request.publication, platforms=("linux/amd64", "linux/arm64")),
+    )
+    publisher = BuildKitJobImagePublisher(
+        bake_file=_definition(tmp_path),
+        receipt_root=(tmp_path / "receipts").resolve(),
+        gateway=gateway,
+    )
+
+    with pytest.raises(ContractError, match="single publication platform"):
+        publisher.publish_local_daemon(request)
+
+    assert gateway.calls == []
+
+
+def test_local_layout_can_use_a_rebuildable_root_separate_from_receipts(tmp_path: Path) -> None:
+    gateway = FakeBuildx()
+    receipt_root = (tmp_path / "durable-receipts").resolve()
+    local_root = (tmp_path / "cache" / "local-layouts").resolve()
+    publisher = BuildKitJobImagePublisher(
+        bake_file=_definition(tmp_path),
+        receipt_root=receipt_root,
+        local_layout_root=local_root,
+        gateway=gateway,
+    )
+
+    result = publisher.publish_local(_request(tmp_path))
+
+    assert result.layout.is_relative_to(local_root)
+    assert result.receipt.is_relative_to(receipt_root)
+    assert not (receipt_root / "local-layouts").exists()
+
+
+def test_explicit_local_output_is_user_owned_and_outside_project_cache(tmp_path: Path) -> None:
+    gateway = FakeBuildx()
+    receipt_root = (tmp_path / "receipts").resolve()
+    output = (tmp_path / "exports" / "job-image.oci").resolve()
+    request = _request(tmp_path)
+    request = replace(request, local_output=output)
+    publisher = BuildKitJobImagePublisher(
+        bake_file=_definition(tmp_path),
+        receipt_root=receipt_root,
+        gateway=gateway,
+    )
+
+    result = publisher.publish_local(request)
+
+    assert result.layout == output
+    assert result.layout.joinpath("index.json").is_file()
+    assert result.receipt == output.parent / ".job-image.oci.posttrain-receipt.json"
+    assert result.receipt.is_file()
+    assert not (receipt_root / "local-layouts").exists()
+    assert not (tmp_path / "leases").exists()
+
+
 def test_credential_free_python_index_is_forwarded_as_a_build_variable(tmp_path: Path) -> None:
     gateway = FakeBuildx()
     publisher = BuildKitJobImagePublisher(
@@ -280,6 +366,29 @@ def test_publisher_checks_smokes_pushes_verifies_and_reuses_receipt(
     ):
         assert variable in build
     assert sum(call[:2] == ("imagetools", "inspect") for call in gateway.calls) == 2
+
+
+def test_publisher_resolves_a_receipt_without_a_staged_context(tmp_path: Path) -> None:
+    gateway = FakeBuildx()
+    request = _request(tmp_path)
+    publisher = BuildKitJobImagePublisher(
+        bake_file=_definition(tmp_path),
+        receipt_root=(tmp_path / "receipts").resolve(),
+        gateway=gateway,
+    )
+    published = publisher.publish(request)
+    resolved = publisher.resolve(
+        JobImageResolutionRequest(
+            manifest=request.manifest,
+            publication=request.publication,
+            publication_key=request.publication_key,
+        )
+    )
+
+    assert resolved is not None
+    assert resolved.cache_hit
+    assert resolved.image == published.image
+    assert sum("--metadata-file" in call for call in gateway.calls) == 1
 
 
 def test_publication_identity_excludes_local_context_and_bake_paths(

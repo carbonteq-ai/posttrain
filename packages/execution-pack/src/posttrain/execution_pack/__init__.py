@@ -13,6 +13,7 @@ from .contracts import (
     SourcePackage,
 )
 from .datasets import ImmutableDatasetPackager, MaterializedDatasetPackages
+from .leases import CacheLease, has_active_lease
 from .planning import (
     ImagePublicationSpec,
     JobKindProfile,
@@ -25,10 +26,14 @@ from .planning import (
 from .publication import (
     JobImagePublicationRequest,
     JobImagePublisher,
+    JobImageResolutionRequest,
+    LocalDaemonJobImage,
     LocalJobImagePublisher,
     LocalPublishedJobImage,
     PublishedJobImage,
+    publication_key_for,
 )
+from .records import PackageMaterializationRecord, PackageMaterializationStore
 from .service import (
     JobPackInputs,
     JobPackService,
@@ -39,6 +44,7 @@ from .service import (
 from .source_snapshot import (
     ImmutableSourceSnapshotter,
     MaterializedSourceSnapshot,
+    SourceSnapshotInspection,
     SourceSnapshotRequest,
 )
 
@@ -47,6 +53,7 @@ __all__ = [
     "ImmutableSourceSnapshotter",
     "DatasetPackager",
     "DatasetPackRequest",
+    "CacheLease",
     "EnvironmentPackager",
     "EnvironmentWheelRequest",
     "GitSourceRequest",
@@ -57,7 +64,9 @@ __all__ = [
     "JobPackService",
     "JobPackSpec",
     "JobImagePublicationRequest",
+    "JobImageResolutionRequest",
     "JobImagePublisher",
+    "LocalDaemonJobImage",
     "LocalJobImagePublisher",
     "LocalPublishedJobImage",
     "MaterializedEnvironmentPackage",
@@ -66,11 +75,16 @@ __all__ = [
     "MaterializedDatasetPackages",
     "MaterializedSourceSnapshot",
     "PackedJobContext",
+    "PackageMaterializationRecord",
+    "PackageMaterializationStore",
     "ProjectConfigBundle",
     "ProjectEnvironmentSourceRequest",
     "PublishedJobImage",
+    "publication_key_for",
     "SourceSnapshotRequest",
+    "SourceSnapshotInspection",
     "SourcePackage",
+    "has_active_lease",
     "activation_resource_sources",
     "digest_source_package",
     "environment_bindings",

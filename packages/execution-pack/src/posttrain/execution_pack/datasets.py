@@ -38,14 +38,18 @@ class ImmutableDatasetPackager:
         *,
         state_dir: Path,
         project_root: Path,
+        input_root: Path | None = None,
         materializer: DatasetMaterializer | None = None,
         code_snapshot_digest: str | None = None,
         dependency_lock_digest: str | None = None,
     ) -> None:
         if not state_dir.is_absolute() or not project_root.is_absolute():
             raise ContractError("dataset packager state and project roots must be absolute")
+        if input_root is not None and not input_root.is_absolute():
+            raise ContractError("dataset packager input root must be absolute")
         self._state_dir = state_dir
         self._project_root = project_root
+        self._input_root = input_root or project_root
         self._materializer = materializer
         self._code_snapshot_digest = _optional_digest(code_snapshot_digest, "dataset code snapshot digest")
         self._dependency_lock_digest = _optional_digest(
@@ -72,6 +76,7 @@ class ImmutableDatasetPackager:
                     request.selection,
                     state_dir=self._state_dir,
                     project_root=self._project_root,
+                    input_root=self._input_root,
                     code_snapshot_digest=self._code_snapshot_digest,
                     dependency_lock_digest=self._dependency_lock_digest,
                 )

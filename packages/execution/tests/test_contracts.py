@@ -52,6 +52,7 @@ def test_request_carries_only_environment_names() -> None:
         idempotency_key="logical-run-attempt-1",
         policy=ExecutionPolicy(300),
         environment_names=("TRACKIO_URL", "TRACKIO_WRITE_TOKEN"),
+        local_image="posttrain-local:request-contract",
     )
     assert request.environment_names == ("TRACKIO_URL", "TRACKIO_WRITE_TOKEN")
     launch = json.loads(request.launch_environment(provider="local-docker")["POSTTRAIN_EXECUTION"])
@@ -59,6 +60,7 @@ def test_request_carries_only_environment_names() -> None:
     assert launch["provider"] == "local-docker"
     assert launch["attempt"] == 1
     assert launch["job_image"] == request.image.value
+    assert "local_image" not in launch
     assert launch["target"]["id"] == request.target.id
 
     with pytest.raises(ContractError, match="names, not secret values"):

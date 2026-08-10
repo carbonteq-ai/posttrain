@@ -71,6 +71,14 @@ def test_job_help_exposes_product_path_not_compatibility_flags(capsys) -> None:
             assert "checkpoint" in help_text
 
 
+def test_cache_commands_are_exposed(capsys) -> None:
+    assert main(["cache", "--help"]) == 0
+    help_text = capsys.readouterr().out
+    assert "status" in help_text
+    assert "explain" in help_text
+    assert "prune" in help_text
+
+
 def test_recovery_checkpoint_rebinds_a_new_training_run() -> None:
     from posttrain.tracking import ArtifactLink, StoredArtifact
     from posttrain_cli.execution_config import ResolvedExecutionSettings

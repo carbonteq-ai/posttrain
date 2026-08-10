@@ -922,6 +922,7 @@ def _encode_plan(plan: ExecutionPlan) -> dict[str, Any]:
             },
             "job_definition_id": request.job_definition_id,
             "image": request.image.value,
+            "local_image": request.local_image,
             "target": {
                 "id": request.target.id,
                 "revision": request.target.revision,
@@ -991,6 +992,7 @@ def _decode_plan(value: object) -> ExecutionPlan:
         run_spec=run_spec,
         job_definition_id=raw["job_definition_id"],
         image=RuntimeImageRef(raw["image"]),
+        local_image=(str(raw["local_image"]) if raw.get("local_image") is not None else None),
         target=target,
         command=tuple(raw["command"]),
         idempotency_key=raw["idempotency_key"],

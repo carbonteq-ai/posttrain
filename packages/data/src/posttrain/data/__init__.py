@@ -29,6 +29,7 @@ from .catalog import (
     decode_dataset_selection,
     load_materialized_dataset,
     materialize_dataset,
+    project_dataset_input_paths,
     resolve_dataset_source,
     validate_materialized_dataset,
 )
@@ -113,6 +114,7 @@ __all__ = [
     "decode_dataset_selection",
     "load_materialized_dataset",
     "materialize_dataset",
+    "project_dataset_input_paths",
     "resolve_dataset_source",
     "validate_materialized_dataset",
     "preferences_from_huggingface",

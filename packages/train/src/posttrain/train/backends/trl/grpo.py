@@ -15,7 +15,7 @@ from posttrain.common import JsonValue, RunContext, TraceObservation
 from posttrain.common.cuda import TorchModule, activate_cuda_toolkit
 
 from ...grpo_observations import GRPOObservationFeatures, normalize_grpo_metrics
-from ...online_rl import RolloutBatch
+from ...online_rl import EnvironmentRollout, RolloutBatch, run_observed_rollouts
 from ...profiles import GRPOSettings, SAMPOSettings, shape_online_reward
 from ...requests import GRPORequest, SAMPORequest
 from ...sampo_advantages import compute_sampo_advantages
@@ -367,30 +367,6 @@ def _rollout_function(
             rollout_batch_step = optimizer_step
             rollout_batch_ordinal = 0
         rollout_batch_ordinal += 1
-        started_at = time.perf_counter()
-        with context.phase("rollout", {"backend": "trl", "logical_step": optimizer_step}):
-            rollouts = asyncio.run(
-                request.bridge.run(
-                    RolloutBatch(example_ids=example_ids, step=optimizer_step, model_id=request.policy.id),
-                    generator,
-                )
-            )
-        elapsed = time.perf_counter() - started_at
-        if len(rollouts) != len(inputs):
-            raise ValueError("online-RL bridge returned a rollout count that does not match the trainer batch")
-        completion_tokens = sum(len(rollout.completion_ids) for rollout in rollouts)
-        context.metrics(
-            {
-                "train/rl/rollouts_attempted": len(inputs),
-                "train/rl/rollouts_completed": len(rollouts),
-                "train/rl/rollouts_failed": 0,
-                "train/rl/rollouts_truncated": sum(rollout.is_truncated for rollout in rollouts),
-                "train/rl/rollouts_unscorable": sum(not math.isfinite(rollout.reward) for rollout in rollouts),
-                "train/rl/time/rollout_seconds": elapsed,
-                "train/rl/rollout_tokens_per_second": completion_tokens / elapsed if elapsed > 0 else 0.0,
-            },
-            step=optimizer_step,
-        )
         attributes = {
             "technique": request.settings.algorithm if isinstance(request, GRPORequest) else "sampo",
             "model_variant_id": request.policy.id,
@@ -398,7 +374,8 @@ def _rollout_function(
             "optimizer_step": optimizer_step,
             "rollout_batch_ordinal": rollout_batch_ordinal,
         }
-        for rollout in rollouts:
+
+        def observe_rollout(rollout: EnvironmentRollout) -> None:
             trace = rollout.trace
             context.trace(
                 TraceObservation(
@@ -407,6 +384,45 @@ def _rollout_function(
                     payload=trace.payload,
                     attributes={**trace.attributes, **attributes},
                 )
+            )
+
+        started_at = time.perf_counter()
+        with context.phase("rollout", {"backend": "trl", "logical_step": optimizer_step}):
+            rollouts = asyncio.run(
+                run_observed_rollouts(
+                    request.bridge,
+                    RolloutBatch(example_ids=example_ids, step=optimizer_step, model_id=request.policy.id),
+                    generator,
+                    observe_rollout,
+                )
+            )
+        elapsed = time.perf_counter() - started_at
+        if len(rollouts) != len(inputs):
+            raise ValueError("online-RL bridge returned a rollout count that does not match the trainer batch")
+        completion_tokens = sum(len(rollout.completion_ids) for rollout in rollouts)
+        selected_tokens = sum(sum(rollout.env_mask) for rollout in rollouts)
+        truncated_rollouts = sum(rollout.is_truncated for rollout in rollouts)
+        context.metrics(
+            {
+                "train/rl/rollouts_attempted": len(inputs),
+                "train/rl/rollouts_completed": len(rollouts),
+                "train/rl/rollouts_failed": 0,
+                "train/rl/rollouts_truncated": truncated_rollouts,
+                "train/rl/rollouts_unscorable": sum(not math.isfinite(rollout.reward) for rollout in rollouts),
+                "train/rl/time/rollout_seconds": elapsed,
+                "train/rl/rollout_tokens_per_second": completion_tokens / elapsed if elapsed > 0 else 0.0,
+                "train/rl/rollout_selected_tokens": selected_tokens,
+                "train/rl/rollout_selected_token_fraction": (
+                    selected_tokens / completion_tokens if completion_tokens else 0.0
+                ),
+            },
+            step=optimizer_step,
+        )
+        if request.settings.mask_truncated_completions and truncated_rollouts == len(rollouts):
+            raise RuntimeError(
+                f"all {len(rollouts)} rollouts reached a truncation boundary, so this batch has no trainable "
+                "tokens while mask_truncated_completions is enabled; increase max_completion_length or correct "
+                "the policy's termination behavior before retrying"
             )
         if isinstance(request, GRPORequest):
             shaped_rewards = [

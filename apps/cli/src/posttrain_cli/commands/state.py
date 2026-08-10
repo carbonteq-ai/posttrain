@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 from typing import Annotated
 
@@ -46,6 +47,11 @@ def register(app: typer.Typer) -> None:
         ] = False,
     ) -> None:
         state: CliState = ctx.obj
+        warnings.warn(
+            "posttrain state cache-prune is deprecated; use posttrain cache prune (removed in 0.4)",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         report = prune_cache(state.layout(), state_root=state_root, apply=apply)
         payload = report.as_json()
         mode = "cache prune applied" if apply else "cache prune dry run"

@@ -21,7 +21,7 @@ taskset smoke eval, record the new SHA here. No unpinned moving branch.
 CarbonTeq's maintained Verifiers v1 environment packs live in the separate
 framework-neutral [verifiers-environments repository](https://github.com/carbonteq-ai/verifiers-environments).
 The current framework integration uses published commit
-`3e1582ef3cce8e6d355be3747be0427f700ef865` and keeps each package independently
+`ee096746ec3cf28eceffd49f29226e8a8dc7bc31` and keeps each package independently
 installable:
 
 | Package | Taskset | Source data / generator revision |
@@ -182,6 +182,12 @@ in [05 · APIs](../../post-training/05-apis.md#environmentbinding) and
   balancing; the framework does not copy task rows or invent task IDs.
 - Inspect truncation / `finish_reason=length` rates — length-capped scores are
   weak capability evidence
+- Native online-RL bridges should implement the optional observed-rollout
+  extension so each completed trajectory is preserved and submitted to the
+  run observer immediately. Posttrain serializes local observer submission off
+  the rollout event loop; Trackio owns background remote delivery and retry.
+  Bridges that implement only the batch-return contract remain compatible but
+  expose traces only after the complete batch returns.
 - Source-data cards stay under [datasets/](../../datasets/); environment
   implementations stay in the external `carbonteq-ai/verifiers-environments`
   packages (for example its `environments/automationbench_v1` subdirectory)

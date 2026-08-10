@@ -9,6 +9,7 @@ from typing import Annotated, TextIO
 import typer
 
 from .commands import (
+    cache,
     catalog,
     controller,
     dataset,
@@ -102,6 +103,7 @@ def create_app(*, json_stream: TextIO | None = None) -> typer.Typer:
     project_cmd.register(app)
     purge_cmd.register(app)
     catalog.register(app)
+    cache.register(app)
     dataset.register(app)
     environment.register(app)
     work_package.register(app)

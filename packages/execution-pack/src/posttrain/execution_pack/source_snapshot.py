@@ -69,6 +69,15 @@ class MaterializedSourceSnapshot:
     created: bool
 
 
+@dataclass(frozen=True, slots=True)
+class SourceSnapshotInspection:
+    """Bounded source-size estimate computed without writing a snapshot."""
+
+    digest: str
+    file_count: int
+    byte_count: int
+
+
 class ImmutableSourceSnapshotter:
     """Copy only declared source paths into a content-addressed local cache."""
 
@@ -130,6 +139,11 @@ class ImmutableSourceSnapshotter:
     def inspect(self, request: SourceSnapshotRequest) -> str:
         """Return the staged-tree digest without creating cache or temporary files."""
 
+        return self.inspect_details(request).digest
+
+    def inspect_details(self, request: SourceSnapshotRequest) -> SourceSnapshotInspection:
+        """Return digest and source-size diagnostics without materializing bytes."""
+
         budget = _CopyBudget(self._max_files, self._max_bytes)
         entries: list[dict[str, object]] = []
         for configured in request.includes:
@@ -157,13 +171,14 @@ class ImmutableSourceSnapshotter:
         if not entries:
             raise ContractError("source snapshot cannot be empty")
         by_path = {str(entry["path"]): entry for entry in entries}
-        return hashlib.sha256(
+        digest = hashlib.sha256(
             json.dumps(
                 {"entries": [by_path[path] for path in sorted(by_path, key=PurePosixPath)]},
                 sort_keys=True,
                 separators=(",", ":"),
             ).encode()
         ).hexdigest()
+        return SourceSnapshotInspection(digest, budget.file_count, budget.byte_count)
 
 
 def _digest_source_package(source: SourcePackage) -> str:
@@ -176,8 +191,24 @@ def _digest_source_package(source: SourcePackage) -> str:
 
 @dataclass(slots=True)
 class _CopyBudget:
+    max_files: int
+    max_bytes: int
     remaining_files: int
     remaining_bytes: int
+
+    def __init__(self, max_files: int, max_bytes: int) -> None:
+        self.max_files = max_files
+        self.max_bytes = max_bytes
+        self.remaining_files = max_files
+        self.remaining_bytes = max_bytes
+
+    @property
+    def file_count(self) -> int:
+        return self.max_files - self.remaining_files
+
+    @property
+    def byte_count(self) -> int:
+        return self.max_bytes - self.remaining_bytes
 
     def consume(self, size: int) -> None:
         self.remaining_files -= 1

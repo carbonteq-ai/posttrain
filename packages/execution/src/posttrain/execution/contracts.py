@@ -117,6 +117,10 @@ class ExecutionRequest:
     attempt: int = 1
     environment_names: tuple[str, ...] = ()
     mounts: tuple[ExecutionMount, ...] = ()
+    # A machine-local transport tag for a direct daemon-loaded image. The
+    # immutable ``image`` digest remains authoritative for identity and
+    # remote providers ignore this optional field.
+    local_image: str | None = None
     # Read/migration compatibility for pre-OCI plans. Normal providers never
     # upload or mount this directory; new callers must leave it unset.
     bundle: BundleRef | None = None
@@ -142,6 +146,13 @@ class ExecutionRequest:
         for mount in self.mounts:
             if mount.purpose == "run-workspace" and self.run_spec.run_id not in mount.instance_path.parts:
                 raise ContractError("run workspace mount must contain the run id as one path component")
+        if self.local_image is not None and (
+            not self.local_image.startswith("posttrain-local:")
+            or not self.local_image.strip()
+            or "@" in self.local_image
+            or any(character.isspace() for character in self.local_image)
+        ):
+            raise ContractError("local execution image tag is invalid")
 
     def launch_environment(self, *, provider: str) -> dict[str, str]:
         """Encode non-secret run context separately from the packaged job."""

@@ -7,6 +7,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -15,7 +16,10 @@ from pathlib import Path
 from posttrain.common import ContractError, JsonValue
 from posttrain.execution import RuntimeImageRef
 from posttrain.execution_pack import (
+    CacheLease,
     JobImagePublicationRequest,
+    JobImageResolutionRequest,
+    LocalDaemonJobImage,
     LocalPublishedJobImage,
     PublishedJobImage,
 )
@@ -27,6 +31,7 @@ from .builder import (
 )
 
 _SCHEMA = "posttrain.job-image-publication-receipt.v1"
+_LOCAL_DAEMON_SCHEMA = "posttrain.job-image-local-daemon-receipt.v1"
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _SAFE_BUILDER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/@-]*$")
 _PUBLISHED_TARGET = "posttrain-job"
@@ -62,6 +67,7 @@ class BuildKitJobImagePublisher:
         *,
         bake_file: Path,
         receipt_root: Path,
+        local_layout_root: Path | None = None,
         gateway: BuildxGateway | None = None,
         builder: str | None = None,
         python_index_url: str | None = None,
@@ -72,6 +78,8 @@ class BuildKitJobImagePublisher:
             raise ValueError("job image Bake file must be beside a Dockerfile")
         if not receipt_root.is_absolute():
             raise ValueError("job image receipt root must be absolute")
+        if local_layout_root is not None and not local_layout_root.is_absolute():
+            raise ValueError("job image local layout root must be absolute")
         if builder is not None and not _SAFE_BUILDER.fullmatch(builder):
             raise ContractError("job image BuildKit builder name is invalid")
         if python_index_url is not None and (
@@ -84,6 +92,7 @@ class BuildKitJobImagePublisher:
         self._definition_root = bake_file.parent
         self._definition_digest = _build_definition_digest(bake_file.parent)
         self._receipt_root = receipt_root
+        self._local_layout_root = local_layout_root or receipt_root / "local-layouts"
         self._gateway = gateway or BuildxCli()
         self._builder = builder
         self._python_index_url = python_index_url or ""
@@ -140,57 +149,196 @@ class BuildKitJobImagePublisher:
         finally:
             metadata.unlink(missing_ok=True)
 
+    def resolve(self, request: JobImageResolutionRequest) -> PublishedJobImage | None:
+        """Resolve a verified receipt without reconstructing its build context."""
+
+        _enforce_qualification_policy(request)
+        receipt_path = self._receipt_root / f"{request.publication_key}.json"
+        if not receipt_path.is_file():
+            return None
+        receipt = self._load_receipt(receipt_path)
+        self._ensure_receipt_matches(request, receipt)
+        try:
+            self._verify_remote(receipt.image)
+        except RemoteImageNotFoundError:
+            receipt_path.unlink(missing_ok=True)
+            return None
+        return _published(receipt, cache_hit=True)
+
     def publish_local(self, request: JobImagePublicationRequest) -> LocalPublishedJobImage:
         """Build the verified actual-job image into an OCI layout, never a registry."""
 
         _enforce_qualification_policy(request)
-        layout = self._receipt_root / "local-layouts" / request.publication_key
-        receipt = self._receipt_root / f"{request.publication_key}.local.json"
+        user_output = request.local_output
+        layout = user_output or (self._local_layout_root / request.publication_key)
+        receipt = (
+            layout.parent / f".{layout.name}.posttrain-receipt.json"
+            if user_output is not None
+            else self._receipt_root / f"{request.publication_key}.local.json"
+        )
         tag = f"posttrain-local:{request.publication_key}"
-        if layout.joinpath("index.json").is_file() and receipt.is_file():
+        if (
+            layout.joinpath("index.json").is_file()
+            and receipt.is_file()
+            and _local_receipt_matches(receipt, request, layout, tag)
+        ):
             return LocalPublishedJobImage(request.package_key, request.publication_key, layout, tag, receipt, True)
-        self._check_definition(request, local=True)
-        self._gateway.invoke(self._smoke_arguments(request))
-        layout.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        temporary = layout.parent / f".{request.publication_key}-{uuid.uuid4().hex}"
+        lease = (
+            None
+            if user_output is not None
+            else CacheLease.acquire(self._local_layout_root.parent / "leases", request.publication_key)
+        )
         try:
-            self._gateway.invoke(
-                [
-                    "bake",
-                    "--file",
-                    str(self._bake_file),
-                    *self._entitlement_arguments(request),
-                    *self._builder_arguments(),
-                    "--progress",
-                    "plain",
-                    *self._context_arguments(request),
-                    "--set",
-                    f"{_PUBLISHED_TARGET}.output=type=oci,dest={temporary},tar=false",
-                    *self._variable_arguments(request),
-                    _PUBLISHED_TARGET,
-                ]
-            )
-            if not temporary.joinpath("index.json").is_file():
-                raise ContractError("local OCI publication did not produce index.json")
-            _remove_local_output(layout)
-            temporary.replace(layout)
-            receipt.write_text(
-                json.dumps(
-                    {
-                        "package_key": request.package_key,
-                        "publication_key": request.publication_key,
-                        "layout": str(layout),
-                        "tag": tag,
-                    },
-                    sort_keys=True,
+            self._check_definition(request, local=True)
+            self._gateway.invoke(self._smoke_arguments(request))
+            receipt.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            layout.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            temporary = layout.parent / f".{request.publication_key}-{uuid.uuid4().hex}"
+            try:
+                self._gateway.invoke(
+                    [
+                        "bake",
+                        "--file",
+                        str(self._bake_file),
+                        *self._entitlement_arguments(request),
+                        *self._builder_arguments(),
+                        "--progress",
+                        "plain",
+                        *self._context_arguments(request),
+                        "--set",
+                        f"{_PUBLISHED_TARGET}.output=type=oci,dest={temporary},tar=false",
+                        *self._variable_arguments(request),
+                        _PUBLISHED_TARGET,
+                    ]
                 )
-                + "\n",
-                encoding="utf-8",
-            )
-            receipt.chmod(0o600)
-            return LocalPublishedJobImage(request.package_key, request.publication_key, layout, tag, receipt, False)
+                if not temporary.joinpath("index.json").is_file():
+                    raise ContractError("local OCI publication did not produce index.json")
+                _remove_local_output(layout)
+                temporary.replace(layout)
+                receipt.write_text(
+                    json.dumps(
+                        {
+                            "package_key": request.package_key,
+                            "publication_key": request.publication_key,
+                            "layout": str(layout),
+                            "tag": tag,
+                        },
+                        sort_keys=True,
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+                receipt.chmod(0o600)
+                return LocalPublishedJobImage(request.package_key, request.publication_key, layout, tag, receipt, False)
+            finally:
+                _remove_local_output(temporary)
         finally:
-            _remove_local_output(temporary)
+            if lease is not None:
+                lease.release()
+
+    def publish_local_daemon(self, request: JobImagePublicationRequest) -> LocalDaemonJobImage:
+        """Build and load one single-platform image into the local daemon.
+
+        This path is deliberately separate from ``publish_local``: an OCI
+        layout is an explicit user export, while a daemon-loaded image is a
+        short-lived execution input. The immutable digest in the receipt is
+        still the execution identity; the deterministic tag is transport only.
+        """
+
+        _enforce_qualification_policy(request)
+        if len(request.publication.platforms) != 1:
+            raise ContractError("local daemon image loading requires exactly one single publication platform")
+        tag = request.local_tag or f"posttrain-local:{request.publication_key}"
+        tag_key = hashlib.sha256(tag.encode()).hexdigest()[:16]
+        receipt_path = self._receipt_root / f"{request.publication_key}.{tag_key}.local-daemon.json"
+        if receipt_path.is_file():
+            receipt = _load_local_daemon_receipt(receipt_path)
+            _ensure_local_daemon_receipt_matches(
+                receipt,
+                request,
+                tag=tag,
+                definition_digest=self._definition_digest,
+            )
+            if _local_daemon_image_exists(tag):
+                image = receipt.get("image")
+                if not isinstance(image, RuntimeImageRef):
+                    raise ContractError("local daemon image receipt has no immutable image")
+                return LocalDaemonJobImage(
+                    request.package_key,
+                    request.publication_key,
+                    image,
+                    tag,
+                    receipt_path,
+                    True,
+                )
+            receipt_path.unlink(missing_ok=True)
+
+        lease = CacheLease.acquire(self._local_layout_root.parent / "leases", request.publication_key)
+        metadata = self._receipt_root / f".local-daemon-metadata-{uuid.uuid4().hex}.json"
+        try:
+            self._check_definition(request, local=True)
+            self._gateway.invoke(self._smoke_arguments(request))
+            self._receipt_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+            self._gateway.invoke(self._local_daemon_arguments(request, tag, metadata))
+            image = RuntimeImageRef(f"{request.publication.repository}@sha256:{_metadata_digest(metadata)}")
+            payload = {
+                "schema": _LOCAL_DAEMON_SCHEMA,
+                "package_key": request.package_key,
+                "publication_key": request.publication_key,
+                "image": image.value,
+                "tag": tag,
+                "platform": request.publication.platforms[0],
+                "build_definition_digest": self._definition_digest,
+            }
+            _write_local_daemon_receipt(receipt_path, payload)
+            return LocalDaemonJobImage(
+                request.package_key,
+                request.publication_key,
+                image,
+                tag,
+                receipt_path,
+                False,
+            )
+        finally:
+            metadata.unlink(missing_ok=True)
+            lease.release()
+
+    def _local_daemon_arguments(
+        self,
+        request: JobImagePublicationRequest,
+        tag: str,
+        metadata: Path,
+    ) -> list[str]:
+        return [
+            "bake",
+            "--file",
+            str(self._bake_file),
+            *self._entitlement_arguments(request),
+            *self._builder_arguments(),
+            "--progress",
+            "plain",
+            "--metadata-file",
+            str(metadata),
+            *self._context_arguments(request),
+            "--set",
+            f"{_PUBLISHED_TARGET}.output=type=docker",
+            "--set",
+            f"{_PUBLISHED_TARGET}.tags={tag}",
+            "--set",
+            f"{_PUBLISHED_TARGET}.platform={request.publication.platforms[0]}",
+            # The published target intentionally carries provenance and SBOM
+            # attestations. BuildKit represents those attestations as extra
+            # manifests, but the Docker daemon exporter cannot load a manifest
+            # list. A daemon-loaded image is an ephemeral execution transport,
+            # so disable attestations only on this path; registry publication
+            # continues to require both.
+            "--provenance",
+            "false",
+            "--sbom",
+            "false",
+            *self._variable_arguments(request),
+            _PUBLISHED_TARGET,
+        ]
 
     def _check_definition(self, request: JobImagePublicationRequest, *, local: bool = False) -> None:
         for target in (_PUBLISHED_TARGET, _SMOKE_TARGET):
@@ -435,7 +583,7 @@ class BuildKitJobImagePublisher:
 
     def _ensure_receipt_matches(
         self,
-        request: JobImagePublicationRequest,
+        request: JobImagePublicationRequest | JobImageResolutionRequest,
         receipt: _PublicationReceipt,
     ) -> None:
         publication = request.publication
@@ -467,7 +615,97 @@ def _remove_local_output(path: Path) -> None:
         path.unlink()
 
 
-def _enforce_qualification_policy(request: JobImagePublicationRequest) -> None:
+def _local_daemon_image_exists(tag: str) -> bool:
+    """Verify a cached daemon tag before trusting its compact receipt."""
+
+    result = subprocess.run(
+        ["docker", "image", "inspect", tag],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        text=True,
+    )
+    return result.returncode == 0
+
+
+def _local_receipt_matches(
+    path: Path,
+    request: JobImagePublicationRequest,
+    layout: Path,
+    tag: str,
+) -> bool:
+    if path.is_symlink() or path.stat().st_mode & 0o077:
+        return False
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return False
+    return payload == {
+        "layout": str(layout),
+        "package_key": request.package_key,
+        "publication_key": request.publication_key,
+        "tag": tag,
+    }
+
+
+def _write_local_daemon_receipt(path: Path, payload: Mapping[str, object]) -> None:
+    """Write a daemon-load receipt atomically with private permissions."""
+
+    temporary = path.parent / f".{path.name}-{uuid.uuid4().hex}.tmp"
+    temporary.write_text(json.dumps(payload, sort_keys=True) + "\n", encoding="utf-8")
+    temporary.chmod(0o600)
+    try:
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _load_local_daemon_receipt(path: Path) -> dict[str, object]:
+    if path.is_symlink() or path.stat().st_mode & 0o077:
+        raise ContractError(f"local daemon image receipt must be private: {path}")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            raise TypeError
+        image = RuntimeImageRef(str(payload["image"]))
+        return {
+            "schema": str(payload["schema"]),
+            "package_key": str(payload["package_key"]),
+            "publication_key": str(payload["publication_key"]),
+            "image": image,
+            "tag": str(payload["tag"]),
+            "platform": str(payload["platform"]),
+            "build_definition_digest": str(payload["build_definition_digest"]),
+        }
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
+        raise ContractError(f"local daemon image receipt is invalid: {path}") from error
+
+
+def _ensure_local_daemon_receipt_matches(
+    receipt: dict[str, object],
+    request: JobImagePublicationRequest,
+    *,
+    tag: str,
+    definition_digest: str,
+) -> None:
+    image = receipt.get("image")
+    if not isinstance(image, RuntimeImageRef) or image.value.rsplit("@", 1)[0] != request.publication.repository:
+        raise ContractError("local daemon image receipt has an unexpected image repository")
+    if receipt != {
+        "schema": _LOCAL_DAEMON_SCHEMA,
+        "package_key": request.package_key,
+        "publication_key": request.publication_key,
+        "image": image,
+        "tag": tag,
+        "platform": request.publication.platforms[0],
+        "build_definition_digest": definition_digest,
+    }:
+        raise ContractError("local daemon image receipt does not match the requested package or build definition")
+
+
+def _enforce_qualification_policy(
+    request: JobImagePublicationRequest | JobImageResolutionRequest,
+) -> None:
     deferred = sorted(
         lock.environment_id for lock in request.manifest.environment_activations if lock.qualification == "deferred"
     )

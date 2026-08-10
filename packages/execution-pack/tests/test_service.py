@@ -30,6 +30,7 @@ from posttrain.execution_pack import (
     MaterializedDatasetPackages,
     MaterializedEnvironmentPackage,
     MaterializedEnvironments,
+    PackageMaterializationRecord,
     ProjectConfigBundle,
     SourcePackage,
     digest_source_package,
@@ -337,6 +338,16 @@ def test_packs_and_reuses_one_deterministic_provider_neutral_context(
         publication=plan.publication,
     )
     assert first.publication_key == publication.publication_key
+    record_path = tmp_path / "records" / f"{first.manifest.package_key}.json"
+    record = PackageMaterializationRecord.from_bytes(record_path.read_bytes())
+    assert record.package_key == first.manifest.package_key
+    assert record.context_digest == first.context_digest
+    assert record.publication_key == first.publication_key
+    assert record.manifest == first.manifest
+    assert first.lease is not None and first.lease.active
+    first.close()
+    second.close()
+    assert first.lease is not None and not first.lease.active
 
 
 def test_packs_multiple_environment_wheels_and_activation_configs(

@@ -202,6 +202,13 @@ class FakeRLBridge:
 
 
 @dataclass
+class TruncatedRLBridge(FakeRLBridge):
+    async def run(self, batch, generator) -> tuple[EnvironmentRollout, ...]:
+        rollouts = await super().run(batch, generator)
+        return tuple(replace(rollout, is_truncated=True) for rollout in rollouts)
+
+
+@dataclass
 class FailingFinalizeBridge(FakeRLBridge):
     def finalize(self) -> tuple[ProducedArtifact, ...]:
         raise RuntimeError("finalize failed")
@@ -1072,7 +1079,46 @@ def test_grpo_rollout_adapter_emits_population_and_throughput_evidence(
     assert values["train/rl/rollouts_unscorable"] == 0
     assert values["train/rl/time/rollout_seconds"] > 0
     assert values["train/rl/rollout_tokens_per_second"] > 0
+    assert values["train/rl/rollout_selected_tokens"] == 3
+    assert values["train/rl/rollout_selected_token_fraction"] == 1.0
     assert observer.metrics_seen[-1].step == 4
+
+
+def test_grpo_rollout_adapter_rejects_all_truncated_masked_population(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    observer = Observer()
+    context = _run_context(
+        tmp_path.resolve(),
+        observer,
+        job_kind="train.grpo",
+        run_id="runs/grpo-all-truncated",
+    )
+    model = QWEN_35_2B
+    request = GRPORequest(
+        model,
+        TruncatedRLBridge(),
+        replace(QWEN35_GRPO_SMOKE, mask_truncated_completions=True),
+        FakeEnvironment(),
+        _training(),
+        _inference(model),
+    )
+    monkeypatch.setattr(
+        "posttrain.train.backends.trl.online_rl.TrlPolicyGenerator",
+        lambda *args: object(),
+    )
+
+    rollout = _rollout_function(context, request, object())
+    with pytest.raises(RuntimeError, match="all 1 rollouts reached a truncation boundary"):
+        rollout(
+            [[{"role": "user", "content": "What is 2 + 2?"}]],
+            SimpleNamespace(state=SimpleNamespace(global_step=0)),
+            inputs=[{"example_id": "gsm8k/train/0"}],
+        )
+
+    assert observer.metrics_seen[-1].values["train/rl/rollouts_truncated"] == 1
+    assert observer.traces[0].external_id == "trace-0"
 
 
 def test_grpo_actor_update_phase_starts_after_retained_rollouts_and_ends_at_optimizer_step(

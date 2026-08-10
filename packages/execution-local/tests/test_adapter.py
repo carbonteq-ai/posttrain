@@ -35,6 +35,10 @@ class FakeDocker:
             return {"exists": self.exists, "labels": self.labels}
         if action == "pull":
             return {"repo_digests": [payload["image"]]}
+        if action == "image_exists":
+            return {"exists": True}
+        if action == "image_cleanup":
+            return {"removed": True}
         if action == "submit":
             self.exists = True
             self.labels = dict(payload["labels"])
@@ -183,6 +187,41 @@ def test_local_docker_lifecycle_and_cancel_are_durable(
             "image": plan.request.image.value,
         },
     ) in gateway.calls
+
+
+def test_local_docker_uses_daemon_image_without_pull_and_cleans_exact_tag(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TRACKIO_SERVER_URL", "https://trackio.example")
+    gateway = FakeDocker()
+    provider = LocalDockerExecutionProvider(
+        gateway,
+        state_root=(tmp_path / "state").resolve(),
+    )
+    local_tag = "posttrain-local:" + ("a" * 64)
+    request = replace(_request(tmp_path), local_image=local_tag)
+    plan = provider.plan(request)
+    handle = provider.submit(plan)
+
+    actions = [action for action, _payload in gateway.calls]
+    assert "image_exists" in actions
+    assert "pull" not in actions
+    submit = next(payload for action, payload in gateway.calls if action == "submit")
+    assert submit["image"] == local_tag
+
+    workspace = tmp_path / "test-run"
+    workspace.mkdir()
+    gateway.status = "exited"
+    cleanup = provider.cleanup(
+        handle,
+        run_id="test-run",
+        run_workspace=workspace,
+        runtime_image=request.image,
+        local_image=local_tag,
+    )
+    assert "image_cleanup" in [action for action, _payload in gateway.calls]
+    assert local_tag in cleanup.message
 
 
 def test_local_docker_mounts_trust_bundle_as_additional_authorities(

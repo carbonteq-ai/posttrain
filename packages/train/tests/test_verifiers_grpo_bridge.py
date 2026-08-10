@@ -13,6 +13,7 @@ from posttrain.catalog import open_catalog
 from posttrain.common import CatalogRef, InferenceBinding, ModelVariant
 from posttrain.eval import EnvironmentBinding
 from posttrain.train import (
+    EnvironmentRollout,
     GRPORequest,
     GRPOSettings,
     OnPolicyDistillationRequest,
@@ -32,6 +33,7 @@ from posttrain.train.integrations.verifiers import (
     _apply_verifiers_runtime_compatibility,
     _load_selected_tasks,
     _PolicyClient,
+    _trace_is_truncated,
     load_verifiers_bridge_snapshot,
 )
 
@@ -173,6 +175,26 @@ class ConcurrentFakeEnvironment(FakeEnvironment):
         return ConcurrentFakeEpisode(self, task, n)
 
 
+class StreamingFakeEpisode(FakeEpisode):
+    def __init__(self, environment: StreamingFakeEnvironment, task: Any, count: int) -> None:
+        super().__init__(task, count)
+        self.environment = environment
+
+    async def run(self):
+        if cast(Any, self.task).data.prompt == "slow":
+            await asyncio.wait_for(self.environment.release_slow.wait(), timeout=1)
+        return await super().run()
+
+
+class StreamingFakeEnvironment(FakeEnvironment):
+    def __init__(self) -> None:
+        self.release_slow = asyncio.Event()
+
+    def episode(self, task, context, n=1):
+        assert context.model == "model-profile-v1"
+        return StreamingFakeEpisode(self, task, n)
+
+
 class InfiniteAlphabetStyleTaskset:
     INFINITE = True
 
@@ -202,7 +224,9 @@ class FiniteTaskset:
         self.tasks = [SimpleNamespace(data=SimpleNamespace(idx=index, prompt=f"task-{index}")) for index in range(6)]
 
     def load(self):
-        return self.tasks
+        # Finite native tasksets may expose a one-shot iterable (Reasoning Gym
+        # does), not a sized/indexable collection.
+        yield from self.tasks
 
     def select(self, *_args, **_kwargs):
         raise AssertionError("finite tasksets must retain seeded index sampling")
@@ -274,6 +298,28 @@ def test_policy_client_preserves_exact_turn_tokens_and_response() -> None:
     assert response.raw == {"id": "response-1"}
 
 
+@pytest.mark.parametrize(
+    ("record", "expected"),
+    [
+        ({"is_completed": True, "errors": [], "stop_condition": "agent_completed", "calls": []}, False),
+        ({"is_completed": True, "errors": [], "stop_condition": "harness_timeout", "calls": []}, True),
+        (
+            {
+                "is_completed": True,
+                "errors": [],
+                "stop_condition": "agent_completed",
+                "calls": [{"finish_reason": "length", "error": None}],
+            },
+            True,
+        ),
+        ({"is_completed": False, "errors": [], "stop_condition": None, "calls": []}, True),
+        ({"is_completed": True, "errors": [{"type": "runtime"}], "stop_condition": None, "calls": []}, True),
+    ],
+)
+def test_trace_truncation_uses_native_stop_and_finish_semantics(record, expected) -> None:
+    assert _trace_is_truncated(record) is expected
+
+
 @pytest.mark.parametrize("technique", ["grpo", "sampo", "distill"])
 def test_native_bridge_projects_multiturn_masks_rewards_and_trace_artifact(tmp_path, technique) -> None:
     task = SimpleNamespace(data=TaskData(idx=7, prompt="Arbitrary environment prompt"))
@@ -311,6 +357,8 @@ def test_native_bridge_projects_multiturn_masks_rewards_and_trace_artifact(tmp_p
     assert rollouts[0].sampling_logprobs == (-0.1, -0.2, 0.0, 0.0, -0.3, -0.4)
     assert rollouts[0].reward == 1.05
     assert rollouts[0].is_truncated is False
+    assert rollouts[0].trace.attributes["completion_token_count"] == 6
+    assert rollouts[0].trace.attributes["selected_token_count"] == 4
     if technique == "sampo":
         assert tuple((turn.completion_start, turn.completion_end) for turn in rollouts[0].turns) == ((0, 2), (4, 6))
         assert rollouts[0].turns[0].anchor_state_key != rollouts[0].turns[1].anchor_state_key
@@ -368,6 +416,77 @@ def test_native_bridge_runs_distinct_prompt_groups_concurrently(tmp_path) -> Non
         "train/000007",
         "train/000008",
     ]
+
+
+def test_native_bridge_observes_each_rollout_before_the_slowest_episode_finishes(tmp_path) -> None:
+    environment = StreamingFakeEnvironment()
+    bridge = VerifiersEnvironmentRolloutBridge(
+        dataset_id="custom/train-v1",
+        revision="revision",
+        tasks={
+            7: SimpleNamespace(data=TaskData(idx=7, prompt="fast")),
+            8: SimpleNamespace(data=TaskData(idx=8, prompt="slow")),
+        },
+        environment_factory=lambda: environment,
+        trace_path=tmp_path / "traces.jsonl",
+        environment_id="custom-v1",
+        run_id="run-1",
+        sampling=PolicySampling(max_tokens=32),
+        max_concurrent=2,
+    )
+    observed: list[str] = []
+
+    async def observe(rollout: EnvironmentRollout) -> None:
+        observed.append(rollout.example_id)
+        if rollout.example_id == "train/000007":
+            environment.release_slow.set()
+
+    rollouts = asyncio.run(
+        bridge.run_observed(
+            RolloutBatch(
+                example_ids=("train/000007", "train/000008"),
+                step=3,
+                model_id="model-profile-v1",
+            ),
+            FakeGenerator(),
+            on_completed=observe,
+        )
+    )
+
+    assert observed == ["train/000007", "train/000008"]
+    assert [rollout.example_id for rollout in rollouts] == ["train/000007", "train/000008"]
+    assert [rollout.trace.attributes["rollout_ordinal"] for rollout in rollouts] == [0, 1]
+    evidence = bridge.evidence()
+    assert evidence.traces == ()
+    assert len(evidence.metrics) == 1
+
+
+def test_native_bridge_replays_preserved_traces_when_live_observation_is_unavailable(tmp_path) -> None:
+    bridge = VerifiersEnvironmentRolloutBridge(
+        dataset_id="custom/train-v1",
+        revision="revision",
+        tasks={7: SimpleNamespace(data=TaskData(idx=7, prompt="batch-only"))},
+        environment_factory=FakeEnvironment,
+        trace_path=tmp_path / "traces.jsonl",
+        environment_id="custom-v1",
+        run_id="run-1",
+        sampling=PolicySampling(max_tokens=32),
+    )
+
+    rollouts = asyncio.run(
+        bridge.run(
+            RolloutBatch(
+                example_ids=("train/000007",),
+                step=3,
+                model_id="model-profile-v1",
+            ),
+            FakeGenerator(),
+        )
+    )
+
+    evidence = bridge.evidence()
+    assert [trace.external_id for trace in evidence.traces] == [rollouts[0].trace.external_id]
+    assert len(evidence.metrics) == 1
 
 
 def test_native_bridge_portable_snapshot_reconstructs_without_live_environment_state(tmp_path) -> None:
