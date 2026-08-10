@@ -408,10 +408,10 @@ Use the fallback only for a conclusive resident-capacity failure reported in the
       --job distill \
       --provider dstack \
       --env HF_TOKEN \
-      --timeout-seconds 3900 \
+      --timeout-seconds 2400 \
       --run-id "$SMOKE_RUN"
     pt run logs "$SMOKE_RUN" --follow
-    pt run wait "$SMOKE_RUN" --timeout-seconds 3900
+    pt run wait "$SMOKE_RUN" --timeout-seconds 2400
     pt run reconcile "$SMOKE_RUN"
     pt --json run show "$SMOKE_RUN"
 
