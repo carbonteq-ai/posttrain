@@ -375,13 +375,14 @@ def test_wheel_starters_cover_sft_and_environment_backed_paths(
             "from pathlib import Path; "
             "from posttrain.catalog import discover_project, open_catalog; "
             "from posttrain.common import CatalogRef; "
+            "from posttrain.train import PolicySampling; "
             "from posttrain.train.integrations import create_verifiers_training_bridge; "
             "layout=discover_project(Path.cwd()); "
             "catalog=open_catalog(scope=layout.project_id, overlays=layout.catalog_overlays); "
             "environment=catalog.resolve(CatalogRef('environment','gsm8k-distill-train')).value; "
             "bridge=create_verifiers_training_bridge("
             "environment, layout.state/'consumer-traces.jsonl', 'wheel-consumer', "
-            "max_tokens=384, temperature=1.0, top_p=1.0); "
+            "sampling=PolicySampling(max_tokens=384)); "
             "print(bridge.dataset.id, len(bridge.dataset.examples))"
         ),
         cwd=grpo,

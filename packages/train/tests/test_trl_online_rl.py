@@ -48,8 +48,12 @@ class FakeRenderer:
 
 
 class FakeTrainer:
-    temperature = 0.7
-    top_p = 0.9
+    temperature: float = 0.7
+    top_p: float = 0.9
+    top_k: int = 0
+    min_p: float | None = None
+    repetition_penalty: float = 1.0
+    args: SimpleNamespace = SimpleNamespace(generation_kwargs=None)
 
     def _generate_single_turn(self, prompt_ids, generation_config, extra):
         assert prompt_ids == [[1, 2]]
@@ -59,8 +63,12 @@ class FakeTrainer:
 
 
 class BatchFakeTrainer:
-    temperature = 0.7
-    top_p = 0.9
+    temperature: float = 0.7
+    top_p: float = 0.9
+    top_k: int = 0
+    min_p: float | None = None
+    repetition_penalty: float = 1.0
+    args: SimpleNamespace = SimpleNamespace(generation_kwargs=None)
 
     def __init__(self) -> None:
         self.prompt_batches: list[list[list[int]]] = []
@@ -133,6 +141,54 @@ def test_trl_policy_generator_rejects_environment_sampling_drift(monkeypatch) ->
                 PolicyTurnRequest(
                     messages=({"role": "user", "content": "hello"},),
                     sampling=PolicySampling(max_tokens=2, temperature=1.0, top_p=0.9),
+                )
+            )
+        )
+
+
+def test_trl_policy_generator_checks_complete_sampling_policy(monkeypatch) -> None:
+    monkeypatch.setattr("posttrain.train.backends.trl.online_rl.create_renderer", lambda *args: FakeRenderer())
+    profile = replace(QWEN35_GRPO_SMOKE, max_completion_length=2)
+    trainer = FakeTrainer()
+    trainer.top_k = 20
+    trainer.min_p = 0.0
+    trainer.repetition_penalty = 1.1
+    trainer.args = SimpleNamespace(generation_kwargs={"presence_penalty": 1.5})
+    generator = TrlPolicyGenerator(trainer, object(), QWEN_35_2B, profile, _training())
+
+    result = asyncio.run(
+        generator.generate(
+            PolicyTurnRequest(
+                messages=({"role": "user", "content": "hello"},),
+                sampling=PolicySampling(
+                    max_tokens=2,
+                    temperature=0.7,
+                    top_p=0.9,
+                    top_k=20,
+                    min_p=0.0,
+                    repetition_penalty=1.1,
+                    presence_penalty=1.5,
+                ),
+            )
+        )
+    )
+
+    assert result.finish_reason == "stop"
+
+    with pytest.raises(ValueError, match="does not match"):
+        asyncio.run(
+            generator.generate(
+                PolicyTurnRequest(
+                    messages=({"role": "user", "content": "hello"},),
+                    sampling=PolicySampling(
+                        max_tokens=2,
+                        temperature=0.7,
+                        top_p=0.9,
+                        top_k=20,
+                        min_p=0.0,
+                        repetition_penalty=1.1,
+                        presence_penalty=0.0,
+                    ),
                 )
             )
         )

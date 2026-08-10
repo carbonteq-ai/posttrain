@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import importlib
 import json
+import math
 import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
@@ -268,15 +269,27 @@ class SamplingPolicy:
     max_tokens: int
     temperature: float = 0.0
     top_p: float | None = None
+    top_k: int = 0
+    min_p: float | None = None
+    repetition_penalty: float = 1.0
+    presence_penalty: float = 0.0
     reasoning_effort: str | None = None
 
     def __post_init__(self) -> None:
         if self.max_tokens < 1:
             raise ValueError("sampling max_tokens must be positive")
-        if self.temperature < 0:
-            raise ValueError("sampling temperature cannot be negative")
-        if self.top_p is not None and not 0 < self.top_p <= 1:
+        if not math.isfinite(self.temperature) or self.temperature < 0:
+            raise ValueError("sampling temperature must be finite and non-negative")
+        if self.top_p is not None and (not math.isfinite(self.top_p) or not 0 < self.top_p <= 1):
             raise ValueError("sampling top_p must be in (0, 1]")
+        if isinstance(self.top_k, bool) or self.top_k < 0:
+            raise ValueError("sampling top_k must be a non-negative integer")
+        if self.min_p is not None and (not math.isfinite(self.min_p) or not 0 <= self.min_p <= 1):
+            raise ValueError("sampling min_p must be in [0, 1]")
+        if not math.isfinite(self.repetition_penalty) or self.repetition_penalty <= 0:
+            raise ValueError("sampling repetition_penalty must be finite and positive")
+        if not math.isfinite(self.presence_penalty) or not -2 <= self.presence_penalty <= 2:
+            raise ValueError("sampling presence_penalty must be in [-2, 2]")
         if self.reasoning_effort is not None and not self.reasoning_effort.strip():
             raise ValueError("reasoning_effort cannot be empty")
 

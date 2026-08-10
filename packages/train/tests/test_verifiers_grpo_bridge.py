@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from itertools import count, islice
 from types import SimpleNamespace
 from typing import Any, TypeVar, cast
@@ -284,13 +285,30 @@ def test_policy_client_preserves_exact_turn_tokens_and_response() -> None:
             ChatDialect(),
             {"messages": [{"role": "user", "content": "hello"}]},
             "model-profile-v1",
-            Sampling(temperature=1.0, max_tokens=32),
+            Sampling(
+                temperature=1.0,
+                max_tokens=32,
+                top_p=0.95,
+                top_k=20,
+                min_p=0.0,
+                repetition_penalty=1.1,
+                presence_penalty=1.5,
+            ),
             session_id="session-1",
         )
     )
 
     assert generator.requests[0].messages[0]["content"] == "hello"
     assert generator.requests[0].session_id == "session-1"
+    assert generator.requests[0].sampling == PolicySampling(
+        max_tokens=32,
+        temperature=1.0,
+        top_p=0.95,
+        top_k=20,
+        min_p=0.0,
+        repetition_penalty=1.1,
+        presence_penalty=1.5,
+    )
     assert response.tokens.prompt_ids == [1, 2]
     assert response.tokens.completion_ids == [3, 4]
     assert response.tokens.completion_logprobs == [-0.1, -0.2]
@@ -574,3 +592,18 @@ def test_catalog_environment_builds_public_grpo_and_distillation_requests(tmp_pa
     assert isinstance(distillation_request, OnPolicyDistillationRequest)
     assert grpo_request.bridge.dataset.examples[0].prompt == "What is 2 + 2?"
     assert distillation_request.bridge.dataset.examples[0].prompt == "What is 2 + 2?"
+
+    with pytest.raises(ValueError, match="same complete sampling policy"):
+        build_verifiers_grpo_request(
+            policy=grpo_request.policy,
+            environment=environment,
+            settings=grpo_request.settings,
+            training=grpo_request.training,
+            inference=replace(
+                grpo_request.inference,
+                sampling={**grpo_request.inference.sampling, "presence_penalty": 1.5},
+            ),
+            trace_path=tmp_path / "drifted-grpo-traces.jsonl",
+            run_id="drifted-grpo-run",
+            tasks=tasks,
+        )

@@ -56,6 +56,10 @@ class VerlPolicyGenerator:
                 "max_tokens": request.sampling.max_tokens,
                 "temperature": request.sampling.temperature,
                 "top_p": request.sampling.top_p,
+                "top_k": request.sampling.top_k,
+                "min_p": request.sampling.min_p,
+                "repetition_penalty": request.sampling.repetition_penalty,
+                "presence_penalty": request.sampling.presence_penalty,
                 "logprobs": True,
             },
         )

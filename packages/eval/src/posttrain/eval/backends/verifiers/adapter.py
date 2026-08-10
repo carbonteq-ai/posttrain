@@ -50,6 +50,11 @@ def _native_sampling(request: EvaluateRequest) -> dict[str, JsonValue]:
     }
     if policy.top_p is not None:
         values["top_p"] = policy.top_p
+    values["top_k"] = policy.top_k
+    if policy.min_p is not None:
+        values["min_p"] = policy.min_p
+    values["repetition_penalty"] = policy.repetition_penalty
+    values["presence_penalty"] = policy.presence_penalty
     if policy.reasoning_effort is not None:
         values["reasoning_effort"] = policy.reasoning_effort
     if not isinstance(request.model, RemotePolicy):

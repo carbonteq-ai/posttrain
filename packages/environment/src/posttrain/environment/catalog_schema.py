@@ -51,6 +51,10 @@ class SamplingPolicySchema(EnvironmentCatalogSchema):
     max_tokens: int = Field(gt=0)
     temperature: float = Field(default=0.0, ge=0)
     top_p: float | None = Field(default=None, gt=0, le=1)
+    top_k: int = Field(default=0, ge=0)
+    min_p: float | None = Field(default=None, ge=0, le=1)
+    repetition_penalty: float = Field(default=1.0, gt=0)
+    presence_penalty: float = Field(default=0.0, ge=-2, le=2)
     reasoning_effort: str | None = None
 
 

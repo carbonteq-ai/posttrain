@@ -454,6 +454,7 @@ def test_verl_rollout_passes_selected_kv_cache_dtype_to_vllm(
             "kv_cache_dtype": "turboquant_k8v4",
             "enable_chunked_prefill": True,
         },
+        sampling={**request.inference.sampling, "max_tokens": 24_576},
     )
     settings = replace(
         request.settings,

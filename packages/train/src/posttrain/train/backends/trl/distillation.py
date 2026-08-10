@@ -17,7 +17,7 @@ import httpx
 from posttrain.common import HubModelRef, RunContext, TraceObservation
 
 from ...distillation import DistillationBatch, DistillationBatchLedger
-from ...online_rl import RolloutBatch
+from ...online_rl import RolloutBatch, policy_sampling_from_binding
 from ...requests import OnPolicyDistillationRequest
 from .common import (
     BackendTrainingResult,
@@ -467,6 +467,11 @@ def _distillation_arguments(
     if not use_bf16:
         arguments["bf16"] = False
         arguments["fp16"] = False
+    sampling = policy_sampling_from_binding(
+        request.rollout_inference,
+        request.settings.max_completion_length,
+        default_temperature=request.settings.temperature,
+    )
     arguments.update(
         {
             "remove_unused_columns": False,
@@ -476,7 +481,7 @@ def _distillation_arguments(
             "beta": 1.0,
             "reverse_kl_top_1_mode": "sampled",
             "loss_top_k": 1,
-            "temperature": request.settings.temperature,
+            "temperature": sampling.temperature,
             "num_generations": request.settings.num_generations,
             "generation_batch_size": request.settings.num_prompts_per_step,
             "max_prompt_length": request.settings.max_prompt_length,
@@ -506,15 +511,15 @@ def _distillation_arguments(
             ),
             "vllm_speculative_config": speculative_config,
             "vllm_engine_kwargs": engine_kwargs,
-            "top_p": _sampling_number(request, "top_p", 1.0),
+            "top_p": sampling.top_p,
+            "top_k": sampling.top_k,
+            "min_p": sampling.min_p,
+            "repetition_penalty": sampling.repetition_penalty,
         }
     )
+    if sampling.presence_penalty:
+        arguments["generation_kwargs"] = {"presence_penalty": sampling.presence_penalty}
     return arguments
-
-
-def _sampling_number(request: OnPolicyDistillationRequest, key: str, default: float) -> float:
-    value = request.rollout_inference.sampling.get(key)
-    return float(value) if isinstance(value, (int, float)) else default
 
 
 __all__ = ["run_distillation"]

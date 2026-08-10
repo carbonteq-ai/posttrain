@@ -29,6 +29,7 @@ from ..online_rl import (
     AsyncRolloutCompletionObserver,
     EnvironmentRollout,
     EnvironmentRolloutEvidence,
+    EnvironmentSampling,
     PolicyGenerator,
     PolicySampling,
     PolicyTurnRequest,
@@ -99,6 +100,9 @@ class VerifiersEnvironmentSelection(Protocol):
 
     @property
     def max_concurrent(self) -> int: ...
+
+    @property
+    def sampling(self) -> EnvironmentSampling: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -206,9 +210,7 @@ def create_verifiers_training_bridge(
     trace_path: Path,
     run_id: str,
     *,
-    max_tokens: int,
-    temperature: float,
-    top_p: float,
+    sampling: PolicySampling,
     purpose: OnlineRLTechnique = "grpo",
     tasks: Mapping[int, Any] | None = None,
 ) -> VerifiersEnvironmentRolloutBridge:
@@ -235,7 +237,7 @@ def create_verifiers_training_bridge(
         trace_path=trace_path,
         environment_id=environment.id,
         run_id=run_id,
-        sampling=PolicySampling(max_tokens=max_tokens, temperature=temperature, top_p=top_p),
+        sampling=sampling,
         max_concurrent=getattr(environment, "max_concurrent", None),
         technique=purpose,
     )
@@ -371,12 +373,17 @@ class _PolicyClient:
             tail_start = turn.tail_start
         if sampling_args.max_tokens is None:
             raise ValueError("environment policy turns require an explicit max_tokens value")
+        min_p = getattr(sampling_args, "min_p", None)
         request = PolicyTurnRequest(
             messages=tuple(_record(message) for message in messages),
             sampling=PolicySampling(
                 max_tokens=int(sampling_args.max_tokens),
                 temperature=1.0 if sampling_args.temperature is None else float(sampling_args.temperature),
                 top_p=1.0 if sampling_args.top_p is None else float(sampling_args.top_p),
+                top_k=int(getattr(sampling_args, "top_k", 0)),
+                min_p=None if min_p is None else float(min_p),
+                repetition_penalty=float(getattr(sampling_args, "repetition_penalty", 1.0)),
+                presence_penalty=float(getattr(sampling_args, "presence_penalty", 0.0)),
             ),
             tools=tuple(_record(tool) for tool in tools or []),
             session_id=session_id,
@@ -477,6 +484,10 @@ class VerifiersEnvironmentRolloutBridge:
                 max_tokens=self.sampling.max_tokens,
                 temperature=self.sampling.temperature,
                 top_p=self.sampling.top_p,
+                top_k=self.sampling.top_k,
+                min_p=self.sampling.min_p,
+                repetition_penalty=self.sampling.repetition_penalty,
+                presence_penalty=self.sampling.presence_penalty,
             ),
         )
         counts = Counter(batch.example_ids)

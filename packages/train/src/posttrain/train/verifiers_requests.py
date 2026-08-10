@@ -13,6 +13,7 @@ from .integrations.verifiers import (
     VerifiersEnvironmentSelection,
     create_verifiers_training_bridge,
 )
+from .online_rl import PolicySampling, policy_sampling_from_binding, policy_sampling_from_environment
 from .profiles import GRPOSettings, OnPolicyDistillationSettings, SAMPOSettings
 from .requests import GRPORequest, OnPolicyDistillationRequest, SAMPORequest
 
@@ -32,13 +33,12 @@ def build_verifiers_grpo_request(
 ) -> GRPORequest:
     """Build the public GRPO request directly from an environment binding."""
 
+    sampling = _verified_policy_sampling(environment, inference, settings.max_completion_length)
     bridge = create_verifiers_training_bridge(
         environment,
         trace_path,
         run_id,
-        max_tokens=settings.max_completion_length,
-        temperature=_sampling_number(inference, "temperature", 1.0),
-        top_p=_sampling_number(inference, "top_p", 1.0),
+        sampling=sampling,
         purpose=settings.algorithm,
         tasks=tasks,
     )
@@ -70,13 +70,17 @@ def build_verifiers_distillation_request(
 ) -> OnPolicyDistillationRequest:
     """Build the public distillation request directly from an environment binding."""
 
+    sampling = _verified_policy_sampling(
+        environment,
+        rollout_inference,
+        settings.max_completion_length,
+        default_temperature=settings.temperature,
+    )
     bridge = create_verifiers_training_bridge(
         environment,
         trace_path,
         run_id,
-        max_tokens=settings.max_completion_length,
-        temperature=_sampling_number(rollout_inference, "temperature", settings.temperature),
-        top_p=_sampling_number(rollout_inference, "top_p", 1.0),
+        sampling=sampling,
         purpose="distill",
         tasks=tasks,
     )
@@ -108,13 +112,12 @@ def build_verifiers_sampo_request(
 ) -> SAMPORequest:
     """Build a SAMPO request from a multi-turn Verifiers environment."""
 
+    sampling = _verified_policy_sampling(environment, inference, settings.max_completion_length)
     bridge = create_verifiers_training_bridge(
         environment,
         trace_path,
         run_id,
-        max_tokens=settings.max_completion_length,
-        temperature=_sampling_number(inference, "temperature", 1.0),
-        top_p=_sampling_number(inference, "top_p", 1.0),
+        sampling=sampling,
         purpose="sampo",
         tasks=tasks,
     )
@@ -130,9 +133,25 @@ def build_verifiers_sampo_request(
     )
 
 
-def _sampling_number(binding: InferenceBinding, key: str, default: float) -> float:
-    value = binding.sampling.get(key)
-    return float(value) if isinstance(value, int | float) and not isinstance(value, bool) else default
+def _verified_policy_sampling(
+    environment: VerifiersEnvironmentSelection,
+    inference: InferenceBinding,
+    max_tokens: int,
+    *,
+    default_temperature: float = 1.0,
+) -> PolicySampling:
+    environment_sampling = policy_sampling_from_environment(environment.sampling)
+    inference_sampling = policy_sampling_from_binding(
+        inference,
+        max_tokens,
+        default_temperature=default_temperature,
+    )
+    if environment_sampling != inference_sampling:
+        raise ValueError(
+            "environment and rollout inference must declare the same complete sampling policy: "
+            f"environment={environment_sampling!r}, inference={inference_sampling!r}"
+        )
+    return inference_sampling
 
 
 __all__ = ["build_verifiers_distillation_request", "build_verifiers_grpo_request", "build_verifiers_sampo_request"]

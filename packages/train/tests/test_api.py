@@ -306,6 +306,7 @@ def _inference(
     *,
     target: ExecutionTarget | None = None,
     max_model_len: int = 640,
+    max_tokens: int = 384,
     speculative: bool = False,
     kv_cache_dtype: str | None = None,
 ) -> InferenceBinding:
@@ -336,7 +337,7 @@ def _inference(
         "vllm@0.25.1",
         model.renderer_contract,
         engine,
-        {"max_tokens": 384, "temperature": 0.8, "top_p": 1.0},
+        {"max_tokens": max_tokens, "temperature": 0.8, "top_p": 1.0},
         target or _target("targets/rollout-cuda-8gb"),
         ("rollout",),
     )
@@ -936,6 +937,29 @@ def test_distillation_backend_fixes_fully_on_policy_reverse_kl_contract(tmp_path
     assert arguments["vllm_weight_sync_mode"] == "lora"
     assert arguments["generation_batch_size"] == request.settings.num_prompts_per_step
 
+    sampled_request = replace(
+        request,
+        rollout_inference=replace(
+            request.rollout_inference,
+            sampling={
+                **request.rollout_inference.sampling,
+                "temperature": 1.0,
+                "top_p": 0.95,
+                "top_k": 20,
+                "min_p": 0.0,
+                "repetition_penalty": 1.1,
+                "presence_penalty": 1.5,
+            },
+        ),
+    )
+    sampled_arguments = _distillation_arguments(sampled_request, tmp_path, "http://teacher.invalid:8000")
+    assert sampled_arguments["temperature"] == 1.0
+    assert sampled_arguments["top_p"] == 0.95
+    assert sampled_arguments["top_k"] == 20
+    assert sampled_arguments["min_p"] == 0.0
+    assert sampled_arguments["repetition_penalty"] == 1.1
+    assert sampled_arguments["generation_kwargs"] == {"presence_penalty": 1.5}
+
 
 def test_distillation_backend_configures_colocated_transformers_teacher(
     tmp_path: Path,
@@ -1344,6 +1368,30 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
     }
     assert arguments["vllm_speculative_config"] is None
 
+    sampled_request = replace(
+        request,
+        inference=replace(
+            request.inference,
+            sampling={
+                "max_tokens": 384,
+                "temperature": 1.0,
+                "top_p": 0.95,
+                "top_k": 20,
+                "min_p": 0.0,
+                "repetition_penalty": 1.1,
+                "presence_penalty": 1.5,
+            },
+        ),
+    )
+    sampled_arguments = _grpo_arguments(sampled_request, tmp_path, {"enable_thinking": True})
+    assert sampled_arguments["temperature"] == 1.0
+    assert sampled_arguments["top_p"] == 0.95
+    assert sampled_arguments["top_k"] == 20
+    assert sampled_arguments["min_p"] == 0.0
+    assert sampled_arguments["repetition_penalty"] == 1.1
+    assert sampled_arguments["generation_kwargs"] == {"presence_penalty": 1.5}
+    assert sampled_arguments["chat_template_kwargs"] == {"enable_thinking": True}
+
     multi_prompt_settings = replace(
         QWEN35_GRPO_SMOKE,
         loop=replace(QWEN35_GRPO_SMOKE.loop, per_device_batch_size=16),
@@ -1402,7 +1450,7 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
         QWEN35_GRPO_MTP_SMOKE,
         FakeEnvironment(),
         _training(),
-        _inference(model, max_model_len=1_024, speculative=True),
+        _inference(model, max_model_len=1_024, max_tokens=512, speculative=True),
     )
     mtp_arguments = _grpo_arguments(mtp_request, tmp_path, {"enable_thinking": False})
     assert mtp_arguments["vllm_speculative_config"] == {
@@ -1498,6 +1546,7 @@ def test_grpo_runtime_event_attributes_describe_selected_acceleration_without_cl
         _inference(
             model,
             max_model_len=1_024,
+            max_tokens=512,
             speculative=True,
             kv_cache_dtype="turboquant_k8v4",
         ),
@@ -1509,6 +1558,11 @@ def test_grpo_runtime_event_attributes_describe_selected_acceleration_without_cl
     assert attributes["speculative_method"] == "mtp"
     assert attributes["num_speculative_tokens"] == 1
     assert attributes["kv_cache_dtype"] == "turboquant_k8v4"
+    assert attributes["rollout_reasoning_mode"] == "off"
+    assert attributes["rollout_temperature"] == 0.8
+    assert attributes["rollout_top_p"] == 1.0
+    assert attributes["rollout_top_k"] == 0
+    assert attributes["rollout_presence_penalty"] == 0.0
     assert not any("accept" in key or "usage" in key for key in attributes)
 
 
@@ -1522,6 +1576,16 @@ def test_grpo_request_requires_engine_window_to_cover_declared_generation_bounds
             FakeEnvironment(),
             _training(),
             _inference(model, max_model_len=512),
+        )
+
+    with pytest.raises(ValueError, match="max_tokens must equal"):
+        GRPORequest(
+            model,
+            FakeRLBridge(),
+            QWEN35_GRPO_SMOKE,
+            FakeEnvironment(),
+            _training(),
+            replace(_inference(model), sampling={"max_tokens": 128, "temperature": 1.0}),
         )
 
 

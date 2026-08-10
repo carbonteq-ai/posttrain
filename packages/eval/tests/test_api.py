@@ -374,6 +374,39 @@ def test_remote_evaluation_rejects_local_endpoint_and_reasoning_override() -> No
         replace(evaluation, reasoning_mode="thinking")
 
 
+def test_native_verifiers_sampling_preserves_complete_generation_policy() -> None:
+    from posttrain.eval.backends.verifiers.adapter import _native_sampling
+
+    evaluation = request()
+    environment = replace(
+        evaluation.environment,
+        sampling=SamplingPolicy(
+            max_tokens=512,
+            temperature=1.0,
+            top_p=0.95,
+            top_k=20,
+            min_p=0.0,
+            repetition_penalty=1.05,
+            presence_penalty=1.5,
+        ),
+    )
+    evaluation = replace(
+        evaluation,
+        plan=replace(evaluation.plan, environments=(environment,)),
+    )
+
+    assert _native_sampling(evaluation) == {
+        "temperature": 1.0,
+        "max_tokens": 512,
+        "top_p": 0.95,
+        "top_k": 20,
+        "min_p": 0.0,
+        "repetition_penalty": 1.05,
+        "presence_penalty": 1.5,
+        "chat_template_kwargs": {"enable_thinking": False},
+    }
+
+
 def test_remote_binding_maps_to_the_native_verifiers_client_without_a_custom_loop(tmp_path: Path) -> None:
     pytest.importorskip("verifiers.v1")
     from posttrain.eval.backends.verifiers.adapter import _build_native

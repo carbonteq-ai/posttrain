@@ -6,6 +6,8 @@ from posttrain.environment import (
     EnvironmentSource,
     ProjectPathEnvironmentSource,
     ProjectPathEnvironmentSourceSchema,
+    SamplingPolicy,
+    SamplingPolicySchema,
     VerifiersV1ConfigActivationSchema,
 )
 from posttrain.eval import EnvironmentBinding as LegacyEnvironmentBinding
@@ -48,3 +50,23 @@ def test_project_path_environment_source_is_a_distinct_declared_kind() -> None:
 
     assert source.kind == "project-path"
     assert parsed.path == source.path
+
+
+def test_sampling_policy_preserves_complete_generation_controls() -> None:
+    payload = {
+        "max_tokens": 16_384,
+        "temperature": 1.0,
+        "top_p": 0.95,
+        "top_k": 20,
+        "min_p": 0.0,
+        "repetition_penalty": 1.0,
+        "presence_penalty": 1.5,
+    }
+
+    parsed = SamplingPolicySchema.model_validate(payload)
+    policy = SamplingPolicy(**parsed.model_dump())
+
+    assert policy.top_k == 20
+    assert policy.min_p == 0.0
+    assert policy.repetition_penalty == 1.0
+    assert policy.presence_penalty == 1.5
