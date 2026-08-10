@@ -6,7 +6,7 @@ This ExecPlan is a living document. The sections `Progress`, `Surprises & Discov
 
 This plan delivers a reproducible and throughput-qualified Policy Prism on-policy distillation (OPD) experiment on the in-house RTX PRO 6000. Gemma 4 E2B is the trainable student and Gemma 4 12B is the frozen teacher. The student generates legal-interpretation responses, the teacher scores the exact generated token IDs, and the maintained TRL 1.9.2.post1 Importance-Weighted OPD (IW-OPD) objective updates a rank-16 LoRA adapter. IW-OPD uses the sampled-token student and teacher log-probabilities and prefix-drift weighting; it is a deliberate replacement for the feature branch's older sparse reverse-KL implementation, not a rename of the same loss.
 
-The previous attempts produced a valid intermediate checkpoint at optimizer step 96 but did not complete training. This plan preserves that checkpoint as historical evidence, merges current `origin/main` into only the experiment feature branch, ports the Policy-specific correctness and memory-safety deltas onto the maintained IW-OPD backend, and runs one research-selected integrated GPU smoke under a hard 90-minute limit. Offline and isolated-image gates exhaustively validate the historical structural failures; the live smoke verifies the combined models, three policy updates, two post-sync rollout cycles, heterogeneous batching, memory, artifacts, and throughput. Completion means that all 384 logical targets were optimized once under one frozen configuration, the final adapter and checkpoints are retained in Trackio, the adapter is privately published and freshly verified on Hugging Face, sealed scope and recovery evaluations succeed, and both evaluations are finalized in Policy Prism's normal five-file `evaluation-runs` format.
+The previous attempts produced a valid intermediate checkpoint at optimizer step 96 but did not complete training. This plan preserves that checkpoint as historical evidence, merges current `origin/main` into only the experiment feature branch, ports the Policy-specific correctness and memory-safety deltas onto the maintained IW-OPD backend, and runs one research-selected integrated GPU smoke under a hard 60-minute limit. Offline and isolated-image gates exhaustively validate the historical structural failures; the live smoke verifies the combined models, three policy updates, two post-sync rollout cycles, heterogeneous batching, memory, artifacts, and throughput. Completion means that all 384 logical targets were optimized once under one frozen configuration, the final adapter and checkpoints are retained in Trackio, the adapter is privately published and freshly verified on Hugging Face, sealed scope and recovery evaluations succeed, and both evaluations are finalized in Policy Prism's normal five-file `evaluation-runs` format.
 
 This plan does not change either `main` branch. All PostTrain commits use `feat/gemma-policy-prism-opd-e2b-12b`; all Policy Prism commits use `feat/scope-opd-e2b-12b-environment-v1`. Failed attempts and their Trackio evidence remain retained.
 
@@ -28,10 +28,11 @@ This plan does not change either `main` branch. All PostTrain commits use `feat/
 - [x] (2026-08-10) Fetch and compare current `origin/main` at `6ffe634432a3f92e8c6dd561d3cd85b2b2ba45cd`, the experiment branch at `dbb5c7b5538124913b99620801339f702c58089e`, and the immutable TRL 1.9.2.post1 fork source at `a82ecebc0fa081efd58302a34a553445fc73271d` without changing either branch.
 - [x] (2026-08-10) Audit the target-78 and target-98 Policy Prism fixes, discover the stale production source pin, identify the shared-reserve prompt-budget audit gap, and select the representative 12-target seed-2907 live cohort.
 - [x] (2026-08-10) Audit logical rollout batching, physical actor batching, vLLM resident waves, chunked prefill, prefix caching, MTP, sleep mode, KV dtype, and CUDA execution mode; select one research-grounded production candidate rather than a live parameter sweep.
-- [ ] Merge `origin/main` into only `feat/gemma-policy-prism-opd-e2b-12b`, adopt the release/runtime/checkpoint structure, and port the enumerated Policy-specific deltas onto TRL IW-OPD.
-- [ ] Complete Policy Prism's actual-materialization token audit, commit it, then pin the production and smoke environments to that exact descendant of `147ac759...`.
-- [ ] Pass offline IW-OPD loss/gradient, target-78 reserve, all-schema identifier, heterogeneous batching, resume-ledger, and isolated-image gates.
-- [ ] Run one fixed 12-target, three-update integrated GPU smoke and complete its scientific/runtime reconciliation within a hard 90-minute window.
+- [x] (2026-08-10) Merge `origin/main` into only `feat/gemma-policy-prism-opd-e2b-12b`, adopt the release/runtime/checkpoint structure, and port the enumerated Policy-specific deltas onto TRL IW-OPD; merge commit `7926e87` and qualification-boundary commit `5b1b87d` are pushed.
+- [x] (2026-08-10) Complete Policy Prism's actual-materialization token audit in source commit `411fa6e`, pin the qualification environment to that exact source, and add the resident-two emergency work package in catalog commit `77506c6`.
+- [x] (2026-08-10) Pass offline IW-OPD loss/gradient and accumulation equivalence, target-78 forced cross-profile reserve recovery, exact target-98 source enums, all actual-schema XGrammar compilation, concurrent/restart-safe real-ledger claims, selected-stage masking, heterogeneous batching, and checkpoint-ledger gates. The 765 distinct candidate/profile/shape materializations expand to 1,293 stage schemas, all compiled under XGrammar 0.2.3.
+- [x] (2026-08-10) Package corrected resident-four and resident-two actual-job images. After the first provider canary exposed a fail-closed private-hook name mismatch, align the exact pinned IW-OPD hook to `aligned_prompt_length`, pass its real-class regression, push PostTrain commit `e8fbd51`, and repack immutable images `sha256:b646c50e...` and `sha256:4b83bea8...` respectively.
+- [ ] Run one fixed 12-target, three-update integrated GPU smoke and complete its scientific/runtime reconciliation within a hard 60-minute window. Corrected attempt `opdq-fast01b-iwopd-e2b12b-c12-lb4-rseq4-nomtp` reached one finite update before dstack terminated it as `instance_unreachable`; both fleet workers then became unreachable. This is retained infrastructure evidence, not a qualified run.
 - [ ] Build and push one fresh 384-target work package using the selected batch and target-normalized schedule.
 - [ ] Run the complete OPD experiment from the base E2B model, retain all milestones, and reconcile it consistently.
 - [ ] Publish and freshly verify the final private LoRA adapter on Hugging Face.
@@ -58,9 +59,9 @@ This plan does not change either `main` branch. All PostTrain commits use `feat/
   Evidence: r9 advanced roughly 34 optimizer updates in about 2.5 hours including long heterogeneous generations, implying approximately 27–30 hours for a fresh 384-update batch-one run. Batch-two and batch-four duration must be derived from identical live smokes rather than extrapolated from H200 or E4B/31B runs.
 - Observation: changing the optimizer batch invalidates exact continuation from checkpoint 96 for the production comparison.
   Evidence: a batch-two or batch-four run changes targets per optimizer update, scheduler steps, checkpoint step numbers, and sampler advancement. Resuming checkpoint 96 under that schedule would mix two optimization regimes. The checkpoint remains valuable evidence, but the final selected configuration starts from the frozen base E2B model.
-- Observation: the Policy Prism target-98 correction exists in source but is not yet selected by the committed production catalog.
-  Evidence: Policy Prism is clean at `147ac759...`, but `.posttrain/catalog/environments.yaml` still pins `2b7a5dc...`. A job resolved from that catalog would silently package the pre-fix environment. The source/audit commit must be created first and a later catalog commit must pin it before any image is packed.
-- Observation: the existing four-task seed is too small, while the earlier 16-target matrix is unnecessary for a 90-minute qualification.
+- Observation: the Policy Prism target-98 correction initially existed in source but was not selected by the committed production catalog; this launch blocker is closed.
+  Evidence: the earlier catalog pinned `2b7a5dc...`. The qualification environment now resolves source/audit commit `411fa6e`, a descendant of target-98 commit `147ac759...`, and the packaged run view records that exact revision.
+- Observation: the existing four-task seed is too small, while the earlier 16-target matrix is unnecessary for a 60-minute qualification.
   Evidence: seed 539 resolves `[98, 151, 284, 367]`; it omits target 78 and gives logical batch four only one update. Seed 2907 with 12 tasks resolves `[31, 49, 70, 75, 78, 98, 126, 163, 182, 233, 278, 329]`. It covers both historical boundaries, every stage, every length quartile, all four prompt profiles, four full trajectories, and produces three optimizer updates/twelve physical backward passes at logical batch four. Deterministic reserve failure remains an offline fault-injection test because natural sampling cannot guarantee it.
 - Observation: shared reserves exposed a small build-time token-audit mismatch, not a capacity failure.
   Evidence: runtime renders a reserve with its logical primary's profile and shape, while the current audit renders it with the reserve-owned profile. Auditing the 765 actual candidate/profile/shape combinations gives maxima of 8,799 evidence, 10,940 rules, and 9,057 graph tokens; all are safely below 32,768, but the committed graph maximum of 9,034 is not exact.
@@ -73,9 +74,15 @@ This plan does not change either `main` branch. All PostTrain commits use `feat/
 - Observation: student prefix caching is not currently a safe acceleration.
   Evidence: the pinned LoRA synchronization path reloads the adapter without an explicit prefix-cache invalidation invariant. A stale prefix after an optimizer update would be scientifically invalid. Student caching remains off unless a regression proves reset after every LoRA sync. Teacher prefix caching remains safe because the teacher never changes.
 - Observation: E2B MTP is a real but unqualified candidate.
-  Evidence: the model profile pins `google/gemma-4-E2B-it-assistant` at `2d874ef7d29f9a30599a1e4b3c1cbc9595f005df`; its approximately 190 MB assistant declares `Gemma4AssistantForCausalLM`, four layers, and the matching 262,144-token vocabulary. Existing live evidence covers another model/workload, so E2B Policy IW-OPD would require a matched MTP-off/MTP-1 smoke with acceptance and post-sync counters. That comparison is deliberately excluded from this 90-minute qualification and from the resulting production run.
+  Evidence: the model profile pins `google/gemma-4-E2B-it-assistant` at `2d874ef7d29f9a30599a1e4b3c1cbc9595f005df`; its approximately 190 MB assistant declares `Gemma4AssistantForCausalLM`, four layers, and the matching 262,144-token vocabulary. Existing live evidence covers another model/workload, so E2B Policy IW-OPD would require a matched MTP-off/MTP-1 smoke with acceptance and post-sync counters. That comparison is deliberately excluded from this 60-minute qualification and from the resulting production run.
 - Observation: the feature branch's linear learning-rate scaling confounds throughput with a new optimizer regime.
   Evidence: the IW-OPD reference configuration uses physical batch one, gradient accumulation, and learning rate `1e-5`. Capacity arms must keep `1e-5` fixed. The previous proposed `2e-5`/`4e-5` values are removed unless a separate learning-rate qualification later justifies them.
+- Observation: the corrected qualification crossed the complete model/runtime boundary and produced one valid IW-OPD update before an external fleet outage.
+  Evidence: `opdq-fast01b-iwopd-e2b12b-c12-lb4-rseq4-nomtp` admitted targets 31, 70, 75, and 329, including a complete graph trajectory; all selected stages ended with `stop` and passed structural admission. Step one scored 4,725 tokens with zero teacher failures, finite loss `-1.7350585`, finite gradient norm `10.37675`, and one clipped gradient. Trackio retained paired step-one model and recovery artifacts with digests `03d0c961...` and `5e9e6d4d...` plus the allocation ledger.
+- Observation: resident four is memory-safe on the target RTX PRO 6000, but heterogeneous Policy schemas limit average decode concurrency.
+  Evidence: 1,347 Trackio GPU samples show median utilization 20%, p95 22%, and peak 100%. Median device memory was 72,441,135,104 bytes and peak was 72,722,153,472 bytes (67.73 GiB), leaving about 27.9 GiB against the 96-GiB device. The twelve recorded generation submissions had request/resident sizes `[1,1,3,1,1,4,1,1,1,1,1,1]`; only one group reached four and one reached three because task-specific schemas partition the rest. Step one took 592.70 seconds. Teacher scoring stayed healthy at 181--1,170 ms across four sequences, so student structured autoregressive generation remains the dominant bottleneck.
+- Observation: the corrected attempt ended because the shared GPU fleet became unreachable, not because resident four exhausted memory or the runtime failed.
+  Evidence: dstack recorded `termination_reason=instance_unreachable`, no container exit status, and no Python/CUDA exception after the finite update. Immediately afterward both `carbonteq-ai-workstation.lan` and the independent RTX 4090 worker were `unreachable=true`, healthy, idle, and holding zero blocks. The abrupt termination also left the Trackio lifecycle at `running`; PostTrain correctly reconciles the provider outcome as failed with incomplete final roles.
 
 ## Decision Log
 
@@ -98,19 +105,25 @@ This plan does not change either `main` branch. All PostTrain commits use `feat/
   Rationale: this is the maintained, fork-tested on-policy backend and the published IW-OPD reference configuration. The former feature loss remains test/reference input while its memory-safe projection is ported to the new sampled-token objective.
   Date/Author: 2026-08-10 / Codex.
 - Decision: qualify one production candidate: logical batch four, physical actor batch one, accumulation four, resident vLLM capacity four, and no MTP.
-  Rationale: logical four attacks the measured serial-generation bottleneck while one-sequence backward slices bound 49K-token activation memory. The maintained fork's 4,096-token prefill chunks and bounded waves are the researched scheduler choice. Live b1/b2/b8 and physical-batch sweeps do not fit the user's 90-minute budget and are not required to prove the selected path. This is the best defensible configuration under the fixed qualification budget, not a claim that an untested point is the global throughput optimum.
+  Rationale: logical four attacks the measured serial-generation bottleneck while one-sequence backward slices bound 49K-token activation memory. The maintained fork's 4,096-token prefill chunks and bounded waves are the researched scheduler choice. Live b1/b2/b8 and physical-batch sweeps do not fit the user's 60-minute budget and are not required to prove the selected path. This is the best defensible configuration under the fixed qualification budget, not a claim that an untested point is the global throughput optimum.
   Date/Author: 2026-08-10 / Codex.
 - Decision: use one deterministic 12-target seed-2907 cohort for the live smoke.
   Rationale: `[31, 49, 70, 75, 78, 98, 126, 163, 182, 233, 278, 329]` covers both prior failures, every stage/profile/quartile, four full trajectories, and three optimizer updates/twelve backward passes. That is the smallest representative cohort satisfying the TRL fork's retained ten-backward live qualification gate.
   Date/Author: 2026-08-10 / Codex.
 - Decision: do not spend this qualification window on prefill, MTP, prefix-cache, physical-batch, or GPU-reservation A/B runs.
-  Rationale: MTP requires a matched off/on test and post-LoRA-sync evidence; student prefix caching lacks a proven invalidation invariant; physical batches multiply long-context activations; and a prefill sweep consumes most of the 90-minute budget. Use the maintained fork default `max_num_batched_tokens=4096`, MTP off, student cache off, and the already-safe teacher cache. MTP can be a later independent acceleration experiment after this OPD result.
+  Rationale: MTP requires a matched off/on test and post-LoRA-sync evidence; student prefix caching lacks a proven invalidation invariant; physical batches multiply long-context activations; and a prefill sweep consumes most of the 60-minute budget. Use the maintained fork default `max_num_batched_tokens=4096`, MTP off, student cache off, and the already-safe teacher cache. MTP can be a later independent acceleration experiment after this OPD result.
   Date/Author: 2026-08-10 / Codex.
 - Decision: keep student prefix caching off, teacher prefix caching on, eager execution on, student sleep enabled, TP1, and teacher BF16.
   Rationale: the student changes every optimizer update and lacks a proven LoRA-sync cache reset; the teacher is immutable. CUDA graphs, disabled sleep, teacher quantization/MTP, TurboQuant, and arbitrary attention overrides add memory or scientific risk without addressing the measured generation bottleneck.
   Date/Author: 2026-08-10 / Codex.
+- Decision: reduce the live qualification cap from 90 minutes to 60 minutes without adding or shrinking the scientific cohort.
+  Rationale: the first valid update took 592.70 seconds and the corrected run reached it about thirteen minutes after submission, projecting three updates within the new cap while retaining targets 78/98 and two post-sync cycles. The 12-target cohort remains the minimum complete live gate; accepting only four targets would hide the exact historical boundaries.
+  Date/Author: 2026-08-10 / Codex.
+- Decision: do not invoke resident two for an `instance_unreachable` termination.
+  Rationale: resident two is permitted only for a conclusive OOM/KV-capacity failure. The retained peak memory leaves substantial headroom, and both independent workers disappeared together. Retrying a slower configuration would not correct network or workstation reachability.
+  Date/Author: 2026-08-10 / Codex.
 - Decision: qualify the fixed resident-four configuration by wall seconds per admitted target; resident two is an emergency capacity fallback, not a comparison arm.
-  Rationale: throughput is the user goal, but the 90-minute budget permits one integrated qualification rather than a sweep. GPU utilization is supporting evidence, not the primary objective.
+  Rationale: throughput is the user goal, but the 60-minute budget permits one integrated qualification rather than a sweep. GPU utilization is supporting evidence, not the primary objective.
   Date/Author: 2026-08-10 / Codex.
 - Decision: run the final 384-target experiment from the frozen base E2B model after the fixed configuration qualifies.
   Rationale: one consistent batch, learning-rate schedule, sampler, and ledger produces cleaner scientific lineage than mixing checkpoint-96 batch-one history with a new batch.
@@ -123,7 +136,7 @@ This plan does not change either `main` branch. All PostTrain commits use `feat/
 
 Checkpoint 96 is now a complete, independently downloadable intermediate result rather than an artifact trapped inside a failed run. Its private Hugging Face repository and immutable revision are verified. The previous run did not finish because reserve matching first over-fragmented candidates at target 78, and then the model was allowed to invent an exact source identifier at target 98. Both causes now have narrow, tested corrections: broader scientifically compatible reserve sharing and a task-specific schema enum.
 
-No claim is made that checkpoint 96 is a completed or qualified model. No new smoke or production job has been submitted under this plan revision. The optimization audit showed that the old four-task/device-batch sweep would neither exercise target 78 nor satisfy the fork's live backward gate, while a multi-arm sweep would waste hours. The next execution reconciles the feature work, passes exhaustive offline faults, and runs one 12-target integrated smoke within 90 minutes. A passing smoke freezes the fresh full-run configuration.
+No claim is made that checkpoint 96 is a completed or qualified model. The corrected IW-OPD qualification proved the selected resident-four configuration can load both models, execute heterogeneous structured rollouts, score exact tokens, backpropagate, and publish a paired checkpoint without OOM. It remains unqualified because an external fleet reachability failure stopped the job after 4/12 targets and 1/3 updates, before targets 78 and 98. Once the workstation is reachable, the only valid next GPU action is a fresh resident-four run with a new ID and the same immutable image/configuration; resident two is not indicated. A passing run within 60 minutes freezes the fresh full-run configuration.
 
 ## Context and Orientation
 
@@ -197,17 +210,17 @@ Historical failure closure is explicit:
 | Concurrent replacements duplicate or drift after resume | Atomic SQLite claims plus checkpoint ledger sidecar | Real-pool concurrency/restart tests and matching live ledger |
 | `max_concurrent=4` still serialized unique schemas | Heterogeneous per-request schema batching with stable output order | One four-request offline batch and recorded live request/wave size |
 
-### Milestone 5: run one integrated smoke within 90 minutes
+### Milestone 5: run one integrated smoke within 60 minutes
 
 Run exactly one required GPU job from fresh base weights. It uses seed 2907's 12 targets, logical batch four, physical batch one, accumulation four, and therefore three optimizer updates with twelve physical backward passes. It exercises two generations after LoRA synchronization, meeting the maintained TRL fork's ten-backward live gate without a separate confirmation run.
 
-The 90-minute limit is the complete provider/GPU qualification window, from submission through reconciliation. Source integration, CPU/unit fault tests, image construction, model-access checks, and job packing happen beforehand without holding the GPU. The single live run then verifies that all of those corrections work together on the real hardware within the same 90-minute window.
+The 60-minute limit is the complete provider/GPU qualification window, from submission through reconciliation. Source integration, CPU/unit fault tests, image construction, model-access checks, and job packing happen beforehand without holding the GPU. The single live run then verifies that all of those corrections work together on the real hardware within the same 60-minute window.
 
 The frozen smoke configuration is:
 
 | Control | Value |
 | --- | --- |
-| Run ID | `opdq-fast01-iwopd-e2b12b-c12-lb4-rseq4-nomtp` |
+| Next run ID | `opdq-fast01c-iwopd-e2b12b-c12-lb4-rseq4-nomtp` |
 | Targets / optimizer updates | 12 / 3 |
 | Logical / physical / accumulation | `4 / 1 / 4` |
 | Environment concurrency | 4 |
@@ -222,7 +235,7 @@ The frozen smoke configuration is:
 | IW-OPD | gamma 0.5 / epsilon `1e-8` / LR `1e-5` |
 | Checkpoints | every update / retain latest 2 |
 
-Pack the primary configuration and a resident-two fallback before reserving the GPU. The 90-minute clock starts at provider submission. Time gates are: engine ready by minute 20, first admitted batch by minute 35, first finite update by minute 55, terminal training by minute 80, and reconciliation/scientific gate by minute 90. Set the provider job timeout to 4,800 seconds so a hung job leaves ten minutes for reconciliation. Submit the resident-two fallback only when the primary fails conclusively during the first 15 minutes from a KV-capacity/OOM condition; otherwise stop at 90 minutes and report the blocker rather than extending the sweep.
+Pack the primary configuration and a resident-two fallback before reserving the GPU. The 60-minute clock starts at provider submission. Time gates are: engine ready by minute 10, first admitted batch by minute 15, first finite update by minute 20, terminal training by minute 52, and reconciliation/scientific gate by minute 60. Set the provider job timeout to 3,120 seconds so a hung job leaves eight minutes for reconciliation. Submit the resident-two fallback only when the primary fails conclusively during the first 15 minutes from a KV-capacity/OOM condition; an infrastructure outage is not a fallback trigger.
 
 Acceptance requires all 12 target identities exactly once; three finite optimizer updates and at least twelve backward passes; successful post-sync rollouts; target 78 and 98 completion; zero source-ID or graph-reference mismatch; zero truncation/provider/teacher error; positive scored-token count; no duplicate reserve; complete native trace sync; one complete paired checkpoint/model view with its SQLite ledger; and consistent reconciliation. Record end-to-end seconds per admitted target, actual heterogeneous request and resident-wave sizes, rollout tokens/s, actor/teacher/sync/sleep timing, median/p95 utilization, peak VRAM, KV preemptions, replacement reasons, and artifact digests. Raw GPU utilization alone cannot pass or fail the run.
 
@@ -363,11 +376,11 @@ Configure the control shell only after code and catalog commits are immutable:
 
 Expected preflight is a valid catalog, healthy internal services, and `carbonteq-ai-workstation.lan` healthy with one idle RTX PRO 6000 block. Do not expose credential values. Ensure at least 80 GiB local free space before rebuilding; current free space was approximately 89 GiB after trash cleanup.
 
-Package the primary smoke and its resident-two fallback before starting the 90-minute clock:
+Package the primary smoke and its resident-two fallback before starting the 60-minute clock:
 
-    export SMOKE_PACKAGE=gemma4_e2b_scope_opd_iwopd_c12_lb4_rseq4.yaml
-    export FALLBACK_PACKAGE=gemma4_e2b_scope_opd_iwopd_c12_lb4_rseq2.yaml
-    export SMOKE_RUN=opdq-fast01-iwopd-e2b12b-c12-lb4-rseq4-nomtp
+    export SMOKE_PACKAGE=gemma4_e2b_scope_opd_from_12b_qualify_c12_lb4.yaml
+    export FALLBACK_PACKAGE=gemma4_e2b_scope_opd_from_12b_qualify_c12_lb4_rseq2.yaml
+    export SMOKE_RUN=opdq-fast01c-iwopd-e2b12b-c12-lb4-rseq4-nomtp
 
     for package in "$SMOKE_PACKAGE" "$FALLBACK_PACKAGE"; do
       pt work-package validate "$package"
@@ -381,10 +394,10 @@ Each pack must report one immutable actual-job image and isolated-runtime succes
       --job distill \
       --provider dstack \
       --env HF_TOKEN \
-      --timeout-seconds 4800 \
+      --timeout-seconds 3120 \
       --run-id "$SMOKE_RUN"
     pt run logs "$SMOKE_RUN" --follow
-    pt run wait "$SMOKE_RUN" --timeout-seconds 4800
+    pt run wait "$SMOKE_RUN" --timeout-seconds 3120
     pt run reconcile "$SMOKE_RUN"
     pt --json run show "$SMOKE_RUN"
 
@@ -402,7 +415,7 @@ Use the fallback only for a conclusive resident-capacity failure reported in the
     pt run reconcile "$SMOKE_RUN"
     pt --json run show "$SMOKE_RUN"
 
-Do not start any other capacity, prefill, MTP, cache, or physical-batch smoke. Stop work at minute 90 if the integrated gate is not complete. Save the normalized run view under ignored `.posttrain/state/qualification/` and update this plan with measured throughput and the accepted resident-wave size.
+Do not start any other capacity, prefill, MTP, cache, or physical-batch smoke. Stop work at minute 60 if the integrated gate is not complete. Save the normalized run view under ignored `.posttrain/state/qualification/` and update this plan with measured throughput and the accepted resident-wave size.
 
 After that single smoke passes, validate, package, and start the frozen production package under the later end-to-end goal:
 
@@ -494,7 +507,7 @@ The reserve corrections are accepted offline only when plan v2 still has exactly
 
 The IW-OPD integration is accepted offline only when the pinned TRL source and private seams match, full-reference and chunked losses/gradients agree through accumulation 1/2/4/8, the global token denominator is nonzero and exact, rejected/dependency/diagnostic tokens have zero loss, heterogeneous schemas retain order in bounded waves, and checkpoint/model/ledger views resume atomically. Passing the former sparse reverse-KL tests without these IW-OPD tests is insufficient.
 
-A runtime configuration is qualified only by the successful 12-target seed-2907 GPU run on the exact model, teacher, image, IW-OPD objective, and frozen engine. Local tensor tests do not qualify memory or throughput. The record must include seconds per admitted target, actual request/wave sizes, rollout throughput, phase timing, utilization distribution, peak VRAM, loss/gradient evidence, teacher failures, replacements, and artifact digest. It must complete three optimizer updates and at least twelve physical backwards within the 90-minute wall limit; no additional live confirmation is required.
+A runtime configuration is qualified only by the successful 12-target seed-2907 GPU run on the exact model, teacher, image, IW-OPD objective, and frozen engine. Local tensor tests do not qualify memory or throughput. The record must include seconds per admitted target, actual request/wave sizes, rollout throughput, phase timing, utilization distribution, peak VRAM, loss/gradient evidence, teacher failures, replacements, and artifact digest. It must complete three optimizer updates and at least twelve physical backwards within the 60-minute wall limit; no additional live confirmation is required.
 
 The full run is accepted only with all 384 target identities optimized once, finite loss and gradient norms, zero teacher failures, complete native trace synchronization, no duplicate reserve/target, matching SQLite ledger, final model/recovery views and all quarter artifacts, and consistent PostTrain reconciliation. A provider `succeeded` state without these gates is insufficient.
 
@@ -537,7 +550,7 @@ The fixed 12-target qualification cohort selected by seed 2907 is:
 
 It contains seven rules, two evidence, three graph, all four prompt profiles, all four source-length quartiles, four full trajectories, two constructed-incomplete targets, and both historical failure boundaries. At logical batch four it produces three updates/twelve backward passes. Offline deterministic faults, not natural sampling, prove reserve recovery.
 
-The integrated smoke has a hard 90-minute wall budget. Twelve targets at the measured serial r9 rate project to roughly 53 minutes of target processing, leaving approximately 27 minutes for cached model startup/image overhead and ten minutes for reconciliation. A valid logical-four production estimate remains approximately 10–18 hours, but immediately before production replace that range with:
+The integrated smoke has a hard 60-minute wall budget. The corrected resident-four attempt measured 592.70 seconds for its first four-target optimizer update, including checkpoint publication. Repeating that observed step time projects about 29.6 minutes for three updates; the first attempt reached update one roughly thirteen minutes after submission, so the complete run is expected to remain inside 45 minutes plus reconciliation. This remains a projection until a full 12-target run succeeds. A valid logical-four production estimate remains approximately 10–18 hours, but immediately before production replace that range with:
 
     selected_smoke_seconds_per_target * 384 + measured initialization/checkpoint overhead
 
@@ -551,4 +564,4 @@ Policy Prism `scope_opd_tasks.py` owns task-specific generated schemas; `scope_o
 
 External services are Hugging Face for gated base models and private adapter publication, the Live Kit OCI registry for content-addressed images, dstack for GPU placement, Trackio for metrics/traces/artifacts, OpenRouter for Claude judging, and Observatory for read-only inspection. Credentials remain in permission-protected environment files and never enter commits or terminal output.
 
-Revision note (2026-08-10): replaced the multi-hour device/prefill/MTP matrix with exhaustive offline correction gates and one seed-2907 integrated smoke. The selected logical-four/physical-one configuration performs three updates and twelve backward passes within a hard 90-minute window, then freezes the fresh 384-target production configuration. MTP, student prefix caching, physical batching, and further serving sweeps are explicitly deferred. No GPU job was submitted during this planning revision.
+Revision note (2026-08-10): replaced the multi-hour device/prefill/MTP matrix with exhaustive offline correction gates and one seed-2907 integrated smoke. The selected logical-four/physical-one configuration performs three updates and twelve backward passes within a hard 60-minute window, then freezes the fresh 384-target production configuration. MTP, student prefix caching, physical batching, and further serving sweeps are explicitly deferred. A corrected qualification reached one finite update and paired checkpoint before a shared fleet reachability outage; it is retained as partial operational evidence and is not accepted as qualification.
