@@ -70,7 +70,15 @@ class PackageMaterializationRecord:
     def from_payload(cls, payload: object) -> PackageMaterializationRecord:
         if not isinstance(payload, dict) or payload.get("schema") != _SCHEMA:
             raise ContractError("materialization record schema is unsupported")
-        allowed = {"schema", "package_key", "context_digest", "publication_key", "manifest_digest", "manifest", "plan_key"}
+        allowed = {
+            "schema",
+            "package_key",
+            "context_digest",
+            "publication_key",
+            "manifest_digest",
+            "manifest",
+            "plan_key",
+        }
         if unknown := sorted(set(payload) - allowed):
             raise ContractError(f"materialization record has unknown fields: {', '.join(unknown)}")
         try:

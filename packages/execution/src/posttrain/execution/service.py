@@ -39,9 +39,9 @@ _SUPPORTED_SCHEMAS = frozenset(
         "posttrain.execution-submission.v1",
         "posttrain.execution-submission.v2",
         "posttrain.execution-submission.v3",
-            "posttrain.execution-submission.v4",
-            "posttrain.execution-submission.v5",
-            "posttrain.execution-submission.v6",
+        "posttrain.execution-submission.v4",
+        "posttrain.execution-submission.v5",
+        "posttrain.execution-submission.v6",
         _SCHEMA,
     }
 )
@@ -695,7 +695,11 @@ def _submission_from_payload(payload: dict[str, Any]) -> ExecutionSubmission:
             else "runtime_image"
         )
         recorded_payload = payload.get("evidence_source_recorded")
-        evidence_source_recorded = schema in {"posttrain.execution-submission.v5", "posttrain.execution-submission.v6", _SCHEMA}
+        evidence_source_recorded = schema in {
+            "posttrain.execution-submission.v5",
+            "posttrain.execution-submission.v6",
+            _SCHEMA,
+        }
         if evidence_source_recorded and recorded_payload is not True:
             raise ContractError("execution submission must record whether tracking was configured")
         evidence_payload = payload.get("evidence_source")

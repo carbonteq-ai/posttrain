@@ -77,9 +77,7 @@ def publication_key_for(manifest: JobPackageManifest, publication: ImagePublicat
         "package_key": manifest.package_key,
         "publication": publication.to_payload(),
     }
-    return hashlib.sha256(
-        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
 @dataclass(frozen=True, slots=True)

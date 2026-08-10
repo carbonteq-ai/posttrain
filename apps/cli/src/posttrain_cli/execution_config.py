@@ -650,13 +650,9 @@ def load_machine_config() -> MachineConfig | None:
     )
     cache_defaults = MachineCachePolicy()
     cache = MachineCachePolicy(
-        total_budget_bytes=_optional_positive_int(
-            cache_payload.get("total_budget_bytes"), "cache.total_budget_bytes"
-        )
+        total_budget_bytes=_optional_positive_int(cache_payload.get("total_budget_bytes"), "cache.total_budget_bytes")
         or cache_defaults.total_budget_bytes,
-        minimum_free_bytes=_optional_positive_int(
-            cache_payload.get("minimum_free_bytes"), "cache.minimum_free_bytes"
-        )
+        minimum_free_bytes=_optional_positive_int(cache_payload.get("minimum_free_bytes"), "cache.minimum_free_bytes")
         or cache_defaults.minimum_free_bytes,
         reusable_max_age_seconds=_optional_positive_int(
             cache_payload.get("reusable_max_age_seconds"), "cache.reusable_max_age_seconds"

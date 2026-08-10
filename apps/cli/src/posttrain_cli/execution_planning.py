@@ -274,12 +274,12 @@ class PlannedJobPackage:
     def pack(self, *, allow_deferred_qualification: bool = False) -> PackedJobPackage:
         """Materialize the exact inputs and publish or reuse the actual-job image."""
 
-        record = PackageMaterializationStore(
-            (self.layout.state / "packages" / "materializations").resolve()
-        ).resolve(
+        record = PackageMaterializationStore((self.layout.state / "packages" / "materializations").resolve()).resolve(
             self.pack_plan.plan_key
         )
-        if record is not None and record.publication_key == _publication_key(record.manifest, self.pack_plan.publication):
+        if record is not None and record.publication_key == _publication_key(
+            record.manifest, self.pack_plan.publication
+        ):
             resolver = getattr(self._publisher(), "resolve", None)
             if resolver is not None:
                 image = resolver(
@@ -442,9 +442,8 @@ class PlannedJobExecution:
         return self.launch.mounts
 
     def pack(self, *, allow_deferred_qualification: bool = False) -> PackedJobExecution:
-        publisher_supports_daemon = (
-            self.settings.provider == "local"
-            and hasattr(self.package._publisher(), "publish_local_daemon")
+        publisher_supports_daemon = self.settings.provider == "local" and hasattr(
+            self.package._publisher(), "publish_local_daemon"
         )
         if publisher_supports_daemon:
             packed = self.package.pack_local_daemon(
@@ -919,9 +918,7 @@ def _dataset_source_estimates(layout_root: Path, pack_plan: JobPackPlan) -> tupl
                 byte_count += candidate.stat().st_size
             elif candidate.is_dir():
                 byte_count += sum(
-                    path.stat().st_size
-                    for path in candidate.rglob("*")
-                    if path.is_file() and not path.is_symlink()
+                    path.stat().st_size for path in candidate.rglob("*") if path.is_file() and not path.is_symlink()
                 )
         estimates.append(
             {
@@ -1164,10 +1161,7 @@ def _reject_dataset_inputs_in_project_source(
             if covering is not None:
                 conflicts.append((ref.id, configured, covering))
     if conflicts:
-        examples = ", ".join(
-            f"{selection} input {path} via {include}"
-            for selection, path, include in conflicts[:3]
-        )
+        examples = ", ".join(f"{selection} input {path} via {include}" for selection, path, include in conflicts[:3])
         extra = f" (+{len(conflicts) - 3} more)" if len(conflicts) > 3 else ""
         raise ContractError(
             "project source includes catalog dataset inputs; datasets must be "

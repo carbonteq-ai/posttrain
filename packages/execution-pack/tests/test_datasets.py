@@ -223,9 +223,7 @@ def test_packager_reads_only_selected_dataset_from_separate_input_root(tmp_path:
     first_files = tuple(path.relative_to(first.root).as_posix() for path in first.root.rglob("*") if path.is_file())
     assert all("unselected" not in path for path in first_files)
     assert "must-not-be-packed" not in "".join(
-        path.read_text(encoding="utf-8")
-        for path in first.root.rglob("*")
-        if path.is_file()
+        path.read_text(encoding="utf-8") for path in first.root.rglob("*") if path.is_file()
     )
 
 

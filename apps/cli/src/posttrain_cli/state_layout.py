@@ -321,7 +321,9 @@ def _classify_publications(publications: Path, *, apply: bool) -> list[CachePrun
     layouts = publications / "local-layouts"
     for child in sorted(publications.iterdir(), key=lambda value: value.name):
         if child.is_symlink():
-            entries.append(CachePruneEntry(child, "protected", "symlinked publication entries are never traversed", 0, False))
+            entries.append(
+                CachePruneEntry(child, "protected", "symlinked publication entries are never traversed", 0, False)
+            )
             continue
         if child != layouts or not child.is_dir():
             entries.append(
@@ -355,7 +357,9 @@ def _classify_local_layouts(
     entries: list[CachePruneEntry] = []
     for layout in sorted(layouts.iterdir(), key=lambda value: value.name):
         if layout.is_symlink():
-            entries.append(CachePruneEntry(layout, "protected", "symlinked local layouts are never traversed", 0, False))
+            entries.append(
+                CachePruneEntry(layout, "protected", "symlinked local layouts are never traversed", 0, False)
+            )
         elif layout.is_dir() and has_active_lease(lease_root, layout.name):
             entries.append(
                 CachePruneEntry(
@@ -390,7 +394,11 @@ def _has_registry_publication_receipt(publications: Path, publication_key: str) 
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return False
     image = payload.get("image")
-    return payload.get("schema") == "posttrain.job-image-publication-receipt.v1" and isinstance(image, str) and "@sha256:" in image
+    return (
+        payload.get("schema") == "posttrain.job-image-publication-receipt.v1"
+        and isinstance(image, str)
+        and "@sha256:" in image
+    )
 
 
 def _prune_entry(path: Path, reason: str, *, apply: bool) -> CachePruneEntry:

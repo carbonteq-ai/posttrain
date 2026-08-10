@@ -734,11 +734,7 @@ def _trace_is_truncated(record: Mapping[str, Any]) -> bool:
     calls = record.get("calls")
     if isinstance(calls, list):
         last_successful_call = next(
-            (
-                call
-                for call in reversed(calls)
-                if isinstance(call, Mapping) and not call.get("error")
-            ),
+            (call for call in reversed(calls) if isinstance(call, Mapping) and not call.get("error")),
             None,
         )
         if last_successful_call is not None and last_successful_call.get("finish_reason") == "length":
