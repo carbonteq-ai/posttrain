@@ -44,8 +44,8 @@ RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locke
 COPY containers/posttrain-job-kinds/verl-py313/profile.toml /opt/posttrain-verl-build/profile.toml
 COPY containers/posttrain-job-kinds/verl-py313/release/ /opt/posttrain-verl-build/release/
 
-# This stage remains blocked from the production Bake graph while profile.toml
-# is release_status=blocked. The dedicated smoke target still builds it.
+# Profile selection controls whether this kind appears in the publication graph.
+# The ready veRL candidate keeps this dedicated smoke target as its import gate.
 RUN test -n "${DEPENDENCY_LOCK_SHA256}" && \
     test -n "${FORK_REVISION}" && \
     test -n "${SOURCE_REPOSITORY}" && \
