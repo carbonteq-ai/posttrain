@@ -762,6 +762,9 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert 'done < <(git rev-list "${RELEASE_SOURCE_SHA}")' in final
     assert 'git diff --name-only "${candidate_equivalent_commit}" "${RELEASE_SOURCE_SHA}"' in final
     assert "accepted candidate tree has no equivalent merged commit" in final
+    assert 'release_tag_sha="${candidate_equivalent_commit}"' in final
+    assert 'echo "RELEASE_TAG_SHA=${release_tag_sha}" >> "$GITHUB_ENV"' in final
+    assert 'test "$(git rev-parse "v${POSTTRAIN_RELEASE_VERSION}^{}")" = "${RELEASE_TAG_SHA}"' in final
     assert ".github/*|apps/release/tests/*|docs/plan/*" in final
     assert "candidate build inputs changed:" in final
     assert 'test "${candidate_version}" = "${release_version}"' in final
@@ -770,7 +773,6 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert 'cp "${candidate_manifest}" packages/runtime-images/src/posttrain/runtime_images/published.toml' in final
     assert 'candidate_checksums="$(find .release/candidate -type f -name release-SHA256SUMS -print -quit)"' in final
     assert 'cp "${candidate_checksums}" .release/release-SHA256SUMS' in final
-    assert 'test "$(git rev-parse "v${POSTTRAIN_RELEASE_VERSION}^{}")" = "${RELEASE_SOURCE_SHA}"' in final
     assert 'gh release upload "v${POSTTRAIN_RELEASE_VERSION}" "${release_assets[@]}" --clobber' in final
     assert "resume_from_run_id" in final
     assert 'gh run view "${RESUME_FROM_RUN_ID}"' in final
@@ -778,7 +780,7 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert "conclusion // empty" in final
     assert "gh run download" in final
     assert 'git merge-base --is-ancestor "${source_sha}"' in final
-    assert 'git tag -a "v${POSTTRAIN_RELEASE_VERSION}" "${RELEASE_SOURCE_SHA}"' in final
+    assert 'git tag -a "v${POSTTRAIN_RELEASE_VERSION}" "${RELEASE_TAG_SHA}"' in final
     assert "Materialize and verify the candidate wheelhouse" in final
     assert "receipt-check .release/python-release-receipt.json" in final
 
