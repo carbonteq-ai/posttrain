@@ -61,13 +61,20 @@ jobs:
           printf '{"framework_ref":"%s","revision":"%s"}\n' \
             "${FRAMEWORK_REF}" "$(git rev-parse HEAD)" > framework-source.json
 
+      # GITHUB_TOKEN is intentionally repository-scoped, so it cannot read a
+      # separate private project. The AI Infra runner may instead carry a
+      # machine-managed, read-only GitHub credential. Never surface it in a
+      # workflow input, environment file, or log.
       - name: Checkout the explicit Ambient project branch
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
-          repository: carbonteq-ai/ambient-agent
-          ref: ${{ inputs.project_ref }}
-          path: project
-          fetch-depth: 0
+        env:
+          PROJECT_REF: ${{ inputs.project_ref }}
+        run: |
+          env -u GITHUB_TOKEN -u GH_TOKEN gh api "repos/${PROJECT_REPOSITORY}" --jq .full_name >/dev/null || {
+            echo "AI Infra runner has no managed GitHub read credential for ${PROJECT_REPOSITORY}" >&2
+            exit 1
+          }
+          env -u GITHUB_TOKEN -u GH_TOKEN gh repo clone "${PROJECT_REPOSITORY}" project -- \
+            --branch "${PROJECT_REF}" --single-branch
 
       - name: Verify the selected Ambient project branch is current
         env:
@@ -93,6 +100,7 @@ jobs:
         run: scripts/release/verify-dstack-capacity .release/dstack-capacity.json
 
       - name: Pack and submit the selected qualification
+        id: launch
         env:
           RUN_ID: ${{ inputs.run_id }}
           WORK_PACKAGE: ${{ inputs.work_package }}
@@ -112,7 +120,7 @@ jobs:
 
       - name: Wait, reconcile, and verify the qualification evidence
         id: evidence
-        if: always()
+        if: ${{ always() && steps.launch.outcome == 'success' }}
         env:
           RUN_ID: ${{ inputs.run_id }}
           TIMEOUT_SECONDS: ${{ inputs.timeout_seconds }}
