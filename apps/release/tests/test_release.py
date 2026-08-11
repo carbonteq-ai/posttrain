@@ -682,6 +682,8 @@ def test_candidate_builds_the_final_version_and_final_only_restores_it() -> None
     assert "uv build environments/" not in candidate
     assert 'generated_runtime_lock="${repository_root}/packages/runtime-images' in builder
     assert 'cp "${generated_runtime_lock}" "${staged_runtime_lock}"' in builder
+    assert 'cd "$output_dir"' in builder
+    assert 'sha256sum "$(basename "$tarball")" > release-SHA256SUMS' in builder
 
 
 def test_protected_release_workflows_keep_the_build_and_qualification_boundaries() -> None:
