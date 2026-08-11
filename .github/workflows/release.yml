@@ -86,6 +86,7 @@ jobs:
           test "$(git show "${source_sha}:release/manifest.toml" | sed -n 's/^version = "\([^"]*\)"$/\1/p')" = "${version}"
           echo "POSTTRAIN_RELEASE_VERSION=${version}" >> "$GITHUB_ENV"
           echo "RELEASE_SOURCE_SHA=${source_sha}" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG_SHA=${source_sha}" >> "$GITHUB_ENV"
           echo "resuming immutable ${version} artifacts from ${source_sha}"
 
       - name: Verify the final source and lock
@@ -129,6 +130,7 @@ jobs:
             "repos/${GITHUB_REPOSITORY}/commits/${candidate_sha}" \
             --jq '.commit.tree.sha')"
           release_tree="$(git rev-parse "${RELEASE_SOURCE_SHA}^{tree}")"
+          release_tag_sha="${RELEASE_SOURCE_SHA}"
           # A candidate normally comes from the merged commit's ancestry. A
           # squash merge deliberately removes that ancestry, so accept the
           # candidate only when the merged tree is byte-for-byte identical.
@@ -171,6 +173,7 @@ jobs:
                 printf 'candidate build inputs changed:\\n%s\\n' "${unsafe_files}" >&2
                 exit 1
               fi
+              release_tag_sha="${candidate_equivalent_commit}"
               echo "candidate build inputs are unchanged after ${candidate_equivalent_commit}; only release plumbing differs"
             fi
           fi
@@ -212,6 +215,7 @@ jobs:
           cp "${candidate_checksums}" .release/release-SHA256SUMS
           echo "POSTTRAIN_RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
           echo "RELEASE_SOURCE_SHA=${RELEASE_SOURCE_SHA}" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG_SHA=${release_tag_sha}" >> "$GITHUB_ENV"
           echo "CANDIDATE_SOURCE_SHA=${candidate_sha}" >> "$GITHUB_ENV"
           echo "CANDIDATE_SOURCE_TREE=${candidate_tree}" >> "$GITHUB_ENV"
 
@@ -288,12 +292,12 @@ jobs:
         run: |
           if git ls-remote --exit-code origin "refs/tags/v${POSTTRAIN_RELEASE_VERSION}" >/dev/null 2>&1; then
             git fetch --no-tags origin "refs/tags/v${POSTTRAIN_RELEASE_VERSION}:refs/tags/v${POSTTRAIN_RELEASE_VERSION}"
-            test "$(git rev-parse "v${POSTTRAIN_RELEASE_VERSION}^{}")" = "${RELEASE_SOURCE_SHA}"
-            echo "final tag already points to the accepted release commit; reusing it"
+            test "$(git rev-parse "v${POSTTRAIN_RELEASE_VERSION}^{}")" = "${RELEASE_TAG_SHA}"
+            echo "final tag already points to the immutable artifact commit; reusing it"
           else
             git config user.name carbonteq-release-bot
             git config user.email release-bot@carbonteq.ai
-            git tag -a "v${POSTTRAIN_RELEASE_VERSION}" "${RELEASE_SOURCE_SHA}" -m "Posttrain ${POSTTRAIN_RELEASE_VERSION}"
+            git tag -a "v${POSTTRAIN_RELEASE_VERSION}" "${RELEASE_TAG_SHA}" -m "Posttrain ${POSTTRAIN_RELEASE_VERSION}"
             git push origin "v${POSTTRAIN_RELEASE_VERSION}"
           fi
           release_assets=(

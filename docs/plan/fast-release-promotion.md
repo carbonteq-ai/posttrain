@@ -89,6 +89,9 @@ receipt instead of rebuilding or re-running completed checks.
   it with the merged commit whose tree is identical to the candidate, not with
   GitHub's merge-base comparison. Final run `31543313634` exposed this second
   resume-path defect before any new promotion operation began.
+- [ ] Bind a tag to the immutable artifact-tree commit, rather than a later
+  workflow-only approval commit. Final run `31543674936` accepted the retained
+  candidate and stable bytes but correctly refused to move the existing tag.
 - [x] Remove duplicate full-suite execution from the final workflow while
   retaining exact-SHA, index, registry, dstack, and promotion checks.
 - [ ] Add explicit resume checkpoints between final remote stages; the existing
@@ -146,6 +149,13 @@ receipt instead of rebuilding or re-running completed checks.
   source files even though merged commit `7cc40913` has the candidate's exact
   tree; `git diff 7cc40913..71b47e91` contains only the permitted workflow,
   test, and plan changes.
+- Observation: once a release tag is published it must remain on the commit
+  whose tree produced the wheelhouse. A later workflow-only repair is an
+  approval/finalization commit, not a new artifact source and must not become
+  the tag target.
+  Evidence: `v0.3.8` resolves to `7cc40913`, whose tree matches candidate
+  `22565c48`; final run `31543674936` used later approval commit `7d7a1262`
+  and was correctly rejected by the existing-tag guard.
 
 ## Decision Log
 
@@ -218,6 +228,13 @@ receipt instead of rebuilding or re-running completed checks.
   evaluate only its direct diff to the release target.
   Rationale: this preserves the same build-input boundary after a squash merge
   and a release-only repair, without accepting a changed candidate source.
+  Date/Author: 2026-08-12 / Codex.
+- Decision: Track two immutable commit identities during finalization:
+  `RELEASE_SOURCE_SHA` is the reviewed main commit that authorizes promotion,
+  while `RELEASE_TAG_SHA` is the main-history commit whose tree is the actual
+  candidate artifact source.
+  Rationale: later workflow-only repair commits may authorize a resumable
+  finalization but cannot truthfully become the version tag's source.
   Date/Author: 2026-08-12 / Codex.
 
 ## Outcomes & Retrospective
