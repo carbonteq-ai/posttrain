@@ -389,16 +389,23 @@ def _distillation_request() -> OnPolicyDistillationRequest:
     )
 
 
-def test_memory_safe_iw_opd_guard_accepts_logical_four_e2b_identity() -> None:
+@pytest.mark.parametrize(
+    ("physical_batch", "gradient_accumulation"),
+    [(1, 12), (2, 6), (3, 4)],
+)
+def test_memory_safe_iw_opd_guard_accepts_equivalent_logical_twelve_shapes(
+    physical_batch: int,
+    gradient_accumulation: int,
+) -> None:
     request = SimpleNamespace(
         student=replace(GEMMA_4_E2B_IT, id="models/gemma4-e2b-it@bf16"),
         settings=SimpleNamespace(
             num_generations=1,
-            num_prompts_per_step=4,
+            num_prompts_per_step=12,
             loop=TrainingLoop(
                 max_steps=1,
-                per_device_batch_size=1,
-                gradient_accumulation_steps=4,
+                per_device_batch_size=physical_batch,
+                gradient_accumulation_steps=gradient_accumulation,
             ),
         ),
         training=SimpleNamespace(backend_options={}),

@@ -721,8 +721,6 @@ def _validate_memory_safe_iw_opd_request(
     if request.settings.num_generations != 1:
         raise ValueError("memory-safe IW-OPD requires one generation per prompt")
     loop = request.settings.loop
-    if loop.per_device_batch_size != 1:
-        raise ValueError("memory-safe IW-OPD requires physical per-device batch size 1")
     expected_logical_batch = loop.per_device_batch_size * loop.gradient_accumulation_steps
     if request.settings.num_prompts_per_step != expected_logical_batch:
         raise ValueError(

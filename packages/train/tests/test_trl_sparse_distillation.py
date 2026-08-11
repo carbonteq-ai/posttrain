@@ -155,7 +155,10 @@ def test_chunked_iw_opd_matches_full_logits_loss_and_gradients() -> None:
     )
 
 
-def test_four_physical_slices_match_one_logical_iw_opd_batch() -> None:
+@pytest.mark.parametrize("micro_batch_size", [1, 2, 4])
+def test_physical_microbatches_match_one_logical_iw_opd_batch(
+    micro_batch_size: int,
+) -> None:
     torch.manual_seed(11)
     sliced_model = Gemma4ForConditionalGeneration()
     full_model = Gemma4ForConditionalGeneration()
@@ -180,13 +183,14 @@ def test_four_physical_slices_match_one_logical_iw_opd_batch() -> None:
 
     sliced_loss = torch.zeros(())
     buffered = []
-    for row in range(4):
+    for start in range(0, 4, micro_batch_size):
+        end = start + micro_batch_size
         row_inputs = {
-            key: value[row : row + 1] if isinstance(value, torch.Tensor) else value
+            key: value[start:end] if isinstance(value, torch.Tensor) else value
             for key, value in inputs.items()
         }
         buffered.append(row_inputs)
-        trainer = _trainer({"actual_logprobs": teacher_actual[row : row + 1]})
+        trainer = _trainer({"actual_logprobs": teacher_actual[start:end]})
         loss = _memory_safe_server_iw_opd_loss(
             trainer,
             sliced_model,
