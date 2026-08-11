@@ -11,6 +11,7 @@ import pytest
 from posttrain.common import ContractError, JsonValue
 from posttrain.data import DatasetLoadPlan, DatasetMaterialization
 from posttrain.execution import (
+    BackendRuntimeIdentity,
     EnvironmentActivationLock,
     EnvironmentPackageLock,
     RuntimeImageRef,
@@ -446,7 +447,7 @@ def test_verl_backend_identity_rejects_host_paths_and_digests_projection(
     resolved = {
         "training": {
             "resolved": {
-                "backend": "verl@candidate",
+                "backend": f"verl@{'a' * 40}",
                 "backend_options": options,
             }
         }
@@ -457,11 +458,31 @@ def test_verl_backend_identity_rejects_host_paths_and_digests_projection(
         resolved_inputs=cast(Mapping[str, JsonValue], resolved),
         framework_source=source,
         work=tmp_path / "work",
+        expected_identity=BackendRuntimeIdentity(
+            "https://github.com/carbonteq-ai/verl.git",
+            "a" * 40,
+            "b" * 64,
+        ),
     )
 
     assert lock is not None
     assert lock.projection_digest
     assert lock.working_directory == "/opt/posttrain-verl/workdir"
+
+    resolved["training"]["resolved"]["backend"] = f"verl@{'c' * 40}"  # type: ignore[index]
+    with pytest.raises(ContractError, match="immutable kind image source revision"):
+        _backend_runtime_lock(
+            runtime_variant="online-rl-verl-py313",
+            resolved_inputs=cast(Mapping[str, JsonValue], resolved),
+            framework_source=source,
+            work=tmp_path / "wrong-source",
+            expected_identity=BackendRuntimeIdentity(
+                "https://github.com/carbonteq-ai/verl.git",
+                "a" * 40,
+                "b" * 64,
+            ),
+        )
+    resolved["training"]["resolved"]["backend"] = f"verl@{'a' * 40}"  # type: ignore[index]
 
     resolved["training"]["resolved"]["backend_options"] = {  # type: ignore[index]
         **options,
@@ -473,6 +494,11 @@ def test_verl_backend_identity_rejects_host_paths_and_digests_projection(
             resolved_inputs=cast(Mapping[str, JsonValue], resolved),
             framework_source=source,
             work=tmp_path / "other-work",
+            expected_identity=BackendRuntimeIdentity(
+                "https://github.com/carbonteq-ai/verl.git",
+                "a" * 40,
+                "b" * 64,
+            ),
         )
 
 

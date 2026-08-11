@@ -44,6 +44,9 @@ lock_digest = "8c5d3aec6749daa31f7aa8c67729581cdf7913e5da1f83d98b6e58840e4e78d5"
 constraint_lock = "containers/posttrain-job-kinds/locks/workspace.lock.txt"
 backend_constraint_lock = "containers/posttrain-job-kinds/verl-py313/release/backend-constraints.txt"
 backend_lock_digest = "2c58a12f86eeb15de67755aaccbc2e616479e8eca446567f207aaf1c24af5c4a"
+backend_source_repository = "https://github.com/carbonteq-ai/verl.git"
+backend_source_revision = "a6fe39c22719ec981ed8544ad8feffd59995cc13"
+backend_dependency_lock_digest = "df7769f306ef8606fed37fd89c3fa2589ac72f39a45e4743816368a1acffe69f"
 
 [kinds.serve]
 repository = "posttrain-kind-serve"

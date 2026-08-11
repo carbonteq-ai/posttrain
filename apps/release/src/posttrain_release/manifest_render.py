@@ -63,6 +63,15 @@ def _render_image(image: PublishedImage) -> list[str]:
         if image.backend_provided_packages:
             rendered = ", ".join(_quote(name) for name in image.backend_provided_packages)
             lines.append(f"backend_provided_packages = [{rendered}]")
+        if image.backend_runtime_identity is None:
+            raise ValueError(f"{image.name}: backend constraint lock has no runtime identity")
+        lines.extend(
+            (
+                f"backend_source_repository = {_quote(image.backend_runtime_identity.source_repository)}",
+                f"backend_source_revision = {_quote(image.backend_runtime_identity.source_revision)}",
+                f"backend_dependency_lock_digest = {_quote(image.backend_runtime_identity.dependency_lock_digest)}",
+            )
+        )
     return lines
 
 

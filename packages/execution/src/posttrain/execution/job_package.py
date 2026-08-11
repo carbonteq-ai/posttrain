@@ -343,6 +343,29 @@ class RuntimeDependencyLock:
 
 
 @dataclass(frozen=True, slots=True)
+class BackendRuntimeIdentity:
+    """Immutable source and dependency identity supplied by a job-kind image."""
+
+    source_repository: str
+    source_revision: str
+    dependency_lock_digest: str
+
+    def __post_init__(self) -> None:
+        if not self.source_repository.startswith("https://"):
+            raise ContractError("backend runtime repository must use canonical HTTPS")
+        if _COMMIT.fullmatch(self.source_revision) is None:
+            raise ContractError("backend runtime source revision must be a full commit")
+        _digest(self.dependency_lock_digest, "backend dependency lock")
+
+    def to_payload(self) -> dict[str, JsonValue]:
+        return {
+            "source_repository": self.source_repository,
+            "source_revision": self.source_revision,
+            "dependency_lock_digest": self.dependency_lock_digest,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class BackendRuntimeLock:
     """Capsule-owned veRL source, interpreter, lock, and projection identity."""
 
@@ -357,10 +380,11 @@ class BackendRuntimeLock:
     worker_module: str
 
     def __post_init__(self) -> None:
-        if not self.source_repository.startswith("https://"):
-            raise ContractError("backend runtime repository must use canonical HTTPS")
-        if _COMMIT.fullmatch(self.source_revision) is None:
-            raise ContractError("backend runtime source revision must be a full commit")
+        BackendRuntimeIdentity(
+            source_repository=self.source_repository,
+            source_revision=self.source_revision,
+            dependency_lock_digest=self.dependency_lock_digest,
+        )
         for label, value in (
             ("dependency lock", self.dependency_lock_path),
             ("working directory", self.working_directory),
@@ -379,7 +403,6 @@ class BackendRuntimeLock:
             raise ContractError("veRL worktree must use the capsule workdir")
         if self.projection_path != "/opt/posttrain-verl/projection":
             raise ContractError("veRL projection must use the capsule projection path")
-        _digest(self.dependency_lock_digest, "backend dependency lock")
         _digest(self.projection_digest, "backend worker projection")
         if self.worker_module != "posttrain.train.backends.verl.worker":
             raise ContractError("veRL worker module is unsupported")

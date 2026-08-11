@@ -7,6 +7,7 @@ import re
 import shutil
 import uuid
 import warnings
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
 
@@ -16,6 +17,7 @@ from posttrain.common import Catalog, CatalogRef, ContractError, ExecutionTarget
 from posttrain.data import DatasetLoadPlan, project_dataset_input_paths
 from posttrain.execution import (
     JOB_PACKAGE_WORKER_COMMAND,
+    BackendRuntimeIdentity,
     ExecutionEvidenceSource,
     ExecutionMount,
     ExecutionPlan,
@@ -862,6 +864,8 @@ def _plan_job_package_from_intent(
         profile,
         settings.runtime_profile,
     )
+    backend_runtime_identity = _backend_runtime_identity(registry, runtime_variant)
+    _validate_backend_runtime_selection(prepared, runtime_variant, backend_runtime_identity)
     if not isinstance(catalog.family_registry_lock, FamilyRegistryLock):
         raise ContractError("opened project catalog has no family registry lock")
     pack_plan = plan_job_pack(
@@ -874,6 +878,7 @@ def _plan_job_package_from_intent(
         runtime_variant=runtime_variant,
         family_registry_lock=catalog.family_registry_lock.to_payload(),
         project_root=layout.root,
+        backend_runtime_identity=backend_runtime_identity,
     )
     target = _execution_target(prepared)
     if settings.runtime_profile is None:
@@ -1267,6 +1272,50 @@ def _kind_image(
             f"configuration (available: {available})"
         )
     return image
+
+
+def _backend_runtime_identity(
+    registry: RegistryBinding,
+    runtime_variant: str,
+) -> BackendRuntimeIdentity | None:
+    if runtime_variant != "online-rl-verl-py313":
+        return None
+    binding = registry.constraint_profiles.get(runtime_variant)
+    if binding is None:
+        raise ContractError(f"veRL runtime variant {runtime_variant} has no published constraint profile")
+    values = (
+        binding.backend_source_repository,
+        binding.backend_source_revision,
+        binding.backend_dependency_lock_digest,
+    )
+    if any(value is None for value in values):
+        raise ContractError(
+            "veRL runtime image has no immutable backend source identity; update the framework release before packing"
+        )
+    repository, revision, dependency_digest = values
+    assert isinstance(repository, str) and isinstance(revision, str) and isinstance(dependency_digest, str)
+    return BackendRuntimeIdentity(repository, revision, dependency_digest)
+
+
+def _validate_backend_runtime_selection(
+    prepared: PreparedWorkPackageJob,
+    runtime_variant: str,
+    identity: BackendRuntimeIdentity | None,
+) -> None:
+    if runtime_variant != "online-rl-verl-py313":
+        return
+    assert identity is not None
+    training = prepared.seats.get("training")
+    backend = getattr(training, "backend", None)
+    options = getattr(training, "backend_options", None)
+    if backend != f"verl@{identity.source_revision}":
+        raise ContractError("veRL training selection differs from the immutable kind image source revision")
+    if not isinstance(options, Mapping):
+        raise ContractError("veRL training selection has no backend options")
+    if options.get("source_revision") != identity.source_revision:
+        raise ContractError("veRL training selection differs from the immutable kind image source revision")
+    if options.get("dependency_lock_sha256") != identity.dependency_lock_digest:
+        raise ContractError("veRL training selection differs from the immutable kind image dependency lock")
 
 
 def _execution_target(prepared: PreparedWorkPackageJob) -> ExecutionTarget:

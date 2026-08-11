@@ -9,8 +9,11 @@ from __future__ import annotations
 
 import atexit
 import hashlib
+import re
+import tomllib
 from collections.abc import Iterator
 from contextlib import ExitStack, contextmanager
+from dataclasses import dataclass
 from functools import cache
 from importlib.resources import as_file
 from importlib.resources import files as resource_files
@@ -39,10 +42,66 @@ JOB_BAKE_FILE = JOB_DEFINITION / "docker-bake.hcl"
 WORKSPACE_LOCK = KIND_DEFINITION / "locks" / "workspace.lock.txt"
 TRANSFORM_LOCK = KIND_DEFINITION / "locks" / "transform.lock.txt"
 VERL_BACKEND_LOCK = KIND_DEFINITION / "verl-py313" / "release" / "backend-constraints.txt"
+VERL_PROFILE = KIND_DEFINITION / "verl-py313" / "profile.toml"
+
+VERL_DEPENDENCY_LOCK_LABEL = "org.carbonteq.posttrain.verl-dependency-lock-sha256"
+VERL_SOURCE_REPOSITORY_LABEL = "org.carbonteq.posttrain.verl-source-repository"
+VERL_SOURCE_REVISION_LABEL = "org.carbonteq.posttrain.verl-source-revision"
 
 _BACKEND_CONSTRAINT_LOCKS = {
     "online-rl-verl-py313": VERL_BACKEND_LOCK,
 }
+
+
+@dataclass(frozen=True, slots=True)
+class BackendRuntimeImageIdentity:
+    """Source and lock bytes baked into a backend runtime image."""
+
+    source_repository: str
+    source_revision: str
+    dependency_lock_digest: str
+
+
+def backend_runtime_identity(variant: str) -> BackendRuntimeImageIdentity | None:
+    """Return the immutable backend identity baked into ``variant``, if any."""
+    if variant not in RUNTIME_VARIANTS:
+        raise ValueError(f"unknown runtime variant: {variant!r}")
+    if variant != "online-rl-verl-py313":
+        return None
+    profile = tomllib.loads(read_resource(VERL_PROFILE).decode("utf-8"))
+    repository = profile.get("source_repository")
+    revision = profile.get("fork_revision")
+    digest = profile.get("dependency_lock_sha256")
+    if not isinstance(repository, str) or not repository.startswith("https://"):
+        raise ValueError("veRL profile has no canonical source repository")
+    if not isinstance(revision, str) or re.fullmatch(r"[0-9a-f]{40}", revision) is None:
+        raise ValueError("veRL profile has no full fork revision")
+    if not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+        raise ValueError("veRL profile has no dependency-lock digest")
+    return BackendRuntimeImageIdentity(repository, revision, digest)
+
+
+def backend_runtime_labels(
+    variant: str,
+    identity: BackendRuntimeImageIdentity | None = None,
+) -> dict[str, str]:
+    """Return the OCI labels that prove a backend image's immutable identity.
+
+    The labels are part of the job-kind image contract, rather than merely
+    build diagnostics. Consumers compare them before packing so a registry tag
+    cannot silently substitute a different backend fork beneath a matching
+    framework lock.
+    """
+    resolved = identity if identity is not None else backend_runtime_identity(variant)
+    if resolved is None:
+        return {}
+    if variant == "online-rl-verl-py313":
+        return {
+            VERL_SOURCE_REPOSITORY_LABEL: resolved.source_repository,
+            VERL_SOURCE_REVISION_LABEL: resolved.source_revision,
+            VERL_DEPENDENCY_LOCK_LABEL: resolved.dependency_lock_digest,
+        }
+    raise ValueError(f"no OCI backend-identity label contract for runtime variant {variant!r}")
 
 
 @contextmanager
@@ -121,6 +180,7 @@ def lock_digest(lock: PurePosixPath = WORKSPACE_LOCK) -> str:
 __all__ = [
     "BASE_BAKE_FILE",
     "BASE_DEFINITION",
+    "BackendRuntimeImageIdentity",
     "JOB_BAKE_FILE",
     "JOB_DEFINITION",
     "KIND_BAKE_FILE",
@@ -128,6 +188,12 @@ __all__ = [
     "RUNTIME_VARIANTS",
     "TRANSFORM_LOCK",
     "VERL_BACKEND_LOCK",
+    "VERL_DEPENDENCY_LOCK_LABEL",
+    "VERL_PROFILE",
+    "VERL_SOURCE_REPOSITORY_LABEL",
+    "VERL_SOURCE_REVISION_LABEL",
+    "backend_runtime_labels",
+    "backend_runtime_identity",
     "WORKSPACE_LOCK",
     "cached_definition_root",
     "backend_constraint_lock",

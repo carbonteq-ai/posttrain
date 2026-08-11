@@ -6,6 +6,7 @@ from pathlib import PurePosixPath
 import pytest
 from posttrain.runtime_images import (
     RUNTIME_VARIANTS,
+    backend_runtime_identity,
     constraint_lock,
     lock_digest,
     read_resource,
@@ -26,6 +27,12 @@ def test_every_released_variant_is_published() -> None:
 
 def test_verl_is_published() -> None:
     assert "online-rl-verl-py313" in load_manifest().kinds
+
+
+def test_verl_manifest_carries_the_runtime_backend_identity() -> None:
+    assert load_manifest().image("online-rl-verl-py313").backend_runtime_identity == backend_runtime_identity(
+        "online-rl-verl-py313"
+    )
 
 
 def test_recorded_lock_digest_matches_the_shipped_lock_bytes() -> None:

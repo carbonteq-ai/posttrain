@@ -15,6 +15,7 @@ import pytest
 from posttrain.runtime_images import (
     RUNTIME_VARIANTS,
     VERL_BACKEND_LOCK,
+    backend_runtime_identity,
     constraint_lock,
     lock_digest,
 )
@@ -190,6 +191,7 @@ def _image(name: str, variant: str, digest_char: str) -> PublishedImage:
         constraint_lock=lock,
         backend_constraint_lock=backend_lock,
         backend_lock_digest=lock_digest(backend_lock) if backend_lock is not None else None,
+        backend_runtime_identity=backend_runtime_identity(variant),
     )
 
 
@@ -919,6 +921,7 @@ def test_backend_constraints_survive_rendering() -> None:
                 backend_constraint_lock=VERL_BACKEND_LOCK,
                 backend_lock_digest=lock_digest(VERL_BACKEND_LOCK),
                 backend_provided_packages=("verl",),
+                backend_runtime_identity=backend_runtime_identity("online-rl-verl-py313"),
             )
         },
     )
@@ -927,6 +930,9 @@ def test_backend_constraints_survive_rendering() -> None:
     assert published["backend_constraint_lock"] == VERL_BACKEND_LOCK.as_posix()
     assert published["backend_lock_digest"] == lock_digest(VERL_BACKEND_LOCK)
     assert published["backend_provided_packages"] == ["verl"]
+    identity = backend_runtime_identity("online-rl-verl-py313")
+    assert identity is not None
+    assert published["backend_source_revision"] == identity.source_revision
 
 
 def test_an_empty_release_is_rejected() -> None:
@@ -962,6 +968,9 @@ def test_the_shipped_manifest_matches_what_the_renderer_would_produce() -> None:
             image.backend_constraint_lock.as_posix() if image.backend_constraint_lock else None
         )
         assert rendered["kinds"][variant].get("backend_lock_digest") == image.backend_lock_digest
+        assert rendered["kinds"][variant].get("backend_source_revision") == (
+            image.backend_runtime_identity.source_revision if image.backend_runtime_identity else None
+        )
 
 
 def test_unknown_variant_is_rejected() -> None:
@@ -1009,6 +1018,7 @@ def test_unchanged_runtime_images_are_reused_across_framework_versions(
             base_digest=base_digest,
             backend_constraint_lock=(VERL_BACKEND_LOCK if variant == "online-rl-verl-py313" else None),
             backend_lock_digest=(lock_digest(VERL_BACKEND_LOCK) if variant == "online-rl-verl-py313" else None),
+            backend_runtime_identity=backend_runtime_identity(variant),
         )
         for index, variant in enumerate(RUNTIME_VARIANTS)
     }

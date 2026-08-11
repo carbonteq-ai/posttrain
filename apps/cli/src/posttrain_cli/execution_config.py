@@ -150,6 +150,9 @@ class ConstraintProfileBinding:
     backend_contents_digest: str | None = None
     backend_provided_packages: tuple[str, ...] = ()
     backend_digest: str | None = None
+    backend_source_repository: str | None = None
+    backend_source_revision: str | None = None
+    backend_dependency_lock_digest: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -811,6 +814,9 @@ def _derived_constraint_profiles(
         backend_contents_digest: str | None = None
         backend_provided_packages: tuple[str, ...] = ()
         backend_digest: str | None = None
+        backend_source_repository: str | None = None
+        backend_source_revision: str | None = None
+        backend_dependency_lock_digest: str | None = None
         if image.backend_constraint_lock is not None:
             # A second locked environment inside the same image, published by
             # the release exactly like the control lock. Deriving it here is
@@ -832,6 +838,11 @@ def _derived_constraint_profiles(
                 python_executable="/opt/posttrain-verl/bin/python",
                 requirements_filename="runtime.backend.requirements.txt",
             ).digest
+            identity = image.backend_runtime_identity
+            assert identity is not None
+            backend_source_repository = identity.source_repository
+            backend_source_revision = identity.source_revision
+            backend_dependency_lock_digest = identity.dependency_lock_digest
         profiles[variant] = ConstraintProfileBinding(
             path,
             image.lock_digest,
@@ -841,6 +852,9 @@ def _derived_constraint_profiles(
             backend_contents_digest,
             backend_provided_packages,
             backend_digest,
+            backend_source_repository,
+            backend_source_revision,
+            backend_dependency_lock_digest,
         )
     return profiles
 
@@ -1008,6 +1022,9 @@ def _constraint_profile_mapping(
                 "provided_packages",
                 "backend_path",
                 "backend_sha256",
+                "backend_source_repository",
+                "backend_source_revision",
+                "backend_dependency_lock_sha256",
             },
             context,
         )
@@ -1043,6 +1060,9 @@ def _constraint_profile_mapping(
         backend_contents_digest: str | None = None
         backend_provided_packages: tuple[str, ...] = ()
         backend_digest: str | None = None
+        backend_source_repository: str | None = None
+        backend_source_revision: str | None = None
+        backend_dependency_lock_digest: str | None = None
         if backend_path_value is not None:
             backend_path = _configured_path(
                 backend_path_value,
@@ -1077,6 +1097,37 @@ def _constraint_profile_mapping(
                 requirements_filename="runtime.backend.requirements.txt",
             )
             backend_digest = backend_constraints.digest
+        identity_values = (
+            item.get("backend_source_repository"),
+            item.get("backend_source_revision"),
+            item.get("backend_dependency_lock_sha256"),
+        )
+        if any(value is not None for value in identity_values) and not all(
+            isinstance(value, str) and value for value in identity_values
+        ):
+            raise ContractError(f"execution configuration {context} must declare backend runtime identity together")
+        if all(isinstance(value, str) and value for value in identity_values):
+            repository_value, revision_value, dependency_digest_value = identity_values
+            assert isinstance(repository_value, str)
+            assert isinstance(revision_value, str)
+            assert isinstance(dependency_digest_value, str)
+            backend_source_repository = repository_value
+            backend_source_revision = revision_value
+            backend_dependency_lock_digest = dependency_digest_value
+            if not backend_source_repository.startswith("https://"):
+                raise ContractError(
+                    f"execution configuration {context}.backend_source_repository must use canonical HTTPS"
+                )
+            if len(backend_source_revision) != 40 or any(
+                character not in "0123456789abcdef" for character in backend_source_revision
+            ):
+                raise ContractError(f"execution configuration {context}.backend_source_revision must be a full commit")
+            if len(backend_dependency_lock_digest) != 64 or any(
+                character not in "0123456789abcdef" for character in backend_dependency_lock_digest
+            ):
+                raise ContractError(
+                    f"execution configuration {context}.backend_dependency_lock_sha256 must be lowercase SHA-256"
+                )
         parsed[profile] = ConstraintProfileBinding(
             path,
             expected,
@@ -1086,6 +1137,9 @@ def _constraint_profile_mapping(
             backend_contents_digest,
             backend_provided_packages,
             backend_digest,
+            backend_source_repository,
+            backend_source_revision,
+            backend_dependency_lock_digest,
         )
     return MappingProxyType(parsed)
 

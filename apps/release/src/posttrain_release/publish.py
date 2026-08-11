@@ -15,6 +15,7 @@ from posttrain.runtime_images import (
     KIND_DEFINITION,
     RUNTIME_VARIANTS,
     backend_constraint_lock,
+    backend_runtime_identity,
     cached_definition_root,
     constraint_lock,
     lock_digest,
@@ -153,6 +154,8 @@ def _reuse_unchanged_kind(
         expected_backend is not None and previous.backend_lock_digest != lock_digest(expected_backend)
     ):
         raise ValueError(f"{variant}: backend constraint lock changed or is absent")
+    if previous.backend_runtime_identity != backend_runtime_identity(variant):
+        raise ValueError(f"{variant}: backend runtime identity changed or is absent")
     builder.verify_remote(RuntimeImageRef(_prior_ref(prefix, previous.repository, previous.digest)))
     return PublishedImage(
         name=f"kinds.{variant}",
@@ -166,6 +169,7 @@ def _reuse_unchanged_kind(
         backend_constraint_lock=previous.backend_constraint_lock,
         backend_lock_digest=previous.backend_lock_digest,
         backend_provided_packages=previous.backend_provided_packages,
+        backend_runtime_identity=previous.backend_runtime_identity,
     )
 
 
@@ -346,6 +350,7 @@ def publish_release(
             provided_packages=supplied.get(variant) or _provided_packages(variant, root),
             backend_constraint_lock=backend_lock,
             backend_lock_digest=lock_digest(backend_lock) if backend_lock is not None else None,
+            backend_runtime_identity=backend_runtime_identity(variant),
         )
 
     def _resolve_kind(variant: str) -> PublishedImage:
