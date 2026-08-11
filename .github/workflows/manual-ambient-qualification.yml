@@ -69,11 +69,21 @@ jobs:
         env:
           PROJECT_REF: ${{ inputs.project_ref }}
         run: |
-          env -u GITHUB_TOKEN -u GH_TOKEN gh api "repos/${PROJECT_REPOSITORY}" --jq .full_name >/dev/null || {
+          test "${PROJECT_REPOSITORY}" = "${POSTTRAIN_PROJECT_READ_REPOSITORY:-}" || {
+            echo "AI Infra project-read credential is not scoped to ${PROJECT_REPOSITORY}" >&2
+            exit 1
+          }
+          test -n "${POSTTRAIN_PROJECT_READ_TOKEN:-}" || {
             echo "AI Infra runner has no managed GitHub read credential for ${PROJECT_REPOSITORY}" >&2
             exit 1
           }
-          env -u GITHUB_TOKEN -u GH_TOKEN gh repo clone "${PROJECT_REPOSITORY}" project -- \
+          env -u GITHUB_TOKEN -u GH_TOKEN GH_TOKEN="${POSTTRAIN_PROJECT_READ_TOKEN}" \
+            gh api "repos/${PROJECT_REPOSITORY}" --jq .full_name >/dev/null || {
+            echo "AI Infra runner has no managed GitHub read credential for ${PROJECT_REPOSITORY}" >&2
+            exit 1
+          }
+          env -u GITHUB_TOKEN -u GH_TOKEN GH_TOKEN="${POSTTRAIN_PROJECT_READ_TOKEN}" \
+            gh repo clone "${PROJECT_REPOSITORY}" project -- \
             --branch "${PROJECT_REF}" --single-branch
 
       - name: Verify the selected Ambient project branch is current
