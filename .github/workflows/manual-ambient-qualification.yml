@@ -1,0 +1,159 @@
+name: Run manual Ambient qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      framework_ref:
+        description: Pushed Posttrain branch containing the candidate image manifest
+        required: true
+        type: string
+      framework_version:
+        description: Candidate image-manifest version expected by this run
+        required: true
+        type: string
+      project_ref:
+        description: Pushed Ambient Agent branch containing the work package
+        required: true
+        type: string
+      work_package:
+        description: Work-package filename under .posttrain/work_packages
+        required: true
+        type: string
+      job_id:
+        description: Enabled job identifier within the work package
+        required: true
+        type: string
+      run_id:
+        description: Durable run identity and idempotency namespace
+        required: true
+        type: string
+      timeout_seconds:
+        description: Maximum provider wall-clock seconds
+        required: false
+        default: "7200"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    environment: release-candidate
+    runs-on: [self-hosted, linux, x64, lan-release]
+    env:
+      UV_SYSTEM_CERTS: "true"
+      UV_CACHE_DIR: /var/lib/github-runner/.cache/uv
+      JOB_REGISTRY: registry.lan/carbonteq
+      PROJECT_REPOSITORY: carbonteq-ai/ambient-agent
+    steps:
+      - name: Checkout the explicit framework branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ inputs.framework_ref }}
+          fetch-depth: 0
+
+      - name: Verify the selected framework branch is current
+        env:
+          FRAMEWORK_REF: ${{ inputs.framework_ref }}
+        run: |
+          git fetch --no-tags origin "refs/heads/${FRAMEWORK_REF}:refs/remotes/origin/${FRAMEWORK_REF}"
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/remotes/origin/${FRAMEWORK_REF}")"
+          printf '{"framework_ref":"%s","revision":"%s"}\n' \
+            "${FRAMEWORK_REF}" "$(git rev-parse HEAD)" > framework-source.json
+
+      - name: Checkout the explicit Ambient project branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: carbonteq-ai/ambient-agent
+          ref: ${{ inputs.project_ref }}
+          path: project
+          fetch-depth: 0
+
+      - name: Verify the selected Ambient project branch is current
+        env:
+          PROJECT_REF: ${{ inputs.project_ref }}
+        working-directory: project
+        run: |
+          git fetch --no-tags origin "refs/heads/${PROJECT_REF}:refs/remotes/origin/${PROJECT_REF}"
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/remotes/origin/${PROJECT_REF}")"
+          printf '{"project_ref":"%s","revision":"%s"}\n' \
+            "${PROJECT_REF}" "$(git rev-parse HEAD)" > ../project-source.json
+
+      - name: Verify candidate image and source agreement
+        env:
+          EXPECTED_VERSION: ${{ inputs.framework_version }}
+        run: |
+          uv sync --all-packages --group dev --python 3.13
+          uv run --no-sync posttrain-release check
+          actual_version="$(sed -n 's/^framework_version = "\([^"]*\)"$/\1/p' \
+            packages/runtime-images/src/posttrain/runtime_images/published.toml)"
+          test "${actual_version}" = "${EXPECTED_VERSION}"
+
+      - name: Verify the known GPU worker has capacity
+        run: scripts/release/verify-dstack-capacity .release/dstack-capacity.json
+
+      - name: Pack and submit the selected qualification
+        env:
+          RUN_ID: ${{ inputs.run_id }}
+          WORK_PACKAGE: ${{ inputs.work_package }}
+          JOB_ID: ${{ inputs.job_id }}
+          TIMEOUT_SECONDS: ${{ inputs.timeout_seconds }}
+        run: |
+          framework_pythonpath="$(find apps/cli packages -path '*/src' -type d \
+            -not -path '*/.posttrain/*' -not -path '*/fixtures/*' -printf '%p:' | sed 's/:$//')"
+          export PYTHONPATH="${framework_pythonpath}:${GITHUB_WORKSPACE}/project/src:${GITHUB_WORKSPACE}/project/packages/ambient-kg/src"
+          uv run --no-sync posttrain --project-root project --json job run \
+            "${WORK_PACKAGE}" \
+            --job "${JOB_ID}" \
+            --provider dstack \
+            --registry "${JOB_REGISTRY}" \
+            --run-id "${RUN_ID}" \
+            --timeout-seconds "${TIMEOUT_SECONDS}" > .release/job-launch.json
+
+      - name: Wait, reconcile, and verify the qualification evidence
+        id: evidence
+        if: always()
+        env:
+          RUN_ID: ${{ inputs.run_id }}
+          TIMEOUT_SECONDS: ${{ inputs.timeout_seconds }}
+        run: |
+          framework_pythonpath="$(find apps/cli packages -path '*/src' -type d \
+            -not -path '*/.posttrain/*' -not -path '*/fixtures/*' -printf '%p:' | sed 's/:$//')"
+          export PYTHONPATH="${framework_pythonpath}:${GITHUB_WORKSPACE}/project/src:${GITHUB_WORKSPACE}/project/packages/ambient-kg/src"
+          set +e
+          uv run --no-sync posttrain --project-root project run wait "${RUN_ID}" \
+            --timeout-seconds "${TIMEOUT_SECONDS}" --poll-interval-seconds 10
+          wait_status=$?
+          uv run --no-sync posttrain --project-root project run reconcile "${RUN_ID}"
+          reconcile_status=$?
+          uv run --no-sync posttrain --project-root project --json run show "${RUN_ID}" > .release/run-show.json
+          show_status=$?
+          uv run --no-sync posttrain --project-root project --json run checkpoint list "${RUN_ID}" \
+            > .release/checkpoints.json
+          checkpoints_status=$?
+          if [[ "${wait_status}" -eq 0 && "${reconcile_status}" -eq 0 && "${show_status}" -eq 0 && "${checkpoints_status}" -eq 0 ]]; then
+            uv run --no-sync posttrain --project-root project run checkpoint verify "${RUN_ID}" --step 1
+            verify_status=$?
+          else
+            verify_status=1
+          fi
+          printf 'wait=%s reconcile=%s show=%s checkpoints=%s checkpoint_verify=%s\n' \
+            "${wait_status}" "${reconcile_status}" "${show_status}" "${checkpoints_status}" "${verify_status}" \
+            > .release/qualification-status.txt
+          test "${wait_status}" -eq 0
+          test "${reconcile_status}" -eq 0
+          test "${show_status}" -eq 0
+          test "${checkpoints_status}" -eq 0
+          test "${verify_status}" -eq 0
+
+      - name: Retain launch, recovery, and reconciliation evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: manual-ambient-qualification-${{ inputs.run_id }}-${{ github.run_id }}
+          path: |
+            framework-source.json
+            project-source.json
+            .release/**
+            project/.posttrain/state/**
+          if-no-files-found: warn
