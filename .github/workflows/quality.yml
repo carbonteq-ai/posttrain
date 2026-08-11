@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  actions: write
 
 env:
   CARBONTEQ_TRACKIO_WHEEL_URL: https://github.com/carbonteq-ai/trackio/releases/download/carbonteq-v0.31.5.post12/carbonteq_trackio-0.31.5.post12-py3-none-any.whl
@@ -23,6 +24,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Candidate promotion needs a receipt for the immutable source branch,
+          # not GitHub's synthetic pull-request merge commit.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
@@ -44,25 +49,24 @@ jobs:
         # consume its hash-identical GitHub Release wheel and must not resolve
         # the private index while installing the remaining frozen lock.
         run: uv sync --frozen --all-packages --group dev --python 3.13 --no-install-package carbonteq-trackio --inexact
-      - name: Verify release metadata
-        run: |
-          if [[ "${GITHUB_EVENT_NAME}" = "pull_request" ]]; then
-            uv run --no-sync posttrain-release check --allow-pending-runtime-lock
-          else
-            uv run --no-sync posttrain-release check
-          fi
       - name: Verify repository ownership
         run: uv run --no-sync posttrain-release repository-check
-      - name: Test
-        run: uv run --no-sync pytest --cov --cov-report=term-missing
-      - name: Lint
-        run: uv run --no-sync ruff check .
-      - name: Format
-        run: uv run --no-sync ruff format --check .
-      - name: Type check
-        run: uv run --no-sync pyright
-      - name: Check package boundaries
-        run: uv run --no-sync lint-imports
+      - name: Run deterministic release readiness
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" = "pull_request" ]]; then
+            pending_lock=--allow-pending-runtime-lock
+          else
+            pending_lock=
+          fi
+          uv run --no-sync posttrain-release readiness \
+            --destination .release/readiness.json \
+            ${pending_lock}
+      - name: Retain source-readiness receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: posttrain-readiness
+          if-no-files-found: error
+          path: .release/readiness.json
 
   package-imports:
     runs-on: ubuntu-latest

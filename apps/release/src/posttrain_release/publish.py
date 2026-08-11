@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -52,8 +53,22 @@ def _provided_packages(variant: str, root: Path) -> tuple[str, ...]:
 _KIND_REPOSITORY_PREFIX = "posttrain-kind-"
 
 
-def _source_digest(root: Path) -> str:
-    return digest_runtime_sources(root, [Path(BASE_DEFINITION), Path(KIND_DEFINITION)])
+def _base_source_digest(root: Path) -> str:
+    return digest_runtime_sources(root, [Path(BASE_DEFINITION)])
+
+
+def _kind_source_digest(root: Path) -> str:
+    return digest_runtime_sources(root, [Path(KIND_DEFINITION)])
+
+
+def _trust_bundle_digest(bundle: Path | None) -> str | None:
+    if bundle is None:
+        return None
+    digest = hashlib.sha256()
+    with bundle.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _bake_variables(
@@ -78,13 +93,11 @@ def _bake_variables(
 
 
 def _normalize_variants(variants: Sequence[str] | None) -> tuple[str, ...]:
-    selected = tuple(variants) if variants is not None else RUNTIME_VARIANTS
+    selected = tuple(variants) if variants is not None else ()
     unknown = sorted(set(selected) - set(RUNTIME_VARIANTS))
     if unknown:
         known = ", ".join(RUNTIME_VARIANTS)
         raise ValueError(f"unknown runtime variant(s) {unknown}; known: {known}")
-    if not selected:
-        raise ValueError("at least one runtime variant is required")
     # Preserve the canonical release order even when the caller passes a subset.
     return tuple(variant for variant in RUNTIME_VARIANTS if variant in set(selected))
 
@@ -109,12 +122,20 @@ def _prior_kind_ref(prefix: str, variant: str) -> str | None:
     return _prior_ref(prefix, previous.repository, previous.digest)
 
 
-def _reuse_unchanged_kind(variant: str, root: Path) -> PublishedImage:
-    """Reuse a previously published kind when its constraint lock is unchanged.
+def _reuse_unchanged_kind(
+    variant: str,
+    root: Path,
+    *,
+    prefix: str,
+    builder: BuildKitRuntimeBuilder,
+    runtime_source_digest: str,
+    base_digest: str,
+) -> PublishedImage:
+    """Reuse a verified kind only when every runtime input is unchanged.
 
-    Lock-digest drift is what forces a rebuild. When the shipped lock still
-    hashes to the digest recorded in the committed manifest, the image bytes
-    the label binds to remain valid and rebuilding only burns cache.
+    A framework distribution version is intentionally absent from this test:
+    the packed job injects the versioned wheelhouse. Runtime source, lock,
+    parent image, and registry presence are the image's real dependencies.
     """
     previous = load_manifest(verify_locks=False, verify_variants=False).image(variant)
     expected = lock_digest(constraint_lock(variant))
@@ -123,12 +144,24 @@ def _reuse_unchanged_kind(variant: str, root: Path) -> PublishedImage:
             f"{variant}: published lock digest {previous.lock_digest} no longer "
             f"matches the shipped lock ({expected}); pass --variant {variant}"
         )
+    if previous.runtime_source_digest != runtime_source_digest:
+        raise ValueError(f"{variant}: runtime source digest changed or is absent")
+    if previous.base_digest != base_digest:
+        raise ValueError(f"{variant}: base image digest changed or is absent")
+    expected_backend = backend_constraint_lock(variant)
+    if previous.backend_constraint_lock != expected_backend or (
+        expected_backend is not None and previous.backend_lock_digest != lock_digest(expected_backend)
+    ):
+        raise ValueError(f"{variant}: backend constraint lock changed or is absent")
+    builder.verify_remote(RuntimeImageRef(_prior_ref(prefix, previous.repository, previous.digest)))
     return PublishedImage(
         name=f"kinds.{variant}",
         repository=previous.repository,
         digest=previous.digest,
         lock_digest=previous.lock_digest,
         constraint_lock=previous.constraint_lock,
+        runtime_source_digest=previous.runtime_source_digest,
+        base_digest=previous.base_digest,
         provided_packages=previous.provided_packages or _provided_packages(variant, root),
         backend_constraint_lock=previous.backend_constraint_lock,
         backend_lock_digest=previous.backend_lock_digest,
@@ -136,14 +169,18 @@ def _reuse_unchanged_kind(variant: str, root: Path) -> PublishedImage:
     )
 
 
-def _reuse_unchanged_base(prefix: str, builder: BuildKitRuntimeBuilder) -> PublishedImage | None:
-    """Pull the committed base when its lock digest still matches.
+def _reuse_unchanged_base(
+    prefix: str,
+    builder: BuildKitRuntimeBuilder,
+    *,
+    runtime_source_digest: str,
+    trust_bundle_digest: str | None,
+) -> PublishedImage | None:
+    """Reuse the committed base when every runtime input still matches.
 
-    Base is the expensive image and should almost never rebuild. When only
-    kind-level pins moved the workspace lock, the operator must rebuild kinds
-    — not base — but today's lock-digest label is the full workspace lock, so
-    a true content-stable base still looks stale. Reuse is therefore gated on
-    an exact lock match (or an explicit --base-image).
+    The trust bundle is image content, so a different bundle must rebuild. A
+    missing digest is intentionally incompatible with older manifests and
+    establishes the stronger receipt on the first migrated release.
     """
     try:
         previous = load_manifest(verify_locks=False, verify_variants=False).base
@@ -151,6 +188,10 @@ def _reuse_unchanged_base(prefix: str, builder: BuildKitRuntimeBuilder) -> Publi
         return None
     expected = lock_digest()
     if previous.lock_digest != expected:
+        return None
+    if previous.runtime_source_digest != runtime_source_digest:
+        return None
+    if previous.trust_bundle_digest != trust_bundle_digest:
         return None
     image = RuntimeImageRef(_prior_ref(prefix, previous.repository, previous.digest))
     try:
@@ -163,6 +204,8 @@ def _reuse_unchanged_base(prefix: str, builder: BuildKitRuntimeBuilder) -> Publi
         digest=previous.digest,
         lock_digest=previous.lock_digest,
         constraint_lock=previous.constraint_lock,
+        runtime_source_digest=previous.runtime_source_digest,
+        trust_bundle_digest=previous.trust_bundle_digest,
     )
 
 
@@ -192,7 +235,8 @@ def publish_release(
     once the images are mirrored to the canonical location.
 
     `variants`, when set, rebuilds only those kinds. Other kinds are reused from
-    the committed manifest when their lock digest is still current. `base_image`
+    the committed manifest only when their runtime source, dependency locks,
+    and parent base digest are still current. `base_image`
     skips the base rebuild and parents every kind on the given registry digest.
     When omitted, an unchanged committed base is reused automatically; otherwise
     a rebuild seeds BuildKit from the previous registry digest via cache-from so
@@ -202,7 +246,9 @@ def publish_release(
     force-recompression. Pass `attestations=True` when policy requires them.
     """
     root = cached_definition_root()
-    source_digest = _source_digest(root)
+    base_source_digest = _base_source_digest(root)
+    kind_source_digest = _kind_source_digest(root)
+    trust_digest = _trust_bundle_digest(trust_bundle)
     normalized = prefix.rstrip("/")
     supplied = provided_packages or {}
     selected = _normalize_variants(variants)
@@ -221,13 +267,16 @@ def publish_release(
             digest=published_base.value.rsplit("@", 1)[1],
             lock_digest=base_lock,
             constraint_lock=constraint_lock("supervised"),
+            runtime_source_digest=base_source_digest,
+            trust_bundle_digest=trust_digest,
         )
     else:
-        # A committed manifest does not record the machine trust-bundle digest,
-        # so it cannot prove that a prior base contains the requested trust.
-        # Supplying a bundle deliberately forces the content-addressed build
-        # path; its byte digest is part of RuntimeBuildRequest.build_key.
-        reused = None if trust_bundle is not None else _reuse_unchanged_base(normalized, builder)
+        reused = _reuse_unchanged_base(
+            normalized,
+            builder,
+            runtime_source_digest=base_source_digest,
+            trust_bundle_digest=trust_digest,
+        )
         if reused is not None:
             published_base = RuntimeImageRef(f"{normalized}/{reused.repository}@{reused.digest}")
             base = reused
@@ -241,7 +290,7 @@ def publish_release(
                     context=root,
                     target=_BASE_REPOSITORY,
                     repository=f"{normalized}/{_BASE_REPOSITORY}",
-                    source_digest=source_digest,
+                    source_digest=base_source_digest,
                     lock_digest=lock_digest(),
                     base_image=RuntimeImageRef(f"scratch@sha256:{'0' * 64}"),
                     variables=_bake_variables(created=created, revision=revision, version=framework_version),
@@ -257,6 +306,8 @@ def publish_release(
                 digest=published_base.value.rsplit("@", 1)[1],
                 lock_digest=lock_digest(),
                 constraint_lock=constraint_lock("supervised"),
+                runtime_source_digest=base_source_digest,
+                trust_bundle_digest=trust_digest,
             )
 
     def _build_kind(variant: str) -> PublishedImage:
@@ -271,7 +322,7 @@ def publish_release(
                 context=root,
                 target=f"{_KIND_REPOSITORY_PREFIX}{variant}",
                 repository=f"{normalized}/{_KIND_REPOSITORY_PREFIX}{variant}",
-                source_digest=source_digest,
+                source_digest=kind_source_digest,
                 lock_digest=lock_digest(lock),
                 base_image=published_base,
                 variables=_bake_variables(
@@ -290,6 +341,8 @@ def publish_release(
             digest=result.image.value.rsplit("@", 1)[1],
             lock_digest=lock_digest(lock),
             constraint_lock=lock,
+            runtime_source_digest=kind_source_digest,
+            base_digest=published_base.value.rsplit("@", 1)[1],
             provided_packages=supplied.get(variant) or _provided_packages(variant, root),
             backend_constraint_lock=backend_lock,
             backend_lock_digest=lock_digest(backend_lock) if backend_lock is not None else None,
@@ -300,7 +353,8 @@ def publish_release(
             return _build_kind(variant)
         # Prefer a receipt for an already-built image from this release identity
         # (parallel helpers plant these). Only fall back to the committed
-        # manifest when the lock is unchanged and nothing newer is cached.
+        # manifest only when every immutable runtime input still matches and
+        # nothing newer is cached.
         lock = constraint_lock(variant)
         request = RuntimeBuildRequest(
             profile=variant,
@@ -308,7 +362,7 @@ def publish_release(
             context=root,
             target=f"{_KIND_REPOSITORY_PREFIX}{variant}",
             repository=f"{normalized}/{_KIND_REPOSITORY_PREFIX}{variant}",
-            source_digest=source_digest,
+            source_digest=kind_source_digest,
             lock_digest=lock_digest(lock),
             base_image=published_base,
             variables=_bake_variables(
@@ -321,7 +375,17 @@ def publish_release(
         )
         if builder.has_receipt(request):
             return _build_kind(variant)
-        return _reuse_unchanged_kind(variant, root)
+        try:
+            return _reuse_unchanged_kind(
+                variant,
+                root,
+                prefix=normalized,
+                builder=builder,
+                runtime_source_digest=kind_source_digest,
+                base_digest=published_base.value.rsplit("@", 1)[1],
+            )
+        except (RemoteImageNotFoundError, RuntimeError, ValueError):
+            return _build_kind(variant)
 
     kinds: dict[str, PublishedImage] = {}
     if parallel and len(RUNTIME_VARIANTS) > 1:

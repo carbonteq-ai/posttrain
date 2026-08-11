@@ -18,11 +18,19 @@ from posttrain.runtime_images import (
     constraint_lock,
     lock_digest,
 )
-from posttrain.runtime_images.manifest import ManifestError, PublishedImage, load_manifest
+from posttrain.runtime_images.manifest import ManifestError, PublishedImage, PublishedManifest, load_manifest
 from posttrain_release.artifacts import create_distribution_receipt, verify_distribution_receipt
 from posttrain_release.candidate import next_candidate_version
 from posttrain_release.cli import main
 from posttrain_release.manifest_render import render_manifest
+from posttrain_release.promotion import create_promotion_receipt
+from posttrain_release.readiness import (
+    create_readiness_receipt,
+    required_check_names,
+    run_readiness,
+    verify_readiness_receipt,
+    write_readiness_receipt,
+)
 from posttrain_release.repository_audit import evaluate_repository, inspect_repository
 from posttrain_release.runtime_lock import materialize_runtime_lock
 from posttrain_release.versioning import (
@@ -590,11 +598,80 @@ def test_distribution_receipt_binds_wheel_sdist_lock_and_image_manifest(tmp_path
     assert len(artifacts) == 2
 
 
-def test_tag_workflow_builds_the_versioned_stage_not_the_source_workspace() -> None:
+def test_readiness_receipt_binds_the_exact_source_tree_and_selected_forks(tmp_path: Path) -> None:
     repository_root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
-    workflow = (repository_root / ".github/workflows/release.yml").read_text(encoding="utf-8")
+    checks = [{"name": name, "status": "success", "duration_seconds": 0.0} for name in required_check_names()]
+    receipt = create_readiness_receipt(repository_root, checks=checks, runtime_lock_pending=False)
+    receipt_path = tmp_path / "readiness.json"
+    write_readiness_receipt(receipt, receipt_path)
 
-    assert "scripts/release/build-python-distributions" in workflow
+    verified = verify_readiness_receipt(receipt_path, repository_root)
+
+    assert verified["schema"] == "posttrain.release-readiness.v1"
+    assert verified["fork_packages"] == receipt["fork_packages"]
+    fork_packages = verified["fork_packages"]
+    assert isinstance(fork_packages, dict)
+    assert "carbonteq-trackio" in fork_packages
+    assert "trl" in fork_packages
+
+    receipt["source_tree"] = "0" * 40
+    write_readiness_receipt(receipt, receipt_path)
+    with pytest.raises(ValueError, match="source_tree"):
+        verify_readiness_receipt(receipt_path, repository_root)
+
+
+def test_readiness_runs_the_fixed_deterministic_check_set(monkeypatch: pytest.MonkeyPatch) -> None:
+    repository_root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+    monkeypatch.setattr(
+        "posttrain_release.readiness.check_release",
+        lambda _root, allow_pending_runtime_lock: type("Result", (), {"runtime_lock_pending": False})(),
+    )
+    calls: list[tuple[str, ...]] = []
+
+    def runner(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(tuple(command))
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    receipt = run_readiness(repository_root, allow_pending_runtime_lock=False, runner=runner)
+
+    assert [command[0] for command in calls] == ["pytest", "ruff", "ruff", "pyright", "lint-imports"]
+    checks = receipt["checks"]
+    assert isinstance(checks, list)
+    assert [item["name"] for item in checks if isinstance(item, dict)] == list(required_check_names())
+
+
+def test_promotion_receipt_binds_candidate_bytes_to_the_merged_tree(tmp_path: Path) -> None:
+    receipt_path = tmp_path / "candidate.json"
+    receipt_path.write_text(
+        json.dumps({"schema": "posttrain.python-release-receipt.v1", "version": "0.3.8"}),
+        encoding="utf-8",
+    )
+
+    receipt = create_promotion_receipt(
+        receipt_path,
+        candidate_run_id="123456",
+        candidate_source_sha="a" * 40,
+        candidate_source_tree="b" * 40,
+        merged_sha="c" * 40,
+        merged_tree="d" * 40,
+    )
+
+    assert receipt["version"] == "0.3.8"
+    assert receipt["candidate_run_id"] == "123456"
+    assert receipt["candidate_receipt_sha256"] == __import__("hashlib").sha256(receipt_path.read_bytes()).hexdigest()
+
+
+def test_candidate_builds_the_final_version_and_final_only_restores_it() -> None:
+    repository_root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+    candidate = (repository_root / ".github/workflows/release-candidate.yml").read_text(encoding="utf-8")
+    final = (repository_root / ".github/workflows/release.yml").read_text(encoding="utf-8")
+
+    assert "scripts/release/build-python-distributions" in candidate
+    assert "candidate-version --simple-url" not in candidate
+    assert "Resolve the immutable final version" in candidate
+    assert "scripts/release/build-python-distributions" not in final
+    assert "Materialize and verify the candidate wheelhouse" in final
+    assert "Verify the candidate bytes remain intact in development" in final
     builder = (repository_root / "scripts/release/build-python-distributions").read_text(encoding="utf-8")
     assert "uv build" in builder
     assert "--all-packages" in builder
@@ -602,7 +679,7 @@ def test_tag_workflow_builds_the_versioned_stage_not_the_source_workspace() -> N
     assert "--python 3.13" in builder
     assert 'build_cache_dir="${UV_CACHE_DIR:-$build_cache_dir}"' in builder
     assert 'UV_CACHE_DIR="$build_cache_dir"' in builder
-    assert "uv build environments/" not in workflow
+    assert "uv build environments/" not in candidate
     assert 'generated_runtime_lock="${repository_root}/packages/runtime-images' in builder
     assert 'cp "${generated_runtime_lock}" "${staged_runtime_lock}"' in builder
 
@@ -612,7 +689,7 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     candidate = (repository_root / ".github/workflows/release-candidate.yml").read_text(encoding="utf-8")
     final = (repository_root / ".github/workflows/release.yml").read_text(encoding="utf-8")
 
-    for workflow in (candidate, final):
+    for workflow in (candidate,):
         assert "runs-on: [self-hosted, linux, x64, lan-release]" in workflow
         assert "uv pip install" in workflow
         assert '--index-url "${PYPI_DEV_SIMPLE}"' in workflow
@@ -635,8 +712,10 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert "framework wheelhouse contains non-candidate wheels" in candidate
     assert '--framework-wheelhouse "${framework_wheelhouse}"' in candidate
 
-    assert "candidate-version --simple-url" in candidate
-    assert "posttrain-release check --allow-pending-runtime-lock" in candidate
+    assert "candidate-version --simple-url" not in candidate
+    assert "posttrain-release readiness-check" in candidate
+    assert "posttrain-readiness" in candidate
+    assert "QUALITY_RUN_ID" in candidate
     assert "posttrain-release lock-runtime-dependencies" in candidate
     assert ".release/workspace.lock.txt" in candidate
     assert 'authored_framework_version="$(sed -n' in candidate
@@ -661,13 +740,14 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert final.index("Retain final receipt and cache evidence") < final.index(
         "Tag and create the GitHub release last"
     )
-    assert "for attempt in $(seq 1 120)" in final
-    assert 'select(.headSha == $sha and .event == "push")' in final
+    assert "for attempt in $(seq 1 120)" not in final
+    assert "Verify the merge target" in final
     assert "REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt" in final
-    assert "exact final bytes are already present in the development index" in final
-    assert "development index already contains" in final
-    assert 'grep -Eqi -- "${normalized}-${POSTTRAIN_RELEASE_VERSION}([.]|$)"' in final
-    assert 'grep -Fq "${POSTTRAIN_RELEASE_VERSION}"' not in final
+    assert "Verify the candidate bytes remain intact in development" in final
+    assert "scripts/release/build-python-distributions" not in final
+    assert "Run the final packed GPU canary through dstack" not in final
+    assert "Prove a clean index-only consumer install" not in final
+    assert "Verify committed runtime image digests in the private registry" not in final
     assert "candidate_run_id:" in final
     assert "Verify the final source and lock" in final
     assert "uv sync --all-packages --group dev --python 3.13 --locked" in final
@@ -683,6 +763,8 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert ".github/*|apps/release/tests/*|docs/plan/*" in final
     assert "candidate build inputs changed:" in final
     assert 'test "${candidate_version}" = "${release_version}"' in final
+    assert 'test "$(jq -r \'.source_sha // empty\' "${candidate_readiness}")" = "${candidate_sha}"' in final
+    assert 'test "$(jq -r \'.source_tree // empty\' "${candidate_readiness}")" = "${candidate_tree}"' in final
     assert 'cp "${candidate_manifest}" packages/runtime-images/src/posttrain/runtime_images/published.toml' in final
     assert "resume_from_run_id" in final
     assert 'gh run view "${RESUME_FROM_RUN_ID}"' in final
@@ -691,7 +773,7 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert "gh run download" in final
     assert 'git merge-base --is-ancestor "${source_sha}"' in final
     assert 'git tag -a "v${POSTTRAIN_RELEASE_VERSION}" "${RELEASE_SOURCE_SHA}"' in final
-    assert "Materialize and verify the retained release wheelhouse" in final
+    assert "Materialize and verify the candidate wheelhouse" in final
     assert "receipt-check .release/python-release-receipt.json" in final
 
 
@@ -883,6 +965,84 @@ def test_variant_subset_preserves_canonical_order() -> None:
     from posttrain_release.publish import _normalize_variants
 
     assert _normalize_variants(["transform", "eval"]) == ("eval", "transform")
+
+
+def test_unchanged_runtime_images_are_reused_across_framework_versions(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A patch release must not rebuild runtime layers just to relabel them."""
+    import posttrain_release.publish as publish
+
+    root = publish.cached_definition_root()
+    trust = tmp_path / "internal-ca.pem"
+    trust.write_text("test internal authority\n", encoding="utf-8")
+    trust_digest = publish._trust_bundle_digest(trust)
+    base_digest = "sha256:" + "a" * 64
+    base = PublishedImage(
+        name="base",
+        repository="posttrain-base",
+        digest=base_digest,
+        lock_digest=lock_digest(),
+        constraint_lock=constraint_lock("supervised"),
+        runtime_source_digest=publish._base_source_digest(root),
+        trust_bundle_digest=trust_digest,
+    )
+    kinds = {
+        variant: PublishedImage(
+            name=f"kinds.{variant}",
+            repository=f"posttrain-kind-{variant}",
+            digest="sha256:" + f"{index:x}" * 64,
+            lock_digest=lock_digest(constraint_lock(variant)),
+            constraint_lock=constraint_lock(variant),
+            runtime_source_digest=publish._kind_source_digest(root),
+            base_digest=base_digest,
+            backend_constraint_lock=(VERL_BACKEND_LOCK if variant == "online-rl-verl-py313" else None),
+            backend_lock_digest=(lock_digest(VERL_BACKEND_LOCK) if variant == "online-rl-verl-py313" else None),
+        )
+        for index, variant in enumerate(RUNTIME_VARIANTS)
+    }
+    prior = PublishedManifest(
+        schema_version=1,
+        framework_version="0.3.7",
+        default_prefix="registry.lan/carbonteq",
+        base=base,
+        kinds=kinds,
+    )
+    monkeypatch.setattr(publish, "load_manifest", lambda **_: prior)
+
+    class Builder:
+        def __init__(self) -> None:
+            self.builds = 0
+            self.verified: list[str] = []
+
+        def build(self, request: object) -> object:
+            self.builds += 1
+            raise AssertionError(f"unexpected runtime build: {request}")
+
+        def has_receipt(self, request: object) -> bool:
+            return False
+
+        def verify_remote(self, image: object) -> None:
+            self.verified.append(str(image))
+
+    builder = Builder()
+    rendered = publish.publish_release(
+        prefix="registry.lan/carbonteq",
+        framework_version="0.3.8",
+        created="2026-08-12T00:00:00Z",
+        revision="a" * 40,
+        builder=builder,  # type: ignore[arg-type]
+        trust_bundle=trust,
+        parallel=False,
+    )
+
+    document = tomllib.loads(rendered)
+    assert builder.builds == 0
+    assert len(builder.verified) == len(RUNTIME_VARIANTS) + 1
+    assert document["framework_version"] == "0.3.8"
+    assert document["base"]["trust_bundle_digest"] == trust_digest
+    assert document["kinds"]["eval"]["base_digest"] == base_digest
 
 
 def test_public_ci_trackio_mirror_matches_locked_distribution() -> None:

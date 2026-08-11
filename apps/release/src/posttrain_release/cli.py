@@ -20,7 +20,9 @@ from .artifacts import (
     write_distribution_receipt,
 )
 from .candidate import fetch_simple_artifacts, next_candidate_version
+from .promotion import create_promotion_receipt, write_promotion_receipt
 from .publish import publish_release
+from .readiness import run_readiness, verify_readiness_receipt, write_readiness_receipt
 from .repository_audit import inspect_repository
 from .runtime_lock import materialize_runtime_lock
 from .versioning import check_release, load_release_manifest, lock_dependencies, prepare_release, stage_release
@@ -30,6 +32,63 @@ images_app = typer.Typer(help="runtime image release operations")
 app.add_typer(images_app, name="images")
 
 _MANIFEST_RELATIVE = Path("packages/runtime-images/src/posttrain/runtime_images/published.toml")
+
+
+@app.command("readiness", help="run deterministic release checks and write an immutable source-readiness receipt")
+def readiness_cmd(
+    destination: Annotated[Path, typer.Option("--destination", help="JSON receipt destination")],
+    repository_root: Annotated[
+        Path,
+        typer.Option("--repository-root", help="framework checkout to verify"),
+    ] = Path("."),
+    allow_pending_runtime_lock: Annotated[
+        bool,
+        typer.Option(
+            "--allow-pending-runtime-lock",
+            help="allow a candidate branch to materialize the OCI lock after readiness",
+        ),
+    ] = False,
+) -> None:
+    receipt = run_readiness(
+        repository_root,
+        allow_pending_runtime_lock=allow_pending_runtime_lock,
+    )
+    write_readiness_receipt(receipt, destination)
+    print(f"recorded readiness receipt: {destination}")
+
+
+@app.command("readiness-check", help="verify a readiness receipt against this exact checkout")
+def readiness_check_cmd(
+    receipt: Annotated[Path, typer.Argument(help="readiness receipt JSON")],
+    repository_root: Annotated[
+        Path,
+        typer.Option("--repository-root", help="framework checkout to verify"),
+    ] = Path("."),
+) -> None:
+    verified = verify_readiness_receipt(receipt, repository_root)
+    print(f"verified readiness receipt for {verified['source_sha']}")
+
+
+@app.command("promotion-receipt", help="bind a candidate distribution receipt to the merged stable-release tree")
+def promotion_receipt_cmd(
+    candidate_receipt: Annotated[Path, typer.Argument(help="candidate Python distribution receipt")],
+    destination: Annotated[Path, typer.Option("--destination", help="promotion receipt JSON destination")],
+    candidate_run_id: Annotated[str, typer.Option("--candidate-run-id", help="successful candidate workflow run id")],
+    candidate_source_sha: Annotated[str, typer.Option("--candidate-source-sha", help="candidate source commit")],
+    candidate_source_tree: Annotated[str, typer.Option("--candidate-source-tree", help="candidate source tree")],
+    merged_sha: Annotated[str, typer.Option("--merged-sha", help="merged default-branch commit")],
+    merged_tree: Annotated[str, typer.Option("--merged-tree", help="merged default-branch tree")],
+) -> None:
+    receipt = create_promotion_receipt(
+        candidate_receipt,
+        candidate_run_id=candidate_run_id,
+        candidate_source_sha=candidate_source_sha,
+        candidate_source_tree=candidate_source_tree,
+        merged_sha=merged_sha,
+        merged_tree=merged_tree,
+    )
+    write_promotion_receipt(receipt, destination)
+    print(f"recorded promotion receipt: {destination}")
 
 
 @app.command("check", help="verify source templates and generated locks against the release manifest")
@@ -233,8 +292,8 @@ def publish_cmd(
             "--variant",
             help=(
                 "rebuild only this job-kind (repeatable). Unlisted kinds are "
-                "reused from the committed manifest when their lock digest is "
-                "unchanged"
+                "reused from the committed manifest only when their runtime "
+                "inputs are unchanged"
             ),
         ),
     ] = None,

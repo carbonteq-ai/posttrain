@@ -51,7 +51,7 @@ jobs:
           quality_status=""
           for attempt in $(seq 1 120); do
             runs="$(gh run list --workflow quality.yml --branch "${SOURCE_REF}" --limit 20 \
-              --json headSha,conclusion,status,event,createdAt)"
+              --json databaseId,headSha,conclusion,status,event,createdAt)"
             quality_conclusion="$(jq -r --arg sha "${source_sha}" \
               '[.[] | select(.headSha == $sha and (.event == "push" or .event == "pull_request" or .event == "workflow_dispatch"))] | sort_by(.createdAt) | last.conclusion // empty' \
               <<<"${runs}")"
@@ -59,7 +59,14 @@ jobs:
               '[.[] | select(.headSha == $sha and (.event == "push" or .event == "pull_request" or .event == "workflow_dispatch"))] | sort_by(.createdAt) | last.status // empty' \
               <<<"${runs}")"
             case "${quality_conclusion}" in
-              success) break ;;
+              success)
+                quality_run_id="$(jq -r --arg sha "${source_sha}" \
+                  '[.[] | select(.headSha == $sha and (.event == "push" or .event == "pull_request" or .event == "workflow_dispatch"))] | sort_by(.createdAt) | last.databaseId // empty' \
+                  <<<"${runs}")"
+                test -n "${quality_run_id}"
+                echo "QUALITY_RUN_ID=${quality_run_id}" >> "$GITHUB_ENV"
+                break
+                ;;
               failure|cancelled|timed_out|action_required|startup_failure)
                 echo "quality run for ${source_sha} ended with ${quality_conclusion}" >&2
                 exit 1
@@ -70,26 +77,31 @@ jobs:
           done
           test "${quality_conclusion}" = success
 
-      - name: Validate the source and lock
+      - name: Install locked release tooling
         run: |
-          # The runner service has production Trackio variables for real
-          # canaries. Keep the unit/integration suite hermetic so its SQLite
-          # fixtures cannot accidentally read or mutate live Trackio.
-          unset TRACKIO_SERVER_URL POSTTRAIN_TRACKIO_SERVER_URL TRACKIO_WRITE_TOKEN
-          uv sync --all-packages --group dev --python 3.13
-          uv run --no-sync posttrain-release check --allow-pending-runtime-lock
-          uv run --no-sync ruff check .
-          uv run --no-sync ruff format --check .
-          uv run --no-sync pyright
-          uv run --no-sync lint-imports
-          uv run --no-sync pytest
+          uv sync --all-packages --group dev --python 3.13 --locked
 
-      - name: Allocate the next immutable RC
+      - name: Restore and verify exact-source readiness
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .release/readiness
+          gh run download "${QUALITY_RUN_ID}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --name posttrain-readiness \
+            --dir .release/readiness
+          readiness_receipt="$(find .release/readiness -type f -name readiness.json -print -quit)"
+          test -n "${readiness_receipt}"
+          uv run --no-sync posttrain-release readiness-check "${readiness_receipt}"
+          cp "${readiness_receipt}" .release/readiness.json
+
+      - name: Resolve the immutable final version
         id: version
         run: |
-          version="$(uv run --no-sync posttrain-release candidate-version --simple-url "${PYPI_DEV_PROJECT_SIMPLE}")"
+          version="$(sed -n 's/^version = "\([^" ]*\)"$/\1/p' release/manifest.toml)"
+          test -n "${version}"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
-          echo "candidate=${version}"
+          echo "final development candidate=${version}"
 
       - name: Capture the pre-build BuildKit cache
         run: buildctl --addr unix:///var/lib/github-runner/buildkit/buildkitd.sock du
@@ -136,11 +148,25 @@ jobs:
           uv run --no-sync posttrain-release receipt-check .release/python-release-receipt.json \
             --distribution-root .release/distributions
 
-      - name: Publish the candidate only to the development index
+      - name: Publish the final candidate only to the development index
         run: |
-          uv publish --publish-url "${PYPI_DEV_UPLOAD}" .release/distributions/*
-          uv run --no-sync posttrain-release index-check .release/python-release-receipt.json \
-            --simple-base-url "${PYPI_DEV_SIMPLE}"
+          if uv run --no-sync posttrain-release index-check .release/python-release-receipt.json \
+            --simple-base-url "${PYPI_DEV_SIMPLE}"; then
+            echo "exact final bytes are already present in the development index; reusing them"
+          else
+            while read -r package; do
+              normalized="$(printf '%s' "${package}" | tr '[:upper:]' '[:lower:]' | sed 's/[_.]/-/g')"
+              if curl --fail --silent --show-error --max-time 20 \
+                "${PYPI_DEV_SIMPLE}${normalized}/" \
+                | grep -Eqi -- "${normalized}-${{ steps.version.outputs.version }}([.]|$)"; then
+                echo "development index already contains ${package} ${{ steps.version.outputs.version }}, but the receipt did not match" >&2
+                exit 1
+              fi
+            done < <(jq -r '.packages[]' .release/python-release-receipt.json)
+            uv publish --publish-url "${PYPI_DEV_UPLOAD}" .release/distributions/*
+            uv run --no-sync posttrain-release index-check .release/python-release-receipt.json \
+              --simple-base-url "${PYPI_DEV_SIMPLE}"
+          fi
 
       - name: Prove a clean index-only consumer install
         run: |
@@ -257,6 +283,7 @@ jobs:
           include-hidden-files: true
           path: |
             .release/python-release-receipt.json
+            .release/readiness.json
             .release/posttrain-wheelhouse-*.tar.gz
             .release/release-SHA256SUMS
             .release/SHA256SUMS
