@@ -156,11 +156,13 @@ class EvidenceCompleteness(ObservatoryModel):
 
 
 class GRPORolloutPopulation(ObservatoryModel):
+    requested: SummaryValue
     attempted: SummaryValue
     completed: SummaryValue
     failed: SummaryValue
     truncated: SummaryValue
     unscorable: SummaryValue
+    missing: SummaryValue
 
 
 class GRPOAccelerationEvidence(ObservatoryModel):

@@ -13,6 +13,7 @@ members = ["apps/*", "packages/*"]
 
 [tool.uv]
 package = false
+system-certs = true
 
 [[tool.uv.index]]
 name = "pytorch-cu130"

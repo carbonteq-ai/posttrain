@@ -8,11 +8,36 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Literal, Protocol, cast
 
-from posttrain.common import JsonValue, MetricBatchObservation, ProducedArtifact, TraceObservation
+from posttrain.common import InferenceBinding, JsonValue, MetricBatchObservation, ProducedArtifact, TraceObservation
 from posttrain.data import MessageRecord, RolloutDataset
 
 type ToolRecord = Mapping[str, JsonValue]
 type TokenSpan = tuple[int, int]
+
+
+class EnvironmentSampling(Protocol):
+    """Structural environment-owned sampling declaration."""
+
+    @property
+    def max_tokens(self) -> int: ...
+
+    @property
+    def temperature(self) -> float: ...
+
+    @property
+    def top_p(self) -> float | None: ...
+
+    @property
+    def top_k(self) -> int: ...
+
+    @property
+    def min_p(self) -> float | None: ...
+
+    @property
+    def repetition_penalty(self) -> float: ...
+
+    @property
+    def presence_penalty(self) -> float: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,12 +65,71 @@ class PolicySampling:
     max_tokens: int
     temperature: float = 1.0
     top_p: float = 1.0
+    top_k: int = 0
+    min_p: float | None = None
+    repetition_penalty: float = 1.0
+    presence_penalty: float = 0.0
 
     def __post_init__(self) -> None:
         if self.max_tokens < 1:
             raise ValueError("policy sampling max_tokens must be positive")
-        if self.temperature <= 0 or not 0 < self.top_p <= 1:
+        if not math.isfinite(self.temperature) or self.temperature <= 0 or not 0 < self.top_p <= 1:
             raise ValueError("invalid policy sampling temperature or top_p")
+        if self.top_k < 0:
+            raise ValueError("policy sampling top_k cannot be negative")
+        if self.min_p is not None and (not math.isfinite(self.min_p) or not 0 <= self.min_p <= 1):
+            raise ValueError("policy sampling min_p must be in [0, 1]")
+        if not math.isfinite(self.repetition_penalty) or self.repetition_penalty <= 0:
+            raise ValueError("policy sampling repetition_penalty must be positive")
+        if not math.isfinite(self.presence_penalty) or not -2 <= self.presence_penalty <= 2:
+            raise ValueError("policy sampling presence_penalty must be in [-2, 2]")
+
+
+def policy_sampling_from_binding(
+    binding: InferenceBinding,
+    max_tokens: int,
+    *,
+    default_temperature: float = 1.0,
+) -> PolicySampling:
+    """Resolve one inference selection into the complete online-RL behavior policy."""
+
+    def number(key: str, default: float) -> float:
+        value = binding.sampling.get(key)
+        if value is None:
+            return default
+        if isinstance(value, bool) or not isinstance(value, int | float):
+            raise ValueError(f"rollout sampling {key} must be numeric")
+        return float(value)
+
+    top_k = binding.sampling.get("top_k", 0)
+    min_p = binding.sampling.get("min_p")
+    if isinstance(top_k, bool) or not isinstance(top_k, int):
+        raise ValueError("rollout sampling top_k must be an integer")
+    if min_p is not None and (isinstance(min_p, bool) or not isinstance(min_p, int | float)):
+        raise ValueError("rollout sampling min_p must be numeric")
+    return PolicySampling(
+        max_tokens=max_tokens,
+        temperature=number("temperature", default_temperature),
+        top_p=number("top_p", 1.0),
+        top_k=top_k,
+        min_p=None if min_p is None else float(min_p),
+        repetition_penalty=number("repetition_penalty", 1.0),
+        presence_penalty=number("presence_penalty", 0.0),
+    )
+
+
+def policy_sampling_from_environment(sampling: EnvironmentSampling) -> PolicySampling:
+    """Resolve the environment-owned declaration into the online-RL contract."""
+
+    return PolicySampling(
+        max_tokens=sampling.max_tokens,
+        temperature=sampling.temperature,
+        top_p=1.0 if sampling.top_p is None else sampling.top_p,
+        top_k=sampling.top_k,
+        min_p=sampling.min_p,
+        repetition_penalty=sampling.repetition_penalty,
+        presence_penalty=sampling.presence_penalty,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -161,19 +245,24 @@ class EnvironmentRolloutBridge(Protocol):
     def finalize(self) -> tuple[ProducedArtifact, ...]: ...
 
 
-type RolloutCompletionObserver = Callable[[EnvironmentRollout], None]
-type AsyncRolloutCompletionObserver = Callable[[EnvironmentRollout], Awaitable[None]]
+type TerminalTraceObserver = Callable[[TraceObservation], None]
+type AsyncTerminalTraceObserver = Callable[[TraceObservation], Awaitable[None]]
+# Kept as compatibility aliases for external bridge implementations.  The
+# callback contract is intentionally trace-first: an environment can produce a
+# terminal trace that is not safe to turn into an optimizer sample.
+type RolloutCompletionObserver = TerminalTraceObserver
+type AsyncRolloutCompletionObserver = AsyncTerminalTraceObserver
 
 
 class ObservedEnvironmentRolloutBridge(Protocol):
-    """Optional bridge extension that exposes trajectories as they complete."""
+    """Optional bridge extension that exposes terminal traces as they complete."""
 
     async def run_observed(
         self,
         batch: RolloutBatch,
         generator: PolicyGenerator,
         *,
-        on_completed: AsyncRolloutCompletionObserver,
+        on_completed: AsyncTerminalTraceObserver,
     ) -> Sequence[EnvironmentRollout]: ...
 
 
@@ -183,7 +272,7 @@ async def run_observed_rollouts(
     generator: PolicyGenerator,
     observer: RolloutCompletionObserver,
 ) -> Sequence[EnvironmentRollout]:
-    """Run a batch while submitting each completed rollout off the event loop.
+    """Run a batch while submitting each terminal trace off the event loop.
 
     Observation is serialized because provider clients commonly maintain a
     run-local step counter. The provider is still responsible for queueing the
@@ -194,16 +283,16 @@ async def run_observed_rollouts(
 
     observation_lock = asyncio.Lock()
 
-    async def observe(rollout: EnvironmentRollout) -> None:
+    async def observe(trace: TraceObservation) -> None:
         async with observation_lock:
-            await asyncio.to_thread(observer, rollout)
+            await asyncio.to_thread(observer, trace)
 
     if callable(getattr(bridge, "run_observed", None)):
         observed_bridge = cast(ObservedEnvironmentRolloutBridge, bridge)
         return await observed_bridge.run_observed(batch, generator, on_completed=observe)
     rollouts = await bridge.run(batch, generator)
     for rollout in rollouts:
-        await observe(rollout)
+        await observe(rollout.trace)
     return rollouts
 
 
@@ -218,16 +307,19 @@ class EnvironmentRolloutEvidence:
 __all__ = [
     "AgenticTurn",
     "AsyncRolloutCompletionObserver",
+    "AsyncTerminalTraceObserver",
     "EnvironmentRolloutEvidence",
     "EnvironmentRolloutBridge",
     "EnvironmentRollout",
     "ObservedEnvironmentRolloutBridge",
     "PolicyGenerator",
     "PolicySampling",
+    "policy_sampling_from_binding",
     "PolicyTurnRequest",
     "PolicyTurnResult",
     "RolloutBatch",
     "RolloutCompletionObserver",
+    "TerminalTraceObserver",
     "TokenSpan",
     "ToolRecord",
     "run_observed_rollouts",

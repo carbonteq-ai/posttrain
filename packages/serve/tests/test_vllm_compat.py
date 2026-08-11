@@ -53,7 +53,7 @@ class VllmCompatibilityTest(unittest.TestCase):
                 get_kv_quant_mode,
             )
             from vllm.v1.worker.gpu_model_runner import (  # pyright: ignore[reportMissingImports]
-                _get_layer_cache_dtype_str,
+                _get_layer_cache_dtype_str,  # pyright: ignore[reportAttributeAccessIssue]
             )
         except ImportError:
             self.skipTest("serve[vllm] optional dependencies are not installed")

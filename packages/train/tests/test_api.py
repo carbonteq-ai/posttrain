@@ -85,7 +85,7 @@ from posttrain.train.backends.trl.grpo import (
     _grpo_runtime_attributes,
     _rollout_function,
 )
-from posttrain.train.catalog_schema import TrainingRuntimeSchema
+from posttrain.train.catalog_schema import TrainingRuntimeSchema, decode_training_selection
 from posttrain.train.results import TrainingSummary
 from pydantic import ValidationError
 
@@ -306,6 +306,7 @@ def _inference(
     *,
     target: ExecutionTarget | None = None,
     max_model_len: int = 640,
+    max_tokens: int = 384,
     speculative: bool = False,
     kv_cache_dtype: str | None = None,
 ) -> InferenceBinding:
@@ -336,7 +337,7 @@ def _inference(
         "vllm@0.25.1",
         model.renderer_contract,
         engine,
-        {"max_tokens": 384, "temperature": 0.8, "top_p": 1.0},
+        {"max_tokens": max_tokens, "temperature": 0.8, "top_p": 1.0},
         target or _target("targets/rollout-cuda-8gb"),
         ("rollout",),
     )
@@ -837,6 +838,34 @@ def test_grpo_replays_trace_population_when_verl_does_not_emit_it_live(
     assert replay.attributes["source_step"] == 3
 
 
+def test_failed_trl_backend_replays_full_terminal_population_evidence(tmp_path: Path) -> None:
+    observer = Observer()
+    model = QWEN_35_2B
+    request = GRPORequest(
+        policy=model,
+        bridge=EvidenceReplayBridge(),
+        settings=QWEN35_GRPO_SMOKE,
+        environment=FakeEnvironment(),
+        training=_training(),
+        inference=_inference(model),
+    )
+
+    def failing_backend(
+        context: RunContext,
+        value: GRPORequest,
+        output_dir: Path,
+    ) -> BackendTrainingResult:
+        del context, value, output_dir
+        raise RuntimeError("rollout failed after terminal trace persistence")
+
+    with pytest.raises(RuntimeError, match="rollout failed"):
+        grpo(_context(tmp_path, observer), request, runner=failing_backend)
+
+    replay = next(batch for batch in observer.metrics_seen if "train/rl/reward_std" in batch.values)
+    assert replay.values["train/rl/rollouts_completed"] == 8.0
+    assert replay.attributes["source_step"] == 3
+
+
 def test_distillation_operation_records_teacher_student_and_native_trace_contract() -> None:
     observer = Observer()
     request = _distillation_request()
@@ -935,6 +964,29 @@ def test_distillation_backend_fixes_fully_on_policy_reverse_kl_contract(tmp_path
     assert arguments["use_vllm"] is True
     assert arguments["vllm_weight_sync_mode"] == "lora"
     assert arguments["generation_batch_size"] == request.settings.num_prompts_per_step
+
+    sampled_request = replace(
+        request,
+        rollout_inference=replace(
+            request.rollout_inference,
+            sampling={
+                **request.rollout_inference.sampling,
+                "temperature": 1.0,
+                "top_p": 0.95,
+                "top_k": 20,
+                "min_p": 0.0,
+                "repetition_penalty": 1.1,
+                "presence_penalty": 1.5,
+            },
+        ),
+    )
+    sampled_arguments = _distillation_arguments(sampled_request, tmp_path, "http://teacher.invalid:8000")
+    assert sampled_arguments["temperature"] == 1.0
+    assert sampled_arguments["top_p"] == 0.95
+    assert sampled_arguments["top_k"] == 20
+    assert sampled_arguments["min_p"] == 0.0
+    assert sampled_arguments["repetition_penalty"] == 1.1
+    assert sampled_arguments["generation_kwargs"] == {"presence_penalty": 1.5}
 
 
 def test_distillation_backend_configures_colocated_transformers_teacher(
@@ -1344,6 +1396,30 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
     }
     assert arguments["vllm_speculative_config"] is None
 
+    sampled_request = replace(
+        request,
+        inference=replace(
+            request.inference,
+            sampling={
+                "max_tokens": 384,
+                "temperature": 1.0,
+                "top_p": 0.95,
+                "top_k": 20,
+                "min_p": 0.0,
+                "repetition_penalty": 1.1,
+                "presence_penalty": 1.5,
+            },
+        ),
+    )
+    sampled_arguments = _grpo_arguments(sampled_request, tmp_path, {"enable_thinking": True})
+    assert sampled_arguments["temperature"] == 1.0
+    assert sampled_arguments["top_p"] == 0.95
+    assert sampled_arguments["top_k"] == 20
+    assert sampled_arguments["min_p"] == 0.0
+    assert sampled_arguments["repetition_penalty"] == 1.1
+    assert sampled_arguments["generation_kwargs"] == {"presence_penalty": 1.5}
+    assert sampled_arguments["chat_template_kwargs"] == {"enable_thinking": True}
+
     multi_prompt_settings = replace(
         QWEN35_GRPO_SMOKE,
         loop=replace(QWEN35_GRPO_SMOKE.loop, per_device_batch_size=16),
@@ -1402,7 +1478,7 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
         QWEN35_GRPO_MTP_SMOKE,
         FakeEnvironment(),
         _training(),
-        _inference(model, max_model_len=1_024, speculative=True),
+        _inference(model, max_model_len=1_024, max_tokens=512, speculative=True),
     )
     mtp_arguments = _grpo_arguments(mtp_request, tmp_path, {"enable_thinking": False})
     assert mtp_arguments["vllm_speculative_config"] == {
@@ -1467,6 +1543,11 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
     assert olmo3_arguments["active_sampling_max_batches"] == 6
     assert _grpo_runtime_attributes(olmo3_request)["active_sampling"] is True
 
+    shuffled_request = replace(olmo3_request, settings=replace(olmo3_request.settings, shuffle_prompts=True))
+    shuffled_arguments = _grpo_arguments(shuffled_request, tmp_path, {"enable_thinking": False})
+    assert shuffled_arguments["shuffle_dataset"] is True
+    assert _grpo_runtime_attributes(shuffled_request)["shuffle_prompts"] is True
+
 
 def test_olmo3_settings_reject_recipe_drift() -> None:
     settings = GRPOSettings(
@@ -1487,6 +1568,24 @@ def test_olmo3_settings_reject_recipe_drift() -> None:
         replace(settings, active_sampling=None)
 
 
+def test_catalog_decodes_seeded_grpo_prompt_shuffle() -> None:
+    settings = decode_training_selection(
+        CatalogRef("training", "tests/grpo-shuffled"),
+        {
+            "selection_type": "grpo-settings",
+            "id": "tests/grpo-shuffled",
+            "loop": {"max_steps": 1, "per_device_batch_size": 2},
+            "num_prompts_per_step": 1,
+            "num_generations": 2,
+            "shuffle_prompts": True,
+        },
+        {},
+    )
+
+    assert isinstance(settings, GRPOSettings)
+    assert settings.shuffle_prompts is True
+
+
 def test_grpo_runtime_event_attributes_describe_selected_acceleration_without_claiming_results() -> None:
     model = QWEN_35_2B
     request = GRPORequest(
@@ -1498,6 +1597,7 @@ def test_grpo_runtime_event_attributes_describe_selected_acceleration_without_cl
         _inference(
             model,
             max_model_len=1_024,
+            max_tokens=512,
             speculative=True,
             kv_cache_dtype="turboquant_k8v4",
         ),
@@ -1509,6 +1609,11 @@ def test_grpo_runtime_event_attributes_describe_selected_acceleration_without_cl
     assert attributes["speculative_method"] == "mtp"
     assert attributes["num_speculative_tokens"] == 1
     assert attributes["kv_cache_dtype"] == "turboquant_k8v4"
+    assert attributes["rollout_reasoning_mode"] == "off"
+    assert attributes["rollout_temperature"] == 0.8
+    assert attributes["rollout_top_p"] == 1.0
+    assert attributes["rollout_top_k"] == 0
+    assert attributes["rollout_presence_penalty"] == 0.0
     assert not any("accept" in key or "usage" in key for key in attributes)
 
 
@@ -1522,6 +1627,16 @@ def test_grpo_request_requires_engine_window_to_cover_declared_generation_bounds
             FakeEnvironment(),
             _training(),
             _inference(model, max_model_len=512),
+        )
+
+    with pytest.raises(ValueError, match="max_tokens must equal"):
+        GRPORequest(
+            model,
+            FakeRLBridge(),
+            QWEN35_GRPO_SMOKE,
+            FakeEnvironment(),
+            _training(),
+            replace(_inference(model), sampling={"max_tokens": 128, "temperature": 1.0}),
         )
 
 

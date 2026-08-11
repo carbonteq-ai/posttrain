@@ -10,6 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 from posttrain.common import (
+    AppendOnlyJsonlTailer,
     EventObservation,
     ExecutionTarget,
     InferenceBinding,
@@ -45,6 +46,7 @@ from posttrain.train.backends.verl.launcher import (
     _backend_result,
     _isolated_environment,
     _record_failure_artifacts,
+    _record_trace_sync_receipt,
     _replay_grpo_metrics,
     _runtime_timeout,
     _start_isolated_worker,
@@ -284,6 +286,25 @@ def test_grpo_worker_maps_prompt_groups_generations_and_kl_without_importing_ver
     assert "trainer.logger=['console','file']" in overrides
 
 
+def test_grpo_prompt_shuffle_is_explicit_and_backend_neutral(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    request = replace(_grpo_request(), settings=replace(_grpo_request().settings, shuffle_prompts=True))
+    plan = build_grpo_launch_plan(request, tmp_path)
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+
+    overrides = build_hydra_overrides(
+        plan,
+        tmp_path / "rollouts.parquet",
+        tmp_path / "agent-loop.json",
+        tmp_path / "checkpoints",
+    )
+
+    assert plan.payload.algorithm.shuffle_prompts is True
+    assert "data.shuffle=true" in overrides
+
+
 def test_verl_checkpoint_steps_zero_keeps_only_terminal_model_save(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -454,6 +475,7 @@ def test_verl_rollout_passes_selected_kv_cache_dtype_to_vllm(
             "kv_cache_dtype": "turboquant_k8v4",
             "enable_chunked_prefill": True,
         },
+        sampling={**request.inference.sampling, "max_tokens": 24_576},
     )
     settings = replace(
         request.settings,
@@ -909,6 +931,26 @@ def test_verl_runtime_deadline_is_explicit_and_positive() -> None:
     )
     with pytest.raises(ValueError, match="finite positive number"):
         replace(request.training.runtime, timeout_seconds=0)
+
+
+def test_verl_trace_sync_receipt_is_compact_and_payload_free(tmp_path: Path) -> None:
+    observer = CaptureObserver()
+    context = _context(tmp_path, observer)
+    plan = build_grpo_launch_plan(_grpo_request(), tmp_path)
+    path = tmp_path / "traces.jsonl"
+    tailer = AppendOnlyJsonlTailer(path, lambda _record: None)
+    path.write_text('{"id":"trace-1","secret":"must-not-appear"}\n', encoding="utf-8")
+    tailer.poll()
+
+    _record_trace_sync_receipt(context, plan, tmp_path, tailer)
+
+    receipt = tmp_path / "posttrain-verl-trace-sync.json"
+    assert receipt.is_file()
+    payload = json.loads(receipt.read_text(encoding="utf-8"))
+    assert payload["emitted_records"] == 1
+    assert payload["complete"] is True
+    assert "secret" not in receipt.read_text(encoding="utf-8")
+    assert observer.artifacts_seen[-1].name.endswith("trace-sync-receipt")
 
 
 def test_verl_agent_loop_honors_selected_reasoning_mode(tmp_path: Path) -> None:

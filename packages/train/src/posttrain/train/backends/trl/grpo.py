@@ -15,7 +15,7 @@ from posttrain.common import JsonValue, RunContext, TraceObservation
 from posttrain.common.cuda import TorchModule, activate_cuda_toolkit
 
 from ...grpo_observations import GRPOObservationFeatures, normalize_grpo_metrics
-from ...online_rl import EnvironmentRollout, RolloutBatch, run_observed_rollouts
+from ...online_rl import RolloutBatch, policy_sampling_from_binding, run_observed_rollouts
 from ...profiles import GRPOSettings, SAMPOSettings, shape_online_reward
 from ...requests import GRPORequest, SAMPORequest
 from ...sampo_advantages import compute_sampo_advantages
@@ -375,8 +375,7 @@ def _rollout_function(
             "rollout_batch_ordinal": rollout_batch_ordinal,
         }
 
-        def observe_rollout(rollout: EnvironmentRollout) -> None:
-            trace = rollout.trace
+        def observe_trace(trace: TraceObservation) -> None:
             context.trace(
                 TraceObservation(
                     trace_type=trace.trace_type,
@@ -393,7 +392,7 @@ def _rollout_function(
                     request.bridge,
                     RolloutBatch(example_ids=example_ids, step=optimizer_step, model_id=request.policy.id),
                     generator,
-                    observe_rollout,
+                    observe_trace,
                 )
             )
         elapsed = time.perf_counter() - started_at
@@ -404,11 +403,13 @@ def _rollout_function(
         truncated_rollouts = sum(rollout.is_truncated for rollout in rollouts)
         context.metrics(
             {
+                "train/rl/rollouts_requested": len(inputs),
                 "train/rl/rollouts_attempted": len(inputs),
                 "train/rl/rollouts_completed": len(rollouts),
                 "train/rl/rollouts_failed": 0,
                 "train/rl/rollouts_truncated": truncated_rollouts,
                 "train/rl/rollouts_unscorable": sum(not math.isfinite(rollout.reward) for rollout in rollouts),
+                "train/rl/rollouts_missing": 0,
                 "train/rl/time/rollout_seconds": elapsed,
                 "train/rl/rollout_tokens_per_second": completion_tokens / elapsed if elapsed > 0 else 0.0,
                 "train/rl/rollout_selected_tokens": selected_tokens,
@@ -511,10 +512,14 @@ def _online_rl_arguments(
         isinstance(logits_chunk_size, bool) or not isinstance(logits_chunk_size, int) or logits_chunk_size < 1
     ):
         raise ValueError("TRL GRPO logits_chunk_size must be a positive integer")
+    sampling = policy_sampling_from_binding(request.inference, request.settings.max_completion_length)
     arguments.update(
         {
             "remove_unused_columns": False,
-            "shuffle_dataset": False,
+            # Prompt order is part of a reproducible RL population. Historic
+            # selections preserve their fixed order; new campaigns can opt
+            # into a seed-recorded permutation for each data epoch.
+            "shuffle_dataset": settings.shuffle_prompts if isinstance(settings, GRPOSettings) else False,
             "num_generations": request.settings.num_generations,
             "generation_batch_size": (request.settings.num_prompts_per_step * request.settings.num_generations),
             "max_completion_length": request.settings.max_completion_length,
@@ -537,10 +542,17 @@ def _online_rl_arguments(
             "use_liger_kernel": use_liger_kernel,
             "logits_chunk_size": logits_chunk_size,
             "use_vllm": request.inference.backend.split("@", 1)[0] == "vllm",
-            "temperature": _sampling_number(request, "temperature", 1.0),
-            "top_p": _sampling_number(request, "top_p", 1.0),
+            "temperature": sampling.temperature,
+            "top_p": sampling.top_p,
+            "top_k": sampling.top_k,
+            "min_p": sampling.min_p,
+            "repetition_penalty": sampling.repetition_penalty,
         }
     )
+    if sampling.presence_penalty:
+        if request.inference.backend.split("@", 1)[0] != "vllm":
+            raise ValueError("TRL presence_penalty requires a vLLM rollout binding")
+        arguments["generation_kwargs"] = {"presence_penalty": sampling.presence_penalty}
     if is_olmo3:
         # Olmo3GRPOConfig owns these recipe-defining fields as init=False
         # invariants. Posttrain only supplies workload and capacity controls.
@@ -611,15 +623,11 @@ def _grpo_arguments(request: GRPORequest, output_dir: Path, template_kwargs: dic
     return _online_rl_arguments(request, output_dir, template_kwargs)
 
 
-def _sampling_number(request: GRPORequest | SAMPORequest, key: str, default: float) -> float:
-    value = request.inference.sampling.get(key)
-    return float(value) if isinstance(value, (int, float)) else default
-
-
 def _online_rl_runtime_attributes(request: GRPORequest | SAMPORequest) -> dict[str, JsonValue]:
     """Describe selected GRPO runtime features without claiming observed performance."""
 
     engine = request.inference.engine
+    sampling = policy_sampling_from_binding(request.inference, request.settings.max_completion_length)
     speculative = engine.get("speculative_config")
     backend_product, separator, backend_revision = request.training.backend.partition("@")
     attributes: dict[str, JsonValue] = {
@@ -632,6 +640,13 @@ def _online_rl_runtime_attributes(request: GRPORequest | SAMPORequest) -> dict[s
         "update_kind": request.training.update.kind,
         "world_size": request.training.target.placement.get("world_size", 1),
         "rollout_precision": engine.get("dtype", request.policy.weight_precision),
+        "rollout_reasoning_mode": request.training.renderer.reasoning_mode,
+        "rollout_temperature": sampling.temperature,
+        "rollout_top_p": sampling.top_p,
+        "rollout_top_k": sampling.top_k,
+        "rollout_min_p": sampling.min_p,
+        "rollout_repetition_penalty": sampling.repetition_penalty,
+        "rollout_presence_penalty": sampling.presence_penalty,
         "kv_cache_dtype": engine.get("kv_cache_dtype", "auto"),
         "max_model_len": engine.get(
             "max_model_len", request.settings.max_prompt_length + request.settings.max_completion_length
@@ -648,6 +663,7 @@ def _online_rl_runtime_attributes(request: GRPORequest | SAMPORequest) -> dict[s
             else request.settings.clip_epsilon_high
         ),
         "mask_truncated_completions": request.settings.mask_truncated_completions,
+        "shuffle_prompts": request.settings.shuffle_prompts if isinstance(request, GRPORequest) else False,
         "dynamic_sampling": request.settings.dynamic_sampling is not None,
         "dynamic_sampling_max_candidate_batches": (
             request.settings.dynamic_sampling.max_candidate_batches

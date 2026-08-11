@@ -93,7 +93,10 @@ the backend environment.
 
 The fixed Dockerfile is its own small build context. The staged job directory
 is attached as a named context rather than copying a generated Dockerfile into
-each package.
+each package. The effective context name includes `PACKAGE_KEY`, and the
+Dockerfile resolves that name through an initial context stage. This prevents
+BuildKit's local-source cache from reusing files from a different package while
+the manifest and per-file digest checks remain the final integrity barrier.
 
 ## Publication and qualification
 

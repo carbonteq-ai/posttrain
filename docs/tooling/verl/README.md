@@ -432,7 +432,7 @@ The current V1 SAMPO release delta is published at
 `5433d1c297870207c335108dcaac42f8da6f59bd` on branch
 `codex/sampo-v1-metadata`.
 
-The current distillation release delta is published at
+The dense-distillation parent is published at
 `c3f49b9117b882fa888e25e4a771461e13167848` on branch
 `codex/distill-dense-teacher-logprobs`. In addition to the preceding maintained
 delta, it aligns dense and jagged teacher log probabilities to response tokens
@@ -440,6 +440,27 @@ without reading unused TensorDict backing storage and treats fully masked
 synthetic padding microbatches as zero-contribution batches. The paired runtime
 kind preinstalls the Verifiers harness prerequisites so parallel rollout
 workers never race while mutating the container package database.
+
+The current immutable CarbonTeq veRL release candidate is
+`0.9.0.dev1`, source commit `a6fe39c22719ec981ed8544ad8feffd59995cc13`,
+and tag `carbonteq-v0.9.0.dev1`. Its wheel and source distribution were built,
+uploaded to `carbonteq/dev`, and read back from that index. It changes only the
+distribution version and release ledger from the dense-distillation parent; the
+candidate has passed the 114-test focused Python 3.13 CPU suite, wheel install,
+and focused Ruff/diff checks. It is not a GPU qualification or production
+promotion: the runtime image rebuild and bounded veRL canary remain required.
+
+The matching kind image is published as
+`registry.lan/carbonteq/posttrain-kind-online-rl-verl-py313:0.9.0.dev1`.
+Its OCI index digest is
+`sha256:5684281f0f85ab741a156f1a92e11062a0e910f58aad03a488e8a2188db2421a`
+(linux/amd64 manifest
+`sha256:766ba146f5b1aa97d8557ca07b957e7c2ae3c57e786ec3e77ef84e88babdde07`).
+Registry readback verified the Posttrain source revision
+`c70e79ec9f07aa2076fe2534efea3bd998242987`, the veRL source revision
+`a6fe39c22719ec981ed8544ad8feffd59995cc13`, and lock digest
+`df7769f306ef8606fed37fd89c3fa2589ac72f39a45e4743816368a1acffe69f`.
+The image passed its real Docker/Bake import smoke before publication.
 
 The published SAMPO revision adds:
 

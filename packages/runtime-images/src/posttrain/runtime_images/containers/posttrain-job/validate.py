@@ -73,7 +73,9 @@ def _validate_definition() -> None:
         "ARG POSTTRAIN_KIND_IMAGE",
         "ARG ALLOW_DEFERRED_QUALIFICATION",
         "FROM ${POSTTRAIN_KIND_IMAGE} AS runtime",
-        "COPY --from=job-context",
+        "ARG JOB_CONTEXT_REF=job-context",
+        "FROM ${JOB_CONTEXT_REF} AS packaged-context",
+        "COPY --from=packaged-context",
         "--require-hashes",
         "--no-build-isolation",
         "--no-sources",
@@ -96,10 +98,10 @@ def _validate_definition() -> None:
         "ARG PYTHON_INDEX_URL",
     ):
         _require(required in dockerfile, f"Dockerfile is missing {required}")
-    runtime_lock_copy = "COPY --from=job-context /locks/ locks/"
+    runtime_lock_copy = "COPY --from=packaged-context /locks/ locks/"
     # Framework code is copied either as a source tree or as staged wheels, so
     # the ordering assertion anchors on the code copy rather than on one route.
-    code_copy = "COPY --from=job-context /sources/ sources/"
+    code_copy = "COPY --from=packaged-context /sources/ sources/"
     _require(
         dockerfile.index(runtime_lock_copy) < dockerfile.index(code_copy),
         "external dependencies must be installed before source code",
@@ -119,11 +121,11 @@ def _validate_definition() -> None:
             f"actual-job build must not require credential mounts: {forbidden}",
         )
     _require(
-        "COPY --link --from=job-context" not in dockerfile,
+        "COPY --link --from=packaged-context" not in dockerfile,
         "mutable named-context inputs must not use stale-prone linked COPY layers",
     )
-    package_barrier = "COPY --from=job-context /package.json context-package-${PACKAGE_KEY}.json"
-    first_context_copy = "COPY --from=job-context"
+    package_barrier = "COPY --from=packaged-context /package.json context-package-${PACKAGE_KEY}.json"
+    first_context_copy = "COPY --from=packaged-context"
     _require(
         package_barrier in dockerfile and dockerfile.index(package_barrier) == dockerfile.index(first_context_copy),
         "actual-job layers must copy the package manifest before other mutable context",
@@ -135,7 +137,7 @@ def _validate_definition() -> None:
     )
     _require(
         'RUN cp "context-package-${PACKAGE_KEY}.json" package.json' in dockerfile
-        and "COPY --from=job-context /package.json package.json" not in dockerfile,
+        and "COPY --from=packaged-context /package.json package.json" not in dockerfile,
         "the final manifest must come from the already verified context file",
     )
     for required in (
@@ -144,7 +146,8 @@ def _validate_definition() -> None:
         "oci-mediatypes=true",
         "type=provenance,mode=max",
         "type=sbom",
-        "job-context = STAGED_CONTEXT",
+        '"job-context-${PACKAGE_KEY}" = STAGED_CONTEXT',
+        'JOB_CONTEXT_REF = "job-context-${PACKAGE_KEY}"',
         "RUNTIME_VARIANT = RUNTIME_VARIANT",
         'target "posttrain-job-smoke"',
     ):

@@ -410,11 +410,13 @@ export type RunView = {
     };
     grpo?: {
       rollout_population: {
+        requested: SummaryMetric;
         attempted: SummaryMetric;
         completed: SummaryMetric;
         failed: SummaryMetric;
         truncated: SummaryMetric;
         unscorable: SummaryMetric;
+        missing: SummaryMetric;
       };
       acceleration: {
         mtp_selected: boolean;

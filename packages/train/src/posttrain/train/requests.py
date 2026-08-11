@@ -121,6 +121,7 @@ def _validate_online_rl(
     engine_limit = inference.engine.get("max_model_len")
     if isinstance(engine_limit, int) and sequence_length > engine_limit:
         raise ValueError("rollout model length must cover prompt and completion limits")
+    _validate_rollout_max_tokens(inference, settings.max_completion_length)
     expected_batch = settings.num_prompts_per_step * settings.num_generations
     global_batch = training.runtime.global_batch_size
     if isinstance(global_batch, int) and global_batch != expected_batch:
@@ -176,6 +177,7 @@ class OnPolicyDistillationRequest:
             engine_limit = binding.engine.get("max_model_len")
             if isinstance(engine_limit, int) and sequence_length > engine_limit:
                 raise ValueError(f"{role} model length must cover distillation prompt and completion limits")
+        _validate_rollout_max_tokens(self.rollout_inference, self.settings.max_completion_length)
         expected_batch = self.settings.num_prompts_per_step * self.settings.num_generations
         global_batch = self.training.runtime.global_batch_size
         if isinstance(global_batch, int) and global_batch != expected_batch:
@@ -207,6 +209,14 @@ def _validate_sequence_length(length: int, training: TrainingBinding) -> None:
     divisor = training.parallelism.sequence_length_divisor
     if divisor is not None and length % divisor:
         raise ValueError("sequence length is not divisible by the training parallelism requirement")
+
+
+def _validate_rollout_max_tokens(inference: InferenceBinding, expected: int) -> None:
+    value = inference.sampling.get("max_tokens")
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError("rollout inference sampling must declare an integer max_tokens")
+    if value != expected:
+        raise ValueError("rollout inference max_tokens must equal the training completion limit")
 
 
 __all__ = [

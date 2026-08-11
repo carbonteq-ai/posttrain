@@ -71,6 +71,7 @@ from posttrain.train import (
     sampo,
     sft,
     transform,
+    validate_verifiers_policy_sampling,
 )
 from posttrain.work import JobDefinition, ResolvedSeats
 
@@ -765,6 +766,14 @@ def _validate_online_rl_batch_seats(seats: ResolvedSeats) -> None:
     global_batch = training.runtime.global_batch_size
     if isinstance(global_batch, int) and global_batch != expected_batch:
         raise ContractError("training global batch must equal prompt groups times generations")
+    try:
+        validate_verifiers_policy_sampling(
+            _seat(seats, "environment", EnvironmentBinding),
+            _seat(seats, "rollout_inference", InferenceBinding),
+            settings.max_completion_length,
+        )
+    except ValueError as error:
+        raise ContractError(f"online-RL sampling policy is inconsistent: {error}") from error
 
 
 def _recovery_checkpoint(context: RunContext) -> LocalArtifactRef | None:

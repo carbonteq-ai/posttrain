@@ -165,7 +165,7 @@ def build_hydra_overrides(
         f"data.max_response_length={algorithm.max_completion_length}",
         "data.filter_overlong_prompts=True",
         "data.truncation=error",
-        "data.shuffle=False",
+        f"data.shuffle={str(bool(algorithm.shuffle_prompts)).lower()}",
         f"actor_rollout_ref.model.path={model_path}",
         "actor_rollout_ref.model.use_remove_padding=False",
         f"actor_rollout_ref.model.enable_gradient_checkpointing={str(loop.gradient_checkpointing).lower()}",

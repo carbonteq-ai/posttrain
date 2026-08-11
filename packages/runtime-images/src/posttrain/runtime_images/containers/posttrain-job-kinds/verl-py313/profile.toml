@@ -21,9 +21,9 @@ upstream_revision = "a35908ca3c9632859c58d6a2855d858918ae21dc"
 # runtime, including two-step distillation run
 # verl-distill-shared-pool-retentionfix-20260730 on the 96 GB worker. The
 # 2026-07-30 release decision promotes this profile into the publication graph.
-fork_revision = "c3f49b9117b882fa888e25e4a771461e13167848"
-dependency_lock_sha256 = "8d390337a97228abbf8a66d2d4176bf97306383e22349b9239ce9279e966da82"
-backend_constraints_sha256 = "f9f22dc0438998d04000a1bf9b8093f86893adbdc8094b0e6736c77205cb7693"
+fork_revision = "a6fe39c22719ec981ed8544ad8feffd59995cc13"
+dependency_lock_sha256 = "df7769f306ef8606fed37fd89c3fa2589ac72f39a45e4743816368a1acffe69f"
+backend_constraints_sha256 = "2c58a12f86eeb15de67755aaccbc2e616479e8eca446567f207aaf1c24af5c4a"
 [dependencies]
 torch = "2.11.0+cu130"
 transformers = "5.14.1"

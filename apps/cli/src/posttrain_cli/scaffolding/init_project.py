@@ -13,6 +13,15 @@ from posttrain.common.selections import validate_selection_id
 
 from ..constants import DISTRIBUTION
 
+# Concrete environment implementations belong to the generated project, never
+# to generic Posttrain extras. Keep this pin aligned with the starter catalog
+# entry so `uv sync` and execution packing resolve identical environment code.
+STARTER_GSM8K_REQUIREMENT = (
+    "gsm8k-v1 @ "
+    "git+https://github.com/carbonteq-ai/verifiers-environments.git"
+    "@b7bcb591facfcd2b073802f6d7496b24ab9c479e#subdirectory=environments/gsm8k_v1"
+)
+
 
 def workspace_root() -> Path | None:
     candidate = Path(__file__).resolve()
@@ -82,6 +91,7 @@ def starter_pyproject(project_id: str, template: str) -> str:
     dependencies = (
         f"posttrain[{extras}]{version_constraint}",
         *starter_direct_references(template),
+        *((STARTER_GSM8K_REQUIREMENT,) if template == "grpo" else ()),
     )
     lines = [
         "[project]",
@@ -220,7 +230,7 @@ def starter_work_package(project_id: str, template: str) -> str:
             f"project_id: {project_id}",
             "work_package_id: train/starter-grpo",
             "stage: train",
-            "description: Run one bounded GRPO update against the project-local GSM8K environment binding.",
+            "description: Run one bounded GRPO update against the project's pinned GSM8K environment binding.",
             "recipe:",
             "  type: inline",
             "  id: recipes/starter-grpo@1",
@@ -274,36 +284,24 @@ def starter_grpo_environment() -> str:
   starter-gsm8k-train:
     category: math-reasoning
     source:
-      kind: project-path
-      package: starter-gsm8k-env
-      path: environments/starter-gsm8k
+      package: gsm8k-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: b7bcb591facfcd2b073802f6d7496b24ab9c479e
+      subdirectory: environments/gsm8k_v1
     activation:
       kind: verifiers-config
       config:
         taskset:
-          id: math-gsm8k-train
+          id: gsm8k-v1
+          dataset_repo: openai/gsm8k
+          dataset_revision: 740312add88f781978c0658806c59bc2815b9866
+          dataset_config: main
+          split: train
     sampling:
       max_tokens: 384
       temperature: 1.0
     num_tasks: 1
     num_rollouts: 2
-"""
-
-
-def starter_grpo_environment_pyproject() -> str:
-    return """[build-system]
-requires = [\"hatchling\"]
-build-backend = \"hatchling.build\"
-
-[project]
-name = \"starter-gsm8k-env\"
-version = \"0.1.0\"
-description = \"Project-local Verifiers environment binding\"
-requires-python = \">=3.13,<3.14\"
-dependencies = [\"verifiers\"]
-
-[tool.hatch.build.targets.wheel]
-packages = [\"src/starter_gsm8k_env\"]
 """
 
 
@@ -413,13 +411,6 @@ def initialize(
         (catalog / "settings.yaml").write_text(starter_settings(template), encoding="utf-8")
         if template == "grpo":
             (catalog / "environments.yaml").write_text(starter_grpo_environment(), encoding="utf-8")
-            environment_root = project_root / "environments" / "starter-gsm8k"
-            environment_package = environment_root / "src" / "starter_gsm8k_env"
-            environment_package.mkdir(parents=True)
-            (environment_root / "pyproject.toml").write_text(starter_grpo_environment_pyproject(), encoding="utf-8")
-            (environment_package / "__init__.py").write_text(
-                '"""Project-local package for the starter GSM8K environment."""\n', encoding="utf-8"
-            )
         work_package_name = f"{template}.yaml"
         (work_packages / work_package_name).write_text(
             starter_work_package(resolved_id, template),

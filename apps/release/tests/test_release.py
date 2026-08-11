@@ -906,6 +906,26 @@ def test_public_ci_trackio_mirror_matches_locked_distribution() -> None:
     assert workflow.count("--no-install-package carbonteq-trackio") == 4
 
 
+def test_public_ci_trl_mirror_matches_selected_distribution() -> None:
+    root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+    train = tomllib.loads((root / "packages/train/pyproject.toml").read_text(encoding="utf-8"))
+    selection = train["tool"]["posttrain"]["trl"]
+    version = selection["version"]
+    release_tag = selection["release-tag"]
+    wheel_sha256 = selection["wheel-sha256"]
+    filename = f"trl-{version}-py3-none-any.whl"
+    workflow = (root / ".github/workflows/quality.yml").read_text(encoding="utf-8")
+
+    assert (
+        f"CARBONTEQ_TRL_WHEEL_URL: https://github.com/carbonteq-ai/trl/releases/download/{release_tag}/{filename}"
+    ) in workflow
+    assert f"CARBONTEQ_TRL_WHEEL_SHA256: {wheel_sha256}" in workflow
+    assert f"CARBONTEQ_TRL_WHEEL_PATH: /tmp/{filename}" in workflow
+    assert (
+        f"POSTTRAIN_CONSUMER_EXTRA_WHEELS: /tmp/carbonteq_trackio-0.31.5.post12-py3-none-any.whl:/tmp/{filename}"
+    ) in workflow
+
+
 def test_final_release_restores_candidate_runtime_lock_with_manifest() -> None:
     root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
     workflow = (root / ".github/workflows/release.yml").read_text(encoding="utf-8")

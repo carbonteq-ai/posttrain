@@ -10,7 +10,7 @@ from typing import Any, Literal, cast
 from posttrain.common import ModelVariant
 
 from ...bindings import TrainingBinding
-from ...online_rl import PolicyTurnRequest, PolicyTurnResult
+from ...online_rl import PolicySampling, PolicyTurnRequest, PolicyTurnResult
 from ...profiles import GRPOSettings, OnPolicyDistillationSettings, SAMPOSettings
 from ...rendering import create_renderer
 
@@ -39,14 +39,23 @@ class TrlPolicyGenerator:
         self._flush_task: asyncio.Task[None] | None = None
 
     async def generate(self, request: PolicyTurnRequest) -> PolicyTurnResult:
-        expected = (
-            self._max_completion_length,
-            float(self._trainer.temperature),
-            float(self._trainer.top_p),
+        generation_kwargs = getattr(getattr(self._trainer, "args", None), "generation_kwargs", None)
+        presence_penalty = (
+            generation_kwargs.get("presence_penalty", 0.0) if isinstance(generation_kwargs, dict) else 0.0
         )
-        actual = (request.sampling.max_tokens, request.sampling.temperature, request.sampling.top_p)
-        if actual != expected:
-            raise ValueError(f"environment sampling {actual!r} does not match the loaded TRL generator {expected!r}")
+        expected = PolicySampling(
+            max_tokens=self._max_completion_length,
+            temperature=float(self._trainer.temperature),
+            top_p=float(self._trainer.top_p),
+            top_k=int(getattr(self._trainer, "top_k", 0)),
+            min_p=(None if getattr(self._trainer, "min_p", None) is None else float(self._trainer.min_p)),
+            repetition_penalty=float(getattr(self._trainer, "repetition_penalty", 1.0)),
+            presence_penalty=float(presence_penalty),
+        )
+        if request.sampling != expected:
+            raise ValueError(
+                f"environment sampling {request.sampling!r} does not match the loaded TRL generator {expected!r}"
+            )
         messages = [cast(dict[str, Any], dict(message)) for message in request.messages]
         tools = [cast(dict[str, Any], dict(tool)) for tool in request.tools]
         rendered = None

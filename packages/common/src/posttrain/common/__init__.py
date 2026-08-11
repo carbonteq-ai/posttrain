@@ -22,6 +22,7 @@ from .execution import (
     RunContext,
     TraceObservation,
 )
+from .jsonl_journal import AppendOnlyJsonlTailer, JsonlJournalStats
 from .models import (
     ChatTemplate,
     ConversationProfile,
@@ -36,6 +37,7 @@ from .selections import ExecutionTarget, InferenceBinding, Workload
 
 __all__ = [
     "ArtifactRef",
+    "AppendOnlyJsonlTailer",
     "CancellationToken",
     "Catalog",
     "CatalogLayer",
@@ -47,6 +49,7 @@ __all__ = [
     "HubModelRef",
     "InferenceBinding",
     "JsonValue",
+    "JsonlJournalStats",
     "LocalArtifactRef",
     "MetricObservation",
     "MetricBatchObservation",

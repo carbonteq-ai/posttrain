@@ -142,6 +142,7 @@ class VerlAlgorithm(VerlContract):
     use_task_rewards: bool | None = None
     temperature: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     online_rl_algorithm: Literal["grpo", "dapo", "sampo"] | None = None
+    shuffle_prompts: bool | None = None
     clip_epsilon_low: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     clip_epsilon_high: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     dynamic_sampling: bool | None = None

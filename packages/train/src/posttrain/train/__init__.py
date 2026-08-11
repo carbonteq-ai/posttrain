@@ -104,6 +104,7 @@ from .verifiers_requests import (
     build_verifiers_distillation_request,
     build_verifiers_grpo_request,
     build_verifiers_sampo_request,
+    validate_verifiers_policy_sampling,
 )
 
 __all__ = [
@@ -203,6 +204,7 @@ __all__ = [
     "build_verifiers_distillation_request",
     "build_verifiers_grpo_request",
     "build_verifiers_sampo_request",
+    "validate_verifiers_policy_sampling",
     "compute_sampo_advantages",
     "normalize_grpo_metrics",
     "render_preferences",

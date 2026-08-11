@@ -476,6 +476,50 @@ def test_static_grpo_preparation_rejects_training_batch_mismatch() -> None:
         )
 
 
+def test_static_grpo_preparation_rejects_sampling_policy_mismatch() -> None:
+    catalog = open_catalog(scope="jobs-test")
+    model = cast(ModelVariant, _selection(catalog, "model", "models/qwen3.5-2b@bf16"))
+    settings = GRPOSettings(
+        id="grpo-static-sampling-mismatch",
+        loop=TrainingLoop(max_steps=1, per_device_batch_size=1, gradient_accumulation_steps=8),
+        num_prompts_per_step=2,
+        num_generations=4,
+        max_completion_length=128,
+    )
+    base_training = _selection(catalog, "training", "training/qwen3.5-0.8b-trl-distill-lora@1")
+    assert isinstance(base_training, TrainingBinding)
+    training = replace(base_training, runtime=replace(base_training.runtime, global_batch_size=8))
+    environment = EnvironmentBinding(
+        "environments/static-sampling",
+        "tool-use",
+        EnvironmentSource("static", "https://example.test/static", "b" * 40),
+        PythonFactoryActivation("builtins:object"),
+        SamplingPolicy(max_tokens=128, temperature=1.0),
+        num_tasks=1,
+    )
+    inference = InferenceBinding(
+        "inference/static-sampling@1",
+        "1",
+        model,
+        "vllm@0.25.1",
+        model.renderer_contract,
+        {"max_model_len": 4096},
+        {"max_tokens": 128, "temperature": 0.7, "top_p": 1.0},
+        ExecutionTarget("targets/static", "1", "nvidia-cuda"),
+        ("rollout",),
+    )
+
+    with pytest.raises(ContractError, match="online-RL sampling policy is inconsistent"):
+        grpo_definition().static_validator(  # type: ignore[misc]
+            {
+                "settings": settings,
+                "training": training,
+                "environment": environment,
+                "rollout_inference": inference,
+            }
+        )
+
+
 def test_grpo_materializes_stored_adapter_for_policy_and_inference(tmp_path: Path) -> None:
     catalog = open_catalog(scope="jobs-test")
     foundation = cast(ModelVariant, _selection(catalog, "model", "models/qwen3.5-2b@bf16"))

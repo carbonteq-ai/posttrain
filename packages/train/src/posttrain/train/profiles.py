@@ -141,6 +141,7 @@ class GRPOSettings:
     clip_epsilon_high: float | None = None
     dynamic_sampling: DynamicGroupSampling | None = None
     active_sampling: ActiveGroupSampling | None = None
+    shuffle_prompts: bool = False
     mask_truncated_completions: bool = False
     overlong_buffer_tokens: int | None = None
     overlong_penalty_factor: float = 1.0

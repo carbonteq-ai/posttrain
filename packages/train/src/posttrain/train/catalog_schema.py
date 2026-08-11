@@ -180,6 +180,7 @@ class GRPOSettingsSchema(TrainCatalogSchema):
     clip_epsilon_high: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     dynamic_sampling: DynamicGroupSamplingSchema | None = None
     active_sampling: ActiveGroupSamplingSchema | None = None
+    shuffle_prompts: bool = False
     mask_truncated_completions: bool = False
     overlong_buffer_tokens: int | None = Field(default=None, gt=0)
     overlong_penalty_factor: float = Field(default=1.0, gt=0, allow_inf_nan=False)

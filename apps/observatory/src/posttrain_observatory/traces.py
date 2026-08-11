@@ -124,13 +124,17 @@ def _wire_error(payload: Mapping[str, JsonValue]) -> str | None:
     return "trace reported an error"
 
 
-def _wire_truncated(payload: Mapping[str, JsonValue]) -> bool:
-    explicit = payload.get("truncated")
-    if isinstance(explicit, bool):
-        return explicit
-    explicit = payload.get("is_truncated")
-    if isinstance(explicit, bool):
-        return explicit
+def _wire_truncated(
+    payload: Mapping[str, JsonValue],
+    attributes: Mapping[str, JsonValue] | None = None,
+) -> bool:
+    for container in (payload, attributes or {}):
+        explicit = container.get("truncated")
+        if isinstance(explicit, bool):
+            return explicit
+        explicit = container.get("is_truncated")
+        if isinstance(explicit, bool):
+            return explicit
     if payload.get("stop_condition") in _TRUNCATED_STOP_CONDITIONS:
         return True
     calls = payload.get("calls")
@@ -679,7 +683,7 @@ def _summary(record: TraceRecord, evaluation_metadata: EvaluationMetadata | None
     info = info if isinstance(info, Mapping) else {}
     reward = _wire_reward(payload)
     success = _wire_success(payload)
-    truncated = _wire_truncated(payload)
+    truncated = _wire_truncated(payload, record.attributes)
     error = _wire_error(payload)
     task = _wire_task(payload, metadata, info)
     response_tokens, response_chars, thinking_tokens, thinking_chars = _wire_text_stats(payload)
