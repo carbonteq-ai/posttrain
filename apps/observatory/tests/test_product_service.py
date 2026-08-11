@@ -522,11 +522,10 @@ async def test_eval_population_projects_verifiers_v1_wire_trace_fields() -> None
                 "rewards": {"correct": 0.0},
                 "info": {"example_id": "gsm8k-2"},
                 "is_completed": False,
-                "stop_condition": "max_output_tokens",
                 "errors": [{"type": "model_timeout", "message": "redacted in summary"}],
                 "nodes": [],
-                "calls": [],
             },
+            attributes={"is_truncated": True},
         ),
     )
 

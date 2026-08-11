@@ -1,6 +1,9 @@
 # syntax=docker/dockerfile:1.7
 
+ARG JOB_CONTEXT_REF=job-context
 ARG POSTTRAIN_KIND_IMAGE
+FROM ${JOB_CONTEXT_REF} AS packaged-context
+
 FROM ${POSTTRAIN_KIND_IMAGE} AS runtime
 
 ARG FRAMEWORK_SOURCE_DIGEST
@@ -34,7 +37,7 @@ RUN test -n "${VIRTUAL_ENV}" && test -x "${VIRTUAL_ENV}/bin/python"
 # reused from another context path. Copy and verify the manifest itself first,
 # then keep that verified file as the manifest installed into the final image.
 RUN test -n "${PACKAGE_KEY}"
-COPY --from=job-context /package.json context-package-${PACKAGE_KEY}.json
+COPY --from=packaged-context /package.json context-package-${PACKAGE_KEY}.json
 RUN python - "${PACKAGE_KEY}" <<'PY'
 import hashlib
 import json
@@ -58,8 +61,8 @@ PY
 # dependencies and selected environment wheels. It is deliberately installed
 # before project/framework source, configuration, and datasets so those
 # frequently changing inputs do not invalidate this expensive layer.
-COPY --from=job-context /locks/ locks/
-COPY --from=job-context /wheels/ wheels/
+COPY --from=packaged-context /locks/ locks/
+COPY --from=packaged-context /wheels/ wheels/
 RUN --mount=type=cache,id=posttrain-job-uv,target=/root/.cache/uv,sharing=locked \
     if [ -n "${PYTHON_INDEX_URL}" ]; then export UV_INDEX_URL="${PYTHON_INDEX_URL}"; fi && \
     uv pip install \
@@ -89,7 +92,7 @@ RUN if [ "${RUNTIME_VARIANT}" = "online-rl-verl-py313" ]; then \
 # lock contains only deterministic local paths under sources/framework or
 # sources/project, so installing it without dependency resolution cannot
 # silently fetch or select another package version.
-COPY --from=job-context /sources/ sources/
+COPY --from=packaged-context /sources/ sources/
 
 # Framework distributions are deliberately never installed into the backend
 # environment: doing so would drag their dependencies in, and those conflict
@@ -177,8 +180,8 @@ RUN --mount=type=cache,id=posttrain-job-uv,target=/root/.cache/uv,sharing=locked
       --reinstall \
       --requirement locks/code.requirements.txt
 
-COPY --from=job-context /config/ config/
-COPY --from=job-context /datasets/ datasets/
+COPY --from=packaged-context /config/ config/
+COPY --from=packaged-context /datasets/ datasets/
 RUN cp "context-package-${PACKAGE_KEY}.json" package.json
 
 # Fail the build if the staged manifest is not the authoritative contract, if

@@ -42,6 +42,17 @@ def test_shipped_dockerfile_input_paths_resolve_against_the_definition_root() ->
                 assert (root / path).exists(), f"{level}/Dockerfile copies missing {path}"
 
 
+def test_actual_job_from_arguments_are_declared_in_global_scope() -> None:
+    """Every variable expanded by FROM must precede the first build stage."""
+
+    with definition_root() as root:
+        dockerfile = (root / "containers/posttrain-job/Dockerfile").read_text()
+
+    global_scope = dockerfile.split("\nFROM ", 1)[0]
+    assert "ARG JOB_CONTEXT_REF" in global_scope
+    assert "ARG POSTTRAIN_KIND_IMAGE" in global_scope
+
+
 def test_eval_kind_installs_one_locked_runtime_and_marks_it_preinstalled() -> None:
     with definition_root() as root:
         dockerfile = (root / "containers/posttrain-job-kinds/Dockerfile").read_text()

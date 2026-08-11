@@ -85,7 +85,7 @@ from posttrain.train.backends.trl.grpo import (
     _grpo_runtime_attributes,
     _rollout_function,
 )
-from posttrain.train.catalog_schema import TrainingRuntimeSchema
+from posttrain.train.catalog_schema import TrainingRuntimeSchema, decode_training_selection
 from posttrain.train.results import TrainingSummary
 from pydantic import ValidationError
 
@@ -1515,6 +1515,11 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
     assert olmo3_arguments["active_sampling_max_batches"] == 6
     assert _grpo_runtime_attributes(olmo3_request)["active_sampling"] is True
 
+    shuffled_request = replace(olmo3_request, settings=replace(olmo3_request.settings, shuffle_prompts=True))
+    shuffled_arguments = _grpo_arguments(shuffled_request, tmp_path, {"enable_thinking": False})
+    assert shuffled_arguments["shuffle_dataset"] is True
+    assert _grpo_runtime_attributes(shuffled_request)["shuffle_prompts"] is True
+
 
 def test_olmo3_settings_reject_recipe_drift() -> None:
     settings = GRPOSettings(
@@ -1533,6 +1538,24 @@ def test_olmo3_settings_reject_recipe_drift() -> None:
         replace(settings, beta=0.01)
     with pytest.raises(ValueError, match="requires active group sampling"):
         replace(settings, active_sampling=None)
+
+
+def test_catalog_decodes_seeded_grpo_prompt_shuffle() -> None:
+    settings = decode_training_selection(
+        CatalogRef("training", "tests/grpo-shuffled"),
+        {
+            "selection_type": "grpo-settings",
+            "id": "tests/grpo-shuffled",
+            "loop": {"max_steps": 1, "per_device_batch_size": 2},
+            "num_prompts_per_step": 1,
+            "num_generations": 2,
+            "shuffle_prompts": True,
+        },
+        {},
+    )
+
+    assert isinstance(settings, GRPOSettings)
+    assert settings.shuffle_prompts is True
 
 
 def test_grpo_runtime_event_attributes_describe_selected_acceleration_without_claiming_results() -> None:

@@ -161,6 +161,10 @@ def test_trl_olmo3_active_sampling_metrics_are_preserved() -> None:
             "active_sampling/generation_rounds": 3,
             "active_sampling/retained_fraction": 0.75,
             "active_sampling/generated_rows": 40,
+            "active_sampling/candidate_groups_reserved": 128,
+            "active_sampling/candidate_groups_generated": 40,
+            "active_sampling/candidate_groups_retained": 32,
+            "active_sampling/candidate_groups_unused": 88,
         },
         features=GRPOObservationFeatures(),
     )
@@ -169,6 +173,10 @@ def test_trl_olmo3_active_sampling_metrics_are_preserved() -> None:
         "train/rl/active_sampling_generation_rounds": 3.0,
         "train/rl/active_sampling_retained_fraction": 0.75,
         "train/rl/active_sampling_generated_rows": 40.0,
+        "train/rl/active_sampling_candidate_groups_reserved": 128.0,
+        "train/rl/active_sampling_candidate_groups_generated": 40.0,
+        "train/rl/active_sampling_candidate_groups_retained": 32.0,
+        "train/rl/active_sampling_candidate_groups_unused": 88.0,
     }
 
 
@@ -330,4 +338,27 @@ def test_trl_advantage_diagnostics_normalize_to_backend_neutral_names() -> None:
         "train/rl/advantage_truncated_fraction": 0.03125,
         "train/rl/group_reward_std_mean": 0.41,
         "train/rl/importance_sampling_ratio_clamped_fraction": 0.02,
+    }
+
+
+def test_trl_raw_policy_parity_evidence_is_persisted_separately_from_sampling_delta() -> None:
+    step = normalize_grpo_metrics(
+        backend="trl",
+        step=1,
+        native={
+            "sampling/sampling_logp_difference/mean": 0.17,
+            "sampling/sampling_logp_difference/max": 1.2,
+            "sampling/policy_parity_logp_difference/mean": 0.003,
+            "sampling/policy_parity_logp_difference/max": 0.021,
+            "sampling/policy_parity_logp_difference/token_count": 16384,
+        },
+        features=GRPOObservationFeatures(decoupled_rollout=True),
+    )
+
+    assert step.metrics == {
+        "train/rl/sampling_logp_delta_mean": 0.17,
+        "train/rl/sampling_logp_delta_max": 1.2,
+        "train/rl/policy_parity_logp_delta_mean": 0.003,
+        "train/rl/policy_parity_logp_delta_max": 0.021,
+        "train/rl/policy_parity_token_count": 16384.0,
     }

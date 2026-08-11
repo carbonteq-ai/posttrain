@@ -532,6 +532,7 @@ def _seat_attributes(
         attributes["clip_epsilon_low"] = request.settings.clip_epsilon_low
         attributes["clip_epsilon_high"] = request.settings.resolved_clip_epsilon_high
         attributes["mask_truncated_completions"] = request.settings.mask_truncated_completions
+        attributes["shuffle_prompts"] = request.settings.shuffle_prompts
         attributes["active_sampling"] = request.settings.active_sampling is not None
         if request.settings.active_sampling is not None:
             attributes["active_sampling_max_candidate_batches"] = request.settings.active_sampling.max_candidate_batches

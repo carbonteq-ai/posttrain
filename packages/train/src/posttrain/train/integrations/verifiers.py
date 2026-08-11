@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import math
 import pickle
 import statistics
 import threading
@@ -104,6 +105,9 @@ class VerifiersEnvironmentSelection(Protocol):
     @property
     def sampling(self) -> EnvironmentSampling: ...
 
+    @property
+    def observation(self) -> Any: ...
+
 
 @dataclass(frozen=True, slots=True)
 class NativeVerifiersEnvironmentFactory:
@@ -134,6 +138,7 @@ class VerifiersBridgeSnapshot:
     max_concurrent: int | None
     technique: OnlineRLTechnique
     enrichers: tuple[TraceEnricher, ...]
+    task_facet_fields: tuple[str, ...] = ()
 
     def create(self) -> VerifiersEnvironmentRolloutBridge:
         return VerifiersEnvironmentRolloutBridge(
@@ -148,6 +153,7 @@ class VerifiersBridgeSnapshot:
             max_concurrent=self.max_concurrent,
             technique=self.technique,
             enrichers=self.enrichers,
+            task_facet_fields=self.task_facet_fields,
         )
 
 
@@ -240,6 +246,7 @@ def create_verifiers_training_bridge(
         sampling=sampling,
         max_concurrent=getattr(environment, "max_concurrent", None),
         technique=purpose,
+        task_facet_fields=_task_facet_fields(environment),
     )
 
 
@@ -328,6 +335,7 @@ def _rollout_dataset(
     revision: str,
     environment_id: str,
     tasks: Mapping[int, Any],
+    task_facet_fields: tuple[str, ...] = (),
 ) -> RolloutDataset:
     """Project native Verifiers tasks into task-neutral prompts and stable keys."""
 
@@ -335,11 +343,49 @@ def _rollout_dataset(
         RolloutExample(
             id=f"train/{index:06d}",
             prompt=str(task.data.prompt),
-            metadata={"task_index": index, "environment_id": environment_id},
+            metadata={
+                "task_index": index,
+                "environment_id": environment_id,
+                **_task_facet_values(task, task_facet_fields),
+            },
         )
         for index, task in sorted(tasks.items())
     )
     return RolloutDataset(identifier, revision, examples)
+
+
+def _task_facet_fields(environment: VerifiersEnvironmentSelection) -> tuple[str, ...]:
+    observation = getattr(environment, "observation", None)
+    facets = getattr(observation, "facets", ())
+    fields = tuple(str(facet.field) for facet in facets)
+    if any(not field for field in fields):
+        raise ValueError("environment observation facets must declare non-empty task fields")
+    return tuple(dict.fromkeys(fields))
+
+
+def _task_facet_values(task: Any, fields: tuple[str, ...]) -> dict[str, JsonValue]:
+    data = getattr(task, "data", None)
+    values: dict[str, JsonValue] = {}
+    for name in fields:
+        value = data.get(name) if isinstance(data, Mapping) else getattr(data, name, None)
+        if isinstance(value, str | int | bool) or (isinstance(value, float) and math.isfinite(value)):
+            values[name] = value
+            continue
+        raise ValueError(f"task data does not expose scalar observation facet {name!r}")
+    return values
+
+
+def _record_task_facets(info: Mapping[str, object]) -> dict[str, JsonValue]:
+    raw = info.get("task_facets")
+    if not isinstance(raw, Mapping):
+        return {}
+    values: dict[str, JsonValue] = {}
+    for name, value in raw.items():
+        if isinstance(name, str) and (
+            isinstance(value, str | int | bool) or (isinstance(value, float) and math.isfinite(value))
+        ):
+            values[name] = value
+    return values
 
 
 class _PolicyClient:
@@ -437,6 +483,7 @@ class VerifiersEnvironmentRolloutBridge:
     max_concurrent: int | None = None
     technique: OnlineRLTechnique = "grpo"
     enrichers: tuple[TraceEnricher, ...] = ()
+    task_facet_fields: tuple[str, ...] = ()
     _write_lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
     _trace_count: int = field(default=0, init=False)
     _live_observed_trace_ids: set[str] = field(default_factory=set, init=False, repr=False)
@@ -445,7 +492,13 @@ class VerifiersEnvironmentRolloutBridge:
     _environment: Any = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
-        self._dataset = _rollout_dataset(self.dataset_id, self.revision, self.environment_id, self.tasks)
+        self._dataset = _rollout_dataset(
+            self.dataset_id,
+            self.revision,
+            self.environment_id,
+            self.tasks,
+            self.task_facet_fields,
+        )
         self._tasks_by_example_id = {
             example.id: (index, self.tasks[index])
             for index, example in zip(sorted(self.tasks), self._dataset.examples, strict=True)
@@ -528,8 +581,8 @@ class VerifiersEnvironmentRolloutBridge:
             )
             for enrich in self.enrichers:
                 enrich(trace)
-            self._preserve(trace.to_record())
             rollout = self._project(trace, example_id, task_index, rollout_ordinal)
+            self._preserve(dict(rollout.trace.payload))
             if on_completed is not None:
                 await on_completed(rollout)
                 # The observer accepted this trace into the provider's local
@@ -576,6 +629,11 @@ class VerifiersEnvironmentRolloutBridge:
         if len(logprobs) != len(completion_ids):
             raise ValueError("Verifiers branch logprobs are not aligned to the training sequence")
         record = trace.to_record()
+        task_facets = _task_facet_values(self.tasks[task_index], self.task_facet_fields)
+        info = record.setdefault("info", {})
+        if not isinstance(info, dict):
+            raise ValueError("Verifiers trace info must be an object")
+        info["task_facets"] = task_facets
         is_truncated = _trace_is_truncated(record)
         turns = _agentic_turns(branch, first_sampled) if self.technique == "sampo" else ()
         observation = TraceObservation(
@@ -591,6 +649,7 @@ class VerifiersEnvironmentRolloutBridge:
                 "completion_token_count": len(completion_ids),
                 "selected_token_count": sum(env_mask),
                 "model": trace.agent.model if trace.agent is not None else "",
+                **task_facets,
             },
         )
         return EnvironmentRollout(
@@ -639,6 +698,7 @@ class VerifiersEnvironmentRolloutBridge:
             max_concurrent=self.max_concurrent,
             technique=self.technique,
             enrichers=self.enrichers,
+            task_facet_fields=self.task_facet_fields,
         )
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("wb") as stream:
@@ -700,6 +760,7 @@ class VerifiersEnvironmentRolloutBridge:
                             "example_id": str(info.get("example_id") or ""),
                             "is_truncated": _trace_is_truncated(record),
                             "model": _trace_model(record),
+                            **_record_task_facets(info),
                         },
                     )
                 )

@@ -56,6 +56,11 @@ from verifiers.v1.dialects import ChatDialect
 T = TypeVar("T")
 
 
+class FacetedTaskData(TaskData):
+    level: str
+    problem_type: str
+
+
 def test_verifiers_runtime_compatibility_pins_null_harness_mcp_v1(monkeypatch) -> None:
     from verifiers.v1.harnesses.null import harness as null_harness
 
@@ -289,10 +294,10 @@ def test_policy_client_preserves_exact_turn_tokens_and_response() -> None:
                 temperature=1.0,
                 max_tokens=32,
                 top_p=0.95,
-                top_k=20,
-                min_p=0.0,
-                repetition_penalty=1.1,
-                presence_penalty=1.5,
+                top_k=20,  # pyright: ignore[reportCallIssue]
+                min_p=0.0,  # pyright: ignore[reportCallIssue]
+                repetition_penalty=1.1,  # pyright: ignore[reportCallIssue]
+                presence_penalty=1.5,  # pyright: ignore[reportCallIssue]
             ),
             session_id="session-1",
         )
@@ -505,6 +510,47 @@ def test_native_bridge_replays_preserved_traces_when_live_observation_is_unavail
     evidence = bridge.evidence()
     assert [trace.external_id for trace in evidence.traces] == [rollouts[0].trace.external_id]
     assert len(evidence.metrics) == 1
+
+
+def test_native_bridge_preserves_declared_task_facets_in_dataset_and_trace_evidence(tmp_path) -> None:
+    task = SimpleNamespace(
+        data=FacetedTaskData(
+            idx=7,
+            prompt="factor x^2 - 1",
+            level="Level 3",
+            problem_type="Algebra",
+        )
+    )
+    bridge = VerifiersEnvironmentRolloutBridge(
+        dataset_id="math-python/train-v1",
+        revision="revision",
+        tasks={7: task},
+        environment_factory=FakeEnvironment,
+        trace_path=tmp_path / "traces.jsonl",
+        environment_id="math-python-v1",
+        run_id="run-1",
+        sampling=PolicySampling(max_tokens=32),
+        task_facet_fields=("level", "problem_type"),
+    )
+
+    assert bridge.dataset.examples[0].metadata == {
+        "task_index": 7,
+        "environment_id": "math-python-v1",
+        "level": "Level 3",
+        "problem_type": "Algebra",
+    }
+    [rollout] = asyncio.run(
+        bridge.run(
+            RolloutBatch(example_ids=("train/000007",), step=3, model_id="model-profile-v1"),
+            FakeGenerator(),
+        )
+    )
+
+    assert rollout.trace.attributes["level"] == "Level 3"
+    assert rollout.trace.attributes["problem_type"] == "Algebra"
+    [preserved] = bridge.evidence().traces
+    assert preserved.attributes["level"] == "Level 3"
+    assert preserved.attributes["problem_type"] == "Algebra"
 
 
 def test_native_bridge_portable_snapshot_reconstructs_without_live_environment_state(tmp_path) -> None:

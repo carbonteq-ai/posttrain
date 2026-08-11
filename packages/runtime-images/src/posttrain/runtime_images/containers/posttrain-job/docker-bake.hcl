@@ -73,7 +73,7 @@ group "smoke" {
 target "_common" {
   context = "containers/posttrain-job"
   contexts = {
-    job-context = STAGED_CONTEXT
+    "job-context-${PACKAGE_KEY}" = STAGED_CONTEXT
   }
   dockerfile = "Dockerfile"
   args = {
@@ -81,6 +81,7 @@ target "_common" {
     CODE_REQUIREMENTS_DIGEST = CODE_REQUIREMENTS_DIGEST
     FRAMEWORK_SOURCE_DIGEST = FRAMEWORK_SOURCE_DIGEST
     JOB_KIND = JOB_KIND
+    JOB_CONTEXT_REF = "job-context-${PACKAGE_KEY}"
     PACKAGE_KEY = PACKAGE_KEY
     POSTTRAIN_KIND_IMAGE = POSTTRAIN_KIND_IMAGE
     PYTHON_INDEX_URL = PYTHON_INDEX_URL

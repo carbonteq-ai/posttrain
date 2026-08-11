@@ -284,6 +284,25 @@ def test_grpo_worker_maps_prompt_groups_generations_and_kl_without_importing_ver
     assert "trainer.logger=['console','file']" in overrides
 
 
+def test_grpo_prompt_shuffle_is_explicit_and_backend_neutral(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    request = replace(_grpo_request(), settings=replace(_grpo_request().settings, shuffle_prompts=True))
+    plan = build_grpo_launch_plan(request, tmp_path)
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+
+    overrides = build_hydra_overrides(
+        plan,
+        tmp_path / "rollouts.parquet",
+        tmp_path / "agent-loop.json",
+        tmp_path / "checkpoints",
+    )
+
+    assert plan.payload.algorithm.shuffle_prompts is True
+    assert "data.shuffle=true" in overrides
+
+
 def test_verl_checkpoint_steps_zero_keeps_only_terminal_model_save(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

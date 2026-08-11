@@ -438,15 +438,16 @@ class BuildKitJobImagePublisher:
         ]
 
     def _context_arguments(self, request: JobImagePublicationRequest) -> list[str]:
+        context_name = f"job-context-{request.package_key}"
         return [
             "--set",
             f"{_PUBLISHED_TARGET}.context={self._definition_root}",
             "--set",
             f"{_SMOKE_TARGET}.context={self._definition_root}",
             "--set",
-            f"{_PUBLISHED_TARGET}.contexts.job-context={request.staged_context}",
+            f"{_PUBLISHED_TARGET}.contexts.{context_name}={request.staged_context}",
             "--set",
-            f"{_SMOKE_TARGET}.contexts.job-context={request.staged_context}",
+            f"{_SMOKE_TARGET}.contexts.{context_name}={request.staged_context}",
         ]
 
     def _variable_arguments(

@@ -65,6 +65,7 @@ def build_grpo_launch_plan(request: GRPORequest, output_dir: Path) -> VerlLaunch
                 "max_prompt_length": request.settings.max_prompt_length,
                 "max_completion_length": request.settings.max_completion_length,
                 "online_rl_algorithm": request.settings.algorithm,
+                "shuffle_prompts": request.settings.shuffle_prompts,
                 "clip_epsilon_low": request.settings.clip_epsilon_low,
                 "clip_epsilon_high": request.settings.resolved_clip_epsilon_high,
                 "dynamic_sampling": request.settings.dynamic_sampling is not None,
@@ -511,6 +512,7 @@ def _grpo_runtime_attributes(request: GRPORequest | SAMPORequest, plan: VerlLaun
             else request.settings.clip_epsilon_high
         ),
         "mask_truncated_completions": request.settings.mask_truncated_completions,
+        "shuffle_prompts": request.settings.shuffle_prompts if isinstance(request, GRPORequest) else False,
     }
     if isinstance(request, GRPORequest):
         attributes["overlong_buffer_tokens"] = request.settings.overlong_buffer_tokens

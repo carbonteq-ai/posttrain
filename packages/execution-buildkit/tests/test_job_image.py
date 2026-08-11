@@ -333,7 +333,7 @@ def test_publisher_checks_smokes_pushes_verifies_and_reuses_receipt(
     assert len(build_calls) == 1
     build = build_calls[0]
     assert build[-1] == "posttrain-job"
-    assert f"posttrain-job.contexts.job-context={request.staged_context}" in build
+    assert f"posttrain-job.contexts.job-context-{request.package_key}={request.staged_context}" in build
     smoke_calls = [
         call for call in gateway.calls if call and call[-1] == "posttrain-job-smoke" and "--call" not in call
     ]
@@ -399,6 +399,38 @@ def test_publication_identity_excludes_local_context_and_bake_paths(
 
     assert first.package_key == second.package_key
     assert first.publication_key == second.publication_key
+
+
+def test_each_package_uses_a_distinct_buildkit_named_context(tmp_path: Path) -> None:
+    gateway = FakeBuildx()
+    first = _request(tmp_path / "first")
+    second_root = tmp_path / "second"
+    second_context = second_root / "staged"
+    second_context.mkdir(parents=True)
+    second = JobImagePublicationRequest(
+        manifest=replace(first.manifest, resolved_inputs_digest="f" * 64),
+        staged_context=second_context.resolve(),
+        publication=first.publication,
+    )
+    publisher = BuildKitJobImagePublisher(
+        bake_file=_definition(tmp_path),
+        receipt_root=(tmp_path / "receipts").resolve(),
+        gateway=gateway,
+    )
+
+    publisher.publish(first)
+    publisher.publish(second)
+
+    build_calls = [call for call in gateway.calls if "--metadata-file" in call]
+    assert len(build_calls) == 2
+    assert any(
+        f"posttrain-job.contexts.job-context-{first.package_key}={first.staged_context}" == argument
+        for argument in build_calls[0]
+    )
+    assert any(
+        f"posttrain-job.contexts.job-context-{second.package_key}={second.staged_context}" == argument
+        for argument in build_calls[1]
+    )
 
 
 def test_missing_cached_remote_image_is_rebuilt(tmp_path: Path) -> None:

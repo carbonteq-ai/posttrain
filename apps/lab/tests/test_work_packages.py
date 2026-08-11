@@ -101,7 +101,7 @@ def test_distillation_yaml_resolves_every_seat_through_the_catalog() -> None:
     }
     assert training["resolved"]["backend_options"] == {  # type: ignore[index]
         "dependency_lock": "trl-fork@current",
-        "source_revision": "91b0ce707631d503fbed337b42444a9d3fac3acb",
+        "source_revision": "216023d99324fae89dd58629130ba3bb043582ed",
         "dependency_lock_sha256": hashlib.sha256((WORKSPACE / "uv.lock").read_bytes()).hexdigest(),
     }
     execution_targets = resolved.snapshot["execution_targets"]

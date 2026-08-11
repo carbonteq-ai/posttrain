@@ -283,7 +283,7 @@ def test_agentic_and_domain_programs_share_the_native_port() -> None:
     source = AGENTIC_SMOKE.environments[0].source
     assert isinstance(source, EnvironmentSource)
     assert source.repository == ("https://github.com/carbonteq-ai/verifiers-environments")
-    assert source.revision == ("ee096746ec3cf28eceffd49f29226e8a8dc7bc31")
+    assert source.revision == ("b7bcb591facfcd2b073802f6d7496b24ab9c479e")
     assert source.subdirectory == "environments/automationbench_v1"
     assert AGENTIC_SMOKE.environments[0].max_concurrent == 1
     assert AUTOMATIONBENCH_PUBLIC.kind == "domain"
@@ -415,7 +415,11 @@ def test_remote_binding_maps_to_the_native_verifiers_client_without_a_custom_loo
     environment = GENERAL_SMOKE.environment("math-gsm8k")
     evaluation = replace(
         evaluation,
-        plan=replace(evaluation.plan, environments=(environment,)),
+        plan=replace(
+            evaluation.plan,
+            environments=(environment,),
+            success={environment.id: evaluation.plan.success["tool-loop"]},
+        ),
         environment_id=environment.id,
     )
 

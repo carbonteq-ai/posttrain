@@ -21,7 +21,7 @@ taskset smoke eval, record the new SHA here. No unpinned moving branch.
 CarbonTeq's maintained Verifiers v1 environment packs live in the separate
 framework-neutral [verifiers-environments repository](https://github.com/carbonteq-ai/verifiers-environments).
 The current framework integration uses published commit
-`ee096746ec3cf28eceffd49f29226e8a8dc7bc31` and keeps each package independently
+`b7bcb591facfcd2b073802f6d7496b24ab9c479e` and keeps each package independently
 installable:
 
 | Package | Taskset | Source data / generator revision |
@@ -41,6 +41,31 @@ OCI registry at
 `registry.lan/carbonteq/math-python-v1@sha256:67624f5e71f8a5c89d25bc6c42370eb6e71b8569788aa818e5d3fe8585f15f15`.
 Its lifecycle cleanup gate remains; the current overlay uses the package's
 subprocess path and must not be treated as a sandbox-isolation claim.
+
+## Online-RL cold-start selection
+
+Use correctness rewards whose parsing contract is explicit. The Reasoning Gym
+package supports a compatibility `native` mode and a training-oriented
+`boxed_exact` mode. `boxed_exact` requires one final `\\boxed{...}` answer,
+passes only the extracted value to the selected generator's native verifier,
+and maps native partial scores to exact zero or one. This prevents incidental
+oracle text and response length from becoming hidden reward components.
+
+For the initial 2B reasoning qualification, prefer the existing Math Python
+taskset over a single easy procedural generator. Select MATH Levels 2-4,
+deterministically balance by problem type, generate eight completions per
+prompt, and measure the current policy before training. Retain a stratum only
+when its measured pass@8 is between 10% and 90%, its exact rewards provide
+two-sided group signal, and its truncation rate passes the campaign guard.
+Level labels and problem types are filtered before deterministic balancing, so
+selection does not depend on a fragile contiguous Hub row range.
+
+Reasoning Gym remains useful as a deterministic coverage probe across
+arithmetic, algebra, number theory, representation, symbolic logic, and calendar
+reasoning. Do not infer training suitability from generator diversity alone;
+promote only the measured difficulty strata. Larger sources such as Skywork
+OR1 follow the same rule and require a pinned environment adapter plus
+policy-specific difficulty measurement before joining the campaign.
 
 ## What Verifiers v1 exposes (eval / RL)
 
