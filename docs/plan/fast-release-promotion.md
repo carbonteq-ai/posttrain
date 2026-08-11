@@ -9,7 +9,10 @@ only changes how an already-qualified framework version is published.
 
 ## Purpose / Big Picture
 
-The release command should finish in roughly twenty minutes once code is ready.
+The release command should finish in less than fifteen minutes once code is
+ready and a GPU is available. Fork publication is intentionally outside that
+clock: Trackio, TRL, and other maintained dependencies are published and
+qualified manually before their immutable package versions are pinned here.
 Developers should receive fast feedback on a workstation or pull request, while
 the final release job should perform only checks that require the release
 runner, private package indexes, private image registry, dstack, or GitHub tag
@@ -56,7 +59,19 @@ receipt instead of rebuilding or re-running completed checks.
   full suite passed (`1115 passed, 21 skipped`) in 18.3s, and the focused
   release/checkpoint/CLI gate passed (`89 passed`) in 7.6s. These checks do not
   require a package index, registry, dstack, or GitHub mutation.
-- [ ] Add a local readiness receipt and make the candidate workflow consume it.
+- [x] (2026-08-12T02:46Z) Add `posttrain-release readiness` and
+  `readiness-check`, run the deterministic source gate locally, and retain the
+  exact-source receipt from Quality for candidate consumption. Local evidence:
+  1,210 tests passed in 56.978s; Pyright passed in 21.094s; total 78.255s.
+- [x] (2026-08-12T02:46Z) Change the candidate to build the authored final
+  version in development rather than allocating RC-only wheel versions.
+- [x] (2026-08-12T02:46Z) Make final promotion reuse the candidate wheelhouse
+  and its one real packed dstack canary; it no longer rebuilds, re-installs, or
+  runs a second GPU canary after source/tree and receipt verification.
+- [x] (2026-08-12T02:46Z) Add focused receipt and workflow regression tests for
+  final-version candidate artifacts and promotion provenance.
+- [ ] Run a real candidate/final release-path canary from the merged workflow
+  before using it for the next production release.
 - [x] Remove duplicate full-suite execution from the final workflow while
   retaining exact-SHA, index, registry, dstack, and promotion checks.
 - [ ] Add explicit resume checkpoints between final remote stages; the existing
@@ -81,6 +96,16 @@ receipt instead of rebuilding or re-running completed checks.
 - Observation: a candidate commit may not be present in a shallow or
   squash-merged release checkout. Candidate provenance must therefore use a
   commit/tree API or a retained source manifest, not an assumed local Git ref.
+- Observation: v0.3.7's candidate took 8m13s and final took 6m38s. Candidate
+  source validation consumed 2m23s; its dstack canary consumed 3m28s; final's
+  second dstack canary consumed 3m17s. The canaries cover the same boundary but
+  different bytes because the candidate used an RC version and final rebuilt
+  the authored final version.
+  Evidence: GitHub Actions runs `31536929524` and `31537708801`.
+- Observation: the actual local shared readiness gate takes 78.255 seconds on
+  the development machine, not under one minute: tests account for 56.978s and
+  Pyright for 21.094s.
+  Evidence: `posttrain-release readiness` receipt created 2026-08-12T02:46Z.
 
 ## Decision Log
 
@@ -111,6 +136,25 @@ receipt instead of rebuilding or re-running completed checks.
   Rationale: a failed canary or index request must resume safely without
   republishing, retagging, or deleting another run's artifacts.
   Date/Author: 2026-08-09 / Codex.
+- Decision: Maintained forks are a separately published supply-chain
+  prerequisite, not a Posttrain release-workflow stage.
+  Rationale: candidate consumes already immutable, pinned Trackio/TRL packages.
+  Building forks during framework promotion couples independent repositories
+  and makes the release duration depend on work that should be qualified first.
+  Date/Author: 2026-08-12 / user and Codex.
+- Decision: Publish the authored final version to development during candidate
+  qualification, then promote its verified bytes unchanged.
+  Rationale: RC and final versions are different artifacts. Qualifying an RC
+  cannot prove the final wheelhouse, so it forces a rebuild and second GPU test.
+  Development is the safe staging channel; stable publication and tagging stay
+  final-only.
+  Date/Author: 2026-08-12 / user and Codex.
+- Decision: One real packed dstack canary is required per immutable final
+  artifact set, in the candidate workflow.
+  Rationale: that canary proves the consumer package, image manifest, registry,
+  and dstack path. Repeating it after tree/receipt verification adds latency but
+  no evidence.
+  Date/Author: 2026-08-12 / user and Codex.
 
 ## Outcomes & Retrospective
 
@@ -118,8 +162,11 @@ The 0.3.5 release is complete. Final run `31319572261` finished in 8m27s,
 reused the accepted candidate runtime inputs, built the final-version wheelhouse
 once, passed the real packed dstack canary, promoted unchanged bytes to stable,
 and created [GitHub release v0.3.5](https://github.com/carbonteq-ai/posttrain/releases/tag/v0.3.5).
-The remaining follow-up is a first-class local readiness receipt and more
-granular resume checkpoints; neither is required to consume this release.
+The v0.3.7 release is also complete: candidate `31536929524` succeeded in
+8m13s and final `31537708801` succeeded in 6m38s. It retained valid release
+evidence, but two versioned wheelhouses and two GPU canaries made the combined
+path exceed the target. This plan now converts that evidence into a
+single-canary final-version promotion path.
 
 ## Context and Orientation
 
@@ -145,32 +192,30 @@ GitHub tags/releases, and the release environment.
 
 ## Plan of Work
 
-First, finish PR #42 and record the ancestry-or-tree provenance behavior in the
-release tests. The final candidate-restoration step must query the candidate
-tree through the GitHub API when the candidate object is not in the checkout,
-then compare it with the checked-out merged tree before downloading evidence.
+First, add a `posttrain-release readiness` command and JSON receipt. The
+command runs deterministic source checks locally or in the normal Quality
+workflow, then records the exact Git commit and tree, framework version,
+`uv.lock` digest, manual-fork package identities, command results, and elapsed
+time. `readiness-check` rejects a receipt from another tree, version, lock, or
+incomplete command set. Quality uploads the receipt for its exact source SHA;
+candidate downloads it only after the required Quality run succeeds.
 
-Next, add `scripts/release/readiness` (or an equivalent `posttrain-release
-readiness` command) that runs the local checks once and writes a signed-by-hash
-JSON receipt containing the source commit, source tree, lockfile digest,
-framework version, tool versions, test result, and timestamp. The receipt is
-evidence, not an authorization: the PR workflow must still publish the check
-status, and the final workflow must verify the receipt source and tree.
+Next, change `release-candidate.yml` to use the authored version from
+`release/manifest.toml`. It builds that final version once, publishes it only
+to development, verifies its hashes, installs it into a clean consumer,
+verifies the runtime image manifest, and runs one real packed dstack canary. It
+retains the final-version wheelhouse, readiness receipt, runtime manifest, and
+dstack evidence. If a different artifact already occupies that final version in
+development, the workflow fails rather than overwriting it; changed source needs
+a new release version.
 
-Then update the candidate workflow to consume the readiness receipt, retain it
-with the candidate evidence, and run only candidate-specific work after the
-receipt is valid. Candidate-specific work remains runtime-image publication,
-wheelhouse construction, development-index publication, clean consumer install,
-private-registry verification, and the real dstack canary.
-
-Finally, update the final workflow into short idempotent stages. It should wait
-for the green push quality status for the exact merged SHA, verify candidate
-tree/receipt/version/hash equality, restore the candidate wheelhouse and image
-manifest, check the development index, perform only the final consumer and
-remote-runtime checks that were not already part of the accepted candidate,
-promote unchanged bytes to stable, and create the tag/release last. Each stage
-must write or validate a retained receipt so a `resume_from_run_id` retry skips
-completed stages safely.
+Finally, make `release.yml` promotion-only. It verifies candidate/merged
+ancestry or identical-tree provenance, rechecks the downloaded candidate
+wheelhouse and development-index bytes, and promotes them unchanged to stable.
+It writes a promotion receipt binding candidate source/tree to merged tag
+target, retains it before tagging, and creates the Git tag and GitHub release
+last. It does not build wheels, create a clean consumer, verify the registry
+again, or submit another dstack canary.
 
 ## Concrete Steps
 
@@ -181,9 +226,10 @@ From `/home/hammad/projects/rl`, run the focused release tests while developing:
     git diff --check
 
 For local readiness, run the documented command from a clean worktree and
-expect a JSON receipt whose `source_sha`, `source_tree`, `uv_lock_sha256`, and
-`framework_version` match the checkout. A mismatch must stop candidate
-publication rather than silently refreshing the receipt.
+expect a JSON receipt whose `source_sha`, `source_tree`, `uv_lock_sha256`,
+`framework_version`, fork package identities, and successful command list match
+the checkout. A mismatch must stop candidate publication rather than silently
+refreshing the receipt.
 
 For final qualification, inspect the retained candidate receipt before dispatch
 and expect the exact distribution hashes, Trackio post12 pin, runtime image
@@ -196,21 +242,23 @@ PR acceptance requires the existing quality and package-import checks plus the
 new provenance regression: an ancestor candidate passes, a squash-merged
 identical tree passes, and a different tree fails.
 
-Candidate acceptance requires a valid local readiness receipt, clean consumer
-installation from the development index, all committed runtime image digests
-present in the private registry, and a successful real dstack canary.
+Candidate acceptance requires a valid Quality-generated readiness receipt,
+clean consumer installation from development, all committed runtime image
+digests in the private registry, and a successful real dstack canary using the
+exact final-version wheelhouse.
 
-Final acceptance requires no full-suite rerun on the release runner, exact
-merged-tree/candidate-tree equality, unchanged distribution and image hashes,
-successful stable-index promotion, a matching Git tag and GitHub release, and a
-retained receipt that allows a retry without rebuilding or republishing.
+Final acceptance requires no source-suite rerun, wheel rebuild, consumer
+install, registry recheck, or dstack canary. It requires exact
+merged-tree/candidate-tree equality, unchanged development distribution and
+image hashes, stable promotion, a matching Git tag and release, and a retained
+promotion receipt that supports a retry without rebuilding or republishing.
 
-The measured local source gate is currently under one minute on this warm
-workstation. The remaining target is a first-class readiness receipt so the
-candidate workflow can consume that evidence without rerunning the same source
-checks. Candidate-specific remote work should remain under ten minutes when
-images are unchanged, and final promotion should remain under ten minutes
-excluding unavoidable dstack queue time. If dstack capacity is unavailable,
+The measured local source gate is currently under two minutes on this warm
+workstation. The acceptance budget is: local/PR readiness under two minutes once
+the environment is installed; candidate remote work under ten minutes with
+cached images and available GPU; promotion under three minutes. The
+candidate-to-tag path must remain under fifteen minutes excluding explicit human
+approval and unavoidable dstack queue time. If dstack capacity is unavailable,
 the release remains safely deferred rather than claiming success.
 
 ## Idempotence and Recovery
@@ -237,13 +285,17 @@ Relevant evidence from the current release investigation:
 ## Interfaces and Dependencies
 
 The readiness receipt must expose `source_sha`, `source_tree`,
-`framework_version`, `uv_lock_sha256`, `checks`, and `created_at`. The candidate
-and final workflows must validate these fields before using any wheelhouse or
-runtime manifest. The implementation may reuse `posttrain-release check`,
-`receipt-check`, and `index-check`; it must not add Trackio, dstack, or registry
-imports to framework-neutral packages.
+`framework_version`, `uv_lock_sha256`, `fork_packages`, `checks`, and
+`created_at`. Candidate and final validate those fields before using any
+wheelhouse or runtime manifest. The candidate receipt reuses the distribution
+receipt plus retained wheelhouse and runtime evidence. The promotion receipt
+adds `candidate_run_id`, candidate source/tree, merged source/tree, and the
+candidate receipt digest. The implementation may reuse `posttrain-release
+check`, `receipt-check`, and `index-check`; it must not add Trackio, dstack, or
+registry imports to framework-neutral packages.
 
-Revision note (2026-08-09): created after the final 0.3.5 promotion exposed
-squash-merge provenance failures and redundant release-run validation. The
-scope is intentionally limited to release readiness evidence and promotion
-latency; product and training semantics remain unchanged.
+Revision note (2026-08-12): v0.3.7 measured candidate/final timings showed that
+RC-to-final rebuilding causes two canaries. The target changed from roughly
+twenty minutes to a sub-fifteen-minute path by qualifying the final version in
+development once and making final a receipt-verified promotion only. Product
+and training semantics remain unchanged.
