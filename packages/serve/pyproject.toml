@@ -15,6 +15,7 @@ lab-serve-compat = "posttrain.serve.vllm_compat:apply_vllm_compatibility_patches
 
 [project.optional-dependencies]
 vllm = [
+    "huggingface-hub>=1.24,<1.25",
     "torch",
     "torchvision",
     "torchaudio",

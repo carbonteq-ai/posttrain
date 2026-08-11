@@ -9,7 +9,8 @@ from dataclasses import replace
 from pathlib import Path
 
 import httpx
-from posttrain.common import InferenceBinding, LocalArtifactRef
+import pytest
+from posttrain.common import HubModelRef, InferenceBinding, LocalArtifactRef
 from posttrain.common.variants import LFM_25_12B_THINKING, QWEN_35_2B
 from posttrain.serve import (
     Endpoint,
@@ -139,6 +140,65 @@ def test_vllm_launches_materialized_peft_adapter_without_treating_it_as_base_wei
     assert command[command.index("--lora-modules") + 1] == f"{adapter.id}={adapter_dir}"
     assert "--enable-lora" in command
     assert request.endpoint.model == adapter.id
+
+
+def test_vllm_materializes_an_immutable_hub_peft_adapter_before_launch(
+    tmp_path: Path,
+    qwen_screen_binding: InferenceBinding,
+    monkeypatch,
+) -> None:
+    adapter_dir = tmp_path / "adapter"
+    adapter_dir.mkdir()
+    (adapter_dir / "adapter_config.json").write_text("{}", encoding="utf-8")
+    (adapter_dir / "adapter_model.safetensors").write_bytes(b"adapter")
+    revision = "c" * 40
+    artifact = HubModelRef("carbonteq/qwen-adapter", revision)
+    adapter = replace(
+        QWEN_35_2B,
+        id="models/qwen3.5-2b/sft-hub-test",
+        artifact=artifact,
+        form="peft-adapter",
+        revision=revision,
+        digest=None,
+        parent=QWEN_35_2B.id,
+        provenance={"parameter_update_kind": "lora"},
+    )
+    observed: dict[str, str] = {}
+
+    def snapshot_download(*, repo_id: str, revision: str) -> str:
+        observed.update(repo_id=repo_id, revision=revision)
+        return str(adapter_dir)
+
+    monkeypatch.setattr("huggingface_hub.snapshot_download", snapshot_download)
+
+    command = build_vllm_command(ServeLaunchRequest(replace(qwen_screen_binding, model=adapter)))
+
+    assert observed == {"repo_id": artifact.repo_id, "revision": artifact.revision}
+    assert command[command.index("--revision") + 1] == QWEN_35_2B.base.revision
+    assert command[command.index("--lora-modules") + 1] == f"{adapter.id}={adapter_dir}"
+
+
+def test_vllm_rejects_an_incomplete_hub_peft_adapter(
+    tmp_path: Path,
+    qwen_screen_binding: InferenceBinding,
+    monkeypatch,
+) -> None:
+    adapter_dir = tmp_path / "adapter"
+    adapter_dir.mkdir()
+    artifact = HubModelRef("carbonteq/qwen-adapter", "c" * 40)
+    adapter = replace(
+        QWEN_35_2B,
+        id="models/qwen3.5-2b/sft-hub-test",
+        artifact=artifact,
+        form="peft-adapter",
+        revision=artifact.revision,
+        digest=None,
+        parent=QWEN_35_2B.id,
+    )
+    monkeypatch.setattr("huggingface_hub.snapshot_download", lambda **_: str(adapter_dir))
+
+    with pytest.raises(RuntimeError, match="Hub PEFT adapter is incomplete"):
+        build_vllm_command(ServeLaunchRequest(replace(qwen_screen_binding, model=adapter)))
 
 
 def test_vllm_launches_materialized_quantized_weights_as_the_selected_variant(

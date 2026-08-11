@@ -43,6 +43,7 @@ from posttrain.eval import (
     general,
 )
 from posttrain.eval.backends.verifiers import VerifiersRunResult
+from posttrain.eval.backends.verifiers.adapter import _native_sampling
 from posttrain.eval.backends.verifiers.synchronization import TraceSyncStats
 from posttrain.eval.programs import AGENTIC_SMOKE, AUTOMATIONBENCH_PUBLIC, GENERAL_SMOKE
 
@@ -157,6 +158,13 @@ def test_environment_source_rejects_nonportable_git_identity(
 
 def canonical_request() -> EvaluateRequest:
     return request()
+
+
+def test_local_verifiers_sampling_places_template_kwargs_under_extra_body() -> None:
+    sampling = _native_sampling(request())
+
+    assert "chat_template_kwargs" not in sampling
+    assert sampling["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}}
 
 
 def test_local_evaluation_rejects_missing_environment_inference_capability() -> None:

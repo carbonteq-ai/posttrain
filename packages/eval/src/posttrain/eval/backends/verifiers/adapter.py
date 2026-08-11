@@ -52,13 +52,23 @@ def _native_sampling(request: EvaluateRequest) -> dict[str, JsonValue]:
         values["top_p"] = policy.top_p
     if policy.reasoning_effort is not None:
         values["reasoning_effort"] = policy.reasoning_effort
-    if not isinstance(request.model, RemotePolicy):
-        template_kwargs = request.model.conversation.reasoning_mode(request.resolved_reasoning_mode).kwargs()
-        if template_kwargs:
-            values["chat_template_kwargs"] = cast(dict[str, JsonValue], template_kwargs)
     service = request.remote_service
     if service is not None:
         values.update(service.request_defaults)
+    if not isinstance(request.model, RemotePolicy):
+        template_kwargs = request.model.conversation.reasoning_mode(request.resolved_reasoning_mode).kwargs()
+        if template_kwargs:
+            raw_extra_body = values.get("extra_body", {})
+            if not isinstance(raw_extra_body, dict):
+                raise TypeError("Verifiers sampling extra_body must be a mapping")
+            extra_body = dict(raw_extra_body)
+            raw_template_kwargs = extra_body.get("chat_template_kwargs", {})
+            if not isinstance(raw_template_kwargs, dict):
+                raise TypeError("Verifiers sampling chat_template_kwargs must be a mapping")
+            merged_template_kwargs = dict(raw_template_kwargs)
+            merged_template_kwargs.update(cast(dict[str, JsonValue], template_kwargs))
+            extra_body["chat_template_kwargs"] = merged_template_kwargs
+            values["extra_body"] = extra_body
     return values
 
 

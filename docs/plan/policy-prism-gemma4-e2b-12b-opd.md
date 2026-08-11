@@ -23,6 +23,8 @@ This plan does not change either `main` branch. All PostTrain commits use `feat/
 - [x] (2026-08-10) Include and push the user's local Policy Prism commit `85e0e12d102ea8e32e1b31fe9926179b21cbe2fb`; remote feature-branch tip `147ac759...` is its direct descendant.
 - [x] (2026-08-10) Verify checkpoint 96 contains adapter, optimizer, scheduler, trainer, RNG, tokenizer, and SQLite allocation-ledger state; all inspected losses and gradients are finite and teacher failures are zero.
 - [x] (2026-08-10) Publish checkpoint 96 privately to `carbonteq/gemma-4-e2b-policy-prism-scope-opd-from-12b-checkpoint-96`, fresh-download it, verify every uploaded file byte-for-byte, and resolve immutable Hugging Face revision `4f1fe9c75031396a11bcc44e2193f96df9003054`.
+- [x] (2026-08-11) Select the minimal checkpoint-96 qualification path: serve the immutable private Hugging Face PEFT adapter directly, materialize it at the pinned commit before vLLM launch, and correct local Verifiers chat-template options under OpenAI `extra_body`; the complete serve/eval package suites pass.
+- [ ] Run checkpoint 96 through the sealed 18-case scope and 17-case recovery jobs sequentially, finalize both native artifacts into Policy Prism's standard five-file evidence directories, validate the catalog, and push the results.
 - [x] (2026-08-10) Cancel the failed r9 provider workspace after checkpoint preservation. It is terminal with provider state `terminated`; reconciliation records failed/inconsistent evidence and retains three training artifacts plus native rollout traces.
 - [x] (2026-08-10) Stop before new GPU submissions and update this plan for a separate batch-qualification and full-run execution goal.
 - [x] (2026-08-10) Fetch and compare current `origin/main` at `6ffe634432a3f92e8c6dd561d3cd85b2b2ba45cd`, the experiment branch at `dbb5c7b5538124913b99620801339f702c58089e`, and the immutable TRL 1.9.2.post1 fork source at `a82ecebc0fa081efd58302a34a553445fc73271d` without changing either branch.
@@ -112,6 +114,9 @@ This plan does not change either `main` branch. All PostTrain commits use `feat/
 - Decision: publish checkpoint 96 as an explicitly intermediate private repository rather than call it the final model.
   Rationale: the weights are valid and useful, but only 96 of 384 targets were optimized and the producing run failed later.
   Date/Author: 2026-08-10 / Codex.
+- Decision: qualify checkpoint 96 from its immutable Hugging Face revision instead of adding a generic checkpoint-projection subsystem.
+  Rationale: the repository already contains the exact adapter weights at a verified commit. Materializing that pinned Hub adapter directly before vLLM launch preserves identity while avoiding a synthetic model-projection run and unrelated framework surface.
+  Date/Author: 2026-08-11 / Codex.
 - Decision: keep r0-r9, checkpoints, Trackio traces, and provider evidence; do not delete or relabel failed attempts.
   Rationale: they explain each corrected boundary and are required for honest incident history.
   Date/Author: 2026-08-10 / Codex.

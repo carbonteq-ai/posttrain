@@ -17,17 +17,52 @@ from ...online import Endpoint, ServeLaunchRequest, served_model_name
 from .bindings import engine_config, frontend_args
 
 
+def _materialize_hub_adapter(artifact: HubModelRef) -> Path:
+    try:
+        from huggingface_hub import snapshot_download
+    except ImportError as error:
+        raise RuntimeError("Hugging Face Hub support is required to materialize a PEFT adapter") from error
+
+    path = Path(snapshot_download(repo_id=artifact.repo_id, revision=artifact.revision)).resolve()
+    config = path / "adapter_config.json"
+    weights = tuple(path.glob("adapter_model*.safetensors")) + tuple(path.glob("adapter_model*.bin"))
+    if not config.is_file() or not weights:
+        raise RuntimeError(f"Hub PEFT adapter is incomplete under {path}")
+    forbidden = sorted(
+        child.name
+        for child in path.iterdir()
+        if child.is_file()
+        and (
+            child.name in {
+                "model.safetensors",
+                "model.safetensors.index.json",
+                "pytorch_model.bin",
+                "pytorch_model.bin.index.json",
+            }
+            or (child.name.startswith("model-") and child.name.endswith(".safetensors"))
+            or (child.name.startswith("pytorch_model-") and child.name.endswith(".bin"))
+        )
+    )
+    if forbidden:
+        raise RuntimeError("Hub PEFT adapter contains full base-model weights: " + ", ".join(forbidden))
+    return path
+
+
 def build_vllm_command(request: ServeLaunchRequest, chat_template_path: Path | None = None) -> tuple[str, ...]:
     executable = Path(sys.executable).with_name("vllm")
     model = request.inference.model
     engine = engine_config(request.inference)
     artifact = model.artifact
     if model.form in {"adapter", "peft-adapter"}:
-        if not isinstance(artifact, LocalArtifactRef):
-            raise ValueError("vLLM requires the host to materialize a PEFT adapter before launch")
+        if isinstance(artifact, HubModelRef):
+            adapter_path = _materialize_hub_adapter(artifact)
+        elif isinstance(artifact, LocalArtifactRef):
+            adapter_path = artifact.path
+        else:
+            raise ValueError("vLLM requires a Hub-hosted or host-materialized PEFT adapter")
         source = model.base.repo_id
         revision_args = ("--revision", model.base.revision)
-        adapter_args = ("--enable-lora", "--lora-modules", f"{served_model_name(model)}={artifact.path}")
+        adapter_args = ("--enable-lora", "--lora-modules", f"{served_model_name(model)}={adapter_path}")
         base_served_name = model.base.repo_id
     elif isinstance(artifact, HubModelRef):
         source = artifact.repo_id
