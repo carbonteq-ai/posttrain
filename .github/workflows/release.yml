@@ -179,6 +179,8 @@ jobs:
           test -n "${candidate_receipt}"
           candidate_wheelhouse="$(find .release/candidate -type f -name 'posttrain-wheelhouse-*.tar.gz' -print -quit)"
           test -n "${candidate_wheelhouse}"
+          candidate_checksums="$(find .release/candidate -type f -name release-SHA256SUMS -print -quit)"
+          test -n "${candidate_checksums}"
           candidate_readiness="$(find .release/candidate -type f -name readiness.json -print -quit)"
           test -n "${candidate_readiness}"
           test "$(jq -r '.source_sha // empty' "${candidate_readiness}")" = "${candidate_sha}"
@@ -194,6 +196,7 @@ jobs:
           cp "${candidate_workspace_lock}" .release/workspace.lock.txt
           cp "${candidate_receipt}" .release/python-release-receipt.json
           cp "${candidate_wheelhouse}" .release/
+          cp "${candidate_checksums}" .release/release-SHA256SUMS
           echo "POSTTRAIN_RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
           echo "RELEASE_SOURCE_SHA=${RELEASE_SOURCE_SHA}" >> "$GITHUB_ENV"
           echo "CANDIDATE_SOURCE_SHA=${candidate_sha}" >> "$GITHUB_ENV"
@@ -271,20 +274,32 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if git ls-remote --exit-code origin "refs/tags/v${POSTTRAIN_RELEASE_VERSION}" >/dev/null 2>&1; then
-            echo "final tag already exists; refuse to attach a different commit" >&2
-            exit 1
+            git fetch --no-tags origin "refs/tags/v${POSTTRAIN_RELEASE_VERSION}:refs/tags/v${POSTTRAIN_RELEASE_VERSION}"
+            test "$(git rev-parse "v${POSTTRAIN_RELEASE_VERSION}^{}")" = "${RELEASE_SOURCE_SHA}"
+            echo "final tag already points to the accepted release commit; reusing it"
+          else
+            git config user.name carbonteq-release-bot
+            git config user.email release-bot@carbonteq.ai
+            git tag -a "v${POSTTRAIN_RELEASE_VERSION}" "${RELEASE_SOURCE_SHA}" -m "Posttrain ${POSTTRAIN_RELEASE_VERSION}"
+            git push origin "v${POSTTRAIN_RELEASE_VERSION}"
           fi
-          git config user.name carbonteq-release-bot
-          git config user.email release-bot@carbonteq.ai
-          git tag -a "v${POSTTRAIN_RELEASE_VERSION}" "${RELEASE_SOURCE_SHA}" -m "Posttrain ${POSTTRAIN_RELEASE_VERSION}"
-          git push origin "v${POSTTRAIN_RELEASE_VERSION}"
-          gh release create "v${POSTTRAIN_RELEASE_VERSION}" \
+          release_assets=(
+            ".release/posttrain-wheelhouse-${POSTTRAIN_RELEASE_VERSION}.tar.gz"
+            .release/release-SHA256SUMS
+            .release/python-release-receipt.json
+            .release/promotion-receipt.json
+          )
+          if gh release view "v${POSTTRAIN_RELEASE_VERSION}" >/dev/null 2>&1; then
+            gh release upload "v${POSTTRAIN_RELEASE_VERSION}" "${release_assets[@]}" --clobber
+          else
+            gh release create "v${POSTTRAIN_RELEASE_VERSION}" \
             .release/posttrain-wheelhouse-${POSTTRAIN_RELEASE_VERSION}.tar.gz \
             .release/release-SHA256SUMS \
             .release/python-release-receipt.json \
             .release/promotion-receipt.json \
             --title "Posttrain ${POSTTRAIN_RELEASE_VERSION}" \
             --generate-notes
+          fi
 
       - name: Remove only this run's temporary release material
         if: always()

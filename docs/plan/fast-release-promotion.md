@@ -77,6 +77,14 @@ receipt instead of rebuilding or re-running completed checks.
   once for `0.3.8`; later patch releases reuse registry-verified digests.
 - [ ] Run a real candidate/final release-path canary from the merged workflow
   before using it for the next production release.
+- [x] (2026-08-12T03:30Z) Run candidate `31541881780` against the authored
+  0.3.8 bytes: exact-source readiness, fresh OCI receipts, wheelhouse,
+  development-index publication, clean consumer installation, and one packed
+  RTX PRO 6000 dstack qualification all passed in 10m09s.
+- [ ] Resume final publication after the final GitHub-release asset fix. Run
+  `31542795537` promoted the verified candidate bytes to stable and pushed
+  `v0.3.8`, but stopped before creating the GitHub release because the final
+  workspace did not restore `release-SHA256SUMS` from candidate evidence.
 - [x] Remove duplicate full-suite execution from the final workflow while
   retaining exact-SHA, index, registry, dstack, and promotion checks.
 - [ ] Add explicit resume checkpoints between final remote stages; the existing
@@ -119,6 +127,13 @@ receipt instead of rebuilding or re-running completed checks.
   Evidence: `publish_release()` selected every variant when no explicit
   variant was passed, and candidate publication passed the authored framework
   version to each BuildKit request.
+- Observation: the initial 0.3.8 final run correctly promoted the retained
+  candidate bytes and pushed the tag, but it could not create the GitHub
+  release because `release-SHA256SUMS` was not copied from candidate evidence
+  into the final workspace. The original tag guard then made a safe retry
+  impossible even though that tag pointed to the correct merged commit.
+  Evidence: final run `31542795537` completed stable-index promotion and
+  `git push` for `v0.3.8`, then failed with `stat .release/release-SHA256SUMS`.
 
 ## Decision Log
 
@@ -178,6 +193,14 @@ receipt instead of rebuilding or re-running completed checks.
   be unsafe. The first migrated release rebuilds because older receipts cannot
   prove all four inputs.
   Date/Author: 2026-08-12 / user and Codex.
+- Decision: Final tag/release publication is idempotent: restore all release
+  assets from candidate evidence, reuse an existing tag only when it resolves
+  to the accepted merged commit, and upload assets to an existing release with
+  replacement semantics.
+  Rationale: a failure after tag push must be repairable by the same immutable
+  candidate receipt; it must never require a new wheel build, stable-index
+  overwrite, or second GPU qualification.
+  Date/Author: 2026-08-12 / Codex.
 
 ## Outcomes & Retrospective
 
