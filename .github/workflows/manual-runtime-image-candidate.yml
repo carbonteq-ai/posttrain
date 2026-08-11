@@ -1,0 +1,64 @@
+name: Build manual runtime-image candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Pushed framework branch to build
+        required: true
+        type: string
+      framework_version:
+        description: Unique candidate label recorded in the generated manifest
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-runtime-images:
+    runs-on: [self-hosted, linux, x64, lan-release]
+    env:
+      UV_SYSTEM_CERTS: "true"
+      UV_CACHE_DIR: /var/lib/github-runner/.cache/uv
+      JOB_REGISTRY: registry.lan/carbonteq
+    steps:
+      - name: Checkout the explicit source branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ inputs.source_ref }}
+          fetch-depth: 0
+
+      - name: Verify the selected branch is current
+        env:
+          SOURCE_REF: ${{ inputs.source_ref }}
+        run: |
+          git fetch --no-tags origin "refs/heads/${SOURCE_REF}:refs/remotes/origin/${SOURCE_REF}"
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/remotes/origin/${SOURCE_REF}")"
+
+      - name: Validate candidate source and materialize its runtime lock
+        run: |
+          unset TRACKIO_SERVER_URL POSTTRAIN_TRACKIO_SERVER_URL TRACKIO_WRITE_TOKEN
+          uv sync --all-packages --group dev --python 3.13
+          uv run --no-sync posttrain-release check --allow-pending-runtime-lock
+          uv run --no-sync posttrain-release lock-runtime-dependencies
+
+      - name: Build and publish candidate runtime images
+        run: |
+          mkdir -p .release/image-receipts
+          uv run --no-sync posttrain-release images publish \
+            --registry "${JOB_REGISTRY}" \
+            --framework-version "${{ inputs.framework_version }}" \
+            --receipt-root .release/image-receipts \
+            --trust-bundle /etc/ssl/certs/ca-certificates.crt
+          uv run --no-sync posttrain-release check
+
+      - name: Retain generated image manifest and receipts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: manual-runtime-${{ inputs.framework_version }}-${{ github.run_id }}
+          path: |
+            packages/runtime-images/src/posttrain/runtime_images/published.toml
+            packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/workspace.lock.txt
+            .release/image-receipts/**
+          if-no-files-found: error
