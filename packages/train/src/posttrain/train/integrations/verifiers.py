@@ -43,6 +43,7 @@ type OnlineRLTechnique = Literal["grpo", "dapo", "olmo3", "sampo", "distill"]
 class VerifiersRolloutFailure(RuntimeError):
     """A terminal environment trace that cannot safely become a training sample."""
 
+
 _NULL_HARNESS_UNBOUNDED_MCP = '"mcp"'
 _NULL_HARNESS_MCP_V1 = '"mcp>=1.24.0,<2"'
 
@@ -691,9 +692,7 @@ class VerifiersEnvironmentRolloutBridge:
         if len(branches) != 1:
             error = trace.error
             detail = f"; trace error={error.type}: {error.message}" if error is not None else ""
-            raise VerifiersRolloutFailure(
-                f"online-RL requires one trainable trace branch, got {len(branches)}{detail}"
-            )
+            raise VerifiersRolloutFailure(f"online-RL requires one trainable trace branch, got {len(branches)}{detail}")
         branch = branches[0]
         token_ids = tuple(int(value) for value in branch.token_ids)
         sampled_mask = tuple(bool(value) for value in branch.sampled_mask)
@@ -965,7 +964,9 @@ def _trace_metrics(
     }
     if attempted:
         values["train/rl/tool_call_frequency"] = sum(_trace_has_tool_call(record) for record in records) / attempted
-        values["train/rl/tool_failure_frequency"] = sum(_trace_has_tool_failure(record) for record in records) / attempted
+        values["train/rl/tool_failure_frequency"] = (
+            sum(_trace_has_tool_failure(record) for record in records) / attempted
+        )
     if requested is not None:
         values["train/rl/rollouts_missing"] = float(max(requested - attempted, 0))
     # Missing reward variation is evidence that no valid training population
@@ -973,9 +974,9 @@ def _trace_metrics(
     if rewards:
         values["train/rl/reward_std"] = statistics.pstdev(rewards) if len(rewards) > 1 else 0.0
     if grouped:
-        values["train/rl/group_zero_variance_fraction"] = sum(
-            statistics.pstdev(group) == 0 for group in grouped
-        ) / len(grouped)
+        values["train/rl/group_zero_variance_fraction"] = sum(statistics.pstdev(group) == 0 for group in grouped) / len(
+            grouped
+        )
     return values
 
 

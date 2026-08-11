@@ -22,6 +22,9 @@ is still running and advances the maintained veRL runtime used by Posttrain.
 
 ### Changed
 
+- The maintained TRL runtime advances to `1.9.2.post2`, including raw
+  sampler/actor parity checks for native-LoRA rollouts; public CI consumes the
+  matching hash-verified release wheel.
 - The `online-rl-verl-py313` runtime selects CarbonTeq veRL `0.9.0.dev1` at
   immutable source revision `a6fe39c22719ec981ed8544ad8feffd59995cc13`.
 - Observatory presents requested-versus-terminal rollout coverage without

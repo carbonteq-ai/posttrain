@@ -27,6 +27,7 @@ This work repairs implementation conformance with `docs/post-training/06-observa
 - [ ] Milestone 6b: qualify real Trackio SQLite/Doris storage with successful and failed traces (requires configured external storage).
 - [x] (2026-08-11 23:20Z) Milestone 7a: publish the immutable CarbonTeq veRL `0.9.0.dev1` candidate from clean source commit `a6fe39c22719ec981ed8544ad8feffd59995cc13` (tag `carbonteq-v0.9.0.dev1`), build/read back the wheel and source distribution from `carbonteq/dev`, update the exact runtime source lock, and publish the matching kind image after its real Docker/Bake import smoke. The registry index digest is `sha256:5684281f0f85ab741a156f1a92e11062a0e910f58aad03a488e8a2188db2421a`.
 - [x] (2026-08-11 23:59Z) Prepared Posttrain `0.3.7` release inputs and developer-facing notes; the complete local implementation ladder passes with 383 backend tests, 46 frontend tests, Ruff, Pyright, import contracts, and diff checks.
+- [x] (2026-08-12 00:18Z) Rebased the candidate on current `origin/main`, published the official Posttrain `0.3.7` veRL kind image at `sha256:555f8c59f006cc5c19df34678bb532a147cec2409468f6317d13f132df010986`, regenerated `published.toml` from registry readback, repaired the public-consumer TRL `post2` wheel mirror, and passed the 1,193-test repository suite plus the two clean-wheel consumer journeys.
 - [ ] Milestone 7b: build the candidate veRL image and run real TRL and veRL canaries, reconcile evidence, and promote only after every live gate passes.
 
 ## Surprises & Discoveries
@@ -60,6 +61,9 @@ This work repairs implementation conformance with `docs/post-training/06-observa
 
 - Observation: the dirty local veRL checkout was not the release source; a clean descendant already contained the maintained runtime, SAMPO, and dense-distillation history.
   Evidence: `codex/distill-dense-teacher-logprobs` at `c3f49b9117b882fa888e25e4a771461e13167848` was clean and passed the focused CPU suite. The release candidate `a6fe39c22719ec981ed8544ad8feffd59995cc13` changes only version and ledger state, while the dirty checkout includes unqualified TurboQuant/K8V4 research that is deliberately excluded.
+
+- Observation: the framework selected TRL `1.9.2.post2`, but public CI still downloaded and staged `1.9.2.post1` for external consumers.
+  Evidence: the clean-wheel SFT starter failed dependency resolution for `trl==1.9.2.post2`; `.github/workflows/quality.yml` named the older tag, filename, and hash. The workflow now derives its regression expectations from `[tool.posttrain.trl]`, and both consumer journeys pass with the hash-verified `post2` wheel.
 
 ## Decision Log
 
@@ -107,6 +111,10 @@ This work repairs implementation conformance with `docs/post-training/06-observa
   Rationale: a terminal trace is auditable observed work, while a request with no terminal record has an unknown cause. Collapsing either into failure would corrupt operational diagnosis and reward population accounting.
   Date/Author: 2026-08-11 / Codex and user.
 
+- Decision: Treat maintained-fork wheel mirrors as metadata-derived release inputs, not independently edited CI constants.
+  Rationale: a clean consumer must receive the exact package selected by the framework. The new release regression binds TRL's GitHub tag, filename, and SHA-256 to the package selection metadata so a future pin change fails before consumer qualification.
+  Date/Author: 2026-08-12 / Codex.
+
 ## Outcomes & Retrospective
 
 Implementation now makes native terminal evidence durable before trainability checks. A deterministic zero-branch `HarnessError` is appended, delivered to the terminal observer, and only then raises `VerifiersRolloutFailure`; it is never returned as an `EnvironmentRollout`. Tracking submission exceptions retain the native record for final replay. The bridge stops dequeuing new work after its first fatal terminal-projection error, while preserving any concurrently completed terminal records.
@@ -116,6 +124,8 @@ TRL now receives `TraceObservation` rather than a trainable rollout in the strea
 Population evidence now distinguishes requested work, terminal evidence, failed, truncated, unscorable, and missing terminal records. Error records are failed but not automatically truncated. A reward field on an error record is excluded from reward aggregates; absent valid rewards leave reward-spread metrics missing rather than emitting zero. Observatory exposes requested and missing population summaries and treats them as one compatible rollout-count scale.
 
 Local verification on 2026-08-11: `uv run pytest packages/common/tests packages/eval/tests packages/train/tests packages/tracking-trackio/tests apps/observatory/tests -q` passed **382** tests with **4** dependency/environment skips; focused suites subsequently passed after the reward edge-case regression. `uv run ruff check packages/common packages/eval packages/train packages/tracking-trackio apps/observatory`, `uv run pyright`, `uv run lint-imports`, and `git diff --check` passed. Observatory frontend `npm run check` and `npm test` passed (**46** tests). The maintained veRL source release candidate `0.9.0.dev1` at `a6fe39c22719ec981ed8544ad8feffd59995cc13` passed its 114-test focused Python 3.13 CPU suite, wheel/source build, installed-wheel import, index upload, and index readback. The corresponding kind image passed its real Docker/Bake import smoke and registry label readback. The remaining gates are deliberately external: real Trackio SQLite/Doris qualification and TRL/veRL canaries. The dirty local veRL checkout remains diagnostic-only and cannot satisfy any release gate.
+
+Post-rebase verification on 2026-08-12 passed the complete repository suite (**1,193 passed, 13 skipped**), the two isolated wheel-consumer journeys, all **46** frontend tests, Ruff lint and formatting, Pyright, all eight import contracts, the release consistency check, and diff validation. The official Posttrain `0.3.7` veRL runtime manifest was generated from registry digest `sha256:555f8c59f006cc5c19df34678bb532a147cec2409468f6317d13f132df010986`; its OCI labels bind Posttrain revision `d1070e184722dff502c74ef5c6cd02940bcf458b`, veRL revision `a6fe39c22719ec981ed8544ad8feffd59995cc13`, and veRL dependency lock `df7769f306ef8606fed37fd89c3fa2589ac72f39a45e4743816368a1acffe69f`. This prepares release inputs but does not replace the still-open live Trackio and GPU canary gates.
 
 ## Context and Orientation
 

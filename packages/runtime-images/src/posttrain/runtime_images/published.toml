@@ -14,7 +14,7 @@
 # content-addressed, so mirroring preserves identity across registries.
 
 schema_version = 1
-framework_version = "0.3.7rc1"
+framework_version = "0.3.7"
 default_prefix = "registry.lan/carbonteq"
 
 [base]
@@ -39,11 +39,11 @@ provided_packages = ["verifiers"]
 
 [kinds.online-rl-verl-py313]
 repository = "posttrain-kind-online-rl-verl-py313"
-digest = "sha256:5acc841487765b2a11d38ac241754829a7e3aa4cf6f75248e0b26c857466488a"
+digest = "sha256:555f8c59f006cc5c19df34678bb532a147cec2409468f6317d13f132df010986"
 lock_digest = "8c5d3aec6749daa31f7aa8c67729581cdf7913e5da1f83d98b6e58840e4e78d5"
 constraint_lock = "containers/posttrain-job-kinds/locks/workspace.lock.txt"
 backend_constraint_lock = "containers/posttrain-job-kinds/verl-py313/release/backend-constraints.txt"
-backend_lock_digest = "f9f22dc0438998d04000a1bf9b8093f86893adbdc8094b0e6736c77205cb7693"
+backend_lock_digest = "2c58a12f86eeb15de67755aaccbc2e616479e8eca446567f207aaf1c24af5c4a"
 
 [kinds.serve]
 repository = "posttrain-kind-serve"

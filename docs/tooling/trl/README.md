@@ -34,7 +34,7 @@ The bounded-wave follow-up additionally accepts validated `max_num_seqs` and
 `max_num_batched_tokens` engine caps. This lets a 256/512-completion logical
 batch execute as multiple resident-32 rollout waves instead of allowing TRL's
 derived generation batch to overcommit KV cache. The behavior is included in
-`trl==1.9.2.post1` and still requires qualification for each selected
+`trl==1.9.2.post2` and still requires qualification for each selected
 model/runtime profile. It also bounds the actual colocated `LLM.generate`
 request list to the configured
 resident sequence cap; engine caps alone do not prevent vLLM from queueing a
