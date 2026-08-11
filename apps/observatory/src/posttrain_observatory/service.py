@@ -590,6 +590,9 @@ def _grpo_projection(
 ) -> GRPOProjection:
     return GRPOProjection(
         rollout_population=GRPORolloutPopulation(
+            requested=_metric_summary(
+                series, key="requested", label="Requested", metric="train/rl/rollouts_requested", reducer="sum"
+            ),
             attempted=_metric_summary(
                 series, key="attempted", label="Attempted", metric="train/rl/rollouts_attempted", reducer="sum"
             ),
@@ -604,6 +607,9 @@ def _grpo_projection(
             ),
             unscorable=_metric_summary(
                 series, key="unscorable", label="Unscorable", metric="train/rl/rollouts_unscorable", reducer="sum"
+            ),
+            missing=_metric_summary(
+                series, key="missing", label="Missing", metric="train/rl/rollouts_missing", reducer="sum"
             ),
         ),
         acceleration=GRPOAccelerationEvidence(

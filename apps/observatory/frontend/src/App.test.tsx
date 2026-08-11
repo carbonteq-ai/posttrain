@@ -1431,11 +1431,13 @@ describe('Observatory React product shell', () => {
         ],
         grpo: {
           rollout_population: {
+            requested: { key: 'requested', label: 'Requested', metric: 'train/rl/rollouts_requested', state: 'available', value: 256, unit: null },
             attempted: { key: 'attempted', label: 'Attempted', metric: 'train/rl/rollouts_attempted', state: 'available', value: 256, unit: null },
             completed: { key: 'completed', label: 'Completed', metric: 'train/rl/rollouts_completed', state: 'available', value: 256, unit: null },
             failed: { key: 'failed', label: 'Failed', metric: 'train/rl/rollouts_failed', state: 'available', value: 0, unit: null },
             truncated: { key: 'truncated', label: 'Truncated', metric: 'train/rl/rollouts_truncated', state: 'available', value: 0, unit: null },
             unscorable: { key: 'unscorable', label: 'Unscorable', metric: 'train/rl/rollouts_unscorable', state: 'available', value: 0, unit: null },
+            missing: { key: 'missing', label: 'Missing', metric: 'train/rl/rollouts_missing', state: 'available', value: 0, unit: null },
           },
           acceleration: {
             mtp_selected: true,

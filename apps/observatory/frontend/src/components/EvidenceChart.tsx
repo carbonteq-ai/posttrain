@@ -160,7 +160,7 @@ export function scaleGroup(name: string, metricUnits: Record<string, string | nu
   if (name.startsWith('train/rewards/') && name !== 'train/rewards/accuracies') return 'dpo-reward';
   if (name.startsWith('train/logps/')) return 'dpo-log-probability';
   if (name.startsWith('train/logits/')) return 'dpo-logit';
-  if (/train\/rl\/rollouts_(attempted|completed|failed|truncated|unscorable)$/.test(name)) return 'rollout-count';
+  if (/train\/rl\/rollouts_(requested|attempted|completed|failed|truncated|unscorable|missing)$/.test(name)) return 'rollout-count';
   if (name === 'train/learning_rate') return 'learning-rate';
   if (name === 'train/non_padding_tokens_per_second') return 'tokens-per-second';
   if (name === 'train/step_time_seconds') return 'seconds';

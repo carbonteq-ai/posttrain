@@ -29,11 +29,13 @@ type DistillationBackend = Callable[[TrainingContext, OnPolicyDistillationReques
 
 _LIVE_ROLLOUT_POPULATION_METRICS = frozenset(
     {
+        "train/rl/rollouts_requested",
         "train/rl/rollouts_attempted",
         "train/rl/rollouts_completed",
         "train/rl/rollouts_failed",
         "train/rl/rollouts_truncated",
         "train/rl/rollouts_unscorable",
+        "train/rl/rollouts_missing",
     }
 )
 
@@ -383,10 +385,13 @@ def _run_environment_backend(
         result = run()
     except BaseException as training_error:
         try:
+            # A failed backend may have emitted only a partial live population.
+            # Replay all terminal evidence so failed/unscorable counts cannot be
+            # hidden by the normal success-path de-duplication policy.
             _publish_bridge_artifacts(
                 context,
                 bridge,
-                replay_exclusions=replay_exclusions,
+                replay_exclusions=frozenset(),
             )
         except BaseException as finalization_error:
             training_error.add_note(

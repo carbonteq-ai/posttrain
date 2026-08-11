@@ -245,19 +245,24 @@ class EnvironmentRolloutBridge(Protocol):
     def finalize(self) -> tuple[ProducedArtifact, ...]: ...
 
 
-type RolloutCompletionObserver = Callable[[EnvironmentRollout], None]
-type AsyncRolloutCompletionObserver = Callable[[EnvironmentRollout], Awaitable[None]]
+type TerminalTraceObserver = Callable[[TraceObservation], None]
+type AsyncTerminalTraceObserver = Callable[[TraceObservation], Awaitable[None]]
+# Kept as compatibility aliases for external bridge implementations.  The
+# callback contract is intentionally trace-first: an environment can produce a
+# terminal trace that is not safe to turn into an optimizer sample.
+type RolloutCompletionObserver = TerminalTraceObserver
+type AsyncRolloutCompletionObserver = AsyncTerminalTraceObserver
 
 
 class ObservedEnvironmentRolloutBridge(Protocol):
-    """Optional bridge extension that exposes trajectories as they complete."""
+    """Optional bridge extension that exposes terminal traces as they complete."""
 
     async def run_observed(
         self,
         batch: RolloutBatch,
         generator: PolicyGenerator,
         *,
-        on_completed: AsyncRolloutCompletionObserver,
+        on_completed: AsyncTerminalTraceObserver,
     ) -> Sequence[EnvironmentRollout]: ...
 
 
@@ -267,7 +272,7 @@ async def run_observed_rollouts(
     generator: PolicyGenerator,
     observer: RolloutCompletionObserver,
 ) -> Sequence[EnvironmentRollout]:
-    """Run a batch while submitting each completed rollout off the event loop.
+    """Run a batch while submitting each terminal trace off the event loop.
 
     Observation is serialized because provider clients commonly maintain a
     run-local step counter. The provider is still responsible for queueing the
@@ -278,16 +283,16 @@ async def run_observed_rollouts(
 
     observation_lock = asyncio.Lock()
 
-    async def observe(rollout: EnvironmentRollout) -> None:
+    async def observe(trace: TraceObservation) -> None:
         async with observation_lock:
-            await asyncio.to_thread(observer, rollout)
+            await asyncio.to_thread(observer, trace)
 
     if callable(getattr(bridge, "run_observed", None)):
         observed_bridge = cast(ObservedEnvironmentRolloutBridge, bridge)
         return await observed_bridge.run_observed(batch, generator, on_completed=observe)
     rollouts = await bridge.run(batch, generator)
     for rollout in rollouts:
-        await observe(rollout)
+        await observe(rollout.trace)
     return rollouts
 
 
@@ -302,6 +307,7 @@ class EnvironmentRolloutEvidence:
 __all__ = [
     "AgenticTurn",
     "AsyncRolloutCompletionObserver",
+    "AsyncTerminalTraceObserver",
     "EnvironmentRolloutEvidence",
     "EnvironmentRolloutBridge",
     "EnvironmentRollout",
@@ -313,6 +319,7 @@ __all__ = [
     "PolicyTurnResult",
     "RolloutBatch",
     "RolloutCompletionObserver",
+    "TerminalTraceObserver",
     "TokenSpan",
     "ToolRecord",
     "run_observed_rollouts",

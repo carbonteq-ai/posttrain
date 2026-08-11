@@ -463,8 +463,10 @@ async def test_grpo_projection_exposes_population_and_selection_aware_completene
 
     assert view.schema_version == 2
     assert view.grpo is not None
+    assert view.grpo.rollout_population.requested.state == "missing"
     assert view.grpo.rollout_population.attempted.value == 96
     assert view.grpo.rollout_population.failed.value == 0
+    assert view.grpo.rollout_population.missing.state == "missing"
     assert view.grpo.acceleration.mtp_selected is False
     assert view.grpo.acceleration.quantized_kv_cache_selected is False
     assert view.grpo.acceleration.speculative_acceptance.state == "missing"

@@ -3,20 +3,24 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import math
 import os
 import signal
 import subprocess
+import time
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from posttrain.common import (
+    AppendOnlyJsonlTailer,
     HubModelRef,
     LocalArtifactRef,
     ModelVariant,
     ProducedArtifact,
     RunContext,
+    TraceObservation,
 )
 
 from ...bindings import FullParameterUpdate, LoRAUpdate
@@ -280,28 +284,55 @@ def _launch(
     if isinstance(request, GRPORequest | SAMPORequest):
         context.event("grpo_runtime_resolved", _grpo_runtime_attributes(request, plan))
     timeout = _runtime_timeout(request)
-    with context.phase("backend_execution", {"backend": "verl", "operation": plan.operation}):
-        with log_file.open("w", encoding="utf-8") as stream:
-            process = _start_isolated_worker(
-                plan,
-                manifest=manifest,
-                stdout=stream,
-            )
-            try:
-                returncode = process.wait(timeout=timeout)
-            except subprocess.TimeoutExpired as error:
-                os.killpg(process.pid, signal.SIGTERM)
+    trace_tailer = _verifiers_trace_tailer(context, request)
+    try:
+        with context.phase("backend_execution", {"backend": "verl", "operation": plan.operation}):
+            with log_file.open("w", encoding="utf-8") as stream:
+                process = _start_isolated_worker(
+                    plan,
+                    manifest=manifest,
+                    stdout=stream,
+                )
                 try:
-                    process.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    os.killpg(process.pid, signal.SIGKILL)
-                    process.wait()
-                _record_failure_artifacts(context, plan, output_dir)
-                log_tail = "\n".join(log_file.read_text(encoding="utf-8", errors="replace").splitlines()[-40:])
-                raise RuntimeError(
-                    f"isolated veRL {plan.operation} process exceeded its {timeout:g}s runtime deadline; "
-                    f"log tail follows:\n{log_tail}"
-                ) from error
+                    returncode = _wait_for_isolated_worker(
+                        process,
+                        timeout=timeout,
+                        tailer=trace_tailer,
+                        context=context,
+                    )
+                except subprocess.TimeoutExpired as error:
+                    os.killpg(process.pid, signal.SIGTERM)
+                    try:
+                        process.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        os.killpg(process.pid, signal.SIGKILL)
+                        process.wait()
+                    _record_failure_artifacts(context, plan, output_dir)
+                    log_tail = "\n".join(log_file.read_text(encoding="utf-8", errors="replace").splitlines()[-40:])
+                    deadline = f"{timeout:g}s" if timeout is not None else "configured"
+                    raise RuntimeError(
+                        f"isolated veRL {plan.operation} process exceeded its {deadline} runtime deadline; "
+                        f"log tail follows:\n{log_tail}"
+                    ) from error
+                except BaseException:
+                    if process.poll() is None:
+                        os.killpg(process.pid, signal.SIGTERM)
+                        try:
+                            process.wait(timeout=10)
+                        except subprocess.TimeoutExpired:
+                            os.killpg(process.pid, signal.SIGKILL)
+                            process.wait()
+                    _record_failure_artifacts(context, plan, output_dir)
+                    raise
+    finally:
+        if trace_tailer is not None:
+            try:
+                trace_tailer.poll()
+                _record_trace_sync_receipt(context, plan, output_dir, trace_tailer)
+            except Exception:
+                # A receipt is diagnostic evidence. It must not replace the
+                # worker's terminal error or suppress bridge finalization.
+                pass
     if returncode != 0:
         _record_failure_artifacts(context, plan, output_dir)
         log_tail = "\n".join(log_file.read_text(encoding="utf-8", errors="replace").splitlines()[-40:])
@@ -317,6 +348,97 @@ def _launch(
     if isinstance(request, GRPORequest | SAMPORequest):
         _replay_grpo_metrics(context, request, records)
     return backend
+
+
+def _verifiers_trace_tailer(
+    context: RunContext,
+    request: GRPORequest | SAMPORequest | OnPolicyDistillationRequest,
+) -> AppendOnlyJsonlTailer | None:
+    """Tail isolated native traces from the trusted parent process only."""
+
+    trace_path = getattr(request.bridge, "trace_path", None)
+    trace_observation = getattr(request.bridge, "trace_observation", None)
+    mark_live_observed = getattr(request.bridge, "mark_live_observed", None)
+    if not isinstance(trace_path, Path) or not callable(trace_observation) or not callable(mark_live_observed):
+        return None
+
+    def emit(record: dict[str, Any]) -> None:
+        observation = cast(TraceObservation, trace_observation(record))
+        if not isinstance(observation, TraceObservation):
+            raise TypeError("veRL bridge trace_observation must return TraceObservation")
+        context.trace(observation)
+        mark_live_observed(observation.external_id)
+
+    return AppendOnlyJsonlTailer(trace_path, emit)
+
+
+def _wait_for_isolated_worker(
+    process: subprocess.Popen[str],
+    *,
+    timeout: float | None,
+    tailer: AppendOnlyJsonlTailer | None,
+    context: RunContext,
+) -> int:
+    """Poll the worker and its native journal without exposing credentials to Ray."""
+
+    deadline = time.monotonic() + timeout if timeout is not None else None
+    while True:
+        context.cancellation.raise_if_cancelled()
+        if tailer is not None:
+            tailer.poll()
+        returncode = process.poll()
+        if returncode is not None:
+            return returncode
+        if deadline is not None and time.monotonic() >= deadline:
+            assert timeout is not None
+            raise subprocess.TimeoutExpired(process.args, timeout)
+        time.sleep(0.2)
+
+
+def _record_trace_sync_receipt(
+    context: RunContext,
+    plan: VerlLaunchPlan,
+    output_dir: Path,
+    tailer: AppendOnlyJsonlTailer,
+) -> None:
+    """Persist bounded synchronization facts without copying trace payloads."""
+
+    stats = tailer.stats
+    path = output_dir / "posttrain-verl-trace-sync.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "observation_source": "verifiers-jsonl-parent-tailer",
+                "observed_records": stats.observed_records,
+                "emitted_records": stats.emitted_records,
+                "duplicate_records": stats.duplicate_records,
+                "invalid_records": stats.invalid_records,
+                "failed_records": stats.failed_records,
+                "unsynchronized_records": stats.unsynchronized_records,
+                "complete": stats.complete,
+                "acknowledged_offset": tailer.offset,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    context.artifact(
+        ProducedArtifact(
+            name=f"training/diagnostics/verl/{plan.operation}/trace-sync-receipt",
+            kind="training-runtime-receipt",
+            reference=LocalArtifactRef(path.resolve(), hashlib.sha256(path.read_bytes()).hexdigest()),
+            required=False,
+            metadata={
+                "training_backend": plan.backend,
+                "backend_source_revision": plan.backend_source_revision,
+                "operation": plan.operation,
+                "trace_sync_complete": stats.complete,
+            },
+        )
+    )
 
 
 def _record_failure_artifacts(

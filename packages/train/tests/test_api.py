@@ -838,6 +838,34 @@ def test_grpo_replays_trace_population_when_verl_does_not_emit_it_live(
     assert replay.attributes["source_step"] == 3
 
 
+def test_failed_trl_backend_replays_full_terminal_population_evidence(tmp_path: Path) -> None:
+    observer = Observer()
+    model = QWEN_35_2B
+    request = GRPORequest(
+        policy=model,
+        bridge=EvidenceReplayBridge(),
+        settings=QWEN35_GRPO_SMOKE,
+        environment=FakeEnvironment(),
+        training=_training(),
+        inference=_inference(model),
+    )
+
+    def failing_backend(
+        context: RunContext,
+        value: GRPORequest,
+        output_dir: Path,
+    ) -> BackendTrainingResult:
+        del context, value, output_dir
+        raise RuntimeError("rollout failed after terminal trace persistence")
+
+    with pytest.raises(RuntimeError, match="rollout failed"):
+        grpo(_context(tmp_path, observer), request, runner=failing_backend)
+
+    replay = next(batch for batch in observer.metrics_seen if "train/rl/reward_std" in batch.values)
+    assert replay.values["train/rl/rollouts_completed"] == 8.0
+    assert replay.attributes["source_step"] == 3
+
+
 def test_distillation_operation_records_teacher_student_and_native_trace_contract() -> None:
     observer = Observer()
     request = _distillation_request()

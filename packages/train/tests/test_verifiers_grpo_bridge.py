@@ -14,7 +14,6 @@ from posttrain.catalog import open_catalog
 from posttrain.common import CatalogRef, InferenceBinding, ModelVariant
 from posttrain.eval import EnvironmentBinding
 from posttrain.train import (
-    EnvironmentRollout,
     GRPORequest,
     GRPOSettings,
     OnPolicyDistillationRequest,
@@ -31,10 +30,12 @@ from posttrain.train.integrations import (
     preflight_verifiers_environment,
 )
 from posttrain.train.integrations.verifiers import (
+    VerifiersRolloutFailure,
     _apply_verifiers_runtime_compatibility,
     _load_selected_tasks,
     _PolicyClient,
     _trace_is_truncated,
+    _trace_metrics,
     load_verifiers_bridge_snapshot,
 )
 
@@ -139,7 +140,7 @@ class FakeEpisode:
         self.task = task
         self.count = count
 
-    async def run(self):
+    async def run(self) -> Any:
         return [_trace(self.task, index) for index in range(self.count)]
 
 
@@ -199,6 +200,66 @@ class StreamingFakeEnvironment(FakeEnvironment):
     def episode(self, task, context, n=1):
         assert context.model == "model-profile-v1"
         return StreamingFakeEpisode(self, task, n)
+
+
+class FailedTerminalTrace:
+    """Minimal native terminal record with no trainable branch."""
+
+    id = "trace-terminal-failure"
+    branches: tuple[()] = ()
+    agent = None
+    error = SimpleNamespace(type="HarnessError", message="generator unavailable")
+
+    def __init__(self) -> None:
+        self._run: dict[str, object] = {}
+        self._info: dict[str, object] = {}
+
+    def stamp(self, *, run, environment_id, task_index, example_id) -> None:
+        self._run = {"type": "train", "id": run.id, "step": run.step}
+        self._info = {
+            "environment_id": environment_id,
+            "task_index": task_index,
+            "example_id": example_id,
+        }
+
+    def to_record(self) -> dict[str, object]:
+        return {
+            "id": self.id,
+            "run": self._run,
+            "info": self._info,
+            "errors": [{"type": "HarnessError", "message": "generator unavailable"}],
+            "is_completed": False,
+            "stop_condition": None,
+            "calls": [],
+            "nodes": [],
+            "rewards": {},
+        }
+
+
+class FailedTerminalEpisode(FakeEpisode):
+    def __init__(self) -> None:
+        pass
+
+    async def run(self) -> Any:
+        return [FailedTerminalTrace()]
+
+
+class FailedTerminalEnvironment(FakeEnvironment):
+    def episode(self, task, context, n=1):
+        return FailedTerminalEpisode()
+
+
+class EmptyTerminalEpisode(FakeEpisode):
+    def __init__(self) -> None:
+        pass
+
+    async def run(self) -> Any:
+        return []
+
+
+class EmptyTerminalEnvironment(FakeEnvironment):
+    def episode(self, task, context, n=1):
+        return EmptyTerminalEpisode()
 
 
 class InfiniteAlphabetStyleTaskset:
@@ -336,7 +397,7 @@ def test_policy_client_preserves_exact_turn_tokens_and_response() -> None:
             True,
         ),
         ({"is_completed": False, "errors": [], "stop_condition": None, "calls": []}, True),
-        ({"is_completed": True, "errors": [{"type": "runtime"}], "stop_condition": None, "calls": []}, True),
+        ({"is_completed": True, "errors": [{"type": "runtime"}], "stop_condition": None, "calls": []}, False),
     ],
 )
 def test_trace_truncation_uses_native_stop_and_finish_semantics(record, expected) -> None:
@@ -457,11 +518,12 @@ def test_native_bridge_observes_each_rollout_before_the_slowest_episode_finishes
         sampling=PolicySampling(max_tokens=32),
         max_concurrent=2,
     )
-    observed: list[str] = []
+    observed: list[Any] = []
 
-    async def observe(rollout: EnvironmentRollout) -> None:
-        observed.append(rollout.example_id)
-        if rollout.example_id == "train/000007":
+    async def observe(trace) -> None:
+        example_id = str(trace.attributes["example_id"])
+        observed.append(example_id)
+        if example_id == "train/000007":
             environment.release_slow.set()
 
     rollouts = asyncio.run(
@@ -510,6 +572,122 @@ def test_native_bridge_replays_preserved_traces_when_live_observation_is_unavail
     evidence = bridge.evidence()
     assert [trace.external_id for trace in evidence.traces] == [rollouts[0].trace.external_id]
     assert len(evidence.metrics) == 1
+
+
+def test_native_bridge_persists_terminal_failure_before_trainable_projection(tmp_path) -> None:
+    bridge = VerifiersEnvironmentRolloutBridge(
+        dataset_id="custom/train-v1",
+        revision="revision",
+        tasks={7: SimpleNamespace(data=TaskData(idx=7, prompt="terminal failure"))},
+        environment_factory=FailedTerminalEnvironment,
+        trace_path=tmp_path / "traces.jsonl",
+        environment_id="custom-v1",
+        run_id="run-1",
+        sampling=PolicySampling(max_tokens=32),
+    )
+
+    observed: list[Any] = []
+
+    async def observe(trace) -> None:
+        observed.append(trace)
+
+    with pytest.raises(VerifiersRolloutFailure, match="harness or environment error"):
+        asyncio.run(
+            bridge.run_observed(
+                RolloutBatch(example_ids=("train/000007",), step=3, model_id="model-profile-v1"),
+                FakeGenerator(),
+                on_completed=observe,
+            )
+        )
+
+    assert [trace.external_id for trace in observed] == ["trace-terminal-failure"]
+    assert observed[0].attributes["has_error"] is True
+    assert observed[0].attributes["is_truncated"] is False
+    evidence = bridge.evidence()
+    # The live callback accepted the trace, so reconciliation only needs
+    # metrics; the native journal remains attached as the durable source.
+    assert evidence.traces == ()
+    [metrics] = evidence.metrics
+    assert metrics.values["train/rl/rollouts_requested"] == 1
+    assert metrics.values["train/rl/rollouts_attempted"] == 1
+    assert metrics.values["train/rl/rollouts_failed"] == 1
+    assert metrics.values["train/rl/rollouts_unscorable"] == 1
+    assert metrics.values["train/rl/rollouts_missing"] == 0
+    assert "train/rl/reward_std" not in metrics.values
+    assert "train/rl/group_zero_variance_fraction" not in metrics.values
+
+
+def test_native_bridge_replays_terminal_trace_when_live_observer_fails(tmp_path) -> None:
+    bridge = VerifiersEnvironmentRolloutBridge(
+        dataset_id="custom/train-v1",
+        revision="revision",
+        tasks={7: SimpleNamespace(data=TaskData(idx=7, prompt="observer failure"))},
+        environment_factory=FakeEnvironment,
+        trace_path=tmp_path / "traces.jsonl",
+        environment_id="custom-v1",
+        run_id="run-1",
+        sampling=PolicySampling(max_tokens=32),
+    )
+
+    async def failing_observer(_trace) -> None:
+        raise RuntimeError("tracking unavailable")
+
+    asyncio.run(
+        bridge.run_observed(
+            RolloutBatch(example_ids=("train/000007",), step=3, model_id="model-profile-v1"),
+            FakeGenerator(),
+            on_completed=failing_observer,
+        )
+    )
+
+    assert len(bridge.evidence().traces) == 1
+
+
+def test_native_bridge_reports_missing_population_without_inventing_failures(tmp_path) -> None:
+    bridge = VerifiersEnvironmentRolloutBridge(
+        dataset_id="custom/train-v1",
+        revision="revision",
+        tasks={7: SimpleNamespace(data=TaskData(idx=7, prompt="no terminal record"))},
+        environment_factory=EmptyTerminalEnvironment,
+        trace_path=tmp_path / "traces.jsonl",
+        environment_id="custom-v1",
+        run_id="run-1",
+        sampling=PolicySampling(max_tokens=32),
+    )
+
+    with pytest.raises(VerifiersRolloutFailure, match="returned 0 traces"):
+        asyncio.run(
+            bridge.run(
+                RolloutBatch(example_ids=("train/000007",), step=3, model_id="model-profile-v1"),
+                FakeGenerator(),
+            )
+        )
+
+    [metrics] = bridge.evidence().metrics
+    assert metrics.values["train/rl/rollouts_requested"] == 1
+    assert metrics.values["train/rl/rollouts_attempted"] == 0
+    assert metrics.values["train/rl/rollouts_missing"] == 1
+    assert metrics.values["train/rl/rollouts_failed"] == 0
+    assert "train/rl/reward_std" not in metrics.values
+
+
+def test_terminal_error_reward_is_never_folded_into_learning_aggregates() -> None:
+    metrics = _trace_metrics(
+        (
+            {
+                "id": "failed-with-reward",
+                "errors": [{"type": "HarnessError"}],
+                "rewards": {"verifier": 1.0},
+                "is_completed": False,
+                "calls": [],
+                "nodes": [],
+            },
+        ),
+        requested=1,
+    )
+
+    assert metrics["train/rl/rollouts_unscorable"] == 1
+    assert "train/rl/reward_std" not in metrics
 
 
 def test_native_bridge_preserves_declared_task_facets_in_dataset_and_trace_evidence(tmp_path) -> None:
