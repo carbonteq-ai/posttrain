@@ -75,29 +75,29 @@ receipt instead of rebuilding or re-running completed checks.
   bundle digest rather than the framework distribution version. Existing
   `0.3.7` image receipts intentionally lack that provenance and will rebuild
   once for `0.3.8`; later patch releases reuse registry-verified digests.
-- [ ] Run a real candidate/final release-path canary from the merged workflow
+- [x] Run a real candidate/final release-path canary from the merged workflow
   before using it for the next production release.
 - [x] (2026-08-12T03:30Z) Run candidate `31541881780` against the authored
   0.3.8 bytes: exact-source readiness, fresh OCI receipts, wheelhouse,
   development-index publication, clean consumer installation, and one packed
   RTX PRO 6000 dstack qualification all passed in 10m09s.
-- [ ] Resume final publication after the final GitHub-release asset fix. Run
-  `31542795537` promoted the verified candidate bytes to stable and pushed
-  `v0.3.8`, but stopped before creating the GitHub release because the final
-  workspace did not restore `release-SHA256SUMS` from candidate evidence.
-- [ ] Permit a release-plumbing-only commit after a squash merge by comparing
-  it with the merged commit whose tree is identical to the candidate, not with
-  GitHub's merge-base comparison. Final run `31543313634` exposed this second
-  resume-path defect before any new promotion operation began.
-- [ ] Bind a tag to the immutable artifact-tree commit, rather than a later
-  workflow-only approval commit. Final run `31543674936` accepted the retained
-  candidate and stable bytes but correctly refused to move the existing tag.
+- [x] (2026-08-12T03:45Z) Resume final publication after the GitHub-release
+  asset fix. Final `31544143377` verified the retained candidate, stable-index
+  bytes, GitHub release assets, and the immutable `v0.3.8` tag in 1m05s.
+- [x] (2026-08-12T03:45Z) Permit a release-plumbing-only commit after a squash
+  merge by comparing it with the merged commit whose tree is identical to the
+  candidate, not with GitHub's merge-base comparison.
+- [x] (2026-08-12T03:45Z) Bind a tag to the immutable artifact-tree commit,
+  rather than a later workflow-only approval commit.
 - [x] Remove duplicate full-suite execution from the final workflow while
   retaining exact-SHA, index, registry, dstack, and promotion checks.
 - [ ] Add explicit resume checkpoints between final remote stages; the existing
   retained receipt remains the safe retry boundary for now.
 - [x] Validate the successful 0.3.5 promotion and retain its receipt, release
   URL, stable-index evidence, image digests, and dstack evidence.
+- [x] (2026-08-12T03:55Z) Repair the published 0.3.8 checksum asset in place
+  and make future release checksum files portable. A fresh GitHub-release
+  download verifies `posttrain-wheelhouse-0.3.8.tar.gz` successfully.
 
 ## Surprises & Discoveries
 
@@ -156,6 +156,10 @@ receipt instead of rebuilding or re-running completed checks.
   Evidence: `v0.3.8` resolves to `7cc40913`, whose tree matches candidate
   `22565c48`; final run `31543674936` used later approval commit `7d7a1262`
   and was correctly rejected by the existing-tag guard.
+- Observation: `sha256sum` received the absolute path to the wheelhouse
+  archive, so the original `v0.3.8` checksum asset was cryptographically
+  correct but unusable after download. The repaired asset contains only the
+  archive basename and verifies with a fresh GitHub-release download.
 
 ## Decision Log
 
@@ -236,6 +240,11 @@ receipt instead of rebuilding or re-running completed checks.
   Rationale: later workflow-only repair commits may authorize a resumable
   finalization but cannot truthfully become the version tag's source.
   Date/Author: 2026-08-12 / Codex.
+- Decision: Release checksum assets reference archive basenames, never
+  runner-local paths.
+  Rationale: a release asset must be directly usable after downloading from
+  GitHub, independently of the build runner's filesystem layout.
+  Date/Author: 2026-08-12 / Codex.
 
 ## Outcomes & Retrospective
 
@@ -248,6 +257,15 @@ The v0.3.7 release is also complete: candidate `31536929524` succeeded in
 evidence, but two versioned wheelhouses and two GPU canaries made the combined
 path exceed the target. This plan now converts that evidence into a
 single-canary final-version promotion path.
+
+The 0.3.8 release is complete: candidate `31541881780` qualified the authored
+final bytes, including one packed RTX PRO 6000 canary, in 10m09s; final
+`31544143377` promoted the exact retained bytes, created the immutable tag,
+and published the GitHub release in 1m05s. The initial runtime-image migration
+accounts for most candidate time; subsequent source-only releases can reuse
+digest-qualified images. The published checksum asset was verified again after
+a portable-filename repair, and its generator now prevents runner-local paths
+from recurring.
 
 ## Context and Orientation
 

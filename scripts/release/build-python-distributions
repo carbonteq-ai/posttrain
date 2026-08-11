@@ -78,5 +78,8 @@ cp "$stage_dir/release/github-constraints.txt" "$bundle_dir/github-constraints.t
 )
 tarball="${output_dir}/posttrain-wheelhouse-${version}.tar.gz"
 tar -czf "$tarball" -C "$bundle_dir" .
-sha256sum "$tarball" > "${output_dir}/release-SHA256SUMS"
+(
+  cd "$output_dir"
+  sha256sum "$(basename "$tarball")" > release-SHA256SUMS
+)
 echo "built immutable Python distribution set: $version"
