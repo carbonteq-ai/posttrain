@@ -85,6 +85,10 @@ receipt instead of rebuilding or re-running completed checks.
   `31542795537` promoted the verified candidate bytes to stable and pushed
   `v0.3.8`, but stopped before creating the GitHub release because the final
   workspace did not restore `release-SHA256SUMS` from candidate evidence.
+- [ ] Permit a release-plumbing-only commit after a squash merge by comparing
+  it with the merged commit whose tree is identical to the candidate, not with
+  GitHub's merge-base comparison. Final run `31543313634` exposed this second
+  resume-path defect before any new promotion operation began.
 - [x] Remove duplicate full-suite execution from the final workflow while
   retaining exact-SHA, index, registry, dstack, and promotion checks.
 - [ ] Add explicit resume checkpoints between final remote stages; the existing
@@ -134,6 +138,14 @@ receipt instead of rebuilding or re-running completed checks.
   impossible even though that tag pointed to the correct merged commit.
   Evidence: final run `31542795537` completed stable-index promotion and
   `git push` for `v0.3.8`, then failed with `stat .release/release-SHA256SUMS`.
+- Observation: GitHub's `candidate...release` comparison uses the merge base.
+  After the candidate was squash-merged and a release-only repair was merged,
+  that comparison treated the original candidate implementation as a fresh
+  diff and rejected safe finalization.
+  Evidence: final run `31543313634` listed the candidate's runtime and release
+  source files even though merged commit `7cc40913` has the candidate's exact
+  tree; `git diff 7cc40913..71b47e91` contains only the permitted workflow,
+  test, and plan changes.
 
 ## Decision Log
 
@@ -200,6 +212,12 @@ receipt instead of rebuilding or re-running completed checks.
   Rationale: a failure after tag push must be repairable by the same immutable
   candidate receipt; it must never require a new wheel build, stable-index
   overwrite, or second GPU qualification.
+  Date/Author: 2026-08-12 / Codex.
+- Decision: For a non-ancestor candidate whose original tree is no longer the
+  release tree, find the equivalent tree commit in the merged history and
+  evaluate only its direct diff to the release target.
+  Rationale: this preserves the same build-input boundary after a squash merge
+  and a release-only repair, without accepting a changed candidate source.
   Date/Author: 2026-08-12 / Codex.
 
 ## Outcomes & Retrospective
