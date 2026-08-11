@@ -759,7 +759,9 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert "--jq '.commit.tree.sha'" in final
     assert 'release_tree="$(git rev-parse "${RELEASE_SOURCE_SHA}^{tree}")"' in final
     assert 'if [[ "${candidate_tree}" = "${release_tree}" ]]; then' in final
-    assert '"repos/${GITHUB_REPOSITORY}/compare/${candidate_sha}...${RELEASE_SOURCE_SHA}"' in final
+    assert 'done < <(git rev-list "${RELEASE_SOURCE_SHA}")' in final
+    assert 'git diff --name-only "${candidate_equivalent_commit}" "${RELEASE_SOURCE_SHA}"' in final
+    assert "accepted candidate tree has no equivalent merged commit" in final
     assert ".github/*|apps/release/tests/*|docs/plan/*" in final
     assert "candidate build inputs changed:" in final
     assert 'test "${candidate_version}" = "${release_version}"' in final
