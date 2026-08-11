@@ -379,7 +379,7 @@ def test_wheel_starters_cover_sft_and_environment_backed_paths(
             "from posttrain.train.integrations import create_verifiers_training_bridge; "
             "layout=discover_project(Path.cwd()); "
             "catalog=open_catalog(scope=layout.project_id, overlays=layout.catalog_overlays); "
-            "environment=catalog.resolve(CatalogRef('environment','gsm8k-distill-train')).value; "
+            "environment=catalog.resolve(CatalogRef('environment','starter-gsm8k-train')).value; "
             "bridge=create_verifiers_training_bridge("
             "environment, layout.state/'consumer-traces.jsonl', 'wheel-consumer', "
             "sampling=PolicySampling(max_tokens=384)); "
@@ -388,7 +388,7 @@ def test_wheel_starters_cover_sft_and_environment_backed_paths(
         cwd=grpo,
         env=clean_environment,
     )
-    assert bridge.stdout.strip().endswith("gsm8k-distill-train/grpo/seed-0-limit-1 1")
+    assert bridge.stdout.strip().endswith("starter-gsm8k-train/grpo/seed-0-limit-1 1")
 
     starter_text = "\n".join(
         path.read_text(encoding="utf-8")

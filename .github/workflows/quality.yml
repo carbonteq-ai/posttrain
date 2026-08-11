@@ -165,7 +165,10 @@ jobs:
           echo "${CARBONTEQ_TRL_WHEEL_SHA256}  ${CARBONTEQ_TRL_WHEEL_PATH}" | sha256sum --check --strict
           VIRTUAL_ENV=.venv uv pip install --no-deps "${CARBONTEQ_TRACKIO_WHEEL_PATH}"
       - name: Install the Verifiers integration
-        run: uv sync --frozen --all-packages --extra verifiers --python 3.13 --no-install-package carbonteq-trackio --inexact
+        run: |
+          uv sync --frozen --all-packages --extra verifiers --python 3.13 --no-install-package carbonteq-trackio --inexact
+          uv pip install --python .venv/bin/python \
+            "gsm8k-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@b7bcb591facfcd2b073802f6d7496b24ab9c479e#subdirectory=environments/gsm8k_v1"
       - name: Test the Verifiers bridge
         run: |
           uv run \
