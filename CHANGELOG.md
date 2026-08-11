@@ -4,6 +4,38 @@ All notable changes to Posttrain are documented here. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with a coordinated
 version across first-party distributions.
 
+## 0.3.7 - Unreleased
+
+This release makes terminal online-RL evidence observable while rollout work
+is still running and advances the maintained veRL runtime used by Posttrain.
+
+### Added
+
+- Terminal Verifiers traces are retained before trainability checks, including
+  harness errors, inference failures, unscorable attempts, and truncated
+  completions.
+- The veRL parent process tails native rollout evidence from its isolated
+  worker, submits complete records through the configured observer, and retains
+  a compact synchronization receipt on success or failure.
+- Online-RL population evidence distinguishes requested rollouts, terminal
+  traces, and attempts that ended without terminal evidence.
+
+### Changed
+
+- The `online-rl-verl-py313` runtime selects CarbonTeq veRL `0.9.0.dev1` at
+  immutable source revision `a6fe39c22719ec981ed8544ad8feffd59995cc13`.
+- Observatory presents requested-versus-terminal rollout coverage without
+  treating missing evidence as a failed or zero-reward rollout.
+
+### Fixed
+
+- Execution failures are no longer classified as length truncation unless the
+  native trace records an actual output boundary.
+- Failed or unscorable traces no longer fabricate reward spread or enter
+  advantage, active-sampling, clipping, entropy, or optimizer calculations.
+- TRL failure finalization retains bridge-derived rollout counters instead of
+  applying successful-batch metric exclusions.
+
 ## 0.3.6 - 2026-08-10
 
 This release tightens local job lifecycle handling, selected-input packaging,
