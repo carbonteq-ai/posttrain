@@ -33,7 +33,7 @@ def build_verifiers_grpo_request(
 ) -> GRPORequest:
     """Build the public GRPO request directly from an environment binding."""
 
-    sampling = _verified_policy_sampling(environment, inference, settings.max_completion_length)
+    sampling = validate_verifiers_policy_sampling(environment, inference, settings.max_completion_length)
     bridge = create_verifiers_training_bridge(
         environment,
         trace_path,
@@ -70,7 +70,7 @@ def build_verifiers_distillation_request(
 ) -> OnPolicyDistillationRequest:
     """Build the public distillation request directly from an environment binding."""
 
-    sampling = _verified_policy_sampling(
+    sampling = validate_verifiers_policy_sampling(
         environment,
         rollout_inference,
         settings.max_completion_length,
@@ -112,7 +112,7 @@ def build_verifiers_sampo_request(
 ) -> SAMPORequest:
     """Build a SAMPO request from a multi-turn Verifiers environment."""
 
-    sampling = _verified_policy_sampling(environment, inference, settings.max_completion_length)
+    sampling = validate_verifiers_policy_sampling(environment, inference, settings.max_completion_length)
     bridge = create_verifiers_training_bridge(
         environment,
         trace_path,
@@ -133,7 +133,7 @@ def build_verifiers_sampo_request(
     )
 
 
-def _verified_policy_sampling(
+def validate_verifiers_policy_sampling(
     environment: VerifiersEnvironmentSelection,
     inference: InferenceBinding,
     max_tokens: int,
@@ -154,4 +154,9 @@ def _verified_policy_sampling(
     return inference_sampling
 
 
-__all__ = ["build_verifiers_distillation_request", "build_verifiers_grpo_request", "build_verifiers_sampo_request"]
+__all__ = [
+    "build_verifiers_distillation_request",
+    "build_verifiers_grpo_request",
+    "build_verifiers_sampo_request",
+    "validate_verifiers_policy_sampling",
+]
