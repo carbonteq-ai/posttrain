@@ -766,6 +766,10 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert 'test "$(jq -r \'.source_sha // empty\' "${candidate_readiness}")" = "${candidate_sha}"' in final
     assert 'test "$(jq -r \'.source_tree // empty\' "${candidate_readiness}")" = "${candidate_tree}"' in final
     assert 'cp "${candidate_manifest}" packages/runtime-images/src/posttrain/runtime_images/published.toml' in final
+    assert 'candidate_checksums="$(find .release/candidate -type f -name release-SHA256SUMS -print -quit)"' in final
+    assert 'cp "${candidate_checksums}" .release/release-SHA256SUMS' in final
+    assert 'test "$(git rev-parse "v${POSTTRAIN_RELEASE_VERSION}^{}")" = "${RELEASE_SOURCE_SHA}"' in final
+    assert 'gh release upload "v${POSTTRAIN_RELEASE_VERSION}" "${release_assets[@]}" --clobber' in final
     assert "resume_from_run_id" in final
     assert 'gh run view "${RESUME_FROM_RUN_ID}"' in final
     assert "workflowName // empty" in final
