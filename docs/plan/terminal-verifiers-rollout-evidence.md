@@ -24,7 +24,13 @@ This work repairs implementation conformance with `docs/post-training/06-observa
 - [x] (2026-08-11 22:06Z) Milestone 4: add a host-owned veRL JSONL tailer, final drain, compact sync receipt, and cancellation-aware process lifecycle.
 - [x] (2026-08-11 22:06Z) Milestone 5: normalize failed, truncated, unscorable, and missing-population evidence without fabricating reward or advantage values.
 - [x] (2026-08-11 22:06Z) Milestone 6a: add Observatory requested-versus-terminal population projection and chart scale support; unit presentation is covered by the product service and frontend suites.
-- [ ] Milestone 6b: qualify real Trackio SQLite/Doris storage with successful and failed traces (requires configured external storage).
+- [x] (2026-08-12) Milestone 6b SQLite portion: a real local
+  `TrackioBackend` and independent `TrackioDataSource` observed a controlled
+  failed native Verifiers trace by stable external id before the bridge raised
+  and before the Trackio run was finalized. The proof also checks that failed
+  traces remain outside reward and group-variance aggregates.
+- [ ] Milestone 6b Doris portion: qualify configured external Doris storage
+  with successful and failed traces, including duplicate external-id behavior.
 - [x] (2026-08-11 23:20Z) Milestone 7a: publish the immutable CarbonTeq veRL `0.9.0.dev1` candidate from clean source commit `a6fe39c22719ec981ed8544ad8feffd59995cc13` (tag `carbonteq-v0.9.0.dev1`), build/read back the wheel and source distribution from `carbonteq/dev`, update the exact runtime source lock, and publish the matching kind image after its real Docker/Bake import smoke. The registry index digest is `sha256:5684281f0f85ab741a156f1a92e11062a0e910f58aad03a488e8a2188db2421a`.
 - [x] (2026-08-11 23:59Z) Prepared Posttrain `0.3.7` release inputs and developer-facing notes; the complete local implementation ladder passes with 383 backend tests, 46 frontend tests, Ruff, Pyright, import contracts, and diff checks.
 - [x] (2026-08-12 00:18Z) Rebased the candidate on current `origin/main`, published the official Posttrain `0.3.7` veRL kind image at `sha256:555f8c59f006cc5c19df34678bb532a147cec2409468f6317d13f132df010986`, regenerated `published.toml` from registry readback, repaired the public-consumer TRL `post2` wheel mirror, and passed the 1,193-test repository suite plus the two clean-wheel consumer journeys.
@@ -83,6 +89,16 @@ This work repairs implementation conformance with `docs/post-training/06-observa
   Evidence: Trackio job view for
   `ambient-k1-olmo3-posttrain038-1step-20260812-r1`; dstack provider
   `pt-5c55f0cbe1dad94bba6f37d2` remained `running` at the earlier read.
+
+- Observation: local Trackio SQLite writes use a bounded asynchronous sender,
+  so an independent reader can briefly see no project or no canonical run just
+  after `TrackedRun.trace()` returns. Retrying the reader is the correct
+  producer/consumer contract; forcing `finish()` or an out-of-band flush would
+  fail to test live evidence.
+  Evidence: `apps/lab/tests/test_terminal_rollout_evidence.py` polls the real
+  `TrackioDataSource` for at most two seconds after the terminal callback. It
+  observes the native `HarnessError` trace before the bridge raises its typed
+  failure and before `tracked.finish(...)` runs.
 
 ## Decision Log
 
@@ -160,6 +176,18 @@ reward mean 0.5977, reward standard deviation 0.3906, zero-variance groups
 not full model weights; its paired recovery checkpoint is 121.3 MB and passed
 metadata/digest verification. This closes the successful-TRL incremental
 delivery gate, but not the controlled-failure or veRL gates.
+
+The SQLite half of the failure-storage gate is now also covered in the real
+composition host. `apps/lab/tests/test_terminal_rollout_evidence.py` starts a
+real local `TrackioBackend`, delivers a controlled zero-branch
+`HarnessError` through `VerifiersEnvironmentRolloutBridge.run_observed()`, and
+uses an independent `TrackioDataSource` to read that exact external id before
+the run is finalized. It verifies the error and non-truncation attributes,
+then verifies that the failed record cannot produce reward standard deviation
+or group-variance learning evidence. On 2026-08-12 the focused composition,
+bridge, and Trackio adapter suites passed 52 tests, alongside Ruff, Pyright,
+import-boundary, and diff checks. External Doris and live GPU failure/veRL
+qualification remain deliberately open.
 
 ## Context and Orientation
 
