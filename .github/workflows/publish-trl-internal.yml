@@ -64,7 +64,7 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           version="${RELEASE_TAG#carbonteq-v}"
-          uv venv .trl-consumer --python 3.13
+          uv venv .trl-consumer --clear --python 3.13
           uv pip install --python .trl-consumer/bin/python \
             --index-url "${INTERNAL_SIMPLE_URL}" "trl==${version}"
           export EXPECTED_VERSION="${version}"
