@@ -432,7 +432,7 @@ The current V1 SAMPO release delta is published at
 `5433d1c297870207c335108dcaac42f8da6f59bd` on branch
 `codex/sampo-v1-metadata`.
 
-The current distillation release delta is published at
+The dense-distillation parent is published at
 `c3f49b9117b882fa888e25e4a771461e13167848` on branch
 `codex/distill-dense-teacher-logprobs`. In addition to the preceding maintained
 delta, it aligns dense and jagged teacher log probabilities to response tokens
@@ -440,6 +440,15 @@ without reading unused TensorDict backing storage and treats fully masked
 synthetic padding microbatches as zero-contribution batches. The paired runtime
 kind preinstalls the Verifiers harness prerequisites so parallel rollout
 workers never race while mutating the container package database.
+
+The current immutable CarbonTeq veRL release candidate is
+`0.9.0.dev1`, source commit `a6fe39c22719ec981ed8544ad8feffd59995cc13`,
+and tag `carbonteq-v0.9.0.dev1`. Its wheel and source distribution were built,
+uploaded to `carbonteq/dev`, and read back from that index. It changes only the
+distribution version and release ledger from the dense-distillation parent; the
+candidate has passed the 114-test focused Python 3.13 CPU suite, wheel install,
+and focused Ruff/diff checks. It is not a GPU qualification or production
+promotion: the runtime image rebuild and bounded veRL canary remain required.
 
 The published SAMPO revision adds:
 
