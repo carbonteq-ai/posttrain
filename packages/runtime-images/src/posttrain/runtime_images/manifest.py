@@ -25,13 +25,20 @@ class ManifestError(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class PublishedImage:
-    """One image published from this framework release."""
+    """One immutable runtime dependency selected by a framework release."""
 
     name: str
     repository: str
     digest: str
     lock_digest: str
     constraint_lock: PurePosixPath
+    # Framework distributions can reuse a runtime image only when its own
+    # source, lock, parent, and installed trust material are unchanged. Older
+    # manifests omit these fields and are rebuilt once rather than assumed
+    # compatible.
+    runtime_source_digest: str | None = None
+    trust_bundle_digest: str | None = None
+    base_digest: str | None = None
     provided_packages: tuple[str, ...] = ()
     # A job-kind image whose runtime has a second, separately locked Python
     # environment publishes that lock too.  The veRL image is the only current
@@ -96,6 +103,19 @@ def _image(name: str, payload: Mapping[str, object]) -> PublishedImage:
     if not digest.startswith("sha256:") or len(digest) != len("sha256:") + 64:
         raise ManifestError(f"{name}: 'digest' must be a sha256 OCI digest, got {digest!r}")
 
+    def _optional_digest(key: str, *, prefixed: bool = False) -> str | None:
+        value = payload.get(key)
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise ManifestError(f"{name}: {key!r} must be a string when present")
+        if prefixed and not value.startswith("sha256:"):
+            raise ManifestError(f"{name}: {key!r} must use the sha256: prefix")
+        candidate = value.removeprefix("sha256:") if prefixed else value
+        if len(candidate) != 64 or any(character not in "0123456789abcdef" for character in candidate):
+            raise ManifestError(f"{name}: {key!r} must be a SHA-256 digest when present")
+        return value
+
     provided = payload.get("provided_packages", ())
     if not isinstance(provided, list | tuple) or not all(isinstance(p, str) for p in provided):
         raise ManifestError(f"{name}: 'provided_packages' must be a list of strings")
@@ -121,6 +141,9 @@ def _image(name: str, payload: Mapping[str, object]) -> PublishedImage:
         digest=digest,
         lock_digest=_text("lock_digest"),
         constraint_lock=PurePosixPath(_text("constraint_lock")),
+        runtime_source_digest=_optional_digest("runtime_source_digest"),
+        trust_bundle_digest=_optional_digest("trust_bundle_digest"),
+        base_digest=_optional_digest("base_digest", prefixed=True),
         provided_packages=tuple(provided),
         backend_constraint_lock=(PurePosixPath(backend_lock) if backend_lock is not None else None),
         backend_lock_digest=backend_digest,

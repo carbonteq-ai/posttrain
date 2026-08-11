@@ -18,7 +18,7 @@ from posttrain.runtime_images import (
     constraint_lock,
     lock_digest,
 )
-from posttrain.runtime_images.manifest import ManifestError, PublishedImage, load_manifest
+from posttrain.runtime_images.manifest import ManifestError, PublishedImage, PublishedManifest, load_manifest
 from posttrain_release.artifacts import create_distribution_receipt, verify_distribution_receipt
 from posttrain_release.candidate import next_candidate_version
 from posttrain_release.cli import main
@@ -965,6 +965,84 @@ def test_variant_subset_preserves_canonical_order() -> None:
     from posttrain_release.publish import _normalize_variants
 
     assert _normalize_variants(["transform", "eval"]) == ("eval", "transform")
+
+
+def test_unchanged_runtime_images_are_reused_across_framework_versions(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A patch release must not rebuild runtime layers just to relabel them."""
+    import posttrain_release.publish as publish
+
+    root = publish.cached_definition_root()
+    trust = tmp_path / "internal-ca.pem"
+    trust.write_text("test internal authority\n", encoding="utf-8")
+    trust_digest = publish._trust_bundle_digest(trust)
+    base_digest = "sha256:" + "a" * 64
+    base = PublishedImage(
+        name="base",
+        repository="posttrain-base",
+        digest=base_digest,
+        lock_digest=lock_digest(),
+        constraint_lock=constraint_lock("supervised"),
+        runtime_source_digest=publish._base_source_digest(root),
+        trust_bundle_digest=trust_digest,
+    )
+    kinds = {
+        variant: PublishedImage(
+            name=f"kinds.{variant}",
+            repository=f"posttrain-kind-{variant}",
+            digest="sha256:" + f"{index:x}" * 64,
+            lock_digest=lock_digest(constraint_lock(variant)),
+            constraint_lock=constraint_lock(variant),
+            runtime_source_digest=publish._kind_source_digest(root),
+            base_digest=base_digest,
+            backend_constraint_lock=(VERL_BACKEND_LOCK if variant == "online-rl-verl-py313" else None),
+            backend_lock_digest=(lock_digest(VERL_BACKEND_LOCK) if variant == "online-rl-verl-py313" else None),
+        )
+        for index, variant in enumerate(RUNTIME_VARIANTS)
+    }
+    prior = PublishedManifest(
+        schema_version=1,
+        framework_version="0.3.7",
+        default_prefix="registry.lan/carbonteq",
+        base=base,
+        kinds=kinds,
+    )
+    monkeypatch.setattr(publish, "load_manifest", lambda **_: prior)
+
+    class Builder:
+        def __init__(self) -> None:
+            self.builds = 0
+            self.verified: list[str] = []
+
+        def build(self, request: object) -> object:
+            self.builds += 1
+            raise AssertionError(f"unexpected runtime build: {request}")
+
+        def has_receipt(self, request: object) -> bool:
+            return False
+
+        def verify_remote(self, image: object) -> None:
+            self.verified.append(str(image))
+
+    builder = Builder()
+    rendered = publish.publish_release(
+        prefix="registry.lan/carbonteq",
+        framework_version="0.3.8",
+        created="2026-08-12T00:00:00Z",
+        revision="a" * 40,
+        builder=builder,  # type: ignore[arg-type]
+        trust_bundle=trust,
+        parallel=False,
+    )
+
+    document = tomllib.loads(rendered)
+    assert builder.builds == 0
+    assert len(builder.verified) == len(RUNTIME_VARIANTS) + 1
+    assert document["framework_version"] == "0.3.8"
+    assert document["base"]["trust_bundle_digest"] == trust_digest
+    assert document["kinds"]["eval"]["base_digest"] == base_digest
 
 
 def test_public_ci_trackio_mirror_matches_locked_distribution() -> None:

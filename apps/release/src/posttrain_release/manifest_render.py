@@ -24,7 +24,8 @@ _HEADER = """\
 # `default_prefix` is where the FRAMEWORK publishes, once per release. It is not
 # a project's registry: a project pushes its own actual-job images to
 # POSTTRAIN_REGISTRY, which may also mirror these images. Digests are
-# content-addressed, so mirroring preserves identity across registries.
+# content-addressed, so mirroring preserves identity across registries. A later
+# framework release may reuse an image only when its runtime inputs still match.
 """
 
 
@@ -41,6 +42,12 @@ def _render_image(image: PublishedImage) -> list[str]:
         f"lock_digest = {_quote(image.lock_digest)}",
         f"constraint_lock = {_quote(image.constraint_lock.as_posix())}",
     ]
+    if image.runtime_source_digest is not None:
+        lines.append(f"runtime_source_digest = {_quote(image.runtime_source_digest)}")
+    if image.trust_bundle_digest is not None:
+        lines.append(f"trust_bundle_digest = {_quote(image.trust_bundle_digest)}")
+    if image.base_digest is not None:
+        lines.append(f"base_digest = {_quote(image.base_digest)}")
     if image.provided_packages:
         rendered = ", ".join(_quote(name) for name in image.provided_packages)
         lines.append(f"provided_packages = [{rendered}]")

@@ -95,9 +95,10 @@ The candidate transaction:
    command is available for a maintainer to run locally before dispatch;
 3. uses the authored `X.Y.Z` from `release/manifest.toml` as an immutable
    development-only candidate version;
-4. builds OCI images only when their inputs changed, pushes directly to
-   `registry.lan`, verifies registry readback, and records which changed job
-   kinds require a bounded canary;
+4. rebuilds OCI images only when their runtime source, relevant lock, parent
+   digest, or installed CA bundle changes. A framework version bump alone
+   reuses registry-verified digests, then records the same digests in the new
+   release manifest; it never rebuilds layers just to relabel them;
 5. writes `published.toml` and image receipts outside the source checkout,
    then creates a release materialization binding those generated inputs to
    the source, dependency receipts and locks;

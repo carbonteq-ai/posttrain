@@ -70,6 +70,11 @@ receipt instead of rebuilding or re-running completed checks.
   runs a second GPU canary after source/tree and receipt verification.
 - [x] (2026-08-12T02:46Z) Add focused receipt and workflow regression tests for
   final-version candidate artifacts and promotion provenance.
+- [x] (2026-08-12T03:15Z) Make runtime image reuse depend on its runtime
+  source digest, relevant dependency lock, parent digest, and installed CA
+  bundle digest rather than the framework distribution version. Existing
+  `0.3.7` image receipts intentionally lack that provenance and will rebuild
+  once for `0.3.8`; later patch releases reuse registry-verified digests.
 - [ ] Run a real candidate/final release-path canary from the merged workflow
   before using it for the next production release.
 - [x] Remove duplicate full-suite execution from the final workflow while
@@ -106,6 +111,14 @@ receipt instead of rebuilding or re-running completed checks.
   the development machine, not under one minute: tests account for 56.978s and
   Pyright for 21.094s.
   Evidence: `posttrain-release readiness` receipt created 2026-08-12T02:46Z.
+- Observation: the candidate called the runtime-image publisher for every
+  framework version change, while its build request embedded the framework
+  version and full source revision in the image identity. This made an
+  unrelated patch release rebuild all runtime variants even when the actual
+  runtime inputs were unchanged.
+  Evidence: `publish_release()` selected every variant when no explicit
+  variant was passed, and candidate publication passed the authored framework
+  version to each BuildKit request.
 
 ## Decision Log
 
@@ -154,6 +167,16 @@ receipt instead of rebuilding or re-running completed checks.
   Rationale: that canary proves the consumer package, image manifest, registry,
   and dstack path. Repeating it after tree/receipt verification adds latency but
   no evidence.
+  Date/Author: 2026-08-12 / user and Codex.
+- Decision: Treat runtime images as independently-versioned immutable
+  dependencies, not as a framework-versioned output. Reuse requires exact
+  runtime source, relevant lock, parent, and CA-bundle evidence; the framework
+  wheelhouse remains the release-specific component injected into the packed
+  job image.
+  Rationale: framework source-only changes must not trigger a multi-image
+  rebuild, but reusing an image after any actual runtime input changes would
+  be unsafe. The first migrated release rebuilds because older receipts cannot
+  prove all four inputs.
   Date/Author: 2026-08-12 / user and Codex.
 
 ## Outcomes & Retrospective

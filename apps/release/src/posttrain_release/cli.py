@@ -292,8 +292,8 @@ def publish_cmd(
             "--variant",
             help=(
                 "rebuild only this job-kind (repeatable). Unlisted kinds are "
-                "reused from the committed manifest when their lock digest is "
-                "unchanged"
+                "reused from the committed manifest only when their runtime "
+                "inputs are unchanged"
             ),
         ),
     ] = None,
