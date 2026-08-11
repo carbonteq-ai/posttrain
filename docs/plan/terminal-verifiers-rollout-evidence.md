@@ -29,6 +29,17 @@ This work repairs implementation conformance with `docs/post-training/06-observa
 - [x] (2026-08-11 23:59Z) Prepared Posttrain `0.3.7` release inputs and developer-facing notes; the complete local implementation ladder passes with 383 backend tests, 46 frontend tests, Ruff, Pyright, import contracts, and diff checks.
 - [x] (2026-08-12 00:18Z) Rebased the candidate on current `origin/main`, published the official Posttrain `0.3.7` veRL kind image at `sha256:555f8c59f006cc5c19df34678bb532a147cec2409468f6317d13f132df010986`, regenerated `published.toml` from registry readback, repaired the public-consumer TRL `post2` wheel mirror, and passed the 1,193-test repository suite plus the two clean-wheel consumer journeys.
 - [ ] Milestone 7b: build the candidate veRL image and run real TRL and veRL canaries, reconcile evidence, and promote only after every live gate passes.
+- [x] (2026-08-12T04:13Z) Run the released Posttrain 0.3.8 TRL consumer
+  canary `ambient-k1-olmo3-posttrain038-1step-20260812-r1` on the RTX PRO
+  6000. Before the single update finished, Trackio exposed 136 terminal
+  Verifiers traces while the dstack provider still reported `running`. Final
+  reconciliation was consistent and retained the LoRA adapter, paired
+  step-one recovery/model checkpoint, native traces, and training summary.
+- [ ] Run the deliberately controlled live failure canary and verify that its
+  terminal error trace is visible before provider failure and remains absent
+  from learning aggregates.
+- [ ] Run the immutable veRL live canary and verify parent-side journal
+  tailing through both a running child and terminal final drain.
 
 ## Surprises & Discoveries
 
@@ -64,6 +75,14 @@ This work repairs implementation conformance with `docs/post-training/06-observa
 
 - Observation: the framework selected TRL `1.9.2.post2`, but public CI still downloaded and staged `1.9.2.post1` for external consumers.
   Evidence: the clean-wheel SFT starter failed dependency resolution for `trl==1.9.2.post2`; `.github/workflows/quality.yml` named the older tag, filename, and hash. The workflow now derives its regression expectations from `[tool.posttrain.trl]`, and both consumer journeys pass with the hash-verified `post2` wheel.
+- Observation: a successful live run cannot prove failed-record delivery, but
+  it can prove that the same delivery path does not wait for the trainer's
+  final batch return. The 0.3.8 consumer canary had 136 Trackio traces while
+  its provider run remained running, then completed with 136 traces and no
+  failed terminal records.
+  Evidence: Trackio job view for
+  `ambient-k1-olmo3-posttrain038-1step-20260812-r1`; dstack provider
+  `pt-5c55f0cbe1dad94bba6f37d2` remained `running` at the earlier read.
 
 ## Decision Log
 
@@ -126,6 +145,21 @@ Population evidence now distinguishes requested work, terminal evidence, failed,
 Local verification on 2026-08-11: `uv run pytest packages/common/tests packages/eval/tests packages/train/tests packages/tracking-trackio/tests apps/observatory/tests -q` passed **382** tests with **4** dependency/environment skips; focused suites subsequently passed after the reward edge-case regression. `uv run ruff check packages/common packages/eval packages/train packages/tracking-trackio apps/observatory`, `uv run pyright`, `uv run lint-imports`, and `git diff --check` passed. Observatory frontend `npm run check` and `npm test` passed (**46** tests). The maintained veRL source release candidate `0.9.0.dev1` at `a6fe39c22719ec981ed8544ad8feffd59995cc13` passed its 114-test focused Python 3.13 CPU suite, wheel/source build, installed-wheel import, index upload, and index readback. The corresponding kind image passed its real Docker/Bake import smoke and registry label readback. The remaining gates are deliberately external: real Trackio SQLite/Doris qualification and TRL/veRL canaries. The dirty local veRL checkout remains diagnostic-only and cannot satisfy any release gate.
 
 Post-rebase verification on 2026-08-12 passed the complete repository suite (**1,193 passed, 13 skipped**), the two isolated wheel-consumer journeys, all **46** frontend tests, Ruff lint and formatting, Pyright, all eight import contracts, the release consistency check, and diff validation. The official Posttrain `0.3.7` veRL runtime manifest was generated from registry digest `sha256:555f8c59f006cc5c19df34678bb532a147cec2409468f6317d13f132df010986`; its OCI labels bind Posttrain revision `d1070e184722dff502c74ef5c6cd02940bcf458b`, veRL revision `a6fe39c22719ec981ed8544ad8feffd59995cc13`, and veRL dependency lock `df7769f306ef8606fed37fd89c3fa2589ac72f39a45e4743816368a1acffe69f`. This prepares release inputs but does not replace the still-open live Trackio and GPU canary gates.
+
+Posttrain 0.3.8 was subsequently installed as an exact Ambient Agent consumer
+dependency and exercised through an immutable packed dstack image. The
+one-step TRL canary started at 2026-08-11T23:04:59Z and finished at
+2026-08-11T23:13:23Z. It used the published 0.3.8 TRL kind-image digest
+`sha256:1804d52538b1ea93497ab6ee821d664390f3dbcc3312ec7482949ba8d9169447`.
+During execution Trackio reported 136 terminal traces before the provider
+finished; reconciliation then reported consistent provider/tracking success,
+six retained artifacts, and no missing required roles. The final signal was
+reward mean 0.5977, reward standard deviation 0.3906, zero-variance groups
+5.88%, entropy 0.2225, truncation 0.39%, mean importance ratio 0.99996, and
+77.8 rollout tokens/s. The step-one model view is `model-adapter` (53.7 MB),
+not full model weights; its paired recovery checkpoint is 121.3 MB and passed
+metadata/digest verification. This closes the successful-TRL incremental
+delivery gate, but not the controlled-failure or veRL gates.
 
 ## Context and Orientation
 
