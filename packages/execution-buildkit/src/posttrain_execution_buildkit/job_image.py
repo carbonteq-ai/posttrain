@@ -9,7 +9,8 @@ import re
 import shutil
 import subprocess
 import uuid
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -103,51 +104,58 @@ class BuildKitJobImagePublisher:
     ) -> PublishedJobImage:
         _enforce_qualification_policy(request)
         receipt_path = self._receipt_root / f"{request.publication_key}.json"
-        if receipt_path.is_file():
-            receipt = self._load_receipt(receipt_path)
-            self._ensure_receipt_matches(request, receipt)
-            try:
-                self._verify_remote(receipt.image)
-            except RemoteImageNotFoundError:
-                # An immutable digest that the registry garbage-collected no
-                # longer proves a runnable publication. Remove only that exact
-                # stale cache entry and reproduce it from the same inputs.
-                receipt_path.unlink()
-            else:
-                return _published(receipt, cache_hit=True)
+        # Materialization intentionally deletes its retained named context
+        # once publication succeeds.  Concurrent callers can therefore plan
+        # the same content-addressed package, then race one another while one
+        # build still needs that context.  Serialize by publication identity
+        # and re-check the remote receipt inside the critical section: the
+        # follower returns the producer's verified image without touching a
+        # now-discarded context.
+        with self._publication_lock(request.publication_key):
+            if receipt_path.is_file():
+                receipt = self._load_receipt(receipt_path)
+                self._ensure_receipt_matches(request, receipt)
+                try:
+                    self._verify_remote(receipt.image)
+                except RemoteImageNotFoundError:
+                    # An immutable digest that the registry garbage-collected no
+                    # longer proves a runnable publication. Remove only that exact
+                    # stale cache entry and reproduce it from the same inputs.
+                    receipt_path.unlink()
+                else:
+                    return _published(receipt, cache_hit=True)
 
-        self._check_definition(request)
-        self._receipt_root.mkdir(parents=True, exist_ok=True, mode=0o700)
-        metadata = self._receipt_root / f".metadata-{uuid.uuid4().hex}.json"
-        try:
-            # Build the smoke target separately and uncached. Affected BuildKit
-            # releases can reuse a stale local named-context source across
-            # content-addressed directories, even when PACKAGE_KEY and the COPY
-            # destination both change. The verified smoke build establishes the
-            # current context layers; the publication build can then reuse those
-            # exact layers without rebuilding the package a second time.
-            self._gateway.invoke(self._smoke_arguments(request))
-            self._gateway.invoke(self._build_arguments(request, metadata))
-            image = RuntimeImageRef(f"{request.publication.repository}@sha256:{_metadata_digest(metadata)}")
-            self._verify_remote(image)
-            receipt = _PublicationReceipt(
-                package_key=request.package_key,
-                publication_key=request.publication_key,
-                image=image,
-                kind_image=request.manifest.kind_image,
-                repository=request.publication.repository,
-                platforms=request.publication.platforms,
-                compression=request.publication.compression,
-                compression_level=request.publication.compression_level,
-                provenance=request.publication.provenance,
-                sbom=request.publication.sbom,
-                build_definition_digest=self._definition_digest,
-                path=receipt_path,
-            )
-            self._write_receipt(receipt)
-            return _published(receipt, cache_hit=False)
-        finally:
-            metadata.unlink(missing_ok=True)
+            self._check_definition(request)
+            metadata = self._receipt_root / f".metadata-{uuid.uuid4().hex}.json"
+            try:
+                # Build the smoke target separately and uncached. Affected BuildKit
+                # releases can reuse a stale local named-context source across
+                # content-addressed directories, even when PACKAGE_KEY and the COPY
+                # destination both change. The verified smoke build establishes the
+                # current context layers; the publication build can then reuse those
+                # exact layers without rebuilding the package a second time.
+                self._gateway.invoke(self._smoke_arguments(request))
+                self._gateway.invoke(self._build_arguments(request, metadata))
+                image = RuntimeImageRef(f"{request.publication.repository}@sha256:{_metadata_digest(metadata)}")
+                self._verify_remote(image)
+                receipt = _PublicationReceipt(
+                    package_key=request.package_key,
+                    publication_key=request.publication_key,
+                    image=image,
+                    kind_image=request.manifest.kind_image,
+                    repository=request.publication.repository,
+                    platforms=request.publication.platforms,
+                    compression=request.publication.compression,
+                    compression_level=request.publication.compression_level,
+                    provenance=request.publication.provenance,
+                    sbom=request.publication.sbom,
+                    build_definition_digest=self._definition_digest,
+                    path=receipt_path,
+                )
+                self._write_receipt(receipt)
+                return _published(receipt, cache_hit=False)
+            finally:
+                metadata.unlink(missing_ok=True)
 
     def resolve(self, request: JobImageResolutionRequest) -> PublishedJobImage | None:
         """Resolve a verified receipt without reconstructing its build context."""
@@ -509,6 +517,27 @@ class BuildKitJobImagePublisher:
         expected = image.value.rsplit("@", 1)[1]
         if observed != expected:
             raise RuntimeError(f"published actual-job digest mismatch: expected {expected}, observed {observed}")
+
+    @contextmanager
+    def _publication_lock(self, publication_key: str) -> Iterator[None]:
+        """Serialize one remote publication while its named context is live."""
+
+        # `flock` is intentionally advisory: every framework publisher uses
+        # this same receipt-root lock before it can read, build, or remove a
+        # receipt. The lock is released automatically if a process exits.
+        import fcntl
+
+        self._receipt_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        lock_root = self._receipt_root / "locks"
+        lock_root.mkdir(mode=0o700, exist_ok=True)
+        lock_path = lock_root / f"{publication_key}.lock"
+        descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+            yield
+        finally:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+            os.close(descriptor)
 
     def _write_receipt(self, receipt: _PublicationReceipt) -> None:
         payload: dict[str, JsonValue] = {

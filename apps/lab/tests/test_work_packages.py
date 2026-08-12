@@ -103,6 +103,8 @@ def test_distillation_yaml_resolves_every_seat_through_the_catalog() -> None:
         "dependency_lock": "trl-fork@1.9.2.post4",
         "source_revision": "61064605db84f84898692c2b3eefe1eb2b90a952",
         "dependency_lock_sha256": hashlib.sha256((WORKSPACE / "uv.lock").read_bytes()).hexdigest(),
+        "bf16": False,
+        "model_dtype": "float32",
     }
     execution_targets = resolved.snapshot["execution_targets"]
     assert isinstance(execution_targets, dict)

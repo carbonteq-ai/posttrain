@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
 from dataclasses import replace
 from pathlib import Path
 
@@ -368,6 +369,38 @@ def test_publisher_checks_smokes_pushes_verifies_and_reuses_receipt(
     ):
         assert variable in build
     assert sum(call[:2] == ("imagetools", "inspect") for call in gateway.calls) == 2
+
+
+def test_remote_publication_lock_serializes_one_publication_key(tmp_path: Path) -> None:
+    publisher = BuildKitJobImagePublisher(
+        bake_file=_definition(tmp_path),
+        receipt_root=(tmp_path / "receipts").resolve(),
+        gateway=FakeBuildx(),
+    )
+    publication_key = _request(tmp_path).publication_key
+    owner_ready = threading.Event()
+    release_owner = threading.Event()
+    follower_acquired = threading.Event()
+
+    def owner() -> None:
+        with publisher._publication_lock(publication_key):
+            owner_ready.set()
+            assert release_owner.wait(timeout=1)
+
+    def follower() -> None:
+        with publisher._publication_lock(publication_key):
+            follower_acquired.set()
+
+    owner_thread = threading.Thread(target=owner)
+    owner_thread.start()
+    assert owner_ready.wait(timeout=1)
+    follower_thread = threading.Thread(target=follower)
+    follower_thread.start()
+    assert not follower_acquired.wait(timeout=0.1)
+    release_owner.set()
+    owner_thread.join(timeout=1)
+    follower_thread.join(timeout=1)
+    assert follower_acquired.is_set()
 
 
 def test_publisher_resolves_a_receipt_without_a_staged_context(tmp_path: Path) -> None:

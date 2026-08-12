@@ -331,6 +331,14 @@ class TrackioTrackedRun:
         logged.add_dir(path) if path.is_dir() else logged.add_file(path)
         try:
             committed = cast(Any, self._run).log_artifact(logged, background=True)
+        except RuntimeError as error:
+            if "artifact publication queue is full" not in str(error):
+                raise
+            # Background publication is intentionally bounded. Drain completed
+            # work before retrying so a short remote backlog does not turn an
+            # otherwise valid training result into a queue-overflow failure.
+            self.flush_artifacts(timeout=30)
+            committed = cast(Any, self._run).log_artifact(logged, background=True)
         except TypeError as error:
             if "background" not in str(error):
                 raise

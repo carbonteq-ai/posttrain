@@ -1419,6 +1419,33 @@ def test_grpo_callback_emits_normalized_names_without_trl_vocabulary(tmp_path: P
     assert "train/reward" not in values
 
 
+def test_trl_callback_retains_finite_values_before_non_finite_metric(tmp_path: Path) -> None:
+    observer = Observer()
+    context = _run_context(
+        tmp_path.resolve(),
+        observer,
+        job_kind="train.distill",
+        run_id="runs/distill-non-finite",
+    )
+    callback = callback_type(context, {"TrainerCallback": object})()
+
+    with pytest.raises(FloatingPointError, match="grad_norm=nan"):
+        callback.on_log(
+            SimpleNamespace(max_grad_norm=1.0),
+            SimpleNamespace(global_step=4),
+            SimpleNamespace(),
+            logs={"loss": 0.25, "grad_norm": float("nan")},
+        )
+
+    assert observer.metrics_seen[-1].values == {"train/loss": 0.25}
+    assert observer.events[-1].name == "training_non_finite_metric"
+    assert {
+        "metric": "grad_norm",
+        "value_class": "nan",
+        "global_step": 4,
+    }.items() <= observer.events[-1].attributes.items()
+
+
 def test_live_trl_metrics_keep_retained_reward_signal_and_delegate_step_time() -> None:
     values = _normalize_live_grpo_metrics(
         4,

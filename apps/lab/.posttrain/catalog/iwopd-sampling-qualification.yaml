@@ -24,6 +24,11 @@ training:
       dependency_lock: trl-fork@1.9.2.post4
       source_revision: 61064605db84f84898692c2b3eefe1eb2b90a952
       dependency_lock_sha256: 502ec3ef592ca00106f9ee243df51ce68e99364da0a20768795e936095709d80
+      # The 24 GiB canary reached the IW-OPD update in BF16 but produced a
+      # non-finite gradient norm. Keep this one-step contract qualification
+      # numerically robust while a mixed-precision profile is qualified.
+      bf16: false
+      model_dtype: float32
 
 inference:
   inference/qwen3.5-0.8b-vllm-distill-rollout@3:

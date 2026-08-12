@@ -62,6 +62,30 @@ package reaches the internal index and the resolved job image contains it.
   `sha256:458e789ded3bc50a04f78b7182a7717608e2000b9c73f728344a94424185988c`,
   both from the post4 runtime lock
   `aa430e9e0d56790a7351ba4e1f7fcbc27b02c264b26eef096d2721e6d89730bd`.
+- [x] (2026-08-13) Re-evaluated the actual-job image path. It already uses
+  three stages (`packaged-context` → immutable runtime kind → smoke), and a
+  verified receipt avoids every BuildKit call on a repeat pack. The meaningful
+  cold-path cost is pulling the multi-gigabyte kind image onto a worker, not
+  assembling the approximately 2.9 MiB job context or building workspace
+  wheels (about one second with cached dependencies).
+- [x] (2026-08-13) Added a per-publication lock around remote job-image
+  publication. Concurrent callers now wait and reuse the producer's verified
+  receipt instead of racing on a named context that publication cleanup removes.
+- [x] (2026-08-13) Added retained non-finite metric and gradient-parameter
+  evidence to the TRL distillation path. The FP32-weight retry still reaches
+  the first actor update and reports `on_policy_loss=-inf`, ruling out BF16
+  model weights as the primary cause without hiding finite loss values.
+- [x] (2026-08-13) Reproduced the veRL canary's real worker failure after
+  preserving its diagnostic artifact, fixed the generic nested-tensor
+  selection bug in the maintained veRL fork, and released immutable source
+  `808923d487aa2c524fda02cf5289110541b4221f` as
+  `carbonteq-v0.9.0.dev2`. The release assets are retained on GitHub; the
+  Posttrain manual internal-publication workflow now still needs to publish
+  those exact verified bytes before the runtime kind can select the revision.
+- [x] (2026-08-13) Added the repository-owned manual veRL retained-asset
+  publisher. It downloads release bytes by immutable tag, verifies caller
+  supplied SHA-256 values, publishes only those bytes to the internal stable
+  index, and proves a clean installation. No fork release runner is used.
 - [ ] Repack the bounded TRL and veRL images from the retained generated
   manifest, then run both explicitly scoped GPU canaries and verify their
   retained evidence.
@@ -115,6 +139,27 @@ package reaches the internal index and the resolved job image contains it.
   manifests, and running Registry v3 native garbage collection, the host rose
   from 0 to 81 GiB free. Candidate `31638943255` then built, read back, and
   retained every runtime image successfully.
+- Observation: the Qwen 3.5 0.8B student is a hybrid architecture: 20 of its
+  24 layers use linear attention and only four use full attention. The broad
+  `all-linear` LoRA choice can therefore cover a much different update surface
+  than on a conventional attention-only model.
+  Evidence: the pinned model `config.json` enumerates the 24 layer types, and
+  the run reports the linear-attention fast path is unavailable.
+- Observation: actual-job Docker publication was multi-stage and cache-aware,
+  but concurrent callers for one publication key could race after both
+  materialized the same context. The winner's cleanup made the loser fail as
+  its smoke build began.
+  Evidence: the reproduced error was `failed to get build context ... no such
+  file or directory`; the publisher now serializes each key and rechecks the
+  verified receipt inside the lock. A focused lock regression proves the
+  follower cannot enter until the producer releases it.
+- Observation: veRL's `DataProto.reorder` assumed a nested tensor's recorded
+  ragged axis was also its storage ragged axis. That is false for repaired
+  three-dimensional `position_ids`: the desired per-sample sequence axis is
+  two, while `torch.nested.as_nested_tensor` stores the channel axis as ragged.
+  Evidence: the failed remote worker raised `split_with_sizes ... input tensor's
+  size at dim 1 ... got [4, 4]`; the CPU regression now exercises the repaired
+  position-id path and 39 focused upstream tests pass.
 
 ## Decision Log
 
@@ -153,6 +198,28 @@ package reaches the internal index and the resolved job image contains it.
   evidence-bearing. The recovery retained every manifest named by the current
   generated manifest and excluded all actual-job repositories; the delete
   plan and receipts are stored under the machine-local operations record.
+  Date/Author: 2026-08-13 / Codex
+- Decision: retain the base → kind → job image hierarchy and improve its
+  publication and worker-cache behavior rather than collapsing it into one
+  image per job.
+  Rationale: kind images isolate expensive third-party dependency layers.
+  Warm job packs take tens of seconds and workspace wheel assembly takes about
+  one second; rebuilding the ML stack for each source/configuration change
+  would make the usual path slower. The lock removes the observed duplicate
+  work; worker prewarming is the next separately measurable cold-start change.
+  Date/Author: 2026-08-13 / Codex
+- Decision: instrument the existing TRL canary before narrowing the hybrid
+  Qwen LoRA surface.
+  Rationale: broad `all-linear` adaptation may include numerically fragile
+  linear-attention projections, but changing it before retaining the affected
+  gradient evidence would conflate diagnosis and mitigation.
+  Date/Author: 2026-08-13 / Codex
+- Decision: use Posttrain's repository-owned retained-asset workflow for veRL
+  just as for TRL and Trackio.
+  Rationale: it makes the manual internal publication independently verifiable
+  while keeping the private-index capability outside the fork. The runtime
+  kind may move to the new source revision only after the release receipt and
+  stable-index install succeed.
   Date/Author: 2026-08-13 / Codex
 
 ## Outcomes & Retrospective
@@ -295,3 +362,14 @@ Revision 2026-08-13: the generated runtime manifest is now materialized from
 successful candidate `31638943255` after a retention-safe private-registry
 recovery. The remaining work is packaging and executing the two intended
 remote canaries against those digests.
+
+Revision 2026-08-13: image-path review retained the multi-stage topology,
+fixed concurrent same-key publication, and identified worker kind-image pull
+as the cold-path optimization target. The canaries now also retain precise
+non-finite-gradient evidence if training fails.
+
+Revision 2026-08-13: the veRL retry exposed a generic nested-tensor axis
+selection defect rather than a sampling-policy violation. Its immutable dev2
+release is ready for repository-owned internal publication and a subsequent
+runtime-kind rebuild; the TRL retry now exposes `on_policy_loss=-inf`, which
+remains under ingress/loss-path investigation before another GPU retry.

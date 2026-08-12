@@ -182,14 +182,26 @@ def load_trainable_model(
     update: ParameterUpdatePlan,
     loop: TrainingLoop,
     imports: dict[str, Any],
+    *,
+    model_dtype: str = "bfloat16",
 ) -> Any:
     torch = imports["torch"]
     if isinstance(update, QuantizationAwareUpdate):
         raise ValueError("the TRL adapter does not yet implement quantization-aware updates")
+    dtype_by_name = {
+        "bfloat16": torch.bfloat16,
+        "float32": torch.float32,
+    }
+    try:
+        dtype = dtype_by_name[model_dtype]
+    except KeyError as error:
+        raise ValueError("TRL trainable model dtype must be 'bfloat16' or 'float32'") from error
+    if isinstance(update, QLoRAUpdate) and model_dtype != "bfloat16":
+        raise ValueError("QLoRA training requires bfloat16 compute dtype")
     load_options: dict[str, Any] = {
         "revision": model.base.revision,
         "device_map": {"": 0},
-        "dtype": torch.bfloat16,
+        "dtype": dtype,
         "attn_implementation": "sdpa",
         "trust_remote_code": False,
     }
@@ -301,6 +313,7 @@ def callback_type(
 
         def on_log(self, args: Any, state: Any, control: Any, logs: dict[str, Any] | None = None, **_: Any) -> Any:
             values: dict[str, float] = {}
+            non_finite: tuple[str, float] | None = None
             records = logs or {}
             if metric_normalizer is not None:
                 values.update(metric_normalizer(int(state.global_step), records))
@@ -309,7 +322,13 @@ def callback_type(
                     if isinstance(value, int | float):
                         numeric = float(value)
                         if not math.isfinite(numeric):
-                            raise FloatingPointError(f"non-finite training metric {name}={numeric}")
+                            # Preserve all valid values from this report before
+                            # failing.  A native trainer commonly reports loss
+                            # and grad_norm together; dropping the loss makes a
+                            # non-finite gradient impossible to diagnose from
+                            # retained run evidence.
+                            non_finite = (name, numeric)
+                            continue
                         metric_name = (
                             f"train/validation/{name.removeprefix('eval_')}"
                             if name.startswith("eval_")
@@ -318,7 +337,11 @@ def callback_type(
                         values[metric_name] = numeric
             grad_norm = (logs or {}).get("grad_norm")
             max_grad_norm = getattr(args, "max_grad_norm", None)
-            if isinstance(grad_norm, int | float) and isinstance(max_grad_norm, int | float):
+            if (
+                isinstance(grad_norm, int | float)
+                and math.isfinite(float(grad_norm))
+                and isinstance(max_grad_norm, int | float)
+            ):
                 values["train/gradient_clipped"] = float(grad_norm >= max_grad_norm)
             token_count = (logs or {}).get("num_tokens")
             now = time.perf_counter()
@@ -333,6 +356,17 @@ def callback_type(
                 self._last_token_time = now
             if values:
                 context.metrics(values, step=int(state.global_step))
+            if non_finite is not None:
+                name, numeric = non_finite
+                context.event(
+                    "training_non_finite_metric",
+                    {
+                        "metric": name,
+                        "value_class": "nan" if math.isnan(numeric) else "infinite",
+                        "global_step": int(state.global_step),
+                    },
+                )
+                raise FloatingPointError(f"non-finite training metric {name}={numeric}")
             return control
 
     return ObservationCallback

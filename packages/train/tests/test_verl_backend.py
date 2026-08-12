@@ -50,6 +50,7 @@ from posttrain.train.backends.verl.launcher import (
     _backend_result,
     _isolated_environment,
     _record_failure_artifacts,
+    _record_failure_artifacts_best_effort,
     _record_trace_sync_receipt,
     _replay_grpo_metrics,
     _runtime_timeout,
@@ -839,6 +840,22 @@ def test_verl_failure_preserves_native_diagnostics(tmp_path: Path) -> None:
         "training/diagnostics/verl/grpo/native-log",
     ]
     assert all(not artifact.required for artifact in observer.artifacts_seen)
+
+
+def test_verl_failure_diagnostics_do_not_replace_the_worker_error(tmp_path: Path) -> None:
+    class BackpressuredObserver(CaptureObserver):
+        def artifact(self, artifact: ProducedArtifact) -> None:
+            del artifact
+            raise RuntimeError("artifact queue is full")
+
+    context = _context(tmp_path, BackpressuredObserver())
+    output = tmp_path / "trainer"
+    output.mkdir()
+    plan = build_grpo_launch_plan(_grpo_request(), output)
+    plan.write(output / "posttrain-verl-launch.json")
+    (output / "posttrain-verl.log").write_text("worker failure\\n", encoding="utf-8")
+
+    _record_failure_artifacts_best_effort(context, plan, output)
 
 
 def test_verl_structured_records_replay_through_shared_grpo_names(tmp_path: Path) -> None:

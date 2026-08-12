@@ -864,6 +864,39 @@ async def test_trackio_write_read_conformance(trackio_dir: Path) -> None:
         tracked.finish(RunOutcome("cancelled", STARTED, STARTED + timedelta(seconds=6)))
 
 
+def test_trackio_artifact_queue_backpressure_drains_before_retry(
+    monkeypatch: pytest.MonkeyPatch,
+    trackio_dir: Path,
+) -> None:
+    tracked = TrackioBackend(TrackioSettings(project="trackio-artifact-backpressure")).start_run(
+        _spec("00000000-0000-4000-8000-000000000108")
+    )
+    output = trackio_dir / "diagnostic.log"
+    output.write_text("diagnostic\n", encoding="utf-8")
+    attempts: list[bool] = []
+    drains: list[float | None] = []
+
+    def log_artifact(artifact: Any, *, background: bool = False) -> Any:
+        attempts.append(background)
+        if len(attempts) == 1:
+            raise RuntimeError("Trackio artifact publication queue is full")
+        return artifact
+
+    monkeypatch.setattr(tracked._run, "log_artifact", log_artifact)
+    monkeypatch.setattr(tracked, "flush_artifacts", lambda *, timeout=None: drains.append(timeout) or ())
+
+    tracked.artifact(
+        ProducedArtifact(
+            "training/diagnostics/log",
+            "training-runtime-log",
+            LocalArtifactRef(output.resolve(), hashlib.sha256(output.read_bytes()).hexdigest()),
+        )
+    )
+
+    assert attempts == [True, True]
+    assert drains == [30]
+
+
 @pytest.mark.asyncio
 async def test_direct_canonical_system_metric_precedes_sampler_fallback(
     trackio_dir: Path,

@@ -36,6 +36,10 @@ environment:
       pass_rate_metric: reward
   gsm8k-grpo-sampling-contract-canary:
     category: math-reasoning
+    # GSM8K is fetched from Hugging Face when the Verifiers taskset activates.
+    # Actual-job smoke checks run with no network, so preserve that boundary and
+    # qualify the activation on the networked execution worker instead.
+    qualification: deferred
     source:
       package: gsm8k-v1
       repository: https://github.com/PrimeIntellect-ai/verifiers

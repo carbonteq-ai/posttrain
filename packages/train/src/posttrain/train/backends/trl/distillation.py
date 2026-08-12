@@ -51,6 +51,9 @@ def run_distillation(
         raise ValueError("the vLLM teacher-score binding must provide engine.base_url")
     if not isinstance(request.teacher.artifact, HubModelRef):
         raise ValueError("TRL distillation currently requires a Hugging Face teacher model")
+    model_dtype = request.training.backend_options.get("model_dtype", "bfloat16")
+    if not isinstance(model_dtype, str):
+        raise ValueError("TRL distillation model_dtype must be a string")
 
     try:
         from trl.experimental.iw_opd import (  # pyright: ignore[reportMissingImports]
@@ -65,7 +68,13 @@ def run_distillation(
     emit_runtime_versions(context, imports)
     with context.phase("model_loading", {"backend": "trl"}):
         tokenizer = load_tokenizer(request.student, imports)
-        model = load_trainable_model(request.student, request.training.update, request.settings.loop, imports)
+        model = load_trainable_model(
+            request.student,
+            request.training.update,
+            request.settings.loop,
+            imports,
+            model_dtype=model_dtype,
+        )
     rows = [
         {
             "messages": [{"role": "user", "content": example.prompt}],
@@ -104,6 +113,27 @@ def run_distillation(
                             "train/distill/teacher_latency_ms",
                             (time.perf_counter() - started_at) * 1_000,
                         )
+
+            def training_step(self, *args: Any, **kwargs: Any) -> Any:
+                loss = super().training_step(*args, **kwargs)
+                non_finite_parameters: list[str] = []
+                torch = imports["torch"]
+                for name, parameter in self.model.named_parameters():
+                    gradient = parameter.grad
+                    if gradient is not None and not bool(torch.isfinite(gradient).all().item()):
+                        non_finite_parameters.append(name)
+                        if len(non_finite_parameters) == 12:
+                            break
+                if non_finite_parameters:
+                    context.event(
+                        "training_non_finite_gradients",
+                        {
+                            "global_step": int(self.state.global_step),
+                            "parameter_examples": non_finite_parameters,
+                            "parameter_examples_truncated": len(non_finite_parameters) == 12,
+                        },
+                    )
+                return loss
 
         checkpoint_callback = checkpoint_callback_type(
             context,
