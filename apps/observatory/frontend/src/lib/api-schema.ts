@@ -963,13 +963,13 @@ export interface components {
         };
         /** GRPORolloutPopulation */
         GRPORolloutPopulation: {
-            requested: components["schemas"]["SummaryValue"];
             attempted: components["schemas"]["SummaryValue"];
             completed: components["schemas"]["SummaryValue"];
             failed: components["schemas"]["SummaryValue"];
+            missing: components["schemas"]["SummaryValue"];
+            requested: components["schemas"]["SummaryValue"];
             truncated: components["schemas"]["SummaryValue"];
             unscorable: components["schemas"]["SummaryValue"];
-            missing: components["schemas"]["SummaryValue"];
         };
         /** GenericRunView */
         GenericRunView: {

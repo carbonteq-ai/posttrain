@@ -170,6 +170,13 @@ describe('EvidenceChart scale policy', () => {
     expect(scaleGroup('train/rl/group_zero_variance_fraction', units)).toBe('unit:ratio');
   });
 
+  it('keeps active-sampling population counts on one shared scale', () => {
+    expect(scaleGroup('train/rl/active_sampling_generation_rounds', {})).toBe('active-sampling-count');
+    expect(scaleGroup('train/rl/active_sampling_generated_rows', {})).toBe('active-sampling-count');
+    expect(scaleGroup('train/rl/active_sampling_candidate_groups_reserved', {})).toBe('active-sampling-count');
+    expect(scaleGroup('train/rl/active_sampling_candidate_groups_retained', {})).toBe('active-sampling-count');
+  });
+
   it('keeps two scale families together for direct comparison', () => {
     render(<EvidenceChart
       ariaLabel="Learning signal"

@@ -4,6 +4,28 @@ All notable changes to Posttrain are documented here. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with a coordinated
 version across first-party distributions.
 
+## 0.3.10 - Unreleased
+
+This release makes OLMo 3 active sampling auditable as a distinct rollout
+population, including older runs that emitted the native metrics before their
+resolved selection snapshots contained the algorithm field.
+
+### Added
+
+- Observatory now shows active-sampling generation rounds, retained fraction,
+  and the reserved, generated, retained, and unused candidate-row populations
+  without mixing those counts with rollout outcome totals.
+- OLMo 3 runs owe explicit active-sampling evidence, so a missing retention or
+  candidate-window metric prevents the run from presenting as fully evidenced.
+
+### Fixed
+
+- Run snapshots retain the resolved GRPO algorithm, prompt-group shape,
+  sampling mode, clipping, advantage scaling, and bounded dynamic/active
+  sampling settings needed to interpret a training run independently.
+- Per-candidate TRL rollout population metrics now carry their candidate scope
+  and ordinal, so readers can distinguish refill waves from an optimizer step.
+
 ## 0.3.9 - Unreleased
 
 This release prevents a veRL training selection from being packaged against a

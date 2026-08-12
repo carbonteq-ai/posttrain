@@ -31,6 +31,7 @@ from posttrain.eval import (
     EvaluationSignalRef,
     EvaluationSuccessDefinition,
 )
+from posttrain.train import ActiveGroupSampling, GRPOSettings, TrainingLoop
 from posttrain.work import (
     FinalizedRunResult,
     JobDefinition,
@@ -220,6 +221,31 @@ def test_inference_snapshot_includes_startup_timeout() -> None:
     )
 
     assert _selection_details(binding)["startup_timeout_seconds"] == 600
+
+
+def test_grpo_snapshot_retains_algorithm_and_active_sampling_contract() -> None:
+    settings = GRPOSettings(
+        "training/olmo3@1",
+        TrainingLoop(max_steps=10, per_device_batch_size=2, gradient_accumulation_steps=64),
+        num_prompts_per_step=32,
+        num_generations=4,
+        algorithm="olmo3",
+        beta=0,
+        advantage_scaling="none",
+        importance_sampling_mode="token_truncate",
+        importance_sampling_clip_min=None,
+        importance_sampling_clip_max=2,
+        active_sampling=ActiveGroupSampling(max_candidate_batches=10),
+    )
+
+    snapshot = _selection_details(settings)
+
+    assert snapshot["algorithm"] == "olmo3"
+    assert snapshot["num_prompts_per_step"] == 32
+    assert snapshot["num_generations"] == 4
+    assert snapshot["active_sampling"] == {"max_candidate_batches": 10}
+    assert snapshot["advantage_scaling"] == "none"
+    assert snapshot["clip_epsilon_high"] == pytest.approx(0.272)
 
 
 def test_detached_preflight_rejects_tool_environment_with_plain_inference() -> None:

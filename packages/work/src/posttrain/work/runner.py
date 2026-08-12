@@ -712,10 +712,31 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
             details.update(
                 {
                     "beta": value.beta,
+                    "algorithm": value.algorithm,
+                    "num_prompts_per_step": value.num_prompts_per_step,
                     "num_generations": value.num_generations,
                     "max_prompt_length": value.max_prompt_length,
                     "max_completion_length": value.max_completion_length,
                     "importance_sampling_mode": value.importance_sampling_mode,
+                    "importance_sampling_clip_min": value.importance_sampling_clip_min,
+                    "importance_sampling_clip_max": value.importance_sampling_clip_max,
+                    "advantage_scaling": value.advantage_scaling,
+                    "clip_epsilon_low": value.clip_epsilon_low,
+                    "clip_epsilon_high": value.resolved_clip_epsilon_high,
+                    "dynamic_sampling": (
+                        {"max_candidate_batches": value.dynamic_sampling.max_candidate_batches}
+                        if value.dynamic_sampling is not None
+                        else None
+                    ),
+                    "active_sampling": (
+                        {"max_candidate_batches": value.active_sampling.max_candidate_batches}
+                        if value.active_sampling is not None
+                        else None
+                    ),
+                    "shuffle_prompts": value.shuffle_prompts,
+                    "mask_truncated_completions": value.mask_truncated_completions,
+                    "overlong_buffer_tokens": value.overlong_buffer_tokens,
+                    "overlong_penalty_factor": value.overlong_penalty_factor,
                 }
             )
         if isinstance(value, OnPolicyDistillationSettings):

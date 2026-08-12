@@ -476,6 +476,40 @@ async def test_grpo_projection_exposes_population_and_selection_aware_completene
 
 
 @pytest.mark.asyncio
+async def test_olmo3_active_sampling_is_exposed_as_conditional_evidence() -> None:
+    run_id = "runs/olmo3-active-sampling"
+    active_metrics = {
+        "train/rl/active_sampling_generation_rounds": 2.0,
+        "train/rl/active_sampling_retained_fraction": 0.875,
+        "train/rl/active_sampling_generated_rows": 144.0,
+        "train/rl/active_sampling_candidate_groups_reserved": 128.0,
+        "train/rl/active_sampling_candidate_groups_generated": 144.0,
+        "train/rl/active_sampling_candidate_groups_retained": 126.0,
+        "train/rl/active_sampling_candidate_groups_unused": 0.0,
+    }
+    details = {
+        run_id: RunDetail(
+            summary=_summary(run_id, "train.grpo"),
+            # Earlier runs did not retain algorithm selection in their snapshot.
+            # Native active-sampling evidence must still activate its audit.
+            resolved_inputs={"settings": {}},
+            metric_names=tuple(active_metrics),
+        )
+    }
+    series = {
+        name: MetricSeries(name=name, points=(MetricPoint(value=value, step=1),))
+        for name, value in active_metrics.items()
+    }
+
+    view = await ObservatoryService(FakeRunDataSource(details, {run_id: series})).get_run_view(run_id)
+
+    assert {chart.key for chart in view.charts} >= {"active_sampling_yield", "active_sampling_population"}
+    requirement = next(item for item in view.completeness.requirements if item.key == "olmo3_active_sampling")
+    assert requirement.state == "available"
+    assert requirement.missing_metrics == ()
+
+
+@pytest.mark.asyncio
 async def test_grpo_tool_environment_category_activates_tool_evidence() -> None:
     source = FixtureRunDataSource()
     run_id = "runs/grpo-silver-pine"

@@ -418,6 +418,10 @@ def _rollout_function(
                 ),
             },
             step=optimizer_step,
+            attributes={
+                "rollout_population_scope": "candidate",
+                "rollout_batch_ordinal": rollout_batch_ordinal,
+            },
         )
         if request.settings.mask_truncated_completions and truncated_rollouts == len(rollouts):
             raise RuntimeError(
