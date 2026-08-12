@@ -50,7 +50,7 @@ To learn the concepts, read the frozen baseline in order:
 | [post-training/dataset-management.md](./post-training/dataset-management.md) | Dataset authoring, Python builders, reproducible materialization, and package conventions |
 | [developer-experience.md](./developer-experience.md) | The DX authority: project-author journey, vocabulary, configuration ownership, golden path |
 | [overview.md](./overview.md) | Project goal and implementation orientation |
-| [releases/v0.3.md](./releases/v0.3.md) | Developer features, qualification coverage, reliability improvements, and support boundaries across v0.3.0–v0.3.2 |
+| [releases/v0.3.md](./releases/v0.3.md) | Developer features, qualification coverage, reliability improvements, and support boundaries across v0.3.0–v0.3.15 |
 
 ## Release and operations
 
