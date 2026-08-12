@@ -1,9 +1,13 @@
 import { BracketsCurly, Wrench } from '@phosphor-icons/react';
 
+import { MessageContent, StructuredValue } from './ContentRenderer';
+
+export { StructuredValue } from './ContentRenderer';
+
 type JsonRecord = Record<string, unknown>;
 
 function messageRole(message: JsonRecord): string {
-  return String(message.role ?? 'event').toLowerCase();
+  return String(normalizeMessage(message).role ?? 'event').toLowerCase();
 }
 
 function asRecord(value: unknown): JsonRecord | null {
@@ -12,51 +16,9 @@ function asRecord(value: unknown): JsonRecord | null {
     : null;
 }
 
-function parseStructured(value: unknown): unknown {
-  if (typeof value !== 'string') return value;
-  const source = value.trim();
-  if (!(source.startsWith('{') || source.startsWith('['))) return value;
-  try {
-    return JSON.parse(source) as unknown;
-  } catch {
-    return value;
-  }
-}
-
-function fieldLabel(key: string): string {
-  return key.replaceAll('_', ' ').replace(/\b\w/g, (character) => character.toUpperCase());
-}
-
-function PrimitiveValue({ value }: { value: unknown }) {
-  if (value == null) return <span className="font-mono text-muted">null</span>;
-  if (typeof value === 'boolean') return <span className={`font-mono font-medium ${value ? 'text-emerald-700' : 'text-rose-600'}`}>{String(value)}</span>;
-  if (typeof value === 'number') return <span className="font-mono tabular-nums text-ink">{value.toLocaleString()}</span>;
-  return <span className="break-words text-secondary">{String(value)}</span>;
-}
-
-export function StructuredValue({ value, depth = 0 }: { value: unknown; depth?: number }) {
-  const parsed = parseStructured(value);
-  if (Array.isArray(parsed)) {
-    return <div className="space-y-1.5">
-      {parsed.map((item, index) => <div key={index} className="grid grid-cols-[20px_minmax(0,1fr)] gap-2">
-        <span className="pt-0.5 text-right font-mono text-[9px] text-muted">{index + 1}</span>
-        <StructuredValue value={item} depth={depth + 1} />
-      </div>)}
-    </div>;
-  }
-  const record = asRecord(parsed);
-  if (record) {
-    return <dl className={`overflow-hidden rounded-[4px] border border-divider bg-white ${depth ? 'mt-1' : ''}`}>
-      {Object.entries(record).map(([key, item]) => {
-        const nested = Array.isArray(parseStructured(item)) || asRecord(parseStructured(item)) != null;
-        return <div key={key} className={`border-b border-divider px-2.5 py-2 last:border-b-0 ${nested ? 'block' : 'grid grid-cols-[minmax(92px,.8fr)_minmax(0,1.2fr)] gap-3'}`}>
-          <dt className="text-[9px] font-medium text-muted">{fieldLabel(key)}</dt>
-          <dd className={nested ? 'mt-1.5' : 'min-w-0 text-right text-[10px]'}><StructuredValue value={item} depth={depth + 1} /></dd>
-        </div>;
-      })}
-    </dl>;
-  }
-  return <PrimitiveValue value={parsed} />;
+function normalizeMessage(message: JsonRecord): JsonRecord {
+  const nested = asRecord(message.message);
+  return nested == null ? message : { ...nested, ...message };
 }
 
 function ToolCalls({ value }: { value: unknown }) {
@@ -73,39 +35,40 @@ function ToolCalls({ value }: { value: unknown }) {
           <span className="text-[9px] font-medium uppercase tracking-[.08em] text-violet-700">Tool call</span>
           <code className="ml-auto truncate text-[10px] text-ink" title={name}>{name}</code>
         </div>
-        <div className="p-2.5"><StructuredValue value={args} /></div>
+        <div className="p-2.5"><MessageContent value={args} compact /></div>
       </section>;
     })}
   </div>;
 }
 
 function MessageBody({ message, nested = false }: { message: JsonRecord; nested?: boolean }) {
-  const role = messageRole(message);
+  const normalized = normalizeMessage(message);
+  const role = messageRole(normalized);
   const isTool = role === 'tool' || role === 'function';
-  const content = typeof message.content === 'string'
-    ? message.content
-    : message.content == null ? null : JSON.stringify(message.content);
-  const structuredResult = isTool && content != null ? parseStructured(content) : null;
-  const toolCalls = message.tool_calls;
+  const content = normalized.content;
+  const toolCalls = normalized.tool_calls ?? normalized.function_call;
+  const toolName = typeof normalized.name === 'string' ? normalized.name : null;
+  const resultLabel = toolName ? `Tool result ${toolName}` : 'Tool result';
   return <div className={nested ? 'mt-2 border-t border-violet-100 pt-2' : 'mt-2'}>
-    {typeof message.reasoning_content === 'string' && message.reasoning_content && <details className="rounded-md border border-violet-200 bg-white/70 px-2.5 py-2"><summary className="cursor-pointer text-[10px] font-medium text-violet-700">Thinking output</summary><p className="mt-2 whitespace-pre-wrap text-[11px] leading-5 text-secondary">{message.reasoning_content}</p></details>}
+    {typeof normalized.reasoning_content === 'string' && normalized.reasoning_content && <details className="rounded-md border border-violet-200 bg-white/70 px-2.5 py-2"><summary className="cursor-pointer text-[10px] font-medium text-violet-700">Thinking output</summary><div className="mt-2"><MessageContent value={normalized.reasoning_content} compact /></div></details>}
     {toolCalls != null && <ToolCalls value={toolCalls} />}
-    {isTool && structuredResult != null ? <section className="rounded-md border border-emerald-200 bg-emerald-50/60 p-2.5" aria-label="Tool result">
-      <div className="mb-1.5 flex items-center gap-1.5 text-[9px] font-medium uppercase tracking-[.08em] text-emerald-700"><BracketsCurly size={12} /> Tool result</div>
-      <StructuredValue value={structuredResult} />
-    </section> : content && <p className="whitespace-pre-wrap text-xs leading-5 text-secondary">{content}</p>}
+    {isTool && content != null ? <section className="rounded-md border border-emerald-200 bg-emerald-50/60 p-2.5" aria-label={resultLabel}>
+      <div className="mb-1.5 flex items-center gap-1.5 text-[9px] font-medium uppercase tracking-[.08em] text-emerald-700"><BracketsCurly size={12} /> Tool result{toolName ? ` · ${toolName}` : ''}</div>
+      <MessageContent value={content} compact />
+    </section> : <MessageContent value={content} />}
   </div>;
 }
 
 export function TranscriptMessage({ message, relatedMessages = [] }: { message: JsonRecord; relatedMessages?: JsonRecord[] }) {
-  const role = messageRole(message);
+  const normalized = normalizeMessage(message);
+  const role = messageRole(normalized);
   const isUser = role === 'user';
   const isAssistant = role === 'assistant';
   const isTool = role === 'tool' || role === 'function';
   return <article className={`flex ${isAssistant ? 'justify-end' : 'justify-start'}`} aria-label={`${role} message`}>
     <div className={`max-w-[94%] rounded-xl border px-3 py-2.5 ${isUser ? 'rounded-tl-sm border-divider bg-white' : isAssistant ? 'rounded-tr-sm border-violet-200 bg-violet-50/70' : isTool ? 'border-emerald-200 bg-emerald-50/60' : 'border-divider bg-subtle'}`}>
       <div className="flex items-center gap-2"><span className={`flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-semibold uppercase ${isUser ? 'bg-ink text-white' : isAssistant ? 'bg-violet-700 text-white' : isTool ? 'bg-emerald-600 text-white' : 'bg-muted text-white'}`}>{role.slice(0, 1)}</span><span className="text-[10px] font-medium capitalize text-secondary">{role}</span></div>
-      <div><MessageBody message={message} />
+      <div><MessageBody message={normalized} />
         {relatedMessages.map((related, index) => <MessageBody key={index} message={related} nested />)}
       </div>
     </div>
@@ -123,7 +86,8 @@ export function Transcript({ messages }: { messages: JsonRecord[] }) {
     }
     const relatedMessages: JsonRecord[] = [];
     let cursor = index + 1;
-    let hasToolExchange = message.tool_calls != null;
+    const normalized = normalizeMessage(message);
+    let hasToolExchange = normalized.tool_calls != null || normalized.function_call != null;
     while (cursor < messages.length) {
       const next = messages[cursor];
       const nextRole = messageRole(next);

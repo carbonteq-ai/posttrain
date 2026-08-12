@@ -1370,6 +1370,51 @@ describe('Observatory React product shell', () => {
     expect(await screen.findByText('3 of 250 loaded')).toBeVisible();
   });
 
+  it('groups OPD student trajectories with their teacher scoring evidence', async () => {
+    const { jobRun, jobView } = metricJob(
+      'train.distill',
+      'OPD paired evidence',
+      [
+        { key: 'scored_tokens', label: 'Scored tokens', metric: 'train/distill/scored_tokens', value: 11803, unit: 'tokens' },
+        { key: 'teacher_latency_ms', label: 'Teacher latency', metric: 'train/distill/teacher_latency_ms', value: 1536.69, unit: 'ms' },
+        { key: 'teacher_failures', label: 'Teacher failures', metric: 'train/distill/teacher_failures', value: 0, unit: null },
+      ],
+      {
+        student: { selection_id: 'models/gemma4-e2b-it@bf16', resolved: {} },
+        teacher: { selection_id: 'models/gemma4-12b-it@bf16', resolved: {} },
+      },
+      true,
+    );
+    Object.assign(jobView.view.charts[0].series[0].points[0], {
+      attributes: { distillation_batch_id: 'distill-batch-1' },
+    });
+    const trace = {
+      external_id: 'opd-rollout-1', trace_type: 'verifiers', prompt_preview: 'Produce one source-grounded target',
+      task: 'scope-opd', task_label: 'Scope OPD', task_metadata: null, reward: 0, success: null,
+      outcome: 'scored', truncated: false, error: null, tool_calls: 0, model_calls: 1,
+      input_tokens: 3172, completion_tokens: 825, latency_ms: 48617.406, tokens: 825,
+      response_tokens: null, response_chars: null, thinking_tokens: null, thinking_chars: null,
+      reward_components: {}, native_metrics: {}, metrics: {},
+    };
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === '/api/v1/runs') return new Response(JSON.stringify([jobRun]));
+      if (path.includes('/traces?')) return new Response(JSON.stringify({ items: [trace], next_cursor: null, total: 1, live: true }));
+      return new Response(JSON.stringify(jobView));
+    }));
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: 'Rollouts & rewards' }));
+    const pairing = await screen.findByRole('region', { name: 'Paired distillation evidence' });
+    expect(within(pairing).getByText('models/gemma4-e2b-it@bf16')).toBeVisible();
+    expect(within(pairing).getByText('models/gemma4-12b-it@bf16')).toBeVisible();
+    expect(within(pairing).getByText(/11,803 scored tokens/)).toBeVisible();
+    expect(within(pairing).getByText(/1\.5s teacher latency/)).toBeVisible();
+    expect(within(pairing).getByText(/0 failures/)).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Student trajectories (1)' })).toBeVisible();
+  });
+
   it('keeps the GRPO decision metrics to one five-item headline group', async () => {
     const { jobRun, jobView } = metricJob(
       'train.grpo',

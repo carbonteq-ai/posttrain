@@ -571,6 +571,30 @@ async def test_eval_population_projects_verifiers_v1_wire_trace_fields() -> None
     assert detail.transcript[0]["reasoning_content"] == "Check the arithmetic."
 
 
+def test_trace_summary_projects_bounded_provider_scalars() -> None:
+    detail = project_trace(
+        TraceRecord(
+            trace_type="verifiers",
+            external_id="trace-bounded",
+            payload={
+                "num_tool_calls": 0,
+                "num_model_calls": 1,
+                "input_tokens": 3172,
+                "completion_tokens": 825,
+                "latency_ms": 48617.406,
+            },
+        ),
+        RedactionPolicy(),
+    )
+
+    assert detail.summary.tool_calls == 0
+    assert detail.summary.model_calls == 1
+    assert detail.summary.input_tokens == 3172
+    assert detail.summary.completion_tokens == 825
+    assert detail.summary.tokens == 825
+    assert detail.summary.latency_ms == 48617.406
+
+
 def test_ifeval_task_metadata_uses_instruction_families_not_numeric_key() -> None:
     record = TraceRecord(
         trace_type="verifiers",

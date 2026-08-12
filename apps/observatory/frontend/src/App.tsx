@@ -29,13 +29,13 @@ import {
 
 import { FilterPopover } from './components/FilterPopover';
 import { PhaseMemoryTimeline } from './components/PhaseMemoryTimeline';
-import { Transcript } from './components/TranscriptMessage';
 import { ServingBenchmarkOverview } from './features/serving/ServingBenchmarkOverview';
 import { ServingCapacityWorkPackageView } from './features/serving/ServingCapacityWorkPackage';
 
 import {
   api,
   type Artifact,
+  type DistillationPairing,
   type MetricHelp,
   type MetricSeries,
   type RunItem,
@@ -51,6 +51,8 @@ import {
   type WorkPackageView,
 } from './lib/api';
 import { tracePresentation, traceSignalColumns, traceSurfaceMode, type TracePresentation } from './lib/trace-presentation';
+
+const Transcript = lazy(async () => ({ default: (await import('./components/TranscriptMessage')).Transcript }));
 
 const EvidenceChart = lazy(() =>
   import('./components/EvidenceChart').then((module) => ({ default: module.EvidenceChart })),
@@ -390,6 +392,31 @@ function nestedValue(selection: SelectionValue | null, ...path: string[]): unkno
     value = value[key];
   }
   return value;
+}
+
+function distillationPairing(response: RunView): DistillationPairing | null {
+  if (response.view.run.job_kind !== 'train.distill') return null;
+  const student = selectionValue(response.view.resolved_inputs, 'student');
+  const teacher = selectionValue(response.view.resolved_inputs, 'teacher');
+  if (!student || !teacher) return null;
+  const summaryValue = (key: string): number | null => {
+    const value = response.view.summary?.find((item) => item.key === key)?.value;
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  };
+  const batchIds = [...new Set((response.view.charts ?? [])
+    .flatMap((chart) => chart.series)
+    .filter((series) => series.name === 'train/distill/scored_tokens')
+    .flatMap((series) => series.points)
+    .map((point) => point.attributes?.distillation_batch_id)
+    .filter((value): value is string => typeof value === 'string' && value.length > 0))];
+  return {
+    studentModel: student.id,
+    teacherModel: teacher.id,
+    scoredTokens: summaryValue('scored_tokens'),
+    teacherLatencyMs: summaryValue('teacher_latency_ms'),
+    teacherFailures: summaryValue('teacher_failures'),
+    batchIds,
+  };
 }
 
 function methodValue(value: unknown, format: 'plain' | 'upper' | 'tokens' | 'examples' | 'enabled' = 'plain'): string | null {
@@ -1219,6 +1246,7 @@ export default function App() {
           {section === 'System metrics' && <SystemView system={system} />}
           {section === 'Traces & evaluation' && (
             <TraceView
+              response={response}
               jobKind={selected.run.job_kind}
               evaluation={evaluation}
               page={tracePage}
@@ -1941,6 +1969,7 @@ function SystemView({ system }: { system: SystemMetrics | null }) {
 }
 
 function TraceView({
+  response,
   jobKind,
   evaluation,
   page,
@@ -1950,6 +1979,7 @@ function TraceView({
   onLoadMore,
   onSelect,
 }: {
+  response: RunView;
   jobKind: string;
   evaluation: TraceEvaluation | null;
   page: TraceSummaryPage | null;
@@ -1964,6 +1994,7 @@ function TraceView({
   const [query, setQuery] = useState('');
   const [sorting, setSorting] = useState<SortingState>([{ id: 'reward', desc: false }]);
   const presentation = useMemo(() => tracePresentation(jobKind, evaluation), [evaluation, jobKind]);
+  const distillation = useMemo(() => distillationPairing(response), [response]);
   const pageTraces = page?.items ?? [];
   const metricColumns = useMemo(() => {
     if (evaluation) return traceSignalColumns(evaluation);
@@ -2043,7 +2074,7 @@ function TraceView({
     {evaluation && hasRewardEvidence ? <div className="mt-3"><Suspense fallback={<ChartFallback height={230} />}><EvaluationCharts evaluation={evaluation} traces={pageTraces} presentation={presentation} /></Suspense></div> : <section className="obs-card mt-3 px-4 py-3" aria-label="Trace evidence semantics"><h2 className="text-[13px] font-medium">Paged request evidence</h2><p className="mt-1 text-xs leading-5 text-muted">Aggregate learning signals remain on Overview. This tab loads summary rows in bounded pages; selecting one row fetches its complete transcript and verifier evidence.</p></section>}
     <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_410px]">
       <div>
-        <Suspense fallback={<ChartFallback height={430} />}><TraceTable traces={traces} total={total} hasMore={page.next_cursor != null} loadingMore={loadingMore} onLoadMore={onLoadMore} selectedId={detail?.summary.external_id ?? null} metricColumns={metricColumns} presentation={presentation} sorting={sorting} onSortingChange={setSorting} onSelect={(trace) => void onSelect(trace)} /></Suspense>
+        <Suspense fallback={<ChartFallback height={430} />}><TraceTable traces={traces} total={total} hasMore={page.next_cursor != null} loadingMore={loadingMore} onLoadMore={onLoadMore} selectedId={detail?.summary.external_id ?? null} metricColumns={metricColumns} presentation={presentation} sorting={sorting} onSortingChange={setSorting} onSelect={(trace) => void onSelect(trace)} distillation={distillation} /></Suspense>
       </div>
       <TraceInspector
         detail={detail}
@@ -2115,7 +2146,7 @@ function TraceInspector({
     </section>}
     <div className="max-h-[600px] overflow-auto p-4">
       <h3 className="type-label">Rollout transcript</h3>
-      <Transcript messages={detail.transcript} />
+      <Suspense fallback={<p className="mt-3 text-xs text-muted">Formatting transcript…</p>}><Transcript messages={detail.transcript} /></Suspense>
       <details className="mt-5 border-t border-divider pt-3"><summary className="cursor-pointer text-[10px] font-medium uppercase tracking-[.1em] text-muted">Trace metadata</summary><pre className="mt-2 overflow-auto rounded-[4px] bg-subtle p-3 text-[11px] leading-4">{JSON.stringify(detail.attributes, null, 2)}</pre></details>
     </div>
   </aside>;

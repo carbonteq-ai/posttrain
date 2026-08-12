@@ -177,6 +177,7 @@ def _rollouts() -> RolloutDataset:
 @dataclass
 class FakeRLBridge:
     dataset: RolloutDataset = field(default_factory=_rollouts)
+    live_observed_trace_ids: set[str] = field(default_factory=set)
 
     async def run(self, batch, generator) -> tuple[EnvironmentRollout, ...]:
         del generator
@@ -200,6 +201,9 @@ class FakeRLBridge:
 
     def finalize(self) -> tuple[ProducedArtifact, ...]:
         return ()
+
+    def mark_live_observed(self, external_id: str) -> None:
+        self.live_observed_trace_ids.add(external_id)
 
 
 @dataclass
@@ -1120,7 +1124,15 @@ def test_distillation_rollout_adapter_preserves_fresh_identity_masks_and_traces(
     assert output["completion_loss_mask"] == [[True, True, True]]
     assert output["logprobs"] == [[-0.1, -0.2, -0.3]]
     assert output["rollout_ids"] == ["trace-0"]
-    assert observer.traces[0].attributes["technique"] == "distill"
+    trace_attributes = observer.traces[0].attributes
+    assert trace_attributes["technique"] == "distill"
+    assert trace_attributes["student_model_variant_id"] == request.student.id
+    assert trace_attributes["teacher_model_variant_id"] == request.teacher.id
+    assert trace_attributes["optimizer_step"] == 3
+    assert trace_attributes["scored_token_count"] == 3
+    assert isinstance(trace_attributes["distillation_batch_id"], str)
+    assert isinstance(request.bridge, FakeRLBridge)
+    assert request.bridge.live_observed_trace_ids == {"trace-0"}
     assert observer.events[-1].name == "distillation_batch_consumed"
     assert any(batch.values.get("train/distill/scored_tokens") == 3 for batch in observer.metrics_seen)
 

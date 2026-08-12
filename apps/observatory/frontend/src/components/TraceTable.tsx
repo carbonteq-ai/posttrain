@@ -9,6 +9,7 @@ import {
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
+  ArrowRight,
   CaretDown,
   CaretUp,
   Check,
@@ -17,7 +18,7 @@ import {
   X,
 } from '@phosphor-icons/react';
 
-import type { TraceSummary } from '../lib/api';
+import type { DistillationPairing, TraceSummary } from '../lib/api';
 import type { TracePresentation } from '../lib/trace-presentation';
 
 const column = createColumnHelper<TraceSummary>();
@@ -39,6 +40,7 @@ type TraceTableProps = {
   hasMore: boolean;
   loadingMore: boolean;
   onLoadMore: () => void;
+  distillation: DistillationPairing | null;
 };
 
 export function TraceTable({
@@ -53,6 +55,7 @@ export function TraceTable({
   hasMore,
   loadingMore,
   onLoadMore,
+  distillation,
 }: TraceTableProps) {
   const hasReward = traces.some((trace) => trace.reward != null);
   const columns = useMemo(
@@ -150,9 +153,29 @@ export function TraceTable({
 
   return (
     <div className="obs-card overflow-hidden bg-white">
+      {distillation && <section aria-label="Paired distillation evidence" className="grid gap-2 border-b border-divider bg-violet-50/40 px-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center">
+        <div className="min-w-0">
+          <span className="text-[9px] font-medium uppercase tracking-[.09em] text-violet-700">Student rollouts</span>
+          <strong className="mt-0.5 block truncate text-[12px] font-medium text-ink" title={distillation.studentModel}>{distillation.studentModel}</strong>
+          <span className="text-[10px] text-muted">{traces.length.toLocaleString()} loaded trajectories</span>
+        </div>
+        <div className="flex items-center gap-2 text-[9px] font-medium uppercase tracking-[.08em] text-violet-700">
+          <span>Exact student token IDs</span><ArrowRight size={14} aria-hidden="true" />
+        </div>
+        <div className="min-w-0 sm:text-right">
+          <span className="text-[9px] font-medium uppercase tracking-[.09em] text-violet-700">Teacher scoring</span>
+          <strong className="mt-0.5 block truncate text-[12px] font-medium text-ink" title={distillation.teacherModel}>{distillation.teacherModel}</strong>
+          <span className="text-[10px] text-muted">
+            {distillation.scoredTokens == null ? 'Scored tokens unavailable' : `${distillation.scoredTokens.toLocaleString()} scored tokens`}
+            {distillation.teacherLatencyMs == null ? '' : ` · ${(distillation.teacherLatencyMs / 1000).toFixed(1)}s teacher latency`}
+            {distillation.teacherFailures == null ? '' : ` · ${distillation.teacherFailures.toLocaleString()} failures`}
+            {' · '}{distillation.batchIds.length ? `${distillation.batchIds.length.toLocaleString()} recorded ${distillation.batchIds.length === 1 ? 'batch' : 'batches'}` : 'run population'}
+          </span>
+        </div>
+      </section>}
       <div className="flex items-center justify-between gap-3 border-b border-divider bg-white px-3 py-2.5">
         <div className="flex min-w-0 items-baseline gap-2">
-          <h2 className="text-[12px] font-medium text-ink">{presentation.mode === 'optimization' ? 'Rollouts' : 'Traces'} ({traces.length.toLocaleString()})</h2>
+          <h2 className="text-[12px] font-medium text-ink">{distillation ? 'Student trajectories' : presentation.mode === 'optimization' ? 'Rollouts' : 'Traces'} ({traces.length.toLocaleString()})</h2>
           <span className="truncate text-[9px] text-muted">Prompt and task lead; trace ID stays secondary.</span>
         </div>
       </div>

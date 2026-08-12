@@ -1108,7 +1108,7 @@ def test_public_ci_trl_mirror_matches_selected_distribution() -> None:
     assert f"CARBONTEQ_TRL_WHEEL_SHA256: {wheel_sha256}" in workflow
     assert f"CARBONTEQ_TRL_WHEEL_PATH: /tmp/{filename}" in workflow
     assert (
-        f"POSTTRAIN_CONSUMER_EXTRA_WHEELS: /tmp/carbonteq_trackio-0.31.5.post12-py3-none-any.whl:/tmp/{filename}"
+        f"POSTTRAIN_CONSUMER_EXTRA_WHEELS: /tmp/carbonteq_trackio-0.31.5.post13-py3-none-any.whl:/tmp/{filename}"
     ) in workflow
 
 
