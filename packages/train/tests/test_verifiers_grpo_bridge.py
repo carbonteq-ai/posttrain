@@ -355,6 +355,10 @@ def test_native_bridge_projects_multiturn_masks_rewards_and_trace_artifact(tmp_p
 def test_native_bridge_projects_only_digest_bound_opd_target(tmp_path) -> None:
     task = SimpleNamespace(data=TaskData(idx=7, prompt="OPD target"))
     trace = _trace(task, 1)
+    # Verifiers attributes the trailing generation-prompt scaffold to the
+    # sampled assistant node with a false mask.
+    trace.nodes[1].token_ids = [9, 10, 3, 4]
+    trace.nodes[1].mask = [False, False, True, True]
 
     def token_digest(values: list[int]) -> str:
         digest = hashlib.sha256()
@@ -366,7 +370,7 @@ def test_native_bridge_projects_only_digest_bound_opd_target(tmp_path) -> None:
         "opd": {
             "selected_call_node": 1,
             "selected_branch_index": 0,
-            "selected_prompt_sha256": token_digest([1, 2]),
+            "selected_prompt_sha256": token_digest([1, 2, 9, 10]),
             "selected_completion_sha256": token_digest([3, 4]),
             "admission_status": "accepted",
         }
@@ -385,7 +389,7 @@ def test_native_bridge_projects_only_digest_bound_opd_target(tmp_path) -> None:
 
     rollout = bridge._project(trace, "train/000007", 7)  # noqa: SLF001
 
-    assert rollout.prompt_ids == (1, 2)
+    assert rollout.prompt_ids == (1, 2, 9, 10)
     assert rollout.completion_ids == (3, 4)
     assert rollout.env_mask == (True, True)
     assert rollout.sampling_logprobs == (-0.1, -0.2)

@@ -814,22 +814,36 @@ def _selected_opd_branch(
         raise ValueError("OPD selected node is absent from the selected branch")
     if not bool(getattr(selected_node, "sampled", False)):
         raise ValueError("OPD selected node is not model sampled")
+    prompt_ids, completion_ids = _selected_opd_turn_token_ids(branch, selected_node)
     expected_completion = marker.get("selected_completion_sha256")
-    actual_completion = _token_ids_sha256(selected_node.token_ids)
+    actual_completion = _token_ids_sha256(completion_ids)
     if not isinstance(expected_completion, str) or expected_completion != actual_completion:
         raise ValueError("OPD selected completion digest is missing or inconsistent")
-    selected_position = next(
-        index for index, node in enumerate(branch.nodes) if node is selected_node
-    )
-    prompt_ids = [
-        token_id
-        for node in branch.nodes[:selected_position]
-        for token_id in node.token_ids
-    ]
     expected_prompt = marker.get("selected_prompt_sha256")
     if not isinstance(expected_prompt, str) or expected_prompt != _token_ids_sha256(prompt_ids):
         raise ValueError("OPD selected prompt digest is missing or inconsistent")
     return branch_index, branch, selected_node
+
+
+def _selected_opd_turn_token_ids(branch: Any, selected_node: Any) -> tuple[tuple[int, ...], tuple[int, ...]]:
+    """Split a Verifiers assistant node into its prompt scaffold and sampled completion."""
+    selected_position = next(
+        index for index, node in enumerate(branch.nodes) if node is selected_node
+    )
+    node_ids = tuple(int(value) for value in selected_node.token_ids)
+    node_mask = tuple(bool(value) for value in selected_node.mask)
+    if len(node_ids) != len(node_mask):
+        raise ValueError("OPD selected node tokens and mask are misaligned")
+    sampled_positions = tuple(index for index, value in enumerate(node_mask) if value)
+    if not sampled_positions or sampled_positions != tuple(range(sampled_positions[0], len(node_mask))):
+        raise ValueError("OPD selected node must end in one contiguous sampled span")
+    split = sampled_positions[0]
+    prompt_ids = tuple(
+        int(token_id)
+        for node in branch.nodes[:selected_position]
+        for token_id in node.token_ids
+    ) + node_ids[:split]
+    return prompt_ids, node_ids[split:]
 
 
 def _selected_training_sequence(
