@@ -175,6 +175,31 @@ def run_distillation(
                             (time.perf_counter() - started_at) * 1_000,
                         )
 
+            def _get_local_constrained_teacher_logprobs(
+                self,
+                inputs: dict[str, Any],
+                aligned_prompt_length: int,
+            ) -> dict[str, Any]:
+                started_at = time.perf_counter()
+                with context.phase("teacher_scoring", {"backend": "transformers"}):
+                    try:
+                        result = _local_constrained_teacher_logprobs(
+                            self,
+                            inputs,
+                            aligned_prompt_length,
+                        )
+                    except Exception:
+                        context.metric("train/distill/teacher_failures", 1)
+                        raise
+                    else:
+                        context.metric("train/distill/teacher_failures", 0)
+                        return result
+                    finally:
+                        context.metric(
+                            "train/distill/teacher_latency_ms",
+                            (time.perf_counter() - started_at) * 1_000,
+                        )
+
         checkpoint_callback = checkpoint_callback_type(
             context,
             imports,
@@ -806,8 +831,8 @@ def _validate_memory_safe_iw_opd_request(
     request: OnPolicyDistillationRequest,
     teacher_product: str,
 ) -> None:
-    if teacher_product != "vllm":
-        raise ValueError("memory-safe IW-OPD requires an external vLLM teacher")
+    if teacher_product not in {"transformers", "vllm"}:
+        raise ValueError("memory-safe IW-OPD requires a transformers or vLLM teacher")
     student_artifact = request.student.artifact
     if (
         request.student.family != "gemma4"
@@ -878,16 +903,25 @@ def _memory_safe_server_iw_opd_loss(
 
     import torch
 
-    if not trainer.use_teacher_server or trainer.distillation_objective != "iw_opd":
+    if (
+        (not trainer.use_teacher_server and trainer.teacher_model is None)
+        or trainer.distillation_objective != "iw_opd"
+    ):
         raise ValueError("memory-safe IW-OPD received an unsupported trainer configuration")
     if trainer.accelerator.num_processes != 1:
         raise ValueError("memory-safe IW-OPD is qualified only for one trainer process")
 
     prompt_length = trainer._compute_prompt_length(inputs)  # noqa: SLF001 - pinned fork contract
-    teacher_result = trainer._get_teacher_token_logprobs_from_server(  # noqa: SLF001
-        inputs,
-        prompt_length,
-    )
+    if trainer.use_teacher_server:
+        teacher_result = trainer._get_teacher_token_logprobs_from_server(  # noqa: SLF001
+            inputs,
+            prompt_length,
+        )
+    else:
+        teacher_result = trainer._get_local_constrained_teacher_logprobs(  # noqa: SLF001
+            inputs,
+            prompt_length,
+        )
     completion_length = int(teacher_result["actual_logprobs"].shape[1])
     all_labels = inputs["labels"][:, prompt_length:]
     if (all_labels[:, completion_length:] != -100).any():
@@ -1002,6 +1036,122 @@ def _memory_safe_server_iw_opd_loss(
         raise ValueError("IW-OPD accumulation denominator must be positive")
     loss = token_loss.sum() / denominator
     return (loss, student_outputs) if return_outputs else loss
+
+
+def _local_constrained_teacher_logprobs(
+    trainer: Any,
+    inputs: dict[str, Any],
+    aligned_prompt_length: int,
+) -> dict[str, Any]:
+    """Score an exact completion in parallel with a frozen local teacher.
+
+    The teacher receives its model-native prompt, while the exact student
+    completion remains token-aligned.  Only hidden states are materialized for
+    the sequence; the vocabulary projection is chunked and normalized over the
+    same XGrammar-allowed set used by rollout and current-student scoring.
+    """
+
+    import torch
+
+    teacher = trainer.accelerator.unwrap_model(trainer.teacher_model)
+    prompts = inputs.get("teacher_prompt_ids")
+    completions = inputs.get("teacher_completion_ids")
+    offsets = inputs.get("teacher_completion_offsets")
+    schemas = inputs.get("structured_output_schemas")
+    schema_digests = inputs.get("schema_digests")
+    expected_allowed_digests = inputs.get("allowed_set_digests")
+    request_ids = inputs.get("constrained_request_ids")
+    values = (prompts, completions, offsets, schemas, schema_digests, expected_allowed_digests, request_ids)
+    if any(not isinstance(value, list) or len(value) != 1 for value in values):
+        raise ValueError("local constrained teacher metadata must align with physical batch one")
+    prompt_ids = prompts[0]
+    completion_ids = completions[0]
+    offset = offsets[0]
+    if (
+        not isinstance(prompt_ids, list)
+        or not isinstance(completion_ids, list)
+        or not completion_ids
+        or not isinstance(offset, int)
+        or offset < 0
+    ):
+        raise ValueError("local constrained teacher token alignment is invalid")
+
+    device = next(teacher.parameters()).device
+    sequence = torch.tensor([prompt_ids + completion_ids], dtype=torch.long, device=device)
+    attention_mask = torch.ones_like(sequence)
+    teacher.eval()
+    with torch.no_grad():
+        outputs = teacher.model(
+            input_ids=sequence,
+            attention_mask=attention_mask,
+            use_cache=False,
+            return_dict=True,
+        )
+        hidden = outputs.last_hidden_state[:, len(prompt_ids) - 1 : -1, :]
+        if hidden.shape[1] != len(completion_ids):
+            raise RuntimeError("local teacher hidden states do not align with the exact completion")
+        head = teacher.get_output_embeddings()
+        softcap = teacher.config.get_text_config().final_logit_softcapping
+        matcher, xgrammar = _xgrammar_matcher(trainer.processing_class, schemas[0], head.weight.shape[0])
+        actual_chunks: list[Any] = []
+        allowed_counts: list[int] = []
+        observed_digests: list[str] = []
+        chunk_size = 16
+        for start in range(0, len(completion_ids), chunk_size):
+            end = min(start + chunk_size, len(completion_ids))
+            logits = head(hidden[:, start:end, :])
+            if softcap is not None:
+                logits = torch.tanh(logits / softcap) * softcap
+            scaled = logits.float() / trainer.temperature
+            bitmask = xgrammar.allocate_token_bitmask(end - start, scaled.shape[-1]).to(scaled.device)
+            for local_position, position in enumerate(range(start, end)):
+                matcher.fill_next_token_bitmask(bitmask, local_position)
+                selected = int(completion_ids[position])
+                if not matcher.accept_token(selected):
+                    raise ValueError(f"teacher completion token is disallowed by XGrammar at position {position}")
+                digest = _allowed_set_digest(schema_digests[0], completion_ids, position)
+                if digest != expected_allowed_digests[0][position]:
+                    raise ValueError("local teacher allowed-token digest differs from rollout evidence")
+                observed_digests.append(digest)
+            xgrammar.apply_token_bitmask_inplace(scaled.reshape(end - start, -1), bitmask)
+            allowed_counts.extend(
+                int(torch.isfinite(scaled[0, local_position]).sum().item())
+                for local_position in range(end - start)
+            )
+            selected = scaled.gather(
+                dim=-1,
+                index=torch.tensor(
+                    [completion_ids[start:end]], dtype=torch.long, device=scaled.device
+                ).unsqueeze(-1),
+            ).squeeze(-1)
+            actual_chunks.append(selected - torch.logsumexp(scaled, dim=-1))
+        actual_row = torch.cat(actual_chunks, dim=1)
+
+    completion_mask = inputs["labels"][:, aligned_prompt_length:] != -100
+    valid_positions = torch.nonzero(completion_mask[0], as_tuple=False).flatten()
+    if valid_positions.numel() == 0:
+        raise ValueError("local constrained teacher received no selected student tokens")
+    student_completion_length = int(valid_positions[-1].item()) + 1
+    if offset + len(completion_ids) > student_completion_length:
+        raise ValueError("local teacher completion offset exceeds selected student completion")
+    actual = torch.full(
+        (1, student_completion_length),
+        float("-inf"),
+        dtype=torch.float32,
+        device=inputs["input_ids"].device,
+    )
+    actual[0, offset : offset + len(completion_ids)] = actual_row[0].to(actual.device)
+    return {
+        "actual_logprobs": actual,
+        "topk_logprobs": actual.unsqueeze(-1),
+        "topk_token_ids": torch.tensor(
+            [[[token_id] for token_id in completion_ids]],
+            dtype=torch.long,
+            device=actual.device,
+        ),
+        "allowed_counts": [allowed_counts],
+        "allowed_set_digests": [observed_digests],
+    }
 
 
 def _xgrammar_matcher(tokenizer: Any, schema: dict[str, Any], vocab_size: int) -> tuple[Any, Any]:

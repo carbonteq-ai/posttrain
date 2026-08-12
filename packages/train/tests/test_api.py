@@ -407,6 +407,7 @@ def test_memory_safe_iw_opd_guard_accepts_constrained_logical_twelve_physical_on
     )
 
     _validate_memory_safe_iw_opd_request(request, "vllm")
+    _validate_memory_safe_iw_opd_request(request, "transformers")
 
 
 def test_memory_safe_constrained_iw_opd_guard_rejects_unqualified_physical_batch() -> None:

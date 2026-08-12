@@ -15,6 +15,7 @@ from posttrain.train.backends.trl.distillation import (  # noqa: E402
     _allowed_set_digest,
     _buffered_selected_token_count,
     _generate_heterogeneous_colocated_iw_opd_turns,
+    _local_constrained_teacher_logprobs,
     _memory_safe_server_iw_opd_loss,
     _validate_iw_opd_private_contract,
 )
@@ -42,6 +43,10 @@ class Gemma4ForConditionalGeneration(nn.Module):
 
     def get_output_embeddings(self):
         return self.lm_head
+
+
+class Gemma4UnifiedForConditionalGeneration(Gemma4ForConditionalGeneration):
+    pass
 
 
 class _Accelerator:
@@ -196,6 +201,53 @@ def test_chunked_constrained_iw_opd_matches_dense_loss_and_gradients() -> None:
         rtol=1e-5,
         atol=1e-6,
     )
+
+
+def test_local_teacher_parallel_scoring_matches_dense_constrained_probabilities() -> None:
+    torch.manual_seed(19)
+    teacher = Gemma4UnifiedForConditionalGeneration()
+    completion = [3, 4, 5, 6]
+    prompt = [9, 10]
+    digests = [
+        _allowed_set_digest(_SCHEMA_DIGEST, completion, position)
+        for position in range(len(completion))
+    ]
+    inputs = _inputs()
+    inputs.update(
+        {
+            "teacher_prompt_ids": [prompt],
+            "teacher_completion_ids": [completion],
+            "teacher_completion_offsets": [0],
+            "constrained_request_ids": ["request-1"],
+            "allowed_set_digests": [digests],
+        }
+    )
+    trainer = SimpleNamespace(
+        teacher_model=teacher,
+        accelerator=_Accelerator(),
+        processing_class=object(),
+        temperature=1.0,
+    )
+
+    observed = _local_constrained_teacher_logprobs(trainer, inputs, 2)
+
+    with torch.no_grad():
+        hidden = teacher.model(
+            input_ids=torch.tensor([prompt + completion]),
+            attention_mask=torch.ones((1, len(prompt) + len(completion)), dtype=torch.long),
+            use_cache=False,
+            return_dict=True,
+        ).last_hidden_state[:, len(prompt) - 1 : -1, :]
+        logits = teacher.lm_head(hidden)
+        logits = torch.tanh(logits / 30.0) * 30.0
+        logits[..., 32:] = float("-inf")
+        expected = logits.gather(
+            -1, torch.tensor(completion).view(1, -1, 1)
+        ).squeeze(-1) - torch.logsumexp(logits, dim=-1)
+
+    assert torch.allclose(observed["actual_logprobs"], expected.float(), rtol=1e-6, atol=1e-6)
+    assert observed["allowed_counts"] == [[32] * 4]
+    assert observed["allowed_set_digests"] == [digests]
 
 
 def test_twelve_physical_one_slices_match_one_logical_iw_opd_batch() -> None:
