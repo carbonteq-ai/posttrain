@@ -37,7 +37,7 @@ bindings:
   training:
     type: ref
     family: training
-    id: training/qwen3.5-0.8b-verl-grpo-sampling-contract-canary-lora@1
+    id: training/qwen3.5-0.8b-verl-grpo-sampling-contract-canary-lora@2
   rollout_inference:
     type: ref
     family: inference

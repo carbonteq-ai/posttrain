@@ -129,6 +129,17 @@ package reaches the internal index and the resolved job image contains it.
 - [x] (2026-08-13) Published the retained veRL dev2 assets to
   `carbonteq/dev`. Run `31649999160` verified development storage, byte
   hashes, a clean install, and a retained publication receipt.
+- [x] (2026-08-13) Preflighted both requested work packages before GPU
+  submission and caught stale project-local bindings: the TRL package still
+  selected post9 and the veRL canary still selected dev1 even though the
+  candidate dependency inputs were newer. Preserved the historical selections,
+  added TRL `@5` and veRL canary `@2`, and moved the requested packages to the
+  new immutable revisions.
+- [x] (2026-08-13) Regenerated the veRL Python 3.13 runtime lock and exported
+  constraints for `808923d487aa2c524fda02cf5289110541b4221f`. The new lock
+  digest is `334831a7e6344bc8ea7cfb406b13a43da7e46da97f17faae4b8d416f30286494`;
+  the exported constraints digest is
+  `c12f960e7fb41901177e370e0f270e84e7f9662d5578c40b52b0d329240c7052`.
 - [ ] Materialize the bounded TRL and veRL runtime candidates from retained
   development-channel locks.
 - [ ] Run both explicitly scoped GPU canaries only from those candidate images

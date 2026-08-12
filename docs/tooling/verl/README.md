@@ -441,16 +441,18 @@ synthetic padding microbatches as zero-contribution batches. The paired runtime
 kind preinstalls the Verifiers harness prerequisites so parallel rollout
 workers never race while mutating the container package database.
 
-The current immutable CarbonTeq veRL release candidate is
-`0.9.0.dev1`, source commit `a6fe39c22719ec981ed8544ad8feffd59995cc13`,
-and tag `carbonteq-v0.9.0.dev1`. Its wheel and source distribution were built,
-uploaded to `carbonteq/dev`, and read back from that index. It changes only the
-distribution version and release ledger from the dense-distillation parent; the
-candidate has passed the 114-test focused Python 3.13 CPU suite, wheel install,
-and focused Ruff/diff checks. It is not a GPU qualification or production
-promotion: the runtime image rebuild and bounded veRL canary remain required.
+The current immutable CarbonTeq veRL release candidate is `0.9.0.dev2`, source
+commit `808923d487aa2c524fda02cf5289110541b4221f`, and tag
+`carbonteq-v0.9.0.dev2`. Its wheel and source distribution were built manually
+in the fork, published byte-for-byte to `carbonteq/dev` by Posttrain workflow
+`31649999160`, and read back from that index. In addition to the dev1 release
+delta, it preserves repaired three-dimensional position IDs through nested
+TensorDict minibatch selection. The candidate has passed the focused Python
+3.13 CPU suite, wheel install, and focused Ruff/diff checks. It is not a GPU
+qualification or production promotion: a runtime image containing this exact
+revision and the bounded veRL canary remain required.
 
-The matching kind image is published as
+The previous dev1 matching kind image is retained as historical evidence at
 `registry.lan/carbonteq/posttrain-kind-online-rl-verl-py313:0.9.0.dev1`.
 Its OCI index digest is
 `sha256:5684281f0f85ab741a156f1a92e11062a0e910f58aad03a488e8a2188db2421a`
