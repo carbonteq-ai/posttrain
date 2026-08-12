@@ -86,6 +86,12 @@ package reaches the internal index and the resolved job image contains it.
   publisher. It downloads release bytes by immutable tag, verifies caller
   supplied SHA-256 values, publishes only those bytes to the internal stable
   index, and proves a clean installation. No fork release runner is used.
+- [x] (2026-08-13) Retrieved the failed TRL run's retained native traces and
+  verified all 749 sampled-token behavior-policy log probabilities are finite.
+  Released the generic loss-boundary diagnostics as
+  `trl==1.9.2.post8` (fork tag `carbonteq-v1.9.2.post8`, commit
+  `9a219ce5a593d85fe6058025de211ce42267e6b6`) and published exact release
+  bytes through successful Posttrain retained-asset workflow `31644269156`.
 - [ ] Repack the bounded TRL and veRL images from the retained generated
   manifest, then run both explicitly scoped GPU canaries and verify their
   retained evidence.
@@ -239,10 +245,10 @@ keyword arguments in
 include temperature, top-p, top-k, min-p, repetition penalty, and presence
 penalty.
 
-The resolved dependency is now `trl==1.9.2.post4` in `uv.lock`, sourced from
+The resolved dependency is now `trl==1.9.2.post8` in `uv.lock`, sourced from
 the stable internal index with the exact retained wheel and source hashes. Its
 maintained source is `/home/hammad/projects/trl-1.9-upgrade`, branch
-`v1.9.2.post4-release`.
+`v1.9.2.post5-release`.
 `IWOPDConfig` is an experimental TRL dataclass whose declared fields are the
 only permitted constructor keywords. `IWOPDTrainer` builds a transformers
 `GenerationConfig` for local generation and a `VLLMGeneration` object for

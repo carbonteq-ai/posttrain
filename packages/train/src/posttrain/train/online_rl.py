@@ -223,6 +223,8 @@ class EnvironmentRollout:
             raise ValueError("environment mask must align with completion ids")
         if self.sampling_logprobs and len(self.sampling_logprobs) != len(self.completion_ids):
             raise ValueError("sampling logprobs must align with completion ids")
+        if self.sampling_logprobs and not all(math.isfinite(value) for value in self.sampling_logprobs):
+            raise ValueError("sampling logprobs must be finite when provided")
         if not any(self.env_mask):
             raise ValueError("training rollouts require at least one model-sampled token")
         previous_end = 0

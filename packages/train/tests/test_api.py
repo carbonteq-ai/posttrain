@@ -213,6 +213,20 @@ class TruncatedRLBridge(FakeRLBridge):
         return tuple(replace(rollout, is_truncated=True) for rollout in rollouts)
 
 
+def test_environment_rollout_rejects_nonfinite_sampling_logprobs() -> None:
+    with pytest.raises(ValueError, match="sampling logprobs must be finite"):
+        EnvironmentRollout(
+            example_id="gsm8k/train/0",
+            prompt_ids=(1,),
+            completion_ids=(2,),
+            sampling_logprobs=(float("-inf"),),
+            env_mask=(True,),
+            reward=1.0,
+            is_truncated=False,
+            trace=TraceObservation("test", "trace-nonfinite", {}),
+        )
+
+
 @dataclass
 class FailingFinalizeBridge(FakeRLBridge):
     def finalize(self) -> tuple[ProducedArtifact, ...]:
