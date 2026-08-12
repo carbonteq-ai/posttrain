@@ -49,7 +49,10 @@ jobs:
         # The committed lock records the internal stable index. Public runners
         # consume its hash-identical GitHub Release wheel and must not resolve
         # the private index while installing the remaining frozen lock.
-        run: uv sync --frozen --all-packages --group dev --python 3.13 --no-install-package carbonteq-trackio --inexact
+        run: |
+          uv sync --frozen --all-packages --group dev --extra trl --python 3.13 \
+            --no-install-package carbonteq-trackio --no-install-package trl --inexact
+          uv pip install --python .venv/bin/python --no-deps "${CARBONTEQ_TRL_WHEEL_PATH}"
       - name: Verify repository ownership
         run: uv run --no-sync posttrain-release repository-check
       - name: Run deterministic release readiness
