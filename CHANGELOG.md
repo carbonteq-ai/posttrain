@@ -15,7 +15,7 @@ version across first-party distributions.
   cannot fit the rollout engine context. This turns an otherwise late vLLM
   configuration failure into an actionable pre-pack validation error.
 
-## 0.3.11 - Unreleased
+## 0.3.11 - 2026-08-12
 
 ### Fixed
 
