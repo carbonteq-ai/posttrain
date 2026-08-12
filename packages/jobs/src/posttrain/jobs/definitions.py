@@ -766,14 +766,27 @@ def _validate_online_rl_batch_seats(seats: ResolvedSeats) -> None:
     global_batch = training.runtime.global_batch_size
     if isinstance(global_batch, int) and global_batch != expected_batch:
         raise ContractError("training global batch must equal prompt groups times generations")
+    inference = _seat(seats, "rollout_inference", InferenceBinding)
     try:
         validate_verifiers_policy_sampling(
             _seat(seats, "environment", EnvironmentBinding),
-            _seat(seats, "rollout_inference", InferenceBinding),
+            inference,
             settings.max_completion_length,
         )
     except ValueError as error:
         raise ContractError(f"online-RL sampling policy is inconsistent: {error}") from error
+    declared_completion_length = inference.sampling.get("max_tokens")
+    if declared_completion_length is not None and declared_completion_length != settings.max_completion_length:
+        raise ContractError("online-RL inference sampling max_tokens must equal settings max_completion_length")
+    context_window = inference.engine.get("max_model_len", inference.model.capabilities.native_context_window)
+    if not isinstance(context_window, int):
+        raise ContractError("online-RL inference max_model_len must be an integer")
+    requested_context = settings.max_prompt_length + settings.max_completion_length
+    if requested_context > context_window:
+        raise ContractError(
+            "online-RL prompt and completion budgets exceed rollout inference max_model_len: "
+            f"{settings.max_prompt_length} + {settings.max_completion_length} > {context_window}"
+        )
 
 
 def _recovery_checkpoint(context: RunContext) -> LocalArtifactRef | None:

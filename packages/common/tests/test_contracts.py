@@ -229,6 +229,23 @@ class CatalogTests(unittest.TestCase):
                 ("screen",),
             )
 
+    def test_inference_cannot_request_more_output_than_its_context_window(self) -> None:
+        model = FOUNDATION_VARIANTS["qwen3.5-2b"]
+        target = ExecutionTarget("targets/rtx3070ti-8gb", "1", "cuda", 8)
+
+        with self.assertRaisesRegex(ContractError, "max_tokens cannot exceed"):
+            InferenceBinding(
+                "inference/qwen-context-overcommit",
+                "1",
+                model,
+                "vllm@0.10.2",
+                model.renderer_contract,
+                {"max_model_len": 4096},
+                {"max_tokens": 4097},
+                target,
+                ("screen",),
+            )
+
     def test_overlay_wins_and_records_its_source(self) -> None:
         model = FOUNDATION_VARIANTS["qwen3.5-2b"]
         target = ExecutionTarget("targets/rtx3070ti-8gb", "1", "cuda", 8)
