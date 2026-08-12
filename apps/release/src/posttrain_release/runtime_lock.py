@@ -14,6 +14,10 @@ _WORKSPACE_LOCK = Path(
 _PROFILES = Path("packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/profiles")
 _REQUIREMENT_START = re.compile(r"^(?P<name>[A-Za-z0-9_.-]+)(?:\[[^]]+\])?(?:==|\s+@\s+)")
 _PROFILE_PIN = re.compile(r"^(?P<name>[A-Za-z0-9_.-]+)==(?P<version>[^ ;]+)$")
+_INTERNAL_INDEXES = (
+    "https://pypi.lan/carbonteq/dev/",
+    "https://pypi.lan/carbonteq/stable/",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,7 +56,7 @@ def _internal_wheels(root: Path) -> dict[str, tuple[str, str, str]]:
             continue
         source = package.get("source")
         registry = source.get("registry") if isinstance(source, dict) else None
-        if not isinstance(registry, str) or "pypi.lan/carbonteq/stable" not in registry:
+        if not isinstance(registry, str) or not registry.startswith(_INTERNAL_INDEXES):
             continue
         name = package.get("name")
         version = package.get("version")

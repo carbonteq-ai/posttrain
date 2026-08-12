@@ -58,9 +58,12 @@ runner, private-index credentials, or a fork-controlled publication workflow.
 When Posttrain needs the released fork on the internal index, a maintainer
 manually dispatches the repository-owned retained-asset publisher from
 Posttrain.  That narrow workflow downloads the already-released assets by
-immutable tag, verifies the supplied hashes, publishes those same bytes, and
-performs a clean install/readback.  It never builds fork source and never
-executes fork workflow code.
+immutable tag, verifies the supplied hashes, publishes those same bytes only
+to `carbonteq/dev`, proves that the selected files are stored in that channel,
+and performs a clean install/readback. A separate repository-owned promotion
+workflow verifies the development files again and transfers those unchanged
+bytes server-side to `carbonteq/stable` only after qualification. It never
+builds fork source and never executes fork workflow code.
 
 For a fork-backed implementation, make changes in this order:
 
@@ -71,10 +74,17 @@ For a fork-backed implementation, make changes in this order:
 4. Update the fork's `CARBONTEQ_FORK.md` in the same change.
 5. Run the fork's focused tests and hardware gate where applicable.
 6. Commit and push the fork change.
-7. Update the consuming workspace's immutable dependency pin and lockfile.
-8. Update `docs/tooling/<tool>/README.md` with the selected fork commit,
+7. Create the immutable GitHub Release and retain its exact artifact hashes.
+8. Dispatch Posttrain's retained-asset candidate publisher; it may write only
+   to `carbonteq/dev`.
+9. Resolve the consuming candidate and runtime lock through `carbonteq/dev`,
+   then run the required qualification gates.
+10. Dispatch the repository-owned promotion workflow to prove development
+    readback and transfer the same bytes to `carbonteq/stable`.
+11. Update the consuming workspace's immutable stable dependency pin and lockfile.
+12. Update `docs/tooling/<tool>/README.md` with the selected fork commit,
    operational settings, and qualification evidence.
-9. Run the consuming workspace's integration and boundary tests.
+13. Run the consuming workspace's integration and boundary tests.
 
 Do not mix uncommitted changes from multiple repositories into one implied
 commit. A handoff or pull request must name each repository, commit order,

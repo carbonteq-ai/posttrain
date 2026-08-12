@@ -271,6 +271,33 @@ def test_runtime_lock_materializes_published_internal_wheel_receipts(tmp_path: P
     assert check_release(tmp_path).runtime_lock_pending is False
 
 
+def test_runtime_lock_materializes_development_candidate_wheel_receipts(tmp_path: Path) -> None:
+    _version_repository(tmp_path)
+    runtime = tmp_path / "packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds"
+    (runtime / "profiles").mkdir(parents=True)
+    (runtime / "profiles/supervised.txt").write_text("trl==1.9.2.post10\n", encoding="utf-8")
+    (runtime / "locks").mkdir()
+    lock = runtime / "locks/workspace.lock.txt"
+    lock.write_text("trl==1.9.2.post10\n", encoding="utf-8")
+    with (tmp_path / "uv.lock").open("a", encoding="utf-8") as handle:
+        handle.write(
+            "\n[[package]]\n"
+            'name = "trl"\n'
+            'version = "1.9.2.post10"\n'
+            'source = { registry = "https://pypi.lan/carbonteq/dev/+simple/" }\n'
+            'wheels = [{ url = "https://pypi.lan/carbonteq/dev/+f/abc/trl-1.9.2.post10-py3-none-any.whl", '
+            'hash = "sha256:' + "d" * 64 + '" }]\n'
+        )
+
+    result = materialize_runtime_lock(tmp_path)
+
+    assert result.changed is True
+    assert result.packages == ("trl",)
+    assert (
+        "trl @ https://pypi.lan/carbonteq/dev/+f/abc/trl-1.9.2.post10-py3-none-any.whl#sha256=" + "d" * 64
+    ) in lock.read_text(encoding="utf-8")
+
+
 def test_pending_runtime_lock_allows_old_image_manifest_until_rebuild(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -758,6 +785,7 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert "Run the final packed GPU canary through dstack" not in final
     assert "Prove a clean index-only consumer install" not in final
     assert "Verify committed runtime image digests in the private registry" not in final
+
     assert "candidate_run_id:" in final
     assert "Verify the final source and lock" in final
     assert "uv sync --all-packages --group dev --python 3.13 --locked" in final
@@ -793,6 +821,38 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert 'git tag -a "v${POSTTRAIN_RELEASE_VERSION}" "${RELEASE_TAG_SHA}"' in final
     assert "Materialize and verify the candidate wheelhouse" in final
     assert "receipt-check .release/python-release-receipt.json" in final
+
+
+def test_retained_fork_candidates_use_development_before_server_side_promotion() -> None:
+    root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+    for filename, package in (
+        ("publish-trl-internal.yml", "trl"),
+        ("publish-verl-internal.yml", "verl"),
+        ("publish-trackio-internal.yml", "carbonteq-trackio"),
+    ):
+        workflow = (root / ".github/workflows" / filename).read_text(encoding="utf-8")
+        assert "https://pypi.lan/carbonteq/dev/" in workflow
+        assert "https://pypi.lan/carbonteq/dev/+simple/" in workflow
+        assert "https://pypi.lan/carbonteq/stable/" not in workflow
+        assert "Publish exact bytes to the development index" in workflow
+        assert "../../+f/" in workflow
+        assert package in workflow
+
+    promotion = (root / ".github/workflows/promote-retained-fork-candidate.yml").read_text(encoding="utf-8")
+    assert "type: choice" in promotion
+    assert "carbonteq-ai/trl" in promotion
+    assert "carbonteq-ai/verl" in promotion
+    assert "carbonteq-ai/trackio" in promotion
+    assert '"${DEVPI_CLIENT}" push -y "${PACKAGE}==${VERSION}" carbonteq/stable' in promotion
+    assert "Verify stable readback is byte-identical" in promotion
+    assert "uv publish" not in promotion
+
+    runtime_candidate = (root / ".github/workflows/manual-runtime-image-candidate.yml").read_text(encoding="utf-8")
+    assert "CANDIDATE_SIMPLE_URL: https://pypi.lan/carbonteq/dev/+simple/" in runtime_candidate
+    assert "candidate index source must be unambiguous" in runtime_candidate
+    assert "uv lock --upgrade-package trl --upgrade-package carbonteq-trackio" in runtime_candidate
+    assert "candidate lock resolved an internal package outside carbonteq/dev" in runtime_candidate
+    assert "            uv.lock" in runtime_candidate
 
 
 @pytest.mark.skipif(which("uv") is None, reason="requires uv to validate the staged workspace lock")

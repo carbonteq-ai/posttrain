@@ -71,6 +71,11 @@ package reaches the internal index and the resolved job image contains it.
 - [x] (2026-08-13) Added a per-publication lock around remote job-image
   publication. Concurrent callers now wait and reuse the producer's verified
   receipt instead of racing on a named context that publication cleanup removes.
+- [x] (2026-08-13) Recorded the image/release performance contract in
+  `docs/publishing.md`: multi-stage ownership, parent and receipt reuse,
+  single-flight publication, BuildKit parallelism, compression defaults,
+  cold-pull diagnosis, safe registry retention, and the separate future
+  decision for kind-scoped locks.
 - [x] (2026-08-13) Added retained non-finite metric and gradient-parameter
   evidence to the TRL distillation path. The FP32-weight retry still reaches
   the first actor update and reports `on_policy_loss=-inf`, ruling out BF16
@@ -104,11 +109,21 @@ package reaches the internal index and the resolved job image contains it.
   finite rollout log probabilities, complete teacher scoring, and ordinary
   IW-OPD advantages/weights, then failed at `on_policy_loss=-inf` during the
   student update. Released post9 with a generic token-loss overflow boundary
-  that reports the finite source ranges, and published its immutable assets to
-  the internal index through retained-asset workflow `31646648237`.
-- [ ] Repack the bounded TRL and veRL images from the retained generated
-  manifest, then run both explicitly scoped GPU canaries and verify their
-  retained evidence.
+  that reports the finite source ranges. The retained-asset workflow
+  `31646648237` then incorrectly published post9 directly to
+  `carbonteq/stable`; that immutable artifact is retained only as a rejected
+  audit record and must not be used by a candidate or qualification run.
+- [ ] (2026-08-13) Repair the retained-fork path for TRL, veRL, and Trackio:
+  candidate publishers write only to `carbonteq/dev`, runtime candidates
+  materialize and retain a development-channel lock, and a separate
+  allowlisted server-side workflow promotes hash-verified bytes to stable.
+- [ ] Create a new unique TRL post release, publish its exact assets to
+  `carbonteq/dev`, then materialize the bounded TRL runtime candidate from the
+  retained development lock.
+- [ ] Publish the already retained veRL dev2 assets to `carbonteq/dev`, then
+  materialize its bounded runtime candidate from the retained development lock.
+- [ ] Run both explicitly scoped GPU canaries only from those candidate images
+  and verify their retained evidence before any stable promotion.
 
 ## Surprises & Discoveries
 
@@ -190,6 +205,12 @@ package reaches the internal index and the resolved job image contains it.
   Evidence: post8 retained 749 finite rollout log probabilities in
   [-7.6603, 0], no teacher failures, mean absolute advantage 0.1650, and
   weights in [1.00005, 1.5], yet the aggregate student objective was `-inf`.
+- Observation: the retained-fork publishers and runtime-lock materializer
+  contradicted the documented candidate channel by hard-coding `stable`.
+  Evidence: `docs/publishing.md` requires candidate files in `carbonteq/dev`,
+  while all three retained publishers and the runtime-lock selector named only
+  `carbonteq/stable`; workflow `31646648237` therefore sent TRL post9 directly
+  to stable.
 
 ## Decision Log
 
@@ -264,13 +285,20 @@ package reaches the internal index and the resolved job image contains it.
   student logprob, teacher value, behavior-policy value, advantage, or weight
   causes the reduction overflow without silently clipping the objective.
   Date/Author: 2026-08-13 / Codex
+- Decision: treat direct-to-stable retained-fork publications as rejected
+  audit artifacts and restart from a new immutable development candidate.
+  Rationale: stable is immutable and cannot be repaired in place. Candidate
+  qualification must resolve the development-channel bytes, and only a
+  hash-verified server-side promotion may make those bytes stable.
+  Date/Author: 2026-08-13 / Codex
 
 ## Outcomes & Retrospective
 
-Work in progress. The expected outcome is a published immutable TRL version
-and a Posttrain pin that construct the real config successfully, followed by
-the two requested targeted canaries. Publication follows the existing manual
-Posttrain retained-asset workflow rather than fork-local release automation.
+Work in progress. The expected outcome is a development-channel immutable TRL
+candidate and a Posttrain runtime lock that construct the real config
+successfully, followed by the two requested targeted canaries. Only unchanged,
+hash-verified candidate bytes may then be promoted to stable. Fork release
+creation remains manual; Posttrain owns the narrow private-index workflows.
 
 ## Context and Orientation
 
@@ -282,10 +310,12 @@ keyword arguments in
 include temperature, top-p, top-k, min-p, repetition penalty, and presence
 penalty.
 
-The resolved dependency is now `trl==1.9.2.post9` in `uv.lock`, sourced from
-the stable internal index with the exact retained wheel and source hashes. Its
-maintained source is `/home/hammad/projects/trl-1.9-upgrade`, branch
-`v1.9.2.post5-release`.
+The branch currently names `trl==1.9.2.post9` in `uv.lock`, but that version
+was direct-published to stable by the flawed retained-asset workflow and is not
+an accepted candidate input. The next unique post release must be published to
+`carbonteq/dev`; its generated candidate lock, not the current stable lock,
+will select the runtime bytes. Its maintained source is
+`/home/hammad/projects/trl-1.9-upgrade`, branch `v1.9.2.post5-release`.
 `IWOPDConfig` is an experimental TRL dataclass whose declared fields are the
 only permitted constructor keywords. `IWOPDTrainer` builds a transformers
 `GenerationConfig` for local generation and a `VLLMGeneration` object for
@@ -416,3 +446,9 @@ selection defect rather than a sampling-policy violation. Its immutable dev2
 release is ready for repository-owned internal publication and a subsequent
 runtime-kind rebuild; the TRL retry now exposes `on_policy_loss=-inf`, which
 remains under ingress/loss-path investigation before another GPU retry.
+
+Revision 2026-08-13: corrected the retained-fork publication contract. The
+previous direct-to-stable TRL post9 publication is rejected as an immutable
+audit artifact; new candidates must flow GitHub Release → `carbonteq/dev` →
+development-backed runtime lock and qualification → byte-identical server-side
+promotion to `carbonteq/stable`.

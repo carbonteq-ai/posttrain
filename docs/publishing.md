@@ -51,6 +51,52 @@ is unavoidable, BuildKit is seeded with `cache-from` the previous registry
 digest so a wiped local cache still pulls layers. Prefer
 `--base-image …@sha256:…` when the digest is already on `registry.lan`.
 
+## Runtime-image performance contract
+
+Runtime-image work is deliberately split so that a source/configuration change
+does not rebuild the ML dependency stack. This is the current operating model,
+its evidence, and the rules that preserve its benefit.
+
+| Concern | Implemented optimization | Evidence or operating rule |
+| --- | --- | --- |
+| Image shape | An actual job has three stages: `packaged-context` → immutable runtime kind → `smoke`. The job layer carries the bounded package and first-party wheels; heavyweight third-party dependencies stay in the kind. | A source-only repack must not be used to change an already baked TRL, veRL, or Trackio version. Change the kind lock and rebuild the affected parent instead. |
+| Parent reuse | The base is reused by digest when its lock still matches; kinds use that registry base and BuildKit imports cache from the previous digest. | Pass a verified `--base-image …@sha256:…` when the LAN registry already has the base. Do not rebuild merely to relabel an identical parent. |
+| Repeat job packs | Actual-job publication reuses a verified receipt for the same publication key. A per-key publication lock makes concurrent callers wait for the producer, then reuse its verified result. | Do not work around a simultaneous pack by creating a second mutable context or deleting the first caller's context. |
+| Build parallelism | Changed kind variants build concurrently with rootless BuildKit; unchanged variants are retained from the committed manifest only when their lock digest still matches. | Use `--no-parallel` only to diagnose a BuildKit problem, not as a normal release setting. |
+| Push cost | Default pushes use zstd level 1, omit provenance/SBOM attestations, and avoid recompressing already-compressed layers. | Enable attestations, higher compression, or forced recompression only when a release policy explicitly needs them. |
+| Python work | The runner has a persistent `UV_CACHE_DIR`; the job build isolates cached dependency wheels from the small first-party package build. | Caches accelerate work but are never evidence. Receipts, source locks, and registry digests remain authoritative. |
+| Cold worker start | Workers pull the immutable kind by digest. In the observed TRL candidate, the bounded job context was about 2.9 MiB and cached first-party wheel assembly about one second; the cold path was multi-gigabyte parent-layer transfer. | Measure and prewarm the selected worker's kind digest when startup matters. Do not try to fix a cold pull by folding model dependencies into every job image. |
+
+### Release operator checklist
+
+1. Determine whether the change affects a runtime profile or the generated
+   workspace lock. If it does, expect the affected kind images to change.
+2. Reuse a digest-pinned base where the lock permits it, and retain the image
+   receipt. A locally warm cache is not a qualification result.
+3. Keep actual-job packs small and let the verified receipt short-circuit an
+   identical retry. The second caller should wait on the publication lock.
+4. Distinguish build time from worker pull time in any incident report. The
+   first points to BuildKit/cache inputs; the second points to registry and
+   worker cache state.
+5. Before reclaiming registry capacity, make a retention plan from generated
+   manifests and job evidence. Never broadly delete repository blobs or actual
+   job images to accelerate a candidate.
+
+### Current boundary and next decision
+
+The shared `workspace.lock.txt` is intentionally a global runtime input. A
+third-party package change therefore invalidates every kind that consumes it;
+the latest candidate showed that this can make a one-package change take about
+eight minutes even though the actual-job context is small. This is correct for
+the current provenance model: every kind declares the same complete internal
+dependency closure.
+
+If that cost becomes material, the next optimization is **kind-scoped
+constraint locks and digest inputs**, not a shortcut around lock verification.
+It changes image provenance and rebuild boundaries, so it requires a separate
+design/decision record, migration plan, and equivalence tests before
+implementation. It is not part of ordinary release troubleshooting.
+
 ## Versioning
 
 Every first-party distribution carries **one coordinated version**. They are
@@ -165,6 +211,11 @@ gh pr checks <n>
    wheel URLs and hashes already recorded in `uv.lock` without re-resolving the
    public closure. The candidate retains that generated lock beside
    `published.toml`; commit both before merge and return to strict validation.
+   A retained-fork candidate uses an equivalent disposable candidate lock: its
+   repository source still names the stable consumer index, while the protected
+   runner resolves that named source through `carbonteq/dev` and retains the
+   resulting `uv.lock`, runtime lock, and image receipt together. That lock is
+   candidate evidence, never a replacement for the committed stable lock.
 3. **Stage and inspect the target release metadata** with
    `uv run posttrain-release stage /tmp/posttrain-X.Y.Z`. Build all packages
    from that isolated tree using `uv build --all-packages --no-sources`; the
@@ -244,6 +295,20 @@ gh pr checks <n>
     commit and create the GitHub Release with the already-retained bundle and
     receipt. If this final step fails, retry it without rebuilding or
     republishing.
+
+### Retained maintained-fork candidates
+
+Fork maintainers build, test, tag, and create GitHub Release assets locally.
+They do not run release automation or receive private-index credentials in the
+fork. Posttrain's retained-asset candidate publisher may only download those
+already released assets by tag, verify caller-supplied hashes, and upload them
+to `carbonteq/dev`. It must prove the files are stored by `dev`, not merely
+inherited from `stable`, before a candidate job can consume them.
+
+After the candidate's consumer, image, and workload gates pass, Posttrain's
+separate promotion workflow re-verifies the `dev` files and uses a server-side
+transfer to `carbonteq/stable`. It reads the stable files back against the same
+hashes. No promotion rebuilds, re-uploads, or runs fork source.
 
 ## After a release
 
