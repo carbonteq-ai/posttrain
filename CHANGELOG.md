@@ -4,7 +4,16 @@ All notable changes to Posttrain are documented here. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with a coordinated
 version across first-party distributions.
 
-## 0.3.12 - Unreleased
+## 0.3.13 - Unreleased
+
+### Fixed
+
+- Local OCI job export now grants Buildx write access only to its unique
+  user-selected export parent. `posttrain job pack --local` therefore works
+  with current Buildx filesystem-entitlement checks without disabling them
+  globally.
+
+## 0.3.12 - 2026-08-12
 
 ### Fixed
 
