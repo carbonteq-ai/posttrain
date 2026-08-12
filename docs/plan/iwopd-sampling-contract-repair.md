@@ -140,8 +140,13 @@ package reaches the internal index and the resolved job image contains it.
   digest is `334831a7e6344bc8ea7cfb406b13a43da7e46da97f17faae4b8d416f30286494`;
   the exported constraints digest is
   `c12f960e7fb41901177e370e0f270e84e7f9662d5578c40b52b0d329240c7052`.
-- [ ] Materialize the bounded TRL and veRL runtime candidates from retained
-  development-channel locks.
+- [x] (2026-08-13) Materialized runtime candidate `0.3.16rc6` in workflow
+  `31651704768`. Registry readback records TRL kind digest
+  `sha256:90c24840335fb170f61cbcf761c950d8d47664d4cb7d64d494415ebc85f9fd9b`
+  and veRL dev2 kind digest
+  `sha256:bdd87bd97153a9f1fa64842aec2e29e918fbd40e2e5569f9c5648708eae64cf9`.
+  The retained development-channel lock contains TRL post10, and the veRL
+  manifest identity contains the exact dev2 source and lock digest.
 - [ ] Run both explicitly scoped GPU canaries only from those candidate images
   and verify their retained evidence before any stable promotion.
 
