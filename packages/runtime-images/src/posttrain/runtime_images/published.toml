@@ -11,37 +11,46 @@
 # `default_prefix` is where the FRAMEWORK publishes, once per release. It is not
 # a project's registry: a project pushes its own actual-job images to
 # POSTTRAIN_REGISTRY, which may also mirror these images. Digests are
-# content-addressed, so mirroring preserves identity across registries.
+# content-addressed, so mirroring preserves identity across registries. A later
+# framework release may reuse an image only when its runtime inputs still match.
 
 schema_version = 1
-framework_version = "0.3.7"
+framework_version = "0.3.11"
 default_prefix = "registry.lan/carbonteq"
 
 [base]
 repository = "posttrain-base"
-digest = "sha256:39d16b7df6a9846126288676eba8405878f6272d0b86eef7c6552c62b7cbc331"
+digest = "sha256:9b982ad70388dd36102c713fefe283b9f996cc73777ed739129b8d37049b4a17"
 lock_digest = "8c5d3aec6749daa31f7aa8c67729581cdf7913e5da1f83d98b6e58840e4e78d5"
 constraint_lock = "containers/posttrain-job-kinds/locks/workspace.lock.txt"
+runtime_source_digest = "f06c59a13b19ac5b725506803b30b2f9ca1695a52aecdd42b67ec49a5df243aa"
+trust_bundle_digest = "abe2472c89972632107b397b60b6fee34e9a25dd162e49fff9a84d2b8bf60e3c"
 
 [kinds.eval]
 repository = "posttrain-kind-eval"
-digest = "sha256:e57c26aeb15848bbad476fd7d4d79c88ff23a3aac9091957a7130ec666fccb1d"
+digest = "sha256:9af8811120bbca07dc25a538f0d6e283372a37683677f03697229b0e5f5573d5"
 lock_digest = "8c5d3aec6749daa31f7aa8c67729581cdf7913e5da1f83d98b6e58840e4e78d5"
 constraint_lock = "containers/posttrain-job-kinds/locks/workspace.lock.txt"
+runtime_source_digest = "3e6c2dec6faeafc04316c18c555ea783d341c27720a11a9a15ccce9b7a414953"
+base_digest = "sha256:9b982ad70388dd36102c713fefe283b9f996cc73777ed739129b8d37049b4a17"
 provided_packages = ["verifiers"]
 
 [kinds.online-rl-trl-py312]
 repository = "posttrain-kind-online-rl-trl-py312"
-digest = "sha256:4f4b7783d8d5eac36b438a2923b5a227480618015a10988cbcd1fa21a62c3366"
+digest = "sha256:392ba6e3cf859eb0acaca38bf7e7fe5c6b8bf433da79a03148d6dd1066fe61b6"
 lock_digest = "8c5d3aec6749daa31f7aa8c67729581cdf7913e5da1f83d98b6e58840e4e78d5"
 constraint_lock = "containers/posttrain-job-kinds/locks/workspace.lock.txt"
+runtime_source_digest = "3e6c2dec6faeafc04316c18c555ea783d341c27720a11a9a15ccce9b7a414953"
+base_digest = "sha256:9b982ad70388dd36102c713fefe283b9f996cc73777ed739129b8d37049b4a17"
 provided_packages = ["verifiers"]
 
 [kinds.online-rl-verl-py313]
 repository = "posttrain-kind-online-rl-verl-py313"
-digest = "sha256:555f8c59f006cc5c19df34678bb532a147cec2409468f6317d13f132df010986"
+digest = "sha256:631be16c4318bbab16415a9e7d5e4cd9c77cdf4510ffce0170fe7035e16677a2"
 lock_digest = "8c5d3aec6749daa31f7aa8c67729581cdf7913e5da1f83d98b6e58840e4e78d5"
 constraint_lock = "containers/posttrain-job-kinds/locks/workspace.lock.txt"
+runtime_source_digest = "3e6c2dec6faeafc04316c18c555ea783d341c27720a11a9a15ccce9b7a414953"
+base_digest = "sha256:9b982ad70388dd36102c713fefe283b9f996cc73777ed739129b8d37049b4a17"
 backend_constraint_lock = "containers/posttrain-job-kinds/verl-py313/release/backend-constraints.txt"
 backend_lock_digest = "2c58a12f86eeb15de67755aaccbc2e616479e8eca446567f207aaf1c24af5c4a"
 backend_source_repository = "https://github.com/carbonteq-ai/verl.git"
@@ -50,18 +59,24 @@ backend_dependency_lock_digest = "df7769f306ef8606fed37fd89c3fa2589ac72f39a45e47
 
 [kinds.serve]
 repository = "posttrain-kind-serve"
-digest = "sha256:74ee93a7b4b48b71a4fa11f1a218819bd276be47cddb9c834229052d4afa09ab"
+digest = "sha256:5dcf94015fb119f360ca07bef00195dafc25cb33162b8efefa443fe780267716"
 lock_digest = "8c5d3aec6749daa31f7aa8c67729581cdf7913e5da1f83d98b6e58840e4e78d5"
 constraint_lock = "containers/posttrain-job-kinds/locks/workspace.lock.txt"
+runtime_source_digest = "3e6c2dec6faeafc04316c18c555ea783d341c27720a11a9a15ccce9b7a414953"
+base_digest = "sha256:9b982ad70388dd36102c713fefe283b9f996cc73777ed739129b8d37049b4a17"
 
 [kinds.supervised]
 repository = "posttrain-kind-supervised"
-digest = "sha256:b6d1989ccc148bcb48608ea243b9dd7a83af7526a73ed7d4fa00489de04efa56"
+digest = "sha256:eaf16a420bee729cb80fa4355ac9f0a4ea4ad5c0a8b855346a81567f5c0a7056"
 lock_digest = "8c5d3aec6749daa31f7aa8c67729581cdf7913e5da1f83d98b6e58840e4e78d5"
 constraint_lock = "containers/posttrain-job-kinds/locks/workspace.lock.txt"
+runtime_source_digest = "3e6c2dec6faeafc04316c18c555ea783d341c27720a11a9a15ccce9b7a414953"
+base_digest = "sha256:9b982ad70388dd36102c713fefe283b9f996cc73777ed739129b8d37049b4a17"
 
 [kinds.transform]
 repository = "posttrain-kind-transform"
-digest = "sha256:964f10a9b626eb3f1bc5170f863770e37b1e4f9ebe3d9cefb2429ec38c716c77"
+digest = "sha256:23ef7ed8f1721c3f75081ba434dfc13d42c8068b56056cf57a5c59de74162102"
 lock_digest = "d26cadd4b09653f988a074a3d9a861785c7bc84aec5865e020865335027bf339"
 constraint_lock = "containers/posttrain-job-kinds/locks/transform.lock.txt"
+runtime_source_digest = "3e6c2dec6faeafc04316c18c555ea783d341c27720a11a9a15ccce9b7a414953"
+base_digest = "sha256:9b982ad70388dd36102c713fefe283b9f996cc73777ed739129b8d37049b4a17"

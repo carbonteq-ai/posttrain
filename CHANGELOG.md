@@ -4,7 +4,17 @@ All notable changes to Posttrain are documented here. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with a coordinated
 version across first-party distributions.
 
-## 0.3.10 - Unreleased
+## 0.3.11 - Unreleased
+
+### Fixed
+
+- Running GRPO and OLMo 3 jobs now publish the retained reward spread and
+  zero-variance-group signals at each completed optimizer step.  Observatory
+  can therefore distinguish a genuinely missing signal from a job that is
+  still collecting rollouts; terminal trace replay remains the recovery path
+  for interrupted jobs.
+
+## 0.3.10 - 2026-08-12
 
 This release makes OLMo 3 active sampling auditable as a distinct rollout
 population, including older runs that emitted the native metrics before their
