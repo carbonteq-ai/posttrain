@@ -141,6 +141,7 @@ def _full_loss(trainer, model, inputs, teacher_actual, denominator):
 class _Matcher:
     @staticmethod
     def fill_next_token_bitmask(bitmask, row):
+        assert bitmask.device.type == "cpu"
         bitmask[row, :32] = True
 
     @staticmethod

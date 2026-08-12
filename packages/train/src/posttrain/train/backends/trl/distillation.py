@@ -976,7 +976,7 @@ def _memory_safe_server_iw_opd_loss(
         if softcap is not None:
             logits = torch.tanh(logits / softcap) * softcap
         scaled = logits.float() / trainer.temperature
-        bitmask = xgrammar.allocate_token_bitmask(end - start, scaled.shape[-1]).to(scaled.device)
+        bitmask = xgrammar.allocate_token_bitmask(end - start, scaled.shape[-1])
         for local_position, position in enumerate(range(start, end)):
             matcher.fill_next_token_bitmask(bitmask, local_position)
             selected_token = int(completion_tokens[0, position].item())
@@ -989,7 +989,10 @@ def _memory_safe_server_iw_opd_loss(
             )
             if expected_digest != expected_allowed_digests[0][position]:
                 raise ValueError("current-student allowed-token digest differs from rollout evidence")
-        xgrammar.apply_token_bitmask_inplace(scaled.reshape(end - start, -1), bitmask)
+        xgrammar.apply_token_bitmask_inplace(
+            scaled.reshape(end - start, -1),
+            bitmask.to(scaled.device),
+        )
         for local_position, position in enumerate(range(start, end)):
             count = int(torch.isfinite(scaled[0, local_position]).sum().item())
             if count != int(teacher_allowed_counts[0][position]):
@@ -1103,7 +1106,7 @@ def _local_constrained_teacher_logprobs(
             if softcap is not None:
                 logits = torch.tanh(logits / softcap) * softcap
             scaled = logits.float() / trainer.temperature
-            bitmask = xgrammar.allocate_token_bitmask(end - start, scaled.shape[-1]).to(scaled.device)
+            bitmask = xgrammar.allocate_token_bitmask(end - start, scaled.shape[-1])
             for local_position, position in enumerate(range(start, end)):
                 matcher.fill_next_token_bitmask(bitmask, local_position)
                 selected = int(completion_ids[position])
@@ -1113,7 +1116,10 @@ def _local_constrained_teacher_logprobs(
                 if digest != expected_allowed_digests[0][position]:
                     raise ValueError("local teacher allowed-token digest differs from rollout evidence")
                 observed_digests.append(digest)
-            xgrammar.apply_token_bitmask_inplace(scaled.reshape(end - start, -1), bitmask)
+            xgrammar.apply_token_bitmask_inplace(
+                scaled.reshape(end - start, -1),
+                bitmask.to(scaled.device),
+            )
             allowed_counts.extend(
                 int(torch.isfinite(scaled[0, local_position]).sum().item())
                 for local_position in range(end - start)
