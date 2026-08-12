@@ -36,8 +36,8 @@ while the corresponding paged table row shows dashes.
 - [x] (2026-08-12) Validate focused Trackio, tracking adapter, Observatory service, schema,
   and frontend tests plus production frontend build.
 - [x] (2026-08-12) Publish and pin immutable Trackio `0.31.5.post13`.
-- [ ] Deploy Trackio and the exact RL revision, then verify the historical OPD
-  run in the live browser.
+- [x] (2026-08-12) Deploy Trackio and the exact RL revision, then verify the
+  historical OPD run in the live browser.
 
 ## Surprises & Discoveries
 
@@ -59,6 +59,11 @@ while the corresponding paged table row shows dashes.
   artifacts were therefore SHA-256 checked and published from the isolated
   release VM with its protected credential environment; a clean install from
   `carbonteq/stable` reports `0.31.5.post13`.
+- Observation: The generic retained-run qualifier completed successfully but
+  did not map this project's catalog IDs to its requested job-kind samples.
+  Direct acceptance against the exact Policy Prism OPD run was therefore the
+  evidence for this feature: all 12 bounded rows exposed tools, latency, and
+  tokens, and the paired student/teacher presentation matched the run.
 
 ## Decision Log
 
@@ -84,11 +89,15 @@ while the corresponding paged table row shows dashes.
 
 ## Outcomes & Retrospective
 
-Implementation and local validation are complete. Trackio `0.31.5.post13` is
-published and pinned in the workspace; deployment and live acceptance remain.
-No live behavior is claimed until the exact historical OPD row renders its
-latency, tokens, and explicit zero tool calls and the table identifies the
-student-to-teacher scoring relationship.
+Implementation, deployment, and live acceptance are complete. Trackio
+`0.31.5.post13` passed its live producer/consumer qualification. Observatory
+source revision `62c53f01f8aa1bfa4ba2097ca67ea6b9634885db` was deployed as
+`localhost:5000/carbonteq/posttrain-observatory@sha256:1dd041a54906643dc33dec2adb5a9af4f56db8f53350f8a747749170cfd81018`.
+The local Observatory view of the retained OPD run rendered 12 student
+trajectories, the E2B-to-12B exact-token scoring relationship, 11,803 teacher
+scored tokens, 1.5 seconds of teacher latency, zero failures, and one recorded
+batch. Trace `aeabefef9f3a45d68beadc9a94399d52` rendered 48.6 seconds, 825
+tokens, and 0 tools in its paged row.
 
 ## Context and Orientation
 
@@ -216,3 +225,6 @@ the actual exact-token scoring contract.
 Revision note (2026-08-12): Recorded completed implementation and validation,
 the immutable post13 publication/pin, and the release-runner registration gap;
 kept deployment and live acceptance open.
+
+Revision note (2026-08-12): Recorded the qualified Trackio and Observatory
+deployments and the direct local-browser acceptance of the retained OPD run.
