@@ -1,359 +1,360 @@
-# Qualify and run Policy Prism Gemma 4 E2B from 12B OPD
+# Correct and complete Policy Prism Gemma 4 E2B from 12B OPD
 
-This ExecPlan is a living document. The sections `Progress`, `Surprises & Discoveries`, `Decision Log`, and `Outcomes & Retrospective` must be updated whenever work advances. Maintain it according to `docs/templates/PLAN.md` and the frozen product baseline under `docs/post-training/`.
+This ExecPlan is a living document. The sections `Progress`, `Surprises & Discoveries`, `Decision Log`, and `Outcomes & Retrospective` must be updated as implementation and execution proceed. Maintain this file in accordance with `docs/templates/PLAN.md`.
 
 ## Purpose / Big Picture
 
-This plan delivers a reproducible and throughput-qualified Policy Prism on-policy distillation (OPD) experiment on the in-house RTX PRO 6000. Gemma 4 E2B is the trainable student and Gemma 4 12B is the frozen teacher. The student generates legal-interpretation responses, the teacher scores the exact generated token IDs, and the maintained TRL 1.9.2.post1 Importance-Weighted OPD (IW-OPD) objective updates a rank-16 LoRA adapter. IW-OPD uses the sampled-token student and teacher log-probabilities and prefix-drift weighting; it is a deliberate replacement for the feature branch's older sparse reverse-KL implementation, not a rename of the same loss.
+This plan produces one scientifically defensible Policy Prism on-policy distillation experiment in which base Gemma 4 E2B is the trainable student and base Gemma 4 12B is the frozen teacher. The final run keeps the fastest configuration already qualified on the in-house RTX PRO 6000, but corrects two deeper contracts that the earlier checkpoint-96 experiment did not satisfy: the teacher must score each completion after its own model-native prompt, and every student/teacher probability used by the loss must be normalized over the same XGrammar-allowed token set that generated the completion.
 
-The previous attempts produced a valid intermediate checkpoint at optimizer step 96 but did not complete training. This plan preserves that checkpoint as historical evidence, merges current `origin/main` into only the experiment feature branch, ports the Policy-specific correctness and memory-safety deltas onto the maintained IW-OPD backend, and records a completed correctness qualification plus bounded capacity probes. Offline and isolated-image gates exhaustively validate the historical structural failures; live evidence covers three repeated logical-four updates, logical-12 heterogeneous batching, physical batches through three, memory, artifacts, and throughput. Completion means that all 384 logical targets are optimized once under the frozen logical-12 configuration, the final adapter and checkpoints are retained in Trackio, the adapter is privately published and freshly verified on Hugging Face, sealed scope and recovery evaluations succeed, and both evaluations are finalized in Policy Prism's normal five-file `evaluation-runs` format.
+The plan deliberately avoids another parameter sweep. It preserves the measured logical-12, physical-1, accumulation-12 geometry and runs only two short live GPU canaries after exhaustive offline and exact-image verification. The first canary executes one real 12-target optimizer update with all corrected training contracts. The second serves that one-step adapter through the exact managed evaluation path on two non-sealed structured tasks. Only after both pass does one fresh 384-target production run start from base E2B. Completion includes retained checkpoints, reconciliation, private Hugging Face publication, sequential sealed scope and recovery evaluations, and the normal five-file Policy Prism `evaluation-runs` evidence.
 
-This plan does not change either `main` branch. All PostTrain commits use `feat/gemma-policy-prism-opd-e2b-12b`; all Policy Prism commits use `feat/scope-opd-e2b-12b-environment-v1`. Failed attempts and their Trackio evidence remain retained.
+This work changes one frozen product meaning narrowly. Existing documentation says the teacher scores the exact student token sequence. That is valid when student and teacher chat templates are identical, but E2B and 12B share token meanings while rendering different prompt-control tokens. The canonical baseline must therefore define cross-template OPD as preserving the exact student completion token IDs while rendering the same semantic messages with each model's immutable native template. The teacher scores only those completion positions. Freshness, one-time consumption, identical ordered vocabulary, selected-stage masking, and Verifiers trace authority remain unchanged.
 
 ## Progress
 
-- [x] (2026-08-07) Build and package the deterministic Policy Prism production plan containing 384 primary targets and 96 shared reserves, with sealed-family exclusion, exact target distributions, source review, and E2B token-budget validation.
-- [x] (2026-08-07) Implement exact-token E2B-from-12B OPD, memory-safe sparse loss, structured XGrammar projection, stable target projection, Trackio checkpoints, and explicit checkpoint resume on the PostTrain feature branch.
-- [x] (2026-08-08) Complete 66 finite updates in `opda06-e2b12b-r16-scope384-v1`; retain checkpoints through step 64 before an external dstack workstation-reachability failure.
-- [x] (2026-08-10) Prove exact step-64 restore in `opda08rs-e2b12b-r16-resume64-scope384-v1`; diagnose its target-78 failure as overly narrow prompt-profile reserve matching.
-- [x] (2026-08-10) Push Policy Prism plan-v2 reserve semantics in commits `3976d993a2e96dd4c91c3ad91481767299755364` and `47ee4f43366e3a1a68fa59db8ed3ab46613c677c`, allowing shared stage/quartile/decision reserves to inherit the logical target's profile and shape.
-- [x] (2026-08-10) Resume from step 64 as `opda09rs-e2b12b-r16-resume64-scope384-v2`, pass target 78, retain checkpoints at steps 80 and 96, and diagnose target 98 before optimizer step 99.
-- [x] (2026-08-10) Audit r9 attempt traces: ten of eleven reserve-triggering structural failures were exact `source_provision_id` copying mistakes; one was malformed long JSON.
-- [x] (2026-08-10) Constrain each rules-stage wire schema to the exact task-owned `source_provision_id`, preserve canonical downstream validation, pass 20 focused Policy Prism tests, Ruff, and strict mypy, then push Policy Prism commit `147ac75997579f08154145ea9bdc6215b4aa7ec4`.
-- [x] (2026-08-10) Include and push the user's local Policy Prism commit `85e0e12d102ea8e32e1b31fe9926179b21cbe2fb`; remote feature-branch tip `147ac759...` is its direct descendant.
-- [x] (2026-08-10) Verify checkpoint 96 contains adapter, optimizer, scheduler, trainer, RNG, tokenizer, and SQLite allocation-ledger state; all inspected losses and gradients are finite and teacher failures are zero.
-- [x] (2026-08-10) Publish checkpoint 96 privately to `carbonteq/gemma-4-e2b-policy-prism-scope-opd-from-12b-checkpoint-96`, fresh-download it, verify every uploaded file byte-for-byte, and resolve immutable Hugging Face revision `4f1fe9c75031396a11bcc44e2193f96df9003054`.
-- [x] (2026-08-11) Select the minimal checkpoint-96 qualification path: serve the immutable private Hugging Face PEFT adapter directly, materialize it at the pinned commit before vLLM launch, and correct local Verifiers chat-template options under OpenAI `extra_body`; the complete serve/eval package suites pass.
-- [x] (2026-08-11) Push PostTrain checkpoint-96 qualification support at `c6daa7dbcdc2ac92b35b33f7607cf12617764f29` and Policy Prism model/evaluation bindings at `a7a137bf24ec03793be48d5eafba43eb7c30020d`; both feature worktrees are clean.
-- [x] (2026-08-11) Verify the exact private Hub adapter revision through the serving materializer: rank 16, alpha 32, dropout 0, E2B base identity, and safetensors SHA-256 `8fec79fe9185a1c8aa431fe9a9af6bb329c746fe5b393afed31298f2f7d8d6df` all match.
-- [x] (2026-08-11) Isolated-qualify and publish the exact scope image `sha256:fe793e3199a3c53fa91d5428983049254fc88939fd1b81a0532ab172c81f5740` (package `dc2fc01e...`) and recovery image `sha256:9602b3bfca2493d2387987e924f80e8271aafe9a0b7a224dc00601edbe2c1f0d` (package `7df7979d...`). Resolved manifests prove the pinned adapter/base, sealed source `ef6f8e5...`, rank limit 16, temperature zero, Claude 4.6 judging, and 18/17 cases.
-- [x] (2026-08-12) Obtain explicit approval to send sealed evaluation context and checkpoint-96 model outputs to Claude Sonnet 4.6 through OpenRouter for both evaluations.
-- [x] (2026-08-12) Run checkpoint 96 sequentially through scope as `opd96sc3-e2b12b-sparse-rkl-step96-scope-v11` and recovery as `opd96rc3-e2b12b-sparse-rkl-step96-recovery-v1`. Both provider jobs succeeded, retained complete Trackio evaluation artifacts, and reconciled consistently with no missing roles; the scientific gates included 18/18 and 17/17 traces with zero harness failures, truncations, or trace errors.
-- [x] (2026-08-12) Materialize the two immutable native artifacts through the explicitly named `opd96ex1-e2b12b-step96-evaluation-export` consumer lineage, verify their provider/content digests, and finalize standard five-file Policy Prism evidence under `evaluation-runs/gemma-4-e2b-policy-prism-opd-sparse-rkl-r16-from-12b-step96-v11-sealed-{scope,recovery}-20260812`.
-- [x] (2026-08-12) Validate all 91 Policy Prism runs and 1,593 traces, reproduce all business KPIs with `changed_run_ids: []`, and confirm the checkpoint-96 compatibility hashes are `80b32e...36e8` for scope and `4077dd...34b4` for recovery.
-- [x] (2026-08-10) Cancel the failed r9 provider workspace after checkpoint preservation. It is terminal with provider state `terminated`; reconciliation records failed/inconsistent evidence and retains three training artifacts plus native rollout traces.
-- [x] (2026-08-10) Stop before new GPU submissions and update this plan for a separate batch-qualification and full-run execution goal.
-- [x] (2026-08-10) Fetch and compare current `origin/main` at `6ffe634432a3f92e8c6dd561d3cd85b2b2ba45cd`, the experiment branch at `dbb5c7b5538124913b99620801339f702c58089e`, and the immutable TRL 1.9.2.post1 fork source at `a82ecebc0fa081efd58302a34a553445fc73271d` without changing either branch.
-- [x] (2026-08-10) Audit the target-78 and target-98 Policy Prism fixes, discover the stale production source pin, identify the shared-reserve prompt-budget audit gap, and select the representative 12-target seed-2907 live cohort.
-- [x] (2026-08-10) Audit logical rollout batching, physical actor batching, vLLM resident waves, chunked prefill, prefix caching, MTP, sleep mode, KV dtype, and CUDA execution mode; select one research-grounded production candidate rather than a live parameter sweep.
-- [x] (2026-08-10) Merge `origin/main` into only `feat/gemma-policy-prism-opd-e2b-12b`, adopt the release/runtime/checkpoint structure, and port the enumerated Policy-specific deltas onto TRL IW-OPD; merge commit `7926e87` and qualification-boundary commit `5b1b87d` are pushed.
-- [x] (2026-08-10) Complete Policy Prism's actual-materialization token audit in source commit `411fa6e`, pin the qualification environment to that exact source, and add the resident-two emergency work package in catalog commit `77506c6`.
-- [x] (2026-08-10) Pass offline IW-OPD loss/gradient and accumulation equivalence, target-78 forced cross-profile reserve recovery, exact target-98 source enums, all actual-schema XGrammar compilation, concurrent/restart-safe real-ledger claims, selected-stage masking, heterogeneous batching, and checkpoint-ledger gates. The 765 distinct candidate/profile/shape materializations expand to 1,293 stage schemas, all compiled under XGrammar 0.2.3.
-- [x] (2026-08-10) Package corrected resident-four and resident-two actual-job images. After the first provider canary exposed a fail-closed private-hook name mismatch, align the exact pinned IW-OPD hook to `aligned_prompt_length`, pass its real-class regression, push PostTrain commit `e8fbd51`, and repack immutable images `sha256:b646c50e...` and `sha256:4b83bea8...` respectively.
-- [x] (2026-08-11) Complete and consistently reconcile the required 12-target/three-update resident-four qualification as `opdq-fast01c-iwopd-e2b12b-c12-lb4-rseq4-nomtp`. It finished in 41.61 minutes with finite losses and gradients, zero teacher failures, all required artifacts, and no OOM. Its 18 grouped submissions reached resident wave four, but 2/12 targets required reserves because of graph/dependency structural failures.
-- [x] (2026-08-11) Run the urgent logical-batch-12 serving ceiling probe at physical batch one. `opdq-ceil01-iwopd-e2b12b-c12-lb12-pb1-rseq12` completed all 12 targets in 14.44 minutes submission-to-reconciliation, formed a real resident wave of 11, used 34.74 GiB peak trainer memory, and reduced measured training time from 2,112.83 to 634.11 seconds (3.33x).
-- [x] (2026-08-11) Remove the branch-local physical-batch-one admission guard, prove exact memory-safe IW-OPD loss and gradient equivalence for physical batches 1/2/4, and push PostTrain commit `1607dd5`. Physical batch two completed without OOM at 38.10 GiB peak trainer memory; its stochastic primary rules output exposed a Policy-side dependency-control gap rather than a trainer defect.
-- [x] (2026-08-11) Stop structurally invalid evidence/rules prefixes before downstream generation while retaining their raw output and final harness admission. Push Policy Prism source commit `420a554855248a05e29f07e12c6221244167f99f` and catalog pin commit `b6bab9b`; the focused executor tests, Ruff, strict mypy, and isolated image qualification pass.
-- [x] (2026-08-11) Complete and consistently reconcile the physical-batch-three probe on corrected Policy source `420a554...`. It admitted all 12 targets, retained complete checkpoint/model/trace evidence, and produced finite loss `-1.85628` with zero teacher failures. The one update took 1,130.05 seconds, peak trainer memory was 49.83 GiB, and system VRAM peaked at 67.48 GiB; physical batch three was memory-safe but slower than physical batch one.
-- [x] (2026-08-11) Add, validate, and push Policy Prism commit `1ded27e` with a logical/resident/concurrent-24 probe at physical batch one, so rollout scaling is measured without confounding it with activation batching. The separate `feat/normative-completeness-pipeline-v1` worktree remains clean and untouched.
-- [x] (2026-08-11) Stop live qualification at the user's meeting deadline. The direct physical-12 probe remained healthy through model loading and six rollout waves (maximum wave nine) but was cancelled before backward and reconciled consistently as cancelled with no required artifact role missing, so it is inconclusive and does not qualify physical batch 12. Do not run the packaged logical-24 probe. Freeze logical 12 / physical 1 / accumulation 12 / concurrent-resident 12 as the fastest qualified configuration; physical 3 is the largest proven memory-safe backward batch but is not recommended.
-- [ ] Build and push one fresh 384-target work package using the selected batch and target-normalized schedule.
-- [ ] Run the complete OPD experiment from the base E2B model, retain all milestones, and reconcile it consistently.
-- [ ] Publish and freshly verify the final private LoRA adapter on Hugging Face.
-- [ ] Run sealed 18-case scope and 17-case recovery evaluation jobs sequentially and apply their scientific gates.
-- [ ] Finalize both native evaluation artifacts into Policy Prism `evaluation-runs`, validate them, and push the final evidence and living-plan updates.
+- [x] (2026-08-07 through 2026-08-10) Implement the original E2B-from-12B exact-token OPD path, memory-safe sparse projection, selected-stage masking, XGrammar wire-schema projection, stable task allocation, native traces, and checkpoint/SQLite recovery.
+- [x] (2026-08-10) Retain a complete historical step-96 checkpoint from the earlier sampled sparse reverse-KL experiment, publish it privately at immutable Hugging Face revision `4f1fe9c75031396a11bcc44e2193f96df9003054`, and preserve failed-run evidence.
+- [x] (2026-08-10 through 2026-08-11) Fix and qualify the target-78 shared-reserve boundary, target-98 exact source-ID constraint, unusable dependency propagation, heterogeneous rollout waves, and logical/physical accumulation behavior.
+- [x] (2026-08-11) Measure logical `12`, physical `1`, accumulation `12` as the fastest completed configuration: 634.11 trainer seconds for 12 targets and 34.74 GiB trainer peak. Physical batches two and three were safe but slower; physical twelve was not qualified.
+- [x] (2026-08-12) Evaluate historical checkpoint 96 on sealed scope and recovery, finalize both runs in Policy Prism, and verify complete native and five-file evidence.
+- [x] (2026-08-12) Diagnose checkpoint 96. Verify the E2B/12B chat-template mismatch, the raw-versus-XGrammar-constrained probability mismatch, the weak historical sampled-token/tail objective, six evaluation whitespace terminations, model-facing raw YAML, constructed-incomplete label leakage, stage-inappropriate invariants, unrepresentative first-96 ordering, and a reproducible 12-worker SQLite cold-start race.
+- [x] (2026-08-12) Reduce future live qualification to one 12-target corrected-training canary and one two-case managed-evaluation canary. Reject further batch, MTP, prefill, cache, LoRA, learning-rate, memory, HF, Trackio, or Claude smoke sweeps.
+- [ ] Amend the canonical OPD baseline for model-native prompt prefixes with exact completion-token alignment and constrained probability-space evidence.
+- [ ] Implement and publish the generic constrained teacher-scoring changes in the CarbonTeq TRL fork, including its fork ledger and regression tests.
+- [ ] Pin the immutable TRL release in PostTrain and implement model-template identity, selected semantic-message projection, constrained memory-safe student loss, and managed XGrammar evaluation settings.
+- [ ] Correct Policy Prism prompt rendering, hidden-label leakage, stage invariants, semantic prompt coverage, checkpoint-prefix ordering, and SQLite initialization; regenerate and pin immutable plan hashes.
+- [ ] Pass all offline, exact-image, credential, catalog, and package gates.
+- [ ] Run and reconcile the one-update corrected-training canary.
+- [ ] Run and reconcile the two-case managed-evaluation serving canary against the canary adapter.
+- [ ] Freeze the exact production commits/image/configuration and launch one fresh 384-target run from base E2B.
+- [ ] Reconcile training, verify 32 updates and checkpoints 8/16/24/32, and pass the Policy Prism 384-target completion gate.
+- [ ] Publish and fresh-verify the step-32 LoRA adapter privately on Hugging Face.
+- [ ] Run sealed scope then sealed recovery sequentially, finalize their standard Policy Prism evidence, validate all runs, and push both feature branches.
 
 ## Surprises & Discoveries
 
-- Observation: the step-78 and target-98 failures had different causes.
-  Evidence: r8 found only one reserve because prompt profile was incorrectly part of reserve compatibility. Plan v2 removed that key and r9 passed target 78. At target 98, r9 had the primary plus two compatible reserves, but the model repeatedly misspelled task-owned source identifiers that the schema had left unconstrained.
-- Observation: the dominant target-98 failure was preventable during generation without weakening scientific admission.
-  Evidence: ten of eleven inspected structural rejections used a wrong `source_provision_id`, such as omitting a segment from an eCFR identifier. Policy Prism commit `147ac759...` adds a task-specific enum to the deep-copied rules schema. The canonical schema and post-generation admission checks remain unchanged.
-- Observation: checkpoint 96 is healthy even though its producing run is not successful.
-  Evidence: Trackio artifact `training-models-gemma4-e2b-it-bf16-distill-checkpoint-step-0096:v0` has provider digest `ddde25b171407c76fba02e1b44b23a6531bcede4bd99c7859cc9809496e7f7e7`, PostTrain tree digest `cc53e8330d2af3160d098341dece1c82cf06a559366950f689c72caf24f16dba`, global step 96, and complete resumable state. R9 itself failed before update 99 and was later cancelled to release the GPU.
-- Observation: r9's reconciliation is correctly inconsistent rather than a checkpoint-integrity failure.
-  Evidence: the provider was explicitly cancelled after the harness raised, while Trackio retained a failed outcome. PostTrain reports `provider cancelled but retained tracking outcome is failed`, no missing artifact role, and retained step-80, step-96, and rollout-trace outputs.
-- Observation: batch size one was a branch-local safety guard, not a universal PostTrain constraint.
-  Evidence: `_validate_memory_safe_sparse_request` in `packages/train/src/posttrain/train/backends/trl/distillation.py` was deliberately limited to one prompt, one generation, batch one, and accumulation one because no live multi-prompt sparse long-context configuration had been qualified and earlier instructions prohibited smoke tests.
-- Observation: the RTX PRO 6000 was underutilized mainly during serial autoregressive student generation and dependency stages.
-  Evidence: observed utilization was commonly about 20–22% while approximately 65 GiB of 96 GiB VRAM was allocated. Teacher scoring was usually sub-second; long student generations dominated wall time. More prompt concurrency may fill decode bubbles, but larger training batches also increase peak activation memory and must be measured live.
-- Observation: loss variation alone does not show collapse or prove legal improvement.
-  Evidence: all inspected losses and gradient norms through step 97 were finite, teacher failures were zero, and isolated spikes recovered immediately under gradient clipping. The median loss over steps 81–96 was lower than earlier windows, which is encouraging, but only sealed evaluations can establish legal quality.
-- Observation: the measured batch-one rate is materially slower than the original estimate.
-  Evidence: r9 advanced roughly 34 optimizer updates in about 2.5 hours including long heterogeneous generations, implying approximately 27–30 hours for a fresh 384-update batch-one run. Batch-two and batch-four duration must be derived from identical live smokes rather than extrapolated from H200 or E4B/31B runs.
-- Observation: changing the optimizer batch invalidates exact continuation from checkpoint 96 for the production comparison.
-  Evidence: a batch-two or batch-four run changes targets per optimizer update, scheduler steps, checkpoint step numbers, and sampler advancement. Resuming checkpoint 96 under that schedule would mix two optimization regimes. The checkpoint remains valuable evidence, but the final selected configuration starts from the frozen base E2B model.
-- Observation: the Policy Prism target-98 correction initially existed in source but was not selected by the committed production catalog; this launch blocker is closed.
-  Evidence: the earlier catalog pinned `2b7a5dc...`. The qualification environment now resolves source/audit commit `411fa6e`, a descendant of target-98 commit `147ac759...`, and the packaged run view records that exact revision.
-- Observation: the existing four-task seed is too small, while the earlier 16-target matrix is unnecessary for a 60-minute qualification.
-  Evidence: seed 539 resolves `[98, 151, 284, 367]`; it omits target 78 and gives logical batch four only one update. Seed 2907 with 12 tasks resolves `[31, 49, 70, 75, 78, 98, 126, 163, 182, 233, 278, 329]`. It covers both historical boundaries, every stage, every length quartile, all four prompt profiles, four full trajectories, and produces three optimizer updates/twelve physical backward passes at logical batch four. Deterministic reserve failure remains an offline fault-injection test because natural sampling cannot guarantee it.
-- Observation: shared reserves exposed a small build-time token-audit mismatch, not a capacity failure.
-  Evidence: runtime renders a reserve with its logical primary's profile and shape, while the current audit renders it with the reserve-owned profile. Auditing the 765 actual candidate/profile/shape combinations gives maxima of 8,799 evidence, 10,940 rules, and 9,057 graph tokens; all are safely below 32,768, but the committed graph maximum of 9,034 is not exact.
-- Observation: current `origin/main` is a material runtime upgrade, not a drop-in merge.
-  Evidence: main pins TRL 1.9.2.post1 at fork commit `a82ecebc...`, selects `IWOPDTrainer`, fixes the fully-on-policy zero-denominator path, supports bounded resident rollout waves, and adds checkpoint-scoped recovery/model views. Main does not contain the feature branch's Gemma tokenizer fingerprint, selected-stage loss projection, XGrammar wire-schema projection, per-call token envelope, memory-safe vocabulary projection, or SQLite allocation-ledger sidecar.
-- Observation: logical rollout batch and physical actor batch are independent.
-  Evidence: IW-OPD requires `generation_batch_size * num_generations == per_device_train_batch_size * gradient_accumulation_steps`. A safe logical batch of four is therefore physical micro-batch one plus accumulation four. TRL generates four prompts together, then trains four one-sequence micro-slices. Increasing physical batch to four would multiply 49K-token activation memory without being necessary for rollout concurrency.
-- Observation: setting `max_concurrent` above one does not by itself prove student batching for Policy Prism.
-  Evidence: the current `TrlPolicyGenerator` groups pending requests by maximum tokens and serialized JSON schema, then executes those groups serially. The target-specific source-ID enum makes many rules schemas distinct. Qualification must record actual request-group and resident-wave sizes and must prove that heterogeneous schemas share a bounded vLLM call before a logical batch is credited with concurrency.
-- Observation: student prefix caching is not currently a safe acceleration.
-  Evidence: the pinned LoRA synchronization path reloads the adapter without an explicit prefix-cache invalidation invariant. A stale prefix after an optimizer update would be scientifically invalid. Student caching remains off unless a regression proves reset after every LoRA sync. Teacher prefix caching remains safe because the teacher never changes.
-- Observation: E2B MTP is a real but unqualified candidate.
-  Evidence: the model profile pins `google/gemma-4-E2B-it-assistant` at `2d874ef7d29f9a30599a1e4b3c1cbc9595f005df`; its approximately 190 MB assistant declares `Gemma4AssistantForCausalLM`, four layers, and the matching 262,144-token vocabulary. Existing live evidence covers another model/workload, so E2B Policy IW-OPD would require a matched MTP-off/MTP-1 smoke with acceptance and post-sync counters. That comparison is deliberately excluded from this 60-minute qualification and from the resulting production run.
-- Observation: the feature branch's linear learning-rate scaling confounds throughput with a new optimizer regime.
-  Evidence: the IW-OPD reference configuration uses physical batch one, gradient accumulation, and learning rate `1e-5`. Capacity arms must keep `1e-5` fixed. The previous proposed `2e-5`/`4e-5` values are removed unless a separate learning-rate qualification later justifies them.
-- Observation: the corrected qualification crossed the complete model/runtime boundary and produced one valid IW-OPD update before an external fleet outage.
-  Evidence: `opdq-fast01b-iwopd-e2b12b-c12-lb4-rseq4-nomtp` admitted targets 31, 70, 75, and 329, including a complete graph trajectory; all selected stages ended with `stop` and passed structural admission. Step one scored 4,725 tokens with zero teacher failures, finite loss `-1.7350585`, finite gradient norm `10.37675`, and one clipped gradient. Trackio retained paired step-one model and recovery artifacts with digests `03d0c961...` and `5e9e6d4d...` plus the allocation ledger.
-- Observation: resident four is memory-safe on the target RTX PRO 6000, but heterogeneous Policy schemas limit average decode concurrency.
-  Evidence: 1,347 Trackio GPU samples show median utilization 20%, p95 22%, and peak 100%. Median device memory was 72,441,135,104 bytes and peak was 72,722,153,472 bytes (67.73 GiB), leaving about 27.9 GiB against the 96-GiB device. The twelve recorded generation submissions had request/resident sizes `[1,1,3,1,1,4,1,1,1,1,1,1]`; only one group reached four and one reached three because task-specific schemas partition the rest. Step one took 592.70 seconds. Teacher scoring stayed healthy at 181--1,170 ms across four sequences, so student structured autoregressive generation remains the dominant bottleneck.
-- Observation: the corrected attempt ended because the shared GPU fleet became unreachable, not because resident four exhausted memory or the runtime failed.
-  Evidence: dstack recorded `termination_reason=instance_unreachable`, no container exit status, and no Python/CUDA exception after the finite update. Immediately afterward both `carbonteq-ai-workstation.lan` and the independent RTX 4090 worker were `unreachable=true`, healthy, idle, and holding zero blocks. The abrupt termination also left the Trackio lifecycle at `running`; PostTrain correctly reconciles the provider outcome as failed with incomplete final roles.
-- Observation: the maintained heterogeneous-wave path materially changes serving throughput.
-  Evidence: the completed logical-four qualification spent 2,112.83 trainer seconds over 12 targets (176.07 seconds/target). With the same 12 target identities, logical batch 12/resident 12 at physical batch one spent 634.11 seconds (52.84 seconds/target), a 3.33x trainer-time speedup. Submission through reconciliation fell from 41.61 to 14.44 minutes, a 2.88x end-to-end speedup. Actual request/resident waves were `[1, 11, 1, 3, 1, 2]`; this is observed batching, not configured concurrency alone.
-- Observation: increasing physical backward batch is a memory-capacity question, not the main throughput lever.
-  Evidence: physical batch one used 34.74 GiB peak trainer memory and physical batch two used 38.10 GiB, while both runs used the same logical batch 12 and resident capacity 12. System VRAM peaked at 72,454,111,232 bytes (67.48 GiB) in both because the student and frozen-teacher serving allocations dominate. The physical-batch-two run was slower because stochastic outputs required more generated tokens and a reserve, so its wall time cannot be interpreted as a batching regression or gain.
-- Observation: physical batch three is safe but provides no throughput benefit on this long-context workload.
-  Evidence: the corrected physical-three run admitted the same 12 logical targets and completed one finite update, but spent 1,130.05 seconds versus 634.11 seconds at physical one. It scored 11,803 tokens versus 9,661 and reached 49.83 GiB trainer peak memory. Even after accounting for the 22.2% larger scored-token volume, elapsed training was 78.2% longer while median/p95 GPU utilization remained 21%/22%. Activation batching increases memory and backward cost; heterogeneous student generation remains the dominant latency.
-- Observation: physical batch 12 did not establish a backward-memory boundary.
-  Evidence: `opdq-ceil04-iwopd-e2b12b-c12-lb12-pb12-rseq12` loaded both models, reached six heterogeneous generation calls with a maximum resident wave of nine, and held about 67.48 GiB system VRAM without a provider or CUDA error. It was cancelled at the user's meeting deadline before teacher scoring or backward, so no physical-12 loss, gradient, trainer peak, checkpoint, or safe/OOM conclusion exists. The largest completed physical backward batch remains three.
-- Observation: final harness admission occurred too late to protect a downstream diagnostic call.
-  Evidence: physical-batch-two target 126 emitted two non-identical rules with duplicate `rule_id` values. Canonical JSON Schema did not express identity uniqueness, so the isolated executor still requested graph; the graph then referenced an unusable identifier. Policy source `420a554...` applies the same structural dependency criteria before the next stage, preserves the raw rejected rules, skips graph, and lets deterministic reserve replacement proceed.
-- Observation: checkpoint 96 shows modest noisy improvement, not demonstrated convergence.
-  Evidence: across 96 old sparse-reverse-KL updates, loss mean/median were `0.09788/0.08572`, the fitted slope was only `-2.38e-5` per step, and no value was non-finite. The last 16-step median (`0.06471`) was 23.8% below the first (`0.08488`), token-weighted loss was 11.6% lower, and median gradient norm was 31.7% lower; however, window means oscillated and checkpoint 96 had exposed only 96 of 384 targets. It supports completing one full target pass, not extrapolating a mathematical “fully converged” step.
-- Observation: old and new OPD loss values are not numerically comparable.
-  Evidence: checkpoint 96 used the earlier `trl.experimental.distillation.DistillationTrainer` fork and a positive sampled sparse reverse-KL plus tail bucket. Current qualification uses pinned `trl==1.9.2.post1`, `IWOPDTrainer`, and prefix-drift importance weighting; valid IW-OPD losses can be negative. The maintained backend also fixes the fully-on-policy denominator, bounds resident vLLM waves, and publishes paired checkpoint/model views. PostTrain retained the Policy selected-stage mask, XGrammar projection, memory-safe LM-head projection, tokenizer identity, and SQLite ledger state around that backend.
-- Observation: checkpoint 96 is operationally evaluable but fails the desired scope-quality outcome.
-  Evidence: both sealed domain jobs succeeded and reconciled consistently, but six of 18 scope traces ended their rules call at the exact 16,384-token output ceiling. These are valid model-level completion failures inside otherwise successful Verifiers rollouts, not provider or harness failures. Operational reliability fell from the compatible base E2B run's 18/18 to 12/18, matched rules fell from 53/70 to 20/68, hard-gate passes fell from 8/18 to 4/18, and no case was fully conformant.
-- Observation: the recovery result contains real but uneven teacher-signal gains.
-  Evidence: against the compatibility-matching base E2B run, expected rules found rose from 321/460 to 359/460, Claude-supported predictions from 300/373 to 380/421, preserved rule meaning from 258/460 to 289/460, and position stability from 69.3% to 78.2%. Most added matches came from three large provisions (`+15`, `+14`, and `+16`); one exception-inventory case regressed from 100% to 4.8% supported predictions and from 100% to 0% preserved meaning. Supporting-source assignment, coverage-ledger exactness, unmatched additions, tail latency, and the blended recovery pipeline score all regressed.
-- Observation: the exact compatibility comparator is not a perfectly serving-matched causal control.
-  Evidence: the primary base E2B v11 run has the same benchmark/evaluator compatibility hashes but used native thinking on RunPod, while checkpoint 96 used thinking off under managed local vLLM. The older thinking-off base run confirms the same broad pattern--scope regression and recovery-recall improvement--but has an older evaluator implementation and different compatibility hashes. Report exact primary deltas as benchmark results, not as a provider- and reasoning-controlled estimate of the adapter's isolated causal effect.
+- Observation: identical tokenizer mappings did not make the two Gemma variants prompt-compatible.
+  Evidence: both pinned `tokenizer.json` files hash to `cc8d3a0ce36466ccc1278bf987df5f71db1719b9ca6b4118264f45cb627bfe0f`, but E2B's chat template hashes to `0a2c8073c878ab1da004bee933a998606537bbb62016310352c7285c3f01c5b5` and 12B's hashes to `ae53464bf3be25802b3a5b37def7fd89667067d7577049b3b2d74c4d8de4c6d4`. The 12B non-thinking template adds four channel-control tokens. Current validation in `packages/train/src/posttrain/train/requests.py` checks only the token mapping.
+
+- Observation: the earlier and current loss paths used probabilities from a different distribution than the one that sampled the response.
+  Evidence: vLLM 0.25.1 defaults to `raw_logprobs` and calculates returned log probabilities before XGrammar masks logits. The response is sampled from the constrained distribution, while rollout, teacher, and current-student terms were raw full-vocabulary probabilities.
+
+- Observation: checkpoint 96 used an especially weak teacher signal even though the teacher transported successfully.
+  Evidence: the historical beta-one, sampled-top-one, tail-bucket branch included the student's sampled token and an aggregate all-other bucket; teacher top one was fetched but did not enter that support. The teacher could reduce confidence in one sampled mistake but could not name its preferred actor, effect, qualification, boundary, or abstention token.
+
+- Observation: the checkpoint-96 sealed scope result is serving-confounded.
+  Evidence: six rules responses reached exactly 16,384 tokens; 62.27% to 98.63% of each failed response was trailing whitespace. The training rollout path bounded whitespace, while the managed evaluation path did not. The raw sealed prompt/schema hash matched the base comparison for the inspected case, so the failure is not explained by a different benchmark prompt.
+
+- Observation: raw YAML metadata is sent to both training and sealed-evaluation models.
+  Evidence: `scope_opd_prompts.py` returns the full YAML text, `scope_opd_tasks.py` stores it as the system prompt, and `program.py` sends it verbatim. This is unnecessary noise, but it does not by itself explain checkpoint 96's relative regression because both compared models received the same sealed prompt.
+
+- Observation: the future full plan contains real hidden-label leakage that checkpoint 96 never encountered.
+  Evidence: constructed-incomplete units contain `::incomplete::<hash>` in their model-facing `context_id`. The first 96 historical targets contained zero constructed-incomplete tasks, but the complete plan contains 34.
+
+- Observation: the first 96 targets were not a representative checkpoint prefix.
+  Evidence: the prefix contained evidence/rules/graph `24/55/17`, full/standalone `29/67`, determinate/multiple/incomplete `87/9/0`, and length quartiles `24/15/23/34`. It could not demonstrate incomplete-context learning or balanced graph transfer.
+
+- Observation: the Policy allocation ledger is not cold-start safe at production concurrency.
+  Evidence: 12 simultaneous constructors against fresh database files failed 3 of 20 forced rounds with `sqlite3.OperationalError: database is locked`. The committed test pre-created the database, masking first-open WAL/DDL contention.
+
+- Observation: throughput tuning is already sufficient and should not be repeated.
+  Evidence: logical/physical/accumulation `12/1/12` took 634.11 seconds for 12 targets; `4/1/4` took 2,112.83 seconds, `12/2/6` took 805.64 seconds, and `12/3/4` took 1,130.05 seconds. Generation is the bottleneck, so larger physical batches spent more memory without improving it.
+
+- Observation: the existing production work package is stale.
+  Evidence: `.posttrain/work_packages/gemma4_e2b_scope_opd_from_12b.yaml` still resolves 384 optimizer steps, logical batch one, accumulation one, environment concurrency one, resident sequence one, and the historical sparse loss.
 
 ## Decision Log
 
-- Decision: preserve all work on the two feature branches and never modify or push either `main` branch.
-  Rationale: this isolates the experiment and retains reproducible review boundaries.
-  Date/Author: 2026-08-10 / Codex.
-- Decision: publish checkpoint 96 as an explicitly intermediate private repository rather than call it the final model.
-  Rationale: the weights are valid and useful, but only 96 of 384 targets were optimized and the producing run failed later.
-  Date/Author: 2026-08-10 / Codex.
-- Decision: qualify checkpoint 96 from its immutable Hugging Face revision instead of adding a generic checkpoint-projection subsystem.
-  Rationale: the repository already contains the exact adapter weights at a verified commit. Materializing that pinned Hub adapter directly before vLLM launch preserves identity while avoiding a synthetic model-projection run and unrelated framework surface.
-  Date/Author: 2026-08-11 / Codex.
-- Decision: keep r0-r9, checkpoints, Trackio traces, and provider evidence; do not delete or relabel failed attempts.
-  Rationale: they explain each corrected boundary and are required for honest incident history.
-  Date/Author: 2026-08-10 / Codex.
-- Decision: fix target-owned identifier copying in Policy Prism's generated rules schema, not by sanitizing output or loosening admission.
-  Rationale: the grammar can require the only scientifically valid identifier while canonical validation still evaluates the exact generated response.
-  Date/Author: 2026-08-10 / Codex.
-- Decision: merge current `origin/main` into only the experiment feature branch; do not rebase, force-push, or modify `main`.
-  Rationale: the maintained TRL IW-OPD, runtime locks, bounded rollout waves, and checkpoint artifacts should be adopted together. A merge preserves the prior incident lineage and makes conflict resolution reviewable.
-  Date/Author: 2026-08-10 / Codex.
-- Decision: use TRL 1.9.2.post1 `IWOPDTrainer` with explicit `distillation_objective=iw_opd`, gamma `0.5`, epsilon `1e-8`, one generation, temperature `1`, top-p `1`, and learning rate `1e-5`.
-  Rationale: this is the maintained, fork-tested on-policy backend and the published IW-OPD reference configuration. The former feature loss remains test/reference input while its memory-safe projection is ported to the new sampled-token objective.
-  Date/Author: 2026-08-10 / Codex.
-- Decision: retain logical four / physical one / accumulation four as the required correctness baseline, then use one direct logical-12 ceiling cohort and one doubled-logical boundary rather than a stepwise parameter sweep.
-  Rationale: the required baseline completed all three updates. The user then explicitly extended qualification to find the hardware boundary quickly. Logical 12 reduced measured trainer time 3.33x and proved resident wave 11; testing physical 12 directly brackets the physical ceiling in one attempt, while logical/resident/concurrent 24 tests whether more simultaneous work improves the generation bottleneck. Intermediate physical values are used only to bracket a conclusive OOM, not as a broad optimization sweep.
-  Date/Author: 2026-08-11 / Codex.
-- Decision: use one deterministic 12-target seed-2907 cohort for the live smoke.
-  Rationale: `[31, 49, 70, 75, 78, 98, 126, 163, 182, 233, 278, 329]` covers both prior failures, every stage/profile/quartile, four full trajectories, and three optimizer updates/twelve backward passes. That is the smallest representative cohort satisfying the TRL fork's retained ten-backward live qualification gate.
-  Date/Author: 2026-08-10 / Codex.
-- Decision: hold prefill, MTP, prefix caching, GPU reservations, LoRA, learning rate, seed, and source plan fixed while probing only logical/physical/accumulation/concurrency/resident capacity.
-  Rationale: changing multiple controls would make the timing evidence uninterpretable. MTP still requires a matched post-sync acceptance test, and student prefix caching still lacks a proven invalidation invariant. The ceiling probes therefore isolate only the two relevant capacity dimensions and preserve the scientifically qualified scheduler/model behavior.
-  Date/Author: 2026-08-11 / Codex.
-- Decision: keep student prefix caching off, teacher prefix caching on, eager execution on, student sleep enabled, TP1, and teacher BF16.
-  Rationale: the student changes every optimizer update and lacks a proven LoRA-sync cache reset; the teacher is immutable. CUDA graphs, disabled sleep, teacher quantization/MTP, TurboQuant, and arbitrary attention overrides add memory or scientific risk without addressing the measured generation bottleneck.
-  Date/Author: 2026-08-10 / Codex.
-- Decision: reduce the live qualification cap from 90 minutes to 60 minutes without adding or shrinking the scientific cohort.
-  Rationale: the first valid update took 592.70 seconds and the corrected run reached it about thirteen minutes after submission, projecting three updates within the new cap while retaining targets 78/98 and two post-sync cycles. The 12-target cohort remains the minimum complete live gate; accepting only four targets would hide the exact historical boundaries.
-  Date/Author: 2026-08-10 / Codex.
-- Decision: do not invoke resident two for an `instance_unreachable` termination.
-  Rationale: resident two is permitted only for a conclusive OOM/KV-capacity failure. The retained peak memory leaves substantial headroom, and both independent workers disappeared together. Retrying a slower configuration would not correct network or workstation reachability.
-  Date/Author: 2026-08-10 / Codex.
-- Decision: select production by wall seconds per admitted target subject to correctness and memory gates; report the largest safe physical batch separately from the fastest production batch.
-  Rationale: maximizing allocation or instantaneous utilization can slow the experiment. Physical batch three already uses more trainer memory and takes longer than physical one, while logical batching yields the material speedup. The production choice optimizes end-to-end time without presenting a merely survivable batch as the best configuration.
-  Date/Author: 2026-08-11 / Codex.
-- Decision: run the final 384-target experiment from the frozen base E2B model after the fixed configuration qualifies.
-  Rationale: one consistent batch, learning-rate schedule, sampler, and ledger produces cleaner scientific lineage than mixing checkpoint-96 batch-one history with a new batch.
-  Date/Author: 2026-08-10 / Codex.
-- Decision: schedule one complete 384-target pass, which is 32 optimizer updates at logical batch 12; do not claim or pre-schedule a “fully converged” step.
-  Rationale: the old checkpoint-96 curve is noisy and belongs to a different sparse reverse-KL objective. It proves finite optimization and modest improvement but not an asymptote. Compare checkpoints 8/16/24/32 and the final sealed evaluations; only that evidence can justify a later second pass.
-  Date/Author: 2026-08-11 / Codex.
-- Decision: stop this goal after the boundary evidence, production configuration, convergence interpretation, and backend comparison are committed and pushed; do not start the full 384-target run.
-  Rationale: the user explicitly separates qualification from the next end-to-end execution goal.
-  Date/Author: 2026-08-11 / Codex.
-- Decision: do not promote checkpoint 96 as the selected OPD model despite its recovery gains.
-  Rationale: its six scope rules-stage length terminations, 33.3-point operational-reliability loss, 46.3-point expected-rule-match loss, zero fully conformant cases, and severe tail-latency increase outweigh the recovery-recall improvements. The immutable Hub repository remains correctly labelled as an intermediate checkpoint for evidence and diagnosis.
+- Decision: amend the canonical baseline before changing cross-template teacher scoring.
+  Rationale: model-native teacher prefixes alter the previous meaning of “exact token scoring.” The exact completion token sequence remains preserved, but the conditioning prefix becomes model-native. This must be explicit rather than hidden in an adapter.
   Date/Author: 2026-08-12 / Codex.
-- Decision: use the compatibility-matching thinking-enabled base E2B v11 runs as the primary numerical comparator and the older thinking-off runs only as a directional sensitivity check.
-  Rationale: exact benchmark, Gold, evaluator, and calibration compatibility is required for primary metric comparison. Reasoning/provider differences are retained explicitly as a limitation rather than silently mixing incompatible evaluator revisions.
+
+- Decision: use corrected constrained IW-OPD as the production objective; do not add the proposed sparse teacher-top-k anchor to this run.
+  Rationale: constrained IW-OPD is the maintained objective and can be made mathematically consistent. A hybrid anchor introduces a second, unqualified objective and a new top-k hyperparameter. A one-step smoke cannot establish its quality advantage, and an objective sweep conflicts with the request to start quickly. The historical top-one failure is adopted as a prohibition against reusing that weak loss, not as evidence for an untested replacement.
+  Date/Author: 2026-08-12 / Codex.
+
+- Decision: retain the previously qualified hyperparameters and runtime geometry.
+  Rationale: rank, learning rate, context limits, prefill, memory reservations, cache choices, MTP choice, and logical/physical batching have direct live evidence. The new fixes change correctness contracts, not the measured hardware bottleneck.
+  Date/Author: 2026-08-12 / Codex.
+
+- Decision: run exactly two live pre-production canaries.
+  Rationale: offline tests can close deterministic math, rendering, schema, allocation, and recovery boundaries. One live training update is still required to prove student generation, native teacher scoring, constrained loss, accumulation, memory, and artifacts together. One managed-evaluation canary is required because the historical whitespace defect exists only on that distinct serving path. Nothing else has an unclosed live boundary.
+  Date/Author: 2026-08-12 / Codex.
+
+- Decision: reuse the verified seed-2907 twelve-target cohort for the training canary.
+  Rationale: its exact indices are `31, 49, 70, 75, 78, 98, 126, 163, 182, 233, 278, 329`. It covers all three stages, all four prompt profiles, all four quartiles, four full trajectories, target 78, target 98, and two constructed-incomplete tasks. It produces one optimizer update under the production `12/1/12` geometry.
+  Date/Author: 2026-08-12 / Codex.
+
+- Decision: do not repeat live MTP, prefix-cache, prefill, physical-batch, logical-batch, LoRA, learning-rate, Trackio, HF, or Claude probes.
+  Rationale: MTP and student prefix caching remain deliberately off; prefill 4,096 and `12/1/12` are measured winners; HF publication and Trackio/Claude evaluation were exercised successfully by checkpoint 96. Repeating them cannot validate the new teacher/loss contracts.
+  Date/Author: 2026-08-12 / Codex.
+
+- Decision: predeclare checkpoint 32 as the experiment model.
+  Rationale: Policy Prism currently has no independent non-sealed Gold domain suite suitable for selecting among quarter checkpoints. Using sealed scope to choose a checkpoint would leak qualification evidence, while one-step or source-only structural scores cannot identify legal quality. Checkpoints 8/16/24 remain recovery and later exploratory evidence. A separate future experiment may add a reviewed non-sealed Gold selection suite.
+  Date/Author: 2026-08-12 / Codex.
+
+- Decision: keep existing business KPI definitions unchanged.
+  Rationale: KPI redesign and historical re-derivation are outside this experiment. Raw traces and compatibility metadata remain available for honest interpretation.
+  Date/Author: 2026-08-12 / Codex.
+
+- Decision: work only on the existing PostTrain and Policy Prism OPD feature branches and one new TRL fork branch.
+  Rationale: the PostTrain feature branch already contains the qualified release merge and Policy-specific deltas. Merging a newer `main` now would invalidate qualification and introduce conflicts unrelated to this experiment.
   Date/Author: 2026-08-12 / Codex.
 
 ## Outcomes & Retrospective
 
-Checkpoint 96 is now a complete, independently downloadable intermediate result rather than an artifact trapped inside a failed run. Its private Hugging Face repository and immutable revision are verified. The previous run did not finish because reserve matching first over-fragmented candidates at target 78, and then the model was allowed to invent an exact source identifier at target 98. Both causes now have narrow, tested corrections: broader scientifically compatible reserve sharing and a task-specific schema enum.
+The historical experiment produced a recoverable checkpoint and useful failure evidence, not a successful final model. Its optimizer was numerically stable and teacher transport did not fail, but the teacher was conditioned on the wrong model template, the objective mixed constrained sampling with raw probabilities, the first 96 tasks were unrepresentative, and six scope evaluation pipelines were lost to a serving whitespace loop. More steps under that same contract would not have repaired those issues.
 
-No claim is made that checkpoint 96 is a completed or converged model. Its old sparse reverse-KL metrics improve modestly but noisily: the last 16-step median loss is 23.8% below the first, token-weighted loss is 11.6% lower, and median gradient norm is 31.7% lower, while the fitted loss slope is nearly flat and window means oscillate. It covers only 96 of 384 targets. The defensible next schedule is one complete fresh 384-target pass; neither these metrics nor the new IW-OPD loss scale can justify a numeric “fully converged” step beyond sealed evaluation.
-
-The current IW-OPD stack is operationally qualified. Logical 12 / physical 1 / accumulation 12 completed the representative 12 targets with finite loss and gradient, zero teacher/source/graph/truncation/provider failures, positive scored tokens, complete artifacts, and consistent reconciliation. It is the production choice because it cut measured trainer time from 2,112.83 to 634.11 seconds, a 3.33x speedup, while physical batches two and three were slower. Physical three is the largest completed safe backward batch at 49.83 GiB trainer peak; physical 12 was cancelled before backward and is not a qualified ceiling. The resulting fresh full run is projected at approximately 5.6 trainer hours and 6--7 hours including one initialization, four milestone checkpoints, final upload, and reconciliation; evaluation time remains additional.
-
-The maintained backend was not stable as a blind merge, but its one integration defect was found before production. The old run used Git-pinned `DistillationTrainer` and a positive sampled top-1 sparse reverse-KL/tail loss. The merged runtime uses released `trl==1.9.2.post1`, `IWOPDTrainer`, a prefix-drift importance-weighted objective, a corrected fully-on-policy denominator, bounded vLLM waves, concurrency control, and paired recovery/model checkpoints. PostTrain had to correct its private-hook guard from `_compute_prompt_length` to the pinned backend's `aligned_prompt_length`, then prove loss/gradient equivalence across physical micro-batches. Subsequent finite GPU updates had zero teacher failures. Policy-specific schema projection, selected-stage masking, memory-safe vocabulary projection, tokenizer identity, and SQLite ledger recovery remain explicit PostTrain integrations rather than assumed TRL behavior.
-
-Checkpoint 96's sealed evaluation is mixed and does not meet the desired overall improvement. On scope, ambiguity handling fell from 72.2% to 50.0%, hard-gate conformance from 44.4% to 22.2%, expected-rule matching from 75.7% to 29.4%, field grounding from 12.6% to 5.3%, subject capture from 24.3% to 7.4%, and operational reliability from 100% to 66.7%. Six rules calls ran to the 16,384-token ceiling, which removed their downstream graph stage and drove p95 end-to-end latency from 95.0 seconds to 440.9 seconds. The surviving 29 predictions were all Claude-supported versus 56/66 for base, and evidence F2 rose from 0.773 to 0.828, but this is higher precision on a much smaller output inventory rather than a net scope improvement.
-
-Recovery shows the useful part of the partial OPD signal. Expected-rule recovery rose 8.3 points to 78.0%, context-position stability rose 8.9 points to 78.2%, Claude-supported predictions rose 9.8 points to 90.3%, preserved meaning rose 6.7 points to 62.8%, required legal text reached 100%, and missing rules per provision fell from 10.59 to 7.76. Those gains are not a complete win: joint source assignment fell 2.8 points, coverage-ledger exactness fell from 23.5% to 5.9%, unmatched additions rose from 52 to 62, compact correspondence F1 fell from 0.506 to 0.484, the recovery pipeline score fell from 0.629 to 0.601, and p95 latency increased from 232.2 to 791.5 seconds. The checkpoint learned broader recovery on large source packets, but not stable precision, source attribution, or scope decomposition.
-
-The practical lesson is to keep the fresh production run on the maintained IW-OPD objective and the balanced 384-target plan, evaluate quarter checkpoints rather than infer quality from training loss, and gate every candidate first on scope completion and conformance. Future monitoring must explicitly retain rules-stage length-termination rate, output-token p95, expected-rule coverage, unmatched additions, supporting-source assignment, coverage-ledger exactness, and recovery precision together. Raising the output cap alone is not a remedy for runaway generation; the selected checkpoint must complete within the existing contract while improving both coverage and precision.
+The final outcome has not yet been produced. At completion, update this section with the exact TRL, PostTrain, and Policy Prism commits; image digest; canary and production run IDs; measured update time; checkpoint artifacts; Hugging Face revision; sealed results; finalized run directories; and any residual scientific limitation. A low domain score remains a valid negative experiment. Operational success must never be rewritten as scientific improvement.
 
 ## Context and Orientation
 
-PostTrain is `/home/ali-awais-safdar/Post-Train/posttrain`. It owns model profiles, OPD request contracts, the TRL/IW-OPD runtime adapter, memory-safe loss projection, packaging, dstack execution, Trackio evidence, and Observatory. Policy Prism is `/home/ali-awais-safdar/Policy Prism`. It owns the source-only legal task plan, prompts, schemas, admission, replacement ledger, project catalog/work packages, and final five-file evaluation format.
+Three repositories participate and must remain independently reproducible.
 
-OPD means that the current student generates a response and the frozen teacher scores the same token IDs. The teacher does not generate a replacement answer. A logical target is one selected evidence, rules, or graph output that receives loss. A reserve is a reviewed alternate source candidate used only when the primary attempt is structurally unusable. Schema-valid legal mistakes remain trainable; malformed JSON, truncation, unknown identifiers, and unusable dependencies are rejected.
+`/home/ali-awais-safdar/Post-Train/posttrain` is the framework workspace. Work stays on `feat/gemma-policy-prism-opd-e2b-12b`, currently rooted at `8c0d76637cc0eba87a6c3d360a2d92f6a99d29db`. `packages/train` owns typed distillation requests and private TRL integration; `packages/serve` owns managed-vLLM configuration; `packages/eval` owns the Verifiers evaluation adapter; `packages/common` owns model identity; `.posttrain` project files do not live here for this experiment.
 
-The production plan has 384 targets: 77 evidence, 230 rules, and 77 graph. It has 96 shared reserve candidates. Plan v2 matches reserves by target stage, source-length quartile, and reviewed decision class; the logical target supplies prompt profile and task shape. The target-98 rules schema now enumerates the exact source identifier, so XGrammar cannot generate the historically dominant mismatch.
+`/home/ali-awais-safdar/Policy Prism` owns the environment and project composition. Work stays on `feat/scope-opd-e2b-12b-environment-v1`, currently rooted at `79627530d907b4e3565ddd912db2327f64f72174`. `packages/normative-verifiers` owns prompts, staged tasks, admission, allocation, deterministic plans, completion validation, and finalization. `.posttrain/catalog` and `.posttrain/work_packages` bind exact framework selections. `evaluation-runs` owns permanent finalized benchmark evidence.
 
-Immutable model inputs are:
+`/home/ali-awais-safdar/Post-Train/trl` is the expected sibling checkout of the CarbonTeq TRL fork. It is not presently available locally. Create it from `carbonteq-ai/trl`, verify `origin` and `upstream`, and branch from the exact currently consumed fork source `a82ecebc0fa081efd58302a34a553445fc73271d`. Generic teacher-server constrained scoring belongs there. The fork must be committed, pushed, documented in `CARBONTEQ_FORK.md`, released immutably, and only then pinned by PostTrain.
 
-    Student: google/gemma-4-E2B-it
-    Student revision: 3e22461f65e89153144f8adb70e3b8c2cc9845a7
-    Teacher: google/gemma-4-12B-it
-    Teacher revision: 707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7
-    Canonical token-ID fingerprint: 059d0f7dd1efb018ec9801f316c99ab31a7c39e712de08626ac90c1898b42416
-    GPU: NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 96 GiB
+The immutable model inputs remain:
 
-The selected experiment hyperparameters are rank 16, alpha 32, dropout 0, learning rate `1e-5`, IW-OPD gamma `0.5`, IW-OPD epsilon `1e-8`, maximum prompt 32,768 tokens, per-call sequence cap 40,960, trainer maximum length 49,152, gradient clipping 1.0, no warmup, a linear scheduler, gradient checkpointing enabled, and one student generation per prompt. Serving uses logical batch 12, physical actor batch one, accumulation 12, twelve concurrent environment tasks, at most twelve resident student sequences, 4,096-token chunked prefill, eager execution, FP8 KV, LoRA sleep/sync, student prefix caching off, teacher prefix caching on, and MTP off. Physical batch three is the measured safe ceiling, not the selected production batch; physical 12 and logical 24 remain unqualified.
+| Role | Repository | Revision |
+| --- | --- | --- |
+| Student | `google/gemma-4-E2B-it` | `3e22461f65e89153144f8adb70e3b8c2cc9845a7` |
+| Teacher | `google/gemma-4-12B-it` | `707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7` |
+| Ordered token mapping | both | `059d0f7dd1efb018ec9801f316c99ab31a7c39e712de08626ac90c1898b42416` |
+
+The GPU target is one NVIDIA RTX PRO 6000 Blackwell Workstation Edition with 96 GiB. “Logical batch” means how many fresh targets are generated and scored for one optimizer update. “Physical batch” means how many sequences enter one differentiable forward/backward slice. Gradient accumulation combines twelve physical-one slices into the logical-twelve update.
+
+The probability names used below are important. `pS` and `pT` mean raw full-vocabulary student and teacher distributions. `qS` and `qT` mean those distributions after applying the exact XGrammar allowed-token mask and renormalizing. Structured rollouts are sampled from `qS`; therefore constrained IW-OPD must use `qS`, `qT`, and the current trainable student's `qCurrent`.
+
+## Frozen experiment configuration
+
+The original experiment's useful findings are retained exactly unless the corrected one-update canary disproves compatibility.
+
+| Setting | Production value | Evidence/rationale |
+| --- | --- | --- |
+| Population | 384 reviewed targets, each optimized once | One complete task-plan pass; no replay of checkpoint 96 |
+| Stage totals | 77 evidence / 230 rules / 77 graph | Original Policy design |
+| Logical / physical / accumulation | `12 / 1 / 12` | Fastest measured, 634.11 seconds per 12 targets |
+| Optimizer updates | 32 | `384 / 12` |
+| LoRA | rank 16 / alpha 32 / dropout 0 | Stable historical and qualified configuration |
+| Learning rate | `1e-5` | Qualified IW-OPD value; no LR sweep |
+| Scheduler / warmup | linear / 0 | Original configuration |
+| Gradient clipping | 1.0 | Existing safety setting |
+| IW-OPD gamma / epsilon | `0.5 / 1e-8` | Maintained backend defaults already qualified numerically |
+| Probability space | XGrammar-constrained | Corrected contract; raw full-vocabulary is rejected |
+| Teacher prompt alignment | model-native prefix, exact completion IDs | Corrected cross-template contract |
+| Maximum prompt / call / trainer sequence | `32,768 / 40,960 / 49,152` | Existing task/token audit and training envelope |
+| Maximum outputs | evidence 2,048 / rules 16,384 / graph 8,192 | Original stage contract |
+| Environment concurrency / resident sequences | `12 / 12` | Qualified heterogeneous rollout wave |
+| Chunked prefill | enabled, 4,096 tokens | Fastest qualified prefill setting |
+| Student / teacher memory reservation | `0.20 / 0.35` | Qualified on 96 GiB GPU |
+| Prefix caching | student off / teacher on | Student invalidation after LoRA sync is unproven; teacher is frozen |
+| MTP | off | No proven gain for this Policy IW-OPD path |
+| KV / execution / parallelism | FP8 KV / eager / TP1 | Qualified path |
+| Checkpoints | 8, 16, 24, 32; retain four | Recovery at every 96 targets |
+| Seed | `20260807` | Predeclared production seed |
+| Provider timeout | 86,400 seconds | Safety ceiling, not duration estimate |
+
+The old selection-lock and task-plan hashes are historical parents:
+
+    selection-lock: 0e6cf112560e6b6a2c55ba3d622adda4c728ffef7a7442494be948d27921ec37
+    task-plan:      678465cc2f81e7d965be85587e02b69326d72f3c9358316811c3ef0535e3b0cc
+
+Prompt rendering, opaque incomplete IDs, and deterministic reordering will change the executable release hashes. Regenerate them once, record both new 64-character values in this plan, and make the final resolved job assert them. Do not continue to claim the old hashes after changing model-facing tasks.
 
 ## Plan of Work
 
-### Milestone 1: reconcile the experiment branch with the maintained release
+### Milestone 1: amend the exact-token OPD contract
 
-Fetch current `origin/main`, record its SHA, verify both worktrees are clean, and merge it with `--no-ff` into only `feat/gemma-policy-prism-opd-e2b-12b`. Never switch, commit to, push, rebase, or force-update `main`. Use main's release dependency closure, TRL 1.9.2.post1/IW-OPD adapter, Trackio update, bounded resident waves, environment semaphore, and checkpoint-scoped recovery/model artifacts. Build a fresh actual-job image from the merged tree; do not reuse the feature branch's old online-RL image.
+Update `docs/post-training/02-primitives.md` so cross-template distillation preserves the exact generated completion IDs while each model renders the same semantic messages with its own immutable template. Update `docs/post-training/05-apis.md` to add typed prompt-alignment and probability-space settings. Update `docs/post-training/06-observation-and-lineage.md` to require student/teacher template fingerprints, both prompt-prefix digests, completion-token digest, grammar/schema digest, allowed-set evidence, and q-logprob alignment.
 
-Resolve changed-both files deliberately. Preserve or port: the verified E2B/12B tokenizer fingerprint; generation-only XGrammar projection; Gemma whitespace and EOS behavior; per-turn prompt/sequence limits; exact selected-target-stage and loss mask; stable task ordering; native rollout traces; LoRA-only policy synchronization; and Policy Prism SQLite ledger snapshot/restore. Main's actual runtime is Python 3.13.12 even though the historical profile identifier contains `py312`; do not introduce a Python migration. Treat OCI digest and lock digest as authority when the committed framework-version label lags the source version.
+Define two typed settings rather than backend-option strings:
 
-### Milestone 2: port the Policy path onto exact IW-OPD
+    TeacherPromptAlignment = "exact_full_sequence" | "model_native_prefix_exact_completion"
+    DistillationProbabilitySpace = "raw_full_vocab" | "generation_constrained"
 
-Replace the old `DistillationTrainer` subclass with an `IWOPDTrainer` integration that explicitly records `distillation_objective=iw_opd`, `iw_opd_gamma=0.5`, `iw_opd_epsilon=1e-8`, `lmbda=1`, sampled top-1, and weight-sync frequency one. Port the memory-safe path so it computes the exact IW-OPD sampled-token student log-probabilities from hidden states in bounded LM-head chunks instead of materializing sequence-by-vocabulary logits. Teacher scoring remains the external vLLM exact-token path.
+The Policy work package must select the second value of each. `exact_full_sequence` remains valid for model pairs with identical templates. `generation_constrained` requires one identical structured-output grammar over the exact completion token positions and fails closed when any position cannot be replayed.
 
-The accumulated loss must have one global valid-token numerator and denominator across all micro-slices. Prove full-reference versus chunked loss and gradients for variable lengths, padding, selected-stage masks, and logical batches 1/2/4/8 expressed as physical batch one plus matching accumulation. Rejected candidates and non-selected dependency/diagnostic stages must contribute exactly zero loss. Fail closed if the pinned TRL private seams or signatures differ from the qualified source commit.
+Acceptance is a documentation diff that retains on-policy freshness and same-token-mapping requirements while making E2B-from-12B behavior unambiguous. No implementation begins under an undocumented reinterpretation.
 
-Preserve deterministic Policy target order under buffered IW-OPD generation. Add a bounded heterogeneous-response-format path so distinct task-specific schemas can enter one vLLM submission while retaining one sampling object per prompt and restoring output order. This path must be version-guarded and covered against vLLM 0.25.1; if it cannot be proven, keep serial generation and do not describe `max_concurrent > 1` as batching. A temporary PostTrain adapter override is permitted on this feature branch, but it must be documented as fork-upstream debt rather than silently changing a public contract.
+### Milestone 2: correct Policy Prism's model-facing contract
 
-### Milestone 3: finish and pin the Policy Prism source contract
+In `scope_opd_prompts.py` parse prompt YAML into structured semantic fields. Keep `prompt_id`, `stage`, `tangents`, response configuration, source stratification, and hidden decision data in trace/config metadata, but render only role, objective, instructions, stage-specific output rules, skeleton, and examples into the system message. Apply the same semantic renderer to sealed evaluation so future train/eval prompt behavior is intentional and snapshot-tested.
 
-On `feat/scope-opd-e2b-12b-environment-v1`, validate every actual reserve/primary profile/shape materialization rather than a reserve's original profile only. Rebuild the deterministic summary with the measured maxima (currently 8,799 evidence, 10,940 rules, 9,057 graph), rerun the focused plan tests, and commit that source change. Call this immutable commit `POLICY_SOURCE_SHA`.
+In `normative_stages.py`, remove the model-facing `context_id` or replace it with an opaque hash that contains no decision-class word. Emit stage-specific invariants: evidence covers every supplied segment exactly once and in order; rules may emit zero, one, or many rules per segment while supplied IDs are fixed and prior counts are advisory; graph fixes admitted rule/qualification IDs and forbids duplicate nodes, edges, or attachments. Do not tell graph generation about segment-count rules.
 
-In a later Policy Prism catalog commit, update the production environment and smoke selection to `POLICY_SOURCE_SHA`; the present `2b7a5dc...` pin is a launch blocker. Add one 12-target seed-2907 selection and its binding/work package. Resolve and assert exactly:
+Keep all four training profiles, including the benchmark profile. Add semantic coverage assertions—not word-count assertions—for actors, agency duties, legal effects, parent inheritance, zero/one/many decomposition, conditions/exceptions, ambiguity/insufficient context, exact quotes, fixed IDs, duplicate prevention, and one closed JSON object. Add missing independently authored guidance/examples only where a coverage assertion proves a gap.
 
-    31, 49, 70, 75, 78, 98,
-    126, 163, 182, 233, 278, 329
+Preserve the intended OPD admission boundary. Malformed JSON, schema failure, unknown references, duplicate IDs, repetition, provider error, and `finish_reason=length` remain non-trainable. A structurally valid but legally wrong actor, effect, qualification, quote, or ambiguity decision remains trainable; do not add `require_abstention=True` as a structural gate for constructed-incomplete tasks.
 
-Every smoke starts from base E2B and uses its own SQLite ledger, output directory, artifact names, and run ID. The production selection remains the same immutable 384 primaries plus 96 reserves; no smoke adapter or ledger is an input to production.
+Reorder the same 384 reviewed targets through a deterministic stratified interleaver. Every consecutive 96-target checkpoint block must contain all stages, all profiles, both shapes, all decision classes, all quartiles, and proportional source domains. Require exactly 24 targets from each length quartile and exactly 32 full plus 64 standalone tasks in every block. Stage, profile, and decision counts may differ by at most one from their proportional allocation while preserving final totals. Preserve family isolation, sealed-family exclusion, instrument caps, and reserve compatibility. Classify or reject the one current `unknown` source domain.
 
-### Milestone 4: pass offline and isolated-image gates
+Make `ScopeOpdLedger` cold-start safe. Acquire a persistent sibling `fcntl.flock` before first schema initialization; under the lock open SQLite with a 60-second busy timeout, set WAL once, create tables transactionally, set `PRAGMA user_version=1`, and close. Migrate version-zero databases idempotently and reject unknown versions. Normal task constructors must not rerun mutating WAL/DDL. Operational connections retain foreign keys, the busy timeout, and the selected durability.
 
-Before reserving the GPU, pass all of these gates:
+Regenerate candidates, task plan, selection lock, token-budget summary, and hashes. Audit every actual reserve rendered with its logical primary's profile/shape. Pin the resulting source commit in later catalog selections.
 
-1. Reject the exact target-78 primary after pre-claiming its former same-profile reserve; prove one cross-profile reserve is uniquely and atomically claimed, rendered with the logical primary's profile/shape, and recovered after restart without duplication.
-2. Materialize and compile all 765 actual candidate/profile/shape schemas under the image's XGrammar 0.2.3, not only target 98. Prove every rules schema retains its exact task-owned source-ID enum in canonical and wire copies and rejects the historical misspelling.
-3. Bind graph wire-schema references from the admitted rules dependency's exact rule and qualification IDs, while retaining the canonical graph schema for final validation. Prove invented/unknown graph references are rejected before generation can consume a reserve. This is the corresponding preventive fix for the next identifier-copy boundary.
-4. Exercise the real reserve pools with temporary ledgers at concurrency four, maximum three replacements, and restart; prove no duplicate claim, SQLite locking error, reserve-profile drift, or known-stratum exhaustion. Keep `uniqueItems`-dependent duplicate/repetition admission checks because XGrammar 0.2.3 cannot enforce them.
-5. Prove selected prompt/completion digests match the actual teacher request, rejected tokens receive zero loss, malformed/truncated/duplicate/unknown-ID outputs are not optimized, and every candidate/profile/shape prompt stays within its cap.
-6. Prove four heterogeneous schemas retain task order and enter one bounded vLLM request/wave. If the adapter still serializes by schema, the smoke is not started; `max_concurrent=4` alone is not evidence.
-7. Build the actual-job image from the merged source and current main published kind, run its isolated import/entry smoke, and verify source, TRL fork, lock, environment, student, and teacher revisions from inside the image.
+### Milestone 3: implement generic teacher-native constrained scoring in the TRL fork
 
-Historical failure closure is explicit:
+Clone or update `/home/ali-awais-safdar/Post-Train/trl`, verify `origin=carbonteq-ai/trl` and `upstream=huggingface/trl`, and create a feature branch from `a82ecebc0fa081efd58302a34a553445fc73271d`. Do not place this generic scoring behavior only in PostTrain.
 
-| Failure | Required correction | Proof before/live smoke |
-| --- | --- | --- |
-| XGrammar rejected `uniqueItems` | Remove unsupported keys only from the generation copy; retain canonical validation | Compile all materialized schemas offline; canonical admission remains strict |
-| Gemma emitted whitespace/EOS pathologies | Preserve the proven bounded whitespace pattern and grammar-owned stop behavior | Exact renderer/grammar tests plus 12 clean live completions |
-| Target 78 exhausted a profile-fragmented reserve pool | Match reserves by stage/quartile/decision and render with primary profile/shape | Forced cross-profile reserve claim, concurrency/restart test, live target 78 |
-| Target 98 misspelled `source_provision_id` | Exact task-owned enum in every rules schema and pin the corrected Policy source | All-schema compile/misspelling rejection plus live target 98 |
-| A future graph stage invents dependency IDs | Bind graph wire references to admitted rule/qualification IDs | Dynamic-schema unit/fault tests and three live graph targets |
-| Fully on-policy loss divided by zero | Adopt the fork's post-generation valid-token denominator | Reference/accumulation tests and three finite live updates |
-| Full 49K-by-vocabulary logits risk OOM | Port exact sampled-token IW-OPD through chunked hidden-state projection | Full/chunked loss-gradient equivalence and live peak-memory gate |
-| Concurrent replacements duplicate or drift after resume | Atomic SQLite claims plus checkpoint ledger sidecar | Real-pool concurrency/restart tests and matching live ledger |
-| `max_concurrent=4` still serialized unique schemas | Heterogeneous per-request schema batching with stable output order | One four-request offline batch and recorded live request/wave size |
+Extend IW-OPD teacher requests so each row may provide a teacher-native prompt prefix, exact student completion IDs, a structured-output specification, and the expected completion/schema digests. The teacher server must replay the same grammar from the completion boundary, compute the selected token's logit and `logsumexp` over the exact allowed tokens at each position, and return `log qT` plus selected-token IDs, allowed-token counts, and a deterministic allowed-set digest. It must not generate a teacher completion or retokenize student completion text.
 
-### Milestone 5: qualify correctness and the useful hardware ceiling
+Expose processed student rollout log probabilities `log qS` from the colocated vLLM path. Fail if the selected token is disallowed, if output token IDs differ, if the grammar cannot be replayed, or if a row lacks the required schema under `generation_constrained` mode. Keep the raw path available for unconstrained users.
 
-The required logical-four run completed all 12 seed-2907 targets, three finite updates, target 78 and 98, complete artifacts, and consistent reconciliation in 41.61 minutes. The subsequent fixed-cohort capacity evidence is:
+The implementation must avoid retaining sequence-by-vocabulary tensors or a full completion-by-vocabulary bitmask. Advance one grammar matcher per row and process bounded token-position chunks. Document the maintained delta, compatibility constraints, and tests in the fork's `CARBONTEQ_FORK.md`; run the fork suite; commit and push; publish the next immutable internal release; and record its commit, tag, wheel hash, and sdist hash.
 
-| Logical / physical / accumulation | Result | Trainer seconds | Trainer peak | Useful conclusion |
-| --- | --- | ---: | ---: | --- |
-| `4 / 1 / 4` | passed, three updates | 2,112.83 | 35.85 GiB | operational baseline; rejected attempts exposed graph-reference debt later fixed in Policy |
-| `12 / 1 / 12` | passed, one update | 634.11 | 34.74 GiB | fastest qualified |
-| `12 / 2 / 6` | passed, one update | 805.64 | 38.10 GiB | safe, slower |
-| `12 / 3 / 4` | passed, one update | 1,130.05 | 49.83 GiB | largest proven safe, slower |
-| `12 / 12 / 1` | cancelled before backward | n/a | n/a | inconclusive; not qualified |
+### Milestone 4: integrate corrected OPD in PostTrain
 
-Logical 12 formed an observed resident wave of 11 and reduced training time 3.33x versus logical four. Physical batching did not improve the autoregressive generation bottleneck and increased activation memory. Raw device telemetry remains low during decode (typically median 20--21%, p95 22%) even though the logical-12 path materially improves elapsed time.
+Add immutable concrete chat-template fingerprints to Gemma model variants. E2B and 12B may retain the verified common ordered-token fingerprint, but they must not pretend to share one concrete template identity. Validate both identities in `OnPolicyDistillationRequest` according to the selected prompt-alignment mode.
 
-### Milestone 6: freeze the production configuration
+Extend the backend-neutral Verifiers distillation projection so the selected training node retains the exact semantic messages, response format, selected completion IDs, prompt/completion digests, and schema digest needed for teacher-native rendering. Continue to verify the selected branch/node and mask only selected target-stage tokens. A rejected candidate's messages or tokens must never enter the selected row.
 
-Use the fastest completed configuration for one fresh pass over 384 distinct optimized targets:
+In the TRL adapter, render the student prefix with E2B and teacher prefix with 12B from the same semantic messages, append identical completion IDs, and align teacher results by completion position. Record both prefix hashes and template hashes. Replace the current full-vocabulary denominator in `_memory_safe_server_iw_opd_loss` with a chunked XGrammar-allowed `logsumexp`; use the returned `qS` and `qT`. Retain the global valid-token numerator/denominator across physical-one accumulation slices and the memory-safe Gemma hidden-state/LM-head path.
 
-| Setting | Production value |
-| --- | --- |
-| Logical / physical / accumulation | `12 / 1 / 12` |
-| Optimizer updates | 32 |
-| Learning rate / warmup / scheduler | `1e-5` / 0 / linear |
-| Quarter checkpoints | 8, 16, 24, 32 |
-| Environment concurrency / resident sequences | `12 / 12` |
-| Prefill cap | 4,096 |
-| Student / teacher GPU reservation | `0.20 / 0.35` |
-| Prefix cache | student off / teacher on |
-| MTP | off |
+Add typed managed-vLLM structured-output backend support in `packages/serve`. Policy Gemma evaluation bindings must start vLLM with XGrammar and send the generation-only schema plus request-level `whitespace_pattern=r" ?"`. Preserve the canonical schema for local admission. The already-correct Verifiers `chat_template_kwargs` nesting under `extra_body` remains unchanged and regression-tested.
 
-The production work package must use Policy source `420a554...` or a reviewed descendant and start from frozen base E2B, not checkpoint 96 or a qualification adapter. Use a unique run ID that exposes the selected configuration, for example `opdprod01-iwopd-e2b12b-r16-lb12-pb1-rseq12-scope384`.
+Add one intentional artifact-export CLI flow backed by the existing tracked materialization contract so publication/finalization never depends on ad hoc `/tmp` scripts. It must use a uniquely named export/provenance run, select exact logical artifact names, verify provider and PostTrain content digests, download atomically under `.posttrain/state`, write receipts, reject ambiguity/overwrite, and resume idempotently. This run is expected to appear in Trackio because it records a real artifact-consumption edge; its name and purpose must make it distinct from training/evaluation.
 
-### Milestone 7: run and reconcile full OPD
+Update `packages/train/pyproject.toml`, `uv.lock`, runtime locks, `docs/tooling/trl/README.md`, and CI wheel references only after the TRL fork is committed, pushed, and published. Build a fresh job-kind/actual-job closure; do not reuse the old image.
 
-Submit one full job from frozen base E2B with a 432,000-second timeout. Remain attached through model loading, corrected XGrammar compilation, at least one admitted logical batch, one finite update, positive scored tokens, zero teacher failures, and the first complete paired checkpoint plus ledger. Then monitor provider state, admitted unique targets, loss, gradient norm, actual rollout waves, generation throughput, replacement pressure by stratum, trace synchronization, peak VRAM, and every quarter checkpoint.
+### Milestone 5: close every deterministic boundary offline and in the exact image
 
-At completion require provider success, PostTrain reconciliation `consistent`, exactly 384 unique optimized targets, finite metrics, zero teacher failures, no duplicate reserve or logical target, complete native traces, the final adapter/model view, recovery view, ledger, and all quarter checkpoints. A valid but surprising loss is retained for sealed qualification; an operational or structural failure is not silently accepted. Resume an infrastructure interruption only from an exact complete checkpoint with the identical frozen configuration and a new run ID.
+Run focused tests before broad suites. The required behavior—not a particular test-file layout—is:
 
-### Milestone 8: publish the final adapter
+1. E2B and 12B ordered token mappings match; template fingerprints differ; each model renders its exact known native prefix; the teacher request contains the 12B prefix and the exact E2B completion IDs.
+2. A tiny vocabulary/schema reference computes dense `qS`, `qT`, `qCurrent` and exact constrained IW-OPD loss/gradients. The memory-safe chunked implementation matches it. Physical-one/accumulation-twelve matches one logical-twelve batch with variable masks and lengths.
+3. vLLM's sampled-token processed log probability equals an independently replayed XGrammar probability. Teacher and current-student allowed-set digests match at every selected position. Raw-vs-constrained mismatches fail closed.
+4. Controlled non-sealed legal fixtures prove teacher signal direction before optimization: for eight source-family-disjoint cases, the 12B teacher ranks the correct structured completion above a matched wrong actor/effect/qualification/abstention perturbation in at least seven cases and at least one case of each perturbation class. Use length-normalized completion q-loglikelihood and record paired margins.
+5. All twelve training profile/stage prompts render semantic content only, contain every required legal concept, and contain no model-facing metadata/hidden-label values. Every stage receives only its own invariants.
+6. Every actual candidate/reserve/profile/shape prompt is under cap after rendering. All 1,293 static stage schemas and empty/ordinary/maximum realistic dynamic graph schemas compile under XGrammar 0.2.3. Canonical validation still enforces unsupported wire constraints such as `uniqueItems`.
+7. Target 78's forced cross-profile reserve claim, target 98's exact source ID, dynamic graph dependency IDs, maximum-three replacement behavior, restart, and selected-branch purity all pass.
+8. Fifty fresh 12-thread and twenty fresh 12-process ledger rounds complete with zero lock error, duplicate claim, or duplicate slot. Checkpoint backup/restore preserves exact schema version, attempts, claims, accepted targets, and integrity.
+9. The reordered plan preserves the exact 384-target population and final distribution while every 96-target block satisfies the stratification contract.
+10. Managed evaluation emits XGrammar server configuration and request-level bounded whitespace, preserves `extra_body.chat_template_kwargs`, and rejects top-level `chat_template_kwargs`.
+11. Checkpoint model/recovery pairs retain adapter, optimizer, scheduler, RNG, trainer state, tokenizer identities, and SQLite ledger together.
 
-Materialize the exact final Trackio model artifact into ignored local state, verify provider/PostTrain tree digests, PEFT rank/alpha/dropout, base repository/revision, safetensors loadability, objective/configuration, and trainer/checkpoint lineage. Add a model card containing data/environment lineage, exact IW-OPD and runtime settings, optimization evidence, intended use, limitations, failed-attempt history, and evaluation status.
+Then pack both canaries and production. Execute a release verifier inside each relevant image. It must import the pinned TRL and Policy packages, assert exact source commits and dependency versions, compile the real schemas, run the cold-ledger barrier, render both model prefixes, and execute the analytic constrained-loss check. A host-only green suite is insufficient.
 
-Create or update only the private repository `carbonteq/gemma-4-e2b-policy-prism-scope-opd-from-12b-lora-v1`. Fresh-download the returned immutable 40-character revision into a different ignored directory and require byte-identical model card, adapter config, and weights. Record both Trackio and Hugging Face identities in the Policy Prism model selection.
+### Milestone 6: run only the two necessary live canaries
 
-### Milestone 9: qualify sequentially and finalize evidence
+The total GPU canary budget is 90 minutes, excluding OCI build time. Do not add an exploratory arm when a canary fails; diagnose the failed contract and rerun only the same canary after a reviewed fix.
 
-Add an exact adapter model selection, vLLM LoRA evaluation binding with maximum rank 16 and 131,072 context, and two domain-evaluation work packages in project `policy-prism-scope-opd-e2b-12b`. Run scope first under `opdprod01-eval-scope-v11`; require 18 expected/included traces, zero failures/truncations/errors, complete Claude judging, one native evaluation artifact, and consistent reconciliation. Only after it releases the GPU run recovery under `opdprod01-eval-recovery-v1`; require the same gates for 17 traces.
+The first canary is one real optimizer update from base E2B using the exact production objective, LoRA, model revisions, `12/1/12` geometry, concurrency/resident 12, prefill 4,096, memory reservations, cache choices, XGrammar settings, and seed-2907 cohort. Its twelve indices are:
 
-Materialize the native artifacts into ignored `.posttrain/state/native-evals/<run-id>/` directories. Generate serving metadata from PostTrain evidence, finalize directly into `Policy Prism/evaluation-runs`, require the standard `manifest.json`, `traces.jsonl`, `business-kpis.json`, `engineering-metrics.json`, and `semantic-diagnostics.json`, then run `validate-runs`. Compare scope only with compatibility-matching scope runs and recovery only with recovery runs. Update `evaluation-runs/catalog.json`, commit/push final Policy Prism evidence, and update/push this living plan on the PostTrain feature branch.
+    31, 49, 70, 75, 78, 98, 126, 163, 182, 233, 278, 329
+
+This is not an optimization sweep. It is the minimal end-to-end proof of student generation, teacher-native constrained scoring, one finite accumulated backward/update, target 78/98 behavior, constructed-incomplete handling, ledger concurrency, checkpoint sidecar, and Trackio evidence.
+
+The training canary passes only when all twelve logical targets are accepted exactly once; every selected completion has matching student/teacher completion IDs and allowed-set digests; both model-native prefix hashes are present and different; teacher controlled-fixture ranking passes; scored tokens are positive; teacher/provider/truncation/schema/source/graph/SQLite failures are zero; loss and gradient are finite; resident wave exceeds one; peak system memory stays below 85 GiB; and step-one model plus recovery artifacts reconcile consistently. The prior measured update was 634.11 seconds. Investigate if the corrected update exceeds 1,200 trainer seconds or the provider run exceeds 45 minutes.
+
+The second canary uses the one-step adapter as an explicit model input to `eval/verifiers-managed@1`. It runs exactly two non-sealed diagnostic cases through the final managed Gemma evaluation binding: one long rules-only q4 candidate and one long full graph q4 candidate. Use stable candidate/source identities rather than sealed cases. Claude judging is disabled because this canary tests serving, not legal quality.
+
+The serving canary passes only when both pipelines end with `finish_reason=stop`, both canonical schemas validate, no stage reaches its token ceiling, no response contains a trailing-whitespace run beyond the bounded pattern, dynamic graph IDs match admitted rules, the LoRA adapter is actually loaded, native traces upload, and reconciliation is consistent. The job must finish within the remaining 90-minute combined canary budget.
+
+No other live smoke is required. Trackio writing, HF publication, OpenRouter/Claude, dstack placement, and the base serving stack already succeeded during checkpoint-96 qualification; credentials and service health are checked read-only before launch.
+
+### Milestone 7: freeze and package production
+
+After both canaries pass, capture immutable TRL, PostTrain, and Policy Prism commits and push each owning branch in dependency order: TRL first, PostTrain pin/integration second, Policy source third, Policy catalog/work packages fourth. Both primary feature worktrees must be clean and match their remote branches.
+
+Add new selections instead of mutating historical ones: a production environment with 384 tasks and concurrency 12; settings with 32 steps, physical batch one, accumulation 12, and checkpoints every eight; a constrained-IW-OPD rank-16 binding; the qualified rollout/teacher bindings; and `gemma4_e2b_scope_opd_iwopd_scope384_final.yaml`. Resolve exact new selection-lock/task-plan hashes and exact model/template/tokenizer/source identities. The production job must have no checkpoint-96, canary-adapter, canary-ledger, or previous-run input.
+
+`pt job diff` between the corrected-training canary and production packages must show only the deliberate task population, step/checkpoint cadence, artifact retention, and run-description changes. Objective, models, templates, runtime code, dependency lock, LoRA, sampling, generation, memory, concurrency, and target must be identical.
+
+### Milestone 8: launch, monitor, recover, and validate the 384-target run
+
+Use a unique run ID beginning with `opdprod2`. Submit with a 24-hour safety timeout. Remain attached through model loading, the controlled teacher-signal gate, the first twelve accepted targets, the first finite update, and the first successfully uploaded trace batch. Because the first configured checkpoint is step eight, do not claim recoverability after step one.
+
+At every update require `accepted_count == global_step * 12`, twelve unique targets, positive scored tokens, zero teacher failures, finite loss/gradient, no duplicate candidate/reserve, and reserve use within each stage/quartile/decision stratum. Negative IW-OPD loss is allowed. Warn when a stratum consumes more than half its reserves before half its primaries; stop on exhaustion or repeated systematic structural failure. Investigate two consecutive updates above 1,800 seconds or unexplained sustained system memory above 85 GiB.
+
+At checkpoints 8/16/24/32 require paired model/recovery artifacts and ledger accepted counts 96/192/288/384. Infrastructure-only interruption resumes from the latest complete pair under a new run ID with identical image, models, plan, objective, batches, scheduler, seeds, and restored SQLite ledger. Before step eight restart from base. Never resume deterministic schema/ledger/reserve failure, NaN/Inf, systematic teacher failure, or any code/configuration change.
+
+After provider success, reconcile and materialize the exact terminal traces, summary, step-32 model view, and step-32 recovery view through the export flow. Run a Policy Prism completion validator. It must prove 32 finite updates, 384 accepted unique logical targets, exact slots `0..383`, twelve targets per update, final stage totals `77/230/77`, exact plan IDs/hashes, zero teacher errors/truncations, trace-ledger-candidate/digest agreement, SQLite integrity, checkpoint pairs at all four milestones, and no missing artifact roles. Provider success alone is insufficient.
+
+### Milestone 9: publish checkpoint 32 and qualify it sequentially
+
+Predeclared checkpoint 32 is the experiment result. Materialize only its `model-adapter` view for publication; never upload the `training-checkpoint`. Verify PEFT rank 16, alpha 32, dropout zero, exact base repository/revision, safetensors loadability, absence of optimizer/scheduler/RNG/base weights, provider digest, and PostTrain content digest.
+
+Publish privately to `carbonteq/gemma-4-e2b-policy-prism-scope-opd-from-12b-lora-v1`. The model card records model/template/tokenizer identities, all three source commits, training run/step, task hashes, constrained-IW-OPD definition, runtime configuration, canary evidence, known limitations, and evaluation status. Resolve the immutable 40-character HF revision, fresh-download it into a different ignored directory, and require a byte-identical complete file manifest.
+
+Register one final OPD adapter variant and inference binding using the exact Trackio and HF identities. Run sealed scope first with a unique `opd2sc32...` ID. Require 18 expected/included traces, zero failures/truncations/errors, bounded whitespace, complete Claude judging, one native evaluation artifact, and consistent reconciliation. Only after scope releases the GPU run recovery under `opd2rc32...`; require the corresponding 17/17 gate.
+
+Materialize both native evaluation artifacts through the export flow and finalize directly into `Policy Prism/evaluation-runs`. Require `manifest.json`, `traces.jsonl`, `business-kpis.json`, `engineering-metrics.json`, and `semantic-diagnostics.json` for each, plus the updated catalog. Run `validate-runs` and the existing KPI check without changing KPI definitions. Prompt and serving corrections will produce new compatibility hashes; record them and compare with historical runs as cross-prompt/cross-serving evidence, as explicitly accepted for this experiment.
+
+Commit and push the final Policy Prism model catalog, evaluation directories, and `evaluation-runs/catalog.json`. Update this living plan with final evidence, commit and push the PostTrain branch, then clean only the new provider workspaces after HF fresh verification and Policy finalization. Retain Trackio, HF, checkpoints, failed-run, and evaluation evidence.
 
 ## Concrete Steps
 
-The commands below are executed by the later goal. They are grouped by working directory and do not print secrets.
+The later execution goal runs these commands and updates them with newly produced immutable values. Never print secrets.
 
-First, in the PostTrain terminal, freeze refs and merge main into the feature branch only:
+First verify the three repository boundaries. In PostTrain:
 
     export POSTTRAIN_ROOT=/home/ali-awais-safdar/Post-Train/posttrain
     export POLICY_ROOT="/home/ali-awais-safdar/Policy Prism"
+    export TRL_ROOT=/home/ali-awais-safdar/Post-Train/trl
     export KIT=/home/ali-awais-safdar/Post-Train/posttrain-setup-v0.2.2-20260728/posttrain-setup
     export POSTTRAIN_ENV_FILE="$POLICY_ROOT/.env.posttrain"
 
     cd "$POSTTRAIN_ROOT"
     git switch feat/gemma-policy-prism-opd-e2b-12b
+    git add docs/plan/policy-prism-gemma4-e2b-12b-opd.md
+    git commit -m "docs(opd): finalize corrected E2B from 12B experiment plan"
+    git push origin feat/gemma-policy-prism-opd-e2b-12b
     test -z "$(git status --porcelain)"
-    git fetch origin main feat/gemma-policy-prism-opd-e2b-12b
     test "$(git rev-parse HEAD)" = "$(git rev-parse origin/feat/gemma-policy-prism-opd-e2b-12b)"
-    git rev-parse origin/main
-    git merge --no-ff origin/main -m "merge: align Policy Prism OPD with current main"
 
-The pre-merge `origin/main` expectation is `6ffe634432a3f92e8c6dd561d3cd85b2b2ba45cd`; if it changes, re-audit the delta before merging. Resolve conflicts using the ownership rules in Milestones 1 and 2, run focused tests, commit only on the feature branch, and push only that branch. Never use `git reset --hard`, rebase, or force push.
-
-From Policy Prism, complete the source audit before editing catalog pins:
+In Policy Prism:
 
     cd "$POLICY_ROOT"
     git switch feat/scope-opd-e2b-12b-environment-v1
     test -z "$(git status --porcelain)"
-    test "$(git rev-parse HEAD)" = 147ac75997579f08154145ea9bdc6215b4aa7ec4
+    test "$(git rev-parse HEAD)" = "$(git rev-parse origin/feat/scope-opd-e2b-12b-environment-v1)"
+
+Create the missing fork checkout without changing either main branch:
+
+    if [ ! -d "$TRL_ROOT/.git" ]; then
+      git clone git@github.com:carbonteq-ai/trl.git "$TRL_ROOT"
+    fi
+    cd "$TRL_ROOT"
+    git remote get-url origin
+    if ! git remote get-url upstream >/dev/null 2>&1; then
+      git remote add upstream https://github.com/huggingface/trl.git
+    fi
+    git remote get-url upstream
+    git fetch origin
+    if git show-ref --verify --quiet \
+      refs/heads/feat/iwopd-native-template-constrained-logprobs; then
+      git switch feat/iwopd-native-template-constrained-logprobs
+    else
+      git switch -c feat/iwopd-native-template-constrained-logprobs \
+        a82ecebc0fa081efd58302a34a553445fc73271d
+    fi
+
+If the directory already exists, fetch and create/switch the same feature branch from the pinned commit instead of cloning again. Do not base the work on an unreviewed newer fork head.
+
+After implementing each repository's milestone, run its focused tests, update its maintained documentation, commit only that repository, and push only its feature branch. Publish the TRL release before editing PostTrain's immutable pin.
+
+Policy Prism focused validation runs from `$POLICY_ROOT`:
 
     UV_CACHE_DIR=/tmp/policy-prism-uv-cache \
     uv run --no-sync pytest \
-      packages/normative-verifiers/tests/test_scope_opd.py
+      packages/normative-verifiers/tests/test_scope_opd.py \
+      packages/normative-verifiers/tests/test_program.py \
+      packages/normative-verifiers/tests/test_data_and_plugins.py \
+      packages/normative-verifiers/tests/test_yaml_prompts_and_quotes.py
+
     UV_CACHE_DIR=/tmp/policy-prism-uv-cache \
     uv run --no-sync ruff check \
       packages/normative-verifiers/src/policy_prism_normative_verifiers \
-      packages/normative-verifiers/tests/test_scope_opd.py
+      packages/normative-verifiers/tests
+
     UV_CACHE_DIR=/tmp/policy-prism-uv-cache \
     uv run --no-sync mypy --strict \
       packages/normative-verifiers/src/policy_prism_normative_verifiers
+
     UV_CACHE_DIR=/tmp/policy-prism-uv-cache \
     uv run --no-sync --package policy-prism-normative-verifiers \
     policy-prism-verifiers build-scope-opd-plan \
@@ -361,28 +362,39 @@ From Policy Prism, complete the source audit before editing catalog pins:
       --output-dir packages/normative-verifiers/src/policy_prism_normative_verifiers/resources/scope_opd_plan \
       --tokenizer google/gemma-4-E2B-it \
       --check
+
     git diff --check
 
-After the actual-materialization audit change passes, commit and push it, capture `POLICY_SOURCE_SHA=$(git rev-parse HEAD)`, then make a separate catalog/work-package commit that pins every OPD environment to that exact 40-character SHA. Validate locally that no `2b7a5dc` reference remains in resolved OPD seats.
+The new release verifier must also be invokable explicitly and produce a machine-readable pass receipt:
 
-From PostTrain, run the merged IW-OPD focused ladder before the broad suite:
+    UV_CACHE_DIR=/tmp/policy-prism-uv-cache \
+    uv run --no-sync --package policy-prism-normative-verifiers \
+    policy-prism-verifiers verify-scope-opd-runtime \
+      --plan-revision policy-prism-scope-opd-plan-v3 \
+      --xgrammar-version 0.2.3 \
+      --ledger-concurrency 12 \
+      --output .posttrain/state/opd-verification/host-receipt.json
 
-    cd "$POSTTRAIN_ROOT"
-    UV_CACHE_DIR=/tmp/posttrain-uv-cache uv run --no-sync pytest \
+PostTrain focused validation runs from `$POSTTRAIN_ROOT`:
+
+    UV_CACHE_DIR=/tmp/posttrain-uv-cache \
+    uv run --no-sync pytest \
+      packages/common/tests \
       packages/train/tests/test_api.py \
       packages/train/tests/test_trl_sparse_distillation.py \
       packages/train/tests/test_trl_online_rl.py \
       packages/train/tests/test_verifiers_grpo_bridge.py \
       packages/train/tests/test_trl_checkpoint_artifacts.py \
-      packages/train/tests/test_checkpoints.py
-    UV_CACHE_DIR=/tmp/posttrain-uv-cache uv run --no-sync ruff check \
-      packages/train/src packages/train/tests
-    UV_CACHE_DIR=/tmp/posttrain-uv-cache uv run --no-sync pyright \
-      packages/train/src
+      packages/train/tests/test_checkpoints.py \
+      packages/serve/tests/test_vllm_bindings.py \
+      packages/eval/tests/test_api.py
+
+    UV_CACHE_DIR=/tmp/posttrain-uv-cache uv run --no-sync ruff check .
+    UV_CACHE_DIR=/tmp/posttrain-uv-cache uv run --no-sync pyright
     UV_CACHE_DIR=/tmp/posttrain-uv-cache uv run --no-sync lint-imports
     git diff --check
 
-The exact test names may move during the merge, but the accepted behaviors may not be dropped: IW-OPD zero-denominator correction; full/chunked loss and gradient equivalence at accumulation four; selected-stage masks; heterogeneous schema ordering and bounded waves; XGrammar canonical/wire separation; E2B/12B fingerprint; paired checkpoints and SQLite sidecar restore; and failure retention. Then run the repository's locked sync and relevant broad suite before packaging:
+After the immutable dependency pin is final, run the locked and broad release ladder:
 
     UV_CACHE_DIR=/tmp/posttrain-uv-cache uv sync --all-packages --locked --python 3.13
     UV_CACHE_DIR=/tmp/posttrain-uv-cache uv run ruff check .
@@ -391,7 +403,7 @@ The exact test names may move during the merge, but the accepted behaviors may n
     UV_CACHE_DIR=/tmp/posttrain-uv-cache uv run pytest
     git diff --check
 
-Configure the control shell only after code and catalog commits are immutable:
+Configure the PostTrain control terminal only after commits and locks are immutable:
 
     cd "$POSTTRAIN_ROOT"
     set -a
@@ -411,171 +423,339 @@ Configure the control shell only after code and catalog commits are immutable:
 
     test -n "$HF_TOKEN"
     test -n "$DSTACK_TOKEN"
+    test -n "$OPENROUTER_API_KEY"
     pt doctor
     pt catalog validate
     pt workers
 
-Expected preflight is a valid catalog, healthy internal services, and `carbonteq-ai-workstation.lan` healthy with one idle RTX PRO 6000 block. Do not expose credential values. Ensure at least 80 GiB local free space before rebuilding; current free space was approximately 89 GiB after trash cleanup.
+Expected preflight is a valid catalog, reachable Trackio/registry/dstack/HF services, and `carbonteq-ai-workstation.lan` healthy, reachable, idle, and exposing one RTX PRO 6000 block. Verify HF read access to both gated Gemma revisions and private CarbonTeq write access without displaying the token.
 
-Qualification is complete; do not rerun or resume any qualification adapter. The authoritative completed runs are `opdq-fast01c-iwopd-e2b12b-c12-lb4-rseq4-nomtp`, `opdq-ceil01-iwopd-e2b12b-c12-lb12-pb1-rseq12`, and `opdq-ceil03-iwopd-e2b12b-c12-lb12-pb3-rseq12`. The cancelled physical-12 run and packaged logical-24 package are evidence only.
+Validate, plan, and pack the three new packages:
 
-Under the later end-to-end goal, first add a production settings selection and work package that exactly encode logical 12 / physical 1 / accumulation 12, `max_steps=32`, checkpoints `8/16/24/32`, Policy source `420a554...` or a reviewed descendant, environment concurrency 12, and rollout resident capacity 12. Then validate, package, and start it:
+    pt work-package validate gemma4_e2b_scope_opd_correctness_c12_lb12.yaml
+    pt work-package validate gemma4_e2b_scope_opd_eval_serving_canary.yaml
+    pt work-package validate gemma4_e2b_scope_opd_iwopd_scope384_final.yaml
 
-    export OPD_RUN=opdprod01-iwopd-e2b12b-r16-lb12-pb1-rseq12-scope384
-    export OPD_PACKAGE=gemma4_e2b_scope_opd_iwopd_scope384_final.yaml
+    pt job plan gemma4_e2b_scope_opd_correctness_c12_lb12.yaml --job train
+    pt job plan gemma4_e2b_scope_opd_eval_serving_canary.yaml --job evaluate
+    pt job plan gemma4_e2b_scope_opd_iwopd_scope384_final.yaml --job train
 
-    pt catalog validate
-    pt work-package validate "$OPD_PACKAGE"
-    pt job plan "$OPD_PACKAGE" --job distill
-    pt job pack "$OPD_PACKAGE" --job distill --build-missing
-    pt job run "$OPD_PACKAGE" \
-      --job distill \
+    pt job pack gemma4_e2b_scope_opd_correctness_c12_lb12.yaml \
+      --job train --build-missing
+    pt job pack gemma4_e2b_scope_opd_eval_serving_canary.yaml \
+      --job evaluate --build-missing
+    pt job pack gemma4_e2b_scope_opd_iwopd_scope384_final.yaml \
+      --job train --build-missing
+
+Record all OCI digests. Run the Policy runtime verifier inside the packed training image and the two-case request/whitespace verifier inside the packed eval image. `pt job diff` must show no unintended objective/runtime/model difference between canary and production training packages.
+
+Run the corrected training canary first:
+
+    export OPD_CANARY_RUN=opdcorr1-nativeq-e2b12b-r16-lb12-step1
+
+    pt job run gemma4_e2b_scope_opd_correctness_c12_lb12.yaml \
+      --job train \
       --provider dstack \
       --env HF_TOKEN \
-      --timeout-seconds 43200 \
+      --timeout-seconds 5400 \
+      --run-id "$OPD_CANARY_RUN"
+
+    pt run logs "$OPD_CANARY_RUN" --follow
+    pt run wait "$OPD_CANARY_RUN" --timeout-seconds 5400
+    pt run reconcile "$OPD_CANARY_RUN"
+    pt run checkpoint show "$OPD_CANARY_RUN" --step 1 --files
+    pt run checkpoint verify "$OPD_CANARY_RUN" --step 1
+
+Do not start the serving canary unless the complete training-canary gate in Milestone 6 passes.
+
+Run the managed serving canary against the exact step-one model view:
+
+    export OPD_EVAL_CANARY_RUN=opdev01-nativeq-e2b12b-step1-managed-eval
+
+    pt job run gemma4_e2b_scope_opd_eval_serving_canary.yaml \
+      --job evaluate \
+      --provider dstack \
+      --env HF_TOKEN \
+      --timeout-seconds 3600 \
+      --run-id "$OPD_EVAL_CANARY_RUN" \
+      --model-from-run "$OPD_CANARY_RUN" \
+      --model-checkpoint-step 1 \
+      --model-seat model
+
+    pt run logs "$OPD_EVAL_CANARY_RUN" --follow
+    pt run wait "$OPD_EVAL_CANARY_RUN" --timeout-seconds 3600
+    pt run reconcile "$OPD_EVAL_CANARY_RUN"
+
+After both receipts pass and the GPU is idle, submit production:
+
+    export OPD_RUN=opdprod2-nativeq-iwopd-e2b12b-r16-lb12-scope384
+
+    pt job run gemma4_e2b_scope_opd_iwopd_scope384_final.yaml \
+      --job train \
+      --provider dstack \
+      --env HF_TOKEN \
+      --timeout-seconds 86400 \
       --run-id "$OPD_RUN"
+
     pt run status "$OPD_RUN"
     pt run logs "$OPD_RUN" --follow
 
-After terminal success:
+At completion:
 
-    pt run wait "$OPD_RUN" --timeout-seconds 43200
+    pt run wait "$OPD_RUN" --timeout-seconds 86400
     pt run reconcile "$OPD_RUN"
-    pt --json run show "$OPD_RUN"
+    pt run checkpoint list "$OPD_RUN"
+    for step in 8 16 24 32; do
+      pt run checkpoint show "$OPD_RUN" --step "$step" --files
+      pt run checkpoint verify "$OPD_RUN" --step "$step"
+    done
 
-Publish only the reconciled final model artifact, not a smoke adapter. Materialize it to an ignored export directory, verify the tree, write the model card, and then:
+Start one explicit artifact-export run and add the exact step-32 model, step-32 recovery, native trace, and summary logical names obtained from `pt --json run show "$OPD_RUN"` and `pt --json run checkpoint show "$OPD_RUN" --step 32 --files`. The maintained interface is:
 
+    export MODEL_EXPORT_RUN=opdexp02-nativeq-e2b12b-step32-model
+    export MODEL_EXPORT_ROOT="$POLICY_ROOT/.posttrain/state/exports/$MODEL_EXPORT_RUN"
+
+    pt artifact export begin \
+      --run-id "$MODEL_EXPORT_RUN" \
+      --output "$MODEL_EXPORT_ROOT"
+
+    pt artifact export add "$MODEL_EXPORT_RUN" \
+      --source-run "$OPD_RUN" \
+      --logical-name "<exact-step-32-model-logical-name>" \
+      --destination model
+    pt artifact export add "$MODEL_EXPORT_RUN" \
+      --source-run "$OPD_RUN" \
+      --logical-name "<exact-step-32-recovery-logical-name>" \
+      --destination recovery
+    pt artifact export add "$MODEL_EXPORT_RUN" \
+      --source-run "$OPD_RUN" \
+      --logical-name "<exact-native-traces-logical-name>" \
+      --destination traces
+    pt artifact export add "$MODEL_EXPORT_RUN" \
+      --source-run "$OPD_RUN" \
+      --logical-name "<exact-summary-logical-name>" \
+      --destination summary
+    pt artifact export finish "$MODEL_EXPORT_RUN"
+
+Replace only the four angle-bracket values after reading the immutable output links; do not guess them. `finish` must report matching provider/content digests for every receipt.
+
+Capture the provider-neutral run view, then validate the exact exported evidence rather than mutable provider state:
+
+    pt --json run show "$OPD_RUN" > "$MODEL_EXPORT_ROOT/run-view.json"
+
+    cd "$POLICY_ROOT"
+    UV_CACHE_DIR=/tmp/policy-prism-uv-cache \
+    uv run --no-sync --package policy-prism-normative-verifiers \
+    policy-prism-verifiers validate-scope-opd-run \
+      --run-id "$OPD_RUN" \
+      --run-view "$MODEL_EXPORT_ROOT/run-view.json" \
+      --traces "$MODEL_EXPORT_ROOT/traces/artifact/traces.jsonl" \
+      --summary-root "$MODEL_EXPORT_ROOT/summary/artifact" \
+      --checkpoint-root "$MODEL_EXPORT_ROOT/recovery/artifact" \
+      --materialization-root "$MODEL_EXPORT_ROOT" \
+      --output "$POLICY_ROOT/.posttrain/state/opd-completion/$OPD_RUN/completion.json"
+
+The command must report `pass: true`, `global_step: 32`, `accepted_targets: 384`, and `teacher_failures: 0` before publication or evaluation.
+
+Publish the verified adapter directory from the model receipt:
+
+    export ADAPTER_DIR="$MODEL_EXPORT_ROOT/model/artifact"
     export HF_MODEL_REPO=carbonteq/gemma-4-e2b-policy-prism-scope-opd-from-12b-lora-v1
-    export ADAPTER_DIR="$POLICY_ROOT/.posttrain/state/exports/$OPD_RUN/adapter"
 
     test -f "$ADAPTER_DIR/adapter_config.json"
-    find "$ADAPTER_DIR" -type f -name '*.safetensors' -print -quit | grep -q .
-    UV_CACHE_DIR=/tmp/posttrain-uv-cache uv run --no-sync --package posttrain-train \
-      hf repos create "$HF_MODEL_REPO" --repo-type model --private --exist-ok
-    UV_CACHE_DIR=/tmp/posttrain-uv-cache uv run --no-sync --package posttrain-train \
-      hf upload "$HF_MODEL_REPO" "$ADAPTER_DIR" . --repo-type model --private \
-      --commit-message "Publish Policy Prism Gemma 4 E2B from 12B IW-OPD adapter"
-    UV_CACHE_DIR=/tmp/posttrain-uv-cache uv run --no-sync --package posttrain-train \
-      python -c 'import os; from huggingface_hub import HfApi; print(HfApi().model_info(os.environ["HF_MODEL_REPO"]).sha)'
+    find "$ADAPTER_DIR" -name '*.safetensors' -type f
 
-Fresh-download that returned revision into a different ignored directory and compare file hashes before registering the evaluation model.
+    cd "$POSTTRAIN_ROOT"
+    uv run --no-sync --package posttrain-train hf repos create \
+      "$HF_MODEL_REPO" \
+      --repo-type model \
+      --private \
+      --exist-ok
 
-Run sealed evaluations sequentially after registration:
+    uv run --no-sync --package posttrain-train hf upload \
+      "$HF_MODEL_REPO" \
+      "$ADAPTER_DIR" . \
+      --repo-type model \
+      --private \
+      --commit-message "Publish corrected Policy Prism E2B from 12B constrained IW-OPD adapter"
 
-    export SCOPE_RUN=opdprod01-eval-scope-v11
-    export RECOVERY_RUN=opdprod01-eval-recovery-v1
+    export HF_MODEL_REVISION="$(
+      uv run --no-sync --package posttrain-train python -c \
+      'import os; from huggingface_hub import HfApi; print(HfApi().model_info(os.environ["HF_MODEL_REPO"]).sha)'
+    )"
+    test "${#HF_MODEL_REVISION}" -eq 40
 
-    pt job pack gemma4_e2b_scope_opd_from_12b_scope_eval.yaml \
-      --job evaluate --build-missing
-    pt job run gemma4_e2b_scope_opd_from_12b_scope_eval.yaml \
-      --job evaluate --provider dstack --env HF_TOKEN --env OPENROUTER_API_KEY \
-      --timeout-seconds 21600 --run-id "$SCOPE_RUN"
-    pt run logs "$SCOPE_RUN" --follow
+Fresh-download that exact revision into a different ignored directory and compare the complete SHA-256 manifest before adding the final Policy model/catalog entries.
+
+After the final immutable Policy model and evaluation work packages validate and pack, run scope then recovery sequentially:
+
+    export SCOPE_RUN=opd2sc32-nativeq-e2b12b-r16-scope-v11
+    export RECOVERY_RUN=opd2rc32-nativeq-e2b12b-r16-recovery-v1
+
+    pt job run gemma4_e2b_scope_opd_final_scope_eval.yaml \
+      --job evaluate \
+      --provider dstack \
+      --env HF_TOKEN \
+      --env OPENROUTER_API_KEY \
+      --timeout-seconds 21600 \
+      --run-id "$SCOPE_RUN"
+
     pt run wait "$SCOPE_RUN" --timeout-seconds 21600
     pt run reconcile "$SCOPE_RUN"
 
-Require the 18-case scientific gate and GPU release before packing/submitting recovery. Then run the analogous recovery package and require 17 completed cases with zero failures.
+Run the 18-case scientific gate and verify the GPU placement is released before submitting recovery:
 
-Finally, from Policy Prism, materialize each native artifact, generate serving metadata from its run view, and finalize directly:
+    pt --json run show "$SCOPE_RUN" | jq -e '
+      .view as $v |
+      ($v.run.status == "succeeded") and
+      ($v.completeness.state == "complete") and
+      ($v.evaluation.expected == 18) and
+      ($v.evaluation.included == 18) and
+      ($v.evaluation.failures == 0) and
+      ($v.evaluation.truncated == 0) and
+      ([ $v.evaluation.traces[] | select(.error != null) ] | length == 0) and
+      ([ $v.summary[] | select(.key == "trace_sync_complete") | .value ][0] == 1) and
+      ([ $v.artifacts.items[] |
+         select(.direction == "output" and .kind == "verifiers-evaluation") ] |
+       length == 1)
+    '
+
+This must print `true`. Also require `pt workers` to show no placement held by the scope run.
+
+    pt job run gemma4_e2b_scope_opd_final_recovery_eval.yaml \
+      --job evaluate \
+      --provider dstack \
+      --env HF_TOKEN \
+      --env OPENROUTER_API_KEY \
+      --timeout-seconds 21600 \
+      --run-id "$RECOVERY_RUN"
+
+    pt run wait "$RECOVERY_RUN" --timeout-seconds 21600
+    pt run reconcile "$RECOVERY_RUN"
+
+Run the 17-case scientific gate:
+
+    pt --json run show "$RECOVERY_RUN" | jq -e '
+      .view as $v |
+      ($v.run.status == "succeeded") and
+      ($v.completeness.state == "complete") and
+      ($v.evaluation.expected == 17) and
+      ($v.evaluation.included == 17) and
+      ($v.evaluation.failures == 0) and
+      ($v.evaluation.truncated == 0) and
+      ([ $v.evaluation.traces[] | select(.error != null) ] | length == 0) and
+      ([ $v.summary[] | select(.key == "trace_sync_complete") | .value ][0] == 1) and
+      ([ $v.artifacts.items[] |
+         select(.direction == "output" and .kind == "verifiers-evaluation") ] |
+       length == 1)
+    '
+
+This must print `true`. Materialize each exact `verifiers-evaluation` output through a separate, clearly named evaluation-evidence export run, then finalize from Policy Prism:
+
+    export EVAL_EXPORT_RUN=opdexp03-nativeq-e2b12b-sealed-evidence
+    export EVAL_EXPORT_ROOT="$POLICY_ROOT/.posttrain/state/native-evals"
+
+    pt artifact export begin \
+      --run-id "$EVAL_EXPORT_RUN" \
+      --output "$EVAL_EXPORT_ROOT"
+    pt artifact export add "$EVAL_EXPORT_RUN" \
+      --source-run "$SCOPE_RUN" \
+      --logical-name "<exact-scope-verifiers-evaluation-logical-name>" \
+      --destination "$SCOPE_RUN"
+    pt artifact export add "$EVAL_EXPORT_RUN" \
+      --source-run "$RECOVERY_RUN" \
+      --logical-name "<exact-recovery-verifiers-evaluation-logical-name>" \
+      --destination "$RECOVERY_RUN"
+    pt artifact export finish "$EVAL_EXPORT_RUN"
+
+The exporter writes each provider payload below its destination's `artifact/` directory and a verified receipt beside it. It refuses either destination when existing bytes do not match. Then finalize from Policy Prism:
 
     cd "$POLICY_ROOT"
     UV_CACHE_DIR=/tmp/policy-prism-uv-cache \
     uv run --no-sync --package policy-prism-normative-verifiers \
     policy-prism-verifiers finalize-run \
-      --input "$SCOPE_NATIVE" \
-      --run-id gemma-4-e2b-policy-prism-iwopd-r16-from-12b-v1-v11-sealed-scope \
-      --serving-metadata "$SCOPE_SERVING_METADATA" \
+      --input ".posttrain/state/native-evals/$SCOPE_RUN/artifact" \
+      --run-id "gemma-4-e2b-policy-prism-nativeq-iwopd-r16-from-12b-opdprod2-v11-sealed-scope" \
+      --serving-metadata ".posttrain/state/finalization/$SCOPE_RUN/serving-metadata.json" \
       --output-root "$POLICY_ROOT/evaluation-runs"
 
     UV_CACHE_DIR=/tmp/policy-prism-uv-cache \
     uv run --no-sync --package policy-prism-normative-verifiers \
     policy-prism-verifiers finalize-run \
-      --input "$RECOVERY_NATIVE" \
-      --run-id gemma-4-e2b-policy-prism-iwopd-r16-from-12b-v1-v11-sealed-recovery \
-      --serving-metadata "$RECOVERY_SERVING_METADATA" \
+      --input ".posttrain/state/native-evals/$RECOVERY_RUN/artifact" \
+      --run-id "gemma-4-e2b-policy-prism-nativeq-iwopd-r16-from-12b-opdprod2-v1-sealed-recovery" \
+      --serving-metadata ".posttrain/state/finalization/$RECOVERY_RUN/serving-metadata.json" \
       --output-root "$POLICY_ROOT/evaluation-runs"
 
     UV_CACHE_DIR=/tmp/policy-prism-uv-cache \
     uv run --no-sync --package policy-prism-normative-verifiers \
-    policy-prism-verifiers validate-runs --root "$POLICY_ROOT/evaluation-runs"
+    policy-prism-verifiers validate-runs --root evaluation-runs
 
-Only after fresh HF verification and `validate-runs` pass should final evidence and plan outcomes be committed and pushed to their respective feature branches.
+    UV_CACHE_DIR=/tmp/policy-prism-uv-cache \
+    uv run --no-sync --package policy-prism-normative-verifiers \
+    policy-prism-verifiers derive-business-kpis \
+      --all \
+      --root evaluation-runs \
+      --check
+
+The serving-metadata files must be generated from verified PostTrain/HF receipts, not written from guessed digests. Before committing, require 18/17 trace counts, semantic status `complete`, the standard five files in each directory, and catalog entries for both.
 
 ## Validation and Acceptance
 
-Checkpoint preservation is accepted because the private HF repository is private, resolves to immutable revision `4f1fe9c75031396a11bcc44e2193f96df9003054`, and a fresh download matched all twelve uploaded checkpoint files byte-for-byte. The original Trackio artifact remains the lineage authority.
+The implementation is ready for the production GPU only when every deterministic gate passes in the packed images and both live canaries pass within the 90-minute GPU budget. “Ready” means all known deterministic boundaries are closed; it is not a promise that no stochastic output or infrastructure failure can occur.
 
-The reserve corrections are accepted offline only when plan v2 still has exactly 384 primaries and 96 reserves, all target distributions and immutable selection hashes remain valid, target 78 can claim the broader shared pool, every rules task schema enumerates its exact `source_provision_id`, the canonical source schema is not mutated, malformed/unknown outputs are still rejected, and all actual reserve/profile/shape tokenizations are audited. The resolved job must name `POLICY_SOURCE_SHA`, never the stale `2b7a5dc...` revision.
+The experiment is complete only when all of the following are observable:
 
-The IW-OPD integration is accepted offline only when the pinned TRL source and private seams match, full-reference and chunked losses/gradients agree through accumulation 1/2/4/8, the global token denominator is nonzero and exact, rejected/dependency/diagnostic tokens have zero loss, heterogeneous schemas retain order in bounded waves, and checkpoint/model/ledger views resume atomically. Passing the former sparse reverse-KL tests without these IW-OPD tests is insufficient.
+- the canonical contract describes model-native prefixes and exact completion-token alignment;
+- the pinned TRL release returns constrained teacher log probabilities and reproducible allowed-set evidence;
+- the PostTrain run proves E2B/12B native prefix digests, exact completion IDs, and q-probability alignment;
+- Policy prompts contain no model-facing metadata/hidden labels and use stage-correct invariants;
+- the ledger passes cold-start and checkpoint recovery at concurrency 12;
+- the canary update and managed serving cases are fully valid;
+- production has 32 finite updates over exactly 384 accepted unique targets and four complete checkpoint pairs;
+- step 32 is privately published and fresh-download verified;
+- sealed scope is 18/18 and recovery is 17/17 operationally complete with Claude evidence;
+- both evaluations exist in standard five-file Policy directories and validate;
+- TRL, PostTrain, and Policy Prism branches are clean and pushed.
 
-A runtime configuration is supported by two complementary live gates on the exact model, teacher, IW-OPD objective, and engine: the logical-four run proves three finite updates and repeated post-sync rollout cycles, while logical 12 / physical 1 proves the selected one-update capacity and measured resident wave 11. The record includes seconds per admitted target, actual request/wave sizes, utilization, peak memory, loss/gradient evidence, teacher failures, replacements, artifacts, and consistent reconciliation. Physical 12 and logical 24 are explicitly not qualified.
-
-The full run is accepted only with all 384 target identities optimized once, finite loss and gradient norms, zero teacher failures, complete native trace synchronization, no duplicate reserve/target, matching SQLite ledger, final model/recovery views and all quarter artifacts, and consistent PostTrain reconciliation. A provider `succeeded` state without these gates is insufficient.
-
-Scope evaluation requires 18 expected and included traces; recovery requires 17. Both require zero failures, truncations, and trace errors, complete Claude semantic judging, one native `verifiers-evaluation` output, and consistent reconciliation. Finalized directories must contain exactly the five standard evidence files, update `evaluation-runs/catalog.json`, and pass `validate-runs`.
+A final domain score below base E2B is a scientifically valid negative outcome if every operational gate above passes. Do not silently extend training, select a sealed-best checkpoint, or change the objective after seeing sealed results.
 
 ## Idempotence and Recovery
 
-Validation and content-addressed packing may be rerun. Never reuse a run ID after provider admission. If a smoke fails operationally before model execution, fix the proven infrastructure cause and use an incremented suffix; do not reinterpret it as a batch failure. If it fails by OOM or numerical instability, reject that batch and continue with the next smaller candidate.
+All generated plans, verification receipts, packs, and artifact exports must be content-addressed and safe to rerun. Commands should reuse a verified cache only when source/config/content digests still match. A changed prompt, schema, model identity, dependency pin, source commit, or task order creates a new package and run ID.
 
-The final run starts from base weights. If infrastructure fails after a valid quarter checkpoint, resume only from the exact immutable checkpoint under a new run ID and only with identical batch, schedule, model, teacher, environment, plan, image, and ledger digests. Scientific failures such as exhausted reserves, invalid traces, NaN/Inf, or systematic teacher failure require diagnosis and a new fresh run; they are not automatically resumed.
+Never reuse a failed run ID. Preserve failed evidence and diagnose it. Retry the same canary after a code fix with an incremented suffix; do not introduce a new parameter arm. Submit recovery only for infrastructure interruption from a complete paired checkpoint, and restore model/trainer/optimizer/scheduler/RNG/ledger together. No cleanup occurs until HF fresh verification and both Policy finalizations succeed.
 
-Do not delete r0-r9, checkpoint 96, Trackio artifacts, native traces, finalized evaluation directories, or Hugging Face repositories. Cleanup is limited to new provider workspaces after all remote artifacts and five-file outputs are verified.
+Do not delete historical checkpoint-96, qualification, Trackio, HF, or evaluation evidence. Do not reset, rebase, force-push, or mutate either main branch. Do not merge current main into the qualified PostTrain experiment branch during this plan.
 
 ## Artifacts and Notes
 
-Historical r9 identity:
+Authoritative historical evidence retained by this plan includes:
 
-    PostTrain run: opda09rs-e2b12b-r16-resume64-scope384-v2
-    Trackio display: train.distill-opda09rs
-    Trackio internal run ID: d9568a8d94e4433283b507635e341239
-    Provider run: pt-5dfbcf7a92d8c14a24439628
-    Terminal status: failed; provider terminated after explicit cancellation
-    Retained: step-80 checkpoint, step-96 checkpoint, native rollout traces
+- PostTrain historical checkpoint-96 plan/evaluation commit: `8c0d76637cc0eba87a6c3d360a2d92f6a99d29db`.
+- Policy historical finalized-evaluation commit: `79627530d907b4e3565ddd912db2327f64f72174`.
+- Base E2B non-thinking scope run: `gemma-4-e2b-it-bf16-runpod-a100-sxm-prompt-v2-v11-sealed-scope-20260803`.
+- Checkpoint-96 scope run: `gemma-4-e2b-policy-prism-opd-sparse-rkl-r16-from-12b-step96-v11-sealed-scope-20260812`.
+- Historical checkpoint-96 private HF revision: `4f1fe9c75031396a11bcc44e2193f96df9003054`.
+- Fastest capacity run: logical/physical/accumulation `12/1/12`, 634.11 trainer seconds, 34.74 GiB trainer peak.
+- Largest completed physical batch: three, 1,130.05 trainer seconds, 49.83 GiB trainer peak, 67.48 GiB system peak.
 
-Checkpoint 96 identity:
+The previous 5h38m point estimate equals `634.11 * 32` and excludes new constrained-scoring overhead. After the one-update canary, replace it with:
 
-    Trackio project: policy-prism-scope-opd-e2b-12b
-    Artifact: training-models-gemma4-e2b-it-bf16-distill-checkpoint-step-0096:v0
-    Trackio manifest digest: ddde25b171407c76fba02e1b44b23a6531bcede4bd99c7859cc9809496e7f7e7
-    PostTrain tree digest: cc53e8330d2af3160d098341dece1c82cf06a559366950f689c72caf24f16dba
-    Size: 322,632,497 bytes
-    HF repository: carbonteq/gemma-4-e2b-policy-prism-scope-opd-from-12b-checkpoint-96
-    HF revision: 4f1fe9c75031396a11bcc44e2193f96df9003054
-    Visibility: private
+    measured_training_hours = corrected_canary_trainer_seconds * 32 / 3600
 
-Checkpoint 96 sealed-evaluation identity:
-
-    Evaluation PostTrain revision: 225d057dd89d69198d516b410127b98f30b9ff5f
-    Evaluation Policy Prism revision: 155a82f7657cefea00528fa31fab61fa09485e0b
-    Scope run: opd96sc3-e2b12b-sparse-rkl-step96-scope-v11
-    Scope provider run: pt-99217fb8b8a754b3b0f86c09
-    Scope image: sha256:ebd371da320523a71b43d12885cf6657c4831e73f2b994c502eb6279609d170e
-    Scope work-package digest: 5553327e21e68bb107dfcec9c3ee54b7a08680d1481874b0fc09abc95c3342f4
-    Scope artifact provider/content: 5107026f3fc04dc6da4f9cdfa2dd920f803dccd664491eac38d2b346e1770ec5 / c4853ff5cfe8678882f4f16ae36915350bf156491247634a92a77fdbe1fbe5c4
-    Recovery run: opd96rc3-e2b12b-sparse-rkl-step96-recovery-v1
-    Recovery provider run: pt-56e98df5de1c029e3780d1c5
-    Recovery image: sha256:76b060bdfe88660d0ac2b7afcac601b22bfb84edd8da1316b725aa70d94db389
-    Recovery work-package digest: 0a08d5da9d4d8f642ae377c765fc1bfa035ee7e0cc8c1b8c5cdea107f257f63e
-    Recovery artifact provider/content: 50786d224cf8d2e0850c8f345fbf32659fadcedee3a46d73c68b9325ee6c1508 / edbc20e13dcef6eeb74ebb4e6b6b4b1cc85303bb64d42598eede4bae1ccce389
-    Export lineage run: opd96ex1-e2b12b-step96-evaluation-export
-
-The fixed 12-target qualification cohort selected by seed 2907 is:
-
-    31, 49, 70, 75, 78, 98,
-    126, 163, 182, 233, 278, 329
-
-It contains seven rules, two evidence, three graph, all four prompt profiles, all four source-length quartiles, four full trajectories, two constructed-incomplete targets, and both historical failure boundaries. At logical batch four it produces three updates/twelve backward passes. Offline deterministic faults, not natural sampling, prove reserve recovery.
-
-The required logical-four qualification completed in 41.61 minutes. The selected logical-12 run completed in 14.44 minutes submission-to-reconciliation and used 634.11 trainer seconds for 12 targets. Its measured rate projects `634.11 / 12 * 384 = 20,291.40` trainer seconds, or 5.64 hours, for one full pass. Budget 6--7 hours for training, initialization, four milestone checkpoints, artifact publication, and reconciliation. Allow another 2--6 hours afterward for Hugging Face publication, two sequential sealed evaluations, Claude judging, and five-file finalization. This is a measured workload estimate, not a guarantee; stochastic completion lengths and reserve consumption remain the largest variance.
+If the corrected step remains 634 to 900 seconds, expect roughly 5.6 to 8.0 trainer hours and about 7 to 10 hours through reconciliation. If it is 900 to 1,200 seconds, expect 8 to 10.7 trainer hours. Above 1,200 seconds, diagnose the implementation before production rather than accepting an unmeasured overnight duration. Scope/recovery evaluation and HF/finalization typically add 2 to 5 hours. The 24-hour provider timeout remains a ceiling.
 
 ## Interfaces and Dependencies
 
-`posttrain.train.backends.trl.distillation` owns the qualified IW-OPD adapter, exact dependency guard, memory-safe sampled-token projection, teacher scoring, and global accumulated loss. `TrlPolicyGenerator` in `packages/train/src/posttrain/train/backends/trl/online_rl.py` owns per-turn rendering, task-specific response formats, and heterogeneous bounded submissions. `posttrain.train.integrations.verifiers.VerifiersEnvironmentRolloutBridge` owns task selection, selected-stage projection, concurrent exact-token rollouts, and stable ordering. The pinned TRL fork owns the generic IW-OPD buffer, post-generation denominator correction, LoRA synchronization/sleep lifecycle, bounded resident waves, and speculative counters.
+At completion, PostTrain public distillation settings expose typed teacher prompt alignment and probability space. `OnPolicyDistillationRequest` validates ordered token mapping, concrete template fingerprints, inference renderer compatibility, and structured grammar requirements. The backend-neutral rollout row carries semantic messages and response-format identity separately from student token IDs. The private TRL adapter constructs model-native prefixes and exact completion alignment.
 
-Policy Prism `scope_opd_tasks.py` owns task-specific generated schemas; `scope_opd_admission.py`, `harness.py`, and `scope_opd_ledger.py` own structural admission, reserve allocation, and resumable target identity. PostTrain must not import Policy Prism into reusable packages. Policy Prism must not weaken canonical validation to accommodate vLLM.
+The TRL fork accepts per-row teacher-native prompt IDs, exact completion IDs, and a structured-output specification; its teacher server returns selected-token IDs, constrained log probabilities, allowed-token counts, and allowed-set digests without generating a completion. Its colocated generation returns processed sampled-token log probabilities when constrained mode is selected.
 
-External services are Hugging Face for gated base models and private adapter publication, the Live Kit OCI registry for content-addressed images, dstack for GPU placement, Trackio for metrics/traces/artifacts, OpenRouter for Claude judging, and Observatory for read-only inspection. Credentials remain in permission-protected environment files and never enter commits or terminal output.
+Policy Prism owns semantic prompt rendering, task schemas, source/decision metadata, staged admission, dynamic graph references, deterministic plan ordering, allocation/replacement, ledger state, and the 384-target completion validator. PostTrain and TRL must not encode Policy-specific legal meanings.
 
-Revision note (2026-08-11): the logical-four correctness run passed, then the user requested a direct capacity boundary rather than a broad sweep. Logical 12 / physical 1 / accumulation 12 is frozen as the fastest qualified production configuration after a 3.33x measured trainer-time improvement. Physical batches two and three passed but slowed the workload; three is the largest proven safe backward batch. Physical 12 was cancelled before backward at the meeting deadline and logical 24 was packaged but deliberately not submitted. MTP, student prefix caching, prefill changes, and GPU-reservation changes remain excluded.
+Managed evaluation uses PostTrain's typed vLLM XGrammar backend selection and Policy's per-request generation-only schema plus bounded whitespace. Canonical JSON Schema validation remains Policy-owned after generation.
+
+Credentials are read only from existing protected environment files. Required live services are Hugging Face, the CarbonTeq OCI registry, dstack, Trackio, and OpenRouter for final Claude judging. No secret, signed URL, or raw token is written into commits, manifests, receipts, traces, or this plan.
+
+Revision note (2026-08-12): this revision supersedes the earlier launch plan after a full checkpoint-96 root-cause audit. It retains the proven hardware/configuration findings, adds the required cross-template and constrained-probability corrections, removes KPI redesign and unvalidated semantic-abstention rejection, narrows live preflight to two evidence-driven canaries, and preserves the complete training/publication/evaluation/finalization path.
