@@ -28,6 +28,7 @@ from posttrain.tracking import (
     ArtifactSet,
     RunDetail,
     RunSpec,
+    RunStatus,
     RunSummary,
     StoredArtifact,
 )
@@ -102,8 +103,16 @@ class _Provider:
 
 
 class _Source:
-    def __init__(self, *, unavailable: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        unavailable: bool = False,
+        status: RunStatus = "succeeded",
+        retain_artifact: bool = True,
+    ) -> None:
         self.unavailable = unavailable
+        self.status: RunStatus = status
+        self.retain_artifact = retain_artifact
 
     async def get_run(self, run_id: str) -> RunDetail:
         if self.unavailable:
@@ -120,7 +129,7 @@ class _Source:
                 stage="train",
                 job_kind="train.sft",
                 job_definition_version="train/sft@1",
-                status="succeeded",
+                status=self.status,
                 started_at=now,
                 finished_at=now,
             )
@@ -128,6 +137,8 @@ class _Source:
 
     async def artifacts(self, run_id: str) -> ArtifactSet:
         del run_id
+        if not self.retain_artifact:
+            return ArtifactSet(items=())
         return ArtifactSet(
             items=(
                 ArtifactLink(
@@ -369,6 +380,54 @@ async def test_failed_startup_retains_bounded_diagnostic_before_cleanup(
     assert diagnostic.read_text(encoding="utf-8") == "startup\n"
     assert diagnostic.stat().st_mode & 0o777 == 0o600
     assert provider.cleanup_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_failed_provider_and_cancelled_tracker_can_reclaim_retained_workspace(
+    tmp_path: Path,
+) -> None:
+    provider, service, store, _ = _service(tmp_path, provider_state="failed", provider_name="dstack")
+    provider.cleanup_result = ProviderCleanupResult(
+        ExecutionHandle("dstack", "provider-cleanup-1", "cleanup-run-1-attempt-1"),
+        "removed",
+        "removed exact provider workspace after terminal disagreement",
+        workspace_disposition="removed",
+        workspace_reclaimed_bytes=73,
+    )
+
+    receipt = await cleanup_execution(
+        service,
+        store,
+        _Source(status="cancelled"),  # type: ignore[arg-type]
+        "cleanup-run-1",
+        diagnostic_limit=1,
+    )
+
+    assert receipt.evidence_state == "terminal-disagreement"
+    assert receipt.outcome == "cancelled"
+    assert receipt.provider_disposition == "removed"
+    assert receipt.workspace_disposition == "removed"
+    assert receipt.diagnostic_file == "diagnostic.log"
+    assert provider.cleanup_calls == 1
+    assert service.collect("cleanup-run-1").record.state == "failed"
+
+
+@pytest.mark.asyncio
+async def test_terminal_disagreement_without_retained_evidence_is_not_cleaned(
+    tmp_path: Path,
+) -> None:
+    provider, service, store, workspace = _service(tmp_path, provider_state="failed", provider_name="dstack")
+
+    with pytest.raises(RuntimeError, match="terminal disagreement"):
+        await cleanup_execution(
+            service,
+            store,
+            _Source(status="cancelled", retain_artifact=False),  # type: ignore[arg-type]
+            "cleanup-run-1",
+        )
+
+    assert provider.cleanup_calls == 0
+    assert workspace.is_dir()
 
 
 @pytest.mark.asyncio

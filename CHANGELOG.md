@@ -4,7 +4,17 @@ All notable changes to Posttrain are documented here. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with a coordinated
 version across first-party distributions.
 
-## 0.3.14 - Unreleased
+## 0.3.15 - Unreleased
+
+### Fixed
+
+- `posttrain run cleanup` can now release a terminal dstack workspace when the
+  provider reports `failed` while Trackio has already finalized retained
+  evidence as `cancelled` (or the reverse). The disagreement remains explicit
+  in the reconciliation journal and cleanup receipt; cleanup still requires at
+  least one retained output and records a bounded provider diagnostic.
+
+## 0.3.14 - 2026-08-12
 
 ### Fixed
 
