@@ -344,6 +344,7 @@ class ExecutionSubmissionStore:
             if not (
                 (evidence_state == "reconciled" and state == "consistent")
                 or (evidence_state == "provider-terminal" and state == "pending")
+                or (evidence_state == "terminal-disagreement" and state == "inconsistent")
             ):
                 continue
             result = _execution_result_from_reconciliation(

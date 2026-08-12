@@ -19,7 +19,11 @@ from .contracts import ProviderCleanupDisposition
 from .reconciliation import reconcile_execution, save_reconciliation
 from .service import ExecutionSubmissionStore, JobExecutionService
 
-type CleanupEvidenceState = Literal["reconciled", "provider-terminal"]
+type CleanupEvidenceState = Literal[
+    "reconciled",
+    "provider-terminal",
+    "terminal-disagreement",
+]
 type WorkspaceCleanupDisposition = Literal[
     "removed",
     "already-absent",
@@ -64,8 +68,10 @@ async def cleanup_execution(
 
     Successful runs require a consistent retained-evidence barrier. A failed or
     cancelled startup that never created a tracking run may instead retain a
-    bounded provider diagnostic before cleanup. An inconsistent tracking record
-    is never bypassed.
+    bounded provider diagnostic before cleanup. A failed-versus-cancelled
+    terminal disagreement can release only the exact provider workspace after
+    both sides have retained terminal evidence; the disagreement stays in the
+    reconciliation journal and cleanup receipt rather than being rewritten.
     """
 
     if diagnostic_limit < 1:
@@ -106,10 +112,13 @@ async def cleanup_execution(
             and reconciliation.outcome in {"failed", "cancelled"}
         ):
             evidence_state = "provider-terminal"
+        elif _is_safe_terminal_disagreement(reconciliation):
+            evidence_state = "terminal-disagreement"
         else:
             raise RuntimeError(
-                "execution cleanup requires consistent retained evidence, or a "
-                "terminal failed/cancelled provider run with no tracking record"
+                "execution cleanup requires consistent retained evidence, a terminal "
+                "failed/cancelled provider run with no tracking record, or a retained "
+                "failed-versus-cancelled terminal disagreement"
             )
 
         diagnostic = _retain_diagnostic(
@@ -117,7 +126,7 @@ async def cleanup_execution(
             root,
             run_id,
             limit=diagnostic_limit,
-            required=evidence_state == "provider-terminal",
+            required=evidence_state in {"provider-terminal", "terminal-disagreement"},
         )
         plan = {
             "schema": _PLAN_SCHEMA,
@@ -207,6 +216,24 @@ def _retain_diagnostic(
     }
 
 
+def _is_safe_terminal_disagreement(reconciliation: Any) -> bool:
+    """Allow cleanup without relabeling a closed failed/cancelled run.
+
+    Providers and trackers can legitimately disagree when a worker is
+    terminated while the observer finalizes its already-retained evidence as a
+    cancellation. This is sufficient to reclaim an exact workspace, but not to
+    pretend the two terminal outcomes are equivalent for diagnosis.
+    """
+
+    return (
+        reconciliation.state == "inconsistent"
+        and reconciliation.provider_record.state in {"failed", "cancelled"}
+        and reconciliation.tracking_status in {"failed", "cancelled"}
+        and reconciliation.provider_record.state != reconciliation.tracking_status
+        and bool(reconciliation.retained_artifacts)
+    )
+
+
 def _cleanup_workspace(
     provider: str,
     workspace: Path,
@@ -293,7 +320,7 @@ def _write_bytes_atomic(path: Path, encoded: bytes) -> None:
 
 
 def _evidence_state(value: object) -> CleanupEvidenceState:
-    if value not in {"reconciled", "provider-terminal"}:
+    if value not in {"reconciled", "provider-terminal", "terminal-disagreement"}:
         raise ContractError("execution cleanup evidence state is invalid")
     return cast(CleanupEvidenceState, value)
 
