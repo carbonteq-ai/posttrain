@@ -40,10 +40,12 @@ _LOCK_REFERENCE = "trl-fork@current"
 
 
 def _is_pending_runtime_lock_manifest_error(error: BaseException) -> bool:
-    """Recognize the manifest failure expected before OCI rebuild."""
+    """Recognize manifest drift expected before a lock-driven OCI rebuild."""
 
     message = str(error)
-    return "published image records" in message and "lock digest" in message
+    return ("published image records" in message and "lock digest" in message) or (
+        "backend runtime identity differs from its shipped profile" in message
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -170,10 +172,12 @@ def check_release(repository_root: Path, *, allow_pending_runtime_lock: bool = F
             and runtime_lock.changed
             and _is_pending_runtime_lock_manifest_error(error)
         ):
-            # Validate TOML/schema/variant structure while allowing the old
-            # image lock label until candidate publication rebuilds the image.
+            # Validate TOML/schema structure while allowing old lock labels
+            # and backend identities until candidate publication rebuilds the
+            # affected images. Exact variant/profile validation resumes after
+            # the generated manifest is committed.
             try:
-                load_manifest(verify_locks=False)
+                load_manifest(verify_locks=False, verify_variants=False)
             except (OSError, ValueError, ManifestError) as structural_error:
                 errors.append(f"runtime image manifest is invalid: {structural_error}")
         else:

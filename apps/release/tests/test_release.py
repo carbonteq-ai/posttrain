@@ -336,6 +336,45 @@ def test_pending_runtime_lock_allows_old_image_manifest_until_rebuild(
     assert pending.runtime_lock_pending is True
 
 
+def test_pending_runtime_lock_allows_old_backend_identity_until_rebuild(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _version_repository(tmp_path)
+    runtime = tmp_path / "packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds"
+    (runtime / "profiles").mkdir(parents=True)
+    (runtime / "profiles/supervised.txt").write_text("trl==1.9.2.post10\n", encoding="utf-8")
+    (runtime / "locks").mkdir()
+    (runtime / "locks/workspace.lock.txt").write_text("trl==1.9.2.post9\n", encoding="utf-8")
+    with (tmp_path / "uv.lock").open("a", encoding="utf-8") as handle:
+        handle.write(
+            "\n[[package]]\n"
+            'name = "trl"\n'
+            'version = "1.9.2.post10"\n'
+            'source = { registry = "https://pypi.lan/carbonteq/dev/+simple/" }\n'
+            'wheels = [{ url = "https://pypi.lan/carbonteq/dev/+f/abc/trl.whl", '
+            'hash = "sha256:' + "c" * 64 + '" }]\n'
+        )
+    lock_dependencies(tmp_path)
+
+    calls: list[tuple[bool, bool]] = []
+
+    def fake_load_manifest(*, verify_locks: bool = True, verify_variants: bool = True) -> object:
+        calls.append((verify_locks, verify_variants))
+        if verify_variants:
+            raise ManifestError(
+                "kinds.online-rl-verl-py313: backend runtime identity differs from its shipped profile"
+            )
+        return object()
+
+    monkeypatch.setattr(versioning, "load_manifest", fake_load_manifest)
+    pending = check_release(tmp_path, allow_pending_runtime_lock=True)
+
+    assert pending.runtime_lock_pending is True
+    assert calls == [(True, True), (False, False)]
+    with pytest.raises(ValueError, match="backend runtime identity differs"):
+        check_release(tmp_path)
+
+
 def test_release_check_ignores_a_virtual_root_but_checks_publishable_members(tmp_path: Path) -> None:
     _version_repository(tmp_path)
     member = tmp_path / "packages/train/pyproject.toml"
