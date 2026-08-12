@@ -118,15 +118,19 @@ package reaches the internal index and the resolved job image contains it.
   `31646648237` then incorrectly published post9 directly to
   `carbonteq/stable`; that immutable artifact is retained only as a rejected
   audit record and must not be used by a candidate or qualification run.
-- [ ] (2026-08-13) Repair the retained-fork path for TRL, veRL, and Trackio:
+- [x] (2026-08-13) Repaired the retained-fork path for TRL, veRL, and Trackio:
   candidate publishers write only to `carbonteq/dev`, runtime candidates
   materialize and retain a development-channel lock, and a separate
-  allowlisted server-side workflow promotes hash-verified bytes to stable.
-- [ ] Create a new unique TRL post release, publish its exact assets to
-  `carbonteq/dev`, then materialize the bounded TRL runtime candidate from the
-  retained development lock.
-- [ ] Publish the already retained veRL dev2 assets to `carbonteq/dev`, then
-  materialize its bounded runtime candidate from the retained development lock.
+  allowlisted server-side workflow promotes hash-verified bytes to stable. The
+  workflow changes merged in PRs 72 and 73.
+- [x] (2026-08-13) Created TRL post10 and published its exact retained assets
+  to `carbonteq/dev`. Run `31649996139` verified development storage, byte
+  hashes, a clean install, and a retained publication receipt.
+- [x] (2026-08-13) Published the retained veRL dev2 assets to
+  `carbonteq/dev`. Run `31649999160` verified development storage, byte
+  hashes, a clean install, and a retained publication receipt.
+- [ ] Materialize the bounded TRL and veRL runtime candidates from retained
+  development-channel locks.
 - [ ] Run both explicitly scoped GPU canaries only from those candidate images
   and verify their retained evidence before any stable promotion.
 

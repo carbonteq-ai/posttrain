@@ -20,7 +20,7 @@ trl = [
     "torch>=2.11,<2.12",
     "torchvision>=0.26,<0.27",
     "transformers>=5.14,<5.15",
-    "trl==1.9.2.post9",
+    "trl==1.9.2.post10",
     "peft>=0.19,<0.20",
     "datasets>=4.6.1,<4.7",
     "accelerate>=1.14,<1.15",
@@ -50,11 +50,11 @@ torchvision = { index = "pytorch-cu130" }
 trl = { index = "carbonteq-stable" }
 
 [tool.posttrain.trl]
-version = "1.9.2.post9"
-release-tag = "carbonteq-v1.9.2.post9"
-source-revision = "aa82dea49be38838571c388bd7bb530c26c65319"
-wheel-sha256 = "34ade2105120290dbb50fb03bfc3e6668ec02df1da1b5315cad1b9d565d7ed6d"
-sdist-sha256 = "748982ae53c25240fdb1ca8823433908182e5df3e4cbbc47090329be77cf38ad"
+version = "1.9.2.post10"
+release-tag = "carbonteq-v1.9.2.post10"
+source-revision = "7a423fd8476e67340fdb912127b37e4b71973588"
+wheel-sha256 = "48e581d56f944519270bff4b99c46d804a927c4490c7e64672927e72e68ca4f2"
+sdist-sha256 = "bb239fa1e5155983a4d33cd76d25db9b691b5e7496b1ea5305d3259f6b229533"
 
 [build-system]
 requires = ["hatchling"]
