@@ -1,0 +1,100 @@
+name: Publish retained veRL candidate to development
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Immutable carbonteq-v veRL release tag
+        required: true
+        type: string
+      wheel_sha256:
+        description: Expected SHA-256 of the retained wheel
+        required: true
+        type: string
+      sdist_sha256:
+        description: Expected SHA-256 of the retained source distribution
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish-verl:
+    runs-on: [self-hosted, linux, x64, lan-release]
+    env:
+      UV_SYSTEM_CERTS: "true"
+      INTERNAL_UPLOAD_URL: https://pypi.lan/carbonteq/dev/
+      INTERNAL_SIMPLE_URL: https://pypi.lan/carbonteq/dev/+simple/
+    steps:
+      - name: Download immutable release assets
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          version="${RELEASE_TAG#carbonteq-v}"
+          test "${RELEASE_TAG}" = "carbonteq-v${version}"
+          mkdir -p verl-dist
+          base_url="https://github.com/carbonteq-ai/verl/releases/download/${RELEASE_TAG}"
+          curl --fail --location --retry 3 \
+            "${base_url}/verl-${version}-py3-none-any.whl" \
+            --output "verl-dist/verl-${version}-py3-none-any.whl"
+          curl --fail --location --retry 3 \
+            "${base_url}/verl-${version}.tar.gz" \
+            --output "verl-dist/verl-${version}.tar.gz"
+
+      - name: Verify retained artifact identities
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          WHEEL_SHA256: ${{ inputs.wheel_sha256 }}
+          SDIST_SHA256: ${{ inputs.sdist_sha256 }}
+        run: |
+          version="${RELEASE_TAG#carbonteq-v}"
+          wheel="verl-dist/verl-${version}-py3-none-any.whl"
+          sdist="verl-dist/verl-${version}.tar.gz"
+          test "$(sha256sum "${wheel}" | cut -d ' ' -f 1)" = "${WHEEL_SHA256}"
+          test "$(sha256sum "${sdist}" | cut -d ' ' -f 1)" = "${SDIST_SHA256}"
+          uvx twine check "${wheel}" "${sdist}"
+          sha256sum "${wheel}" "${sdist}" > verl-internal-SHA256SUMS
+
+      - name: Publish exact bytes to the development index
+        run: uv publish --publish-url "${INTERNAL_UPLOAD_URL}" --check-url "${INTERNAL_SIMPLE_URL}" verl-dist/*
+
+      - name: Prove the candidate is stored in development and installs cleanly
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          WHEEL_SHA256: ${{ inputs.wheel_sha256 }}
+          SDIST_SHA256: ${{ inputs.sdist_sha256 }}
+        run: |
+          version="${RELEASE_TAG#carbonteq-v}"
+          simple_page="$(curl --fail --location --retry 3 "${INTERNAL_SIMPLE_URL}verl/")"
+          printf '%s\n' "${simple_page}" | grep -F "verl-${version}-py3-none-any.whl" | grep -F '../../+f/'
+          printf '%s\n' "${simple_page}" | grep -F "verl-${version}.tar.gz" | grep -F '../../+f/'
+          mkdir -p verl-index
+          uv venv .verl-index --clear --python 3.13
+          uv pip download --python .verl-index/bin/python --no-deps --only-binary :all: \
+            --index-url "${INTERNAL_SIMPLE_URL}" --dest verl-index "verl==${version}"
+          uv pip download --python .verl-index/bin/python --no-deps --no-binary :all: \
+            --index-url "${INTERNAL_SIMPLE_URL}" --dest verl-index "verl==${version}"
+          test "$(sha256sum "verl-index/verl-${version}-py3-none-any.whl" | cut -d ' ' -f 1)" = "${WHEEL_SHA256}"
+          test "$(sha256sum "verl-index/verl-${version}.tar.gz" | cut -d ' ' -f 1)" = "${SDIST_SHA256}"
+          uv venv .verl-consumer --clear --python 3.13
+          uv pip install --python .verl-consumer/bin/python \
+            --index-url "${INTERNAL_SIMPLE_URL}" "verl==${version}"
+          export EXPECTED_VERSION="${version}"
+          .verl-consumer/bin/python - <<'PY'
+          import importlib.metadata
+          import os
+          import verl
+          from verl.utils.tensordict_utils import index_select_tensor_dict
+
+          assert importlib.metadata.version("verl") == os.environ["EXPECTED_VERSION"]
+          assert callable(index_select_tensor_dict)
+          assert verl.__name__ == "verl"
+          PY
+
+      - name: Retain internal-publication receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: verl-candidate-${{ inputs.release_tag }}
+          path: verl-internal-SHA256SUMS
+          if-no-files-found: error

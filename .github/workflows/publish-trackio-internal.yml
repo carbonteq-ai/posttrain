@@ -1,4 +1,4 @@
-name: Publish retained Trackio release internally
+name: Publish retained Trackio candidate to development
 
 on:
   workflow_dispatch:
@@ -24,8 +24,8 @@ jobs:
     runs-on: [self-hosted, linux, x64, lan-release]
     env:
       UV_SYSTEM_CERTS: "true"
-      INTERNAL_UPLOAD_URL: https://pypi.lan/carbonteq/stable/
-      INTERNAL_SIMPLE_URL: https://pypi.lan/carbonteq/stable/+simple/
+      INTERNAL_UPLOAD_URL: https://pypi.lan/carbonteq/dev/
+      INTERNAL_SIMPLE_URL: https://pypi.lan/carbonteq/dev/+simple/
     steps:
       - name: Download the immutable GitHub Release assets
         env:
@@ -56,14 +56,27 @@ jobs:
           uvx twine check "${wheel}" "${sdist}"
           sha256sum "${wheel}" "${sdist}" > trackio-internal-SHA256SUMS
 
-      - name: Publish exact bytes to the stable internal index
-        run: uv publish --publish-url "${INTERNAL_UPLOAD_URL}" trackio-dist/*
+      - name: Publish exact bytes to the development index
+        run: uv publish --publish-url "${INTERNAL_UPLOAD_URL}" --check-url "${INTERNAL_SIMPLE_URL}" trackio-dist/*
 
-      - name: Prove a clean stable-index install
+      - name: Prove the candidate is stored in development and installs cleanly
         env:
           RELEASE_TAG: ${{ inputs.release_tag }}
+          WHEEL_SHA256: ${{ inputs.wheel_sha256 }}
+          SDIST_SHA256: ${{ inputs.sdist_sha256 }}
         run: |
           version="${RELEASE_TAG#carbonteq-v}"
+          simple_page="$(curl --fail --location --retry 3 "${INTERNAL_SIMPLE_URL}carbonteq-trackio/")"
+          printf '%s\n' "${simple_page}" | grep -F "carbonteq_trackio-${version}-py3-none-any.whl" | grep -F '../../+f/'
+          printf '%s\n' "${simple_page}" | grep -F "carbonteq_trackio-${version}.tar.gz" | grep -F '../../+f/'
+          mkdir -p trackio-index
+          uv venv .trackio-index --clear --python 3.12
+          uv pip download --python .trackio-index/bin/python --no-deps --only-binary :all: \
+            --index-url "${INTERNAL_SIMPLE_URL}" --dest trackio-index "carbonteq-trackio==${version}"
+          uv pip download --python .trackio-index/bin/python --no-deps --no-binary :all: \
+            --index-url "${INTERNAL_SIMPLE_URL}" --dest trackio-index "carbonteq-trackio==${version}"
+          test "$(sha256sum "trackio-index/carbonteq_trackio-${version}-py3-none-any.whl" | cut -d ' ' -f 1)" = "${WHEEL_SHA256}"
+          test "$(sha256sum "trackio-index/carbonteq_trackio-${version}.tar.gz" | cut -d ' ' -f 1)" = "${SDIST_SHA256}"
           uv venv .trackio-consumer --python 3.12
           uv pip install --python .trackio-consumer/bin/python \
             --index-url "${INTERNAL_SIMPLE_URL}" "carbonteq-trackio==${version}"
@@ -73,6 +86,6 @@ jobs:
       - name: Retain the internal publication receipt
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: trackio-internal-${{ inputs.release_tag }}
+          name: trackio-candidate-${{ inputs.release_tag }}
           path: trackio-internal-SHA256SUMS
           if-no-files-found: error
