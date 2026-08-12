@@ -27,8 +27,10 @@ This plan does not change either `main` branch. All PostTrain commits use `feat/
 - [x] (2026-08-11) Push PostTrain checkpoint-96 qualification support at `c6daa7dbcdc2ac92b35b33f7607cf12617764f29` and Policy Prism model/evaluation bindings at `a7a137bf24ec03793be48d5eafba43eb7c30020d`; both feature worktrees are clean.
 - [x] (2026-08-11) Verify the exact private Hub adapter revision through the serving materializer: rank 16, alpha 32, dropout 0, E2B base identity, and safetensors SHA-256 `8fec79fe9185a1c8aa431fe9a9af6bb329c746fe5b393afed31298f2f7d8d6df` all match.
 - [x] (2026-08-11) Isolated-qualify and publish the exact scope image `sha256:fe793e3199a3c53fa91d5428983049254fc88939fd1b81a0532ab172c81f5740` (package `dc2fc01e...`) and recovery image `sha256:9602b3bfca2493d2387987e924f80e8271aafe9a0b7a224dc00601edbe2c1f0d` (package `7df7979d...`). Resolved manifests prove the pinned adapter/base, sealed source `ef6f8e5...`, rank limit 16, temperature zero, Claude 4.6 judging, and 18/17 cases.
-- [ ] Obtain explicit approval to send sealed evaluation context and model outputs to Claude through OpenRouter. Submission stopped before creating either evaluation run record when the external-data approval boundary rejected the call.
-- [ ] Run checkpoint 96 through the sealed 18-case scope and 17-case recovery jobs sequentially, finalize both native artifacts into Policy Prism's standard five-file evidence directories, validate the catalog, and push the results.
+- [x] (2026-08-12) Obtain explicit approval to send sealed evaluation context and checkpoint-96 model outputs to Claude Sonnet 4.6 through OpenRouter for both evaluations.
+- [x] (2026-08-12) Run checkpoint 96 sequentially through scope as `opd96sc3-e2b12b-sparse-rkl-step96-scope-v11` and recovery as `opd96rc3-e2b12b-sparse-rkl-step96-recovery-v1`. Both provider jobs succeeded, retained complete Trackio evaluation artifacts, and reconciled consistently with no missing roles; the scientific gates included 18/18 and 17/17 traces with zero harness failures, truncations, or trace errors.
+- [x] (2026-08-12) Materialize the two immutable native artifacts through the explicitly named `opd96ex1-e2b12b-step96-evaluation-export` consumer lineage, verify their provider/content digests, and finalize standard five-file Policy Prism evidence under `evaluation-runs/gemma-4-e2b-policy-prism-opd-sparse-rkl-r16-from-12b-step96-v11-sealed-{scope,recovery}-20260812`.
+- [x] (2026-08-12) Validate all 91 Policy Prism runs and 1,593 traces, reproduce all business KPIs with `changed_run_ids: []`, and confirm the checkpoint-96 compatibility hashes are `80b32e...36e8` for scope and `4077dd...34b4` for recovery.
 - [x] (2026-08-10) Cancel the failed r9 provider workspace after checkpoint preservation. It is terminal with provider state `terminated`; reconciliation records failed/inconsistent evidence and retains three training artifacts plus native rollout traces.
 - [x] (2026-08-10) Stop before new GPU submissions and update this plan for a separate batch-qualification and full-run execution goal.
 - [x] (2026-08-10) Fetch and compare current `origin/main` at `6ffe634432a3f92e8c6dd561d3cd85b2b2ba45cd`, the experiment branch at `dbb5c7b5538124913b99620801339f702c58089e`, and the immutable TRL 1.9.2.post1 fork source at `a82ecebc0fa081efd58302a34a553445fc73271d` without changing either branch.
@@ -109,6 +111,12 @@ This plan does not change either `main` branch. All PostTrain commits use `feat/
   Evidence: across 96 old sparse-reverse-KL updates, loss mean/median were `0.09788/0.08572`, the fitted slope was only `-2.38e-5` per step, and no value was non-finite. The last 16-step median (`0.06471`) was 23.8% below the first (`0.08488`), token-weighted loss was 11.6% lower, and median gradient norm was 31.7% lower; however, window means oscillated and checkpoint 96 had exposed only 96 of 384 targets. It supports completing one full target pass, not extrapolating a mathematical “fully converged” step.
 - Observation: old and new OPD loss values are not numerically comparable.
   Evidence: checkpoint 96 used the earlier `trl.experimental.distillation.DistillationTrainer` fork and a positive sampled sparse reverse-KL plus tail bucket. Current qualification uses pinned `trl==1.9.2.post1`, `IWOPDTrainer`, and prefix-drift importance weighting; valid IW-OPD losses can be negative. The maintained backend also fixes the fully-on-policy denominator, bounds resident vLLM waves, and publishes paired checkpoint/model views. PostTrain retained the Policy selected-stage mask, XGrammar projection, memory-safe LM-head projection, tokenizer identity, and SQLite ledger state around that backend.
+- Observation: checkpoint 96 is operationally evaluable but fails the desired scope-quality outcome.
+  Evidence: both sealed domain jobs succeeded and reconciled consistently, but six of 18 scope traces ended their rules call at the exact 16,384-token output ceiling. These are valid model-level completion failures inside otherwise successful Verifiers rollouts, not provider or harness failures. Operational reliability fell from the compatible base E2B run's 18/18 to 12/18, matched rules fell from 53/70 to 20/68, hard-gate passes fell from 8/18 to 4/18, and no case was fully conformant.
+- Observation: the recovery result contains real but uneven teacher-signal gains.
+  Evidence: against the compatibility-matching base E2B run, expected rules found rose from 321/460 to 359/460, Claude-supported predictions from 300/373 to 380/421, preserved rule meaning from 258/460 to 289/460, and position stability from 69.3% to 78.2%. Most added matches came from three large provisions (`+15`, `+14`, and `+16`); one exception-inventory case regressed from 100% to 4.8% supported predictions and from 100% to 0% preserved meaning. Supporting-source assignment, coverage-ledger exactness, unmatched additions, tail latency, and the blended recovery pipeline score all regressed.
+- Observation: the exact compatibility comparator is not a perfectly serving-matched causal control.
+  Evidence: the primary base E2B v11 run has the same benchmark/evaluator compatibility hashes but used native thinking on RunPod, while checkpoint 96 used thinking off under managed local vLLM. The older thinking-off base run confirms the same broad pattern--scope regression and recovery-recall improvement--but has an older evaluator implementation and different compatibility hashes. Report exact primary deltas as benchmark results, not as a provider- and reasoning-controlled estimate of the adapter's isolated causal effect.
 
 ## Decision Log
 
@@ -163,6 +171,12 @@ This plan does not change either `main` branch. All PostTrain commits use `feat/
 - Decision: stop this goal after the boundary evidence, production configuration, convergence interpretation, and backend comparison are committed and pushed; do not start the full 384-target run.
   Rationale: the user explicitly separates qualification from the next end-to-end execution goal.
   Date/Author: 2026-08-11 / Codex.
+- Decision: do not promote checkpoint 96 as the selected OPD model despite its recovery gains.
+  Rationale: its six scope rules-stage length terminations, 33.3-point operational-reliability loss, 46.3-point expected-rule-match loss, zero fully conformant cases, and severe tail-latency increase outweigh the recovery-recall improvements. The immutable Hub repository remains correctly labelled as an intermediate checkpoint for evidence and diagnosis.
+  Date/Author: 2026-08-12 / Codex.
+- Decision: use the compatibility-matching thinking-enabled base E2B v11 runs as the primary numerical comparator and the older thinking-off runs only as a directional sensitivity check.
+  Rationale: exact benchmark, Gold, evaluator, and calibration compatibility is required for primary metric comparison. Reasoning/provider differences are retained explicitly as a limitation rather than silently mixing incompatible evaluator revisions.
+  Date/Author: 2026-08-12 / Codex.
 
 ## Outcomes & Retrospective
 
@@ -173,6 +187,12 @@ No claim is made that checkpoint 96 is a completed or converged model. Its old s
 The current IW-OPD stack is operationally qualified. Logical 12 / physical 1 / accumulation 12 completed the representative 12 targets with finite loss and gradient, zero teacher/source/graph/truncation/provider failures, positive scored tokens, complete artifacts, and consistent reconciliation. It is the production choice because it cut measured trainer time from 2,112.83 to 634.11 seconds, a 3.33x speedup, while physical batches two and three were slower. Physical three is the largest completed safe backward batch at 49.83 GiB trainer peak; physical 12 was cancelled before backward and is not a qualified ceiling. The resulting fresh full run is projected at approximately 5.6 trainer hours and 6--7 hours including one initialization, four milestone checkpoints, final upload, and reconciliation; evaluation time remains additional.
 
 The maintained backend was not stable as a blind merge, but its one integration defect was found before production. The old run used Git-pinned `DistillationTrainer` and a positive sampled top-1 sparse reverse-KL/tail loss. The merged runtime uses released `trl==1.9.2.post1`, `IWOPDTrainer`, a prefix-drift importance-weighted objective, a corrected fully-on-policy denominator, bounded vLLM waves, concurrency control, and paired recovery/model checkpoints. PostTrain had to correct its private-hook guard from `_compute_prompt_length` to the pinned backend's `aligned_prompt_length`, then prove loss/gradient equivalence across physical micro-batches. Subsequent finite GPU updates had zero teacher failures. Policy-specific schema projection, selected-stage masking, memory-safe vocabulary projection, tokenizer identity, and SQLite ledger recovery remain explicit PostTrain integrations rather than assumed TRL behavior.
+
+Checkpoint 96's sealed evaluation is mixed and does not meet the desired overall improvement. On scope, ambiguity handling fell from 72.2% to 50.0%, hard-gate conformance from 44.4% to 22.2%, expected-rule matching from 75.7% to 29.4%, field grounding from 12.6% to 5.3%, subject capture from 24.3% to 7.4%, and operational reliability from 100% to 66.7%. Six rules calls ran to the 16,384-token ceiling, which removed their downstream graph stage and drove p95 end-to-end latency from 95.0 seconds to 440.9 seconds. The surviving 29 predictions were all Claude-supported versus 56/66 for base, and evidence F2 rose from 0.773 to 0.828, but this is higher precision on a much smaller output inventory rather than a net scope improvement.
+
+Recovery shows the useful part of the partial OPD signal. Expected-rule recovery rose 8.3 points to 78.0%, context-position stability rose 8.9 points to 78.2%, Claude-supported predictions rose 9.8 points to 90.3%, preserved meaning rose 6.7 points to 62.8%, required legal text reached 100%, and missing rules per provision fell from 10.59 to 7.76. Those gains are not a complete win: joint source assignment fell 2.8 points, coverage-ledger exactness fell from 23.5% to 5.9%, unmatched additions rose from 52 to 62, compact correspondence F1 fell from 0.506 to 0.484, the recovery pipeline score fell from 0.629 to 0.601, and p95 latency increased from 232.2 to 791.5 seconds. The checkpoint learned broader recovery on large source packets, but not stable precision, source attribution, or scope decomposition.
+
+The practical lesson is to keep the fresh production run on the maintained IW-OPD objective and the balanced 384-target plan, evaluate quarter checkpoints rather than infer quality from training loss, and gate every candidate first on scope completion and conformance. Future monitoring must explicitly retain rules-stage length-termination rate, output-token p95, expected-rule coverage, unmatched additions, supporting-source assignment, coverage-ledger exactness, and recovery precision together. Raising the output cap alone is not a remedy for runaway generation; the selected checkpoint must complete within the existing contract while improving both coverage and precision.
 
 ## Context and Orientation
 
@@ -524,6 +544,22 @@ Checkpoint 96 identity:
     HF repository: carbonteq/gemma-4-e2b-policy-prism-scope-opd-from-12b-checkpoint-96
     HF revision: 4f1fe9c75031396a11bcc44e2193f96df9003054
     Visibility: private
+
+Checkpoint 96 sealed-evaluation identity:
+
+    Evaluation PostTrain revision: 225d057dd89d69198d516b410127b98f30b9ff5f
+    Evaluation Policy Prism revision: 155a82f7657cefea00528fa31fab61fa09485e0b
+    Scope run: opd96sc3-e2b12b-sparse-rkl-step96-scope-v11
+    Scope provider run: pt-99217fb8b8a754b3b0f86c09
+    Scope image: sha256:ebd371da320523a71b43d12885cf6657c4831e73f2b994c502eb6279609d170e
+    Scope work-package digest: 5553327e21e68bb107dfcec9c3ee54b7a08680d1481874b0fc09abc95c3342f4
+    Scope artifact provider/content: 5107026f3fc04dc6da4f9cdfa2dd920f803dccd664491eac38d2b346e1770ec5 / c4853ff5cfe8678882f4f16ae36915350bf156491247634a92a77fdbe1fbe5c4
+    Recovery run: opd96rc3-e2b12b-sparse-rkl-step96-recovery-v1
+    Recovery provider run: pt-56e98df5de1c029e3780d1c5
+    Recovery image: sha256:76b060bdfe88660d0ac2b7afcac601b22bfb84edd8da1316b725aa70d94db389
+    Recovery work-package digest: 0a08d5da9d4d8f642ae377c765fc1bfa035ee7e0cc8c1b8c5cdea107f257f63e
+    Recovery artifact provider/content: 50786d224cf8d2e0850c8f345fbf32659fadcedee3a46d73c68b9325ee6c1508 / edbc20e13dcef6eeb74ebb4e6b6b4b1cc85303bb64d42598eede4bae1ccce389
+    Export lineage run: opd96ex1-e2b12b-step96-evaluation-export
 
 The fixed 12-target qualification cohort selected by seed 2907 is:
 
