@@ -361,9 +361,7 @@ def test_pending_runtime_lock_allows_old_backend_identity_until_rebuild(
     def fake_load_manifest(*, verify_locks: bool = True, verify_variants: bool = True) -> object:
         calls.append((verify_locks, verify_variants))
         if verify_variants:
-            raise ManifestError(
-                "kinds.online-rl-verl-py313: backend runtime identity differs from its shipped profile"
-            )
+            raise ManifestError("kinds.online-rl-verl-py313: backend runtime identity differs from its shipped profile")
         return object()
 
     monkeypatch.setattr(versioning, "load_manifest", fake_load_manifest)
