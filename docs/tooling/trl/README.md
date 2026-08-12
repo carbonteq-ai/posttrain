@@ -9,11 +9,11 @@ semantics, and instrumentation hooks belong to the `train` package boundary.
 The lab's injected observation context maps those hooks to Trackio. Datasets,
 rewards, and Verifiers environment implementations remain independently owned.
 
-The workspace installs the immutable internal release `trl==1.9.2.post1`, built
-from `carbonteq-ai/trl` commit
-`a82ecebc0fa081efd58302a34a553445fc73271d`. The package is published under tag
-`carbonteq-v1.9.2.post1`; its hashes and source revision are recorded in
-`packages/train/pyproject.toml`. The fork is based on upstream TRL 1.9.2 and
+The production framework installs the immutable internal release
+`trl==1.9.2.post1`. The Policy Prism constrained-IWOPD feature branch instead
+pins the pushed candidate `trl==1.9.2.post2` directly at
+`carbonteq-ai/trl@8c8ac0face570dc09a5865e9cdc26a391347388a` until its independent
+internal-index promotion is complete. The fork is based on upstream TRL 1.9.2 and
 keeps the trainer runtime compatible with `datasets 4.6.1` so Verifiers v1 and
 TRL can share one environment. Project-specific job policy and environments
 remain outside the fork.
@@ -37,6 +37,15 @@ model/runtime profile. It also bounds the actual colocated `LLM.generate`
 request list to the configured
 resident sequence cap; engine caps alone do not prevent vLLM from queueing a
 large logical batch in one call.
+
+The post2 candidate additionally renders the same semantic messages through
+the teacher's native template while replaying the exact student completion
+ids. Its replay processor computes XGrammar-constrained student/teacher token
+log probabilities before forcing each exact token; Posttrain recomputes the
+current-student denominator under the same grammar in bounded position chunks.
+Schema, completion, request, allowed-set, and chat-template fingerprints fail
+closed before an optimizer update. This path is qualified only after the two
+Policy Prism live canaries recorded in the experiment plan.
 Composite vLLM implementations may retain a namespace around a text-only
 training model. The fork therefore exposes an explicit weight-name prefix at
 the synchronization boundary instead of placing model-name rewrites in a job.

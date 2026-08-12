@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol, cast
 
-from posttrain.common import JsonValue, RunContext, TraceObservation
+from posttrain.common import InferenceBinding, JsonValue, RunContext, TraceObservation
 
 from ...requests import EvaluateRequest, RemotePolicy
 from ...results import EvaluationPopulation
@@ -56,6 +56,24 @@ def _native_sampling(request: EvaluateRequest) -> dict[str, JsonValue]:
     if service is not None:
         values.update(service.request_defaults)
     if not isinstance(request.model, RemotePolicy):
+        if not isinstance(request.inference, InferenceBinding):
+            raise TypeError("managed local evaluation requires a concrete inference binding")
+        inference = cast(InferenceBinding, request.inference)
+        whitespace_pattern = inference.engine.get("structured_outputs_whitespace_pattern")
+        if whitespace_pattern is not None:
+            if not isinstance(whitespace_pattern, str) or not whitespace_pattern:
+                raise TypeError("managed vLLM structured output whitespace pattern must be a non-empty string")
+            raw_extra_body = values.get("extra_body", {})
+            if not isinstance(raw_extra_body, dict):
+                raise TypeError("Verifiers sampling extra_body must be a mapping")
+            extra_body = dict(raw_extra_body)
+            raw_structured_outputs = extra_body.get("structured_outputs", {})
+            if not isinstance(raw_structured_outputs, dict):
+                raise TypeError("Verifiers sampling structured_outputs must be a mapping")
+            structured_outputs = dict(raw_structured_outputs)
+            structured_outputs["whitespace_pattern"] = whitespace_pattern
+            extra_body["structured_outputs"] = structured_outputs
+            values["extra_body"] = extra_body
         template_kwargs = request.model.conversation.reasoning_mode(request.resolved_reasoning_mode).kwargs()
         if template_kwargs:
             raw_extra_body = values.get("extra_body", {})

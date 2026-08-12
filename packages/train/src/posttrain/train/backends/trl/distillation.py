@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import inspect
+import json
 import math
 import subprocess
 import sys
@@ -20,6 +21,7 @@ from posttrain.common import HubModelRef, RunContext, TraceObservation
 
 from ...distillation import DistillationBatch, DistillationBatchLedger
 from ...online_rl import RolloutBatch
+from ...rendering import create_renderer
 from ...requests import OnPolicyDistillationRequest
 from .common import (
     BackendTrainingResult,
@@ -75,6 +77,7 @@ def run_distillation(
     emit_runtime_versions(context, imports)
     with context.phase("model_loading", {"backend": "trl"}):
         tokenizer = load_tokenizer(request.student, imports)
+        teacher_tokenizer = load_tokenizer(request.teacher, imports)
         model = load_trainable_model(request.student, request.training.update, request.settings.loop, imports)
     rows = [
         {
@@ -193,7 +196,16 @@ def run_distillation(
                 train_dataset=dataset,
                 processing_class=tokenizer,
                 callbacks=[callback_type(context, imports)(), checkpoint_callback],
-                rollout_func=cast(Any, _rollout_function(context, request, tokenizer, ledger)),
+                rollout_func=cast(
+                    Any,
+                    _rollout_function(
+                        context,
+                        request,
+                        tokenizer,
+                        ledger,
+                        teacher_tokenizer=teacher_tokenizer,
+                    ),
+                ),
             )
         if teacher_product == "vllm":
             if trainer.teacher_client is None:
@@ -406,6 +418,8 @@ def _rollout_function(
     request: OnPolicyDistillationRequest,
     tokenizer: Any,
     ledger: DistillationBatchLedger,
+    *,
+    teacher_tokenizer: Any | None = None,
 ) -> Any:
     """Translate a fresh Verifiers batch into the TRL exact-token hook."""
 
@@ -457,6 +471,49 @@ def _rollout_function(
             rollouts=rollouts,
         )
         consumed = ledger.consume(batch)
+        constrained = request.settings.probability_space == "generation_constrained"
+        if constrained and teacher_tokenizer is None:
+            raise ValueError("generation-constrained OPD requires the teacher tokenizer")
+        teacher_renderer = (
+            create_renderer(teacher_tokenizer, request.teacher, request.training.renderer) if constrained else None
+        )
+        teacher_prompt_ids: list[list[int]] = []
+        teacher_completion_ids: list[list[int]] = []
+        structured_output_schemas: list[dict[str, Any]] = []
+        schema_digests: list[str] = []
+        constrained_request_ids: list[str] = []
+        allowed_set_digests: list[list[str]] = []
+        if constrained:
+            if teacher_renderer is None:
+                raise ValueError("generation-constrained OPD requires the teacher tokenizer")
+            for rollout in consumed:
+                marker = _opd_marker(rollout.trace.payload)
+                contract = generator.selected_turn_contract(
+                    str(marker["selected_prompt_sha256"]),
+                    str(marker["selected_completion_sha256"]),
+                )
+                messages = cast(list[dict[str, Any]], contract["messages"])
+                tools = cast(list[dict[str, Any]], contract["tools"])
+                rendered = teacher_renderer.render(
+                    messages,
+                    tools=tools or None,
+                    add_generation_prompt=True,
+                )
+                structured = contract.get("structured_outputs")
+                schema = structured.get("json") if isinstance(structured, dict) else None
+                if not isinstance(schema, dict):
+                    raise ValueError("generation-constrained OPD requires one JSON schema per selected turn")
+                schema_digest = _json_sha256(schema)
+                completion = list(rollout.completion_ids)
+                teacher_prompt_ids.append([int(value) for value in rendered.token_ids])
+                teacher_completion_ids.append(completion)
+                structured_output_schemas.append(schema)
+                schema_digests.append(schema_digest)
+                constrained_request_ids.append(rollout.trace.external_id)
+                allowed_set_digests.append(
+                    [_allowed_set_digest(schema_digest, completion, position) for position in range(len(completion))]
+                )
+            generator.clear_turn_contracts()
         attributes = {
             "technique": "distill",
             "student_model_variant_id": request.student.id,
@@ -486,7 +543,7 @@ def _rollout_function(
                 "scored_tokens": scored_tokens,
             },
         )
-        return {
+        result = {
             "prompt_ids": [list(rollout.prompt_ids) for rollout in consumed],
             "prompt_lengths": [len(rollout.prompt_ids) for rollout in consumed],
             "completion_ids": [list(rollout.completion_ids) for rollout in consumed],
@@ -494,8 +551,47 @@ def _rollout_function(
             "logprobs": [list(rollout.sampling_logprobs) for rollout in consumed],
             "rollout_ids": list(trace_ids),
         }
+        if constrained:
+            result.update(
+                {
+                    "teacher_prompt_ids": teacher_prompt_ids,
+                    "teacher_completion_ids": teacher_completion_ids,
+                    "teacher_completion_offsets": [0] * len(consumed),
+                    "structured_output_schemas": structured_output_schemas,
+                    "schema_digests": schema_digests,
+                    "constrained_request_ids": constrained_request_ids,
+                    "allowed_set_digests": allowed_set_digests,
+                }
+            )
+        return result
 
     return run_rollouts
+
+
+def _opd_marker(record: Any) -> dict[str, Any]:
+    if not isinstance(record, dict):
+        raise TypeError("OPD trace payload must be an object")
+    info = record.get("info")
+    policy = info.get("policy_prism") if isinstance(info, dict) else None
+    marker = policy.get("opd") if isinstance(policy, dict) else None
+    if not isinstance(marker, dict):
+        raise ValueError("generation-constrained OPD trace is missing its selected-turn marker")
+    return marker
+
+
+def _json_sha256(value: Any) -> str:
+    return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def _allowed_set_digest(schema_digest: str, completion_ids: list[int], position: int) -> str:
+    return _json_sha256(
+        {
+            "completion_prefix": completion_ids[:position],
+            "position": position,
+            "schema_digest": schema_digest,
+            "xgrammar_contract": "0.2.3-json-schema-any-whitespace-false",
+        }
+    )
 
 
 class _ObservedTeacherClient:
@@ -506,10 +602,16 @@ class _ObservedTeacherClient:
         self._client = client
 
     def get_sequence_logprobs(self, **kwargs: Any) -> Any:
+        return self._observe("get_sequence_logprobs", kwargs)
+
+    def get_constrained_sequence_logprobs(self, **kwargs: Any) -> Any:
+        return self._observe("get_constrained_sequence_logprobs", kwargs)
+
+    def _observe(self, method: str, kwargs: dict[str, Any]) -> Any:
         started = time.perf_counter()
         with self._context.phase("teacher_scoring", {"backend": "trl"}):
             try:
-                result = self._client.get_sequence_logprobs(**kwargs)
+                result = getattr(self._client, method)(**kwargs)
             except Exception:
                 self._context.metric("train/distill/teacher_failures", 1)
                 raise
@@ -609,9 +711,7 @@ def _validate_iw_opd_private_contract(trainer_type: Any) -> None:
             raise RuntimeError(f"pinned IWOPDTrainer is missing required method {name}")
         actual = tuple(inspect.signature(method).parameters)
         if actual != parameters:
-            raise RuntimeError(
-                f"pinned IWOPDTrainer method {name} has parameters {actual}, expected {parameters}"
-            )
+            raise RuntimeError(f"pinned IWOPDTrainer method {name} has parameters {actual}, expected {parameters}")
 
 
 def _generate_heterogeneous_colocated_iw_opd_turns(
@@ -699,10 +799,7 @@ def _generate_heterogeneous_colocated_iw_opd_turns(
         raise RuntimeError("vLLM must return sampled-token logprobs for Policy IW-OPD rollouts")
     context.metric("train/rollout/request_batch_size", len(prompts))
     context.metric("train/rollout/resident_wave_size", min(wave_size, len(prompts)))
-    return completion_ids, [
-        [float(token_logprobs[0]) for token_logprobs in row]
-        for row in logprobs
-    ]
+    return completion_ids, [[float(token_logprobs[0]) for token_logprobs in row] for row in logprobs]
 
 
 def _validate_memory_safe_iw_opd_request(
@@ -720,12 +817,17 @@ def _validate_memory_safe_iw_opd_request(
         raise ValueError("memory-safe IW-OPD is qualified only for gemma4-e2b-it")
     if request.settings.num_generations != 1:
         raise ValueError("memory-safe IW-OPD requires one generation per prompt")
+    if request.settings.probability_space != "generation_constrained":
+        raise ValueError("memory-safe Policy IW-OPD requires generation-constrained probabilities")
+    if request.settings.teacher_prompt_alignment != "model_native_prefix_exact_completion":
+        raise ValueError("memory-safe Policy IW-OPD requires model-native teacher prompt alignment")
+    if request.settings.loop.per_device_batch_size != 1:
+        raise ValueError("generation-constrained memory-safe IW-OPD is qualified for physical batch one")
     loop = request.settings.loop
     expected_logical_batch = loop.per_device_batch_size * loop.gradient_accumulation_steps
     if request.settings.num_prompts_per_step != expected_logical_batch:
         raise ValueError(
-            "memory-safe IW-OPD requires num_prompts_per_step to equal physical batch times "
-            "gradient accumulation"
+            "memory-safe IW-OPD requires num_prompts_per_step to equal physical batch times gradient accumulation"
         )
     if request.training.backend_options.get("use_liger_kernel", False):
         raise ValueError("memory-safe IW-OPD is incompatible with the Liger full-logits path")
@@ -757,9 +859,7 @@ def _runtime_state_paths(request: OnPolicyDistillationRequest) -> tuple[Path, ..
     paths = tuple(Path(value) for value in raw)
     for path in paths:
         if path.is_absolute() or not path.parts or ".." in path.parts:
-            raise ValueError(
-                "checkpoint_runtime_state_paths must contain normalized relative paths"
-            )
+            raise ValueError("checkpoint_runtime_state_paths must contain normalized relative paths")
     if len(set(paths)) != len(paths):
         raise ValueError("checkpoint_runtime_state_paths cannot contain duplicates")
     return paths
@@ -791,13 +891,9 @@ def _memory_safe_server_iw_opd_loss(
     completion_length = int(teacher_result["actual_logprobs"].shape[1])
     all_labels = inputs["labels"][:, prompt_length:]
     if (all_labels[:, completion_length:] != -100).any():
-        raise ValueError(
-            "teacher server returned fewer completion logprobs than the selected IW-OPD tokens"
-        )
+        raise ValueError("teacher server returned fewer completion logprobs than the selected IW-OPD tokens")
     labels = all_labels[:, :completion_length]
-    completion_tokens = inputs["input_ids"][
-        :, prompt_length : prompt_length + completion_length
-    ]
+    completion_tokens = inputs["input_ids"][:, prompt_length : prompt_length + completion_length]
     valid_mask = labels != -100
     valid_count = valid_mask.sum()
     if int(valid_count.item()) == 0:
@@ -814,20 +910,31 @@ def _memory_safe_server_iw_opd_loss(
     rollout_logprobs = inputs.get("rollout_logprobs")
     if rollout_logprobs is None:
         raise ValueError("memory-safe IW-OPD requires the exact rollout logprobs")
-    rollout_logprobs = rollout_logprobs[
-        :, prompt_length : prompt_length + completion_length
-    ]
+    rollout_logprobs = rollout_logprobs[:, prompt_length : prompt_length + completion_length]
 
     unwrapped = trainer.accelerator.unwrap_model(model)
     student_outputs = _gemma_hidden_forward(unwrapped, inputs)
-    hidden = student_outputs.last_hidden_state[
-        :, prompt_length - 1 : prompt_length - 1 + completion_length, :
-    ]
+    hidden = student_outputs.last_hidden_state[:, prompt_length - 1 : prompt_length - 1 + completion_length, :]
     if hidden.shape[:2] != labels.shape:
         raise RuntimeError("student hidden states do not align with IW-OPD completion positions")
     base = _gemma_base_model(unwrapped)
     head = base.get_output_embeddings()
     softcap = base.config.get_text_config().final_logit_softcapping
+    schemas = inputs.get("structured_output_schemas")
+    expected_allowed_digests = inputs.get("allowed_set_digests")
+    teacher_allowed_counts = teacher_result.get("allowed_counts")
+    if (
+        not isinstance(schemas, list)
+        or len(schemas) != 1
+        or not isinstance(expected_allowed_digests, list)
+        or len(expected_allowed_digests) != 1
+        or not isinstance(teacher_allowed_counts, list)
+        or len(teacher_allowed_counts) != 1
+    ):
+        raise ValueError("generation-constrained IW-OPD metadata must align with physical batch one")
+    if not bool(valid_mask[0].all()):
+        raise ValueError("selected OPD completion tokens must form one contiguous constrained stage")
+    matcher, xgrammar = _xgrammar_matcher(trainer.processing_class, schemas[0], head.weight.shape[0])
     student_actual_chunks: list[Any] = []
     for start in range(0, completion_length, chunk_size):
         end = min(start + chunk_size, completion_length)
@@ -835,6 +942,24 @@ def _memory_safe_server_iw_opd_loss(
         if softcap is not None:
             logits = torch.tanh(logits / softcap) * softcap
         scaled = logits.float() / trainer.temperature
+        bitmask = xgrammar.allocate_token_bitmask(end - start, scaled.shape[-1]).to(scaled.device)
+        for local_position, position in enumerate(range(start, end)):
+            matcher.fill_next_token_bitmask(bitmask, local_position)
+            selected_token = int(completion_tokens[0, position].item())
+            if not matcher.accept_token(selected_token):
+                raise ValueError(f"current-student token is disallowed by XGrammar at position {position}")
+            expected_digest = _allowed_set_digest(
+                schema_digest=inputs["schema_digests"][0],
+                completion_ids=completion_tokens[0].tolist(),
+                position=position,
+            )
+            if expected_digest != expected_allowed_digests[0][position]:
+                raise ValueError("current-student allowed-token digest differs from rollout evidence")
+        xgrammar.apply_token_bitmask_inplace(scaled.reshape(end - start, -1), bitmask)
+        for local_position, position in enumerate(range(start, end)):
+            count = int(torch.isfinite(scaled[0, local_position]).sum().item())
+            if count != int(teacher_allowed_counts[0][position]):
+                raise ValueError("teacher and current-student allowed-token counts differ")
         selected = scaled.gather(
             dim=-1,
             index=completion_tokens[:, start:end].unsqueeze(-1),
@@ -849,9 +974,7 @@ def _memory_safe_server_iw_opd_loss(
     absolute = advantages_base.abs()
     prefix_absolute = absolute.cumsum(dim=1) - absolute
     total_absolute = absolute.sum(dim=1, keepdim=True).clamp_min(trainer.iw_opd_epsilon)
-    weights = (
-        1.0 + trainer.iw_opd_gamma * (1.0 - prefix_absolute / total_absolute)
-    ).detach()
+    weights = (1.0 + trainer.iw_opd_gamma * (1.0 - prefix_absolute / total_absolute)).detach()
     advantages = weights * advantages_base
     token_loss = torch.where(
         valid_mask,
@@ -881,6 +1004,18 @@ def _memory_safe_server_iw_opd_loss(
     return (loss, student_outputs) if return_outputs else loss
 
 
+def _xgrammar_matcher(tokenizer: Any, schema: dict[str, Any], vocab_size: int) -> tuple[Any, Any]:
+    try:
+        import xgrammar
+    except ImportError as error:
+        raise RuntimeError("generation-constrained IW-OPD requires xgrammar") from error
+    info = xgrammar.TokenizerInfo.from_huggingface(tokenizer, vocab_size=vocab_size)
+    compiler = xgrammar.GrammarCompiler(info, max_threads=8, cache_enabled=True)
+    schema_text = json.dumps(schema, sort_keys=True, separators=(",", ":"))
+    context = compiler.compile_json_schema(schema_text, any_whitespace=False)
+    return xgrammar.GrammarMatcher(context), xgrammar
+
+
 def _buffered_selected_token_count(trainer: Any) -> Any:
     import torch
 
@@ -908,10 +1043,7 @@ def _gemma_base_model(model: Any) -> Any:
     base = model.get_base_model() if hasattr(model, "get_base_model") else model
     architecture = type(base).__name__
     if architecture != "Gemma4ForConditionalGeneration":
-        raise TypeError(
-            "memory-safe IW-OPD requires Gemma4ForConditionalGeneration, "
-            f"got {architecture}"
-        )
+        raise TypeError(f"memory-safe IW-OPD requires Gemma4ForConditionalGeneration, got {architecture}")
     return base
 
 

@@ -389,29 +389,41 @@ def _distillation_request() -> OnPolicyDistillationRequest:
     )
 
 
-@pytest.mark.parametrize(
-    ("physical_batch", "gradient_accumulation"),
-    [(1, 12), (2, 6), (3, 4)],
-)
-def test_memory_safe_iw_opd_guard_accepts_equivalent_logical_twelve_shapes(
-    physical_batch: int,
-    gradient_accumulation: int,
-) -> None:
+def test_memory_safe_iw_opd_guard_accepts_constrained_logical_twelve_physical_one() -> None:
     request = SimpleNamespace(
         student=replace(GEMMA_4_E2B_IT, id="models/gemma4-e2b-it@bf16"),
         settings=SimpleNamespace(
             num_generations=1,
             num_prompts_per_step=12,
+            probability_space="generation_constrained",
+            teacher_prompt_alignment="model_native_prefix_exact_completion",
             loop=TrainingLoop(
                 max_steps=1,
-                per_device_batch_size=physical_batch,
-                gradient_accumulation_steps=gradient_accumulation,
+                per_device_batch_size=1,
+                gradient_accumulation_steps=12,
             ),
         ),
         training=SimpleNamespace(backend_options={}),
     )
 
     _validate_memory_safe_iw_opd_request(request, "vllm")
+
+
+def test_memory_safe_constrained_iw_opd_guard_rejects_unqualified_physical_batch() -> None:
+    request = SimpleNamespace(
+        student=replace(GEMMA_4_E2B_IT, id="models/gemma4-e2b-it@bf16"),
+        settings=SimpleNamespace(
+            num_generations=1,
+            num_prompts_per_step=12,
+            probability_space="generation_constrained",
+            teacher_prompt_alignment="model_native_prefix_exact_completion",
+            loop=TrainingLoop(max_steps=1, per_device_batch_size=2, gradient_accumulation_steps=6),
+        ),
+        training=SimpleNamespace(backend_options={}),
+    )
+
+    with pytest.raises(ValueError, match="physical batch one"):
+        _validate_memory_safe_iw_opd_request(request, "vllm")
 
 
 def test_teacher_server_command_preserves_memory_and_kv_selections() -> None:

@@ -305,6 +305,10 @@ class OnPolicyDistillationSettings:
     num_generations: int = 1
     max_prompt_length: int = 256
     max_completion_length: int = 128
+    teacher_prompt_alignment: Literal["exact_full_sequence", "model_native_prefix_exact_completion"] = (
+        "exact_full_sequence"
+    )
+    probability_space: Literal["raw_full_vocab", "generation_constrained"] = "raw_full_vocab"
     revision: str = "1"
 
     def __post_init__(self) -> None:

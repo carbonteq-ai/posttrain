@@ -572,6 +572,16 @@ same ordered vocabulary and special-token mapping. Stored teacher completions
 or historical student traces are off-policy data and belong in supervised data
 generation or `train.sft`, not `train.distill`.
 
+Token-id compatibility is necessary but not sufficient when student and
+teacher chat-template fingerprints differ. A selected model-native alignment
+mode renders the same semantic messages through each model's immutable
+template, uses the teacher-native prefix, and preserves the exact student
+completion ids. When structured generation defines the behavior policy, the
+settings must also select a generation-constrained probability space: rollout,
+teacher, and differentiable current-student log probabilities use the same
+schema and prefix-conditioned allowed-token set. Raw and constrained
+probabilities cannot be mixed within one update.
+
 Recovery checkpoints are trainer state. Only owner-nominated materialization
 creates a new **model variant** artifact for later jobs.
 

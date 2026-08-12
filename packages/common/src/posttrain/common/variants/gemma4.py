@@ -15,9 +15,9 @@ _GEMMA_4_E2B_REVISION = "3e22461f65e89153144f8adb70e3b8c2cc9845a7"
 _GEMMA_4_E4B_REVISION = "ee0ef6023621cff504d758262d4e04895a5af4a2"
 _GEMMA_4_12B_REVISION = "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7"
 _GEMMA_4_31B_REVISION = "842da3794eaa0b77d5f08bae87a17459d91ff475"
-_GEMMA_4_TOKEN_ID_MAPPING_FINGERPRINT = (
-    "059d0f7dd1efb018ec9801f316c99ab31a7c39e712de08626ac90c1898b42416"
-)
+_GEMMA_4_TOKEN_ID_MAPPING_FINGERPRINT = "059d0f7dd1efb018ec9801f316c99ab31a7c39e712de08626ac90c1898b42416"
+_GEMMA_4_E2B_CHAT_TEMPLATE_FINGERPRINT = "0a2c8073c878ab1da004bee933a998606537bbb62016310352c7285c3f01c5b5"
+_GEMMA_4_12B_CHAT_TEMPLATE_FINGERPRINT = "ae53464bf3be25802b3a5b37def7fd89667067d7577049b3b2d74c4d8de4c6d4"
 
 _GEMMA_4_E2B_MTP_ASSISTANT_REPO = "google/gemma-4-E2B-it-assistant"
 _GEMMA_4_E2B_MTP_ASSISTANT_REVISION = "2d874ef7d29f9a30599a1e4b3c1cbc9595f005df"
@@ -63,6 +63,7 @@ def _gemma4_variant(
     assistant_repo: str,
     assistant_revision: str,
     tokenizer_fingerprint: str | None = None,
+    chat_template_fingerprint: str | None = None,
 ) -> ModelVariant:
     artifact = HubModelRef(repo_id=repo_id, revision=revision)
     return ModelVariant(
@@ -81,6 +82,7 @@ def _gemma4_variant(
         renderer=GEMMA4_RENDERER_CONTRACT,
         base=artifact,
         tokenizer_fingerprint=tokenizer_fingerprint,
+        chat_template_fingerprint=chat_template_fingerprint,
         provenance={
             "source": "huggingface",
             "license": "apache-2.0",
@@ -105,6 +107,7 @@ GEMMA_4_E2B_IT = _gemma4_variant(
     assistant_repo=_GEMMA_4_E2B_MTP_ASSISTANT_REPO,
     assistant_revision=_GEMMA_4_E2B_MTP_ASSISTANT_REVISION,
     tokenizer_fingerprint=_GEMMA_4_TOKEN_ID_MAPPING_FINGERPRINT,
+    chat_template_fingerprint=_GEMMA_4_E2B_CHAT_TEMPLATE_FINGERPRINT,
 )
 
 GEMMA_4_E4B_IT = _gemma4_variant(
@@ -119,6 +122,7 @@ GEMMA_4_E4B_IT = _gemma4_variant(
     assistant_repo=_GEMMA_4_E4B_MTP_ASSISTANT_REPO,
     assistant_revision=_GEMMA_4_E4B_MTP_ASSISTANT_REVISION,
     tokenizer_fingerprint=_GEMMA_4_TOKEN_ID_MAPPING_FINGERPRINT,
+    chat_template_fingerprint=_GEMMA_4_E2B_CHAT_TEMPLATE_FINGERPRINT,
 )
 
 GEMMA_4_12B_IT = _gemma4_variant(
@@ -133,6 +137,7 @@ GEMMA_4_12B_IT = _gemma4_variant(
     assistant_repo=_GEMMA_4_12B_MTP_ASSISTANT_REPO,
     assistant_revision=_GEMMA_4_12B_MTP_ASSISTANT_REVISION,
     tokenizer_fingerprint=_GEMMA_4_TOKEN_ID_MAPPING_FINGERPRINT,
+    chat_template_fingerprint=_GEMMA_4_12B_CHAT_TEMPLATE_FINGERPRINT,
 )
 
 GEMMA_4_31B_IT = _gemma4_variant(

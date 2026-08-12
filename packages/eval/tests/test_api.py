@@ -167,6 +167,27 @@ def test_local_verifiers_sampling_places_template_kwargs_under_extra_body() -> N
     assert sampling["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}}
 
 
+def test_local_verifiers_sampling_bounds_managed_vllm_json_whitespace() -> None:
+    evaluation = request()
+    evaluation = replace(
+        evaluation,
+        inference=replace(
+            evaluation.inference,
+            engine={
+                **evaluation.inference.engine,
+                "structured_outputs_whitespace_pattern": r" ?",
+            },
+        ),
+    )
+
+    sampling = _native_sampling(evaluation)
+
+    assert sampling["extra_body"] == {
+        "structured_outputs": {"whitespace_pattern": r" ?"},
+        "chat_template_kwargs": {"enable_thinking": False},
+    }
+
+
 def test_local_evaluation_rejects_missing_environment_inference_capability() -> None:
     evaluation = request()
     environment = replace(

@@ -148,6 +148,7 @@ class ModelVariant:
     revision: str | None = None
     digest: str | None = None
     tokenizer_fingerprint: str | None = None
+    chat_template_fingerprint: str | None = None
     quantization: Mapping[str, JsonValue] = MappingProxyType({})
     parent: str | None = None
     provenance: Mapping[str, JsonValue] = MappingProxyType({})
@@ -173,6 +174,11 @@ class ModelVariant:
             raise ContractError("model variant requires an immutable revision or digest")
         if self.tokenizer_fingerprint is not None and re.fullmatch(r"[0-9a-f]{64}", self.tokenizer_fingerprint) is None:
             raise ContractError("tokenizer fingerprint must be a sha256 digest")
+        if (
+            self.chat_template_fingerprint is not None
+            and re.fullmatch(r"[0-9a-f]{64}", self.chat_template_fingerprint) is None
+        ):
+            raise ContractError("chat template fingerprint must be a sha256 digest")
         if self.form == "foundation" and self.artifact != self.base:
             raise ContractError("foundation variants must use their pinned base artifact")
         if self.form == "weight-quantized" and not self.quantization:
@@ -218,6 +224,7 @@ class ModelArtifactDescriptor:
     capabilities: ModelCapabilities
     base: HubModelRef
     tokenizer_fingerprint: str | None = None
+    chat_template_fingerprint: str | None = None
     quantization: Mapping[str, JsonValue] = MappingProxyType({})
     parent: str | None = None
     source_run_id: str | None = None
@@ -234,6 +241,11 @@ class ModelArtifactDescriptor:
             raise ContractError("model artifact descriptor renderer is incompatible with family")
         if self.tokenizer_fingerprint is not None and re.fullmatch(r"[0-9a-f]{64}", self.tokenizer_fingerprint) is None:
             raise ContractError("model artifact descriptor tokenizer fingerprint must be a sha256 digest")
+        if (
+            self.chat_template_fingerprint is not None
+            and re.fullmatch(r"[0-9a-f]{64}", self.chat_template_fingerprint) is None
+        ):
+            raise ContractError("model artifact descriptor chat template fingerprint must be a sha256 digest")
         if self.checkpoint_step is not None and self.checkpoint_step < 0:
             raise ContractError("model artifact descriptor checkpoint step cannot be negative")
         if self.checkpoint_snapshot_id is not None and not self.checkpoint_snapshot_id.strip():
@@ -262,6 +274,7 @@ class ModelArtifactDescriptor:
             capabilities=model.capabilities,
             base=model.base,
             tokenizer_fingerprint=model.tokenizer_fingerprint,
+            chat_template_fingerprint=model.chat_template_fingerprint,
             quantization=model.quantization,
             parent=model.parent,
             source_run_id=source_run_id,
@@ -296,6 +309,7 @@ class ModelArtifactDescriptor:
             base=self.base,
             revision=reference.version,
             tokenizer_fingerprint=self.tokenizer_fingerprint,
+            chat_template_fingerprint=self.chat_template_fingerprint,
             quantization=self.quantization,
             parent=self.parent,
             provenance={

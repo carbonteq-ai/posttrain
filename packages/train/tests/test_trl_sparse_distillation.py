@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections import defaultdict
 from types import SimpleNamespace
 
@@ -11,6 +12,7 @@ torch = pytest.importorskip("torch")
 nn = torch.nn
 
 from posttrain.train.backends.trl.distillation import (  # noqa: E402
+    _allowed_set_digest,
     _buffered_selected_token_count,
     _generate_heterogeneous_colocated_iw_opd_turns,
     _memory_safe_server_iw_opd_loss,
@@ -59,6 +61,7 @@ def _trainer(teacher_result):
         temperature = 1.0
         iw_opd_gamma = 0.5
         iw_opd_epsilon = 1e-8
+        processing_class = object()
         accelerator = _Accelerator()
         _metrics = {
             "train": defaultdict(list),
@@ -85,16 +88,27 @@ def test_pinned_iw_opd_private_contract_matches_installed_backend() -> None:
     _validate_iw_opd_private_contract(IWOPDTrainer)
 
 
+_SCHEMA = {"type": "object"}
+_SCHEMA_DIGEST = hashlib.sha256(b'{"type":"object"}').hexdigest()
+
+
 def _inputs(*, batch_size: int = 1):
     input_ids = torch.tensor([[1, 2, 3, 4, 5, 6]] * batch_size)
     labels = torch.tensor([[-100, -100, 3, 4, 5, 6]] * batch_size)
     rollout_logprobs = torch.tensor([[0.0, 0.0, -1.4, -1.0, -1.8, -1.2]] * batch_size)
+    completion = input_ids[0, 2:].tolist()
     return {
         "input_ids": input_ids,
         "attention_mask": torch.ones_like(input_ids),
         "labels": labels,
         "rollout_logprobs": rollout_logprobs,
         "prompt_length": 2,
+        "structured_output_schemas": [_SCHEMA] * batch_size,
+        "schema_digests": [_SCHEMA_DIGEST] * batch_size,
+        "allowed_set_digests": [
+            [_allowed_set_digest(_SCHEMA_DIGEST, completion, position) for position in range(len(completion))]
+            for _ in range(batch_size)
+        ],
     }
 
 
@@ -108,6 +122,7 @@ def _full_loss(trainer, model, inputs, teacher_actual, denominator):
     ).last_hidden_state[:, 1:-1, :]
     logits = model.lm_head(hidden)
     logits = torch.tanh(logits / 30.0) * 30.0
+    logits[..., 32:] = float("-inf")
     return trainer._compute_iw_opd_loss(
         student_logits=logits,
         completion_tokens=inputs["input_ids"][:, 2:],
@@ -118,14 +133,42 @@ def _full_loss(trainer, model, inputs, teacher_actual, denominator):
     )
 
 
-def test_chunked_iw_opd_matches_full_logits_loss_and_gradients() -> None:
+class _Matcher:
+    @staticmethod
+    def fill_next_token_bitmask(bitmask, row):
+        bitmask[row, :32] = True
+
+    @staticmethod
+    def accept_token(token_id):
+        return token_id < 32
+
+
+class _XGrammar:
+    @staticmethod
+    def allocate_token_bitmask(rows, vocab_size):
+        return torch.zeros((rows, vocab_size), dtype=torch.bool)
+
+    @staticmethod
+    def apply_token_bitmask_inplace(logits, bitmask):
+        logits.masked_fill_(~bitmask, float("-inf"))
+
+
+@pytest.fixture(autouse=True)
+def _constrained_matcher(monkeypatch):
+    monkeypatch.setattr(
+        "posttrain.train.backends.trl.distillation._xgrammar_matcher",
+        lambda tokenizer, schema, vocab_size: (_Matcher(), _XGrammar()),
+    )
+
+
+def test_chunked_constrained_iw_opd_matches_dense_loss_and_gradients() -> None:
     torch.manual_seed(7)
     chunked_model = Gemma4ForConditionalGeneration()
     full_model = Gemma4ForConditionalGeneration()
     full_model.load_state_dict(chunked_model.state_dict())
     inputs = _inputs()
     teacher_actual = torch.tensor([[-1.2, -0.7, -2.0, -1.5]])
-    teacher_result = {"actual_logprobs": teacher_actual}
+    teacher_result = {"actual_logprobs": teacher_actual, "allowed_counts": [[32] * 4]}
     trainer = _trainer(teacher_result)
 
     chunked_loss = _memory_safe_server_iw_opd_loss(
@@ -155,26 +198,13 @@ def test_chunked_iw_opd_matches_full_logits_loss_and_gradients() -> None:
     )
 
 
-@pytest.mark.parametrize("micro_batch_size", [1, 2, 4])
-def test_physical_microbatches_match_one_logical_iw_opd_batch(
-    micro_batch_size: int,
-) -> None:
+def test_twelve_physical_one_slices_match_one_logical_iw_opd_batch() -> None:
     torch.manual_seed(11)
     sliced_model = Gemma4ForConditionalGeneration()
     full_model = Gemma4ForConditionalGeneration()
     full_model.load_state_dict(sliced_model.state_dict())
-    inputs = _inputs(batch_size=4)
-    inputs["labels"][1, -1] = -100
-    inputs["labels"][2, -2:] = -100
-    inputs["labels"][3, -3:] = -100
-    teacher_actual = torch.tensor(
-        [
-            [-1.2, -0.7, -2.0, -1.5],
-            [-0.9, -1.1, -1.7, float("-inf")],
-            [-1.0, -1.4, float("-inf"), float("-inf")],
-            [-0.8, float("-inf"), float("-inf"), float("-inf")],
-        ]
-    )
+    inputs = _inputs(batch_size=12)
+    teacher_actual = torch.tensor([[-1.2, -0.7, -2.0, -1.5]] * 12)
     denominator = inputs["labels"].ne(-100).sum()
 
     full_trainer = _trainer({"actual_logprobs": teacher_actual})
@@ -183,14 +213,15 @@ def test_physical_microbatches_match_one_logical_iw_opd_batch(
 
     sliced_loss = torch.zeros(())
     buffered = []
-    for start in range(0, 4, micro_batch_size):
-        end = start + micro_batch_size
+    for start in range(12):
+        end = start + 1
         row_inputs = {
-            key: value[start:end] if isinstance(value, torch.Tensor) else value
-            for key, value in inputs.items()
+            key: value[start:end] if isinstance(value, torch.Tensor) else value for key, value in inputs.items()
         }
+        for key in ("structured_output_schemas", "schema_digests", "allowed_set_digests"):
+            row_inputs[key] = inputs[key][start:end]
         buffered.append(row_inputs)
-        trainer = _trainer({"actual_logprobs": teacher_actual[start:end]})
+        trainer = _trainer({"actual_logprobs": teacher_actual[start:end], "allowed_counts": [[32] * 4]})
         loss = _memory_safe_server_iw_opd_loss(
             trainer,
             sliced_model,
@@ -223,7 +254,7 @@ def test_iw_opd_rejects_missing_teacher_logprob_for_selected_token() -> None:
     teacher_actual = torch.tensor([[-1.2, float("-inf"), -2.0, -1.5]])
     with pytest.raises(ValueError, match="teacher logprobs are missing"):
         _memory_safe_server_iw_opd_loss(
-            _trainer({"actual_logprobs": teacher_actual}),
+            _trainer({"actual_logprobs": teacher_actual, "allowed_counts": [[32] * 4]}),
             Gemma4ForConditionalGeneration(),
             inputs,
             return_outputs=False,

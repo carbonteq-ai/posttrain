@@ -60,6 +60,7 @@ class ModelVariantSchema(CatalogSchema):
     revision: str | None = None
     digest: str | None = None
     tokenizer_fingerprint: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    chat_template_fingerprint: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     quantization: dict[str, JsonValue] = Field(default_factory=dict)
     parent: str | None = None
     provenance: dict[str, JsonValue] = Field(default_factory=dict)

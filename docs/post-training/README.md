@@ -22,6 +22,17 @@ future verl adapter must preserve the same job meaning. Details:
 [04 · Framework](./04-framework.md), [05 · APIs](./05-apis.md),
 [06 · Observation](./06-observation-and-lineage.md), and the
 [implementation plan](../plan/verifiers-on-policy-distillation.md).
+**Amendment — model-native constrained IW-OPD (2026-08-12):** exact token-id
+compatibility does not imply identical chat templates or probability spaces.
+When selected settings declare model-native teacher alignment, student and
+teacher render the same semantic messages through their own immutable chat
+templates, the teacher scores the exact student completion ids, and the
+student rollout, teacher, and current student use the same declared constrained
+generation probability space. Template fingerprints and per-position
+constraint evidence are required fail-closed inputs. Details: [02 ·
+Primitives](./02-primitives.md#training-selection), [05 · APIs](./05-apis.md),
+[06 · Observation](./06-observation-and-lineage.md), and the [Policy Prism
+IW-OPD plan](../plan/policy-prism-gemma4-e2b-12b-opd.md).
 **Amendment — environment-only GRPO (2026-07-23):** `train.grpo` binds one
 versioned Verifiers `EnvironmentBinding`, not a dataset or hand-authored task-id
 selection. The environment binding may select task categories and bounded

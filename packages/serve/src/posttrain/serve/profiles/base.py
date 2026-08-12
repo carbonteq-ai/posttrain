@@ -42,6 +42,7 @@ class VllmEngineConfig:
     text_only: bool = False
     skip_mm_profiling: bool = False
     flash_attn_version: int | None = None
+    structured_outputs_whitespace_pattern: str | None = None
     speculative: VllmSpeculativeConfig | None = None
 
     def __post_init__(self) -> None:
@@ -55,6 +56,8 @@ class VllmEngineConfig:
             raise ValueError("max_num_batched_tokens must be positive")
         if self.skip_mm_profiling and not self.text_only:
             raise ValueError("skip_mm_profiling is only safe for an explicit text-only profile")
+        if self.structured_outputs_whitespace_pattern == "":
+            raise ValueError("structured output whitespace pattern cannot be empty")
 
     def as_vllm_kwargs(self) -> dict[str, object]:
         values: dict[str, object] = {

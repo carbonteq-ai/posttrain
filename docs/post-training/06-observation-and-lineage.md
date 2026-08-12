@@ -281,12 +281,17 @@ Includes the common `train/*` step series plus:
 | `train/distill/teacher_failures` | Irreducible scoring failure count |
 | `train/distill/policy_revision` | Config/event field identifying the fresh student weights, not a scalar series |
 | `train/distill/policy_mismatch_kl` | Optional diagnostic only; never retroactive importance correction |
+| `train/distill/probability_space` | Config/event field naming raw or generation-constrained scoring |
+| `train/distill/allowed_set_alignment` | Count/status proving student, teacher, and current-policy constraint alignment |
+| `train/distill/teacher_prompt_alignment` | Config/event field naming exact-sequence or model-native-prefix alignment |
 
 Verifiers rewards remain trace-level environment evidence and evaluation
 signals. They are not converted into the distillation objective. Sampling
 log-probabilities and batch/policy identity are retained as evidence that a
-trajectory came from the current student, even though the first distillation
-loss does not use them as importance weights.
+trajectory came from the current student. An IW-OPD selection uses those fresh
+probabilities in its declared objective; a constrained selection also retains
+schema digests, exact completion identity, and per-position allowed-token
+alignment evidence.
 
 ### Data metrics (`data/*`)
 

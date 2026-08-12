@@ -654,6 +654,16 @@ immutable tokenizer fingerprint covering ordered vocabulary and special-token
 ids. Historical traces and teacher-generated completions are not accepted by
 this operation.
 
+`OnPolicyDistillationSettings` also declares `teacher_prompt_alignment` and
+`probability_space`. `model_native_prefix_exact_completion` requires immutable
+student and teacher chat-template fingerprints, renders identical semantic
+messages independently, and permits only the unchanged student completion ids
+to cross the model boundary. `generation_constrained` requires one canonical
+wire schema per optimized branch and aligned constrained log probabilities for
+student rollout, teacher scoring, and the current student. Missing template,
+schema, completion, or allowed-set evidence is a contract error before an
+optimizer update.
+
 Do not require `training.target == inference.target`. Colocation is a work-package
 choice.
 

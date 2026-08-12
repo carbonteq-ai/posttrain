@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 from collections.abc import Iterator, Mapping, Sequence
@@ -58,6 +59,7 @@ class TrlPolicyGenerator:
             ]
         ] = []
         self._flush_task: asyncio.Task[None] | None = None
+        self._turn_contracts: dict[tuple[str, str], dict[str, Any]] = {}
 
     async def generate(self, request: PolicyTurnRequest) -> PolicyTurnResult:
         expected = (float(self._trainer.temperature), float(self._trainer.top_p))
@@ -84,13 +86,9 @@ class TrlPolicyGenerator:
 
         prompt_tokens = len(rendered.token_ids)
         prompt_limit = request.max_prompt_tokens or self._max_prompt_length
-        sequence_limit = request.max_sequence_tokens or (
-            self._max_prompt_length + self._max_completion_length
-        )
+        sequence_limit = request.max_sequence_tokens or (self._max_prompt_length + self._max_completion_length)
         if prompt_tokens > prompt_limit:
-            raise ValueError(
-                f"rendered policy prompt has {prompt_tokens} tokens; limit is {prompt_limit}"
-            )
+            raise ValueError(f"rendered policy prompt has {prompt_tokens} tokens; limit is {prompt_limit}")
         effective_max_tokens = min(
             request.sampling.max_tokens,
             self._max_completion_length,
@@ -162,6 +160,17 @@ class TrlPolicyGenerator:
             prompt_tokens=prompt_tokens,
             effective_max_tokens=effective_max_tokens,
         )
+        prompt_digest = _token_ids_sha256(rendered.token_ids)
+        completion_digest = _token_ids_sha256(token_ids)
+        structured_outputs = _structured_outputs(request.response_format, model_family=self._model_family)
+        self._turn_contracts[(prompt_digest, completion_digest)] = {
+            "messages": messages,
+            "tools": tools,
+            "response_format": None if request.response_format is None else dict(request.response_format),
+            "structured_outputs": structured_outputs,
+            "student_prompt_ids": [int(value) for value in rendered.token_ids],
+            "completion_ids": [int(value) for value in token_ids],
+        }
         return PolicyTurnResult(
             message=message,
             prompt_ids=tuple(int(value) for value in rendered.token_ids),
@@ -172,6 +181,16 @@ class TrlPolicyGenerator:
             prompt_is_content=tuple(bool(value) for value in rendered.is_content),
             raw_response=raw_response,
         )
+
+    def selected_turn_contract(self, prompt_digest: str, completion_digest: str) -> Mapping[str, Any]:
+        try:
+            return self._turn_contracts[(prompt_digest, completion_digest)]
+        except KeyError as error:
+            raise ValueError("selected OPD turn is absent from the generator contract ledger") from error
+
+    def clear_turn_contracts(self) -> None:
+        """Release selected and rejected attempt prompts after one rollout batch."""
+        self._turn_contracts.clear()
 
     async def _generate_tokens(
         self,
@@ -261,13 +280,9 @@ def _resolve_generation_results(
     logprobs: Sequence[Sequence[float]] | None,
 ) -> None:
     if len(completion_ids) != len(pending):
-        raise RuntimeError(
-            "the policy generator returned a different completion count from the request batch"
-        )
+        raise RuntimeError("the policy generator returned a different completion count from the request batch")
     if logprobs is not None and len(logprobs) != len(pending):
-        raise RuntimeError(
-            "the policy generator returned a different logprob count from the request batch"
-        )
+        raise RuntimeError("the policy generator returned a different logprob count from the request batch")
     for index, item in enumerate(pending):
         future = item[3]
         if not future.cancelled():
@@ -361,9 +376,7 @@ def _structured_outputs(
     schema = contract.get("schema")
     if not isinstance(schema, Mapping):
         raise ValueError("environment JSON Schema response_format has no schema")
-    structured_outputs: dict[str, object] = {
-        "json": _xgrammar_json_schema(dict(schema))
-    }
+    structured_outputs: dict[str, object] = {"json": _xgrammar_json_schema(dict(schema))}
     if model_family == "gemma4":
         # Gemma can otherwise spend its constrained prefix on unrestricted
         # whitespace/control-token sequences without ever entering the JSON
@@ -371,6 +384,13 @@ def _structured_outputs(
         # the earlier live Gemma distillation path.
         structured_outputs["whitespace_pattern"] = _GEMMA_JSON_WHITESPACE_PATTERN
     return structured_outputs
+
+
+def _token_ids_sha256(values: Sequence[int]) -> str:
+    digest = hashlib.sha256()
+    for value in values:
+        digest.update(int(value).to_bytes(4, "big", signed=False))
+    return digest.hexdigest()
 
 
 def _xgrammar_json_schema(value: object) -> object:

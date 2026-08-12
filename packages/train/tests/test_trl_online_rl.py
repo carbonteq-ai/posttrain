@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -176,6 +177,21 @@ def test_trl_policy_generator_reuses_loaded_trainer_and_preserves_exact_tokens(m
             "effective_max_tokens": 2,
         },
     }
+
+    prompt_digest = hashlib.sha256(b"\x00\x00\x00\x01\x00\x00\x00\x02").hexdigest()
+    completion_digest = hashlib.sha256(b"\x00\x00\x00\x03\x00\x00\x00\x04").hexdigest()
+    contract = generator.selected_turn_contract(prompt_digest, completion_digest)
+    assert contract == {
+        "messages": [{"role": "user", "content": "hello"}],
+        "tools": [],
+        "response_format": None,
+        "structured_outputs": None,
+        "student_prompt_ids": [1, 2],
+        "completion_ids": [3, 4],
+    }
+    generator.clear_turn_contracts()
+    with pytest.raises(ValueError, match="absent from the generator contract ledger"):
+        generator.selected_turn_contract(prompt_digest, completion_digest)
 
 
 def test_trl_policy_generator_rejects_environment_sampling_drift(monkeypatch) -> None:

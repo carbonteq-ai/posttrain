@@ -211,6 +211,10 @@ class OnPolicyDistillationSettingsSchema(TrainCatalogSchema):
     num_generations: int = Field(default=1, gt=0)
     max_prompt_length: int = Field(default=256, gt=0)
     max_completion_length: int = Field(default=128, gt=0)
+    teacher_prompt_alignment: Literal["exact_full_sequence", "model_native_prefix_exact_completion"] = (
+        "exact_full_sequence"
+    )
+    probability_space: Literal["raw_full_vocab", "generation_constrained"] = "raw_full_vocab"
 
 
 class SAMPOSettingsSchema(TrainCatalogSchema):

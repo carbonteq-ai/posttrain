@@ -166,6 +166,20 @@ class OnPolicyDistillationRequest:
             raise ValueError("distillation requires immutable student and teacher tokenizer fingerprints")
         if student_fingerprint != teacher_fingerprint:
             raise ValueError("distillation requires identical student and teacher token-id mappings")
+        student_template = self.student.chat_template_fingerprint
+        teacher_template = self.teacher.chat_template_fingerprint
+        if self.settings.teacher_prompt_alignment == "exact_full_sequence":
+            if student_template is not None and teacher_template is not None and student_template != teacher_template:
+                raise ValueError(
+                    "exact-full-sequence distillation requires identical student and teacher chat templates"
+                )
+        elif student_template is None or teacher_template is None:
+            raise ValueError("model-native-prefix distillation requires immutable chat-template fingerprints")
+        if (
+            self.settings.probability_space == "generation_constrained"
+            and self.settings.teacher_prompt_alignment != "model_native_prefix_exact_completion"
+        ):
+            raise ValueError("generation-constrained distillation requires model-native prompt alignment")
         _validate_training(self.student, self.settings.loop, self.training, self.quantization)
         sequence_length = self.settings.max_prompt_length + self.settings.max_completion_length
         _validate_sequence_length(sequence_length, self.training)
