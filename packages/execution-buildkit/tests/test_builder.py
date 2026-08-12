@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import json
 from dataclasses import replace
 from pathlib import Path
@@ -9,9 +10,45 @@ from posttrain.common import ContractError
 from posttrain.execution import RuntimeImageRef
 from posttrain_execution_buildkit import (
     BuildKitRuntimeBuilder,
+    BuildxCli,
     RuntimeBuildRequest,
     digest_runtime_sources,
 )
+
+
+class _Process:
+    def __init__(self, output: str, returncode: int = 0) -> None:
+        self.stdout = io.StringIO(output)
+        self._returncode = returncode
+
+    def wait(self) -> int:
+        return self._returncode
+
+
+def test_buildx_cli_keeps_image_inspection_json_off_the_terminal(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(
+        "posttrain_execution_buildkit.builder.subprocess.Popen",
+        lambda *args, **kwargs: _Process('{"config":{"Labels":{}}}\n'),
+    )
+
+    output = BuildxCli().invoke(("imagetools", "inspect", "registry.lan/example", "--format", "{{json .Image}}"))
+
+    assert output == '{"config":{"Labels":{}}}\n'
+    assert capsys.readouterr().err == ""
+
+
+def test_buildx_cli_streams_bake_progress(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    monkeypatch.setattr(
+        "posttrain_execution_buildkit.builder.subprocess.Popen",
+        lambda *args, **kwargs: _Process("#1 loading build definition\n"),
+    )
+
+    output = BuildxCli().invoke(("bake", "--progress=plain", "posttrain-job"))
+
+    assert output == "#1 loading build definition\n"
+    assert capsys.readouterr().err == "#1 loading build definition\n"
 
 
 class FakeBuildx:
