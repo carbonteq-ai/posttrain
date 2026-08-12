@@ -201,6 +201,7 @@ class BuildKitJobImagePublisher:
                         "--file",
                         str(self._bake_file),
                         *self._entitlement_arguments(request),
+                        *self._local_export_entitlement_arguments(temporary),
                         *self._builder_arguments(),
                         "--progress",
                         "plain",
@@ -436,6 +437,20 @@ class BuildKitJobImagePublisher:
             "--allow",
             f"fs.read={self._definition_root}",
         ]
+
+    @staticmethod
+    def _local_export_entitlement_arguments(temporary: Path) -> list[str]:
+        """Grant Buildx write access only to the local OCI export parent.
+
+        A local export is first written to a unique sibling of its final
+        layout, then atomically renamed into place.  Buildx 0.31 validates
+        filesystem entitlements even when that directory was explicitly
+        selected by the caller, so the export must declare this one write
+        scope.  The final layout itself remains user-owned and is never a
+        broader project or cache grant.
+        """
+
+        return ["--allow", f"fs.write={temporary.parent}"]
 
     def _context_arguments(self, request: JobImagePublicationRequest) -> list[str]:
         context_name = f"job-context-{request.package_key}"

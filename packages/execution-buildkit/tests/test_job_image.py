@@ -191,6 +191,8 @@ def test_publishes_a_verified_local_oci_layout(tmp_path: Path) -> None:
         if isinstance(argument, str) and "output=type=oci,dest=" in argument
     )
     assert local_export.endswith(",tar=false")
+    local_build = next(call for call in gateway.calls if local_export in call)
+    assert f"fs.write={result.layout.parent}" in local_build
     assert not any("push=true" in argument for call in gateway.calls for argument in call)
 
 
