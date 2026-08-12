@@ -1170,6 +1170,8 @@ def test_public_ci_trl_mirror_matches_selected_distribution() -> None:
     assert (
         f"POSTTRAIN_CONSUMER_EXTRA_WHEELS: /tmp/carbonteq_trackio-0.31.5.post13-py3-none-any.whl:/tmp/{filename}"
     ) in workflow
+    assert "--no-install-package trl" in workflow
+    assert 'uv pip install --python .venv/bin/python --no-deps "${CARBONTEQ_TRL_WHEEL_PATH}"' in workflow
 
 
 def test_final_release_restores_candidate_runtime_lock_with_manifest() -> None:
