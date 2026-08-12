@@ -71,10 +71,16 @@ jobs:
           printf '%s\n' "${simple_page}" | grep -F "trl-${version}.tar.gz" | grep -F '../../+f/'
           mkdir -p trl-index
           uv venv .trl-index --clear --python 3.13
-          uv pip download --python .trl-index/bin/python --no-deps --only-binary :all: \
-            --index-url "${INTERNAL_SIMPLE_URL}" --dest trl-index "trl==${version}"
-          uv pip download --python .trl-index/bin/python --no-deps --no-binary :all: \
-            --index-url "${INTERNAL_SIMPLE_URL}" --dest trl-index "trl==${version}"
+          for filename in "trl-${version}-py3-none-any.whl" "trl-${version}.tar.gz"; do
+            href="$(printf '%s\n' "${simple_page}" | grep -F ">${filename}<" | grep -F '../../+f/' | \
+              sed -n 's/.*href="\([^"]*\)".*/\1/p' | head -n 1)"
+            test -n "${href}"
+            href="${href%%#*}"
+            url="$(.trl-index/bin/python -c \
+              'import sys; from urllib.parse import urljoin; print(urljoin(sys.argv[1], sys.argv[2]))' \
+              "${INTERNAL_SIMPLE_URL}trl/" "${href}")"
+            curl --fail --location --retry 3 "${url}" --output "trl-index/${filename}"
+          done
           test "$(sha256sum "trl-index/trl-${version}-py3-none-any.whl" | cut -d ' ' -f 1)" = "${WHEEL_SHA256}"
           test "$(sha256sum "trl-index/trl-${version}.tar.gz" | cut -d ' ' -f 1)" = "${SDIST_SHA256}"
           uv venv .trl-consumer --clear --python 3.13
