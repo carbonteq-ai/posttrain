@@ -19,9 +19,9 @@ This work changes one frozen product meaning narrowly. Existing documentation sa
 - [x] (2026-08-12) Evaluate historical checkpoint 96 on sealed scope and recovery, finalize both runs in Policy Prism, and verify complete native and five-file evidence.
 - [x] (2026-08-12) Diagnose checkpoint 96. Verify the E2B/12B chat-template mismatch, the raw-versus-XGrammar-constrained probability mismatch, the weak historical sampled-token/tail objective, six evaluation whitespace terminations, model-facing raw YAML, constructed-incomplete label leakage, stage-inappropriate invariants, unrepresentative first-96 ordering, and a reproducible 12-worker SQLite cold-start race.
 - [x] (2026-08-12) Reduce future live qualification to one 12-target corrected-training canary and one two-case managed-evaluation canary. Reject further batch, MTP, prefill, cache, LoRA, learning-rate, memory, HF, Trackio, or Claude smoke sweeps.
-- [ ] Amend the canonical OPD baseline for model-native prompt prefixes with exact completion-token alignment and constrained probability-space evidence.
+- [x] (2026-08-12) Amend the canonical OPD baseline for model-native prompt prefixes with exact completion-token alignment and constrained probability-space evidence.
 - [x] (2026-08-12) Implement and push generic constrained teacher scoring in the CarbonTeq TRL fork at `b2dcbd0050f17383f97093d226b227d4b25acd75`; build collision-free `trl==1.9.2.post5` distributions with wheel SHA-256 `57f1b0c605e80bb30a499da0d2016264f109f823856e591c0b0dee79c6df2143`.
-- [x] (2026-08-12) Pin TRL post3 in PostTrain; implement model-template identity, selected semantic-message projection, constrained memory-safe student loss, and managed XGrammar evaluation settings.
+- [x] (2026-08-12) Pin collision-free TRL post5 in PostTrain; implement model-template identity, selected semantic-message projection, constrained memory-safe student loss, and managed XGrammar evaluation settings.
 - [x] (2026-08-12) Correct Policy Prism prompt rendering, hidden-label leakage, stage invariants, checkpoint-prefix ordering, and SQLite initialization; regenerate task-plan hash `b8f3d62d9640c90950e514bf850f4bf28281b81663a581ef4e281080fbbadcee` and add corrected canary/production/evaluation work packages.
 - [ ] Pass all offline, exact-image, credential, catalog, and package gates.
 - [ ] Run and reconcile the one-update corrected-training canary.
@@ -67,7 +67,13 @@ This work changes one frozen product meaning narrowly. Existing documentation sa
   Evidence: actual jobs inherit backend dependencies from the published online-RL job-kind and install framework source with `--no-deps`. Immutable inspection of image `sha256:8e6fc6aaf98ddf9f86b874623e7fe932e8c5cd46f572b7c9ff155646abbb685f` proved the stale version before any GPU submission.
 
 - Observation: `trl==1.9.2.post2` was already assigned to a different CarbonTeq source line.
-  Evidence: remote tag `carbonteq-v1.9.2.post2` resolves to commit `216023d99324fae89dd58629130ba3bb043582ed`, not this experiment's fork. This implementation was therefore renumbered to post3 rather than creating an ambiguous release.
+  Evidence: remote tag `carbonteq-v1.9.2.post2` resolves to commit `216023d99324fae89dd58629130ba3bb043582ed`, not this experiment's fork. The first correction became post3; a later remote post4 collision was also preserved, so the final constrained-replay loader correction is the immutable post5 release.
+
+- Observation: two exact-image canaries correctly failed before optimizer step one and exposed integration seams that offline component tests had not represented.
+  Evidence: `opd2can01-nativeq-e2b12b-c12-r16-v1` failed because Python model variants carried chat-template fingerprints but catalog serialization omitted them. Retry `...-r1` failed because vLLM 0.25.1 loads custom logits processors using `module:Class`, while the fork supplied `module.Class`. Both runs were preserved and reconciled; catalog serialization now has a regression, and TRL post5 uses and tests the exact vLLM loader contract.
+
+- Observation: Verifiers stores the trailing generation-prompt scaffold on the sampled assistant node with a false mask.
+  Evidence: corrected canary `opd2can01-nativeq-e2b12b-c12-r16-v1-r2` reached real heterogeneous rollout generation, then failed closed because Policy hashed the whole assistant node as completion while the generator ledger hashed only sampled completion IDs. Policy and PostTrain now split at the single contiguous sampled-mask boundary: preceding nodes plus the false-mask scaffold are the exact prompt; the true-mask suffix is the exact completion. Focused Policy and PostTrain regressions exercise the real scaffold shape before another image is packed.
 
 ## Decision Log
 
