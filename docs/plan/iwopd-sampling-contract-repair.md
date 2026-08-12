@@ -99,6 +99,13 @@ package reaches the internal index and the resolved job image contains it.
   from post4 to post8 (`@3`) and made the bounded work package select that
   revision.  The read-only work-package plan now resolves the exact post8
   source commit and lock digest before any GPU submission.
+- [x] (2026-08-13) Ran the post8 bounded TRL canary
+  `iwopd-post8-loss-boundary-20260813`. It retained two native traces, 749
+  finite rollout log probabilities, complete teacher scoring, and ordinary
+  IW-OPD advantages/weights, then failed at `on_policy_loss=-inf` during the
+  student update. Released post9 with a generic token-loss overflow boundary
+  that reports the finite source ranges, and published its immutable assets to
+  the internal index through retained-asset workflow `31646648237`.
 - [ ] Repack the bounded TRL and veRL images from the retained generated
   manifest, then run both explicitly scoped GPU canaries and verify their
   retained evidence.
@@ -178,6 +185,11 @@ package reaches the internal index and the resolved job image contains it.
   `trl@1.9.2.post4` after the root lock moved to post8; read-only
   work-package planning exposed the stale binding before it could enter a GPU
   job.
+- Observation: finite sampled behavior-policy and teacher log probabilities do
+  not prove the final student objective is representable in float32.
+  Evidence: post8 retained 749 finite rollout log probabilities in
+  [-7.6603, 0], no teacher failures, mean absolute advantage 0.1650, and
+  weights in [1.00005, 1.5], yet the aggregate student objective was `-inf`.
 
 ## Decision Log
 
@@ -245,6 +257,13 @@ package reaches the internal index and the resolved job image contains it.
   locally.  The runner receives only immutable release identities and hashes
   when private-index publication or registry-backed qualification is required.
   Date/Author: 2026-08-13 / Codex
+- Decision: diagnose non-finite IW-OPD objectives at the token-loss boundary
+  before attempting a model or LoRA policy change.
+  Rationale: retained evidence rules out rollout sampling and teacher-scoring
+  corruption. The new generic check identifies whether an otherwise finite
+  student logprob, teacher value, behavior-policy value, advantage, or weight
+  causes the reduction overflow without silently clipping the objective.
+  Date/Author: 2026-08-13 / Codex
 
 ## Outcomes & Retrospective
 
@@ -263,7 +282,7 @@ keyword arguments in
 include temperature, top-p, top-k, min-p, repetition penalty, and presence
 penalty.
 
-The resolved dependency is now `trl==1.9.2.post8` in `uv.lock`, sourced from
+The resolved dependency is now `trl==1.9.2.post9` in `uv.lock`, sourced from
 the stable internal index with the exact retained wheel and source hashes. Its
 maintained source is `/home/hammad/projects/trl-1.9-upgrade`, branch
 `v1.9.2.post5-release`.

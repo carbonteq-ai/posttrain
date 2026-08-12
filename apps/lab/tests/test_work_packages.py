@@ -100,8 +100,8 @@ def test_distillation_yaml_resolves_every_seat_through_the_catalog() -> None:
         "kind": "lora",
     }
     assert training["resolved"]["backend_options"] == {  # type: ignore[index]
-        "dependency_lock": "trl-fork@1.9.2.post8",
-        "source_revision": "9a219ce5a593d85fe6058025de211ce42267e6b6",
+        "dependency_lock": "trl-fork@1.9.2.post9",
+        "source_revision": "aa82dea49be38838571c388bd7bb530c26c65319",
         "dependency_lock_sha256": hashlib.sha256((WORKSPACE / "uv.lock").read_bytes()).hexdigest(),
         "bf16": False,
         "model_dtype": "float32",
