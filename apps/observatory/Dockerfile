@@ -17,6 +17,8 @@ COPY --from=frontend /usr/local/lib/node_modules/ /usr/local/lib/node_modules/
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
+    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
     UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy
 
@@ -26,6 +28,15 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/* && \
     ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && \
     ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
+
+# Private package indexes may use a machine-owned CA. Deployment tooling
+# supplies it as a BuildKit secret, so the host path never enters the build
+# context or image metadata. Append it to the public system roots rather than
+# replacing them or weakening TLS verification.
+RUN --mount=type=secret,id=posttrain_ca_bundle,required=false \
+    if [ -f /run/secrets/posttrain_ca_bundle ]; then \
+      cat /run/secrets/posttrain_ca_bundle >> /etc/ssl/certs/ca-certificates.crt; \
+    fi
 COPY pyproject.toml uv.lock README.md ./
 COPY apps/ ./apps/
 COPY packages/ ./packages/
