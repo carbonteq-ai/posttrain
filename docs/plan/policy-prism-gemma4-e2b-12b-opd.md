@@ -20,9 +20,9 @@ This work changes one frozen product meaning narrowly. Existing documentation sa
 - [x] (2026-08-12) Diagnose checkpoint 96. Verify the E2B/12B chat-template mismatch, the raw-versus-XGrammar-constrained probability mismatch, the weak historical sampled-token/tail objective, six evaluation whitespace terminations, model-facing raw YAML, constructed-incomplete label leakage, stage-inappropriate invariants, unrepresentative first-96 ordering, and a reproducible 12-worker SQLite cold-start race.
 - [x] (2026-08-12) Reduce future live qualification to one 12-target corrected-training canary and one two-case managed-evaluation canary. Reject further batch, MTP, prefill, cache, LoRA, learning-rate, memory, HF, Trackio, or Claude smoke sweeps.
 - [ ] Amend the canonical OPD baseline for model-native prompt prefixes with exact completion-token alignment and constrained probability-space evidence.
-- [ ] Implement and publish the generic constrained teacher-scoring changes in the CarbonTeq TRL fork, including its fork ledger and regression tests.
-- [ ] Pin the immutable TRL release in PostTrain and implement model-template identity, selected semantic-message projection, constrained memory-safe student loss, and managed XGrammar evaluation settings.
-- [ ] Correct Policy Prism prompt rendering, hidden-label leakage, stage invariants, semantic prompt coverage, checkpoint-prefix ordering, and SQLite initialization; regenerate and pin immutable plan hashes.
+- [x] (2026-08-12) Implement and push generic constrained teacher scoring in the CarbonTeq TRL fork at `303998a5738fe4fb4e9bb6087c17a9462fed6384`; build collision-free `trl==1.9.2.post3` distributions with wheel SHA-256 `7df9057d03aeeab4bdd00a8fad69b2939a864e5c8a684515359e06b01069c501`.
+- [x] (2026-08-12) Pin TRL post3 in PostTrain; implement model-template identity, selected semantic-message projection, constrained memory-safe student loss, and managed XGrammar evaluation settings.
+- [x] (2026-08-12) Correct Policy Prism prompt rendering, hidden-label leakage, stage invariants, checkpoint-prefix ordering, and SQLite initialization; regenerate task-plan hash `b8f3d62d9640c90950e514bf850f4bf28281b81663a581ef4e281080fbbadcee` and add corrected canary/production/evaluation work packages.
 - [ ] Pass all offline, exact-image, credential, catalog, and package gates.
 - [ ] Run and reconcile the one-update corrected-training canary.
 - [ ] Run and reconcile the two-case managed-evaluation serving canary against the canary adapter.
@@ -63,6 +63,12 @@ This work changes one frozen product meaning narrowly. Existing documentation sa
 - Observation: the existing production work package is stale.
   Evidence: `.posttrain/work_packages/gemma4_e2b_scope_opd_from_12b.yaml` still resolves 384 optimizer steps, logical batch one, accumulation one, environment concurrency one, resident sequence one, and the historical sparse loss.
 
+- Observation: the first packed corrected image still contained `trl==1.9.2.post1`.
+  Evidence: actual jobs inherit backend dependencies from the published online-RL job-kind and install framework source with `--no-deps`. Immutable inspection of image `sha256:8e6fc6aaf98ddf9f86b874623e7fe932e8c5cd46f572b7c9ff155646abbb685f` proved the stale version before any GPU submission.
+
+- Observation: `trl==1.9.2.post2` was already assigned to a different CarbonTeq source line.
+  Evidence: remote tag `carbonteq-v1.9.2.post2` resolves to commit `216023d99324fae89dd58629130ba3bb043582ed`, not this experiment's fork. This implementation was therefore renumbered to post3 rather than creating an ambiguous release.
+
 ## Decision Log
 
 - Decision: amend the canonical baseline before changing cross-template teacher scoring.
@@ -99,6 +105,10 @@ This work changes one frozen product meaning narrowly. Existing documentation sa
 
 - Decision: work only on the existing PostTrain and Policy Prism OPD feature branches and one new TRL fork branch.
   Rationale: the PostTrain feature branch already contains the qualified release merge and Policy-specific deltas. Merging a newer `main` now would invalidate qualification and introduce conflicts unrelated to this experiment.
+  Date/Author: 2026-08-12 / Codex.
+
+- Decision: use a private, hash-labelled OCI overlay for the corrected TRL runtime closure.
+  Rationale: the internal devpi index is readable but this workstation has no upload credential; an attempted upload correctly returned HTTP 401. The overlay derives from the immutable published online-RL parent, replaces only TRL with the locally built post3 wheel using `--no-deps`, asserts its imported version during build, and records source and wheel hashes in OCI labels. Digest `sha256:a17ca5ba547fcb6af64887f71fdb4c1de19401535aa597661b61adee08a14a4b` remains private under `registry.lan/carbonteq`. The exact actual-job image must still pass immutable import and behavioral gates before use.
   Date/Author: 2026-08-12 / Codex.
 
 ## Outcomes & Retrospective

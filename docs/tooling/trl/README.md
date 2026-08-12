@@ -11,8 +11,8 @@ rewards, and Verifiers environment implementations remain independently owned.
 
 The production framework installs the immutable internal release
 `trl==1.9.2.post1`. The Policy Prism constrained-IWOPD feature branch instead
-pins the pushed candidate `trl==1.9.2.post2` directly at
-`carbonteq-ai/trl@8c8ac0face570dc09a5865e9cdc26a391347388a` until its independent
+pins the pushed candidate `trl==1.9.2.post3` directly at
+`carbonteq-ai/trl@303998a5738fe4fb4e9bb6087c17a9462fed6384` until its independent
 internal-index promotion is complete. The fork is based on upstream TRL 1.9.2 and
 keeps the trainer runtime compatible with `datasets 4.6.1` so Verifiers v1 and
 TRL can share one environment. Project-specific job policy and environments
@@ -38,7 +38,7 @@ request list to the configured
 resident sequence cap; engine caps alone do not prevent vLLM from queueing a
 large logical batch in one call.
 
-The post2 candidate additionally renders the same semantic messages through
+The post3 candidate additionally renders the same semantic messages through
 the teacher's native template while replaying the exact student completion
 ids. Its replay processor computes XGrammar-constrained student/teacher token
 log probabilities before forcing each exact token; Posttrain recomputes the

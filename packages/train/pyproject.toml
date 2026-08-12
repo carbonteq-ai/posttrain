@@ -20,7 +20,7 @@ trl = [
     "torch>=2.11,<2.12",
     "torchvision>=0.26,<0.27",
     "transformers>=5.14,<5.15",
-    "trl==1.9.2.post2",
+    "trl==1.9.2.post3",
     "peft>=0.19,<0.20",
     "datasets>=4.6.1,<4.7",
     "accelerate>=1.14,<1.15",
@@ -47,7 +47,14 @@ posttrain-common = { workspace = true }
 posttrain-data = { workspace = true }
 torch = { index = "pytorch-cu130" }
 torchvision = { index = "pytorch-cu130" }
-trl = { git = "https://github.com/carbonteq-ai/trl.git", rev = "8c8ac0face570dc09a5865e9cdc26a391347388a" }
+trl = { git = "https://github.com/carbonteq-ai/trl.git", rev = "303998a5738fe4fb4e9bb6087c17a9462fed6384" }
+
+[tool.posttrain.trl]
+version = "1.9.2.post3"
+release-tag = "carbonteq-v1.9.2.post3"
+source-revision = "303998a5738fe4fb4e9bb6087c17a9462fed6384"
+wheel-sha256 = "7df9057d03aeeab4bdd00a8fad69b2939a864e5c8a684515359e06b01069c501"
+sdist-sha256 = "69c103377138287256ecd801a4394c8f0cbc4c1f19bdb33626db1e2464d22d4a"
 
 [build-system]
 requires = ["hatchling"]
