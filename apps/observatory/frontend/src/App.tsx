@@ -29,7 +29,6 @@ import {
 
 import { FilterPopover } from './components/FilterPopover';
 import { PhaseMemoryTimeline } from './components/PhaseMemoryTimeline';
-import { Transcript } from './components/TranscriptMessage';
 import { ServingBenchmarkOverview } from './features/serving/ServingBenchmarkOverview';
 import { ServingCapacityWorkPackageView } from './features/serving/ServingCapacityWorkPackage';
 
@@ -52,6 +51,8 @@ import {
   type WorkPackageView,
 } from './lib/api';
 import { tracePresentation, traceSignalColumns, traceSurfaceMode, type TracePresentation } from './lib/trace-presentation';
+
+const Transcript = lazy(async () => ({ default: (await import('./components/TranscriptMessage')).Transcript }));
 
 const EvidenceChart = lazy(() =>
   import('./components/EvidenceChart').then((module) => ({ default: module.EvidenceChart })),
@@ -2145,7 +2146,7 @@ function TraceInspector({
     </section>}
     <div className="max-h-[600px] overflow-auto p-4">
       <h3 className="type-label">Rollout transcript</h3>
-      <Transcript messages={detail.transcript} />
+      <Suspense fallback={<p className="mt-3 text-xs text-muted">Formatting transcript…</p>}><Transcript messages={detail.transcript} /></Suspense>
       <details className="mt-5 border-t border-divider pt-3"><summary className="cursor-pointer text-[10px] font-medium uppercase tracking-[.1em] text-muted">Trace metadata</summary><pre className="mt-2 overflow-auto rounded-[4px] bg-subtle p-3 text-[11px] leading-4">{JSON.stringify(detail.attributes, null, 2)}</pre></details>
     </div>
   </aside>;
