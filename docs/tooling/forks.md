@@ -47,6 +47,21 @@ research evidence only.
 
 ## Change workflow
 
+### Publication boundary
+
+Maintained forks are released manually from the fork checkout.  The maintainer
+builds and validates the distributions locally, creates an immutable GitHub
+release whose assets and SHA-256 values are retained, then records the exact
+tag and commit in both fork records.  A fork does **not** receive a release
+runner, private-index credentials, or a fork-controlled publication workflow.
+
+When Posttrain needs the released fork on the internal index, a maintainer
+manually dispatches the repository-owned retained-asset publisher from
+Posttrain.  That narrow workflow downloads the already-released assets by
+immutable tag, verifies the supplied hashes, publishes those same bytes, and
+performs a clean install/readback.  It never builds fork source and never
+executes fork workflow code.
+
 For a fork-backed implementation, make changes in this order:
 
 1. Resolve and record the upstream base commit and current remotes.

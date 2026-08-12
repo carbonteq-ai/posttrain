@@ -92,6 +92,13 @@ package reaches the internal index and the resolved job image contains it.
   `trl==1.9.2.post8` (fork tag `carbonteq-v1.9.2.post8`, commit
   `9a219ce5a593d85fe6058025de211ce42267e6b6`) and published exact release
   bytes through successful Posttrain retained-asset workflow `31644269156`.
+- [x] (2026-08-13) Published runtime candidate `31644500455` as
+  `0.3.16rc3` and materialized its generated parent manifest.  The selected
+  TRL runtime kind now contains the immutable post8 dependency lock.
+- [x] (2026-08-13) Corrected Lab's project-local TRL qualification binding
+  from post4 to post8 (`@3`) and made the bounded work package select that
+  revision.  The read-only work-package plan now resolves the exact post8
+  source commit and lock digest before any GPU submission.
 - [ ] Repack the bounded TRL and veRL images from the retained generated
   manifest, then run both explicitly scoped GPU canaries and verify their
   retained evidence.
@@ -166,6 +173,11 @@ package reaches the internal index and the resolved job image contains it.
   Evidence: the failed remote worker raised `split_with_sizes ... input tensor's
   size at dim 1 ... got [4, 4]`; the CPU regression now exercises the repaired
   position-id path and 39 focused upstream tests pass.
+- Observation: a framework-level pin does not supersede a project overlay.
+  Evidence: the Lab `iwopd-sampling-qualification.yaml` still selected
+  `trl@1.9.2.post4` after the root lock moved to post8; read-only
+  work-package planning exposed the stale binding before it could enter a GPU
+  job.
 
 ## Decision Log
 
@@ -226,6 +238,12 @@ package reaches the internal index and the resolved job image contains it.
   while keeping the private-index capability outside the fork. The runtime
   kind may move to the new source revision only after the release receipt and
   stable-index install succeed.
+  Date/Author: 2026-08-13 / Codex
+- Decision: treat the protected Posttrain runner as a private-publication and
+  registry-qualification boundary, not as a generic build farm.
+  Rationale: maintainers build, test, hash, tag, and release fork artifacts
+  locally.  The runner receives only immutable release identities and hashes
+  when private-index publication or registry-backed qualification is required.
   Date/Author: 2026-08-13 / Codex
 
 ## Outcomes & Retrospective
