@@ -55,9 +55,16 @@ package reaches the internal index and the resolved job image contains it.
 - [x] (2026-08-13) Added a 24 GiB capacity-bounded canary selection with an
   explicit teacher vLLM fraction of `0.35`, and a snapshot that names TRL
   post4. The resulting retry reached real remote trainer construction.
-- [ ] Publish a new dependency-bearing TRL runtime-kind image, repack the
-  bounded TRL and veRL images from its generated manifest, then run both
-  explicitly scoped GPU canaries and verify their retained evidence.
+- [x] (2026-08-13) Published and retained runtime-image candidate
+  `31638943255` as `0.3.16rc2`. Its generated manifest pins the rebuilt TRL
+  kind `sha256:ea123930217d85620a50441027f9b4ca59135445d7b04ef48ab0e964ca016b27`
+  and veRL kind
+  `sha256:458e789ded3bc50a04f78b7182a7717608e2000b9c73f728344a94424185988c`,
+  both from the post4 runtime lock
+  `aa430e9e0d56790a7351ba4e1f7fcbc27b02c264b26eef096d2721e6d89730bd`.
+- [ ] Repack the bounded TRL and veRL images from the retained generated
+  manifest, then run both explicitly scoped GPU canaries and verify their
+  retained evidence.
 
 ## Surprises & Discoveries
 
@@ -97,6 +104,17 @@ package reaches the internal index and the resolved job image contains it.
   Its parent `online-rl-trl-py312` kind was built from a profile pinned to
   `trl==1.9.2.post2`; the job layer installs first-party sources with
   `--no-deps`.
+- Observation: the private OCI registry can exhaust its filesystem through
+  superseded runtime manifests and failed resumable uploads even when source
+  validation and image builds are valid.
+  Evidence: candidates `31637453779` and `31638128689` failed while publishing
+  the veRL kind, ultimately reporting `/var/lib/registry ... no space left on
+  device`. The second failure left 4.1 GiB in two incomplete veRL upload
+  sessions. After removing only those incomplete sessions, deleting 118 exact
+  superseded runtime manifests with zero overlap against the seven published
+  manifests, and running Registry v3 native garbage collection, the host rose
+  from 0 to 81 GiB free. Candidate `31638943255` then built, read back, and
+  retained every runtime image successfully.
 
 ## Decision Log
 
@@ -128,6 +146,13 @@ package reaches the internal index and the resolved job image contains it.
   TRL distribution in the parent kind. The candidate workflow materializes
   the exact internal wheel receipt, reads OCI digests back from the registry,
   and emits the matching image manifest.
+  Date/Author: 2026-08-13 / Codex
+- Decision: recover OCI capacity by exact manifest retention analysis plus
+  native Registry v3 collection, not by broad repository or blob deletion.
+  Rationale: runtime parents are shared dependencies and actual job images are
+  evidence-bearing. The recovery retained every manifest named by the current
+  generated manifest and excluded all actual-job repositories; the delete
+  plan and receipts are stored under the machine-local operations record.
   Date/Author: 2026-08-13 / Codex
 
 ## Outcomes & Retrospective
@@ -265,3 +290,8 @@ GPU canaries.
 Revision 2026-08-13: publication, lock resolution, and local contracts passed.
 The remaining gate is sequential remote qualification of the TRL IW-OPD and
 veRL sampling-contract canaries from materialized immutable job images.
+
+Revision 2026-08-13: the generated runtime manifest is now materialized from
+successful candidate `31638943255` after a retention-safe private-registry
+recovery. The remaining work is packaging and executing the two intended
+remote canaries against those digests.
