@@ -4,7 +4,15 @@ All notable changes to Posttrain are documented here. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with a coordinated
 version across first-party distributions.
 
-## 0.3.13 - Unreleased
+## 0.3.14 - Unreleased
+
+### Fixed
+
+- Buildx now streams long-running Bake progress but keeps short image-metadata
+  queries quiet. Packing or submitting a job no longer prints the complete OCI
+  configuration while it verifies a digest-pinned runtime image.
+
+## 0.3.13 - 2026-08-12
 
 ### Fixed
 

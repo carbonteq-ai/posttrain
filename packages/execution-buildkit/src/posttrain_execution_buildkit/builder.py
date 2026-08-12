@@ -88,8 +88,12 @@ class BuildxCli:
         self._executable = executable
 
     def invoke(self, arguments: Sequence[str]) -> str:
-        # Stream progress live (bake --progress=plain) while retaining a full
-        # transcript for failure diagnosis. Capturing alone hid multi-hour hangs.
+        # A build can take minutes or hours, so stream Bake progress live while
+        # retaining its transcript for failure diagnosis.  Metadata operations
+        # such as ``imagetools inspect`` are short, machine-readable queries;
+        # echoing their JSON makes ``posttrain job run`` print an entire OCI
+        # configuration before it can submit a job.
+        stream_progress = bool(arguments) and arguments[0] == "bake"
         process = subprocess.Popen(
             [self._executable, "buildx", *arguments],
             text=True,
@@ -101,8 +105,9 @@ class BuildxCli:
         assert process.stdout is not None
         for line in process.stdout:
             chunks.append(line)
-            sys.stderr.write(line)
-            sys.stderr.flush()
+            if stream_progress:
+                sys.stderr.write(line)
+                sys.stderr.flush()
         returncode = process.wait()
         output = "".join(chunks)
         if returncode != 0:
