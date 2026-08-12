@@ -8,6 +8,24 @@ from posttrain.data import DatasetLoadPlan, SupervisedDataset, resolve_dataset_s
 from posttrain.train import SFTRequest, SFTSettings, TrainingBinding
 
 
+def test_gemma4_opd_variants_preserve_immutable_template_fingerprints() -> None:
+    catalog = open_catalog(scope="empty-project")
+
+    student = catalog.resolve(CatalogRef("model", "models/gemma4-e2b-it@bf16")).value
+    teacher = catalog.resolve(CatalogRef("model", "models/gemma4-12b-it@bf16")).value
+
+    assert isinstance(student, ModelVariant)
+    assert isinstance(teacher, ModelVariant)
+    assert student.tokenizer_fingerprint == teacher.tokenizer_fingerprint
+    assert student.chat_template_fingerprint == (
+        "0a2c8073c878ab1da004bee933a998606537bbb62016310352c7285c3f01c5b5"
+    )
+    assert teacher.chat_template_fingerprint == (
+        "ae53464bf3be25802b3a5b37def7fd89667067d7577049b3b2d74c4d8de4c6d4"
+    )
+    assert student.chat_template_fingerprint != teacher.chat_template_fingerprint
+
+
 def test_global_dataset_builds_public_sft_request_without_project_code(tmp_path: Path) -> None:
     catalog = open_catalog(scope="empty-project")
 
