@@ -1,0 +1,70 @@
+# Capacity-bounded TRL IW-OPD canary selections.  The single-GPU teacher
+# server, student rollout engine, and optimizer share a 24 GiB device.
+training:
+  training/qwen3.5-0.8b-trl-distill-lora@2:
+    selection_type: training-binding
+    revision: "2"
+    backend: trl@1.9.2.post4
+    renderer:
+      id: qwen3.5-off-v1
+      model_family: qwen3.5
+      implementation: qwen3.5
+      reasoning_mode: "off"
+    update:
+      kind: lora
+      rank: 8
+      alpha: 16
+      target_modules: all-linear
+    target: targets/carbonteq-cuda-24gb-plus
+    parallelism:
+      sequence_length_divisor: 2
+    runtime:
+      global_batch_size: 2
+    backend_options:
+      dependency_lock: trl-fork@1.9.2.post4
+      source_revision: 61064605db84f84898692c2b3eefe1eb2b90a952
+      dependency_lock_sha256: 502ec3ef592ca00106f9ee243df51ce68e99364da0a20768795e936095709d80
+
+inference:
+  inference/qwen3.5-0.8b-vllm-distill-rollout@3:
+    revision: "3"
+    model: models/qwen3.5-0.8b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools@1
+    engine:
+      mode: colocate
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.2
+      tensor_parallel_size: 1
+      max_model_len: 640
+      text_only: true
+      skip_mm_profiling: true
+      kv_cache_memory_bytes: 67108864
+      weight_sync_mode: lora
+      weight_name_prefix: language_model.
+      enforce_eager: true
+    sampling:
+      max_tokens: 384
+      temperature: 1.0
+      top_p: 1.0
+    target: targets/carbonteq-cuda-24gb-plus
+    purpose: [rollout]
+
+  inference/qwen3.5-2b-vllm-teacher-score@2:
+    revision: "2"
+    model: models/qwen3.5-2b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools@1
+    engine:
+      base_url: http://127.0.0.1:8000
+      # 0.15 reserves less than the 2B BF16 weights on a 24 GiB card, leaving
+      # vLLM no KV blocks.  This bounded 24 GiB profile leaves capacity for
+      # the colocated 0.8B student and its rollout engine.
+      gpu_memory_utilization: 0.35
+      max_model_len: 640
+      tensor_parallel_size: 1
+      enforce_eager: true
+    sampling:
+      temperature: 1.0
+    target: targets/carbonteq-cuda-24gb-plus
+    purpose: [teacher-score]

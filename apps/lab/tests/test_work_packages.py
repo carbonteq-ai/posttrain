@@ -100,8 +100,8 @@ def test_distillation_yaml_resolves_every_seat_through_the_catalog() -> None:
         "kind": "lora",
     }
     assert training["resolved"]["backend_options"] == {  # type: ignore[index]
-        "dependency_lock": "trl-fork@current",
-        "source_revision": "216023d99324fae89dd58629130ba3bb043582ed",
+        "dependency_lock": "trl-fork@1.9.2.post4",
+        "source_revision": "61064605db84f84898692c2b3eefe1eb2b90a952",
         "dependency_lock_sha256": hashlib.sha256((WORKSPACE / "uv.lock").read_bytes()).hexdigest(),
     }
     execution_targets = resolved.snapshot["execution_targets"]
@@ -110,17 +110,22 @@ def test_distillation_yaml_resolves_every_seat_through_the_catalog() -> None:
     assert isinstance(raw_targets, list)
     assert all(isinstance(target, dict) for target in raw_targets)
     targets = cast(list[dict[str, object]], raw_targets)
-    assert {cast(str, target["selection_id"]) for target in targets} == {
-        "targets/local-cuda-8gb",
-        "targets/local-cuda-rollout-8gb",
-        "targets/local-cuda-teacher-8gb",
-    }
+    assert {cast(str, target["selection_id"]) for target in targets} == {"targets/carbonteq-cuda-24gb-plus"}
     assert {role for target in targets for role in cast(list[str], target["roles"])} == {
         "rollout_inference",
         "teacher_inference",
         "training",
     }
-    assert all(target["memory_gb"] == 8 for target in targets)
+    assert all(target["memory_gb"] == 24 for target in targets)
+    teacher_inference = resolved.snapshot["teacher_inference"]
+    assert isinstance(teacher_inference, dict)
+    assert teacher_inference["resolved"]["engine"] == {  # type: ignore[index]
+        "base_url": "http://127.0.0.1:8000",
+        "gpu_memory_utilization": 0.35,
+        "max_model_len": 640,
+        "tensor_parallel_size": 1,
+        "enforce_eager": True,
+    }
     assert set(resolved.snapshot) == {
         "catalog",
         "execution_targets",
