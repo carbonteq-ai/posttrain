@@ -49,6 +49,7 @@ environment:
           label: Domain
   gsm8k-distill-train:
     category: math-reasoning
+    qualification: deferred
     source:
       package: gsm8k-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
@@ -87,6 +88,7 @@ environment:
       pass_rate_metric: reward
   math-gsm8k:
     category: math-reasoning
+    qualification: deferred
     source:
       package: gsm8k-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments

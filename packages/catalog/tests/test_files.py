@@ -30,6 +30,10 @@ def test_empty_overlay_is_valid_and_composes_with_packaged_base(tmp_path: Path) 
     environment = catalog.resolve(CatalogRef("environment", "math-gsm8k")).value
     assert isinstance(environment, EnvironmentBinding)
     assert environment.activation.kind == "verifiers-config"
+    assert environment.qualification == "deferred"
+    distillation_environment = catalog.resolve(CatalogRef("environment", "gsm8k-distill-train")).value
+    assert isinstance(distillation_environment, EnvironmentBinding)
+    assert distillation_environment.qualification == "deferred"
 
 
 def test_catalog_manifest_still_rejects_duplicate_files(tmp_path: Path) -> None:
