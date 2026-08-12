@@ -81,10 +81,16 @@ jobs:
           printf '%s\n' "${simple_page}" | grep -F ">${WHEEL_FILENAME}<" | grep -F '../../+f/'
           printf '%s\n' "${simple_page}" | grep -F ">${SDIST_FILENAME}<" | grep -F '../../+f/'
           uv venv .candidate-reader --clear --python 3.13
-          uv pip download --python .candidate-reader/bin/python --no-deps --only-binary :all: \
-            --index-url "${DEVELOPMENT_SIMPLE_URL}" --dest candidate-dist "${PACKAGE}==${VERSION}"
-          uv pip download --python .candidate-reader/bin/python --no-deps --no-binary :all: \
-            --index-url "${DEVELOPMENT_SIMPLE_URL}" --dest candidate-dist "${PACKAGE}==${VERSION}"
+          for filename in "${WHEEL_FILENAME}" "${SDIST_FILENAME}"; do
+            href="$(printf '%s\n' "${simple_page}" | grep -F ">${filename}<" | grep -F '../../+f/' | \
+              sed -n 's/.*href="\([^"]*\)".*/\1/p' | head -n 1)"
+            test -n "${href}"
+            href="${href%%#*}"
+            url="$(.candidate-reader/bin/python -c \
+              'import sys; from urllib.parse import urljoin; print(urljoin(sys.argv[1], sys.argv[2]))' \
+              "${DEVELOPMENT_SIMPLE_URL}${PACKAGE}/" "${href}")"
+            curl --fail --location --retry 3 "${url}" --output "candidate-dist/${filename}"
+          done
           test "$(sha256sum "candidate-dist/${WHEEL_FILENAME}" | cut -d ' ' -f 1)" = "${WHEEL_SHA256}"
           test "$(sha256sum "candidate-dist/${SDIST_FILENAME}" | cut -d ' ' -f 1)" = "${SDIST_SHA256}"
           sha256sum "candidate-dist/${WHEEL_FILENAME}" "candidate-dist/${SDIST_FILENAME}" > promotion-SHA256SUMS
@@ -119,11 +125,20 @@ jobs:
           SDIST_SHA256: ${{ inputs.sdist_sha256 }}
         run: |
           mkdir -p stable-dist
+          simple_page="$(curl --fail --location --retry 3 "${STABLE_SIMPLE_URL}${PACKAGE}/")"
+          printf '%s\n' "${simple_page}" | grep -F ">${WHEEL_FILENAME}<" | grep -F '../../+f/'
+          printf '%s\n' "${simple_page}" | grep -F ">${SDIST_FILENAME}<" | grep -F '../../+f/'
           uv venv .stable-reader --clear --python 3.13
-          uv pip download --python .stable-reader/bin/python --no-deps --only-binary :all: \
-            --index-url "${STABLE_SIMPLE_URL}" --dest stable-dist "${PACKAGE}==${VERSION}"
-          uv pip download --python .stable-reader/bin/python --no-deps --no-binary :all: \
-            --index-url "${STABLE_SIMPLE_URL}" --dest stable-dist "${PACKAGE}==${VERSION}"
+          for filename in "${WHEEL_FILENAME}" "${SDIST_FILENAME}"; do
+            href="$(printf '%s\n' "${simple_page}" | grep -F ">${filename}<" | grep -F '../../+f/' | \
+              sed -n 's/.*href="\([^"]*\)".*/\1/p' | head -n 1)"
+            test -n "${href}"
+            href="${href%%#*}"
+            url="$(.stable-reader/bin/python -c \
+              'import sys; from urllib.parse import urljoin; print(urljoin(sys.argv[1], sys.argv[2]))' \
+              "${STABLE_SIMPLE_URL}${PACKAGE}/" "${href}")"
+            curl --fail --location --retry 3 "${url}" --output "stable-dist/${filename}"
+          done
           test "$(sha256sum "stable-dist/${WHEEL_FILENAME}" | cut -d ' ' -f 1)" = "${WHEEL_SHA256}"
           test "$(sha256sum "stable-dist/${SDIST_FILENAME}" | cut -d ' ' -f 1)" = "${SDIST_SHA256}"
           uv pip install --python .stable-reader/bin/python --index-url "${STABLE_SIMPLE_URL}" "${PACKAGE}==${VERSION}"

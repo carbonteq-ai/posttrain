@@ -836,6 +836,8 @@ def test_retained_fork_candidates_use_development_before_server_side_promotion()
         assert "https://pypi.lan/carbonteq/stable/" not in workflow
         assert "Publish exact bytes to the development index" in workflow
         assert "../../+f/" in workflow
+        assert "from urllib.parse import urljoin" in workflow
+        assert "uv pip download" not in workflow
         assert package in workflow
 
     promotion = (root / ".github/workflows/promote-retained-fork-candidate.yml").read_text(encoding="utf-8")
@@ -845,6 +847,8 @@ def test_retained_fork_candidates_use_development_before_server_side_promotion()
     assert "carbonteq-ai/trackio" in promotion
     assert '"${DEVPI_CLIENT}" push -y "${PACKAGE}==${VERSION}" carbonteq/stable' in promotion
     assert "Verify stable readback is byte-identical" in promotion
+    assert promotion.count("from urllib.parse import urljoin") == 2
+    assert "uv pip download" not in promotion
     assert "uv publish" not in promotion
 
     runtime_candidate = (root / ".github/workflows/manual-runtime-image-candidate.yml").read_text(encoding="utf-8")
