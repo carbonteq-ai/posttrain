@@ -380,6 +380,15 @@ export type RunComparison = {
 
 export type RunComparisonKey = { job_kind: string | null; comparison_key: string | null };
 
+export type DistillationPairing = {
+  studentModel: string;
+  teacherModel: string;
+  scoredTokens: number | null;
+  teacherLatencyMs: number | null;
+  teacherFailures: number | null;
+  batchIds: string[];
+};
+
 export type RunView = {
   requested_mode: 'auto' | 'job' | 'generic';
   resolved_mode: 'job' | 'generic';

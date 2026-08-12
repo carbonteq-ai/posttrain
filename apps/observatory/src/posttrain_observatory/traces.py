@@ -278,11 +278,18 @@ def _wire_text_stats(payload: Mapping[str, JsonValue]) -> tuple[int | None, int,
 
 
 def _wire_model_calls(payload: Mapping[str, JsonValue]) -> int | None:
+    projected = _integer(payload.get("num_model_calls"))
+    if projected is not None:
+        return projected
     calls = payload.get("calls")
     return len(calls) if isinstance(calls, list) else None
 
 
 def _wire_usage(payload: Mapping[str, JsonValue]) -> tuple[int | None, int | None]:
+    projected_input = _integer(payload.get("input_tokens"))
+    projected_completion = _integer(payload.get("completion_tokens"))
+    if projected_input is not None or projected_completion is not None:
+        return projected_input, projected_completion
     input_tokens: list[int] = []
     completion_tokens: list[int] = []
     calls = payload.get("calls")

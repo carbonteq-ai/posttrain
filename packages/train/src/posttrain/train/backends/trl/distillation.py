@@ -386,7 +386,9 @@ def _rollout_function(
             "training_settings_id": request.settings.id,
             "distillation_batch_id": batch.batch_id,
             "policy_revision": batch.policy_revision,
+            "optimizer_step": step,
         }
+        mark_live_observed = getattr(request.bridge, "mark_live_observed", None)
         for rollout in consumed:
             trace = rollout.trace
             context.trace(
@@ -394,9 +396,15 @@ def _rollout_function(
                     trace_type=trace.trace_type,
                     external_id=trace.external_id,
                     payload=trace.payload,
-                    attributes={**trace.attributes, **attributes},
+                    attributes={
+                        **trace.attributes,
+                        **attributes,
+                        "scored_token_count": sum(rollout.env_mask),
+                    },
                 )
             )
+            if callable(mark_live_observed):
+                mark_live_observed(trace.external_id)
         scored_tokens = sum(sum(rollout.env_mask) for rollout in consumed)
         context.metric("train/distill/scored_tokens", scored_tokens, step=step, attributes=attributes)
         context.event(

@@ -3,13 +3,16 @@
 The platform uses [`carbonteq-ai/trackio`](https://github.com/carbonteq-ai/trackio),
 an additive fork of upstream Trackio. Workspace packages keep the normal
 `import trackio` API. The current framework dependency is
-`carbonteq-trackio==0.31.5.post12`, built from an immutable fork release
-commit `4c73e8b6e71c3da65cac41fc1371830e4435ecea`. Its wheel and sdist were
+`carbonteq-trackio==0.31.5.post13`, built from an immutable fork release
+commit `0aea237e916e05e675db1db648952e896e7816d8`. Its wheel and sdist were
 read back from the stable internal index before the Posttrain pin was updated.
-The deployed shared and candidate services now report post10. `0.31.5.post4` on
+Post13 makes payload-bounded Verifiers trace listings derive safe scalar
+latency, prompt/completion/reasoning usage, model-call counts, and tool-call
+counts while omitting calls, nodes, transcripts, and tool arguments. This lets
+Observatory populate historical rollout tables without fetching full payloads.
+`0.31.5.post4` on
 `pypi.lan` is permanently skewed (metadata post4, import post3) and must not be
-installed. The five kind images affected by the workspace lock were rebuilt
-and published after this change.
+installed.
 
 Post10 keeps `local` as the safe default and adds a generic S3-compatible
 artifact backend. With the S3 backend, Trackio issues short-lived multipart
