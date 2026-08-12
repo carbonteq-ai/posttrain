@@ -4,7 +4,18 @@ All notable changes to Posttrain are documented here. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with a coordinated
 version across first-party distributions.
 
-## 0.3.11 - Unreleased
+## 0.3.12 - Unreleased
+
+### Fixed
+
+- Local composition now rejects an inference output budget larger than the
+  selected engine context window.
+- Online-RL work packages now require the declared inference completion budget
+  to match training settings, and reject prompt-plus-completion budgets that
+  cannot fit the rollout engine context. This turns an otherwise late vLLM
+  configuration failure into an actionable pre-pack validation error.
+
+## 0.3.11 - 2026-08-12
 
 ### Fixed
 

@@ -7,6 +7,14 @@ on:
         description: Internal release branch containing the candidate source
         required: true
         type: string
+      qualification_profile:
+        description: Named hardware profile for the bounded packed-GPU qualification
+        required: false
+        default: rtx-pro-96gb
+        type: choice
+        options:
+          - rtx-pro-96gb
+          - rtx4090-24gb
 
 permissions:
   contents: read
@@ -212,6 +220,24 @@ jobs:
         id: qualification
         run: |
           set +e
+          case "${{ inputs.qualification_profile }}" in
+            rtx-pro-96gb)
+              qualification_target="targets/carbonteq-rtx-pro-6000-96gb"
+              qualification_host="carbonteq-ai-workstation.lan"
+              qualification_min_gpu_memory_mib=90112
+              ;;
+            rtx4090-24gb)
+              qualification_target="targets/pop-os-rtx4090-24gb"
+              qualification_host="pop-os.lan"
+              qualification_min_gpu_memory_mib=22528
+              ;;
+            *)
+              echo "unsupported qualification profile: ${{ inputs.qualification_profile }}" >&2
+              exit 2
+              ;;
+          esac
+          export POSTTRAIN_DSTACK_HOST="${qualification_host}"
+          export POSTTRAIN_DSTACK_MIN_GPU_MEMORY_MIB="${qualification_min_gpu_memory_mib}"
           candidate_version="${{ steps.version.outputs.version }}"
           framework_wheelhouse="$(realpath .release/wheelhouse)"
           # The qualification must pack the same immutable framework bytes that
@@ -251,6 +277,7 @@ jobs:
             apps/lab/.posttrain/work_packages/qwen08b_transform_qualification.yaml \
             --job transform \
             --provider dstack \
+            --target "${qualification_target}" \
             --registry "${JOB_REGISTRY}" \
             --framework-wheelhouse "${framework_wheelhouse}" \
             --run-id "release-candidate-${{ github.run_id }}"

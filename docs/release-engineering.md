@@ -172,7 +172,11 @@ The fixture is the smallest executable consumer example:
 
 Before stable release, one documented remote GPU gate must execute a supported
 training or evaluation work package, record evidence, and retrieve it through
-Observatory from the same provider.
+Observatory from the same provider. The candidate dispatch chooses one named
+qualification profile, not an arbitrary host or memory override: the default
+`rtx-pro-96gb` profile uses the RTX PRO 6000, while `rtx4090-24gb` may qualify
+the bounded 0.8B transform canary on the idle RTX 4090. The retained capacity
+receipt records the exact selected host and hardware.
 
 ## Remaining release gates
 
