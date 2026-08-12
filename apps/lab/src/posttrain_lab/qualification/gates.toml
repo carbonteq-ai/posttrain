@@ -240,6 +240,19 @@ owner = "posttrain-training"
 replacement_condition = "Promote only after veRL has a published immutable source, a supported backend contract, and a complete live qualification; otherwise retire when a maintained backend owns the contract."
 
 [[gates]]
+id = "verl-sampling-contract"
+work_package = ".posttrain/work_packages/qwen08b_verl_sampling_contract_canary.yaml"
+job_id = "grpo"
+tier = "experimental"
+state = "candidate"
+job_kind = "train.grpo"
+acceptance = "verifiers-trajectories"
+experiment_family = "verl-sampling-contract"
+hypothesis = "The immutable veRL capsule preserves non-default min-p, repetition, and presence controls from the resolved inference binding to retained rollout evidence."
+owner = "posttrain-training"
+replacement_condition = "Retire after this contract is covered by a parameterized veRL qualification matrix that asserts the exact sampling-policy snapshot and server request for every selected binding."
+
+[[gates]]
 id = "verl-grpo-immutable-capsule"
 work_package = ".posttrain/work_packages/gsm8k_verl_grpo_2_immutable_qualification.yaml"
 job_id = "grpo"

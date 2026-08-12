@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
+import importlib
 import json
 import sys
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 import pytest
 from posttrain.common import (
@@ -34,6 +36,8 @@ from posttrain.train import (
     LoRAUpdate,
     OnPolicyDistillationRequest,
     OnPolicyDistillationSettings,
+    PolicySampling,
+    PolicyTurnRequest,
     SAMPORequest,
     SAMPOSettings,
     TrainingBinding,
@@ -205,6 +209,84 @@ def test_backend_resolver_exposes_general_verl_product_for_both_operations() -> 
     assert _distillation_backend("verl@a35908c").__module__ == "posttrain.train.backends.verl.launcher"
     with pytest.raises(ValueError, match="unsupported GRPO"):
         _grpo_backend("unknown@1")
+
+
+def test_verl_policy_generator_preserves_complete_sampling_policy(monkeypatch: pytest.MonkeyPatch) -> None:
+    module_name = "posttrain.train.backends.verl.agent_loop"
+    monkeypatch.delitem(sys.modules, module_name, raising=False)
+
+    for package in ("verl", "verl.experimental", "verl.experimental.agent_loop"):
+        module = ModuleType(package)
+        module.__path__ = []  # type: ignore[attr-defined]
+        monkeypatch.setitem(sys.modules, package, module)
+    verl_agent_loop = ModuleType("verl.experimental.agent_loop.agent_loop")
+    verl_agent_loop.AgentLoopBase = object
+    verl_agent_loop.AgentLoopMetrics = object
+    verl_agent_loop.AgentLoopOutput = object
+    monkeypatch.setitem(sys.modules, "verl.experimental.agent_loop.agent_loop", verl_agent_loop)
+
+    class FakeRenderer:
+        def render(self, messages, *, tools, add_generation_prompt):
+            assert messages == [{"role": "user", "content": "hello"}]
+            assert tools is None
+            assert add_generation_prompt is True
+            return SimpleNamespace(
+                token_ids=(1, 2),
+                message_token_spans=lambda: ((0, 2),),
+                is_content=(True, True),
+            )
+
+        def parse_response(self, token_ids, *, tools):
+            assert token_ids == [3, 4]
+            assert tools is None
+            return SimpleNamespace(content="done", reasoning_content=None, tool_calls=())
+
+        def get_stop_token_ids(self):
+            return ()
+
+    renderers = ModuleType("renderers")
+    renderers.Qwen35RendererConfig = lambda *, enable_thinking: {"enable_thinking": enable_thinking}
+    renderers.create_renderer = lambda tokenizer, config: FakeRenderer()
+    monkeypatch.setitem(sys.modules, "renderers", renderers)
+
+    class ServerManager:
+        def __init__(self) -> None:
+            self.request: dict[str, object] | None = None
+
+        async def generate(self, **kwargs):
+            self.request = kwargs
+            return SimpleNamespace(token_ids=(3, 4), log_probs=(-0.1, -0.2))
+
+    agent_loop = importlib.import_module(module_name)
+    server = ServerManager()
+    generator = agent_loop.VerlPolicyGenerator(server, object(), enable_thinking=False)
+    sampling = PolicySampling(
+        max_tokens=32,
+        temperature=0.7,
+        top_p=0.95,
+        top_k=20,
+        min_p=0.01,
+        repetition_penalty=1.1,
+        presence_penalty=1.5,
+    )
+
+    result = asyncio.run(
+        generator.generate(PolicyTurnRequest(messages=({"role": "user", "content": "hello"},), sampling=sampling))
+    )
+
+    assert result.completion_ids == (3, 4)
+    assert server.request is not None
+    assert server.request["sampling_params"] == {
+        "max_tokens": 32,
+        "temperature": 0.7,
+        "top_p": 0.95,
+        "top_k": 20,
+        "min_p": 0.01,
+        "repetition_penalty": 1.1,
+        "presence_penalty": 1.5,
+        "logprobs": True,
+    }
+    sys.modules.pop(module_name, None)
 
 
 def test_qwen35_grpo_translation_is_deterministic_and_backend_neutral(tmp_path: Path) -> None:

@@ -136,6 +136,47 @@ def test_distillation_yaml_resolves_every_seat_through_the_catalog() -> None:
     }
 
 
+def test_verl_sampling_contract_canary_resolves_the_complete_policy() -> None:
+    package = load_work_package(WORK_PACKAGES / "qwen08b_verl_sampling_contract_canary.yaml")
+    catalog = open_catalog(scope=package.project_id, overlays=(WORKSPACE / "apps/lab/.posttrain/catalog",))
+    resolved = resolve_work_package(catalog, package)
+
+    settings = resolved.snapshot["settings"]
+    assert isinstance(settings, dict)
+    assert settings["resolved"]["max_steps"] == 1  # type: ignore[index]
+    assert settings["resolved"]["num_prompts_per_step"] == 1  # type: ignore[index]
+    assert settings["resolved"]["num_generations"] == 2  # type: ignore[index]
+
+    training = resolved.snapshot["training"]
+    assert isinstance(training, dict)
+    assert training["resolved"]["runtime"]["global_batch_size"] == 2  # type: ignore[index]
+
+    environment = resolved.snapshot["environment"]
+    assert isinstance(environment, dict)
+    assert environment["resolved"]["sampling"] == {  # type: ignore[index]
+        "max_tokens": 384,
+        "temperature": 0.7,
+        "top_p": 0.95,
+        "top_k": 20,
+        "min_p": 0.01,
+        "repetition_penalty": 1.1,
+        "presence_penalty": 1.5,
+        "reasoning_effort": None,
+    }
+
+    rollout = resolved.snapshot["rollout_inference"]
+    assert isinstance(rollout, dict)
+    assert rollout["resolved"]["sampling"] == {  # type: ignore[index]
+        "max_tokens": 384,
+        "temperature": 0.7,
+        "top_p": 0.95,
+        "top_k": 20,
+        "min_p": 0.01,
+        "repetition_penalty": 1.1,
+        "presence_penalty": 1.5,
+    }
+
+
 def test_grpo_definition_accepts_only_an_environment_population_seat(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "posttrain.train.verifiers_requests.create_verifiers_training_bridge",

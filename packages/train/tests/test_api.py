@@ -1029,6 +1029,12 @@ def test_distillation_backend_fixes_fully_on_policy_reverse_kl_contract(tmp_path
     assert sampled_arguments["min_p"] == 0.0
     assert sampled_arguments["repetition_penalty"] == 1.1
     assert sampled_arguments["generation_kwargs"] == {"presence_penalty": 1.5}
+    from trl.experimental.iw_opd import IWOPDConfig  # pyright: ignore[reportMissingImports]
+
+    config = IWOPDConfig(**sampled_arguments)
+    assert config.min_p == 0.0
+    assert config.repetition_penalty == 1.1
+    assert config.generation_kwargs == {"presence_penalty": 1.5}
 
 
 def test_distillation_backend_configures_colocated_transformers_teacher(

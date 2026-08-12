@@ -9,16 +9,23 @@ semantics, and instrumentation hooks belong to the `train` package boundary.
 The lab's injected observation context maps those hooks to Trackio. Datasets,
 rewards, and Verifiers environment implementations remain independently owned.
 
-The workspace consumes the immutable internal candidate `trl==1.9.2.post2`,
+The workspace consumes the published immutable internal candidate `trl==1.9.2.post4`,
 built from `carbonteq-ai/trl` commit
-`216023d99324fae89dd58629130ba3bb043582ed`. Its prerelease tag,
-`carbonteq-v1.9.2.post2`, plus wheel and source hashes are recorded in
-`packages/train/pyproject.toml`. The candidate becomes a normal framework
-dependency only after the internal-index clean-install receipt and selected
-GPU qualification succeed. The fork is based on upstream TRL 1.9.2 and keeps
+`61064605db84f84898692c2b3eefe1eb2b90a952`. Its prerelease tag,
+`carbonteq-v1.9.2.post4`, plus wheel and source hashes are recorded in
+`packages/train/pyproject.toml`. Posttrain's retained-asset publisher verified
+the release hashes, uploaded the exact bytes to the stable internal index, and
+retained a clean-install receipt. Selected GPU qualification remains required
+before this candidate becomes a normal framework release. The fork is based on upstream TRL 1.9.2 and keeps
 the trainer runtime compatible with `datasets 4.6.1` so Verifiers v1 and TRL
 can share one environment. Project-specific job policy and environments remain
 outside the fork.
+The current candidate repairs complete IW-OPD behavior-policy sampling.
+`IWOPDConfig` now declares min-p, repetition penalty, and additional generation
+arguments; `IWOPDTrainer` forwards them consistently to local transformers and
+vLLM generation. Posttrain's integration test constructs the real pinned config
+from its adapter arguments, while the isolated veRL agent-loop test proves that
+the same complete `PolicySampling` value reaches the veRL vLLM server request.
 Its entropy metrics also preserve chunked-memory behavior for non-contiguous
 sequence slices, which is required for DPO on large-vocabulary models.
 The fork also exposes colocated vLLM's engine-level speculative configuration
@@ -34,7 +41,7 @@ The bounded-wave follow-up additionally accepts validated `max_num_seqs` and
 `max_num_batched_tokens` engine caps. This lets a 256/512-completion logical
 batch execute as multiple resident-32 rollout waves instead of allowing TRL's
 derived generation batch to overcommit KV cache. The behavior is included in
-`trl==1.9.2.post2` and still requires qualification for each selected
+`trl==1.9.2.post4` and still requires qualification for each selected
 model/runtime profile. It also bounds the actual colocated `LLM.generate`
 request list to the configured
 resident sequence cap; engine caps alone do not prevent vLLM from queueing a
@@ -83,8 +90,8 @@ prompt-logprob collection and compares it with raw actor values at temperature
 one. Processed sampled log probabilities remain the independent TIS signal.
 The candidate also records raw parity mean, maximum, and token count.
 
-This repair is in immutable `trl==1.9.2.post2` prerelease bytes, tagged at
-`carbonteq-v1.9.2.post2`. Posttrain consumes it only after the internal-index
+This repair is in immutable `trl==1.9.2.post4` prerelease bytes, tagged at
+`carbonteq-v1.9.2.post4`. Posttrain consumes it only after the internal-index
 clean-install receipt and the one-update actor-update/LoRA-artifact audit.
 
 All affected Qwen3.5 native-LoRA inference bindings select:

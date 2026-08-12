@@ -71,10 +71,19 @@ jobs:
           .trl-consumer/bin/python - <<'PY'
           import importlib.metadata
           import os
+          from trl.experimental.iw_opd import IWOPDConfig
           from trl.trainer.olmo3_grpo_config import Olmo3GRPOConfig
 
           assert importlib.metadata.version("trl") == os.environ["EXPECTED_VERSION"]
           assert Olmo3GRPOConfig.__name__ == "Olmo3GRPOConfig"
+          config = IWOPDConfig(
+              min_p=0.01,
+              repetition_penalty=1.1,
+              generation_kwargs={"presence_penalty": 1.5},
+          )
+          assert config.min_p == 0.01
+          assert config.repetition_penalty == 1.1
+          assert config.generation_kwargs == {"presence_penalty": 1.5}
           PY
 
       - name: Retain internal-publication receipt
