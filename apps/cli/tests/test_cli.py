@@ -1367,6 +1367,32 @@ bindings:
     }
 
 
+def test_work_package_run_forwards_deferred_qualification_waiver(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from posttrain_cli.commands import work_package as work_package_commands
+
+    received: dict[str, object] = {}
+
+    def record_run(*_args, **kwargs) -> None:
+        received.update(kwargs)
+
+    monkeypatch.setattr(work_package_commands, "run_work_package_cmd", record_run)
+
+    assert (
+        main(
+            [
+                "work-package",
+                "run",
+                "deferred.yaml",
+                "--allow-deferred-qualification",
+            ]
+        )
+        == 0
+    )
+    assert received["allow_deferred_qualification"] is True
+
+
 def test_work_package_run_uses_project_entry_without_host_flag(
     tmp_path: Path,
     capsys,

@@ -818,6 +818,13 @@ def register(app: typer.Typer) -> None:
                 help="temporary compatibility mode; execute in the CLI process",
             ),
         ] = False,
+        allow_deferred_qualification: Annotated[
+            bool,
+            typer.Option(
+                "--allow-deferred-qualification",
+                help="waive offline Taskset.load for environments explicitly marked deferred",
+            ),
+        ] = False,
     ) -> None:
         state: CliState = ctx.obj
         run_work_package_cmd(
@@ -838,4 +845,5 @@ def register(app: typer.Typer) -> None:
             ),
             registry_prefix=registry,
             run_id=run_id,
+            allow_deferred_qualification=allow_deferred_qualification,
         )
