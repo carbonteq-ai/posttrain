@@ -508,6 +508,7 @@ def _rollout_function(
         schema_digests: list[str] = []
         constrained_request_ids: list[str] = []
         allowed_set_digests: list[list[str]] = []
+        grammar_prefix_ids: list[list[int]] = []
         if constrained:
             if teacher_renderer is None:
                 raise ValueError("generation-constrained OPD requires the teacher tokenizer")
@@ -530,13 +531,26 @@ def _rollout_function(
                     raise ValueError("generation-constrained OPD requires one JSON schema per selected turn")
                 schema_digest = _json_sha256(schema)
                 completion = list(rollout.completion_ids)
-                teacher_prompt_ids.append([int(value) for value in rendered.token_ids])
+                generated = [int(value) for value in cast(list[int], contract["completion_ids"])]
+                if len(generated) < len(completion) or generated[-len(completion) :] != completion:
+                    raise ValueError("selected OPD completion is not a suffix of the generated assistant turn")
+                grammar_prefix = generated[: len(generated) - len(completion)]
+                teacher_prompt_ids.append([int(value) for value in rendered.token_ids] + grammar_prefix)
                 teacher_completion_ids.append(completion)
+                grammar_prefix_ids.append(grammar_prefix)
                 structured_output_schemas.append(schema)
                 schema_digests.append(schema_digest)
                 constrained_request_ids.append(rollout.trace.external_id)
                 allowed_set_digests.append(
-                    [_allowed_set_digest(schema_digest, completion, position) for position in range(len(completion))]
+                    [
+                        _allowed_set_digest(
+                            schema_digest,
+                            completion,
+                            position,
+                            grammar_prefix_ids=grammar_prefix,
+                        )
+                        for position in range(len(completion))
+                    ]
                 )
             generator.clear_turn_contracts()
         attributes = {
@@ -586,6 +600,7 @@ def _rollout_function(
                     "schema_digests": schema_digests,
                     "constrained_request_ids": constrained_request_ids,
                     "allowed_set_digests": allowed_set_digests,
+                    "grammar_prefix_ids": grammar_prefix_ids,
                 }
             )
         return result
@@ -608,10 +623,17 @@ def _json_sha256(value: Any) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
-def _allowed_set_digest(schema_digest: str, completion_ids: list[int], position: int) -> str:
+def _allowed_set_digest(
+    schema_digest: str,
+    completion_ids: list[int],
+    position: int,
+    *,
+    grammar_prefix_ids: list[int] | None = None,
+) -> str:
+    prefix = [] if grammar_prefix_ids is None else grammar_prefix_ids
     return _json_sha256(
         {
-            "completion_prefix": completion_ids[:position],
+            "completion_prefix": prefix + completion_ids[:position],
             "position": position,
             "schema_digest": schema_digest,
             "xgrammar_contract": "0.2.3-json-schema-any-whitespace-false",
@@ -955,11 +977,14 @@ def _memory_safe_server_iw_opd_loss(
     head = base.get_output_embeddings()
     softcap = base.config.get_text_config().final_logit_softcapping
     schemas = inputs.get("structured_output_schemas")
+    grammar_prefixes = inputs.get("grammar_prefix_ids")
     expected_allowed_digests = inputs.get("allowed_set_digests")
     teacher_allowed_counts = teacher_result.get("allowed_counts")
     if (
         not isinstance(schemas, list)
         or len(schemas) != 1
+        or not isinstance(grammar_prefixes, list)
+        or len(grammar_prefixes) != 1
         or not isinstance(expected_allowed_digests, list)
         or len(expected_allowed_digests) != 1
         or not isinstance(teacher_allowed_counts, list)
@@ -969,6 +994,9 @@ def _memory_safe_server_iw_opd_loss(
     if not bool(valid_mask[0].all()):
         raise ValueError("selected OPD completion tokens must form one contiguous constrained stage")
     matcher, xgrammar = _xgrammar_matcher(trainer.processing_class, schemas[0], head.weight.shape[0])
+    for token_id in grammar_prefixes[0]:
+        if not matcher.accept_token(int(token_id)):
+            raise ValueError("current-student grammar prefix is disallowed by XGrammar")
     student_actual_chunks: list[Any] = []
     for start in range(0, completion_length, chunk_size):
         end = min(start + chunk_size, completion_length)
@@ -986,6 +1014,7 @@ def _memory_safe_server_iw_opd_loss(
                 schema_digest=inputs["schema_digests"][0],
                 completion_ids=completion_tokens[0].tolist(),
                 position=position,
+                grammar_prefix_ids=grammar_prefixes[0],
             )
             if expected_digest != expected_allowed_digests[0][position]:
                 raise ValueError("current-student allowed-token digest differs from rollout evidence")
@@ -1063,19 +1092,31 @@ def _local_constrained_teacher_logprobs(
     schemas = inputs.get("structured_output_schemas")
     schema_digests = inputs.get("schema_digests")
     expected_allowed_digests = inputs.get("allowed_set_digests")
+    grammar_prefixes = inputs.get("grammar_prefix_ids")
     request_ids = inputs.get("constrained_request_ids")
-    values = (prompts, completions, offsets, schemas, schema_digests, expected_allowed_digests, request_ids)
+    values = (
+        prompts,
+        completions,
+        offsets,
+        schemas,
+        schema_digests,
+        expected_allowed_digests,
+        request_ids,
+        grammar_prefixes,
+    )
     if any(not isinstance(value, list) or len(value) != 1 for value in values):
         raise ValueError("local constrained teacher metadata must align with physical batch one")
     prompt_ids = prompts[0]
     completion_ids = completions[0]
     offset = offsets[0]
+    grammar_prefix = grammar_prefixes[0]
     if (
         not isinstance(prompt_ids, list)
         or not isinstance(completion_ids, list)
         or not completion_ids
         or not isinstance(offset, int)
         or offset < 0
+        or not isinstance(grammar_prefix, list)
     ):
         raise ValueError("local constrained teacher token alignment is invalid")
 
@@ -1096,6 +1137,9 @@ def _local_constrained_teacher_logprobs(
         head = teacher.get_output_embeddings()
         softcap = teacher.config.get_text_config().final_logit_softcapping
         matcher, xgrammar = _xgrammar_matcher(trainer.processing_class, schemas[0], head.weight.shape[0])
+        for token_id in grammar_prefix:
+            if not matcher.accept_token(int(token_id)):
+                raise ValueError("teacher grammar prefix is disallowed by XGrammar")
         actual_chunks: list[Any] = []
         allowed_counts: list[int] = []
         observed_digests: list[str] = []
@@ -1112,7 +1156,12 @@ def _local_constrained_teacher_logprobs(
                 selected = int(completion_ids[position])
                 if not matcher.accept_token(selected):
                     raise ValueError(f"teacher completion token is disallowed by XGrammar at position {position}")
-                digest = _allowed_set_digest(schema_digests[0], completion_ids, position)
+                digest = _allowed_set_digest(
+                    schema_digests[0],
+                    completion_ids,
+                    position,
+                    grammar_prefix_ids=grammar_prefix,
+                )
                 if digest != expected_allowed_digests[0][position]:
                     raise ValueError("local teacher allowed-token digest differs from rollout evidence")
                 observed_digests.append(digest)

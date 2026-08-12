@@ -23,6 +23,10 @@ This work changes one frozen product meaning narrowly. Existing documentation sa
 - [x] (2026-08-12) Implement and push generic constrained teacher scoring in the CarbonTeq TRL fork at `b2dcbd0050f17383f97093d226b227d4b25acd75`; build collision-free `trl==1.9.2.post5` distributions with wheel SHA-256 `57f1b0c605e80bb30a499da0d2016264f109f823856e591c0b0dee79c6df2143`.
 - [x] (2026-08-12) Pin collision-free TRL post5 in PostTrain; implement model-template identity, selected semantic-message projection, constrained memory-safe student loss, and managed XGrammar evaluation settings.
 - [x] (2026-08-12) Correct Policy Prism prompt rendering, hidden-label leakage, stage invariants, checkpoint-prefix ordering, and SQLite initialization; regenerate task-plan hash `b8f3d62d9640c90950e514bf850f4bf28281b81663a581ef4e281080fbbadcee` and add corrected canary/production/evaluation work packages.
+- [x] (2026-08-12) Preserve and reconcile three exact-image canary failures that closed catalog template identity, vLLM processor FQCN, and Verifiers sampled-mask digest boundaries before optimizer step one.
+- [x] (2026-08-12) Prove the post5 constrained teacher replay path accepts all twelve corrected rollouts but takes more than one hour for a single 12,216-token teacher call; cancel it as operationally unfit rather than launching production.
+- [x] (2026-08-12) Publish TRL `1.9.2.post6` at `11a526afd98bdbec3db9d6dd9473141c8c3b4d45`, precomputing exact XGrammar masks outside the per-token callback without changing probability semantics; pin runtime overlay `sha256:6f5bc755ef659fc9a5217a599fcdb1797c50d1735321ed7c4ae317de0d28a424` and pack actual-job image `sha256:8e04e3181c6adb428007c294d46ee14883bd157f10d80633ecc12a0103bf6550`.
+- [x] (2026-08-13) Replace operationally unfit serial vLLM teacher replay with one frozen local-teacher forward plus chunked constrained vocabulary projection; preserve the fixed assistant grammar scaffold explicitly, publish TRL `1.9.2.post7` at `78b61a4d37a7bf8ad7e61bd604ba9e3c3c316897`, and publish runtime overlay `sha256:05dd0b4e3b80faffeeb7b3f7df043eb200c141ecb0c7ce25b5c3e462ead3952f`.
 - [ ] Pass all offline, exact-image, credential, catalog, and package gates.
 - [ ] Run and reconcile the one-update corrected-training canary.
 - [ ] Run and reconcile the two-case managed-evaluation serving canary against the canary adapter.
@@ -75,6 +79,15 @@ This work changes one frozen product meaning narrowly. Existing documentation sa
 - Observation: Verifiers stores the trailing generation-prompt scaffold on the sampled assistant node with a false mask.
   Evidence: corrected canary `opd2can01-nativeq-e2b12b-c12-r16-v1-r2` reached real heterogeneous rollout generation, then failed closed because Policy hashed the whole assistant node as completion while the generator ledger hashed only sampled completion IDs. Policy and PostTrain now split at the single contiguous sampled-mask boundary: preceding nodes plus the false-mask scaffold are the exact prompt; the true-mask suffix is the exact completion. Focused Policy and PostTrain regressions exercise the real scaffold shape before another image is packed.
 
+- Observation: exact constrained teacher replay is correct but the first implementation is not operationally viable.
+  Evidence: `opd2can01-nativeq-e2b12b-c12-r16-v1-r3` accepted all twelve rollouts and recorded 12,216 scored tokens, crossing every earlier deterministic failure boundary, but did not return teacher latency, loss, or a backward pass after more than one hour. The teacher endpoint autoregressively forced every known completion token while repeating XGrammar state transitions and vocabulary masking inside vLLM's per-token callback. That projects to more than 32 hours for 32 updates, so production was not submitted.
+
+- Observation: PostTrain's generated context was correct while the dedicated BuildKit builder retained a stale named-context mount.
+  Evidence: the new package manifest hashed to `f44ff96009454e816e1b55339c25fc408b89802934713c46ac383163d49147cc`, but the builder repeatedly observed the old `04f4e6a8...` manifest at that path and failed closed. Quarantining the one generated cache directory was insufficient; restarting only `posttrain-opd-clean` made the isolated qualification consume the correct manifest. No source or run evidence was removed.
+
+- Observation: the selected semantic completion begins after a fixed assistant scaffold that must also advance XGrammar replay state.
+  Evidence: retained canary trace `7c220e2cb452476dadde144ff97a6b49` has 169 selected-node tokens with mask `[false, false, false, true, ...]`; the three-token prefix is `[105, 4368, 107]`. The previous scorer started XGrammar at the first true-mask token and correctly failed it as disallowed. PostTrain now appends that exact scaffold to the teacher-native prompt and seeds both teacher and current-student matchers before normalizing selected tokens; TRL post7 preserves the field through buffered micro-slices.
+
 ## Decision Log
 
 - Decision: amend the canonical baseline before changing cross-template teacher scoring.
@@ -116,6 +129,14 @@ This work changes one frozen product meaning narrowly. Existing documentation sa
 - Decision: use a private, hash-labelled OCI overlay for the corrected TRL runtime closure.
   Rationale: the internal devpi index is readable but this workstation has no upload credential; an attempted upload correctly returned HTTP 401. The overlay derives from the immutable published online-RL parent, replaces only TRL with the locally built post5 wheel using `--no-deps`, asserts its imported version during build, and records source and wheel hashes in OCI labels. Digest `sha256:6f00649ac8c5bc75db479389f4957fa62a603cbf842c3e51c2f5182fc7c84cc4` remains private under `registry.lan/carbonteq`. The exact actual-job image must still pass immutable import and behavioral gates before use.
   Date/Author: 2026-08-12 / Codex.
+
+- Decision: reject the post5 teacher replay runtime and test exactly one semantics-preserving post6 optimization.
+  Rationale: production cannot start from a measured greater-than-one-hour update. Post6 pre-walks the known completion's grammar states once on CPU and reuses exact allowed-token sets during scoring; it preserves the selected token, schema digest, constrained denominator, and per-position alignment evidence. Unit tests prove bool and signed compressed XGrammar masks decode identically and that runtime callbacks perform no matcher traversal. A single identical GPU canary is necessary and sufficient to measure whether this removes the bottleneck; no parameter sweep is introduced.
+  Date/Author: 2026-08-12 / Codex.
+
+- Decision: use a frozen colocated Transformers teacher for constrained scoring instead of token-serial vLLM replay.
+  Rationale: both vLLM replay implementations remained proportional to completion length and missed the overnight budget. The local path performs one teacher hidden-state forward and bounded vocabulary chunks, retains teacher-native prompt rendering and exact student completion IDs, and applies the identical XGrammar allowed set and digest evidence at every selected position. Dense-vs-chunked tests prove exact constrained probabilities; the single live canary remains the release gate for memory, latency, finite loss, and backward behavior.
+  Date/Author: 2026-08-13 / Codex.
 
 ## Outcomes & Retrospective
 

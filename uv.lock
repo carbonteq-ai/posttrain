@@ -3328,7 +3328,7 @@ requires-dist = [
     { name = "torch", marker = "extra == 'trl'", specifier = ">=2.11,<2.12", index = "https://download.pytorch.org/whl/cu130" },
     { name = "torchvision", marker = "extra == 'trl'", specifier = ">=0.26,<0.27", index = "https://download.pytorch.org/whl/cu130" },
     { name = "transformers", marker = "extra == 'trl'", specifier = ">=5.14,<5.15" },
-    { name = "trl", marker = "extra == 'trl'", git = "https://github.com/carbonteq-ai/trl.git?rev=11a526afd98bdbec3db9d6dd9473141c8c3b4d45" },
+    { name = "trl", marker = "extra == 'trl'", git = "https://github.com/carbonteq-ai/trl.git?rev=78b61a4d37a7bf8ad7e61bd604ba9e3c3c316897" },
     { name = "verifiers", marker = "extra == 'verifiers'", git = "https://github.com/PrimeIntellect-ai/verifiers.git?rev=284a868d6a9022109b749710672a0460e8a996d4" },
     { name = "vllm", marker = "extra == 'trl-vllm'", specifier = "==0.25.1" },
 ]
@@ -4749,8 +4749,8 @@ wheels = [
 
 [[package]]
 name = "trl"
-version = "1.9.2.post6"
-source = { git = "https://github.com/carbonteq-ai/trl.git?rev=11a526afd98bdbec3db9d6dd9473141c8c3b4d45#11a526afd98bdbec3db9d6dd9473141c8c3b4d45" }
+version = "1.9.2.post7"
+source = { git = "https://github.com/carbonteq-ai/trl.git?rev=78b61a4d37a7bf8ad7e61bd604ba9e3c3c316897#78b61a4d37a7bf8ad7e61bd604ba9e3c3c316897" }
 dependencies = [
     { name = "accelerate" },
     { name = "datasets" },

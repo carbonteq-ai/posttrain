@@ -110,6 +110,7 @@ def _inputs(*, batch_size: int = 1):
         "prompt_length": 2,
         "structured_output_schemas": [_SCHEMA] * batch_size,
         "schema_digests": [_SCHEMA_DIGEST] * batch_size,
+        "grammar_prefix_ids": [[] for _ in range(batch_size)],
         "allowed_set_digests": [
             [_allowed_set_digest(_SCHEMA_DIGEST, completion, position) for position in range(len(completion))]
             for _ in range(batch_size)
@@ -208,9 +209,15 @@ def test_local_teacher_parallel_scoring_matches_dense_constrained_probabilities(
     torch.manual_seed(19)
     teacher = Gemma4UnifiedForConditionalGeneration()
     completion = [3, 4, 5, 6]
-    prompt = [9, 10]
+    grammar_prefix = [7, 8]
+    prompt = [9, 10, *grammar_prefix]
     digests = [
-        _allowed_set_digest(_SCHEMA_DIGEST, completion, position)
+        _allowed_set_digest(
+            _SCHEMA_DIGEST,
+            completion,
+            position,
+            grammar_prefix_ids=grammar_prefix,
+        )
         for position in range(len(completion))
     ]
     inputs = _inputs()
@@ -220,6 +227,7 @@ def test_local_teacher_parallel_scoring_matches_dense_constrained_probabilities(
             "teacher_completion_ids": [completion],
             "teacher_completion_offsets": [0],
             "constrained_request_ids": ["request-1"],
+            "grammar_prefix_ids": [grammar_prefix],
             "allowed_set_digests": [digests],
         }
     )
@@ -271,7 +279,12 @@ def test_twelve_physical_one_slices_match_one_logical_iw_opd_batch() -> None:
         row_inputs = {
             key: value[start:end] if isinstance(value, torch.Tensor) else value for key, value in inputs.items()
         }
-        for key in ("structured_output_schemas", "schema_digests", "allowed_set_digests"):
+        for key in (
+            "structured_output_schemas",
+            "schema_digests",
+            "allowed_set_digests",
+            "grammar_prefix_ids",
+        ):
             row_inputs[key] = inputs[key][start:end]
         buffered.append(row_inputs)
         trainer = _trainer({"actual_logprobs": teacher_actual[start:end], "allowed_counts": [[32] * 4]})
