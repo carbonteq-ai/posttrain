@@ -4,12 +4,12 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from posttrain.common import ProducedArtifact
 from posttrain.common.variants import GEMMA_4_12B_IT, LFM_25_12B_THINKING, QWEN_35_2B
-from posttrain.train import LoRAUpdate
+from posttrain.train import LoRAUpdate, TrainingLoop
 from posttrain.train.backends.trl.common import (
     checkpoint_callback_type,
     load_trainable_model,
@@ -85,7 +85,13 @@ def test_trainable_model_loader_honors_requested_dtype() -> None:
     }
     loop = SimpleNamespace(gradient_checkpointing=False)
 
-    model = load_trainable_model(QWEN_35_2B, LoRAUpdate(), loop, imports, model_dtype="float32")
+    model = load_trainable_model(
+        QWEN_35_2B,
+        LoRAUpdate(),
+        cast(TrainingLoop, loop),
+        imports,
+        model_dtype="float32",
+    )
 
     assert model.config.use_cache is False
     assert calls == [
@@ -98,7 +104,7 @@ def test_trainable_model_loader_honors_requested_dtype() -> None:
         }
     ]
     with pytest.raises(ValueError, match="bfloat16.*float32"):
-        load_trainable_model(QWEN_35_2B, LoRAUpdate(), loop, imports, model_dtype="float16")
+        load_trainable_model(QWEN_35_2B, LoRAUpdate(), cast(TrainingLoop, loop), imports, model_dtype="float16")
 
 
 def test_gemma_mtp_materializes_the_pinned_assistant_before_trl(monkeypatch) -> None:

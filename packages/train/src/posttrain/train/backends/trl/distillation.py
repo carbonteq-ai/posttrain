@@ -14,7 +14,7 @@ from typing import Any, cast
 from urllib.parse import urlparse
 
 import httpx
-from posttrain.common import HubModelRef, RunContext, TraceObservation
+from posttrain.common import HubModelRef, JsonValue, RunContext, TraceObservation
 
 from ...distillation import DistillationBatch, DistillationBatchLedger
 from ...online_rl import RolloutBatch, policy_sampling_from_binding
@@ -116,22 +116,26 @@ def run_distillation(
 
             def training_step(self, *args: Any, **kwargs: Any) -> Any:
                 loss = super().training_step(*args, **kwargs)
-                non_finite_parameters: list[str] = []
+                non_finite_parameters: list[JsonValue] = []
                 torch = imports["torch"]
-                for name, parameter in self.model.named_parameters():
+                model = self.model
+                if model is None:
+                    return loss
+                for name, parameter in model.named_parameters():
                     gradient = parameter.grad
                     if gradient is not None and not bool(torch.isfinite(gradient).all().item()):
                         non_finite_parameters.append(name)
                         if len(non_finite_parameters) == 12:
                             break
                 if non_finite_parameters:
+                    attributes: dict[str, JsonValue] = {
+                        "global_step": int(self.state.global_step),
+                        "parameter_examples": non_finite_parameters,
+                        "parameter_examples_truncated": len(non_finite_parameters) == 12,
+                    }
                     context.event(
                         "training_non_finite_gradients",
-                        {
-                            "global_step": int(self.state.global_step),
-                            "parameter_examples": non_finite_parameters,
-                            "parameter_examples_truncated": len(non_finite_parameters) == 12,
-                        },
+                        attributes,
                     )
                 return loss
 

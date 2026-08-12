@@ -221,9 +221,9 @@ def test_verl_policy_generator_preserves_complete_sampling_policy(monkeypatch: p
         module.__path__ = []  # type: ignore[attr-defined]
         monkeypatch.setitem(sys.modules, package, module)
     verl_agent_loop = ModuleType("verl.experimental.agent_loop.agent_loop")
-    verl_agent_loop.AgentLoopBase = object
-    verl_agent_loop.AgentLoopMetrics = object
-    verl_agent_loop.AgentLoopOutput = object
+    verl_agent_loop.__dict__["AgentLoopBase"] = object
+    verl_agent_loop.__dict__["AgentLoopMetrics"] = object
+    verl_agent_loop.__dict__["AgentLoopOutput"] = object
     monkeypatch.setitem(sys.modules, "verl.experimental.agent_loop.agent_loop", verl_agent_loop)
 
     class FakeRenderer:
@@ -246,8 +246,8 @@ def test_verl_policy_generator_preserves_complete_sampling_policy(monkeypatch: p
             return ()
 
     renderers = ModuleType("renderers")
-    renderers.Qwen35RendererConfig = lambda *, enable_thinking: {"enable_thinking": enable_thinking}
-    renderers.create_renderer = lambda tokenizer, config: FakeRenderer()
+    renderers.__dict__["Qwen35RendererConfig"] = lambda *, enable_thinking: {"enable_thinking": enable_thinking}
+    renderers.__dict__["create_renderer"] = lambda tokenizer, config: FakeRenderer()
     monkeypatch.setitem(sys.modules, "renderers", renderers)
 
     class ServerManager:
