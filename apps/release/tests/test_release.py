@@ -1095,6 +1095,25 @@ def test_variant_subset_preserves_canonical_order() -> None:
     assert _normalize_variants(["transform", "eval"]) == ("eval", "transform")
 
 
+def test_verl_build_variables_come_from_the_current_runtime_profile() -> None:
+    from posttrain_release.publish import _bake_variables
+
+    identity = backend_runtime_identity("online-rl-verl-py313")
+    assert identity is not None
+
+    variables = _bake_variables(
+        created="2026-08-13T00:00:00Z",
+        revision="a" * 40,
+        version="0.3.16rc5",
+        base_image="registry.lan/carbonteq/posttrain-base@sha256:" + "b" * 64,
+        variant="online-rl-verl-py313",
+    )
+
+    assert variables["DEPENDENCY_LOCK_SHA256"] == identity.dependency_lock_digest
+    assert variables["FORK_REVISION"] == identity.source_revision
+    assert variables["SOURCE_REPOSITORY"] == identity.source_repository
+
+
 def test_unchanged_runtime_images_are_reused_across_framework_versions(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
