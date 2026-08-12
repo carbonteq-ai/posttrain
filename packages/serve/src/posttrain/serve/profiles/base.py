@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Literal
 
@@ -43,6 +44,7 @@ class VllmEngineConfig:
     skip_mm_profiling: bool = False
     flash_attn_version: int | None = None
     structured_outputs_whitespace_pattern: str | None = None
+    structured_outputs_config: Mapping[str, object] | None = None
     speculative: VllmSpeculativeConfig | None = None
 
     def __post_init__(self) -> None:
@@ -58,6 +60,8 @@ class VllmEngineConfig:
             raise ValueError("skip_mm_profiling is only safe for an explicit text-only profile")
         if self.structured_outputs_whitespace_pattern == "":
             raise ValueError("structured output whitespace pattern cannot be empty")
+        if self.structured_outputs_config is not None and not self.structured_outputs_config:
+            raise ValueError("structured outputs config cannot be empty")
 
     def as_vllm_kwargs(self) -> dict[str, object]:
         values: dict[str, object] = {
@@ -80,6 +84,8 @@ class VllmEngineConfig:
             values["skip_mm_profiling"] = True
         if self.flash_attn_version is not None:
             values["attention_config"] = {"flash_attn_version": self.flash_attn_version}
+        if self.structured_outputs_config is not None:
+            values["structured_outputs_config"] = dict(self.structured_outputs_config)
         if self.speculative is not None:
             values["speculative_config"] = self.speculative.as_vllm()
         return values
@@ -113,6 +119,10 @@ class VllmEngineConfig:
             values.append("--skip-mm-profiling")
         if self.flash_attn_version is not None:
             values.extend(("--attention-config", json.dumps({"flash_attn_version": self.flash_attn_version})))
+        if self.structured_outputs_config is not None:
+            values.extend(
+                ("--structured-outputs-config", json.dumps(dict(self.structured_outputs_config), sort_keys=True))
+            )
         if self.speculative is not None:
             values.extend(("--speculative-config", json.dumps(self.speculative.as_vllm())))
         return tuple(values)

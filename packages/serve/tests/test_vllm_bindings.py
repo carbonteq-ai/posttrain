@@ -80,6 +80,22 @@ def test_request_level_structured_output_whitespace_is_not_a_server_cli_flag() -
     assert "--structured-outputs-whitespace-pattern" not in config.as_cli_args()
 
 
+def test_structured_outputs_engine_config_is_forwarded_to_vllm() -> None:
+    config = VllmEngineConfig(
+        max_model_len=1_024,
+        gpu_memory_utilization=0.75,
+        structured_outputs_config={"backend": "xgrammar", "disable_any_whitespace": True},
+    )
+
+    assert config.as_vllm_kwargs()["structured_outputs_config"] == {
+        "backend": "xgrammar",
+        "disable_any_whitespace": True,
+    }
+    args = config.as_cli_args()
+    index = args.index("--structured-outputs-config")
+    assert args[index + 1] == '{"backend": "xgrammar", "disable_any_whitespace": true}'
+
+
 def test_local_matrix_stops_at_concurrency_four_and_requires_turboquant_at_32k() -> None:
     cells = CORE_INFERENCE_V1.cells(max_concurrency=4)
     assert {cell.concurrency for cell in cells} == {1, 2, 4}
