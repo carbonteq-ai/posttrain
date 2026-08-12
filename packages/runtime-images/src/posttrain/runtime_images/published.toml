@@ -15,42 +15,42 @@
 # framework release may reuse an image only when its runtime inputs still match.
 
 schema_version = 1
-framework_version = "0.3.16rc2"
+framework_version = "0.3.16rc3"
 default_prefix = "registry.lan/carbonteq"
 
 [base]
 repository = "posttrain-base"
-digest = "sha256:d217c86d8836fe8c9af8104f10cf6e457c04e40813d421780b08891c0e0de8ef"
-lock_digest = "aa430e9e0d56790a7351ba4e1f7fcbc27b02c264b26eef096d2721e6d89730bd"
+digest = "sha256:61aac6154e18e04128ac7b4106e1ba8da69717ae0936b8c01e42e033f20edc2b"
+lock_digest = "366f9f80b59d7e6346d215ca79468a2fba87d712921fc478fffc95e63a63978f"
 constraint_lock = "containers/posttrain-job-kinds/locks/workspace.lock.txt"
 runtime_source_digest = "f06c59a13b19ac5b725506803b30b2f9ca1695a52aecdd42b67ec49a5df243aa"
 trust_bundle_digest = "abe2472c89972632107b397b60b6fee34e9a25dd162e49fff9a84d2b8bf60e3c"
 
 [kinds.eval]
 repository = "posttrain-kind-eval"
-digest = "sha256:40d2b60f99def683007c766f3526204ca01f556fe515e9051d82453aeef1ae17"
-lock_digest = "aa430e9e0d56790a7351ba4e1f7fcbc27b02c264b26eef096d2721e6d89730bd"
+digest = "sha256:430f44f5605e115dea6ad3b1e6265cf5454211116b599ee78da12bd3752b2d80"
+lock_digest = "366f9f80b59d7e6346d215ca79468a2fba87d712921fc478fffc95e63a63978f"
 constraint_lock = "containers/posttrain-job-kinds/locks/workspace.lock.txt"
-runtime_source_digest = "a350e657cb442f7d045b12b69d6aa50362849c633d94d01aa783c8e4e9cc374b"
-base_digest = "sha256:d217c86d8836fe8c9af8104f10cf6e457c04e40813d421780b08891c0e0de8ef"
+runtime_source_digest = "192c06bfd4c8e98b213abbc9191d9db4a401e4ff7d8ca6c7508470e0bb23bbca"
+base_digest = "sha256:61aac6154e18e04128ac7b4106e1ba8da69717ae0936b8c01e42e033f20edc2b"
 provided_packages = ["verifiers"]
 
 [kinds.online-rl-trl-py312]
 repository = "posttrain-kind-online-rl-trl-py312"
-digest = "sha256:ea123930217d85620a50441027f9b4ca59135445d7b04ef48ab0e964ca016b27"
-lock_digest = "aa430e9e0d56790a7351ba4e1f7fcbc27b02c264b26eef096d2721e6d89730bd"
+digest = "sha256:fb42c71229578f5e231718976549ade32244e4deb898f32c3efcc200251d912f"
+lock_digest = "366f9f80b59d7e6346d215ca79468a2fba87d712921fc478fffc95e63a63978f"
 constraint_lock = "containers/posttrain-job-kinds/locks/workspace.lock.txt"
-runtime_source_digest = "a350e657cb442f7d045b12b69d6aa50362849c633d94d01aa783c8e4e9cc374b"
-base_digest = "sha256:d217c86d8836fe8c9af8104f10cf6e457c04e40813d421780b08891c0e0de8ef"
+runtime_source_digest = "192c06bfd4c8e98b213abbc9191d9db4a401e4ff7d8ca6c7508470e0bb23bbca"
+base_digest = "sha256:61aac6154e18e04128ac7b4106e1ba8da69717ae0936b8c01e42e033f20edc2b"
 provided_packages = ["verifiers"]
 
 [kinds.online-rl-verl-py313]
 repository = "posttrain-kind-online-rl-verl-py313"
-digest = "sha256:458e789ded3bc50a04f78b7182a7717608e2000b9c73f728344a94424185988c"
-lock_digest = "aa430e9e0d56790a7351ba4e1f7fcbc27b02c264b26eef096d2721e6d89730bd"
+digest = "sha256:13a3d171388876dc439efd3e67634666cc9e6bf368bb712479279f6116b17e27"
+lock_digest = "366f9f80b59d7e6346d215ca79468a2fba87d712921fc478fffc95e63a63978f"
 constraint_lock = "containers/posttrain-job-kinds/locks/workspace.lock.txt"
-runtime_source_digest = "a350e657cb442f7d045b12b69d6aa50362849c633d94d01aa783c8e4e9cc374b"
-base_digest = "sha256:d217c86d8836fe8c9af8104f10cf6e457c04e40813d421780b08891c0e0de8ef"
+runtime_source_digest = "192c06bfd4c8e98b213abbc9191d9db4a401e4ff7d8ca6c7508470e0bb23bbca"
+base_digest = "sha256:61aac6154e18e04128ac7b4106e1ba8da69717ae0936b8c01e42e033f20edc2b"
 backend_constraint_lock = "containers/posttrain-job-kinds/verl-py313/release/backend-constraints.txt"
 backend_lock_digest = "2c58a12f86eeb15de67755aaccbc2e616479e8eca446567f207aaf1c24af5c4a"
 backend_source_repository = "https://github.com/carbonteq-ai/verl.git"
@@ -59,24 +59,24 @@ backend_dependency_lock_digest = "df7769f306ef8606fed37fd89c3fa2589ac72f39a45e47
 
 [kinds.serve]
 repository = "posttrain-kind-serve"
-digest = "sha256:7b6de7437c3ef48d737de6629b2b61558347a8557cfc40588defd2073340b6ec"
-lock_digest = "aa430e9e0d56790a7351ba4e1f7fcbc27b02c264b26eef096d2721e6d89730bd"
+digest = "sha256:60635564abcfb77601eb4bf8fe0a84dfc700ee5f02970419c09b991827b510ba"
+lock_digest = "366f9f80b59d7e6346d215ca79468a2fba87d712921fc478fffc95e63a63978f"
 constraint_lock = "containers/posttrain-job-kinds/locks/workspace.lock.txt"
-runtime_source_digest = "a350e657cb442f7d045b12b69d6aa50362849c633d94d01aa783c8e4e9cc374b"
-base_digest = "sha256:d217c86d8836fe8c9af8104f10cf6e457c04e40813d421780b08891c0e0de8ef"
+runtime_source_digest = "192c06bfd4c8e98b213abbc9191d9db4a401e4ff7d8ca6c7508470e0bb23bbca"
+base_digest = "sha256:61aac6154e18e04128ac7b4106e1ba8da69717ae0936b8c01e42e033f20edc2b"
 
 [kinds.supervised]
 repository = "posttrain-kind-supervised"
-digest = "sha256:5511b18d00bb8655bd05d43b19a43e09e49a5d8bd196542239670e78be3cdb7a"
-lock_digest = "aa430e9e0d56790a7351ba4e1f7fcbc27b02c264b26eef096d2721e6d89730bd"
+digest = "sha256:26cb5fcb638eac36afe4cccc399340e493c66850e363ecc68b1e87e8bad1b61a"
+lock_digest = "366f9f80b59d7e6346d215ca79468a2fba87d712921fc478fffc95e63a63978f"
 constraint_lock = "containers/posttrain-job-kinds/locks/workspace.lock.txt"
-runtime_source_digest = "a350e657cb442f7d045b12b69d6aa50362849c633d94d01aa783c8e4e9cc374b"
-base_digest = "sha256:d217c86d8836fe8c9af8104f10cf6e457c04e40813d421780b08891c0e0de8ef"
+runtime_source_digest = "192c06bfd4c8e98b213abbc9191d9db4a401e4ff7d8ca6c7508470e0bb23bbca"
+base_digest = "sha256:61aac6154e18e04128ac7b4106e1ba8da69717ae0936b8c01e42e033f20edc2b"
 
 [kinds.transform]
 repository = "posttrain-kind-transform"
-digest = "sha256:24139a861700d0259e438144745b48ef1be54d8f5dec6c4b84ef800136542ef6"
+digest = "sha256:3d0fa25c3fb87f8047f6920d8b2d9d5cb8b51e28133e91e359ad80e5ce286b77"
 lock_digest = "d26cadd4b09653f988a074a3d9a861785c7bc84aec5865e020865335027bf339"
 constraint_lock = "containers/posttrain-job-kinds/locks/transform.lock.txt"
-runtime_source_digest = "a350e657cb442f7d045b12b69d6aa50362849c633d94d01aa783c8e4e9cc374b"
-base_digest = "sha256:d217c86d8836fe8c9af8104f10cf6e457c04e40813d421780b08891c0e0de8ef"
+runtime_source_digest = "192c06bfd4c8e98b213abbc9191d9db4a401e4ff7d8ca6c7508470e0bb23bbca"
+base_digest = "sha256:61aac6154e18e04128ac7b4106e1ba8da69717ae0936b8c01e42e033f20edc2b"
