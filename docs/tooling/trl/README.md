@@ -11,8 +11,8 @@ rewards, and Verifiers environment implementations remain independently owned.
 
 The production framework installs the immutable internal release
 `trl==1.9.2.post1`. The Policy Prism constrained-IWOPD feature branch instead
-pins the pushed candidate `trl==1.9.2.post3` directly at
-`carbonteq-ai/trl@303998a5738fe4fb4e9bb6087c17a9462fed6384` until its independent
+pins the pushed candidate `trl==1.9.2.post5` directly at
+`carbonteq-ai/trl@b2dcbd0050f17383f97093d226b227d4b25acd75` until its independent
 internal-index promotion is complete. The fork is based on upstream TRL 1.9.2 and
 keeps the trainer runtime compatible with `datasets 4.6.1` so Verifiers v1 and
 TRL can share one environment. Project-specific job policy and environments
