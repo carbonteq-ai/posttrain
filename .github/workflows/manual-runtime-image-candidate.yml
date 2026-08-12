@@ -22,6 +22,7 @@ jobs:
       UV_SYSTEM_CERTS: "true"
       UV_CACHE_DIR: /var/lib/github-runner/.cache/uv
       JOB_REGISTRY: registry.lan/carbonteq
+      CANDIDATE_SIMPLE_URL: https://pypi.lan/carbonteq/dev/+simple/
     steps:
       - name: Checkout the explicit source branch
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -39,9 +40,41 @@ jobs:
       - name: Validate candidate source and materialize its runtime lock
         run: |
           unset TRACKIO_SERVER_URL POSTTRAIN_TRACKIO_SERVER_URL TRACKIO_WRITE_TOKEN
-          uv sync --all-packages --group dev --python 3.13
+          # The checked-out source keeps stable as its consumer default. This
+          # disposable candidate worktree resolves the same named source
+          # against carbonteq/dev, and retains the resulting lock with the
+          # image receipt instead of committing it as a stable lock.
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("pyproject.toml")
+          source = path.read_text(encoding="utf-8")
+          stable = 'url = "https://pypi.lan/carbonteq/stable/+simple/"'
+          candidate = 'url = "https://pypi.lan/carbonteq/dev/+simple/"'
+          assert source.count(stable) == 1, "candidate index source must be unambiguous"
+          path.write_text(source.replace(stable, candidate), encoding="utf-8")
+          PY
+          uv lock --upgrade-package trl --upgrade-package carbonteq-trackio
+          uv sync --all-packages --group dev --frozen --python 3.13
           uv run --no-sync posttrain-release check --allow-pending-runtime-lock
           uv run --no-sync posttrain-release lock-runtime-dependencies
+          uv run --no-sync python - <<'PY'
+          import tomllib
+
+          document = tomllib.loads(open("uv.lock", "rb").read().decode())
+          internal = [
+              package
+              for package in document.get("package", [])
+              if isinstance(package, dict)
+              and isinstance(package.get("source"), dict)
+              and str(package["source"].get("registry", "")).startswith("https://pypi.lan/carbonteq/")
+          ]
+          assert internal, "candidate lock does not contain any internal package receipts"
+          assert all(
+              str(package["source"]["registry"]).startswith("https://pypi.lan/carbonteq/dev/")
+              for package in internal
+          ), "candidate lock resolved an internal package outside carbonteq/dev"
+          PY
 
       - name: Build and publish candidate runtime images
         run: |
@@ -60,5 +93,6 @@ jobs:
           path: |
             packages/runtime-images/src/posttrain/runtime_images/published.toml
             packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/workspace.lock.txt
+            uv.lock
             .release/image-receipts/**
           if-no-files-found: error

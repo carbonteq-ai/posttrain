@@ -1,0 +1,142 @@
+name: Promote retained fork candidate to stable
+
+on:
+  workflow_dispatch:
+    inputs:
+      fork:
+        description: Maintained fork whose candidate bytes are being promoted
+        required: true
+        type: choice
+        options:
+          - trl
+          - verl
+          - trackio
+      release_tag:
+        description: Immutable carbonteq-v release tag already published to carbonteq/dev
+        required: true
+        type: string
+      wheel_sha256:
+        description: Expected SHA-256 of the retained wheel
+        required: true
+        type: string
+      sdist_sha256:
+        description: Expected SHA-256 of the retained source distribution
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  promote-retained-fork:
+    runs-on: [self-hosted, linux, x64, lan-release]
+    env:
+      UV_SYSTEM_CERTS: "true"
+      DEVELOPMENT_SIMPLE_URL: https://pypi.lan/carbonteq/dev/+simple/
+      STABLE_SIMPLE_URL: https://pypi.lan/carbonteq/stable/+simple/
+    steps:
+      - name: Resolve the allowlisted immutable candidate identity
+        env:
+          FORK: ${{ inputs.fork }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          version="${RELEASE_TAG#carbonteq-v}"
+          test "${RELEASE_TAG}" = "carbonteq-v${version}"
+          case "${FORK}" in
+            trl)
+              package=trl
+              repository=carbonteq-ai/trl
+              filename_prefix=trl
+              ;;
+            verl)
+              package=verl
+              repository=carbonteq-ai/verl
+              filename_prefix=verl
+              ;;
+            trackio)
+              package=carbonteq-trackio
+              repository=carbonteq-ai/trackio
+              filename_prefix=carbonteq_trackio
+              ;;
+            *)
+              echo "unsupported maintained fork: ${FORK}" >&2
+              exit 1
+              ;;
+          esac
+          {
+            printf 'PACKAGE=%s\n' "${package}"
+            printf 'REPOSITORY=%s\n' "${repository}"
+            printf 'VERSION=%s\n' "${version}"
+            printf 'WHEEL_FILENAME=%s-%s-py3-none-any.whl\n' "${filename_prefix}" "${version}"
+            printf 'SDIST_FILENAME=%s-%s.tar.gz\n' "${filename_prefix}" "${version}"
+          } >> "${GITHUB_ENV}"
+
+      - name: Verify development-channel bytes against the retained release
+        env:
+          WHEEL_SHA256: ${{ inputs.wheel_sha256 }}
+          SDIST_SHA256: ${{ inputs.sdist_sha256 }}
+        run: |
+          mkdir -p candidate-dist
+          simple_page="$(curl --fail --location --retry 3 "${DEVELOPMENT_SIMPLE_URL}${PACKAGE}/")"
+          printf '%s\n' "${simple_page}" | grep -F ">${WHEEL_FILENAME}<" | grep -F '../../+f/'
+          printf '%s\n' "${simple_page}" | grep -F ">${SDIST_FILENAME}<" | grep -F '../../+f/'
+          uv venv .candidate-reader --clear --python 3.13
+          uv pip download --python .candidate-reader/bin/python --no-deps --only-binary :all: \
+            --index-url "${DEVELOPMENT_SIMPLE_URL}" --dest candidate-dist "${PACKAGE}==${VERSION}"
+          uv pip download --python .candidate-reader/bin/python --no-deps --no-binary :all: \
+            --index-url "${DEVELOPMENT_SIMPLE_URL}" --dest candidate-dist "${PACKAGE}==${VERSION}"
+          test "$(sha256sum "candidate-dist/${WHEEL_FILENAME}" | cut -d ' ' -f 1)" = "${WHEEL_SHA256}"
+          test "$(sha256sum "candidate-dist/${SDIST_FILENAME}" | cut -d ' ' -f 1)" = "${SDIST_SHA256}"
+          sha256sum "candidate-dist/${WHEEL_FILENAME}" "candidate-dist/${SDIST_FILENAME}" > promotion-SHA256SUMS
+          stable_page="$(curl --fail --location --retry 3 "${STABLE_SIMPLE_URL}${PACKAGE}/")"
+          stable_wheel="$(printf '%s\n' "${stable_page}" | grep -F ">${WHEEL_FILENAME}<" || true)"
+          stable_sdist="$(printf '%s\n' "${stable_page}" | grep -F ">${SDIST_FILENAME}<" || true)"
+          if test -n "${stable_wheel}" || test -n "${stable_sdist}"; then
+            test -n "${stable_wheel}"
+            test -n "${stable_sdist}"
+            printf 'PROMOTION_ALREADY_STABLE=true\n' >> "${GITHUB_ENV}"
+          else
+            printf 'PROMOTION_ALREADY_STABLE=false\n' >> "${GITHUB_ENV}"
+          fi
+
+      - name: Promote unchanged development bytes server-side
+        run: |
+          if test "${PROMOTION_ALREADY_STABLE}" = true; then
+            echo "exact version already exists in stable; stable readback will verify it"
+            exit 0
+          fi
+          DEVPI_CLIENT="/var/lib/github-runner/.local/bin/devpi"
+          if ! test -x "${DEVPI_CLIENT}"; then
+            DEVPI_CLIENT="$(uv tool install devpi-client --with 'devpi-common<4' --force --quiet >/dev/null && command -v devpi)"
+          fi
+          "${DEVPI_CLIENT}" use https://pypi.lan/carbonteq/dev
+          "${DEVPI_CLIENT}" login "${UV_PUBLISH_USERNAME}" --password "${UV_PUBLISH_PASSWORD}"
+          "${DEVPI_CLIENT}" push -y "${PACKAGE}==${VERSION}" carbonteq/stable
+
+      - name: Verify stable readback is byte-identical
+        env:
+          WHEEL_SHA256: ${{ inputs.wheel_sha256 }}
+          SDIST_SHA256: ${{ inputs.sdist_sha256 }}
+        run: |
+          mkdir -p stable-dist
+          uv venv .stable-reader --clear --python 3.13
+          uv pip download --python .stable-reader/bin/python --no-deps --only-binary :all: \
+            --index-url "${STABLE_SIMPLE_URL}" --dest stable-dist "${PACKAGE}==${VERSION}"
+          uv pip download --python .stable-reader/bin/python --no-deps --no-binary :all: \
+            --index-url "${STABLE_SIMPLE_URL}" --dest stable-dist "${PACKAGE}==${VERSION}"
+          test "$(sha256sum "stable-dist/${WHEEL_FILENAME}" | cut -d ' ' -f 1)" = "${WHEEL_SHA256}"
+          test "$(sha256sum "stable-dist/${SDIST_FILENAME}" | cut -d ' ' -f 1)" = "${SDIST_SHA256}"
+          uv pip install --python .stable-reader/bin/python --index-url "${STABLE_SIMPLE_URL}" "${PACKAGE}==${VERSION}"
+          .stable-reader/bin/python - <<'PY'
+          import importlib.metadata
+          import os
+
+          assert importlib.metadata.version(os.environ["PACKAGE"]) == os.environ["VERSION"]
+          PY
+
+      - name: Retain promotion receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: retained-fork-promotion-${{ inputs.fork }}-${{ inputs.release_tag }}
+          path: promotion-SHA256SUMS
+          if-no-files-found: error

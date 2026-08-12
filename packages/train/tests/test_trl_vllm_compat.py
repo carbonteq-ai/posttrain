@@ -24,7 +24,7 @@ class TrlVllmCompatibilityTest(unittest.TestCase):
         except ImportError:
             self.skipTest("TRL optional dependency is not installed")
 
-        config = Olmo3GRPOConfig(output_dir="/tmp/posttrain-trl-contract", report_to="none")
+        config = Olmo3GRPOConfig(output_dir="/tmp/posttrain-trl-contract", report_to="none", use_cpu=True)
         self.assertTrue(config.active_sampling)
         self.assertEqual(config.loss_type, "dapo")
         self.assertEqual(config.scale_rewards, "none")
