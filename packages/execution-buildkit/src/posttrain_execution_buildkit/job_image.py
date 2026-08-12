@@ -222,7 +222,7 @@ class BuildKitJobImagePublisher:
             "type=image,push=true,"
             f"compression={request.publication.compression},"
             f"compression-level={request.publication.compression_level},"
-            "force-compression=true,oci-mediatypes=true"
+            "force-compression=false,oci-mediatypes=true"
         )
         platforms = ",".join(request.publication.platforms)
         return [

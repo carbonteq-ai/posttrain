@@ -257,7 +257,7 @@ def test_publisher_checks_smokes_pushes_verifies_and_reuses_receipt(
     assert "--no-cache" not in build
     assert (
         "posttrain-job.output=type=image,push=true,compression=zstd,"
-        "compression-level=3,force-compression=true,oci-mediatypes=true"
+        "compression-level=3,force-compression=false,oci-mediatypes=true"
     ) in build
     assert ("--provenance", "mode=max") == (
         build[build.index("--provenance")],
