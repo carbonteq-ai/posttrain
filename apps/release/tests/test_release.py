@@ -715,6 +715,12 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert 'consumer-venv/bin/python - "${candidate_version}" "${framework_wheelhouse}"' in candidate
     assert "framework wheelhouse contains non-candidate wheels" in candidate
     assert '--framework-wheelhouse "${framework_wheelhouse}"' in candidate
+    assert "qualification_profile:" in candidate
+    assert "rtx-pro-96gb" in candidate
+    assert "rtx4090-24gb" in candidate
+    assert 'qualification_target="targets/pop-os-rtx4090-24gb"' in candidate
+    assert 'qualification_host="pop-os.lan"' in candidate
+    assert '--target "${qualification_target}"' in candidate
 
     assert "candidate-version --simple-url" not in candidate
     assert "posttrain-release readiness-check" in candidate
