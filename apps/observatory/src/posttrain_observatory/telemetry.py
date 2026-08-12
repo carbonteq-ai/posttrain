@@ -27,6 +27,7 @@ type EvidenceCondition = Literal[
     "quantized_kv_cache",
     "tool_environment",
     "dapo_algorithm_enabled",
+    "olmo3_algorithm_enabled",
 ]
 
 
@@ -504,6 +505,49 @@ _METRIC_HELP = {
             "Fraction of candidate rollout rows retained after filtering for within-group reward variation.",
             "A low fraction means the effective environment population is being spent on discarded groups rather than learning signal.",
             unit="ratio",
+        ),
+        _metric(
+            "train/rl/active_sampling_generation_rounds",
+            "Active-sampling generation rounds",
+            "Number of sequential candidate-generation rounds needed to fill one optimizer update.",
+            "More rounds mean the sampler had to replace more reward-constant candidates before it could assemble an informative update.",
+        ),
+        _metric(
+            "train/rl/active_sampling_retained_fraction",
+            "Active-sampling retained fraction",
+            "Share of generated candidate rows retained after the reward-variation filter.",
+            "A low fraction means the update required substantial replacement sampling; inspect it with the candidate-row accounting.",
+            unit="ratio",
+        ),
+        _metric(
+            "train/rl/active_sampling_generated_rows",
+            "Active-sampling generated rows",
+            "Candidate rows actually generated while filling one optimizer update.",
+            "Compare this with retained rows to quantify the rollout work spent on replacement sampling.",
+        ),
+        _metric(
+            "train/rl/active_sampling_candidate_groups_reserved",
+            "Active-sampling candidate rows reserved",
+            "Candidate rows reserved by the dataloader for the bounded active-sampling window.",
+            "Reserved rows that remain unused are capacity held in reserve rather than rollout work already performed.",
+        ),
+        _metric(
+            "train/rl/active_sampling_candidate_groups_generated",
+            "Active-sampling candidate rows generated",
+            "Candidate rows whose rollouts were generated and scored.",
+            "This is the generated candidate population before filtering, not the final optimizer population.",
+        ),
+        _metric(
+            "train/rl/active_sampling_candidate_groups_retained",
+            "Active-sampling candidate rows retained",
+            "Generated candidate rows kept because their reward group had usable variation.",
+            "This is the population from which the optimizer update is assembled after any bounded oversupply is trimmed.",
+        ),
+        _metric(
+            "train/rl/active_sampling_candidate_groups_unused",
+            "Active-sampling candidate rows unused",
+            "Reserved candidate rows never generated because the target population was already filled.",
+            "A high value is expected when early candidate rounds are productive; it is not a failed rollout count.",
         ),
         _metric(
             "train/rl/group_zero_variance_fraction",
@@ -1272,6 +1316,12 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
             unit="ratio",
         ),
         SummaryFieldDefinition(
+            key="active_retained_fraction",
+            label="Active-sampling retained fraction",
+            metric="train/rl/active_sampling_retained_fraction",
+            unit="ratio",
+        ),
+        SummaryFieldDefinition(
             key="failed_rollouts", label="Failed rollouts", metric="train/rl/rollouts_failed", reducer="sum"
         ),
     ),
@@ -1302,6 +1352,26 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
             metrics=(
                 "train/rl/dynamic_sampling_candidate_batches",
                 "train/rl/dynamic_sampling_retained_fraction",
+            ),
+        ),
+        ChartDefinition(
+            key="active_sampling_yield",
+            title="Active sampling yield",
+            question="How many generation rounds were needed, and what share of generated candidates supplied usable reward variation?",
+            metrics=(
+                "train/rl/active_sampling_generation_rounds",
+                "train/rl/active_sampling_retained_fraction",
+            ),
+        ),
+        ChartDefinition(
+            key="active_sampling_population",
+            title="Active sampling population",
+            question="How did the bounded candidate window divide into generated, retained, and unused rows?",
+            metrics=(
+                "train/rl/active_sampling_candidate_groups_reserved",
+                "train/rl/active_sampling_candidate_groups_generated",
+                "train/rl/active_sampling_candidate_groups_retained",
+                "train/rl/active_sampling_candidate_groups_unused",
             ),
         ),
         ChartDefinition(
@@ -1372,6 +1442,13 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
         "train/rl/clip_fraction_high",
         "train/rl/dynamic_sampling_candidate_batches",
         "train/rl/dynamic_sampling_retained_fraction",
+        "train/rl/active_sampling_generation_rounds",
+        "train/rl/active_sampling_retained_fraction",
+        "train/rl/active_sampling_generated_rows",
+        "train/rl/active_sampling_candidate_groups_reserved",
+        "train/rl/active_sampling_candidate_groups_generated",
+        "train/rl/active_sampling_candidate_groups_retained",
+        "train/rl/active_sampling_candidate_groups_unused",
         "train/grad_norm",
         "train/learning_rate",
         "train/step_time_seconds",
@@ -1488,6 +1565,7 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
         "clip_fraction_high",
         "dynamic_candidate_batches",
         "dynamic_retained_fraction",
+        "active_retained_fraction",
         "failed_rollouts",
     ),
     trace_sections=(TraceSectionDefinition(trace_type="verifiers", label="Rollouts & rewards"),),
@@ -1500,6 +1578,8 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
         "train/rl/clip_fraction_high",
         "train/rl/dynamic_sampling_candidate_batches",
         "train/rl/dynamic_sampling_retained_fraction",
+        "train/rl/active_sampling_generation_rounds",
+        "train/rl/active_sampling_retained_fraction",
         "serve/backend/speculative_acceptance_rate",
     ),
     evidence_requirements=(
@@ -1541,6 +1621,22 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
             condition="dapo_algorithm_enabled",
             metrics=("train/rl/clip_fraction_low", "train/rl/clip_fraction_high"),
             reason="DAPO must expose lower- and upper-side clipping separately; one combined clip fraction is insufficient.",
+        ),
+        EvidenceRequirementDefinition(
+            key="olmo3_active_sampling",
+            label="OLMo3 active sampling",
+            level="conditional",
+            condition="olmo3_algorithm_enabled",
+            metrics=(
+                "train/rl/active_sampling_generation_rounds",
+                "train/rl/active_sampling_retained_fraction",
+                "train/rl/active_sampling_generated_rows",
+                "train/rl/active_sampling_candidate_groups_reserved",
+                "train/rl/active_sampling_candidate_groups_generated",
+                "train/rl/active_sampling_candidate_groups_retained",
+                "train/rl/active_sampling_candidate_groups_unused",
+            ),
+            reason="OLMo3 active sampling must expose bounded candidate generation and retained-population accounting so rollout cost and learning population remain distinguishable.",
         ),
         EvidenceRequirementDefinition(
             key="rollout_population",

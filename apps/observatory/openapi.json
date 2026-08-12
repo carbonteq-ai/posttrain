@@ -1609,6 +1609,12 @@
           "failed": {
             "$ref": "#/components/schemas/SummaryValue"
           },
+          "missing": {
+            "$ref": "#/components/schemas/SummaryValue"
+          },
+          "requested": {
+            "$ref": "#/components/schemas/SummaryValue"
+          },
           "truncated": {
             "$ref": "#/components/schemas/SummaryValue"
           },
@@ -1617,11 +1623,13 @@
           }
         },
         "required": [
+          "requested",
           "attempted",
           "completed",
           "failed",
           "truncated",
-          "unscorable"
+          "unscorable",
+          "missing"
         ],
         "title": "GRPORolloutPopulation",
         "type": "object"

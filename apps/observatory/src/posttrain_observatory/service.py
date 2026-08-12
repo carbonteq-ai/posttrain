@@ -801,6 +801,19 @@ def _condition_active(
             isinstance(value, str) and value.lower() == "dapo"
             for value in _config_values(dict(resolved_inputs), "algorithm")
         )
+    if condition == "olmo3_algorithm_enabled":
+        configured = any(
+            isinstance(value, str) and value.lower() == "olmo3"
+            for value in _config_values(dict(resolved_inputs), "algorithm")
+        )
+        return configured or any(
+            series.get(metric, MetricSeries(name=metric)).points
+            for metric in (
+                "train/rl/active_sampling_generation_rounds",
+                "train/rl/active_sampling_retained_fraction",
+                "train/rl/active_sampling_generated_rows",
+            )
+        )
     raise ValueError(f"unknown evidence condition: {condition}")
 
 

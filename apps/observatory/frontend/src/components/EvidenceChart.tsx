@@ -161,6 +161,7 @@ export function scaleGroup(name: string, metricUnits: Record<string, string | nu
   if (name.startsWith('train/logps/')) return 'dpo-log-probability';
   if (name.startsWith('train/logits/')) return 'dpo-logit';
   if (/train\/rl\/rollouts_(requested|attempted|completed|failed|truncated|unscorable|missing)$/.test(name)) return 'rollout-count';
+  if (/train\/rl\/active_sampling_(generation_rounds|generated_rows|candidate_groups_(reserved|generated|retained|unused))$/.test(name)) return 'active-sampling-count';
   if (name === 'train/learning_rate') return 'learning-rate';
   if (name === 'train/non_padding_tokens_per_second') return 'tokens-per-second';
   if (name === 'train/step_time_seconds') return 'seconds';
@@ -215,6 +216,7 @@ function groupLabel(
     'dpo-log-probability': 'Sequence log probability',
     'dpo-logit': 'Mean token logits',
     'rollout-count': 'Rollout count',
+    'active-sampling-count': 'Candidate rows',
     ratio: 'Rates and fractions',
     'unit:ratio': 'Rates and fractions',
     'unit:%': 'Utilization',
