@@ -128,6 +128,18 @@ class InferenceBinding:
             raise ContractError("tool-calling inference requires a model renderer with a tool-call protocol")
         if self.startup_timeout_seconds <= 0:
             raise ContractError("inference startup timeout must be positive")
+        context_window = self.engine.get("max_model_len")
+        max_tokens = self.sampling.get("max_tokens")
+        if context_window is not None and (
+            isinstance(context_window, bool) or not isinstance(context_window, int) or context_window < 1
+        ):
+            raise ContractError("inference max_model_len must be a positive integer when declared")
+        if max_tokens is not None and (
+            isinstance(max_tokens, bool) or not isinstance(max_tokens, int) or max_tokens < 1
+        ):
+            raise ContractError("inference sampling max_tokens must be a positive integer when declared")
+        if isinstance(context_window, int) and isinstance(max_tokens, int) and max_tokens > context_window:
+            raise ContractError("inference sampling max_tokens cannot exceed inference max_model_len")
         object.__setattr__(self, "engine", immutable_json_mapping(self.engine))
         object.__setattr__(self, "sampling", immutable_json_mapping(self.sampling))
 
