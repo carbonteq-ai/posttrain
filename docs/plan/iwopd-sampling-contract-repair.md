@@ -76,6 +76,11 @@ package reaches the internal index and the resolved job image contains it.
   single-flight publication, BuildKit parallelism, compression defaults,
   cold-pull diagnosis, safe registry retention, and the separate future
   decision for kind-scoped locks.
+- [x] (2026-08-13) Made required Quality install the selected TRL optional
+  dependency closure from the frozen lock while injecting the hash-verified
+  GitHub Release wheel. The real-config and compatibility tests now declare
+  their CPU-only construction intent and read the selected TRL version from
+  the consumer manifest instead of carrying a stale literal.
 - [x] (2026-08-13) Added retained non-finite metric and gradient-parameter
   evidence to the TRL distillation path. The FP32-weight retry still reaches
   the first actor update and reports `on_policy_loss=-inf`, ruling out BF16

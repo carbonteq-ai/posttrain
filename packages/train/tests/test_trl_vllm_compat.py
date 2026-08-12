@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import importlib.metadata
+import tomllib
 import unittest
 import warnings
+from pathlib import Path
 
-TRL_RELEASE = "1.9.2.post2"
+_REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+_TRAIN_PROJECT = tomllib.loads((_REPOSITORY_ROOT / "packages/train/pyproject.toml").read_text(encoding="utf-8"))
+TRL_RELEASE = _TRAIN_PROJECT["tool"]["posttrain"]["trl"]["version"]
 
 
 class TrlVllmCompatibilityTest(unittest.TestCase):
@@ -24,7 +28,7 @@ class TrlVllmCompatibilityTest(unittest.TestCase):
         except ImportError:
             self.skipTest("TRL optional dependency is not installed")
 
-        config = Olmo3GRPOConfig(output_dir="/tmp/posttrain-trl-contract", report_to="none")
+        config = Olmo3GRPOConfig(output_dir="/tmp/posttrain-trl-contract", report_to="none", use_cpu=True)
         self.assertTrue(config.active_sampling)
         self.assertEqual(config.loss_type, "dapo")
         self.assertEqual(config.scale_rewards, "none")
