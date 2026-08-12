@@ -35,13 +35,6 @@ from .common import (
     vllm_rollout_options,
 )
 
-_TRACE_REPLAY_METRICS = frozenset(
-    {
-        "train/rl/reward_std",
-        "train/rl/group_zero_variance_fraction",
-    }
-)
-
 
 class _ActorUpdateTelemetry:
     """Own one bounded actor-update phase between rollout and optimizer step."""
@@ -272,23 +265,6 @@ def _run_online_rl(
         workspace=output_dir.parent,
     )()
 
-    def normalize_metrics(step: int, native: Mapping[str, object]) -> Mapping[str, float]:
-        metrics = dict(
-            normalize_grpo_metrics(
-                backend="trl",
-                step=step,
-                native=native,
-                features=observation_features,
-            ).metrics
-        )
-        # Verifiers trace replay owns reward-population evidence. The common
-        # callback owns wall-clock step duration. Native TRL records can
-        # contain both, but emitting them again creates two logical points per
-        # optimizer step.
-        for name in (*_TRACE_REPLAY_METRICS, "train/step_time_seconds"):
-            metrics.pop(name, None)
-        return metrics
-
     with context.phase("runtime_initialization", {"backend": "trl"}):
         trainer = trainer_type(
             model=model,
@@ -298,7 +274,15 @@ def _run_online_rl(
             train_dataset=dataset,
             processing_class=tokenizer,
             callbacks=[
-                callback_type(context, imports, metric_normalizer=normalize_metrics)(),
+                callback_type(
+                    context,
+                    imports,
+                    metric_normalizer=lambda step, native: _normalize_live_grpo_metrics(
+                        step,
+                        native,
+                        observation_features,
+                    ),
+                )(),
                 _actor_update_callback_type(imports, actor_update)(),
                 checkpoint_callback,
             ],
@@ -334,6 +318,29 @@ def _run_online_rl(
                 imports=imports,
             )
             raise
+
+
+def _normalize_live_grpo_metrics(
+    step: int,
+    native: Mapping[str, object],
+    features: GRPOObservationFeatures,
+) -> Mapping[str, float]:
+    """Normalize one TRL actor record while preserving retained-group signal."""
+
+    metrics = dict(
+        normalize_grpo_metrics(
+            backend="trl",
+            step=step,
+            native=native,
+            features=features,
+        ).metrics
+    )
+    # The common callback owns wall-clock step duration. Native TRL owns
+    # retained-population reward signal after active sampling, so it must
+    # remain live for mid-run monitoring. Final bridge replay dynamically
+    # removes only metrics already observed for the same logical step.
+    metrics.pop("train/step_time_seconds", None)
+    return metrics
 
 
 def _rollout_function(

@@ -3,11 +3,23 @@
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Literal
 
-from posttrain.common import JsonValue, LocalArtifactRef, ModelVariant, ProducedArtifact, RunContext
+from posttrain.common import (
+    EventObservation,
+    JsonValue,
+    LocalArtifactRef,
+    MetricBatchObservation,
+    MetricObservation,
+    ModelVariant,
+    Observer,
+    ProducedArtifact,
+    RunContext,
+    TraceObservation,
+)
 from posttrain.data import DatasetDescriptor, PreferenceDataset, SupervisedDataset, SupervisedDataSource
 
 from .backends.common import BackendTrainingResult
@@ -38,6 +50,47 @@ _LIVE_ROLLOUT_POPULATION_METRICS = frozenset(
         "train/rl/rollouts_missing",
     }
 )
+
+
+@dataclass(slots=True)
+class _LiveMetricObserver:
+    """Forward evidence while remembering which logical step emitted each metric.
+
+    Environment bridges replay their durable trace population when a job
+    reaches a terminal state.  A trainer can already have emitted a more
+    precise live version of a metric for the same optimizer step (for example,
+    the retained OLMo3 population after active sampling).  Remembering that
+    narrow fact lets finalization retain trace replay as a failure/fallback
+    path without adding a second, semantically different point to the run.
+    """
+
+    delegate: Observer
+    metric_names_by_step: dict[int, set[str]] = field(default_factory=dict)
+
+    def _record(self, names: Iterable[str], step: int | None) -> None:
+        if step is None:
+            return
+        self.metric_names_by_step.setdefault(step, set()).update(names)
+
+    def snapshot(self) -> dict[int, frozenset[str]]:
+        return {step: frozenset(names) for step, names in self.metric_names_by_step.items()}
+
+    def event(self, observation: EventObservation) -> None:
+        self.delegate.event(observation)
+
+    def metric(self, observation: MetricObservation) -> None:
+        self._record((observation.name,), observation.step)
+        self.delegate.metric(observation)
+
+    def metrics(self, observation: MetricBatchObservation) -> None:
+        self._record(observation.values, observation.step)
+        self.delegate.metrics(observation)
+
+    def trace(self, observation: TraceObservation) -> None:
+        self.delegate.trace(observation)
+
+    def artifact(self, artifact: ProducedArtifact) -> None:
+        self.delegate.artifact(artifact)
 
 
 def _digest(path: Path) -> str:
@@ -298,7 +351,7 @@ def grpo(
     backend = _run_environment_backend(
         context,
         request.bridge,
-        lambda: selected_runner(context, request, output_dir),
+        lambda active_context: selected_runner(active_context, request, output_dir),
         replay_exclusions=_rollout_replay_exclusions(request.training.backend),
     )
     return _finish(context, request, request.settings.algorithm, backend)
@@ -326,7 +379,7 @@ def sampo(
     backend = _run_environment_backend(
         context,
         request.bridge,
-        lambda: selected_runner(context, request, output_dir),
+        lambda active_context: selected_runner(active_context, request, output_dir),
         replay_exclusions=_rollout_replay_exclusions(request.training.backend),
     )
     return _finish(context, request, "sampo", backend)
@@ -362,7 +415,7 @@ def distill(
     backend = _run_environment_backend(
         context,
         request.bridge,
-        lambda: selected_runner(context, request, output_dir),
+        lambda active_context: selected_runner(active_context, request, output_dir),
     )
     context.metrics(
         {
@@ -377,19 +430,21 @@ def distill(
 def _run_environment_backend(
     context: TrainingContext,
     bridge: EnvironmentRolloutBridge,
-    run: Callable[[], BackendTrainingResult],
+    run: Callable[[TrainingContext], BackendTrainingResult],
     *,
     replay_exclusions: frozenset[str] = frozenset(),
 ) -> BackendTrainingResult:
+    live_observer = _LiveMetricObserver(context.observer)
+    live_context = replace(context, observer=live_observer)
     try:
-        result = run()
+        result = run(live_context)
     except BaseException as training_error:
         try:
             # A failed backend may have emitted only a partial live population.
             # Replay all terminal evidence so failed/unscorable counts cannot be
             # hidden by the normal success-path de-duplication policy.
             _publish_bridge_artifacts(
-                context,
+                live_context,
                 bridge,
                 replay_exclusions=frozenset(),
             )
@@ -398,11 +453,12 @@ def _run_environment_backend(
                 f"environment trace finalization also failed: {type(finalization_error).__name__}: {finalization_error}"
             )
         raise
-    result.validate(context.workspace)
+    result.validate(live_context.workspace)
     _publish_bridge_artifacts(
-        context,
+        live_context,
         bridge,
         replay_exclusions=replay_exclusions,
+        live_metric_names=live_observer.snapshot(),
     )
     return result
 
@@ -412,6 +468,7 @@ def _publish_bridge_artifacts(
     bridge: EnvironmentRolloutBridge,
     *,
     replay_exclusions: frozenset[str] = frozenset(),
+    live_metric_names: dict[int, frozenset[str]] | None = None,
 ) -> None:
     evidence_reader = getattr(bridge, "evidence", None)
     if callable(evidence_reader):
@@ -419,7 +476,16 @@ def _publish_bridge_artifacts(
         if not isinstance(evidence, EnvironmentRolloutEvidence):
             raise TypeError("environment bridge evidence must use EnvironmentRolloutEvidence")
         for observation in evidence.metrics:
-            values = {name: value for name, value in observation.values.items() if name not in replay_exclusions}
+            observed_at_step = (
+                live_metric_names.get(observation.step, frozenset())
+                if live_metric_names is not None and observation.step is not None
+                else frozenset()
+            )
+            values = {
+                name: value
+                for name, value in observation.values.items()
+                if name not in replay_exclusions and name not in observed_at_step
+            }
             if not values:
                 continue
             attributes = dict(observation.attributes)

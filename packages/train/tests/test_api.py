@@ -83,6 +83,7 @@ from posttrain.train.backends.trl.grpo import (
     _configure_liger_loss,
     _grpo_arguments,
     _grpo_runtime_attributes,
+    _normalize_live_grpo_metrics,
     _rollout_function,
 )
 from posttrain.train.catalog_schema import TrainingRuntimeSchema, decode_training_selection
@@ -816,6 +817,43 @@ def test_grpo_replays_trace_evidence_after_training_without_decreasing_metric_st
     assert replay.attributes["observation_source"] == "verifiers"
 
 
+def test_grpo_prefers_live_retained_population_signal_over_terminal_trace_replay(
+    tmp_path: Path,
+) -> None:
+    observer = Observer()
+    model = QWEN_35_2B
+    request = GRPORequest(
+        policy=model,
+        bridge=EvidenceReplayBridge(),
+        settings=QWEN35_GRPO_SMOKE,
+        environment=FakeEnvironment(),
+        training=_training(),
+        inference=_inference(model),
+    )
+
+    def backend(
+        context: RunContext,
+        value: GRPORequest,
+        output_dir: Path,
+    ) -> BackendTrainingResult:
+        context.metrics(
+            {
+                "train/rl/reward_std": 0.5,
+                "train/rl/group_zero_variance_fraction": 0.125,
+            },
+            step=3,
+        )
+        return _backend(context, value, output_dir)
+
+    grpo(_context(tmp_path, observer), request, runner=backend)
+
+    reward_std_batches = [batch for batch in observer.metrics_seen if "train/rl/reward_std" in batch.values]
+    assert len(reward_std_batches) == 1
+    assert reward_std_batches[0].step == 3
+    assert reward_std_batches[0].values["train/rl/reward_std"] == 0.5
+    assert reward_std_batches[0].values["train/rl/group_zero_variance_fraction"] == 0.125
+
+
 def test_grpo_replays_trace_population_when_verl_does_not_emit_it_live(
     tmp_path: Path,
 ) -> None:
@@ -1361,6 +1399,24 @@ def test_grpo_callback_emits_normalized_names_without_trl_vocabulary(tmp_path: P
     assert values["train/rl/reward_std"] == 0.25
     assert values["train/rl/kl"] == 0.01
     assert "train/reward" not in values
+
+
+def test_live_trl_metrics_keep_retained_reward_signal_and_delegate_step_time() -> None:
+    values = _normalize_live_grpo_metrics(
+        4,
+        {
+            "reward": 0.5,
+            "reward_std": 0.25,
+            "frac_reward_zero_std": 0.125,
+            "step_time": 12.0,
+        },
+        GRPOObservationFeatures(),
+    )
+
+    assert values["train/rl/reward_mean"] == 0.5
+    assert values["train/rl/reward_std"] == 0.25
+    assert values["train/rl/group_zero_variance_fraction"] == 0.125
+    assert "train/step_time_seconds" not in values
 
 
 def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path) -> None:
