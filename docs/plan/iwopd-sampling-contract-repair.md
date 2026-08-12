@@ -48,8 +48,16 @@ package reaches the internal index and the resolved job image contains it.
   min-p, repetition, and presence controls. Its resolved global batch is two,
   matching its 1×2 rollout budget; package planning, resolution, and registry
   tests pass.
-- [ ] Build the resolved immutable job image and run the two explicitly scoped
-  GPU canaries without disturbing the unrelated active dstack job.
+- [x] (2026-08-13) Packed the first TRL canary image and retained the failed
+  provider run `iwopd-post4-smoke-20260813`; its 2B vLLM teacher had no KV
+  cache because the selected `0.15` memory fraction was smaller than the
+  model's weights.
+- [x] (2026-08-13) Added a 24 GiB capacity-bounded canary selection with an
+  explicit teacher vLLM fraction of `0.35`, and a snapshot that names TRL
+  post4. The resulting retry reached real remote trainer construction.
+- [ ] Publish a new dependency-bearing TRL runtime-kind image, repack the
+  bounded TRL and veRL images from its generated manifest, then run both
+  explicitly scoped GPU canaries and verify their retained evidence.
 
 ## Surprises & Discoveries
 
@@ -82,6 +90,13 @@ package reaches the internal index and the resolved job image contains it.
   inference sampling values differed. The final canary has a dedicated
   global-batch-two training binding and identical complete `PolicySampling`
   values at both generation boundaries.
+- Observation: a job-layer repack does not replace third-party packages baked
+  into a dependency-bearing runtime kind.
+  Evidence: retry `iwopd-post4-capacity-smoke-20260813` used the new job image
+  and Posttrain source but still raised `IWOPDConfig.__init__()` for `min_p`.
+  Its parent `online-rl-trl-py312` kind was built from a profile pinned to
+  `trl==1.9.2.post2`; the job layer installs first-party sources with
+  `--no-deps`.
 
 ## Decision Log
 
@@ -106,6 +121,13 @@ package reaches the internal index and the resolved job image contains it.
   Rationale: the runner and its private-index credential remain repository
   scoped. A manual workflow dispatch receives only a signed release tag and
   expected artifact hashes, never a fork checkout or fork-controlled workflow.
+  Date/Author: 2026-08-13 / Codex
+- Decision: Rebuild the parent runtime kind through Posttrain's manual
+  runtime-image candidate workflow before retrying the GPU canaries.
+  Rationale: installing a new application layer cannot change the immutable
+  TRL distribution in the parent kind. The candidate workflow materializes
+  the exact internal wheel receipt, reads OCI digests back from the registry,
+  and emits the matching image manifest.
   Date/Author: 2026-08-13 / Codex
 
 ## Outcomes & Retrospective
