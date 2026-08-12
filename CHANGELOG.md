@@ -4,7 +4,21 @@ All notable changes to Posttrain are documented here. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with a coordinated
 version across first-party distributions.
 
-## 0.3.7 - Unreleased
+## 0.3.9 - Unreleased
+
+This release prevents a veRL training selection from being packaged against a
+different backend runtime than the one it declares.
+
+### Fixed
+
+- veRL job packing now requires the selected source repository, full commit,
+  and dependency-lock digest to match the digest-pinned runtime image.
+- Runtime-image verification checks the veRL provenance labels in the registry,
+  not just the shared framework dependency lock.
+- The immutable two-step veRL capsule is retained in Lab's qualification
+  inventory as an explicit experimental candidate.
+
+## 0.3.8 - 2026-08-12
 
 This release makes terminal online-RL evidence observable while rollout work
 is still running and advances the maintained veRL runtime used by Posttrain.

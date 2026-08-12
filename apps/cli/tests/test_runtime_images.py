@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 from posttrain.common import ContractError
+from posttrain.runtime_images import backend_runtime_labels
 from posttrain.runtime_images.manifest import load_manifest
 from posttrain_cli.checks import runtime_images_check
 from posttrain_cli.cli import main
@@ -49,11 +50,13 @@ class _FakeInspector:
         missing: bool = False,
         image_level: str | None = "job-kind",
         revision: str | None = None,
+        labels: dict[str, str] | None = None,
     ) -> None:
         self._lock_digest = _expected_lock() if lock_digest == "" else lock_digest
         self._missing = missing
         self._image_level = image_level
         self._revision = revision
+        self._labels = labels or {}
         self.inspected: list[str] = []
 
     def inspect(self, reference: str) -> RemoteImageFacts:
@@ -67,6 +70,7 @@ class _FakeInspector:
             labels[IMAGE_LEVEL_LABEL] = self._image_level
         if self._revision is not None:
             labels[REVISION_LABEL] = self._revision
+        labels.update(self._labels)
         return RemoteImageFacts(
             reference=reference,
             digest=reference.rsplit("@", 1)[1],
@@ -105,6 +109,35 @@ def test_matching_lock_digest_verifies(tmp_path: Path, monkeypatch: pytest.Monke
     )
     assert result.status == "ok"
     assert result.ok
+
+
+def test_verl_runtime_image_requires_its_backend_identity_labels(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    registry = _registry(tmp_path, monkeypatch)
+    variant = "online-rl-verl-py313"
+    expected_labels = backend_runtime_labels(variant)
+    verified = verify_variant(
+        variant,
+        registry.kind_images[variant].value,
+        manifest=_manifest(),
+        inspector=_FakeInspector(labels=expected_labels),
+    )
+    assert verified.ok
+    assert "backend source" in verified.detail
+
+    labels = dict(expected_labels)
+    revision_label = next(label for label in labels if label.endswith("source-revision"))
+    labels[revision_label] = "f" * 40
+    drifted = verify_variant(
+        variant,
+        registry.kind_images[variant].value,
+        manifest=_manifest(),
+        inspector=_FakeInspector(labels=labels),
+    )
+    assert drifted.status == "drifted"
+    assert revision_label in drifted.detail
 
 
 def test_a_stale_image_is_reported_as_drift(

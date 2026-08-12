@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from posttrain.common import ContractError
+from posttrain.runtime_images import backend_runtime_labels
 from posttrain.runtime_images.manifest import (
     ManifestError,
     PublishedManifest,
@@ -135,14 +136,35 @@ def verify_variant(
                 "the image must be republished"
             ),
         )
+    expected_backend_labels = backend_runtime_labels(variant, manifest.image(variant).backend_runtime_identity)
+    for label, expected_value in expected_backend_labels.items():
+        observed_value = facts.labels.get(label)
+        if observed_value != expected_value:
+            found = "absent" if observed_value is None else repr(observed_value)
+            return VariantVerification(
+                variant=variant,
+                reference=reference,
+                expected_lock_digest=expected,
+                status="drifted",
+                detail=(
+                    f"image backend identity label {label} is {found}; expected {expected_value!r}. "
+                    "The job-kind image must be republished before it can be used."
+                ),
+            )
     revision = facts.revision
     provenance = f", built from framework revision {revision}" if revision else ""
+    backend_provenance = ""
+    if expected_backend_labels:
+        backend_revision = next(
+            value for label, value in expected_backend_labels.items() if label.endswith("source-revision")
+        )
+        backend_provenance = f", backend source {backend_revision} matches"
     return VariantVerification(
         variant=variant,
         reference=reference,
         expected_lock_digest=expected,
         status="ok",
-        detail=f"lock digest {expected} matches{provenance}",
+        detail=f"lock digest {expected} matches{provenance}{backend_provenance}",
     )
 
 

@@ -13,7 +13,14 @@ from dataclasses import dataclass
 from functools import cache
 from pathlib import PurePosixPath
 
-from . import RUNTIME_VARIANTS, backend_constraint_lock, lock_digest, read_resource
+from . import (
+    RUNTIME_VARIANTS,
+    BackendRuntimeImageIdentity,
+    backend_constraint_lock,
+    backend_runtime_identity,
+    lock_digest,
+    read_resource,
+)
 
 _MANIFEST = "published.toml"
 _SUPPORTED_SCHEMA = 1
@@ -48,6 +55,7 @@ class PublishedImage:
     backend_constraint_lock: PurePosixPath | None = None
     backend_lock_digest: str | None = None
     backend_provided_packages: tuple[str, ...] = ()
+    backend_runtime_identity: BackendRuntimeImageIdentity | None = None
 
     def reference(self, prefix: str) -> str:
         """Return the digest-pinned pull reference under `prefix`."""
@@ -135,6 +143,30 @@ def _image(name: str, payload: Mapping[str, object]) -> PublishedImage:
     if backend_lock is None and backend_provided:
         raise ManifestError(f"{name}: 'backend_provided_packages' needs a 'backend_constraint_lock'")
 
+    runtime_identity_fields = (
+        "backend_source_repository",
+        "backend_source_revision",
+        "backend_dependency_lock_digest",
+    )
+    identity_values = tuple(payload.get(field) for field in runtime_identity_fields)
+    if any(value is not None for value in identity_values) and not all(
+        isinstance(value, str) and value for value in identity_values
+    ):
+        raise ManifestError(f"{name}: backend runtime identity fields must be declared together")
+    identity: BackendRuntimeImageIdentity | None = None
+    if all(isinstance(value, str) and value for value in identity_values):
+        repository, revision, dependency_digest = identity_values
+        assert isinstance(repository, str) and isinstance(revision, str) and isinstance(dependency_digest, str)
+        if not repository.startswith("https://"):
+            raise ManifestError(f"{name}: 'backend_source_repository' must use canonical HTTPS")
+        if len(revision) != 40 or any(character not in "0123456789abcdef" for character in revision):
+            raise ManifestError(f"{name}: 'backend_source_revision' must be a full commit")
+        if len(dependency_digest) != 64 or any(character not in "0123456789abcdef" for character in dependency_digest):
+            raise ManifestError(f"{name}: 'backend_dependency_lock_digest' must be a SHA-256 digest")
+        identity = BackendRuntimeImageIdentity(repository, revision, dependency_digest)
+    if (backend_lock is None) != (identity is None):
+        raise ManifestError(f"{name}: backend runtime identity requires a backend constraint lock")
+
     return PublishedImage(
         name=name,
         repository=_text("repository"),
@@ -148,6 +180,7 @@ def _image(name: str, payload: Mapping[str, object]) -> PublishedImage:
         backend_constraint_lock=(PurePosixPath(backend_lock) if backend_lock is not None else None),
         backend_lock_digest=backend_digest,
         backend_provided_packages=tuple(backend_provided),
+        backend_runtime_identity=identity,
     )
 
 
@@ -215,6 +248,8 @@ def load_manifest(
                     f"kinds.{variant}: backend constraint lock is "
                     f"{image.backend_constraint_lock}, expected {expected_backend}"
                 )
+            if image.backend_runtime_identity != backend_runtime_identity(variant):
+                raise ManifestError(f"kinds.{variant}: backend runtime identity differs from its shipped profile")
 
     if verify_locks:
         _verify(base)

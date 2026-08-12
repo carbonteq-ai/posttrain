@@ -41,6 +41,13 @@ This work repairs implementation conformance with `docs/post-training/06-observa
   Verifiers traces while the dstack provider still reported `running`. Final
   reconciliation was consistent and retained the LoRA adapter, paired
   step-one recovery/model checkpoint, native traces, and training summary.
+- [x] (2026-08-12) Added a release-image backend identity contract. The
+  selected veRL source revision and dependency lock must match the immutable
+  kind image before a job package is materialized; the stale Lab `@4` selection
+  now fails at that boundary, while the versioned `@5` / settings-v3 selection
+  matches the published capsule exactly. The capsule is registered as a
+  retained experimental qualification candidate, so the full Lab inventory
+  remains closed rather than treating an unclassified YAML as runnable.
 - [ ] Run the deliberately controlled live failure canary and verify that its
   terminal error trace is visible before provider failure and remains absent
   from learning aggregates.
@@ -150,6 +157,15 @@ This work repairs implementation conformance with `docs/post-training/06-observa
   Rationale: a clean consumer must receive the exact package selected by the framework. The new release regression binds TRL's GitHub tag, filename, and SHA-256 to the package selection metadata so a future pin change fails before consumer qualification.
   Date/Author: 2026-08-12 / Codex.
 
+- Decision: Carry a backend runtime image's source revision and dependency lock
+  in the published image manifest, then bind those bytes into the immutable
+  job-pack plan.
+  Rationale: checking a veRL worktree only after container start wastes a
+  pack, registry publication, and GPU allocation on a selection that can never
+  execute. The plan is the earliest authoritative boundary with both the
+  selected backend and digest-pinned kind image available.
+  Date/Author: 2026-08-12 / Codex.
+
 ## Outcomes & Retrospective
 
 Implementation now makes native terminal evidence durable before trainability checks. A deterministic zero-branch `HarnessError` is appended, delivered to the terminal observer, and only then raises `VerifiersRolloutFailure`; it is never returned as an `EnvironmentRollout`. Tracking submission exceptions retain the native record for final replay. The bridge stops dequeuing new work after its first fatal terminal-projection error, while preserving any concurrently completed terminal records.
@@ -188,6 +204,22 @@ or group-variance learning evidence. On 2026-08-12 the focused composition,
 bridge, and Trackio adapter suites passed 52 tests, alongside Ruff, Pyright,
 import-boundary, and diff checks. External Doris and live GPU failure/veRL
 qualification remain deliberately open.
+
+The release-preflight repair moves veRL capsule compatibility from container
+startup to job planning. `PublishedImage` records the source repository,
+source revision, and dependency-lock digest baked into a backend runtime image.
+CLI configuration carries them into `BackendRuntimeIdentity` on the job-pack
+plan; pack-time validation repeats the check so direct API callers cannot
+bypass it. The historical Lab `@4` binding requests `c3f49…` and now fails
+before materialization. The new `@5` binding and v3 work package select the
+published `a6fe39…` revision and `df7769…` lock. No GPU task has been submitted
+from either selection yet.
+
+The complete repository test suite passed on 2026-08-12: 1,201 passed and 13
+environment-dependent tests skipped. The preceding failure was useful: it
+showed that a standalone valid work package is not sufficient; the Lab
+qualification inventory must classify it before the release can be considered
+locally ready.
 
 ## Context and Orientation
 

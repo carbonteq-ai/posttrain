@@ -43,6 +43,7 @@ from .contracts import (
 from .job_package import (
     JOB_PACKAGE_MANIFEST_PATH,
     JOB_PACKAGE_WORKER_COMMAND,
+    BackendRuntimeIdentity,
     BackendRuntimeLock,
     DatasetPackageLock,
     EnvironmentActivationLock,
@@ -120,6 +121,7 @@ from .service import (
 
 __all__ = [
     "BUNDLE_MANIFEST_PATH",
+    "BackendRuntimeIdentity",
     "BackendRuntimeLock",
     "AdmissionEntry",
     "AdmissionResult",

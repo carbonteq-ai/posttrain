@@ -21,7 +21,7 @@ from posttrain.environment import (
     VerifiersV1ConfigActivation,
 )
 from posttrain.eval import EvaluationPlan
-from posttrain.execution import EnvironmentActivationLock, RuntimeImageRef, StagedResourceLock
+from posttrain.execution import BackendRuntimeIdentity, EnvironmentActivationLock, RuntimeImageRef, StagedResourceLock
 from posttrain.work import JobKind, PreparedWorkPackageJob, ResolvedSeats
 
 from .contracts import (
@@ -127,6 +127,7 @@ class JobPackSpec:
     environment_wheels: tuple[EnvironmentWheelRequest, ...]
     environment_activations: tuple[EnvironmentActivationLock, ...]
     expected_artifact_roles: tuple[str, ...]
+    backend_runtime_identity: BackendRuntimeIdentity | None = None
     worker_contract_version: str = "1"
     family_registry_lock: Mapping[str, object] = field(default_factory=dict)
     project_environment_sources: tuple[ProjectEnvironmentSourceRequest, ...] = ()
@@ -147,6 +148,11 @@ class JobPackSpec:
             self.runtime_variant == self.kind_profile or self.runtime_variant.startswith(f"{self.kind_profile}-")
         ):
             raise ContractError("job pack runtime variant must refine its logical kind profile")
+        if self.runtime_variant == "online-rl-verl-py313":
+            if self.backend_runtime_identity is None:
+                raise ContractError("veRL job pack requires immutable backend runtime identity")
+        elif self.backend_runtime_identity is not None:
+            raise ContractError("backend runtime identity is only valid for the veRL runtime variant")
         for label, digest in (
             ("resolved inputs", self.resolved_inputs_digest),
             ("framework source", self.framework_source_digest),
@@ -269,6 +275,9 @@ class JobPackSpec:
                 for source in self.project_environment_sources
             ],
             "expected_artifact_roles": list(self.expected_artifact_roles),
+            "backend_runtime_identity": (
+                self.backend_runtime_identity.to_payload() if self.backend_runtime_identity is not None else None
+            ),
             "worker_contract_version": self.worker_contract_version,
             "family_registry_lock": cast(JsonValue, dict(self.family_registry_lock)),
         }
@@ -326,6 +335,7 @@ def plan_job_pack(
     worker_contract_version: str = "1",
     family_registry_lock: Mapping[str, object] | None = None,
     project_root: Path | None = None,
+    backend_runtime_identity: BackendRuntimeIdentity | None = None,
 ) -> JobPackPlan:
     """Derive an immutable plan without importing, fetching, building, or writing."""
 
@@ -359,6 +369,7 @@ def plan_job_pack(
         environment_wheels=wheels,
         environment_activations=activations,
         expected_artifact_roles=tuple(sorted(prepared.definition.required_artifact_roles)),
+        backend_runtime_identity=backend_runtime_identity,
         worker_contract_version=worker_contract_version,
         family_registry_lock=family_registry_lock or {},
         project_environment_sources=project_sources,

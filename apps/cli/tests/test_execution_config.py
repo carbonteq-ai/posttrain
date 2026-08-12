@@ -254,6 +254,9 @@ def test_local_configuration_is_mode_checked_and_parsed(tmp_path: Path) -> None:
                             (
                                 'backend_path = "backend-constraints.txt"',
                                 f'backend_sha256 = "{backend_constraints_digest}"',
+                                'backend_source_repository = "https://github.com/carbonteq-ai/verl.git"',
+                                f'backend_source_revision = "{"a" * 40}"',
+                                f'backend_dependency_lock_sha256 = "{"b" * 64}"',
                             )
                             if profile == "online-rl-verl-py313"
                             else ()
@@ -301,6 +304,9 @@ def test_local_configuration_is_mode_checked_and_parsed(tmp_path: Path) -> None:
         "omegaconf",
     )
     assert verl_constraints.backend_digest is not None
+    assert verl_constraints.backend_source_repository == "https://github.com/carbonteq-ai/verl.git"
+    assert verl_constraints.backend_source_revision == "a" * 40
+    assert verl_constraints.backend_dependency_lock_digest == "b" * 64
     assert configuration.registry.receipt_root == (layout.state / "runtime-builds").resolve()
     assert configuration.environment_file == job_environment
 

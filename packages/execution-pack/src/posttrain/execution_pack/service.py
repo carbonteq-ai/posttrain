@@ -18,6 +18,7 @@ from typing import cast
 
 from posttrain.common import ContractError, JsonValue
 from posttrain.execution import (
+    BackendRuntimeIdentity,
     BackendRuntimeLock,
     DatasetPackageLock,
     EnvironmentActivationLock,
@@ -350,6 +351,7 @@ class JobPackService:
                 resolved_inputs=resolved_inputs,
                 framework_source=inputs.framework_source,
                 work=work,
+                expected_identity=plan.spec.backend_runtime_identity,
             )
 
             manifest = JobPackageManifest(
@@ -888,9 +890,14 @@ def _backend_runtime_lock(
     resolved_inputs: Mapping[str, JsonValue],
     framework_source: SourcePackage | None,
     work: Path,
+    expected_identity: BackendRuntimeIdentity | None,
 ) -> BackendRuntimeLock | None:
     if runtime_variant != "online-rl-verl-py313":
+        if expected_identity is not None:
+            raise ContractError("only the veRL runtime may carry backend runtime identity")
         return None
+    if expected_identity is None:
+        raise ContractError("veRL capsule requires immutable backend runtime identity")
     if framework_source is None:
         # Guarded by the caller; restated here so the projection below can never
         # be reached without the source it reads.
@@ -923,6 +930,10 @@ def _backend_runtime_lock(
         raise ContractError("veRL capsule requires a full source revision")
     if not isinstance(dependency_digest, str) or re.fullmatch(r"[0-9a-f]{64}", dependency_digest) is None:
         raise ContractError("veRL capsule requires a dependency lock digest")
+    if backend != f"verl@{expected_identity.source_revision}" or source_revision != expected_identity.source_revision:
+        raise ContractError("veRL training selection differs from the immutable kind image source revision")
+    if dependency_digest != expected_identity.dependency_lock_digest:
+        raise ContractError("veRL training selection differs from the immutable kind image dependency lock")
     projection = work / "verl-worker-projection"
     (projection / "posttrain").mkdir(parents=True)
     for package in ("common", "data", "train"):
@@ -933,7 +944,7 @@ def _backend_runtime_lock(
     _normalize_tree_metadata(projection)
     return BackendRuntimeLock(
         backend="verl",
-        source_repository="https://github.com/carbonteq-ai/verl.git",
+        source_repository=expected_identity.source_repository,
         source_revision=source_revision,
         dependency_lock_path="/opt/posttrain-verl/release/uv.lock",
         dependency_lock_digest=dependency_digest,

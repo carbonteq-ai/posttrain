@@ -240,6 +240,19 @@ owner = "posttrain-training"
 replacement_condition = "Promote only after veRL has a published immutable source, a supported backend contract, and a complete live qualification; otherwise retire when a maintained backend owns the contract."
 
 [[gates]]
+id = "verl-grpo-immutable-capsule"
+work_package = ".posttrain/work_packages/gsm8k_verl_grpo_2_immutable_qualification.yaml"
+job_id = "grpo"
+tier = "experimental"
+state = "candidate"
+job_kind = "train.grpo"
+acceptance = "verifiers-trajectories"
+experiment_family = "verl-grpo-runtime-identity"
+hypothesis = "The selected veRL source revision and lock can be proved against the digest-pinned runtime image before a bounded GRPO job is packed."
+owner = "posttrain-training"
+replacement_condition = "Promote after the immutable capsule retains complete live evidence; otherwise replace it when a newer published veRL runtime supersedes this exact source and lock."
+
+[[gates]]
 id = "sampo-extended"
 work_package = ".posttrain/work_packages/qwen08b_sampo_10_qualification.yaml"
 job_id = "train"

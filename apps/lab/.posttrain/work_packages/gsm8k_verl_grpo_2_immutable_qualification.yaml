@@ -1,0 +1,53 @@
+project_id: posttrain-lab
+work_package_id: train/qwen3.5-0.8b/verl-grpo-2-immutable-capsule-qualification
+stage: train
+description: Bounded two-step Qwen 3.5 0.8B veRL GRPO qualification pinned to the published capsule source and lock.
+recipe:
+  type: inline
+  id: recipes/gsm8k-qwen3.5-0.8b-verl-grpo-2-immutable@5
+  revision: "5"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: grpo
+      kind: train.grpo
+      definition: train/trl-grpo@1
+  expected_artifacts:
+    - trained adapter
+    - native Verifiers trajectories
+    - training summary
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/qwen3.5-0.8b@bf16
+  environment:
+    type: ref
+    family: environment
+    id: gsm8k-grpo-qualification
+  settings:
+    type: ref
+    family: training
+    id: qwen3.5-0.8b/verl-grpo-2-step-capsule-v3
+  training:
+    type: ref
+    family: training
+    id: training/qwen3.5-0.8b-verl-grpo-capsule-lora@5
+  rollout_inference:
+    type: ref
+    family: inference
+    id: inference/qwen3.5-0.8b-vllm-distill-rollout@2
+enabled_optional_jobs: []
+metadata:
+  question: Does the exact published veRL capsule stream native terminal evidence throughout a bounded GRPO update?
+  labels:
+    - qualification
+    - verl
+    - grpo
+    - capsule
+    - immutable
