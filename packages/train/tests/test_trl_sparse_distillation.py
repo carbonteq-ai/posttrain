@@ -18,6 +18,7 @@ from posttrain.train.backends.trl.distillation import (  # noqa: E402
     _local_constrained_teacher_logprobs,
     _memory_safe_server_iw_opd_loss,
     _validate_iw_opd_private_contract,
+    _xgrammar_generation_schema,
 )
 
 
@@ -257,6 +258,36 @@ def test_local_teacher_parallel_scoring_matches_dense_constrained_probabilities(
     assert torch.allclose(observed["actual_logprobs"], expected.float(), rtol=1e-6, atol=1e-6)
     assert observed["allowed_counts"] == [[32] * 4]
     assert observed["allowed_set_digests"] == [digests]
+
+
+def test_xgrammar_scoring_schema_uses_declared_required_property_order_recursively() -> None:
+    schema = {
+        "type": "object",
+        "properties": {
+            "attachments": {"type": "array"},
+            "completion": {"type": "object"},
+            "qualifiers": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "evidence_spans": {"type": "array"},
+                        "canonical_text": {"type": "string"},
+                        "qualifier_id": {"type": "string"},
+                    },
+                    "required": ["qualifier_id", "canonical_text", "evidence_spans"],
+                },
+            },
+        },
+        "required": ["qualifiers", "attachments", "completion"],
+    }
+
+    ordered = _xgrammar_generation_schema(schema)
+
+    assert list(ordered["properties"]) == ["qualifiers", "attachments", "completion"]
+    qualifier = ordered["properties"]["qualifiers"]["items"]
+    assert list(qualifier["properties"]) == ["qualifier_id", "canonical_text", "evidence_spans"]
+    assert list(schema["properties"]) == ["attachments", "completion", "qualifiers"]
 
 
 def test_twelve_physical_one_slices_match_one_logical_iw_opd_batch() -> None:

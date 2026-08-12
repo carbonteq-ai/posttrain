@@ -27,6 +27,7 @@ This work changes one frozen product meaning narrowly. Existing documentation sa
 - [x] (2026-08-12) Prove the post5 constrained teacher replay path accepts all twelve corrected rollouts but takes more than one hour for a single 12,216-token teacher call; cancel it as operationally unfit rather than launching production.
 - [x] (2026-08-12) Publish TRL `1.9.2.post6` at `11a526afd98bdbec3db9d6dd9473141c8c3b4d45`, precomputing exact XGrammar masks outside the per-token callback without changing probability semantics; pin runtime overlay `sha256:6f5bc755ef659fc9a5217a599fcdb1797c50d1735321ed7c4ae317de0d28a424` and pack actual-job image `sha256:8e04e3181c6adb428007c294d46ee14883bd157f10d80633ecc12a0103bf6550`.
 - [x] (2026-08-13) Replace operationally unfit serial vLLM teacher replay with one frozen local-teacher forward plus chunked constrained vocabulary projection; preserve the fixed assistant grammar scaffold explicitly, publish TRL `1.9.2.post7` at `78b61a4d37a7bf8ad7e61bd604ba9e3c3c316897`, and publish runtime overlay `sha256:05dd0b4e3b80faffeeb7b3f7df043eb200c141ecb0c7ce25b5c3e462ead3952f`.
+- [x] (2026-08-13) Preserve and reconcile canary `opd2can05-prefixq-e2b12b-c12-r16-v1`; reproduce its scorer-only XGrammar property-order mismatch against retained evidence, correct scorer schema ordering, and prove all three retained structured stages accept and terminate under the corrected replay FSM.
 - [ ] Pass all offline, exact-image, credential, catalog, and package gates.
 - [ ] Run and reconcile the one-update corrected-training canary.
 - [ ] Run and reconcile the two-case managed-evaluation serving canary against the canary adapter.
@@ -88,6 +89,9 @@ This work changes one frozen product meaning narrowly. Existing documentation sa
 - Observation: the selected semantic completion begins after a fixed assistant scaffold that must also advance XGrammar replay state.
   Evidence: retained canary trace `7c220e2cb452476dadde144ff97a6b49` has 169 selected-node tokens with mask `[false, false, false, true, ...]`; the three-token prefix is `[105, 4368, 107]`. The previous scorer started XGrammar at the first true-mask token and correctly failed it as disallowed. PostTrain now appends that exact scaffold to the teacher-native prompt and seeds both teacher and current-student matchers before normalizing selected tokens; TRL post7 preserves the field through buffered micro-slices.
 
+- Observation: alphabetically serializing a JSON schema creates a different XGrammar FSM from the colocated rollout path.
+  Evidence: canary `opd2can05-prefixq-e2b12b-c12-r16-v1` generated twelve admitted rollouts and reached local teacher scoring, then failed at selected token position one because `_xgrammar_matcher()` used `sort_keys=True`. The retained rules/graph schemas declare required-property order that differs from alphabetical `properties` order. Direct replay failed under alphabetical serialization but accepted and terminated for all retained evidence, rules, and graph outputs when object properties were ordered recursively by their declared `required` arrays. The correction affects only scorer grammar construction; canonical Policy validation and schema digests remain unchanged.
+
 ## Decision Log
 
 - Decision: amend the canonical baseline before changing cross-template teacher scoring.
@@ -136,6 +140,10 @@ This work changes one frozen product meaning narrowly. Existing documentation sa
 
 - Decision: use a frozen colocated Transformers teacher for constrained scoring instead of token-serial vLLM replay.
   Rationale: both vLLM replay implementations remained proportional to completion length and missed the overnight budget. The local path performs one teacher hidden-state forward and bounded vocabulary chunks, retains teacher-native prompt rendering and exact student completion IDs, and applies the identical XGrammar allowed set and digest evidence at every selected position. Dense-vs-chunked tests prove exact constrained probabilities; the single live canary remains the release gate for memory, latency, finite loss, and backward behavior.
+  Date/Author: 2026-08-13 / Codex.
+
+- Decision: canonicalize scorer-only XGrammar object properties by declared required order.
+  Rationale: this matches the property ordering proven by actual colocated vLLM outputs and prevents the teacher/current-student scorers from constructing an alphabetically different constrained probability space. The transformation is recursive, deterministic, non-mutating, and does not weaken or rewrite Policy's canonical schema.
   Date/Author: 2026-08-13 / Codex.
 
 ## Outcomes & Retrospective

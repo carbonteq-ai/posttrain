@@ -1216,9 +1216,41 @@ def _xgrammar_matcher(tokenizer: Any, schema: dict[str, Any], vocab_size: int) -
         raise RuntimeError("generation-constrained IW-OPD requires xgrammar") from error
     info = xgrammar.TokenizerInfo.from_huggingface(tokenizer, vocab_size=vocab_size)
     compiler = xgrammar.GrammarCompiler(info, max_threads=8, cache_enabled=True)
-    schema_text = json.dumps(schema, sort_keys=True, separators=(",", ":"))
+    # XGrammar's JSON-schema compiler makes object-property order observable in
+    # the token FSM.  The colocated vLLM path emits required properties in the
+    # schema's declared ``required`` order; alphabetically sorting the wire
+    # schema here therefore constructs a different probability space.  Keep
+    # both scorers on the exact generation ordering while leaving the canonical
+    # validation schema and its digest unchanged.
+    schema_text = json.dumps(_xgrammar_generation_schema(schema), separators=(",", ":"))
     context = compiler.compile_json_schema(schema_text, any_whitespace=False)
     return xgrammar.GrammarMatcher(context), xgrammar
+
+
+def _xgrammar_generation_schema(value: Any) -> Any:
+    """Order object properties exactly as vLLM's XGrammar generation FSM."""
+
+    if isinstance(value, list):
+        return [_xgrammar_generation_schema(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    result = {
+        key: _xgrammar_generation_schema(item)
+        for key, item in value.items()
+        if key != "properties"
+    }
+    properties = value.get("properties")
+    if isinstance(properties, dict):
+        required = value.get("required")
+        required_names = [item for item in required if isinstance(item, str)] if isinstance(required, list) else []
+        ordered_names = [
+            *[name for name in required_names if name in properties],
+            *[name for name in properties if name not in required_names],
+        ]
+        result["properties"] = {
+            name: _xgrammar_generation_schema(properties[name]) for name in ordered_names
+        }
+    return result
 
 
 def _buffered_selected_token_count(trainer: Any) -> Any:

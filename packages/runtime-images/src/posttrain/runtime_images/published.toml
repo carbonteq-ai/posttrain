@@ -19,13 +19,13 @@ default_prefix = "registry.lan/carbonteq"
 
 [base]
 repository = "posttrain-base"
-digest = "sha256:f868ee9bac438cee7b9fa9be58eb3414b1a4ca939002f1d605ca5911d125f04e"
+digest = "sha256:66905064d1d9b5db9451d96affafd7b75145bb8ee2170e844be4343b095652c3"
 lock_digest = "382dab193d0cbdd7c2a67a23f537068372a58a3d360a6afd524b005ee890f307"
 constraint_lock = "containers/posttrain-job-kinds/locks/workspace.lock.txt"
 
 [kinds.eval]
 repository = "posttrain-kind-eval"
-digest = "sha256:619bfa65419f2bb54e11188a7aa721dc648af21c2a420dca6d523903c029eed1"
+digest = "sha256:1412354c43febea1dfa883e5c9115d01c447cd96544110586ead0e1468b93354"
 lock_digest = "382dab193d0cbdd7c2a67a23f537068372a58a3d360a6afd524b005ee890f307"
 constraint_lock = "containers/posttrain-job-kinds/locks/workspace.lock.txt"
 provided_packages = ["verifiers"]
