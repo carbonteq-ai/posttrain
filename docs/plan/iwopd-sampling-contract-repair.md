@@ -176,6 +176,15 @@ package reaches the internal index and the resolved job image contains it.
   receipts. The framework stable lock now records the same post11 hashes under
   stable URLs; its catalog digest is
   `195c5caff273ed4c5d34c6c20e92f5bbc9a4629d8e1196600beaef5f1cda13ee`.
+- [x] (2026-08-13) Extended the protected runtime builder with an explicit
+  dev/stable dependency-channel choice and documented the post-promotion
+  stable-lock phase. Stable run `31655484711` retained rc8 with a byte-identical
+  framework lock, generated runtime lock digest
+  `30f200893989f16fe9029dbebf8c9c4aceeb56ca795f4a4e65d8a724a915b5dd`,
+  and TRL kind
+  `sha256:6c8e181606c172643e7cab6d1afcf610354a669cdc5981d37b2918711d8c8a74`.
+- [x] (2026-08-13) Prepared the coordinated Posttrain `0.3.16` source version
+  and release notes after confirming `0.3.15` was already tagged and published.
 - [x] (2026-08-13) Preflighted both requested work packages before GPU
   submission and caught stale project-local bindings: the TRL package still
   selected post9 and the veRL canary still selected dev1 even though the
