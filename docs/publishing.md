@@ -216,6 +216,10 @@ gh pr checks <n>
    runner resolves that named source through `carbonteq/dev` and retains the
    resulting `uv.lock`, runtime lock, and image receipt together. That lock is
    candidate evidence, never a replacement for the committed stable lock.
+   After byte-identical fork promotion, run the same protected builder with
+   `dependency_channel=stable`; retain and commit its generated runtime lock
+   and manifest so strict default-branch validation precedes the framework
+   release.
 3. **Stage and inspect the target release metadata** with
    `uv run posttrain-release stage /tmp/posttrain-X.Y.Z`. Build all packages
    from that isolated tree using `uv build --all-packages --no-sources`; the

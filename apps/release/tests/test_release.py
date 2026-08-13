@@ -894,9 +894,13 @@ def test_retained_fork_candidates_use_development_before_server_side_promotion()
 
     runtime_candidate = (root / ".github/workflows/manual-runtime-image-candidate.yml").read_text(encoding="utf-8")
     assert "CANDIDATE_SIMPLE_URL: https://pypi.lan/carbonteq/dev/+simple/" in runtime_candidate
+    assert "dependency_channel:" in runtime_candidate
+    assert "DEPENDENCY_CHANNEL: ${{ inputs.dependency_channel }}" in runtime_candidate
+    assert "- dev" in runtime_candidate
+    assert "- stable" in runtime_candidate
     assert "candidate index source must be unambiguous" in runtime_candidate
     assert "uv lock --upgrade-package trl --upgrade-package carbonteq-trackio" in runtime_candidate
-    assert "candidate lock resolved an internal package outside carbonteq/dev" in runtime_candidate
+    assert "runtime lock resolved an internal package outside" in runtime_candidate
     assert "            uv.lock" in runtime_candidate
 
 
