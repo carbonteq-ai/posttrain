@@ -43,15 +43,15 @@ bindings:
   training:
     type: ref
     family: training
-    id: training/qwen3.5-0.8b-trl-distill-lora@1
+    id: training/qwen3.5-0.8b-trl-distill-lora@6
   rollout_inference:
     type: ref
     family: inference
-    id: inference/qwen3.5-0.8b-vllm-distill-rollout@1
+    id: inference/qwen3.5-0.8b-vllm-distill-rollout@3
   teacher_inference:
     type: ref
     family: inference
-    id: inference/qwen3.5-2b-vllm-teacher-score@1
+    id: inference/qwen3.5-2b-vllm-teacher-score@2
 enabled_optional_jobs: []
 metadata:
   question: Can a live Verifiers trajectory distill the frozen teacher into the current student policy?

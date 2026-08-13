@@ -9,16 +9,27 @@ semantics, and instrumentation hooks belong to the `train` package boundary.
 The lab's injected observation context maps those hooks to Trackio. Datasets,
 rewards, and Verifiers environment implementations remain independently owned.
 
-The workspace consumes the immutable internal candidate `trl==1.9.2.post2`,
+The current framework selection resolves `trl==1.9.2.post11` from
+`carbonteq/stable`,
 built from `carbonteq-ai/trl` commit
-`216023d99324fae89dd58629130ba3bb043582ed`. Its prerelease tag,
-`carbonteq-v1.9.2.post2`, plus wheel and source hashes are recorded in
-`packages/train/pyproject.toml`. The candidate becomes a normal framework
-dependency only after the internal-index clean-install receipt and selected
-GPU qualification succeed. The fork is based on upstream TRL 1.9.2 and keeps
+`69cf80a7319079ec5523841553467e119ebc1cec`. Its prerelease tag,
+`carbonteq-v1.9.2.post11`, plus wheel and source hashes are recorded in
+`packages/train/pyproject.toml`. Posttrain's retained-asset publisher verified
+the release hashes, uploaded the exact bytes to the development index, and
+retained a clean-install receipt in workflow `31653581435`. The one-update GPU
+canary succeeded, and workflow `31655218728` promoted the same retained bytes
+server-side and verified stable readback plus a clean install. The fork is based on upstream TRL 1.9.2 and keeps
 the trainer runtime compatible with `datasets 4.6.1` so Verifiers v1 and TRL
 can share one environment. Project-specific job policy and environments remain
 outside the fork.
+The current candidate repairs complete IW-OPD behavior-policy sampling and
+rejects non-finite required student, teacher, or behavior-policy log
+probabilities at the IW-OPD loss boundary with an affected-token count.
+`IWOPDConfig` now declares min-p, repetition penalty, and additional generation
+arguments; `IWOPDTrainer` forwards them consistently to local transformers and
+vLLM generation. Posttrain's integration test constructs the real pinned config
+from its adapter arguments, while the isolated veRL agent-loop test proves that
+the same complete `PolicySampling` value reaches the veRL vLLM server request.
 Its entropy metrics also preserve chunked-memory behavior for non-contiguous
 sequence slices, which is required for DPO on large-vocabulary models.
 The fork also exposes colocated vLLM's engine-level speculative configuration
@@ -34,7 +45,7 @@ The bounded-wave follow-up additionally accepts validated `max_num_seqs` and
 `max_num_batched_tokens` engine caps. This lets a 256/512-completion logical
 batch execute as multiple resident-32 rollout waves instead of allowing TRL's
 derived generation batch to overcommit KV cache. The behavior is included in
-`trl==1.9.2.post2` and still requires qualification for each selected
+`trl==1.9.2.post11` and still requires qualification for each selected
 model/runtime profile. It also bounds the actual colocated `LLM.generate`
 request list to the configured
 resident sequence cap; engine caps alone do not prevent vLLM from queueing a
@@ -83,9 +94,16 @@ prompt-logprob collection and compares it with raw actor values at temperature
 one. Processed sampled log probabilities remain the independent TIS signal.
 The candidate also records raw parity mean, maximum, and token count.
 
-This repair is in immutable `trl==1.9.2.post2` prerelease bytes, tagged at
-`carbonteq-v1.9.2.post2`. Posttrain consumes it only after the internal-index
-clean-install receipt and the one-update actor-update/LoRA-artifact audit.
+This repair is in immutable `trl==1.9.2.post11` bytes, tagged at
+`carbonteq-v1.9.2.post11`. Posttrain's candidate consumes it from
+`carbonteq/stable` after the one-update actor/LoRA artifact audit and
+byte-identical promotion.
+
+Post11 also repairs IW-OPD's loss denominator for fully on-policy batches. The
+base Trainer counts labels before rollout generation and therefore supplies
+zero items for a prompt-only raw batch. IW-OPD now recomputes the global count
+from buffered completion labels and carries it into the loss, matching the
+existing post-generation normalization seam in TRL's other online trainers.
 
 All affected Qwen3.5 native-LoRA inference bindings select:
 

@@ -100,9 +100,11 @@ def test_distillation_yaml_resolves_every_seat_through_the_catalog() -> None:
         "kind": "lora",
     }
     assert training["resolved"]["backend_options"] == {  # type: ignore[index]
-        "dependency_lock": "trl-fork@current",
-        "source_revision": "216023d99324fae89dd58629130ba3bb043582ed",
+        "dependency_lock": "trl-fork@1.9.2.post11",
+        "source_revision": "69cf80a7319079ec5523841553467e119ebc1cec",
         "dependency_lock_sha256": hashlib.sha256((WORKSPACE / "uv.lock").read_bytes()).hexdigest(),
+        "bf16": False,
+        "model_dtype": "float32",
     }
     execution_targets = resolved.snapshot["execution_targets"]
     assert isinstance(execution_targets, dict)
@@ -110,17 +112,22 @@ def test_distillation_yaml_resolves_every_seat_through_the_catalog() -> None:
     assert isinstance(raw_targets, list)
     assert all(isinstance(target, dict) for target in raw_targets)
     targets = cast(list[dict[str, object]], raw_targets)
-    assert {cast(str, target["selection_id"]) for target in targets} == {
-        "targets/local-cuda-8gb",
-        "targets/local-cuda-rollout-8gb",
-        "targets/local-cuda-teacher-8gb",
-    }
+    assert {cast(str, target["selection_id"]) for target in targets} == {"targets/carbonteq-cuda-24gb-plus"}
     assert {role for target in targets for role in cast(list[str], target["roles"])} == {
         "rollout_inference",
         "teacher_inference",
         "training",
     }
-    assert all(target["memory_gb"] == 8 for target in targets)
+    assert all(target["memory_gb"] == 24 for target in targets)
+    teacher_inference = resolved.snapshot["teacher_inference"]
+    assert isinstance(teacher_inference, dict)
+    assert teacher_inference["resolved"]["engine"] == {  # type: ignore[index]
+        "base_url": "http://127.0.0.1:8000",
+        "gpu_memory_utilization": 0.35,
+        "max_model_len": 640,
+        "tensor_parallel_size": 1,
+        "enforce_eager": True,
+    }
     assert set(resolved.snapshot) == {
         "catalog",
         "execution_targets",
@@ -133,6 +140,51 @@ def test_distillation_yaml_resolves_every_seat_through_the_catalog() -> None:
         "training",
         "rollout_inference",
         "teacher_inference",
+    }
+
+
+def test_verl_sampling_contract_canary_resolves_the_complete_policy() -> None:
+    package = load_work_package(WORK_PACKAGES / "qwen08b_verl_sampling_contract_canary.yaml")
+    catalog = open_catalog(scope=package.project_id, overlays=(WORKSPACE / "apps/lab/.posttrain/catalog",))
+    resolved = resolve_work_package(catalog, package)
+
+    settings = resolved.snapshot["settings"]
+    assert isinstance(settings, dict)
+    assert settings["resolved"]["max_steps"] == 1  # type: ignore[index]
+    assert settings["resolved"]["num_prompts_per_step"] == 1  # type: ignore[index]
+    assert settings["resolved"]["num_generations"] == 2  # type: ignore[index]
+
+    training = resolved.snapshot["training"]
+    assert isinstance(training, dict)
+    assert training["resolved"]["runtime"]["global_batch_size"] == 2  # type: ignore[index]
+    assert training["resolved"]["backend"] == "verl@808923d487aa2c524fda02cf5289110541b4221f"  # type: ignore[index]
+    assert training["resolved"]["backend_options"]["source_revision"] == (  # type: ignore[index]
+        "808923d487aa2c524fda02cf5289110541b4221f"
+    )
+
+    environment = resolved.snapshot["environment"]
+    assert isinstance(environment, dict)
+    assert environment["resolved"]["sampling"] == {  # type: ignore[index]
+        "max_tokens": 384,
+        "temperature": 0.7,
+        "top_p": 0.95,
+        "top_k": 20,
+        "min_p": 0.01,
+        "repetition_penalty": 1.1,
+        "presence_penalty": 1.5,
+        "reasoning_effort": None,
+    }
+
+    rollout = resolved.snapshot["rollout_inference"]
+    assert isinstance(rollout, dict)
+    assert rollout["resolved"]["sampling"] == {  # type: ignore[index]
+        "max_tokens": 384,
+        "temperature": 0.7,
+        "top_p": 0.95,
+        "top_k": 20,
+        "min_p": 0.01,
+        "repetition_penalty": 1.1,
+        "presence_penalty": 1.5,
     }
 
 

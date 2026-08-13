@@ -167,6 +167,22 @@ GitHub over outbound HTTPS and reaches `pypi.lan` and `registry.lan` over the
 private network. It runs rootless BuildKit rather than a host Docker socket,
 must be isolated from `ai-control`, and never runs automatic PR workflows.
 
+## What runs locally, and what uses the protected runner
+
+Do the ordinary release work locally: implement, test, stage, build, inspect
+and hash release assets, create the GitHub release, and run deterministic
+readiness checks.  CI independently verifies the pushed source.  The protected
+Posttrain runner is deliberately narrow: it performs actions that need private
+LAN reachability or credentials, namely publishing already-retained artifacts
+to the internal index, registry-backed runtime-image qualification, and the
+accepted remote canary.  It is not a substitute for local release preparation.
+
+This boundary is especially important for maintained forks.  Forks have no
+release runner.  Their assets are built and released manually in the fork;
+Posttrain's manually dispatched retained-asset publisher may only retrieve
+those immutable bytes by tag, verify their hashes, publish them internally,
+and prove a clean install.  See [maintained fork documentation](./tooling/forks.md).
+
 When a PR is already open, keep landing work on that branch until the head is
 green; do not open a second PR for the same release line without a reason.
 
@@ -200,6 +216,10 @@ gh pr checks <n>
    runner resolves that named source through `carbonteq/dev` and retains the
    resulting `uv.lock`, runtime lock, and image receipt together. That lock is
    candidate evidence, never a replacement for the committed stable lock.
+   After byte-identical fork promotion, run the same protected builder with
+   `dependency_channel=stable`; retain and commit its generated runtime lock
+   and manifest so strict default-branch validation precedes the framework
+   release.
 3. **Stage and inspect the target release metadata** with
    `uv run posttrain-release stage /tmp/posttrain-X.Y.Z`. Build all packages
    from that isolated tree using `uv build --all-packages --no-sources`; the

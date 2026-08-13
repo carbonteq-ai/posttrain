@@ -213,6 +213,20 @@ class TruncatedRLBridge(FakeRLBridge):
         return tuple(replace(rollout, is_truncated=True) for rollout in rollouts)
 
 
+def test_environment_rollout_rejects_nonfinite_sampling_logprobs() -> None:
+    with pytest.raises(ValueError, match="sampling logprobs must be finite"):
+        EnvironmentRollout(
+            example_id="gsm8k/train/0",
+            prompt_ids=(1,),
+            completion_ids=(2,),
+            sampling_logprobs=(float("-inf"),),
+            env_mask=(True,),
+            reward=1.0,
+            is_truncated=False,
+            trace=TraceObservation("test", "trace-nonfinite", {}),
+        )
+
+
 @dataclass
 class FailingFinalizeBridge(FakeRLBridge):
     def finalize(self) -> tuple[ProducedArtifact, ...]:
@@ -1029,6 +1043,12 @@ def test_distillation_backend_fixes_fully_on_policy_reverse_kl_contract(tmp_path
     assert sampled_arguments["min_p"] == 0.0
     assert sampled_arguments["repetition_penalty"] == 1.1
     assert sampled_arguments["generation_kwargs"] == {"presence_penalty": 1.5}
+    from trl.experimental.iw_opd import IWOPDConfig  # pyright: ignore[reportMissingImports]
+
+    config = IWOPDConfig(**{**sampled_arguments, "use_cpu": True})
+    assert config.min_p == 0.0
+    assert config.repetition_penalty == 1.1
+    assert config.generation_kwargs == {"presence_penalty": 1.5}
 
 
 def test_distillation_backend_configures_colocated_transformers_teacher(
@@ -1411,6 +1431,33 @@ def test_grpo_callback_emits_normalized_names_without_trl_vocabulary(tmp_path: P
     assert values["train/rl/reward_std"] == 0.25
     assert values["train/rl/kl"] == 0.01
     assert "train/reward" not in values
+
+
+def test_trl_callback_retains_finite_values_before_non_finite_metric(tmp_path: Path) -> None:
+    observer = Observer()
+    context = _run_context(
+        tmp_path.resolve(),
+        observer,
+        job_kind="train.distill",
+        run_id="runs/distill-non-finite",
+    )
+    callback = callback_type(context, {"TrainerCallback": object})()
+
+    with pytest.raises(FloatingPointError, match="grad_norm=nan"):
+        callback.on_log(
+            SimpleNamespace(max_grad_norm=1.0),
+            SimpleNamespace(global_step=4),
+            SimpleNamespace(),
+            logs={"loss": 0.25, "grad_norm": float("nan")},
+        )
+
+    assert observer.metrics_seen[-1].values == {"train/loss": 0.25}
+    assert observer.events[-1].name == "training_non_finite_metric"
+    assert {
+        "metric": "grad_norm",
+        "value_class": "nan",
+        "global_step": 4,
+    }.items() <= observer.events[-1].attributes.items()
 
 
 def test_live_trl_metrics_keep_retained_reward_signal_and_delegate_step_time() -> None:

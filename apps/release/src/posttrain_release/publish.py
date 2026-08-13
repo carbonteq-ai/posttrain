@@ -78,6 +78,7 @@ def _bake_variables(
     revision: str,
     version: str,
     base_image: str | None = None,
+    variant: str | None = None,
 ) -> dict[str, str]:
     """Variables the shipped base and job-kind Bake files actually declare.
 
@@ -90,6 +91,16 @@ def _bake_variables(
     variables = {"CREATED": created, "SOURCE_REVISION": revision, "VERSION": version}
     if base_image is not None:
         variables["POSTTRAIN_BASE_IMAGE"] = base_image
+    if variant is not None:
+        identity = backend_runtime_identity(variant)
+        if identity is not None:
+            variables.update(
+                {
+                    "DEPENDENCY_LOCK_SHA256": identity.dependency_lock_digest,
+                    "FORK_REVISION": identity.source_revision,
+                    "SOURCE_REPOSITORY": identity.source_repository,
+                }
+            )
     return variables
 
 
@@ -334,6 +345,7 @@ def publish_release(
                     revision=revision,
                     version=framework_version,
                     base_image=published_base.value,
+                    variant=variant,
                 ),
                 cache_from=cache_from,
                 **build_opts,
@@ -375,6 +387,7 @@ def publish_release(
                 revision=revision,
                 version=framework_version,
                 base_image=published_base.value,
+                variant=variant,
             ),
             **build_opts,
         )

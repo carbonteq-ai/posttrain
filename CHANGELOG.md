@@ -4,7 +4,51 @@ All notable changes to Posttrain are documented here. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with a coordinated
 version across first-party distributions.
 
-## 0.3.15 - Unreleased
+## 0.3.16 - Unreleased
+
+This release completes the generic sampling contract for the maintained TRL
+and veRL online-training backends and qualifies the exact fork artifacts on
+real GPU workers before stable promotion.
+
+### Added
+
+- TRL IW-OPD and veRL rollout configuration now preserve non-default min-p,
+  repetition-penalty, and presence-penalty controls through their actual
+  runtime generation paths, with real configuration and backend regressions.
+- Lab includes bounded 0.8B veRL and 0.8B-student/2B-teacher TRL qualification
+  work packages whose resolved snapshots retain exact backend, sampling,
+  dependency-lock, model, and target identities.
+- Retained-fork publication now has explicit development qualification,
+  byte-identical server-side stable promotion, and protected dev/stable
+  runtime-lock materialization paths; maintained forks still release manually.
+
+### Fixed
+
+- The selected TRL post11 runtime counts IW-OPD loss items after on-policy
+  generation, preventing prompt-only raw batches from dividing finite token
+  loss by a zero pre-generation denominator.
+- Concurrent actual-job image publishers serialize by immutable publication
+  identity and reuse the producer's verified receipt instead of racing after a
+  shared named build context is removed.
+- The veRL runtime preserves nested three-dimensional position IDs during
+  minibatch selection and records the complete selected sampling policy in
+  retained evidence.
+- Fork promotion uses the release runner's provisioned, hash-locked devpi
+  client and private CA bundle instead of a user-local or network-installed
+  client.
+
+### Qualification
+
+- TRL post11 completed one real IW-OPD optimizer update with finite loss,
+  749 teacher-scored tokens, zero teacher failures, two native traces, and
+  retained checkpoint, recovery, LoRA adapter, and summary artifacts.
+- veRL dev2 completed one real optimizer step with two native traces and
+  retained adapter, summary, retention, and trace-sync artifacts while
+  resolving the exact non-default sampling controls. Its deliberately tiny
+  trajectories truncated with zero reward variance, so the run qualifies the
+  backend contract rather than training quality.
+
+## 0.3.15 - 2026-08-12
 
 ### Fixed
 

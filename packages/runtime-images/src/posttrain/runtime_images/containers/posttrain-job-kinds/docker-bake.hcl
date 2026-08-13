@@ -2,6 +2,14 @@ variable "CREATED" {
   default = ""
 }
 
+variable "DEPENDENCY_LOCK_SHA256" {
+  default = ""
+}
+
+variable "FORK_REVISION" {
+  default = ""
+}
+
 variable "LOCK_DIGEST" {
   default = ""
 }
@@ -15,6 +23,10 @@ variable "REGISTRY" {
 }
 
 variable "SOURCE_REVISION" {
+  default = ""
+}
+
+variable "SOURCE_REPOSITORY" {
   default = ""
 }
 
@@ -86,12 +98,12 @@ target "posttrain-kind-online-rl-verl-py313" {
   target = "online-rl-verl-py313"
   args = {
     CREATED = CREATED
-    DEPENDENCY_LOCK_SHA256 = "df7769f306ef8606fed37fd89c3fa2589ac72f39a45e4743816368a1acffe69f"
-    FORK_REVISION = "a6fe39c22719ec981ed8544ad8feffd59995cc13"
+    DEPENDENCY_LOCK_SHA256 = DEPENDENCY_LOCK_SHA256
+    FORK_REVISION = FORK_REVISION
     LOCK_DIGEST = LOCK_DIGEST
     POSTTRAIN_BASE_IMAGE = POSTTRAIN_BASE_IMAGE
     SOURCE_REVISION = SOURCE_REVISION
-    SOURCE_REPOSITORY = "https://github.com/carbonteq-ai/verl.git"
+    SOURCE_REPOSITORY = SOURCE_REPOSITORY
     VERSION = VERSION
   }
   tags = ["${REGISTRY}/posttrain-kind-online-rl-verl-py313:${VERSION}"]
@@ -134,12 +146,12 @@ target "posttrain-kind-online-rl-verl-py313-smoke" {
   target = "online-rl-verl-py313-smoke"
   args = {
     CREATED = CREATED
-    DEPENDENCY_LOCK_SHA256 = "df7769f306ef8606fed37fd89c3fa2589ac72f39a45e4743816368a1acffe69f"
-    FORK_REVISION = "a6fe39c22719ec981ed8544ad8feffd59995cc13"
+    DEPENDENCY_LOCK_SHA256 = DEPENDENCY_LOCK_SHA256
+    FORK_REVISION = FORK_REVISION
     LOCK_DIGEST = LOCK_DIGEST
     POSTTRAIN_BASE_IMAGE = POSTTRAIN_BASE_IMAGE
     SOURCE_REVISION = SOURCE_REVISION
-    SOURCE_REPOSITORY = "https://github.com/carbonteq-ai/verl.git"
+    SOURCE_REPOSITORY = SOURCE_REPOSITORY
     VERSION = VERSION
   }
   output = ["type=cacheonly"]

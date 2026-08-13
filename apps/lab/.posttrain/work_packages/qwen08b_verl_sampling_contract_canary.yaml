@@ -1,0 +1,52 @@
+project_id: posttrain-lab
+work_package_id: train/qwen3.5-0.8b/verl-sampling-contract-canary
+stage: train
+description: Run one bounded Qwen 3.5 0.8B veRL GRPO update and retain the exact non-default behavior-policy sampling controls.
+recipe:
+  type: inline
+  id: recipes/gsm8k-qwen3.5-0.8b-verl-sampling-contract-canary@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: grpo
+      kind: train.grpo
+      definition: train/trl-grpo@1
+  expected_artifacts:
+    - trained adapter
+    - native Verifiers trajectories
+    - training summary
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/qwen3.5-0.8b@bf16
+  environment:
+    type: ref
+    family: environment
+    id: gsm8k-grpo-sampling-contract-canary
+  settings:
+    type: ref
+    family: training
+    id: qwen3.5-0.8b/verl-grpo-sampling-contract-canary-v1
+  training:
+    type: ref
+    family: training
+    id: training/qwen3.5-0.8b-verl-grpo-sampling-contract-canary-lora@2
+  rollout_inference:
+    type: ref
+    family: inference
+    id: inference/qwen3.5-0.8b-vllm-verl-sampling-contract-canary@1
+enabled_optional_jobs: []
+metadata:
+  question: Does the immutable veRL capsule retain min-p, repetition, and presence controls through a real bounded rollout and update?
+  labels:
+    - qualification
+    - verl
+    - sampling-contract
+    - canary

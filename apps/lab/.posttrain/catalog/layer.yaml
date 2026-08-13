@@ -5,6 +5,7 @@ files:
   - current-capsule-qualification.yaml
   - execution-targets.yaml
   - gemma4-qualification.yaml
+  - iwopd-sampling-qualification.yaml
   - serving-capacity.yaml
   - transform-qualification.yaml
   - verl-capsule-qualification.yaml

@@ -11,6 +11,14 @@ on:
         description: Unique candidate label recorded in the generated manifest
         required: true
         type: string
+      dependency_channel:
+        description: Internal package channel used to materialize the retained lock
+        required: true
+        default: dev
+        type: choice
+        options:
+          - dev
+          - stable
 
 permissions:
   contents: read
@@ -38,13 +46,15 @@ jobs:
           test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/remotes/origin/${SOURCE_REF}")"
 
       - name: Validate candidate source and materialize its runtime lock
+        env:
+          DEPENDENCY_CHANNEL: ${{ inputs.dependency_channel }}
         run: |
           unset TRACKIO_SERVER_URL POSTTRAIN_TRACKIO_SERVER_URL TRACKIO_WRITE_TOKEN
           # The checked-out source keeps stable as its consumer default. This
-          # disposable candidate worktree resolves the same named source
-          # against carbonteq/dev, and retains the resulting lock with the
-          # image receipt instead of committing it as a stable lock.
+          # disposable worktree resolves through dev for pre-promotion
+          # qualification, or preserves stable after byte-identical promotion.
           python3 - <<'PY'
+          import os
           from pathlib import Path
 
           path = Path("pyproject.toml")
@@ -52,13 +62,18 @@ jobs:
           stable = 'url = "https://pypi.lan/carbonteq/stable/+simple/"'
           candidate = 'url = "https://pypi.lan/carbonteq/dev/+simple/"'
           assert source.count(stable) == 1, "candidate index source must be unambiguous"
-          path.write_text(source.replace(stable, candidate), encoding="utf-8")
+          channel = os.environ["DEPENDENCY_CHANNEL"]
+          assert channel in {"dev", "stable"}
+          if channel == "dev":
+              source = source.replace(stable, candidate)
+          path.write_text(source, encoding="utf-8")
           PY
           uv lock --upgrade-package trl --upgrade-package carbonteq-trackio
           uv sync --all-packages --group dev --frozen --python 3.13
           uv run --no-sync posttrain-release check --allow-pending-runtime-lock
           uv run --no-sync posttrain-release lock-runtime-dependencies
           uv run --no-sync python - <<'PY'
+          import os
           import tomllib
 
           document = tomllib.loads(open("uv.lock", "rb").read().decode())
@@ -70,10 +85,10 @@ jobs:
               and str(package["source"].get("registry", "")).startswith("https://pypi.lan/carbonteq/")
           ]
           assert internal, "candidate lock does not contain any internal package receipts"
-          assert all(
-              str(package["source"]["registry"]).startswith("https://pypi.lan/carbonteq/dev/")
-              for package in internal
-          ), "candidate lock resolved an internal package outside carbonteq/dev"
+          expected = f"https://pypi.lan/carbonteq/{os.environ['DEPENDENCY_CHANNEL']}/"
+          assert all(str(package["source"]["registry"]).startswith(expected) for package in internal), (
+              f"runtime lock resolved an internal package outside {expected}"
+          )
           PY
 
       - name: Build and publish candidate runtime images

@@ -336,6 +336,43 @@ def test_pending_runtime_lock_allows_old_image_manifest_until_rebuild(
     assert pending.runtime_lock_pending is True
 
 
+def test_pending_runtime_lock_allows_old_backend_identity_until_rebuild(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _version_repository(tmp_path)
+    runtime = tmp_path / "packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds"
+    (runtime / "profiles").mkdir(parents=True)
+    (runtime / "profiles/supervised.txt").write_text("trl==1.9.2.post10\n", encoding="utf-8")
+    (runtime / "locks").mkdir()
+    (runtime / "locks/workspace.lock.txt").write_text("trl==1.9.2.post9\n", encoding="utf-8")
+    with (tmp_path / "uv.lock").open("a", encoding="utf-8") as handle:
+        handle.write(
+            "\n[[package]]\n"
+            'name = "trl"\n'
+            'version = "1.9.2.post10"\n'
+            'source = { registry = "https://pypi.lan/carbonteq/dev/+simple/" }\n'
+            'wheels = [{ url = "https://pypi.lan/carbonteq/dev/+f/abc/trl.whl", '
+            'hash = "sha256:' + "c" * 64 + '" }]\n'
+        )
+    lock_dependencies(tmp_path)
+
+    calls: list[tuple[bool, bool]] = []
+
+    def fake_load_manifest(*, verify_locks: bool = True, verify_variants: bool = True) -> object:
+        calls.append((verify_locks, verify_variants))
+        if verify_variants:
+            raise ManifestError("kinds.online-rl-verl-py313: backend runtime identity differs from its shipped profile")
+        return object()
+
+    monkeypatch.setattr(versioning, "load_manifest", fake_load_manifest)
+    pending = check_release(tmp_path, allow_pending_runtime_lock=True)
+
+    assert pending.runtime_lock_pending is True
+    assert calls == [(True, True), (False, False)]
+    with pytest.raises(ValueError, match="backend runtime identity differs"):
+        check_release(tmp_path)
+
+
 def test_release_check_ignores_a_virtual_root_but_checks_publishable_members(tmp_path: Path) -> None:
     _version_repository(tmp_path)
     member = tmp_path / "packages/train/pyproject.toml"
@@ -846,6 +883,10 @@ def test_retained_fork_candidates_use_development_before_server_side_promotion()
     assert "carbonteq-ai/verl" in promotion
     assert "carbonteq-ai/trackio" in promotion
     assert '"${DEVPI_CLIENT}" push -y "${PACKAGE}==${VERSION}" carbonteq/stable' in promotion
+    assert "DEVPI_CLIENT: /opt/posttrain-dstack-client/bin/devpi" in promotion
+    assert "REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt" in promotion
+    assert "/var/lib/github-runner/.local/bin/devpi" not in promotion
+    assert "uv tool install devpi-client" not in promotion
     assert "Verify stable readback is byte-identical" in promotion
     assert promotion.count("from urllib.parse import urljoin") == 2
     assert "uv pip download" not in promotion
@@ -853,9 +894,13 @@ def test_retained_fork_candidates_use_development_before_server_side_promotion()
 
     runtime_candidate = (root / ".github/workflows/manual-runtime-image-candidate.yml").read_text(encoding="utf-8")
     assert "CANDIDATE_SIMPLE_URL: https://pypi.lan/carbonteq/dev/+simple/" in runtime_candidate
+    assert "dependency_channel:" in runtime_candidate
+    assert "DEPENDENCY_CHANNEL: ${{ inputs.dependency_channel }}" in runtime_candidate
+    assert "- dev" in runtime_candidate
+    assert "- stable" in runtime_candidate
     assert "candidate index source must be unambiguous" in runtime_candidate
     assert "uv lock --upgrade-package trl --upgrade-package carbonteq-trackio" in runtime_candidate
-    assert "candidate lock resolved an internal package outside carbonteq/dev" in runtime_candidate
+    assert "runtime lock resolved an internal package outside" in runtime_candidate
     assert "            uv.lock" in runtime_candidate
 
 
@@ -1056,6 +1101,25 @@ def test_variant_subset_preserves_canonical_order() -> None:
     assert _normalize_variants(["transform", "eval"]) == ("eval", "transform")
 
 
+def test_verl_build_variables_come_from_the_current_runtime_profile() -> None:
+    from posttrain_release.publish import _bake_variables
+
+    identity = backend_runtime_identity("online-rl-verl-py313")
+    assert identity is not None
+
+    variables = _bake_variables(
+        created="2026-08-13T00:00:00Z",
+        revision="a" * 40,
+        version="0.3.16rc5",
+        base_image="registry.lan/carbonteq/posttrain-base@sha256:" + "b" * 64,
+        variant="online-rl-verl-py313",
+    )
+
+    assert variables["DEPENDENCY_LOCK_SHA256"] == identity.dependency_lock_digest
+    assert variables["FORK_REVISION"] == identity.source_revision
+    assert variables["SOURCE_REPOSITORY"] == identity.source_repository
+
+
 def test_unchanged_runtime_images_are_reused_across_framework_versions(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -1174,7 +1238,8 @@ def test_public_ci_trl_mirror_matches_selected_distribution() -> None:
     assert (
         f"POSTTRAIN_CONSUMER_EXTRA_WHEELS: /tmp/carbonteq_trackio-0.31.5.post13-py3-none-any.whl:/tmp/{filename}"
     ) in workflow
-    assert "--no-install-package trl" in workflow
+    assert "--extra trl" in workflow
+    assert "--no-install-package carbonteq-trackio --no-install-package trl" in workflow
     assert 'uv pip install --python .venv/bin/python --no-deps "${CARBONTEQ_TRL_WHEEL_PATH}"' in workflow
 
 

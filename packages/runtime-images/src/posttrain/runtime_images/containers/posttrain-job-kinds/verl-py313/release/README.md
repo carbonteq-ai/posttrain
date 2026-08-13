@@ -6,7 +6,7 @@ the dormant `online-rl-verl-py313` kind image.
 Current inputs:
 
 1. `pyproject.toml` selects CarbonTeq veRL
-   `a6fe39c22719ec981ed8544ad8feffd59995cc13` (`0.9.0.dev1`), CarbonTeq vLLM
+   `808923d487aa2c524fda02cf5289110541b4221f` (`0.9.0.dev2`), CarbonTeq vLLM
    `7817d845727af570352622dc8d58f2d43c76d89d`, and Verifiers core
    `284a868d6a9022109b749710672a0460e8a996d4` with no concrete environment
    packages and no editable or path sources.

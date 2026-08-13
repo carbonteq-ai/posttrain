@@ -307,7 +307,7 @@ def _launch(
                     except subprocess.TimeoutExpired:
                         os.killpg(process.pid, signal.SIGKILL)
                         process.wait()
-                    _record_failure_artifacts(context, plan, output_dir)
+                    _record_failure_artifacts_best_effort(context, plan, output_dir)
                     log_tail = "\n".join(log_file.read_text(encoding="utf-8", errors="replace").splitlines()[-40:])
                     deadline = f"{timeout:g}s" if timeout is not None else "configured"
                     raise RuntimeError(
@@ -322,7 +322,7 @@ def _launch(
                         except subprocess.TimeoutExpired:
                             os.killpg(process.pid, signal.SIGKILL)
                             process.wait()
-                    _record_failure_artifacts(context, plan, output_dir)
+                    _record_failure_artifacts_best_effort(context, plan, output_dir)
                     raise
     finally:
         if trace_tailer is not None:
@@ -334,14 +334,14 @@ def _launch(
                 # worker's terminal error or suppress bridge finalization.
                 pass
     if returncode != 0:
-        _record_failure_artifacts(context, plan, output_dir)
+        _record_failure_artifacts_best_effort(context, plan, output_dir)
         log_tail = "\n".join(log_file.read_text(encoding="utf-8", errors="replace").splitlines()[-40:])
         raise RuntimeError(
             f"isolated veRL {plan.operation} process exited with code {returncode}; log tail follows:\n{log_tail}"
         )
     result_path = plan.result_file
     if not result_path.is_file():
-        _record_failure_artifacts(context, plan, output_dir)
+        _record_failure_artifacts_best_effort(context, plan, output_dir)
         raise RuntimeError(f"veRL process completed without its result contract: {result_path}")
     result = VerlWorkerResult.read(result_path)
     backend, records = _backend_result(result, output_dir)
@@ -472,6 +472,35 @@ def _record_failure_artifacts(
                 },
             )
         )
+
+
+def _record_failure_artifacts_best_effort(
+    context: RunContext,
+    plan: VerlLaunchPlan,
+    output_dir: Path,
+) -> None:
+    """Publish optional worker diagnostics without replacing a terminal error.
+
+    A saturated tracking artifact queue is itself diagnostic, but it must not
+    hide the isolated worker's exit code, timeout, or Python exception.
+    """
+
+    try:
+        _record_failure_artifacts(context, plan, output_dir)
+    except Exception as error:
+        try:
+            context.event(
+                "training_diagnostic_publication_failed",
+                {
+                    "backend": plan.backend,
+                    "operation": plan.operation,
+                    "error_type": type(error).__name__,
+                },
+            )
+        except Exception:
+            # Tracking is already unavailable or backpressured. The caller's
+            # original execution failure remains the reliable terminal cause.
+            pass
 
 
 def _backend_result(

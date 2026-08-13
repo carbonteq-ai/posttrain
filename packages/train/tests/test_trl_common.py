@@ -4,14 +4,15 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from posttrain.common import ProducedArtifact
 from posttrain.common.variants import GEMMA_4_12B_IT, LFM_25_12B_THINKING, QWEN_35_2B
-from posttrain.train import LoRAUpdate
+from posttrain.train import LoRAUpdate, TrainingLoop
 from posttrain.train.backends.trl.common import (
     checkpoint_callback_type,
+    load_trainable_model,
     preserve_recovery_checkpoint_after_error,
     publish_interrupted_recovery_checkpoint,
     trainable_model_factory,
@@ -64,6 +65,46 @@ def test_trainable_model_factory_uses_multimodal_loader_for_gemma4() -> None:
     assert trainable_model_factory(QWEN_35_2B, IMPORTS) is CausalFactory
     assert trainable_model_factory(LFM_25_12B_THINKING, IMPORTS) is CausalFactory
     assert trainable_model_factory(GEMMA_4_12B_IT, IMPORTS) is MultimodalFactory
+
+
+def test_trainable_model_loader_honors_requested_dtype() -> None:
+    calls: list[dict[str, object]] = []
+
+    class Factory:
+        @staticmethod
+        def from_pretrained(_repo: str, **kwargs: object) -> Any:
+            calls.append(kwargs)
+            return SimpleNamespace(config=SimpleNamespace(use_cache=True))
+
+    imports = {
+        "torch": SimpleNamespace(bfloat16="bf16", float32="fp32"),
+        "AutoModelForCausalLM": Factory,
+        "AutoModelForMultimodalLM": Factory,
+        "get_peft_model": lambda model, _config: model,
+        "LoraConfig": lambda **_kwargs: object(),
+    }
+    loop = SimpleNamespace(gradient_checkpointing=False)
+
+    model = load_trainable_model(
+        QWEN_35_2B,
+        LoRAUpdate(),
+        cast(TrainingLoop, loop),
+        imports,
+        model_dtype="float32",
+    )
+
+    assert model.config.use_cache is False
+    assert calls == [
+        {
+            "revision": QWEN_35_2B.base.revision,
+            "device_map": {"": 0},
+            "dtype": "fp32",
+            "attn_implementation": "sdpa",
+            "trust_remote_code": False,
+        }
+    ]
+    with pytest.raises(ValueError, match="bfloat16.*float32"):
+        load_trainable_model(QWEN_35_2B, LoRAUpdate(), cast(TrainingLoop, loop), imports, model_dtype="float16")
 
 
 def test_gemma_mtp_materializes_the_pinned_assistant_before_trl(monkeypatch) -> None:
