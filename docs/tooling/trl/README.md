@@ -9,15 +9,16 @@ semantics, and instrumentation hooks belong to the `train` package boundary.
 The lab's injected observation context maps those hooks to Trackio. Datasets,
 rewards, and Verifiers environment implementations remain independently owned.
 
-The current candidate selects `trl==1.9.2.post11` from `carbonteq/dev`,
+The current framework selection resolves `trl==1.9.2.post11` from
+`carbonteq/stable`,
 built from `carbonteq-ai/trl` commit
 `69cf80a7319079ec5523841553467e119ebc1cec`. Its prerelease tag,
 `carbonteq-v1.9.2.post11`, plus wheel and source hashes are recorded in
 `packages/train/pyproject.toml`. Posttrain's retained-asset publisher verified
 the release hashes, uploaded the exact bytes to the development index, and
-retained a clean-install receipt in workflow `31653581435`. Selected GPU
-qualification and byte-identical server-side promotion remain required before
-this candidate becomes a stable framework dependency. The fork is based on upstream TRL 1.9.2 and keeps
+retained a clean-install receipt in workflow `31653581435`. The one-update GPU
+canary succeeded, and workflow `31655218728` promoted the same retained bytes
+server-side and verified stable readback plus a clean install. The fork is based on upstream TRL 1.9.2 and keeps
 the trainer runtime compatible with `datasets 4.6.1` so Verifiers v1 and TRL
 can share one environment. Project-specific job policy and environments remain
 outside the fork.
@@ -93,10 +94,10 @@ prompt-logprob collection and compares it with raw actor values at temperature
 one. Processed sampled log probabilities remain the independent TIS signal.
 The candidate also records raw parity mean, maximum, and token count.
 
-This repair is in immutable `trl==1.9.2.post11` prerelease bytes, tagged at
+This repair is in immutable `trl==1.9.2.post11` bytes, tagged at
 `carbonteq-v1.9.2.post11`. Posttrain's candidate consumes it from
-`carbonteq/dev`; stable selection remains gated on the one-update
-actor-update/LoRA-artifact audit and byte-identical promotion.
+`carbonteq/stable` after the one-update actor/LoRA artifact audit and
+byte-identical promotion.
 
 Post11 also repairs IW-OPD's loss denominator for fully on-policy batches. The
 base Trainer counts labels before rollout generation and therefore supplies

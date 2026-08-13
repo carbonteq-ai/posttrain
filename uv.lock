@@ -345,7 +345,7 @@ wheels = [
 [[package]]
 name = "carbonteq-trackio"
 version = "0.31.5.post13"
-source = { registry = "https://pypi.lan/carbonteq/dev/+simple/" }
+source = { registry = "https://pypi.lan/carbonteq/stable/+simple/" }
 dependencies = [
     { name = "boto3" },
     { name = "brotli" },
@@ -2972,7 +2972,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "carbonteq-trackio", specifier = "==0.31.5.post13", index = "https://pypi.lan/carbonteq/dev/+simple/" },
+    { name = "carbonteq-trackio", specifier = "==0.31.5.post13", index = "https://pypi.lan/carbonteq/stable/+simple/" },
     { name = "posttrain-common", editable = "packages/common" },
     { name = "posttrain-tracking", editable = "packages/tracking" },
 ]
@@ -3056,7 +3056,7 @@ requires-dist = [
     { name = "torch", marker = "extra == 'trl'", specifier = ">=2.11,<2.12", index = "https://download.pytorch.org/whl/cu130" },
     { name = "torchvision", marker = "extra == 'trl'", specifier = ">=0.26,<0.27", index = "https://download.pytorch.org/whl/cu130" },
     { name = "transformers", marker = "extra == 'trl'", specifier = ">=5.14,<5.15" },
-    { name = "trl", marker = "extra == 'trl'", specifier = "==1.9.2.post11", index = "https://pypi.lan/carbonteq/dev/+simple/" },
+    { name = "trl", marker = "extra == 'trl'", specifier = "==1.9.2.post11", index = "https://pypi.lan/carbonteq/stable/+simple/" },
     { name = "verifiers", marker = "extra == 'verifiers'", git = "https://github.com/PrimeIntellect-ai/verifiers.git?rev=284a868d6a9022109b749710672a0460e8a996d4" },
     { name = "vllm", marker = "extra == 'trl-vllm'", specifier = "==0.25.1" },
 ]
@@ -4418,7 +4418,7 @@ wheels = [
 [[package]]
 name = "trl"
 version = "1.9.2.post11"
-source = { registry = "https://pypi.lan/carbonteq/dev/+simple/" }
+source = { registry = "https://pypi.lan/carbonteq/stable/+simple/" }
 dependencies = [
     { name = "accelerate" },
     { name = "datasets" },
@@ -4426,9 +4426,9 @@ dependencies = [
     { name = "packaging" },
     { name = "transformers" },
 ]
-sdist = { url = "https://pypi.lan/carbonteq/dev/+f/a48/df92892129243/trl-1.9.2.post11.tar.gz", hash = "sha256:a48df92892129243b80f87b3c6a46ea4bdb8ad8f6cebc18be09f6fdbbfe4fd2a" }
+sdist = { url = "https://pypi.lan/carbonteq/stable/+f/a48/df92892129243/trl-1.9.2.post11.tar.gz", hash = "sha256:a48df92892129243b80f87b3c6a46ea4bdb8ad8f6cebc18be09f6fdbbfe4fd2a" }
 wheels = [
-    { url = "https://pypi.lan/carbonteq/dev/+f/ae9/5f7787936f7e9/trl-1.9.2.post11-py3-none-any.whl", hash = "sha256:ae95f7787936f7e944766611c5545048b7710bf34e7404bb1e1a027698aa604a" },
+    { url = "https://pypi.lan/carbonteq/stable/+f/ae9/5f7787936f7e9/trl-1.9.2.post11-py3-none-any.whl", hash = "sha256:ae95f7787936f7e944766611c5545048b7710bf34e7404bb1e1a027698aa604a" },
 ]
 
 [[package]]

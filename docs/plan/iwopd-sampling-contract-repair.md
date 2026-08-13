@@ -169,6 +169,13 @@ package reaches the internal index and the resolved job image contains it.
   final LoRA adapter, and summary. The retained binding identifies
   `trl@1.9.2.post11`, source `69cf80a7319079ec5523841553467e119ebc1cec`,
   and dependency lock `c065acdefa105abe8870b62bca4d61ab70abe801f65ff56415cdef2ddf168183`.
+- [x] (2026-08-13) Promoted the exact qualified TRL post11 and veRL dev2
+  artifacts server-side from `carbonteq/dev` to `carbonteq/stable`. Workflows
+  `31655218728` and `31655220576` re-downloaded the stable files, matched the
+  retained wheel/source hashes, passed clean installs, and retained promotion
+  receipts. The framework stable lock now records the same post11 hashes under
+  stable URLs; its catalog digest is
+  `195c5caff273ed4c5d34c6c20e92f5bbc9a4629d8e1196600beaef5f1cda13ee`.
 - [x] (2026-08-13) Preflighted both requested work packages before GPU
   submission and caught stale project-local bindings: the TRL package still
   selected post9 and the veRL canary still selected dev1 even though the

@@ -448,9 +448,12 @@ in the fork, published byte-for-byte to `carbonteq/dev` by Posttrain workflow
 `31649999160`, and read back from that index. In addition to the dev1 release
 delta, it preserves repaired three-dimensional position IDs through nested
 TensorDict minibatch selection. The candidate has passed the focused Python
-3.13 CPU suite, wheel install, and focused Ruff/diff checks. It is not a GPU
-qualification or production promotion: a runtime image containing this exact
-revision and the bounded veRL canary remain required.
+3.13 CPU suite, wheel install, focused Ruff/diff checks, and the bounded GPU
+canary `verl-dev2-sampling-canary-20260813`. That run completed one optimizer
+step and retained the adapter, summary, trace-sync receipt, and two native
+traces while resolving the selected non-default sampling policy. Workflow
+`31655220576` then promoted the same bytes server-side to `carbonteq/stable`
+and verified their hashes and a clean install.
 
 The previous dev1 matching kind image is retained as historical evidence at
 `registry.lan/carbonteq/posttrain-kind-online-rl-verl-py313:0.9.0.dev1`.
