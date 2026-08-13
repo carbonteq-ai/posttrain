@@ -89,8 +89,8 @@ This work changes one frozen product meaning narrowly. Existing documentation sa
 - Observation: the selected semantic completion begins after a fixed assistant scaffold that must also advance XGrammar replay state.
   Evidence: retained canary trace `7c220e2cb452476dadde144ff97a6b49` has 169 selected-node tokens with mask `[false, false, false, true, ...]`; the three-token prefix is `[105, 4368, 107]`. The previous scorer started XGrammar at the first true-mask token and correctly failed it as disallowed. PostTrain now appends that exact scaffold to the teacher-native prompt and seeds both teacher and current-student matchers before normalizing selected tokens; TRL post7 preserves the field through buffered micro-slices.
 
-- Observation: alphabetically serializing a JSON schema creates a different XGrammar FSM from the colocated rollout path.
-  Evidence: canary `opd2can05-prefixq-e2b12b-c12-r16-v1` generated twelve admitted rollouts and reached local teacher scoring, then failed at selected token position one because `_xgrammar_matcher()` used `sort_keys=True`. The retained rules/graph schemas declare required-property order that differs from alphabetical `properties` order. Direct replay failed under alphabetical serialization but accepted and terminated for all retained evidence, rules, and graph outputs when object properties were ordered recursively by their declared `required` arrays. The correction affects only scorer grammar construction; canonical Policy validation and schema digests remain unchanged.
+- Observation: scorer-side schema reordering creates a different XGrammar FSM from the colocated rollout path.
+  Evidence: canary `opd2can05-prefixq-e2b12b-c12-r16-v1` first proved that `sort_keys=True` was wrong. Production attempt `opd2prod01-correctedq-e2b12b-c384-r16-v1` then crossed optimizer step one and retained 24 accepted traces, but its second cohort failed because the replacement transformation reordered optional properties behind required properties. Exact replay of the retained schemas showed three otherwise valid rules completions becoming disallowed at optional `value` fields. vLLM compiles Policy's in-memory schema insertion order unchanged. PostTrain now preserves that order exactly in the scorer; all 24 retained selected completions replay through the corrected teacher matcher, including the three former failures. Canonical Policy validation and schema digests remain unchanged.
 
 ## Decision Log
 
@@ -142,8 +142,8 @@ This work changes one frozen product meaning narrowly. Existing documentation sa
   Rationale: both vLLM replay implementations remained proportional to completion length and missed the overnight budget. The local path performs one teacher hidden-state forward and bounded vocabulary chunks, retains teacher-native prompt rendering and exact student completion IDs, and applies the identical XGrammar allowed set and digest evidence at every selected position. Dense-vs-chunked tests prove exact constrained probabilities; the single live canary remains the release gate for memory, latency, finite loss, and backward behavior.
   Date/Author: 2026-08-13 / Codex.
 
-- Decision: canonicalize scorer-only XGrammar object properties by declared required order.
-  Rationale: this matches the property ordering proven by actual colocated vLLM outputs and prevents the teacher/current-student scorers from constructing an alphabetically different constrained probability space. The transformation is recursive, deterministic, non-mutating, and does not weaken or rewrite Policy's canonical schema.
+- Decision: preserve the exact rollout-schema insertion order in teacher and current-student XGrammar scoring.
+  Rationale: vLLM's rollout path serializes the in-memory Policy mapping without sorting or required-property reordering. Any scorer-only reordering defines a different grammar, even when the JSON Schema is semantically equivalent. Exact insertion-order preservation is the only byte-for-byte faithful replay contract and is proven against all 24 retained completions from the first production attempt.
   Date/Author: 2026-08-13 / Codex.
 
 ## Outcomes & Retrospective
