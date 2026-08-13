@@ -96,6 +96,8 @@ jobs:
           assert importlib.metadata.version("trl") == os.environ["EXPECTED_VERSION"]
           assert Olmo3GRPOConfig.__name__ == "Olmo3GRPOConfig"
           config = IWOPDConfig(
+              use_cpu=True,
+              bf16=False,
               min_p=0.01,
               repetition_penalty=1.1,
               generation_kwargs={"presence_penalty": 1.5},
