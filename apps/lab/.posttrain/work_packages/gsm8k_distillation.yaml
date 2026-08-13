@@ -43,7 +43,7 @@ bindings:
   training:
     type: ref
     family: training
-    id: training/qwen3.5-0.8b-trl-distill-lora@5
+    id: training/qwen3.5-0.8b-trl-distill-lora@6
   rollout_inference:
     type: ref
     family: inference

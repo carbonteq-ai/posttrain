@@ -129,6 +129,19 @@ package reaches the internal index and the resolved job image contains it.
 - [x] (2026-08-13) Published the retained veRL dev2 assets to
   `carbonteq/dev`. Run `31649999160` verified development storage, byte
   hashes, a clean install, and a retained publication receipt.
+- [x] (2026-08-13) Ran the post10 TRL canary
+  `iwopd-post10-trl-canary-20260813` from retained runtime candidate rc6. It
+  reproduced `on_policy_loss=-inf` after 749 finite teacher-scored tokens and
+  retained two native traces, ruling out image drift and exposing the actual
+  denominator bug: the base Trainer counted the prompt-only raw batch before
+  on-policy generation and passed `num_items_in_batch=0`.
+- [x] (2026-08-13) Fixed IW-OPD generically by recomputing the global item
+  count from buffered post-generation labels. The regression captures the
+  zero Trainer-level count, a non-zero stamped count, and finite training loss;
+  the full IW-OPD module passes 60 tests with one accelerator-only skip.
+  Released immutable TRL post11 from
+  `69cf80a7319079ec5523841553467e119ebc1cec` and retained exact development
+  bytes through successful Posttrain workflow `31653581435`.
 - [x] (2026-08-13) Preflighted both requested work packages before GPU
   submission and caught stale project-local bindings: the TRL package still
   selected post9 and the veRL canary still selected dev1 even though the
