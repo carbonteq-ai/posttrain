@@ -106,15 +106,15 @@ jobs:
           fi
 
       - name: Promote unchanged development bytes server-side
+        env:
+          DEVPI_CLIENT: /opt/posttrain-dstack-client/bin/devpi
+          REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt
         run: |
           if test "${PROMOTION_ALREADY_STABLE}" = true; then
             echo "exact version already exists in stable; stable readback will verify it"
             exit 0
           fi
-          DEVPI_CLIENT="/var/lib/github-runner/.local/bin/devpi"
-          if ! test -x "${DEVPI_CLIENT}"; then
-            DEVPI_CLIENT="$(uv tool install devpi-client --with 'devpi-common<4' --force --quiet >/dev/null && command -v devpi)"
-          fi
+          test -x "${DEVPI_CLIENT}"
           "${DEVPI_CLIENT}" use https://pypi.lan/carbonteq/dev
           "${DEVPI_CLIENT}" login "${UV_PUBLISH_USERNAME}" --password "${UV_PUBLISH_PASSWORD}"
           "${DEVPI_CLIENT}" push -y "${PACKAGE}==${VERSION}" carbonteq/stable

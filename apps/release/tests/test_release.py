@@ -883,6 +883,10 @@ def test_retained_fork_candidates_use_development_before_server_side_promotion()
     assert "carbonteq-ai/verl" in promotion
     assert "carbonteq-ai/trackio" in promotion
     assert '"${DEVPI_CLIENT}" push -y "${PACKAGE}==${VERSION}" carbonteq/stable' in promotion
+    assert "DEVPI_CLIENT: /opt/posttrain-dstack-client/bin/devpi" in promotion
+    assert "REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt" in promotion
+    assert "/var/lib/github-runner/.local/bin/devpi" not in promotion
+    assert "uv tool install devpi-client" not in promotion
     assert "Verify stable readback is byte-identical" in promotion
     assert promotion.count("from urllib.parse import urljoin") == 2
     assert "uv pip download" not in promotion
