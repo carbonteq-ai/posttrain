@@ -2084,7 +2084,7 @@ triton==3.6.0 \
     #   liger-kernel
     #   torch
     #   xgrammar
-trl @ https://pypi.lan/carbonteq/dev/+f/48e/581d56f944519/trl-1.9.2.post10-py3-none-any.whl#sha256=48e581d56f944519270bff4b99c46d804a927c4490c7e64672927e72e68ca4f2
+trl @ https://pypi.lan/carbonteq/dev/+f/ae9/5f7787936f7e9/trl-1.9.2.post11-py3-none-any.whl#sha256=ae95f7787936f7e944766611c5545048b7710bf34e7404bb1e1a027698aa604a
     # via posttrain-train
 typer==0.25.1 \
     --hash=sha256:75caa44ed46a03fb2dab8808753ffacdbfea88495e74c85a28c5eefcf5f39c89 \

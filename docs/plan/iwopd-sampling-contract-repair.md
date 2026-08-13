@@ -142,6 +142,14 @@ package reaches the internal index and the resolved job image contains it.
   Released immutable TRL post11 from
   `69cf80a7319079ec5523841553467e119ebc1cec` and retained exact development
   bytes through successful Posttrain workflow `31653581435`.
+- [x] (2026-08-13) Selected post11 across Posttrain's dependency metadata,
+  catalog lock, runtime profile, qualification binding, CI wheel receipt, and
+  operator documentation. Exact-head Quality workflow `31653910418` passed.
+  Protected runtime workflow `31653914990` then published and retained rc7;
+  its TRL kind is
+  `sha256:bc2c8a7cb184c55557aab353d9fe16513644411bce79d89d25746f9d2ae81b1d`
+  and strict release validation passes with the retained generated lock and
+  manifest installed.
 - [x] (2026-08-13) Preflighted both requested work packages before GPU
   submission and caught stale project-local bindings: the TRL package still
   selected post9 and the veRL canary still selected dev1 even though the
