@@ -150,6 +150,25 @@ package reaches the internal index and the resolved job image contains it.
   `sha256:bc2c8a7cb184c55557aab353d9fe16513644411bce79d89d25746f9d2ae81b1d`
   and strict release validation passes with the retained generated lock and
   manifest installed.
+- [x] (2026-08-13) Ran veRL dev2 canary
+  `verl-dev2-sampling-canary-20260813` on the 96 GiB RTX PRO worker. Provider
+  job `pt-c5ddca6668b22ee360c426fb` and Trackio run
+  `e7778637e07649f8acd6a8210fe3ef77` succeeded. Reconciliation retained two
+  native traces, the LoRA adapter, summary, retention manifest, and trace-sync
+  receipt. Observatory resolves `min_p=0.01`, `repetition_penalty=1.1`, and
+  `presence_penalty=1.5` for both environment and rollout inference. Both tiny
+  canary trajectories truncated with zero reward variance, so this qualifies
+  the backend/configuration contract and one completed optimizer step, not
+  training-quality promotion.
+- [x] (2026-08-13) Ran TRL post11 canary
+  `iwopd-post11-trl-canary-20260813` on the 24 GiB RTX 4090. Provider job
+  `pt-8151d73ebf6e805b2505754f` and Trackio run
+  `f0c2996c4e0c4d5bb6a3f1d6846d6f45` succeeded. Reconciliation retained two
+  native traces, 749 teacher-scored tokens, zero teacher failures, finite loss
+  `-0.18772484362125397`, global optimizer step one, checkpoint/recovery,
+  final LoRA adapter, and summary. The retained binding identifies
+  `trl@1.9.2.post11`, source `69cf80a7319079ec5523841553467e119ebc1cec`,
+  and dependency lock `c065acdefa105abe8870b62bca4d61ab70abe801f65ff56415cdef2ddf168183`.
 - [x] (2026-08-13) Preflighted both requested work packages before GPU
   submission and caught stale project-local bindings: the TRL package still
   selected post9 and the veRL canary still selected dev1 even though the
