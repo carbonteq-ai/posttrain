@@ -260,7 +260,7 @@ def test_local_teacher_parallel_scoring_matches_dense_constrained_probabilities(
     assert observed["allowed_set_digests"] == [digests]
 
 
-def test_xgrammar_scoring_schema_uses_declared_required_property_order_recursively() -> None:
+def test_xgrammar_scoring_schema_preserves_generation_property_order_recursively() -> None:
     schema = {
         "type": "object",
         "properties": {
@@ -284,9 +284,9 @@ def test_xgrammar_scoring_schema_uses_declared_required_property_order_recursive
 
     ordered = _xgrammar_generation_schema(schema)
 
-    assert list(ordered["properties"]) == ["qualifiers", "attachments", "completion"]
+    assert list(ordered["properties"]) == ["attachments", "completion", "qualifiers"]
     qualifier = ordered["properties"]["qualifiers"]["items"]
-    assert list(qualifier["properties"]) == ["qualifier_id", "canonical_text", "evidence_spans"]
+    assert list(qualifier["properties"]) == ["evidence_spans", "canonical_text", "qualifier_id"]
     assert list(schema["properties"]) == ["attachments", "completion", "qualifiers"]
 
 
