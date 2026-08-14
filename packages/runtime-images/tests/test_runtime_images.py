@@ -177,7 +177,15 @@ def test_narrow_runtime_locks_pin_every_profile_root_and_artifact() -> None:
         constraint_lock("online-rl-verl-py313"): {"carbonteq-trackio", "verifiers"},
         constraint_lock("eval"): {"carbonteq-trackio", "datasets", "vllm", "verifiers"},
         constraint_lock("serve"): {"carbonteq-trackio", "vllm", "torchvision", "torchaudio"},
-        TRANSFORM_LOCK: {"datasets", "llmcompressor", "torch", "transformers"},
+        TRANSFORM_LOCK: {
+            "carbonteq-trackio",
+            "datasets",
+            "llmcompressor",
+            "pydantic",
+            "pyyaml",
+            "torch",
+            "transformers",
+        },
     }
     for lock, roots in expected_roots.items():
         requirements = _logical_requirements(lock)
@@ -200,6 +208,22 @@ def test_base_runtime_lock_includes_cuda_dependencies_selected_by_torch_extras()
     requirements = _logical_requirements(BASE_LOCK)
     assert "cuda-toolkit" in requirements
     assert "nvidia-cuda-runtime" in requirements
+
+
+def test_every_kind_installs_the_shared_framework_runtime() -> None:
+    """Every actual job can start the framework and default Trackio adapter."""
+
+    with definition_root() as root:
+        dockerfile = (root / "containers/posttrain-job-kinds/Dockerfile").read_text()
+        job_dockerfile = (root / "containers/posttrain-job/Dockerfile").read_text()
+
+    transform = dockerfile.split("FROM kind-common AS transform-dependencies", 1)[1].split(
+        "FROM supervised-dependencies AS supervised", 1
+    )[0]
+    assert "profiles/common.txt" in transform
+    assert "--requirement /opt/posttrain/profiles/common.txt" in transform
+    assert "trackio" in dockerfile.split("FROM transform AS transform-smoke", 1)[1]
+    assert "posttrain_tracking_trackio.adapter, trackio" in job_dockerfile
 
 
 def test_base_runtime_lock_retains_the_reviewed_mirrored_triton_artifact() -> None:

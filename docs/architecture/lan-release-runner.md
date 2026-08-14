@@ -48,10 +48,12 @@ credential value is committed to the repository or passed as a workflow input.
 
 The internal index owns two distinct states:
 
-- `carbonteq/dev` is the qualification index. Candidate versions such as
-  `0.3.1rc1` and `0.3.1rc2` are never overwritten even though the index itself
-  is operationally volatile. The final `0.3.1` files also land here for their
-  last clean-install canary before promotion.
+- `carbonteq/dev` is the qualification index. A candidate run publishes the
+  authored final version, such as `0.3.17`, so an accepted wheel can be promoted
+  without rebuilding or renaming it. Failed bytes are retained by the workflow
+  receipt. They may be removed from development only as a complete coordinated
+  version after proving stable is empty and every indexed hash matches that
+  failed receipt. Accepted candidate bytes are never removed or overwritten.
 - `carbonteq/stable` is the non-volatile consumer index. A candidate reaches it
   only by server-side promotion after qualification. It is never rebuilt or
   uploaded independently.
@@ -182,9 +184,10 @@ candidate is immutable: a repair produces `rc2`, not replacement bytes under
 2. The release PR updates `release/manifest.toml`, the changelog, the single
    dependency lock and intended runtime-image inputs. Exact-SHA CI qualifies
    committed source.
-3. A maintainer dispatches **Prepare candidate**. The runner allocates the next
-   unused `rcN`, builds and registry-verifies changed runtime images, and writes
-   all generated image evidence under the release materialization directory.
+3. A maintainer dispatches **Prepare candidate**. The GitHub run identity is
+   the next RC identity. The runner builds and registry-verifies changed runtime
+   images and writes all generated image evidence under the release
+   materialization directory.
 4. The staging command combines exact committed source with that declared
    materialization, validates every binding and builds candidate distributions
    once. The receipt records version, source, dependency and lock receipts,
@@ -198,23 +201,20 @@ candidate is immutable: a repair produces `rc2`, not replacement bytes under
    cleanup and Observatory readback of that same run. Changed training,
    evaluation or serving kinds require their corresponding bounded canary;
    untested kinds are reported as unqualified.
-7. A passing candidate may receive an immutable GitHub prerelease tag such as
-   `v0.3.1-rc.2`. A failure creates no final tag and never writes to stable. The
-   release branch is repaired and the next candidate is built.
+7. A failure creates no final tag and never writes to stable. Its workflow
+   artifact remains the immutable failure receipt. If corrected source keeps
+   the same authored final version, the old development version must pass the
+   audited whole-version retirement gate before the next candidate uploads.
 8. After one candidate passes, the release PR is merged. The accepted
    materialization remains a retained workflow artifact; generated OCI state
    does not need to be committed to bridge the two workflows. A maintainer
    dispatches **Publish release** for the exact merged default-branch commit and
    accepted candidate receipt.
-9. The runner stages final `0.3.1`, builds those final distributions once,
-   uploads them to `carbonteq/dev`, and performs an index-only install plus a
-   final dstack canary. Candidate distributions are not renamed or promoted as
-   the final version because their embedded metadata names `0.3.1rcN`.
-10. The final workflow verifies the candidate-qualified dependency and OCI
-    receipts and the deployed Trackio/Observatory identities without rebuilding
-    or redeploying them. It promotes the exact final Python files server-side
-    from `carbonteq/dev` to `carbonteq/stable`, then verifies stable readback
-    hashes.
+9. The final workflow verifies the accepted candidate wheelhouse, dependency
+   and OCI receipts, merged source tree, and development-index hashes without
+   rebuilding, reinstalling, redeploying, or running a second GPU canary.
+10. It promotes the exact candidate Python files server-side from
+    `carbonteq/dev` to `carbonteq/stable`, then verifies stable readback hashes.
 11. Only after stable readback succeeds does the workflow create annotated tag
    `v0.3.1` and a GitHub Release containing the final bundle and receipt.
 
@@ -269,11 +269,13 @@ Every failure is assigned to one edge before a retry:
 | Read product | Observatory cannot retrieve or project the same run | Observatory query/deployment layer |
 
 Before a candidate upload, a failed workflow is side-effect free. After an
-`rcN` upload, that candidate is immutable: matching files may be reused, but a
-repair allocates `rcN+1`. Qualification failure leaves evidence in
-`carbonteq/dev` and never creates a final tag. A failed OCI digest remains an
-unreferenced candidate and may be garbage-collected by registry policy; it is
-never written into the accepted manifest.
+upload, the workflow artifact is immutable. Matching files may be reused. A
+repair creates a new candidate run and normally advances the version; before
+stable publication it may instead retire the failed coordinated development
+version after exact receipt verification. Qualification failure never creates
+a final tag. A failed OCI digest remains an unreferenced candidate and may be
+garbage-collected by registry policy; it is never written into the accepted
+manifest.
 
 Promotion is resumable package by package. A retry skips stable files whose
 hashes already match the receipt and blocks on any conflicting file. Because

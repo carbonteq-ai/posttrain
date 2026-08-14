@@ -152,6 +152,29 @@ receipt instead of rebuilding or re-running completed checks.
   advanced to `0.3.17` rather than overwriting immutable artifacts. Candidate
   preparation now checks the stable `posttrain` index before expensive image
   or wheel work and fails with an actionable version-bump message.
+- [x] (2026-08-15T20:20Z) Confirmed `0.3.17` is absent from stable while failed
+  candidate `31833287598` occupies development. Kept the authored version at
+  `0.3.17` and defined audited whole-version retirement for this failed,
+  never-promoted candidate instead of advancing the stable version.
+- [x] (2026-08-15T20:25Z) Proved the canary failure belonged to the transform
+  kind: its image profile omitted the shared Trackio runtime even though all
+  other kinds installed `profiles/common.txt`. Added the common transform
+  closure, a transform import smoke, and an actual-job pre-GPU import gate.
+- [x] (2026-08-15T20:27Z) Corrected candidate target handling so the default
+  96-GB work package does not receive a rejected no-op override while the 4090
+  qualification still supplies its real target override. Focused validation:
+  42 tests passed.
+- [x] (2026-08-15T20:45Z) Implemented the protected failed-candidate retirement
+  gate. It binds the failed GitHub run to its retained receipt, compares the
+  complete 26-package set with replacement source, verifies every development
+  hash and an empty stable version, removes the coordinated version, proves
+  absence, and retains preflight plus completion receipts. Repository
+  validation: 1,255 tests passed, 23 skipped; Ruff, Pyright, import contracts,
+  workflow parsing, release checks, lock checks, and diff checks passed.
+- [ ] Retire the failed coordinated `0.3.17` development version after exact
+  receipt/hash verification and retain the deletion receipt.
+- [ ] Publish and qualify the corrected `0.3.17` candidate, then promote its
+  exact bytes to stable and create `v0.3.17`.
 
 ## Surprises & Discoveries
 
@@ -159,6 +182,14 @@ receipt instead of rebuilding or re-running completed checks.
   version. A candidate's hash mismatch is therefore evidence of an immutable
   version collision, not safe grounds to delete the development entry. The
   authored release manifest must advance before candidate publication.
+
+- Observation: candidate `31833287598` packed a transform job. The transform
+  Dockerfile installed only `profiles/transform.txt`; therefore its lock and
+  image omitted `carbonteq-trackio`, and the runtime failed before tracking
+  started with `ModuleNotFoundError: No module named 'trackio'`.
+  Evidence: the Actions log identifies `model.transform`, kind digest
+  `sha256:46c3a3...`, package key `d9730d...`, and actual-job digest
+  `sha256:8bd5b7...` before the provider failed.
 
 - Observation: `posttrain-release readiness` currently records only Trackio
   and TRL even though the executable runtime also selects CarbonTeq veRL and
@@ -323,6 +354,22 @@ receipt instead of rebuilding or re-running completed checks.
   Development is the safe staging channel; stable publication and tagging stay
   final-only.
   Date/Author: 2026-08-12 / user and Codex.
+- Decision: Keep `0.3.17` as the intended stable version and treat a GitHub
+  candidate run as the RC identity. Permit retirement of a failed development
+  version only when stable is empty, the run failed, every indexed file matches
+  its retained receipt, and the entire coordinated version is removed with a
+  deletion receipt before replacement.
+  Rationale: a PEP 440 `0.3.17rcN` artifact cannot be renamed or promoted as
+  byte-identical `0.3.17`. The audited exception preserves the stable version
+  without weakening stable or accepted-candidate immutability.
+  Date/Author: 2026-08-15 / user and Codex.
+- Decision: Every job-kind control environment must install the shared
+  framework runtime profile, and every actual-job build must import the default
+  Trackio adapter before submission.
+  Rationale: job-kind locks are runtime capability contracts, not merely lists
+  of possible constraints; failure must occur during image build rather than
+  after allocating a GPU.
+  Date/Author: 2026-08-15 / Codex.
 - Decision: One real packed dstack canary is required per immutable final
   artifact set, in the candidate workflow.
   Rationale: that canary proves the consumer package, image manifest, registry,
@@ -448,8 +495,9 @@ to development, verifies its hashes, installs it into a clean consumer,
 verifies the runtime image manifest, and runs one real packed dstack canary. It
 retains the final-version wheelhouse, readiness receipt, runtime manifest, and
 dstack evidence. If a different artifact already occupies that final version in
-development, the workflow fails rather than overwriting it; changed source needs
-a new release version.
+development, the workflow fails rather than overwriting it. A failed,
+never-stable version may be retired only through the exact receipt gate; all
+other changed source needs a new release version.
 
 Finally, make `release.yml` promotion-only. It verifies candidate/merged
 ancestry or identical-tree provenance, rechecks the downloaded candidate
@@ -505,9 +553,11 @@ the release remains safely deferred rather than claiming success.
 
 ## Idempotence and Recovery
 
-No step may overwrite an immutable package version, runtime image digest, or
+No step may overwrite an accepted package version, runtime image digest, or
 GitHub tag. Development and stable index checks must reuse exact bytes when
-already present and reject partial or mismatched versions. A failed final run
+already present and reject partial or mismatched versions. The only deletion
+path is whole-version retirement of a failed, never-stable candidate after
+matching the retained receipt; a mismatch fails closed. A failed final run
 must be resumed with its retained receipt; it must not rebuild distributions or
 images unless the receipt is absent or fails hash verification. Candidate and
 final cleanup must remain scoped to the current run.
@@ -520,6 +570,7 @@ Relevant evidence from the current release investigation:
     final run 31318113663: failed before publication; candidate commit was not an ancestor after squash merge
     final run 31318496543: source validation passed; candidate object was unavailable in checkout
     final run 31319572261: success in 8m27s after fast final-validation path
+    candidate run 31833287598: failed; transform kind omitted Trackio; stable 0.3.17 remained empty
     PR #42: tree comparison now uses the GitHub commit API
     PR #44: release plumbing/build-input comparison
     PR #45: duplicate final suite removed
@@ -541,3 +592,10 @@ RC-to-final rebuilding causes two canaries. The target changed from roughly
 twenty minutes to a sub-fifteen-minute path by qualifying the final version in
 development once and making final a receipt-verified promotion only. Product
 and training semantics remain unchanged.
+
+Revision note (2026-08-15): Failed candidate `31833287598` exposed both a
+transform-kind runtime-closure gap and ambiguity in the phrase “new RC.” The
+plan now treats the workflow run as the RC identity, permits an audited
+whole-version development retirement only before stable publication, keeps
+`0.3.17` as the target, and requires Trackio importability before GPU
+submission.
