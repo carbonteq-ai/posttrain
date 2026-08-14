@@ -177,10 +177,42 @@ evidence. It adds no new job kind, selection, or project decision.
   local GRPO smoke reached live rollout generation but reproduced missing-parent
   enrichment. This exposed the Doris service's asynchronous trace-write
   acknowledgement, not another Posttrain projection defect.
-- [ ] Publish and deploy Trackio dev9, then activate a Posttrain rc15 with its
-  exact wheel. Rerun the bounded local GRPO smoke and verify native traces,
-  source facts, and algorithm-reward enrichment through the generic aggregate
-  API.
+- [x] (2026-08-15 09:05Z) Released Trackio dev9 from
+  `bf18b6dc02315404370094241516a20bf1ed7e30`, published the retained
+  development asset through Posttrain publisher run `31787049987`, and
+  deployed it to the shared Trackio service. Dev9 synchronously persists
+  native trace batches while retaining asynchronous scalar logging.
+- [x] (2026-08-15 09:20Z) Reproduced and repaired the remaining causal-order
+  defect in Trackio dev10 (`04b58848`). Remote `Run.flush()` had written native
+  trace logs only to the local retry buffer, allowing dependent enrichment to
+  reach the service first. Dev10 sends the queued parent batch before draining
+  scalar retries; the focused regression, live source/flush/enrichment probe,
+  manual prerelease, and Posttrain publisher run `31789084642` passed.
+- [x] (2026-08-15 09:35Z) Activated candidate `0.3.16rc16` with the exact
+  Trackio dev10 wheel and completed a live local DAPO source-fact qualification.
+  Framework run `8dafeb63-d9aa-4bc4-8c6b-2185b82af4c7` retained a rollout
+  group whose four traces have full coverage for calls, input/output and
+  thinking tokens, tool calls, latency, and task reward through Trackio's
+  payload-free aggregate API.
+- [x] (2026-08-15 11:35Z) Candidate `0.3.16rc17` was built by successful
+  Posttrain workflow `31791363589` from framework commit `a394de76`. Three
+  bounded Qwen groups measured `0.062074`, `0.064933`, and `0.077103`; the
+  selected local DAPO policy records and enforces `0.10`, not an opt-out.
+  The completed DAPO run has six optimizer updates and full source plus
+  algorithm-reward aggregate coverage on each rollout step.
+- [x] (2026-08-15 11:38Z) Completed the second real local job,
+  `qualify/k1-extract-trace-facts-eval-smoke-0.8b` execution
+  `e9ff1a9b-521e-4a56-9e2c-259d23651b8c`. Trackio provider run
+  `b75986584fc54081ada613501ac38e90` retained all 16 evaluation traces with
+  full calls, input/output-token, tool-call, latency, and task-reward coverage.
+  Thinking-token coverage is zero because these traces provide no supported
+  reasoning-token evidence, which is the expected null-preserving behavior.
+- [x] (2026-08-15 10:45Z) The rc17 local DAPO run
+  `65a9177b-5e0e-4794-b733-64e6435aa85b` reached its first optimizer update
+  with an observed policy-parity delta of `0.07617`. Its Trackio provider run
+  `6b72f56b015d47a3b6a963151dc35ab6` has an eight-trace, payload-free aggregate
+  with complete coverage for calls, input/output/thinking tokens, tool calls,
+  latency, task reward, and post-rollout algorithm reward.
 - [x] Extend Trackio's existing SQLite/Doris `traces` schema with nullable
   scalar fact columns, add normalized reward-component rows, and implement
   grouped reads.
@@ -329,6 +361,35 @@ evidence. It adds no new job kind, selection, or project decision.
   and reasoning usage through different paths. The projector must normalize
   them into `model_output_tokens`, defined as all generated assistant tokens,
   before persisting a thinking-token subset.
+
+- Observation: an explicit `Run.flush()` must have stronger semantics than a
+  background retry drain when a following write has a foreign-key-like parent
+  dependency. The Trackio remote client formerly put native trace logs into a
+  local SQLite retry buffer, then sent trace-fact enrichment directly to Doris.
+  Evidence: dev9 made server native trace batches synchronous but the rc15
+  DAPO job still failed `trace '<id>' does not exist`; Trackio dev10's live
+  source/flush/enrichment probe passed once flush synchronously delivered the
+  in-memory trace batch before draining scalar retries.
+
+- Observation: the default TRL vLLM policy-parity threshold is a framework
+  safety default, not a universal calibration for every model/template/runtime
+  combination. Two Qwen 3.5 0.8B live rollout groups measured 0.064933 and
+  0.062074 mean per-token log-probability deltas, including a no-MTP control.
+  Evidence: the MTP and no-MTP local DAPO smoke jobs both failed before their
+  first optimizer update at the default 0.050000 threshold. The qualification
+  needs an explicit selection-level bound, recorded alongside its runtime
+  evidence, rather than silently disabling the guard.
+
+- Observation: local actual-job packaging currently materializes a full
+  approximately 11 GiB `posttrain-local` image for each package key, and the
+  Docker `type=docker` import needs substantial temporary free space. A host
+  with 14 GiB free failed during final image import even though the immutable
+  kind image already existed. Evidence: the rc16 DAPO launch failed with
+  `no space left on device`; deleting only its failed container/image restored
+  24 GiB and allowed the exact same candidate to launch. Follow-up runtime
+  image work must make framework-owned package-image reuse and capacity
+  preflight explicit before a build, rather than relying on manual cache
+  cleanup.
 
 ## Decision Log
 
