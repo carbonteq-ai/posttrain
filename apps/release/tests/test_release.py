@@ -923,9 +923,7 @@ def test_failed_candidate_retirement_requires_exact_dev_and_empty_stable(
     assert preflight["failed_run_id"] == "31833287598"
 
 
-def test_failed_candidate_retirement_rejects_any_stable_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_failed_candidate_retirement_rejects_any_stable_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     import posttrain_release.retirement as retirement
 
     failed_path = tmp_path / "failed.json"
@@ -1022,11 +1020,9 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert '--framework-wheelhouse "${framework_wheelhouse}"' in candidate
     assert "qualification_profile:" in candidate
     assert "rtx-pro-96gb" in candidate
-    assert "rtx4090-24gb" in candidate
-    assert 'qualification_target_args=(--target "targets/pop-os-rtx4090-24gb")' in candidate
-    assert 'qualification_host="pop-os.lan"' in candidate
-    assert 'qualification_target_args=()' in candidate
-    assert '"${qualification_target_args[@]}"' in candidate
+    assert "qualification_target_args" not in candidate
+    assert "rtx4090-24gb" not in candidate
+    assert 'qualification_host="pop-os.lan"' not in candidate
     assert 'qualification_target="targets/carbonteq-rtx-pro-6000-96gb"' not in candidate
 
     assert "candidate-version --simple-url" not in candidate

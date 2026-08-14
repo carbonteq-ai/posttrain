@@ -161,9 +161,9 @@ receipt instead of rebuilding or re-running completed checks.
   other kinds installed `profiles/common.txt`. Added the common transform
   closure, a transform import smoke, and an actual-job pre-GPU import gate.
 - [x] (2026-08-15T20:27Z) Corrected candidate target handling so the default
-  96-GB work package does not receive a rejected no-op override while the 4090
-  qualification still supplies its real target override. Focused validation:
-  42 tests passed.
+  96-GB work package does not receive a rejected no-op override. Removed the
+  stale 4090 release profile after the physical host no longer matched dstack's
+  cached inventory. Focused validation: 42 tests passed.
 - [x] (2026-08-15T20:45Z) Implemented the protected failed-candidate retirement
   gate. It binds the failed GitHub run to its retained receipt, compares the
   complete 26-package set with replacement source, verifies every development
@@ -190,6 +190,12 @@ receipt instead of rebuilding or re-running completed checks.
   Evidence: the Actions log identifies `model.transform`, kind digest
   `sha256:46c3a3...`, package key `d9730d...`, and actual-job digest
   `sha256:8bd5b7...` before the provider failed.
+
+- Observation: the release workflow and dstack fleet cache still advertised a
+  24-GiB RTX 4090 profile after the physical `pop-os` host changed and reported
+  an RTX 3070 Ti. Release qualification is now restricted to the healthy
+  96-GiB RTX PRO 6000 profile; stale scheduler identity is not accepted as
+  hardware proof.
 
 - Observation: `posttrain-release readiness` currently records only Trackio
   and TRL even though the executable runtime also selects CarbonTeq veRL and
