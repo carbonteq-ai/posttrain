@@ -16,6 +16,8 @@ from posttrain.tracking import (
     RunQuery,
     RunSummary,
     StoredArtifact,
+    TraceAggregateResult,
+    TraceFactsQuery,
     TracePage,
     TraceQuery,
     TraceRecord,
@@ -570,6 +572,10 @@ class FixtureRunDataSource(RunDataSource):
         page = values[offset : offset + query.limit]
         next_cursor = str(offset + query.limit) if offset + query.limit < len(values) else None
         return TracePage(items=page, next_cursor=next_cursor, live=True)
+
+    async def aggregate_trace_facts(self, run_id: str, query: TraceFactsQuery) -> TraceAggregateResult:
+        del run_id, query
+        return TraceAggregateResult(state="unavailable")
 
     async def artifacts(self, run_id: str) -> ArtifactSet:
         return self._artifacts[run_id]

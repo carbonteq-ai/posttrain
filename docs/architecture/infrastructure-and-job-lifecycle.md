@@ -148,6 +148,29 @@ than the primary control flow of every job.
 | Operations host | Nonblocking experiment lease | Serializes infrastructure qualifications or explicitly measured operations | Prevents two operator-run qualifications from contaminating one another | Operational coordination guard, not the ordinary dstack job scheduler |
 | Backup plane | Restic repositories on developer and RTX PRO hosts | Encrypts and verifies snapshots of service state, infrastructure state, secrets, and receipts on two physical systems | Protects the control/evidence plane; excludes model weights, caches, full logs, and job packages | Required destruction gate; freshness window is 24 hours |
 
+### Developer and release builders are separate trust domains
+
+The named `posttrain-builder` used by current projects is a per-developer
+Docker-container BuildKit daemon. It receives the bounded context produced on
+that developer machine, pulls the release-pinned parent through the developer's
+network connection when its cache is cold, and pushes only the actual-job
+publication. It is not the rootless builder on `ai-release`.
+
+The `ai-release` builder accepts only protected candidate/final workflows and
+holds release publication authority. It must not be reused for ordinary job
+packing merely to avoid VPN transfer: doing so would mix unreviewed project
+contexts, end-user availability and release credentials in one failure domain.
+
+A site may add a third component: a developer job-build service located beside
+the registry. That service is optional and separate from `ai-release`. It must
+not expose a general BuildKit socket. It accepts only a digest-addressed
+Posttrain context, validates its source/data budget and framework release,
+selects the framework-owned build definition, publishes into the caller's
+project namespace with scoped credentials, and returns the immutable digest and
+receipt. With this service, only the bounded context crosses VPN; without it,
+the current local-builder path remains correct but its cold parent pull is an
+explicit transfer cost.
+
 ## General job lifecycle
 
 The image digest identifies immutable job meaning and inputs. The launch

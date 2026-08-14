@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 
+import pytest
+from posttrain.tracking import RunQuery
 from posttrain_observatory import FixtureRunDataSource, RunLocator
 from posttrain_observatory.sources import RunSourceRegistry
 
@@ -49,3 +51,34 @@ def test_concurrent_readers_observe_only_complete_registry_snapshots() -> None:
 
     assert observed
     assert observed <= allowed
+
+
+@pytest.mark.asyncio
+async def test_source_scoped_run_list_and_direct_run_do_not_scan_other_sources() -> None:
+    class CountingFixture(FixtureRunDataSource):
+        def __init__(self) -> None:
+            super().__init__()
+            self.list_calls = 0
+            self.get_calls = 0
+
+        async def list_runs(self, query: RunQuery):
+            self.list_calls += 1
+            return await super().list_runs(query)
+
+        async def get_run(self, run_id: str):
+            self.get_calls += 1
+            return await super().get_run(run_id)
+
+    ambient = CountingFixture()
+    other = CountingFixture()
+    registry = RunSourceRegistry({"ambient-agent": ambient, "posttrain-lab": other})
+
+    listed = await registry.list_runs(RunQuery(limit=10), source_id="ambient-agent")
+    assert listed
+    assert ambient.list_calls == 1
+    assert other.list_calls == 0
+
+    resolved = await registry.get_run(listed[0].locator)
+    assert resolved.locator == listed[0].locator
+    assert ambient.get_calls == 1
+    assert other.get_calls == 0

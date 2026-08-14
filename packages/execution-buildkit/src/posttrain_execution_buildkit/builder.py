@@ -29,6 +29,11 @@ _TRANSIENT_REGISTRY_UPLOAD_MARKERS = (
     # content-addressed build starts a fresh upload session and reuses every
     # completed layer from the first attempt.
     "invalid content range",
+    "blob upload unknown",
+    # A bounded retry is also safe when the internal package index times out:
+    # the immutable request has not changed, and BuildKit reuses completed
+    # layers while starting a fresh HTTP request for the incomplete one.
+    "operation timed out",
 )
 
 
@@ -394,6 +399,34 @@ class BuildKitRuntimeBuilder:
 
     def verify_remote(self, image: RuntimeImageRef) -> None:
         self._verify_remote(image)
+
+    def copy_remote(
+        self,
+        source: RuntimeImageRef,
+        *,
+        destination_repository: str,
+        expected_digest: str,
+        tag: str,
+    ) -> RuntimeImageRef:
+        """Copy immutable registry bytes and verify the destination digest.
+
+        The tag is transport-only: callers execute the copied image by the
+        digest returned here.  Retagging an immutable manifest does not rebuild
+        or recompress it, so registry-side copies preserve the exact candidate
+        bytes that a later release manifest records.
+        """
+
+        if not _SAFE_NAME.fullmatch(destination_repository) or "@" in destination_repository:
+            raise ContractError("runtime copy destination repository is invalid")
+        if not _SAFE_NAME.fullmatch(tag):
+            raise ContractError("runtime copy tag is invalid")
+        if not expected_digest.startswith("sha256:") or not _SHA256.fullmatch(expected_digest.removeprefix("sha256:")):
+            raise ContractError("runtime copy expected digest is invalid")
+        destination_tag = f"{destination_repository}:{tag}"
+        self._gateway.invoke(("imagetools", "create", "--tag", destination_tag, source.value))
+        copied = RuntimeImageRef(f"{destination_repository}@{expected_digest}")
+        self._verify_remote(copied)
+        return copied
 
     def _verify_remote(self, image: RuntimeImageRef) -> None:
         output = self._gateway.invoke(("imagetools", "inspect", image.value, "--format", "{{json .Manifest.Digest}}"))

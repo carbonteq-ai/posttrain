@@ -57,9 +57,13 @@ from .image_inspection import (
     RemoteImageFacts,
     RuntimeImageInspector,
 )
-from .job_image import BuildKitJobImagePublisher
+from .job_image import BuildKitJobImagePublisher, job_build_definition_digest
 from .registry import (
+    DistributionRegistryContentReader,
     DistributionRegistryLifecycleAdmin,
+    OciBlob,
+    OciImageInventory,
+    RegistryContentTransport,
     RegistryPurgeActionExecutor,
     RegistryTransport,
     UrllibDistributionTransport,
@@ -72,6 +76,7 @@ __all__ = [
     "VERSION_LABEL",
     "BuildKitRuntimeBuilder",
     "BuildKitJobImagePublisher",
+    "job_build_definition_digest",
     "BuildxCli",
     "ImageInspector",
     "RemoteImageFacts",
@@ -110,6 +115,10 @@ __all__ = [
     "WheelBuildGateway",
     "digest_runtime_sources",
     "DistributionRegistryLifecycleAdmin",
+    "DistributionRegistryContentReader",
+    "OciBlob",
+    "OciImageInventory",
+    "RegistryContentTransport",
     "RegistryTransport",
     "RegistryPurgeActionExecutor",
     "UrllibDistributionTransport",

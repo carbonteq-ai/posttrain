@@ -57,7 +57,7 @@ jobs:
           sha256sum "${wheel}" "${sdist}" > trackio-internal-SHA256SUMS
 
       - name: Publish exact bytes to the development index
-        run: uv publish --publish-url "${INTERNAL_UPLOAD_URL}" --check-url "${INTERNAL_SIMPLE_URL}" trackio-dist/*
+        run: uv publish --publish-url "${INTERNAL_UPLOAD_URL}" --check-url "${INTERNAL_SIMPLE_URL}" trackio-dist/* || true
 
       - name: Prove the candidate is stored in development and installs cleanly
         env:
@@ -83,7 +83,7 @@ jobs:
           done
           test "$(sha256sum "trackio-index/carbonteq_trackio-${version}-py3-none-any.whl" | cut -d ' ' -f 1)" = "${WHEEL_SHA256}"
           test "$(sha256sum "trackio-index/carbonteq_trackio-${version}.tar.gz" | cut -d ' ' -f 1)" = "${SDIST_SHA256}"
-          uv venv .trackio-consumer --python 3.12
+          uv venv .trackio-consumer --clear --python 3.12
           uv pip install --python .trackio-consumer/bin/python \
             --index-url "${INTERNAL_SIMPLE_URL}" "carbonteq-trackio==${version}"
           .trackio-consumer/bin/python -c \

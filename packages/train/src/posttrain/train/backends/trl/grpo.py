@@ -11,7 +11,7 @@ from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Any, cast
 
-from posttrain.common import JsonValue, RunContext, TraceObservation
+from posttrain.common import JsonValue, RunContext, TraceFactSet, TraceFactUpdateObservation, TraceObservation
 from posttrain.common.cuda import TorchModule, activate_cuda_toolkit
 
 from ...grpo_observations import GRPOObservationFeatures, normalize_grpo_metrics
@@ -389,6 +389,7 @@ def _rollout_function(
                     external_id=trace.external_id,
                     payload=trace.payload,
                     attributes={**trace.attributes, **attributes},
+                    facts=trace.facts,
                 )
             )
 
@@ -443,6 +444,29 @@ def _rollout_function(
             ]
         else:
             shaped_rewards = [rollout.reward for rollout in rollouts]
+        for rollout, algorithm_reward in zip(rollouts, shaped_rewards, strict=True):
+            observed_algorithm_reward = algorithm_reward if math.isfinite(algorithm_reward) else None
+            context.trace_fact_update(
+                TraceFactUpdateObservation(
+                    trace_type="verifiers",
+                    external_id=rollout.trace.external_id,
+                    facts=TraceFactSet(
+                        namespace="posttrain.train.reward",
+                        calculator_version=(
+                            f"{request.settings.algorithm}-algorithm-reward.v1"
+                            if isinstance(request, GRPORequest)
+                            else "sampo-algorithm-reward.v1"
+                        ),
+                        measures={"algorithm_reward": observed_algorithm_reward},
+                        provenance={
+                            "algorithm_reward": (
+                                "trainer_reward_shaping" if observed_algorithm_reward is not None else "unsupported"
+                            )
+                        },
+                    ),
+                    attributes={"optimizer_step": optimizer_step},
+                )
+            )
         result = {
             "prompt_ids": [list(rollout.prompt_ids) for rollout in rollouts],
             "completion_ids": [list(rollout.completion_ids) for rollout in rollouts],
@@ -523,6 +547,14 @@ def _online_rl_arguments(
         isinstance(logits_chunk_size, bool) or not isinstance(logits_chunk_size, int) or logits_chunk_size < 1
     ):
         raise ValueError("TRL GRPO logits_chunk_size must be a positive integer")
+    parity_limit = request.training.backend_options.get("vllm_policy_parity_max_mean_logp_delta")
+    if parity_limit is not None and (
+        isinstance(parity_limit, bool)
+        or not isinstance(parity_limit, int | float)
+        or not math.isfinite(parity_limit)
+        or parity_limit <= 0
+    ):
+        raise ValueError("TRL GRPO vLLM policy parity limit must be a finite positive number")
     sampling = policy_sampling_from_binding(request.inference, request.settings.max_completion_length)
     arguments.update(
         {
@@ -604,6 +636,8 @@ def _online_rl_arguments(
                 "vllm_importance_sampling_clip_max": importance_sampling_clip_max,
             }
         )
+        if parity_limit is not None:
+            arguments["vllm_policy_parity_max_mean_logp_delta"] = float(parity_limit)
         if is_olmo3:
             for name in (
                 "vllm_importance_sampling_correction",
@@ -665,6 +699,9 @@ def _online_rl_runtime_attributes(request: GRPORequest | SAMPORequest) -> dict[s
         "use_liger_kernel": request.training.backend_options.get("use_liger_kernel", False),
         "liger_loss_compiled": request.training.backend_options.get("liger_loss_compiled", True),
         "logits_chunk_size": request.training.backend_options.get("logits_chunk_size"),
+        "vllm_policy_parity_max_mean_logp_delta": request.training.backend_options.get(
+            "vllm_policy_parity_max_mean_logp_delta"
+        ),
         "online_rl_algorithm": request.settings.algorithm if isinstance(request, GRPORequest) else "sampo",
         "advantage_scaling": (request.settings.advantage_scaling if isinstance(request, GRPORequest) else "group"),
         "clip_epsilon_low": request.settings.clip_epsilon_low,

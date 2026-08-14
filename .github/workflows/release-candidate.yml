@@ -135,8 +135,9 @@ jobs:
               --trust-bundle /etc/ssl/certs/ca-certificates.crt
           fi
           cp packages/runtime-images/src/posttrain/runtime_images/published.toml .release/published.toml
-          cp packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/workspace.lock.txt \
-            .release/workspace.lock.txt
+          mkdir -p .release/runtime-locks
+          cp -a packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/. \
+            .release/runtime-locks/
           uv run --no-sync posttrain-release check
           image_verify_config="${RUNNER_TEMP}/posttrain-image-verify-config"
           mkdir -p "${image_verify_config}"
@@ -316,7 +317,7 @@ jobs:
             .release/SHA256SUMS
             .release/image-receipts/**
             .release/published.toml
-            .release/workspace.lock.txt
+            .release/runtime-locks/**
             .release/published-manifest.diff
             .release/runtime-images-verify.json
             .release/dstack-capacity.json

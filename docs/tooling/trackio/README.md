@@ -3,16 +3,78 @@
 The platform uses [`carbonteq-ai/trackio`](https://github.com/carbonteq-ai/trackio),
 an additive fork of upstream Trackio. Workspace packages keep the normal
 `import trackio` API. The current framework dependency is
-`carbonteq-trackio==0.31.5.post13`, built from an immutable fork release
-commit `0aea237e916e05e675db1db648952e896e7816d8`. Its wheel and sdist were
-read back from the stable internal index before the Posttrain pin was updated.
-Post13 makes payload-bounded Verifiers trace listings derive safe scalar
-latency, prompt/completion/reasoning usage, model-call counts, and tool-call
-counts while omitting calls, nodes, transcripts, and tool arguments. This lets
-Observatory populate historical rollout tables without fetching full payloads.
+`carbonteq-trackio==0.31.5.post14.dev15`, built from immutable fork commit
+`fa9d1c5853f325c16ad64758e6889d5399559f26`. Its wheel
+(`250a690c8a693bc05c3ec323f57e55c9f1a2a0bfb4aae9a84da8a498a52f1b5f`) and
+sdist (`26c4c7ef2e8d05cad88b28b9e775217f6819b2dfa07a1e2c3ade964ec3137df7`)
+were released manually as `carbonteq-v0.31.5.post14.dev15` and promoted
+byte-for-byte to the `carbonteq/stable` index. The development suffix is part
+of the immutable version; it does not make the stable-index publication mutable.
+This release adds generic typed trace facts: Posttrain supplies the versioned
+scalar projection from native Verifiers records, Trackio persists facts on the
+trace row plus a dynamic reward-component relation, and readers request only
+approved aggregate dimensions and measures.
 `0.31.5.post4` on
 `pypi.lan` is permanently skewed (metadata post4, import post3) and must not be
 installed.
+
+The shared Doris database changes directly from schema v1 to v2 through an
+explicit backup-gated migration; every deployed Trackio server must be upgraded
+as part of that separate service operation. Fork workflows do not build or
+publish releases: each fork release is manually tagged, its assets are checked,
+and the exact bytes are manually promoted before Posttrain updates its pin.
+
+Dev4 extends the read contract to reward-component contribution, score, and
+weight. A request may target one exact component or expand across component
+name/source-kind groups; component coverage remains distinct from the count of
+matching traces. Scalar and component aggregates are separate requests, which
+prevents multi-component traces from multiplying scalar metrics.
+The producer-side `Run` exposes the same aggregation contract, so a job can
+verify its retained facts without using a Trackio internal read object.
+
+Dev8 adds the client ordering boundary for an asynchronously queued native
+trace followed by synchronous fact enrichment. It sends the queued source log
+batch before the dependent upsert while holding the client lock; retry remains
+only a defense for server-side visibility, not the normal ordering mechanism.
+
+Dev9 completes the required service-side boundary: the Doris service commits a
+batch containing a native `traces/...` value before returning its write
+acknowledgement. Scalar-only metric batches remain asynchronous, so rollout
+throughput is not globally serialized.
+
+Dev10 completes the client-side boundary for bridges that explicitly call
+`Run.flush()` before enrichment. A remote flush now sends its queued metric
+batch to the service rather than only checkpointing it in the local retry
+buffer, so a trace-fact update cannot overtake its native parent trace.
+
+Dev11 adds the bounded generic `/bulk_upsert_trace_facts` endpoint. Posttrain
+uses it only for one already-projected historical page at a time; all facts
+remain individually trace-keyed, idempotent, and receipt-backed. This avoids
+one network round trip per retained trace without making Trackio interpret
+Verifiers payloads or model templates.
+
+Dev12 executes that validated page in one Trackio storage transaction and
+resolves its trace keys in one bounded query. The public fact schema and
+per-trace receipts are unchanged; the change makes large retained backfills
+fit comfortably inside the request window.
+
+Dev13 uses set-oriented Doris writes for new historical source projections,
+while existing or replacement projections retain their conservative transition.
+That makes the large retained backfill practical without weakening replay
+semantics.
+
+Dev14 recognizes the empty projection identity emitted by the deployed Doris
+schema as absent, so these historical rows reliably take that fast path.
+
+Dev15 batches the fresh Doris scalar-row updates that remain after component
+staging. The retained-data qualification used these exact candidate bytes to
+project 21,572 historical GRPO traces into 100 optimizer-step buckets and 12
+historical OPD traces into one optimizer-step bucket. The payload-free model
+inventory observed `models/qwen3.5-2b-sft-10k-json@lora-v0` for that GRPO run,
+`models/gemma4-e2b-it@bf16` for that OPD run, and `Qwen/Qwen3.5-0.8B` for the
+16-trace evaluation qualification. No null or unsupported model bucket was
+present in those retained populations; thinking-token support remains governed
+by Posttrain's versioned projector rules rather than by Trackio model policy.
 
 Post10 keeps `local` as the safe default and adds a generic S3-compatible
 artifact backend. With the S3 backend, Trackio issues short-lived multipart

@@ -13,19 +13,23 @@ from posttrain.execution import (
     ExecutionSubmission,
     ExecutionSubmissionStore,
 )
-from posttrain.runtime_images.manifest import load_manifest
+from posttrain.runtime_images.manifest import load_manifest as _load_manifest
 from posttrain_cli.execution_config import (
     ADMISSION_ROOT_ENVIRONMENT_VARIABLE,
     REGISTRY_ENVIRONMENT_VARIABLE,
     TRUST_BUNDLE_ENVIRONMENT_VARIABLE,
     ExecutionOverrides,
     LocalExecutionConfig,
+    LocalProviderBinding,
+    MachineConfig,
+    MachineServicesBinding,
     derived_local_registry,
     load_execution_environment,
     load_local_execution_config,
     provider_binding_fingerprint,
     resolve_admission_state_root,
     resolve_execution_settings,
+    resolve_job_builder,
     resolve_trust_bundle,
 )
 from posttrain_cli.execution_planning import _with_registry_override
@@ -35,6 +39,25 @@ from posttrain_cli.execution_provider import (
     evidence_source_for_run,
     provider_source_for_project,
 )
+
+
+@pytest.fixture(autouse=True)
+def _candidate_manifest_for_configuration_tests(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep configuration tests independent of candidate image publication.
+
+    These tests exercise registry derivation and machine precedence.  A source
+    candidate deliberately retains the last published image manifest until its
+    matching OCI graph is built, which must make the *real* consumer manifest
+    loader fail closed.  Unit tests here therefore use the structural manifest
+    only; strict manifest integrity is covered by runtime-image/release tests.
+    """
+
+    manifest = _load_manifest(verify_locks=False)
+    monkeypatch.setattr("posttrain_cli.execution_config.load_manifest", lambda: manifest)
+
+
+def _candidate_manifest():
+    return _load_manifest(verify_locks=False)
 
 
 def _layout(tmp_path: Path):
@@ -90,6 +113,62 @@ def test_project_runtime_environment_is_authoritative_over_shell_registry(
     assert configuration.environment_file == (tmp_path / "posttrain.env").resolve()
     assert configuration.registry is not None
     assert configuration.registry.repository == "registry.project.example/posttrain/posttrain-job"
+
+
+def test_machine_keeps_provider_ownership_but_allows_project_candidate_registry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    layout = _layout(tmp_path)
+    _write_runtime_environment(
+        tmp_path / "posttrain.env",
+        "POSTTRAIN_REGISTRY=registry.machine.example/posttrain\n",
+    )
+    lock = layout.state / "candidate.lock"
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    lock.write_text("candidate receipt\n", encoding="utf-8")
+    digest = hashlib.sha256(lock.read_bytes()).hexdigest()
+    execution = layout.state / "execution.toml"
+    execution.write_text(
+        "\n".join(
+            (
+                "schema_version = 1",
+                "",
+                "[registry]",
+                'repository = "registry.candidate.example/posttrain-job"',
+                "",
+                "[registry.kind_images]",
+                'supervised = "registry.candidate.example/posttrain-kind-supervised@sha256:' + "a" * 64 + '"',
+                "",
+                "[registry.constraint_profiles.supervised]",
+                'path = "candidate.lock"',
+                f'sha256 = "{digest}"',
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    execution.chmod(0o600)
+    machine = MachineConfig(
+        name="test-machine",
+        path=tmp_path / "machine.toml",
+        projects=(),
+        defaults=ExecutionOverrides(),
+        local=LocalProviderBinding(),
+        dstack=None,
+        tracking=None,
+        huggingface=None,
+        services=MachineServicesBinding(),
+        credentials={},
+    )
+    monkeypatch.setattr("posttrain_cli.execution_config.load_machine_config", lambda: machine)
+
+    configuration = load_local_execution_config(layout)
+
+    assert configuration.machine is machine
+    assert configuration.registry is not None
+    assert configuration.registry.repository == "registry.candidate.example/posttrain-job"
+    assert configuration.registry.kind_images["supervised"].value.endswith("sha256:" + "a" * 64)
 
 
 def test_explicit_runtime_environment_replaces_the_project_file(tmp_path: Path) -> None:
@@ -379,7 +458,7 @@ def test_registry_accepts_an_incremental_exact_runtime_variant_set(
 
     loaded = load_local_execution_config(layout)
     assert loaded.registry is not None
-    manifest = load_manifest()
+    manifest = _candidate_manifest()
 
     # The declared entry overrides only itself.
     assert loaded.registry.kind_images["supervised"].value == (f"registry.lan/kind@sha256:{'2' * 64}")
@@ -823,7 +902,7 @@ def test_registry_resolves_from_the_environment_with_no_configuration_file(
     assert not loaded.path.exists()
     assert loaded.registry is not None
 
-    manifest = load_manifest()
+    manifest = _candidate_manifest()
     assert loaded.registry.repository == "registry.internal/team/posttrain-job"
     assert set(loaded.registry.kind_images) == set(manifest.kinds)
     assert loaded.registry.universal_image.value == manifest.base.reference(manifest.default_prefix)
@@ -845,7 +924,7 @@ def test_framework_images_do_not_follow_the_project_registry(
 
     loaded = load_local_execution_config(layout)
     assert loaded.registry is not None
-    assert loaded.registry.kind_images["supervised"].value.startswith(load_manifest().default_prefix + "/")
+    assert loaded.registry.kind_images["supervised"].value.startswith(_candidate_manifest().default_prefix + "/")
 
 
 def test_trailing_slashes_in_the_environment_prefix_are_ignored(
@@ -906,7 +985,7 @@ def test_mirror_prefix_moves_framework_images_without_changing_identity(
 
     loaded = load_local_execution_config(layout)
     assert loaded.registry is not None
-    manifest = load_manifest()
+    manifest = _candidate_manifest()
     for variant, image in manifest.kinds.items():
         resolved = loaded.registry.kind_images[variant].value
         assert resolved.startswith("registry.internal/mirror/")
@@ -926,7 +1005,7 @@ def test_derived_constraint_profiles_carry_published_provided_packages(
     profiles = loaded.registry.constraint_profiles
     assert profiles["online-rl-trl-py312"].provided_packages == ("verifiers",)
     assert profiles["supervised"].provided_packages == ()
-    assert profiles["supervised"].contents_digest == load_manifest().kinds["supervised"].lock_digest
+    assert profiles["supervised"].contents_digest == _candidate_manifest().kinds["supervised"].lock_digest
 
 
 def test_released_verl_variant_is_derived_from_the_manifest(
@@ -938,7 +1017,7 @@ def test_released_verl_variant_is_derived_from_the_manifest(
 
     loaded = load_local_execution_config(layout)
     assert loaded.registry is not None
-    assert loaded.registry.kind_images["online-rl-verl-py313"].value == load_manifest().reference(
+    assert loaded.registry.kind_images["online-rl-verl-py313"].value == _candidate_manifest().reference(
         "online-rl-verl-py313"
     )
 
@@ -1104,6 +1183,61 @@ def test_machine_config_extends_defaults_without_owning_dstack_worker_storage(
     environment = load_execution_environment(loaded)
     assert environment["UV_INDEX_URL"] == "https://pypi.lan/simple/"
     assert environment["POSTTRAIN_REGISTRY"] == "project.example/jobs"
+
+
+def test_machine_config_loads_remote_job_builder_from_protected_machine_credentials(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    layout = _layout(tmp_path)
+    config_home = tmp_path / "config"
+    config_dir = config_home / "posttrain"
+    config_dir.mkdir(parents=True)
+    credentials = tmp_path / "job-builder.env"
+    credentials.write_text("POSTTRAIN_JOB_BUILDER_TOKEN=redacted\n", encoding="utf-8")
+    credentials.chmod(0o600)
+    (config_dir / "config.toml").write_text(
+        "\n".join(
+            (
+                "schema_version = 1",
+                'machine_name = "developer"',
+                'default_provider = "local"',
+                "",
+                "[services.job_builder]",
+                'mode = "remote"',
+                'endpoint = "https://job-builder.lan"',
+                'credentials = "job-builder"',
+                "request_timeout_seconds = 45",
+                "upload_concurrency = 3",
+                "",
+                "[credentials.job-builder]",
+                f'file = "{credentials}"',
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
+
+    loaded = load_local_execution_config(layout)
+
+    assert loaded.machine is not None
+    assert loaded.machine.services.job_builder.mode == "remote"
+    assert loaded.machine.services.job_builder.endpoint == "https://job-builder.lan"
+    assert loaded.machine.services.job_builder.upload_concurrency == 3
+    assert load_execution_environment(loaded)["POSTTRAIN_JOB_BUILDER_TOKEN"] == "redacted"
+    assert resolve_job_builder(loaded.machine, cli_override=None).mode == "remote"
+    assert resolve_job_builder(loaded.machine, cli_override=None).source == "machine"
+    assert resolve_job_builder(loaded.machine, cli_override="local").source == "cli"
+
+
+def test_remote_job_builder_override_requires_machine_remote_configuration() -> None:
+    with pytest.raises(ContractError, match="--builder remote requires machine"):
+        resolve_job_builder(None, cli_override="remote")
+
+    local = resolve_job_builder(None, cli_override="local")
+    assert local.mode == "local"
+    assert local.source == "cli"
 
 
 def test_machine_config_rejects_local_dns_hostnames(

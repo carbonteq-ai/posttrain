@@ -11,7 +11,7 @@ import socket
 import tomllib
 import warnings
 from collections.abc import Mapping
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from hashlib import sha256
 from pathlib import Path
 from types import MappingProxyType
@@ -90,6 +90,26 @@ class MachineServicesBinding:
     python_index_url: str | None = None
     python_index_credentials: str | None = None
     job_registry: str | None = None
+    job_builder: JobBuilderBinding = field(default_factory=lambda: JobBuilderBinding())
+
+
+@dataclass(frozen=True, slots=True)
+class JobBuilderBinding:
+    """Machine-local selection of the optional developer job-build service."""
+
+    mode: Literal["local", "remote"] = "local"
+    endpoint: str | None = None
+    credentials: str | None = None
+    request_timeout_seconds: int = 30
+    upload_concurrency: int = 1
+
+    def __post_init__(self) -> None:
+        if self.mode == "remote" and (self.endpoint is None or self.credentials is None):
+            raise ContractError("remote job builder requires endpoint and credentials")
+        if self.mode == "local" and (self.endpoint is not None or self.credentials is not None):
+            raise ContractError("local job builder cannot declare endpoint or credentials")
+        if self.request_timeout_seconds <= 0 or self.upload_concurrency <= 0:
+            raise ContractError("job builder limits must be positive")
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,6 +186,42 @@ class LocalExecutionConfig:
     machine: MachineConfig | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class ResolvedJobBuilder:
+    """Safe, non-secret builder selection for one developer command."""
+
+    mode: Literal["local", "remote"]
+    source: Literal["cli", "machine", "default"]
+    endpoint: str | None = None
+
+
+def resolve_job_builder(
+    machine: MachineConfig | None,
+    *,
+    cli_override: str | None,
+) -> ResolvedJobBuilder:
+    """Choose only developer actual-job transport, never release authority.
+
+    This deliberately reads only machine configuration. A plan can explain the
+    selected builder before registry derivation, protected credential loading,
+    context materialization, or BuildKit work.
+    """
+
+    binding = machine.services.job_builder if machine is not None else None
+    if cli_override is not None:
+        if cli_override not in {"local", "remote"}:
+            raise ContractError("job builder must be 'local' or 'remote'")
+        if cli_override == "local":
+            return ResolvedJobBuilder(mode="local", source="cli")
+        if binding is None or binding.mode != "remote" or binding.endpoint is None:
+            raise ContractError("--builder remote requires machine [services.job_builder] remote configuration")
+        return ResolvedJobBuilder(mode="remote", source="cli", endpoint=binding.endpoint)
+    if binding is not None and binding.mode == "remote":
+        assert binding.endpoint is not None
+        return ResolvedJobBuilder(mode="remote", source="machine", endpoint=binding.endpoint)
+    return ResolvedJobBuilder(mode="local", source="machine" if machine is not None else "default")
+
+
 _DEFAULT_LOCAL_NAME = "execution.toml"
 _DEFAULT_KEYS = {field.name for field in fields(ExecutionOverrides)}
 
@@ -193,13 +249,23 @@ def load_local_execution_config(
             dstack=machine.dstack,
             machine=machine,
         )
+        runtime_values = load_execution_environment(provisional)
+        # Credentials, provider access, and scheduling policy belong to the
+        # machine. A project can nevertheless select a retained runtime
+        # candidate by declaring only [registry] in its protected local state.
+        # That selection is digest-pinned and project-scoped, so it must not
+        # require mutating every job on the workstation.
+        project_registry = _load_project_registry_override(
+            configured,
+            environ=runtime_values,
+        )
         return LocalExecutionConfig(
             path=machine.path,
             defaults=machine.defaults,
             environment_file=runtime_environment.path,
             local=machine.local,
             dstack=machine.dstack,
-            registry=derived_registry(environ=load_execution_environment(provisional)),
+            registry=project_registry or derived_registry(environ=runtime_values),
             machine=machine,
         )
     if not configured.exists():
@@ -287,6 +353,38 @@ def load_local_execution_config(
         local=local,
         dstack=dstack,
         registry=registry,
+    )
+
+
+def _load_project_registry_override(
+    configured: Path,
+    *,
+    environ: Mapping[str, str],
+) -> RegistryBinding | None:
+    """Load only a project-scoped immutable runtime selection under a machine.
+
+    The full execution configuration is intentionally ignored when the machine
+    owns providers and credentials. Its `[registry]` table is different: it is
+    a digest-addressed candidate-selection record and safely scopes a runtime
+    trial to the project that requested it.
+    """
+
+    if not configured.exists():
+        return None
+    if not configured.is_file():
+        raise ContractError(f"execution configuration is not a file: {configured}")
+    if configured.stat().st_mode & 0o077:
+        raise ContractError(f"execution configuration must not be accessible by group or others: {configured}")
+    try:
+        payload = tomllib.loads(configured.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as error:
+        raise ContractError(f"invalid execution configuration {configured}: {error}") from error
+    if not isinstance(payload, dict) or payload.get("schema_version") != 1:
+        raise ContractError(f"invalid execution configuration {configured}")
+    return _parse_registry(
+        payload.get("registry"),
+        base=configured.parent,
+        environ=environ,
     )
 
 
@@ -627,9 +725,18 @@ def load_machine_config() -> MachineConfig | None:
     services_payload = _mapping(payload.get("services"), context="services", allow_none=True)
     _reject_unknown(
         services_payload,
-        {"python_index_url", "python_index_credentials", "job_registry"},
+        {"python_index_url", "python_index_credentials", "job_registry", "job_builder"},
         "services",
     )
+    job_builder_payload = _mapping(services_payload.get("job_builder"), context="services.job_builder", allow_none=True)
+    _reject_unknown(
+        job_builder_payload,
+        {"mode", "endpoint", "credentials", "request_timeout_seconds", "upload_concurrency"},
+        "services.job_builder",
+    )
+    job_builder_mode = job_builder_payload.get("mode", "local")
+    if job_builder_mode not in {"local", "remote"}:
+        raise ContractError("services.job_builder.mode must be 'local' or 'remote'")
     services = MachineServicesBinding(
         python_index_url=_optional_http_url(services_payload.get("python_index_url"), "services.python_index_url"),
         python_index_credentials=_credential_reference(
@@ -638,6 +745,29 @@ def load_machine_config() -> MachineConfig | None:
             context="services.python_index_credentials",
         ),
         job_registry=_optional_config_string(services_payload.get("job_registry"), "services.job_registry"),
+        job_builder=JobBuilderBinding(
+            mode=cast(Literal["local", "remote"], job_builder_mode),
+            endpoint=_optional_http_url(job_builder_payload.get("endpoint"), "services.job_builder.endpoint"),
+            credentials=_credential_reference(
+                credential_sources,
+                job_builder_payload.get("credentials"),
+                context="services.job_builder.credentials",
+            ),
+            request_timeout_seconds=(
+                _optional_positive_int(
+                    job_builder_payload.get("request_timeout_seconds"),
+                    "services.job_builder.request_timeout_seconds",
+                )
+                or 30
+            ),
+            upload_concurrency=(
+                _optional_positive_int(
+                    job_builder_payload.get("upload_concurrency"),
+                    "services.job_builder.upload_concurrency",
+                )
+                or 1
+            ),
+        ),
     )
     cache_payload = _mapping(payload.get("cache"), context="cache", allow_none=True)
     _reject_unknown(
@@ -1407,6 +1537,13 @@ def load_execution_environment(
             )
         if machine.services.job_registry is not None:
             environment[REGISTRY_ENVIRONMENT_VARIABLE] = machine.services.job_registry
+        if machine.services.job_builder.credentials is not None:
+            _merge_credential_environment(
+                environment,
+                machine.credentials[machine.services.job_builder.credentials],
+                allowed={"POSTTRAIN_JOB_BUILDER_TOKEN"},
+                purpose="job builder",
+            )
     path = configuration.environment_file
     if path is None:
         return environment
@@ -1476,6 +1613,7 @@ __all__ = [
     "SettingSource",
     "MachineConfig",
     "MachineCachePolicy",
+    "JobBuilderBinding",
     "MachineServicesBinding",
     "MachineTrackingBinding",
     "load_local_execution_config",

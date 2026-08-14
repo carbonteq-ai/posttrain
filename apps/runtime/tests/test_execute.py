@@ -320,6 +320,9 @@ class _TrackedRun:
     def trace(self, observation) -> None:
         del observation
 
+    def trace_fact_update(self, observation) -> None:
+        del observation
+
     def artifact(self, artifact) -> None:
         del artifact
 

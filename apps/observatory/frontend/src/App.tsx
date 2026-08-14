@@ -38,10 +38,12 @@ import {
   type DistillationPairing,
   type MetricHelp,
   type MetricSeries,
+  type RolloutBehavior,
   type RunItem,
   type RunComparison,
   type RunView,
   type SourceRefreshStatus,
+  type SourceSummary,
   type ServingCapacityWorkPackage,
   type SystemMetrics,
   type TraceDetail,
@@ -101,11 +103,11 @@ type SidebarStage = {
   packages: SidebarWorkPackage[];
 };
 
-type SourceOption = {
-  sourceId: string;
-  provider: string;
-  runCount: number;
-};
+type BrowserRoute =
+  | { kind: 'home' }
+  | { kind: 'project'; sourceId: string }
+  | { kind: 'run'; runKey: string }
+  | { kind: 'invalid' };
 
 const workflowStageOrder = ['screen', 'train', 'qualify'];
 
@@ -117,6 +119,22 @@ const sections: Section[] = [
   'Artifacts & lineage',
   'Run config',
 ];
+
+function readRoute(): BrowserRoute {
+  const path = window.location.pathname.replace(/\/+$/, '') || '/';
+  if (path === '/') return { kind: 'home' };
+  const project = path.match(/^\/projects\/([^/]+)$/);
+  if (project) return { kind: 'project', sourceId: decodeURIComponent(project[1]) };
+  const run = path.match(/^\/runs\/([^/]+)$/);
+  if (run) return { kind: 'run', runKey: decodeURIComponent(run[1]) };
+  return { kind: 'invalid' };
+}
+
+function routePath(route: BrowserRoute): string {
+  if (route.kind === 'project') return `/projects/${encodeURIComponent(route.sourceId)}`;
+  if (route.kind === 'run') return `/runs/${encodeURIComponent(route.runKey)}`;
+  return '/';
+}
 
 const jobCopy: Record<string, { eyebrow: string; title: string; question: string }> = {
   'train.sft': {
@@ -585,95 +603,42 @@ function projectLabel(projectId: string): string {
   return projectId.replace(/^projects\//, '');
 }
 
-function providerLabel(provider: string): string {
-  return provider === 'wandb' ? 'Weights & Biases' : provider === 'trackio' ? 'Trackio' : humanizeKey(provider);
-}
-
 function packageLabel(workPackageId: string): string {
   const parts = workPackageId.split('/');
   return parts.at(-1) || workPackageId;
 }
 
-function ProjectSelector({ projects, value, onChange }: { projects: string[]; value: string; onChange: (projectId: string) => void }) {
-  const [open, setOpen] = useState(false);
-  return <Popover.Root open={open} onOpenChange={setOpen}>
-    <Popover.Trigger asChild>
-      <button type="button" aria-label={`Project: ${projectLabel(value)}`} className="flex w-full items-center gap-2 rounded-[5px] border border-divider bg-surface px-2.5 py-2 text-left transition hover:border-[#cfc8d7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1">
-        <FolderSimple size={16} className="shrink-0 text-violet-700" aria-hidden="true" />
-        <span className="min-w-0 flex-1"><span className="type-label block">Project</span><strong title={value} className="mt-0.5 block truncate text-[11px] font-medium text-ink">{projectLabel(value)}</strong></span>
-        <CaretDown size={12} className="shrink-0 text-muted" aria-hidden="true" />
-      </button>
-    </Popover.Trigger>
-    <Popover.Portal>
-      <Popover.Content sideOffset={6} align="start" className="z-50 w-[260px] rounded-md border border-divider bg-surface p-1.5 shadow-[0_12px_32px_rgba(40,35,44,.12)] outline-none">
-        <p className="px-2 pb-1.5 pt-1 text-[10px] font-medium uppercase tracking-[.1em] text-muted">Active project</p>
-        <div role="listbox" aria-label="Project" className="space-y-0.5">
-          {projects.map((project) => {
-            const active = project === value;
-            return <button key={project} type="button" role="option" aria-selected={active} onClick={() => { onChange(project); setOpen(false); }} className={`flex w-full items-center justify-between gap-3 rounded px-2 py-2 text-left text-xs ${active ? 'bg-violet-50 text-violet-800' : 'text-secondary hover:bg-subtle hover:text-ink'}`}>
-              <span className="min-w-0"><strong className="block truncate font-medium">{projectLabel(project)}</strong><small title={project} className="mt-0.5 block truncate text-[9px] text-muted">{project}</small></span>
-              {active && <Check size={13} weight="bold" className="shrink-0" aria-hidden="true" />}
-            </button>;
-          })}
-        </div>
-        <Popover.Arrow className="fill-surface" />
-      </Popover.Content>
-    </Popover.Portal>
-  </Popover.Root>;
-}
-
-function SourceSelector({
-  sources,
-  value,
-  onChange,
-  onRefresh,
-  refreshStatus,
-}: {
-  sources: SourceOption[];
-  value: string;
+function ProjectSelector({ projects, value, onChange, onRefresh, refreshStatus }: {
+  projects: SourceSummary[];
+  value: string | null;
   onChange: (sourceId: string) => void;
   onRefresh: () => Promise<void>;
   refreshStatus: SourceRefreshStatus | null;
 }) {
   const [open, setOpen] = useState(false);
-  const active = sources.find((source) => source.sourceId === value) ?? sources[0];
-  if (!active) return null;
   return <Popover.Root open={open} onOpenChange={setOpen}>
     <Popover.Trigger asChild>
-      <button type="button" aria-label={`Backend: ${providerLabel(active.provider)}`} className="mb-2 flex w-full items-center gap-2 rounded-[5px] border border-divider bg-surface px-2.5 py-2 text-left transition hover:border-[#cfc8d7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1">
-        <Database size={16} className="shrink-0 text-violet-700" aria-hidden="true" />
-        <span className="min-w-0 flex-1"><span className="type-label block">Backend</span><strong title={active.sourceId} className="mt-0.5 block truncate text-[11px] font-medium text-ink">{providerLabel(active.provider)}</strong></span>
+      <button type="button" aria-label={`Project: ${value ? projectLabel(value) : 'none'}`} className="flex w-full items-center gap-2 rounded-[5px] border border-divider bg-surface px-2.5 py-2 text-left transition hover:border-[#cfc8d7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1">
+        <FolderSimple size={16} className="shrink-0 text-violet-700" aria-hidden="true" />
+        <span className="min-w-0 flex-1"><span className="type-label block">Trackio project</span><strong title={value ?? undefined} className="mt-0.5 block truncate text-[11px] font-medium text-ink">{value ? projectLabel(value) : 'Choose a project'}</strong></span>
         <CaretDown size={12} className="shrink-0 text-muted" aria-hidden="true" />
       </button>
     </Popover.Trigger>
     <Popover.Portal>
       <Popover.Content sideOffset={6} align="start" className="z-50 w-[260px] rounded-md border border-divider bg-surface p-1.5 shadow-[0_12px_32px_rgba(40,35,44,.12)] outline-none">
         <div className="flex items-center justify-between">
-          <p className="px-2 pb-1.5 pt-1 text-[10px] font-medium uppercase tracking-[.1em] text-muted">Evidence backend</p>
-          <button
-            type="button"
-            aria-label="Refresh evidence backends"
-            title="Refresh evidence backends"
-            disabled={refreshStatus?.state === 'refreshing'}
-            onClick={() => void onRefresh()}
-            className="grid size-7 shrink-0 place-items-center rounded-md text-muted transition hover:text-ink disabled:cursor-wait disabled:opacity-60"
-          >
-            {refreshStatus?.state === 'refreshing'
-              ? <CircleNotch size={13} className="animate-spin" aria-hidden="true" />
-              : <ArrowClockwise size={13} aria-hidden="true" />}
+          <p className="px-2 pb-1.5 pt-1 text-[10px] font-medium uppercase tracking-[.1em] text-muted">Trackio projects</p>
+          <button type="button" aria-label="Refresh Trackio projects" title="Refresh Trackio projects" disabled={refreshStatus?.state === 'refreshing'} onClick={() => void onRefresh()} className="grid size-7 shrink-0 place-items-center rounded-md text-muted transition hover:text-ink disabled:cursor-wait disabled:opacity-60">
+            {refreshStatus?.state === 'refreshing' ? <CircleNotch size={13} className="animate-spin" aria-hidden="true" /> : <ArrowClockwise size={13} aria-hidden="true" />}
           </button>
         </div>
-        {refreshStatus?.state === 'failed' && refreshStatus.error && (
-          <p role="alert" className="mx-2 mb-1.5 rounded bg-rose-50 px-2 py-1.5 text-[10px] leading-4 text-rose-700">
-            {refreshStatus.error}
-          </p>
-        )}
-        <div role="listbox" aria-label="Backend" className="space-y-0.5">
-          {sources.map((source) => {
-            const selected = source.sourceId === value;
-            return <button key={source.sourceId} type="button" role="option" aria-selected={selected} onClick={() => { onChange(source.sourceId); setOpen(false); }} className={`flex w-full items-center justify-between gap-3 rounded px-2 py-2 text-left text-xs ${selected ? 'bg-violet-50 text-violet-800' : 'text-secondary hover:bg-subtle hover:text-ink'}`}>
-              <span className="min-w-0"><strong className="block truncate font-medium">{providerLabel(source.provider)}</strong><small className="mt-0.5 block truncate text-[9px] text-muted">{source.sourceId} · {source.runCount} {source.runCount === 1 ? 'run' : 'runs'}</small></span>
-              {selected && <Check size={13} weight="bold" className="shrink-0" aria-hidden="true" />}
+        {refreshStatus?.state === 'failed' && refreshStatus.error && <p role="alert" className="mx-2 mb-1.5 rounded bg-rose-50 px-2 py-1.5 text-[10px] leading-4 text-rose-700">{refreshStatus.error}</p>}
+        <div role="listbox" aria-label="Project" className="space-y-0.5">
+          {projects.map((project) => {
+            const active = project.source_id === value;
+            return <button key={project.source_id} type="button" role="option" aria-selected={active} onClick={() => { onChange(project.source_id); setOpen(false); }} className={`flex w-full items-center justify-between gap-3 rounded px-2 py-2 text-left text-xs ${active ? 'bg-violet-50 text-violet-800' : 'text-secondary hover:bg-subtle hover:text-ink'}`}>
+              <span className="min-w-0"><strong className="block truncate font-medium">{projectLabel(project.source_id)}</strong><small title={project.source_id} className="mt-0.5 block truncate text-[9px] text-muted">{project.source_id}</small></span>
+              {active && <Check size={13} weight="bold" className="shrink-0" aria-hidden="true" />}
             </button>;
           })}
         </div>
@@ -755,6 +720,8 @@ function ContextValue({ label, value }: { label: string; value: string }) {
 }
 
 export default function App() {
+  const [route, setRoute] = useState<BrowserRoute>(() => readRoute());
+  const [sources, setSources] = useState<SourceSummary[]>([]);
   const [runs, setRuns] = useState<RunItem[]>([]);
   const [selected, setSelected] = useState<RunItem | null>(null);
   const [loadedView, setLoadedView] = useState<{ runKey: string; response: RunView } | null>(null);
@@ -771,6 +738,8 @@ export default function App() {
   const [search, setSearch] = useState('');
   const [system, setSystem] = useState<SystemMetrics | null>(null);
   const [evaluation, setEvaluation] = useState<TraceEvaluation | null>(null);
+  const [rolloutBehavior, setRolloutBehavior] = useState<RolloutBehavior | null>(null);
+  const [rolloutBehaviorLoading, setRolloutBehaviorLoading] = useState(false);
   const [tracePage, setTracePage] = useState<TraceSummaryPage | null>(null);
   const [traceLoadingMore, setTraceLoadingMore] = useState(false);
   const [traceDetail, setTraceDetail] = useState<TraceDetail | null>(null);
@@ -785,6 +754,14 @@ export default function App() {
   const viewRequestSequence = useRef(0);
   const selectedRunKeyRef = useRef<string | null>(null);
 
+  const navigate = useCallback((next: BrowserRoute, { replace = false }: { replace?: boolean } = {}) => {
+    const path = routePath(next);
+    if (window.location.pathname !== path) {
+      window.history[replace ? 'replaceState' : 'pushState']({}, '', path);
+    }
+    setRoute(next);
+  }, []);
+
   const loadView = useCallback(async (run: RunItem, nextMode: 'auto' | 'generic') => {
     const requestSequence = ++viewRequestSequence.current;
     setLoadedView(null);
@@ -798,37 +775,76 @@ export default function App() {
     }
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    api.runs()
-      .then((items) => {
-        if (cancelled) return;
-        setRuns(items);
-        if (items[0]) {
-          selectedRunKeyRef.current = items[0].run_key;
-          setSelected(items[0]);
-          setSelectedSourceId(items[0].locator.source_id);
-          setSelectedProject(items[0].run.project_id);
-          // The run list is the high-level shell.  Start the overview after
-          // that shell is paintable so a large provider read cannot block the
-          // sidebar and run identity from appearing.
-          void loadView(items[0], 'auto').catch((cause: unknown) => {
-            if (!cancelled && selectedRunKeyRef.current === items[0].run_key) {
-              setError(cause instanceof Error ? cause.message : String(cause));
-            }
-          });
-        }
-      })
-      .catch((cause: unknown) => { if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause)); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => {
-      cancelled = true;
+  const hydrateProject = useCallback(async (sourceId: string, requestedRunKey: string | null = null) => {
+    const items = await api.runs(sourceId);
+    setRuns(items);
+    const selectedItem = requestedRunKey == null ? items[0] : items.find((item) => item.run_key === requestedRunKey);
+    if (!selectedItem) {
       selectedRunKeyRef.current = null;
-      viewRequestSequence.current += 1;
-    };
+      setSelected(null);
+      setSelectedSourceId(sourceId);
+      setSelectedProject(null);
+      setError(requestedRunKey ? 'This run is no longer available in its Trackio project.' : 'This Trackio project has no retained runs.');
+      return;
+    }
+    selectedRunKeyRef.current = selectedItem.run_key;
+    setSelected(selectedItem);
+    setSelectedSourceId(selectedItem.locator.source_id);
+    setSelectedProject(selectedItem.run.project_id);
+    setError('');
+    void loadView(selectedItem, 'auto').catch((cause: unknown) => {
+      if (selectedRunKeyRef.current === selectedItem.run_key) setError(cause instanceof Error ? cause.message : String(cause));
+    });
   }, [loadView]);
 
-  const chooseRun = useCallback(async (run: RunItem) => {
+  useEffect(() => {
+    const onPopState = () => setRoute(readRoute());
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const catalog = await api.sources();
+        if (cancelled) return;
+        setSources(catalog.filter((source) => source.provider === 'trackio' && source.state === 'healthy'));
+        if (route.kind === 'home') {
+          selectedRunKeyRef.current = null;
+          setSelected(null);
+          setSelectedSourceId(null);
+          setSelectedProject(null);
+          setRuns([]);
+          setError('');
+          return;
+        }
+        if (route.kind === 'project') {
+          await hydrateProject(route.sourceId);
+          if (!cancelled) {
+            const current = selectedRunKeyRef.current;
+            if (current) navigate({ kind: 'run', runKey: current }, { replace: true });
+          }
+          return;
+        }
+        if (route.kind === 'run' && selectedRunKeyRef.current !== route.runKey) {
+          const item = await api.run(route.runKey);
+          if (cancelled) return;
+          await hydrateProject(item.locator.source_id, item.run_key);
+          return;
+        }
+        if (route.kind === 'invalid') setError('This Observatory path is not recognised.');
+      } catch (cause) {
+        if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [hydrateProject, navigate, route]);
+
+  const chooseRun = useCallback(async (run: RunItem, { navigateToRun = true }: { navigateToRun?: boolean } = {}) => {
     selectedRunKeyRef.current = run.run_key;
     setSelected(run);
     setSelectedSourceId(run.locator.source_id);
@@ -841,11 +857,14 @@ export default function App() {
     setMode('auto');
     setSystem(null);
     setEvaluation(null);
+    setRolloutBehavior(null);
+    setRolloutBehaviorLoading(false);
     setTracePage(null);
     setTraceLoadingMore(false);
     setTraceDetail(null);
     setLoadedView(null);
     setError('');
+    if (navigateToRun) navigate({ kind: 'run', runKey: run.run_key });
     // Keep run selection responsive; the selected tab's payload may be large
     // (for example, a GRPO overview or trace population) and must not block
     // the high-level run shell from updating.
@@ -854,7 +873,7 @@ export default function App() {
         setError(cause instanceof Error ? cause.message : String(cause));
       }
     });
-  }, [loadView]);
+  }, [loadView, navigate]);
 
   const toggleCompareRun = useCallback((runKey: string) => {
     setCompareKeys((current) => current.includes(runKey)
@@ -898,21 +917,19 @@ export default function App() {
     }
   }, [compareKeys]);
 
-  const chooseProject = useCallback(async (projectId: string) => {
-    const run = runs.find((item) => item.locator.source_id === selectedSourceId && item.run.project_id === projectId);
-    if (!run) return;
+  const chooseProject = useCallback(async (sourceId: string) => {
     setSearch('');
-    setSelectedProject(projectId);
-    await chooseRun(run);
-  }, [chooseRun, runs, selectedSourceId]);
-
-  const chooseSource = useCallback(async (sourceId: string) => {
-    const run = runs.find((item) => item.locator.source_id === sourceId);
-    if (!run) return;
-    setSearch('');
-    setSelectedSourceId(sourceId);
-    await chooseRun(run);
-  }, [chooseRun, runs]);
+    setLoading(true);
+    try {
+      await hydrateProject(sourceId);
+      if (selectedRunKeyRef.current) navigate({ kind: 'run', runKey: selectedRunKeyRef.current });
+      else navigate({ kind: 'project', sourceId });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setLoading(false);
+    }
+  }, [hydrateProject, navigate]);
 
   const refreshSources = useCallback(async () => {
     setSourceRefreshStatus((current) => ({
@@ -927,21 +944,9 @@ export default function App() {
       const status = await api.refreshSources();
       setSourceRefreshStatus(status);
       if (status.state === 'failed') return;
-      const items = await api.runs();
-      setRuns(items);
-      const current = items.find((item) => item.run_key === selectedRunKeyRef.current);
-      if (current) {
-        setSelected(current);
-        setSelectedSourceId(current.locator.source_id);
-        setSelectedProject(current.run.project_id);
-      } else if (items[0]) {
-        await chooseRun(items[0]);
-      } else {
-        selectedRunKeyRef.current = null;
-        setSelected(null);
-        setSelectedSourceId(null);
-        setSelectedProject(null);
-      }
+      const catalog = await api.sources();
+      setSources(catalog.filter((source) => source.provider === 'trackio' && source.state === 'healthy'));
+      if (selectedSourceId) await hydrateProject(selectedSourceId, selectedRunKeyRef.current);
     } catch (cause) {
       setSourceRefreshStatus((current) => ({
         enabled: true,
@@ -952,7 +957,7 @@ export default function App() {
         discovered_source_ids: current?.discovered_source_ids ?? [],
       }));
     }
-  }, [chooseRun]);
+  }, [hydrateProject, selectedSourceId]);
 
   const openWorkPackage = useCallback(async (projectId: string, workPackageId: string) => {
     setSelectedProject(projectId);
@@ -1037,28 +1042,41 @@ export default function App() {
     }
   }, [selected, traceLoadingMore, tracePage]);
 
+  useEffect(() => {
+    if (route.kind !== 'run' || !selected || selected.run_key !== route.runKey) return;
+    const runKey = selected.run_key;
+    const refreshActiveTab = async () => {
+      try {
+        const current = await api.run(runKey);
+        if (selectedRunKeyRef.current !== runKey) return;
+        setSelected(current);
+        setRuns((items) => items.map((item) => item.run_key === runKey ? current : item));
+        if (section === 'System metrics') {
+          setSystem(await api.system(runKey));
+        } else if (section === 'Traces & evaluation') {
+          const page = await api.tracePage(runKey);
+          if (selectedRunKeyRef.current !== runKey) return;
+          setTracePage(page);
+          if (current.run.job_kind.startsWith('eval.')) setEvaluation(await api.evaluation(runKey, false));
+        } else {
+          const nextMode = section === 'Metrics' ? 'generic' : 'auto';
+          const view = await api.view(runKey, nextMode);
+          if (selectedRunKeyRef.current === runKey) setLoadedView({ runKey, response: view });
+        }
+      } catch (cause) {
+        if (selectedRunKeyRef.current === runKey) setError(cause instanceof Error ? cause.message : String(cause));
+      }
+    };
+    const interval = window.setInterval(() => { void refreshActiveTab(); }, 60_000);
+    return () => window.clearInterval(interval);
+  }, [route, section, selected]);
+
   const activeProject = selectedProject ?? selected?.run.project_id ?? '';
   const activeSourceId = selectedSourceId ?? selected?.locator.source_id ?? '';
-  const sourceOptions = useMemo(() => {
-    const values = new Map<string, SourceOption>();
-    for (const run of runs) {
-      const sourceId = run.locator.source_id;
-      const current = values.get(sourceId);
-      values.set(sourceId, {
-        sourceId,
-        provider: current?.provider ?? run.run.provider,
-        runCount: (current?.runCount ?? 0) + 1,
-      });
-    }
-    return [...values.values()].sort((left, right) => left.provider.localeCompare(right.provider));
-  }, [runs]);
-  const projects = useMemo(
-    () => [...new Set(runs.filter((run) => run.locator.source_id === activeSourceId).map((run) => run.run.project_id))].sort(),
-    [activeSourceId, runs],
-  );
+  const projects = useMemo(() => [...sources].sort((left, right) => left.source_id.localeCompare(right.source_id)), [sources]);
   const filteredRuns = useMemo(() => {
     const query = search.trim().toLowerCase();
-    const scoped = runs.filter((run) => run.locator.source_id === activeSourceId && run.run.project_id === activeProject);
+    const scoped = runs.filter((run) => run.locator.source_id === activeSourceId);
     if (!query) return scoped;
     return scoped.filter((run) =>
       [run.run.display_name, run.run.job_kind, run.run.work_package_id, run.run.provider, run.run.status]
@@ -1105,12 +1123,55 @@ export default function App() {
     }));
   }, [sidebarPackages]);
 
-  if (loading) return <div className="grid min-h-screen place-items-center bg-subtle text-sm text-muted">Loading evidence…</div>;
-  if (!selected) return <div className="grid min-h-screen place-items-center bg-subtle text-sm text-rose-600">{error || 'No runs are available.'}</div>;
-  const response = loadedView?.runKey === selected.run_key ? loadedView.response : null;
+  const response = selected != null && loadedView?.runKey === selected.run_key ? loadedView.response : null;
+  const activeChartKey = response?.view.charts?.[Math.min(activeChart, Math.max((response.view.charts?.length ?? 0) - 1, 0))]?.key;
+  const rolloutBehaviorKey = section === 'Overview'
+    && response?.view.grpo != null
+    && response.view.trace_evaluation_enabled
+    && (response.view.trace_count ?? 0) > 0
+    && activeChartKey === 'optimization'
+    && selected != null
+    ? selected.run_key
+    : null;
 
+  useEffect(() => {
+    let cancelled = false;
+    if (rolloutBehaviorKey == null) {
+      setRolloutBehavior(null);
+      setRolloutBehaviorLoading(false);
+      return () => { cancelled = true; };
+    }
+    setRolloutBehavior(null);
+    setRolloutBehaviorLoading(true);
+    void api.rolloutBehavior(rolloutBehaviorKey).then((value) => {
+      if (!cancelled && selectedRunKeyRef.current === rolloutBehaviorKey) setRolloutBehavior(value);
+    }).catch(() => {
+      // This is optional, trace-derived context. The run view remains usable if
+      // an older provider cannot supply optimizer-step trace attribution.
+      if (!cancelled && selectedRunKeyRef.current === rolloutBehaviorKey) setRolloutBehavior(null);
+    }).finally(() => {
+      if (!cancelled && selectedRunKeyRef.current === rolloutBehaviorKey) setRolloutBehaviorLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [rolloutBehaviorKey]);
+
+  if (loading) return <div className="grid min-h-screen place-items-center bg-subtle text-sm text-muted">Loading Trackio projects…</div>;
+  if (!selected) {
+    const selectedEmptyProject = selectedSourceId;
+    return (
+    <div data-theme="light" className="min-h-screen bg-canvas text-ink">
+      <aside className="fixed inset-y-0 left-0 z-30 flex w-[244px] flex-col border-r border-divider bg-panel px-3 py-5">
+        <div className="flex items-center gap-2 px-2 pb-4 font-serif text-xl"><Planet size={27} weight="thin" aria-hidden="true" /> Observatory</div>
+        <div className="mb-2 flex w-full items-center gap-2 rounded-[5px] border border-divider bg-surface px-2.5 py-2 text-left"><Database size={16} className="shrink-0 text-violet-700" aria-hidden="true" /><span><span className="type-label block">Backend</span><strong className="mt-0.5 block text-[11px] font-medium text-ink">Trackio</strong></span></div>
+        <ProjectSelector projects={projects} value={selectedEmptyProject} onChange={(sourceId) => void chooseProject(sourceId)} onRefresh={refreshSources} refreshStatus={sourceRefreshStatus} />
+      </aside>
+      <main className="ml-[244px] min-h-screen px-8 py-10"><EmptyState title={selectedEmptyProject ? `No retained runs in ${projectLabel(selectedEmptyProject)}` : 'Choose a Trackio project'} body={error || (selectedEmptyProject ? 'This selected Trackio project has no retained run evidence.' : 'Select a project to load its retained runs. Observatory does not preload a project or a global run feed.')} /></main>
+    </div>
+    );
+  }
   const traceEvaluationEnabled = response?.view.run.run_id === selected.run.run_id
     && response.view.trace_evaluation_enabled;
+
   const visibleSections = sections.filter((item) => item !== 'Traces & evaluation' || traceEvaluationEnabled);
 
   const copy = jobCopy[selected.run.job_kind] ?? {
@@ -1125,14 +1186,8 @@ export default function App() {
         <div className="flex items-center gap-2 px-2 pb-4 font-serif text-xl">
           <Planet size={27} weight="thin" aria-hidden="true" /> Observatory
         </div>
-        <SourceSelector
-          sources={sourceOptions}
-          value={activeSourceId}
-          onChange={(sourceId) => void chooseSource(sourceId)}
-          onRefresh={refreshSources}
-          refreshStatus={sourceRefreshStatus}
-        />
-        <ProjectSelector projects={projects} value={activeProject} onChange={(projectId) => void chooseProject(projectId)} />
+        <div className="mb-2 flex w-full items-center gap-2 rounded-[5px] border border-divider bg-surface px-2.5 py-2 text-left"><Database size={16} className="shrink-0 text-violet-700" aria-hidden="true" /><span><span className="type-label block">Backend</span><strong className="mt-0.5 block text-[11px] font-medium text-ink">Trackio</strong></span></div>
+        <ProjectSelector projects={projects} value={activeSourceId || null} onChange={(sourceId) => void chooseProject(sourceId)} onRefresh={refreshSources} refreshStatus={sourceRefreshStatus} />
         <label className="obs-search mt-3 flex h-9 items-center gap-2 rounded border border-divider bg-surface px-2.5 text-muted focus-within:border-violet-500">
           <MagnifyingGlass size={15} aria-hidden="true" />
           <input
@@ -1238,6 +1293,8 @@ export default function App() {
                   copy={copy}
                   activeChart={activeChart}
                   onChart={setActiveChart}
+                  rolloutBehavior={rolloutBehavior}
+                  rolloutBehaviorLoading={rolloutBehaviorLoading}
                   onTraces={() => void openSection('Traces & evaluation')}
                   onCompare={() => { void openCompare(selected.run_key); }}
                 />
@@ -1356,6 +1413,8 @@ type OverviewProps = {
   copy: { eyebrow: string; title: string; question: string };
   activeChart: number;
   onChart: (index: number) => void;
+  rolloutBehavior: RolloutBehavior | null;
+  rolloutBehaviorLoading: boolean;
   onTraces: () => void;
   onCompare: () => void;
 };
@@ -1563,7 +1622,16 @@ function EvaluationOverview({ selected, response, evaluation, onTraces, onCompar
   </>;
 }
 
-function GenericOverview({ selected, response, copy, activeChart, onChart, onTraces }: OverviewProps) {
+function GenericOverview({
+  selected,
+  response,
+  copy,
+  activeChart,
+  onChart,
+  rolloutBehavior,
+  rolloutBehaviorLoading,
+  onTraces,
+}: OverviewProps) {
   const view = response.view;
   const summary = view.summary ?? [];
   const charts = view.charts ?? [];
@@ -1571,15 +1639,40 @@ function GenericOverview({ selected, response, copy, activeChart, onChart, onTra
     () => new Map((view.metric_help ?? []).map((item) => [item.metric, item])),
     [view.metric_help],
   );
-  const chartLabels = useMemo(
-    () => Object.fromEntries((view.metric_help ?? []).map((item) => [item.metric, item.label])),
+  const chartLabels = useMemo<Record<string, string>>(
+    () => ({
+      ...Object.fromEntries((view.metric_help ?? []).map((item) => [item.metric, item.label])),
+      'trace/rollout/avg_thinking_tokens': 'Avg thinking tokens',
+      'trace/rollout/avg_output_tokens': 'Avg completion tokens',
+      'trace/rollout/avg_tool_calls': 'Avg tool calls',
+    }),
     [view.metric_help],
   );
-  const chartUnits = useMemo(
-    () => Object.fromEntries((view.metric_help ?? []).map((item) => [item.metric, item.unit])),
+  const chartUnits = useMemo<Record<string, string | null>>(
+    () => ({
+      ...Object.fromEntries((view.metric_help ?? []).map((item) => [item.metric, item.unit])),
+      'trace/rollout/avg_thinking_tokens': 'tokens',
+      'trace/rollout/avg_output_tokens': 'tokens',
+      'trace/rollout/avg_tool_calls': null,
+    }),
     [view.metric_help],
   );
-  const chart = charts[Math.min(activeChart, Math.max(charts.length - 1, 0))];
+  const baseChart = charts[Math.min(activeChart, Math.max(charts.length - 1, 0))];
+  const isGrpo = selected.run.job_kind === 'train.grpo';
+  const rolloutSeries: MetricSeries[] = isGrpo && baseChart?.key === 'optimization'
+    ? [
+      ['trace/rollout/avg_thinking_tokens', 'thinking_tokens'],
+      ['trace/rollout/avg_output_tokens', 'output_tokens'],
+      ['trace/rollout/avg_tool_calls', 'tool_calls'],
+    ].flatMap(([name, field]) => {
+      const points = rolloutBehavior?.points.flatMap((point) => {
+        const value = point[field as 'thinking_tokens' | 'output_tokens' | 'tool_calls'];
+        return value == null ? [] : [{ value, step: point.step }];
+      }) ?? [];
+      return points.length ? [{ name, points }] : [];
+    })
+    : [];
+  const chart = baseChart == null ? undefined : { ...baseChart, series: [...baseChart.series, ...rolloutSeries] };
   const lead = summary[0];
   const leadPoints = charts
     .flatMap((item) => item.series)
@@ -1617,7 +1710,6 @@ function GenericOverview({ selected, response, copy, activeChart, onChart, onTra
   const outputArtifacts = view.artifacts.items.filter((artifact) => artifact.direction === 'output');
   const isSft = selected.run.job_kind === 'train.sft';
   const isDpo = selected.run.job_kind === 'train.dpo';
-  const isGrpo = selected.run.job_kind === 'train.grpo';
   const isSampo = selected.run.job_kind === 'train.sampo';
   const isDistill = selected.run.job_kind === 'train.distill';
   const isServeSmoke = selected.run.job_kind === 'serve.smoke';
@@ -1757,9 +1849,15 @@ function GenericOverview({ selected, response, copy, activeChart, onChart, onTra
               </div>
               <div className="flex min-h-10 flex-wrap items-center gap-x-5 gap-y-2 border-b border-divider bg-subtle/45 px-4 py-2 text-[11px]">
                 <span className="font-medium text-ink">Step {selectedStep ?? '—'}</span>
-                {selectedSeries.map((item) => <span key={item.name} className="inline-flex items-center text-secondary"><MetricLabel label={helpByMetric.get(item.name)?.label ?? metricLabel(item.name)} metric={item.name} help={helpByMetric.get(item.name)} className="text-muted" /> <strong className="ml-1 font-medium text-ink">{formatValue(item.value, metricUnits[item.name] ?? helpByMetric.get(item.name)?.unit)}</strong></span>)}
+                {selectedSeries.map((item) => <span key={item.name} className="inline-flex items-center text-secondary"><MetricLabel label={chartLabels[item.name] ?? helpByMetric.get(item.name)?.label ?? metricLabel(item.name)} metric={item.name} help={helpByMetric.get(item.name)} className="text-muted" /> <strong className="ml-1 font-medium text-ink">{formatValue(item.value, chartUnits[item.name] ?? metricUnits[item.name] ?? helpByMetric.get(item.name)?.unit)}</strong></span>)}
               </div>
               {chart && <div className="px-2 pb-1 pt-2"><Suspense fallback={<ChartFallback height={330} />}><EvidenceChart series={chart.series} metricLabels={chartLabels} metricUnits={chartUnits} selectedStep={selectedStep} onPointSelect={setSelectedStep} ariaLabel={`${chart.title} metric series for ${selected.run.display_name}`} /></Suspense></div>}
+              {isGrpo && chart?.key === 'optimization' && rolloutBehaviorLoading && <p className="border-t border-divider px-4 py-2 text-[10px] text-muted">Reading retained rollout evidence…</p>}
+              {isGrpo && chart?.key === 'optimization' && rolloutBehavior?.state === 'partial' && rolloutBehavior.points.length > 0 && (
+                <p className="border-t border-divider px-4 py-2 text-[10px] text-muted">
+                  Rollout behavior is partial: {rolloutBehavior.included.toLocaleString()} of {(rolloutBehavior.expected ?? rolloutBehavior.scanned).toLocaleString()} retained training traces were read (steps {rolloutBehavior.points[0]?.step}–{rolloutBehavior.points.at(-1)?.step}).
+                </p>
+              )}
             </section>
           ) : <EmptyState title="No registered job summary" body="Use Metrics for raw, bounded evidence. Observatory will not infer job semantics that are not registered." />}
           {dataSummary.length > 0 && (

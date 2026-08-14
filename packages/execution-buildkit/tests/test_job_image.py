@@ -26,6 +26,8 @@ class FakeBuildx:
         self.digest = "d" * 64
         self.observed_digest: str | None = None
         self.image_missing = False
+        self.tag_exists = False
+        self.labels: dict[str, str] = {}
 
     def invoke(self, arguments):
         call = tuple(arguments)
@@ -52,6 +54,23 @@ class FakeBuildx:
             if self.image_missing:
                 self.image_missing = False
                 raise RemoteImageNotFoundError("manifest unknown")
+            reference = call[2]
+            if "@sha256:" not in reference and not self.tag_exists:
+                raise RemoteImageNotFoundError("manifest unknown")
+            if "--raw" in call:
+                parent = [{"digest": f"sha256:{'a' * 64}", "size": 100}]
+                layers = (
+                    parent if "/online-rl@" in reference else [*parent, {"digest": f"sha256:{'b' * 64}", "size": 25}]
+                )
+                return json.dumps(
+                    {
+                        "schemaVersion": 2,
+                        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                        "layers": layers,
+                    }
+                )
+            if "{{json .Image}}" in call:
+                return json.dumps({"config": {"Labels": self.labels}})
             return json.dumps(f"sha256:{self.observed_digest or self.digest}")
         return ""
 
@@ -346,7 +365,7 @@ def test_publisher_checks_smokes_pushes_verifies_and_reuses_receipt(
     assert "--no-cache" not in build
     assert (
         "posttrain-job.output=type=image,push=true,compression=zstd,"
-        "compression-level=3,force-compression=true,oci-mediatypes=true"
+        "compression-level=3,force-compression=false,oci-mediatypes=true"
     ) in build
     assert ("--provenance", "mode=max") == (
         build[build.index("--provenance")],
@@ -368,7 +387,80 @@ def test_publisher_checks_smokes_pushes_verifies_and_reuses_receipt(
         "PROJECT_CONFIG_DIGEST=" + "6" * 64,
     ):
         assert variable in build
-    assert sum(call[:2] == ("imagetools", "inspect") for call in gateway.calls) == 2
+    assert sum(call[:2] == ("imagetools", "inspect") for call in gateway.calls) == 5
+
+
+def test_publisher_recovers_a_matching_remote_tag_without_rebuilding(tmp_path: Path) -> None:
+    gateway = FakeBuildx()
+    request = _request(tmp_path)
+    gateway.tag_exists = True
+    gateway.labels = {
+        "org.carbonteq.posttrain.image-level": "actual-job",
+        "org.carbonteq.posttrain.kind-image": request.manifest.kind_image.value,
+        "org.carbonteq.posttrain.package-key": request.package_key,
+        "org.carbonteq.posttrain.runtime-variant": request.manifest.runtime_variant,
+    }
+    publisher = BuildKitJobImagePublisher(
+        bake_file=_definition(tmp_path),
+        receipt_root=(tmp_path / "receipts").resolve(),
+        gateway=gateway,
+    )
+
+    recovered = publisher.publish(request)
+
+    assert recovered.cache_hit
+    assert recovered.image.value == f"{request.publication.repository}@sha256:{gateway.digest}"
+    assert recovered.receipt.is_file()
+    assert not any(call and call[0] == "bake" for call in gateway.calls)
+
+
+def test_remote_tag_with_wrong_package_identity_is_not_overwritten(tmp_path: Path) -> None:
+    gateway = FakeBuildx()
+    request = _request(tmp_path)
+    gateway.tag_exists = True
+    gateway.labels = {
+        "org.carbonteq.posttrain.image-level": "actual-job",
+        "org.carbonteq.posttrain.kind-image": request.manifest.kind_image.value,
+        "org.carbonteq.posttrain.package-key": "f" * 64,
+        "org.carbonteq.posttrain.runtime-variant": request.manifest.runtime_variant,
+    }
+    publisher = BuildKitJobImagePublisher(
+        bake_file=_definition(tmp_path),
+        receipt_root=(tmp_path / "receipts").resolve(),
+        gateway=gateway,
+    )
+
+    with pytest.raises(ContractError, match="does not describe the requested package"):
+        publisher.publish(request)
+
+    assert not any(call and call[0] == "bake" for call in gateway.calls)
+
+
+def test_rejects_a_published_job_that_rewrites_kind_layers(tmp_path: Path) -> None:
+    class RecompressingBuildx(FakeBuildx):
+        def invoke(self, arguments):
+            call = tuple(arguments)
+            if call[:2] == ("imagetools", "inspect") and "--raw" in call and "/online-rl@" not in call[2]:
+                self.calls.append(call)
+                return json.dumps(
+                    {
+                        "schemaVersion": 2,
+                        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                        "layers": [{"digest": f"sha256:{'c' * 64}", "size": 100}],
+                    }
+                )
+            return super().invoke(arguments)
+
+    publisher = BuildKitJobImagePublisher(
+        bake_file=_definition(tmp_path),
+        receipt_root=(tmp_path / "receipts").resolve(),
+        gateway=RecompressingBuildx(),
+    )
+
+    with pytest.raises(RuntimeError, match="rewrote or reordered"):
+        publisher.publish(_request(tmp_path))
+
+    assert not (tmp_path / "receipts" / f"{_request(tmp_path).publication_key}.json").exists()
 
 
 def test_remote_publication_lock_serializes_one_publication_key(tmp_path: Path) -> None:

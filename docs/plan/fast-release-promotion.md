@@ -98,8 +98,68 @@ receipt instead of rebuilding or re-running completed checks.
 - [x] (2026-08-12T03:55Z) Repair the published 0.3.8 checksum asset in place
   and make future release checksum files portable. A fresh GitHub-release
   download verifies `posttrain-wheelhouse-0.3.8.tar.gz` successfully.
+- [ ] (2026-08-14) Expand the maintained-fork readiness boundary beyond the
+  current Trackio/TRL-only receipt. Current audit: TRL `1.9.2.post11`, veRL
+  `0.9.0.dev2`, and AutomationBench `1.0.5.post1` have stable-index bytes;
+  Trackio `0.31.5.post14.dev15` has an immutable GitHub prerelease and a
+  byte-identical stable-index readback; the selected CarbonTeq vLLM source is
+  now the manually published source-overlay prerelease
+  `carbonteq-v0.25.2.dev2` at `7817d845727af570352622dc8d58f2d43c76d89d`
+  with retained archive SHA-256
+  `8d4736461fbc3bf72075b4d84417208b3c5fc9ffc6f48bf26cbe9ef955cf307b`;
+  AutomationBench is now the manual prerelease
+  `carbonteq-v1.0.5.post1` at `908db2abd4a868acc37ab0850474bff653bea25c`
+  with retained wheel/source checksums; and the dstack
+  server/runner/shim candidate has no component release or production
+  deployment. Posttrain candidate creation remains blocked on those
+  independent receipts.
+- [x] (2026-08-14) Remove forced recompression from actual-job publication.
+  Live registry evidence showed a 4.21 GB compressed eval job whose job delta
+  is only tens of megabytes. The focused job-image/runtime-image suite passes
+  (`46 passed, 1 skipped`). Live manifest-overlap qualification remains open.
+- [x] (2026-08-14) Correct runtime-lock closure projection to retain
+  dependencies selected through locked package extras (including Torch's
+  `cuda-toolkit[cudart]` edge). Regenerated every affected narrow lock and
+  added a base-image regression test before retrying the candidate build.
+- [x] (2026-08-14) Scope the base-image writable uv cache to the immutable
+  lock digest. A failed candidate must not reuse an interrupted artifact from
+  another reviewed closure; Docker layer reuse and immutable registry parents
+  remain available for identical inputs.
+- [x] (2026-08-14) Preserve explicitly declared, hash-addressed artifact roots
+  when projecting the base runtime lock. The base now installs the reviewed
+  Triton wheel from the internal non-volatile mirror, instead of resolving the
+  same version through an upstream path that returned different bytes.
+- [x] (2026-08-14) Bound concurrent job-kind publication to two workers and
+  retry one known transient delivery failure. Candidate `31825254382` built the
+  base and reached all kind publications, but a six-way fan-out overloaded the
+  internal package index and registry. The release path now limits pressure
+  while preserving content-addressed layer reuse and immutable request identity.
+- [x] (2026-08-14) Qualify the bounded publisher against the stable dependency
+  channel. Manual candidate `31828403358` completed in 14m14s, retained
+  artifact `manual-runtime-0.3.16rc25-31828403358` (ID `9230111474`), and
+  read back the base plus all seven kind-image digests. Its generated manifest
+  and source-compatible per-kind locks pass both `posttrain-release check` and
+  `posttrain-release lock-runtime-dependencies --check` locally.
+- [x] (2026-08-14) Merge the current release line into the trace-facts/image
+  branch, preserve the current Trackio and veRL receipts, and correct the
+  runtime-image verification tests to model per-kind locks. The exact merged
+  tree `14a8b8950a8fb5b0c4c43d2894eed2702095150b` passed deterministic
+  readiness locally: 1,251 passed, 23 skipped, Ruff/check-format, Pyright,
+  and import contracts all passed.
 
 ## Surprises & Discoveries
+
+- Observation: `posttrain-release readiness` currently records only Trackio
+  and TRL even though the executable runtime also selects CarbonTeq veRL and
+  vLLM revisions, AutomationBench arrives through an external environment
+  package, and dstack is a deployed component fork. A green readiness receipt
+  can therefore omit four maintained supply-chain boundaries.
+- Observation: publishing a fork package is not the same as eliminating
+  source builds from runtime images. The veRL kind still resolves both `verl`
+  and `vllm` from Git in its backend lock even though veRL dev2 is already on
+  the stable index. Completing the vLLM release and switching those lock
+  entries to retained release artifacts removes Git build work from the
+  Posttrain image transaction.
 
 - Observation: the first candidate passed real dstack qualification, but final
   publication failed before any stable upload. Evidence: candidate run
@@ -126,6 +186,25 @@ receipt instead of rebuilding or re-running completed checks.
   the development machine, not under one minute: tests account for 56.978s and
   Pyright for 21.094s.
   Evidence: `posttrain-release readiness` receipt created 2026-08-12T02:46Z.
+- Observation: the first `0.3.16rc18` image candidate failed before publishing
+  because the base lock omitted `nvidia-cuda-runtime`, which a selected
+  `cuda-toolkit[cudart]` extra required. The lock projector traversed only
+  ordinary package dependencies, even though `uv.lock` represents requested
+  extras on the edge and their requirements under `optional-dependencies`.
+  Evidence: GitHub Actions run `31824322845`; its image build stopped in
+  `uv pip install --require-hashes` before any OCI output was pushed.
+- Observation: the corrected candidate `0.3.16rc19` reached dependency
+  installation but rejected a cached Triton artifact whose bytes did not match
+  the reviewed PyPI receipt. The cache mount had one static name across lock
+  closures, so a failed/partial download could survive a dependency update.
+  Evidence: GitHub Actions run `31824686383`; the expected and observed
+  SHA-256 values were different and no OCI output was pushed.
+- Observation: the lock projector had collapsed an explicit direct artifact
+  requirement into a normal versioned entry from the generic workspace export.
+  That discarded the selected mirror URL even though the source profile had a
+  full SHA-256 receipt. The projection now retains only direct HTTPS artifacts
+  that carry a SHA-256 fragment; it does not broaden Git or ordinary package
+  resolution behavior.
 - Observation: the candidate called the runtime-image publisher for every
   framework version change, while its build request embedded the framework
   version and full source revision in the image identity. This made an
@@ -134,6 +213,26 @@ receipt instead of rebuilding or re-running completed checks.
   Evidence: `publish_release()` selected every variant when no explicit
   variant was passed, and candidate publication passed the authored framework
   version to each BuildKit request.
+- Observation: candidate `31825254382` built the corrected base successfully,
+  but publishing all six kind images at once caused two independent transient
+  failures: the veRL registry push returned `blob upload unknown` after layer
+  work completed, and the serve build exhausted three attempts against the
+  internal dev-index endpoint for `anyio` with `operation timed out`. No
+  candidate manifest was retained and no promotion occurred.
+  Evidence: GitHub Actions run `31825254382`; its publisher used
+  `ThreadPoolExecutor(max_workers=len(RUNTIME_VARIANTS))` on the eight-vCPU
+  release runner.
+- Observation: a stable-channel runtime candidate can safely reuse immutable
+  parents while building the two online-RL kinds concurrently. The veRL layer
+  was the long pole, but the runner remained within the expanded 242 GiB root
+  volume (worst observed use: 199 GiB) and completed without registry errors.
+  Evidence: candidate `31828403358`, from 18:23:26Z to 18:37:40Z.
+- Observation: tests that simulated registry facts defaulted to the supervised
+  lock and therefore masked per-kind lock selection. The live manifest exposes
+  different lock digests by design, so veRL test facts must use the veRL lock;
+  image-level validation remains independent of lock equality. The same merge
+  surfaced pre-existing formatting drift in 26 Python files, which the
+  repository formatter corrected without behavioral changes.
 - Observation: the initial 0.3.8 final run correctly promoted the retained
   candidate bytes and pushed the tag, but it could not create the GitHub
   release because `release-SHA256SUMS` was not copied from candidate evidence
@@ -196,6 +295,16 @@ receipt instead of rebuilding or re-running completed checks.
   Building forks during framework promotion couples independent repositories
   and makes the release duration depend on work that should be qualified first.
   Date/Author: 2026-08-12 / user and Codex.
+- Decision: no Posttrain candidate starts until a generated fork ledger proves
+  every selected CarbonTeq fork in direct packages, runtime locks, environment
+  packages, and deployed execution services.
+  Rationale: checking only Trackio and TRL permits a candidate to bake an
+  unpublished vLLM source, a Git-built veRL dependency, or an unreleased dstack
+  component while still calling readiness complete. The ledger distinguishes
+  Python distributions, source-backed runtimes, and matched component
+  releases, because those require different evidence but the same immutable
+  boundary.
+  Date/Author: 2026-08-14 / user and Codex.
 - Decision: Publish the authored final version to development during candidate
   qualification, then promote its verified bytes unchanged.
   Rationale: RC and final versions are different artifacts. Qualifying an RC
@@ -245,6 +354,29 @@ receipt instead of rebuilding or re-running completed checks.
   Rationale: a release asset must be directly usable after downloading from
   GitHub, independently of the build runner's filesystem layout.
   Date/Author: 2026-08-12 / Codex.
+- Decision: Interpret parallel job-kind publication as bounded concurrency of
+  two workers, and retry exactly once for explicitly classified registry/index
+  delivery failures (`invalid content range`, `blob upload unknown`, and
+  `operation timed out`).
+  Rationale: these failures leave the immutable build request unchanged, so a
+  fresh BuildKit delivery attempt is safe and can reuse completed layers. A
+  small worker bound prevents six heavyweight builds from competing for the
+  same runner CPU, registry upload sessions, and dev-index capacity; retries
+  remain bounded so persistent dependency or build failures surface promptly.
+  Date/Author: 2026-08-14 / user and Codex.
+- Decision: Treat a successful manual stable-channel image candidate as the
+  immutable runtime-input receipt for integration, but require the formal
+  final-version candidate after the merged Posttrain source is green.
+  Rationale: the manual candidate validates the image builder and its exact
+  lock closure; only the formal candidate qualifies the final wheelhouse and
+  the packed GPU job for the exact merged release tree.
+  Date/Author: 2026-08-14 / user and Codex.
+- Decision: Test runtime image verification against the selected variant's
+  constraint lock, never an assumed shared workspace lock.
+  Rationale: base and kind layers intentionally have different closures; the
+  lock label proves closure identity while the image-level label proves that a
+  runnable kind image occupies the slot.
+  Date/Author: 2026-08-14 / Codex.
 
 ## Outcomes & Retrospective
 

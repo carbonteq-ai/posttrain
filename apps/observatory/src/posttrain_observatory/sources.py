@@ -98,8 +98,17 @@ class RunSourceRegistry:
             await asyncio.gather(*(probe(source_id, source) for source_id, source in sorted(snapshot.items())))
         )
 
-    async def list_runs(self, query: RunQuery) -> tuple[LocatedRunSummary, ...]:
-        return await self._list_runs(self._snapshot, query)
+    async def list_runs(
+        self,
+        query: RunQuery,
+        *,
+        source_id: str | None = None,
+    ) -> tuple[LocatedRunSummary, ...]:
+        snapshot = self._snapshot
+        if source_id is not None:
+            source = self._resolve(snapshot, RunLocator(source_id=source_id, run_id="source-probe"))
+            return await self._list_runs({source_id: source}, query)
+        return await self._list_runs(snapshot, query)
 
     async def _list_runs(
         self,
@@ -124,6 +133,13 @@ class RunSourceRegistry:
         merged = [item for group in groups for item in group]
         merged.sort(key=lambda item: item.run.started_at, reverse=True)
         return tuple(merged[: query.limit])
+
+    async def get_run(self, locator: RunLocator) -> LocatedRunSummary:
+        """Read one run from its encoded source without a registry-wide scan."""
+
+        source = self._resolve(self._snapshot, locator)
+        detail = await source.get_run(locator.run_id)
+        return LocatedRunSummary(locator=locator, run_key=locator.key, run=detail.summary)
 
     async def locate_run(self, run_id: str) -> tuple[LocatedRunSummary, ...]:
         """Resolve one canonical run identity without scanning source histories."""

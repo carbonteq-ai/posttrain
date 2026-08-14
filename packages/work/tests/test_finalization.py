@@ -46,6 +46,9 @@ class PublishingRun:
     def trace(self, observation) -> None:
         del observation
 
+    def trace_fact_update(self, observation) -> None:
+        del observation
+
     def artifact(self, artifact: ProducedArtifact) -> None:
         assert isinstance(artifact.reference, LocalArtifactRef)
         assert artifact.reference.path.exists()

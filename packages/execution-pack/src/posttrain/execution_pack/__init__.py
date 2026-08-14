@@ -1,5 +1,14 @@
 """Provider-neutral planning for immutable framework job packages."""
 
+from .context_manifest import ContextFile, JobContextManifest
+from .context_transfer import (
+    JobBuilderCapabilities,
+    JobContextTransferPlan,
+    JobContextTransferReceipt,
+    JobPublicationImage,
+    JobPublicationPlanRequest,
+    JobPublicationState,
+)
 from .contracts import (
     DatasetPackager,
     DatasetPackRequest,
@@ -40,6 +49,7 @@ from .service import (
     PackedJobContext,
     ProjectConfigBundle,
     digest_source_package,
+    staged_context_directories,
 )
 from .source_snapshot import (
     ImmutableSourceSnapshotter,
@@ -54,18 +64,26 @@ __all__ = [
     "DatasetPackager",
     "DatasetPackRequest",
     "CacheLease",
+    "ContextFile",
     "EnvironmentPackager",
     "EnvironmentWheelRequest",
     "GitSourceRequest",
     "ImmutableDatasetPackager",
     "JobKindProfile",
+    "JobBuilderCapabilities",
+    "JobContextTransferPlan",
+    "JobContextTransferReceipt",
     "JobPackInputs",
+    "JobContextManifest",
     "JobPackPlan",
     "JobPackService",
     "JobPackSpec",
     "JobImagePublicationRequest",
     "JobImageResolutionRequest",
     "JobImagePublisher",
+    "JobPublicationPlanRequest",
+    "JobPublicationImage",
+    "JobPublicationState",
     "LocalDaemonJobImage",
     "LocalJobImagePublisher",
     "LocalPublishedJobImage",
@@ -84,6 +102,7 @@ __all__ = [
     "SourceSnapshotRequest",
     "SourceSnapshotInspection",
     "SourcePackage",
+    "staged_context_directories",
     "has_active_lease",
     "activation_resource_sources",
     "digest_source_package",

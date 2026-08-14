@@ -6,7 +6,7 @@ import asyncio
 import hashlib
 import os
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -23,6 +23,8 @@ from posttrain.common import (
     ProducedArtifact,
     PublishedArtifact,
     StoredArtifactRef,
+    TraceFactSet,
+    TraceFactUpdateObservation,
     TraceObservation,
 )
 from posttrain.tracking import (
@@ -40,6 +42,9 @@ from posttrain.tracking import (
     RunSummary,
     SafeRunError,
     StoredArtifact,
+    TraceAggregateBucket,
+    TraceAggregateResult,
+    TraceFactsQuery,
     TracePage,
     TraceQuery,
     TraceRecord,
@@ -56,6 +61,7 @@ from trackio.run import Run as TrackioSDKRun
 from trackio.utils import parse_trackio_server_url
 
 _RESERVED_HISTORY_KEYS = {"step", "timestamp"}
+_TRACE_FACT_WRITE_CHUNK_SIZE = 1000
 
 # A run records its status and timings as ordinary metrics rather than as
 # run-level fields, so these are the keys that describe its lifecycle.
@@ -199,6 +205,47 @@ def _run_config(spec: RunSpec, started_at: datetime) -> dict[str, JsonValue]:
     }
 
 
+def _trackio_trace_facts(
+    trace_type: str,
+    external_id: str,
+    facts: TraceFactSet,
+    *,
+    replace_reward_components: bool = True,
+) -> Any:
+    """Translate the neutral envelope only after the Trackio capability is present."""
+
+    update_type = getattr(trackio, "TraceFactUpdate", None)
+    component_type = getattr(trackio, "TraceRewardComponent", None)
+    if update_type is None or component_type is None:
+        raise ContractError(
+            "the configured Trackio build does not support trace facts; "
+            "install the declared Trackio trace-facts release before logging this run"
+        )
+    return update_type(
+        trace_type=trace_type,
+        external_id=external_id,
+        namespace=facts.namespace,
+        calculator_version=facts.calculator_version,
+        projection_id=facts.projection_id,
+        dimensions=dict(facts.dimensions),
+        measures=dict(facts.measures),
+        reward_components=tuple(
+            component_type(
+                name=component.name,
+                contribution=component.contribution,
+                score=component.score,
+                weight=component.weight,
+                source_kind=component.source.kind,
+                source_id=component.source.id,
+            )
+            for component in facts.reward_components
+        ),
+        provenance=dict(facts.provenance),
+        state=facts.state,
+        replace_reward_components=replace_reward_components,
+    )
+
+
 class TrackioTrackedRun:
     """One open Trackio run with retry-safe canonical finalization."""
 
@@ -294,7 +341,16 @@ class TrackioTrackedRun:
             **dict(observation.attributes),
         }
         if observation.trace_type == "verifiers":
-            trace: trackio.Trace = trackio.VerifiersTrace(dict(observation.payload), metadata=metadata)
+            if len(observation.facts) > 1:
+                raise ContractError("a Verifiers trace may carry one complete source fact projection")
+            trace_arguments: dict[str, Any] = {"metadata": metadata}
+            if observation.facts:
+                trace_arguments["trace_facts"] = _trackio_trace_facts(
+                    observation.trace_type,
+                    observation.external_id,
+                    observation.facts[0],
+                )
+            trace = trackio.VerifiersTrace(dict(observation.payload), **trace_arguments)
         else:
             messages = observation.payload.get("messages")
             if messages is None:
@@ -307,6 +363,27 @@ class TrackioTrackedRun:
                 metadata={"posttrain_payload_extra": extra, **extra, **metadata},
             )
         self._run.log({f"traces/{observation.trace_type}": trace})
+
+    def trace_fact_update(self, observation: TraceFactUpdateObservation) -> None:
+        flush = getattr(self._run, "flush", None)
+        upsert = getattr(self._run, "upsert_trace_facts", None)
+        if not callable(flush) or not callable(upsert):
+            raise ContractError(
+                "the configured Trackio build does not support trace-fact enrichment; "
+                "install the declared Trackio trace-facts release"
+            )
+        # The source trace is queued by the normal logging path. Flush it before
+        # sending the trace-keyed enrichment so a remote server never observes
+        # the second phase before the physical parent row exists.
+        flush()
+        upsert(
+            _trackio_trace_facts(
+                observation.trace_type,
+                observation.external_id,
+                observation.facts,
+                replace_reward_components=False,
+            )
+        )
 
     def artifact(self, artifact: ProducedArtifact) -> None:
         if not isinstance(artifact.reference, LocalArtifactRef):
@@ -725,6 +802,94 @@ class TrackioLifecycleAdmin:
         )
 
 
+class TrackioTraceFactWriter:
+    """Authenticated, exact-run writer for already-retained trace facts.
+
+    This intentionally exposes only the generic Trackio upsert endpoint.  The
+    caller supplies a complete typed projection; model/template and Verifiers
+    interpretation remain outside this backend adapter.
+    """
+
+    def __init__(self, server_url: str, *, write_token: str | None = None) -> None:
+        if not server_url.strip():
+            raise ValueError("Trackio server URL cannot be empty")
+        base_url, url_token = parse_trackio_server_url(server_url)
+        token = write_token or url_token or os.getenv("TRACKIO_WRITE_TOKEN")
+        if not token:
+            raise ContractError("Trackio trace-fact backfill requires TRACKIO_WRITE_TOKEN")
+        self._client = RemoteClient(
+            base_url,
+            write_token=token,
+            httpx_kwargs={"timeout": 60.0},
+            verbose=False,
+        )
+
+    def upsert(
+        self,
+        *,
+        project: str,
+        run_name: str,
+        provider_run_id: str,
+        trace_type: str,
+        external_id: str,
+        facts: TraceFactSet,
+    ) -> Any:
+        """Persist one source projection without reopening or changing the run."""
+
+        update = _trackio_trace_facts(trace_type, external_id, facts)
+        response = self._client.predict(
+            api_name="/upsert_trace_facts",
+            project=project,
+            run=run_name,
+            run_id=provider_run_id,
+            update=update.payload(),
+        )
+        receipt_type = getattr(trackio, "TraceFactWriteReceipt", None)
+        if receipt_type is None:
+            raise ContractError("the configured Trackio build does not expose trace-fact write receipts")
+        if not isinstance(response, dict):
+            raise ContractError("Trackio trace-fact backfill returned an invalid write receipt")
+        return receipt_type(**response)
+
+    def upsert_many(
+        self,
+        *,
+        project: str,
+        run_name: str,
+        provider_run_id: str,
+        trace_type: str,
+        updates: Sequence[tuple[str, TraceFactSet]],
+    ) -> tuple[Any, ...]:
+        """Persist one logical page through bounded generic Trackio batches.
+
+        A backfill may read a larger page to reduce cursor and process churn.
+        Each physical write stays at 1,000 facts, which bounds the Doris
+        set-oriented statement and preserves the server's retry behavior.
+        """
+
+        if not updates:
+            return ()
+        encoded = [_trackio_trace_facts(trace_type, external_id, facts).payload() for external_id, facts in updates]
+        receipt_type = getattr(trackio, "TraceFactWriteReceipt", None)
+        if receipt_type is None:
+            raise ContractError("the configured Trackio build does not expose trace-fact write receipts")
+        receipts: list[Any] = []
+        for start in range(0, len(encoded), _TRACE_FACT_WRITE_CHUNK_SIZE):
+            chunk = encoded[start : start + _TRACE_FACT_WRITE_CHUNK_SIZE]
+            response = self._client.predict(
+                api_name="/bulk_upsert_trace_facts",
+                project=project,
+                run=run_name,
+                run_id=provider_run_id,
+                updates=chunk,
+            )
+            chunk_receipts = response.get("receipts") if isinstance(response, dict) else None
+            if not isinstance(chunk_receipts, list) or len(chunk_receipts) != len(chunk):
+                raise ContractError("Trackio trace-fact batch backfill returned invalid write receipts")
+            receipts.extend(receipt_type(**receipt) for receipt in chunk_receipts)
+        return tuple(receipts)
+
+
 class TrackioPurgeActionExecutor:
     """Bridge one framework tracking action to digest-bound Trackio apply."""
 
@@ -793,6 +958,7 @@ class TrackioDataSource:
             live_traces=capabilities["live_traces"],
             artifacts=capabilities["artifact_lineage"],
             artifact_lineage=capabilities["artifact_lineage"],
+            trace_facts=("available" if hasattr(trackio, "TraceFactsQuery") else "unavailable"),
         )
 
     def _summary(self, run: Any) -> RunSummary:
@@ -1153,14 +1319,66 @@ class TrackioDataSource:
 
         return await asyncio.to_thread(self._traces, run_id, query)
 
+    async def traces_by_provider_run_id(self, provider_run_id: str, query: TraceQuery) -> TracePage:
+        """Read a bounded page for maintenance scoped by Trackio's physical run id."""
+
+        return await asyncio.to_thread(self._traces_by_provider_run_id, provider_run_id, query)
+
+    async def aggregate_trace_facts(self, run_id: str, query: TraceFactsQuery) -> TraceAggregateResult:
+        return await asyncio.to_thread(self._aggregate_trace_facts, run_id, query)
+
+    def _aggregate_trace_facts(self, run_id: str, query: TraceFactsQuery) -> TraceAggregateResult:
+        query_type = getattr(trackio, "TraceFactsQuery", None)
+        aggregate_type = getattr(trackio, "TraceAggregate", None)
+        provider_run = self._provider_run(run_id)
+        aggregate = getattr(provider_run, "aggregate_trace_facts", None)
+        if query_type is None or aggregate_type is None or not callable(aggregate):
+            return TraceAggregateResult(state="unavailable")
+        response = cast(
+            Any,
+            aggregate(
+                query_type(
+                    trace_type=query.trace_type,
+                    group_by=tuple(query.group_by),
+                    aggregates=tuple(
+                        aggregate_type(
+                            measure=item.measure,
+                            operation=item.operation,
+                            component_name=item.component_name,
+                        )
+                        for item in query.aggregates
+                    ),
+                    dimensions=dict(query.dimensions),
+                )
+            ),
+        )
+        return TraceAggregateResult(
+            state="available",
+            buckets=tuple(
+                TraceAggregateBucket(
+                    dimensions=dict(bucket.dimensions),
+                    trace_count=bucket.trace_count,
+                    values=dict(bucket.values),
+                    coverage=dict(bucket.coverage),
+                )
+                for bucket in response.buckets
+            ),
+        )
+
     def _traces(self, run_id: str, query: TraceQuery) -> TracePage:
         provider_run = self._provider_run(run_id)
+        return self._traces_for_provider_run(provider_run, query)
+
+    def _traces_by_provider_run_id(self, provider_run_id: str, query: TraceQuery) -> TracePage:
+        return self._traces_for_provider_run(self._provider_run_by_id(provider_run_id), query)
+
+    def _traces_for_provider_run(self, provider_run: Any, query: TraceQuery) -> TracePage:
         offset = int(query.cursor) if query.cursor is not None else 0
         provider_kwargs = {
             "limit": query.limit,
             "offset": offset,
             "sort": "step_asc",
-            "include_payload": False,
+            "include_payload": query.include_payload,
         }
         # Trackio's physical trace_type distinguishes Verifiers traces from
         # ordinary Trackio traces. Other post-training trace kinds live in
@@ -1252,3 +1470,11 @@ class TrackioDataSource:
             if posttrain_run_id == run_id:
                 return run
         raise LookupError(f"posttrain run {run_id!r} was not found in Trackio project {self.project!r}")
+
+    def _provider_run_by_id(self, provider_run_id: str) -> Any:
+        """Resolve the physical provider identity without assuming Posttrain config."""
+
+        for run in self._api.runs(self.project):
+            if str(run.id) == provider_run_id:
+                return run
+        raise LookupError(f"Trackio provider run {provider_run_id!r} was not found in project {self.project!r}")

@@ -146,7 +146,7 @@ def register(app: typer.Typer) -> None:
         # Both directions copy by digest, so identity is preserved either way.
         origin = (source_prefix or manifest.default_prefix).rstrip("/")
         inspector = RuntimeImageInspector()
-        copied: list[dict[str, str]] = []
+        copied: list[dict[str, str | bool]] = []
         images = [("base", manifest.base)] + [(name, manifest.kinds[name]) for name in selected]
         # The destination is a tag because a digest cannot be pushed to. The
         # tag is derived from the release so it is stable and meaningful, and
@@ -155,7 +155,11 @@ def register(app: typer.Typer) -> None:
         for name, image in images:
             source = image.reference(origin)
             destination = f"{registry_prefix.rstrip('/')}/{image.repository}:{tag}"
-            observed = inspector.copy(source, destination)
+            observed, transferred = inspector.ensure_copy(
+                source,
+                destination,
+                expected_digest=image.digest,
+            )
             if observed != image.digest:
                 raise ContractError(
                     f"mirroring {name} changed its identity: expected {image.digest}, "
@@ -166,6 +170,7 @@ def register(app: typer.Typer) -> None:
                     "variant": name,
                     "source": source,
                     "destination": f"{destination} ({image.digest})",
+                    "transferred": transferred,
                 }
             )
 
@@ -174,7 +179,8 @@ def register(app: typer.Typer) -> None:
             emit(state, payload, "")
             return
         for entry in copied:
-            print(f"mirrored {entry['variant']}: {entry['destination']}")
+            action = "mirrored" if entry["transferred"] else "reused"
+            print(f"{action} {entry['variant']}: {entry['destination']}")
         print(
             "set [registry].mirror_prefix in the execution configuration to "
             f"{registry_prefix} so this project resolves images from it"

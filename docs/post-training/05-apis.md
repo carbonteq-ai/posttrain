@@ -136,9 +136,9 @@ posttrain workload materialize WORKLOAD_ID [--output PATH]
 posttrain workload verify WORKLOAD_ID
 posttrain work-package validate PATH
 posttrain work-package run PATH --job JOB_ID
-posttrain job plan WORK_PACKAGE --job JOB_ID
-posttrain job pack WORK_PACKAGE --job JOB_ID
-posttrain job run WORK_PACKAGE --job JOB_ID [--provider local|dstack] [--build-missing] [--resume-from-run RUN_ID] [--checkpoint-step STEP]
+posttrain job plan WORK_PACKAGE --job JOB_ID [--builder local|remote]
+posttrain job pack WORK_PACKAGE --job JOB_ID [--builder local|remote]
+posttrain job run WORK_PACKAGE --job JOB_ID [--provider local|dstack] [--builder local|remote] [--build-missing] [--resume-from-run RUN_ID] [--checkpoint-step STEP]
 posttrain job run WORK_PACKAGE --job JOB_ID [--model-from-run RUN_ID] [--checkpoint-step STEP] [--model-seat SEAT]
 posttrain job diff WORK_PACKAGE --job JOB_ID [--from KEY] [--to KEY]
 posttrain run list
@@ -244,6 +244,20 @@ store. When it is unset, `job pack` and `job run` fail with a project contract
 error rather than defaulting to a registry. `doctor` reports its presence and
 reachability, and fails when a reachable kind image does not carry the lock
 digest the installed framework expects.
+
+Actual-job publication defaults to the local BuildKit adapter. A site may
+configure an authenticated remote builder under machine-local
+`[services.job_builder]`, or select it for one command with
+`--builder remote`; the same flag can force `local`. The effective builder,
+endpoint host, and expected client transfer bytes are reported by `job plan`
+and `job pack`. This selection is transport only: it never changes the
+`JobPackageManifest`, `ImagePublicationSpec`, package key, publication key, or
+output repository. Before any upload, a remote client sends the complete
+sealed context manifest and receives the exact missing blob digests; it then
+uploads only those bounded files. The service accepts no client Dockerfile,
+BuildKit arguments, registry credential, model, checkpoint, or undeclared
+archive. Configured remote mode does not affect `job pack --local`, which
+always produces a local OCI export.
 
 Initialization writes the project layout and an installable project package,
 then creates the project environment and installs dependencies. There is no

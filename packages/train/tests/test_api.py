@@ -22,6 +22,8 @@ from posttrain.common import (
     ModelVariant,
     ProducedArtifact,
     RunContext,
+    TraceFactSet,
+    TraceFactUpdateObservation,
     TraceObservation,
 )
 from posttrain.common.variants import QWEN_35_2B
@@ -97,6 +99,7 @@ class Observer:
     metrics_seen: list[MetricBatchObservation] = field(default_factory=list)
     artifacts: list[ProducedArtifact] = field(default_factory=list)
     traces: list[TraceObservation] = field(default_factory=list)
+    trace_fact_updates: list[TraceFactUpdateObservation] = field(default_factory=list)
 
     def event(self, observation: EventObservation) -> None:
         self.events.append(observation)
@@ -109,6 +112,9 @@ class Observer:
 
     def trace(self, observation: TraceObservation) -> None:
         self.traces.append(observation)
+
+    def trace_fact_update(self, observation: TraceFactUpdateObservation) -> None:
+        self.trace_fact_updates.append(observation)
 
     def artifact(self, artifact: ProducedArtifact) -> None:
         self.artifacts.append(artifact)
@@ -194,6 +200,13 @@ class FakeRLBridge:
                     "test",
                     f"trace-{index}",
                     {"example_id": example_id, "step": batch.step},
+                    facts=(
+                        TraceFactSet(
+                            namespace="test.v1",
+                            calculator_version="1",
+                            measures={"model_output_tokens": 3},
+                        ),
+                    ),
                 ),
             )
             for index, example_id in enumerate(batch.example_ids)
@@ -1043,7 +1056,7 @@ def test_distillation_backend_fixes_fully_on_policy_reverse_kl_contract(tmp_path
     assert sampled_arguments["min_p"] == 0.0
     assert sampled_arguments["repetition_penalty"] == 1.1
     assert sampled_arguments["generation_kwargs"] == {"presence_penalty": 1.5}
-    from trl.experimental.iw_opd import IWOPDConfig  # pyright: ignore[reportMissingImports]
+    IWOPDConfig = pytest.importorskip("trl.experimental.iw_opd").IWOPDConfig
 
     config = IWOPDConfig(**{**sampled_arguments, "use_cpu": True})
     assert config.min_p == 0.0
@@ -1563,6 +1576,7 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
             "use_liger_kernel": True,
             "liger_loss_compiled": False,
             "logits_chunk_size": 128,
+            "vllm_policy_parity_max_mean_logp_delta": 0.075,
         },
     )
     optimized_request = replace(request, training=optimized_training)
@@ -1573,10 +1587,12 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
     )
     assert optimized_arguments["use_liger_kernel"] is True
     assert optimized_arguments["logits_chunk_size"] == 128
+    assert optimized_arguments["vllm_policy_parity_max_mean_logp_delta"] == 0.075
     trainer = SimpleNamespace(liger_loss=SimpleNamespace(compiled=True))
     _configure_liger_loss(trainer, optimized_request)
     assert trainer.liger_loss.compiled is False
     assert _grpo_runtime_attributes(optimized_request)["liger_loss_compiled"] is False
+    assert _grpo_runtime_attributes(optimized_request)["vllm_policy_parity_max_mean_logp_delta"] == 0.075
     invalid_liger_request = replace(
         request,
         training=replace(
@@ -1586,6 +1602,13 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
     )
     with pytest.raises(ValueError, match="requires use_liger_kernel=true"):
         _grpo_arguments(invalid_liger_request, tmp_path, {"enable_thinking": False})
+
+    invalid_parity_request = replace(
+        request,
+        training=replace(_training(), backend_options={"vllm_policy_parity_max_mean_logp_delta": 0.0}),
+    )
+    with pytest.raises(ValueError, match="policy parity limit must be a finite positive number"):
+        _grpo_arguments(invalid_parity_request, tmp_path, {"enable_thinking": False})
 
     mtp_request = GRPORequest(
         model,
@@ -1843,6 +1866,7 @@ def test_trl_rollout_adapter_preserves_identity_rewards_masks_and_native_traces(
     assert observer.traces[0].attributes["model_variant_id"] == QWEN_35_2B.id
     assert observer.traces[0].attributes["optimizer_step"] == 4
     assert observer.traces[0].attributes["rollout_batch_ordinal"] == 1
+    assert observer.traces[0].facts[0].measures["model_output_tokens"] == 3
 
     rollout(
         [[{"role": "user", "content": "What is 2 + 2?"}]],

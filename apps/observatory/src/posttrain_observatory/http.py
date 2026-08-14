@@ -22,6 +22,7 @@ from .models import (
     ExportRequest,
     MetricSeriesQuery,
     ObservatoryModel,
+    RolloutBehaviorView,
     RunLocator,
     RunViewResponse,
     SemanticSummaryRequest,
@@ -119,6 +120,7 @@ def create_http_app(
     @app.get("/api/v1/runs")
     async def runs(
         project_id: str | None = None,
+        source_id: str | None = None,
         work_package_id: str | None = None,
         job_kind: tuple[str, ...] = Query(default=()),
         status: tuple[str, ...] = Query(default=()),
@@ -131,11 +133,15 @@ def create_http_app(
             statuses=status,  # type: ignore[arg-type]
             limit=limit,
         )
-        return [run.model_dump(mode="json") for run in await service.list_runs(query)]
+        return [run.model_dump(mode="json") for run in await service.list_runs(query, source_id=source_id)]
 
     @app.get("/api/v1/runs/locate")
     async def locate_run(run_id: str = Query(min_length=1)) -> list[dict[str, object]]:
         return [run.model_dump(mode="json") for run in await service.locate_run(run_id)]
+
+    @app.get("/api/v1/runs/{run_key}")
+    async def run(run_key: str) -> dict[str, object]:
+        return (await service.get_run(_locator(run_key))).model_dump(mode="json")
 
     @app.get("/api/v1/runs/{run_key}/view")
     async def run_view(
@@ -180,6 +186,10 @@ def create_http_app(
             _locator(run_key),
             include_traces=include_traces,
         )
+
+    @app.get("/api/v1/runs/{run_key}/rollout-behavior")
+    async def rollout_behavior(run_key: str) -> RolloutBehaviorView:
+        return await service.get_rollout_behavior_view(_locator(run_key))
 
     @app.get("/api/v1/runs/{run_key}/traces")
     async def trace_summaries(

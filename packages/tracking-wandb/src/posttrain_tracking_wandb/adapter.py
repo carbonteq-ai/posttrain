@@ -25,6 +25,7 @@ from posttrain.common import (
     ProducedArtifact,
     PublishedArtifact,
     StoredArtifactRef,
+    TraceFactUpdateObservation,
     TraceObservation,
 )
 from posttrain.tracking import (
@@ -42,6 +43,8 @@ from posttrain.tracking import (
     RunSummary,
     SafeRunError,
     StoredArtifact,
+    TraceAggregateResult,
+    TraceFactsQuery,
     TracePage,
     TraceQuery,
     TraceRecord,
@@ -279,6 +282,11 @@ class WandbTrackedRun:
         self._run.log(values)
 
     def trace(self, observation: TraceObservation) -> None:
+        if observation.facts:
+            raise ContractError(
+                "W&B does not provide the required trace-fact persistence capability; "
+                "select Trackio for GRPO, OPD, or evaluation fact aggregation"
+            )
         record = {
             "trace_type": observation.trace_type,
             "external_id": observation.external_id,
@@ -288,6 +296,13 @@ class WandbTrackedRun:
         with self._trace_path.open("a", encoding="utf-8") as destination:
             destination.write(json.dumps(record, separators=(",", ":"), sort_keys=True))
             destination.write("\n")
+
+    def trace_fact_update(self, observation: TraceFactUpdateObservation) -> None:
+        del observation
+        raise ContractError(
+            "W&B does not provide the required trace-fact persistence capability; "
+            "select Trackio for GRPO, OPD, or evaluation fact aggregation"
+        )
 
     def artifact(self, artifact: ProducedArtifact) -> None:
         if not isinstance(artifact.reference, LocalArtifactRef):
@@ -445,6 +460,7 @@ class WandbDataSource:
             live_traces=False,
             artifacts=True,
             artifact_lineage=True,
+            trace_facts="unsupported",
         )
 
     @property
@@ -613,6 +629,10 @@ class WandbDataSource:
         page = records[offset : offset + query.limit]
         next_cursor = str(offset + query.limit) if offset + query.limit < len(records) else None
         return TracePage(items=tuple(page), next_cursor=next_cursor, live=False)
+
+    async def aggregate_trace_facts(self, run_id: str, query: TraceFactsQuery) -> TraceAggregateResult:
+        del run_id, query
+        return TraceAggregateResult(state="unsupported")
 
     async def artifacts(self, run_id: str) -> ArtifactSet:
         return await self._read(

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from time import perf_counter
 from typing import Any, Literal, cast
@@ -198,6 +199,12 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
         }
         if self._emit_sampo_metadata:
             extra_fields.update(_sampo_metadata(rollout))
+        _append_rollout_reward_record(
+            trace_id=rollout.trace.external_id,
+            step=step,
+            task_reward=rollout.reward,
+            algorithm_reward=reward,
+        )
         return AgentLoopOutput(
             prompt_ids=list(rollout.prompt_ids),
             response_ids=list(rollout.completion_ids),
@@ -208,6 +215,40 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
             metrics=AgentLoopMetrics(generate_sequences=perf_counter() - started),
             extra_fields=extra_fields,
         )
+
+
+def _append_rollout_reward_record(
+    *,
+    trace_id: str,
+    step: int,
+    task_reward: float,
+    algorithm_reward: float,
+) -> None:
+    """Journal the post-shaping scalar in the isolated worker for parent replay."""
+
+    destination = os.environ.get("POSTTRAIN_VERL_ROLLOUT_REWARDS_PATH")
+    if not destination:
+        return
+    payload = (
+        json.dumps(
+            {
+                "trace_id": trace_id,
+                "step": step,
+                "task_reward": task_reward,
+                "algorithm_reward": algorithm_reward,
+            },
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+        + "\n"
+    )
+    # Each small append is one complete record. The parent is the only process
+    # that turns this journal into tracking evidence after the worker exits.
+    descriptor = os.open(destination, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600)
+    try:
+        os.write(descriptor, payload.encode("utf-8"))
+    finally:
+        os.close(descriptor)
 
 
 def _sampo_metadata(rollout: EnvironmentRollout) -> dict[str, Any]:

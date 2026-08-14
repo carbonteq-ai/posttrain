@@ -6,12 +6,16 @@ The post-training framework uses the CarbonTeq AutomationBench fork at
 
 ## Distribution transition
 
-The fork now builds as
-`carbonteq-automation-bench==1.0.5.post1`, preserving the
-`automationbench` import package and `auto-bench` command. Its wheel and source
-distribution build successfully, clean Python 3.12 installation succeeds, the
-75-test compatibility suite passes, and a `carbonteq-v*` tag workflow is ready
-for PyPI Trusted Publishing.
+The fork builds as `carbonteq-automation-bench==1.0.5.post1`, preserving the
+`automationbench` import package and `auto-bench` command. The manually
+published
+[`carbonteq-v1.0.5.post1`](https://github.com/carbonteq-ai/AutomationBench/releases/tag/carbonteq-v1.0.5.post1)
+release is bound to commit `908db2abd4a868acc37ab0850474bff653bea25c` and
+retains the wheel SHA-256
+`bd80b4947fbdd60706d9545e79635b79931d89dfc294ed45b01df6886c1f1509` and source
+distribution SHA-256
+`04ccef85e2a83bd26777a10a08702b4fb6a47169352777ab8564fa1bbba9acf6`.
+No fork release runner is retained or used.
 
 The distribution is published on the internal stable index from merge revision
 `908db2abd4a868acc37ab0850474bff653bea25c`. The adapter depends on the exact
@@ -21,7 +25,7 @@ packing can resolve and hash the complete portable dependency closure.
 ## Selected revision
 
 The selected immutable revision is
-`d54dbebabdba6c6eda201694aee8ddcf36ccfc51`, based on upstream Zapier commit
+`908db2abd4a868acc37ab0850474bff653bea25c`, based on upstream Zapier commit
 `a321764ace3cfbe42289e6a13abef2f0f4f56fad`. The maintained delta lowers the
 declared Python floor to 3.12, regenerates the fork lockfile, and documents the
 fork. It does not change benchmark tasks, tools, simulated application state,
@@ -38,7 +42,7 @@ the task population.
 
 The Verifiers v1 adapter is published as the standalone `automationbench-v1`
 package in `https://github.com/carbonteq-ai/verifiers-environments` at the
-framework-pinned commit `017ac72f543f79f48400cbb4cb641d6df4c3adfa`, under
+framework-pinned commit `b7bcb591facfcd2b073802f6d7496b24ab9c479e`, under
 `environments/automationbench_v1`. There is no framework-local implementation;
 the external repository owns its package lifecycle. GRPO and
 evaluation select domain categories, deterministic sampling seeds, task and

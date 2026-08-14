@@ -10,13 +10,14 @@ from types import SimpleNamespace
 import pytest
 from posttrain.common import ContractError
 from posttrain.runtime_images import backend_runtime_labels
-from posttrain.runtime_images.manifest import load_manifest
+from posttrain.runtime_images.manifest import load_manifest as _load_manifest
 from posttrain_cli.checks import runtime_images_check
 from posttrain_cli.cli import main
 from posttrain_cli.context import CliState
 from posttrain_cli.execution_config import load_local_execution_config
 from posttrain_cli.runtime_images import (
     ensure_kind_image_ready,
+    verify_configured_variant,
     verify_registry,
     verify_variant,
 )
@@ -32,12 +33,40 @@ from posttrain_execution_buildkit import (
 # Resolved lazily. Loading at import time makes a stale manifest a collection
 # error for the whole suite rather than a failure of the tests that depend on
 # it, which hides every unrelated result behind one problem.
+@pytest.fixture(autouse=True)
+def _candidate_manifest_for_runtime_image_tests(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Isolate runtime-verification behavior from candidate publication state.
+
+    A source candidate intentionally carries the last *published* OCI manifest
+    until its matching image graph is materialized.  The real consumer loader
+    must reject that mismatch; these tests instead exercise each verification
+    outcome against the declared candidate shape.  Release tests own the
+    strict manifest/publication gate.
+    """
+
+    manifest = _load_manifest(verify_locks=False)
+    for module in (
+        "posttrain_cli.execution_config",
+        "posttrain_cli.runtime_images",
+        "posttrain_cli.checks",
+        "posttrain_cli.commands.runtime",
+        "posttrain_cli.runtime_image_builds",
+    ):
+        monkeypatch.setattr(f"{module}.load_manifest", lambda: manifest)
+
+
 def _manifest():
-    return load_manifest()
+    return _load_manifest(verify_locks=False)
 
 
 def _expected_lock() -> str:
     return _manifest().expected_lock_digest("supervised")
+
+
+def _configured_lock(registry, variant: str) -> str:
+    """Return the lock a configured image slot, rather than a source candidate, selects."""
+
+    return registry.constraint_profiles[variant].contents_digest
 
 
 class _FakeInspector:
@@ -111,6 +140,41 @@ def test_matching_lock_digest_verifies(tmp_path: Path, monkeypatch: pytest.Monke
     assert result.ok
 
 
+def test_candidate_binding_verifies_against_its_retained_lock_not_stable_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    _set_project_registry(project)
+    candidate_lock = project / ".posttrain" / "state" / "candidate.lock"
+    candidate_lock.parent.mkdir(parents=True, exist_ok=True)
+    candidate_lock.write_text("carbonteq-trackio @ https://example.invalid/trackio.whl#sha256=" + "a" * 64 + "\n")
+    candidate_digest = hashlib.sha256(candidate_lock.read_bytes()).hexdigest()
+    execution = candidate_lock.parent / "execution.toml"
+    execution.write_text(
+        "schema_version = 1\n\n"
+        "[registry.kind_images]\n"
+        'supervised = "registry.example/posttrain-kind-supervised@sha256:' + "b" * 64 + '"\n\n'
+        "[registry.constraint_profiles.supervised]\n"
+        'path = "candidate.lock"\n'
+        f'sha256 = "{candidate_digest}"\n',
+        encoding="utf-8",
+    )
+    execution.chmod(0o600)
+    registry = load_local_execution_config(CliState(project_root=project).layout()).registry
+    assert registry is not None
+
+    result = verify_configured_variant(
+        registry,
+        "supervised",
+        inspector=_FakeInspector(lock_digest=candidate_digest),
+    )
+
+    assert result.ok
+    assert result.expected_lock_digest == candidate_digest
+    assert result.expected_lock_digest != _expected_lock()
+
+
 def test_verl_runtime_image_requires_its_backend_identity_labels(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -122,7 +186,10 @@ def test_verl_runtime_image_requires_its_backend_identity_labels(
         variant,
         registry.kind_images[variant].value,
         manifest=_manifest(),
-        inspector=_FakeInspector(labels=expected_labels),
+        inspector=_FakeInspector(
+            lock_digest=_manifest().expected_lock_digest(variant),
+            labels=expected_labels,
+        ),
     )
     assert verified.ok
     assert "backend source" in verified.detail
@@ -134,7 +201,10 @@ def test_verl_runtime_image_requires_its_backend_identity_labels(
         variant,
         registry.kind_images[variant].value,
         manifest=_manifest(),
-        inspector=_FakeInspector(labels=labels),
+        inspector=_FakeInspector(
+            lock_digest=_manifest().expected_lock_digest(variant),
+            labels=labels,
+        ),
     )
     assert drifted.status == "drifted"
     assert revision_label in drifted.detail
@@ -239,7 +309,7 @@ def test_packing_refuses_a_drifted_image_and_names_the_remedy(
     message = str(raised.value)
     assert "supervised" in message
     assert stale in message
-    assert _expected_lock() in message
+    assert _configured_lock(registry, "supervised") in message
     assert "--build-missing" in message
 
 
@@ -283,7 +353,7 @@ def test_verified_image_passes_without_building(
         "supervised",
         build_missing=True,
         manifest=_manifest(),
-        inspector=_FakeInspector(),
+        inspector=_FakeInspector(lock_digest=_configured_lock(registry, "supervised")),
     )
     assert result.ok
 
@@ -383,14 +453,12 @@ def test_a_base_image_pinned_into_a_kind_slot_is_rejected(
 ) -> None:
     """The lock digest alone cannot catch this.
 
-    Every level of the image hierarchy is built from the same workspace lock,
-    so the base image and every job-kind image share a lock digest. Pointing a
-    job-kind slot at the base image therefore passes a digest comparison
-    perfectly while producing an image that cannot run a job at all.
+    A malicious or incorrectly configured registry can present a matching
+    job-kind lock label on a base image. The image-level label is therefore a
+    separate invariant: a digest match alone must not permit a non-runnable
+    image to occupy a job-kind slot.
     """
     registry = _registry(tmp_path, monkeypatch)
-    assert _manifest().base.lock_digest == _manifest().kinds["supervised"].lock_digest
-
     result = verify_variant(
         "supervised",
         registry.kind_images["supervised"].value,

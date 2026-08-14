@@ -27,6 +27,7 @@ class JobImagePublicationRequest:
     allow_deferred_qualification: bool = False
     local_output: Path | None = None
     local_tag: str | None = None
+    source_context_digest: str | None = None
 
     def __post_init__(self) -> None:
         if not self.staged_context.is_absolute() or not self.staged_context.is_dir():
@@ -39,6 +40,8 @@ class JobImagePublicationRequest:
             or any(character.isspace() for character in self.local_tag)
         ):
             raise ContractError("local daemon image tag is invalid")
+        if self.source_context_digest is not None and _SHA256.fullmatch(self.source_context_digest) is None:
+            raise ContractError("job image source context digest must be SHA-256")
 
     @property
     def package_key(self) -> str:

@@ -16,12 +16,26 @@ import pytest
 from posttrain.common import ContractError
 from posttrain.execution_pack import ImmutableSourceSnapshotter
 from posttrain.project import Project
+from posttrain.runtime_images.manifest import load_manifest as _load_manifest
 from posttrain_cli.context import CliState
 from posttrain_cli.execution_planning import _project_config_bundle, plan_job_package
 from posttrain_cli.framework_distributions import FrameworkDistributions
 
 WORKSPACE = Path(__file__).resolve().parents[3]
 LAB = WORKSPACE / "apps" / "lab"
+
+
+@pytest.fixture(autouse=True)
+def _candidate_manifest_for_nested_packing_tests(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep source/control planning tests independent of OCI publication.
+
+    The actual installed-manifest loader remains strict.  These tests model a
+    release candidate before its matching base/kind graph is materialized and
+    exercise only the nested-project packaging boundary.
+    """
+
+    manifest = _load_manifest(verify_locks=False)
+    monkeypatch.setattr("posttrain_cli.execution_config.load_manifest", lambda: manifest)
 
 
 def _nested_lab_project(tmp_path: Path, work_package: str) -> Path:

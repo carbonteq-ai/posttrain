@@ -3,6 +3,11 @@
 ARG PYTHON_IMAGE=python:3.13.12-slim-bookworm@sha256:a58daefb915e1e03ad48f3ca4df8832065412c5c35cacb9d39f4229184de12b6
 FROM ${PYTHON_IMAGE} AS runtime
 
+# Scope the writable package cache to the immutable dependency closure. A
+# failed or interrupted build must not feed a partially downloaded artifact to
+# a later closure that has a different reviewed hash set.
+ARG LOCK_DIGEST
+
 COPY --from=ghcr.io/astral-sh/uv:0.11.30@sha256:93b61e21202b1dab861092748e46bbd6e0e41dd84f59b9174efd2353186e1b47 /uv /uvx /bin/
 
 ENV PATH="/opt/posttrain/venv/bin:${PATH}" \
@@ -32,26 +37,19 @@ RUN --mount=type=secret,id=posttrain_ca_bundle,required=false \
       cat /run/secrets/posttrain_ca_bundle >> /etc/ssl/certs/ca-certificates.crt; \
     fi
 
-# This constraint set is generated from the workspace uv.lock. Installing only
-# torch here keeps the universal image independent of trainer, evaluator,
-# serving, and concrete environment packages.
-COPY containers/posttrain-job-kinds/locks/workspace.lock.txt /opt/posttrain/locks/workspace.lock.txt
-RUN --mount=type=cache,id=posttrain-base-uv,target=/root/.cache/uv,sharing=locked \
+# This closure is generated from the workspace resolution, but contains only
+# universal CUDA/Python requirements. Keeping it separate means a tracker or
+# trainer-only change cannot invalidate the multi-gigabyte base image.
+COPY containers/posttrain-job-kinds/locks/base.lock.txt /opt/posttrain/locks/base.lock.txt
+RUN --mount=type=cache,id=posttrain-base-uv-${LOCK_DIGEST},target=/root/.cache/uv,sharing=locked \
     uv venv --python /usr/local/bin/python "${VIRTUAL_ENV}" && \
-    # The CUDA wheel index also publishes a different artifact named
-    # triton==3.6.0. Install the exact x86_64 PyPI wheel selected by uv.lock
-    # first so unsafe-best-match cannot substitute the CUDA-index artifact.
-    uv pip install \
-      --python "${VIRTUAL_ENV}" \
-      "triton @ https://files.pythonhosted.org/packages/f9/0b/37d991d8c130ce81a8728ae3c25b6e60935838e9be1b58791f5997b24a54/triton-3.6.0-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl#sha256=10c7f76c6e72d2ef08df639e3d0d30729112f47a56b0c81672edc05ee5116ac9" && \
     uv pip install \
       --python "${VIRTUAL_ENV}" \
       --index-strategy unsafe-best-match \
-      --constraint /opt/posttrain/locks/workspace.lock.txt \
-      "torch==2.11.0+cu130"
+      --require-hashes \
+      --requirement /opt/posttrain/locks/base.lock.txt
 
 ARG CREATED
-ARG LOCK_DIGEST
 ARG SOURCE_REVISION
 ARG VERSION
 LABEL org.opencontainers.image.created="${CREATED}" \

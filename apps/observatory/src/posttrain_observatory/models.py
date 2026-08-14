@@ -691,6 +691,28 @@ class TraceEvaluationView(ObservatoryModel):
     live: bool = False
 
 
+class RolloutBehaviorPoint(ObservatoryModel):
+    """Trace-derived rollout averages for one optimizer step."""
+
+    step: int = Field(ge=0)
+    rollouts: int = Field(ge=1)
+    thinking_tokens: float | None = Field(default=None, ge=0)
+    output_tokens: float | None = Field(default=None, ge=0)
+    tool_calls: float | None = Field(default=None, ge=0)
+
+
+class RolloutBehaviorView(ObservatoryModel):
+    """Per-step rollout behavior from retained trace evidence."""
+
+    state: Literal["complete", "partial", "unavailable"]
+    scanned: int = Field(ge=0)
+    expected: int | None = Field(default=None, ge=0)
+    included: int = Field(ge=0)
+    unattributed: int = Field(default=0, ge=0)
+    points: tuple[RolloutBehaviorPoint, ...] = ()
+    live: bool = False
+
+
 class SystemMetricSummary(ObservatoryModel):
     key: str = Field(min_length=1)
     label: str = Field(min_length=1)
@@ -1020,6 +1042,8 @@ __all__ = [
     "MetricSeriesSet",
     "ObservatoryModel",
     "RewardComponent",
+    "RolloutBehaviorPoint",
+    "RolloutBehaviorView",
     "RuntimeSettingGroup",
     "RuntimeSettingValue",
     "RunAlert",

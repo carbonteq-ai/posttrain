@@ -8,6 +8,7 @@ import unittest
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any, cast
 
 from posttrain.common import (
     Catalog,
@@ -22,7 +23,11 @@ from posttrain.common import (
     OperationCancelled,
     ProducedArtifact,
     RunContext,
+    SignalSource,
+    TraceFactSet,
+    TraceFactUpdateObservation,
     TraceObservation,
+    TraceRewardComponent,
     Workload,
 )
 from posttrain.common.variants import FOUNDATION_VARIANTS
@@ -33,6 +38,7 @@ class RecordingObserver:
     events: list[EventObservation] = field(default_factory=list)
     metric_observations: list[MetricObservation] = field(default_factory=list)
     traces: list[TraceObservation] = field(default_factory=list)
+    trace_fact_updates: list[TraceFactUpdateObservation] = field(default_factory=list)
 
     def event(self, observation: EventObservation) -> None:
         self.events.append(observation)
@@ -46,6 +52,9 @@ class RecordingObserver:
 
     def trace(self, observation: TraceObservation) -> None:
         self.traces.append(observation)
+
+    def trace_fact_update(self, observation: TraceFactUpdateObservation) -> None:
+        self.trace_fact_updates.append(observation)
 
     def artifact(self, artifact: ProducedArtifact) -> None:
         del artifact
@@ -85,6 +94,19 @@ class IdentityContractTests(unittest.TestCase):
         self.assertEqual(foundation.revision, foundation.base.revision)
         self.assertEqual(foundation.renderer_contract, "qwen3.5-tools@1")
         self.assertEqual(foundation.artifact_uri, foundation.base.uri)
+        self.assertEqual(
+            foundation.trace_identity(),
+            {
+                "model_family": "qwen3.5",
+                "model_revision": foundation.revision,
+                "tokenizer_revision": foundation.base.revision,
+                "renderer_revision": "qwen3.5-tools@1",
+                "template_revision": f"tokenizer:{foundation.base.revision}",
+            },
+        )
+        package_template = FOUNDATION_VARIANTS["lfm2.5-1.2b-thinking"].trace_identity()
+        self.assertEqual(package_template["tokenizer_revision"], "95053d21d8e0b7ca99421a2127ae39c64f685ff3")
+        self.assertRegex(str(package_template["template_revision"]), r"^package-sha256:[0-9a-f]{64}$")
 
         with self.assertRaisesRegex(ContractError, "pinned base artifact"):
             replace(foundation, artifact=HubModelRef("Qwen/Qwen3.5-2B", "b" * 40))
@@ -109,7 +131,15 @@ class CanonicalRunContextTests(unittest.TestCase):
     def test_records_identity_scoped_observations(self) -> None:
         observer = RecordingObserver()
         with tempfile.TemporaryDirectory() as directory:
-            context = self._context(Path(directory), observer=observer)
+            context = RunContext(
+                project_id="tests",
+                work_package_id="train/context",
+                run_id="00000000-0000-0000-0000-000000000002",
+                job_kind="train.grpo",
+                job_definition_version="1",
+                workspace=Path(directory).resolve(),
+                observer=observer,
+            )
             context.event("operation.started", {"backend": "test"})
             context.metric("train/loss", 0.5, step=1)
 
@@ -195,6 +225,76 @@ class RunContextTests(unittest.TestCase):
         self.assertEqual(observer.events[0].occurred_at, datetime(2026, 7, 21, tzinfo=UTC))
         self.assertEqual(observer.metric_observations[0].name, "serve/ttft_ms")
         self.assertEqual(observer.traces[0].external_id, "request-1")
+
+    def test_trace_fact_sets_are_typed_immutable_scalar_evidence(self) -> None:
+        from posttrain.common import TraceFactSet
+
+        facts = TraceFactSet(
+            namespace="verifiers.trace",
+            calculator_version="1",
+            dimensions={"model_family": "qwen3.5", "is_truncated": False},
+            measures={"model_output_tokens": 12, "thinking_tokens": None},
+            reward_components=(
+                TraceRewardComponent("correctness", 1.0, source=SignalSource("deterministic")),
+                TraceRewardComponent("format bonus", 0.2, score=1.0, weight=0.2),
+            ),
+            provenance={"thinking_tokens": "unsupported"},
+            state="partial",
+        )
+        observation = TraceObservation("verifiers", "trace-1", {"id": "trace-1"}, facts=(facts,))
+
+        self.assertEqual(observation.facts[0].measures["model_output_tokens"], 12)
+        self.assertEqual(observation.facts[0].reward_components[1].name, "format bonus")
+        self.assertEqual(len(observation.facts[0].projection_id), 64)
+        with self.assertRaises(TypeError):
+            observation.facts[0].measures["model_output_tokens"] = 13  # type: ignore[index]
+        with self.assertRaises(AttributeError):
+            observation.facts[0].reward_components += ()  # type: ignore[misc]
+        with self.assertRaisesRegex(ContractError, "must be scalar"):
+            TraceFactSet(  # type: ignore[arg-type]
+                namespace="verifiers.trace",
+                calculator_version="1",
+                dimensions=cast(Any, {"model": ["not", "scalar"]}),
+            )
+        with self.assertRaisesRegex(ContractError, "must be numeric"):
+            TraceFactSet(  # type: ignore[arg-type]
+                namespace="verifiers.trace",
+                calculator_version="1",
+                measures=cast(Any, {"model_output_tokens": "12"}),
+            )
+
+    def test_trace_fact_update_is_scalar_only_and_identity_scoped(self) -> None:
+        observer = RecordingObserver()
+        with tempfile.TemporaryDirectory() as directory:
+            context = RunContext(
+                project_id="memory-agent",
+                work_package_id="screen/foundations",
+                run_id="00000000-0000-0000-0000-000000000001",
+                job_kind="serve.benchmark",
+                job_definition_version="posttrain-serve@0.1.0",
+                workspace=Path(directory).resolve(),
+                observer=observer,
+                clock=lambda: datetime(2026, 7, 21, tzinfo=UTC),
+            )
+            facts = TraceFactSet(
+                namespace="posttrain.train.reward",
+                calculator_version="dapo-reward-v1",
+                measures={"algorithm_reward": 0.8},
+            )
+            context.trace_fact_update(TraceFactUpdateObservation("verifiers", "trace-1", facts))
+
+        self.assertEqual(observer.trace_fact_updates[0].facts.measures["algorithm_reward"], 0.8)
+        self.assertEqual(observer.trace_fact_updates[0].attributes["run_id"], context.run_id)
+        with self.assertRaisesRegex(ContractError, "cannot replace reward components"):
+            TraceFactUpdateObservation(
+                "verifiers",
+                "trace-1",
+                TraceFactSet(
+                    namespace="posttrain.train.reward",
+                    calculator_version="dapo-reward-v1",
+                    reward_components=(TraceRewardComponent("reward", 1.0),),
+                ),
+            )
 
     def test_null_observer_supports_the_same_round_trip(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

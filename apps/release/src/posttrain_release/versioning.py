@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from posttrain.runtime_images.manifest import ManifestError, load_manifest
+from posttrain.runtime_images.manifest import ManifestError, load_manifest_from_directory
 
 from .runtime_lock import materialize_runtime_lock
 
@@ -25,6 +25,7 @@ _TRAIN_PROJECT = Path("packages/train/pyproject.toml")
 _RUNTIME_WORKSPACE_LOCK = Path(
     "packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/workspace.lock.txt"
 )
+_RUNTIME_IMAGES_ROOT = Path("packages/runtime-images/src/posttrain/runtime_images")
 _SOURCE_VERSION = "0.0.0"
 _VERSION = re.compile(r"^[0-9]+[.][0-9]+[.][0-9]+(?:[a-zA-Z0-9.-]+)?$")
 _PROJECT_VERSION_LINE = re.compile(r'(?m)^(version\s*=\s*)"0[.]0[.]0"\s*$')
@@ -163,25 +164,30 @@ def check_release(repository_root: Path, *, allow_pending_runtime_lock: bool = F
                 f"{runtime_lock.path.relative_to(root)} does not contain the published internal-package receipts "
                 "from uv.lock; run 'posttrain-release lock-runtime-dependencies' before strict validation"
             )
-    try:
-        load_manifest()
-    except (OSError, ValueError, ManifestError) as error:
-        if (
-            allow_pending_runtime_lock
-            and runtime_lock is not None
-            and runtime_lock.changed
-            and _is_pending_runtime_lock_manifest_error(error)
-        ):
-            # Validate TOML/schema structure while allowing old lock labels
-            # and backend identities until candidate publication rebuilds the
-            # affected images. Exact variant/profile validation resumes after
-            # the generated manifest is committed.
-            try:
-                load_manifest(verify_locks=False, verify_variants=False)
-            except (OSError, ValueError, ManifestError) as structural_error:
-                errors.append(f"runtime image manifest is invalid: {structural_error}")
-        else:
-            errors.append(f"runtime image manifest is invalid: {error}")
+    manifest_pending = False
+    runtime_images = root / _RUNTIME_IMAGES_ROOT
+    if (runtime_images / "published.toml").is_file():
+        try:
+            load_manifest_from_directory(runtime_images)
+        except (OSError, ValueError, ManifestError) as error:
+            if allow_pending_runtime_lock and _is_pending_runtime_lock_manifest_error(error):
+                # Validate TOML/schema structure while allowing old lock labels
+                # and backend identities until candidate publication rebuilds the
+                # affected images. Exact variant/profile validation resumes after
+                # the generated manifest is committed.
+                try:
+                    load_manifest_from_directory(runtime_images, verify_locks=False, verify_variants=False)
+                except (OSError, ValueError, ManifestError) as structural_error:
+                    errors.append(f"runtime image manifest is invalid: {structural_error}")
+                else:
+                    # A source branch may deliberately carry already-generated
+                    # locks.  The old manifest is still stale until the
+                    # candidate publishes the matching base/kind graph, so
+                    # candidate readiness must expose that work rather than
+                    # confusing an unchanged generator with a valid release.
+                    manifest_pending = True
+            else:
+                errors.append(f"runtime image manifest is invalid: {error}")
 
     if errors:
         raise ValueError("release consistency check failed:\n- " + "\n- ".join(errors))
@@ -189,7 +195,7 @@ def check_release(repository_root: Path, *, allow_pending_runtime_lock: bool = F
         version=manifest.version,
         package_count=len(publishable),
         internal_pin_count=pin_count,
-        runtime_lock_pending=runtime_lock.changed if runtime_lock is not None else False,
+        runtime_lock_pending=(runtime_lock.changed if runtime_lock is not None else False) or manifest_pending,
     )
 
 

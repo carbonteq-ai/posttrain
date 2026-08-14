@@ -25,6 +25,11 @@ name = "carbonteq-stable"
 url = "https://pypi.lan/carbonteq/stable/+simple/"
 explicit = true
 
+[[tool.uv.index]]
+name = "carbonteq-dev"
+url = "https://pypi.lan/carbonteq/dev/+simple/"
+explicit = true
+
 [tool.pytest.ini_options]
 addopts = [
     "--import-mode=importlib",
@@ -34,6 +39,7 @@ addopts = [
 testpaths = [
     "apps/cli/tests",
     "apps/lab/tests",
+    "apps/job-builder/tests",
     "apps/observatory/tests",
     "apps/release/tests",
     "apps/runtime/tests",
@@ -43,6 +49,7 @@ testpaths = [
     "packages/eval/tests",
     "packages/execution/tests",
     "packages/execution-buildkit/tests",
+    "packages/execution-job-builder/tests",
     "packages/execution-pack/tests",
     "packages/execution-dstack/tests",
     "packages/execution-local/tests",

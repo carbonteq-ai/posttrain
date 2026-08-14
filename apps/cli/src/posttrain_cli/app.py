@@ -8,6 +8,7 @@ from typing import Annotated, TextIO
 
 import typer
 
+from . import trace_fact_backfill
 from .commands import (
     cache,
     catalog,
@@ -114,6 +115,7 @@ def create_app(*, json_stream: TextIO | None = None) -> typer.Typer:
     workers.register(app)
     runtime.register(app)
     state.register(app)
+    trace_fact_backfill.register(app)
     observatory.register(app)
 
     return app

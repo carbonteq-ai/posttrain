@@ -38,8 +38,12 @@ JOB_DEFINITION = _CONTAINERS / "posttrain-job"
 BASE_BAKE_FILE = BASE_DEFINITION / "docker-bake.hcl"
 KIND_BAKE_FILE = KIND_DEFINITION / "docker-bake.hcl"
 JOB_BAKE_FILE = JOB_DEFINITION / "docker-bake.hcl"
+PUBLISHED_MANIFEST = PurePosixPath("published.toml")
 
 WORKSPACE_LOCK = KIND_DEFINITION / "locks" / "workspace.lock.txt"
+"""Authoritative workspace resolution used to generate narrower runtime locks."""
+
+BASE_LOCK = KIND_DEFINITION / "locks" / "base.lock.txt"
 TRANSFORM_LOCK = KIND_DEFINITION / "locks" / "transform.lock.txt"
 VERL_BACKEND_LOCK = KIND_DEFINITION / "verl-py313" / "release" / "backend-constraints.txt"
 VERL_PROFILE = KIND_DEFINITION / "verl-py313" / "profile.toml"
@@ -50,6 +54,15 @@ VERL_SOURCE_REVISION_LABEL = "org.carbonteq.posttrain.verl-source-revision"
 
 _BACKEND_CONSTRAINT_LOCKS = {
     "online-rl-verl-py313": VERL_BACKEND_LOCK,
+}
+
+_KIND_CONSTRAINT_LOCKS = {
+    "supervised": KIND_DEFINITION / "locks" / "supervised.lock.txt",
+    "online-rl-trl-py312": KIND_DEFINITION / "locks" / "online-rl-trl-py312.lock.txt",
+    "online-rl-verl-py313": KIND_DEFINITION / "locks" / "online-rl-verl-py313.lock.txt",
+    "eval": KIND_DEFINITION / "locks" / "eval.lock.txt",
+    "serve": KIND_DEFINITION / "locks" / "serve.lock.txt",
+    "transform": TRANSFORM_LOCK,
 }
 
 
@@ -143,7 +156,7 @@ def constraint_lock(variant: str) -> PurePosixPath:
     """Return the dependency lock that constrains `variant`'s environment compiles."""
     if variant not in RUNTIME_VARIANTS:
         raise ValueError(f"unknown runtime variant: {variant!r}")
-    return TRANSFORM_LOCK if variant == "transform" else WORKSPACE_LOCK
+    return _KIND_CONSTRAINT_LOCKS[variant]
 
 
 def backend_constraint_lock(variant: str) -> PurePosixPath | None:
@@ -161,15 +174,21 @@ def read_resource(relative: PurePosixPath) -> bytes:
     return resource.read_bytes()
 
 
+def published_manifest_digest() -> str:
+    """Return the exact shipped release-manifest digest for service admission."""
+
+    return hashlib.sha256(read_resource(PUBLISHED_MANIFEST)).hexdigest()
+
+
 def read_lock(lock: PurePosixPath) -> bytes:
     """Read a shipped dependency lock file."""
     return read_resource(lock)
 
 
-def lock_digest(lock: PurePosixPath = WORKSPACE_LOCK) -> str:
+def lock_digest(lock: PurePosixPath = BASE_LOCK) -> str:
     """Return the lowercase SHA-256 of a shipped lock file.
 
-    The workspace lock's digest is the published image identity recorded in the
+    The selected lock's digest is the published image identity recorded in the
     `org.carbonteq.posttrain.lock-digest` label. Computing it here removes the
     hand transcription that previously let a stale job-kind image and a fixed
     framework pin disagree without detection.
@@ -180,6 +199,7 @@ def lock_digest(lock: PurePosixPath = WORKSPACE_LOCK) -> str:
 __all__ = [
     "BASE_BAKE_FILE",
     "BASE_DEFINITION",
+    "BASE_LOCK",
     "BackendRuntimeImageIdentity",
     "JOB_BAKE_FILE",
     "JOB_DEFINITION",

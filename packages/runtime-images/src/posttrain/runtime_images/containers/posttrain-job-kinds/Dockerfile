@@ -3,61 +3,69 @@
 ARG POSTTRAIN_BASE_IMAGE
 
 FROM ${POSTTRAIN_BASE_IMAGE} AS kind-common
-COPY containers/posttrain-job-kinds/locks/workspace.lock.txt /opt/posttrain/locks/workspace.lock.txt
 COPY containers/posttrain-job-kinds/locks/build-tools.lock.txt /opt/posttrain/locks/build-tools.lock.txt
-COPY containers/posttrain-job-kinds/profiles/ /opt/posttrain/profiles/
 RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locked \
     uv pip install \
       --python "${VIRTUAL_ENV}" \
       --require-hashes \
       --requirement /opt/posttrain/locks/build-tools.lock.txt
-RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locked \
-    SKIP_FRONTEND_BUILD=1 uv pip install \
-      --python "${VIRTUAL_ENV}" \
-      --index-strategy unsafe-best-match \
-      --constraint /opt/posttrain/locks/workspace.lock.txt \
-      --requirement /opt/posttrain/profiles/common.txt
-
 FROM kind-common AS vllm-kind-common
 RUN apt-get update && \
     apt-get install --yes --no-install-recommends g++ && \
     rm -rf /var/lib/apt/lists/*
 
 FROM kind-common AS supervised-dependencies
+COPY containers/posttrain-job-kinds/locks/supervised.lock.txt /opt/posttrain/locks/supervised.lock.txt
+COPY containers/posttrain-job-kinds/profiles/common.txt /opt/posttrain/profiles/common.txt
+COPY containers/posttrain-job-kinds/profiles/supervised.txt /opt/posttrain/profiles/supervised.txt
 RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locked \
-    uv pip install \
-      --python "${VIRTUAL_ENV}" \
+    SKIP_FRONTEND_BUILD=1 uv pip install --python "${VIRTUAL_ENV}" \
       --index-strategy unsafe-best-match \
-      --constraint /opt/posttrain/locks/workspace.lock.txt \
+      --constraint /opt/posttrain/locks/supervised.lock.txt \
+      --requirement /opt/posttrain/profiles/common.txt \
       --requirement /opt/posttrain/profiles/supervised.txt
 
 FROM vllm-kind-common AS online-rl-trl-py312-dependencies
 WORKDIR /opt/posttrain/profiles
+COPY containers/posttrain-job-kinds/locks/online-rl-trl-py312.lock.txt \
+     /opt/posttrain/locks/online-rl-trl-py312.lock.txt
+COPY containers/posttrain-job-kinds/profiles/common.txt /opt/posttrain/profiles/common.txt
+COPY containers/posttrain-job-kinds/profiles/supervised.txt /opt/posttrain/profiles/supervised.txt
+COPY containers/posttrain-job-kinds/profiles/online-rl-trl-py312.txt \
+     /opt/posttrain/profiles/online-rl-trl-py312.txt
 RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locked \
-    uv pip install \
-      --python "${VIRTUAL_ENV}" \
+    SKIP_FRONTEND_BUILD=1 uv pip install --python "${VIRTUAL_ENV}" \
       --index-strategy unsafe-best-match \
-      --constraint /opt/posttrain/locks/workspace.lock.txt \
-      --requirement online-rl-trl-py312.txt
+      --constraint /opt/posttrain/locks/online-rl-trl-py312.lock.txt \
+      --requirement /opt/posttrain/profiles/common.txt \
+      --requirement /opt/posttrain/profiles/online-rl-trl-py312.txt
 
 FROM vllm-kind-common AS eval-dependencies
+COPY containers/posttrain-job-kinds/locks/eval.lock.txt /opt/posttrain/locks/eval.lock.txt
+COPY containers/posttrain-job-kinds/profiles/common.txt /opt/posttrain/profiles/common.txt
+COPY containers/posttrain-job-kinds/profiles/serve.txt /opt/posttrain/profiles/serve.txt
+COPY containers/posttrain-job-kinds/profiles/eval.txt /opt/posttrain/profiles/eval.txt
 RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locked \
-    uv pip install \
-      --python "${VIRTUAL_ENV}" \
+    SKIP_FRONTEND_BUILD=1 uv pip install --python "${VIRTUAL_ENV}" \
       --index-strategy unsafe-best-match \
-      --constraint /opt/posttrain/locks/workspace.lock.txt \
+      --constraint /opt/posttrain/locks/eval.lock.txt \
+      --requirement /opt/posttrain/profiles/common.txt \
       --requirement /opt/posttrain/profiles/eval.txt
 
 FROM vllm-kind-common AS serve-dependencies
+COPY containers/posttrain-job-kinds/locks/serve.lock.txt /opt/posttrain/locks/serve.lock.txt
+COPY containers/posttrain-job-kinds/profiles/common.txt /opt/posttrain/profiles/common.txt
+COPY containers/posttrain-job-kinds/profiles/serve.txt /opt/posttrain/profiles/serve.txt
 RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locked \
-    uv pip install \
-      --python "${VIRTUAL_ENV}" \
+    SKIP_FRONTEND_BUILD=1 uv pip install --python "${VIRTUAL_ENV}" \
       --index-strategy unsafe-best-match \
-      --constraint /opt/posttrain/locks/workspace.lock.txt \
+      --constraint /opt/posttrain/locks/serve.lock.txt \
+      --requirement /opt/posttrain/profiles/common.txt \
       --requirement /opt/posttrain/profiles/serve.txt
 
 FROM kind-common AS transform-dependencies
 COPY containers/posttrain-job-kinds/locks/transform.lock.txt /opt/posttrain/locks/transform.lock.txt
+COPY containers/posttrain-job-kinds/profiles/transform.txt /opt/posttrain/profiles/transform.txt
 RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locked \
     uv pip install \
       --python "${VIRTUAL_ENV}" \

@@ -15,7 +15,7 @@ from types import MappingProxyType
 from typing import Literal
 from urllib.parse import unquote, urlsplit
 
-from posttrain.common import JsonValue
+from posttrain.common import JsonValue, SignalSource
 
 _ID = re.compile(r"^[a-z0-9][a-z0-9._/-]*$")
 _COMMIT_SHA = re.compile(r"^[0-9a-f]{40}$")
@@ -349,6 +349,7 @@ class EnvironmentBinding:
     qualification: Literal["required", "deferred"] = "required"
     parameters: Mapping[str, JsonValue] = field(default_factory=dict)
     reward_components: tuple[str, ...] = ()
+    reward_component_sources: Mapping[str, SignalSource] = field(default_factory=dict)
     observation: EvaluationObservation = field(default_factory=EvaluationObservation)
     required_inference_capabilities: tuple[str, ...] = ()
 
@@ -363,11 +364,22 @@ class EnvironmentBinding:
             raise ValueError("environment qualification must be required or deferred")
         if any(not value.strip() for value in self.reward_components):
             raise ValueError("environment reward component names cannot be empty")
+        if len(self.reward_components) != len(set(self.reward_components)):
+            raise ValueError("environment reward component names must be unique")
+        unknown_sources = set(self.reward_component_sources).difference(self.reward_components)
+        if unknown_sources:
+            raise ValueError(
+                "environment reward component sources must reference declared reward components: "
+                + ", ".join(sorted(unknown_sources))
+            )
+        if any(not isinstance(source, SignalSource) for source in self.reward_component_sources.values()):
+            raise TypeError("environment reward component sources must be SignalSource values")
         if len(self.required_inference_capabilities) != len(set(self.required_inference_capabilities)):
             raise ValueError("required inference capabilities must be unique")
         for capability in self.required_inference_capabilities:
             _stable_id(capability, "required inference capability")
         object.__setattr__(self, "parameters", MappingProxyType(dict(self.parameters)))
+        object.__setattr__(self, "reward_component_sources", MappingProxyType(dict(self.reward_component_sources)))
 
     @property
     def revision(self) -> str:

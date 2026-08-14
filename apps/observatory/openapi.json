@@ -2017,6 +2017,127 @@
         "title": "MetricSeriesSet",
         "type": "object"
       },
+      "RolloutBehaviorPoint": {
+        "additionalProperties": false,
+        "description": "Trace-derived rollout averages for one optimizer step.",
+        "properties": {
+          "output_tokens": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Tokens"
+          },
+          "rollouts": {
+            "minimum": 1.0,
+            "title": "Rollouts",
+            "type": "integer"
+          },
+          "step": {
+            "minimum": 0.0,
+            "title": "Step",
+            "type": "integer"
+          },
+          "thinking_tokens": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thinking Tokens"
+          },
+          "tool_calls": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Calls"
+          }
+        },
+        "required": [
+          "step",
+          "rollouts"
+        ],
+        "title": "RolloutBehaviorPoint",
+        "type": "object"
+      },
+      "RolloutBehaviorView": {
+        "additionalProperties": false,
+        "description": "Per-step rollout behavior from retained trace evidence.",
+        "properties": {
+          "expected": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected"
+          },
+          "included": {
+            "minimum": 0.0,
+            "title": "Included",
+            "type": "integer"
+          },
+          "live": {
+            "default": false,
+            "title": "Live",
+            "type": "boolean"
+          },
+          "points": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RolloutBehaviorPoint"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "scanned": {
+            "minimum": 0.0,
+            "title": "Scanned",
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "complete",
+              "partial",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "unattributed": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Unattributed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "state",
+          "scanned",
+          "included"
+        ],
+        "title": "RolloutBehaviorView",
+        "type": "object"
+      },
       "RunAlert": {
         "additionalProperties": false,
         "properties": {
@@ -4125,6 +4246,22 @@
           },
           {
             "in": "query",
+            "name": "source_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source Id"
+            }
+          },
+          {
+            "in": "query",
             "name": "work_package_id",
             "required": false,
             "schema": {
@@ -4291,6 +4428,47 @@
           }
         },
         "summary": "Locate Run"
+      }
+    },
+    "/api/v1/runs/{run_key}": {
+      "get": {
+        "operationId": "run_api_v1_runs__run_key__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_key",
+            "required": true,
+            "schema": {
+              "title": "Run Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Run Api V1 Runs  Run Key  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run"
       }
     },
     "/api/v1/runs/{run_key}/alerts": {
@@ -4534,6 +4712,45 @@
           }
         },
         "summary": "Metrics"
+      }
+    },
+    "/api/v1/runs/{run_key}/rollout-behavior": {
+      "get": {
+        "operationId": "rollout_behavior_api_v1_runs__run_key__rollout_behavior_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_key",
+            "required": true,
+            "schema": {
+              "title": "Run Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RolloutBehaviorView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rollout Behavior"
       }
     },
     "/api/v1/runs/{run_key}/semantic-summary": {

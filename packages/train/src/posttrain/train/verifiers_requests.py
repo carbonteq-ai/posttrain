@@ -41,6 +41,7 @@ def build_verifiers_grpo_request(
         sampling=sampling,
         purpose=settings.algorithm,
         tasks=tasks,
+        model_identity=policy.trace_identity(),
     )
     return GRPORequest(
         policy=policy,
@@ -83,6 +84,7 @@ def build_verifiers_distillation_request(
         sampling=sampling,
         purpose="distill",
         tasks=tasks,
+        model_identity=student.trace_identity(),
     )
     return OnPolicyDistillationRequest(
         student=student,
@@ -120,6 +122,7 @@ def build_verifiers_sampo_request(
         sampling=sampling,
         purpose="sampo",
         tasks=tasks,
+        model_identity=policy.trace_identity(),
     )
     return SAMPORequest(
         policy=policy,

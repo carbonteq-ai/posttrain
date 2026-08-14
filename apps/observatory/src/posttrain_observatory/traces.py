@@ -5,13 +5,13 @@ from __future__ import annotations
 import json
 import re
 from collections import defaultdict
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from itertools import product
 from statistics import fmean
 from typing import Any, cast
 
 from posttrain.common import JsonValue
-from posttrain.tracking import RunDataSource, TraceQuery, TraceRecord
+from posttrain.tracking import RunDataSource, TraceFactAggregate, TraceFactsQuery, TraceQuery, TraceRecord
 
 from .models import (
     EvaluationBreakdown,
@@ -26,6 +26,8 @@ from .models import (
     EvaluationPerformance,
     EvaluationSlice,
     RewardComponent,
+    RolloutBehaviorPoint,
+    RolloutBehaviorView,
     TaskFacet,
     TaskSliceMetadata,
     TraceDetail,
@@ -46,6 +48,12 @@ _TRUNCATED_STOP_CONDITIONS = frozenset(
         "harness_timeout",
     }
 )
+
+# Qwen3.5's pinned tokenizer represents ``</think>`` with this single special
+# token. A Verifiers node keeps the exact generated token ids and sampled mask,
+# which lets historical traces recover a precise thinking-token count even when
+# the OpenAI-compatible usage block did not report ``reasoning_tokens``.
+_QWEN35_THINKING_END_TOKEN_ID = 248069
 
 
 def _number(value: object) -> float | None:
@@ -238,7 +246,59 @@ def _messages(payload: Mapping[str, JsonValue]) -> tuple[Mapping[str, JsonValue]
     return ()
 
 
-def _wire_text_stats(payload: Mapping[str, JsonValue]) -> tuple[int | None, int, int | None, int]:
+def _trace_reasoning_tokens(
+    payload: Mapping[str, JsonValue],
+    attributes: Mapping[str, JsonValue],
+) -> int | None:
+    """Recover exact Qwen3.5 reasoning tokens from retained generated ids.
+
+    This intentionally requires a parsed ``reasoning_content`` message and an
+    explicit Qwen3.5 model identity. It never estimates from characters.
+    """
+
+    model = attributes.get("model")
+    agent = payload.get("agent")
+    if not isinstance(model, str) and isinstance(agent, Mapping):
+        model = agent.get("model")
+    if not isinstance(model, str) or "qwen3.5" not in model.lower():
+        return None
+    nodes = payload.get("nodes")
+    if not isinstance(nodes, list):
+        return None
+    total = 0
+    observed = False
+    for node in nodes:
+        if not isinstance(node, Mapping):
+            continue
+        message = node.get("message")
+        if not isinstance(message, Mapping) or not isinstance(message.get("reasoning_content"), str):
+            continue
+        token_ids = node.get("token_ids")
+        sampled_mask = node.get("mask")
+        if not isinstance(token_ids, list) or not isinstance(sampled_mask, list) or len(token_ids) != len(sampled_mask):
+            return None
+        sampled_start = next((index for index, value in enumerate(sampled_mask) if value is True), None)
+        if sampled_start is None:
+            return None
+        end = next(
+            (
+                index
+                for index in range(sampled_start, len(token_ids))
+                if token_ids[index] == _QWEN35_THINKING_END_TOKEN_ID and sampled_mask[index] is True
+            ),
+            None,
+        )
+        if end is None:
+            return None
+        total += sum(1 for value in sampled_mask[sampled_start:end] if value is True)
+        observed = True
+    return total if observed else None
+
+
+def _wire_text_stats(
+    payload: Mapping[str, JsonValue],
+    attributes: Mapping[str, JsonValue],
+) -> tuple[int | None, int, int | None, int]:
     response_text: list[str] = []
     thinking_text: list[str] = []
     for message in _messages(payload):
@@ -266,13 +326,17 @@ def _wire_text_stats(payload: Mapping[str, JsonValue]) -> tuple[int | None, int,
             reasoning = _integer(usage.get("reasoning_tokens"))
             if reasoning is not None:
                 usage_thinking_tokens.append(reasoning)
+    recovered_thinking_tokens = _trace_reasoning_tokens(payload, attributes)
+    thinking_tokens = sum(usage_thinking_tokens) if usage_thinking_tokens else recovered_thinking_tokens
     response_tokens = None
-    if usage_completion_tokens and len(usage_completion_tokens) == len(usage_thinking_tokens):
-        response_tokens = sum(usage_completion_tokens) - sum(usage_thinking_tokens)
+    if usage_completion_tokens and thinking_tokens is not None:
+        # ``completion_tokens`` includes the thought block. Expose output as
+        # the user-visible completion instead of double-counting thinking.
+        response_tokens = max(0, sum(usage_completion_tokens) - thinking_tokens)
     return (
         response_tokens,
         sum(len(value) for value in response_text),
-        sum(usage_thinking_tokens) if usage_thinking_tokens else None,
+        thinking_tokens,
         sum(len(value) for value in thinking_text),
     )
 
@@ -693,8 +757,10 @@ def _summary(record: TraceRecord, evaluation_metadata: EvaluationMetadata | None
     truncated = _wire_truncated(payload, record.attributes)
     error = _wire_error(payload)
     task = _wire_task(payload, metadata, info)
-    response_tokens, response_chars, thinking_tokens, thinking_chars = _wire_text_stats(payload)
+    response_tokens, response_chars, thinking_tokens, thinking_chars = _wire_text_stats(payload, record.attributes)
     input_tokens, completion_tokens = _wire_usage(payload)
+    if response_tokens is None and completion_tokens is not None and thinking_tokens is not None:
+        response_tokens = max(0, completion_tokens - thinking_tokens)
     explicit_tokens = _integer(payload.get("tokens"))
     task_metadata = _task_metadata(
         payload,
@@ -980,6 +1046,73 @@ async def trace_evaluation_view(
     )
 
 
+async def rollout_behavior_view(
+    source: RunDataSource,
+    run_id: str,
+    *,
+    expected: int | None = None,
+    trace_type: str = "verifiers",
+) -> RolloutBehaviorView:
+    """Read persisted rollout facts without reopening native trace payloads."""
+
+    aggregate = cast(
+        Callable[[str, TraceFactsQuery], Awaitable[Any]] | None,
+        getattr(source, "aggregate_trace_facts", None),
+    )
+    if callable(aggregate):
+        result = await aggregate(
+            run_id,
+            TraceFactsQuery(
+                trace_type=trace_type,
+                group_by=("rollout_step",),
+                aggregates=(
+                    TraceFactAggregate(measure="thinking_tokens"),
+                    TraceFactAggregate(measure="model_output_tokens"),
+                    TraceFactAggregate(measure="tool_calls"),
+                ),
+            ),
+        )
+        if getattr(result, "state", None) == "available":
+            points: list[RolloutBehaviorPoint] = []
+            unattributed = 0
+            scanned = 0
+            for bucket in result.buckets:
+                scanned += bucket.trace_count
+                step = _integer(bucket.dimensions.get("rollout_step"))
+                if step is None:
+                    unattributed += bucket.trace_count
+                    continue
+                points.append(
+                    RolloutBehaviorPoint(
+                        step=step,
+                        rollouts=bucket.trace_count,
+                        thinking_tokens=_number(bucket.values.get("mean_thinking_tokens")),
+                        output_tokens=_number(bucket.values.get("mean_model_output_tokens")),
+                        tool_calls=_number(bucket.values.get("mean_tool_calls")),
+                    )
+                )
+            complete = expected is None or scanned >= expected
+            return RolloutBehaviorView(
+                state="complete" if points and complete else ("partial" if points else "unavailable"),
+                scanned=scanned,
+                expected=expected,
+                included=sum(point.rollouts for point in points),
+                unattributed=unattributed,
+                points=tuple(sorted(points, key=lambda point: point.step)),
+                live=False,
+            )
+
+    return RolloutBehaviorView(
+        state="unavailable",
+        scanned=0,
+        expected=expected,
+        included=0,
+        unattributed=0,
+        points=(),
+        live=False,
+    )
+
+
 async def trace_summary_page(
     source: RunDataSource,
     run_id: str,
@@ -1032,4 +1165,10 @@ async def get_trace_detail(
     raise LookupError(f"trace {external_id!r} was not found in run {run_id!r}")
 
 
-__all__ = ["get_trace_detail", "project_trace", "trace_evaluation_view", "trace_summary_page"]
+__all__ = [
+    "get_trace_detail",
+    "project_trace",
+    "rollout_behavior_view",
+    "trace_evaluation_view",
+    "trace_summary_page",
+]

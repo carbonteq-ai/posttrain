@@ -21,9 +21,16 @@ from posttrain.common import (
     LocalArtifactRef,
     MetricBatchObservation,
     ProducedArtifact,
+    SignalSource,
     TraceObservation,
 )
 from posttrain.data import RolloutDataset, RolloutExample
+from posttrain.environment import (
+    project_verifiers_trace_facts,
+    verifiers_trace_attributes,
+    verifiers_trace_has_error,
+    verifiers_trace_is_truncated,
+)
 
 from ..online_rl import (
     AgenticTurn,
@@ -113,6 +120,9 @@ class VerifiersEnvironmentSelection(Protocol):
     @property
     def observation(self) -> Any: ...
 
+    @property
+    def reward_component_sources(self) -> Mapping[str, SignalSource]: ...
+
 
 @dataclass(frozen=True, slots=True)
 class NativeVerifiersEnvironmentFactory:
@@ -144,6 +154,8 @@ class VerifiersBridgeSnapshot:
     technique: OnlineRLTechnique
     enrichers: tuple[TraceEnricher, ...]
     task_facet_fields: tuple[str, ...] = ()
+    model_identity: Mapping[str, JsonValue] = field(default_factory=dict)
+    reward_component_sources: Mapping[str, SignalSource] = field(default_factory=dict)
 
     def create(self) -> VerifiersEnvironmentRolloutBridge:
         return VerifiersEnvironmentRolloutBridge(
@@ -159,6 +171,8 @@ class VerifiersBridgeSnapshot:
             technique=self.technique,
             enrichers=self.enrichers,
             task_facet_fields=self.task_facet_fields,
+            model_identity=self.model_identity,
+            reward_component_sources=self.reward_component_sources,
         )
 
 
@@ -224,6 +238,7 @@ def create_verifiers_training_bridge(
     sampling: PolicySampling,
     purpose: OnlineRLTechnique = "grpo",
     tasks: Mapping[int, Any] | None = None,
+    model_identity: Mapping[str, JsonValue] | None = None,
 ) -> VerifiersEnvironmentRolloutBridge:
     """Build the existing native bridge from a public environment selection."""
 
@@ -252,6 +267,8 @@ def create_verifiers_training_bridge(
         max_concurrent=getattr(environment, "max_concurrent", None),
         technique=purpose,
         task_facet_fields=_task_facet_fields(environment),
+        model_identity=dict(model_identity or {}),
+        reward_component_sources=dict(environment.reward_component_sources),
     )
 
 
@@ -489,6 +506,8 @@ class VerifiersEnvironmentRolloutBridge:
     technique: OnlineRLTechnique = "grpo"
     enrichers: tuple[TraceEnricher, ...] = ()
     task_facet_fields: tuple[str, ...] = ()
+    model_identity: Mapping[str, JsonValue] = field(default_factory=dict)
+    reward_component_sources: Mapping[str, SignalSource] = field(default_factory=dict)
     _write_lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
     _trace_count: int = field(default=0, init=False)
     _live_observed_trace_ids: set[str] = field(default_factory=set, init=False, repr=False)
@@ -668,21 +687,26 @@ class VerifiersEnvironmentRolloutBridge:
         if not external_id:
             raise ValueError("preserved Verifiers traces require stable trace ids")
         attributes: dict[str, JsonValue] = {
+            **verifiers_trace_attributes(record),
+            **self.model_identity,
             "environment_id": str(info.get("environment_id") or self.environment_id),
             "task_index": int(info.get("task_index", -1) if task_index is None else task_index),
             "example_id": str(info.get("example_id") or "") if example_id is None else example_id,
-            "is_truncated": _trace_is_truncated(record),
-            "has_error": _trace_has_error(record),
-            "model": _trace_model(record),
             **_record_task_facets(info),
         }
         if rollout_ordinal is not None:
             attributes["rollout_ordinal"] = rollout_ordinal
+        facts = project_verifiers_trace_facts(
+            record,
+            attributes=attributes,
+            reward_component_sources=self.reward_component_sources,
+        )
         return TraceObservation(
             trace_type="verifiers",
             external_id=external_id,
             payload=record,
             attributes=attributes,
+            facts=(facts,),
         )
 
     def _project(self, trace: Any, observation: TraceObservation) -> EnvironmentRollout:
@@ -722,6 +746,7 @@ class VerifiersEnvironmentRolloutBridge:
             external_id=observation.external_id,
             payload=observation.payload,
             attributes=attributes,
+            facts=observation.facts,
         )
         return EnvironmentRollout(
             example_id=str(observation.attributes["example_id"]),
@@ -781,6 +806,8 @@ class VerifiersEnvironmentRolloutBridge:
             technique=self.technique,
             enrichers=self.enrichers,
             task_facet_fields=self.task_facet_fields,
+            model_identity=self.model_identity,
+            reward_component_sources=self.reward_component_sources,
         )
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("wb") as stream:
@@ -854,8 +881,7 @@ class VerifiersEnvironmentRolloutBridge:
 
 
 def _trace_model(record: Mapping[str, Any]) -> str:
-    agent = record.get("agent")
-    return str(agent.get("model") or "") if isinstance(agent, Mapping) else ""
+    return str(verifiers_trace_attributes(record)["model"] or "")
 
 
 def _trace_reward(record: Mapping[str, Any]) -> float | None:
@@ -872,34 +898,11 @@ def _trace_reward(record: Mapping[str, Any]) -> float | None:
 
 
 def _trace_has_error(record: Mapping[str, Any]) -> bool:
-    errors = record.get("errors")
-    return isinstance(errors, list) and bool(errors)
+    return verifiers_trace_has_error(record)
 
 
 def _trace_is_truncated(record: Mapping[str, Any]) -> bool:
-    # A harness/environment error is terminal evidence, but it is not a model
-    # completion that reached a generation boundary.  Keeping it separate
-    # prevents failure counts from being silently folded into truncation rate.
-    if _trace_has_error(record):
-        return False
-    if record.get("stop_condition") in {
-        "max_turns",
-        "max_input_tokens",
-        "max_output_tokens",
-        "max_total_tokens",
-        "context_length",
-        "harness_timeout",
-    }:
-        return True
-    calls = record.get("calls")
-    if isinstance(calls, list):
-        last_successful_call = next(
-            (call for call in reversed(calls) if isinstance(call, Mapping) and not call.get("error")),
-            None,
-        )
-        if last_successful_call is not None and last_successful_call.get("finish_reason") == "length":
-            return True
-    return not bool(record.get("is_completed"))
+    return verifiers_trace_is_truncated(record)
 
 
 def _trace_has_tool_call(record: Mapping[str, Any]) -> bool:

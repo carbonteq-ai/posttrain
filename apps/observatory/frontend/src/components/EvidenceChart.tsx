@@ -162,6 +162,8 @@ export function scaleGroup(name: string, metricUnits: Record<string, string | nu
   if (name.startsWith('train/logits/')) return 'dpo-logit';
   if (/train\/rl\/rollouts_(requested|attempted|completed|failed|truncated|unscorable|missing)$/.test(name)) return 'rollout-count';
   if (/train\/rl\/active_sampling_(generation_rounds|generated_rows|candidate_groups_(reserved|generated|retained|unused))$/.test(name)) return 'active-sampling-count';
+  if (name === 'trace/rollout/avg_thinking_tokens' || name === 'trace/rollout/avg_output_tokens') return 'rollout-tokens';
+  if (name === 'trace/rollout/avg_tool_calls') return 'rollout-tool-calls';
   if (name === 'train/learning_rate') return 'learning-rate';
   if (name === 'train/non_padding_tokens_per_second') return 'tokens-per-second';
   if (name === 'train/step_time_seconds') return 'seconds';
@@ -171,6 +173,18 @@ export function scaleGroup(name: string, metricUnits: Record<string, string | nu
   if (/(used_bytes|rss_bytes|memory_bytes)$/.test(name)) return 'unit:bytes';
   if (/(gpu_utilization|cpu_percent)$/.test(name)) return 'unit:%';
   return name;
+}
+
+/**
+ * Keep conceptually coupled policy-update signals in one divided panel even
+ * when they need independent numeric axes. This controls chart composition,
+ * not whether two values share a ruler, and applies to every job family that
+ * records the standard GRPO-style policy loss and entropy metrics.
+ */
+function panelGroup(name: string, metricUnits: Record<string, string | null>): string {
+  if (name === 'train/rl/policy_loss' || name === 'train/rl/entropy') return 'policy-update';
+  if (name.startsWith('trace/rollout/avg_')) return 'rollout-behavior';
+  return scaleGroup(name, metricUnits);
 }
 
 function axisFormatter(group: string) {
@@ -216,6 +230,8 @@ function groupLabel(
     'dpo-log-probability': 'Sequence log probability',
     'dpo-logit': 'Mean token logits',
     'rollout-count': 'Rollout count',
+    'rollout-behavior': 'Rollout behavior',
+    'policy-update': 'Policy update and exploration',
     'active-sampling-count': 'Candidate rows',
     ratio: 'Rates and fractions',
     'unit:ratio': 'Rates and fractions',
@@ -294,9 +310,14 @@ export function EvidenceChart({
     () => [...new Set(plottedSeries.map((item) => scaleGroup(item.name, metricUnits)))],
     [metricUnits, plottedSeries],
   );
+  const panelGroups = useMemo(
+    () => [...new Set(plottedSeries.map((item) => panelGroup(item.name, metricUnits)))],
+    [metricUnits, plottedSeries],
+  );
   // One or two scales remain overlaid so related evidence can be compared.
   // Three or more scales become synchronized small multiples instead of a
-  // forest of rulers around one plot.
+  // forest of rulers around one plot. A semantic panel can contain multiple
+  // axes, such as policy loss and entropy, without splitting their evidence.
   const useSmallMultiples = scaleGroups.length > 2;
   const pointCount = Math.max(0, ...plottedSeries.map((item) => item.points.length));
   const elapsedMaximum = xDomain === 'elapsed-time' && xOriginMs != null && Number.isFinite(xOriginMs)
@@ -304,19 +325,23 @@ export function EvidenceChart({
     : 0;
   const showZoom = !compact && pointCount > 24;
   const renderedHeight = useSmallMultiples
-    ? Math.max(height, 72 + scaleGroups.length * 92 + (showZoom ? 34 : 0))
+    ? Math.max(height, 72 + panelGroups.length * 92 + (showZoom ? 34 : 0))
     : height;
 
   useEffect(() => {
     if (!elementRef.current) return;
     const chart = echarts.init(elementRef.current, undefined, { renderer: 'canvas' });
     chartRef.current = chart;
-    const groupSeries = scaleGroups.map((group) => plottedSeries.filter((item) => scaleGroup(item.name, metricUnits) === group));
+    const groupSeries = panelGroups.map((group) => plottedSeries.filter((item) => panelGroup(item.name, metricUnits) === group));
+    const groupAxisGroups = groupSeries.map((items) => [...new Set(items.map((item) => scaleGroup(item.name, metricUnits)))]);
     const showChartLegend = showLegend && plottedSeries.length > 1;
-    const legendHeight = showChartLegend ? 34 : 8;
+    // The legend and the first panel title occupy the same upper chart area.
+    // Reserve a small gutter so multi-series legends never read as the first
+    // panel's data or label.
+    const legendHeight = showChartLegend ? 46 : 8;
     const bottomSpace = compact ? (xDomain === 'elapsed-time' ? 44 : 34) : showZoom ? 66 : 44;
     const panelGap = 30;
-    const panelCount = useSmallMultiples ? scaleGroups.length : 1;
+    const panelCount = useSmallMultiples ? panelGroups.length : 1;
     const availablePanelHeight = renderedHeight - legendHeight - bottomSpace - panelGap * (panelCount - 1);
     const panelHeight = Math.max(54, Math.floor(availablePanelHeight / panelCount));
     const panelTops = Array.from(
@@ -324,15 +349,17 @@ export function EvidenceChart({
       (_, index) => legendHeight + index * (panelHeight + panelGap),
     );
     const axes = useSmallMultiples
-      ? scaleGroups.map((group, index) => ({
+      ? panelGroups.flatMap((_, panelIndex) => groupAxisGroups[panelIndex].map((group, axisIndex) => ({
           type: 'value' as const,
-          gridIndex: index,
-          position: 'left' as const,
+          gridIndex: panelIndex,
+          position: axisIndex === 0 ? ('left' as const) : ('right' as const),
           ...axisBounds(group),
-          axisLine: { show: false },
+          axisLine: axisIndex === 0
+            ? { show: false }
+            : { show: true, lineStyle: { color: colors[plottedSeries.findIndex((item) => scaleGroup(item.name, metricUnits) === group)] } },
           axisLabel: { color: '#817a83', fontSize: 10, formatter: axisFormatter(group) },
-          splitLine: { show: true, lineStyle: { color: '#e8e4de', type: 'dashed' as const } },
-        }))
+          splitLine: { show: axisIndex === 0, lineStyle: { color: '#e8e4de', type: 'dashed' as const } },
+        })))
       : scaleGroups.map((group, index) => ({
           type: 'value' as const,
           position: index === 0 ? ('left' as const) : ('right' as const),
@@ -342,13 +369,13 @@ export function EvidenceChart({
           splitLine: { show: index === 0, lineStyle: { color: '#e8e4de', type: 'dashed' as const } },
         }));
     const xAxes = useSmallMultiples
-      ? scaleGroups.map((_, index) => ({
+      ? panelGroups.map((_, index) => ({
           type: 'value' as const,
           scale: xDomain === 'elapsed-time',
           min: xMinimum,
           max: xMaximum,
           gridIndex: index,
-          name: index === scaleGroups.length - 1 && (!compact || xDomain === 'elapsed-time')
+          name: index === panelGroups.length - 1 && (!compact || xDomain === 'elapsed-time')
             ? (xDomain === 'elapsed-time' ? 'Elapsed run time' : 'Logical step')
             : '',
           nameLocation: 'middle' as const,
@@ -356,7 +383,7 @@ export function EvidenceChart({
           axisLine: { lineStyle: { color: '#aaa4ab' } },
           axisTick: { show: false },
           axisLabel: {
-            show: index === scaleGroups.length - 1,
+            show: index === panelGroups.length - 1,
             color: '#78727a',
             fontSize: 11,
             formatter: xDomain === 'elapsed-time' ? (value: number) => formatElapsedAxis(value, elapsedMaximum) : undefined,
@@ -386,7 +413,7 @@ export function EvidenceChart({
       animation: false,
       color: colors,
       title: useSmallMultiples
-        ? scaleGroups.map((group, index) => ({
+        ? panelGroups.map((group, index) => ({
             text: groupLabel(group, groupSeries[index], metricLabels),
             top: panelTops[index] - 20,
             left: compact ? 46 : 56,
@@ -444,13 +471,18 @@ export function EvidenceChart({
             },
           ],
       series: plottedSeries.map((item, seriesIndex) => {
-        const groupIndex = Math.max(0, scaleGroups.indexOf(scaleGroup(item.name, metricUnits)));
-        const indexWithinGroup = groupSeries[groupIndex]?.findIndex((candidate) => candidate.name === item.name) ?? 0;
+        const scaleGroupIndex = Math.max(0, scaleGroups.indexOf(scaleGroup(item.name, metricUnits)));
+        const panelGroupIndex = Math.max(0, panelGroups.indexOf(panelGroup(item.name, metricUnits)));
+        const axisIndexWithinPanel = groupAxisGroups[panelGroupIndex]?.indexOf(scaleGroup(item.name, metricUnits)) ?? 0;
+        const yAxisIndex = useSmallMultiples
+          ? groupAxisGroups.slice(0, panelGroupIndex).reduce((count, groups) => count + groups.length, 0) + axisIndexWithinPanel
+          : scaleGroupIndex;
+        const indexWithinGroup = groupSeries[panelGroupIndex]?.findIndex((candidate) => candidate.name === item.name) ?? 0;
         return {
           name: item.name,
           type: 'line',
-          xAxisIndex: useSmallMultiples ? groupIndex : 0,
-          yAxisIndex: groupIndex,
+          xAxisIndex: useSmallMultiples ? panelGroupIndex : 0,
+          yAxisIndex,
           showSymbol: item.points.length < 12,
           symbolSize: 5,
           smooth: false,
@@ -504,7 +536,7 @@ export function EvidenceChart({
       chart.dispose();
       if (chartRef.current === chart) chartRef.current = null;
     };
-  }, [compact, elapsedMaximum, metricLabels, metricUnits, onHoverStep, onPointSelect, plottedSeries, renderedHeight, scaleGroups, selectedStep, showLegend, showZoom, useSmallMultiples, xDomain, xMaximum, xMinimum, xOriginMs]);
+  }, [compact, elapsedMaximum, metricLabels, metricUnits, onHoverStep, onPointSelect, panelGroups, plottedSeries, renderedHeight, scaleGroups, selectedStep, showLegend, showZoom, useSmallMultiples, xDomain, xMaximum, xMinimum, xOriginMs]);
 
   useEffect(() => {
     const chart = chartRef.current;

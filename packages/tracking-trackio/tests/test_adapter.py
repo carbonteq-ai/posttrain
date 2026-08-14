@@ -16,6 +16,7 @@ from posttrain.common import (
     MetricBatchObservation,
     MetricObservation,
     ProducedArtifact,
+    TraceFactSet,
     TraceObservation,
 )
 from posttrain.tracking import (
@@ -37,8 +38,10 @@ from posttrain_tracking_trackio import (
     TrackioProjectCatalog,
     TrackioPurgeActionExecutor,
     TrackioSettings,
+    TrackioTraceFactWriter,
     require_remote_trackio_ready,
 )
+from posttrain_tracking_trackio.adapter import _trackio_trace_facts
 from trackio.sqlite_storage import SQLiteStorage
 
 from packages.tracking.tests.conformance import (
@@ -113,6 +116,129 @@ def test_trackio_lifecycle_admin_maps_digest_bound_run_purge(
     assert plan.artifacts[0].version_id == "7"
     receipt = admin.apply_run_purge(plan)
     assert receipt.deleted_provider_run_ids == ("run-a",)
+
+
+def test_trace_fact_writer_uses_exact_run_and_does_not_open_or_finish_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+
+    class Client:
+        def predict(self, *, api_name: str, **kwargs: Any) -> dict[str, Any]:
+            calls.append({"api_name": api_name, **kwargs})
+            return {"trace_id": "trace-1", "projection_id": kwargs["update"]["projection_id"], "applied": True}
+
+    monkeypatch.setenv("TRACKIO_WRITE_TOKEN", "test-token")
+    monkeypatch.setattr(
+        "posttrain_tracking_trackio.adapter.RemoteClient",
+        lambda *args, **kwargs: Client(),
+    )
+    facts = TraceFactSet(
+        namespace="verifiers.trace",
+        calculator_version="test.v1",
+        dimensions={"rollout_step": 4},
+        measures={"model_output_tokens": 12},
+    )
+
+    receipt = TrackioTraceFactWriter("https://trackio.invalid").upsert(
+        project="project-a",
+        run_name="run-a",
+        provider_run_id="provider-run-a",
+        trace_type="verifiers",
+        external_id="trace-1",
+        facts=facts,
+    )
+
+    assert receipt.trace_id == "trace-1"
+    assert len(calls) == 1
+    update = calls[0].pop("update")
+    assert calls == [
+        {
+            "api_name": "/upsert_trace_facts",
+            "project": "project-a",
+            "run": "run-a",
+            "run_id": "provider-run-a",
+        }
+    ]
+    assert update == {
+        "trace_type": "verifiers",
+        "external_id": "trace-1",
+        "namespace": "verifiers.trace",
+        "calculator_version": "test.v1",
+        "projection_id": facts.projection_id,
+        "dimensions": {"rollout_step": 4},
+        "measures": {"model_output_tokens": 12},
+        "reward_components": [],
+        "provenance": {},
+        "state": "complete",
+        "replace_reward_components": True,
+        "calculated_at": update["calculated_at"],
+    }
+
+
+def test_trace_fact_writer_chunks_a_logical_page_at_the_safe_storage_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+
+    class Client:
+        def predict(self, *, api_name: str, **kwargs: Any) -> dict[str, Any]:
+            calls.append({"api_name": api_name, **kwargs})
+            return {
+                "receipts": [
+                    {
+                        "trace_id": f"stored-{update['external_id']}",
+                        "projection_id": update["projection_id"],
+                        "applied": True,
+                    }
+                    for update in kwargs["updates"]
+                ]
+            }
+
+    monkeypatch.setenv("TRACKIO_WRITE_TOKEN", "test-token")
+    monkeypatch.setattr(
+        "posttrain_tracking_trackio.adapter.RemoteClient",
+        lambda *args, **kwargs: Client(),
+    )
+    facts = TraceFactSet(
+        namespace="verifiers.trace",
+        calculator_version="test.v1",
+        measures={"model_output_tokens": 12},
+    )
+
+    updates = tuple((f"trace-{index}", facts) for index in range(1001))
+    receipts = TrackioTraceFactWriter("https://trackio.invalid").upsert_many(
+        project="project-a",
+        run_name="run-a",
+        provider_run_id="provider-run-a",
+        trace_type="verifiers",
+        updates=updates,
+    )
+
+    assert len(receipts) == 1001
+    assert [len(call["updates"]) for call in calls] == [1000, 1]
+    assert all(call["api_name"] == "/bulk_upsert_trace_facts" for call in calls)
+    assert all(call["project"] == "project-a" for call in calls)
+    assert all(call["run_id"] == "provider-run-a" for call in calls)
+    assert calls[0]["updates"][0]["external_id"] == "trace-0"
+    assert calls[1]["updates"][0]["external_id"] == "trace-1000"
+
+
+def test_algorithm_reward_enrichment_does_not_replace_source_reward_components() -> None:
+    update = _trackio_trace_facts(
+        "verifiers",
+        "trace-1",
+        TraceFactSet(
+            namespace="posttrain.train.reward",
+            calculator_version="grpo-algorithm-reward.v1",
+            measures={"algorithm_reward": 0.75},
+        ),
+        replace_reward_components=False,
+    )
+
+    assert update.namespace == "posttrain.train.reward"
+    assert update.measures == {"algorithm_reward": 0.75}
+    assert update.replace_reward_components is False
 
 
 def test_trackio_purge_action_executor_revalidates_before_apply() -> None:
@@ -650,6 +776,33 @@ async def test_trackio_trace_reader_passes_verifiers_filter_before_paging(
     assert calls == [{"limit": 10, "offset": 0, "sort": "step_asc", "trace_type": "verifiers"}]
     assert [item.external_id for item in page.items] == ["verifier-1"]
     assert page.next_cursor is None
+
+
+@pytest.mark.asyncio
+async def test_trackio_trace_reader_requests_full_payload_only_when_requested(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+
+    class ProviderRun:
+        def traces(self, **kwargs: Any) -> list[dict[str, Any]]:
+            calls.append(kwargs)
+            return []
+
+    source = TrackioDataSource("trackio-full-traces")
+    monkeypatch.setattr(source, "_provider_run", lambda _run_id: ProviderRun())
+
+    await source.traces("run-1", TraceQuery(trace_type="verifiers", include_payload=True))
+
+    assert calls == [
+        {
+            "limit": 100,
+            "offset": 0,
+            "sort": "step_asc",
+            "include_payload": True,
+            "trace_type": "verifiers",
+        }
+    ]
 
 
 @pytest.mark.asyncio

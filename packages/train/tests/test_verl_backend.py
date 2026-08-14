@@ -21,6 +21,7 @@ from posttrain.common import (
     MetricObservation,
     ProducedArtifact,
     RunContext,
+    TraceFactUpdateObservation,
     TraceObservation,
 )
 from posttrain.common.variants import LFM_25_12B_THINKING, QWEN_35_2B
@@ -53,13 +54,18 @@ from posttrain.train.backends.verl.launcher import (
     _record_failure_artifacts_best_effort,
     _record_trace_sync_receipt,
     _replay_grpo_metrics,
+    _replay_trace_fact_updates,
     _runtime_timeout,
     _start_isolated_worker,
     build_distillation_launch_plan,
     build_grpo_launch_plan,
     build_sampo_launch_plan,
 )
-from posttrain.train.backends.verl.metrics import read_verl_metric_records
+from posttrain.train.backends.verl.metrics import (
+    VerlRolloutRewardRecord,
+    read_verl_metric_records,
+    read_verl_rollout_reward_records,
+)
 from posttrain.train.backends.verl.reward_fields import streaming_reward_extra_info, training_response_mask
 from posttrain.train.backends.verl.worker import (
     _last_metrics,
@@ -95,6 +101,7 @@ class FakeBridge:
 class CaptureObserver:
     metrics_seen: list[MetricBatchObservation] = field(default_factory=list)
     artifacts_seen: list[ProducedArtifact] = field(default_factory=list)
+    trace_fact_updates: list[TraceFactUpdateObservation] = field(default_factory=list)
 
     def event(self, observation: EventObservation) -> None:
         del observation
@@ -107,6 +114,9 @@ class CaptureObserver:
 
     def trace(self, observation: TraceObservation) -> None:
         del observation
+
+    def trace_fact_update(self, observation: TraceFactUpdateObservation) -> None:
+        self.trace_fact_updates.append(observation)
 
     def artifact(self, artifact: ProducedArtifact) -> None:
         self.artifacts_seen.append(artifact)
@@ -893,6 +903,30 @@ def test_verl_structured_records_replay_through_shared_grpo_names(tmp_path: Path
     }
     assert observer.metrics_seen[-1].step == 1
     assert observer.metrics_seen[-1].attributes["training_backend"] == "verl"
+
+
+def test_verl_replays_trace_keyed_algorithm_rewards_from_the_parent_process(tmp_path: Path) -> None:
+    observer = CaptureObserver()
+
+    _replay_trace_fact_updates(
+        _context(tmp_path, observer),
+        (VerlRolloutRewardRecord("trace-1", 4, 0.8, 0.6),),
+    )
+
+    update = observer.trace_fact_updates[0]
+    assert update.external_id == "trace-1"
+    assert update.facts.measures == {"algorithm_reward": 0.6}
+    assert update.attributes["optimizer_step"] == 4
+
+
+def test_verl_rollout_reward_journal_is_validated(tmp_path: Path) -> None:
+    journal = tmp_path / "verl-rollout-rewards.jsonl"
+    journal.write_text(
+        json.dumps({"trace_id": "trace-1", "step": 4, "task_reward": 0.8, "algorithm_reward": 0.6}) + "\n",
+        encoding="utf-8",
+    )
+
+    assert read_verl_rollout_reward_records(journal) == (VerlRolloutRewardRecord("trace-1", 4, 0.8, 0.6),)
 
 
 def test_verl_mtp_partial_runtime_counters_fail_closed(tmp_path: Path) -> None:

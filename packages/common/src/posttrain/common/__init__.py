@@ -20,7 +20,12 @@ from .execution import (
     NullObserver,
     Observer,
     RunContext,
+    SignalSource,
+    SignalSourceKind,
+    TraceFactSet,
+    TraceFactUpdateObservation,
     TraceObservation,
+    TraceRewardComponent,
 )
 from .jsonl_journal import AppendOnlyJsonlTailer, JsonlJournalStats
 from .models import (
@@ -68,8 +73,13 @@ __all__ = [
     "PublishedArtifact",
     "Resolved",
     "RunContext",
+    "SignalSource",
+    "SignalSourceKind",
     "StoredArtifactRef",
+    "TraceFactSet",
+    "TraceFactUpdateObservation",
     "TraceObservation",
+    "TraceRewardComponent",
     "TrackioArtifactRef",
     "Workload",
 ]

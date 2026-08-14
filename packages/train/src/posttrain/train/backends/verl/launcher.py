@@ -20,6 +20,8 @@ from posttrain.common import (
     ModelVariant,
     ProducedArtifact,
     RunContext,
+    TraceFactSet,
+    TraceFactUpdateObservation,
     TraceObservation,
 )
 
@@ -40,7 +42,12 @@ from .contracts import (
     VerlTarget,
     VerlWorkerResult,
 )
-from .metrics import VerlMetricRecord, read_verl_metric_records
+from .metrics import (
+    VerlMetricRecord,
+    VerlRolloutRewardRecord,
+    read_verl_metric_records,
+    read_verl_rollout_reward_records,
+)
 
 _SUPPORTED_MODEL_FAMILIES = frozenset({"qwen3.5"})
 _RESULT_FILE = "posttrain-result.json"
@@ -347,6 +354,10 @@ def _launch(
     backend, records = _backend_result(result, output_dir)
     if isinstance(request, GRPORequest | SAMPORequest):
         _replay_grpo_metrics(context, request, records)
+        _replay_trace_fact_updates(
+            context,
+            read_verl_rollout_reward_records(output_dir / "verl-rollout-rewards.jsonl"),
+        )
     return backend
 
 
@@ -584,6 +595,29 @@ def _replay_grpo_metrics(
             )
 
 
+def _replay_trace_fact_updates(
+    context: RunContext,
+    records: tuple[VerlRolloutRewardRecord, ...],
+) -> None:
+    """Emit worker-side shaped rewards from the trusted parent process only."""
+
+    for record in records:
+        context.trace_fact_update(
+            TraceFactUpdateObservation(
+                "verifiers",
+                record.trace_id,
+                TraceFactSet(
+                    namespace="posttrain.train.reward",
+                    calculator_version="verl-algorithm-reward.v1",
+                    dimensions={"rollout_step": record.step},
+                    measures={"algorithm_reward": record.algorithm_reward},
+                    provenance={"algorithm_reward": "verl_agent_loop_reward_shaping"},
+                ),
+                attributes={"optimizer_step": record.step, "backend": "verl"},
+            )
+        )
+
+
 def _start_isolated_worker(
     plan: VerlLaunchPlan,
     *,
@@ -591,6 +625,7 @@ def _start_isolated_worker(
     stdout: Any,
 ) -> subprocess.Popen[str]:
     environment = _isolated_environment(plan.python_executable)
+    environment["POSTTRAIN_VERL_ROLLOUT_REWARDS_PATH"] = str(plan.output_directory / "verl-rollout-rewards.jsonl")
     environment["POSTTRAIN_VERL_MANIFEST"] = str(manifest)
     return subprocess.Popen(
         plan.command,
