@@ -435,6 +435,7 @@ def _rollout_function(
                         **attributes,
                         "scored_token_count": sum(rollout.env_mask),
                     },
+                    facts=trace.facts,
                 )
             )
             if callable(mark_live_observed):

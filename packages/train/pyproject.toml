@@ -9,6 +9,7 @@ dependencies = [
     "httpx>=0.28,<0.29",
     "posttrain-common",
     "posttrain-data",
+    "posttrain-environment",
     "pydantic>=2.12,<3",
 ]
 
@@ -45,6 +46,7 @@ package = true
 [tool.uv.sources]
 posttrain-common = { workspace = true }
 posttrain-data = { workspace = true }
+posttrain-environment = { workspace = true }
 torch = { index = "pytorch-cu130" }
 torchvision = { index = "pytorch-cu130" }
 trl = { index = "carbonteq-stable" }

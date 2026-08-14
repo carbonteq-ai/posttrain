@@ -396,7 +396,7 @@ def test_policy_client_preserves_exact_turn_tokens_and_response() -> None:
             },
             True,
         ),
-        ({"is_completed": False, "errors": [], "stop_condition": None, "calls": []}, True),
+        ({"is_completed": False, "errors": [], "stop_condition": None, "calls": []}, False),
         ({"is_completed": True, "errors": [{"type": "runtime"}], "stop_condition": None, "calls": []}, False),
     ],
 )
@@ -603,6 +603,8 @@ def test_native_bridge_persists_terminal_failure_before_trainable_projection(tmp
     assert [trace.external_id for trace in observed] == ["trace-terminal-failure"]
     assert observed[0].attributes["has_error"] is True
     assert observed[0].attributes["is_truncated"] is False
+    assert observed[0].facts[0].namespace == "verifiers.trace"
+    assert observed[0].facts[0].dimensions["has_error"] is True
     evidence = bridge.evidence()
     # The live callback accepted the trace, so reconciliation only needs
     # metrics; the native journal remains attached as the durable source.
@@ -744,6 +746,10 @@ def test_native_bridge_portable_snapshot_reconstructs_without_live_environment_s
         sampling=PolicySampling(max_tokens=32),
         technique="distill",
         enrichers=(add_shaping,),
+        model_identity={
+            "model_family": "future-model",
+            "tokenizer_revision": "tokenizer-revision-1",
+        },
     )
     snapshot = tmp_path / "bridge.pkl"
 
@@ -754,6 +760,7 @@ def test_native_bridge_portable_snapshot_reconstructs_without_live_environment_s
     assert restored.environment_id == bridge.environment_id
     assert restored.trace_path == bridge.trace_path
     assert restored.technique == "distill"
+    assert restored.model_identity == bridge.model_identity
 
 
 def test_catalog_environment_builds_public_grpo_and_distillation_requests(tmp_path) -> None:

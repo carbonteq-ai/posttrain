@@ -15,6 +15,8 @@ from posttrain.common import (
     MetricBatchObservation,
     MetricObservation,
     ProducedArtifact,
+    TraceFactSet,
+    TraceFactUpdateObservation,
     TraceObservation,
 )
 
@@ -42,6 +44,36 @@ class TrackioRun(Protocol):
 
 def _json_dict(values: Mapping[str, object]) -> dict[str, object]:
     return dict(values)
+
+
+def _trace_fact_update(trace_type: str, external_id: str, facts: TraceFactSet) -> Any:
+    update_type = getattr(trackio, "TraceFactUpdate", None)
+    component_type = getattr(trackio, "TraceRewardComponent", None)
+    if update_type is None or component_type is None:
+        raise RuntimeError("configured Trackio does not support trace facts")
+    return update_type(
+        trace_type=trace_type,
+        external_id=external_id,
+        namespace=facts.namespace,
+        calculator_version=facts.calculator_version,
+        projection_id=facts.projection_id,
+        dimensions=dict(facts.dimensions),
+        measures=dict(facts.measures),
+        reward_components=tuple(
+            component_type(
+                name=item.name,
+                contribution=item.contribution,
+                score=item.score,
+                weight=item.weight,
+                source_kind=item.source.kind,
+                source_id=item.source.id,
+            )
+            for item in facts.reward_components
+        ),
+        provenance=dict(facts.provenance),
+        state=facts.state,
+        replace_reward_components=True,
+    )
 
 
 def trackio_artifact_name(logical_name: str) -> str:
@@ -127,10 +159,14 @@ class TrackioObserver:
             **_json_dict(observation.attributes),
         }
         if observation.trace_type == "verifiers":
-            trace: trackio.Trace = trackio.VerifiersTrace(
-                record=dict(observation.payload),
-                metadata=metadata,
-            )
+            if len(observation.facts) > 1:
+                raise ValueError("a Verifiers trace may carry one complete source fact projection")
+            trace_arguments: dict[str, Any] = {"record": dict(observation.payload), "metadata": metadata}
+            if observation.facts:
+                trace_arguments["trace_facts"] = _trace_fact_update(
+                    observation.trace_type, observation.external_id, observation.facts[0]
+                )
+            trace = trackio.VerifiersTrace(**trace_arguments)
         else:
             messages = observation.payload.get("messages")
             if not isinstance(messages, list):
@@ -146,6 +182,14 @@ class TrackioObserver:
                 metadata={**native, **metadata},
             )
         self._run.log({f"traces/{observation.trace_type}": trace})
+
+    def trace_fact_update(self, observation: TraceFactUpdateObservation) -> None:
+        flush = getattr(self._run, "flush", None)
+        upsert = getattr(self._run, "upsert_trace_facts", None)
+        if not callable(flush) or not callable(upsert):
+            raise RuntimeError("configured Trackio does not support trace-fact enrichment")
+        flush()
+        upsert(_trace_fact_update(observation.trace_type, observation.external_id, observation.facts))
 
     def artifact(self, artifact: ProducedArtifact) -> None:
         reference = artifact.reference

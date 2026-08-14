@@ -18,6 +18,7 @@ from posttrain.common import (
     Observer,
     ProducedArtifact,
     RunContext,
+    TraceFactUpdateObservation,
     TraceObservation,
 )
 from posttrain.data import DatasetDescriptor, PreferenceDataset, SupervisedDataset, SupervisedDataSource
@@ -88,6 +89,9 @@ class _LiveMetricObserver:
 
     def trace(self, observation: TraceObservation) -> None:
         self.delegate.trace(observation)
+
+    def trace_fact_update(self, observation: TraceFactUpdateObservation) -> None:
+        self.delegate.trace_fact_update(observation)
 
     def artifact(self, artifact: ProducedArtifact) -> None:
         self.delegate.artifact(artifact)

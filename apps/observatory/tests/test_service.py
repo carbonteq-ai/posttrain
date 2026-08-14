@@ -378,6 +378,31 @@ def test_dpo_telemetry_answers_pair_policy_stability_and_data_questions() -> Non
     }
 
 
+def test_grpo_policy_optimization_unifies_learning_signal_and_update_control() -> None:
+    definition = DEFAULT_TELEMETRY_DEFINITIONS["train.grpo"]
+    optimization = next(chart for chart in definition.charts if chart.key == "optimization")
+
+    assert optimization.question == (
+        "Does reward improve while groups retain relative signal and policy updates remain controlled?"
+    )
+    assert optimization.metrics == (
+        "train/rl/reward_mean",
+        "train/rl/reward_std",
+        "train/rl/group_zero_variance_fraction",
+        "train/rl/policy_loss",
+        "train/rl/entropy",
+        "train/rl/kl",
+        "train/rl/clip_fraction",
+        "train/rl/clip_fraction_low",
+        "train/rl/clip_fraction_high",
+    )
+    assert [chart.key for chart in definition.charts][-3:] == [
+        "dynamic_sampling",
+        "active_sampling_yield",
+        "active_sampling_population",
+    ]
+
+
 def _dpo_source(*, missing: str | None = None, validation_configured: bool = False) -> FakeRunDataSource:
     run_id = "runs/dpo-one"
     definition = DEFAULT_TELEMETRY_DEFINITIONS["train.dpo"]
@@ -503,7 +528,9 @@ async def test_olmo3_active_sampling_is_exposed_as_conditional_evidence() -> Non
 
     view = await ObservatoryService(FakeRunDataSource(details, {run_id: series})).get_run_view(run_id)
 
-    assert {chart.key for chart in view.charts} >= {"active_sampling_yield", "active_sampling_population"}
+    chart_keys = [chart.key for chart in view.charts]
+    assert {"active_sampling_yield", "active_sampling_population"}.issubset(chart_keys)
+    assert chart_keys[-2:] == ["active_sampling_yield", "active_sampling_population"]
     requirement = next(item for item in view.completeness.requirements if item.key == "olmo3_active_sampling")
     assert requirement.state == "available"
     assert requirement.missing_metrics == ()

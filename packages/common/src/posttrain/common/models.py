@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -203,6 +204,24 @@ class ModelVariant:
         if isinstance(self.artifact, StoredArtifactRef):
             return f"{self.artifact.provider}://{self.artifact.namespace}/{self.artifact.name}@{self.artifact.version}"
         return f"trackio://{self.artifact.project}/{self.artifact.name}@{self.artifact.version}"
+
+    def trace_identity(self) -> dict[str, JsonValue]:
+        """Immutable model-interface identity safe to attach to trace evidence."""
+
+        template = self.conversation.chat_template
+        tokenizer_revision = self.tokenizer_fingerprint or self.base.revision
+        template_revision = (
+            f"package-sha256:{hashlib.sha256((template.text() or '').encode()).hexdigest()}"
+            if template.source == "package"
+            else f"tokenizer:{tokenizer_revision}"
+        )
+        return {
+            "model_family": self.family,
+            "model_revision": self.revision or self.digest,
+            "tokenizer_revision": tokenizer_revision,
+            "renderer_revision": self.renderer.id,
+            "template_revision": template_revision,
+        }
 
 
 @dataclass(frozen=True, slots=True)

@@ -28,6 +28,9 @@ def test_run_list_view_metrics_semantics_and_traces_share_one_api() -> None:
         assert client.get("/health/live").json() == {"status": "ok"}
         runs = client.get("/api/v1/runs").json()
         sft = next(run for run in runs if run["run"]["job_kind"] == "train.sft")
+        direct = client.get(f"/api/v1/runs/{sft['run_key']}").json()
+        assert direct["run_key"] == sft["run_key"]
+        assert direct["locator"] == sft["locator"]
         located = client.get(
             "/api/v1/runs/locate",
             params={"run_id": sft["run"]["run_id"]},
@@ -72,10 +75,12 @@ def test_run_list_view_metrics_semantics_and_traces_share_one_api() -> None:
 def test_openapi_contains_bounded_product_routes() -> None:
     schema = _client().get("/openapi.json").json()
     assert "/api/v1/runs/locate" in schema["paths"]
+    assert "/api/v1/runs/{run_key}" in schema["paths"]
     assert "/api/v1/runs/{run_key}/view" in schema["paths"]
     assert "/api/v1/runs/{run_key}/system-metrics" in schema["paths"]
     assert "/api/v1/runs/{run_key}/semantic-summary" in schema["paths"]
     assert "/api/v1/runs/{run_key}/traces-evaluation" in schema["paths"]
+    assert "/api/v1/runs/{run_key}/rollout-behavior" in schema["paths"]
     assert "/api/v1/runs/{run_key}/traces" in schema["paths"]
     assert "/api/v1/runs/{run_key}/comparison-key" in schema["paths"]
     assert "/api/v1/serving-capacity/work-packages/{work_package_id}" in schema["paths"]

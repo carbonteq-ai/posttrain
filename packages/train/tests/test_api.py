@@ -22,6 +22,8 @@ from posttrain.common import (
     ModelVariant,
     ProducedArtifact,
     RunContext,
+    TraceFactSet,
+    TraceFactUpdateObservation,
     TraceObservation,
 )
 from posttrain.common.variants import QWEN_35_2B
@@ -97,6 +99,7 @@ class Observer:
     metrics_seen: list[MetricBatchObservation] = field(default_factory=list)
     artifacts: list[ProducedArtifact] = field(default_factory=list)
     traces: list[TraceObservation] = field(default_factory=list)
+    trace_fact_updates: list[TraceFactUpdateObservation] = field(default_factory=list)
 
     def event(self, observation: EventObservation) -> None:
         self.events.append(observation)
@@ -109,6 +112,9 @@ class Observer:
 
     def trace(self, observation: TraceObservation) -> None:
         self.traces.append(observation)
+
+    def trace_fact_update(self, observation: TraceFactUpdateObservation) -> None:
+        self.trace_fact_updates.append(observation)
 
     def artifact(self, artifact: ProducedArtifact) -> None:
         self.artifacts.append(artifact)
@@ -194,6 +200,13 @@ class FakeRLBridge:
                     "test",
                     f"trace-{index}",
                     {"example_id": example_id, "step": batch.step},
+                    facts=(
+                        TraceFactSet(
+                            namespace="test.v1",
+                            calculator_version="1",
+                            measures={"model_output_tokens": 3},
+                        ),
+                    ),
                 ),
             )
             for index, example_id in enumerate(batch.example_ids)
@@ -1843,6 +1856,7 @@ def test_trl_rollout_adapter_preserves_identity_rewards_masks_and_native_traces(
     assert observer.traces[0].attributes["model_variant_id"] == QWEN_35_2B.id
     assert observer.traces[0].attributes["optimizer_step"] == 4
     assert observer.traces[0].attributes["rollout_batch_ordinal"] == 1
+    assert observer.traces[0].facts[0].measures["model_output_tokens"] == 3
 
     rollout(
         [[{"role": "user", "content": "What is 2 + 2?"}]],

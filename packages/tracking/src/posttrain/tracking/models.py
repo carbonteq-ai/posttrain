@@ -21,6 +21,7 @@ class TrackingCapabilities(TrackingModel):
     live_traces: bool = False
     artifacts: bool = True
     artifact_lineage: bool = True
+    trace_facts: Literal["available", "unsupported", "unavailable"] = "unavailable"
 
 
 class RunQuery(TrackingModel):
@@ -99,6 +100,7 @@ class TraceQuery(TrackingModel):
     trace_type: str | None = None
     cursor: str | None = None
     limit: int = Field(default=100, ge=1, le=1000)
+    include_payload: bool = False
 
 
 class TraceRecord(TrackingModel):
@@ -112,6 +114,86 @@ class TracePage(TrackingModel):
     items: tuple[TraceRecord, ...] = ()
     next_cursor: str | None = None
     live: bool = False
+
+
+class TraceFactAggregate(TrackingModel):
+    measure: Literal[
+        "model_input_tokens",
+        "model_output_tokens",
+        "thinking_tokens",
+        "tool_calls",
+        "model_calls",
+        "trace_latency_ms",
+        "task_reward",
+        "algorithm_reward",
+        "reward_component_contribution",
+        "reward_component_score",
+        "reward_component_weight",
+    ]
+    operation: Literal["mean", "sum", "count"] = "mean"
+    component_name: str | None = Field(default=None, min_length=1, max_length=256)
+
+    @model_validator(mode="after")
+    def validate_component_name(self) -> TraceFactAggregate:
+        if self.component_name is not None and not self.measure.startswith("reward_component_"):
+            raise ValueError("component_name is only valid for reward-component aggregates")
+        return self
+
+
+class TraceFactsQuery(TrackingModel):
+    trace_type: str = "verifiers"
+    group_by: tuple[
+        Literal[
+            "model",
+            "task_type",
+            "rollout_step",
+            "is_truncated",
+            "has_error",
+            "reward_component_name",
+            "reward_component_source_kind",
+        ],
+        ...,
+    ] = ()
+    aggregates: tuple[TraceFactAggregate, ...] = ()
+    dimensions: dict[
+        Literal[
+            "model",
+            "task_type",
+            "rollout_step",
+            "is_truncated",
+            "has_error",
+            "reward_component_name",
+            "reward_component_source_kind",
+        ],
+        JsonValue,
+    ] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_query(self) -> TraceFactsQuery:
+        if not self.aggregates:
+            raise ValueError("trace-fact aggregation requires one or more aggregates")
+        if len(self.group_by) != len(set(self.group_by)):
+            raise ValueError("trace-fact group-by dimensions must be unique")
+        component_aggregates = [aggregate for aggregate in self.aggregates if aggregate.measure.startswith("reward_component_")]
+        if component_aggregates and len(component_aggregates) != len(self.aggregates):
+            raise ValueError("scalar and reward-component aggregates must be queried separately")
+        component_dimensions = {"reward_component_name", "reward_component_source_kind"}
+        if component_dimensions.intersection(self.group_by) | component_dimensions.intersection(self.dimensions):
+            if not component_aggregates:
+                raise ValueError("reward-component dimensions require reward-component aggregates")
+        return self
+
+
+class TraceAggregateBucket(TrackingModel):
+    dimensions: dict[str, JsonValue] = Field(default_factory=dict)
+    trace_count: int = Field(ge=0)
+    values: dict[str, float | int | None] = Field(default_factory=dict)
+    coverage: dict[str, int] = Field(default_factory=dict)
+
+
+class TraceAggregateResult(TrackingModel):
+    state: Literal["available", "unsupported", "unavailable"]
+    buckets: tuple[TraceAggregateBucket, ...] = ()
 
 
 class StoredArtifact(TrackingModel):
@@ -154,6 +236,10 @@ __all__ = [
     "SafeRunError",
     "StoredArtifact",
     "TracePage",
+    "TraceFactAggregate",
+    "TraceFactsQuery",
+    "TraceAggregateBucket",
+    "TraceAggregateResult",
     "TraceQuery",
     "TraceRecord",
     "TrackingCapabilities",

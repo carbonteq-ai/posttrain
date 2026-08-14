@@ -14,6 +14,31 @@ Observatory populate historical rollout tables without fetching full payloads.
 `pypi.lan` is permanently skewed (metadata post4, import post3) and must not be
 installed.
 
+The active candidate is `carbonteq-trackio==0.31.5.post14.dev4`, built from
+immutable fork commit `9dd9fa24920054a0ada636dbaf8f861971dfb81a`. Its wheel
+(`731425c378c03659e6d67eb3806277c4a90cd2e0a4ae2eeb371908bad3cb5fc3`) and
+sdist (`323ffc9b88ab0a502dcd21fe910cacebbe65e2cfe597844a3c6a30b2c96a5699`)
+were read back from the `carbonteq/dev` index. It is a development framework
+dependency and the isolated Doris candidate service has qualified it; it is
+not yet the stable framework dependency or production service. It adds generic typed trace facts:
+Posttrain supplies the versioned scalar projection from native Verifiers
+records, Trackio persists the current facts on the trace row plus a dynamic
+reward-component relation, and consumers request only approved aggregate
+dimensions and measures. The shared Doris database changes directly from
+schema v1 to v2 through an explicit backup-gated migration; all deployed
+Trackio servers must be upgraded as part of that operation. The candidate is
+released manually from the fork as an immutable prerelease, then its retained
+assets are manually published to `carbonteq/dev` by the Posttrain-owned
+publisher. Fork workflows do not build or publish releases.
+
+Dev4 extends the read contract to reward-component contribution, score, and
+weight. A request may target one exact component or expand across component
+name/source-kind groups; component coverage remains distinct from the count of
+matching traces. Scalar and component aggregates are separate requests, which
+prevents multi-component traces from multiplying scalar metrics.
+The producer-side `Run` exposes the same aggregation contract, so a job can
+verify its retained facts without using a Trackio internal read object.
+
 Post10 keeps `local` as the safe default and adds a generic S3-compatible
 artifact backend. With the S3 backend, Trackio issues short-lived multipart
 URLs and the producing client writes parts directly to the configured bucket;

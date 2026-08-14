@@ -51,6 +51,13 @@ const run = {
   },
 };
 
+const sources = [{
+  source_id: 'fixture',
+  provider: 'trackio',
+  state: 'healthy' as const,
+  message: null,
+}];
+
 const view = {
   requested_mode: 'auto',
   resolved_mode: 'job',
@@ -465,9 +472,11 @@ describe('Observatory React product shell', () => {
   afterEach(cleanup);
 
   beforeEach(() => {
+    window.history.replaceState({}, '', '/projects/fixture');
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       const path = String(input);
-      const body = path === '/api/v1/runs'
+      if (path === '/api/v1/sources') return new Response(JSON.stringify(sources));
+      const body = path === '/api/v1/runs?source_id=fixture&limit=1000'
         ? [run]
         : path.startsWith('/api/v1/work-packages/')
           ? workPackageView
@@ -707,8 +716,9 @@ describe('Observatory React product shell', () => {
 
   it('explains serving constraints instead of falling back to generic evidence', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
-      const path = String(input);
-      const body = path === '/api/v1/runs'
+            const path = String(input);
+            if (path === '/api/v1/sources') return new Response(JSON.stringify(sources));
+      const body = path === '/api/v1/runs?source_id=fixture&limit=1000'
         ? [servingRun]
         : path.includes('/api/v1/serving-capacity/work-packages/')
           ? {
@@ -789,7 +799,7 @@ describe('Observatory React product shell', () => {
     const user = userEvent.setup();
     render(<App />);
     expect(await screen.findByRole('heading', { name: 'Learning & data evidence' })).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Project: demo' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Project: fixture' })).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Projects' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open work package train/demo' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Select run SFT calm harbor' })).toBeVisible();
@@ -833,7 +843,9 @@ describe('Observatory React product shell', () => {
       sidebarRun('runs/train-package-new', 'Other package run', 'train/other', 'train', '2026-07-22T07:00:00Z'),
     ];
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
-      const body = String(input) === '/api/v1/runs' ? items : view;
+      const path = String(input);
+      if (path === '/api/v1/sources') return new Response(JSON.stringify(sources));
+      const body = path === '/api/v1/runs?source_id=fixture&limit=1000' ? items : view;
       return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
     }));
 
@@ -862,68 +874,72 @@ describe('Observatory React product shell', () => {
     ]);
   });
 
-  it('switches project scope instead of mixing project runs', async () => {
-    const otherRun = {
-      ...run,
-      locator: { source_id: 'fixture', run_id: 'runs/other' },
-      run_key: 'other-key',
-      run: { ...run.run, run_id: 'runs/other', display_name: 'Other run', project_id: 'projects/other', work_package_id: 'train/other' },
-    };
-    const otherView = { ...view, view: { ...view.view, run: otherRun.run } };
-    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+  it('does not load runs until a Trackio project is selected', async () => {
+    window.history.replaceState({}, '', '/');
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const path = String(input);
-      const body = path === '/api/v1/runs' ? [run, otherRun] : path.includes('other-key') ? otherView : view;
+      const body = path === '/api/v1/sources'
+        ? sources
+        : path === '/api/v1/runs?source_id=fixture&limit=1000'
+          ? [run]
+          : view;
       return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
-    }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
     const user = userEvent.setup();
     render(<App />);
-    expect(await screen.findByRole('button', { name: 'Project: demo' })).toBeVisible();
-    await user.click(screen.getByRole('button', { name: 'Project: demo' }));
-    await user.click(screen.getByRole('option', { name: 'other projects/other' }));
 
-    expect(await screen.findByRole('button', { name: 'Project: other' })).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Open work package train/other' })).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Select run Other run' })).toBeVisible();
-    expect(screen.queryByRole('button', { name: 'Select run SFT calm harbor' })).not.toBeInTheDocument();
+    expect(await screen.findByText('Choose a Trackio project')).toBeVisible();
+    expect(fetchMock.mock.calls.map(([input]) => String(input))).toEqual(['/api/v1/sources']);
+    await user.click(screen.getByRole('button', { name: 'Project: none' }));
+    await user.click(screen.getByRole('option', { name: 'fixture fixture' }));
+
+    expect(await screen.findByRole('heading', { name: 'Learning & data evidence' })).toBeVisible();
+    expect(fetchMock.mock.calls.map(([input]) => String(input))).toContain('/api/v1/runs?source_id=fixture&limit=1000');
+    expect(window.location.pathname).toBe('/runs/run-key');
   });
 
-  it('switches evidence backends without mixing runs from the same project', async () => {
-    const wandbRun = {
-      ...run,
-      locator: { source_id: 'wandb-cloud', run_id: 'runs/wandb-sft' },
-      run_key: 'wandb-key',
-      run: {
-        ...run.run,
-        run_id: 'runs/wandb-sft',
-        display_name: 'W&B SFT run',
-        provider: 'wandb',
-      },
-    };
-    const wandbView = { ...view, view: { ...view.view, run: wandbRun.run } };
+  it('keeps an empty selected Trackio project visible', async () => {
+    window.history.replaceState({}, '', '/projects/fixture');
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       const path = String(input);
-      const body = path === '/api/v1/runs' ? [run, wandbRun] : path.includes('wandb-key') ? wandbView : view;
+      const body = path === '/api/v1/sources' ? sources : [];
       return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
     }));
-    const user = userEvent.setup();
     render(<App />);
 
-    expect(await screen.findByRole('button', { name: 'Backend: Fixture' })).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Select run SFT calm harbor' })).toBeVisible();
-    expect(screen.queryByRole('button', { name: 'Select run W&B SFT run' })).not.toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'No retained runs in fixture' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Project: fixture' })).toBeVisible();
+    expect(screen.getByText('This Trackio project has no retained runs.')).toBeVisible();
+    expect(window.location.pathname).toBe('/projects/fixture');
+  });
 
-    await user.click(screen.getByRole('button', { name: 'Backend: Fixture' }));
-    await user.click(screen.getByRole('option', { name: /Weights & Biases.*wandb-cloud/ }));
+  it('opens an individual run URL by resolving it directly', async () => {
+    window.history.replaceState({}, '', '/runs/run-key');
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      const body = path === '/api/v1/sources'
+        ? sources
+        : path === '/api/v1/runs/run-key'
+          ? run
+          : path === '/api/v1/runs?source_id=fixture&limit=1000'
+            ? [run]
+            : view;
+      return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<App />);
 
-    expect(await screen.findByRole('button', { name: 'Backend: Weights & Biases' })).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Select run W&B SFT run' })).toBeVisible();
-    expect(screen.queryByRole('button', { name: 'Select run SFT calm harbor' })).not.toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Learning & data evidence' })).toBeVisible();
+    expect(fetchMock.mock.calls.map(([input]) => String(input))).toContain('/api/v1/runs/run-key');
+    expect(window.location.pathname).toBe('/runs/run-key');
   });
 
   it('refreshes all evidence backends from inside the open backend popover', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const path = String(input);
-      const body = path === '/api/v1/runs'
+            const path = String(input);
+            if (path === '/api/v1/sources') return new Response(JSON.stringify(sources));
+      const body = path === '/api/v1/runs?source_id=fixture&limit=1000'
         ? [run]
         : path === '/api/v1/sources/refresh'
           ? {
@@ -942,20 +958,21 @@ describe('Observatory React product shell', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(await screen.findByRole('button', { name: 'Backend: Fixture' }));
-    await user.click(screen.getByRole('button', { name: 'Refresh evidence backends' }));
+    await user.click(await screen.findByRole('button', { name: 'Project: fixture' }));
+    await user.click(screen.getByRole('button', { name: 'Refresh Trackio projects' }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/v1/sources/refresh', { method: 'POST' }));
-    expect(screen.getByText('Evidence backend')).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Refresh evidence backends' })).toBeEnabled();
+    expect(screen.getByText('Trackio project')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Refresh Trackio projects' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Select run SFT calm harbor' })).toBeVisible();
-    expect(fetchMock.mock.calls.filter(([input]) => String(input) === '/api/v1/runs')).toHaveLength(2);
+    expect(fetchMock.mock.calls.filter(([input]) => String(input) === '/api/v1/runs?source_id=fixture&limit=1000')).toHaveLength(2);
   });
 
   it('shows a safe source refresh failure beneath the backend header', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
-      const path = String(input);
-      const body = path === '/api/v1/runs'
+            const path = String(input);
+            if (path === '/api/v1/sources') return new Response(JSON.stringify(sources));
+      const body = path === '/api/v1/runs?source_id=fixture&limit=1000'
         ? [run]
         : path === '/api/v1/sources/refresh'
           ? {
@@ -972,56 +989,43 @@ describe('Observatory React product shell', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(await screen.findByRole('button', { name: 'Backend: Fixture' }));
-    await user.click(screen.getByRole('button', { name: 'Refresh evidence backends' }));
+    await user.click(await screen.findByRole('button', { name: 'Project: fixture' }));
+    await user.click(screen.getByRole('button', { name: 'Refresh Trackio projects' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Trackio is temporarily unavailable');
-    expect(screen.getByText('Evidence backend')).toBeVisible();
+    expect(screen.getByText('Trackio project')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Select run SFT calm harbor' })).toBeVisible();
   });
 
-  it('shows the selected run shell while the backend view is loading', async () => {
-    const wandbRun = {
-      ...dpoRun,
-      locator: { source_id: 'wandb-cloud', run_id: 'runs/wandb-dpo' },
-      run_key: 'wandb-dpo-key',
-      run: {
-        ...dpoRun.run,
-        run_id: 'runs/wandb-dpo',
-        display_name: 'W&B failed DPO run',
-        provider: 'wandb',
-        status: 'failed',
-      },
-    };
-    const wandbView = { ...dpoView, view: { ...dpoView.view, run: wandbRun.run, artifacts: { items: [] } } };
-    let resolveWandb: ((response: Response) => void) | undefined;
-    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+  it('polls an active routed run once per minute', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const path = String(input);
-      if (path === '/api/v1/runs') {
-        return new Response(JSON.stringify([run, wandbRun]), { status: 200, headers: { 'content-type': 'application/json' } });
-      }
-      if (path.includes('wandb-dpo-key')) {
-        return await new Promise<Response>((resolve) => { resolveWandb = resolve; });
-      }
-      return new Response(JSON.stringify(view), { status: 200, headers: { 'content-type': 'application/json' } });
-    }));
-    const user = userEvent.setup();
+      const body = path === '/api/v1/sources'
+        ? sources
+        : path === '/api/v1/runs?source_id=fixture&limit=1000'
+          ? [run]
+          : path === '/api/v1/runs/run-key'
+            ? run
+            : view;
+      return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    let poll: (() => void) | undefined;
+    const intervalSpy = vi.spyOn(window, 'setInterval').mockImplementation(((callback: TimerHandler) => {
+      poll = callback as () => void;
+      return 1 as unknown as ReturnType<typeof setInterval>;
+    }) as typeof setInterval);
     render(<App />);
-
     expect(await screen.findByRole('heading', { name: 'Learning & data evidence' })).toBeVisible();
-    await user.click(screen.getByRole('button', { name: 'Backend: Fixture' }));
-    await user.click(screen.getByRole('option', { name: /Weights & Biases.*wandb-cloud/ }));
-
-    expect(screen.getByRole('region', { name: 'Run summary shell' })).toBeVisible();
-    expect(screen.queryByRole('heading', { name: 'Learning & data evidence' })).not.toBeInTheDocument();
+    fetchMock.mockClear();
 
     await act(async () => {
-      resolveWandb?.(new Response(JSON.stringify(wandbView), { status: 200, headers: { 'content-type': 'application/json' } }));
+      poll?.();
       await Promise.resolve();
     });
-    expect(await screen.findByRole('heading', { name: 'Preference learning evidence' })).toBeVisible();
-    expect(screen.getByText('failed')).toBeVisible();
-    expect(screen.queryByRole('heading', { name: 'Learning & data evidence' })).not.toBeInTheDocument();
+
+    expect(fetchMock.mock.calls.map(([input]) => String(input))).toContain('/api/v1/runs/run-key');
+    intervalSpy.mockRestore();
   });
 
   it('does not let a slower prior run request replace the current run view', async () => {
@@ -1033,8 +1037,9 @@ describe('Observatory React product shell', () => {
     const raceDpoView = { ...dpoView, view: { ...dpoView.view, run: raceDpoRun.run } };
     let resolveSft: ((response: Response) => void) | undefined;
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
-      const path = String(input);
-      if (path === '/api/v1/runs') {
+            const path = String(input);
+            if (path === '/api/v1/sources') return new Response(JSON.stringify(sources));
+      if (path === '/api/v1/runs?source_id=fixture&limit=1000') {
         return new Response(JSON.stringify([raceDpoRun, run]), { status: 200, headers: { 'content-type': 'application/json' } });
       }
       if (path.includes('run-key')) {
@@ -1078,8 +1083,9 @@ describe('Observatory React product shell', () => {
 
   it('renders independently scaled metric cards and allows more than three selections', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
-      const path = String(input);
-      if (path === '/api/v1/runs') {
+            const path = String(input);
+            if (path === '/api/v1/sources') return new Response(JSON.stringify(sources));
+      if (path === '/api/v1/runs?source_id=fixture&limit=1000') {
         return new Response(JSON.stringify([run]), { status: 200, headers: { 'content-type': 'application/json' } });
       }
       if (path.includes('mode=generic')) {
@@ -1126,7 +1132,9 @@ describe('Observatory React product shell', () => {
 
   it('organizes DPO evidence around pair ordering, policy movement, and method context', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
-      const body = String(input) === '/api/v1/runs' ? [dpoRun] : dpoView;
+      const path = String(input);
+      if (path === '/api/v1/sources') return new Response(JSON.stringify(sources));
+      const body = path === '/api/v1/runs?source_id=fixture&limit=1000' ? [dpoRun] : dpoView;
       return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
     }));
     const user = userEvent.setup();
@@ -1184,7 +1192,9 @@ describe('Observatory React product shell', () => {
       true,
     );
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
-      const body = String(input) === '/api/v1/runs' ? [jobRun] : jobView;
+      const path = String(input);
+      if (path === '/api/v1/sources') return new Response(JSON.stringify(sources));
+      const body = path === '/api/v1/runs?source_id=fixture&limit=1000' ? [jobRun] : jobView;
       return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
     }));
     const user = userEvent.setup();
@@ -1256,7 +1266,9 @@ describe('Observatory React product shell', () => {
   }) => {
     const { jobRun, jobView } = metricJob(kind, display, summary, inputs, traceAware);
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
-      const body = String(input) === '/api/v1/runs' ? [jobRun] : jobView;
+      const path = String(input);
+      if (path === '/api/v1/sources') return new Response(JSON.stringify(sources));
+      const body = path === '/api/v1/runs?source_id=fixture&limit=1000' ? [jobRun] : jobView;
       return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
     }));
     const user = userEvent.setup();
@@ -1298,7 +1310,9 @@ describe('Observatory React product shell', () => {
       },
     };
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
-      const body = String(input) === '/api/v1/runs' ? [grpoRun] : grpoView;
+      const path = String(input);
+      if (path === '/api/v1/sources') return new Response(JSON.stringify(sources));
+      const body = path === '/api/v1/runs?source_id=fixture&limit=1000' ? [grpoRun] : grpoView;
       return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
     }));
 
@@ -1344,8 +1358,9 @@ describe('Observatory React product shell', () => {
       metrics: { correct: 0.25 },
     });
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-      const path = String(input);
-      if (path === '/api/v1/runs') return new Response(JSON.stringify([jobRun]));
+            const path = String(input);
+            if (path === '/api/v1/sources') return new Response(JSON.stringify(sources));
+      if (path === '/api/v1/runs?source_id=fixture&limit=1000') return new Response(JSON.stringify([jobRun]));
       if (path.includes('/traces-evaluation')) throw new Error('optimization view must not request evaluation aggregation');
       if (path.includes('/traces?')) {
         const second = path.includes('cursor=100');
@@ -1397,8 +1412,9 @@ describe('Observatory React product shell', () => {
       reward_components: {}, native_metrics: {}, metrics: {},
     };
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
-      const path = String(input);
-      if (path === '/api/v1/runs') return new Response(JSON.stringify([jobRun]));
+            const path = String(input);
+            if (path === '/api/v1/sources') return new Response(JSON.stringify(sources));
+      if (path === '/api/v1/runs?source_id=fixture&limit=1000') return new Response(JSON.stringify([jobRun]));
       if (path.includes('/traces?')) return new Response(JSON.stringify({ items: [trace], next_cursor: null, total: 1, live: true }));
       return new Response(JSON.stringify(jobView));
     }));
@@ -1466,7 +1482,11 @@ describe('Observatory React product shell', () => {
       view: {
         ...jobView.view,
         charts: [
-          ...jobView.view.charts,
+          {
+            ...jobView.view.charts[0],
+            key: 'optimization',
+            title: 'Policy optimization',
+          },
           {
             key: 'rollout_population',
             title: 'Rollout population',
@@ -1495,7 +1515,21 @@ describe('Observatory React product shell', () => {
       },
     };
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
-      const body = String(input) === '/api/v1/runs' ? [jobRun] : configuredJobView;
+      const path = String(input);
+      if (path === '/api/v1/sources') return new Response(JSON.stringify(sources));
+      if (path.includes('/rollout-behavior')) return new Response(JSON.stringify({
+        state: 'complete',
+        scanned: 256,
+        expected: 256,
+        included: 256,
+        unattributed: 0,
+        points: [
+          { step: 1, rollouts: 128, thinking_tokens: null, output_tokens: 891.4, tool_calls: 0.966 },
+          { step: 2, rollouts: 128, thinking_tokens: null, output_tokens: 876.1, tool_calls: 1.023 },
+        ],
+        live: false,
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+      const body = path === '/api/v1/runs?source_id=fixture&limit=1000' ? [jobRun] : configuredJobView;
       return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
     }));
 
@@ -1513,6 +1547,9 @@ describe('Observatory React product shell', () => {
     expect(within(headline).queryByText('Rollout throughput')).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'GRPO rollout population' })).not.toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Rollout population' })).toBeVisible();
+    const optimizationChart = await screen.findByRole('img', { name: 'Policy optimization metric series for GRPO compact ridge' });
+    expect(optimizationChart).toBeVisible();
+    expect(screen.queryByRole('region', { name: 'Rollout behavior' })).not.toBeInTheDocument();
     const rolloutSetup = screen.getByRole('region', { name: 'Rollout setup' });
     expect(rolloutSetup).toHaveTextContent('Prompt groups / update32 · derived');
     expect(rolloutSetup).toHaveTextContent('Rollouts / prompt8');

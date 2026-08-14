@@ -15,6 +15,7 @@ from posttrain.common import (
     InferenceBinding,
     MetricBatchObservation,
     MetricObservation,
+    ModelVariant,
     ProducedArtifact,
     RunContext,
     TraceObservation,
@@ -530,6 +531,37 @@ def test_evaluate_emits_direct_sync_metrics_and_native_artifact(tmp_path: Path) 
     assert "eval/mean_reward" not in values
     assert observer.events[0].attributes["task_selection"] == "head"
     assert observer.events[-1].name == "evaluation_completed"
+
+
+def test_verifiers_eval_emits_shared_trace_facts() -> None:
+    from posttrain.eval.backends.verifiers.adapter import _emit_batch
+
+    observer = RecordingObserver()
+    execution = context(Path.cwd(), observer)
+    evaluation = request()
+    record = {
+        "id": "trace-facts",
+        "version": 2,
+        "run": {"type": "eval", "id": "run-1", "step": 8},
+        "agent": {"model": "models/future-2b"},
+        "nodes": [],
+        "calls": [
+            {
+                "finish_reason": "stop",
+                "usage": {"prompt_tokens": 5, "completion_tokens": 3, "reasoning_tokens": 1},
+            }
+        ],
+    }
+
+    _emit_batch(execution, evaluation, [record])
+
+    [trace] = observer.traces
+    assert trace.attributes["model"] == "models/future-2b"
+    assert trace.facts[0].measures["model_output_tokens"] == 3
+    assert trace.facts[0].measures["thinking_tokens"] == 1
+    assert trace.facts[0].dimensions["rollout_step"] is None
+    assert isinstance(evaluation.model, ModelVariant)
+    assert trace.facts[0].dimensions["model_family"] == evaluation.model.family
 
 
 def test_evaluate_records_shuffled_subset_policy(tmp_path: Path) -> None:

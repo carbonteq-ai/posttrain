@@ -51,6 +51,7 @@ from .models import (
     MetricNamespace,
     MetricSeriesQuery,
     MetricSeriesSet,
+    RolloutBehaviorView,
     RunAlert,
     RunComparison,
     RunDelta,
@@ -90,7 +91,7 @@ from .telemetry import (
     JobTelemetryDefinition,
 )
 from .traces import get_trace_detail as load_trace_detail
-from .traces import trace_evaluation_view, trace_summary_page
+from .traces import rollout_behavior_view, trace_evaluation_view, trace_summary_page
 
 
 def _reduce(series: MetricSeries, reducer: str) -> float | None:
@@ -916,6 +917,8 @@ class ObservatoryService:
         self._semantic = SemanticAnalysisService(semantic_provider)
         self._source_discovery = source_discovery
         self._trace_read_contexts: dict[tuple[str, str], _TraceReadContext] = {}
+        self._rollout_behavior_cache: dict[tuple[str, str], tuple[float, RolloutBehaviorView]] = {}
+        self._rollout_behavior_locks: dict[tuple[str, str], asyncio.Lock] = {}
 
     def _locator(self, value: str | RunLocator) -> RunLocator:
         if isinstance(value, RunLocator):
@@ -986,8 +989,16 @@ class ObservatoryService:
     async def list_sources(self) -> tuple[SourceSummary, ...]:
         return await self.registry.sources()
 
-    async def list_runs(self, query: RunQuery | None = None) -> tuple[LocatedRunSummary, ...]:
-        return await self.registry.list_runs(query or RunQuery())
+    async def list_runs(
+        self,
+        query: RunQuery | None = None,
+        *,
+        source_id: str | None = None,
+    ) -> tuple[LocatedRunSummary, ...]:
+        return await self.registry.list_runs(query or RunQuery(), source_id=source_id)
+
+    async def get_run(self, locator: RunLocator) -> LocatedRunSummary:
+        return await self.registry.get_run(locator)
 
     async def locate_run(self, run_id: str) -> tuple[LocatedRunSummary, ...]:
         return await self.registry.locate_run(run_id)
@@ -1638,6 +1649,45 @@ class ObservatoryService:
             metadata=_evaluation_metadata(detail.resolved_inputs),
             include_traces=include_traces,
         )
+
+    async def get_rollout_behavior_view(self, run: str | RunLocator) -> RolloutBehaviorView:
+        """Return per-optimizer-step rollout means when trace attribution exists.
+
+        This is the only projection that reads full retained trace payloads in
+        order to recover exact historical thinking-token counts. Cache the
+        bounded scan and coalesce concurrent requests so a browser refresh
+        never launches repeated provider reads for the same run.
+        """
+
+        locator = self._locator(run)
+        key = (locator.source_id, locator.run_id)
+        cached = self._rollout_behavior_cache.get(key)
+        if cached is not None and cached[0] > time.monotonic():
+            return cached[1]
+        lock = self._rollout_behavior_locks.setdefault(key, asyncio.Lock())
+        async with lock:
+            cached = self._rollout_behavior_cache.get(key)
+            if cached is not None and cached[0] > time.monotonic():
+                return cached[1]
+            source = self.registry.resolve(locator)
+            context = await self._trace_read_context(locator)
+            detail = context.detail
+            view = await rollout_behavior_view(
+                source,
+                locator.run_id,
+                expected=_evaluation_expected_traces(
+                    detail.resolved_inputs,
+                    fallback=detail.trace_count or None,
+                ),
+                trace_type=context.trace_type,
+            )
+            # Active routed pages poll once a minute. Terminal evidence is
+            # stable enough to avoid re-reading every full trace on tab flips.
+            ttl = 60.0 if view.live or detail.summary.status == "running" else 300.0
+            self._rollout_behavior_cache[key] = (time.monotonic() + ttl, view)
+            if len(self._rollout_behavior_cache) > 512:
+                self._rollout_behavior_cache.pop(next(iter(self._rollout_behavior_cache)))
+            return view
 
     async def get_trace_summary_page(
         self,

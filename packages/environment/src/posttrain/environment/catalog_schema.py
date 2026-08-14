@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Annotated, Literal, cast
 
-from posttrain.common import CatalogRef, ContractError, JsonValue
+from posttrain.common import CatalogRef, ContractError, JsonValue, SignalSource
 from posttrain.common.catalog import SelectionDecoder
 from posttrain.common.selections import Selection, SelectionFamily
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -72,6 +72,20 @@ class EvaluationObservationSchema(EnvironmentCatalogSchema):
     facets: tuple[EvaluationFacetFieldSchema, ...] = ()
 
 
+class SignalSourceSchema(EnvironmentCatalogSchema):
+    kind: Literal[
+        "llm_judge",
+        "deterministic",
+        "human",
+        "environment",
+        "group",
+        "teacher",
+        "composite",
+        "unknown",
+    ] = "unknown"
+    id: str | None = None
+
+
 class ProjectPathActivationResourceSchema(EnvironmentCatalogSchema):
     kind: Literal["project-path"]
     path: str
@@ -117,6 +131,7 @@ class EnvironmentBindingSchema(EnvironmentCatalogSchema):
     qualification: Literal["required", "deferred"] = "required"
     parameters: dict[str, JsonValue] = Field(default_factory=dict)
     reward_components: tuple[str, ...] = ()
+    reward_component_sources: dict[str, SignalSourceSchema] = Field(default_factory=dict)
     observation: EvaluationObservationSchema = Field(default_factory=EvaluationObservationSchema)
     required_inference_capabilities: tuple[str, ...] = ()
 
@@ -158,6 +173,10 @@ def environment_catalog_decoders(
             qualification=payload.qualification,
             parameters=payload.parameters,
             reward_components=payload.reward_components,
+            reward_component_sources={
+                name: SignalSource(kind=source.kind, id=source.id)
+                for name, source in payload.reward_component_sources.items()
+            },
             required_inference_capabilities=payload.required_inference_capabilities,
             observation=EvaluationObservation(
                 primary_metric=payload.observation.primary_metric,

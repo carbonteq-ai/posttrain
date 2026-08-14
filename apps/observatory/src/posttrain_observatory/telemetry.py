@@ -1327,51 +1327,19 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
     ),
     charts=(
         ChartDefinition(
-            key="learning_signal",
-            title="Learning signal",
-            question="Is reward improving while rollout groups still provide relative signal?",
-            metrics=("train/rl/reward_mean", "train/rl/reward_std", "train/rl/group_zero_variance_fraction"),
-        ),
-        ChartDefinition(
             key="optimization",
             title="Policy optimization",
-            question="Are updates controlled without collapsing exploration?",
+            question="Does reward improve while groups retain relative signal and policy updates remain controlled?",
             metrics=(
+                "train/rl/reward_mean",
+                "train/rl/reward_std",
+                "train/rl/group_zero_variance_fraction",
                 "train/rl/policy_loss",
                 "train/rl/entropy",
                 "train/rl/kl",
                 "train/rl/clip_fraction",
                 "train/rl/clip_fraction_low",
                 "train/rl/clip_fraction_high",
-            ),
-        ),
-        ChartDefinition(
-            key="dynamic_sampling",
-            title="Dynamic sampling",
-            question="How much rollout population is discarded before the optimizer receives a usable group signal?",
-            metrics=(
-                "train/rl/dynamic_sampling_candidate_batches",
-                "train/rl/dynamic_sampling_retained_fraction",
-            ),
-        ),
-        ChartDefinition(
-            key="active_sampling_yield",
-            title="Active sampling yield",
-            question="How many generation rounds were needed, and what share of generated candidates supplied usable reward variation?",
-            metrics=(
-                "train/rl/active_sampling_generation_rounds",
-                "train/rl/active_sampling_retained_fraction",
-            ),
-        ),
-        ChartDefinition(
-            key="active_sampling_population",
-            title="Active sampling population",
-            question="How did the bounded candidate window divide into generated, retained, and unused rows?",
-            metrics=(
-                "train/rl/active_sampling_candidate_groups_reserved",
-                "train/rl/active_sampling_candidate_groups_generated",
-                "train/rl/active_sampling_candidate_groups_retained",
-                "train/rl/active_sampling_candidate_groups_unused",
             ),
         ),
         ChartDefinition(
@@ -1427,6 +1395,38 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
                 "serve/backend/speculative_acceptance_rate",
                 "serve/backend/speculative_accepted_length",
                 "serve/backend/kv_cache_peak_usage_ratio",
+            ),
+        ),
+        # Sampling modes are conditional on the selected algorithm. Keep them
+        # after the core policy-health evidence so they do not interrupt the
+        # common GRPO reading order.
+        ChartDefinition(
+            key="dynamic_sampling",
+            title="Dynamic sampling",
+            question="How much rollout population is discarded before the optimizer receives a usable group signal?",
+            metrics=(
+                "train/rl/dynamic_sampling_candidate_batches",
+                "train/rl/dynamic_sampling_retained_fraction",
+            ),
+        ),
+        ChartDefinition(
+            key="active_sampling_yield",
+            title="Active sampling yield",
+            question="How many generation rounds were needed, and what share of generated candidates supplied usable reward variation?",
+            metrics=(
+                "train/rl/active_sampling_generation_rounds",
+                "train/rl/active_sampling_retained_fraction",
+            ),
+        ),
+        ChartDefinition(
+            key="active_sampling_population",
+            title="Active sampling population",
+            question="How did the bounded candidate window divide into generated, retained, and unused rows?",
+            metrics=(
+                "train/rl/active_sampling_candidate_groups_reserved",
+                "train/rl/active_sampling_candidate_groups_generated",
+                "train/rl/active_sampling_candidate_groups_retained",
+                "train/rl/active_sampling_candidate_groups_unused",
             ),
         ),
     ),

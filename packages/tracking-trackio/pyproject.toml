@@ -8,13 +8,13 @@ requires-python = ">=3.13,<3.14"
 dependencies = [
     "posttrain-common",
     "posttrain-tracking",
-    "carbonteq-trackio==0.31.5.post13",
+    "carbonteq-trackio==0.31.5.post14.dev4",
 ]
 
 [tool.uv.sources]
 posttrain-common = { workspace = true }
 posttrain-tracking = { workspace = true }
-carbonteq-trackio = { index = "carbonteq-stable" }
+carbonteq-trackio = { index = "carbonteq-dev" }
 
 [build-system]
 requires = ["hatchling"]

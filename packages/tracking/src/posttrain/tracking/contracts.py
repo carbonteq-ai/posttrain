@@ -27,6 +27,8 @@ if TYPE_CHECKING:
         RunDetail,
         RunQuery,
         RunSummary,
+        TraceAggregateResult,
+        TraceFactsQuery,
         TracePage,
         TraceQuery,
         TrackingCapabilities,
@@ -181,6 +183,8 @@ class RunDataSource(Protocol):
     async def metric_series(self, run_id: str, names: tuple[str, ...]) -> tuple[MetricSeries, ...]: ...
 
     async def traces(self, run_id: str, query: TraceQuery) -> TracePage: ...
+
+    async def aggregate_trace_facts(self, run_id: str, query: TraceFactsQuery) -> TraceAggregateResult: ...
 
     async def artifacts(self, run_id: str) -> ArtifactSet: ...
 

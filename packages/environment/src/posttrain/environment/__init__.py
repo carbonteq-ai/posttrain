@@ -12,6 +12,7 @@ from .catalog_schema import (
     ProjectPathEnvironmentSourceSchema,
     PythonFactoryActivationSchema,
     SamplingPolicySchema,
+    SignalSourceSchema,
     VerifiersV1ConfigActivationSchema,
     environment_catalog_decoders,
 )
@@ -30,6 +31,19 @@ from .requests import (
     SamplingPolicy,
     VerifiersV1ConfigActivation,
     environment_source_payload,
+)
+from .verifiers_evidence import (
+    DEFAULT_THINKING_TOKEN_RULES,
+    QWEN35_THINKING_END_TOKEN_ID,
+    VERIFIERS_FACT_CALCULATOR_VERSION,
+    Qwen35ThinkingTokenRule,
+    ThinkingTokenContext,
+    ThinkingTokenResult,
+    ThinkingTokenRule,
+    project_verifiers_trace_facts,
+    verifiers_trace_attributes,
+    verifiers_trace_has_error,
+    verifiers_trace_is_truncated,
 )
 
 __all__ = [
@@ -56,8 +70,20 @@ __all__ = [
     "ProjectPathEnvironmentSourceSchema",
     "SamplingPolicy",
     "SamplingPolicySchema",
+    "SignalSourceSchema",
+    "DEFAULT_THINKING_TOKEN_RULES",
+    "QWEN35_THINKING_END_TOKEN_ID",
+    "Qwen35ThinkingTokenRule",
+    "ThinkingTokenContext",
+    "ThinkingTokenResult",
+    "ThinkingTokenRule",
+    "VERIFIERS_FACT_CALCULATOR_VERSION",
     "VerifiersV1ConfigActivation",
     "VerifiersV1ConfigActivationSchema",
     "environment_catalog_decoders",
     "environment_source_payload",
+    "project_verifiers_trace_facts",
+    "verifiers_trace_attributes",
+    "verifiers_trace_has_error",
+    "verifiers_trace_is_truncated",
 ]

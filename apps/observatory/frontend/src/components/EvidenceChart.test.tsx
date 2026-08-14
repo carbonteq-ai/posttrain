@@ -177,6 +177,29 @@ describe('EvidenceChart scale policy', () => {
     expect(scaleGroup('train/rl/active_sampling_candidate_groups_retained', {})).toBe('active-sampling-count');
   });
 
+  it('keeps rollout tokens and tool calls in one dedicated chart panel', () => {
+    render(<EvidenceChart
+      ariaLabel="Policy optimization"
+      metricUnits={{
+        'trace/rollout/avg_thinking_tokens': 'tokens',
+        'trace/rollout/avg_output_tokens': 'tokens',
+        'trace/rollout/avg_tool_calls': null,
+      }}
+      series={[
+        { name: 'train/rl/policy_loss', points: [{ step: 1, value: 0.01 }] },
+        { name: 'trace/rollout/avg_thinking_tokens', points: [{ step: 1, value: 600 }] },
+        { name: 'trace/rollout/avg_output_tokens', points: [{ step: 1, value: 300 }] },
+        { name: 'trace/rollout/avg_tool_calls', points: [{ step: 1, value: 1 }] },
+      ]}
+    />);
+
+    const option = chartMocks.setOption.mock.calls[0][0];
+    expect(option.grid).toHaveLength(2);
+    expect(option.title[1].text).toBe('Rollout behavior');
+    expect(option.series.map((item: { xAxisIndex: number; yAxisIndex: number }) => [item.xAxisIndex, item.yAxisIndex]))
+      .toEqual([[0, 0], [1, 1], [1, 1], [1, 2]]);
+  });
+
   it('keeps two scale families together for direct comparison', () => {
     render(<EvidenceChart
       ariaLabel="Learning signal"
@@ -194,7 +217,7 @@ describe('EvidenceChart scale policy', () => {
     expect(option.series.map((item: { yAxisIndex: number }) => item.yAxisIndex)).toEqual([0, 0, 1]);
   });
 
-  it('uses synchronized small multiples instead of a third scale', () => {
+  it('keeps policy loss and entropy in one divided panel with independent axes', () => {
     render(<EvidenceChart
       ariaLabel="Policy optimization"
       metricUnits={{ 'train/rl/clip_fraction': 'ratio' }}
@@ -206,10 +229,15 @@ describe('EvidenceChart scale policy', () => {
     />);
 
     const option = chartMocks.setOption.mock.calls[0][0];
-    expect(option.grid).toHaveLength(3);
-    expect(option.xAxis).toHaveLength(3);
+    expect(option.grid).toHaveLength(2);
+    expect(option.grid[0].top).toBe(46);
+    expect(option.xAxis).toHaveLength(2);
+    expect(option.xAxis[1].axisLabel.show).toBe(true);
     expect(option.yAxis).toHaveLength(3);
-    expect(option.yAxis.every((axis: { position: string }) => axis.position === 'left')).toBe(true);
+    expect(option.yAxis.map((axis: { position: string }) => axis.position)).toEqual(['left', 'right', 'left']);
+    expect(option.title[0].text).toBe('Policy update and exploration');
+    expect(option.series.map((item: { xAxisIndex: number; yAxisIndex: number }) => [item.xAxisIndex, item.yAxisIndex]))
+      .toEqual([[0, 0], [0, 1], [1, 2]]);
     expect(option.axisPointer.link).toEqual([{ xAxisIndex: 'all' }]);
   });
 

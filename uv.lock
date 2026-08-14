@@ -344,8 +344,8 @@ wheels = [
 
 [[package]]
 name = "carbonteq-trackio"
-version = "0.31.5.post13"
-source = { registry = "https://pypi.lan/carbonteq/stable/+simple/" }
+version = "0.31.5.post14.dev4"
+source = { registry = "https://pypi.lan/carbonteq/dev/+simple/" }
 dependencies = [
     { name = "boto3" },
     { name = "brotli" },
@@ -360,9 +360,9 @@ dependencies = [
     { name = "starlette" },
     { name = "uvicorn", extra = ["standard"] },
 ]
-sdist = { url = "https://pypi.lan/carbonteq/stable/+f/0d9/bdc291290d7d6/carbonteq_trackio-0.31.5.post13.tar.gz", hash = "sha256:0d9bdc291290d7d6ce78fc32053ee35c4139c519a18b7f717b4efff95dbce9b8" }
+sdist = { url = "https://pypi.lan/carbonteq/dev/+f/323/ffc9b88ab0a50/carbonteq_trackio-0.31.5.post14.dev4.tar.gz", hash = "sha256:323ffc9b88ab0a502dcd21fe910cacebbe65e2cfe597844a3c6a30b2c96a5699" }
 wheels = [
-    { url = "https://pypi.lan/carbonteq/stable/+f/198/7738f2306ff7d/carbonteq_trackio-0.31.5.post13-py3-none-any.whl", hash = "sha256:1987738f2306ff7d0e444a13ca3d84bc69a42717c571832369c89df764cc8491" },
+    { url = "https://pypi.lan/carbonteq/dev/+f/731/425c378c03659/carbonteq_trackio-0.31.5.post14.dev4-py3-none-any.whl", hash = "sha256:731425c378c03659e6d67eb3806277c4a90cd2e0a4ae2eeb371908bad3cb5fc3" },
 ]
 
 [[package]]
@@ -2453,6 +2453,7 @@ source = { editable = "apps/cli" }
 dependencies = [
     { name = "posttrain-catalog" },
     { name = "posttrain-data" },
+    { name = "posttrain-environment" },
     { name = "posttrain-execution" },
     { name = "posttrain-execution-buildkit" },
     { name = "posttrain-execution-local" },
@@ -2493,6 +2494,7 @@ wandb = [
 requires-dist = [
     { name = "posttrain-catalog", editable = "packages/catalog" },
     { name = "posttrain-data", editable = "packages/data" },
+    { name = "posttrain-environment", editable = "packages/environment" },
     { name = "posttrain-eval", extras = ["verifiers"], marker = "extra == 'verifiers'", editable = "packages/eval" },
     { name = "posttrain-execution", editable = "packages/execution" },
     { name = "posttrain-execution-buildkit", editable = "packages/execution-buildkit" },
@@ -2972,7 +2974,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "carbonteq-trackio", specifier = "==0.31.5.post13", index = "https://pypi.lan/carbonteq/stable/+simple/" },
+    { name = "carbonteq-trackio", specifier = "==0.31.5.post14.dev4", index = "https://pypi.lan/carbonteq/dev/+simple/" },
     { name = "posttrain-common", editable = "packages/common" },
     { name = "posttrain-tracking", editable = "packages/tracking" },
 ]
@@ -3004,6 +3006,7 @@ dependencies = [
     { name = "httpx" },
     { name = "posttrain-common" },
     { name = "posttrain-data" },
+    { name = "posttrain-environment" },
     { name = "pydantic" },
 ]
 
@@ -3049,6 +3052,7 @@ requires-dist = [
     { name = "peft", marker = "extra == 'trl'", specifier = ">=0.19,<0.20" },
     { name = "posttrain-common", editable = "packages/common" },
     { name = "posttrain-data", editable = "packages/data" },
+    { name = "posttrain-environment", editable = "packages/environment" },
     { name = "protobuf", marker = "extra == 'trl'", specifier = ">=7.35,<8" },
     { name = "pydantic", specifier = ">=2.12,<3" },
     { name = "renderers", marker = "extra == 'trl'", specifier = "==0.1.8" },

@@ -106,6 +106,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/runs/{run_key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Run */
+        get: operations["run_api_v1_runs__run_key__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs/{run_key}/alerts": {
         parameters: {
             query?: never;
@@ -183,6 +200,23 @@ export interface paths {
         };
         /** Metrics */
         get: operations["metrics_api_v1_runs__run_key__metrics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{run_key}/rollout-behavior": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Rollout Behavior */
+        get: operations["rollout_behavior_api_v1_runs__run_key__rollout_behavior_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1110,6 +1144,54 @@ export interface components {
             /** Series */
             series: components["schemas"]["MetricSeries"][];
         };
+        /**
+         * RolloutBehaviorPoint
+         * @description Trace-derived rollout averages for one optimizer step.
+         */
+        RolloutBehaviorPoint: {
+            /** Output Tokens */
+            output_tokens?: number | null;
+            /** Rollouts */
+            rollouts: number;
+            /** Step */
+            step: number;
+            /** Thinking Tokens */
+            thinking_tokens?: number | null;
+            /** Tool Calls */
+            tool_calls?: number | null;
+        };
+        /**
+         * RolloutBehaviorView
+         * @description Per-step rollout behavior from retained trace evidence.
+         */
+        RolloutBehaviorView: {
+            /** Expected */
+            expected?: number | null;
+            /** Included */
+            included: number;
+            /**
+             * Live
+             * @default false
+             */
+            live: boolean;
+            /**
+             * Points
+             * @default []
+             */
+            points: components["schemas"]["RolloutBehaviorPoint"][];
+            /** Scanned */
+            scanned: number;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "complete" | "partial" | "unavailable";
+            /**
+             * Unattributed
+             * @default 0
+             */
+            unattributed: number;
+        };
         /** RunAlert */
         RunAlert: {
             /** Field */
@@ -1833,6 +1915,7 @@ export interface operations {
         parameters: {
             query?: {
                 project_id?: string | null;
+                source_id?: string | null;
                 work_package_id?: string | null;
                 job_kind?: string[];
                 status?: string[];
@@ -1921,6 +2004,39 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_api_v1_runs__run_key__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -2092,6 +2208,37 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rollout_behavior_api_v1_runs__run_key__rollout_behavior_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RolloutBehaviorView"];
                 };
             };
             /** @description Validation Error */

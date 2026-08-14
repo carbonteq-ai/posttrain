@@ -339,6 +339,22 @@ export type TraceEvaluation = {
   live: boolean;
 };
 
+export type RolloutBehavior = {
+  state: 'complete' | 'partial' | 'unavailable';
+  scanned: number;
+  expected: number | null;
+  included: number;
+  unattributed: number;
+  points: Array<{
+    step: number;
+    rollouts: number;
+    thinking_tokens: number | null;
+    output_tokens: number | null;
+    tool_calls: number | null;
+  }>;
+  live: boolean;
+};
+
 export type TraceSummaryPage = {
   items: TraceSummary[];
   next_cursor: string | null;
@@ -520,6 +536,13 @@ export type SourceRefreshStatus = {
   discovered_source_ids: string[];
 };
 
+export type SourceSummary = {
+  source_id: string;
+  provider: string;
+  state: 'healthy' | 'unavailable';
+  message: string | null;
+};
+
 export type SystemMetrics = {
   state: 'available' | 'unavailable';
   window_started_at: string;
@@ -664,7 +687,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  runs: () => request<RunItem[]>('/api/v1/runs'),
+  sources: () => request<SourceSummary[]>('/api/v1/sources'),
+  runs: (sourceId: string) => request<RunItem[]>(`/api/v1/runs?${new URLSearchParams({ source_id: sourceId, limit: '1000' })}`),
+  run: (key: string) => request<RunItem>(`/api/v1/runs/${encodeURIComponent(key)}`),
   refreshSources: () => request<SourceRefreshStatus>('/api/v1/sources/refresh', { method: 'POST' }),
   workPackage: (workPackageId: string, projectId: string, sourceId: string) => {
     const path = workPackageId.split('/').map(encodeURIComponent).join('/');
@@ -687,6 +712,7 @@ export const api = {
     const query = new URLSearchParams({ include_traces: String(includeTraces) });
     return request<TraceEvaluation>(`/api/v1/runs/${key}/traces-evaluation?${query}`);
   },
+  rolloutBehavior: (key: string) => request<RolloutBehavior>(`/api/v1/runs/${key}/rollout-behavior`),
   tracePage: (key: string, cursor: string | null = null, limit = 100) => {
     const query = new URLSearchParams({ limit: String(limit) });
     if (cursor) query.set('cursor', cursor);

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Protocol, cast
 
 from posttrain.common import JsonValue, RunContext, TraceObservation
+from posttrain.environment import project_verifiers_trace_facts, verifiers_trace_attributes
 
 from ...requests import EvaluateRequest, RemotePolicy
 from ...results import EvaluationPopulation
@@ -137,19 +138,27 @@ def _emit_batch(context: EvaluationContext, request: EvaluateRequest, records: l
             {
                 "evaluation_subject_kind": "model-variant",
                 "model_variant_id": request.model.id,
+                **request.model.trace_identity(),
             }
         )
+    reward_component_sources = request.plan.environment(request.environment_id).reward_component_sources
     for record in records:
         observed = _observed_model(record)
-        trace_attributes = dict(attributes)
+        trace_attributes = {**attributes, **verifiers_trace_attributes(record)}
         if observed is not None:
             trace_attributes["observed_model"] = observed
+        facts = project_verifiers_trace_facts(
+            record,
+            attributes=trace_attributes,
+            reward_component_sources=reward_component_sources,
+        )
         context.trace(
             TraceObservation(
                 trace_type="verifiers",
                 external_id=str(record["id"]),
                 payload=record,
                 attributes=trace_attributes,
+                facts=(facts,),
             )
         )
 

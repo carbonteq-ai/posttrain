@@ -8,6 +8,7 @@ from .adapter import (
     TrackioProjectCatalog,
     TrackioPurgeActionExecutor,
     TrackioSettings,
+    TrackioTraceFactWriter,
     TrackioTrackedRun,
     require_remote_trackio_ready,
 )
@@ -20,6 +21,7 @@ __all__ = [
     "TrackioPurgeActionExecutor",
     "TrackioProjectCatalog",
     "TrackioSettings",
+    "TrackioTraceFactWriter",
     "TrackioTrackedRun",
     "require_remote_trackio_ready",
 ]
