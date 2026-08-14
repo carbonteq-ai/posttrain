@@ -20,6 +20,9 @@ from posttrain_cli.execution_config import (
     TRUST_BUNDLE_ENVIRONMENT_VARIABLE,
     ExecutionOverrides,
     LocalExecutionConfig,
+    LocalProviderBinding,
+    MachineConfig,
+    MachineServicesBinding,
     derived_local_registry,
     load_execution_environment,
     load_local_execution_config,
@@ -90,6 +93,64 @@ def test_project_runtime_environment_is_authoritative_over_shell_registry(
     assert configuration.environment_file == (tmp_path / "posttrain.env").resolve()
     assert configuration.registry is not None
     assert configuration.registry.repository == "registry.project.example/posttrain/posttrain-job"
+
+
+def test_machine_keeps_provider_ownership_but_allows_project_candidate_registry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    layout = _layout(tmp_path)
+    _write_runtime_environment(
+        tmp_path / "posttrain.env",
+        "POSTTRAIN_REGISTRY=registry.machine.example/posttrain\n",
+    )
+    lock = layout.state / "candidate.lock"
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    lock.write_text("candidate receipt\n", encoding="utf-8")
+    digest = hashlib.sha256(lock.read_bytes()).hexdigest()
+    execution = layout.state / "execution.toml"
+    execution.write_text(
+        "\n".join(
+            (
+                "schema_version = 1",
+                "",
+                "[registry]",
+                'repository = "registry.candidate.example/posttrain-job"',
+                "",
+                "[registry.kind_images]",
+                'supervised = "registry.candidate.example/posttrain-kind-supervised@sha256:' + "a" * 64 + '"',
+                "",
+                "[registry.constraint_profiles.supervised]",
+                'path = "candidate.lock"',
+                f'sha256 = "{digest}"',
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    execution.chmod(0o600)
+    machine = MachineConfig(
+        name="test-machine",
+        path=tmp_path / "machine.toml",
+        projects=(),
+        defaults=ExecutionOverrides(),
+        local=LocalProviderBinding(),
+        dstack=None,
+        tracking=None,
+        huggingface=None,
+        services=MachineServicesBinding(),
+        credentials={},
+    )
+    monkeypatch.setattr(
+        "posttrain_cli.execution_config.load_machine_config", lambda: machine
+    )
+
+    configuration = load_local_execution_config(layout)
+
+    assert configuration.machine is machine
+    assert configuration.registry is not None
+    assert configuration.registry.repository == "registry.candidate.example/posttrain-job"
+    assert configuration.registry.kind_images["supervised"].value.endswith("sha256:" + "a" * 64)
 
 
 def test_explicit_runtime_environment_replaces_the_project_file(tmp_path: Path) -> None:

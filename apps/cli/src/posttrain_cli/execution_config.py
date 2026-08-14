@@ -193,13 +193,23 @@ def load_local_execution_config(
             dstack=machine.dstack,
             machine=machine,
         )
+        runtime_values = load_execution_environment(provisional)
+        # Credentials, provider access, and scheduling policy belong to the
+        # machine. A project can nevertheless select a retained runtime
+        # candidate by declaring only [registry] in its protected local state.
+        # That selection is digest-pinned and project-scoped, so it must not
+        # require mutating every job on the workstation.
+        project_registry = _load_project_registry_override(
+            configured,
+            environ=runtime_values,
+        )
         return LocalExecutionConfig(
             path=machine.path,
             defaults=machine.defaults,
             environment_file=runtime_environment.path,
             local=machine.local,
             dstack=machine.dstack,
-            registry=derived_registry(environ=load_execution_environment(provisional)),
+            registry=project_registry or derived_registry(environ=runtime_values),
             machine=machine,
         )
     if not configured.exists():
@@ -287,6 +297,38 @@ def load_local_execution_config(
         local=local,
         dstack=dstack,
         registry=registry,
+    )
+
+
+def _load_project_registry_override(
+    configured: Path,
+    *,
+    environ: Mapping[str, str],
+) -> RegistryBinding | None:
+    """Load only a project-scoped immutable runtime selection under a machine.
+
+    The full execution configuration is intentionally ignored when the machine
+    owns providers and credentials. Its `[registry]` table is different: it is
+    a digest-addressed candidate-selection record and safely scopes a runtime
+    trial to the project that requested it.
+    """
+
+    if not configured.exists():
+        return None
+    if not configured.is_file():
+        raise ContractError(f"execution configuration is not a file: {configured}")
+    if configured.stat().st_mode & 0o077:
+        raise ContractError(f"execution configuration must not be accessible by group or others: {configured}")
+    try:
+        payload = tomllib.loads(configured.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as error:
+        raise ContractError(f"invalid execution configuration {configured}: {error}") from error
+    if not isinstance(payload, dict) or payload.get("schema_version") != 1:
+        raise ContractError(f"invalid execution configuration {configured}")
+    return _parse_registry(
+        payload.get("registry"),
+        base=configured.parent,
+        environ=environ,
     )
 
 
