@@ -134,6 +134,12 @@ receipt instead of rebuilding or re-running completed checks.
   base and reached all kind publications, but a six-way fan-out overloaded the
   internal package index and registry. The release path now limits pressure
   while preserving content-addressed layer reuse and immutable request identity.
+- [x] (2026-08-14) Qualify the bounded publisher against the stable dependency
+  channel. Manual candidate `31828403358` completed in 14m14s, retained
+  artifact `manual-runtime-0.3.16rc25-31828403358` (ID `9230111474`), and
+  read back the base plus all seven kind-image digests. Its generated manifest
+  and source-compatible per-kind locks pass both `posttrain-release check` and
+  `posttrain-release lock-runtime-dependencies --check` locally.
 
 ## Surprises & Discoveries
 
@@ -210,6 +216,11 @@ receipt instead of rebuilding or re-running completed checks.
   Evidence: GitHub Actions run `31825254382`; its publisher used
   `ThreadPoolExecutor(max_workers=len(RUNTIME_VARIANTS))` on the eight-vCPU
   release runner.
+- Observation: a stable-channel runtime candidate can safely reuse immutable
+  parents while building the two online-RL kinds concurrently. The veRL layer
+  was the long pole, but the runner remained within the expanded 242 GiB root
+  volume (worst observed use: 199 GiB) and completed without registry errors.
+  Evidence: candidate `31828403358`, from 18:23:26Z to 18:37:40Z.
 - Observation: the initial 0.3.8 final run correctly promoted the retained
   candidate bytes and pushed the tag, but it could not create the GitHub
   release because `release-SHA256SUMS` was not copied from candidate evidence
@@ -340,6 +351,13 @@ receipt instead of rebuilding or re-running completed checks.
   small worker bound prevents six heavyweight builds from competing for the
   same runner CPU, registry upload sessions, and dev-index capacity; retries
   remain bounded so persistent dependency or build failures surface promptly.
+  Date/Author: 2026-08-14 / user and Codex.
+- Decision: Treat a successful manual stable-channel image candidate as the
+  immutable runtime-input receipt for integration, but require the formal
+  final-version candidate after the merged Posttrain source is green.
+  Rationale: the manual candidate validates the image builder and its exact
+  lock closure; only the formal candidate qualifies the final wheelhouse and
+  the packed GPU job for the exact merged release tree.
   Date/Author: 2026-08-14 / user and Codex.
 
 ## Outcomes & Retrospective
