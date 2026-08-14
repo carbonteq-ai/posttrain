@@ -24,7 +24,7 @@ from .promotion import create_promotion_receipt, write_promotion_receipt
 from .publish import publish_release
 from .readiness import run_readiness, verify_readiness_receipt, write_readiness_receipt
 from .repository_audit import inspect_repository
-from .runtime_lock import materialize_runtime_lock
+from .runtime_lock import materialize_runtime_lock, synchronize_runtime_profile_pins
 from .versioning import check_release, load_release_manifest, lock_dependencies, prepare_release, stage_release
 
 app = typer.Typer(help="publish framework runtime images and pin the release manifest")
@@ -136,6 +136,22 @@ def lock_runtime_dependencies_cmd(
         raise typer.Exit(code=1)
     state = "updated" if result.changed else "current"
     print(f"runtime dependency lock {state}: {result.path} ({packages})")
+
+
+@app.command(
+    "sync-runtime-profile-pins",
+    help="align internal runtime-profile pins with an already-resolved candidate lock",
+)
+def sync_runtime_profile_pins_cmd(
+    repository_root: Annotated[
+        Path,
+        typer.Option("--repository-root", help="disposable framework checkout to update"),
+    ] = Path("."),
+) -> None:
+    result = synchronize_runtime_profile_pins(repository_root)
+    profiles = ", ".join(str(path) for path in result.changed_profiles) or "none"
+    packages = ", ".join(result.packages) or "none"
+    print(f"runtime profile pins synchronized: {profiles} ({packages})")
 
 
 @app.command("prepare", help="set the one authored release version without rewriting package metadata")

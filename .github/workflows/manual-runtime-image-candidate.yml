@@ -70,6 +70,10 @@ jobs:
           PY
           uv lock --upgrade-package trl --upgrade-package carbonteq-trackio
           uv sync --all-packages --group dev --frozen --python 3.13
+          # The authored profile retains stable consumer pins. This disposable
+          # candidate checkout must instead constrain images to the same
+          # immutable dev receipts as its freshly resolved lock.
+          uv run --no-sync posttrain-release sync-runtime-profile-pins
           uv run --no-sync posttrain-release check --allow-pending-runtime-lock
           uv run --no-sync posttrain-release lock-runtime-dependencies
           uv run --no-sync python - <<'PY'

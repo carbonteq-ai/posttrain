@@ -33,7 +33,10 @@ from posttrain_release.readiness import (
     write_readiness_receipt,
 )
 from posttrain_release.repository_audit import evaluate_repository, inspect_repository
-from posttrain_release.runtime_lock import materialize_runtime_lock
+from posttrain_release.runtime_lock import (
+    materialize_runtime_lock,
+    synchronize_runtime_profile_pins,
+)
 from posttrain_release.versioning import (
     check_release,
     lock_dependencies,
@@ -296,6 +299,29 @@ def test_runtime_lock_materializes_development_candidate_wheel_receipts(tmp_path
     assert (
         "trl @ https://pypi.lan/carbonteq/dev/+f/abc/trl-1.9.2.post10-py3-none-any.whl#sha256=" + "d" * 64
     ) in lock.read_text(encoding="utf-8")
+
+
+def test_runtime_candidate_synchronizes_internal_profile_pin_from_dev_lock(tmp_path: Path) -> None:
+    _version_repository(tmp_path)
+    runtime = tmp_path / "packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds"
+    (runtime / "profiles").mkdir(parents=True)
+    profile = runtime / "profiles/common.txt"
+    profile.write_text("carbonteq-trackio==0.31.5.post13\npydantic==2.13.4\n", encoding="utf-8")
+    with (tmp_path / "uv.lock").open("a", encoding="utf-8") as handle:
+        handle.write(
+            "\n[[package]]\n"
+            'name = "carbonteq-trackio"\n'
+            'version = "0.31.5.post14.dev4"\n'
+            'source = { registry = "https://pypi.lan/carbonteq/dev/+simple/" }\n'
+            'wheels = [{ url = "https://pypi.lan/carbonteq/dev/+f/abc/trackio.whl", '
+            'hash = "sha256:' + "c" * 64 + '" }]\n'
+        )
+
+    result = synchronize_runtime_profile_pins(tmp_path)
+
+    assert result.packages == ("carbonteq-trackio",)
+    assert result.changed_profiles == (profile,)
+    assert profile.read_text(encoding="utf-8") == "carbonteq-trackio==0.31.5.post14.dev4\npydantic==2.13.4\n"
 
 
 def test_pending_runtime_lock_allows_old_image_manifest_until_rebuild(
@@ -900,6 +926,7 @@ def test_retained_fork_candidates_use_development_before_server_side_promotion()
     assert "- stable" in runtime_candidate
     assert "candidate index source must be unambiguous" in runtime_candidate
     assert "uv lock --upgrade-package trl --upgrade-package carbonteq-trackio" in runtime_candidate
+    assert "posttrain-release sync-runtime-profile-pins" in runtime_candidate
     assert "runtime lock resolved an internal package outside" in runtime_candidate
     assert "            uv.lock" in runtime_candidate
 
@@ -1222,6 +1249,8 @@ def test_public_ci_trackio_mirror_matches_locked_distribution() -> None:
 
 def test_public_ci_trl_mirror_matches_selected_distribution() -> None:
     root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+    lock = tomllib.loads((root / "uv.lock").read_text(encoding="utf-8"))
+    trackio = next(package for package in lock["package"] if package["name"] == "carbonteq-trackio")
     train = tomllib.loads((root / "packages/train/pyproject.toml").read_text(encoding="utf-8"))
     selection = train["tool"]["posttrain"]["trl"]
     version = selection["version"]
@@ -1236,7 +1265,8 @@ def test_public_ci_trl_mirror_matches_selected_distribution() -> None:
     assert f"CARBONTEQ_TRL_WHEEL_SHA256: {wheel_sha256}" in workflow
     assert f"CARBONTEQ_TRL_WHEEL_PATH: /tmp/{filename}" in workflow
     assert (
-        f"POSTTRAIN_CONSUMER_EXTRA_WHEELS: /tmp/carbonteq_trackio-0.31.5.post13-py3-none-any.whl:/tmp/{filename}"
+        "POSTTRAIN_CONSUMER_EXTRA_WHEELS: "
+        f"/tmp/carbonteq_trackio-{trackio['version']}-py3-none-any.whl:/tmp/{filename}"
     ) in workflow
     assert "--extra trl" in workflow
     assert "--no-install-package carbonteq-trackio --no-install-package trl" in workflow

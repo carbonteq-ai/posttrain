@@ -127,6 +127,12 @@ evidence. It adds no new job kind, selection, or project decision.
 - [ ] (2026-08-15 00:20Z) Materialize a Posttrain-owned development runtime
   candidate containing the dev4 dependency, then run two bounded local jobs
   (one training and one evaluation) and verify their facts through Trackio.
+- [x] (2026-08-15 00:35Z) Repaired the manual runtime-candidate materializer:
+  it now synchronizes internal runtime-profile pins from the candidate's
+  already-resolved dev lock in its disposable checkout. This prevents a dev
+  Trackio lock from being combined with the old stable profile pin. The
+  release regression suite passes 45 tests; a fresh candidate dispatch is the
+  remaining image-publication step.
 - [ ] (2026-08-15 00:20Z) Correct the SQLite-to-Doris reconciliation mode for
   a target that already contains retained history. It must prove every source
   record was imported without incorrectly requiring the target to contain no
@@ -183,6 +189,15 @@ evidence. It adds no new job kind, selection, or project decision.
   also too expensive for routine operational verification, so the verifier
   needs a bounded, source-inclusion proof rather than a whole-project equality
   comparison.
+
+- Observation: a candidate runtime image has two independent dependency
+  inputs: the hash-addressed constraint lock and the version constraints in
+  the job-kind profiles.
+  Evidence: the first rc9 candidate resolved and installed Trackio dev4, then
+  failed before image construction because `profiles/common.txt` still named
+  post13. Candidate publication must synchronize both inputs in its disposable
+  checkout; changing the committed stable profile would make ordinary
+  consumers select an unpublished candidate.
 
 - Observation: in pinned Verifiers, a judge is a scoring mechanism rather than
   a separate reward namespace. A configured judge can return one scalar or a

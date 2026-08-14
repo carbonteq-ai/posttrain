@@ -27,6 +27,14 @@ class RuntimeLockMaterialization:
     packages: tuple[str, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class RuntimeProfileSynchronization:
+    """Result of aligning authored profile pins with an isolated candidate lock."""
+
+    changed_profiles: tuple[Path, ...]
+    packages: tuple[str, ...]
+
+
 def _normalized(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).lower()
 
@@ -126,4 +134,46 @@ def materialize_runtime_lock(repository_root: Path, *, check: bool = False) -> R
     return RuntimeLockMaterialization(path=path, changed=changed, packages=packages)
 
 
-__all__ = ["RuntimeLockMaterialization", "materialize_runtime_lock", "render_runtime_lock"]
+def synchronize_runtime_profile_pins(repository_root: Path) -> RuntimeProfileSynchronization:
+    """Align internal runtime-profile pins with the already-resolved lock.
+
+    This is deliberately for a disposable release-candidate checkout. Authored
+    source keeps its stable consumer pins until promotion, while a development
+    candidate needs profile constraints that agree with its dev-channel lock.
+    """
+
+    root = repository_root.resolve()
+    internal = _internal_wheels(root)
+    changed: list[Path] = []
+    selected: set[str] = set()
+    for profile in sorted((root / _PROFILES).glob("*.txt")):
+        original = profile.read_text(encoding="utf-8")
+        rendered: list[str] = []
+        profile_changed = False
+        for line in original.splitlines(keepends=True):
+            match = _PROFILE_PIN.fullmatch(line.strip())
+            name = _normalized(match.group("name")) if match is not None else None
+            if name is None or name not in internal:
+                rendered.append(line)
+                continue
+            version = internal[name][0]
+            replacement = f"{match.group('name')}=={version}"
+            newline = "\n" if line.endswith("\n") else ""
+            rendered.append(replacement + newline)
+            selected.add(name)
+            profile_changed |= replacement != line.strip()
+        if profile_changed:
+            profile.write_text("".join(rendered), encoding="utf-8")
+            changed.append(profile)
+    return RuntimeProfileSynchronization(
+        changed_profiles=tuple(changed), packages=tuple(sorted(selected))
+    )
+
+
+__all__ = [
+    "RuntimeLockMaterialization",
+    "RuntimeProfileSynchronization",
+    "materialize_runtime_lock",
+    "render_runtime_lock",
+    "synchronize_runtime_profile_pins",
+]
