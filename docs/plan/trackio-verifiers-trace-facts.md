@@ -127,16 +127,20 @@ evidence. It adds no new job kind, selection, or project decision.
 - [ ] (2026-08-15 00:20Z) Materialize a Posttrain-owned development runtime
   candidate containing the dev4 dependency, then run two bounded local jobs
   (one training and one evaluation) and verify their facts through Trackio.
+  Candidate `0.3.16rc11` was published with immutable RL and evaluation image
+  receipts. The first local GRPO smoke reached live rollout generation and
+  exposed an enrichment contract defect; the repaired rerun is in progress.
 - [x] (2026-08-15 00:35Z) Repaired the manual runtime-candidate materializer:
   it now synchronizes internal runtime-profile pins from the candidate's
   already-resolved dev lock in its disposable checkout. This prevents a dev
   Trackio lock from being combined with the old stable profile pin. The
   release regression suite passes 45 tests; a fresh candidate dispatch is the
   remaining image-publication step.
-- [ ] (2026-08-15 00:20Z) Correct the SQLite-to-Doris reconciliation mode for
-  a target that already contains retained history. It must prove every source
-  record was imported without incorrectly requiring the target to contain no
-  additional valid records.
+- [x] (2026-08-15 00:45Z) Corrected SQLite-to-Doris reconciliation for an
+  existing target. Trackio dev5 introduced a bounded `source-inclusion` mode
+  that proves every source record is present while allowing retained target
+  history. The candidate exposed a package-version consistency release gate;
+  dev6 corrects that candidate and awaits its retained-index receipt.
 - [x] Extend Trackio's existing SQLite/Doris `traces` schema with nullable
   scalar fact columns, add normalized reward-component rows, and implement
   grouped reads.
@@ -198,6 +202,16 @@ evidence. It adds no new job kind, selection, or project decision.
   post13. Candidate publication must synchronize both inputs in its disposable
   checkout; changing the committed stable profile would make ordinary
   consumers select an unpublished candidate.
+
+- Observation: an algorithm enrichment must not request reward-component
+  replacement. Trackio accepts replacement only for the original
+  `verifiers.trace` source projection; later trainer updates are deliberately
+  scalar-only and may carry only `algorithm_reward`.
+  Evidence: the first real local GRPO smoke reached `run_rollouts` and the
+  Trackio write was rejected with `only a Verifiers source projection may
+  replace reward components`. The Trackio bridge now makes initial writes
+  replace components and later enrichment writes preserve them, covered by a
+  focused adapter test.
 
 - Observation: in pinned Verifiers, a judge is a scoring mechanism rather than
   a separate reward namespace. A configured judge can return one scalar or a
@@ -409,6 +423,16 @@ evidence. It adds no new job kind, selection, or project decision.
   enrichment, and historical backfill without adding Posttrain semantics to
   Trackio or creating provider-specific endpoints.
   Date/Author: 2026-08-14 / Codex
+
+- Decision: machine configuration owns service credentials, provider bindings,
+  and scheduling defaults; project-local protected state may override only the
+  digest-pinned `[registry]` runtime selection. Local execution validates the
+  selected configured binding rather than assuming the stable shipped manifest.
+  Rationale: a retained candidate must be trialed by one project without
+  copying credentials into project state or changing every job on the machine.
+  This preserves reproducibility and allows an explicit candidate rollback by
+  removing one project-local selection.
+  Date/Author: 2026-08-15 / Codex
 
 - Decision: make trace facts a deliberate Trackio database schema version 2
   change. Bump the global Doris `SCHEMA_VERSION` from 1 to 2, add the extended
