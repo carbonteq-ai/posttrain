@@ -74,6 +74,10 @@ jobs:
           # candidate checkout must instead constrain images to the same
           # immutable dev receipts as its freshly resolved lock.
           uv run --no-sync posttrain-release sync-runtime-profile-pins
+          # The catalog's dependency receipt is another generated runtime
+          # input; it must bind this disposable dev-channel resolution before
+          # release consistency validates the image candidate.
+          uv run --no-sync posttrain-release lock-dependencies
           uv run --no-sync posttrain-release check --allow-pending-runtime-lock
           uv run --no-sync posttrain-release lock-runtime-dependencies
           uv run --no-sync python - <<'PY'

@@ -927,6 +927,7 @@ def test_retained_fork_candidates_use_development_before_server_side_promotion()
     assert "candidate index source must be unambiguous" in runtime_candidate
     assert "uv lock --upgrade-package trl --upgrade-package carbonteq-trackio" in runtime_candidate
     assert "posttrain-release sync-runtime-profile-pins" in runtime_candidate
+    assert "posttrain-release lock-dependencies" in runtime_candidate
     assert "runtime lock resolved an internal package outside" in runtime_candidate
     assert "            uv.lock" in runtime_candidate
 
