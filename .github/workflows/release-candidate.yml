@@ -256,6 +256,7 @@ jobs:
         run: |
           uv venv .release/consumer-venv --python 3.13
           uv pip install \
+            --no-cache \
             --python .release/consumer-venv/bin/python \
             --index-url "${PYPI_DEV_SIMPLE}" \
             "posttrain[dstack,trackio]==${{ steps.version.outputs.version }}" \
@@ -316,7 +317,9 @@ jobs:
           # or versioned candidate mismatch fails with an actionable error.
           .release/consumer-venv/bin/python - "${candidate_version}" "${framework_wheelhouse}" <<'PY'
           import importlib.metadata as metadata
+          import importlib.resources as resources
           import sys
+          import zipfile
           from pathlib import Path
 
           expected, wheelhouse_name = sys.argv[1:]
@@ -336,6 +339,26 @@ jobs:
               raise SystemExit(
                   f"framework wheelhouse contains non-candidate wheels: {mismatched}"
               )
+          runtime_wheels = sorted(wheelhouse.glob(f"posttrain_runtime_images-{expected}-*.whl"))
+          if len(runtime_wheels) != 1:
+              raise SystemExit(
+                  "framework wheelhouse must contain exactly one runtime-images wheel: "
+                  f"{runtime_wheels}"
+              )
+          definitions = (
+              "containers/posttrain-job/Dockerfile",
+              "containers/posttrain-job/docker-bake.hcl",
+          )
+          installed_root = resources.files("posttrain.runtime_images")
+          with zipfile.ZipFile(runtime_wheels[0]) as archive:
+              for relative in definitions:
+                  installed = installed_root.joinpath(relative).read_bytes()
+                  retained = archive.read(f"posttrain/runtime_images/{relative}")
+                  if installed != retained:
+                      raise SystemExit(
+                          "installed job build definition differs from retained candidate wheel: "
+                          f"{relative}"
+                      )
           print(f"verified consumer and {len(names)} staged framework wheels at {expected}")
           PY
           scripts/release/verify-dstack-capacity .release/dstack-capacity.json

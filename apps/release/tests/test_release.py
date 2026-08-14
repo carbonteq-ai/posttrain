@@ -1016,8 +1016,10 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
         assert 'run cleanup \\\n            "release-' in workflow
 
     assert 'framework_wheelhouse="$(realpath .release/wheelhouse)"' in candidate
+    assert "--no-cache" in candidate
     assert 'consumer-venv/bin/python - "${candidate_version}" "${framework_wheelhouse}"' in candidate
     assert "framework wheelhouse contains non-candidate wheels" in candidate
+    assert "installed job build definition differs from retained candidate wheel" in candidate
     assert '--framework-wheelhouse "${framework_wheelhouse}"' in candidate
     assert "qualification_profile:" in candidate
     assert "rtx-pro-96gb" in candidate
