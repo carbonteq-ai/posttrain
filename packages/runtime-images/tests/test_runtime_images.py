@@ -77,6 +77,14 @@ def test_base_accepts_a_build_secret_ca_bundle_without_disabling_tls() -> None:
     assert "allow-insecure" not in dockerfile
 
 
+def test_base_package_cache_is_scoped_to_the_immutable_lock() -> None:
+    with definition_root() as root:
+        dockerfile = (root / "containers/posttrain-base/Dockerfile").read_text()
+
+    assert "ARG LOCK_DIGEST" in dockerfile
+    assert "id=posttrain-base-uv-${LOCK_DIGEST}" in dockerfile
+
+
 def test_runtime_variants_match_the_published_bake_targets() -> None:
     published = re.compile(r'^target "posttrain-kind-([a-z0-9-]+)" \{', re.MULTILINE)
     with definition_root() as root:

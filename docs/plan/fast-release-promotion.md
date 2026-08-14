@@ -121,6 +121,10 @@ receipt instead of rebuilding or re-running completed checks.
   dependencies selected through locked package extras (including Torch's
   `cuda-toolkit[cudart]` edge). Regenerated every affected narrow lock and
   added a base-image regression test before retrying the candidate build.
+- [x] (2026-08-14) Scope the base-image writable uv cache to the immutable
+  lock digest. A failed candidate must not reuse an interrupted artifact from
+  another reviewed closure; Docker layer reuse and immutable registry parents
+  remain available for identical inputs.
 
 ## Surprises & Discoveries
 
@@ -168,6 +172,12 @@ receipt instead of rebuilding or re-running completed checks.
   extras on the edge and their requirements under `optional-dependencies`.
   Evidence: GitHub Actions run `31824322845`; its image build stopped in
   `uv pip install --require-hashes` before any OCI output was pushed.
+- Observation: the corrected candidate `0.3.16rc19` reached dependency
+  installation but rejected a cached Triton artifact whose bytes did not match
+  the reviewed PyPI receipt. The cache mount had one static name across lock
+  closures, so a failed/partial download could survive a dependency update.
+  Evidence: GitHub Actions run `31824686383`; the expected and observed
+  SHA-256 values were different and no OCI output was pushed.
 - Observation: the candidate called the runtime-image publisher for every
   framework version change, while its build request embedded the framework
   version and full source revision in the image identity. This made an

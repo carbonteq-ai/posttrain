@@ -3,6 +3,11 @@
 ARG PYTHON_IMAGE=python:3.13.12-slim-bookworm@sha256:a58daefb915e1e03ad48f3ca4df8832065412c5c35cacb9d39f4229184de12b6
 FROM ${PYTHON_IMAGE} AS runtime
 
+# Scope the writable package cache to the immutable dependency closure. A
+# failed or interrupted build must not feed a partially downloaded artifact to
+# a later closure that has a different reviewed hash set.
+ARG LOCK_DIGEST
+
 COPY --from=ghcr.io/astral-sh/uv:0.11.30@sha256:93b61e21202b1dab861092748e46bbd6e0e41dd84f59b9174efd2353186e1b47 /uv /uvx /bin/
 
 ENV PATH="/opt/posttrain/venv/bin:${PATH}" \
@@ -36,7 +41,7 @@ RUN --mount=type=secret,id=posttrain_ca_bundle,required=false \
 # universal CUDA/Python requirements. Keeping it separate means a tracker or
 # trainer-only change cannot invalidate the multi-gigabyte base image.
 COPY containers/posttrain-job-kinds/locks/base.lock.txt /opt/posttrain/locks/base.lock.txt
-RUN --mount=type=cache,id=posttrain-base-uv,target=/root/.cache/uv,sharing=locked \
+RUN --mount=type=cache,id=posttrain-base-uv-${LOCK_DIGEST},target=/root/.cache/uv,sharing=locked \
     uv venv --python /usr/local/bin/python "${VIRTUAL_ENV}" && \
     uv pip install \
       --python "${VIRTUAL_ENV}" \
@@ -45,7 +50,6 @@ RUN --mount=type=cache,id=posttrain-base-uv,target=/root/.cache/uv,sharing=locke
       --requirement /opt/posttrain/locks/base.lock.txt
 
 ARG CREATED
-ARG LOCK_DIGEST
 ARG SOURCE_REVISION
 ARG VERSION
 LABEL org.opencontainers.image.created="${CREATED}" \
