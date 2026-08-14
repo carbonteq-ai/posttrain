@@ -14,10 +14,10 @@ Observatory populate historical rollout tables without fetching full payloads.
 `pypi.lan` is permanently skewed (metadata post4, import post3) and must not be
 installed.
 
-The active candidate is `carbonteq-trackio==0.31.5.post14.dev9`, built from
-immutable fork commit `bf18b6dc02315404370094241516a20bf1ed7e30`. Its wheel
-(`9b29d025794c4db9e1ae777e9e5229a6208d9df2bd33f2fa7a1a6773a038f6ed`) and
-sdist (`15e9e5b65956ef56fe9bf28c05c3098a72c92fbc8dc15d1d99bb9a6c9c40e8c7`)
+The active candidate is `carbonteq-trackio==0.31.5.post14.dev10`, built from
+immutable fork commit `04b58848e7a197c1fb203cdc199d96b50dd9aaba`. Its wheel
+(`641c10a26ecd16dc597d3267bba7d83ff7757a6375957d2397f9af93a55deffc`) and
+sdist (`115d78b46296047ff89e5faa776a7b0514b48ebcd3e4dfe688054257391a1cb6`)
 were read back from the `carbonteq/dev` index. It is a development framework
 dependency and the isolated Doris candidate service has qualified it; it is
 not yet the stable framework dependency or production service. It adds generic typed trace facts:
@@ -48,6 +48,11 @@ Dev9 completes the required service-side boundary: the Doris service commits a
 batch containing a native `traces/...` value before returning its write
 acknowledgement. Scalar-only metric batches remain asynchronous, so rollout
 throughput is not globally serialized.
+
+Dev10 completes the client-side boundary for bridges that explicitly call
+`Run.flush()` before enrichment. A remote flush now sends its queued metric
+batch to the service rather than only checkpointing it in the local retry
+buffer, so a trace-fact update cannot overtake its native parent trace.
 
 Post10 keeps `local` as the safe default and adds a generic S3-compatible
 artifact backend. With the S3 backend, Trackio issues short-lived multipart
