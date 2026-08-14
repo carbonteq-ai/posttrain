@@ -161,10 +161,21 @@ evidence. It adds no new job kind, selection, or project decision.
   full coverage for model calls, input/output tokens, tool calls, latency, and
   task reward; no trace reports model reasoning content, so thinking-token
   coverage correctly remains zero.
-- [ ] (2026-08-15 08:35Z) Publish candidate `0.3.16rc13` with the corrected
-  v3 output-token fallback, activate it in the local executor, run the bounded
-  local GRPO smoke, and verify native traces, source facts, and algorithm-reward
-  enrichment together.
+- [x] (2026-08-15 08:35Z) Published and activated `0.3.16rc13`, which carries
+  the calculator-v3 output-token fallback and Trackio dev7. The bounded local
+  GRPO smoke reached live rollouts and retained five native traces, but failed
+  before enrichment: dev7's timing retry exhausted because the queued source
+  trace batch had not yet been sent to the service.
+- [x] (2026-08-15 08:48Z) Released `carbonteq-trackio==0.31.5.post14.dev8`
+  from immutable fork commit `21d3be91aaf7a4e07ee879e5225fe9be9f3d7ba3`.
+  The manual GitHub prerelease retained the verified wheel and sdist; Posttrain
+  retained-asset publisher run `31785289443` read those exact bytes, published
+  them to `carbonteq/dev`, proved index storage, and completed a clean install.
+  Dev8 sends queued native logs before a dependent fact upsert under the client
+  lock; the focused Trackio regression passes.
+- [ ] Publish and activate `0.3.16rc14` with Trackio dev8, then rerun the
+  bounded local GRPO smoke and verify native traces, source facts, and
+  algorithm-reward enrichment together through the generic aggregate API.
 - [x] Extend Trackio's existing SQLite/Doris `traces` schema with nullable
   scalar fact columns, add normalized reward-component rows, and implement
   grouped reads.
@@ -236,6 +247,13 @@ evidence. It adds no new job kind, selection, or project decision.
   replace reward components`. The Trackio bridge now makes initial writes
   replace components and later enrichment writes preserve them, covered by a
   focused adapter test.
+
+- Observation: a bounded retry does not establish a dependency ordering when a
+  producer's native trace is still waiting in the SDK log queue. The real GRPO
+  smoke retained five source traces and then exhausted the former 0.8-second
+  missing-parent retry window. The fix belongs in Trackio's SDK: send queued
+  native logs and the dependent fact update under one client lock, retaining
+  retry only for a true service-side visibility delay.
 
 - Observation: a payload-free trace-list response is not evidence that the
   stored fact columns are null. The Trackio trace list deliberately returns

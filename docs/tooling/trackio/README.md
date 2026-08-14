@@ -14,10 +14,10 @@ Observatory populate historical rollout tables without fetching full payloads.
 `pypi.lan` is permanently skewed (metadata post4, import post3) and must not be
 installed.
 
-The active candidate is `carbonteq-trackio==0.31.5.post14.dev7`, built from
-immutable fork commit `a3ef9946`. Its wheel
-(`686606f8dbf4c4ec504eff13b7ce70b8febbc62259d7c95c364f890186f7e3fb`) and
-sdist (`93b7e295628e92f08096cb9f29c3c41e36a087ad05f5caefcd4cb079eac3d928`)
+The active candidate is `carbonteq-trackio==0.31.5.post14.dev8`, built from
+immutable fork commit `21d3be91aaf7a4e07ee879e5225fe9be9f3d7ba3`. Its wheel
+(`5e040f6a6fd5f8d1ab44465bc30bd95cc3bb27afe5669871e6adc995266e2d43`) and
+sdist (`f37c027fdbc8927678f4f94391b75da4dbcb3ce73bdb554906d2952848250a0d`)
 were read back from the `carbonteq/dev` index. It is a development framework
 dependency and the isolated Doris candidate service has qualified it; it is
 not yet the stable framework dependency or production service. It adds generic typed trace facts:
@@ -38,6 +38,11 @@ matching traces. Scalar and component aggregates are separate requests, which
 prevents multi-component traces from multiplying scalar metrics.
 The producer-side `Run` exposes the same aggregation contract, so a job can
 verify its retained facts without using a Trackio internal read object.
+
+Dev8 adds the required ordering boundary for an asynchronously queued native
+trace followed by synchronous fact enrichment. It sends the queued source log
+batch before the dependent upsert while holding the client lock; retry remains
+only a defense for server-side visibility, not the normal ordering mechanism.
 
 Post10 keeps `local` as the safe default and adds a generic S3-compatible
 artifact backend. With the S3 backend, Trackio issues short-lived multipart
