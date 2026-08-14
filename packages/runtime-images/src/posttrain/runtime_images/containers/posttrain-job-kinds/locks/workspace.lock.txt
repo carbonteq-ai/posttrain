@@ -379,6 +379,7 @@ fastapi==0.136.3 \
     --hash=sha256:e487fae93ad408e6f47641ee4dfe389864fd7bec92e547ea8498fc13f43e83ab
     # via
     #   model-hosting-container-standards
+    #   posttrain-job-builder
     #   posttrain-observatory
     #   vllm
 fastapi-cli==0.0.32 \
@@ -555,6 +556,7 @@ httpx==0.28.1 \
     #   mcp
     #   model-hosting-container-standards
     #   openai
+    #   posttrain-execution-job-builder
     #   posttrain-observatory
     #   posttrain-serve
     #   posttrain-train
@@ -2188,6 +2190,7 @@ uvicorn==0.51.0 \
     #   fastapi-cli
     #   fastapi-cloud-cli
     #   mcp
+    #   posttrain-job-builder
     #   posttrain-observatory
 uvloop==0.22.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32' \
     --hash=sha256:0530a5fbad9c9e4ee3f2b33b148c6a64d47bbad8000ea63704fa8260f4cf728e \

@@ -290,7 +290,14 @@ def _project_runtime_closure(
         by_name.setdefault(_normalized(raw_package["name"]), []).append(raw_package)
 
     selected: set[str] = set()
-    pending: list[str] = []
+    # ``uv.lock`` represents dependency extras on the dependency edge.  For
+    # example, Torch requests ``cuda-toolkit[cudart,...]``; the CUDA runtime is
+    # then listed under cuda-toolkit's ``optional-dependencies`` rather than
+    # its ordinary dependencies.  Carry requested extras through the graph so
+    # an image lock remains independently installable in hash mode.
+    pending: list[tuple[str, frozenset[str]]] = []
+    processed_base: set[str] = set()
+    processed_extras: dict[str, set[str]] = {}
     for name, expected in roots.items():
         candidates = by_name.get(name, [])
         if expected is not None:
@@ -298,27 +305,49 @@ def _project_runtime_closure(
         if not candidates:
             detail = f"=={expected}" if expected is not None else ""
             raise ValueError(f"runtime profile root {name}{detail} is absent from uv.lock")
-        pending.append(name)
+        pending.append((name, frozenset()))
 
     while pending:
-        name = pending.pop()
-        if name in selected:
-            continue
+        name, requested_extras = pending.pop()
         candidates = by_name.get(name, [])
         if not candidates:
             raise ValueError(f"uv.lock closure references missing package {name!r}")
+        new_base = name not in processed_base
+        seen_extras = processed_extras.setdefault(name, set())
+        new_extras = requested_extras - seen_extras
+        if not new_base and not new_extras:
+            continue
         selected.add(name)
+        processed_base.add(name)
+        seen_extras.update(new_extras)
         for package in candidates:
-            dependencies = package.get("dependencies", [])
+            dependencies = package.get("dependencies", []) if new_base else []
             if not isinstance(dependencies, list):
                 raise ValueError(f"uv.lock package {name!r} has malformed dependencies")
+            optional = package.get("optional-dependencies", {})
+            if not isinstance(optional, dict):
+                raise ValueError(f"uv.lock package {name!r} has malformed optional dependencies")
+            for extra in sorted(new_extras):
+                extra_dependencies = optional.get(extra, [])
+                if not isinstance(extra_dependencies, list):
+                    raise ValueError(
+                        f"uv.lock package {name!r} has malformed optional dependency group {extra!r}"
+                    )
+                dependencies = [*dependencies, *extra_dependencies]
             for dependency in dependencies:
                 if not isinstance(dependency, dict) or not isinstance(dependency.get("name"), str):
                     raise ValueError(f"uv.lock package {name!r} has malformed dependency")
                 marker = dependency.get("marker")
                 if isinstance(marker, str) and not _linux_python313_marker_applies(marker):
                     continue
-                pending.append(_normalized(dependency["name"]))
+                raw_extras = dependency.get("extra", [])
+                if isinstance(raw_extras, str):
+                    raw_extras = [raw_extras]
+                if not isinstance(raw_extras, list) or not all(
+                    isinstance(extra, str) for extra in raw_extras
+                ):
+                    raise ValueError(f"uv.lock package {name!r} has malformed dependency extras")
+                pending.append((_normalized(dependency["name"]), frozenset(raw_extras)))
 
     workspace_blocks = _requirement_blocks(workspace_lock)
     missing = sorted(selected - set(workspace_blocks))

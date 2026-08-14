@@ -117,6 +117,10 @@ receipt instead of rebuilding or re-running completed checks.
   Live registry evidence showed a 4.21 GB compressed eval job whose job delta
   is only tens of megabytes. The focused job-image/runtime-image suite passes
   (`46 passed, 1 skipped`). Live manifest-overlap qualification remains open.
+- [x] (2026-08-14) Correct runtime-lock closure projection to retain
+  dependencies selected through locked package extras (including Torch's
+  `cuda-toolkit[cudart]` edge). Regenerated every affected narrow lock and
+  added a base-image regression test before retrying the candidate build.
 
 ## Surprises & Discoveries
 
@@ -157,6 +161,13 @@ receipt instead of rebuilding or re-running completed checks.
   the development machine, not under one minute: tests account for 56.978s and
   Pyright for 21.094s.
   Evidence: `posttrain-release readiness` receipt created 2026-08-12T02:46Z.
+- Observation: the first `0.3.16rc18` image candidate failed before publishing
+  because the base lock omitted `nvidia-cuda-runtime`, which a selected
+  `cuda-toolkit[cudart]` extra required. The lock projector traversed only
+  ordinary package dependencies, even though `uv.lock` represents requested
+  extras on the edge and their requirements under `optional-dependencies`.
+  Evidence: GitHub Actions run `31824322845`; its image build stopped in
+  `uv pip install --require-hashes` before any OCI output was pushed.
 - Observation: the candidate called the runtime-image publisher for every
   framework version change, while its build request embedded the framework
   version and full source revision in the image identity. This made an

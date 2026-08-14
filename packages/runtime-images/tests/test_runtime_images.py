@@ -181,6 +181,19 @@ def test_narrow_runtime_locks_pin_every_profile_root_and_artifact() -> None:
                 assert "--hash=sha256:" in requirement or "#sha256=" in requirement, (lock, name)
 
 
+def test_base_runtime_lock_includes_cuda_dependencies_selected_by_torch_extras() -> None:
+    """Torch's locked CUDA toolkit edge requests the cudart extra.
+
+    The base lock is installed with ``--require-hashes`` and therefore cannot
+    rely on the package installer to resolve an omitted optional dependency at
+    image-build time.
+    """
+
+    requirements = _logical_requirements(BASE_LOCK)
+    assert "cuda-toolkit" in requirements
+    assert "nvidia-cuda-runtime" in requirements
+
+
 def test_narrow_runtime_locks_only_select_artifacts_from_the_workspace_resolution() -> None:
     """Per-kind compilation cannot silently resolve a different dependency.
 
