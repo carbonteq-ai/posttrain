@@ -208,6 +208,8 @@ def _trackio_trace_facts(
     trace_type: str,
     external_id: str,
     facts: TraceFactSet,
+    *,
+    replace_reward_components: bool = True,
 ) -> Any:
     """Translate the neutral envelope only after the Trackio capability is present."""
 
@@ -239,7 +241,7 @@ def _trackio_trace_facts(
         ),
         provenance=dict(facts.provenance),
         state=facts.state,
-        replace_reward_components=True,
+        replace_reward_components=replace_reward_components,
     )
 
 
@@ -373,7 +375,14 @@ class TrackioTrackedRun:
         # sending the trace-keyed enrichment so a remote server never observes
         # the second phase before the physical parent row exists.
         flush()
-        upsert(_trackio_trace_facts(observation.trace_type, observation.external_id, observation.facts))
+        upsert(
+            _trackio_trace_facts(
+                observation.trace_type,
+                observation.external_id,
+                observation.facts,
+                replace_reward_components=False,
+            )
+        )
 
     def artifact(self, artifact: ProducedArtifact) -> None:
         if not isinstance(artifact.reference, LocalArtifactRef):

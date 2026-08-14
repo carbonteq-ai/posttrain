@@ -41,6 +41,7 @@ from posttrain_tracking_trackio import (
     TrackioTraceFactWriter,
     require_remote_trackio_ready,
 )
+from posttrain_tracking_trackio.adapter import _trackio_trace_facts
 from trackio.sqlite_storage import SQLiteStorage
 
 from packages.tracking.tests.conformance import (
@@ -173,6 +174,23 @@ def test_trace_fact_writer_uses_exact_run_and_does_not_open_or_finish_it(
         "replace_reward_components": True,
         "calculated_at": update["calculated_at"],
     }
+
+
+def test_algorithm_reward_enrichment_does_not_replace_source_reward_components() -> None:
+    update = _trackio_trace_facts(
+        "verifiers",
+        "trace-1",
+        TraceFactSet(
+            namespace="posttrain.train.reward",
+            calculator_version="grpo-algorithm-reward.v1",
+            measures={"algorithm_reward": 0.75},
+        ),
+        replace_reward_components=False,
+    )
+
+    assert update.namespace == "posttrain.train.reward"
+    assert update.measures == {"algorithm_reward": 0.75}
+    assert update.replace_reward_components is False
 
 
 def test_trackio_purge_action_executor_revalidates_before_apply() -> None:
