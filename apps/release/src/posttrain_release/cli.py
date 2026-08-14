@@ -350,7 +350,7 @@ def publish_cmd(
         bool,
         typer.Option(
             "--parallel/--no-parallel",
-            help="build selected kind variants concurrently (default: parallel)",
+            help="build selected kind variants with bounded concurrency (default: parallel)",
         ),
     ] = True,
     revision: Annotated[

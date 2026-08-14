@@ -29,6 +29,11 @@ _TRANSIENT_REGISTRY_UPLOAD_MARKERS = (
     # content-addressed build starts a fresh upload session and reuses every
     # completed layer from the first attempt.
     "invalid content range",
+    "blob upload unknown",
+    # A bounded retry is also safe when the internal package index times out:
+    # the immutable request has not changed, and BuildKit reuses completed
+    # layers while starting a fresh HTTP request for the incomplete one.
+    "operation timed out",
 )
 
 

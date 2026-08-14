@@ -58,6 +58,10 @@ def _provided_packages(variant: str, root: Path) -> tuple[str, ...]:
 
 
 _KIND_REPOSITORY_PREFIX = "posttrain-kind-"
+# Each kind build can concurrently resolve packages, pull base layers, and push
+# multi-gigabyte output. Two workers preserve useful overlap without saturating
+# the release runner, the internal package index, or the registry.
+_MAX_PARALLEL_KIND_BUILDS = 2
 
 
 def _base_source_digest(root: Path) -> str:
@@ -519,6 +523,7 @@ def publish_release(
             runtime_source_digest=base_source_digest,
             trust_bundle_digest=trust_digest,
         )
+
     def _build_kind(variant: str) -> PublishedImage:
         lock = constraint_lock(variant)
         backend_lock = backend_constraint_lock(variant)
@@ -633,7 +638,7 @@ def publish_release(
 
     kinds: dict[str, PublishedImage] = {}
     if parallel and len(RUNTIME_VARIANTS) > 1:
-        with ThreadPoolExecutor(max_workers=len(RUNTIME_VARIANTS)) as pool:
+        with ThreadPoolExecutor(max_workers=min(_MAX_PARALLEL_KIND_BUILDS, len(RUNTIME_VARIANTS))) as pool:
             futures = {pool.submit(_resolve_kind, variant): variant for variant in RUNTIME_VARIANTS}
             for future in as_completed(futures):
                 kinds[futures[future]] = future.result()

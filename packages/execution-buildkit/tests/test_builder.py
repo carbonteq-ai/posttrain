@@ -177,9 +177,10 @@ class FakeBuildx:
 
 
 class TransientUploadBuildx(FakeBuildx):
-    def __init__(self, *, always_fail: bool = False) -> None:
+    def __init__(self, *, always_fail: bool = False, failure: str = "invalid content range") -> None:
         super().__init__()
         self.always_fail = always_fail
+        self.failure = failure
         self.failed_builds = 0
 
     def invoke(self, arguments):
@@ -187,7 +188,7 @@ class TransientUploadBuildx(FakeBuildx):
         if "--metadata-file" in call and (self.always_fail or self.failed_builds == 0):
             self.calls.append(call)
             self.failed_builds += 1
-            raise RuntimeError("failed to push image: unknown: invalid content range")
+            raise RuntimeError(f"failed to push image: unknown: {self.failure}")
         return super().invoke(arguments)
 
 
@@ -279,6 +280,17 @@ def test_builder_stops_after_one_transient_registry_upload_retry(tmp_path: Path)
     with pytest.raises(RuntimeError, match="invalid content range"):
         builder.build(_request(tmp_path))
 
+    assert len([call for call in gateway.calls if "--metadata-file" in call]) == 2
+
+
+@pytest.mark.parametrize("failure", ["blob upload unknown", "operation timed out"])
+def test_builder_retries_known_transient_delivery_failures(tmp_path: Path, failure: str) -> None:
+    gateway = TransientUploadBuildx(failure=failure)
+    builder = BuildKitRuntimeBuilder(gateway, receipt_root=(tmp_path / "receipts").resolve())
+
+    result = builder.build(_request(tmp_path))
+
+    assert result.image.value == f"registry.lan/carbonteq/posttrain@sha256:{gateway.digest}"
     assert len([call for call in gateway.calls if "--metadata-file" in call]) == 2
 
 

@@ -129,6 +129,11 @@ receipt instead of rebuilding or re-running completed checks.
   when projecting the base runtime lock. The base now installs the reviewed
   Triton wheel from the internal non-volatile mirror, instead of resolving the
   same version through an upstream path that returned different bytes.
+- [x] (2026-08-14) Bound concurrent job-kind publication to two workers and
+  retry one known transient delivery failure. Candidate `31825254382` built the
+  base and reached all kind publications, but a six-way fan-out overloaded the
+  internal package index and registry. The release path now limits pressure
+  while preserving content-addressed layer reuse and immutable request identity.
 
 ## Surprises & Discoveries
 
@@ -196,6 +201,15 @@ receipt instead of rebuilding or re-running completed checks.
   Evidence: `publish_release()` selected every variant when no explicit
   variant was passed, and candidate publication passed the authored framework
   version to each BuildKit request.
+- Observation: candidate `31825254382` built the corrected base successfully,
+  but publishing all six kind images at once caused two independent transient
+  failures: the veRL registry push returned `blob upload unknown` after layer
+  work completed, and the serve build exhausted three attempts against the
+  internal dev-index endpoint for `anyio` with `operation timed out`. No
+  candidate manifest was retained and no promotion occurred.
+  Evidence: GitHub Actions run `31825254382`; its publisher used
+  `ThreadPoolExecutor(max_workers=len(RUNTIME_VARIANTS))` on the eight-vCPU
+  release runner.
 - Observation: the initial 0.3.8 final run correctly promoted the retained
   candidate bytes and pushed the tag, but it could not create the GitHub
   release because `release-SHA256SUMS` was not copied from candidate evidence
@@ -317,6 +331,16 @@ receipt instead of rebuilding or re-running completed checks.
   Rationale: a release asset must be directly usable after downloading from
   GitHub, independently of the build runner's filesystem layout.
   Date/Author: 2026-08-12 / Codex.
+- Decision: Interpret parallel job-kind publication as bounded concurrency of
+  two workers, and retry exactly once for explicitly classified registry/index
+  delivery failures (`invalid content range`, `blob upload unknown`, and
+  `operation timed out`).
+  Rationale: these failures leave the immutable build request unchanged, so a
+  fresh BuildKit delivery attempt is safe and can reuse completed layers. A
+  small worker bound prevents six heavyweight builds from competing for the
+  same runner CPU, registry upload sessions, and dev-index capacity; retries
+  remain bounded so persistent dependency or build failures surface promptly.
+  Date/Author: 2026-08-14 / user and Codex.
 
 ## Outcomes & Retrospective
 

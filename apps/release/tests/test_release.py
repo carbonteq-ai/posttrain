@@ -51,6 +51,12 @@ from posttrain_release.versioning import (
 _REPOSITORY_ROOT_DEPTH = 3
 
 
+def test_parallel_runtime_publication_has_a_small_fixed_worker_bound() -> None:
+    import posttrain_release.publish as publish
+
+    assert publish._MAX_PARALLEL_KIND_BUILDS == 2
+
+
 def _fake_dstack(tmp_path: Path, responses: list[str]) -> tuple[Path, Path]:
     response_root = tmp_path / "dstack-responses"
     response_root.mkdir()
