@@ -1084,11 +1084,14 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert 'echo "RELEASE_TAG_SHA=${release_tag_sha}" >> "$GITHUB_ENV"' in final
     assert 'test "$(git rev-parse "v${POSTTRAIN_RELEASE_VERSION}^{}")" = "${RELEASE_TAG_SHA}"' in final
     assert ".github/*|apps/release/tests/*|docs/plan/*" in final
+    assert "packages/runtime-images/src/posttrain/runtime_images/published.toml) ;;" in final
     assert "candidate build inputs changed:" in final
     assert 'test "${candidate_version}" = "${release_version}"' in final
     assert 'test "$(jq -r \'.source_sha // empty\' "${candidate_readiness}")" = "${candidate_sha}"' in final
     assert 'test "$(jq -r \'.source_tree // empty\' "${candidate_readiness}")" = "${candidate_tree}"' in final
     assert 'cp "${candidate_manifest}" packages/runtime-images/src/posttrain/runtime_images/published.toml' in final
+    assert "committed runtime image manifest differs from the accepted candidate" in final
+    assert 'if ! cmp -s \\\n            "${candidate_manifest}"' in final
     assert 'candidate_checksums="$(find .release/candidate -type f -name release-SHA256SUMS -print -quit)"' in final
     assert 'cp "${candidate_checksums}" .release/release-SHA256SUMS' in final
     assert 'gh release upload "v${POSTTRAIN_RELEASE_VERSION}" "${release_assets[@]}" --clobber' in final

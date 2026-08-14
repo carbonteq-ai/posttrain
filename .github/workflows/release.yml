@@ -166,6 +166,7 @@ jobs:
                 | while IFS= read -r path; do
                     case "${path}" in
                       .github/*|apps/release/tests/*|docs/plan/*) ;;
+                      packages/runtime-images/src/posttrain/runtime_images/published.toml) ;;
                       *) printf '%s\\n' "${path}" ;;
                     esac
                   done)"
@@ -205,6 +206,12 @@ jobs:
           release_version="$(sed -n 's/^version = "\([^"]*\)"$/\1/p' release/manifest.toml)"
           test "${candidate_version}" = "${release_version}"
           test "$(jq -r '.version // empty' "${candidate_receipt}")" = "${release_version}"
+          if ! cmp -s \
+            "${candidate_manifest}" \
+            packages/runtime-images/src/posttrain/runtime_images/published.toml; then
+            echo "committed runtime image manifest differs from the accepted candidate" >&2
+            exit 1
+          fi
           cp "${candidate_manifest}" packages/runtime-images/src/posttrain/runtime_images/published.toml
           cp -a "${candidate_runtime_locks}/." \
             packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/

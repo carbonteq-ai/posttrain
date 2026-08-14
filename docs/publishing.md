@@ -338,7 +338,10 @@ gh pr checks <n>
    fails, fix the branch and return to step 6 with a new candidate run.
 9. **Commit required generated image records, rerun CI, and merge the passing
    release PR.** The accepted candidate already contains the final Python
-   version and binds the source, OCI inputs and retained wheelhouse.
+   version and binds the source, OCI inputs and retained wheelhouse. A squash
+   merge may place the generated `published.toml` after the candidate-equivalent
+   commit; the final workflow permits that one generated record only when it is
+   byte-for-byte identical to the retained candidate manifest.
 10. **Dispatch Publish release for the merged commit and successful candidate
     run.** The runner validates source ancestry or tree equality, restores the
     retained candidate wheelhouse, rechecks its hashes and verifies the same
