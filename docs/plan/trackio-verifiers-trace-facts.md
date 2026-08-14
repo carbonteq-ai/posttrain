@@ -173,9 +173,14 @@ evidence. It adds no new job kind, selection, or project decision.
   them to `carbonteq/dev`, proved index storage, and completed a clean install.
   Dev8 sends queued native logs before a dependent fact upsert under the client
   lock; the focused Trackio regression passes.
-- [ ] Publish and activate `0.3.16rc14` with Trackio dev8, then rerun the
-  bounded local GRPO smoke and verify native traces, source facts, and
-  algorithm-reward enrichment together through the generic aggregate API.
+- [x] Published and activated `0.3.16rc14` with Trackio dev8. Its bounded
+  local GRPO smoke reached live rollout generation but reproduced missing-parent
+  enrichment. This exposed the Doris service's asynchronous trace-write
+  acknowledgement, not another Posttrain projection defect.
+- [ ] Publish and deploy Trackio dev9, then activate a Posttrain rc15 with its
+  exact wheel. Rerun the bounded local GRPO smoke and verify native traces,
+  source facts, and algorithm-reward enrichment through the generic aggregate
+  API.
 - [x] Extend Trackio's existing SQLite/Doris `traces` schema with nullable
   scalar fact columns, add normalized reward-component rows, and implement
   grouped reads.

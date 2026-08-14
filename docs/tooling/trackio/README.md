@@ -14,10 +14,10 @@ Observatory populate historical rollout tables without fetching full payloads.
 `pypi.lan` is permanently skewed (metadata post4, import post3) and must not be
 installed.
 
-The active candidate is `carbonteq-trackio==0.31.5.post14.dev8`, built from
-immutable fork commit `21d3be91aaf7a4e07ee879e5225fe9be9f3d7ba3`. Its wheel
-(`5e040f6a6fd5f8d1ab44465bc30bd95cc3bb27afe5669871e6adc995266e2d43`) and
-sdist (`f37c027fdbc8927678f4f94391b75da4dbcb3ce73bdb554906d2952848250a0d`)
+The active candidate is `carbonteq-trackio==0.31.5.post14.dev9`, built from
+immutable fork commit `bf18b6dc02315404370094241516a20bf1ed7e30`. Its wheel
+(`9b29d025794c4db9e1ae777e9e5229a6208d9df2bd33f2fa7a1a6773a038f6ed`) and
+sdist (`15e9e5b65956ef56fe9bf28c05c3098a72c92fbc8dc15d1d99bb9a6c9c40e8c7`)
 were read back from the `carbonteq/dev` index. It is a development framework
 dependency and the isolated Doris candidate service has qualified it; it is
 not yet the stable framework dependency or production service. It adds generic typed trace facts:
@@ -39,10 +39,15 @@ prevents multi-component traces from multiplying scalar metrics.
 The producer-side `Run` exposes the same aggregation contract, so a job can
 verify its retained facts without using a Trackio internal read object.
 
-Dev8 adds the required ordering boundary for an asynchronously queued native
+Dev8 adds the client ordering boundary for an asynchronously queued native
 trace followed by synchronous fact enrichment. It sends the queued source log
 batch before the dependent upsert while holding the client lock; retry remains
 only a defense for server-side visibility, not the normal ordering mechanism.
+
+Dev9 completes the required service-side boundary: the Doris service commits a
+batch containing a native `traces/...` value before returning its write
+acknowledgement. Scalar-only metric batches remain asynchronous, so rollout
+throughput is not globally serialized.
 
 Post10 keeps `local` as the safe default and adds a generic S3-compatible
 artifact backend. With the S3 backend, Trackio issues short-lived multipart
