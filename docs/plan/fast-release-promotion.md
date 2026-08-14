@@ -125,6 +125,10 @@ receipt instead of rebuilding or re-running completed checks.
   lock digest. A failed candidate must not reuse an interrupted artifact from
   another reviewed closure; Docker layer reuse and immutable registry parents
   remain available for identical inputs.
+- [x] (2026-08-14) Preserve explicitly declared, hash-addressed artifact roots
+  when projecting the base runtime lock. The base now installs the reviewed
+  Triton wheel from the internal non-volatile mirror, instead of resolving the
+  same version through an upstream path that returned different bytes.
 
 ## Surprises & Discoveries
 
@@ -178,6 +182,12 @@ receipt instead of rebuilding or re-running completed checks.
   closures, so a failed/partial download could survive a dependency update.
   Evidence: GitHub Actions run `31824686383`; the expected and observed
   SHA-256 values were different and no OCI output was pushed.
+- Observation: the lock projector had collapsed an explicit direct artifact
+  requirement into a normal versioned entry from the generic workspace export.
+  That discarded the selected mirror URL even though the source profile had a
+  full SHA-256 receipt. The projection now retains only direct HTTPS artifacts
+  that carry a SHA-256 fragment; it does not broaden Git or ordinary package
+  resolution behavior.
 - Observation: the candidate called the runtime-image publisher for every
   framework version change, while its build request embedded the framework
   version and full source revision in the image identity. This made an

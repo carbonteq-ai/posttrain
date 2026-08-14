@@ -33,6 +33,9 @@ _NARROW_LOCK_HEADER = (
 )
 _EXACT_PIN = re.compile(r"^(?P<name>[A-Za-z0-9_.-]+)(?:\[[^]]+\])?==(?P<version>[^ ;]+)$")
 _GIT_REVISION = re.compile(r"git\+https://[^@\s]+@(?P<revision>[0-9a-f]{40})(?:#\S+)?$")
+_DIRECT_ARTIFACT = re.compile(
+    r"^(?P<name>[A-Za-z0-9_.-]+)\s+@\s+(?P<reference>https://\S+#sha256=[0-9a-f]{64})$"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -280,6 +283,7 @@ def _project_runtime_closure(
     """Return a profile's exact Linux/Python 3.13 closure from the lock graph."""
 
     roots = _profile_roots(root, inputs)
+    direct_artifacts = _profile_direct_artifacts(root, inputs)
     packages = lock_document.get("package")
     if not isinstance(packages, list):
         raise ValueError("uv.lock does not contain a package graph")
@@ -362,7 +366,14 @@ def _project_runtime_closure(
         requirement_name = _requirement_name(block)
         marker = _requirement_marker(block)
         if requirement_name in selected and (marker is None or _linux_python313_marker_applies(marker)):
-            selected_blocks.append(block.rstrip() + "\n")
+            direct = direct_artifacts.get(requirement_name)
+            if direct is None:
+                selected_blocks.append(block.rstrip() + "\n")
+            else:
+                # An explicitly pinned artifact is a stronger reproducibility
+                # receipt than a package-version lookup. Preserve it so a
+                # mutable upstream mirror cannot substitute different bytes.
+                selected_blocks.append(f"{requirement_name} @ {direct}\n")
     if not selected_blocks:
         raise ValueError("runtime lock projection selected no installable requirements")
     return _NARROW_LOCK_HEADER + "".join(index_lines) + "\n" + "\n".join(selected_blocks)
@@ -406,6 +417,44 @@ def _profile_roots(root: Path, inputs: tuple[Path, ...]) -> dict[str, str | None
     for input_path in inputs:
         visit(input_path)
     return roots
+
+
+def _profile_direct_artifacts(root: Path, inputs: tuple[Path, ...]) -> dict[str, str]:
+    """Return immutable HTTPS artifact roots declared by an image profile.
+
+    These are preserved verbatim in the projected lock. Git references remain
+    governed by the regular workspace resolution; an artifact URL with a
+    SHA-256 fragment is intentionally stronger than resolving its version from
+    an upstream index during image construction.
+    """
+
+    artifacts: dict[str, str] = {}
+    visited: set[Path] = set()
+
+    def visit(relative: Path) -> None:
+        path = (root / relative).resolve()
+        if path in visited:
+            return
+        visited.add(path)
+        for raw_line in path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("-r "):
+                visit(relative.parent / line.removeprefix("-r ").strip())
+                continue
+            match = _DIRECT_ARTIFACT.fullmatch(line)
+            if match is None:
+                continue
+            name = _normalized(match.group("name"))
+            reference = match.group("reference")
+            prior = artifacts.setdefault(name, reference)
+            if prior != reference:
+                raise ValueError(f"runtime profiles select conflicting artifact receipts for {name!r}")
+
+    for input_path in inputs:
+        visit(input_path)
+    return artifacts
 
 
 def _linux_python313_marker_applies(marker: str) -> bool:
