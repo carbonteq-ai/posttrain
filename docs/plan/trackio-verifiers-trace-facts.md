@@ -141,6 +141,30 @@ evidence. It adds no new job kind, selection, or project decision.
   that proves every source record is present while allowing retained target
   history. The candidate exposed a package-version consistency release gate;
   dev6 corrects that candidate and awaits its retained-index receipt.
+- [x] (2026-08-15 08:00Z) Ran the bounded local Verifiers evaluation job
+  `c7b42715-e4ce-4752-ac3d-d79539b003de`. It completed and retained 159
+  native traces in Trackio provider run `d1c6cdb879154e088fab7166ee5b9b44`.
+  The exact-run backfill applies the shared source projection through the
+  generic Trackio endpoint; its aggregate read now reports 159 projections,
+  full model-call/tool-call coverage, and correctly absent output-token
+  coverage for the error traces that did not report usage.
+- [x] (2026-08-15 08:05Z) Built candidate `0.3.16rc12` from the pushed
+  framework branch using the dev-channel Trackio dev7 receipt after recovering
+  52 GiB of OCI registry capacity from superseded candidate manifests. Its
+  exact base, evaluation, and TRL images are now bound in Ambient Agent's local
+  executor state.
+- [x] (2026-08-15 08:28Z) Completed the bounded local
+  `qualify/k1-extract-trace-facts-eval-smoke-0.8b` evaluation run
+  `2015f127-e0aa-42ff-86e1-1de41cfa9cf3`. Its Trackio provider run
+  `dbe516ea2eb44a5eaf3e41322439e367` retained all 16 native Verifiers traces.
+  After the calculator v3 exact-run backfill, the payload-free aggregate has
+  full coverage for model calls, input/output tokens, tool calls, latency, and
+  task reward; no trace reports model reasoning content, so thinking-token
+  coverage correctly remains zero.
+- [ ] (2026-08-15 08:35Z) Publish candidate `0.3.16rc13` with the corrected
+  v3 output-token fallback, activate it in the local executor, run the bounded
+  local GRPO smoke, and verify native traces, source facts, and algorithm-reward
+  enrichment together.
 - [x] Extend Trackio's existing SQLite/Doris `traces` schema with nullable
   scalar fact columns, add normalized reward-component rows, and implement
   grouped reads.
@@ -212,6 +236,25 @@ evidence. It adds no new job kind, selection, or project decision.
   replace reward components`. The Trackio bridge now makes initial writes
   replace components and later enrichment writes preserve them, covered by a
   focused adapter test.
+
+- Observation: a payload-free trace-list response is not evidence that the
+  stored fact columns are null. The Trackio trace list deliberately returns
+  native trace fields only; scalar fact coverage is proven through the
+  restricted aggregate endpoint. The local evaluation read initially appeared
+  empty because it inspected the list projection rather than that fact API.
+  Evidence: after an exact-run bounded backfill, `get_trace_facts` reported
+  159 projected traces with 159 model-call and tool-call values while
+  `get_traces` continued to omit fact columns.
+
+- Observation: a managed Verifiers evaluation can retain sampled assistant
+  messages with empty token arrays while its provider call usage contains
+  nonzero `completion_tokens`. Treating those empty arrays as sampled-token
+  evidence incorrectly projected zero output tokens. The projector must treat
+  an empty token array as unavailable and fall back to complete provider usage.
+  Evidence: the completed 16-trace local evaluation initially aggregated zero
+  model-output tokens despite native call usage such as 333 and 468 completion
+  tokens. Calculator v3 backfill changed the aggregate mean to 256.94 tokens
+  with full output-token coverage.
 
 - Observation: in pinned Verifiers, a judge is a scoring mechanism rather than
   a separate reward namespace. A configured judge can return one scalar or a

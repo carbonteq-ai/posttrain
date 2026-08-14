@@ -9,7 +9,7 @@ from typing import Protocol
 
 from posttrain.common import JsonValue, SignalSource, TraceFactSet, TraceRewardComponent
 
-VERIFIERS_FACT_CALCULATOR_VERSION = "verifiers-trace-facts.v2"
+VERIFIERS_FACT_CALCULATOR_VERSION = "verifiers-trace-facts.v3"
 QWEN35_THINKING_END_TOKEN_ID = 248069
 
 _TRUNCATED_STOP_CONDITIONS = frozenset(
@@ -322,6 +322,12 @@ def _sampled_output_tokens(record: Mapping[str, object]) -> int | None:
         token_ids = node.get("token_ids")
         mask = node.get("mask")
         if not isinstance(token_ids, list) or not isinstance(mask, list) or len(token_ids) != len(mask):
+            return None
+        # Managed evaluation traces can retain the assistant message and
+        # provider usage while omitting token arrays altogether.  An empty
+        # array is absence of sampled-token evidence, not proof that the
+        # model emitted zero tokens; fall back to provider completion usage.
+        if not token_ids:
             return None
         total += sum(value is True for value in mask)
         observed = True

@@ -66,6 +66,35 @@ def test_provider_usage_and_structured_calls_are_projected_without_model_rules()
     assert facts.provenance["thinking_tokens"] == "provider_reasoning_usage"
 
 
+def test_empty_serialized_token_arrays_fall_back_to_provider_completion_usage() -> None:
+    facts = project_verifiers_trace_facts(
+        {
+            "id": "managed-eval-without-token-arrays",
+            "calls": [
+                {"finish_reason": "tool_calls", "usage": {"completion_tokens": 333}},
+                {"finish_reason": "stop", "usage": {"completion_tokens": 468}},
+            ],
+            "nodes": [
+                {
+                    "message": {"role": "assistant", "tool_calls": [{"name": "submit"}]},
+                    "sampled": True,
+                    "token_ids": [],
+                    "mask": [],
+                },
+                {
+                    "message": {"role": "assistant", "content": "done"},
+                    "sampled": True,
+                    "token_ids": [],
+                    "mask": [],
+                },
+            ],
+        }
+    )
+
+    assert facts.measures["model_output_tokens"] == 801
+    assert facts.provenance["model_output_tokens"] == "provider_completion_usage"
+
+
 def test_multi_reward_components_remain_distinct_from_the_scalar_reward() -> None:
     facts = project_verifiers_trace_facts(
         {
