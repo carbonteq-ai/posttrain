@@ -50,7 +50,9 @@ def _request(tmp_path: Path) -> JobImagePublicationRequest:
 def test_remote_publisher_plans_uploads_seals_polls_and_writes_a_local_receipt(tmp_path: Path) -> None:
     request = _request(tmp_path)
     context = JobContextManifest.from_packed_context(
-        PackedJobContext(request.staged_context, request.manifest, request.source_context_digest or "", request.publication_key)
+        PackedJobContext(
+            request.staged_context, request.manifest, request.source_context_digest or "", request.publication_key
+        )
     )
     calls: list[str] = []
 

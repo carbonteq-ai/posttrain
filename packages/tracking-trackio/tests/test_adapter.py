@@ -794,13 +794,15 @@ async def test_trackio_trace_reader_requests_full_payload_only_when_requested(
 
     await source.traces("run-1", TraceQuery(trace_type="verifiers", include_payload=True))
 
-    assert calls == [{
-        "limit": 100,
-        "offset": 0,
-        "sort": "step_asc",
-        "include_payload": True,
-        "trace_type": "verifiers",
-    }]
+    assert calls == [
+        {
+            "limit": 100,
+            "offset": 0,
+            "sort": "step_asc",
+            "include_payload": True,
+            "trace_type": "verifiers",
+        }
+    ]
 
 
 @pytest.mark.asyncio

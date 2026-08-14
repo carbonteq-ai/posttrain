@@ -122,9 +122,9 @@ class JobContextManifest:
         publication_key = payload["publication_key"]
         context_digest = payload["context_digest"]
         files = payload["files"]
-        if not all(isinstance(value, str) for value in (package_key, publication_key, context_digest)) or not isinstance(
-            files, list
-        ):
+        if not all(
+            isinstance(value, str) for value in (package_key, publication_key, context_digest)
+        ) or not isinstance(files, list):
             raise ContractError("job context manifest payload has invalid field types")
         return cls(
             cast(str, package_key),

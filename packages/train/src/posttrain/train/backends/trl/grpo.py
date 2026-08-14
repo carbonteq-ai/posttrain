@@ -460,9 +460,7 @@ def _rollout_function(
                         measures={"algorithm_reward": observed_algorithm_reward},
                         provenance={
                             "algorithm_reward": (
-                                "trainer_reward_shaping"
-                                if observed_algorithm_reward is not None
-                                else "unsupported"
+                                "trainer_reward_shaping" if observed_algorithm_reward is not None else "unsupported"
                             )
                         },
                     ),

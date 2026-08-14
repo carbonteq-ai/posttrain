@@ -9,7 +9,9 @@ def _base(*, forced: bool = False) -> DesiredImage:
 
 
 def _kind(*, forced: bool = False) -> DesiredImage:
-    return DesiredImage("kind.trl", "posttrain-kind-online-rl-trl-py312", "c" * 64, "d" * 64, parent="base", forced=forced)
+    return DesiredImage(
+        "kind.trl", "posttrain-kind-online-rl-trl-py312", "c" * 64, "d" * 64, parent="base", forced=forced
+    )
 
 
 def _present(desired: DesiredImage, marker: str, *, bytes: int = 0, missing: int | None = None) -> ObservedImage:

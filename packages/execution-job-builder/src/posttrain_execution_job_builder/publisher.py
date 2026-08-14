@@ -47,7 +47,9 @@ class RemoteJobBuilderConfig:
             raise ContractError("remote job builder endpoint must be an absolute URL without a trailing slash")
         if not self.token or self.token != self.token.strip():
             raise ContractError("remote job builder token is invalid")
-        if any(_SHA256.fullmatch(value) is None for value in (self.release_manifest_digest, self.build_definition_digest)):
+        if any(
+            _SHA256.fullmatch(value) is None for value in (self.release_manifest_digest, self.build_definition_digest)
+        ):
             raise ContractError("remote job builder definition digests must be SHA-256")
         if not self.receipt_root.is_absolute():
             raise ContractError("remote job builder receipt root must be absolute")
@@ -69,9 +71,7 @@ class RemoteJobImagePublisher:
             raise ContractError("remote job builder cannot produce a local OCI image")
         if request.source_context_digest is None:
             raise ContractError("remote job builder requires the packed context digest")
-        context = JobContextManifest.from_packed_context(
-            _packed_context_view(request, request.source_context_digest)
-        )
+        context = JobContextManifest.from_packed_context(_packed_context_view(request, request.source_context_digest))
         plan_request = JobPublicationPlanRequest(
             request.manifest,
             request.publication,
@@ -117,8 +117,7 @@ class RemoteJobImagePublisher:
     ) -> None:
         with ThreadPoolExecutor(max_workers=self._config.upload_concurrency) as executor:
             futures = tuple(
-                executor.submit(self._upload_blob, request, descriptor, project_id)
-                for descriptor in plan.missing_blobs
+                executor.submit(self._upload_blob, request, descriptor, project_id) for descriptor in plan.missing_blobs
             )
             for future in futures:
                 future.result()
@@ -167,7 +166,11 @@ class RemoteJobImagePublisher:
                 if published is not None:
                     return published
                 state = status.get("state")
-                if state in {JobPublicationState.BLOCKED.value, JobPublicationState.CANCELLED.value, JobPublicationState.FAILED.value}:
+                if state in {
+                    JobPublicationState.BLOCKED.value,
+                    JobPublicationState.CANCELLED.value,
+                    JobPublicationState.FAILED.value,
+                }:
                     raise ContractError("remote job builder did not publish the requested image")
             if time.monotonic() >= deadline:
                 raise TimeoutError("remote job builder publication timed out")

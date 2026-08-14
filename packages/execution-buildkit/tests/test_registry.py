@@ -69,11 +69,7 @@ def test_registry_content_reader_counts_only_destination_missing_blobs() -> None
     class Transport:
         def manifest(self, reference: RegistryManifestRef) -> bytes | None:
             if reference == source:
-                return (
-                    '{"manifests": [{"digest": "sha256:'
-                    + "b" * 64
-                    + '"}]}'
-                ).encode()
+                return ('{"manifests": [{"digest": "sha256:' + "b" * 64 + '"}]}').encode()
             if reference == child:
                 return (
                     '{"config": {"digest": "sha256:'

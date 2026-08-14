@@ -553,9 +553,7 @@ class BuildKitJobImagePublisher:
 
         tag = f"{request.publication.repository}:{request.publication_key}"
         try:
-            output = self._gateway.invoke(
-                ("imagetools", "inspect", tag, "--format", "{{json .Manifest.Digest}}")
-            )
+            output = self._gateway.invoke(("imagetools", "inspect", tag, "--format", "{{json .Manifest.Digest}}"))
         except RemoteImageNotFoundError:
             return None
         try:
@@ -565,9 +563,7 @@ class BuildKitJobImagePublisher:
         if not isinstance(digest, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
             raise RuntimeError("Buildx returned an invalid remote actual-job tag digest")
 
-        label_output = self._gateway.invoke(
-            ("imagetools", "inspect", tag, "--format", "{{json .Image}}")
-        )
+        label_output = self._gateway.invoke(("imagetools", "inspect", tag, "--format", "{{json .Image}}"))
         try:
             payload = json.loads(label_output)
         except json.JSONDecodeError as error:

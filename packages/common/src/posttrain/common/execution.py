@@ -171,7 +171,9 @@ class TraceFactSet:
             "provenance": dict(sorted(self.provenance.items())),
             "state": self.state,
         }
-        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode()
+        encoded = json.dumps(
+            payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+        ).encode()
         return hashlib.sha256(encoded).hexdigest()
 
 

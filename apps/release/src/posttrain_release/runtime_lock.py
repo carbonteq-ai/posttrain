@@ -13,7 +13,9 @@ _WORKSPACE_LOCK = Path(
     "packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/workspace.lock.txt"
 )
 _PROFILES = Path("packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/profiles")
-_BASE_REQUIREMENTS = Path("packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-base/requirements.txt")
+_BASE_REQUIREMENTS = Path(
+    "packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-base/requirements.txt"
+)
 _RUNTIME_LOCKS = Path("packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks")
 _REQUIREMENT_START = re.compile(r"^(?P<name>[A-Za-z0-9_.-]+)(?:\[[^]]+\])?(?:==|\s+@\s+)")
 _PROFILE_PIN = re.compile(r"^(?P<name>[A-Za-z0-9_.-]+)==(?P<version>[^ ;]+)$")
@@ -33,9 +35,7 @@ _NARROW_LOCK_HEADER = (
 )
 _EXACT_PIN = re.compile(r"^(?P<name>[A-Za-z0-9_.-]+)(?:\[[^]]+\])?==(?P<version>[^ ;]+)$")
 _GIT_REVISION = re.compile(r"git\+https://[^@\s]+@(?P<revision>[0-9a-f]{40})(?:#\S+)?$")
-_DIRECT_ARTIFACT = re.compile(
-    r"^(?P<name>[A-Za-z0-9_.-]+)\s+@\s+(?P<reference>https://\S+#sha256=[0-9a-f]{64})$"
-)
+_DIRECT_ARTIFACT = re.compile(r"^(?P<name>[A-Za-z0-9_.-]+)\s+@\s+(?P<reference>https://\S+#sha256=[0-9a-f]{64})$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -184,9 +184,7 @@ def materialize_runtime_lock(repository_root: Path, *, check: bool = False) -> R
     return RuntimeLockMaterialization(path=path, changed=changed, packages=packages)
 
 
-def export_runtime_workspace_lock(
-    repository_root: Path, *, check: bool = False
-) -> RuntimeWorkspaceLockExport:
+def export_runtime_workspace_lock(repository_root: Path, *, check: bool = False) -> RuntimeWorkspaceLockExport:
     """Export the authoritative workspace resolution for image-lock compilation.
 
     ``uv.lock`` is the only solver authority.  Do not rebuild this file by
@@ -334,9 +332,7 @@ def _project_runtime_closure(
             for extra in sorted(new_extras):
                 extra_dependencies = optional.get(extra, [])
                 if not isinstance(extra_dependencies, list):
-                    raise ValueError(
-                        f"uv.lock package {name!r} has malformed optional dependency group {extra!r}"
-                    )
+                    raise ValueError(f"uv.lock package {name!r} has malformed optional dependency group {extra!r}")
                 dependencies = [*dependencies, *extra_dependencies]
             for dependency in dependencies:
                 if not isinstance(dependency, dict) or not isinstance(dependency.get("name"), str):
@@ -347,9 +343,7 @@ def _project_runtime_closure(
                 raw_extras = dependency.get("extra", [])
                 if isinstance(raw_extras, str):
                     raw_extras = [raw_extras]
-                if not isinstance(raw_extras, list) or not all(
-                    isinstance(extra, str) for extra in raw_extras
-                ):
+                if not isinstance(raw_extras, list) or not all(isinstance(extra, str) for extra in raw_extras):
                     raise ValueError(f"uv.lock package {name!r} has malformed dependency extras")
                 pending.append((_normalized(dependency["name"]), frozenset(raw_extras)))
 
@@ -359,7 +353,9 @@ def _project_runtime_closure(
         raise ValueError("workspace.lock omits packages selected by uv.lock: " + ", ".join(missing))
 
     index_lines = [
-        line for line in workspace_lock.splitlines(keepends=True) if line.startswith(("--index-url ", "--extra-index-url "))
+        line
+        for line in workspace_lock.splitlines(keepends=True)
+        if line.startswith(("--index-url ", "--extra-index-url "))
     ]
     selected_blocks: list[str] = []
     for block in _requirement_blocks_in_order(workspace_lock):
@@ -534,7 +530,11 @@ def _restrict_hashes_to_workspace(rendered: str, workspace_lock: str) -> str:
             )
         else:
             expected = next(
-                (item for item in expected_candidates if _requirement_identity(item) == _requirement_identity(candidate_text)),
+                (
+                    item
+                    for item in expected_candidates
+                    if _requirement_identity(item) == _requirement_identity(candidate_text)
+                ),
                 None,
             )
         if expected is None:
@@ -611,9 +611,7 @@ def synchronize_runtime_profile_pins(repository_root: Path) -> RuntimeProfileSyn
         if profile_changed:
             profile.write_text("".join(rendered), encoding="utf-8")
             changed.append(profile)
-    return RuntimeProfileSynchronization(
-        changed_profiles=tuple(changed), packages=tuple(sorted(selected))
-    )
+    return RuntimeProfileSynchronization(changed_profiles=tuple(changed), packages=tuple(sorted(selected)))
 
 
 __all__ = [

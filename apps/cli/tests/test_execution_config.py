@@ -161,9 +161,7 @@ def test_machine_keeps_provider_ownership_but_allows_project_candidate_registry(
         services=MachineServicesBinding(),
         credentials={},
     )
-    monkeypatch.setattr(
-        "posttrain_cli.execution_config.load_machine_config", lambda: machine
-    )
+    monkeypatch.setattr("posttrain_cli.execution_config.load_machine_config", lambda: machine)
 
     configuration = load_local_execution_config(layout)
 

@@ -170,10 +170,7 @@ def check_release(repository_root: Path, *, allow_pending_runtime_lock: bool = F
         try:
             load_manifest_from_directory(runtime_images)
         except (OSError, ValueError, ManifestError) as error:
-            if (
-                allow_pending_runtime_lock
-                and _is_pending_runtime_lock_manifest_error(error)
-            ):
+            if allow_pending_runtime_lock and _is_pending_runtime_lock_manifest_error(error):
                 # Validate TOML/schema structure while allowing old lock labels
                 # and backend identities until candidate publication rebuilds the
                 # affected images. Exact variant/profile validation resumes after

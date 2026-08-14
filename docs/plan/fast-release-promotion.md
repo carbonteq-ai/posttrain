@@ -140,6 +140,12 @@ receipt instead of rebuilding or re-running completed checks.
   read back the base plus all seven kind-image digests. Its generated manifest
   and source-compatible per-kind locks pass both `posttrain-release check` and
   `posttrain-release lock-runtime-dependencies --check` locally.
+- [x] (2026-08-14) Merge the current release line into the trace-facts/image
+  branch, preserve the current Trackio and veRL receipts, and correct the
+  runtime-image verification tests to model per-kind locks. The exact merged
+  tree `14a8b8950a8fb5b0c4c43d2894eed2702095150b` passed deterministic
+  readiness locally: 1,251 passed, 23 skipped, Ruff/check-format, Pyright,
+  and import contracts all passed.
 
 ## Surprises & Discoveries
 
@@ -221,6 +227,12 @@ receipt instead of rebuilding or re-running completed checks.
   was the long pole, but the runner remained within the expanded 242 GiB root
   volume (worst observed use: 199 GiB) and completed without registry errors.
   Evidence: candidate `31828403358`, from 18:23:26Z to 18:37:40Z.
+- Observation: tests that simulated registry facts defaulted to the supervised
+  lock and therefore masked per-kind lock selection. The live manifest exposes
+  different lock digests by design, so veRL test facts must use the veRL lock;
+  image-level validation remains independent of lock equality. The same merge
+  surfaced pre-existing formatting drift in 26 Python files, which the
+  repository formatter corrected without behavioral changes.
 - Observation: the initial 0.3.8 final run correctly promoted the retained
   candidate bytes and pushed the tag, but it could not create the GitHub
   release because `release-SHA256SUMS` was not copied from candidate evidence
@@ -359,6 +371,12 @@ receipt instead of rebuilding or re-running completed checks.
   lock closure; only the formal candidate qualifies the final wheelhouse and
   the packed GPU job for the exact merged release tree.
   Date/Author: 2026-08-14 / user and Codex.
+- Decision: Test runtime image verification against the selected variant's
+  constraint lock, never an assumed shared workspace lock.
+  Rationale: base and kind layers intentionally have different closures; the
+  lock label proves closure identity while the image-level label proves that a
+  runnable kind image occupies the slot.
+  Date/Author: 2026-08-14 / Codex.
 
 ## Outcomes & Retrospective
 

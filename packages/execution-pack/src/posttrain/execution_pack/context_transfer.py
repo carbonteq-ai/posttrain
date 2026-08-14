@@ -60,7 +60,11 @@ class JobBuilderCapabilities:
             ("release manifest", self.release_manifest_digests),
             ("build definition", self.build_definition_digests),
         ):
-            if not digests or tuple(sorted(set(digests))) != digests or any(_SHA256.fullmatch(value) is None for value in digests):
+            if (
+                not digests
+                or tuple(sorted(set(digests))) != digests
+                or any(_SHA256.fullmatch(value) is None for value in digests)
+            ):
                 raise ContractError(f"job builder {label} digests must be unique sorted SHA-256 values")
         if not self.platforms or tuple(sorted(set(self.platforms))) != self.platforms:
             raise ContractError("job builder platforms must be unique and sorted")

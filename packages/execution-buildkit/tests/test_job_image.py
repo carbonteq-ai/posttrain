@@ -59,7 +59,9 @@ class FakeBuildx:
                 raise RemoteImageNotFoundError("manifest unknown")
             if "--raw" in call:
                 parent = [{"digest": f"sha256:{'a' * 64}", "size": 100}]
-                layers = parent if "/online-rl@" in reference else [*parent, {"digest": f"sha256:{'b' * 64}", "size": 25}]
+                layers = (
+                    parent if "/online-rl@" in reference else [*parent, {"digest": f"sha256:{'b' * 64}", "size": 25}]
+                )
                 return json.dumps(
                     {
                         "schemaVersion": 2,

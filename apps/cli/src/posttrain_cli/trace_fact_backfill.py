@@ -206,10 +206,14 @@ def register(app: typer.Typer) -> None:
                 help="bounded orchestration window; checkpoints remain at most 1,000 traces",
             ),
         ] = 200,
-        apply: Annotated[bool, typer.Option("--apply", help="persist this page; default is a non-mutating preview")] = False,
+        apply: Annotated[
+            bool, typer.Option("--apply", help="persist this page; default is a non-mutating preview")
+        ] = False,
         trackio_project: Annotated[
             str | None,
-            typer.Option("--trackio-project", help="override the configured Trackio project for cross-project maintenance"),
+            typer.Option(
+                "--trackio-project", help="override the configured Trackio project for cross-project maintenance"
+            ),
         ] = None,
     ) -> None:
         state: CliState = ctx.obj

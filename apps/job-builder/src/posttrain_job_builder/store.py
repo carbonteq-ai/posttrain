@@ -136,7 +136,9 @@ class StoredJobPublication:
             not isinstance(state, str)
             or not isinstance(blobs, list)
             or not all(isinstance(item, str) for item in blobs)
-            or (queue_sequence is not None and (not isinstance(queue_sequence, int) or isinstance(queue_sequence, bool)))
+            or (
+                queue_sequence is not None and (not isinstance(queue_sequence, int) or isinstance(queue_sequence, bool))
+            )
             or (safe_error_code is not None and not isinstance(safe_error_code, str))
         ):
             raise ContractError("stored job publication payload has invalid field types")
@@ -188,7 +190,12 @@ class FileSystemJobContextStore:
             raise ContractError("job builder store root must be absolute")
         self._root = root
         self._capabilities = capabilities
-        for directory in (self._root, self._root / "blobs" / "sha256", self._root / "requests", self._root / "receipts"):
+        for directory in (
+            self._root,
+            self._root / "blobs" / "sha256",
+            self._root / "requests",
+            self._root / "receipts",
+        ):
             directory.mkdir(parents=True, exist_ok=True, mode=0o700)
             directory.chmod(0o700)
         counter = self._root / "queue-sequence"
@@ -294,7 +301,11 @@ class FileSystemJobContextStore:
             record = self._require(scope)
             if record.state not in {JobPublicationState.UPLOAD_REQUIRED, JobPublicationState.QUEUED}:
                 raise ContractError("job publication cannot be sealed in its current state")
-            missing = [item.path.as_posix() for item in record.request.context.files if not self._blob_path(item.sha256).is_file()]
+            missing = [
+                item.path.as_posix()
+                for item in record.request.context.files
+                if not self._blob_path(item.sha256).is_file()
+            ]
             if missing:
                 raise ContractError("job publication cannot seal while declared blobs are missing")
             for descriptor in record.request.context.files:
@@ -444,7 +455,10 @@ class FileSystemJobContextStore:
             raise ContractError("job builder does not support the requested build definition")
         if not set(request.publication.platforms).issubset(capabilities.platforms):
             raise ContractError("job builder does not support the requested platforms")
-        if len(request.context.files) > capabilities.max_file_count or request.context.total_bytes > capabilities.max_context_bytes:
+        if (
+            len(request.context.files) > capabilities.max_file_count
+            or request.context.total_bytes > capabilities.max_context_bytes
+        ):
             raise ContractError("job builder context exceeds its admitted limits")
         if any(item.size_bytes > capabilities.max_blob_bytes for item in request.context.files):
             raise ContractError("job builder context contains a blob above its admitted limit")

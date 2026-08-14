@@ -174,7 +174,9 @@ class TraceFactsQuery(TrackingModel):
             raise ValueError("trace-fact aggregation requires one or more aggregates")
         if len(self.group_by) != len(set(self.group_by)):
             raise ValueError("trace-fact group-by dimensions must be unique")
-        component_aggregates = [aggregate for aggregate in self.aggregates if aggregate.measure.startswith("reward_component_")]
+        component_aggregates = [
+            aggregate for aggregate in self.aggregates if aggregate.measure.startswith("reward_component_")
+        ]
         if component_aggregates and len(component_aggregates) != len(self.aggregates):
             raise ValueError("scalar and reward-component aggregates must be queried separately")
         component_dimensions = {"reward_component_name", "reward_component_source_kind"}

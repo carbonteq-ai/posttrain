@@ -303,7 +303,11 @@ def _model_output_tokens(
     if completion_tokens is None:
         return None, False, "unsupported"
     if reasoning_tokens is not None and reasoning_tokens > completion_tokens:
-        return completion_tokens + reasoning_tokens, completion_complete and reasoning_complete, "provider_visible_plus_reasoning"
+        return (
+            completion_tokens + reasoning_tokens,
+            completion_complete and reasoning_complete,
+            "provider_visible_plus_reasoning",
+        )
     return completion_tokens, completion_complete, "provider_completion_usage"
 
 

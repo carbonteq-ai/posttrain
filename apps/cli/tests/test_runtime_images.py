@@ -186,7 +186,10 @@ def test_verl_runtime_image_requires_its_backend_identity_labels(
         variant,
         registry.kind_images[variant].value,
         manifest=_manifest(),
-        inspector=_FakeInspector(labels=expected_labels),
+        inspector=_FakeInspector(
+            lock_digest=_manifest().expected_lock_digest(variant),
+            labels=expected_labels,
+        ),
     )
     assert verified.ok
     assert "backend source" in verified.detail
@@ -198,7 +201,10 @@ def test_verl_runtime_image_requires_its_backend_identity_labels(
         variant,
         registry.kind_images[variant].value,
         manifest=_manifest(),
-        inspector=_FakeInspector(labels=labels),
+        inspector=_FakeInspector(
+            lock_digest=_manifest().expected_lock_digest(variant),
+            labels=labels,
+        ),
     )
     assert drifted.status == "drifted"
     assert revision_label in drifted.detail
@@ -447,14 +453,12 @@ def test_a_base_image_pinned_into_a_kind_slot_is_rejected(
 ) -> None:
     """The lock digest alone cannot catch this.
 
-    Every level of the image hierarchy is built from the same workspace lock,
-    so the base image and every job-kind image share a lock digest. Pointing a
-    job-kind slot at the base image therefore passes a digest comparison
-    perfectly while producing an image that cannot run a job at all.
+    A malicious or incorrectly configured registry can present a matching
+    job-kind lock label on a base image. The image-level label is therefore a
+    separate invariant: a digest match alone must not permit a non-runnable
+    image to occupy a job-kind slot.
     """
     registry = _registry(tmp_path, monkeypatch)
-    assert _manifest().base.lock_digest == _manifest().kinds["supervised"].lock_digest
-
     result = verify_variant(
         "supervised",
         registry.kind_images["supervised"].value,

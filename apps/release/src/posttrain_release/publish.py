@@ -476,7 +476,9 @@ def publish_release(
             assert prior_manifest is not None and base_node.expected_digest is not None
             source_image = prior_manifest.base
             published_base = builder.copy_remote(
-                RuntimeImageRef(_prior_ref(prior_manifest.default_prefix, source_image.repository, source_image.digest)),
+                RuntimeImageRef(
+                    _prior_ref(prior_manifest.default_prefix, source_image.repository, source_image.digest)
+                ),
                 destination_repository=f"{normalized}/{source_image.repository}",
                 expected_digest=base_node.expected_digest,
                 tag=f"reuse-{base_node.desired.identity[:16]}",
@@ -576,7 +578,9 @@ def publish_release(
                 return replace(
                     image,
                     name=f"kinds.{variant}",
-                    provided_packages=supplied.get(variant) or image.provided_packages or _provided_packages(variant, root),
+                    provided_packages=supplied.get(variant)
+                    or image.provided_packages
+                    or _provided_packages(variant, root),
                 )
             if node.action == "copy":
                 assert prior_manifest is not None and node.expected_digest is not None
@@ -592,7 +596,9 @@ def publish_release(
                 return replace(
                     image,
                     name=f"kinds.{variant}",
-                    provided_packages=supplied.get(variant) or image.provided_packages or _provided_packages(variant, root),
+                    provided_packages=supplied.get(variant)
+                    or image.provided_packages
+                    or _provided_packages(variant, root),
                 )
             return _build_kind(variant)
 

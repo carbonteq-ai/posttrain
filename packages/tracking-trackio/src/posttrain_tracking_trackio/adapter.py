@@ -869,10 +869,7 @@ class TrackioTraceFactWriter:
 
         if not updates:
             return ()
-        encoded = [
-            _trackio_trace_facts(trace_type, external_id, facts).payload()
-            for external_id, facts in updates
-        ]
+        encoded = [_trackio_trace_facts(trace_type, external_id, facts).payload() for external_id, facts in updates]
         receipt_type = getattr(trackio, "TraceFactWriteReceipt", None)
         if receipt_type is None:
             raise ContractError("the configured Trackio build does not expose trace-fact write receipts")
@@ -1337,21 +1334,24 @@ class TrackioDataSource:
         aggregate = getattr(provider_run, "aggregate_trace_facts", None)
         if query_type is None or aggregate_type is None or not callable(aggregate):
             return TraceAggregateResult(state="unavailable")
-        response = cast(Any, aggregate(
-            query_type(
-                trace_type=query.trace_type,
-                group_by=tuple(query.group_by),
-                aggregates=tuple(
-                    aggregate_type(
-                        measure=item.measure,
-                        operation=item.operation,
-                        component_name=item.component_name,
-                    )
-                    for item in query.aggregates
-                ),
-                dimensions=dict(query.dimensions),
-            )
-        ))
+        response = cast(
+            Any,
+            aggregate(
+                query_type(
+                    trace_type=query.trace_type,
+                    group_by=tuple(query.group_by),
+                    aggregates=tuple(
+                        aggregate_type(
+                            measure=item.measure,
+                            operation=item.operation,
+                            component_name=item.component_name,
+                        )
+                        for item in query.aggregates
+                    ),
+                    dimensions=dict(query.dimensions),
+                )
+            ),
+        )
         return TraceAggregateResult(
             state="available",
             buckets=tuple(

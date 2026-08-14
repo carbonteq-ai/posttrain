@@ -788,9 +788,7 @@ def test_fork_ledger_cross_checks_direct_runtime_environment_and_service_boundar
     assert entries["vllm"].artifacts["source_archive_sha256"] == (
         "8d4736461fbc3bf72075b4d84417208b3c5fc9ffc6f48bf26cbe9ef955cf307b"
     )
-    assert entries["automationbench"].artifacts["environment_revision"] == (
-        "b7bcb591facfcd2b073802f6d7496b24ab9c479e"
-    )
+    assert entries["automationbench"].artifacts["environment_revision"] == ("b7bcb591facfcd2b073802f6d7496b24ab9c479e")
     assert entries["dstack"].required is False
     assert entries["dstack"].deployed_image and "@sha256:" in entries["dstack"].deployed_image
     assert render_fork_ledger(repository_root)["schema"] == "posttrain.fork-ledger.v1"
@@ -1375,8 +1373,7 @@ def test_public_ci_trl_mirror_matches_selected_distribution() -> None:
     assert f"CARBONTEQ_TRL_WHEEL_SHA256: {wheel_sha256}" in workflow
     assert f"CARBONTEQ_TRL_WHEEL_PATH: /tmp/{filename}" in workflow
     assert (
-        "POSTTRAIN_CONSUMER_EXTRA_WHEELS: "
-        f"/tmp/carbonteq_trackio-{trackio['version']}-py3-none-any.whl:/tmp/{filename}"
+        f"POSTTRAIN_CONSUMER_EXTRA_WHEELS: /tmp/carbonteq_trackio-{trackio['version']}-py3-none-any.whl:/tmp/{filename}"
     ) in workflow
     assert "--extra trl" in workflow
     assert "--no-install-package carbonteq-trackio --no-install-package trl" in workflow

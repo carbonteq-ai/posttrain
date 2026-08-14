@@ -80,9 +80,7 @@ def verify_variant(
         variant,
         reference,
         expected_lock_digest=expected,
-        expected_backend_labels=backend_runtime_labels(
-            variant, manifest.image(variant).backend_runtime_identity
-        ),
+        expected_backend_labels=backend_runtime_labels(variant, manifest.image(variant).backend_runtime_identity),
         inspector=inspector,
     )
 

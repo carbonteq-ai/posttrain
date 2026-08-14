@@ -20,8 +20,7 @@ _LEDGER = Path("release/forks.toml")
 _TRACKIO = Path("packages/tracking-trackio/pyproject.toml")
 _TRAIN = Path("packages/train/pyproject.toml")
 _VERL_PROFILE = Path(
-    "packages/runtime-images/src/posttrain/runtime_images/containers/"
-    "posttrain-job-kinds/verl-py313/profile.toml"
+    "packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/verl-py313/profile.toml"
 )
 _AUTOMATIONBENCH = Path("packages/eval/src/posttrain/eval/programs/automationbench.py")
 _REVISION = re.compile(r"^[0-9a-f]{40}$")
@@ -112,9 +111,7 @@ def _declared_entries(root: Path) -> tuple[dict[str, Any], ...]:
     return tuple(entries)
 
 
-def _package_entry(
-    declared: dict[str, Any], *, metadata: dict[str, str], package: str, source: str
-) -> ForkLedgerEntry:
+def _package_entry(declared: dict[str, Any], *, metadata: dict[str, str], package: str, source: str) -> ForkLedgerEntry:
     version = _string(metadata.get("version"), f"{package} version")
     tag = _string(metadata.get("release_tag"), f"{package} release tag")
     revision = _revision(metadata.get("source_revision"), f"{package} source revision")
@@ -152,9 +149,7 @@ def _vllm_entry(declared: dict[str, Any], dependencies: dict[str, Any]) -> ForkL
             "source_archive_sha256": _sha256(
                 dependencies.get("vllm_release_source_sha256"), "vLLM source archive SHA-256"
             ),
-            "binary_base_wheel_sha256": _sha256(
-                dependencies.get("vllm_binary_wheel_sha256"), "vLLM ABI wheel SHA-256"
-            ),
+            "binary_base_wheel_sha256": _sha256(dependencies.get("vllm_binary_wheel_sha256"), "vLLM ABI wheel SHA-256"),
         },
         selection_source=_VERL_PROFILE.as_posix(),
     )

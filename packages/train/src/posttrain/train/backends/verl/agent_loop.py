@@ -229,16 +229,19 @@ def _append_rollout_reward_record(
     destination = os.environ.get("POSTTRAIN_VERL_ROLLOUT_REWARDS_PATH")
     if not destination:
         return
-    payload = json.dumps(
-        {
-            "trace_id": trace_id,
-            "step": step,
-            "task_reward": task_reward,
-            "algorithm_reward": algorithm_reward,
-        },
-        separators=(",", ":"),
-        allow_nan=False,
-    ) + "\n"
+    payload = (
+        json.dumps(
+            {
+                "trace_id": trace_id,
+                "step": step,
+                "task_reward": task_reward,
+                "algorithm_reward": algorithm_reward,
+            },
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+        + "\n"
+    )
     # Each small append is one complete record. The parent is the only process
     # that turns this journal into tracking evidence after the worker exits.
     descriptor = os.open(destination, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600)

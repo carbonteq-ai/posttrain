@@ -40,7 +40,10 @@ class BearerTokenAuthorizer:
     def __init__(self, token_grants: Mapping[str, PrincipalGrant]) -> None:
         if not token_grants:
             raise ValueError("job builder requires at least one token grant")
-        if any(len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest) for digest in token_grants):
+        if any(
+            len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest)
+            for digest in token_grants
+        ):
             raise ValueError("job builder token digest is invalid")
         self._token_grants = dict(token_grants)
 
@@ -174,7 +177,9 @@ def create_http_app(
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "project scope is required")
         repositories.repository_for(grant, x_posttrain_project)
         try:
-            record = store.get(principal=grant.principal, project_id=x_posttrain_project, publication_key=publication_key)
+            record = store.get(
+                principal=grant.principal, project_id=x_posttrain_project, publication_key=publication_key
+            )
         except ContractError as error:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "job publication lookup was rejected") from error
         if record is None:
@@ -198,9 +203,13 @@ def create_http_app(
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "project scope is required")
         repositories.repository_for(grant, x_posttrain_project)
         try:
-            record = store.cancel(principal=grant.principal, project_id=x_posttrain_project, publication_key=publication_key)
+            record = store.cancel(
+                principal=grant.principal, project_id=x_posttrain_project, publication_key=publication_key
+            )
         except ContractError as error:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "job publication could not be cancelled") from error
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY, "job publication could not be cancelled"
+            ) from error
         return {
             "schema": "posttrain.job-publication-status.v1",
             "publication_key": record.request.publication_key,

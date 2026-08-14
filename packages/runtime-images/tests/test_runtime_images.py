@@ -204,9 +204,7 @@ def test_base_runtime_lock_includes_cuda_dependencies_selected_by_torch_extras()
 
 def test_base_runtime_lock_retains_the_reviewed_mirrored_triton_artifact() -> None:
     requirements = _logical_requirements(BASE_LOCK)
-    assert requirements["triton"].startswith(
-        "triton @ https://pypi.lan/root/pypi/+f/10c/7f76c6e72d2ef/"
-    )
+    assert requirements["triton"].startswith("triton @ https://pypi.lan/root/pypi/+f/10c/7f76c6e72d2ef/")
     assert "#sha256=10c7f76c6e72d2ef08df639e3d0d30729112f47a56b0c81672edc05ee5116ac9" in requirements["triton"]
 
 
@@ -235,7 +233,11 @@ def test_narrow_runtime_locks_only_select_artifacts_from_the_workspace_resolutio
                     next((item for item in candidates if observed & _requirement_hashes(item)), None)
                     if observed
                     else next(
-                        (item for item in candidates if _requirement_identity(requirement) == _requirement_identity(item)),
+                        (
+                            item
+                            for item in candidates
+                            if _requirement_identity(requirement) == _requirement_identity(item)
+                        ),
                         None,
                     )
                 )
