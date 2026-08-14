@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from posttrain.common import ContractError
-from posttrain.runtime_images import backend_runtime_labels
+from posttrain.runtime_images import BackendRuntimeImageIdentity, backend_runtime_labels
 from posttrain.runtime_images.manifest import (
     ManifestError,
     PublishedManifest,
@@ -76,13 +76,75 @@ def verify_variant(
             detail="not published by this release; not verified",
         )
 
+    return _verify_image_identity(
+        variant,
+        reference,
+        expected_lock_digest=expected,
+        expected_backend_labels=backend_runtime_labels(
+            variant, manifest.image(variant).backend_runtime_identity
+        ),
+        inspector=inspector,
+    )
+
+
+def verify_configured_variant(
+    registry: RegistryBinding,
+    variant: str,
+    *,
+    inspector: ImageInspector,
+) -> VariantVerification:
+    """Verify the exact image and constraint binding selected by one project.
+
+    Stable projects derive this binding from the installed manifest. A
+    development candidate instead supplies a retained image digest and its
+    matching lock through execution configuration, which is equally
+    immutable but must not be compared to the stable manifest.
+    """
+
+    image = expected_images(registry).get(variant)
+    binding = registry.constraint_profiles.get(variant)
+    if image is None or binding is None:
+        return VariantVerification(
+            variant=variant,
+            reference=image or "",
+            expected_lock_digest="",
+            status="missing",
+            detail="execution configuration has no image and constraint profile for this variant",
+        )
+    identity: BackendRuntimeImageIdentity | None = None
+    if binding.backend_source_repository is not None:
+        assert binding.backend_source_revision is not None
+        assert binding.backend_dependency_lock_digest is not None
+        identity = BackendRuntimeImageIdentity(
+            binding.backend_source_repository,
+            binding.backend_source_revision,
+            binding.backend_dependency_lock_digest,
+        )
+    return _verify_image_identity(
+        variant,
+        image,
+        expected_lock_digest=binding.contents_digest,
+        expected_backend_labels=backend_runtime_labels(variant, identity),
+        inspector=inspector,
+    )
+
+
+def _verify_image_identity(
+    variant: str,
+    reference: str,
+    *,
+    expected_lock_digest: str,
+    expected_backend_labels: Mapping[str, str],
+    inspector: ImageInspector,
+) -> VariantVerification:
+
     try:
         facts = inspector.inspect(reference)
     except RemoteImageNotFoundError:
         return VariantVerification(
             variant=variant,
             reference=reference,
-            expected_lock_digest=expected,
+            expected_lock_digest=expected_lock_digest,
             status="missing",
             detail="not present in the registry",
         )
@@ -90,7 +152,7 @@ def verify_variant(
         return VariantVerification(
             variant=variant,
             reference=reference,
-            expected_lock_digest=expected,
+            expected_lock_digest=expected_lock_digest,
             status="unreachable",
             detail=f"registry could not be queried: {error}",
         )
@@ -105,7 +167,7 @@ def verify_variant(
         return VariantVerification(
             variant=variant,
             reference=reference,
-            expected_lock_digest=expected,
+            expected_lock_digest=expected_lock_digest,
             status="drifted",
             detail=(
                 f"expected a {_JOB_KIND_LEVEL} image but found a {found} image; "
@@ -119,24 +181,23 @@ def verify_variant(
         return VariantVerification(
             variant=variant,
             reference=reference,
-            expected_lock_digest=expected,
+            expected_lock_digest=expected_lock_digest,
             status="drifted",
             detail=f"image carries no {LOCK_DIGEST_LABEL} label",
         )
-    if observed != expected:
+    if observed != expected_lock_digest:
         return VariantVerification(
             variant=variant,
             reference=reference,
-            expected_lock_digest=expected,
+            expected_lock_digest=expected_lock_digest,
             status="drifted",
             detail=(
                 f"image was built from lock {observed}"
                 + (f" at framework revision {facts.revision}" if facts.revision else "")
-                + f", but this framework ships lock {expected}; "
+                + f", but this configuration selects lock {expected_lock_digest}; "
                 "the image must be republished"
             ),
         )
-    expected_backend_labels = backend_runtime_labels(variant, manifest.image(variant).backend_runtime_identity)
     for label, expected_value in expected_backend_labels.items():
         observed_value = facts.labels.get(label)
         if observed_value != expected_value:
@@ -144,7 +205,7 @@ def verify_variant(
             return VariantVerification(
                 variant=variant,
                 reference=reference,
-                expected_lock_digest=expected,
+                expected_lock_digest=expected_lock_digest,
                 status="drifted",
                 detail=(
                     f"image backend identity label {label} is {found}; expected {expected_value!r}. "
@@ -162,9 +223,9 @@ def verify_variant(
     return VariantVerification(
         variant=variant,
         reference=reference,
-        expected_lock_digest=expected,
+        expected_lock_digest=expected_lock_digest,
         status="ok",
-        detail=f"lock digest {expected} matches{provenance}{backend_provenance}",
+        detail=f"lock digest {expected_lock_digest} matches{provenance}{backend_provenance}",
     )
 
 
@@ -213,10 +274,9 @@ def ensure_kind_image_ready(
     itself: the run succeeds, produces evidence, and that evidence silently
     describes different software than the framework claims to be running.
     """
-    result = verify_variant(
+    result = verify_configured_variant(
+        registry,
         variant,
-        expected_images(registry).get(variant, ""),
-        manifest=manifest or load_manifest(),
         inspector=inspector or RuntimeImageInspector(),
     )
     if result.ok:
@@ -245,10 +305,9 @@ def ensure_kind_image_ready(
 
     built = build_runtime_images(registry, variants=[variant])
     rebuilt = built[0] if built else None
-    verified = verify_variant(
+    verified = verify_configured_variant(
+        registry,
         variant,
-        expected_images(registry).get(variant, ""),
-        manifest=manifest or load_manifest(),
         inspector=inspector or RuntimeImageInspector(),
     )
     if not verified.ok:
@@ -267,6 +326,7 @@ __all__ = [
     "ensure_kind_image_ready",
     "VerificationStatus",
     "expected_images",
+    "verify_configured_variant",
     "verify_registry",
     "verify_variant",
 ]

@@ -17,6 +17,7 @@ from posttrain_cli.context import CliState
 from posttrain_cli.execution_config import load_local_execution_config
 from posttrain_cli.runtime_images import (
     ensure_kind_image_ready,
+    verify_configured_variant,
     verify_registry,
     verify_variant,
 )
@@ -109,6 +110,41 @@ def test_matching_lock_digest_verifies(tmp_path: Path, monkeypatch: pytest.Monke
     )
     assert result.status == "ok"
     assert result.ok
+
+
+def test_candidate_binding_verifies_against_its_retained_lock_not_stable_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    _set_project_registry(project)
+    candidate_lock = project / ".posttrain" / "state" / "candidate.lock"
+    candidate_lock.parent.mkdir(parents=True, exist_ok=True)
+    candidate_lock.write_text("carbonteq-trackio @ https://example.invalid/trackio.whl#sha256=" + "a" * 64 + "\n")
+    candidate_digest = hashlib.sha256(candidate_lock.read_bytes()).hexdigest()
+    execution = candidate_lock.parent / "execution.toml"
+    execution.write_text(
+        "schema_version = 1\n\n"
+        "[registry.kind_images]\n"
+        'supervised = "registry.example/posttrain-kind-supervised@sha256:' + "b" * 64 + '"\n\n'
+        "[registry.constraint_profiles.supervised]\n"
+        'path = "candidate.lock"\n'
+        f'sha256 = "{candidate_digest}"\n',
+        encoding="utf-8",
+    )
+    execution.chmod(0o600)
+    registry = load_local_execution_config(CliState(project_root=project).layout()).registry
+    assert registry is not None
+
+    result = verify_configured_variant(
+        registry,
+        "supervised",
+        inspector=_FakeInspector(lock_digest=candidate_digest),
+    )
+
+    assert result.ok
+    assert result.expected_lock_digest == candidate_digest
+    assert result.expected_lock_digest != _expected_lock()
 
 
 def test_verl_runtime_image_requires_its_backend_identity_labels(
