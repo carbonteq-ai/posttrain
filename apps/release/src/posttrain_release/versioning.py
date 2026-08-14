@@ -21,6 +21,8 @@ from .runtime_lock import materialize_runtime_lock
 _MANIFEST = Path("release/manifest.toml")
 _TRAINING_CATALOG = Path("packages/catalog/src/posttrain/catalog/base/training.yaml")
 _DEPENDENCY_LOCKS = Path("packages/catalog/src/posttrain/catalog/base/locks.toml")
+_QUANTIZATION_CATALOG = Path("packages/catalog/src/posttrain/catalog/base/quantization.yaml")
+_QUANTIZATION_LOCK = Path("tools/quantization/uv.lock")
 _TRAIN_PROJECT = Path("packages/train/pyproject.toml")
 _RUNTIME_WORKSPACE_LOCK = Path(
     "packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/workspace.lock.txt"
@@ -37,6 +39,9 @@ _INTERNAL_REQUIREMENT = re.compile(
 )
 _TRL_REQUIREMENT = re.compile(r"^trl==(?P<version>[0-9]+[.][0-9]+[.][0-9]+(?:[a-zA-Z0-9.-]+)?)$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_QUANTIZATION_DIGEST_LINE = re.compile(
+    r"(?m)^(?P<prefix>\s*dependency_lock_digest:\s*)(?P<digest>[0-9a-f]{64})(?P<suffix>\s*)$"
+)
 _LOCK_REFERENCE = "trl-fork@current"
 
 
@@ -349,7 +354,7 @@ def render_workspace_lock(text: str, version: str, publishable: tuple[Path, ...]
 
 
 def lock_dependencies(repository_root: Path) -> str:
-    """Regenerate the one catalog lock record from pinned source inputs."""
+    """Regenerate catalog lock receipts from their pinned source inputs."""
 
     root = repository_root.resolve()
     revision = _trl_revision(root / _TRAIN_PROJECT)
@@ -370,6 +375,31 @@ def lock_dependencies(repository_root: Path) -> str:
         ),
         encoding="utf-8",
     )
+    _synchronize_quantization_lock_digest(root)
+    return digest
+
+
+def _synchronize_quantization_lock_digest(root: Path) -> str | None:
+    """Project the isolated quantization lock digest into every catalog plan."""
+
+    catalog_path = root / _QUANTIZATION_CATALOG
+    lock_path = root / _QUANTIZATION_LOCK
+    if not catalog_path.exists() and not lock_path.exists():
+        return None
+    if not catalog_path.is_file() or not lock_path.is_file():
+        raise ValueError(
+            f"quantization lock synchronization requires both {_QUANTIZATION_CATALOG} and {_QUANTIZATION_LOCK}"
+        )
+    digest = hashlib.sha256(lock_path.read_bytes()).hexdigest()
+    source = catalog_path.read_text(encoding="utf-8")
+    rendered, replacements = _QUANTIZATION_DIGEST_LINE.subn(
+        lambda match: f"{match.group('prefix')}{digest}{match.group('suffix')}",
+        source,
+    )
+    if replacements == 0:
+        raise ValueError(f"{_QUANTIZATION_CATALOG}: no dependency_lock_digest fields found")
+    if rendered != source:
+        catalog_path.write_text(rendered, encoding="utf-8")
     return digest
 
 
@@ -425,7 +455,24 @@ def _dependency_lock_errors(root: Path) -> list[str]:
     )
     if references != {_LOCK_REFERENCE}:
         errors.append(f"{_TRAINING_CATALOG}: dependency lock references are {sorted(references)!r}")
+    errors.extend(_quantization_lock_errors(root))
     return errors
+
+
+def _quantization_lock_errors(root: Path) -> list[str]:
+    catalog_path = root / _QUANTIZATION_CATALOG
+    lock_path = root / _QUANTIZATION_LOCK
+    if not catalog_path.exists() and not lock_path.exists():
+        return []
+    if not catalog_path.is_file() or not lock_path.is_file():
+        return [f"quantization lock validation requires both {_QUANTIZATION_CATALOG} and {_QUANTIZATION_LOCK}"]
+    expected = hashlib.sha256(lock_path.read_bytes()).hexdigest()
+    observed = {match.group("digest") for match in _QUANTIZATION_DIGEST_LINE.finditer(catalog_path.read_text())}
+    if not observed:
+        return [f"{_QUANTIZATION_CATALOG}: no dependency_lock_digest fields found"]
+    if observed != {expected}:
+        return [f"{_QUANTIZATION_CATALOG}: dependency lock digests are {sorted(observed)!r}, expected {expected!r}"]
+    return []
 
 
 def _trl_revision(path: Path) -> str:

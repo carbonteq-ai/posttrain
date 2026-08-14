@@ -101,7 +101,7 @@ receipt instead of rebuilding or re-running completed checks.
 - [ ] (2026-08-14) Expand the maintained-fork readiness boundary beyond the
   current Trackio/TRL-only receipt. Current audit: TRL `1.9.2.post11`, veRL
   `0.9.0.dev2`, and AutomationBench `1.0.5.post1` have stable-index bytes;
-  Trackio `0.31.5.post14.dev15` has an immutable GitHub prerelease and a
+  Trackio `0.31.5.post14.dev16` has an immutable GitHub prerelease and a
   byte-identical stable-index readback; the selected CarbonTeq vLLM source is
   now the manually published source-overlay prerelease
   `carbonteq-v0.25.2.dev2` at `7817d845727af570352622dc8d58f2d43c76d89d`

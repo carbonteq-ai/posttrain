@@ -1415,11 +1415,11 @@ longer blocks removal of the Observatory payload fallback.
 
 The current stable framework dependency remains
 `carbonteq-trackio==0.31.5.post13`. The qualified candidate is
-`carbonteq-trackio==0.31.5.post14.dev15` from fork commit
-`fa9d1c5853f325c16ad64758e6889d5399559f26`; both deployed Doris services
-report that version. Its retained wheel and sdist hashes are recorded in
-`docs/tooling/trackio/README.md`. Promotion must transfer those exact bytes
-unchanged before the stable profile and lock move away from post13.
+`carbonteq-trackio==0.31.5.post14.dev16` from fork commit
+`d57c31d5d6d597f7739dc3f6cf89816a39c59a48`. Its retained wheel and sdist
+hashes are recorded in `docs/tooling/trackio/README.md`, and those exact bytes
+were promoted unchanged to the stable index. Production deployment and the
+stale resumable-upload canary remain explicit qualification gates.
 
 ## Interfaces and Dependencies
 

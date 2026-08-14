@@ -17,12 +17,10 @@ records and approves the release, but the build runs on an isolated LAN runner
 because the supported package index and OCI registry are private services. See
 the [LAN release runner architecture](./architecture/lan-release-runner.md).
 
-The protected workflow implementation and the LAN runner are now present on
-the release branch, but the GitHub `release-candidate` and `release`
-environments still need their required-reviewer rules and the first merged
-dispatch. Do not use any older tag-triggered workflow to publish `v0.3.1`: a
-GitHub-hosted runner cannot resolve `pypi.lan`, and tagging first would reverse
-the required release order.
+The protected `release-candidate` and `release` workflows use the LAN runner
+and required environment approval. Do not use an older tag-triggered workflow:
+a GitHub-hosted runner cannot resolve `pypi.lan`, and tagging first would
+reverse the required release order.
 
 ## What forces a full release
 
@@ -108,11 +106,19 @@ upgraded while its siblings stayed behind: an environment reporting `0.1.3`
 with ten packages still at `0.1.1` is individually satisfiable, matches no
 release, and gets packed into a job image as though coherent.
 
-Candidate versions use PEP 440 prerelease identifiers. If the authored target
-is `0.3.1`, the protected workflow allocates `0.3.1rc1`, `0.3.1rc2`, and so on.
-Candidate files are published only to `carbonteq/dev` and never overwritten.
-They let maintainers repair the release branch without consuming `0.3.1` or
-creating a misleading final tag.
+The candidate workflow builds the authored final version once and publishes it
+only to `carbonteq/dev`. If the authored target is `0.3.17`, the candidate
+distributions already contain `0.3.17`; a successful final workflow promotes
+those exact bytes to `carbonteq/stable` without rebuilding. The candidate run
+and its receipt are the RC identity. A PEP 440 `0.3.17rcN` distribution would
+have different package metadata and therefore could not be renamed or promoted
+as final `0.3.17`.
+
+Development files are normally immutable. The only same-version retry is the
+audited whole-version retirement of a failed, never-accepted candidate: its
+retained receipt must match every development file, stable must contain none of
+the version, and the workflow must retain a deletion receipt. Any partial,
+unexplained, accepted or stable version requires a new framework version.
 
 Three version traps, all important:
 
@@ -121,11 +127,12 @@ Three version traps, all important:
   its shipped catalog had changed in between — so that version would have named
   two different sets of bytes. The whole release moved to `0.2.1` rather than
   forking one package off again, which is what caused the drift originally.
-- The index is **non-volatile**. A published version can never be replaced.
+- The index is **non-volatile**. A published version can never be replaced
+  after acceptance or stable publication. The narrow failed-candidate
+  retirement exception above requires a complete receipt and deletion audit.
   Check before uploading, not after.
-- An RC cannot be renamed into a final release. `0.3.1rc2` is embedded in wheel
-  metadata and internal dependency pins, so final `0.3.1` is a separate
-  build-once artifact set from the accepted merged commit.
+- A PEP 440 RC cannot be renamed into a final release. Candidate qualification
+  therefore uses the final-version bytes that promotion will expose.
 
 ## Trust and release protocol
 
@@ -143,12 +150,13 @@ accepted release.
    does not cover commits that were never pushed. `MERGEABLE` on a pull
    request only means GitHub sees no conflicts — it is not “ready.”
 4. **Dispatch Prepare candidate** through the protected release environment.
-   It derives the next RC, publishes only to `carbonteq/dev`, qualifies changed
-   OCI images and real jobs, and generates receipts. It does not create the
-   final tag or write Python artifacts to stable.
+   It builds the authored final version once, publishes only to
+   `carbonteq/dev`, qualifies changed OCI images and real jobs, and generates
+   receipts. It does not create the final tag or write Python artifacts to
+   stable.
 5. **Repair failures on the same release branch.** Push the fix, wait for CI,
-   then dispatch the next RC. Do not replace a prior candidate or advance the
-   final target version merely because an RC failed.
+   then dispatch a new candidate run. Reuse the authored version only through
+   verified whole-version retirement; otherwise advance it.
 6. **If images changed, commit generated `published.toml` and image receipt
    references on the release branch.** Hand edits are forbidden. Wait for CI
    again so the exact generated manifest that will merge is verified.
@@ -156,8 +164,9 @@ accepted release.
    merge method and required checks. Do not merge from a dirty or divergent
    local tree.
 8. **Dispatch Publish release** only for the exact merged default-branch
-   commit. It builds and qualifies final distributions, promotes to stable,
-   verifies readback, and creates the final tag last.
+   commit and the accepted candidate run. It restores and verifies the retained
+   final-version distributions, promotes them unchanged to stable, verifies
+   readback, and creates the final tag last. It does not rebuild or requalify.
 
 GitHub Actions is the control plane: it records candidate and final commits,
 approvals, logs, receipts, prereleases, the final tag, and release assets. A
@@ -169,19 +178,63 @@ must be isolated from `ai-control`, and never runs automatic PR workflows.
 
 ## What runs locally, and what uses the protected runner
 
-Do the ordinary release work locally: implement, test, stage, build, inspect
-and hash release assets, create the GitHub release, and run deterministic
-readiness checks.  CI independently verifies the pushed source.  The protected
-Posttrain runner is deliberately narrow: it performs actions that need private
-LAN reachability or credentials, namely publishing already-retained artifacts
-to the internal index, registry-backed runtime-image qualification, and the
-accepted remote canary.  It is not a substitute for local release preparation.
+Do the ordinary source and release-preparation work locally: implement, test,
+stage, build, inspect and hash assets, and run deterministic readiness checks.
+CI independently verifies the pushed source. For Posttrain, the protected
+runner performs the credentialed transaction: publishing retained artifacts to
+the internal index, registry-backed runtime-image qualification, the accepted
+remote canary, stable promotion, tagging and GitHub Release creation. It is not
+a substitute for local release preparation.
 
 This boundary is especially important for maintained forks.  Forks have no
 release runner.  Their assets are built and released manually in the fork;
 Posttrain's manually dispatched retained-asset publisher may only retrieve
 those immutable bytes by tag, verify their hashes, publish them internally,
 and prove a clean install.  See [maintained fork documentation](./tooling/forks.md).
+
+### Cold preflight before dispatch
+
+Run the deterministic checks locally before reserving the protected runner or
+GPU:
+
+```bash
+uv sync --all-packages --locked --python 3.13
+uv run posttrain-release lock-runtime-dependencies --check
+uv run pytest -q \
+  apps/release/tests/test_release.py \
+  packages/runtime-images/tests/test_runtime_images.py
+uv run pytest -q tests/consumer/test_wheel_project.py
+uv run --no-sync posttrain-release readiness \
+  --destination .release/readiness.json
+uv run --no-sync posttrain-release readiness-check \
+  .release/readiness.json
+```
+
+The runtime-lock check includes the workspace-derived kind locks; the transform
+lock remains governed by `tools/quantization/uv.lock` and must also agree with
+the selected maintained-fork versions. Release tests enforce parity between
+the lock, package metadata and public-CI mirror URLs.
+
+The candidate must repeat the consumer installation from `carbonteq/dev` with
+`uv pip install --no-cache`. It then compares the installed job Dockerfile and
+Bake definition with the retained `posttrain-runtime-images` wheel before
+packing. This is intentionally redundant with local wheel testing: local tests
+prove the source, while the cold index-only install proves the published bytes
+and defeats stale runner cache state.
+
+Do not dispatch until maintained-fork assets have immutable release hashes and
+their required server revisions are deployed. Private-CA validation, live
+service compatibility, registry readback, named hardware capacity and the real
+GPU canary remain protected-runner checks because a workstation cannot prove
+those external states.
+
+If a candidate fails, classify the owning boundary before retrying. A private
+CA failure belongs to runner trust configuration; an installed/retained wheel
+mismatch belongs to cache and publication identity; an artifact-upload conflict
+after cleanup belongs to the deployed service's metadata/blob recovery; and an
+unavailable qualification profile belongs to live capacity selection. A retry
+without a new proof for the failed boundary only spends runner and GPU time
+again.
 
 When a PR is already open, keep landing work on that branch until the head is
 green; do not open a second PR for the same release line without a reason.
@@ -229,9 +282,8 @@ gh pr checks <n>
    because publishing is irreversible.
 5. **Write the CHANGELOG entry**, then commit.
 6. **Open or update the release PR and dispatch Prepare candidate.** The
-   workflow derives the next unused `X.Y.ZrcN`, stages that version without
-   changing the authored target, builds its distributions once, and publishes
-   the receipt-listed files to `carbonteq/dev`.
+   workflow stages the authored `X.Y.Z`, builds its distributions once, and
+   publishes the receipt-listed files to `carbonteq/dev`.
 7. **If the constraint lock or image inputs changed, let the candidate workflow
    publish and qualify the images.** It publishes to the registry projects
    actual jobs pull from (`registry.lan/carbonteq`). Posttrain does not use GHCR
@@ -283,18 +335,19 @@ gh pr checks <n>
 8. **Qualify the candidate.** Install only from `carbonteq/dev`, run the
    independent-consumer test, pack a real job, execute the changed-kind dstack
    matrix, retain Trackio evidence, and read it through Observatory. If any gate
-   fails, fix the branch and return to step 6 with the next RC.
-9. **Commit generated image records, rerun CI, and merge the passing release
-   PR.** The accepted candidate is evidence for the source and OCI inputs; it
-   is not renamed into the final Python version.
-10. **Dispatch Publish release for the merged commit.** The runner stages final
-    `X.Y.Z`, builds every final wheel and source distribution once, writes a
-    hash-addressed receipt, uploads those exact files to `carbonteq/dev`, and
-    runs an index-only install plus final dstack canary.
-11. **Promote the qualified final files from `carbonteq/dev` to
+   fails, fix the branch and return to step 6 with a new candidate run.
+9. **Commit required generated image records, rerun CI, and merge the passing
+   release PR.** The accepted candidate already contains the final Python
+   version and binds the source, OCI inputs and retained wheelhouse.
+10. **Dispatch Publish release for the merged commit and successful candidate
+    run.** The runner validates source ancestry or tree equality, restores the
+    retained candidate wheelhouse, rechecks its hashes and verifies the same
+    files remain in `carbonteq/dev`. It does not rebuild or repeat the GPU
+    canary.
+11. **Promote those retained files from `carbonteq/dev` to
     `carbonteq/stable`.** Promotion is server-side: do not rebuild or perform a
     second upload. Read the stable files back and verify their hashes against
-    the release receipt.
+    the candidate and promotion receipts.
 12. **Tag last.** After stable readback, create `v<version>` on the exact merged
     commit and create the GitHub Release with the already-retained bundle and
     receipt. If this final step fails, retry it without rebuilding or
@@ -353,12 +406,12 @@ hashes. No promotion rebuilds, re-uploads, or runs fork source.
 - **Do not rebuild between channels.** The development index, stable index, and
   GitHub Release must agree with one receipt. A locally rebuilt wheel is a new
   artifact even when its version and source commit appear equal.
-- **Do not overwrite a failed RC.** Fixes receive the next candidate number.
-  This keeps workflow artifacts, index files, OCI receipts, and qualification
-  evidence unambiguous.
-- **Do not promote an RC as the final version.** Final package metadata and
-  exact first-party pins must name `X.Y.Z`, so the merged commit produces one
-  separately qualified final artifact set.
+- **Do not casually overwrite a failed candidate.** Reuse of the authored
+  version is allowed only through audited whole-version retirement before any
+  acceptance or stable publication. Otherwise advance the version.
+- **Do not build a PEP 440 RC and call it final.** Candidate package metadata
+  and exact first-party pins already name `X.Y.Z`; final publication promotes
+  those retained bytes unchanged.
 - **Do not assume an older LAN tag is the new base.** Confirm the digest
   (`imagetools inspect registry.lan/carbonteq/posttrain-base@sha256:…`) before
   passing `--base-image`.

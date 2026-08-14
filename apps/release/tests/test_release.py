@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
@@ -783,7 +784,7 @@ def test_fork_ledger_cross_checks_direct_runtime_environment_and_service_boundar
 
     entries = {entry.id: entry for entry in load_fork_ledger(repository_root)}
 
-    assert entries["carbonteq-trackio"].version == "0.31.5.post14.dev15"
+    assert entries["carbonteq-trackio"].version == "0.31.5.post14.dev16"
     assert entries["trl"].revision == "69cf80a7319079ec5523841553467e119ebc1cec"
     assert entries["verl"].release_tag == "carbonteq-v0.9.0.dev2"
     assert entries["vllm"].artifacts["source_archive_sha256"] == (
@@ -1207,6 +1208,14 @@ packages = ["src/posttrain_widget"]
 def test_dependency_lock_generation_has_one_record(tmp_path: Path) -> None:
     _version_repository(tmp_path)
     (tmp_path / "uv.lock").write_text("updated lock\n", encoding="utf-8")
+    quantization_lock = tmp_path / "tools/quantization/uv.lock"
+    quantization_lock.parent.mkdir(parents=True)
+    quantization_lock.write_text("quantization lock\n", encoding="utf-8")
+    quantization_catalog = tmp_path / "packages/catalog/src/posttrain/catalog/base/quantization.yaml"
+    quantization_catalog.write_text(
+        "quantization:\n  example:\n    dependency_lock_digest: " + "a" * 64 + "\n",
+        encoding="utf-8",
+    )
 
     digest = lock_dependencies(tmp_path)
 
@@ -1215,6 +1224,8 @@ def test_dependency_lock_generation_has_one_record(tmp_path: Path) -> None:
     )
     assert set(document["locks"]) == {"trl-fork@current"}
     assert document["locks"]["trl-fork@current"]["dependency_lock_sha256"] == digest
+    quantization_digest = hashlib.sha256(quantization_lock.read_bytes()).hexdigest()
+    assert f"dependency_lock_digest: {quantization_digest}" in quantization_catalog.read_text(encoding="utf-8")
 
 
 def test_rendered_lock_digests_come_from_the_shipped_locks() -> None:
