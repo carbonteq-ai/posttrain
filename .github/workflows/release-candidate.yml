@@ -15,6 +15,11 @@ on:
         options:
           - rtx-pro-96gb
           - rtx4090-24gb
+      retire_failed_candidate_run_id:
+        description: Optional failed candidate run whose complete development version may be retired after receipt verification
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -164,6 +169,69 @@ jobs:
           uv run --no-sync posttrain-release receipt-check .release/python-release-receipt.json \
             --distribution-root .release/distributions
 
+      - name: Verify failed candidate retirement authority
+        if: inputs.retire_failed_candidate_run_id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FAILED_CANDIDATE_RUN_ID: ${{ inputs.retire_failed_candidate_run_id }}
+        run: |
+          failed_run="$(gh run view "${FAILED_CANDIDATE_RUN_ID}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --json workflowName,event,status,conclusion,headSha)"
+          test "$(jq -r '.workflowName // empty' <<<"${failed_run}")" = "Prepare release candidate"
+          test "$(jq -r '.event // empty' <<<"${failed_run}")" = "workflow_dispatch"
+          test "$(jq -r '.status // empty' <<<"${failed_run}")" = "completed"
+          test "$(jq -r '.conclusion // empty' <<<"${failed_run}")" = "failure"
+          failed_source_sha="$(jq -r '.headSha // empty' <<<"${failed_run}")"
+          test -n "${failed_source_sha}"
+          mkdir -p .release/failed-candidate
+          gh run download "${FAILED_CANDIDATE_RUN_ID}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --name "posttrain-${{ steps.version.outputs.version }}-evidence" \
+            --dir .release/failed-candidate
+          failed_receipt="$(find .release/failed-candidate -type f -name python-release-receipt.json -print -quit)"
+          test -n "${failed_receipt}"
+          test "$(jq -r '.version // empty' "${failed_receipt}")" = "${{ steps.version.outputs.version }}"
+          test "$(jq -r '.revision // empty' "${failed_receipt}")" = "${failed_source_sha}"
+          cp "${failed_receipt}" .release/failed-candidate-receipt.json
+          uv run --no-sync posttrain-release candidate-retirement-check \
+            .release/failed-candidate-receipt.json \
+            .release/python-release-receipt.json \
+            --failed-run-id "${FAILED_CANDIDATE_RUN_ID}" \
+            --development-simple-url "${PYPI_DEV_SIMPLE}" \
+            --stable-simple-url "${PYPI_STABLE_SIMPLE}" \
+            --destination .release/candidate-retirement-preflight.json
+
+      - name: Retire the verified failed development candidate
+        if: inputs.retire_failed_candidate_run_id != ''
+        env:
+          DEVPI_CLIENT: /opt/posttrain-dstack-client/bin/devpi
+        run: |
+          test -x "${DEVPI_CLIENT}"
+          "${DEVPI_CLIENT}" use https://pypi.lan/carbonteq/dev
+          "${DEVPI_CLIENT}" login "${UV_PUBLISH_USERNAME}" --password "${UV_PUBLISH_PASSWORD}"
+          while read -r package; do
+            removed=false
+            for attempt in 1 2 3; do
+              if "${DEVPI_CLIENT}" remove -y --index carbonteq/dev \
+                "${package}==${{ steps.version.outputs.version }}"; then
+                removed=true
+                break
+              fi
+              echo "retrying retirement of ${package}: attempt ${attempt}/3" >&2
+            done
+            if [[ "${removed}" != true ]]; then
+              echo "could not retire ${package}; completion verification will report remaining files" >&2
+            fi
+          done < <(jq -r '.packages[]' .release/candidate-retirement-preflight.json)
+          uv run --no-sync posttrain-release candidate-retirement-complete \
+            .release/failed-candidate-receipt.json \
+            .release/python-release-receipt.json \
+            --preflight .release/candidate-retirement-preflight.json \
+            --development-simple-url "${PYPI_DEV_SIMPLE}" \
+            --stable-simple-url "${PYPI_STABLE_SIMPLE}" \
+            --destination .release/candidate-retirement.json
+
       - name: Publish the final candidate only to the development index
         run: |
           if uv run --no-sync posttrain-release index-check .release/python-release-receipt.json \
@@ -228,14 +296,14 @@ jobs:
         id: qualification
         run: |
           set +e
+          qualification_target_args=()
           case "${{ inputs.qualification_profile }}" in
             rtx-pro-96gb)
-              qualification_target="targets/carbonteq-rtx-pro-6000-96gb"
               qualification_host="carbonteq-ai-workstation.lan"
               qualification_min_gpu_memory_mib=90112
               ;;
             rtx4090-24gb)
-              qualification_target="targets/pop-os-rtx4090-24gb"
+              qualification_target_args=(--target "targets/pop-os-rtx4090-24gb")
               qualification_host="pop-os.lan"
               qualification_min_gpu_memory_mib=22528
               ;;
@@ -285,7 +353,7 @@ jobs:
             apps/lab/.posttrain/work_packages/qwen08b_transform_qualification.yaml \
             --job transform \
             --provider dstack \
-            --target "${qualification_target}" \
+            "${qualification_target_args[@]}" \
             --registry "${JOB_REGISTRY}" \
             --framework-wheelhouse "${framework_wheelhouse}" \
             --run-id "release-candidate-${{ github.run_id }}"
@@ -329,6 +397,9 @@ jobs:
             .release/runtime-images-verify.json
             .release/dstack-capacity.json
             .release/buildkit-cache-after.txt
+            .release/failed-candidate-receipt.json
+            .release/candidate-retirement-preflight.json
+            .release/candidate-retirement.json
 
       - name: Remove only this run's temporary release material
         if: always()

@@ -27,6 +27,11 @@ from .promotion import create_promotion_receipt, write_promotion_receipt
 from .publish import _release_image_plan, publish_release
 from .readiness import run_readiness, verify_readiness_receipt, write_readiness_receipt
 from .repository_audit import inspect_repository
+from .retirement import (
+    create_retirement_completion,
+    create_retirement_preflight,
+    write_retirement_receipt,
+)
 from .runtime_lock import (
     compile_runtime_locks,
     export_runtime_workspace_lock,
@@ -263,6 +268,50 @@ def index_check_cmd(
 ) -> None:
     verify_index_receipt(receipt.resolve(), simple_base_url)
     print("verified every indexed distribution against the release receipt")
+
+
+@app.command("candidate-retirement-check", help="verify a failed candidate is safe to remove from development")
+def candidate_retirement_check_cmd(
+    failed_receipt: Annotated[Path, typer.Argument(help="retained receipt from the failed candidate")],
+    replacement_receipt: Annotated[Path, typer.Argument(help="locally built replacement receipt")],
+    destination: Annotated[Path, typer.Option("--destination", help="pre-deletion receipt destination")],
+    failed_run_id: Annotated[str, typer.Option("--failed-run-id", help="failed candidate workflow run id")],
+    development_simple_url: Annotated[
+        str, typer.Option("--development-simple-url", help="development PEP 503 base URL")
+    ],
+    stable_simple_url: Annotated[str, typer.Option("--stable-simple-url", help="stable PEP 503 base URL")],
+) -> None:
+    receipt = create_retirement_preflight(
+        failed_receipt.resolve(),
+        replacement_receipt.resolve(),
+        failed_run_id=failed_run_id,
+        development_simple_url=development_simple_url,
+        stable_simple_url=stable_simple_url,
+    )
+    write_retirement_receipt(receipt, destination.resolve())
+    print(f"verified failed candidate {failed_run_id} for whole-version retirement")
+
+
+@app.command("candidate-retirement-complete", help="verify and record completed failed-candidate deletion")
+def candidate_retirement_complete_cmd(
+    failed_receipt: Annotated[Path, typer.Argument(help="retained receipt from the failed candidate")],
+    replacement_receipt: Annotated[Path, typer.Argument(help="locally built replacement receipt")],
+    preflight: Annotated[Path, typer.Option("--preflight", help="verified pre-deletion receipt")],
+    destination: Annotated[Path, typer.Option("--destination", help="completed deletion receipt destination")],
+    development_simple_url: Annotated[
+        str, typer.Option("--development-simple-url", help="development PEP 503 base URL")
+    ],
+    stable_simple_url: Annotated[str, typer.Option("--stable-simple-url", help="stable PEP 503 base URL")],
+) -> None:
+    receipt = create_retirement_completion(
+        failed_receipt.resolve(),
+        replacement_receipt.resolve(),
+        preflight.resolve(),
+        development_simple_url=development_simple_url,
+        stable_simple_url=stable_simple_url,
+    )
+    write_retirement_receipt(receipt, destination.resolve())
+    print(f"recorded retirement of failed candidate {receipt['failed_run_id']}")
 
 
 @app.command("lock-dependencies", help="regenerate the catalog dependency-lock table")

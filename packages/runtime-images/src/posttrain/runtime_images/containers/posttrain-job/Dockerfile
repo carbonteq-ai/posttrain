@@ -180,6 +180,13 @@ RUN --mount=type=cache,id=posttrain-job-uv,target=/root/.cache/uv,sharing=locked
       --reinstall \
       --requirement locks/code.requirements.txt
 
+# Framework code is deliberately installed without dependency resolution: the
+# selected kind image owns that external closure. Prove the shared runtime and
+# default tracking adapter are importable here so a malformed kind fails while
+# packing, before it consumes a GPU allocation.
+RUN "${VIRTUAL_ENV}/bin/python" -c \
+    "import posttrain_runtime, posttrain_tracking_trackio.adapter, trackio"
+
 COPY --from=packaged-context /config/ config/
 COPY --from=packaged-context /datasets/ datasets/
 RUN cp "context-package-${PACKAGE_KEY}.json" package.json

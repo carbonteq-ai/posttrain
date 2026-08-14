@@ -65,12 +65,14 @@ RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locke
 
 FROM kind-common AS transform-dependencies
 COPY containers/posttrain-job-kinds/locks/transform.lock.txt /opt/posttrain/locks/transform.lock.txt
+COPY containers/posttrain-job-kinds/profiles/common.txt /opt/posttrain/profiles/common.txt
 COPY containers/posttrain-job-kinds/profiles/transform.txt /opt/posttrain/profiles/transform.txt
 RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locked \
     uv pip install \
       --python "${VIRTUAL_ENV}" \
       --index-strategy unsafe-best-match \
       --constraint /opt/posttrain/locks/transform.lock.txt \
+      --requirement /opt/posttrain/profiles/common.txt \
       --requirement /opt/posttrain/profiles/transform.txt
 
 FROM supervised-dependencies AS supervised
@@ -169,4 +171,4 @@ FROM serve AS serve-smoke
 RUN python -c "from shutil import which; import vllm; assert which('c++'); print(vllm.__version__)"
 
 FROM transform AS transform-smoke
-RUN python -c "import os; from importlib.metadata import version; import compressed_tensors, llmcompressor; assert os.environ['POSTTRAIN_QUANTIZATION_PYTHON'] == '/opt/posttrain/venv/bin/python'; print(version('llmcompressor'))"
+RUN python -c "import os; from importlib.metadata import version; import compressed_tensors, llmcompressor, pydantic, trackio, yaml; assert os.environ['POSTTRAIN_QUANTIZATION_PYTHON'] == '/opt/posttrain/venv/bin/python'; print(version('llmcompressor'), version('carbonteq-trackio'))"

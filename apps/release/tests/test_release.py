@@ -35,6 +35,7 @@ from posttrain_release.readiness import (
     write_readiness_receipt,
 )
 from posttrain_release.repository_audit import evaluate_repository, inspect_repository
+from posttrain_release.retirement import create_retirement_completion, create_retirement_preflight
 from posttrain_release.runtime_lock import (
     _restrict_hashes_to_workspace,
     export_runtime_workspace_lock,
@@ -845,6 +846,11 @@ def test_candidate_builds_the_final_version_and_final_only_restores_it() -> None
     assert "Resolve the immutable final version" in candidate
     assert "PYPI_STABLE_SIMPLE" in candidate
     assert "already immutable in stable" in candidate
+    assert "retire_failed_candidate_run_id:" in candidate
+    assert "candidate-retirement-check" in candidate
+    assert "candidate-retirement-complete" in candidate
+    assert '"${DEVPI_CLIENT}" remove -y --index carbonteq/dev' in candidate
+    assert ".release/candidate-retirement.json" in candidate
     assert "scripts/release/build-python-distributions" not in final
     assert "Materialize and verify the candidate wheelhouse" in final
     assert "Verify the candidate bytes remain intact in development" in final
@@ -860,6 +866,131 @@ def test_candidate_builds_the_final_version_and_final_only_restores_it() -> None
     assert 'cp -a "${generated_runtime_locks}/." "${staged_runtime_locks}/"' in builder
     assert 'cd "$output_dir"' in builder
     assert 'sha256sum "$(basename "$tarball")" > release-SHA256SUMS' in builder
+
+
+def _candidate_receipt(path: Path, *, revision: str, packages: list[str] | None = None) -> dict[str, object]:
+    selected = packages or ["posttrain", "posttrain-lab"]
+    artifacts = []
+    for package in selected:
+        distribution = package.replace("-", "_")
+        artifacts.extend(
+            [
+                {"filename": f"{distribution}-0.3.17-py3-none-any.whl", "sha256": "a" * 64, "size": 1},
+                {"filename": f"{distribution}-0.3.17.tar.gz", "sha256": "b" * 64, "size": 1},
+            ]
+        )
+    receipt: dict[str, object] = {
+        "schema": "posttrain.python-release-receipt.v1",
+        "version": "0.3.17",
+        "revision": revision,
+        "packages": selected,
+        "artifacts": artifacts,
+    }
+    path.write_text(json.dumps(receipt), encoding="utf-8")
+    return receipt
+
+
+def test_failed_candidate_retirement_requires_exact_dev_and_empty_stable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import posttrain_release.retirement as retirement
+
+    failed_path = tmp_path / "failed.json"
+    replacement_path = tmp_path / "replacement.json"
+    failed = _candidate_receipt(failed_path, revision="a" * 40)
+    _candidate_receipt(replacement_path, revision="b" * 40)
+    expected = {
+        "posttrain": ["posttrain-0.3.17-py3-none-any.whl", "posttrain-0.3.17.tar.gz"],
+        "posttrain-lab": ["posttrain_lab-0.3.17-py3-none-any.whl", "posttrain_lab-0.3.17.tar.gz"],
+    }
+    monkeypatch.setattr(retirement, "verify_index_receipt", lambda *_args: None)
+    monkeypatch.setattr(
+        retirement,
+        "index_version_artifacts",
+        lambda _receipt, url: expected if url == "https://dev/+simple/" else {key: [] for key in expected},
+    )
+
+    preflight = create_retirement_preflight(
+        failed_path,
+        replacement_path,
+        failed_run_id="31833287598",
+        development_simple_url="https://dev/+simple/",
+        stable_simple_url="https://stable/+simple/",
+    )
+
+    assert preflight["status"] == "verified-for-deletion"
+    assert preflight["packages"] == failed["packages"]
+    assert preflight["failed_run_id"] == "31833287598"
+
+
+def test_failed_candidate_retirement_rejects_any_stable_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import posttrain_release.retirement as retirement
+
+    failed_path = tmp_path / "failed.json"
+    replacement_path = tmp_path / "replacement.json"
+    _candidate_receipt(failed_path, revision="a" * 40)
+    _candidate_receipt(replacement_path, revision="b" * 40)
+    expected = {
+        "posttrain": ["posttrain-0.3.17-py3-none-any.whl", "posttrain-0.3.17.tar.gz"],
+        "posttrain-lab": ["posttrain_lab-0.3.17-py3-none-any.whl", "posttrain_lab-0.3.17.tar.gz"],
+    }
+    monkeypatch.setattr(retirement, "verify_index_receipt", lambda *_args: None)
+    monkeypatch.setattr(retirement, "index_version_artifacts", lambda *_args: expected)
+
+    with pytest.raises(ValueError, match="already exists in stable"):
+        create_retirement_preflight(
+            failed_path,
+            replacement_path,
+            failed_run_id="31833287598",
+            development_simple_url="https://dev/+simple/",
+            stable_simple_url="https://stable/+simple/",
+        )
+
+
+def test_failed_candidate_retirement_completion_binds_preflight_and_proves_absence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import posttrain_release.retirement as retirement
+
+    failed_path = tmp_path / "failed.json"
+    replacement_path = tmp_path / "replacement.json"
+    _candidate_receipt(failed_path, revision="a" * 40)
+    _candidate_receipt(replacement_path, revision="b" * 40)
+    empty = {"posttrain": [], "posttrain-lab": []}
+    expected = {
+        "posttrain": ["posttrain-0.3.17-py3-none-any.whl", "posttrain-0.3.17.tar.gz"],
+        "posttrain-lab": ["posttrain_lab-0.3.17-py3-none-any.whl", "posttrain_lab-0.3.17.tar.gz"],
+    }
+    monkeypatch.setattr(retirement, "verify_index_receipt", lambda *_args: None)
+    monkeypatch.setattr(
+        retirement,
+        "index_version_artifacts",
+        lambda _receipt, url: expected if url == "https://dev/+simple/" else empty,
+    )
+    preflight = create_retirement_preflight(
+        failed_path,
+        replacement_path,
+        failed_run_id="31833287598",
+        development_simple_url="https://dev/+simple/",
+        stable_simple_url="https://stable/+simple/",
+    )
+    preflight_path = tmp_path / "preflight.json"
+    preflight_path.write_text(json.dumps(preflight), encoding="utf-8")
+    monkeypatch.setattr(retirement, "index_version_artifacts", lambda *_args: empty)
+
+    completed = create_retirement_completion(
+        failed_path,
+        replacement_path,
+        preflight_path,
+        development_simple_url="https://dev/+simple/",
+        stable_simple_url="https://stable/+simple/",
+    )
+
+    assert completed["status"] == "retired"
+    assert completed["failed_run_id"] == "31833287598"
+    assert completed["preflight_sha256"]
 
 
 def test_protected_release_workflows_keep_the_build_and_qualification_boundaries() -> None:
@@ -892,9 +1023,11 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert "qualification_profile:" in candidate
     assert "rtx-pro-96gb" in candidate
     assert "rtx4090-24gb" in candidate
-    assert 'qualification_target="targets/pop-os-rtx4090-24gb"' in candidate
+    assert 'qualification_target_args=(--target "targets/pop-os-rtx4090-24gb")' in candidate
     assert 'qualification_host="pop-os.lan"' in candidate
-    assert '--target "${qualification_target}"' in candidate
+    assert 'qualification_target_args=()' in candidate
+    assert '"${qualification_target_args[@]}"' in candidate
+    assert 'qualification_target="targets/carbonteq-rtx-pro-6000-96gb"' not in candidate
 
     assert "candidate-version --simple-url" not in candidate
     assert "posttrain-release readiness-check" in candidate

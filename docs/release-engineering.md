@@ -19,9 +19,14 @@ Two protected workflows run on a dedicated LAN-connected self-hosted runner.
 **Prepare candidate** consumes the exact-source readiness receipt produced by
 required Quality, publishes the authored final version only to
 `carbonteq/dev`, qualifies changed OCI digests plus one real packed job, and
-retains the wheelhouse and evidence. The development index is an immutable
-staging channel: if a different artifact already occupies the final version,
-the release must be repaired with a new version rather than overwritten.
+retains the wheelhouse and evidence. A candidate run is the release-candidate
+identity; the distributions use the authored final version so the accepted
+bytes can be promoted unchanged. Development files are normally immutable. A
+failed, never-promoted candidate may be retired as one coordinated version only
+when its retained receipt matches every development-index file, stable has no
+file for that version, and the deletion receipt names the failed run. An
+accepted candidate, a partial or unexplained development version, and every
+stable version remain immutable and require a new framework version.
 
 **Publish release** runs only after a candidate passed and the release PR
 merged. It verifies that the candidate source is an ancestor of, or has the
@@ -56,7 +61,9 @@ Each linked result names the source, model/environment revisions, execution
 target, image digest, run identity and evidence location. Mutable model or
 image tags are not accepted. A failed candidate is repaired as a new RC; it
 never mutates the target stable version or reuses an old run as proof for a
-different source or configuration.
+different source or configuration. Because the candidate already contains the
+authored final Python version, “new RC” means a new workflow run and receipt,
+not a PEP 440 `rcN` distribution that would need rebuilding for promotion.
 
 ## Release artifact graph
 
@@ -180,10 +187,13 @@ The candidate transaction:
    Observatory;
 10. retains the complete candidate materialization and classified gate results.
 
-A failed candidate never reaches stable. If its source changes after an
-artifact has occupied the development version, a new framework version is
-required. After one candidate passes, its accepted materialization is retained
-and the release PR merges. The final transaction:
+A failed candidate never reaches stable. If its source changes after its final
+version occupied development, either advance the framework version or perform
+the audited whole-version retirement described above. Retirement is allowed
+only before any stable file or accepted candidate exists; it preserves the
+failed candidate artifact and writes a deletion receipt before replacement.
+After one candidate passes, its accepted materialization is retained and the
+release PR merges. The final transaction:
 
 1. validates the exact merged source, dependency receipts, locks, accepted
    candidate readiness receipt, and candidate materialization;
@@ -196,11 +206,12 @@ and the release PR merges. The final transaction:
    Release.
 
 Do not upload a later dependency layer until the previous layer can be
-installed from the development index. Never overwrite an RC, replace an
-accepted stable version, or reinterpret an OCI digest. A repair before final
-publication increments the RC number; a repair after stable publication
-advances the framework version. Detailed trust, network, and retry semantics
-are in the [LAN release runner architecture](./architecture/lan-release-runner.md).
+installed from the development index. Never overwrite an accepted candidate,
+replace a stable version, or reinterpret an OCI digest. A repair before final
+publication creates a new candidate run; it may keep the authored stable
+version only through verified whole-version retirement. A repair after stable
+publication advances the framework version. Detailed trust, network, and retry
+semantics are in the [LAN release runner architecture](./architecture/lan-release-runner.md).
 
 ## Checkout validation before a release
 
