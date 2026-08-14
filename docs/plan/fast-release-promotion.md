@@ -98,8 +98,39 @@ receipt instead of rebuilding or re-running completed checks.
 - [x] (2026-08-12T03:55Z) Repair the published 0.3.8 checksum asset in place
   and make future release checksum files portable. A fresh GitHub-release
   download verifies `posttrain-wheelhouse-0.3.8.tar.gz` successfully.
+- [ ] (2026-08-14) Expand the maintained-fork readiness boundary beyond the
+  current Trackio/TRL-only receipt. Current audit: TRL `1.9.2.post11`, veRL
+  `0.9.0.dev2`, and AutomationBench `1.0.5.post1` have stable-index bytes;
+  Trackio `0.31.5.post14.dev15` has an immutable GitHub prerelease and a
+  byte-identical stable-index readback; the selected CarbonTeq vLLM source is
+  now the manually published source-overlay prerelease
+  `carbonteq-v0.25.2.dev2` at `7817d845727af570352622dc8d58f2d43c76d89d`
+  with retained archive SHA-256
+  `8d4736461fbc3bf72075b4d84417208b3c5fc9ffc6f48bf26cbe9ef955cf307b`;
+  AutomationBench is now the manual prerelease
+  `carbonteq-v1.0.5.post1` at `908db2abd4a868acc37ab0850474bff653bea25c`
+  with retained wheel/source checksums; and the dstack
+  server/runner/shim candidate has no component release or production
+  deployment. Posttrain candidate creation remains blocked on those
+  independent receipts.
+- [x] (2026-08-14) Remove forced recompression from actual-job publication.
+  Live registry evidence showed a 4.21 GB compressed eval job whose job delta
+  is only tens of megabytes. The focused job-image/runtime-image suite passes
+  (`46 passed, 1 skipped`). Live manifest-overlap qualification remains open.
 
 ## Surprises & Discoveries
+
+- Observation: `posttrain-release readiness` currently records only Trackio
+  and TRL even though the executable runtime also selects CarbonTeq veRL and
+  vLLM revisions, AutomationBench arrives through an external environment
+  package, and dstack is a deployed component fork. A green readiness receipt
+  can therefore omit four maintained supply-chain boundaries.
+- Observation: publishing a fork package is not the same as eliminating
+  source builds from runtime images. The veRL kind still resolves both `verl`
+  and `vllm` from Git in its backend lock even though veRL dev2 is already on
+  the stable index. Completing the vLLM release and switching those lock
+  entries to retained release artifacts removes Git build work from the
+  Posttrain image transaction.
 
 - Observation: the first candidate passed real dstack qualification, but final
   publication failed before any stable upload. Evidence: candidate run
@@ -196,6 +227,16 @@ receipt instead of rebuilding or re-running completed checks.
   Building forks during framework promotion couples independent repositories
   and makes the release duration depend on work that should be qualified first.
   Date/Author: 2026-08-12 / user and Codex.
+- Decision: no Posttrain candidate starts until a generated fork ledger proves
+  every selected CarbonTeq fork in direct packages, runtime locks, environment
+  packages, and deployed execution services.
+  Rationale: checking only Trackio and TRL permits a candidate to bake an
+  unpublished vLLM source, a Git-built veRL dependency, or an unreleased dstack
+  component while still calling readiness complete. The ledger distinguishes
+  Python distributions, source-backed runtimes, and matched component
+  releases, because those require different evidence but the same immutable
+  boundary.
+  Date/Author: 2026-08-14 / user and Codex.
 - Decision: Publish the authored final version to development during candidate
   qualification, then promote its verified bytes unchanged.
   Rationale: RC and final versions are different artifacts. Qualifying an RC

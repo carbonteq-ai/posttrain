@@ -24,6 +24,13 @@ class _ProviderChoice(StrEnum):
     DSTACK = "dstack"
 
 
+class _BuilderChoice(StrEnum):
+    """Select only the developer actual-job builder, never a fork releaser."""
+
+    LOCAL = "local"
+    REMOTE = "remote"
+
+
 def register(app: typer.Typer) -> None:
     job_app = typer.Typer(
         rich_markup_mode=None,
@@ -44,6 +51,13 @@ def register(app: typer.Typer) -> None:
             typer.Option(
                 "--job",
                 help="enabled recipe job id; omit when the package has exactly one",
+            ),
+        ] = None,
+        builder: Annotated[
+            _BuilderChoice | None,
+            typer.Option(
+                "--builder",
+                help="report the selected developer actual-job builder without packing",
             ),
         ] = None,
         provider: Annotated[
@@ -152,6 +166,7 @@ def register(app: typer.Typer) -> None:
             entry=entry,
             project_packages=(tuple(project_packages) if project_packages is not None else None),
             source_includes=(tuple(source_includes) if source_includes is not None else None),
+            builder=(builder.value if builder is not None else None),
         )
 
     @job_app.command(
@@ -221,6 +236,13 @@ def register(app: typer.Typer) -> None:
             typer.Option(
                 "--registry",
                 help="override the project job-image registry prefix for this invocation",
+            ),
+        ] = None,
+        builder: Annotated[
+            _BuilderChoice | None,
+            typer.Option(
+                "--builder",
+                help="override the developer actual-job builder for this invocation",
             ),
         ] = None,
         host: Annotated[
@@ -309,6 +331,7 @@ def register(app: typer.Typer) -> None:
             local_output=local_output,
             framework_wheelhouse=framework_wheelhouse,
             allow_deferred_qualification=allow_deferred_qualification,
+            builder=(builder.value if builder is not None else None),
         )
 
     @job_app.command("run", help="pack if needed and submit one selected job")
@@ -351,6 +374,13 @@ def register(app: typer.Typer) -> None:
             typer.Option(
                 "--registry",
                 help="override the project job-image registry prefix for this invocation",
+            ),
+        ] = None,
+        builder: Annotated[
+            _BuilderChoice | None,
+            typer.Option(
+                "--builder",
+                help="override the developer actual-job builder for this invocation",
             ),
         ] = None,
         timeout_seconds: Annotated[
@@ -514,4 +544,5 @@ def register(app: typer.Typer) -> None:
             build_missing=build_missing,
             framework_wheelhouse=framework_wheelhouse,
             allow_deferred_qualification=allow_deferred_qualification,
+            builder=(builder.value if builder is not None else None),
         )

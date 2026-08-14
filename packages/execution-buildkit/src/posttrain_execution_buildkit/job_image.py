@@ -8,6 +8,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import uuid
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
@@ -37,6 +38,10 @@ _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _SAFE_BUILDER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/@-]*$")
 _PUBLISHED_TARGET = "posttrain-job"
 _SMOKE_TARGET = "posttrain-job-smoke"
+_IMAGE_LEVEL_LABEL = "org.carbonteq.posttrain.image-level"
+_KIND_IMAGE_LABEL = "org.carbonteq.posttrain.kind-image"
+_PACKAGE_KEY_LABEL = "org.carbonteq.posttrain.package-key"
+_RUNTIME_VARIANT_LABEL = "org.carbonteq.posttrain.runtime-variant"
 _URL_USERINFO = re.compile(r"https?://[^/\s:@]+(?::[^@/\s]*)?@")
 _SENSITIVE_QUERY = re.compile(
     r"[?&](?:access[_-]?token|api[_-]?key|auth|credential|password|secret|token)=",
@@ -125,6 +130,10 @@ class BuildKitJobImagePublisher:
                 else:
                     return _published(receipt, cache_hit=True)
 
+            recovered = self._recover_remote_publication(request, receipt_path)
+            if recovered is not None:
+                return _published(recovered, cache_hit=True)
+
             self._check_definition(request)
             metadata = self._receipt_root / f".metadata-{uuid.uuid4().hex}.json"
             try:
@@ -138,6 +147,17 @@ class BuildKitJobImagePublisher:
                 self._gateway.invoke(self._build_arguments(request, metadata))
                 image = RuntimeImageRef(f"{request.publication.repository}@sha256:{_metadata_digest(metadata)}")
                 self._verify_remote(image)
+                parent_layers, job_layers, job_only_bytes = self._verify_parent_layers(
+                    image,
+                    request.manifest.kind_image,
+                    request.publication.platforms,
+                )
+                sys.stderr.write(
+                    "Actual-job OCI delta verified: "
+                    f"{parent_layers} inherited layers, {job_layers} new layers, "
+                    f"{job_only_bytes} compressed bytes\n"
+                )
+                sys.stderr.flush()
                 receipt = _PublicationReceipt(
                     package_key=request.package_key,
                     publication_key=request.publication_key,
@@ -162,16 +182,18 @@ class BuildKitJobImagePublisher:
 
         _enforce_qualification_policy(request)
         receipt_path = self._receipt_root / f"{request.publication_key}.json"
-        if not receipt_path.is_file():
-            return None
-        receipt = self._load_receipt(receipt_path)
-        self._ensure_receipt_matches(request, receipt)
-        try:
-            self._verify_remote(receipt.image)
-        except RemoteImageNotFoundError:
-            receipt_path.unlink(missing_ok=True)
-            return None
-        return _published(receipt, cache_hit=True)
+        with self._publication_lock(request.publication_key):
+            if receipt_path.is_file():
+                receipt = self._load_receipt(receipt_path)
+                self._ensure_receipt_matches(request, receipt)
+                try:
+                    self._verify_remote(receipt.image)
+                except RemoteImageNotFoundError:
+                    receipt_path.unlink(missing_ok=True)
+                else:
+                    return _published(receipt, cache_hit=True)
+            recovered = self._recover_remote_publication(request, receipt_path)
+            return _published(recovered, cache_hit=True) if recovered is not None else None
 
     def publish_local(self, request: JobImagePublicationRequest) -> LocalPublishedJobImage:
         """Build the verified actual-job image into an OCI layout, never a registry."""
@@ -379,7 +401,11 @@ class BuildKitJobImagePublisher:
             "type=image,push=true,"
             f"compression={request.publication.compression},"
             f"compression-level={request.publication.compression_level},"
-            "force-compression=true,oci-mediatypes=true"
+            # Recompressing existing layers gives the actual-job image new
+            # digests for the complete CUDA/Torch/kind ancestry. Preserve the
+            # digest-pinned parent layers and compress only the small layers
+            # created for this job.
+            "force-compression=false,oci-mediatypes=true"
         )
         platforms = ",".join(request.publication.platforms)
         return [
@@ -518,6 +544,146 @@ class BuildKitJobImagePublisher:
         if observed != expected:
             raise RuntimeError(f"published actual-job digest mismatch: expected {expected}, observed {observed}")
 
+    def _recover_remote_publication(
+        self,
+        request: JobImagePublicationRequest | JobImageResolutionRequest,
+        receipt_path: Path,
+    ) -> _PublicationReceipt | None:
+        """Recover a deterministic remote publication after local-state loss."""
+
+        tag = f"{request.publication.repository}:{request.publication_key}"
+        try:
+            output = self._gateway.invoke(
+                ("imagetools", "inspect", tag, "--format", "{{json .Manifest.Digest}}")
+            )
+        except RemoteImageNotFoundError:
+            return None
+        try:
+            digest = json.loads(output)
+        except json.JSONDecodeError as error:
+            raise RuntimeError("Buildx returned invalid remote actual-job tag metadata") from error
+        if not isinstance(digest, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+            raise RuntimeError("Buildx returned an invalid remote actual-job tag digest")
+
+        label_output = self._gateway.invoke(
+            ("imagetools", "inspect", tag, "--format", "{{json .Image}}")
+        )
+        try:
+            payload = json.loads(label_output)
+        except json.JSONDecodeError as error:
+            raise RuntimeError("Buildx returned invalid remote actual-job image metadata") from error
+        labels = _image_labels(payload)
+        expected = {
+            _IMAGE_LEVEL_LABEL: "actual-job",
+            _KIND_IMAGE_LABEL: request.manifest.kind_image.value,
+            _PACKAGE_KEY_LABEL: request.package_key,
+            _RUNTIME_VARIANT_LABEL: request.manifest.runtime_variant,
+        }
+        mismatches = [
+            f"{name}={labels.get(name)!r}, expected {value!r}"
+            for name, value in expected.items()
+            if labels.get(name) != value
+        ]
+        if mismatches:
+            raise ContractError(
+                "deterministic actual-job tag exists but does not describe the requested package: "
+                + "; ".join(mismatches)
+            )
+
+        image = RuntimeImageRef(f"{request.publication.repository}@{digest}")
+        self._verify_parent_layers(
+            image,
+            request.manifest.kind_image,
+            request.publication.platforms,
+        )
+        receipt = _PublicationReceipt(
+            package_key=request.package_key,
+            publication_key=request.publication_key,
+            image=image,
+            kind_image=request.manifest.kind_image,
+            repository=request.publication.repository,
+            platforms=request.publication.platforms,
+            compression=request.publication.compression,
+            compression_level=request.publication.compression_level,
+            provenance=request.publication.provenance,
+            sbom=request.publication.sbom,
+            build_definition_digest=self._definition_digest,
+            path=receipt_path,
+        )
+        self._write_receipt(receipt)
+        return receipt
+
+    def _verify_parent_layers(
+        self,
+        image: RuntimeImageRef,
+        kind_image: RuntimeImageRef,
+        platforms: tuple[str, ...],
+    ) -> tuple[int, int, int]:
+        """Prove that publication preserved the digest-pinned kind ancestry."""
+
+        parent_count = 0
+        job_count = 0
+        job_only_bytes = 0
+        for platform in platforms:
+            parent = self._platform_layers(kind_image, platform)
+            child = self._platform_layers(image, platform)
+            if child[: len(parent)] != parent:
+                raise RuntimeError(
+                    "actual-job image rewrote or reordered its kind-image layers; "
+                    "preserve parent compression and mirror the kind image before publication"
+                )
+            delta = child[len(parent) :]
+            parent_count += len(parent)
+            job_count += len(delta)
+            job_only_bytes += sum(size for _, size in delta)
+        return parent_count, job_count, job_only_bytes
+
+    def _platform_layers(
+        self,
+        image: RuntimeImageRef,
+        platform: str,
+    ) -> tuple[tuple[str, int], ...]:
+        raw = self._raw_manifest(image.value)
+        if "manifests" in raw:
+            operating_system, architecture = platform.split("/", 1)
+            manifests = raw.get("manifests")
+            if not isinstance(manifests, list):
+                raise RuntimeError("Buildx returned an invalid OCI image index")
+            descriptor = next(
+                (
+                    item
+                    for item in manifests
+                    if isinstance(item, dict)
+                    and item.get("platform") == {"architecture": architecture, "os": operating_system}
+                ),
+                None,
+            )
+            digest = descriptor.get("digest") if isinstance(descriptor, dict) else None
+            if not isinstance(digest, str) or not digest.startswith("sha256:"):
+                raise RuntimeError(f"OCI image index has no manifest for {platform}")
+            raw = self._raw_manifest(f"{image.value.rsplit('@', 1)[0]}@{digest}")
+        layers = raw.get("layers")
+        if not isinstance(layers, list):
+            raise RuntimeError("Buildx returned an OCI manifest without layers")
+        parsed: list[tuple[str, int]] = []
+        for layer in layers:
+            digest = layer.get("digest") if isinstance(layer, dict) else None
+            size = layer.get("size") if isinstance(layer, dict) else None
+            if not isinstance(digest, str) or not digest.startswith("sha256:") or not isinstance(size, int) or size < 0:
+                raise RuntimeError("Buildx returned an invalid OCI layer descriptor")
+            parsed.append((digest, size))
+        return tuple(parsed)
+
+    def _raw_manifest(self, reference: str) -> dict[str, object]:
+        output = self._gateway.invoke(("imagetools", "inspect", reference, "--raw"))
+        try:
+            payload = json.loads(output)
+        except json.JSONDecodeError as error:
+            raise RuntimeError("Buildx returned invalid OCI manifest JSON") from error
+        if not isinstance(payload, dict):
+            raise RuntimeError("Buildx returned a non-object OCI manifest")
+        return payload
+
     @contextmanager
     def _publication_lock(self, publication_key: str) -> Iterator[None]:
         """Serialize one remote publication while its named context is live."""
@@ -649,6 +815,21 @@ class BuildKitJobImagePublisher:
                 "job image publication receipt does not match the requested "
                 "package, publication settings, or build definition"
             )
+
+
+def _image_labels(payload: object) -> dict[str, str]:
+    """Extract labels from a single-platform or indexed Buildx image view."""
+
+    if isinstance(payload, dict) and "config" in payload:
+        config = payload.get("config")
+        labels = config.get("Labels") if isinstance(config, dict) else None
+        return {str(key): str(value) for key, value in labels.items()} if isinstance(labels, dict) else {}
+    if isinstance(payload, dict):
+        for value in payload.values():
+            labels = _image_labels(value)
+            if labels:
+                return labels
+    return {}
 
 
 def _remove_local_output(path: Path) -> None:
@@ -808,6 +989,23 @@ def _build_definition_digest(root: Path) -> str:
             }
         )
     return hashlib.sha256(json.dumps(entries, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def job_build_definition_digest(bake_file: Path) -> str:
+    """Return the stable digest for a shipped actual-job definition.
+
+    Both a local publisher and a remote-builder client must name precisely the
+    same Dockerfile/Bake pair.  Keeping this calculation in the BuildKit
+    adapter prevents a second, subtly different client-side definition of what
+    the service is allowed to execute.
+    """
+
+    resolved = bake_file.resolve()
+    if not resolved.is_file() or resolved.name != "docker-bake.hcl":
+        raise ContractError("job image Bake file must be an existing docker-bake.hcl file")
+    if not (resolved.parent / "Dockerfile").is_file():
+        raise ContractError("job image Bake file must be beside a Dockerfile")
+    return _build_definition_digest(resolved.parent)
 
 
 def _exact_bool(value: object) -> bool:

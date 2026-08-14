@@ -10,6 +10,7 @@ dependencies = [
     "posttrain-data",
     "posttrain-execution",
     "posttrain-execution-buildkit",
+    "posttrain-execution-job-builder",
     "posttrain-execution-pack",
     "posttrain-execution-local",
     "posttrain-environment",
@@ -53,6 +54,7 @@ posttrain-catalog = { workspace = true }
 posttrain-data = { workspace = true }
 posttrain-execution = { workspace = true }
 posttrain-execution-buildkit = { workspace = true }
+posttrain-execution-job-builder = { workspace = true }
 posttrain-execution-pack = { workspace = true }
 posttrain-execution-dstack = { workspace = true }
 posttrain-execution-local = { workspace = true }

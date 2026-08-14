@@ -14,6 +14,7 @@ from posttrain.common import (
     MetricObservation,
     ProducedArtifact,
     RunContext,
+    TraceFactUpdateObservation,
     TraceObservation,
 )
 from posttrain.common.variants import QWEN_35_2B
@@ -54,6 +55,9 @@ class CaptureObserver:
         self.metrics_seen.append(observation)
 
     def trace(self, observation: TraceObservation) -> None:
+        del observation
+
+    def trace_fact_update(self, observation: TraceFactUpdateObservation) -> None:
         del observation
 
     def artifact(self, artifact: ProducedArtifact) -> None:

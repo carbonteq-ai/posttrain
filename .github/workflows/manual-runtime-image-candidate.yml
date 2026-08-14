@@ -115,7 +115,7 @@ jobs:
           name: manual-runtime-${{ inputs.framework_version }}-${{ github.run_id }}
           path: |
             packages/runtime-images/src/posttrain/runtime_images/published.toml
-            packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/workspace.lock.txt
+            packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/*.lock.txt
             uv.lock
             .release/image-receipts/**
           if-no-files-found: error

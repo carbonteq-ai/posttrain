@@ -1,5 +1,10 @@
+# Generated from the repository's exact uv.lock. Do not hand edit.
+# uv export --all-packages --all-extras --locked --no-emit-workspace --no-dev --format requirements-txt --emit-index-url --no-header
+
 --index-url https://pypi.org/simple
 --extra-index-url https://download.pytorch.org/whl/cu130
+--extra-index-url https://pypi.lan/carbonteq/stable/+simple/
+--extra-index-url https://pypi.lan/carbonteq/dev/+simple/
 
 accelerate==1.14.0 \
     --hash=sha256:41b9c4377a54e0b460a959b0defa1b736e4ca0a2373252d9a539964c2afe3c8d \
@@ -132,6 +137,16 @@ blake3==1.0.9 \
     --hash=sha256:dab59b324aa65c09e937d6c43de5de85ec9581627f4e79dcc9806d85b54a1c34 \
     --hash=sha256:eca281fedcbe5c56655bd5a4176e6036eddbbe57df96114a03838fce08b1e0ca
     # via vllm
+boto3==1.43.66 \
+    --hash=sha256:8d097a41e2f545c25252105570f782bb035b1ac13d6213c772d1c895dc7cedeb \
+    --hash=sha256:ffc77129a4e5519bdbd9b278e4fe9e6276c9d951e0d2b60d626977bdb957cb38
+    # via carbonteq-trackio
+botocore==1.43.66 \
+    --hash=sha256:0fa62529579469a9224c186eba87e7e561db87dfad20c63ce5d52e427c7fa325 \
+    --hash=sha256:dde324cbe8be14b536b78f4fafe192f94fffcc70716bde804044e62495af8c3c
+    # via
+    #   boto3
+    #   s3transfer
 brotli==1.2.0 \
     --hash=sha256:0cf8c3b8ba93d496b2fae778039e2f5ecc7cff99df84df337ca31d8f2252896c \
     --hash=sha256:1b1d6a4efedd53671c793be6dd760fcf2107da3a52331ad9ea429edf0902f27a \
@@ -153,7 +168,7 @@ cachetools==7.1.4 \
     --hash=sha256:323dc4127934744db5b54eb4924482d7edafbf9554e820d1531c2e08c0e4ef54 \
     --hash=sha256:437f55a4e0c1b01a4f3077cc470e6991d47430970e36fbcb77e2be0df4fc1cd6
     # via vllm
-carbonteq-trackio @ https://pypi.lan/carbonteq/stable/+f/198/7738f2306ff7d/carbonteq_trackio-0.31.5.post13-py3-none-any.whl#sha256=1987738f2306ff7d0e444a13ca3d84bc69a42717c571832369c89df764cc8491
+carbonteq-trackio @ https://pypi.lan/carbonteq/stable/+f/250/a690c8a693bc0/carbonteq_trackio-0.31.5.post14.dev15-py3-none-any.whl#sha256=250a690c8a693bc05c3ec323f57e55c9f1a2a0bfb4aae9a84da8a498a52f1b5f
     # via posttrain-tracking-trackio
 cbor2==6.1.3 \
     --hash=sha256:21c74b8ab67977c8b87b727247eeb730145b0068ad6d47f71e9f80f6b48c65f8 \
@@ -542,6 +557,7 @@ httpx==0.28.1 \
     #   openai
     #   posttrain-observatory
     #   posttrain-serve
+    #   posttrain-train
     #   prime
     #   prime-evals
     #   prime-sandboxes
@@ -626,7 +642,10 @@ jiter==0.16.0 \
 jmespath==1.1.0 \
     --hash=sha256:472c87d80f36026ae83c6ddd0f1d05d4e510134ed462851fd5f754c8c3cbb88d \
     --hash=sha256:a5663118de4908c91729bea0acadca56526eb2698e83de10cd116ae0f4e97c64
-    # via model-hosting-container-standards
+    # via
+    #   boto3
+    #   botocore
+    #   model-hosting-container-standards
 jsonschema==4.26.0 \
     --hash=sha256:0c26707e2efad8aa1bfc5b7ce170f3fccc2e4918ff85989ba9ffa9facb2be326 \
     --hash=sha256:d489f15263b8d200f8387e64b4c3a75f06629559fb73deb8fdfb525f2dab50ce
@@ -1459,6 +1478,7 @@ pydantic==2.13.4 \
     #   openai-agents
     #   openai-harmony
     #   posttrain-common
+    #   posttrain-environment
     #   posttrain-eval
     #   posttrain-lab
     #   posttrain-observatory
@@ -1554,7 +1574,9 @@ pyqwest==0.7.0 \
 python-dateutil==2.9.0.post0 \
     --hash=sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3 \
     --hash=sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427
-    # via pandas
+    # via
+    #   botocore
+    #   pandas
 python-dotenv==1.2.2 \
     --hash=sha256:1d8214789a24de455a8b8bd8ae6fe3c6b69a5e3d64aa8a8e5d68e694bbcb285a \
     --hash=sha256:2c371a91fbd7ba082c2c1dc1f8bf89ca22564a087c2c287cd9b662adde799cf3
@@ -1758,6 +1780,10 @@ rpds-py==2026.6.3 \
     # via
     #   jsonschema
     #   referencing
+s3transfer==0.19.2 \
+    --hash=sha256:ba0309fd86be3c27dbf78cdd813c13c5e1df16e5874b99d2535ebbdfb9892993 \
+    --hash=sha256:d8168eccca828cbb2cd573675333f3bddd254313a9c42494b84c76b539e8ba25
+    # via boto3
 safetensors==0.8.0 \
     --hash=sha256:040070828e36dc8e122178bbbd5830ff9e97920affb84cbe0f46442497bed358 \
     --hash=sha256:096ec1a98435df7beb08853bb5aa9081a84f23d0adc67ed1a0a10550f608373f \
@@ -1887,7 +1913,6 @@ tabulate==0.9.0 \
     # via
     #   flashinfer-python
     #   humming-kernels
-    #   reasoning-gym
 tenacity==9.1.4 \
     --hash=sha256:6095a360c919085f28c6527de529e76a06ad89b23659fa881ae0649b867a9d55 \
     --hash=sha256:adb31d4c263f2bd041081ab33b498309a57c77f9acf2db65aadf0898179cf93a
@@ -2151,6 +2176,7 @@ urllib3==2.7.0 \
     --hash=sha256:231e0ec3b63ceb14667c67be60f2f2c40a518cb38b03af60abc813da26505f4c \
     --hash=sha256:9fb4c81ebbb1ce9531cce37674bbc6f1360472bc18ca9a553ede278ef7276897
     # via
+    #   botocore
     #   requests
     #   sentry-sdk
 uvicorn==0.51.0 \

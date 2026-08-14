@@ -1651,12 +1651,13 @@ class ObservatoryService:
         )
 
     async def get_rollout_behavior_view(self, run: str | RunLocator) -> RolloutBehaviorView:
-        """Return per-optimizer-step rollout means when trace attribution exists.
+        """Return persisted per-optimizer-step rollout facts when available.
 
-        This is the only projection that reads full retained trace payloads in
-        order to recover exact historical thinking-token counts. Cache the
-        bounded scan and coalesce concurrent requests so a browser refresh
-        never launches repeated provider reads for the same run.
+        The projection deliberately uses the provider-neutral aggregate only:
+        a provider without trace facts produces an explicit unavailable view,
+        rather than reopening native trace payloads. Cache the bounded
+        aggregate and coalesce concurrent requests so a browser refresh never
+        repeats the provider read for the same run.
         """
 
         locator = self._locator(run)

@@ -34,6 +34,7 @@ from posttrain.execution_pack import (
     ImmutableDatasetPackager,
     ImmutableSourceSnapshotter,
     JobImagePublicationRequest,
+    JobImagePublisher,
     JobImageResolutionRequest,
     JobPackInputs,
     JobPackPlan,
@@ -52,7 +53,7 @@ from posttrain.execution_pack import (
     publication_key_for,
 )
 from posttrain.project import JobIntent, load_project_pack_config
-from posttrain.runtime_images import JOB_BAKE_FILE, cached_definition_root
+from posttrain.runtime_images import JOB_BAKE_FILE, cached_definition_root, published_manifest_digest
 from posttrain.tracking import ArtifactInput, ArtifactLink, RunSpec
 from posttrain.work import (
     PreparedWorkPackageJob,
@@ -66,7 +67,9 @@ from posttrain_execution_buildkit import (
     ImmutableEnvironmentPackager,
     KindDependencyConstraints,
     UvDependencyCompileCli,
+    job_build_definition_digest,
 )
+from posttrain_execution_job_builder import RemoteJobBuilderConfig, RemoteJobImagePublisher
 
 from .context import CliState
 from .execution_config import (
@@ -84,6 +87,7 @@ from .execution_config import (
     load_execution_environment,
     load_local_execution_config,
     resolve_execution_settings,
+    resolve_job_builder,
 )
 from .execution_provider import create_execution_provider, evidence_source_for_project, provider_source_for_project
 from .framework_distributions import FrameworkDistributions
@@ -136,6 +140,7 @@ class PlannedJobPackage:
     project_source_inspection: SourceSnapshotInspection
     framework_source_inspection: SourceSnapshotInspection | None = None
     dataset_source_estimates: tuple[dict[str, object], ...] = ()
+    builder_override: str | None = None
 
     def materialize(self) -> PackedJobContext:
         """Materialize the immutable job context without publishing an image."""
@@ -262,7 +267,7 @@ class PlannedJobPackage:
         )
         return context
 
-    def _publisher(self) -> BuildKitJobImagePublisher:
+    def _local_publisher(self) -> BuildKitJobImagePublisher:
         registry = _registry(self.local_config)
         execution_environment = load_execution_environment(self.local_config)
         return BuildKitJobImagePublisher(
@@ -271,6 +276,37 @@ class PlannedJobPackage:
             local_layout_root=cache_path(self.layout, "pack", "local-layouts"),
             builder=registry.buildx_builder,
             python_index_url=execution_environment.get("UV_INDEX_URL"),
+        )
+
+    def _publisher(self) -> JobImagePublisher:
+        """Compose a developer publisher without changing package identity.
+
+        This deliberately has no release-builder option: maintained forks are
+        released manually outside Posttrain.  ``remote`` means only the
+        optional developer actual-job build service.
+        """
+
+        choice = resolve_job_builder(self.local_config.machine, cli_override=self.builder_override)
+        if choice.mode == "local":
+            return self._local_publisher()
+        binding = self.local_config.machine.services.job_builder if self.local_config.machine is not None else None
+        if binding is None or binding.endpoint is None:
+            raise ContractError("remote job builder requires machine [services.job_builder] configuration")
+        environment = load_execution_environment(self.local_config)
+        token = environment.get("POSTTRAIN_JOB_BUILDER_TOKEN")
+        if token is None:
+            raise ContractError("remote job builder credentials did not provide POSTTRAIN_JOB_BUILDER_TOKEN")
+        bake_file = _bake_file(_registry(self.local_config))
+        return RemoteJobImagePublisher(
+            RemoteJobBuilderConfig(
+                endpoint=binding.endpoint,
+                token=token,
+                release_manifest_digest=published_manifest_digest(),
+                build_definition_digest=job_build_definition_digest(bake_file),
+                receipt_root=(self.layout.state / "publications").resolve(),
+                request_timeout_seconds=float(binding.request_timeout_seconds),
+                upload_concurrency=binding.upload_concurrency,
+            )
         )
 
     def pack(self, *, allow_deferred_qualification: bool = False) -> PackedJobPackage:
@@ -309,6 +345,7 @@ class PlannedJobPackage:
                     staged_context=context.root,
                     publication=self.pack_plan.publication,
                     allow_deferred_qualification=allow_deferred_qualification,
+                    source_context_digest=context.context_digest,
                 )
             )
             if image.publication_key != context.publication_key:
@@ -328,13 +365,14 @@ class PlannedJobPackage:
 
         context = self.materialize()
         try:
-            image = self._publisher().publish_local(
+            image = self._local_publisher().publish_local(
                 JobImagePublicationRequest(
                     manifest=context.manifest,
                     staged_context=context.root,
                     publication=self.pack_plan.publication,
                     allow_deferred_qualification=allow_deferred_qualification,
                     local_output=local_output,
+                    source_context_digest=context.context_digest,
                 )
             )
             if image.publication_key != context.publication_key:
@@ -354,7 +392,7 @@ class PlannedJobPackage:
 
         context = self.materialize()
         try:
-            publisher = self._publisher()
+            publisher = self._local_publisher()
             publish_local_daemon = getattr(publisher, "publish_local_daemon", None)
             if publish_local_daemon is None:
                 raise ContractError("configured job image publisher does not support local daemon loading")
@@ -369,6 +407,7 @@ class PlannedJobPackage:
                         if run_id is not None
                         else None
                     ),
+                    source_context_digest=context.context_digest,
                 )
             )
             if image.publication_key != context.publication_key:
@@ -607,6 +646,7 @@ def plan_job_execution(
     intent: JobIntent | None = None,
     env_file: Path | None = None,
     framework_wheelhouse: Path | None = None,
+    builder: str | None = None,
 ) -> PlannedJobExecution:
     """Resolve and hash one job without materializing or submitting it."""
 
@@ -626,6 +666,7 @@ def plan_job_execution(
         intent=intent,
         env_file=env_file,
         framework_wheelhouse=framework_wheelhouse,
+        builder=builder,
     )
     return PlannedJobExecution(
         package=package,
@@ -657,6 +698,7 @@ def plan_job_package(
     env_file: Path | None = None,
     local_publication: bool = False,
     framework_wheelhouse: Path | None = None,
+    builder: str | None = None,
 ) -> PlannedJobPackage:
     """Resolve capsule bytes without requiring a provider or worker storage."""
 
@@ -672,6 +714,7 @@ def plan_job_package(
             env_file=env_file,
             local_publication=local_publication,
             framework_wheelhouse=framework_wheelhouse,
+            builder=builder,
         )
     return _plan_job_package(
         state,
@@ -686,6 +729,7 @@ def plan_job_package(
         env_file=env_file,
         local_publication=local_publication,
         framework_wheelhouse=framework_wheelhouse,
+        builder=builder,
     )
 
 
@@ -744,6 +788,7 @@ def _plan_job_package(
     env_file: Path | None,
     local_publication: bool,
     framework_wheelhouse: Path | None,
+    builder: str | None,
 ) -> PlannedJobPackage:
     layout, catalog, work_package_path, package = load_work_package_bundle(state, path)
     context = runtime_context(
@@ -772,6 +817,7 @@ def _plan_job_package(
         env_file=env_file,
         local_publication=local_publication,
         framework_wheelhouse=framework_wheelhouse,
+        builder=builder,
     )
 
 
@@ -785,6 +831,7 @@ def _plan_job_package_from_intent(
     env_file: Path | None,
     local_publication: bool,
     framework_wheelhouse: Path | None,
+    builder: str | None,
 ) -> PlannedJobPackage:
     layout = intent.layout
     local_config = _with_registry_override(
@@ -907,7 +954,14 @@ def _plan_job_package_from_intent(
         project_source_inspection=project_inspection,
         framework_source_inspection=framework_inspection,
         dataset_source_estimates=_dataset_source_estimates(layout.root, pack_plan),
+        builder_override=_validate_builder_override(builder),
     )
+
+
+def _validate_builder_override(builder: str | None) -> str | None:
+    if builder is not None and builder not in {"local", "remote"}:
+        raise ContractError("job builder must be 'local' or 'remote'")
+    return builder
 
 
 def _dataset_source_estimates(layout_root: Path, pack_plan: JobPackPlan) -> tuple[dict[str, object], ...]:

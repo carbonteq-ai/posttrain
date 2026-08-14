@@ -1095,42 +1095,44 @@ async def test_semantic_summary_is_explicit_cited_and_cached(service: Observator
 @pytest.mark.asyncio
 async def test_rollout_behavior_uses_recorded_optimizer_steps_and_marks_unattributed_traces() -> None:
     class TraceSource:
-        async def traces(self, run_id: str, query) -> TracePage:
+        async def aggregate_trace_facts(self, run_id: str, query) -> TraceAggregateResult:
             assert run_id == "train-run"
             assert query.trace_type == "verifiers"
-            return TracePage(
-                items=(
-                    TraceRecord(
-                        trace_type="verifiers",
-                        external_id="step-4-a",
-                        payload={
-                            "completion_tokens": 100,
-                            "num_tool_calls": 1,
-                            "run": {"type": "train", "step": 4},
+            return TraceAggregateResult(
+                state="available",
+                buckets=(
+                    TraceAggregateBucket(
+                        dimensions={"rollout_step": 4},
+                        trace_count=2,
+                        values={
+                            "mean_thinking_tokens": None,
+                            "mean_model_output_tokens": 120.0,
+                            "mean_tool_calls": 2.0,
                         },
                     ),
-                    TraceRecord(
-                        trace_type="verifiers",
-                        external_id="step-4-b",
-                        payload={
-                            "completion_tokens": 140,
-                            "num_tool_calls": 3,
-                            "run": {"type": "train", "step": 4},
+                    TraceAggregateBucket(
+                        dimensions={"rollout_step": 5},
+                        trace_count=1,
+                        values={
+                            "mean_thinking_tokens": None,
+                            "mean_model_output_tokens": 80.0,
+                            "mean_tool_calls": 0.0,
                         },
                     ),
-                    TraceRecord(
-                        trace_type="verifiers",
-                        external_id="step-5",
-                        attributes={"optimizer_step": 5},
-                        payload={"completion_tokens": 80, "num_tool_calls": 0},
+                    TraceAggregateBucket(
+                        dimensions={"rollout_step": None},
+                        trace_count=1,
+                        values={
+                            "mean_thinking_tokens": None,
+                            "mean_model_output_tokens": 999.0,
+                            "mean_tool_calls": 9.0,
+                        },
                     ),
-                    TraceRecord(
-                        trace_type="verifiers",
-                        external_id="unattributed",
-                        payload={"completion_tokens": 999, "num_tool_calls": 9},
-                    ),
-                )
+                ),
             )
+
+        async def traces(self, run_id: str, query) -> TracePage:
+            raise AssertionError("rollout behavior must not scan native payloads")
 
     view = await rollout_behavior_view(TraceSource(), "train-run", expected=4)  # type: ignore[arg-type]
 
@@ -1144,30 +1146,27 @@ async def test_rollout_behavior_uses_recorded_optimizer_steps_and_marks_unattrib
 
 
 @pytest.mark.asyncio
-async def test_rollout_behavior_recovers_exact_qwen_thinking_tokens_from_retained_ids() -> None:
+async def test_rollout_behavior_reads_exact_qwen_thinking_tokens_from_persisted_facts() -> None:
     class TraceSource:
-        async def traces(self, run_id: str, query) -> TracePage:
+        async def aggregate_trace_facts(self, run_id: str, query) -> TraceAggregateResult:
             assert run_id == "train-run"
-            assert query.include_payload is True
-            return TracePage(
-                items=(
-                    TraceRecord(
-                        trace_type="verifiers",
-                        external_id="thinking-step-4",
-                        attributes={"optimizer_step": 4, "model": "models/qwen3.5-2b@bf16"},
-                        payload={
-                            "completion_tokens": 8,
-                            "nodes": [
-                                {
-                                    "message": {"role": "assistant", "reasoning_content": "checked"},
-                                    "token_ids": [151644, 248068, 11, 12, 13, 248069, 248058, 14],
-                                    "mask": [False, False, True, True, True, True, True, True],
-                                }
-                            ],
+            return TraceAggregateResult(
+                state="available",
+                buckets=(
+                    TraceAggregateBucket(
+                        dimensions={"rollout_step": 4},
+                        trace_count=1,
+                        values={
+                            "mean_thinking_tokens": 3.0,
+                            "mean_model_output_tokens": 8.0,
+                            "mean_tool_calls": 0.0,
                         },
                     ),
-                )
+                ),
             )
+
+        async def traces(self, run_id: str, query) -> TracePage:
+            raise AssertionError("rollout behavior must not scan native payloads")
 
     view = await rollout_behavior_view(TraceSource(), "train-run", expected=1)  # type: ignore[arg-type]
 
@@ -1214,25 +1213,28 @@ async def test_rollout_behavior_prefers_the_provider_trace_fact_aggregate() -> N
 
 
 @pytest.mark.asyncio
-async def test_rollout_behavior_service_caches_the_full_trace_projection() -> None:
+async def test_rollout_behavior_service_caches_the_fact_aggregate() -> None:
     class CountingSource(FixtureRunDataSource):
-        trace_calls = 0
+        aggregate_calls = 0
+
+        async def aggregate_trace_facts(self, run_id: str, query):
+            self.aggregate_calls += 1
+            return await super().aggregate_trace_facts(run_id, query)
 
         async def traces(self, run_id: str, query):
-            self.trace_calls += 1
-            return await super().traces(run_id, query)
+            raise AssertionError("rollout behavior must not scan native payloads")
 
     source = CountingSource()
     service = ObservatoryService({"fixture": source})
     locator = RunLocator(source_id="fixture", run_id="runs/grpo-silver-pine")
 
     first = await service.get_rollout_behavior_view(locator)
-    calls_after_first = source.trace_calls
+    calls_after_first = source.aggregate_calls
     second = await service.get_rollout_behavior_view(locator)
 
     assert first == second
     assert calls_after_first > 0
-    assert source.trace_calls == calls_after_first
+    assert source.aggregate_calls == calls_after_first
 
 
 @pytest.mark.asyncio

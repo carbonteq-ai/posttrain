@@ -23,21 +23,21 @@ RUN apt-get update && \
 # The control environment must match the universal base for
 # actual-job source installs (--no-build-isolation) and framework imports
 # (pydantic/pyyaml/trackio). The Python 3.13 worker remains separately locked.
-COPY containers/posttrain-job-kinds/locks/workspace.lock.txt /opt/posttrain/locks/workspace.lock.txt
 COPY containers/posttrain-job-kinds/locks/build-tools.lock.txt /opt/posttrain/locks/build-tools.lock.txt
-COPY containers/posttrain-job-kinds/profiles/common.txt /opt/posttrain/profiles/common.txt
 RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locked \
     uv pip install \
       --python "${VIRTUAL_ENV}" \
       --require-hashes \
       --requirement /opt/posttrain/locks/build-tools.lock.txt
+COPY containers/posttrain-job-kinds/locks/online-rl-verl-py313.lock.txt \
+     /opt/posttrain/locks/online-rl-verl-py313.lock.txt
+COPY containers/posttrain-job-kinds/profiles/common.txt /opt/posttrain/profiles/common.txt
 COPY containers/posttrain-job-kinds/profiles/online-rl-verl-py313-control.txt \
      /opt/posttrain/profiles/online-rl-verl-py313-control.txt
 RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locked \
-    SKIP_FRONTEND_BUILD=1 uv pip install \
-      --python "${VIRTUAL_ENV}" \
+    SKIP_FRONTEND_BUILD=1 uv pip install --python "${VIRTUAL_ENV}" \
       --index-strategy unsafe-best-match \
-      --constraint /opt/posttrain/locks/workspace.lock.txt \
+      --constraint /opt/posttrain/locks/online-rl-verl-py313.lock.txt \
       --requirement /opt/posttrain/profiles/common.txt \
       --requirement /opt/posttrain/profiles/online-rl-verl-py313-control.txt
 

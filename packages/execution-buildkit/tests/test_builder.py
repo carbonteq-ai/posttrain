@@ -11,7 +11,9 @@ from posttrain.execution import RuntimeImageRef
 from posttrain_execution_buildkit import (
     BuildKitRuntimeBuilder,
     BuildxCli,
+    RemoteImageNotFoundError,
     RuntimeBuildRequest,
+    RuntimeImageInspector,
     digest_runtime_sources,
 )
 
@@ -49,6 +51,102 @@ def test_buildx_cli_streams_bake_progress(monkeypatch: pytest.MonkeyPatch, capsy
 
     assert output == "#1 loading build definition\n"
     assert capsys.readouterr().err == "#1 loading build definition\n"
+
+
+def test_image_copy_reuses_a_matching_destination_without_creating_it() -> None:
+    class Gateway:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, ...]] = []
+
+        def invoke(self, arguments):
+            call = tuple(arguments)
+            self.calls.append(call)
+            if "{{json .Manifest.Digest}}" in call:
+                return json.dumps("sha256:" + "a" * 64)
+            if "{{json .Image}}" in call:
+                return json.dumps({"config": {"Labels": {}}})
+            raise AssertionError(call)
+
+    gateway = Gateway()
+    inspector = RuntimeImageInspector(gateway)
+
+    digest, copied = inspector.ensure_copy(
+        "source.example/kind@sha256:" + "a" * 64,
+        "destination.example/kind:v1",
+        expected_digest="sha256:" + "a" * 64,
+    )
+
+    assert digest == "sha256:" + "a" * 64
+    assert not copied
+    assert not any(call[:2] == ("imagetools", "create") for call in gateway.calls)
+
+
+def test_image_copy_populates_a_missing_destination_once() -> None:
+    class Gateway:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, ...]] = []
+            self.available = False
+
+        def invoke(self, arguments):
+            call = tuple(arguments)
+            self.calls.append(call)
+            if call[:2] == ("imagetools", "create"):
+                self.available = True
+                return ""
+            if "{{json .Manifest.Digest}}" in call:
+                if not self.available:
+                    raise RemoteImageNotFoundError("manifest unknown")
+                return json.dumps("sha256:" + "a" * 64)
+            if "{{json .Image}}" in call:
+                return json.dumps({"config": {"Labels": {}}})
+            raise AssertionError(call)
+
+    gateway = Gateway()
+    inspector = RuntimeImageInspector(gateway)
+
+    digest, copied = inspector.ensure_copy(
+        "source.example/kind@sha256:" + "a" * 64,
+        "destination.example/kind:v1",
+        expected_digest="sha256:" + "a" * 64,
+    )
+
+    assert digest == "sha256:" + "a" * 64
+    assert copied
+    assert sum(call[:2] == ("imagetools", "create") for call in gateway.calls) == 1
+
+
+def test_runtime_builder_copies_and_rechecks_an_immutable_digest(tmp_path: Path) -> None:
+    class Gateway:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, ...]] = []
+
+        def invoke(self, arguments):
+            call = tuple(arguments)
+            self.calls.append(call)
+            if call[:2] == ("imagetools", "create"):
+                return ""
+            if call[:2] == ("imagetools", "inspect"):
+                return json.dumps("sha256:" + "a" * 64)
+            raise AssertionError(call)
+
+    gateway = Gateway()
+    builder = BuildKitRuntimeBuilder(gateway, receipt_root=(tmp_path / "receipts").resolve())
+    copied = builder.copy_remote(
+        RuntimeImageRef("source.example/posttrain-base@sha256:" + "a" * 64),
+        destination_repository="destination.example/posttrain-base",
+        expected_digest="sha256:" + "a" * 64,
+        tag="reuse-0123456789abcdef",
+    )
+
+    assert copied.value == "destination.example/posttrain-base@sha256:" + "a" * 64
+    assert gateway.calls[0] == (
+        "imagetools",
+        "create",
+        "--tag",
+        "destination.example/posttrain-base:reuse-0123456789abcdef",
+        "source.example/posttrain-base@sha256:" + "a" * 64,
+    )
+    assert gateway.calls[1][:2] == ("imagetools", "inspect")
 
 
 class FakeBuildx:

@@ -5,12 +5,15 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import replace
 from pathlib import Path
 
-from posttrain.execution import RuntimeImageRef
+from posttrain.common import ContractError
+from posttrain.execution import RegistryManifestRef, RuntimeImageRef
 from posttrain.runtime_images import (
     BASE_BAKE_FILE,
     BASE_DEFINITION,
+    BASE_LOCK,
     KIND_BAKE_FILE,
     KIND_DEFINITION,
     RUNTIME_VARIANTS,
@@ -20,14 +23,17 @@ from posttrain.runtime_images import (
     constraint_lock,
     lock_digest,
 )
-from posttrain.runtime_images.manifest import ManifestError, PublishedImage, load_manifest
+from posttrain.runtime_images.manifest import ManifestError, PublishedImage, PublishedManifest, load_manifest
 from posttrain_execution_buildkit import (
     BuildKitRuntimeBuilder,
+    DistributionRegistryContentReader,
     RemoteImageNotFoundError,
     RuntimeBuildRequest,
+    UrllibDistributionTransport,
     digest_runtime_sources,
 )
 
+from .image_plan import DesiredImage, ObservedImage, ReleaseImagePlan, plan_release_images
 from .manifest_render import render_manifest
 
 _BASE_REPOSITORY = "posttrain-base"
@@ -55,11 +61,45 @@ _KIND_REPOSITORY_PREFIX = "posttrain-kind-"
 
 
 def _base_source_digest(root: Path) -> str:
-    return digest_runtime_sources(root, [Path(BASE_DEFINITION)])
+    return digest_runtime_sources(
+        root,
+        [
+            Path(BASE_DEFINITION),
+            Path(BASE_DEFINITION) / "requirements.txt",
+            Path(BASE_LOCK),
+        ],
+    )
 
 
-def _kind_source_digest(root: Path) -> str:
-    return digest_runtime_sources(root, [Path(KIND_DEFINITION)])
+def _kind_source_paths(variant: str) -> tuple[Path, ...]:
+    """Return only the definition files that can affect one kind target.
+
+    Shared Docker/Bake inputs remain shared invalidation boundaries. Profile
+    files and the dedicated veRL definition are variant-local, so changing one
+    does not make every unrelated kind look stale.
+    """
+
+    common = (
+        Path(KIND_BAKE_FILE),
+        Path(KIND_DEFINITION) / "locks" / "build-tools.lock.txt",
+        Path(KIND_DEFINITION) / "profiles" / "common.txt",
+        Path(constraint_lock(variant)),
+    )
+    if variant == "online-rl-verl-py313":
+        return (
+            *common,
+            Path(KIND_DEFINITION) / "profiles" / "online-rl-verl-py313-control.txt",
+            Path(KIND_DEFINITION) / "verl-py313",
+        )
+    return (
+        *common,
+        Path(KIND_DEFINITION) / "Dockerfile",
+        Path(KIND_DEFINITION) / "profiles" / f"{variant}.txt",
+    )
+
+
+def _kind_source_digest(root: Path, variant: str) -> str:
+    return digest_runtime_sources(root, _kind_source_paths(variant))
 
 
 def _trust_bundle_digest(bundle: Path | None) -> str | None:
@@ -134,6 +174,145 @@ def _prior_kind_ref(prefix: str, variant: str) -> str | None:
     return _prior_ref(prefix, previous.repository, previous.digest)
 
 
+def _desired_base(root: Path, trust_bundle: Path | None) -> DesiredImage:
+    return DesiredImage(
+        "base",
+        _BASE_REPOSITORY,
+        _base_source_digest(root),
+        lock_digest(BASE_LOCK),
+        trust_bundle_digest=_trust_bundle_digest(trust_bundle),
+    )
+
+
+def _desired_kind(root: Path, variant: str) -> DesiredImage:
+    identity = backend_runtime_identity(variant)
+    backend_lock = backend_constraint_lock(variant)
+    return DesiredImage(
+        f"kinds.{variant}",
+        f"{_KIND_REPOSITORY_PREFIX}{variant}",
+        _kind_source_digest(root, variant),
+        lock_digest(constraint_lock(variant)),
+        parent="base",
+        backend_lock_digest=(lock_digest(backend_lock) if backend_lock is not None else None),
+        backend_identity=(
+            (identity.source_repository, identity.source_revision, identity.dependency_lock_digest)
+            if identity is not None
+            else None
+        ),
+    )
+
+
+def _published_identity(name: str, image: PublishedImage, *, parent: str | None) -> str:
+    """Reconstruct the semantic identity recorded by a prior manifest entry.
+
+    Missing fields deliberately produce a different identity.  The first
+    release after an identity strengthening must rebuild rather than pretend
+    an older manifest proved inputs it did not record.
+    """
+
+    backend = image.backend_runtime_identity
+    return DesiredImage(
+        name,
+        image.repository,
+        image.runtime_source_digest or "",
+        image.lock_digest,
+        parent=parent,
+        trust_bundle_digest=image.trust_bundle_digest,
+        backend_lock_digest=image.backend_lock_digest,
+        backend_identity=(
+            (backend.source_repository, backend.source_revision, backend.dependency_lock_digest)
+            if backend is not None
+            else None
+        ),
+    ).identity
+
+
+def _remote_observation(
+    builder: BuildKitRuntimeBuilder,
+    *,
+    reference: str,
+    digest: str,
+    identity: str,
+) -> ObservedImage:
+    try:
+        builder.verify_remote(RuntimeImageRef(reference))
+    except RemoteImageNotFoundError:
+        return ObservedImage("missing", detail="registry does not retain the digest")
+    except RuntimeError as error:
+        return ObservedImage("unreachable", detail=str(error))
+    return ObservedImage("present", digest=digest, identity=identity)
+
+
+def _release_image_plan(
+    *,
+    root: Path,
+    prefix: str,
+    builder: BuildKitRuntimeBuilder,
+    trust_bundle: Path | None,
+    variants: Sequence[str] | None,
+) -> tuple[ReleaseImagePlan, PublishedManifest | None]:
+    """Inspect current/published image evidence and produce one pure plan.
+
+    The source is the prior manifest's canonical registry; the destination is
+    the registry selected for this candidate.  They may be identical.  Every
+    observation is digest-pinned, so an existing tag cannot make a different
+    image look reusable.
+    """
+
+    try:
+        prior = load_manifest(verify_locks=False, verify_variants=False)
+    except ManifestError:
+        prior = None
+    desired = [_desired_base(root, trust_bundle)]
+    selected = set(_normalize_variants(variants)) if variants is not None else set()
+    desired.extend(replace(_desired_kind(root, variant), forced=variant in selected) for variant in RUNTIME_VARIANTS)
+    source: dict[str, ObservedImage] = {}
+    destination: dict[str, ObservedImage] = {}
+    content_reader = (
+        DistributionRegistryContentReader(UrllibDistributionTransport(trust_bundle=trust_bundle))
+        if prior is not None and prior.default_prefix.rstrip("/") != prefix.rstrip("/")
+        else None
+    )
+    if prior is not None:
+        published = ((desired[0], prior.base),) + tuple(
+            (node, prior.image(variant)) for node, variant in zip(desired[1:], RUNTIME_VARIANTS, strict=True)
+        )
+        for node, image in published:
+            previous_identity = _published_identity(node.name, image, parent=node.parent)
+            source_ref = _prior_ref(prior.default_prefix, image.repository, image.digest)
+            destination_ref = _prior_ref(prefix, image.repository, image.digest)
+            source[node.name] = _remote_observation(
+                builder,
+                reference=source_ref,
+                digest=image.digest,
+                identity=previous_identity,
+            )
+            if destination_ref == source_ref:
+                destination[node.name] = source[node.name]
+            else:
+                destination[node.name] = _remote_observation(
+                    builder,
+                    reference=destination_ref,
+                    digest=image.digest,
+                    identity=previous_identity,
+                )
+            if content_reader is not None and source[node.name].status == "present":
+                try:
+                    missing_blob_bytes = content_reader.missing_blob_bytes(
+                        RegistryManifestRef.parse(source_ref),
+                        f"{prefix.rstrip('/')}/{image.repository}",
+                    )
+                except (ContractError, OSError, RuntimeError):
+                    # The action remains correct without byte inventory.  The
+                    # plan explicitly reports an unknown copy payload rather
+                    # than turning an otherwise inspectable release into a
+                    # blind build because one registry refuses blob HEADs.
+                    pass
+                else:
+                    source[node.name] = replace(source[node.name], missing_blob_bytes=missing_blob_bytes)
+    return plan_release_images(tuple(desired), source=source, destination=destination), prior
+
+
 def _reuse_unchanged_kind(
     variant: str,
     root: Path,
@@ -201,7 +380,7 @@ def _reuse_unchanged_base(
         previous = load_manifest(verify_locks=False, verify_variants=False).base
     except ManifestError:
         return None
-    expected = lock_digest()
+    expected = lock_digest(BASE_LOCK)
     if previous.lock_digest != expected:
         return None
     if previous.runtime_source_digest != runtime_source_digest:
@@ -262,7 +441,6 @@ def publish_release(
     """
     root = cached_definition_root()
     base_source_digest = _base_source_digest(root)
-    kind_source_digest = _kind_source_digest(root)
     trust_digest = _trust_bundle_digest(trust_bundle)
     normalized = prefix.rstrip("/")
     supplied = provided_packages or {}
@@ -273,28 +451,33 @@ def publish_release(
         "force_compression": force_compression,
     }
 
-    if base_image is not None:
-        published_base = base_image
-        base_lock = lock_digest()
-        base = PublishedImage(
-            name="base",
-            repository=_BASE_REPOSITORY,
-            digest=published_base.value.rsplit("@", 1)[1],
-            lock_digest=base_lock,
-            constraint_lock=constraint_lock("supervised"),
-            runtime_source_digest=base_source_digest,
-            trust_bundle_digest=trust_digest,
+    release_plan: ReleaseImagePlan | None = None
+    prior_manifest: PublishedManifest | None = None
+    if base_image is None:
+        release_plan, prior_manifest = _release_image_plan(
+            root=root,
+            prefix=normalized,
+            builder=builder,
+            trust_bundle=trust_bundle,
+            variants=variants,
         )
-    else:
-        reused = _reuse_unchanged_base(
-            normalized,
-            builder,
-            runtime_source_digest=base_source_digest,
-            trust_bundle_digest=trust_digest,
-        )
-        if reused is not None:
-            published_base = RuntimeImageRef(f"{normalized}/{reused.repository}@{reused.digest}")
-            base = reused
+        base_node = release_plan.node("base")
+        if base_node.action == "blocked":
+            raise RuntimeError(f"base image publication is blocked: {base_node.reason}")
+        if base_node.action == "reuse-remote":
+            assert prior_manifest is not None
+            base = prior_manifest.base
+            published_base = RuntimeImageRef(f"{normalized}/{base.repository}@{base.digest}")
+        elif base_node.action == "copy":
+            assert prior_manifest is not None and base_node.expected_digest is not None
+            source_image = prior_manifest.base
+            published_base = builder.copy_remote(
+                RuntimeImageRef(_prior_ref(prior_manifest.default_prefix, source_image.repository, source_image.digest)),
+                destination_repository=f"{normalized}/{source_image.repository}",
+                expected_digest=base_node.expected_digest,
+                tag=f"reuse-{base_node.desired.identity[:16]}",
+            )
+            base = source_image
         else:
             prior_base = _prior_base_ref(normalized)
             cache_from = (prior_base,) if prior_base is not None else ()
@@ -306,7 +489,7 @@ def publish_release(
                     target=_BASE_REPOSITORY,
                     repository=f"{normalized}/{_BASE_REPOSITORY}",
                     source_digest=base_source_digest,
-                    lock_digest=lock_digest(),
+                    lock_digest=lock_digest(BASE_LOCK),
                     base_image=RuntimeImageRef(f"scratch@sha256:{'0' * 64}"),
                     variables=_bake_variables(created=created, revision=revision, version=framework_version),
                     cache_from=cache_from,
@@ -319,15 +502,27 @@ def publish_release(
                 name="base",
                 repository=_BASE_REPOSITORY,
                 digest=published_base.value.rsplit("@", 1)[1],
-                lock_digest=lock_digest(),
-                constraint_lock=constraint_lock("supervised"),
+                lock_digest=lock_digest(BASE_LOCK),
+                constraint_lock=BASE_LOCK,
                 runtime_source_digest=base_source_digest,
                 trust_bundle_digest=trust_digest,
             )
-
+    elif base_image is not None:
+        published_base = base_image
+        base_lock = lock_digest(BASE_LOCK)
+        base = PublishedImage(
+            name="base",
+            repository=_BASE_REPOSITORY,
+            digest=published_base.value.rsplit("@", 1)[1],
+            lock_digest=base_lock,
+            constraint_lock=BASE_LOCK,
+            runtime_source_digest=base_source_digest,
+            trust_bundle_digest=trust_digest,
+        )
     def _build_kind(variant: str) -> PublishedImage:
         lock = constraint_lock(variant)
         backend_lock = backend_constraint_lock(variant)
+        kind_source_digest = _kind_source_digest(root, variant)
         prior_kind = _prior_kind_ref(normalized, variant)
         cache_from = tuple(ref for ref in (published_base.value, prior_kind) if ref)
         result = builder.build(
@@ -366,6 +561,37 @@ def publish_release(
         )
 
     def _resolve_kind(variant: str) -> PublishedImage:
+        if release_plan is not None:
+            node = release_plan.node(f"kinds.{variant}")
+            if node.action == "blocked":
+                raise RuntimeError(f"{variant} image publication is blocked: {node.reason}")
+            if node.action == "reuse-remote":
+                assert prior_manifest is not None
+                image = prior_manifest.image(variant)
+                return replace(
+                    image,
+                    name=f"kinds.{variant}",
+                    provided_packages=supplied.get(variant) or image.provided_packages or _provided_packages(variant, root),
+                )
+            if node.action == "copy":
+                assert prior_manifest is not None and node.expected_digest is not None
+                image = prior_manifest.image(variant)
+                copied = builder.copy_remote(
+                    RuntimeImageRef(_prior_ref(prior_manifest.default_prefix, image.repository, image.digest)),
+                    destination_repository=f"{normalized}/{image.repository}",
+                    expected_digest=node.expected_digest,
+                    tag=f"reuse-{node.desired.identity[:16]}",
+                )
+                if copied.value.rsplit("@", 1)[1] != image.digest:
+                    raise RuntimeError(f"{variant}: registry copy returned a different digest")
+                return replace(
+                    image,
+                    name=f"kinds.{variant}",
+                    provided_packages=supplied.get(variant) or image.provided_packages or _provided_packages(variant, root),
+                )
+            return _build_kind(variant)
+
+        kind_source_digest = _kind_source_digest(root, variant)
         if variant in selected:
             return _build_kind(variant)
         # Prefer a receipt for an already-built image from this release identity

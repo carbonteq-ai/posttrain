@@ -123,12 +123,14 @@ flowchart TB
 | `packages/execution` | Provider-neutral launch contracts, immutable job-package identity, lifecycle, reconciliation, and cleanup | dstack SDK calls, Docker commands, job semantics |
 | `packages/execution-pack` | Framework job-package planning and materialization across project code, environment sources, datasets, and image levels | Provider scheduling, registry operation, environment semantics |
 | `packages/execution-buildkit` | BuildKit adapter, immutable image publication, qualification, and protected receipts | Choosing job inputs or owning infrastructure services |
+| `packages/execution-job-builder` | Remote client adapter for the existing immutable actual-job publication contract | Job semantics, Dockerfile/build-argument selection, registry credentials, or release publication |
 | `packages/runtime-images` | Shipped container definitions (base, job-kind, actual-job), runtime profiles and locks, and the per-release manifest pinning published base/kind digests | Building or pushing images, registry credentials, project or job selection |
 | `packages/execution-local` / `execution-dstack` | Local Docker and dstack launch adapters over the same digest-pinned actual-job image | A second code/data upload protocol |
 | `apps/cli` | Primary `posttrain` command: project initialization and install, diagnostics, catalog/work-package execution, and Observatory bring-up | Capability semantics, provider storage logic, project decisions |
 | `apps/lab` | Reference project and qualification suite: scenario policy, backend integration tests, and hardware release gates | Being imported by ordinary projects or owning the standard job contract |
 | `apps/observatory` | Dedicated read product: telemetry definitions, query/intelligence service, Python API, HTTP API, MCP, frontend, materialized reports, and versioned serving-capacity interpretation | Provider storage queries, execution, mutation of runs, or “winner” selection |
 | `apps/release` | Framework-owner release tooling: building the base and job-kind images, publishing them to the framework's public registry, and regenerating the pinned image manifest | Being a dependency of `posttrain`, project or job semantics, site registry policy |
+| `apps/job-builder` | Optional authenticated, isolated service that reconstructs one declared packed context and invokes the existing BuildKit actual-job publisher | Framework base/kind release publication, arbitrary BuildKit/Docker access, project policy, or provider scheduling |
 | Env packages (e.g. AutomationBench) | Published Verifiers environments | Importing lab or train/serve packages |
 
 ### Dependency rules (DX contracts)
@@ -192,6 +194,14 @@ flowchart TB
     package-exported factory reference. Packing may combine several
     full-commit Git sources, and the runtime activates each environment only
     after its locked wheel is installed in the actual-job image.
+16. **Builder transport never changes job meaning.** The local and remote
+    builders receive the same immutable package and publication contracts and
+    must return the same package key, publication key, parent identity, and
+    actual-job digest. A remote builder is a machine-local service selection;
+    it may receive only the declared, content-addressed packed context and may
+    not accept Dockerfiles, extra build arguments, build secrets, or registry
+    credentials from a project client. The isolated developer builder is not
+    the protected release builder.
 
 ### Observatory distribution boundary
 

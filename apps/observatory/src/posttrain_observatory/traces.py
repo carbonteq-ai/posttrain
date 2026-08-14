@@ -8,7 +8,7 @@ from collections import defaultdict
 from collections.abc import Awaitable, Callable, Mapping
 from itertools import product
 from statistics import fmean
-from typing import Any, Literal, cast
+from typing import Any, cast
 
 from posttrain.common import JsonValue
 from posttrain.tracking import RunDataSource, TraceFactAggregate, TraceFactsQuery, TraceQuery, TraceRecord
@@ -796,31 +796,6 @@ def _summary(record: TraceRecord, evaluation_metadata: EvaluationMetadata | None
     )
 
 
-def _optimizer_step(record: TraceRecord) -> int | None:
-    """Return an explicitly recorded optimizer step, never a page position.
-
-    Current Verifiers exports persist ``optimizer_step``. Older v2 exports
-    persist the same training-step identity under ``run.step``; accept that
-    compatibility form only for a trace explicitly marked as a training run.
-    """
-
-    candidates: list[object] = [
-        record.attributes.get("optimizer_step"),
-        record.payload.get("optimizer_step"),
-    ]
-    metadata = record.payload.get("metadata")
-    if isinstance(metadata, Mapping):
-        candidates.append(metadata.get("optimizer_step"))
-    run = record.payload.get("run")
-    if isinstance(run, Mapping) and run.get("type") == "train":
-        candidates.append(run.get("step"))
-    for candidate in candidates:
-        step = _integer(candidate)
-        if step is not None:
-            return step
-    return None
-
-
 def _predicate_matches(value: float, metadata: EvaluationMetadata) -> bool | None:
     definition = metadata.success_definition
     if definition is None:
@@ -1077,9 +1052,8 @@ async def rollout_behavior_view(
     *,
     expected: int | None = None,
     trace_type: str = "verifiers",
-    safety_limit: int = 5000,
 ) -> RolloutBehaviorView:
-    """Aggregate retained rollout traces by their recorded optimizer step."""
+    """Read persisted rollout facts without reopening native trace payloads."""
 
     aggregate = cast(
         Callable[[str, TraceFactsQuery], Awaitable[Any]] | None,
@@ -1128,70 +1102,14 @@ async def rollout_behavior_view(
                 live=False,
             )
 
-    cursor: str | None = None
-    records: list[TraceRecord] = []
-    live = False
-    while len(records) < safety_limit:
-        page = await source.traces(
-            run_id,
-            TraceQuery(
-                trace_type=trace_type,
-                cursor=cursor,
-                limit=min(1000, safety_limit - len(records)),
-                include_payload=True,
-            ),
-        )
-        live = page.live
-        records.extend(page.items)
-        if page.next_cursor is None:
-            cursor = None
-            break
-        cursor = page.next_cursor
-
-    grouped: dict[int, list[TraceRecord]] = defaultdict(list)
-    unattributed = 0
-    for record in records:
-        step = _optimizer_step(record)
-        if step is None:
-            unattributed += 1
-        else:
-            grouped[step].append(record)
-
-    points: list[RolloutBehaviorPoint] = []
-    for step, values in sorted(grouped.items()):
-        summaries = [_summary(value) for value in values]
-        thinking = [float(item.thinking_tokens) for item in summaries if item.thinking_tokens is not None]
-        # Completion is the provider's total generated-token count. Thinking
-        # is a subset of it, so it must not be relabelled as an independent
-        # "output" remainder in this overview.
-        output = [
-            float(item.completion_tokens) if item.completion_tokens is not None else float(cast(int, item.tokens))
-            for item in summaries
-            if item.completion_tokens is not None or item.tokens is not None
-        ]
-        tools = [float(item.tool_calls) for item in summaries if item.tool_calls is not None]
-        points.append(
-            RolloutBehaviorPoint(
-                step=step,
-                rollouts=len(values),
-                thinking_tokens=fmean(thinking) if thinking else None,
-                output_tokens=fmean(output) if output else None,
-                tool_calls=fmean(tools) if tools else None,
-            )
-        )
-
-    complete = cursor is None and (expected is None or len(records) >= expected)
-    state: str = "complete" if complete else "partial"
-    if not records or not points:
-        state = "unavailable"
     return RolloutBehaviorView(
-        state=cast("Literal['complete', 'partial', 'unavailable']", state),
-        scanned=len(records),
+        state="unavailable",
+        scanned=0,
         expected=expected,
-        included=sum(point.rollouts for point in points),
-        unattributed=unattributed,
-        points=tuple(points),
-        live=live,
+        included=0,
+        unattributed=0,
+        points=(),
+        live=False,
     )
 
 

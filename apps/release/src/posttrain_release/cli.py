@@ -5,12 +5,14 @@ Not shipped to consumers: `posttrain` does not depend on this distribution.
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
 from typing import Annotated
 
 import typer
+from posttrain.runtime_images import cached_definition_root
 from posttrain_execution_buildkit import BuildKitRuntimeBuilder
 
 from .artifacts import (
@@ -20,11 +22,17 @@ from .artifacts import (
     write_distribution_receipt,
 )
 from .candidate import fetch_simple_artifacts, next_candidate_version
+from .fork_ledger import render_fork_ledger
 from .promotion import create_promotion_receipt, write_promotion_receipt
-from .publish import publish_release
+from .publish import _release_image_plan, publish_release
 from .readiness import run_readiness, verify_readiness_receipt, write_readiness_receipt
 from .repository_audit import inspect_repository
-from .runtime_lock import materialize_runtime_lock, synchronize_runtime_profile_pins
+from .runtime_lock import (
+    compile_runtime_locks,
+    export_runtime_workspace_lock,
+    materialize_runtime_lock,
+    synchronize_runtime_profile_pins,
+)
 from .versioning import check_release, load_release_manifest, lock_dependencies, prepare_release, stage_release
 
 app = typer.Typer(help="publish framework runtime images and pin the release manifest")
@@ -32,6 +40,16 @@ images_app = typer.Typer(help="runtime image release operations")
 app.add_typer(images_app, name="images")
 
 _MANIFEST_RELATIVE = Path("packages/runtime-images/src/posttrain/runtime_images/published.toml")
+
+
+@app.command("fork-ledger", help="render the maintained-fork release closure selected by this checkout")
+def fork_ledger_cmd(
+    repository_root: Annotated[
+        Path,
+        typer.Option("--repository-root", help="framework checkout to inspect"),
+    ] = Path("."),
+) -> None:
+    print(json.dumps(render_fork_ledger(repository_root), indent=2, sort_keys=True))
 
 
 @app.command("readiness", help="run deterministic release checks and write an immutable source-readiness receipt")
@@ -130,12 +148,18 @@ def lock_runtime_dependencies_cmd(
         typer.Option("--check", help="report whether materialization is pending without writing"),
     ] = False,
 ) -> None:
-    result = materialize_runtime_lock(repository_root, check=check)
-    packages = ", ".join(result.packages) or "none"
-    if check and result.changed:
+    exported = export_runtime_workspace_lock(repository_root, check=check)
+    materialized = materialize_runtime_lock(repository_root, check=check)
+    compiled = compile_runtime_locks(repository_root, check=check)
+    packages = ", ".join(materialized.packages) or "none"
+    if check and (exported.changed or materialized.changed or compiled.changed_paths):
         raise typer.Exit(code=1)
-    state = "updated" if result.changed else "current"
-    print(f"runtime dependency lock {state}: {result.path} ({packages})")
+    state = "updated" if exported.changed or materialized.changed or compiled.changed_paths else "current"
+    paths = ", ".join(str(path) for path in compiled.changed_paths) or "none"
+    print(
+        f"runtime dependency locks {state}: {exported.path}; "
+        f"internal receipts: {materialized.path} ({packages}); narrow closures: {paths}"
+    )
 
 
 @app.command(
@@ -406,6 +430,60 @@ def publish_cmd(
         raise typer.BadParameter(f"not a framework checkout: {repository_root}")
     destination.write_text(rendered, encoding="utf-8")
     print(f"pinned {destination}")
+
+
+@images_app.command("plan", help="inspect immutable release-image inputs and print only the required actions")
+def plan_cmd(
+    registry: Annotated[
+        str,
+        typer.Option("--registry", help="destination registry prefix to inspect"),
+    ],
+    receipt_root: Annotated[
+        Path,
+        typer.Option("--receipt-root", help="builder receipt directory (not modified by planning)"),
+    ],
+    repository_root: Annotated[
+        Path,
+        typer.Option("--repository-root", help="framework checkout containing the installed definitions"),
+    ] = Path("."),
+    trust_bundle: Annotated[
+        Path | None,
+        typer.Option("--trust-bundle", help="machine-owned CA bundle whose bytes are part of the base identity"),
+    ] = None,
+    variant: Annotated[
+        list[str] | None,
+        typer.Option("--variant", help="force this job-kind to rebuild in the displayed plan (repeatable)"),
+    ] = None,
+) -> None:
+    root = repository_root.resolve()
+    if not root.is_dir():
+        raise typer.BadParameter(f"framework checkout does not exist: {repository_root}")
+    plan, _ = _release_image_plan(
+        root=cached_definition_root(),
+        prefix=registry.rstrip("/"),
+        builder=BuildKitRuntimeBuilder(receipt_root=receipt_root.resolve()),
+        trust_bundle=trust_bundle.resolve() if trust_bundle is not None else None,
+        variants=variant,
+    )
+    document = {
+        "blocked": plan.blocked,
+        "known_transfer_bytes": plan.known_transfer_bytes,
+        "has_unknown_transfer_bytes": plan.has_unknown_transfer_bytes,
+        "nodes": [
+            {
+                "name": node.desired.name,
+                "repository": node.desired.repository,
+                "action": node.action,
+                "reason": node.reason,
+                "expected_digest": node.expected_digest,
+                "estimated_transfer_bytes": node.estimated_transfer_bytes,
+                "source_status": node.source.status,
+                "destination_status": node.destination.status,
+            }
+            for node in plan.nodes
+        ],
+    }
+    print(json.dumps(document, indent=2, sort_keys=True))
 
 
 def main(argv: list[str] | None = None) -> int:

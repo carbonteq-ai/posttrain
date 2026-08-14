@@ -124,12 +124,11 @@ evidence. It adds no new job kind, selection, or project decision.
   development pin and lockfile. The isolated candidate and shared Trackio
   servers both report dev4; a real native trace/component aggregate
   qualification passed and removed its synthetic project.
-- [ ] (2026-08-15 00:20Z) Materialize a Posttrain-owned development runtime
-  candidate containing the dev4 dependency, then run two bounded local jobs
-  (one training and one evaluation) and verify their facts through Trackio.
-  Candidate `0.3.16rc11` was published with immutable RL and evaluation image
-  receipts. The first local GRPO smoke reached live rollout generation and
-  exposed an enrichment contract defect; the repaired rerun is in progress.
+- [x] (2026-08-15 11:38Z) Materialized Posttrain-owned development runtime
+  candidates through `0.3.16rc17` and completed two bounded local jobs. The
+  six-update DAPO run retains 48 traces with complete source and algorithm
+  reward coverage; the evaluation run retains 16 traces with complete shared
+  source-fact coverage and correctly absent algorithm reward.
 - [x] (2026-08-15 00:35Z) Repaired the manual runtime-candidate materializer:
   it now synchronizes internal runtime-profile pins from the candidate's
   already-resolved dev lock in its disposable checkout. This prevents a dev
@@ -220,7 +219,64 @@ evidence. It adds no new job kind, selection, or project decision.
   candidate from Posttrain. (Dev4 is consumed; stable promotion remains.)
 - [x] Add the provider-neutral reader contract and use it from Observatory.
 - [ ] Backfill retained production Verifiers traces, qualify complete
-  GRPO/OPD/evaluation reads, promote, and pin the stable release.
+  GRPO/OPD/evaluation reads, promote, and pin the stable release. Completed:
+  Trackio dev15 is released and deployed to both Doris services; the retained
+  GRPO, OPD, and evaluation gates pass; all 21,572 historical Ambient Agent
+  traces project into all 100 optimizer-step buckets. The identical dev15
+  assets have been promoted unchanged to the stable index, and Observatory now
+  returns an explicit unavailable state rather than scanning raw payloads when
+  trace facts are unavailable. Remaining: materialize the next Posttrain
+  candidate image graph and run its final release validation.
+- [x] (2026-08-14 15:25Z) Replaced the five-page historical accumulator with a
+  checkpointed pipeline: one source and writer session processes an at-most
+  5,000-trace orchestration window, but reads, projects, writes, and flushes a
+  sanitized resume receipt after every at-most-1,000-trace physical page. Unit
+  coverage proves one-session reuse, ordered checkpoints, and interruption
+  recovery after the last successful write; all 146 CLI tests pass.
+- [x] (2026-08-14 15:25Z) Finished the historical Ambient Agent projection from
+  cursor 14,100 through EOF at 21,572. The payload-free aggregate now reports
+  21,572 traces in exactly 100 ordered `rollout_step` buckets, from step 1
+  through step 100.
+- [x] (2026-08-14 15:25Z) Previewed, applied, and EOF-checked the terminal
+  succeeded OPD run `opdq-ceil03-iwopd-e2b12b-c12-lb12-pb3-rseq12` (provider
+  run `e3aa5ad1a76c4dfd80dd9e4132c4da95`). Its payload-free aggregate reports
+  all 12 retained traces in rollout step 0 with full model-call, output-token,
+  tool-call, and latency coverage; the historical records correctly have no
+  task-reward coverage.
+- [x] (2026-08-14 16:15Z) Published the selected CarbonTeq vLLM source overlay
+  manually as GitHub prerelease `carbonteq-v0.25.2.dev2`, bound to runtime
+  revision `7817d845727af570352622dc8d58f2d43c76d89d`. The retained source
+  archive and its portable checksum were independently downloaded and verified
+  as `8d4736461fbc3bf72075b4d84417208b3c5fc9ffc6f48bf26cbe9ef955cf307b`.
+  This does not substitute for the existing upstream ABI wheel or GPU
+  qualification; it closes the missing immutable source-overlay receipt.
+- [x] (2026-08-14 16:20Z) Published the selected AutomationBench compatibility
+  source manually as GitHub prerelease `carbonteq-v1.0.5.post1`, bound to the
+  vendored environment revision `908db2abd4a868acc37ab0850474bff653bea25c`.
+  Independent release download verified wheel SHA-256
+  `bd80b4947fbdd60706d9545e79635b79931d89dfc294ed45b01df6886c1f1509` and
+  source SHA-256 `04ccef85e2a83bd26777a10a08702b4fb6a47169352777ab8564fa1bbba9acf6`.
+  The inherited tag-triggered fork publisher was removed from the maintained
+  branch; subsequent releases remain manual.
+- [x] (2026-08-14 16:30Z) Replaced the former Trackio/TRL-only readiness
+  snapshot with `posttrain-release fork-ledger`. It cross-checks direct package
+  metadata, the veRL kind profile, the AutomationBench environment source, and
+  the deployed dstack identity before embedding the six-entry result in a
+  version-2 readiness receipt. The ledger marks the deployed upstream dstack
+  digest as non-required; its unrelated unpublished cancellation candidate can
+  no longer silently block or falsely satisfy a Posttrain candidate.
+- [x] (2026-08-14) Re-ran the complete local source gate after the candidate
+  manifest and trace-fact protocol changes: `1245 passed, 23 skipped`; `ruff`,
+  `pyright`, `lint-imports`, and `git diff --check` pass. Runtime/CLI unit
+  tests now model a pending candidate structurally while release tests retain
+  strict shipped-manifest validation, so a source candidate cannot make the
+  production consumer loader permissive merely to satisfy unit tests.
+- [ ] (2026-08-14) Materialize the next Posttrain candidate base and six
+  dependent kind images from a committed, pushed candidate ref. The live
+  desired-versus-observed registry plan is intentionally `build` for every
+  node because no compatible candidate base exists. The materializer verifies
+  `HEAD` against the requested remote ref, so it cannot safely or reproducibly
+  run from this dirty working tree.
 
 ## Surprises & Discoveries
 
@@ -274,6 +330,30 @@ evidence. It adds no new job kind, selection, or project decision.
   post13. Candidate publication must synchronize both inputs in its disposable
   checkout; changing the committed stable profile would make ordinary
   consumers select an unpublished candidate.
+
+- Observation: constraining a fresh `uv pip compile` with an older exported
+  requirements file is not a release-closure proof. Evidence: Trackio dev15
+  requires `boto3`, `botocore`, and `s3transfer`, which were present in the
+  root `uv.lock` but absent from the stale runtime export; a fresh compile also
+  enumerated later artifacts for already-selected versions. The runtime
+  materializer now exports its workspace constraint file directly from
+  `uv.lock`, replaces internal requirements with their immutable wheel
+  receipts, and projects each non-transform image closure through the exact
+  lock graph without a second solve.
+
+- Observation: a fork source overlay can have a release boundary without
+  manufacturing a CUDA wheel. Evidence: the veRL profile verifies a separately
+  retained upstream ABI3 vLLM wheel and overlays only the CarbonTeq Python
+  source revision. A manual source archive plus a commit-bound GitHub release
+  makes that overlay independently auditable without reintroducing a local
+  native build into the release path.
+
+- Observation: release readiness cannot infer the full fork closure solely
+  from the root Python lock. veRL and vLLM are selected by an isolated kind
+  profile, AutomationBench is vendored by a dynamically resolved environment,
+  and dstack is a service identity. The generated ledger cross-checks each
+  owning selection surface and records an upstream deployed service separately
+  from an unpublished CarbonTeq service candidate.
 
 - Observation: an algorithm enrichment must not request reward-component
   replacement. Trackio accepts replacement only for the original
@@ -390,6 +470,17 @@ evidence. It adds no new job kind, selection, or project decision.
   image work must make framework-owned package-image reuse and capacity
   preflight explicit before a build, rather than relying on manual cache
   cleanup.
+
+- Observation: increasing the historical maintenance command from one 1,000
+  trace page to a 5,000-trace in-memory page reduced command invocations but
+  weakened progress visibility and recovery. The replacement pipeline retained
+  the 5,000-trace orchestration window while checkpointing each 1,000-trace
+  physical page. The live completion used five checkpoints followed by three
+  checkpoints, exposed every safe cursor, and reached EOF without retaining
+  more than one raw page.
+  Evidence: the payload-free aggregate now reports 21,572 traces in 100 ordered
+  `rollout_step` buckets; an exact read at cursor 21,572 returned zero records
+  and no next cursor.
 
 ## Decision Log
 
@@ -647,23 +738,37 @@ evidence. It adds no new job kind, selection, or project decision.
   ordinary output from being misclassified as thought.
   Date/Author: 2026-08-14 / Codex
 
+- Decision: treat 5,000 traces as a bounded orchestration window, not as one
+  physical read, write, or checkpoint. Pipeline at most 1,000 native payloads
+  at a time, write that page through Trackio's generic batch endpoint, emit its
+  sanitized receipt and next cursor immediately, then continue until the
+  window limit or end of run. Reusing one source and writer session avoids
+  process churn without retaining five pages or hiding partial progress.
+  Rationale: Trackio's Doris fast path and the provider trace reader are already
+  bounded at 1,000. Preserving that boundary gives reliable retries and
+  observable cursors while one command can still process 5,000 traces.
+  Date/Author: 2026-08-14 / Codex
+
 ## Outcomes & Retrospective
 
-The shared producer-side boundary is implemented: training and evaluation now
-attach identical versioned Verifiers facts, and new model compatibility is an
-explicit tested rule rather than UI or storage parsing. The end-to-end outcome
-is not complete until the lightweight signal-source contract is implemented,
-Trackio persists and aggregates those facts, replay paths reach parity, and
-retained production traces are backfilled. The existing
-bounded Observatory raw-trace fallback remains only during that compatibility
-window and is removed after the published Trackio reader and retained-data
-backfill demonstrate full coverage.
+Milestones 1 through 3 are implemented and qualified. Training and evaluation
+attach identical versioned Verifiers facts; signal-source metadata and reward
+components are retained without judge execution telemetry; Trackio SQLite and
+Doris persist and aggregate the projection; Observatory prefers the generic
+aggregate; and real local DAPO and evaluation jobs prove the producer path.
+Trackio dev15 is manually released, hash-retained, published to the development
+channel, and deployed to both Doris services.
 
-The remaining work is now execution rather than architecture discovery. The
-plan fixes who emits native facts and later algorithm reward, how physical
-projection generations replace one another, what every token measure means,
-which exact Trackio operations exist, and how the deployed Doris database moves
-to schema version 2.
+The end-to-end outcome remains incomplete only at the final release boundary.
+The historical 100-step, retained OPD, and evaluation reads are qualified; the
+manually released Trackio dev15 and its exact Posttrain pin are selected, and
+the runtime lock/profiles now derive all image dependency bytes from that exact
+workspace resolution. The remaining work is to materialize the next candidate
+base/kind graph, prove first-install and partial-registry reuse against the
+live registry, then run the bounded actual-job image proof before stable
+promotion. The rollout view has no compatibility payload scan: it uses the
+trace-facts aggregate or reports unavailable. No new GPU training job is
+required unless an image or live integration gate exposes a defect.
 
 ## Context and Orientation
 
@@ -1097,9 +1202,10 @@ existing GRPO Policy optimization internal panel and make the same projection
 available to OPD runs when their job telemetry selects rollout behavior.
 Evaluation views can use the same aggregate API without `rollout_step`, for
 example grouping by task type or completion state; no evaluation pass/fail
-meaning is added. Keep the current raw-payload fallback only until the minimum
-Trackio version is released and deployed. Make partial coverage visible in the
-chart footer and never render missing thinking tokens as zero.
+meaning is added. Once the minimum Trackio version is released and deployed,
+remove the raw-payload fallback. The implemented view now does so: it reports
+an explicit unavailable state when facts are unavailable. Make partial coverage
+visible in the chart footer and never render missing thinking tokens as zero.
 
 In reward views, add a compact source label for each component: LLM judge,
 deterministic, human, environment, group, teacher, composite, or unknown. Show
@@ -1302,27 +1408,36 @@ The motivating run is:
 It has 21,572 retained Verifiers traces and 100 optimizer steps. Before the
 historical compatibility correction, its per-rollout behavior projection was
 unavailable because all training attribution lived under `payload.run.step`.
-The temporary Observatory reader confirms that the first 5,000 records cover
-steps 1 through 31; the Trackio backfill and aggregate API are the path to a
-complete, quick 100-step view.
+The deployed Trackio aggregate confirms all 21,572 projected records in 100
+ordered optimizer-step buckets. An EOF probe at cursor 21,572 returned no
+records and no next cursor, so this retained population is complete and no
+longer blocks removal of the Observatory payload fallback.
 
-The current released framework dependency is
-`carbonteq-trackio==0.31.5.post13` at fork commit
-`0aea237e916e05e675db1db648952e896e7816d8`. This plan must be revised with
-the immutable candidate and stable identities before those versions are used in
-consumer documentation.
+The current stable framework dependency remains
+`carbonteq-trackio==0.31.5.post13`. The qualified candidate is
+`carbonteq-trackio==0.31.5.post14.dev15` from fork commit
+`fa9d1c5853f325c16ad64758e6889d5399559f26`; both deployed Doris services
+report that version. Its retained wheel and sdist hashes are recorded in
+`docs/tooling/trackio/README.md`. Promotion must transfer those exact bytes
+unchanged before the stable profile and lock move away from post13.
 
 ## Interfaces and Dependencies
 
-At the end of Milestone 2, Trackio exposes these exact SDK operations:
+Trackio exposes these exact SDK operations:
 
     Run.upsert_trace_facts(
-        updates: Sequence[TraceFactUpdate],
+        update: TraceFactUpdate,
     ) -> TraceFactWriteReceipt
 
     Run.aggregate_trace_facts(
         query: TraceFactsQuery,
     ) -> TraceAggregateResult
+
+The remote server maps those operations to `/upsert_trace_facts` and
+`/get_trace_facts`. Historical maintenance additionally uses the generic
+`/bulk_upsert_trace_facts` endpoint, which accepts a bounded sequence and
+returns one ordinary receipt per trace. This batch endpoint is transport and
+storage optimization only; it does not add Verifiers semantics to Trackio.
 
 `TraceFactsQuery` contains the approved trace type, equality filters, group
 dimensions, and aggregate specifications. `TraceAggregateResult` contains
@@ -1333,11 +1448,11 @@ storage abstraction exposes an equivalent method, implemented by both
 `TraceFactUpdate` is the wire value for both full source replacement and
 scalar-only enrichment. `TraceAggregate` is one requested `(measure,
 operation, component_name?)` calculation. `TraceAggregateBucket` contains the
-grouped dimension values, matching trace count, and a value plus observed and
-missing counts for every requested aggregate. `TraceFactWriteReceipt` contains
-attempted, inserted, updated, unchanged, missing-trace, and rejected counts and
-the next cursor when a bounded page has more work. The remote server maps these
-unchanged logical values to `/upsert_trace_facts` and `/get_trace_facts`.
+grouped dimension values, matching trace count, and a value plus observed
+coverage for every requested aggregate. `TraceFactWriteReceipt` contains the
+physical trace ID, deterministic projection ID, and whether that projection
+changed storage. The Posttrain maintenance receipt—not the Trackio SDK
+receipt—owns page counts and the next cursor.
 
 The Posttrain-facing observation contract remains provider-neutral:
 `TraceObservation.facts` carries the initial source projection and
@@ -1440,3 +1555,17 @@ semantics, exact SDK and HTTP contracts, and a coordinated global Doris schema
 version 1 to version 2 migration. The earlier capability-version alternative
 was deliberately not retained; this deployment owns and upgrades the complete
 Trackio database schema.
+
+Revision note (2026-08-14): reconciled the plan with the implemented and live
+state after the local-job and historical-backfill work. Marked DAPO/evaluation
+qualification complete, recorded 14,100/21,572 historical coverage, corrected
+the actual Trackio SDK and receipt contracts, and replaced the five-page
+accumulator direction with a checkpointed 1,000-page pipeline inside a
+5,000-trace orchestration window. The remaining path reuses dev15 and existing
+job evidence rather than rebuilding or rerunning them.
+
+Revision note (2026-08-14): reconciled the documented rollout fallback with
+the implementation. `rollout_behavior_view` has already been aggregate-only:
+tests make `traces()` fail if that view attempts a native payload read. The
+service wording and release status now state the actual contract: facts are
+returned when supported and an explicit unavailable view is returned otherwise.

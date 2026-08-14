@@ -143,6 +143,17 @@ environment runtime, not a framework inference capability. Details:
 [05 · APIs](./05-apis.md) and the
 [tool-using environment architecture](../architecture/tool-using-environment-execution.md).
 
+**Amendment — optional remote actual-job builder (2026-08-14):** actual-job
+image meaning remains the immutable `JobPackageManifest` and
+`ImagePublicationSpec`; local BuildKit and an optional authenticated remote
+builder are interchangeable transports over that same publication contract.
+Remote mode is machine-local service configuration and may upload only the
+manifest-declared, content-addressed packed context after a plan response
+identifies missing blobs. It never accepts client Dockerfiles, build secrets,
+or registry credentials, and it is separate from the protected release
+builder. Details: [04 · Framework](./04-framework.md), [05 · APIs](./05-apis.md),
+and the [portable image supply-chain plan](../plan/portable-runtime-image-supply-chain.md).
+
 **Amendment — paired-assistant MTP rollout (2026-08-05):**
 `ModelCapabilities.mtp` means that a selected model can participate in
 rollout-only multi-token prediction through the selected backend. The

@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import pytest
 from posttrain.common import ContractError
 from posttrain.runtime_images import backend_runtime_labels
-from posttrain.runtime_images.manifest import load_manifest
+from posttrain.runtime_images.manifest import load_manifest as _load_manifest
 from posttrain_cli.checks import runtime_images_check
 from posttrain_cli.cli import main
 from posttrain_cli.context import CliState
@@ -33,12 +33,40 @@ from posttrain_execution_buildkit import (
 # Resolved lazily. Loading at import time makes a stale manifest a collection
 # error for the whole suite rather than a failure of the tests that depend on
 # it, which hides every unrelated result behind one problem.
+@pytest.fixture(autouse=True)
+def _candidate_manifest_for_runtime_image_tests(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Isolate runtime-verification behavior from candidate publication state.
+
+    A source candidate intentionally carries the last *published* OCI manifest
+    until its matching image graph is materialized.  The real consumer loader
+    must reject that mismatch; these tests instead exercise each verification
+    outcome against the declared candidate shape.  Release tests own the
+    strict manifest/publication gate.
+    """
+
+    manifest = _load_manifest(verify_locks=False)
+    for module in (
+        "posttrain_cli.execution_config",
+        "posttrain_cli.runtime_images",
+        "posttrain_cli.checks",
+        "posttrain_cli.commands.runtime",
+        "posttrain_cli.runtime_image_builds",
+    ):
+        monkeypatch.setattr(f"{module}.load_manifest", lambda: manifest)
+
+
 def _manifest():
-    return load_manifest()
+    return _load_manifest(verify_locks=False)
 
 
 def _expected_lock() -> str:
     return _manifest().expected_lock_digest("supervised")
+
+
+def _configured_lock(registry, variant: str) -> str:
+    """Return the lock a configured image slot, rather than a source candidate, selects."""
+
+    return registry.constraint_profiles[variant].contents_digest
 
 
 class _FakeInspector:
@@ -275,7 +303,7 @@ def test_packing_refuses_a_drifted_image_and_names_the_remedy(
     message = str(raised.value)
     assert "supervised" in message
     assert stale in message
-    assert _expected_lock() in message
+    assert _configured_lock(registry, "supervised") in message
     assert "--build-missing" in message
 
 
@@ -319,7 +347,7 @@ def test_verified_image_passes_without_building(
         "supervised",
         build_missing=True,
         manifest=_manifest(),
-        inspector=_FakeInspector(),
+        inspector=_FakeInspector(lock_digest=_configured_lock(registry, "supervised")),
     )
     assert result.ok
 

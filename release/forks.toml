@@ -1,0 +1,50 @@
+schema_version = 1
+
+# The release owner records only maintained CarbonTeq components that enter a
+# framework candidate.  Runtime/profile/package files remain the executable
+# selection authority; `posttrain-release fork-ledger` fails when either side
+# drifts.  `required = false` documents a deployed upstream component so an
+# unpublished local candidate cannot silently become a release blocker.
+
+[[fork]]
+id = "carbonteq-trackio"
+scope = "direct-package"
+repository = "https://github.com/carbonteq-ai/trackio"
+release_tag = "carbonteq-v0.31.5.post14.dev15"
+required = true
+
+[[fork]]
+id = "trl"
+scope = "direct-package"
+repository = "https://github.com/carbonteq-ai/trl"
+release_tag = "carbonteq-v1.9.2.post11"
+required = true
+
+[[fork]]
+id = "verl"
+scope = "runtime-kind"
+repository = "https://github.com/carbonteq-ai/verl"
+release_tag = "carbonteq-v0.9.0.dev2"
+required = true
+
+[[fork]]
+id = "vllm"
+scope = "runtime-kind-source-overlay"
+repository = "https://github.com/carbonteq-ai/vllm"
+release_tag = "carbonteq-v0.25.2.dev2"
+required = true
+
+[[fork]]
+id = "automationbench"
+scope = "environment-package-vendor"
+repository = "https://github.com/carbonteq-ai/AutomationBench"
+release_tag = "carbonteq-v1.0.5.post1"
+required = true
+
+[[fork]]
+id = "dstack"
+scope = "deployed-service"
+repository = "https://github.com/carbonteq-ai/dstack"
+release_tag = ""
+required = false
+deployed_image = "dstackai/dstack:0.20.29@sha256:6d57647be04cad42dff2343f4f50d41a3b8bb438ebc67165bc56aa92858e69ce"

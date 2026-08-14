@@ -2,22 +2,25 @@ from __future__ import annotations
 
 import hashlib
 import re
+from pathlib import PurePosixPath
 
 import pytest
 from posttrain.runtime_images import (
     BASE_BAKE_FILE,
+    BASE_LOCK,
     JOB_BAKE_FILE,
     KIND_BAKE_FILE,
     RUNTIME_VARIANTS,
     TRANSFORM_LOCK,
     VERL_BACKEND_LOCK,
-    WORKSPACE_LOCK,
     backend_constraint_lock,
     constraint_lock,
     definition_root,
     lock_digest,
     read_lock,
 )
+
+_WORKSPACE_LOCK = PurePosixPath("containers/posttrain-job-kinds/locks/workspace.lock.txt")
 
 
 def test_definition_root_exposes_all_three_image_levels() -> None:
@@ -58,7 +61,7 @@ def test_eval_kind_installs_one_locked_runtime_and_marks_it_preinstalled() -> No
         dockerfile = (root / "containers/posttrain-job-kinds/Dockerfile").read_text()
     assert "null_harness_warmup.py" not in dockerfile
     assert "uv sync --script" not in dockerfile
-    assert "--constraint /opt/posttrain/locks/workspace.lock.txt" in dockerfile
+    assert "--constraint /opt/posttrain/locks/eval.lock.txt" in dockerfile
     assert 'POSTTRAIN_VERIFIERS_PREINSTALLED="1"' in dockerfile
 
 
@@ -87,9 +90,14 @@ def test_every_variant_names_a_shipped_constraint_lock(variant: str) -> None:
     assert read_lock(lock), f"{variant} constraint lock is empty"
 
 
-def test_transform_is_the_only_variant_off_the_workspace_lock() -> None:
-    off_workspace = {v for v in RUNTIME_VARIANTS if constraint_lock(v) != WORKSPACE_LOCK}
-    assert off_workspace == {"transform"}
+def test_every_kind_has_its_own_runtime_closure() -> None:
+    locks = {variant: constraint_lock(variant) for variant in RUNTIME_VARIANTS}
+    assert len(set(locks.values())) == len(RUNTIME_VARIANTS)
+    assert locks["supervised"].name == "supervised.lock.txt"
+    assert locks["online-rl-trl-py312"].name == "online-rl-trl-py312.lock.txt"
+    assert locks["online-rl-verl-py313"].name == "online-rl-verl-py313.lock.txt"
+    assert locks["eval"].name == "eval.lock.txt"
+    assert locks["serve"].name == "serve.lock.txt"
     assert constraint_lock("transform") == TRANSFORM_LOCK
 
 
@@ -112,9 +120,9 @@ def test_constraint_lock_rejects_unknown_variants() -> None:
 
 
 def test_lock_digest_is_computed_from_the_shipped_bytes() -> None:
-    assert lock_digest() == hashlib.sha256(read_lock(WORKSPACE_LOCK)).hexdigest()
-    assert lock_digest() == lock_digest(WORKSPACE_LOCK)
-    assert lock_digest(TRANSFORM_LOCK) != lock_digest(WORKSPACE_LOCK)
+    assert lock_digest() == hashlib.sha256(read_lock(BASE_LOCK)).hexdigest()
+    assert lock_digest() == lock_digest(BASE_LOCK)
+    assert lock_digest(TRANSFORM_LOCK) != lock_digest(BASE_LOCK)
 
 
 def test_every_shipped_lock_has_a_distinct_stable_digest() -> None:
@@ -126,7 +134,111 @@ def test_every_shipped_lock_has_a_distinct_stable_digest() -> None:
     it agree with nothing. Whether a published image still matches its lock is
     checked against the manifest in test_manifest.py, from the shipped bytes.
     """
-    digests = {lock_digest(WORKSPACE_LOCK), lock_digest(TRANSFORM_LOCK)}
-    assert len(digests) == 2
+    locks = {BASE_LOCK, *(constraint_lock(variant) for variant in RUNTIME_VARIANTS)}
+    digests = {lock_digest(lock) for lock in locks}
+    assert len(digests) == len(locks)
     assert all(len(d) == 64 and d == d.lower() for d in digests)
-    assert lock_digest(WORKSPACE_LOCK) == lock_digest(WORKSPACE_LOCK)
+    assert lock_digest(BASE_LOCK) == lock_digest(BASE_LOCK)
+
+
+def _logical_requirements(lock: PurePosixPath) -> dict[str, str]:
+    """Read pip-compile blocks without treating comments as requirements."""
+
+    blocks = re.split(r"\n(?=[A-Za-z0-9_.-]+(?:\s+@|==))", read_lock(lock).decode("utf-8"))
+    requirements: dict[str, str] = {}
+    for block in blocks:
+        first = block.lstrip().splitlines()[0] if block.strip() else ""
+        match = re.match(r"(?P<name>[A-Za-z0-9_.-]+)(?:\s+@|==)", first)
+        if match is not None:
+            requirements[match.group("name").lower().replace("_", "-")] = block
+    return requirements
+
+
+def test_narrow_runtime_locks_pin_every_profile_root_and_artifact() -> None:
+    """Each image closure is independently installable and immutable.
+
+    Git requirements cannot participate in pip's hash mode, so their full
+    commit is the immutable receipt. Every wheel/sdist requirement must carry
+    a SHA-256 hash selected from the authoritative workspace resolution.
+    """
+
+    expected_roots = {
+        BASE_LOCK: {"torch", "triton"},
+        constraint_lock("supervised"): {"carbonteq-trackio", "pydantic", "pyyaml", "trl"},
+        constraint_lock("online-rl-trl-py312"): {"carbonteq-trackio", "trl", "vllm", "verifiers"},
+        constraint_lock("online-rl-verl-py313"): {"carbonteq-trackio", "verifiers"},
+        constraint_lock("eval"): {"carbonteq-trackio", "datasets", "vllm", "verifiers"},
+        constraint_lock("serve"): {"carbonteq-trackio", "vllm", "torchvision", "torchaudio"},
+        TRANSFORM_LOCK: {"datasets", "llmcompressor", "torch", "transformers"},
+    }
+    for lock, roots in expected_roots.items():
+        requirements = _logical_requirements(lock)
+        assert roots <= set(requirements), f"{lock} omits profile root(s) {sorted(roots - set(requirements))}"
+        for name, requirement in requirements.items():
+            if "git+https://" in requirement:
+                assert re.search(r"git\+https://[^@\s]+@[0-9a-f]{40}(?:\s|$)", requirement), (lock, name)
+            else:
+                assert "--hash=sha256:" in requirement or "#sha256=" in requirement, (lock, name)
+
+
+def test_narrow_runtime_locks_only_select_artifacts_from_the_workspace_resolution() -> None:
+    """Per-kind compilation cannot silently resolve a different dependency.
+
+    The base and non-transform kind locks project the framework workspace
+    resolution. Transform remains intentionally separate because its profile
+    is governed by ``tools/quantization/uv.lock``. The selected requirement
+    identity and every retained artifact hash must nevertheless be present in
+    the workspace resolution that the release lock names as authoritative.
+    """
+
+    workspace = _logical_requirement_blocks(_WORKSPACE_LOCK)
+    narrow_locks = (
+        BASE_LOCK,
+        *(constraint_lock(variant) for variant in RUNTIME_VARIANTS if variant != "transform"),
+    )
+    for lock in narrow_locks:
+        for name, requirement in _logical_requirements(lock).items():
+            candidates = workspace.get(name, ())
+            assert candidates, f"{lock} resolves {name} outside the workspace lock"
+            observed = _requirement_hashes(requirement)
+            if " @ " in _requirement_identity(requirement):
+                workspace_requirement = (
+                    next((item for item in candidates if observed & _requirement_hashes(item)), None)
+                    if observed
+                    else next(
+                        (item for item in candidates if _requirement_identity(requirement) == _requirement_identity(item)),
+                        None,
+                    )
+                )
+            else:
+                workspace_requirement = next(
+                    (item for item in candidates if _requirement_identity(requirement) == _requirement_identity(item)),
+                    None,
+                )
+            assert workspace_requirement is not None, (lock, name)
+            assert _requirement_hashes(requirement) <= _requirement_hashes(workspace_requirement), (lock, name)
+
+
+def _requirement_identity(requirement: str) -> str:
+    """Return the version/direct-reference line without comments or hashes."""
+
+    return requirement.lstrip().splitlines()[0].rstrip(" \\").split(" ;", 1)[0]
+
+
+def _requirement_hashes(requirement: str) -> set[str]:
+    return set(re.findall(r"--hash=sha256:([0-9a-f]{64})", requirement)) | set(
+        re.findall(r"#sha256=([0-9a-f]{64})", requirement)
+    )
+
+
+def _logical_requirement_blocks(lock: PurePosixPath) -> dict[str, tuple[str, ...]]:
+    """Return every marker-specific workspace block for each package name."""
+
+    blocks = re.split(r"\n(?=[A-Za-z0-9_.-]+(?:\s+@|==))", read_lock(lock).decode("utf-8"))
+    requirements: dict[str, list[str]] = {}
+    for block in blocks:
+        first = block.lstrip().splitlines()[0] if block.strip() else ""
+        match = re.match(r"(?P<name>[A-Za-z0-9_.-]+)(?:\s+@|==)", first)
+        if match is not None:
+            requirements.setdefault(match.group("name").lower().replace("_", "-"), []).append(block)
+    return {name: tuple(values) for name, values in requirements.items()}

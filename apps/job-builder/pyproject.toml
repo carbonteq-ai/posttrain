@@ -1,0 +1,27 @@
+[project]
+name = "posttrain-job-builder"
+version = "0.0.0"
+description = "Isolated admission and queue service for immutable Posttrain job images"
+authors = [{ name = "CarbonTeq" }]
+license = "Apache-2.0"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "fastapi>=0.136.3,<0.137",
+    "posttrain-common",
+    "posttrain-execution-pack",
+    "uvicorn>=0.51,<0.52",
+]
+
+[tool.uv]
+package = true
+
+[tool.uv.sources]
+posttrain-common = { workspace = true }
+posttrain-execution-pack = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/posttrain_job_builder"]

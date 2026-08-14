@@ -79,6 +79,73 @@ Fork and environment distributions may follow their own upstream-derived
 versions, but framework metadata and release notes must name the exact
 accepted versions.
 
+### Maintained-fork preflight
+
+The candidate must enumerate every maintained fork selected anywhere in the
+executable graph, not only direct Python dependencies. This includes forks
+selected by a runtime-image lock, an environment package, or the deployment
+plane. The receipt records one of three publication forms:
+
+- a Python distribution: immutable GitHub Release, wheel and source archive
+  hashes, development readback, accepted qualification, and stable readback;
+- a source-backed runtime: an immutable source release and retained build
+  artifact selected by the runtime lock; a moving branch or bare Git checkout
+  is not a release; or
+- a component release: one source revision binding all server images and
+  runner/shim binaries, their digests, deployment readback, and live
+  qualification.
+
+Posttrain does not build any of these dependencies during its candidate
+workflow. A missing release, an unpublished local fork commit, or a production
+deployment still running a different component revision blocks candidate
+creation. Upstream dependencies pinned directly by full SHA are recorded as
+third-party source inputs, but are not misrepresented as CarbonTeq forks.
+
+### Actual-job image delta contract
+
+The universal and job-kind images are release artifacts. An actual-job image
+must inherit the selected job-kind image by digest and add only the resolved
+job lock, environment/framework wheels, selected source, configuration, and
+materialized dataset files. It must not reinstall CUDA, PyTorch, vLLM, TRL, or
+veRL, and it must not include model weights or checkpoints.
+
+Before job publication, mirror the base and kind images by digest into the
+same registry prefix used for actual jobs. The image exporter must preserve
+the parent layer descriptors (`force-compression=false`); recompressing an
+existing parent changes every heavy layer digest and turns the first job for a
+kind into a multi-gigabyte upload. Candidate qualification compares the child
+manifest with its parent and requires the complete ordered parent layer list
+to be unchanged. The receipt reports the count and compressed bytes of only
+the new job layers so transfer cost is visible. A missing parent manifest or
+blob is a registry-retention failure, not permission to rebuild or recompress
+the ancestry.
+
+### Transfer-budget contract
+
+Release and job planning must report expected network work before opening a
+builder session. Report logical object size and missing bytes separately for
+the client-to-controller, controller-to-builder, builder-to-registry,
+registry-to-registry, and registry-or-artifact-cache-to-worker links. The
+completion receipt records the same links with observed bytes when the
+underlying service exposes them. A matching digest is zero payload work even
+when the referenced image is several gigabytes.
+
+Multi-gigabyte builds, registry copies, model/checkpoint staging, and dataset
+staging should run on the LAN side of the VPN when a separate developer
+job-build service is deployed. The protected `ai-release` builder remains
+release-only and must never accept end-user contexts or credentials. Without a
+developer job-build service, the supported path is the developer's own local
+BuildKit: its cold parent pull and job-layer upload are shown before execution,
+and its warm cache is reused. Model weights and large datasets are
+content-addressed worker artifacts, not runtime or actual-job layers.
+Concurrent requests for one content key share one producer, and a worker pulls
+only the selected kind plus missing job/model/data blobs rather than
+pre-pulling every supported runtime.
+
+The measured transfer matrix and first-install, warm-cache, partial-registry,
+one-kind-change, and base-change scenarios are maintained in
+[`portable-runtime-image-supply-chain.md`](./plan/portable-runtime-image-supply-chain.md#transfer-budget-matrix).
+
 ## Registry release contract
 
 A release uses two manually dispatched transactions. GitHub records approvals

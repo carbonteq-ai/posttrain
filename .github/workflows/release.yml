@@ -189,8 +189,8 @@ jobs:
             --dir .release/candidate
           candidate_manifest="$(find .release/candidate -type f -name published.toml -print -quit)"
           test -n "${candidate_manifest}"
-          candidate_workspace_lock="$(find .release/candidate -type f -name workspace.lock.txt -print -quit)"
-          test -n "${candidate_workspace_lock}"
+          candidate_runtime_locks="$(find .release/candidate -type d -name runtime-locks -print -quit)"
+          test -n "${candidate_runtime_locks}"
           candidate_receipt="$(find .release/candidate -type f -name python-release-receipt.json -print -quit)"
           test -n "${candidate_receipt}"
           candidate_wheelhouse="$(find .release/candidate -type f -name 'posttrain-wheelhouse-*.tar.gz' -print -quit)"
@@ -206,10 +206,10 @@ jobs:
           test "${candidate_version}" = "${release_version}"
           test "$(jq -r '.version // empty' "${candidate_receipt}")" = "${release_version}"
           cp "${candidate_manifest}" packages/runtime-images/src/posttrain/runtime_images/published.toml
-          cp "${candidate_workspace_lock}" \
-            packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/workspace.lock.txt
+          cp -a "${candidate_runtime_locks}/." \
+            packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/
           cp "${candidate_manifest}" .release/published.toml
-          cp "${candidate_workspace_lock}" .release/workspace.lock.txt
+          cp -a "${candidate_runtime_locks}" .release/runtime-locks
           cp "${candidate_receipt}" .release/python-release-receipt.json
           cp "${candidate_wheelhouse}" .release/
           cp "${candidate_checksums}" .release/release-SHA256SUMS

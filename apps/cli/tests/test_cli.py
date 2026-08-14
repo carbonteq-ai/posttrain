@@ -36,7 +36,7 @@ from posttrain.execution import (
 )
 from posttrain.execution_pack import LocalPublishedJobImage, PackedJobContext, PublishedJobImage
 from posttrain.jobs import build_job_runtime
-from posttrain.runtime_images.manifest import load_manifest
+from posttrain.runtime_images.manifest import load_manifest as _load_manifest
 from posttrain.serve import WorkloadMaterialization
 from posttrain.tracking import RunSpec
 from posttrain.work import (
@@ -47,6 +47,24 @@ from posttrain.work import (
 )
 from posttrain_cli.cli import main
 from posttrain_cli.commands.controller import controller_sweep
+
+
+@pytest.fixture(autouse=True)
+def _candidate_manifest_for_cli_unit_tests(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep CLI unit tests about CLI behavior during candidate image publication.
+
+    The real runtime loader remains strict and rejects a candidate source until
+    its matching OCI graph exists. Runtime-image and release tests own that
+    integration contract; this file uses the structural manifest only when
+    exercising independent CLI behavior.
+    """
+
+    manifest = _load_manifest(verify_locks=False)
+    monkeypatch.setattr("posttrain_cli.execution_config.load_manifest", lambda: manifest)
+
+
+def _candidate_manifest():
+    return _load_manifest(verify_locks=False)
 
 
 def test_job_help_exposes_product_path_not_compatibility_flags(capsys) -> None:
@@ -1586,7 +1604,7 @@ def test_grpo_plan_is_static_and_selects_online_rl_runtime(
         Path("grpo.yaml"),
         job="train",
     )
-    manifest = load_manifest()
+    manifest = _candidate_manifest()
     assert derived.pack_plan.spec.kind_image.value == manifest.reference("online-rl-trl-py312")
 
 
@@ -1856,10 +1874,11 @@ def test_environment_add_local_writes_overlay(tmp_path: Path, capsys) -> None:
     assert (project / ".posttrain" / "catalog" / "environments.yaml").is_file()
 
 
-def test_job_plan_aliases_work_package_plan(tmp_path: Path, capsys) -> None:
+def test_job_plan_aliases_work_package_plan(tmp_path: Path, capsys, monkeypatch: pytest.MonkeyPatch) -> None:
     from posttrain.project import Project
 
     project = tmp_path / "example"
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "empty-config"))
     assert main(["init", str(project)]) == 0
     capsys.readouterr()
     package = project / ".posttrain" / "work_packages" / "cpu-check.yaml"
@@ -1910,6 +1929,49 @@ bindings:
     assert payload["job_kind"] == intent.prepared.recipe_job.kind
     assert payload["job_definition_id"] == intent.prepared.definition.id
     assert payload["work_package_id"] == intent.prepared.spec.work_package_id
+
+    assert (
+        main(
+            [
+                "--json",
+                "--project-root",
+                str(project),
+                "job",
+                "plan",
+                "cpu-check.yaml",
+                "--job",
+                "validate",
+                "--builder",
+                "local",
+            ]
+        )
+        == 0
+    )
+    selected = json.loads(capsys.readouterr().out)
+    assert selected["builder"] == {
+        "mode": "local",
+        "source": "cli",
+        "endpoint": None,
+        "scope": "developer_actual_job",
+    }
+
+    assert (
+        main(
+            [
+                "--project-root",
+                str(project),
+                "job",
+                "plan",
+                "cpu-check.yaml",
+                "--job",
+                "validate",
+                "--builder",
+                "remote",
+            ]
+        )
+        == 1
+    )
+    assert "--builder remote requires machine" in capsys.readouterr().err
 
 
 def test_job_package_plan_target_override_changes_nested_sft_target_and_identity(
@@ -2174,6 +2236,11 @@ bindings:
     monkeypatch.setattr(
         "posttrain_cli.execution_planning.load_local_execution_config",
         lambda *_args, **_kwargs: replace(configured, registry=None),
+    )
+    assert configured.registry is not None
+    monkeypatch.setattr(
+        "posttrain_cli.execution_planning.derived_local_registry",
+        lambda: configured.registry,
     )
 
     assert (

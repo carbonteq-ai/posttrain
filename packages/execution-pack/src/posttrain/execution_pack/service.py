@@ -53,6 +53,16 @@ _FORBIDDEN_SOURCE_NAMES = {
 _FORBIDDEN_WEIGHT_SUFFIXES = {".ckpt", ".gguf", ".safetensors"}
 _MAX_PROJECT_CONFIG_FILES = 10_000
 _MAX_PROJECT_CONFIG_BYTES = 64 * 1024 * 1024
+_STAGED_CONTEXT_DIRECTORIES = (
+    "locks",
+    "wheels/environments",
+    "wheels/framework",
+    "sources/framework",
+    "sources/project",
+    "config",
+    "datasets",
+    "environment-resources",
+)
 _SECRET_TEXT_KEY = re.compile(
     r"^\s*(?:-\s*)?[\"']?"
     r"(?:access[_-]?token|api[_-]?key|credential|credentials|password|secret|token)"
@@ -521,17 +531,19 @@ def digest_source_package(source: SourcePackage) -> str:
 
 
 def _create_layout(root: Path) -> None:
-    for relative in (
-        "locks",
-        "wheels/environments",
-        "wheels/framework",
-        "sources/framework",
-        "sources/project",
-        "config",
-        "datasets",
-        "environment-resources",
-    ):
+    for relative in _STAGED_CONTEXT_DIRECTORIES:
         (root / relative).mkdir(parents=True, exist_ok=True)
+
+
+def staged_context_directories() -> tuple[str, ...]:
+    """Return the fixed empty-directory schema for an actual-job context.
+
+    Remote transfer represents arbitrary directories implicitly through regular
+    file paths. These framework-owned directories are materialized even when
+    empty because the fixed actual-job Dockerfile relies on the layout.
+    """
+
+    return _STAGED_CONTEXT_DIRECTORIES
 
 
 def _stage_activation_resources(

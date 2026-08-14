@@ -142,6 +142,24 @@ class RuntimeImageInspector:
         self._gateway.invoke(("imagetools", "create", "--tag", destination_tag, source))
         return self.inspect(destination_tag).digest
 
+    def ensure_copy(
+        self,
+        source: str,
+        destination_tag: str,
+        *,
+        expected_digest: str,
+    ) -> tuple[str, bool]:
+        """Copy only when the destination tag does not already name the bytes."""
+
+        try:
+            observed = self.inspect(destination_tag).digest
+        except RemoteImageNotFoundError:
+            observed = None
+        if observed == expected_digest:
+            return expected_digest, False
+        copied = self.copy(source, destination_tag)
+        return copied, True
+
 
 __all__ = [
     "IMAGE_LEVEL_LABEL",

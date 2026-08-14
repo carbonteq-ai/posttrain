@@ -7,11 +7,12 @@ describes the bytes it claims to describe.
 
 from __future__ import annotations
 
+import hashlib
 import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import cache
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 
 from . import (
     RUNTIME_VARIANTS,
@@ -205,26 +206,37 @@ def _verify(image: PublishedImage) -> None:
         _verify_lock(image, image.backend_constraint_lock, image.backend_lock_digest, role="backend constraint")
 
 
-@cache
-def load_manifest(
+def _verify_directory_lock(
+    image: PublishedImage,
+    lock: PurePosixPath,
+    recorded: str,
     *,
-    verify_locks: bool = True,
-    verify_variants: bool = True,
-) -> PublishedManifest:
-    """Load the shipped manifest.
-
-    When `verify_locks` is true (the consumer default), every recorded lock
-    digest must still match the shipped lock bytes. When `verify_variants` is
-    true, the manifest must cover exactly the runtime variants shipped by this
-    distribution. Release tooling disables both checks so it can read a prior
-    manifest while adding or retiring a variant and selectively reuse the
-    entries that still apply.
-    """
+    role: str,
+    directory: Path,
+) -> None:
+    if lock.is_absolute() or ".." in lock.parts:
+        raise ManifestError(f"{image.name}: {role} lock must stay within the runtime-images package")
+    path = directory / lock
     try:
-        raw = read_resource(PurePosixPath(_MANIFEST))
+        actual = hashlib.sha256(path.read_bytes()).hexdigest()
     except (FileNotFoundError, OSError) as error:
-        raise ManifestError("this distribution ships no published.toml") from error
+        raise ManifestError(f"{image.name}: {role} lock {lock} is not shipped in this distribution") from error
+    if actual != recorded:
+        raise ManifestError(
+            f"{image.name}: published image records {role} lock digest {recorded}, "
+            f"but the shipped {lock} hashes to {actual}. The image "
+            "must be republished, or the manifest regenerated; a stale job-kind "
+            "image silently invalidates every qualification run against it."
+        )
 
+
+def _parse_manifest(
+    raw: bytes,
+    *,
+    verify_locks: bool,
+    verify_variants: bool,
+    directory: Path | None = None,
+) -> PublishedManifest:
     document = tomllib.loads(raw.decode("utf-8"))
 
     schema = document.get("schema_version")
@@ -252,9 +264,25 @@ def load_manifest(
                 raise ManifestError(f"kinds.{variant}: backend runtime identity differs from its shipped profile")
 
     if verify_locks:
-        _verify(base)
-        for image in kinds.values():
-            _verify(image)
+        if directory is None:
+            _verify(base)
+            for image in kinds.values():
+                _verify(image)
+        else:
+            _verify_directory_lock(base, base.constraint_lock, base.lock_digest, role="constraint", directory=directory)
+            for image in kinds.values():
+                _verify_directory_lock(
+                    image, image.constraint_lock, image.lock_digest, role="constraint", directory=directory
+                )
+                if image.backend_constraint_lock is not None:
+                    assert image.backend_lock_digest is not None
+                    _verify_directory_lock(
+                        image,
+                        image.backend_constraint_lock,
+                        image.backend_lock_digest,
+                        role="backend constraint",
+                        directory=directory,
+                    )
 
     return PublishedManifest(
         schema_version=schema,
@@ -265,9 +293,54 @@ def load_manifest(
     )
 
 
+@cache
+def load_manifest(
+    *,
+    verify_locks: bool = True,
+    verify_variants: bool = True,
+) -> PublishedManifest:
+    """Load the shipped manifest.
+
+    When `verify_locks` is true (the consumer default), every recorded lock
+    digest must still match the shipped lock bytes. When `verify_variants` is
+    true, the manifest must cover exactly the runtime variants shipped by this
+    distribution. Release tooling disables both checks so it can read a prior
+    manifest while adding or retiring a variant and selectively reuse the
+    entries that still apply.
+    """
+    try:
+        raw = read_resource(PurePosixPath(_MANIFEST))
+    except (FileNotFoundError, OSError) as error:
+        raise ManifestError("this distribution ships no published.toml") from error
+
+    return _parse_manifest(raw, verify_locks=verify_locks, verify_variants=verify_variants)
+
+
+def load_manifest_from_directory(
+    directory: Path,
+    *,
+    verify_locks: bool = True,
+    verify_variants: bool = True,
+) -> PublishedManifest:
+    """Load a staged runtime-images manifest, never the caller's environment.
+
+    Release checks run against a candidate/staged checkout.  They must validate
+    the locks beside that checkout's ``published.toml`` rather than whichever
+    editable runtime-images package happens to be imported by the tool.
+    """
+
+    root = directory.resolve()
+    try:
+        raw = (root / _MANIFEST).read_bytes()
+    except (FileNotFoundError, OSError) as error:
+        raise ManifestError(f"runtime-images manifest is absent: {root / _MANIFEST}") from error
+    return _parse_manifest(raw, verify_locks=verify_locks, verify_variants=verify_variants, directory=root)
+
+
 __all__ = [
     "ManifestError",
     "PublishedImage",
     "PublishedManifest",
+    "load_manifest_from_directory",
     "load_manifest",
 ]

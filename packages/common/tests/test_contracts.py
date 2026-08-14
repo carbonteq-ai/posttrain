@@ -8,6 +8,7 @@ import unittest
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any, cast
 
 from posttrain.common import (
     Catalog,
@@ -253,13 +254,13 @@ class RunContextTests(unittest.TestCase):
             TraceFactSet(  # type: ignore[arg-type]
                 namespace="verifiers.trace",
                 calculator_version="1",
-                dimensions={"model": ["not", "scalar"]},
+                dimensions=cast(Any, {"model": ["not", "scalar"]}),
             )
         with self.assertRaisesRegex(ContractError, "must be numeric"):
             TraceFactSet(  # type: ignore[arg-type]
                 namespace="verifiers.trace",
                 calculator_version="1",
-                measures={"model_output_tokens": "12"},
+                measures=cast(Any, {"model_output_tokens": "12"}),
             )
 
     def test_trace_fact_update_is_scalar_only_and_identity_scoped(self) -> None:

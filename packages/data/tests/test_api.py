@@ -13,6 +13,7 @@ from posttrain.common import (
     MetricObservation,
     ProducedArtifact,
     RunContext,
+    TraceFactUpdateObservation,
     TraceObservation,
 )
 from posttrain.data import (
@@ -41,6 +42,9 @@ class RecordingObserver:
         self.metric_batches.append(observation)
 
     def trace(self, observation: TraceObservation) -> None:
+        del observation
+
+    def trace_fact_update(self, observation: TraceFactUpdateObservation) -> None:
         del observation
 
     def artifact(self, artifact: ProducedArtifact) -> None:

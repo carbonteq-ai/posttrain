@@ -105,6 +105,39 @@ class ImagePublicationSpec:
             "sbom": self.sbom,
         }
 
+    @classmethod
+    def from_payload(cls, payload: object) -> ImagePublicationSpec:
+        if not isinstance(payload, dict) or set(payload) != {
+            "schema",
+            "repository",
+            "platforms",
+            "compression",
+            "compression_level",
+            "provenance",
+            "sbom",
+        }:
+            raise ContractError("image publication payload is invalid")
+        if payload["schema"] != _PUBLICATION_SCHEMA:
+            raise ContractError("image publication schema is unsupported")
+        repository = payload["repository"]
+        platforms = payload["platforms"]
+        compression = payload["compression"]
+        compression_level = payload["compression_level"]
+        provenance = payload["provenance"]
+        sbom = payload["sbom"]
+        if (
+            not isinstance(repository, str)
+            or not isinstance(platforms, list)
+            or not all(isinstance(item, str) for item in platforms)
+            or compression != "zstd"
+            or not isinstance(compression_level, int)
+            or isinstance(compression_level, bool)
+            or not isinstance(provenance, bool)
+            or not isinstance(sbom, bool)
+        ):
+            raise ContractError("image publication payload has invalid field types")
+        return cls(repository, tuple(platforms), compression, compression_level, provenance, sbom)
+
 
 @dataclass(frozen=True, slots=True)
 class JobPackSpec:

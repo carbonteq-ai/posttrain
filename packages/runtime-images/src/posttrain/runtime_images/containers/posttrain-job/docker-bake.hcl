@@ -101,7 +101,7 @@ target "_published" {
     "type=sbom"
   ]
   output = [
-    "type=image,push=true,compression=zstd,compression-level=3,force-compression=true,oci-mediatypes=true"
+    "type=image,push=true,compression=zstd,compression-level=3,force-compression=false,oci-mediatypes=true"
   ]
 }
 

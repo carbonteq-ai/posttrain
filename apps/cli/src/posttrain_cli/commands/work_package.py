@@ -15,7 +15,7 @@ from posttrain.project import JobIntent, Project
 from posttrain.work import resolve_work_package, run_work_package_job, validate_work_package
 
 from ..context import CliState
-from ..execution_config import ExecutionOverrides, PackageOverrides
+from ..execution_config import ExecutionOverrides, PackageOverrides, load_machine_config, resolve_job_builder
 from ..execution_planning import (
     LocalPackedJobPackage,
     PackedJobExecution,
@@ -131,8 +131,9 @@ def plan_work_package_cmd(
     entry: str | None = None,
     project_packages: tuple[str, ...] | None = None,
     source_includes: tuple[str, ...] | None = None,
+    builder: str | None = None,
 ) -> JobIntent:
-    """Render provider-free job meaning without loading execution configuration."""
+    """Render job meaning, with optional metadata-only builder selection."""
 
     if (
         overrides != _EMPTY_OVERRIDES
@@ -148,17 +149,28 @@ def plan_work_package_cmd(
     project = Project.open(state.project_root) if state.project_root is not None else Project.discover(Path.cwd())
     intent = project.jobs.plan(path, job=job, host=host, entry=entry)
     payload = _job_intent_payload(intent)
+    lines = [
+        f"Job intent: {intent.prepared.spec.work_package_id}/{intent.job_id}",
+        f"Job kind: {intent.prepared.recipe_job.kind}",
+        f"Definition: {intent.prepared.definition.id}",
+    ]
+    if builder is not None:
+        if builder not in {"local", "remote"}:
+            raise ContractError("job builder must be 'local' or 'remote'")
+        selected = resolve_job_builder(load_machine_config(), cli_override=builder)
+        payload["builder"] = {
+            "mode": selected.mode,
+            "source": selected.source,
+            "endpoint": selected.endpoint,
+            "scope": "developer_actual_job",
+        }
+        endpoint = f" at {selected.endpoint}" if selected.endpoint is not None else ""
+        lines.append(f"Developer job builder: {selected.mode} ({selected.source}){endpoint}")
+    lines.append("Use job pack to materialize an image or job run to select execution.")
     emit(
         state,
         payload,
-        "\n".join(
-            (
-                f"Job intent: {intent.prepared.spec.work_package_id}/{intent.job_id}",
-                f"Job kind: {intent.prepared.recipe_job.kind}",
-                f"Definition: {intent.prepared.definition.id}",
-                "Use job pack to materialize an image or job run to select execution.",
-            )
-        ),
+        "\n".join(lines),
     )
     return intent
 
@@ -178,11 +190,14 @@ def pack_work_package_cmd(
     local_output: Path | None = None,
     framework_wheelhouse: Path | None = None,
     allow_deferred_qualification: bool = False,
+    builder: str | None = None,
 ) -> PackedJobPackage | LocalPackedJobPackage:
     """Pack one job to an immutable registry image or local OCI layout."""
 
     if local_output is not None and not local:
         raise ContractError("--local-output requires --local")
+    if local and builder == "remote":
+        raise ContractError("--builder remote cannot be combined with --local")
 
     _layout, catalog, _resolved_path, package = load_work_package_bundle(state, path)
     job = resolve_job_id(catalog, package, job)
@@ -198,6 +213,7 @@ def pack_work_package_cmd(
         env_file=state.env_file,
         local_publication=local,
         framework_wheelhouse=framework_wheelhouse,
+        builder=builder,
     )
     _require_verified_kind_image(planned, build_missing=build_missing)
     if local:
@@ -257,6 +273,7 @@ def run_work_package_cmd(
     build_missing: bool = False,
     framework_wheelhouse: Path | None = None,
     allow_deferred_qualification: bool = False,
+    builder: str | None = None,
 ) -> None:
     if resume_from_run_id is not None and model_from_run_id is not None:
         raise ContractError("choose either --resume-from-run or --model-from-run, not both")
@@ -280,6 +297,7 @@ def run_work_package_cmd(
             source_includes=source_includes,
             env_file=state.env_file,
             framework_wheelhouse=framework_wheelhouse,
+            builder=builder,
         )
         if resume_from_run_id is not None:
             source = tracking_source_for_project(layout)

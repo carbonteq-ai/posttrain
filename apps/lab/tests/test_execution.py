@@ -105,6 +105,9 @@ class FakeTrackedRun:
     def trace(self, observation: Any) -> None:
         self.observer.trace(observation)
 
+    def trace_fact_update(self, observation: Any) -> None:
+        self.observer.trace_fact_update(observation)
+
     def artifact(self, artifact: ProducedArtifact) -> None:
         self.observer.artifact(artifact)
 

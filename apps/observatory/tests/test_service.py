@@ -15,6 +15,8 @@ from posttrain.tracking import (
     RunDetail,
     RunQuery,
     RunSummary,
+    TraceAggregateResult,
+    TraceFactsQuery,
     TracePage,
     TrackingCapabilities,
 )
@@ -53,6 +55,10 @@ class FakeRunDataSource:
     async def traces(self, run_id: str, query: object) -> TracePage:
         del run_id, query
         return TracePage(live=True)
+
+    async def aggregate_trace_facts(self, run_id: str, query: TraceFactsQuery) -> TraceAggregateResult:
+        del run_id, query
+        return TraceAggregateResult(state="unsupported")
 
     async def artifacts(self, run_id: str) -> ArtifactSet:
         del run_id

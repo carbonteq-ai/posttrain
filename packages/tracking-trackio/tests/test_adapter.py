@@ -176,6 +176,54 @@ def test_trace_fact_writer_uses_exact_run_and_does_not_open_or_finish_it(
     }
 
 
+def test_trace_fact_writer_chunks_a_logical_page_at_the_safe_storage_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+
+    class Client:
+        def predict(self, *, api_name: str, **kwargs: Any) -> dict[str, Any]:
+            calls.append({"api_name": api_name, **kwargs})
+            return {
+                "receipts": [
+                    {
+                        "trace_id": f"stored-{update['external_id']}",
+                        "projection_id": update["projection_id"],
+                        "applied": True,
+                    }
+                    for update in kwargs["updates"]
+                ]
+            }
+
+    monkeypatch.setenv("TRACKIO_WRITE_TOKEN", "test-token")
+    monkeypatch.setattr(
+        "posttrain_tracking_trackio.adapter.RemoteClient",
+        lambda *args, **kwargs: Client(),
+    )
+    facts = TraceFactSet(
+        namespace="verifiers.trace",
+        calculator_version="test.v1",
+        measures={"model_output_tokens": 12},
+    )
+
+    updates = tuple((f"trace-{index}", facts) for index in range(1001))
+    receipts = TrackioTraceFactWriter("https://trackio.invalid").upsert_many(
+        project="project-a",
+        run_name="run-a",
+        provider_run_id="provider-run-a",
+        trace_type="verifiers",
+        updates=updates,
+    )
+
+    assert len(receipts) == 1001
+    assert [len(call["updates"]) for call in calls] == [1000, 1]
+    assert all(call["api_name"] == "/bulk_upsert_trace_facts" for call in calls)
+    assert all(call["project"] == "project-a" for call in calls)
+    assert all(call["run_id"] == "provider-run-a" for call in calls)
+    assert calls[0]["updates"][0]["external_id"] == "trace-0"
+    assert calls[1]["updates"][0]["external_id"] == "trace-1000"
+
+
 def test_algorithm_reward_enrichment_does_not_replace_source_reward_components() -> None:
     update = _trackio_trace_facts(
         "verifiers",

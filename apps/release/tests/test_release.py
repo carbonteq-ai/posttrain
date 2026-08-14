@@ -7,12 +7,13 @@ import os
 import subprocess
 import tomllib
 import zipfile
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from shutil import which
 
 import posttrain_release.versioning as versioning
 import pytest
 from posttrain.runtime_images import (
+    BASE_LOCK,
     RUNTIME_VARIANTS,
     VERL_BACKEND_LOCK,
     backend_runtime_identity,
@@ -23,6 +24,7 @@ from posttrain.runtime_images.manifest import ManifestError, PublishedImage, Pub
 from posttrain_release.artifacts import create_distribution_receipt, verify_distribution_receipt
 from posttrain_release.candidate import next_candidate_version
 from posttrain_release.cli import main
+from posttrain_release.fork_ledger import load_fork_ledger, render_fork_ledger
 from posttrain_release.manifest_render import render_manifest
 from posttrain_release.promotion import create_promotion_receipt
 from posttrain_release.readiness import (
@@ -34,6 +36,8 @@ from posttrain_release.readiness import (
 )
 from posttrain_release.repository_audit import evaluate_repository, inspect_repository
 from posttrain_release.runtime_lock import (
+    _restrict_hashes_to_workspace,
+    export_runtime_workspace_lock,
     materialize_runtime_lock,
     synchronize_runtime_profile_pins,
 )
@@ -206,8 +210,8 @@ def _render_all() -> str:
             name="base",
             repository="posttrain-base",
             digest="sha256:" + "a" * 64,
-            lock_digest=lock_digest(),
-            constraint_lock=PurePosixPath("containers/posttrain-job-kinds/locks/workspace.lock.txt"),
+            lock_digest=lock_digest(BASE_LOCK),
+            constraint_lock=BASE_LOCK,
         ),
         kinds={
             variant: _image(f"kinds.{variant}", variant, str(index)) for index, variant in enumerate(RUNTIME_VARIANTS)
@@ -274,6 +278,49 @@ def test_runtime_lock_materializes_published_internal_wheel_receipts(tmp_path: P
     assert check_release(tmp_path).runtime_lock_pending is False
 
 
+def test_runtime_workspace_lock_exports_the_exact_uv_resolution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _version_repository(tmp_path)
+    runtime = tmp_path / "packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds"
+    (runtime / "locks").mkdir(parents=True)
+    lock = runtime / "locks/workspace.lock.txt"
+    lock.write_text("old==0\n", encoding="utf-8")
+
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        assert command == [
+            "uv",
+            "export",
+            "--all-packages",
+            "--all-extras",
+            "--locked",
+            "--no-emit-workspace",
+            "--no-dev",
+            "--format",
+            "requirements-txt",
+            "--emit-index-url",
+            "--no-header",
+        ]
+        assert kwargs["cwd"] == tmp_path.resolve()
+        return subprocess.CompletedProcess(command, 0, stdout="boto3==1.43.66\n", stderr="")
+
+    monkeypatch.setattr("posttrain_release.runtime_lock.subprocess.run", fake_run)
+    result = export_runtime_workspace_lock(tmp_path)
+
+    assert result.changed is True
+    assert lock.read_text(encoding="utf-8") == (
+        "# Generated from the repository's exact uv.lock. Do not hand edit.\n"
+        "# uv export --all-packages --all-extras --locked --no-emit-workspace --no-dev --format requirements-txt --emit-index-url --no-header\n\n"
+        "boto3==1.43.66\n"
+    )
+    assert export_runtime_workspace_lock(tmp_path, check=True).changed is False
+
+
+def test_narrow_lock_rejects_a_dependency_missing_from_the_workspace_resolution() -> None:
+    with pytest.raises(ValueError, match="'boto3'.*absent from workspace.lock"):
+        _restrict_hashes_to_workspace("boto3==1.43.66\n", "botocore==1.43.66\n")
+
+
 def test_runtime_lock_materializes_development_candidate_wheel_receipts(tmp_path: Path) -> None:
     _version_repository(tmp_path)
     runtime = tmp_path / "packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds"
@@ -337,6 +384,7 @@ def test_pending_runtime_lock_allows_old_image_manifest_until_rebuild(
     (runtime / "locks/workspace.lock.txt").write_text(
         "carbonteq-trackio @ git+https://example.invalid/trackio@" + "a" * 40 + "\n", encoding="utf-8"
     )
+    (runtime.parents[1] / "published.toml").write_text("placeholder\n", encoding="utf-8")
     with (tmp_path / "uv.lock").open("a", encoding="utf-8") as handle:
         handle.write(
             "\n[[package]]\n"
@@ -351,13 +399,14 @@ def test_pending_runtime_lock_allows_old_image_manifest_until_rebuild(
         "base: published image records constraint lock digest old, but the shipped lock hashes to new"
     )
 
-    def fake_load_manifest(*, verify_locks: bool = True, verify_variants: bool = True) -> object:
+    def fake_load_manifest(directory: Path, *, verify_locks: bool = True, verify_variants: bool = True) -> object:
+        assert directory == runtime.parents[1]
         del verify_variants
         if verify_locks:
             raise ManifestError(versioning_lock_error)
         return object()
 
-    monkeypatch.setattr(versioning, "load_manifest", fake_load_manifest)
+    monkeypatch.setattr(versioning, "load_manifest_from_directory", fake_load_manifest)
     pending = check_release(tmp_path, allow_pending_runtime_lock=True)
     assert pending.runtime_lock_pending is True
 
@@ -371,6 +420,7 @@ def test_pending_runtime_lock_allows_old_backend_identity_until_rebuild(
     (runtime / "profiles/supervised.txt").write_text("trl==1.9.2.post10\n", encoding="utf-8")
     (runtime / "locks").mkdir()
     (runtime / "locks/workspace.lock.txt").write_text("trl==1.9.2.post9\n", encoding="utf-8")
+    (runtime.parents[1] / "published.toml").write_text("placeholder\n", encoding="utf-8")
     with (tmp_path / "uv.lock").open("a", encoding="utf-8") as handle:
         handle.write(
             "\n[[package]]\n"
@@ -384,13 +434,14 @@ def test_pending_runtime_lock_allows_old_backend_identity_until_rebuild(
 
     calls: list[tuple[bool, bool]] = []
 
-    def fake_load_manifest(*, verify_locks: bool = True, verify_variants: bool = True) -> object:
+    def fake_load_manifest(directory: Path, *, verify_locks: bool = True, verify_variants: bool = True) -> object:
+        assert directory == runtime.parents[1]
         calls.append((verify_locks, verify_variants))
         if verify_variants:
             raise ManifestError("kinds.online-rl-verl-py313: backend runtime identity differs from its shipped profile")
         return object()
 
-    monkeypatch.setattr(versioning, "load_manifest", fake_load_manifest)
+    monkeypatch.setattr(versioning, "load_manifest_from_directory", fake_load_manifest)
     pending = check_release(tmp_path, allow_pending_runtime_lock=True)
 
     assert pending.runtime_lock_pending is True
@@ -699,17 +750,44 @@ def test_readiness_receipt_binds_the_exact_source_tree_and_selected_forks(tmp_pa
 
     verified = verify_readiness_receipt(receipt_path, repository_root)
 
-    assert verified["schema"] == "posttrain.release-readiness.v1"
-    assert verified["fork_packages"] == receipt["fork_packages"]
-    fork_packages = verified["fork_packages"]
-    assert isinstance(fork_packages, dict)
-    assert "carbonteq-trackio" in fork_packages
-    assert "trl" in fork_packages
+    assert verified["schema"] == "posttrain.release-readiness.v2"
+    assert verified["fork_ledger"] == receipt["fork_ledger"]
+    fork_ledger = verified["fork_ledger"]
+    assert isinstance(fork_ledger, dict)
+    entries = fork_ledger["entries"]
+    assert isinstance(entries, list)
+    assert {entry["id"] for entry in entries if isinstance(entry, dict)} == {
+        "carbonteq-trackio",
+        "trl",
+        "verl",
+        "vllm",
+        "automationbench",
+        "dstack",
+    }
 
     receipt["source_tree"] = "0" * 40
     write_readiness_receipt(receipt, receipt_path)
     with pytest.raises(ValueError, match="source_tree"):
         verify_readiness_receipt(receipt_path, repository_root)
+
+
+def test_fork_ledger_cross_checks_direct_runtime_environment_and_service_boundaries() -> None:
+    repository_root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+
+    entries = {entry.id: entry for entry in load_fork_ledger(repository_root)}
+
+    assert entries["carbonteq-trackio"].version == "0.31.5.post14.dev15"
+    assert entries["trl"].revision == "69cf80a7319079ec5523841553467e119ebc1cec"
+    assert entries["verl"].release_tag == "carbonteq-v0.9.0.dev2"
+    assert entries["vllm"].artifacts["source_archive_sha256"] == (
+        "8d4736461fbc3bf72075b4d84417208b3c5fc9ffc6f48bf26cbe9ef955cf307b"
+    )
+    assert entries["automationbench"].artifacts["environment_revision"] == (
+        "b7bcb591facfcd2b073802f6d7496b24ab9c479e"
+    )
+    assert entries["dstack"].required is False
+    assert entries["dstack"].deployed_image and "@sha256:" in entries["dstack"].deployed_image
+    assert render_fork_ledger(repository_root)["schema"] == "posttrain.fork-ledger.v1"
 
 
 def test_readiness_runs_the_fixed_deterministic_check_set(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -772,8 +850,8 @@ def test_candidate_builds_the_final_version_and_final_only_restores_it() -> None
     assert 'build_cache_dir="${UV_CACHE_DIR:-$build_cache_dir}"' in builder
     assert 'UV_CACHE_DIR="$build_cache_dir"' in builder
     assert "uv build environments/" not in candidate
-    assert 'generated_runtime_lock="${repository_root}/packages/runtime-images' in builder
-    assert 'cp "${generated_runtime_lock}" "${staged_runtime_lock}"' in builder
+    assert 'generated_runtime_locks="${repository_root}/packages/runtime-images' in builder
+    assert 'cp -a "${generated_runtime_locks}/." "${staged_runtime_locks}/"' in builder
     assert 'cd "$output_dir"' in builder
     assert 'sha256sum "$(basename "$tarball")" > release-SHA256SUMS' in builder
 
@@ -817,7 +895,7 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert "posttrain-readiness" in candidate
     assert "QUALITY_RUN_ID" in candidate
     assert "posttrain-release lock-runtime-dependencies" in candidate
-    assert ".release/workspace.lock.txt" in candidate
+    assert ".release/runtime-locks/**" in candidate
     assert 'authored_framework_version="$(sed -n' in candidate
     assert 'published_framework_version="$(sed -n' in candidate
     assert '"${published_framework_version}" = "${authored_framework_version}"' in candidate
@@ -1011,7 +1089,7 @@ def test_rendered_lock_digests_come_from_the_shipped_locks() -> None:
 def test_transform_keeps_its_own_constraint_lock() -> None:
     document = tomllib.loads(_render_all())
     assert document["kinds"]["transform"]["constraint_lock"].endswith("transform.lock.txt")
-    assert document["kinds"]["supervised"]["constraint_lock"].endswith("workspace.lock.txt")
+    assert document["kinds"]["supervised"]["constraint_lock"].endswith("supervised.lock.txt")
     assert document["kinds"]["transform"]["lock_digest"] != document["kinds"]["supervised"]["lock_digest"]
 
 
@@ -1024,8 +1102,8 @@ def test_provided_packages_survive_rendering() -> None:
             name="base",
             repository="posttrain-base",
             digest="sha256:" + "a" * 64,
-            lock_digest=lock_digest(),
-            constraint_lock=constraint_lock("supervised"),
+            lock_digest=lock_digest(BASE_LOCK),
+            constraint_lock=BASE_LOCK,
         ),
         kinds={
             "eval": PublishedImage(
@@ -1051,8 +1129,8 @@ def test_backend_constraints_survive_rendering() -> None:
             name="base",
             repository="posttrain-base",
             digest="sha256:" + "a" * 64,
-            lock_digest=lock_digest(),
-            constraint_lock=constraint_lock("supervised"),
+            lock_digest=lock_digest(BASE_LOCK),
+            constraint_lock=BASE_LOCK,
         ),
         kinds={
             "online-rl-verl-py313": PublishedImage(
@@ -1087,8 +1165,8 @@ def test_an_empty_release_is_rejected() -> None:
                 name="base",
                 repository="posttrain-base",
                 digest="sha256:" + "a" * 64,
-                lock_digest=lock_digest(),
-                constraint_lock=constraint_lock("supervised"),
+                lock_digest=lock_digest(BASE_LOCK),
+                constraint_lock=BASE_LOCK,
             ),
             kinds={},
         )
@@ -1100,20 +1178,31 @@ def test_the_shipped_manifest_matches_what_the_renderer_would_produce() -> None:
     Digests differ because the shipped manifest records a real publication, so
     only the generated structure is compared.
     """
-    shipped = load_manifest()
+    # Candidate source may already contain regenerated locks while preserving
+    # the last published manifest until the image build reads back new digests.
+    # This test checks renderer structure, not whether that older publication
+    # can still be selected by a consumer (the strict manifest tests cover
+    # that release invariant).
+    shipped = load_manifest(verify_locks=False)
     rendered = tomllib.loads(_render_all())
     assert set(rendered["kinds"]) == set(shipped.kinds)
+    strict_manifest: object | None
+    try:
+        strict_manifest = load_manifest()
+    except ManifestError:
+        strict_manifest = None
     for variant, image in shipped.kinds.items():
         assert rendered["kinds"][variant]["repository"] == image.repository
-        assert rendered["kinds"][variant]["constraint_lock"] == image.constraint_lock.as_posix()
-        assert rendered["kinds"][variant]["lock_digest"] == image.lock_digest
-        assert rendered["kinds"][variant].get("backend_constraint_lock") == (
-            image.backend_constraint_lock.as_posix() if image.backend_constraint_lock else None
-        )
-        assert rendered["kinds"][variant].get("backend_lock_digest") == image.backend_lock_digest
-        assert rendered["kinds"][variant].get("backend_source_revision") == (
-            image.backend_runtime_identity.source_revision if image.backend_runtime_identity else None
-        )
+        if strict_manifest is not None:
+            assert rendered["kinds"][variant]["constraint_lock"] == image.constraint_lock.as_posix()
+            assert rendered["kinds"][variant]["lock_digest"] == image.lock_digest
+            assert rendered["kinds"][variant].get("backend_constraint_lock") == (
+                image.backend_constraint_lock.as_posix() if image.backend_constraint_lock else None
+            )
+            assert rendered["kinds"][variant].get("backend_lock_digest") == image.backend_lock_digest
+            assert rendered["kinds"][variant].get("backend_source_revision") == (
+                image.backend_runtime_identity.source_revision if image.backend_runtime_identity else None
+            )
 
 
 def test_unknown_variant_is_rejected() -> None:
@@ -1164,8 +1253,8 @@ def test_unchanged_runtime_images_are_reused_across_framework_versions(
         name="base",
         repository="posttrain-base",
         digest=base_digest,
-        lock_digest=lock_digest(),
-        constraint_lock=constraint_lock("supervised"),
+        lock_digest=lock_digest(BASE_LOCK),
+        constraint_lock=BASE_LOCK,
         runtime_source_digest=publish._base_source_digest(root),
         trust_bundle_digest=trust_digest,
     )
@@ -1176,7 +1265,7 @@ def test_unchanged_runtime_images_are_reused_across_framework_versions(
             digest="sha256:" + f"{index:x}" * 64,
             lock_digest=lock_digest(constraint_lock(variant)),
             constraint_lock=constraint_lock(variant),
-            runtime_source_digest=publish._kind_source_digest(root),
+            runtime_source_digest=publish._kind_source_digest(root, variant),
             base_digest=base_digest,
             backend_constraint_lock=(VERL_BACKEND_LOCK if variant == "online-rl-verl-py313" else None),
             backend_lock_digest=(lock_digest(VERL_BACKEND_LOCK) if variant == "online-rl-verl-py313" else None),
@@ -1227,6 +1316,20 @@ def test_unchanged_runtime_images_are_reused_across_framework_versions(
     assert document["kinds"]["eval"]["base_digest"] == base_digest
 
 
+def test_kind_source_selection_is_variant_local() -> None:
+    import posttrain_release.publish as publish
+
+    supervised = set(publish._kind_source_paths("supervised"))
+    serve = set(publish._kind_source_paths("serve"))
+    verl = set(publish._kind_source_paths("online-rl-verl-py313"))
+
+    assert Path("containers/posttrain-job-kinds/profiles/supervised.txt") in supervised
+    assert Path("containers/posttrain-job-kinds/profiles/serve.txt") not in supervised
+    assert Path("containers/posttrain-job-kinds/profiles/serve.txt") in serve
+    assert Path("containers/posttrain-job-kinds/verl-py313") in verl
+    assert Path("containers/posttrain-job-kinds/Dockerfile") not in verl
+
+
 def test_public_ci_trackio_mirror_matches_locked_distribution() -> None:
     root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
     lock = tomllib.loads((root / "uv.lock").read_text(encoding="utf-8"))
@@ -1274,18 +1377,18 @@ def test_public_ci_trl_mirror_matches_selected_distribution() -> None:
     assert 'uv pip install --python .venv/bin/python --no-deps "${CARBONTEQ_TRL_WHEEL_PATH}"' in workflow
 
 
-def test_final_release_restores_candidate_runtime_lock_with_manifest() -> None:
+def test_final_release_restores_candidate_runtime_locks_with_manifest() -> None:
     root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
     workflow = (root / ".github/workflows/release.yml").read_text(encoding="utf-8")
 
-    assert 'candidate_workspace_lock="$(find .release/candidate' in workflow
-    assert 'test -n "${candidate_workspace_lock}"' in workflow
+    assert 'candidate_runtime_locks="$(find .release/candidate' in workflow
+    assert 'test -n "${candidate_runtime_locks}"' in workflow
     assert (
-        'cp "${candidate_workspace_lock}" \\\n'
+        'cp -a "${candidate_runtime_locks}/." \\\n'
         "            packages/runtime-images/src/posttrain/runtime_images/containers/"
-        "posttrain-job-kinds/locks/workspace.lock.txt"
+        "posttrain-job-kinds/locks/"
     ) in workflow
-    assert 'cp "${candidate_workspace_lock}" .release/workspace.lock.txt' in workflow
+    assert 'cp -a "${candidate_runtime_locks}" .release/runtime-locks' in workflow
 
 
 def test_release_can_read_prior_manifest_while_adding_a_variant(

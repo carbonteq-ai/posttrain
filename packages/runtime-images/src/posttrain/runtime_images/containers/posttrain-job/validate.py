@@ -142,7 +142,7 @@ def _validate_definition() -> None:
     )
     for required in (
         "compression=zstd",
-        "force-compression=true",
+        "force-compression=false",
         "oci-mediatypes=true",
         "type=provenance,mode=max",
         "type=sbom",

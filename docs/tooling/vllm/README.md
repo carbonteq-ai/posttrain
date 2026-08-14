@@ -12,10 +12,14 @@ same CUDA minor version. This is required because FlashInfer compiles kernels
 locally: the runtime, headers, NVCC, NVVM, CRT, and CCCL cannot safely float to
 different CUDA releases.
 
-The production veRL runtime selects CarbonTeq vLLM commit
-`7817d845727af570352622dc8d58f2d43c76d89d`, based exactly on upstream
-vLLM 0.25.1. The fork carries the bounded TurboQuant cache-reshape correction
-documented in its root `CARBONTEQ_FORK.md`. Training resolves TRL 1.8.0 from
+The production veRL runtime selects the manually released CarbonTeq vLLM
+source-overlay prerelease
+[`carbonteq-v0.25.2.dev2`](https://github.com/carbonteq-ai/vllm/releases/tag/carbonteq-v0.25.2.dev2),
+commit `7817d845727af570352622dc8d58f2d43c76d89d`, based exactly on upstream
+vLLM 0.25.1. Its retained source archive has SHA-256
+`8d4736461fbc3bf72075b4d84417208b3c5fc9ffc6f48bf26cbe9ef955cf307b`.
+The fork carries the bounded TurboQuant cache-reshape correction documented in
+its root `CARBONTEQ_FORK.md`. Training resolves TRL 1.9.2.post11 from
 the immutable CarbonTeq fork commit documented in
 [ADR 0007](../../decisions/0007-trl-vllm-025-fork.md), which raises TRL's
 validated vLLM ceiling and adds explicitly profiled synchronization options.

@@ -1056,7 +1056,7 @@ def test_distillation_backend_fixes_fully_on_policy_reverse_kl_contract(tmp_path
     assert sampled_arguments["min_p"] == 0.0
     assert sampled_arguments["repetition_penalty"] == 1.1
     assert sampled_arguments["generation_kwargs"] == {"presence_penalty": 1.5}
-    from trl.experimental.iw_opd import IWOPDConfig  # pyright: ignore[reportMissingImports]
+    IWOPDConfig = pytest.importorskip("trl.experimental.iw_opd").IWOPDConfig
 
     config = IWOPDConfig(**{**sampled_arguments, "use_cpu": True})
     assert config.min_p == 0.0

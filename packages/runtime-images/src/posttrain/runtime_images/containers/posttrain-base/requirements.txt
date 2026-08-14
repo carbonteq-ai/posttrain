@@ -1,0 +1,5 @@
+# Universal CUDA-enabled Python dependency closure.  This input is compiled
+# into ``posttrain-job-kinds/locks/base.lock.txt`` and intentionally excludes
+# every trainer, evaluator, serving stack, tracker, and environment.
+triton @ https://files.pythonhosted.org/packages/f9/0b/37d991d8c130ce81a8728ae3c25b6e60935838e9be1b58791f5997b24a54/triton-3.6.0-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl#sha256=10c7f76c6e72d2ef08df639e3d0d30729112f47a56b0c81672edc05ee5116ac9
+torch==2.11.0+cu130

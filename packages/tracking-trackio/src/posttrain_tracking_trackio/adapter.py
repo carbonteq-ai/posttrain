@@ -6,7 +6,7 @@ import asyncio
 import hashlib
 import os
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -61,6 +61,7 @@ from trackio.run import Run as TrackioSDKRun
 from trackio.utils import parse_trackio_server_url
 
 _RESERVED_HISTORY_KEYS = {"step", "timestamp"}
+_TRACE_FACT_WRITE_CHUNK_SIZE = 1000
 
 # A run records its status and timings as ordinary metrics rather than as
 # run-level fields, so these are the keys that describe its lifecycle.
@@ -849,6 +850,47 @@ class TrackioTraceFactWriter:
         if not isinstance(response, dict):
             raise ContractError("Trackio trace-fact backfill returned an invalid write receipt")
         return receipt_type(**response)
+
+    def upsert_many(
+        self,
+        *,
+        project: str,
+        run_name: str,
+        provider_run_id: str,
+        trace_type: str,
+        updates: Sequence[tuple[str, TraceFactSet]],
+    ) -> tuple[Any, ...]:
+        """Persist one logical page through bounded generic Trackio batches.
+
+        A backfill may read a larger page to reduce cursor and process churn.
+        Each physical write stays at 1,000 facts, which bounds the Doris
+        set-oriented statement and preserves the server's retry behavior.
+        """
+
+        if not updates:
+            return ()
+        encoded = [
+            _trackio_trace_facts(trace_type, external_id, facts).payload()
+            for external_id, facts in updates
+        ]
+        receipt_type = getattr(trackio, "TraceFactWriteReceipt", None)
+        if receipt_type is None:
+            raise ContractError("the configured Trackio build does not expose trace-fact write receipts")
+        receipts: list[Any] = []
+        for start in range(0, len(encoded), _TRACE_FACT_WRITE_CHUNK_SIZE):
+            chunk = encoded[start : start + _TRACE_FACT_WRITE_CHUNK_SIZE]
+            response = self._client.predict(
+                api_name="/bulk_upsert_trace_facts",
+                project=project,
+                run=run_name,
+                run_id=provider_run_id,
+                updates=chunk,
+            )
+            chunk_receipts = response.get("receipts") if isinstance(response, dict) else None
+            if not isinstance(chunk_receipts, list) or len(chunk_receipts) != len(chunk):
+                raise ContractError("Trackio trace-fact batch backfill returned invalid write receipts")
+            receipts.extend(receipt_type(**receipt) for receipt in chunk_receipts)
+        return tuple(receipts)
 
 
 class TrackioPurgeActionExecutor:

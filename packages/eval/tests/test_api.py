@@ -18,6 +18,7 @@ from posttrain.common import (
     ModelVariant,
     ProducedArtifact,
     RunContext,
+    TraceFactUpdateObservation,
     TraceObservation,
 )
 from posttrain.common.variants import QWEN_35_2B
@@ -68,6 +69,9 @@ class RecordingObserver:
 
     def trace(self, observation: TraceObservation) -> None:
         self.traces.append(observation)
+
+    def trace_fact_update(self, observation: TraceFactUpdateObservation) -> None:
+        del observation
 
     def artifact(self, artifact: ProducedArtifact) -> None:
         self.artifacts.append(artifact)

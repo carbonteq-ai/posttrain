@@ -6,14 +6,14 @@ import hashlib
 import json
 import subprocess
 import time
-import tomllib
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 
+from .fork_ledger import render_fork_ledger
 from .versioning import check_release, load_release_manifest
 
-_SCHEMA = "posttrain.release-readiness.v1"
+_SCHEMA = "posttrain.release-readiness.v2"
 _REQUIRED_CHECKS = (
     ("tests", ("pytest", "--cov", "--cov-report=term-missing")),
     ("lint", ("ruff", "check", ".")),
@@ -37,34 +37,6 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _fork_packages(root: Path) -> dict[str, dict[str, str]]:
-    """Read the selected maintained-fork identities without importing them."""
-
-    train = tomllib.loads((root / "packages/train/pyproject.toml").read_text(encoding="utf-8"))
-    trackio = tomllib.loads((root / "packages/tracking-trackio/pyproject.toml").read_text(encoding="utf-8"))
-    trl_payload = train.get("tool", {}).get("posttrain", {}).get("trl", {})
-    if not isinstance(trl_payload, dict):
-        raise ValueError("packages/train/pyproject.toml is missing [tool.posttrain.trl]")
-    trl = {key.replace("-", "_"): value for key, value in trl_payload.items() if isinstance(value, str)}
-    version = trl.get("version")
-    if not version:
-        raise ValueError("packages/train/pyproject.toml is missing the selected TRL version")
-
-    project = trackio.get("project")
-    dependencies = project.get("dependencies", []) if isinstance(project, dict) else []
-    requirement = next(
-        (item for item in dependencies if isinstance(item, str) and item.startswith("carbonteq-trackio==")),
-        None,
-    )
-    if requirement is None:
-        raise ValueError("packages/tracking-trackio/pyproject.toml is missing carbonteq-trackio pin")
-    trackio_version = requirement.removeprefix("carbonteq-trackio==")
-    return {
-        "carbonteq-trackio": {"version": trackio_version},
-        "trl": trl,
-    }
-
-
 def create_readiness_receipt(
     repository_root: Path,
     *,
@@ -80,7 +52,7 @@ def create_readiness_receipt(
         "source_tree": _git(root, "rev-parse", "HEAD^{tree}"),
         "framework_version": load_release_manifest(root).version,
         "uv_lock_sha256": _sha256(root / "uv.lock"),
-        "fork_packages": _fork_packages(root),
+        "fork_ledger": render_fork_ledger(root),
         "runtime_lock_pending": runtime_lock_pending,
         "checks": checks,
         "created_at": datetime.now(UTC).isoformat(),
@@ -128,7 +100,7 @@ def verify_readiness_receipt(receipt_path: Path, repository_root: Path) -> dict[
         "source_tree": _git(root, "rev-parse", "HEAD^{tree}"),
         "framework_version": load_release_manifest(root).version,
         "uv_lock_sha256": _sha256(root / "uv.lock"),
-        "fork_packages": _fork_packages(root),
+        "fork_ledger": render_fork_ledger(root),
     }
     for key, value in expected.items():
         if payload.get(key) != value:

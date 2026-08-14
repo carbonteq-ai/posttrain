@@ -39,6 +39,7 @@ addopts = [
 testpaths = [
     "apps/cli/tests",
     "apps/lab/tests",
+    "apps/job-builder/tests",
     "apps/observatory/tests",
     "apps/release/tests",
     "apps/runtime/tests",
@@ -48,6 +49,7 @@ testpaths = [
     "packages/eval/tests",
     "packages/execution/tests",
     "packages/execution-buildkit/tests",
+    "packages/execution-job-builder/tests",
     "packages/execution-pack/tests",
     "packages/execution-dstack/tests",
     "packages/execution-local/tests",

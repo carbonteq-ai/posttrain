@@ -111,7 +111,9 @@ def _validate_boundaries() -> None:
         _require(forbidden not in combined, f"concrete environment leaked into base/kind inputs: {forbidden}")
 
     base_dockerfile = (BASE / "Dockerfile").read_text()
-    _require("torch==2.11.0+cu130" in base_dockerfile, "universal base must install locked CUDA PyTorch")
+    base_lock = (KINDS / "locks" / "base.lock.txt").read_text()
+    _require("base.lock.txt" in base_dockerfile, "universal base must install its isolated dependency closure")
+    _require("torch==2.11.0+cu130" in base_lock, "universal base must install locked CUDA PyTorch")
     for backend in ("trl", "vllm", "verifiers", "llmcompressor"):
         _require(
             f"import {backend}" not in base_dockerfile and f'"{backend}' not in base_dockerfile,
