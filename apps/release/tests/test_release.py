@@ -1083,7 +1083,7 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert 'release_tag_sha="${candidate_equivalent_commit}"' in final
     assert 'echo "RELEASE_TAG_SHA=${release_tag_sha}" >> "$GITHUB_ENV"' in final
     assert 'test "$(git rev-parse "v${POSTTRAIN_RELEASE_VERSION}^{}")" = "${RELEASE_TAG_SHA}"' in final
-    assert ".github/*|apps/release/tests/*|docs/plan/*" in final
+    assert ".github/*|apps/release/tests/*|docs/plan/*|docs/publishing.md" in final
     assert "packages/runtime-images/src/posttrain/runtime_images/published.toml) ;;" in final
     assert "candidate build inputs changed:" in final
     assert 'test "${candidate_version}" = "${release_version}"' in final

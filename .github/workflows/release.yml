@@ -165,7 +165,7 @@ jobs:
               unsafe_files="$(git diff --name-only "${candidate_equivalent_commit}" "${RELEASE_SOURCE_SHA}" \
                 | while IFS= read -r path; do
                     case "${path}" in
-                      .github/*|apps/release/tests/*|docs/plan/*) ;;
+                      .github/*|apps/release/tests/*|docs/plan/*|docs/publishing.md) ;;
                       packages/runtime-images/src/posttrain/runtime_images/published.toml) ;;
                       *) printf '%s\\n' "${path}" ;;
                     esac
