@@ -10,7 +10,7 @@ schema_version = 1
 id = "carbonteq-trackio"
 scope = "direct-package"
 repository = "https://github.com/carbonteq-ai/trackio"
-release_tag = "carbonteq-v0.31.5.post14.dev15"
+release_tag = "carbonteq-v0.31.5.post14.dev16"
 required = true
 
 [[fork]]

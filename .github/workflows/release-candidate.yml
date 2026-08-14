@@ -14,7 +14,6 @@ on:
         type: choice
         options:
           - rtx-pro-96gb
-          - rtx4090-24gb
       retire_failed_candidate_run_id:
         description: Optional failed candidate run whose complete development version may be retired after receipt verification
         required: false
@@ -206,6 +205,7 @@ jobs:
         if: inputs.retire_failed_candidate_run_id != ''
         env:
           DEVPI_CLIENT: /opt/posttrain-dstack-client/bin/devpi
+          REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt
         run: |
           test -x "${DEVPI_CLIENT}"
           "${DEVPI_CLIENT}" use https://pypi.lan/carbonteq/dev
@@ -256,6 +256,7 @@ jobs:
         run: |
           uv venv .release/consumer-venv --python 3.13
           uv pip install \
+            --no-cache \
             --python .release/consumer-venv/bin/python \
             --index-url "${PYPI_DEV_SIMPLE}" \
             "posttrain[dstack,trackio]==${{ steps.version.outputs.version }}" \
@@ -296,16 +297,10 @@ jobs:
         id: qualification
         run: |
           set +e
-          qualification_target_args=()
           case "${{ inputs.qualification_profile }}" in
             rtx-pro-96gb)
               qualification_host="carbonteq-ai-workstation.lan"
               qualification_min_gpu_memory_mib=90112
-              ;;
-            rtx4090-24gb)
-              qualification_target_args=(--target "targets/pop-os-rtx4090-24gb")
-              qualification_host="pop-os.lan"
-              qualification_min_gpu_memory_mib=22528
               ;;
             *)
               echo "unsupported qualification profile: ${{ inputs.qualification_profile }}" >&2
@@ -322,7 +317,9 @@ jobs:
           # or versioned candidate mismatch fails with an actionable error.
           .release/consumer-venv/bin/python - "${candidate_version}" "${framework_wheelhouse}" <<'PY'
           import importlib.metadata as metadata
+          import importlib.resources as resources
           import sys
+          import zipfile
           from pathlib import Path
 
           expected, wheelhouse_name = sys.argv[1:]
@@ -342,6 +339,26 @@ jobs:
               raise SystemExit(
                   f"framework wheelhouse contains non-candidate wheels: {mismatched}"
               )
+          runtime_wheels = sorted(wheelhouse.glob(f"posttrain_runtime_images-{expected}-*.whl"))
+          if len(runtime_wheels) != 1:
+              raise SystemExit(
+                  "framework wheelhouse must contain exactly one runtime-images wheel: "
+                  f"{runtime_wheels}"
+              )
+          definitions = (
+              "containers/posttrain-job/Dockerfile",
+              "containers/posttrain-job/docker-bake.hcl",
+          )
+          installed_root = resources.files("posttrain.runtime_images")
+          with zipfile.ZipFile(runtime_wheels[0]) as archive:
+              for relative in definitions:
+                  installed = installed_root.joinpath(relative).read_bytes()
+                  retained = archive.read(f"posttrain/runtime_images/{relative}")
+                  if installed != retained:
+                      raise SystemExit(
+                          "installed job build definition differs from retained candidate wheel: "
+                          f"{relative}"
+                      )
           print(f"verified consumer and {len(names)} staged framework wheels at {expected}")
           PY
           scripts/release/verify-dstack-capacity .release/dstack-capacity.json
@@ -353,7 +370,6 @@ jobs:
             apps/lab/.posttrain/work_packages/qwen08b_transform_qualification.yaml \
             --job transform \
             --provider dstack \
-            "${qualification_target_args[@]}" \
             --registry "${JOB_REGISTRY}" \
             --framework-wheelhouse "${framework_wheelhouse}" \
             --run-id "release-candidate-${{ github.run_id }}"

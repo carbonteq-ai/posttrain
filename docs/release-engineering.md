@@ -47,6 +47,33 @@ identity, maintained-dependency receipts, and accepted OCI manifest. The
 internal indexes, registry and GitHub Release must expose those exact
 identities.
 
+## Validation layers and the cold-state invariant
+
+A green local suite proves the committed source and deterministic build inputs;
+it does not by itself prove the state of the protected runner, private services,
+or a previously used production namespace. Release acceptance therefore uses
+separate evidence for each boundary:
+
+| Boundary | Required proof before dispatch or promotion | Failure this prevents |
+| --- | --- | --- |
+| Source and generated locks | Run the local ladder, release tests, runtime-image tests, runtime-lock check, and exact-SHA Quality. Every maintained-fork pin, wheel hash, runtime profile, generated lock and public-CI mirror must agree. | A dependency update reaches most locks but leaves one image or CI consumer on older bytes. |
+| Built distributions | Build from the staged tree, install the candidate from the private index into a new environment with `uv pip install --no-cache`, and compare installed runtime-image definitions byte-for-byte with the retained candidate wheel. | A warm `uv` cache supplies an older wheel after an audited same-version candidate retirement and republication. |
+| Release-plane trust | Exercise each private-index client on the protected runner with its explicit system trust bundle. `devpi`, `uv` and `curl` must not rely on a maintainer workstation's certificate state. | Local publication succeeds while candidate retirement or readback fails on the runner's private CA. |
+| Deployed dependency state | Release each maintained fork independently, promote its exact retained bytes, deploy the matching service revision, then run a live compatibility canary. Storage tests must include recoverable metadata/blob divergence such as a completed resumable-upload receipt whose content-addressed blob was purged. | A clean local database passes while the deployed Trackio service rejects an upload because its receipt and artifact store disagree. |
+| Registry and hardware | Verify immutable parent and kind digests from the registry, then resolve a named qualification profile against sanitized live capacity before submitting the canary. | Stale scheduler inventory or an obsolete profile selects hardware that no longer exists. |
+
+Caches are an optimization, never release evidence. Build caches may remain
+warm, but package identity is established by retained hashes and a no-cache
+consumer install. If a failed, never-promoted version is retired through the
+audited whole-version path, every subsequent install and qualification for its
+replacement must bypass package caches.
+
+Local integration tests must also reproduce state transitions that routine
+cleanup can create; testing only a new database and empty artifact store is not
+enough. Conversely, hardware execution and deployed-service compatibility are
+genuinely live gates. Do not spend GPU time until the source, cold-install,
+dependency-release, service-deployment and trust checks are already green.
+
 ### Release-specific qualification inputs
 
 Algorithm, model and environment qualification is release input rather than a
@@ -59,11 +86,11 @@ while the corrected DAPO and 0.3.3 release work is tracked in
 
 Each linked result names the source, model/environment revisions, execution
 target, image digest, run identity and evidence location. Mutable model or
-image tags are not accepted. A failed candidate is repaired as a new RC; it
-never mutates the target stable version or reuses an old run as proof for a
-different source or configuration. Because the candidate already contains the
-authored final Python version, “new RC” means a new workflow run and receipt,
-not a PEP 440 `rcN` distribution that would need rebuilding for promotion.
+image tags are not accepted. A failed candidate is repaired as a new candidate
+run; it never mutates the target stable version or reuses an old run as proof
+for a different source or configuration. The candidate already contains the
+authored final Python version, so its workflow run and receipt—not a PEP 440
+`rcN` distribution—are the RC identity.
 
 ## Release artifact graph
 
@@ -252,8 +279,9 @@ Before stable release, one documented remote GPU gate must execute a supported
 training or evaluation work package, record evidence, and retrieve it through
 Observatory from the same provider. The candidate dispatch chooses one named
 qualification profile, not an arbitrary host or memory override: the default
-`rtx-pro-96gb` profile uses the RTX PRO 6000, while `rtx4090-24gb` may qualify
-the bounded 0.8B transform canary on the idle RTX 4090. The retained capacity
+The `rtx-pro-96gb` release profile uses the RTX PRO 6000. The retired
+`rtx4090-24gb` profile must not be selected even if stale scheduler inventory
+still advertises it. The retained capacity
 receipt records the exact selected host and hardware.
 
 ## Remaining release gates
@@ -262,10 +290,10 @@ The framework is feature-rich but not release-complete:
 
 - The primary CLI performs composition-level work-package validation; concrete
   first-party job-definition preflight and `posttrain work-package run` remain.
-- Trackio `carbonteq-v0.31.5.post12` is published to the internal index and
-  deployed. Its manual compatibility receipt proves scalar read/write and a
-  cache-independent S3 artifact round trip; a Trackio-owned automated release
-  workflow remains operational follow-up rather than a 0.3.3 blocker.
+- Trackio `carbonteq-v0.31.5.post14.dev16` is released and promoted as exact
+  retained bytes. Deploying that same server revision and proving stale
+  resumable-upload recovery through a live canary remain gates for the current
+  Posttrain candidate.
 - Other maintained forks and external environments need the same independent
   receipt whenever a clean consumer cannot resolve them from the internal
   index.

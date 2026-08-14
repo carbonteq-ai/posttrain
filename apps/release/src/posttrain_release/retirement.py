@@ -101,9 +101,7 @@ def index_version_artifacts(receipt: dict[str, object], simple_base_url: str) ->
         parser.feed(document)
         wheel_prefix = f"{distribution}-{version}-"
         sdist_name = f"{distribution}-{version}.tar.gz"
-        observed[package] = sorted(
-            name for name in parser.names if name.startswith(wheel_prefix) or name == sdist_name
-        )
+        observed[package] = sorted(name for name in parser.names if name.startswith(wheel_prefix) or name == sdist_name)
     return observed
 
 

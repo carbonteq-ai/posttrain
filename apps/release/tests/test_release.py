@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
@@ -783,7 +784,7 @@ def test_fork_ledger_cross_checks_direct_runtime_environment_and_service_boundar
 
     entries = {entry.id: entry for entry in load_fork_ledger(repository_root)}
 
-    assert entries["carbonteq-trackio"].version == "0.31.5.post14.dev15"
+    assert entries["carbonteq-trackio"].version == "0.31.5.post14.dev16"
     assert entries["trl"].revision == "69cf80a7319079ec5523841553467e119ebc1cec"
     assert entries["verl"].release_tag == "carbonteq-v0.9.0.dev2"
     assert entries["vllm"].artifacts["source_archive_sha256"] == (
@@ -850,6 +851,7 @@ def test_candidate_builds_the_final_version_and_final_only_restores_it() -> None
     assert "candidate-retirement-check" in candidate
     assert "candidate-retirement-complete" in candidate
     assert '"${DEVPI_CLIENT}" remove -y --index carbonteq/dev' in candidate
+    assert "REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt" in candidate
     assert ".release/candidate-retirement.json" in candidate
     assert "scripts/release/build-python-distributions" not in final
     assert "Materialize and verify the candidate wheelhouse" in final
@@ -923,9 +925,7 @@ def test_failed_candidate_retirement_requires_exact_dev_and_empty_stable(
     assert preflight["failed_run_id"] == "31833287598"
 
 
-def test_failed_candidate_retirement_rejects_any_stable_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_failed_candidate_retirement_rejects_any_stable_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     import posttrain_release.retirement as retirement
 
     failed_path = tmp_path / "failed.json"
@@ -1017,16 +1017,16 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
         assert 'run cleanup \\\n            "release-' in workflow
 
     assert 'framework_wheelhouse="$(realpath .release/wheelhouse)"' in candidate
+    assert "--no-cache" in candidate
     assert 'consumer-venv/bin/python - "${candidate_version}" "${framework_wheelhouse}"' in candidate
     assert "framework wheelhouse contains non-candidate wheels" in candidate
+    assert "installed job build definition differs from retained candidate wheel" in candidate
     assert '--framework-wheelhouse "${framework_wheelhouse}"' in candidate
     assert "qualification_profile:" in candidate
     assert "rtx-pro-96gb" in candidate
-    assert "rtx4090-24gb" in candidate
-    assert 'qualification_target_args=(--target "targets/pop-os-rtx4090-24gb")' in candidate
-    assert 'qualification_host="pop-os.lan"' in candidate
-    assert 'qualification_target_args=()' in candidate
-    assert '"${qualification_target_args[@]}"' in candidate
+    assert "qualification_target_args" not in candidate
+    assert "rtx4090-24gb" not in candidate
+    assert 'qualification_host="pop-os.lan"' not in candidate
     assert 'qualification_target="targets/carbonteq-rtx-pro-6000-96gb"' not in candidate
 
     assert "candidate-version --simple-url" not in candidate
@@ -1208,6 +1208,14 @@ packages = ["src/posttrain_widget"]
 def test_dependency_lock_generation_has_one_record(tmp_path: Path) -> None:
     _version_repository(tmp_path)
     (tmp_path / "uv.lock").write_text("updated lock\n", encoding="utf-8")
+    quantization_lock = tmp_path / "tools/quantization/uv.lock"
+    quantization_lock.parent.mkdir(parents=True)
+    quantization_lock.write_text("quantization lock\n", encoding="utf-8")
+    quantization_catalog = tmp_path / "packages/catalog/src/posttrain/catalog/base/quantization.yaml"
+    quantization_catalog.write_text(
+        "quantization:\n  example:\n    dependency_lock_digest: " + "a" * 64 + "\n",
+        encoding="utf-8",
+    )
 
     digest = lock_dependencies(tmp_path)
 
@@ -1216,6 +1224,8 @@ def test_dependency_lock_generation_has_one_record(tmp_path: Path) -> None:
     )
     assert set(document["locks"]) == {"trl-fork@current"}
     assert document["locks"]["trl-fork@current"]["dependency_lock_sha256"] == digest
+    quantization_digest = hashlib.sha256(quantization_lock.read_bytes()).hexdigest()
+    assert f"dependency_lock_digest: {quantization_digest}" in quantization_catalog.read_text(encoding="utf-8")
 
 
 def test_rendered_lock_digests_come_from_the_shipped_locks() -> None:

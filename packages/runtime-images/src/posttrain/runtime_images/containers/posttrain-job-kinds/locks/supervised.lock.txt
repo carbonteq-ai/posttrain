@@ -119,7 +119,7 @@ brotli==1.2.0 \
     --hash=sha256:e310f77e41941c13340a95976fe66a8a95b01e783d430eeaf7a2f87e0a57dd0a
     # via carbonteq-trackio
 
-carbonteq-trackio @ https://pypi.lan/carbonteq/stable/+f/250/a690c8a693bc0/carbonteq_trackio-0.31.5.post14.dev15-py3-none-any.whl#sha256=250a690c8a693bc05c3ec323f57e55c9f1a2a0bfb4aae9a84da8a498a52f1b5f
+carbonteq-trackio @ https://pypi.lan/carbonteq/stable/+f/607/c2189033f20b0/carbonteq_trackio-0.31.5.post14.dev16-py3-none-any.whl#sha256=607c2189033f20b01ac3f867a78e6936bf9f9c0d94f0e2e3214ca710007b670f
     # via posttrain-tracking-trackio
 
 certifi==2026.6.17 \

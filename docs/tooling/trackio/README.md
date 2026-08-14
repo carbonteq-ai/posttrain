@@ -3,17 +3,21 @@
 The platform uses [`carbonteq-ai/trackio`](https://github.com/carbonteq-ai/trackio),
 an additive fork of upstream Trackio. Workspace packages keep the normal
 `import trackio` API. The current framework dependency is
-`carbonteq-trackio==0.31.5.post14.dev15`, built from immutable fork commit
-`fa9d1c5853f325c16ad64758e6889d5399559f26`. Its wheel
-(`250a690c8a693bc05c3ec323f57e55c9f1a2a0bfb4aae9a84da8a498a52f1b5f`) and
-sdist (`26c4c7ef2e8d05cad88b28b9e775217f6819b2dfa07a1e2c3ade964ec3137df7`)
-were released manually as `carbonteq-v0.31.5.post14.dev15` and promoted
+`carbonteq-trackio==0.31.5.post14.dev16`, built from immutable fork commit
+`d57c31d5d6d597f7739dc3f6cf89816a39c59a48`. Its wheel
+(`607c2189033f20b01ac3f867a78e6936bf9f9c0d94f0e2e3214ca710007b670f`) and
+sdist (`df8b2f6879e35eda13b81f77b55cb0ae928aeb8308c99ae0b65320da775fd77c`)
+were released manually as `carbonteq-v0.31.5.post14.dev16` and promoted
 byte-for-byte to the `carbonteq/stable` index. The development suffix is part
 of the immutable version; it does not make the stable-index publication mutable.
 This release adds generic typed trace facts: Posttrain supplies the versioned
 scalar projection from native Verifiers records, Trackio persists facts on the
 trace row plus a dynamic reward-component relation, and readers request only
 approved aggregate dimensions and measures.
+It also repairs stale completed resumable-upload receipts: when retention has
+removed the referenced content-addressed blob, the server reopens the
+idempotent session and accepts the bytes again instead of failing completion
+with HTTP 409.
 `0.31.5.post4` on
 `pypi.lan` is permanently skewed (metadata post4, import post3) and must not be
 installed.
