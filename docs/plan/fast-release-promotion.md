@@ -146,8 +146,19 @@ receipt instead of rebuilding or re-running completed checks.
   tree `14a8b8950a8fb5b0c4c43d2894eed2702095150b` passed deterministic
   readiness locally: 1,251 passed, 23 skipped, Ruff/check-format, Pyright,
   and import contracts all passed.
+- [x] (2026-08-14) The first formal candidate against merged main correctly
+  rejected the already-published `0.3.16` development bytes. Stable inspection
+  confirmed that `v0.3.16` had already been promoted, so the release target is
+  advanced to `0.3.17` rather than overwriting immutable artifacts. Candidate
+  preparation now checks the stable `posttrain` index before expensive image
+  or wheel work and fails with an actionable version-bump message.
 
 ## Surprises & Discoveries
+
+- Observation: a development index can inherit the stable release of the same
+  version. A candidate's hash mismatch is therefore evidence of an immutable
+  version collision, not safe grounds to delete the development entry. The
+  authored release manifest must advance before candidate publication.
 
 - Observation: `posttrain-release readiness` currently records only Trackio
   and TRL even though the executable runtime also selects CarbonTeq veRL and
