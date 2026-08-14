@@ -30,6 +30,7 @@ env:
   PYPI_DEV_SIMPLE: https://pypi.lan/carbonteq/dev/+simple/
   PYPI_DEV_PROJECT_SIMPLE: https://pypi.lan/carbonteq/dev/+simple/posttrain/
   PYPI_DEV_UPLOAD: https://pypi.lan/carbonteq/dev/
+  PYPI_STABLE_SIMPLE: https://pypi.lan/carbonteq/stable/+simple/
   JOB_REGISTRY: registry.lan/carbonteq
 
 jobs:
@@ -108,6 +109,12 @@ jobs:
         run: |
           version="$(sed -n 's/^version = "\([^" ]*\)"$/\1/p' release/manifest.toml)"
           test -n "${version}"
+          if curl --fail --silent --show-error --max-time 20 \
+            "${PYPI_STABLE_SIMPLE}posttrain/" \
+            | grep -Eq -- "posttrain-${version}(-py3-none-any[.]whl|[.]tar[.]gz)([<#])"; then
+            echo "release/manifest.toml version ${version} is already immutable in stable; advance the release manifest before preparing a candidate" >&2
+            exit 1
+          fi
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "final development candidate=${version}"
 
