@@ -549,6 +549,14 @@ def _online_rl_arguments(
         isinstance(logits_chunk_size, bool) or not isinstance(logits_chunk_size, int) or logits_chunk_size < 1
     ):
         raise ValueError("TRL GRPO logits_chunk_size must be a positive integer")
+    parity_limit = request.training.backend_options.get("vllm_policy_parity_max_mean_logp_delta")
+    if parity_limit is not None and (
+        isinstance(parity_limit, bool)
+        or not isinstance(parity_limit, int | float)
+        or not math.isfinite(parity_limit)
+        or parity_limit <= 0
+    ):
+        raise ValueError("TRL GRPO vLLM policy parity limit must be a finite positive number")
     sampling = policy_sampling_from_binding(request.inference, request.settings.max_completion_length)
     arguments.update(
         {
@@ -630,6 +638,8 @@ def _online_rl_arguments(
                 "vllm_importance_sampling_clip_max": importance_sampling_clip_max,
             }
         )
+        if parity_limit is not None:
+            arguments["vllm_policy_parity_max_mean_logp_delta"] = float(parity_limit)
         if is_olmo3:
             for name in (
                 "vllm_importance_sampling_correction",
@@ -691,6 +701,9 @@ def _online_rl_runtime_attributes(request: GRPORequest | SAMPORequest) -> dict[s
         "use_liger_kernel": request.training.backend_options.get("use_liger_kernel", False),
         "liger_loss_compiled": request.training.backend_options.get("liger_loss_compiled", True),
         "logits_chunk_size": request.training.backend_options.get("logits_chunk_size"),
+        "vllm_policy_parity_max_mean_logp_delta": request.training.backend_options.get(
+            "vllm_policy_parity_max_mean_logp_delta"
+        ),
         "online_rl_algorithm": request.settings.algorithm if isinstance(request, GRPORequest) else "sampo",
         "advantage_scaling": (request.settings.advantage_scaling if isinstance(request, GRPORequest) else "group"),
         "clip_epsilon_low": request.settings.clip_epsilon_low,
