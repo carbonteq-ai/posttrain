@@ -850,6 +850,7 @@ def test_candidate_builds_the_final_version_and_final_only_restores_it() -> None
     assert "candidate-retirement-check" in candidate
     assert "candidate-retirement-complete" in candidate
     assert '"${DEVPI_CLIENT}" remove -y --index carbonteq/dev' in candidate
+    assert "REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt" in candidate
     assert ".release/candidate-retirement.json" in candidate
     assert "scripts/release/build-python-distributions" not in final
     assert "Materialize and verify the candidate wheelhouse" in final

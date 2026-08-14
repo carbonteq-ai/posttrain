@@ -205,6 +205,7 @@ jobs:
         if: inputs.retire_failed_candidate_run_id != ''
         env:
           DEVPI_CLIENT: /opt/posttrain-dstack-client/bin/devpi
+          REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt
         run: |
           test -x "${DEVPI_CLIENT}"
           "${DEVPI_CLIENT}" use https://pypi.lan/carbonteq/dev
