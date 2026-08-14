@@ -14,10 +14,10 @@ Observatory populate historical rollout tables without fetching full payloads.
 `pypi.lan` is permanently skewed (metadata post4, import post3) and must not be
 installed.
 
-The active candidate is `carbonteq-trackio==0.31.5.post14.dev4`, built from
-immutable fork commit `9dd9fa24920054a0ada636dbaf8f861971dfb81a`. Its wheel
-(`731425c378c03659e6d67eb3806277c4a90cd2e0a4ae2eeb371908bad3cb5fc3`) and
-sdist (`323ffc9b88ab0a502dcd21fe910cacebbe65e2cfe597844a3c6a30b2c96a5699`)
+The active candidate is `carbonteq-trackio==0.31.5.post14.dev7`, built from
+immutable fork commit `a3ef9946`. Its wheel
+(`686606f8dbf4c4ec504eff13b7ce70b8febbc62259d7c95c364f890186f7e3fb`) and
+sdist (`93b7e295628e92f08096cb9f29c3c41e36a087ad05f5caefcd4cb079eac3d928`)
 were read back from the `carbonteq/dev` index. It is a development framework
 dependency and the isolated Doris candidate service has qualified it; it is
 not yet the stable framework dependency or production service. It adds generic typed trace facts:
