@@ -365,25 +365,29 @@ class TrackioTrackedRun:
         self._run.log({f"traces/{observation.trace_type}": trace})
 
     def trace_fact_update(self, observation: TraceFactUpdateObservation) -> None:
-        flush = getattr(self._run, "flush", None)
+        enqueue = getattr(self._run, "enqueue_trace_facts", None)
         upsert = getattr(self._run, "upsert_trace_facts", None)
-        if not callable(flush) or not callable(upsert):
+        update = _trackio_trace_facts(
+            observation.trace_type,
+            observation.external_id,
+            observation.facts,
+            replace_reward_components=False,
+        )
+        if callable(enqueue):
+            # Training evidence must not wait for Doris.  The Trackio SDK
+            # persists the idempotent enrichment in its durable inbox and the
+            # importer waits for the native parent trace if necessary.
+            enqueue(update)
+            return
+        if not callable(upsert):
             raise ContractError(
                 "the configured Trackio build does not support trace-fact enrichment; "
                 "install the declared Trackio trace-facts release"
             )
-        # The source trace is queued by the normal logging path. Flush it before
-        # sending the trace-keyed enrichment so a remote server never observes
-        # the second phase before the physical parent row exists.
-        flush()
-        upsert(
-            _trackio_trace_facts(
-                observation.trace_type,
-                observation.external_id,
-                observation.facts,
-                replace_reward_components=False,
-            )
-        )
+        # Older Trackio builds have no durable asynchronous fact transport.
+        # Preserve their synchronous behavior for the short compatibility
+        # window; the pinned release path requires `enqueue_trace_facts`.
+        upsert(update)
 
     def artifact(self, artifact: ProducedArtifact) -> None:
         if not isinstance(artifact.reference, LocalArtifactRef):

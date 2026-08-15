@@ -5,7 +5,7 @@ from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 import trackio.context_vars as context_vars
@@ -17,6 +17,7 @@ from posttrain.common import (
     MetricObservation,
     ProducedArtifact,
     TraceFactSet,
+    TraceFactUpdateObservation,
     TraceObservation,
 )
 from posttrain.tracking import (
@@ -39,9 +40,11 @@ from posttrain_tracking_trackio import (
     TrackioPurgeActionExecutor,
     TrackioSettings,
     TrackioTraceFactWriter,
+    TrackioTrackedRun,
     require_remote_trackio_ready,
 )
 from posttrain_tracking_trackio.adapter import _trackio_trace_facts
+from trackio.run import Run as TrackioSDKRun
 from trackio.sqlite_storage import SQLiteStorage
 
 from packages.tracking.tests.conformance import (
@@ -239,6 +242,45 @@ def test_algorithm_reward_enrichment_does_not_replace_source_reward_components()
     assert update.namespace == "posttrain.train.reward"
     assert update.measures == {"algorithm_reward": 0.75}
     assert update.replace_reward_components is False
+
+
+def test_tracked_run_enqueues_later_trace_facts_without_flushing_training() -> None:
+    class SDKRun:
+        id = "provider-run-a"
+
+        def __init__(self) -> None:
+            self.enqueued: list[Any] = []
+
+        def enqueue_trace_facts(self, update: Any) -> None:
+            self.enqueued.append(update)
+
+        def flush(self) -> None:
+            raise AssertionError("trace fact delivery must not flush training telemetry")
+
+        def upsert_trace_facts(self, update: Any) -> None:
+            del update
+            raise AssertionError("new Trackio builds use the durable enqueue API")
+
+    sdk_run = SDKRun()
+    # This focused double exercises only the nonblocking trace-fact seam.  The
+    # adapter accepts the concrete SDK run at runtime, so keep the production
+    # type at the boundary rather than duplicating the entire SDK surface here.
+    tracked = TrackioTrackedRun(cast(TrackioSDKRun, sdk_run), "project-a", conformance_spec("run-a"))
+    tracked.trace_fact_update(
+        TraceFactUpdateObservation(
+            "verifiers",
+            "trace-a",
+            TraceFactSet(
+                namespace="posttrain.train.reward",
+                calculator_version="grpo-algorithm-reward.v1",
+                measures={"algorithm_reward": 0.75},
+            ),
+        )
+    )
+
+    assert len(sdk_run.enqueued) == 1
+    assert sdk_run.enqueued[0].external_id == "trace-a"
+    assert sdk_run.enqueued[0].measures == {"algorithm_reward": 0.75}
 
 
 def test_trackio_purge_action_executor_revalidates_before_apply() -> None:
