@@ -218,6 +218,21 @@ evidence. It adds no new job kind, selection, or project decision.
   `RemoteClient` `/bulk_log` request exceeded its 60-second timeout. Trackio,
   Doris, and object-storage capacity were healthy; this is a causal-delivery
   design fault, not storage exhaustion.
+- [x] (2026-08-15 22:28Z) Released `carbonteq-trackio==0.31.5.post14.dev17`
+  from immutable fork commit `ec7d0635f5cbf215a7566e4c3a9d54952504c4c7`.
+  The manual GitHub Release retained the wheel SHA-256
+  `e9fe814b24a3043b96fc3cf912b84bb59fad936513512d82be6eb7338e6783f9`
+  and sdist SHA-256
+  `2c9f7a4bf2ea3de9e7cf9ea0eabd39273215d2de0310fc0232e1d5a3103e4c2a`.
+  Posttrain workflow `31912187051` published those exact bytes to development;
+  workflow `31912744698` verified them and promoted them unchanged to stable.
+- [x] (2026-08-15 22:40Z) Deployed dev17 to both shared and candidate Doris
+  Trackio services. A released-wheel live qualification wrote a native
+  Verifiers trace followed by `enqueue_trace_facts()` in 0.04 seconds, observed
+  the `algorithm_reward=0.5` aggregate after asynchronous import, and deleted
+  its synthetic project. The deployment wrapper now refetches/verifies the
+  selected wheel and force-recreates the two Trackio containers so a pathname
+  or image tag cannot retain stale bytes.
 - [ ] Replace synchronous trace/fact delivery with one durable asynchronous
   Trackio inbox protocol, add regression coverage for delayed Doris writes,
   release the fork manually, update the Posttrain pin/runtime image, and resume

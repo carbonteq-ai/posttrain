@@ -290,10 +290,10 @@ The framework is feature-rich but not release-complete:
 
 - The primary CLI performs composition-level work-package validation; concrete
   first-party job-definition preflight and `posttrain work-package run` remain.
-- Trackio `carbonteq-v0.31.5.post14.dev16` is released and promoted as exact
-  retained bytes. Deploying that same server revision and proving stale
-  resumable-upload recovery through a live canary remain gates for the current
-  Posttrain candidate.
+- Trackio `carbonteq-v0.31.5.post14.dev17` is a released, hash-verified
+  development candidate. It restores durable asynchronous trace/fact delivery;
+  real-Doris readback and byte-preserving stable promotion remain gates for the
+  current Posttrain candidate.
 - Other maintained forks and external environments need the same independent
   receipt whenever a clean consumer cannot resolve them from the internal
   index.

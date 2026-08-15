@@ -3,13 +3,15 @@
 The platform uses [`carbonteq-ai/trackio`](https://github.com/carbonteq-ai/trackio),
 an additive fork of upstream Trackio. Workspace packages keep the normal
 `import trackio` API. The current framework dependency is
-`carbonteq-trackio==0.31.5.post14.dev16`, built from immutable fork commit
-`d57c31d5d6d597f7739dc3f6cf89816a39c59a48`. Its wheel
-(`607c2189033f20b01ac3f867a78e6936bf9f9c0d94f0e2e3214ca710007b670f`) and
-sdist (`df8b2f6879e35eda13b81f77b55cb0ae928aeb8308c99ae0b65320da775fd77c`)
-were released manually as `carbonteq-v0.31.5.post14.dev16` and promoted
-byte-for-byte to the `carbonteq/stable` index. The development suffix is part
-of the immutable version; it does not make the stable-index publication mutable.
+`carbonteq-trackio==0.31.5.post14.dev17`, built from immutable fork commit
+`ec7d0635f5cbf215a7566e4c3a9d54952504c4c7`. Its wheel
+(`e9fe814b24a3043b96fc3cf912b84bb59fad936513512d82be6eb7338e6783f9`) and
+sdist (`2c9f7a4bf2ea3de9e7cf9ea0eabd39273215d2de0310fc0232e1d5a3103e4c2a`)
+were released manually as `carbonteq-v0.31.5.post14.dev17`, published
+unchanged to `carbonteq/dev` by Posttrain workflow `31912187051`, then promoted
+byte-for-byte to `carbonteq/stable` by workflow `31912744698` after the live
+Doris trace/fact qualification. The development suffix is part of the immutable
+version; it does not make the stable-index publication mutable.
 This release adds generic typed trace facts: Posttrain supplies the versioned
 scalar projection from native Verifiers records, Trackio persists facts on the
 trace row plus a dynamic reward-component relation, and readers request only
@@ -50,6 +52,17 @@ Dev10 completes the client-side boundary for bridges that explicitly call
 `Run.flush()` before enrichment. A remote flush now sends its queued metric
 batch to the service rather than only checkpointing it in the local retry
 buffer, so a trace-fact update cannot overtake its native parent trace.
+
+Dev17 supersedes the normal-training behavior of Dev8--Dev10. The old
+source-before-fact repair turned every trainer enrichment into synchronous
+Doris I/O, so a slow write could fail training at the 60-second remote-client
+timeout. In async-Doris mode, native trace batches now use the durable server
+inbox just like ordinary telemetry. Later trace-fact updates use the separate
+`/enqueue_trace_facts` inbox API; the importer applies source metrics before
+facts and leaves an early fact durable for retry. Explicit `Run.flush()` and
+`Run.upsert_trace_facts()` retain their synchronous read-after-write meaning
+for maintenance callers. Posttrain's training adapter uses only the new
+enqueue operation, so optimizer progress is not coupled to Doris latency.
 
 Dev11 adds the bounded generic `/bulk_upsert_trace_facts` endpoint. Posttrain
 uses it only for one already-projected historical page at a time; all facts
