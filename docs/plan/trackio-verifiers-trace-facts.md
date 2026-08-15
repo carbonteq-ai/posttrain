@@ -212,6 +212,16 @@ evidence. It adds no new job kind, selection, or project decision.
   `6b72f56b015d47a3b6a963151dc35ab6` has an eight-trace, payload-free aggregate
   with complete coverage for calls, input/output/thinking tokens, tool calls,
   latency, task reward, and post-rollout algorithm reward.
+- [x] (2026-08-15 21:55Z) Diagnosed the failed remote base-model run
+  `b5c79e2d-3642-44a6-84a5-94c6644b5949`: its Trackio adapter synchronously
+  flushed queued native traces before every trainer reward enrichment and the
+  `RemoteClient` `/bulk_log` request exceeded its 60-second timeout. Trackio,
+  Doris, and object-storage capacity were healthy; this is a causal-delivery
+  design fault, not storage exhaustion.
+- [ ] Replace synchronous trace/fact delivery with one durable asynchronous
+  Trackio inbox protocol, add regression coverage for delayed Doris writes,
+  release the fork manually, update the Posttrain pin/runtime image, and resume
+  the run from its verified latest checkpoint as a fresh attempt.
 - [x] Extend Trackio's existing SQLite/Doris `traces` schema with nullable
   scalar fact columns, add normalized reward-component rows, and implement
   grouped reads.
@@ -451,6 +461,17 @@ evidence. It adds no new job kind, selection, or project decision.
   source/flush/enrichment probe passed once flush synchronously delivered the
   in-memory trace batch before draining scalar retries.
 
+- Observation: the dev9/dev10 causal-order repair makes one overloaded Doris
+  request fatal to training. The remote client defaults `/bulk_log` to a
+  60-second HTTP timeout; `TrackioTrackedRun.trace_fact_update()` calls
+  `Run.flush()` immediately before `Run.upsert_trace_facts()`, and both
+  `Run.flush()` and `Run.upsert_trace_facts()` synchronously submit every queued
+  trace batch.
+  Evidence: the failed job's preserved Python stack terminates at
+  `RemoteClient.predict(api_name="/bulk_log")` with `httpx.ReadTimeout`; live
+  inspection found 236 GB free on Trackio control, 65 GB free on Doris, 93 GB
+  free on object storage, and only 861.8 MB in the Trackio Doris database.
+
 - Observation: the default TRL vLLM policy-parity threshold is a framework
   safety default, not a universal calibration for every model/template/runtime
   combination. Two Qwen 3.5 0.8B live rollout groups measured 0.064933 and
@@ -641,6 +662,23 @@ evidence. It adds no new job kind, selection, or project decision.
   enrichment, and historical backfill without adding Posttrain semantics to
   Trackio or creating provider-specific endpoints.
   Date/Author: 2026-08-14 / Codex
+
+- Decision: retain the synchronous `Run.upsert_trace_facts()` operation for
+  explicit read-after-write callers, but add a separate asynchronous
+  `Run.enqueue_trace_facts()` operation for normal live observation. In Doris
+  asynchronous mode, all native trace metric batches and queued fact updates
+  become immutable server-inbox fragments. The importer writes native traces
+  before dependent fact fragments, retries a temporarily missing parent without
+  deleting its source fragment, and applies the fact through the existing
+  idempotent storage method. The Posttrain Trackio adapter uses this asynchronous
+  operation for trainer enrichment and never calls `flush()` on the training
+  critical path.
+  Rationale: source traces and algorithm reward are separate in time, but
+  neither requires immediate query visibility during an optimizer update. A
+  durable server acknowledgement gives the producer a bounded request while the
+  importer preserves parent-before-enrichment ordering. Keeping the synchronous
+  API avoids breaking explicit maintenance/read-after-write callers.
+  Date/Author: 2026-08-16 / Codex
 
 - Decision: machine configuration owns service credentials, provider bindings,
   and scheduling defaults; project-local protected state may override only the
