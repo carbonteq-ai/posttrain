@@ -5,7 +5,7 @@ from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 import trackio.context_vars as context_vars
@@ -44,6 +44,7 @@ from posttrain_tracking_trackio import (
     require_remote_trackio_ready,
 )
 from posttrain_tracking_trackio.adapter import _trackio_trace_facts
+from trackio.run import Run as TrackioSDKRun
 from trackio.sqlite_storage import SQLiteStorage
 
 from packages.tracking.tests.conformance import (
@@ -261,7 +262,10 @@ def test_tracked_run_enqueues_later_trace_facts_without_flushing_training() -> N
             raise AssertionError("new Trackio builds use the durable enqueue API")
 
     sdk_run = SDKRun()
-    tracked = TrackioTrackedRun(sdk_run, "project-a", conformance_spec("run-a"))
+    # This focused double exercises only the nonblocking trace-fact seam.  The
+    # adapter accepts the concrete SDK run at runtime, so keep the production
+    # type at the boundary rather than duplicating the entire SDK surface here.
+    tracked = TrackioTrackedRun(cast(TrackioSDKRun, sdk_run), "project-a", conformance_spec("run-a"))
     tracked.trace_fact_update(
         TraceFactUpdateObservation(
             "verifiers",
