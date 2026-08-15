@@ -2732,7 +2732,9 @@ source = { editable = "apps/job-builder" }
 dependencies = [
     { name = "fastapi" },
     { name = "posttrain-common" },
+    { name = "posttrain-execution-buildkit" },
     { name = "posttrain-execution-pack" },
+    { name = "posttrain-runtime-images" },
     { name = "uvicorn" },
 ]
 
@@ -2740,7 +2742,9 @@ dependencies = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.136.3,<0.137" },
     { name = "posttrain-common", editable = "packages/common" },
+    { name = "posttrain-execution-buildkit", editable = "packages/execution-buildkit" },
     { name = "posttrain-execution-pack", editable = "packages/execution-pack" },
+    { name = "posttrain-runtime-images", editable = "packages/runtime-images" },
     { name = "uvicorn", specifier = ">=0.51,<0.52" },
 ]
 
