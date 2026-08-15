@@ -212,8 +212,28 @@ and it uses exactly the images the installed framework was released with.
   inventory also confirms that `ai-release` remains a protected framework
   release surface; developer-builder deployment requires a separately scoped
   host or VM and must not be placed on that runner.
+- [x] (2026-08-15) Consumer readiness check — Ambient Agent now pins
+  `posttrain==0.3.17` and `posttrain-train==0.3.17`; its existing
+  SFT-initialized OLMo 3 one-step GRPO canary passes detached work-package
+  validation and `job plan --builder local`. `job plan --builder remote`
+  correctly fails before any transfer because no machine-local
+  `[services.job_builder]` binding exists. This is not a client defect: the
+  current source has the admission API and worker library but no production
+  composition, deployment role, endpoint, or `job-builder.lan` DNS record.
+  The next Milestone 10 slice must establish that separate service first;
+  configuring a speculative endpoint or reusing `ai-release` is prohibited.
 
 ## Surprises & Discoveries
+
+- Observation: the published 0.3.17 client is ready, but the network service
+  is not deployable from the current infrastructure checkout.
+  Evidence: `/home/hammad/projects/rl/apps/job-builder/` contains
+  `http.py`, `store.py`, and `worker.py`, but no production composition root;
+  `/home/hammad/projects/ai-infra` has no job-builder Ansible role, playbook,
+  inventory group, endpoint, or DNS record. On 2026-08-15,
+  `posttrain job plan ... --builder remote` returned
+  `--builder remote requires machine [services.job_builder] remote configuration`.
+  `ai-release` remains reserved for protected framework releases.
 
 - Observation: the actual-job Docker stages were thin, but the registry output
   was not. A retained eval job had 35 layers and 4,205,518,162 compressed bytes,
