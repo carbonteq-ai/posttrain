@@ -72,8 +72,9 @@ class _Provider:
         cursor: LogCursor | None = None,
         *,
         limit: int = 200,
+        stream: str = "workload",
     ) -> LogPage:
-        del handle
+        del handle, stream
         offset = (cursor or LogCursor()).offset
         lines = ("startup", "failure detail")[offset : offset + limit]
         return LogPage(lines, LogCursor(offset + len(lines)), False)

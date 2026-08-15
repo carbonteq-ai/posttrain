@@ -764,6 +764,7 @@ def plan_job_launch(
         environment_names=base.environment_names,
         sources=sources,
     )
+    _validate_remote_training_timeout(package.prepared.recipe_job.kind, settings)
     selected_run_id = run_id or str(uuid.uuid4())
     run_spec = replace(package.prepared.spec, run_id=selected_run_id)
     storage = _storage(package.layout, package.local_config, settings.provider)
@@ -772,6 +773,20 @@ def plan_job_launch(
         settings=settings,
         mounts=_mounts(selected_run_id, storage),
     )
+
+
+def _validate_remote_training_timeout(job_kind: str, settings: ResolvedExecutionSettings) -> None:
+    """Prevent expensive remote training from silently inheriting the one-hour fallback."""
+
+    if (
+        settings.provider != "local"
+        and job_kind.startswith("train.")
+        and settings.sources.get("timeout_seconds") == "job"
+    ):
+        raise ContractError(
+            "remote training requires an explicit provider wall-clock timeout; set "
+            "[execution].timeout_seconds in .posttrain/project.toml or pass --timeout-seconds"
+        )
 
 
 def _plan_job_package(

@@ -509,6 +509,11 @@ def test_status_bounded_logs_cancel_and_collect(tmp_path: Path) -> None:
     assert page.lines == ("two",)
     assert page.next_cursor.offset == 2
     assert page.truncated is True
+    diagnostic_page = provider.logs(handle, limit=1, stream="diagnostic")
+    assert diagnostic_page.lines == ("one",)
+    diagnostic_action, diagnostic_payload = gateway.calls[-1]
+    assert diagnostic_action == "logs"
+    assert diagnostic_payload["diagnose"] is True
     provider.cancel(handle)
     assert provider.status(handle).state == "cancelled"
     assert provider.collect(handle).record.state == "cancelled"
@@ -532,6 +537,18 @@ def test_status_bounded_logs_cancel_and_collect(tmp_path: Path) -> None:
     assert payload["image"] == request.image.value
     assert payload["cleanup_run_name"].startswith("pt-clean-")
     assert "retained run history" in cleanup.message
+
+
+def test_dstack_max_duration_is_the_execution_policy_timeout(tmp_path: Path) -> None:
+    gateway = FakeGateway()
+    provider = DstackExecutionProvider(gateway, project="posttrain")
+    request = replace(_request(tmp_path), policy=ExecutionPolicy(timeout_seconds=90_000))
+
+    provider.plan(request)
+
+    action, payload = gateway.calls[-1]
+    assert action == "plan"
+    assert payload["configuration"]["max_duration"] == 90_000
 
 
 @pytest.mark.parametrize(

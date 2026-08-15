@@ -15,6 +15,7 @@ from typing import Any, Protocol, cast
 
 from posttrain.execution import (
     ExecutionHandle,
+    ExecutionLogStream,
     ExecutionPlan,
     ExecutionRecord,
     ExecutionRequest,
@@ -336,13 +337,18 @@ class DstackExecutionProvider:
         cursor: LogCursor | None = None,
         *,
         limit: int = 200,
+        stream: ExecutionLogStream = "workload",
     ) -> LogPage:
         if limit < 1:
             raise ValueError("log limit must be positive")
         offset = (cursor or LogCursor()).offset
         response = self._gateway.invoke(
             "logs",
-            {"project": self._project, "run_name": handle.provider_id},
+            {
+                "project": self._project,
+                "run_name": handle.provider_id,
+                "diagnose": stream == "diagnostic",
+            },
         )
         all_lines = tuple(str(value) for value in response.get("lines", ()))
         page = all_lines[offset : offset + limit]

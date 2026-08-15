@@ -17,7 +17,9 @@ from posttrain.common import ContractError
 
 from .contracts import (
     ExecutionHandle,
+    ExecutionLogStream,
     ExecutionPlan,
+    ExecutionPolicy,
     ExecutionProvider,
     ExecutionRecord,
     ExecutionRequest,
@@ -33,7 +35,7 @@ from .receipts import ExecutionJournal
 
 _RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
-_SCHEMA = "posttrain.execution-submission.v6"
+_SCHEMA = "posttrain.execution-submission.v7"
 _SUPPORTED_SCHEMAS = frozenset(
     {
         "posttrain.execution-submission.v1",
@@ -42,6 +44,7 @@ _SUPPORTED_SCHEMAS = frozenset(
         "posttrain.execution-submission.v4",
         "posttrain.execution-submission.v5",
         "posttrain.execution-submission.v6",
+        "posttrain.execution-submission.v7",
         _SCHEMA,
     }
 )
@@ -110,6 +113,7 @@ class ExecutionSubmission:
     evidence_source_recorded: bool = True
     provider_source: ExecutionProviderSource | None = None
     provider_source_recorded: bool = True
+    execution_policy: ExecutionPolicy | None = None
     legacy_bundle_digest: str | None = None
     local_image: str | None = None
 
@@ -174,6 +178,15 @@ class ExecutionSubmission:
                 tuple(str(value) for value in self.provider_source.as_dict().values())
                 if self.provider_source
                 else ("",)
+            ),
+            *(
+                (
+                    str(self.execution_policy.timeout_seconds),
+                    str(self.execution_policy.max_attempts),
+                    str(self.execution_policy.priority),
+                )
+                if self.execution_policy is not None
+                else ("", "", "")
             ),
             self.legacy_bundle_digest or "",
         )
@@ -461,10 +474,11 @@ class ExecutionSubmissionStore:
         path = self.submission_path(submission.run_id)
         path.parent.mkdir(parents=True, exist_ok=True)
         temporary = path.parent / f".submission-{uuid.uuid4().hex}.tmp"
+        schema = _SCHEMA if submission.execution_policy is not None else "posttrain.execution-submission.v6"
         encoded = (
             json.dumps(
                 {
-                    "schema": _SCHEMA,
+                    "schema": schema,
                     "run_id": submission.run_id,
                     "provider": submission.provider,
                     "provider_id": submission.provider_id,
@@ -489,6 +503,15 @@ class ExecutionSubmissionStore:
                     "provider_source_recorded": submission.provider_source_recorded,
                     "provider_source": (
                         submission.provider_source.as_dict() if submission.provider_source is not None else None
+                    ),
+                    "execution_policy": (
+                        {
+                            "timeout_seconds": submission.execution_policy.timeout_seconds,
+                            "max_attempts": submission.execution_policy.max_attempts,
+                            "priority": submission.execution_policy.priority,
+                        }
+                        if submission.execution_policy is not None
+                        else None
                     ),
                 },
                 sort_keys=True,
@@ -583,6 +606,7 @@ class JobExecutionService:
             evidence_source_recorded=True,
             provider_source=self._provider_source,
             provider_source_recorded=True,
+            execution_policy=plan.request.policy,
             local_image=plan.request.local_image,
         )
         return self._store.save(submission)
@@ -604,9 +628,12 @@ class JobExecutionService:
         cursor: LogCursor | None = None,
         *,
         limit: int = 200,
+        stream: ExecutionLogStream = "workload",
     ) -> LogPage:
         submission = self._submission(run_id)
-        return self._provider.logs(submission.handle, cursor, limit=limit)
+        if stream == "workload":
+            return self._provider.logs(submission.handle, cursor, limit=limit)
+        return self._provider.logs(submission.handle, cursor, limit=limit, stream=stream)
 
     def cancel(self, run_id: str) -> None:
         submission = self._submission(run_id)
@@ -726,6 +753,18 @@ def _submission_from_payload(payload: dict[str, Any]) -> ExecutionSubmission:
             if provider_source_recorded and provider_payload is not None
             else None
         )
+        policy_payload = payload.get("execution_policy")
+        if schema == _SCHEMA and not isinstance(policy_payload, dict):
+            raise ContractError("execution submission must record its execution policy")
+        execution_policy = (
+            ExecutionPolicy(
+                timeout_seconds=int(policy_payload["timeout_seconds"]),
+                max_attempts=int(policy_payload.get("max_attempts", 1)),
+                priority=int(policy_payload.get("priority", 0)),
+            )
+            if isinstance(policy_payload, dict)
+            else None
+        )
         return ExecutionSubmission(
             run_id=str(payload["run_id"]),
             provider=str(payload["provider"]),
@@ -739,6 +778,7 @@ def _submission_from_payload(payload: dict[str, Any]) -> ExecutionSubmission:
             evidence_source_recorded=evidence_source_recorded,
             provider_source=provider_source,
             provider_source_recorded=provider_source_recorded,
+            execution_policy=execution_policy,
             legacy_bundle_digest=(str(payload["bundle_digest"]) if payload.get("bundle_digest") is not None else None),
             local_image=(str(payload["local_image"]) if payload.get("local_image") is not None else None),
         )
