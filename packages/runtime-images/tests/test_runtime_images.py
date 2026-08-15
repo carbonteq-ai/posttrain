@@ -197,6 +197,31 @@ def test_narrow_runtime_locks_pin_every_profile_root_and_artifact() -> None:
                 assert "--hash=sha256:" in requirement or "#sha256=" in requirement, (lock, name)
 
 
+def test_every_kind_lock_agrees_with_the_shared_runtime_profile() -> None:
+    """A shared profile pin must never contradict a selected kind closure.
+
+    The transform closure is maintained by the isolated quantization lock,
+    whereas the other kind closures are projected from the workspace lock.
+    Both are installed alongside ``profiles/common.txt`` by the Dockerfile, so
+    this catches a stale isolated closure before an OCI build reaches pip.
+    """
+
+    with definition_root() as root:
+        profile = root / "containers/posttrain-job-kinds/profiles/common.txt"
+        shared = {
+            name.lower().replace("_", "-"): version
+            for line in profile.read_text(encoding="utf-8").splitlines()
+            if (match := re.fullmatch(r"([A-Za-z0-9_.-]+)==([^ ;]+)", line))
+            for name, version in (match.groups(),)
+        }
+    assert shared
+    for variant in RUNTIME_VARIANTS:
+        requirements = _logical_requirements(constraint_lock(variant))
+        for name, version in shared.items():
+            first_line = requirements[name].lstrip().splitlines()[0]
+            assert f"=={version}" in first_line or f"-{version}-" in first_line, (variant, name, first_line)
+
+
 def test_base_runtime_lock_includes_cuda_dependencies_selected_by_torch_extras() -> None:
     """Torch's locked CUDA toolkit edge requests the cudart extra.
 
