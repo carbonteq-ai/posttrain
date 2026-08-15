@@ -585,6 +585,8 @@ def _execution_plan_payload(planned: PlannedJobExecution) -> dict[str, object]:
                 "max_attempts": settings.max_attempts,
                 "priority": settings.priority,
             },
+            "timeout_seconds": settings.timeout_seconds,
+            "timeout_source": settings.sources["timeout_seconds"],
             "environment_names": settings.environment_names,
             "setting_sources": settings.sources,
             "mounts": [

@@ -13,6 +13,7 @@ from typing import Any, Protocol
 
 from posttrain.execution import (
     ExecutionHandle,
+    ExecutionLogStream,
     ExecutionPlan,
     ExecutionRecord,
     ExecutionRequest,
@@ -315,7 +316,10 @@ class LocalDockerExecutionProvider:
         cursor: LogCursor | None = None,
         *,
         limit: int = 200,
+        stream: ExecutionLogStream = "workload",
     ) -> LogPage:
+        if stream != "workload":
+            raise ValueError(f"local Docker execution does not provide {stream} logs")
         if limit < 1:
             raise ValueError("log limit must be positive")
         offset = (cursor or LogCursor()).offset

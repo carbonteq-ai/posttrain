@@ -70,7 +70,8 @@ class FakeProvider:
     def cancel(self, handle):
         self.cancelled.append(handle)
 
-    def logs(self, handle, cursor=None, *, limit=200):
+    def logs(self, handle, cursor=None, *, limit=200, stream="workload"):
+        del stream
         raise NotImplementedError
 
     def collect(self, handle):

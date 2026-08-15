@@ -107,12 +107,12 @@ with ten packages still at `0.1.1` is individually satisfiable, matches no
 release, and gets packed into a job image as though coherent.
 
 The candidate workflow builds the authored final version once and publishes it
-only to `carbonteq/dev`. If the authored target is `0.3.17`, the candidate
-distributions already contain `0.3.17`; a successful final workflow promotes
+only to `carbonteq/dev`. If the authored target is `0.3.18`, the candidate
+distributions already contain `0.3.18`; a successful final workflow promotes
 those exact bytes to `carbonteq/stable` without rebuilding. The candidate run
 and its receipt are the RC identity. A PEP 440 `0.3.17rcN` distribution would
 have different package metadata and therefore could not be renamed or promoted
-as final `0.3.17`.
+as final `0.3.18`.
 
 Development files are normally immutable. The only same-version retry is the
 audited whole-version retirement of a failed, never-accepted candidate: its

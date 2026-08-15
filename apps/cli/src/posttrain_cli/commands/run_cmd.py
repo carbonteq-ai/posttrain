@@ -555,6 +555,10 @@ def register(app: typer.Typer) -> None:
             int,
             typer.Option("--limit", min=1, max=2000),
         ] = 200,
+        stream: Annotated[
+            str,
+            typer.Option("--stream", click_type=click.Choice(("workload", "diagnostic"))),
+        ] = "workload",
         follow: Annotated[
             bool,
             typer.Option("--follow", "-f", help="keep polling until the run is terminal"),
@@ -572,7 +576,7 @@ def register(app: typer.Typer) -> None:
         collected: list[str] = []
         truncated = False
         while True:
-            page = service.logs(run_id, LogCursor(cursor), limit=limit)
+            page = service.logs(run_id, LogCursor(cursor), limit=limit, stream=stream)  # type: ignore[arg-type]
             if page.lines:
                 if state.json_output:
                     collected.extend(page.lines)
@@ -595,6 +599,7 @@ def register(app: typer.Typer) -> None:
                     "next_offset": cursor,
                     "truncated": truncated,
                     "followed": follow,
+                    "stream": stream,
                 },
                 "",
             )

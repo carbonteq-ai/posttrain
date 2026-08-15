@@ -23,6 +23,7 @@ type ExecutionState = Literal[
     "lost",
 ]
 type ExecutionMountPurpose = Literal["model-cache", "compile-cache", "run-workspace"]
+type ExecutionLogStream = Literal["workload", "diagnostic"]
 type ProviderCleanupDisposition = Literal[
     "removed",
     "already-absent",
@@ -292,6 +293,7 @@ class ExecutionProvider(Protocol):
         cursor: LogCursor | None = None,
         *,
         limit: int = 200,
+        stream: ExecutionLogStream = "workload",
     ) -> LogPage: ...
 
     def cancel(self, handle: ExecutionHandle) -> None: ...

@@ -106,7 +106,7 @@ def logs(payload):
     if run is None:
         return {"lines": []}
     lines = []
-    for value in run.logs(replica_num=0, job_num=0):
+    for value in run.logs(replica_num=0, job_num=0, diagnose=bool(payload.get("diagnose", False))):
         lines.extend(value.decode("utf-8", errors="replace").splitlines())
     return {"lines": lines}
 

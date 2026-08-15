@@ -2322,6 +2322,27 @@ bindings:
     assert first_launch.mounts[0].instance_path.name == "capsule-launch-a"
     assert second_launch.mounts[0].instance_path.name == "capsule-launch-b"
 
+    remote_training_package = replace(
+        reusable_package,
+        prepared=replace(
+            reusable_package.prepared,
+            recipe_job=replace(reusable_package.prepared.recipe_job, kind="train.grpo"),
+        ),
+    )
+    with pytest.raises(ContractError, match=r"\[execution\]\.timeout_seconds.*--timeout-seconds"):
+        plan_job_launch(
+            remote_training_package,
+            overrides=LaunchOverrides(provider="dstack"),
+            run_id="unsafe-remote-training",
+        )
+    explicit_remote_training = plan_job_launch(
+        remote_training_package,
+        overrides=LaunchOverrides(provider="dstack", timeout_seconds=90_000),
+        run_id="explicit-remote-training",
+    )
+    assert explicit_remote_training.settings.timeout_seconds == 90_000
+    assert explicit_remote_training.settings.sources["timeout_seconds"] == "cli"
+
     remote_before = tuple(FakePublisher.remote_publications)
     local = reusable_package.pack_local()
     assert local.image.layout.joinpath("index.json").is_file()
@@ -2405,8 +2426,9 @@ def test_run_lifecycle_commands_use_the_canonical_run_id(
             cursor: LogCursor,
             *,
             limit: int,
+            stream: str = "workload",
         ) -> LogPage:
-            calls.append(("logs", (run_id, cursor.offset, limit)))
+            calls.append(("logs", (run_id, cursor.offset, limit, stream)))
             return LogPage(("line-one",), LogCursor(cursor.offset + 1), False)
 
         def cancel(self, run_id: str) -> None:
@@ -2550,7 +2572,7 @@ def test_run_lifecycle_commands_use_the_canonical_run_id(
 
     assert calls == [
         ("status", "run-1"),
-        ("logs", ("run-1", 3, 1)),
+        ("logs", ("run-1", 3, 1, "workload")),
         ("cancel", "run-1"),
         ("recover", "run-1"),
         ("reconcile", "run-1"),
