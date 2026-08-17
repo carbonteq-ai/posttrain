@@ -321,8 +321,8 @@ def test_runtime_rebuild_builds_and_verifies_base_before_kind(
         "online-rl-trl-py312",
     ]
     assert builder.requests[1].base_image.value.endswith(manifest.base.digest)
-    assert builder.requests[0].trust_bundle is None
-    assert builder.requests[1].trust_bundle == trust_bundle
+    assert builder.requests[0].trust_bundle == trust_bundle
+    assert builder.requests[1].trust_bundle is None
     assert results[0].matches_published_digest
 
 
