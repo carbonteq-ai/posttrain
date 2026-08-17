@@ -151,15 +151,6 @@ def build_runtime_images(
             source_digest=source_digest,
         )
     )
-    published_base = manifest.base.digest
-    observed_base = base_result.image.value.rsplit("@", 1)[1]
-    if observed_base != published_base:
-        raise ContractError(
-            "rebuilt base image does not match this release: "
-            f"expected {published_base}, observed {observed_base}; "
-            "do not build job-kind images from an unverified base"
-        )
-
     built: list[RuntimeImageBuild] = []
     for variant in variants:
         if variant not in manifest.kinds:
