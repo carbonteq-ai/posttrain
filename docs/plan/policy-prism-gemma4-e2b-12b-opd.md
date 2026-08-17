@@ -12,16 +12,9 @@ No system can honestly guarantee that a GPU, network, registry, Trackio, Hugging
 
 ## Launch Verdict
 
-Do not submit another 384-target run from the current trees. The core IW-OPD path is numerically and operationally proven, but these launch blockers remain:
+Do not submit the 384-target run until the two required live canaries pass. The deterministic blockers below are implemented and host-tested. Exact-image verification is in progress after discovering that the previously published online-RL parent still installed TRL post1 even though the framework source selected post7. The corrected OPD-only runtime now uses its own dependency lock and leaves supervised, evaluation, and other runtime closures unchanged.
 
-1. Rules generation still has an arbitrary 16,384-token ceiling even when the rendered request has more than 31,000 safe completion tokens available. This caused legitimate JSON prefixes to be rejected.
-2. The plan has output-infeasible 74-106-segment candidates, and globally greedy reserve claims can starve rare targets even when safer compatible candidates exist.
-3. A later training failure republishes an already published checkpoint logical name. Trackio rejects the duplicate and cannot record a clean terminal failure; the failed provider run also needs guarded tracking recovery.
-4. Final evaluation packages must bind the trained step-32 adapter rather than silently serving base E2B.
-5. The maintained completion validator, read-only artifact materializer, exact-image release gate, and authenticated tracking preflight must exist and pass before the run can be called end to end.
-6. The current Policy prompt inventory test proves parsing and broad profile-level keyword coverage, but it does not certify every stage's exact model-facing message.
-
-After the fixes and two short canaries in this plan pass, launch a fresh production run from base E2B. Do not resume the failed step-8 checkpoint because token limits, retry identity, reserve assignment, and the task-plan hash will change.
+After the exact image and two short canaries in this plan pass, launch a fresh production run from base E2B. Do not resume the failed step-8 checkpoint because token limits, retry identity, reserve assignment, and the task-plan hash changed.
 
 ## Progress
 
@@ -38,8 +31,9 @@ After the fixes and two short canaries in this plan pass, launch a fresh product
 - [x] (2026-08-17) Certify all 1,303 model-facing candidate/stage materializations, strengthen stage-specific semantic coverage, remove trace metadata/label leakage, and retain the existing evidence that the teacher is stronger without another model comparison.
 - [x] (2026-08-17) Regenerate the immutable 384-target/96-reserve plan and add resilient canary, production, serving, scope, and recovery work packages.
 - [x] (2026-08-17) Add maintained exact release, explicit-target completion, read-only materialization, Trackio write-preflight, and serving-metadata commands. Focused Policy and PostTrain tests pass.
-- [x] (2026-08-17) Publish and pin reconstructed trusted base `sha256:8ea6238d52895e67716b2ca6d5de185e14bd234495a67a5846e99d55e0ce2040` and online-RL runtime `sha256:24eeffa8ffd9d60192d0815078558c0446398f7ef977344e642a50d5f3da841a` in ignored machine execution state.
-- [ ] Finish the in-progress exact canary job-image push, record its immutable digest, and pack the production/evaluation job images.
+- [x] (2026-08-17) Reconstruct trusted base `sha256:8ea6238d52895e67716b2ca6d5de185e14bd234495a67a5846e99d55e0ce2040`, then reject the first online-RL rebuild after exact inspection showed that it still contained TRL post1.
+- [x] (2026-08-17) Isolate the OPD online-RL dependency closure from the shared supervised lock; preserve the shared post1 closure and publish the corrected TRL post7 online-RL runtime `sha256:ac3496de75a61dddc840650d7956b51dc90511cd2e588d6bcff16516d0caa8d7` with lock digest `11e1f0b6f32d656186143a25ef21b527113437b06738249c25a90f7e28f231fd`.
+- [ ] Finish the in-progress exact canary job-image push from a clean pushed PostTrain commit, record its immutable digest, and pack the production/evaluation job images.
 - [ ] Run the exhaustive release gate inside the exact packed training image and finish credential/registry/GPU preflight.
 - [ ] Run one 12-target target-171 training canary and one two-case managed-serving canary within a combined 90-minute GPU budget.
 - [ ] Launch one fresh 384-target run from base E2B; verify all 32 updates, eight four-step recovery pairs, and scientific views at 8, 16, 24, and 32.
@@ -110,6 +104,9 @@ The known failure chain is:
 - Observation: prior qualification did not rebuild the universal/runtime images because their immutable manifests were already present in the internal registry; the current launch discovered that those pinned manifests had since been removed.
   Evidence: registry inspection rejected the configured base and online-RL digests before any GPU submission. Reconstructing the current source/lock closure then exposed two supply-chain gaps: the runtime builder assumed the base already existed, and the internal package index required the machine CA inside the universal base. PostTrain now builds the base before the kind, accepts a typed machine trust bundle without disabling TLS, records a local-rebuild digest instead of impersonating the historical release digest, and uses a 300-second package-download timeout for multi-hundred-megabyte CUDA wheels. These changes affect packaging only; they do not alter the OPD objective or configuration.
 
+- Observation: the framework source pin alone did not determine the TRL installed in an actual job.
+  Evidence: exact inspection found `trl==1.9.2.post1` in the first rebuilt parent because job source wheels install with `--no-deps`; the runtime profile and constraint lock remain authoritative for third-party packages. Replacing the shared workspace lock would have silently changed every supervised/evaluation runtime, so the corrected design gives only `online-rl-trl-py312` a post7-specific lock. Runtime tests now require the online profile and lock to match `packages/train/pyproject.toml`, while the shared supervised profile remains post1.
+
 ## Decision Log
 
 - Decision: keep production geometry at logical 12, physical 1, accumulation 12.
@@ -152,6 +149,10 @@ The known failure chain is:
   Rationale: the current experiment depends on corrected TRL, PostTrain, and Policy source that earlier images do not contain. Rebuilding and pinning exact digests is the shortest reproducible path; it is a one-time registry repair, not an additional model smoke.
   Date/Author: 2026-08-17 / Codex.
 
+- Decision: isolate TRL post7 to the OPD online-RL runtime rather than updating the shared workspace closure.
+  Rationale: only the OPD backend consumes the new constrained IW-OPD fork. A shared-lock replacement would invalidate unrelated SFT, evaluation, and runtime manifests. A dedicated immutable constraint lock makes the actual installed closure explicit and testable without broadening this experiment's change surface.
+  Date/Author: 2026-08-17 / Codex.
+
 - Decision: keep existing business KPI definitions.
   Rationale: the user explicitly excluded KPI redesign and historical re-derivation from this experiment.
   Date/Author: 2026-08-17 / Codex.
@@ -166,8 +167,8 @@ At completion, replace this paragraph with exact PostTrain, Policy Prism, and TR
 
 Three repositories participate:
 
-* `/home/ali-awais-safdar/Post-Train/posttrain` is the framework repository. Work only on `feat/gemma-policy-prism-opd-e2b-12b`, currently at `8af9467`. `packages/train` owns the TRL bridge, constrained loss, checkpoint publication, and artifact callbacks. `apps/cli` owns run recovery and materialization commands. Do not change `main`.
-* `/home/ali-awais-safdar/Policy Prism` owns the project environment, task plans, admission, ledger, prompts, catalog overlays, work packages, and permanent evaluation evidence. Work only on `feat/scope-opd-e2b-12b-environment-v1`, currently at `61b0b83`. The environment source commit embedded in a job must be the final descendant produced by this plan, not merely the repository HEAD at plan-writing time.
+* `/home/ali-awais-safdar/Post-Train/posttrain` is the framework repository. Work only on `feat/gemma-policy-prism-opd-e2b-12b`, whose last pushed commit before the runtime-lock correction is `d6f5716`. `packages/train` owns the TRL bridge, constrained loss, checkpoint publication, and artifact callbacks. `apps/cli` owns run recovery and materialization commands. Do not change `main`.
+* `/home/ali-awais-safdar/Policy Prism` owns the project environment, task plans, admission, ledger, prompts, catalog overlays, work packages, and permanent evaluation evidence. Work only on `feat/scope-opd-e2b-12b-environment-v1`, currently at `e3f2439`. The environment source commit embedded in a job must be this reviewed commit or an explicitly validated descendant, not merely another repository HEAD.
 * `/home/ali-awais-safdar/Post-Train/trl` owns generic constrained IW-OPD trainer behavior. The currently qualified fork source is `78b61a4d37a7bf8ad7e61bd604ba9e3c3c316897` (`trl==1.9.2.post7`). No further TRL change is indicated by the target-171 or checkpoint-finalization failures.
 * The CarbonTeq Trackio fork owns generic read-only artifact hydration. No checkout is currently present. If the installed `carbonteq-trackio==0.31.5.post12` cannot fetch an immutable artifact without calling `use_artifact`, acquire the fork at its exact consumed source, add a small read-only `Api.artifact(...)` surface with a no-consumer-edge regression, publish it immutably, and update the PostTrain pin. Do not implement host export by opening a cosmetic Trackio run.
 

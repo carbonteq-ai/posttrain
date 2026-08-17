@@ -37,6 +37,7 @@ KIND_BAKE_FILE = KIND_DEFINITION / "docker-bake.hcl"
 JOB_BAKE_FILE = JOB_DEFINITION / "docker-bake.hcl"
 
 WORKSPACE_LOCK = KIND_DEFINITION / "locks" / "workspace.lock.txt"
+ONLINE_RL_TRL_LOCK = KIND_DEFINITION / "locks" / "online-rl-trl-py312.lock.txt"
 TRANSFORM_LOCK = KIND_DEFINITION / "locks" / "transform.lock.txt"
 VERL_BACKEND_LOCK = KIND_DEFINITION / "verl-py313" / "release" / "backend-constraints.txt"
 
@@ -84,7 +85,11 @@ def constraint_lock(variant: str) -> PurePosixPath:
     """Return the dependency lock that constrains `variant`'s environment compiles."""
     if variant not in RUNTIME_VARIANTS:
         raise ValueError(f"unknown runtime variant: {variant!r}")
-    return TRANSFORM_LOCK if variant == "transform" else WORKSPACE_LOCK
+    if variant == "transform":
+        return TRANSFORM_LOCK
+    if variant == "online-rl-trl-py312":
+        return ONLINE_RL_TRL_LOCK
+    return WORKSPACE_LOCK
 
 
 def backend_constraint_lock(variant: str) -> PurePosixPath | None:
@@ -125,6 +130,7 @@ __all__ = [
     "JOB_DEFINITION",
     "KIND_BAKE_FILE",
     "KIND_DEFINITION",
+    "ONLINE_RL_TRL_LOCK",
     "RUNTIME_VARIANTS",
     "TRANSFORM_LOCK",
     "VERL_BACKEND_LOCK",

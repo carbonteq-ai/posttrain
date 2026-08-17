@@ -32,9 +32,9 @@ provided_packages = ["verifiers"]
 
 [kinds.online-rl-trl-py312]
 repository = "posttrain-kind-online-rl-trl-py312"
-digest = "sha256:05dd0b4e3b80faffeeb7b3f7df043eb200c141ecb0c7ce25b5c3e462ead3952f"
-lock_digest = "382dab193d0cbdd7c2a67a23f537068372a58a3d360a6afd524b005ee890f307"
-constraint_lock = "containers/posttrain-job-kinds/locks/workspace.lock.txt"
+digest = "sha256:ac3496de75a61dddc840650d7956b51dc90511cd2e588d6bcff16516d0caa8d7"
+lock_digest = "11e1f0b6f32d656186143a25ef21b527113437b06738249c25a90f7e28f231fd"
+constraint_lock = "containers/posttrain-job-kinds/locks/online-rl-trl-py312.lock.txt"
 provided_packages = ["verifiers"]
 
 [kinds.online-rl-verl-py313]

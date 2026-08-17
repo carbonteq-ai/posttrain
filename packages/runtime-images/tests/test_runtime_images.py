@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import hashlib
 import re
+import tomllib
+from pathlib import Path
 
 import pytest
 from posttrain.runtime_images import (
     BASE_BAKE_FILE,
     JOB_BAKE_FILE,
     KIND_BAKE_FILE,
+    ONLINE_RL_TRL_LOCK,
     RUNTIME_VARIANTS,
     TRANSFORM_LOCK,
     VERL_BACKEND_LOCK,
@@ -77,10 +80,36 @@ def test_every_variant_names_a_shipped_constraint_lock(variant: str) -> None:
     assert read_lock(lock), f"{variant} constraint lock is empty"
 
 
-def test_transform_is_the_only_variant_off_the_workspace_lock() -> None:
+def test_variant_specific_dependency_closures_are_off_the_workspace_lock() -> None:
     off_workspace = {v for v in RUNTIME_VARIANTS if constraint_lock(v) != WORKSPACE_LOCK}
-    assert off_workspace == {"transform"}
+    assert off_workspace == {"online-rl-trl-py312", "transform"}
+    assert constraint_lock("online-rl-trl-py312") == ONLINE_RL_TRL_LOCK
     assert constraint_lock("transform") == TRANSFORM_LOCK
+
+
+def test_online_rl_profile_uses_the_pinned_trl_fork_release() -> None:
+    """The runtime image must install the same TRL fork selected by train.
+
+    Job wheels do not reinstall dependencies already present in the parent
+    image.  A stale runtime profile therefore silently overrides the source
+    pin in ``packages/train/pyproject.toml`` unless this boundary is checked.
+    """
+    repository_root = Path(__file__).resolve().parents[3]
+    train_document = tomllib.loads(
+        (repository_root / "packages/train/pyproject.toml").read_text(encoding="utf-8")
+    )
+    trl_contract = train_document["tool"]["posttrain"]["trl"]
+    version = trl_contract["version"]
+    revision = trl_contract["source-revision"]
+
+    with definition_root() as root:
+        profile = (
+            root / "containers/posttrain-job-kinds/profiles/online-rl-trl-py312.txt"
+        ).read_text(encoding="utf-8")
+    lock = read_lock(ONLINE_RL_TRL_LOCK).decode()
+
+    assert f"trl=={version}" in profile.splitlines()
+    assert f"trl @ git+https://github.com/carbonteq-ai/trl.git@{revision}" in lock.splitlines()
 
 
 def test_verl_is_the_only_variant_with_separate_backend_constraints() -> None:
@@ -116,7 +145,11 @@ def test_every_shipped_lock_has_a_distinct_stable_digest() -> None:
     it agree with nothing. Whether a published image still matches its lock is
     checked against the manifest in test_manifest.py, from the shipped bytes.
     """
-    digests = {lock_digest(WORKSPACE_LOCK), lock_digest(TRANSFORM_LOCK)}
-    assert len(digests) == 2
+    digests = {
+        lock_digest(WORKSPACE_LOCK),
+        lock_digest(ONLINE_RL_TRL_LOCK),
+        lock_digest(TRANSFORM_LOCK),
+    }
+    assert len(digests) == 3
     assert all(len(d) == 64 and d == d.lower() for d in digests)
     assert lock_digest(WORKSPACE_LOCK) == lock_digest(WORKSPACE_LOCK)

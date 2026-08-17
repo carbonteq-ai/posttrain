@@ -4,6 +4,7 @@ ARG POSTTRAIN_BASE_IMAGE
 
 FROM ${POSTTRAIN_BASE_IMAGE} AS kind-common
 COPY containers/posttrain-job-kinds/locks/workspace.lock.txt /opt/posttrain/locks/workspace.lock.txt
+COPY containers/posttrain-job-kinds/locks/online-rl-trl-py312.lock.txt /opt/posttrain/locks/online-rl-trl-py312.lock.txt
 COPY containers/posttrain-job-kinds/locks/build-tools.lock.txt /opt/posttrain/locks/build-tools.lock.txt
 COPY containers/posttrain-job-kinds/profiles/ /opt/posttrain/profiles/
 RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locked \
@@ -37,7 +38,7 @@ RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locke
     uv pip install \
       --python "${VIRTUAL_ENV}" \
       --index-strategy unsafe-best-match \
-      --constraint /opt/posttrain/locks/workspace.lock.txt \
+      --constraint /opt/posttrain/locks/online-rl-trl-py312.lock.txt \
       --requirement online-rl-trl-py312.txt
 
 FROM vllm-kind-common AS eval-dependencies
