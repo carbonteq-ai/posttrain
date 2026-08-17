@@ -10,6 +10,7 @@ ENV PATH="/opt/posttrain/venv/bin:${PATH}" \
     REQUESTS_CA_BUNDLE="/etc/ssl/certs/ca-certificates.crt" \
     SSL_CERT_FILE="/etc/ssl/certs/ca-certificates.crt" \
     UV_COMPILE_BYTECODE=1 \
+    UV_HTTP_TIMEOUT=300 \
     UV_LINK_MODE=copy \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1

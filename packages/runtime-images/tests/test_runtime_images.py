@@ -61,6 +61,7 @@ def test_base_accepts_a_build_secret_ca_bundle_without_disabling_tls() -> None:
     assert "install -m 0644 /run/secrets/posttrain_ca_bundle" not in dockerfile
     assert "trusted-host" not in dockerfile
     assert "allow-insecure" not in dockerfile
+    assert "UV_HTTP_TIMEOUT=300" in dockerfile
 
 
 def test_runtime_variants_match_the_published_bake_targets() -> None:
