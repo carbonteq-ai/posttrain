@@ -25,6 +25,7 @@ from ...rendering import create_renderer
 from ...requests import OnPolicyDistillationRequest
 from .common import (
     BackendTrainingResult,
+    CheckpointPublicationRegistry,
     callback_type,
     checkpoint_callback_type,
     emit_parameter_counts,
@@ -200,6 +201,7 @@ def run_distillation(
                             (time.perf_counter() - started_at) * 1_000,
                         )
 
+        checkpoint_publications = CheckpointPublicationRegistry()
         checkpoint_callback = checkpoint_callback_type(
             context,
             imports,
@@ -209,6 +211,7 @@ def run_distillation(
             update=request.training.update,
             workspace=output_dir.parent,
             runtime_state_paths=runtime_state_paths,
+            publication_registry=checkpoint_publications,
         )()
         with context.phase("runtime_initialization", {"backend": "trl"}):
             trainer = ObservedIWOPDTrainer(
@@ -269,6 +272,7 @@ def run_distillation(
                     settings=request.settings,
                     update=request.training.update,
                     imports=imports,
+                    publication_registry=checkpoint_publications,
                 )
                 raise
 
@@ -788,9 +792,11 @@ def _generate_heterogeneous_colocated_iw_opd_turns(
         from trl.experimental.iw_opd.iw_opd_trainer import (  # pyright: ignore[reportMissingImports]
             _accumulate_spec_decode_metrics,
         )
+        from trl.generation import vllm_generation  # pyright: ignore[reportMissingImports]
         from trl.generation.vllm_generation import extract_logprobs  # pyright: ignore[reportMissingImports]
-        from vllm import SamplingParams  # pyright: ignore[reportMissingImports]
-        from vllm.sampling_params import StructuredOutputsParams  # pyright: ignore[reportMissingImports]
+
+        SamplingParams = vllm_generation.SamplingParams
+        StructuredOutputsParams = vllm_generation.StructuredOutputsParams
     except ImportError as error:
         raise RuntimeError("install posttrain-train with the trl-vllm extra") from error
 

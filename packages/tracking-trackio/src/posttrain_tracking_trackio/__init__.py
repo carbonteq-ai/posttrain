@@ -1,6 +1,7 @@
 """Trackio provider adapter for posttrain tracking contracts."""
 
 from .adapter import (
+    TrackioArtifactMaterializationSource,
     TrackioBackend,
     TrackioCancelledRunRecovery,
     TrackioDataSource,
@@ -13,6 +14,7 @@ from .adapter import (
 )
 
 __all__ = [
+    "TrackioArtifactMaterializationSource",
     "TrackioBackend",
     "TrackioCancelledRunRecovery",
     "TrackioDataSource",

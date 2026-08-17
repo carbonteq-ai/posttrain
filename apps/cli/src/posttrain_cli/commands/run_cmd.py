@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import importlib
 import json
+import os
+import re
+import shutil
 import time
+import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict
+from pathlib import Path
 from typing import Annotated, Any
 
 import click
@@ -19,6 +25,7 @@ from posttrain.execution import (
     cleanup_execution,
     reconcile_execution,
     recover_cancelled_tracking,
+    recover_terminal_tracking,
     save_reconciliation,
     save_tracking_recovery,
 )
@@ -26,18 +33,20 @@ from posttrain.execution import (
 from ..constants import RUN_MODE_CHOICES
 from ..context import CliState
 from ..execution_provider import (
+    artifact_materialization_source_for_run,
     cancelled_tracking_writer_for_run,
     evidence_source_for_run,
     execution_admission_service,
     execution_service_for_run,
     reconciliation_source_for_run,
+    terminal_tracking_writer_for_run,
     tracking_source_for_project,
     tracking_source_for_run,
 )
 from ..output import emit, json_value
 from ..purge_surface import render_plan, save_run_preview
 from ..run_resolve import project_admission_entries, purged_run_ids, resolve_run_id
-from ..tracking_config import project_observatory_settings
+from ..tracking_config import project_observatory_settings, project_tracking_environment
 
 RUN_MODE_CHOICE = click.Choice(RUN_MODE_CHOICES)
 
@@ -74,6 +83,35 @@ def _assigned_hostname(target_id: str | None) -> str | None:
     return target_id if target_id and target_id != "unassigned" else None
 
 
+def _materialized_content_digest(root: Path, kind: str) -> str:
+    files = sorted(item for item in root.rglob("*") if item.is_file())
+    if kind == "file":
+        if len(files) != 1:
+            raise ContractError(f"file artifact materialized {len(files)} files")
+        digest = hashlib.sha256()
+        with files[0].open("rb") as source:
+            for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+    if kind != "tree":
+        raise ContractError(f"unsupported artifact content digest kind {kind!r}")
+    digest = hashlib.sha256()
+    for child in files:
+        digest.update(child.relative_to(root).as_posix().encode())
+        digest.update(b"\0")
+        with child.open("rb") as source:
+            for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _safe_artifact_key(logical_name: str) -> str:
+    value = re.sub(r"[^A-Za-z0-9._-]+", "-", logical_name).strip("-")
+    if not value:
+        raise ContractError("artifact logical name has no safe filesystem key")
+    return value
+
+
 def register(app: typer.Typer) -> None:
     run_app = typer.Typer(
         rich_markup_mode=None,
@@ -87,10 +125,154 @@ def register(app: typer.Typer) -> None:
         help="inspect committed checkpoint views for one run",
     )
     run_app.add_typer(checkpoint_app, name="checkpoint")
+    artifact_app = typer.Typer(
+        rich_markup_mode=None,
+        no_args_is_help=True,
+        help="materialize exact retained output artifacts without creating tracking runs",
+    )
+    run_app.add_typer(artifact_app, name="artifact")
+
+    @run_app.command(
+        "tracking-preflight",
+        help="verify authenticated remote tracking writes without creating a run",
+    )
+    def run_tracking_preflight_cmd(ctx: typer.Context) -> None:
+        state: CliState = ctx.obj
+        layout = state.layout()
+        if layout.tracking != "trackio":
+            raise ContractError("tracking preflight currently requires a Trackio project")
+        environment = project_tracking_environment(layout)
+        project = environment.get("POSTTRAIN_TRACKIO_PROJECT", layout.project_id)
+        server_url = environment.get("POSTTRAIN_TRACKIO_SERVER_URL")
+        write_token = environment.get("TRACKIO_WRITE_TOKEN")
+        from posttrain_tracking_trackio import require_remote_trackio_ready
+
+        require_remote_trackio_ready(
+            project=project,
+            server_url=server_url,
+            write_token=write_token,
+        )
+        emit(
+            state,
+            {
+                "provider": "trackio",
+                "project": project,
+                "server_url": server_url,
+                "authenticated_write": True,
+                "run_created": False,
+            },
+            f"Trackio authenticated write ready: {project} ({server_url})",
+        )
 
     def _checkpoint_links(layout, run_id: str):
         source = tracking_source_for_project(layout)
         return source, asyncio.run(source.artifacts(run_id)).outputs
+
+    @artifact_app.command("materialize")
+    def run_artifact_materialize_cmd(
+        ctx: typer.Context,
+        run_id: _RUN_ID_ARGUMENT = None,
+        logical_name: Annotated[
+            str,
+            typer.Option("--logical-name", help="exact output artifact logical name"),
+        ] = "",
+        output: Annotated[
+            Path | None,
+            typer.Option("--output", help="destination receipt directory"),
+        ] = None,
+        last: _LAST_OPTION = False,
+    ) -> None:
+        state: CliState = ctx.obj
+        layout = state.layout()
+        resolved = _resolved_run_id(layout, run_id, last=last, exact_only=True)
+        if not logical_name:
+            raise ContractError("--logical-name is required")
+        run_source = tracking_source_for_run(layout, resolved)
+        links = asyncio.run(run_source.artifacts(resolved)).outputs
+        matches = [item for item in links if item.logical_name == logical_name]
+        if len(matches) != 1:
+            raise ContractError(
+                f"run {resolved!r} has {len(matches)} output artifacts named {logical_name!r}"
+            )
+        link = matches[0]
+        artifact = link.artifact
+        if artifact.digest is None:
+            raise ContractError("artifact edge lacks an immutable provider manifest digest")
+        content_digest = artifact.provider_metadata.get("posttrain_content_digest")
+        content_kind = artifact.provider_metadata.get("posttrain_content_digest_kind")
+        if not isinstance(content_digest, str) or content_kind not in {"file", "tree"}:
+            raise ContractError("artifact edge lacks required PostTrain content identity")
+        destination = (
+            output.resolve()
+            if output is not None
+            else (
+                layout.state
+                / "materialized-artifacts"
+                / resolved
+                / _safe_artifact_key(logical_name)
+            ).resolve()
+        )
+        expected = {
+            "schema": "posttrain.artifact-materialization.v1",
+            "run_id": resolved,
+            "logical_name": logical_name,
+            "kind": link.kind,
+            "provider": artifact.provider,
+            "namespace": artifact.namespace,
+            "name": artifact.name,
+            "version": artifact.version,
+            "provider_digest": artifact.digest,
+            "content_digest": content_digest.removeprefix("sha256:"),
+            "content_digest_kind": content_kind,
+        }
+        receipt_path = destination / "materialization.json"
+        artifact_path = destination / "artifact"
+        if destination.exists():
+            if not receipt_path.is_file() or not artifact_path.is_dir():
+                raise ContractError("artifact destination exists without a complete receipt")
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            if receipt != expected:
+                raise ContractError("cached artifact materialization receipt does not match")
+            observed = _materialized_content_digest(artifact_path, content_kind)
+            if observed != expected["content_digest"]:
+                raise ContractError("cached artifact materialization content digest changed")
+            emit(state, {**expected, "path": str(artifact_path), "cached": True}, str(artifact_path))
+            return
+
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        temporary = destination.parent / f".{destination.name}-{uuid.uuid4().hex}.tmp"
+        temporary.mkdir(mode=0o700)
+        try:
+            reference = StoredArtifactRef(
+                provider=artifact.provider,
+                namespace=artifact.namespace,
+                name=artifact.name,
+                version=artifact.version,
+                digest=artifact.digest,
+                provider_metadata=artifact.provider_metadata,
+            )
+            local = artifact_materialization_source_for_run(
+                layout,
+                resolved,
+            ).materialize_artifact(reference, temporary / "artifact")
+            observed = _materialized_content_digest(local.path, content_kind)
+            if observed != expected["content_digest"]:
+                raise ContractError("materialized artifact content digest changed after download")
+            receipt = temporary / "materialization.json"
+            descriptor = os.open(receipt, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            try:
+                os.write(
+                    descriptor,
+                    (json.dumps(expected, sort_keys=True, separators=(",", ":")) + "\n").encode(),
+                )
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+            os.replace(temporary, destination)
+        except Exception:
+            shutil.rmtree(temporary, ignore_errors=True)
+            raise
+        emit(state, {**expected, "path": str(artifact_path), "cached": False}, str(artifact_path))
 
     def _checkpoint_records(layout, run_id: str) -> tuple[dict[str, object], ...]:
         _source, links = _checkpoint_links(layout, run_id)
@@ -685,6 +867,48 @@ def register(app: typer.Typer) -> None:
                 (
                     f"Run: {run_id}",
                     f"Recovery: {recovery.disposition}",
+                    f"Execution provider: {recovery.execution_provider}",
+                    f"Tracking provider: {recovery.tracking_provider}",
+                    f"Tracking run: {recovery.tracking_provider_run_id}",
+                    f"Audit receipt: {receipt}",
+                    "Next: reconcile the run to verify retained evidence.",
+                )
+            ),
+        )
+
+    @run_app.command(
+        "recover-terminal-tracking",
+        help="audit and finalize tracking stranded after any terminal provider outcome",
+    )
+    def run_recover_terminal_tracking_cmd(
+        ctx: typer.Context,
+        run_id: _RUN_ID_ARGUMENT = None,
+        last: _LAST_OPTION = False,
+    ) -> None:
+        state: CliState = ctx.obj
+        layout = state.layout()
+        run_id = _resolved_run_id(layout, run_id, last=last, exact_only=True)
+        recovery = asyncio.run(
+            recover_terminal_tracking(
+                execution_service_for_run(layout, run_id),
+                tracking_source_for_run(layout, run_id),
+                terminal_tracking_writer_for_run(layout, run_id),
+                run_id,
+                project_id=layout.project_id,
+            )
+        )
+        receipt = save_tracking_recovery(
+            ExecutionSubmissionStore(layout.state),
+            recovery,
+        )
+        emit(
+            state,
+            recovery,
+            "\n".join(
+                (
+                    f"Run: {run_id}",
+                    f"Recovery: {recovery.disposition}",
+                    f"Outcome: {recovery.outcome}",
                     f"Execution provider: {recovery.execution_provider}",
                     f"Tracking provider: {recovery.tracking_provider}",
                     f"Tracking run: {recovery.tracking_provider_run_id}",

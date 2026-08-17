@@ -13,6 +13,7 @@ import sys
 import time
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
+from dataclasses import dataclass, field
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any, Literal
@@ -26,6 +27,37 @@ from ..common import BackendTrainingResult
 from ..retention import validate_adapter_only_directory
 
 _COMMIT_SHA = re.compile(r"^[0-9a-f]{40}$")
+
+
+@dataclass
+class CheckpointPublicationRegistry:
+    """Remember checkpoint artifacts published by one trainer invocation.
+
+    Periodic saves and failure retention share this registry. Reusing an
+    already-published logical artifact is safe only when its bytes are
+    identical; a conflicting digest is a reproducibility error.
+    """
+
+    _digests: dict[str, str] = field(default_factory=dict)
+
+    def contains(self, name: str, digest: str) -> bool:
+        existing = self._digests.get(name)
+        if existing is None:
+            return False
+        if existing != digest:
+            raise RuntimeError(
+                f"checkpoint artifact {name!r} was already published with digest "
+                f"{existing}, not {digest}"
+            )
+        return True
+
+    def record(self, name: str, digest: str) -> None:
+        existing = self._digests.setdefault(name, digest)
+        if existing != digest:
+            raise RuntimeError(
+                f"checkpoint artifact {name!r} was already published with digest "
+                f"{existing}, not {digest}"
+            )
 
 
 def framework_imports() -> dict[str, Any]:
@@ -392,6 +424,7 @@ def checkpoint_callback_type(
     update: ParameterUpdatePlan,
     workspace: Path,
     runtime_state_paths: tuple[Path, ...] = (),
+    publication_registry: CheckpointPublicationRegistry | None = None,
 ) -> type[Any]:
     """Create a callback that publishes both views after a trainer save.
 
@@ -401,6 +434,7 @@ def checkpoint_callback_type(
     """
 
     parent = imports["TrainerCallback"]
+    registry = publication_registry or CheckpointPublicationRegistry()
 
     class CheckpointPublicationCallback(parent):
         def __init__(self) -> None:
@@ -428,6 +462,7 @@ def checkpoint_callback_type(
                 update=update,
                 workspace=workspace,
                 interrupted=False,
+                publication_registry=registry,
             )
             self._published_steps.add(step)
             return control
@@ -552,6 +587,7 @@ def publish_checkpoint_views(
     update: ParameterUpdatePlan,
     workspace: Path,
     interrupted: bool,
+    publication_registry: CheckpointPublicationRegistry | None = None,
 ) -> None:
     """Publish a recovery view and, for LoRA, a paired loadable model view."""
 
@@ -576,29 +612,39 @@ def publish_checkpoint_views(
         "checkpoint_step": checkpoint_step,
         "checkpoint_snapshot_id": snapshot_id,
     }
+    registry = publication_registry or CheckpointPublicationRegistry()
     recovery_ref = LocalArtifactRef(checkpoint, _digest_path(checkpoint))
-    context.artifact(
-        ProducedArtifact(
-            name=f"training/{model.id}/{technique}/checkpoint-{checkpoint_step:08d}/recovery",
-            kind="training-checkpoint",
-            reference=recovery_ref,
-            metadata={**metadata, "checkpoint_view": "recovery", "interrupted": interrupted},
-            role="recovery",
+    recovery_name = f"training/{model.id}/{technique}/checkpoint-{checkpoint_step:08d}/recovery"
+    recovery_reused = registry.contains(recovery_name, recovery_ref.digest)
+    if not recovery_reused:
+        context.artifact(
+            ProducedArtifact(
+                name=recovery_name,
+                kind="training-checkpoint",
+                reference=recovery_ref,
+                metadata={**metadata, "checkpoint_view": "recovery", "interrupted": interrupted},
+                role="recovery",
+            )
         )
-    )
+        registry.record(recovery_name, recovery_ref.digest)
+    model_reused = False
     if isinstance(update, LoRAUpdate | QLoRAUpdate):
         destination = workspace / "checkpoints" / f"step-{checkpoint_step:08d}" / "model"
         model_dir = _project_checkpoint_model_view(checkpoint, destination)
         model_ref = LocalArtifactRef(model_dir, _digest_path(model_dir))
-        context.artifact(
-            ProducedArtifact(
-                name=f"training/{model.id}/{technique}/checkpoint-{checkpoint_step:08d}/model",
-                kind="model-adapter",
-                reference=model_ref,
-                metadata={**metadata, "checkpoint_view": "model", "interrupted": interrupted},
-                role="checkpoint-model",
+        model_name = f"training/{model.id}/{technique}/checkpoint-{checkpoint_step:08d}/model"
+        model_reused = registry.contains(model_name, model_ref.digest)
+        if not model_reused:
+            context.artifact(
+                ProducedArtifact(
+                    name=model_name,
+                    kind="model-adapter",
+                    reference=model_ref,
+                    metadata={**metadata, "checkpoint_view": "model", "interrupted": interrupted},
+                    role="checkpoint-model",
+                )
             )
-        )
+            registry.record(model_name, model_ref.digest)
     context.event(
         "checkpoint_saved",
         {
@@ -608,6 +654,8 @@ def publish_checkpoint_views(
             "recovery_only": not isinstance(update, LoRAUpdate | QLoRAUpdate),
             "model_view_published": isinstance(update, LoRAUpdate | QLoRAUpdate),
             "interrupted": interrupted,
+            "recovery_reused": recovery_reused,
+            "model_reused": model_reused,
         },
     )
 
@@ -630,6 +678,7 @@ def publish_interrupted_recovery_checkpoint(
     settings: Any,
     update: ParameterUpdatePlan,
     imports: Mapping[str, Any],
+    publication_registry: CheckpointPublicationRegistry | None = None,
 ) -> Path | None:
     """Publish the latest complete TRL checkpoint while an interrupted run still owns its workspace."""
 
@@ -647,6 +696,7 @@ def publish_interrupted_recovery_checkpoint(
         update=update,
         workspace=trainer.args.output_dir and Path(trainer.args.output_dir).parent,
         interrupted=True,
+        publication_registry=publication_registry,
     )
     return checkpoint
 
@@ -661,6 +711,7 @@ def preserve_recovery_checkpoint_after_error(
     settings: Any,
     update: ParameterUpdatePlan,
     imports: Mapping[str, Any],
+    publication_registry: CheckpointPublicationRegistry | None = None,
 ) -> None:
     """Best-effort retention that never replaces the original training failure."""
 
@@ -673,6 +724,7 @@ def preserve_recovery_checkpoint_after_error(
             settings=settings,
             update=update,
             imports=imports,
+            publication_registry=publication_registry,
         )
     except BaseException as checkpoint_error:
         error.add_note(f"failed to retain the latest recovery checkpoint: {checkpoint_error!r}")

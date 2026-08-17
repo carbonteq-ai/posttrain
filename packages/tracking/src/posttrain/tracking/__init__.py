@@ -4,6 +4,7 @@ from .contracts import (
     ArtifactInput,
     ArtifactIntegrityResult,
     ArtifactIntegrityState,
+    ArtifactMaterializationSource,
     ArtifactPublicationHandle,
     RunDataSource,
     RunError,
@@ -49,6 +50,7 @@ from .phases import (
 )
 
 __all__ = [
+    "ArtifactMaterializationSource",
     "ArtifactInput",
     "ArtifactIntegrityResult",
     "ArtifactIntegrityState",

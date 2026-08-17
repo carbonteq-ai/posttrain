@@ -14,6 +14,7 @@ from ...rendering import RenderedSFTExample, render_supervised
 from ...requests import SFTRequest
 from .common import (
     BackendTrainingResult,
+    CheckpointPublicationRegistry,
     callback_type,
     checkpoint_callback_type,
     emit_parameter_counts,
@@ -94,6 +95,7 @@ def run_sft(
     arguments = _sft_arguments(request, output_dir)
     validation = request.settings.validation
     callback = callback_type(context, imports)()
+    checkpoint_publications = CheckpointPublicationRegistry()
     checkpoint_callback = checkpoint_callback_type(
         context,
         imports,
@@ -102,6 +104,7 @@ def run_sft(
         settings=request.settings,
         update=request.training.update,
         workspace=output_dir.parent,
+        publication_registry=checkpoint_publications,
     )()
 
     ObservedSFTTrainer = _observed_sft_trainer_type(SFTTrainer, context)
@@ -149,6 +152,7 @@ def run_sft(
                 settings=request.settings,
                 update=request.training.update,
                 imports=imports,
+                publication_registry=checkpoint_publications,
             )
             raise
 

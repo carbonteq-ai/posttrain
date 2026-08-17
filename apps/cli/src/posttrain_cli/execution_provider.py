@@ -21,8 +21,9 @@ from posttrain.execution import (
     ExecutionSubmissionStore,
     JobExecutionService,
     ProjectControlLocator,
+    TerminalTrackingWriter,
 )
-from posttrain.tracking import RunDataSource
+from posttrain.tracking import ArtifactMaterializationSource, RunDataSource
 
 from .execution_config import (
     DstackBinding,
@@ -502,6 +503,42 @@ def cancelled_tracking_writer_for_run(
     )
 
 
+def terminal_tracking_writer_for_run(
+    layout: ProjectLayout,
+    run_id: str,
+) -> TerminalTrackingWriter:
+    """Construct an exact-id terminal writer for the run's recorded destination."""
+
+    return cast(TerminalTrackingWriter, cancelled_tracking_writer_for_run(layout, run_id))
+
+
+def artifact_materialization_source_for_run(
+    layout: ProjectLayout,
+    run_id: str,
+) -> ArtifactMaterializationSource:
+    """Construct the run's read-only exact-version artifact source."""
+
+    source = evidence_source_for_run(layout, run_id)
+    if source.provider != "trackio":
+        raise RuntimeError("artifact materialization currently requires Trackio")
+    environment = project_tracking_environment(layout)
+    module = _import_provider(
+        "posttrain_tracking_trackio",
+        extra="Trackio artifact materialization support is not installed",
+    )
+    source_type = getattr(module, "TrackioArtifactMaterializationSource", None)
+    settings_type = getattr(module, "TrackioSettings", None)
+    if source_type is None or settings_type is None:
+        raise RuntimeError("installed Trackio package has no artifact materialization source")
+    return cast(
+        ArtifactMaterializationSource,
+        source_type(
+            settings_type(project=source.project, server_url=source.endpoint),
+            write_token=environment.get("TRACKIO_WRITE_TOKEN"),
+        ),
+    )
+
+
 def _import_provider(module: str, *, extra: str) -> Any:
     try:
         return importlib.import_module(module)
@@ -515,6 +552,7 @@ def _require_file(path: Path, label: str) -> None:
 
 
 __all__ = [
+    "artifact_materialization_source_for_run",
     "cancelled_tracking_writer_for_project",
     "cancelled_tracking_writer_for_run",
     "create_execution_provider",
@@ -524,4 +562,5 @@ __all__ = [
     "reconciliation_source_for_run",
     "tracking_source_for_project",
     "tracking_source_for_run",
+    "terminal_tracking_writer_for_run",
 ]

@@ -100,9 +100,13 @@ from .reconciliation import (
 )
 from .recovery import (
     CancelledTrackingWriter,
+    TerminalTrackingRecovery,
+    TerminalTrackingRecoveryDisposition,
+    TerminalTrackingWriter,
     TrackingCancellationRecovery,
     TrackingRecoveryDisposition,
     recover_cancelled_tracking,
+    recover_terminal_tracking,
     save_tracking_recovery,
 )
 from .registry import (
@@ -183,6 +187,9 @@ __all__ = [
     "unchanged_fields",
     "TrackingCancellationRecovery",
     "TrackingRecoveryDisposition",
+    "TerminalTrackingRecovery",
+    "TerminalTrackingRecoveryDisposition",
+    "TerminalTrackingWriter",
     "ProviderCleanupDisposition",
     "ProviderCleanupDeferred",
     "ProviderCleanupResult",
@@ -207,6 +214,7 @@ __all__ = [
     "plan_execution_bundle",
     "reconcile_execution",
     "recover_cancelled_tracking",
+    "recover_terminal_tracking",
     "save_reconciliation",
     "save_tracking_recovery",
     "verify_bundle",

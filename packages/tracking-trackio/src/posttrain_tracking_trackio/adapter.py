@@ -34,7 +34,9 @@ from posttrain.tracking import (
     MetricPoint,
     MetricSeries,
     RunDetail,
+    RunError,
     RunOutcome,
+    RunOutcomeStatus,
     RunQuery,
     RunSpec,
     RunSummary,
@@ -475,6 +477,20 @@ class TrackioCancelledRunRecovery:
         *,
         finished_at: datetime,
     ) -> Literal["recovered", "already-cancelled"]:
+        disposition = self.recover_terminal(
+            expected,
+            outcome="cancelled",
+            finished_at=finished_at,
+        )
+        return "already-cancelled" if disposition == "already-terminal" else disposition
+
+    def recover_terminal(
+        self,
+        expected: RunSummary,
+        *,
+        outcome: RunOutcomeStatus,
+        finished_at: datetime,
+    ) -> Literal["recovered", "already-terminal"]:
         project = self.settings.project or expected.project_id
         if project != expected.project_id:
             raise ContractError("Trackio recovery project does not match the expected run")
@@ -491,10 +507,13 @@ class TrackioCancelledRunRecovery:
             server_url=server_url,
         )._summary(provider_run)
         _validate_recovery_identity(expected, observed)
-        if observed.status == "cancelled":
-            return "already-cancelled"
+        if observed.status == outcome:
+            return "already-terminal"
         if observed.status != "running":
-            raise ContractError("Trackio recovery requires a running or already cancelled run")
+            raise ContractError(
+                "Trackio recovery requires a running run or one already matching "
+                f"the provider outcome {outcome!r}"
+            )
         if finished_at < observed.started_at:
             raise ContractError("Trackio recovery finish time precedes the run start")
 
@@ -536,15 +555,20 @@ class TrackioCancelledRunRecovery:
                 job_definition_version=expected.job_definition_version,
             ),
         )
-        tracked.finish(RunOutcome("cancelled", expected.started_at, finished_at))
+        error = (
+            RunError("ProviderTerminalFailure", "execution provider reported a failed run")
+            if outcome == "failed"
+            else None
+        )
+        tracked.finish(RunOutcome(outcome, expected.started_at, finished_at, error))
 
         verified = TrackioDataSource(
             project,
             server_url=server_url,
         )._summary(self._exact_run(expected))
         _validate_recovery_identity(expected, verified)
-        if verified.status != "cancelled":
-            raise ContractError("Trackio cancellation recovery did not become durable")
+        if verified.status != outcome:
+            raise ContractError("Trackio terminal recovery did not become durable")
         return "recovered"
 
     def _exact_run(self, expected: RunSummary) -> Any:
@@ -567,6 +591,86 @@ class TrackioCancelledRunRecovery:
         if str(provider_run.id) != expected.provider_run_id:
             raise ContractError("Trackio recovery provider run id does not match")
         return provider_run
+
+
+class TrackioArtifactMaterializationSource:
+    """Read one immutable artifact version without creating a consumer run."""
+
+    def __init__(
+        self,
+        settings: TrackioSettings,
+        *,
+        write_token: str | None = None,
+    ) -> None:
+        self.settings = settings
+        self._write_token = write_token
+
+    def materialize_artifact(
+        self,
+        reference: StoredArtifactRef,
+        root: Path,
+    ) -> LocalArtifactRef:
+        project = self.settings.project or reference.namespace
+        if reference.provider != "trackio" or reference.namespace != project:
+            raise ContractError("Trackio materialization identity does not match its source")
+        if root.exists():
+            raise ContractError(f"artifact materialization destination already exists: {root}")
+        server_url = self.settings.server_url
+        if server_url is None:
+            raise ContractError("remote Trackio artifact materialization requires a server URL")
+        base_url, url_token = parse_trackio_server_url(server_url)
+        client = RemoteClient(base_url)
+        version = reference.version if reference.version.startswith("v") else f"v{reference.version}"
+        record = client.predict(
+            api_name="/get_artifact_manifest",
+            project=project,
+            name=reference.name,
+            spec=version,
+        )
+        if not isinstance(record, dict):
+            raise ContractError(f"Trackio artifact is unavailable: {reference.name}:{version}")
+        observed_digest = record.get("manifest_digest")
+        if observed_digest != reference.digest:
+            raise ContractError("Trackio artifact manifest digest does not match the run edge")
+        observed_version = f"v{record.get('version')}"
+        if observed_version != version or record.get("name") != reference.name:
+            raise ContractError("Trackio artifact version identity does not match the run edge")
+
+        artifact = trackio.Artifact(name=record["name"], type=record["type"])
+        artifact._hydrate_from_db(
+            project=project,
+            version=record["version"],
+            aliases=record["aliases"],
+            manifest=record["manifest"],
+            manifest_digest=record["manifest_digest"],
+            size_bytes=record["size_bytes"],
+            description=record.get("description"),
+            metadata=record.get("metadata"),
+        )
+        artifact._remote_source = {
+            "space_id": None,
+            "server_base_url": base_url,
+            "write_token": self._write_token or url_token or os.getenv("TRACKIO_WRITE_TOKEN"),
+        }
+        root.mkdir(parents=True, exist_ok=False)
+        path = Path(artifact.download(root=root)).resolve()
+
+        declared_digest = reference.provider_metadata.get("posttrain_content_digest")
+        declared_kind = reference.provider_metadata.get("posttrain_content_digest_kind")
+        if not isinstance(declared_digest, str) or declared_kind not in {"file", "tree"}:
+            raise ContractError("Trackio artifact lacks required PostTrain content identity")
+        if declared_kind == "file":
+            files = sorted(candidate for candidate in path.rglob("*") if candidate.is_file())
+            if len(files) != 1:
+                raise ContractError(
+                    f"materialized Trackio file artifact contains {len(files)} files"
+                )
+            observed_content_digest = _file_sha256(files[0])
+        else:
+            observed_content_digest = _tree_sha256(path)
+        if observed_content_digest != declared_digest.removeprefix("sha256:"):
+            raise ContractError("Trackio artifact content digest does not match provider metadata")
+        return LocalArtifactRef(path, observed_content_digest)
 
 
 def _validate_recovery_identity(

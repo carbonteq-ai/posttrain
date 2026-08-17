@@ -71,6 +71,50 @@ def test_job_help_exposes_product_path_not_compatibility_flags(capsys) -> None:
             assert "checkpoint" in help_text
 
 
+def test_tracking_preflight_uses_project_credentials_without_creating_a_run(
+    tmp_path: Path,
+    capsys,
+    monkeypatch,
+) -> None:
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+    calls: list[tuple[str, str | None, str | None]] = []
+    monkeypatch.setattr(
+        "posttrain_cli.commands.run_cmd.project_tracking_environment",
+        lambda layout: {
+            "POSTTRAIN_TRACKIO_PROJECT": "policy-opd",
+            "POSTTRAIN_TRACKIO_SERVER_URL": "https://trackio.example.test",
+            "TRACKIO_WRITE_TOKEN": "protected-token",
+        },
+    )
+    monkeypatch.setattr(
+        "posttrain_tracking_trackio.require_remote_trackio_ready",
+        lambda *, project, server_url, write_token=None: calls.append(
+            (project, server_url, write_token)
+        ),
+    )
+
+    assert (
+        main(
+            [
+                "--json",
+                "--project-root",
+                str(project),
+                "run",
+                "tracking-preflight",
+            ]
+        )
+        == 0
+    )
+    result = json.loads(capsys.readouterr().out)
+    assert result["authenticated_write"] is True
+    assert result["run_created"] is False
+    assert calls == [
+        ("policy-opd", "https://trackio.example.test", "protected-token")
+    ]
+
+
 def test_recovery_checkpoint_rebinds_a_new_training_run() -> None:
     from posttrain.tracking import ArtifactLink, StoredArtifact
     from posttrain_cli.execution_config import ResolvedExecutionSettings

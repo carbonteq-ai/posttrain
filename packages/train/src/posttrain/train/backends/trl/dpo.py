@@ -13,6 +13,7 @@ from ...rendering import RenderedPreferenceExample, render_preferences
 from ...requests import DPORequest
 from .common import (
     BackendTrainingResult,
+    CheckpointPublicationRegistry,
     callback_type,
     checkpoint_callback_type,
     emit_parameter_counts,
@@ -81,6 +82,7 @@ def run_dpo(
         }
     )
     callback = callback_type(context, imports)()
+    checkpoint_publications = CheckpointPublicationRegistry()
     checkpoint_callback = checkpoint_callback_type(
         context,
         imports,
@@ -89,6 +91,7 @@ def run_dpo(
         settings=request.settings,
         update=request.training.update,
         workspace=output_dir.parent,
+        publication_registry=checkpoint_publications,
     )()
 
     class PretokenizedDPOTrainer(DPOTrainer):
@@ -135,6 +138,7 @@ def run_dpo(
                 settings=request.settings,
                 update=request.training.update,
                 imports=imports,
+                publication_registry=checkpoint_publications,
             )
             raise
 

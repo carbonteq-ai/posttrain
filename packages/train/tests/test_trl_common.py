@@ -11,6 +11,7 @@ from posttrain.common import ProducedArtifact
 from posttrain.common.variants import GEMMA_4_12B_IT, LFM_25_12B_THINKING, QWEN_35_2B
 from posttrain.train import LoRAUpdate
 from posttrain.train.backends.trl.common import (
+    CheckpointPublicationRegistry,
     checkpoint_callback_type,
     preserve_recovery_checkpoint_after_error,
     publish_interrupted_recovery_checkpoint,
@@ -288,6 +289,64 @@ def test_checkpoint_callback_publishes_paired_views_on_save(tmp_path: Path) -> N
     assert model_path == (tmp_path / "checkpoints" / "step-00000004" / "model").resolve()
     assert (model_path / "adapter_model.safetensors").is_file()
     assert not (model_path / "optimizer.pt").exists()
+
+
+def test_periodic_checkpoint_is_reused_by_later_failure_retention(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "trainer" / "checkpoint-4"
+    checkpoint.parent.mkdir()
+    _write_lora_recovery_checkpoint(checkpoint)
+
+    class TrainerCallback:
+        pass
+
+    context = CaptureContext()
+    registry = CheckpointPublicationRegistry()
+    callback = checkpoint_callback_type(
+        context,  # type: ignore[arg-type]
+        {
+            "TrainerCallback": TrainerCallback,
+            "get_last_checkpoint": lambda _: str(checkpoint),
+        },
+        model=QWEN_35_2B,
+        technique="distill",
+        settings=SimpleNamespace(id="training-settings/test", revision="1"),
+        update=LoRAUpdate(),
+        workspace=tmp_path,
+        publication_registry=registry,
+    )()
+    callback.on_save(
+        SimpleNamespace(output_dir=str(checkpoint.parent)),
+        SimpleNamespace(global_step=4),
+        "control",
+    )
+    trainer = SimpleNamespace(args=SimpleNamespace(output_dir=str(checkpoint.parent)))
+
+    retained = publish_interrupted_recovery_checkpoint(
+        context,  # type: ignore[arg-type]
+        trainer,
+        technique="distill",
+        model=QWEN_35_2B,
+        settings=SimpleNamespace(id="training-settings/test", revision="1"),
+        update=LoRAUpdate(),
+        imports={"get_last_checkpoint": lambda _: str(checkpoint)},
+        publication_registry=registry,
+    )
+
+    assert retained == checkpoint
+    assert len(context.artifacts) == 2
+    assert context.events[-1][1]["recovery_reused"] is True
+    assert context.events[-1][1]["model_reused"] is True
+
+
+def test_checkpoint_registry_rejects_same_name_with_different_digest() -> None:
+    registry = CheckpointPublicationRegistry()
+    registry.record("training/model/distill/checkpoint-00000004/recovery", "a" * 64)
+
+    with pytest.raises(RuntimeError, match="already published with digest"):
+        registry.contains(
+            "training/model/distill/checkpoint-00000004/recovery",
+            "b" * 64,
+        )
 
 
 def test_interrupted_run_without_a_complete_checkpoint_is_not_published(tmp_path: Path) -> None:

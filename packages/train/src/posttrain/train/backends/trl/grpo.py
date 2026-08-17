@@ -21,6 +21,7 @@ from ...requests import GRPORequest, SAMPORequest
 from ...sampo_advantages import compute_sampo_advantages
 from .common import (
     BackendTrainingResult,
+    CheckpointPublicationRegistry,
     callback_type,
     checkpoint_callback_type,
     emit_parameter_counts,
@@ -262,6 +263,7 @@ def _run_online_rl(
     context.event("grpo_runtime_resolved", _online_rl_runtime_attributes(request))
     actor_update = _ActorUpdateTelemetry(context)
     trainer_type = _actor_update_trainer_type(GRPOTrainer, actor_update)
+    checkpoint_publications = CheckpointPublicationRegistry()
     checkpoint_callback = checkpoint_callback_type(
         context,
         imports,
@@ -270,6 +272,7 @@ def _run_online_rl(
         settings=request.settings,
         update=request.training.update,
         workspace=output_dir.parent,
+        publication_registry=checkpoint_publications,
     )()
 
     def normalize_metrics(step: int, native: Mapping[str, object]) -> Mapping[str, float]:
@@ -332,6 +335,7 @@ def _run_online_rl(
                 settings=request.settings,
                 update=request.training.update,
                 imports=imports,
+                publication_registry=checkpoint_publications,
             )
             raise
 

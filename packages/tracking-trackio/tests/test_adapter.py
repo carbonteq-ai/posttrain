@@ -30,6 +30,7 @@ from posttrain.tracking import (
     TraceQuery,
 )
 from posttrain_tracking_trackio import (
+    TrackioArtifactMaterializationSource,
     TrackioBackend,
     TrackioCancelledRunRecovery,
     TrackioDataSource,
@@ -49,6 +50,67 @@ from packages.tracking.tests.conformance import (
     logical_snapshot,
     terminal_outcome,
 )
+
+
+def test_read_only_artifact_materialization_verifies_both_digests(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = b"exact adapter"
+    content_digest = hashlib.sha256(payload).hexdigest()
+
+    class Client:
+        def __init__(self, server_url: str) -> None:
+            assert server_url == "https://trackio.example"
+
+        def predict(self, **request: object) -> dict[str, object]:
+            assert request["api_name"] == "/get_artifact_manifest"
+            return {
+                "name": "adapter",
+                "type": "model-adapter",
+                "version": 3,
+                "aliases": ["latest"],
+                "manifest": [],
+                "manifest_digest": "sha256:provider",
+                "size_bytes": len(payload),
+                "description": None,
+                "metadata": {},
+            }
+
+    class Artifact:
+        def __init__(self, *, name: str, type: str) -> None:
+            assert (name, type) == ("adapter", "model-adapter")
+            self._remote_source = None
+
+        def _hydrate_from_db(self, **_values: object) -> None:
+            return None
+
+        def download(self, root: Path) -> str:
+            root.joinpath("adapter.safetensors").write_bytes(payload)
+            return str(root)
+
+    monkeypatch.setattr("posttrain_tracking_trackio.adapter.RemoteClient", Client)
+    monkeypatch.setattr("posttrain_tracking_trackio.adapter.trackio.Artifact", Artifact)
+    source = TrackioArtifactMaterializationSource(
+        TrackioSettings(project="policy", server_url="https://trackio.example")
+    )
+    local = source.materialize_artifact(
+        StoredArtifactRef(
+            "trackio",
+            "policy",
+            "adapter",
+            "v3",
+            "sha256:provider",
+            {
+                "posttrain_content_digest": content_digest,
+                "posttrain_content_digest_kind": "file",
+            },
+        ),
+        tmp_path / "download",
+    )
+
+    assert local.digest == content_digest
+    assert local.path.joinpath("adapter.safetensors").read_bytes() == payload
 
 STARTED = datetime(2026, 7, 22, 2, 0, tzinfo=UTC)
 

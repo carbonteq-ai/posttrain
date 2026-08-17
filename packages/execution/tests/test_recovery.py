@@ -20,9 +20,10 @@ from posttrain.execution import (
     ProviderCleanupResult,
     RuntimeImageRef,
     recover_cancelled_tracking,
+    recover_terminal_tracking,
     save_tracking_recovery,
 )
-from posttrain.tracking import RunDetail, RunSpec, RunSummary
+from posttrain.tracking import RunDetail, RunOutcomeStatus, RunSpec, RunSummary
 
 STARTED = datetime(2026, 7, 26, 23, 4, tzinfo=UTC)
 
@@ -120,6 +121,20 @@ class _Writer:
         if self.error is not None:
             raise self.error
         return self.disposition
+
+    def recover_terminal(
+        self,
+        expected: RunSummary,
+        *,
+        outcome: RunOutcomeStatus,
+        finished_at: datetime,
+    ) -> Literal["recovered", "already-terminal"]:
+        assert finished_at >= expected.started_at
+        assert outcome in {"succeeded", "failed", "cancelled"}
+        self.expected = expected
+        if self.error is not None:
+            raise self.error
+        return "already-terminal" if self.disposition == "already-cancelled" else "recovered"
 
 
 def _service(
@@ -219,6 +234,30 @@ async def test_recovery_fails_before_tracking_write_for_wrong_provider_state(
 
     assert source.reads == 0
     assert writer.expected is None
+
+
+@pytest.mark.asyncio
+async def test_terminal_recovery_finalizes_failed_provider_without_republishing(
+    tmp_path: Path,
+) -> None:
+    service, store = _service(tmp_path, provider_state="failed")
+    writer = _Writer()
+
+    recovery = await recover_terminal_tracking(
+        service,
+        _Source(),  # type: ignore[arg-type]
+        writer,  # type: ignore[arg-type]
+        "run-recovery-1",
+        project_id="tests",
+    )
+    receipt = save_tracking_recovery(store, recovery)
+
+    assert recovery.outcome == "failed"
+    assert recovery.disposition == "recovered"
+    assert writer.expected is not None
+    payload = json.loads(receipt.read_text(encoding="utf-8"))
+    assert payload["schema"] == "posttrain.tracking-terminal-recovery.v1"
+    assert payload["outcome"] == "failed"
 
 
 @pytest.mark.asyncio

@@ -66,6 +66,16 @@ class ArtifactPublicationHandle(Protocol):
     def wait(self, timeout: float | None = None) -> PublishedArtifact: ...
 
 
+class ArtifactMaterializationSource(Protocol):
+    """Read-only exact-version artifact downloader with no lineage mutation."""
+
+    def materialize_artifact(
+        self,
+        reference: StoredArtifactRef,
+        root: Path,
+    ) -> LocalArtifactRef: ...
+
+
 @dataclass(frozen=True, slots=True)
 class ArtifactInput:
     """A named run input that a tracking backend must materialize."""
@@ -188,6 +198,7 @@ class RunDataSource(Protocol):
 
 
 __all__ = [
+    "ArtifactMaterializationSource",
     "ArtifactInput",
     "ArtifactIntegrityResult",
     "ArtifactIntegrityState",
