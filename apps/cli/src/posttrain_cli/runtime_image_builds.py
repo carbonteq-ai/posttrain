@@ -115,7 +115,6 @@ def _base_request(
         lock_digest=lock_digest(),
         base_image=registry.universal_image,
         builder=registry.buildx_builder,
-        trust_bundle=registry.trust_bundle,
     )
 
 

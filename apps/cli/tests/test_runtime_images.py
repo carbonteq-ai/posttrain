@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -286,6 +287,9 @@ def test_runtime_rebuild_builds_and_verifies_base_before_kind(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     registry = _registry(tmp_path, monkeypatch)
+    trust_bundle = tmp_path / "internal-ca.pem"
+    trust_bundle.write_text("test ca\n", encoding="utf-8")
+    registry = replace(registry, trust_bundle=trust_bundle)
     manifest = _manifest()
 
     class _Builder:
@@ -317,6 +321,8 @@ def test_runtime_rebuild_builds_and_verifies_base_before_kind(
         "online-rl-trl-py312",
     ]
     assert builder.requests[1].base_image.value.endswith(manifest.base.digest)
+    assert builder.requests[0].trust_bundle is None
+    assert builder.requests[1].trust_bundle == trust_bundle
     assert results[0].matches_published_digest
 
 
