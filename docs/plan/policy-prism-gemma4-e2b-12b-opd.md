@@ -1,464 +1,418 @@
-# Correct and complete Policy Prism Gemma 4 E2B from 12B OPD
+# Complete the resilient Policy Prism Gemma 4 E2B from 12B IW-OPD experiment
 
-This ExecPlan is a living document. The sections `Progress`, `Surprises & Discoveries`, `Decision Log`, and `Outcomes & Retrospective` must be updated as implementation and execution proceed. Maintain this file in accordance with `docs/templates/PLAN.md`.
+This ExecPlan is a living document. Keep `Progress`, `Surprises & Discoveries`, `Decision Log`, and `Outcomes & Retrospective` current while executing it. Maintain it according to `docs/templates/PLAN.md`. This revision supersedes the pre-production plan because retained production evidence changed the diagnosis of the long-rules failure.
 
 ## Purpose / Big Picture
 
-This plan produces one scientifically defensible Policy Prism on-policy distillation experiment in which base Gemma 4 E2B is the trainable student and base Gemma 4 12B is the frozen teacher. The final run keeps the fastest configuration already qualified on the in-house RTX PRO 6000, but corrects two deeper contracts that the earlier checkpoint-96 experiment did not satisfy: the teacher must score each completion after its own model-native prompt, and every student/teacher probability used by the loss must be normalized over the same XGrammar-allowed token set that generated the completion.
+This plan produces one complete and reproducible Policy Prism on-policy distillation experiment. Base Gemma 4 E2B is the trainable student and base Gemma 4 12B is the frozen teacher. The resulting rank-16 LoRA adapter is published privately to Hugging Face, evaluated on the sealed scope and recovery benchmarks, and finalized into Policy Prism's standard five-file `evaluation-runs` format.
 
-The plan deliberately avoids another parameter sweep. It preserves the measured logical-12, physical-1, accumulation-12 geometry and runs only two short live GPU canaries after exhaustive offline and exact-image verification. The first canary executes one real 12-target optimizer update with all corrected training contracts. The second serves that one-step adapter through the exact managed evaluation path on two non-sealed structured tasks. Only after both pass does one fresh 384-target production run start from base E2B. Completion includes retained checkpoints, reconciliation, private Hugging Face publication, sequential sealed scope and recovery evaluations, and the normal five-file Policy Prism `evaluation-runs` evidence.
+The plan also makes the long run resilient. A malformed or length-limited student attempt remains diagnostic evidence, but it cannot become a training target, a downstream dependency, or by itself terminate hours of otherwise healthy training. Policy Prism retries the same logical target in place and then selects a safe alternate through a globally capacity-proven compatibility graph until it obtains exactly one complete trainable response. PostTrain continues to receive exactly twelve accepted rows per optimizer update.
 
-This work changes one frozen product meaning narrowly. Existing documentation says the teacher scores the exact student token sequence. That is valid when student and teacher chat templates are identical, but E2B and 12B share token meanings while rendering different prompt-control tokens. The canonical baseline must therefore define cross-template OPD as preserving the exact student completion token IDs while rendering the same semantic messages with each model's immutable native template. The teacher scores only those completion positions. Freshness, one-time consumption, identical ordered vocabulary, selected-stage masking, and Verifiers trace authority remain unchanged.
+No system can honestly guarantee that a GPU, network, registry, Trackio, Hugging Face, or OpenRouter service will never fail. The acceptance claim is narrower and testable: every deterministic failure seen so far is reproduced and closed; one rejected student attempt is non-fatal; infrastructure interruptions preserve a paired model/recovery checkpoint; and the experiment is not declared complete unless all 384 targets, 32 optimizer updates, publication checks, and both domain evaluations pass.
+
+## Launch Verdict
+
+Do not submit another 384-target run from the current trees. The core IW-OPD path is numerically and operationally proven, but these launch blockers remain:
+
+1. Rules generation still has an arbitrary 16,384-token ceiling even when the rendered request has more than 31,000 safe completion tokens available. This caused legitimate JSON prefixes to be rejected.
+2. The plan has output-infeasible 74-106-segment candidates, and globally greedy reserve claims can starve rare targets even when safer compatible candidates exist.
+3. A later training failure republishes an already published checkpoint logical name. Trackio rejects the duplicate and cannot record a clean terminal failure; the failed provider run also needs guarded tracking recovery.
+4. Final evaluation packages must bind the trained step-32 adapter rather than silently serving base E2B.
+5. The maintained completion validator, read-only artifact materializer, exact-image release gate, and authenticated tracking preflight must exist and pass before the run can be called end to end.
+6. The current Policy prompt inventory test proves parsing and broad profile-level keyword coverage, but it does not certify every stage's exact model-facing message.
+
+After the fixes and two short canaries in this plan pass, launch a fresh production run from base E2B. Do not resume the failed step-8 checkpoint because token limits, retry identity, reserve assignment, and the task-plan hash will change.
 
 ## Progress
 
-- [x] (2026-08-07 through 2026-08-10) Implement the original E2B-from-12B exact-token OPD path, memory-safe sparse projection, selected-stage masking, XGrammar wire-schema projection, stable task allocation, native traces, and checkpoint/SQLite recovery.
-- [x] (2026-08-10) Retain a complete historical step-96 checkpoint from the earlier sampled sparse reverse-KL experiment, publish it privately at immutable Hugging Face revision `4f1fe9c75031396a11bcc44e2193f96df9003054`, and preserve failed-run evidence.
-- [x] (2026-08-10 through 2026-08-11) Fix and qualify the target-78 shared-reserve boundary, target-98 exact source-ID constraint, unusable dependency propagation, heterogeneous rollout waves, and logical/physical accumulation behavior.
-- [x] (2026-08-11) Measure logical `12`, physical `1`, accumulation `12` as the fastest completed configuration: 634.11 trainer seconds for 12 targets and 34.74 GiB trainer peak. Physical batches two and three were safe but slower; physical twelve was not qualified.
-- [x] (2026-08-12) Evaluate historical checkpoint 96 on sealed scope and recovery, finalize both runs in Policy Prism, and verify complete native and five-file evidence.
-- [x] (2026-08-12) Diagnose checkpoint 96. Verify the E2B/12B chat-template mismatch, the raw-versus-XGrammar-constrained probability mismatch, the weak historical sampled-token/tail objective, six evaluation whitespace terminations, model-facing raw YAML, constructed-incomplete label leakage, stage-inappropriate invariants, unrepresentative first-96 ordering, and a reproducible 12-worker SQLite cold-start race.
-- [x] (2026-08-12) Reduce future live qualification to one 12-target corrected-training canary and one two-case managed-evaluation canary. Reject further batch, MTP, prefill, cache, LoRA, learning-rate, memory, HF, Trackio, or Claude smoke sweeps.
-- [x] (2026-08-12) Amend the canonical OPD baseline for model-native prompt prefixes with exact completion-token alignment and constrained probability-space evidence.
-- [x] (2026-08-12) Implement and push generic constrained teacher scoring in the CarbonTeq TRL fork at `b2dcbd0050f17383f97093d226b227d4b25acd75`; build collision-free `trl==1.9.2.post5` distributions with wheel SHA-256 `57f1b0c605e80bb30a499da0d2016264f109f823856e591c0b0dee79c6df2143`.
-- [x] (2026-08-12) Pin collision-free TRL post5 in PostTrain; implement model-template identity, selected semantic-message projection, constrained memory-safe student loss, and managed XGrammar evaluation settings.
-- [x] (2026-08-12) Correct Policy Prism prompt rendering, hidden-label leakage, stage invariants, checkpoint-prefix ordering, and SQLite initialization; regenerate task-plan hash `b8f3d62d9640c90950e514bf850f4bf28281b81663a581ef4e281080fbbadcee` and add corrected canary/production/evaluation work packages.
-- [x] (2026-08-12) Preserve and reconcile three exact-image canary failures that closed catalog template identity, vLLM processor FQCN, and Verifiers sampled-mask digest boundaries before optimizer step one.
-- [x] (2026-08-12) Prove the post5 constrained teacher replay path accepts all twelve corrected rollouts but takes more than one hour for a single 12,216-token teacher call; cancel it as operationally unfit rather than launching production.
-- [x] (2026-08-12) Publish TRL `1.9.2.post6` at `11a526afd98bdbec3db9d6dd9473141c8c3b4d45`, precomputing exact XGrammar masks outside the per-token callback without changing probability semantics; pin runtime overlay `sha256:6f5bc755ef659fc9a5217a599fcdb1797c50d1735321ed7c4ae317de0d28a424` and pack actual-job image `sha256:8e04e3181c6adb428007c294d46ee14883bd157f10d80633ecc12a0103bf6550`.
-- [x] (2026-08-13) Replace operationally unfit serial vLLM teacher replay with one frozen local-teacher forward plus chunked constrained vocabulary projection; preserve the fixed assistant grammar scaffold explicitly, publish TRL `1.9.2.post7` at `78b61a4d37a7bf8ad7e61bd604ba9e3c3c316897`, and publish runtime overlay `sha256:05dd0b4e3b80faffeeb7b3f7df043eb200c141ecb0c7ce25b5c3e462ead3952f`.
-- [x] (2026-08-13) Preserve and reconcile canary `opd2can05-prefixq-e2b12b-c12-r16-v1`; reproduce its scorer-only XGrammar property-order mismatch against retained evidence, correct scorer schema ordering, and prove all three retained structured stages accept and terminate under the corrected replay FSM.
-- [ ] Pass all offline, exact-image, credential, catalog, and package gates.
-- [ ] Run and reconcile the one-update corrected-training canary.
-- [ ] Run and reconcile the two-case managed-evaluation serving canary against the canary adapter.
-- [ ] Freeze the exact production commits/image/configuration and launch one fresh 384-target run from base E2B.
-- [ ] Reconcile training, verify 32 updates and checkpoints 8/16/24/32, and pass the Policy Prism 384-target completion gate.
-- [ ] Publish and fresh-verify the step-32 LoRA adapter privately on Hugging Face.
-- [ ] Run sealed scope then sealed recovery sequentially, finalize their standard Policy Prism evidence, validate all runs, and push both feature branches.
+- [x] (2026-08-07 through 2026-08-13) Implement and qualify E2B-from-12B model-native prompting, exact selected-stage projection, XGrammar-constrained IW-OPD, memory-safe local-teacher scoring, LoRA synchronization, and SQLite checkpoint state.
+- [x] (2026-08-10 through 2026-08-13) Fix target-78 reserve matching, target-98 task-owned source IDs, unusable dependency propagation, XGrammar wire-schema projection, Gemma whitespace handling, teacher schema insertion order, and managed evaluation whitespace.
+- [x] (2026-08-11) Qualify logical/physical/accumulation `12/1/12` as the fastest tested geometry on the RTX PRO 6000.
+- [x] (2026-08-13) Preserve production attempt `opd2prod01-correctedq-e2b12b-c384-r16-v1`; reproduce and fix teacher-side schema-order divergence; replay all 24 retained selected completions successfully.
+- [x] (2026-08-14) Preserve failed production attempt `opd2prod02-schemaexact-e2b12b-c384-r16-v1`: 185 outputs admitted, 180 consumed by 15 complete finite optimizer updates, zero teacher failures, no OOM, and a verified paired step-8 checkpoint.
+- [x] (2026-08-17) Classify all 197 candidate attempts retained by production attempt two. Prove the seven 16,384-token failures were meaningful unfinished JSON with zero trailing whitespace, not whitespace or repetition loops.
+- [x] (2026-08-17) Identify target 171's exact capacity failure and the globally greedy reserve-allocation starvation described below.
+- [x] (2026-08-17) Reconcile throughput evidence and reject an unqualified logical-24 production change.
+- [x] (2026-08-17) Repair idempotent checkpoint publication, add guarded terminal Trackio recovery, and reconcile the stranded failed run without duplicating its artifacts.
+- [x] (2026-08-17) Add dynamic per-request rules capacity, deterministic attempt ordinals, capacity-aware reserve chains, output-feasibility replacement, and selected-stage independence in Policy Prism.
+- [x] (2026-08-17) Certify all 1,303 model-facing candidate/stage materializations, strengthen stage-specific semantic coverage, remove trace metadata/label leakage, and retain the existing evidence that the teacher is stronger without another model comparison.
+- [x] (2026-08-17) Regenerate the immutable 384-target/96-reserve plan and add resilient canary, production, serving, scope, and recovery work packages.
+- [x] (2026-08-17) Add maintained exact release, explicit-target completion, read-only materialization, Trackio write-preflight, and serving-metadata commands. Focused Policy and PostTrain tests pass.
+- [x] (2026-08-17) Publish and pin reconstructed trusted base `sha256:8ea6238d52895e67716b2ca6d5de185e14bd234495a67a5846e99d55e0ce2040` and online-RL runtime `sha256:24eeffa8ffd9d60192d0815078558c0446398f7ef977344e642a50d5f3da841a` in ignored machine execution state.
+- [ ] Finish the in-progress exact canary job-image push, record its immutable digest, and pack the production/evaluation job images.
+- [ ] Run the exhaustive release gate inside the exact packed training image and finish credential/registry/GPU preflight.
+- [ ] Run one 12-target target-171 training canary and one two-case managed-serving canary within a combined 90-minute GPU budget.
+- [ ] Launch one fresh 384-target run from base E2B; verify all 32 updates, eight four-step recovery pairs, and scientific views at 8, 16, 24, and 32.
+- [ ] Materialize, verify, document, and privately publish the exact step-32 model adapter.
+- [ ] Run sealed scope and recovery sequentially against that adapter; finalize, validate, compare, commit, and push the results.
+
+## What Failed and Why Earlier Validation Missed It
+
+The previous launch did not fail because the GPU ran out of memory, the teacher was unavailable, or the loss became unstable. It failed because execution advanced while the living plan's exhaustive production-schema, allocator-pressure, failure-after-checkpoint, and final live-canary gates were still unrecorded or incomplete. The corrected plan must not repeat that mistake.
+
+The known failure chain is:
+
+| Boundary | Observed failure | Verified correction and proof required now |
+| --- | --- | --- |
+| XGrammar support | Canonical schemas containing `uniqueItems` were sent directly to XGrammar. | Strip unsupported keys only from a generation copy; retain canonical validation. Compile every packaged wire schema in the exact image. |
+| Runtime closure | An early corrected job image still contained the published parent image's older TRL because framework sources install with `--no-deps`. | Inspect imported versions and immutable wheel/source labels inside every actual-job image before GPU admission. Retain the qualified post7 closure. |
+| Catalog serialization | Python variants carried chat-template identity, but initial catalog serialization dropped it. | Round-trip fingerprints through the catalog and assert them in the resolved manifest and image. |
+| vLLM loader | The custom logits-processor path used dotted class syntax while vLLM 0.25.1 requires `module:Class`. | Keep an exact CLI/loader regression using the installed vLLM version. |
+| Selected completion boundary | Verifiers stored a three-token assistant scaffold with a false mask before the sampled suffix; Policy initially hashed the entire node as completion. | Split prompt/completion at the single contiguous selected-mask boundary and seed XGrammar with the scaffold. Preserve exact digest/mask tests. |
+| Teacher replay performance | Correct token-serial constrained replay took more than one hour for one teacher call. | Keep the qualified frozen local-teacher forward plus chunked constrained vocabulary projection in TRL post7; gate latency and finite gradients live. |
+| Gemma termination | Unbounded whitespace could consume an evaluation output budget. | Preserve bounded Gemma whitespace in training and managed evaluation; run a managed-serving canary that closes JSON and stops. |
+| Cross-model prompt | E2B and 12B share token IDs but not chat-template control tokens. | Render the same semantic messages through each immutable native template while preserving exact student completion IDs. Keep prompt/template digest regressions. |
+| Probability space | Structured rollouts were sampled from a constrained distribution but scored with incompatible raw probabilities. | Student, teacher, and current-student likelihoods must use the identical XGrammar allowed set and normalized constrained probability. Keep analytic loss/gradient and live alignment tests. |
+| Target 78 | Reserve matching was fragmented by prompt profile. | Match by stage/quartile/decision and materialize the selected primary's profile/shape. Keep exact forced-rejection coverage. |
+| Target 98 | The small model copied an invalid source identifier. | Put the exact task-owned identifier in canonical and wire-schema enums. Compile and replay primary and reserves. |
+| Dependencies | A structurally unusable prefix could trigger a non-required downstream stage. | Only usable dependencies may feed later stages. Failure of a diagnostic stage after the selected stage is accepted cannot invalidate that selected target. |
+| SQLite cold start | Twelve concurrent task constructors raced on WAL/DDL initialization. | Initialize under a cross-process lock with bounded busy retry and schema versioning. Repeat fresh 12-worker construction/claims at least 50 times in the exact image. |
+| Schema order | Teacher scoring reordered JSON-schema properties and built a different XGrammar state machine. | Preserve the exact rollout-schema insertion order. Replay all retained completions and all generated schemas. PostTrain commit `90291b8` is the current fix. |
+| Build context | A dedicated BuildKit worker retained a stale named-context mount after the generated manifest changed. | Inspect the manifest hash inside the packed image. If it differs, restart only the dedicated OPD builder and repack; never trust host context alone. |
+| Target 171 | Two meaningful rules responses hit 16,384 tokens; globally safer reserves were already claimed. | Raise rules capacity to the safe request envelope and replace greedy shared allocation with a deterministic capacity/risk-aware compatibility graph and reassignment. |
+| Failure finalization | Step 8 was already published, then the error path tried to publish the same logical checkpoint name again. | Same logical name plus same digest is an idempotent reuse; same name plus different digest fails closed. Test checkpoint publication followed by later failure. |
+| Evaluation model binding | Existing corrected evaluation packages bind base E2B. | New final packages must resolve the exact step-32 `model-adapter`, never the recovery checkpoint or base model. Assert this before rollout one. |
+| Tracking credential | A later Trackio token rotation temporarily prevented new tracked jobs even though earlier qualification had succeeded. | Load the current protected credential file, perform a non-secret authenticated preflight immediately before submission, and fail before GPU allocation if write access is rejected. |
+| Prompt qualification | Current code removes trace metadata and label leakage, but its inventory test checks semantic words across an entire profile rather than the exact stage message. | Audit every rendered production message and enforce per-stage legal rubrics. Existing evaluation evidence already establishes that 12B is stronger than E2B, so no extra teacher-versus-student GPU comparison is required. |
 
 ## Surprises & Discoveries
 
-- Observation: identical tokenizer mappings did not make the two Gemma variants prompt-compatible.
-  Evidence: both pinned `tokenizer.json` files hash to `cc8d3a0ce36466ccc1278bf987df5f71db1719b9ca6b4118264f45cb627bfe0f`, but E2B's chat template hashes to `0a2c8073c878ab1da004bee933a998606537bbb62016310352c7285c3f01c5b5` and 12B's hashes to `ae53464bf3be25802b3a5b37def7fd89667067d7577049b3b2d74c4d8de4c6d4`. The 12B non-thinking template adds four channel-control tokens. Current validation in `packages/train/src/posttrain/train/requests.py` checks only the token mapping.
+- Observation: target 171 did not enter a whitespace or repetition loop.
+  Evidence: its primary prompt was 5,206 tokens and therefore had 35,754 completion tokens available within the 40,960 call cap. It generated 16,384 meaningful tokens, 67,054 characters, and 39 rules before ending mid-sentence with zero trailing whitespace. Its attempted reserve had a 9,044-token prompt, 31,916 tokens available, and likewise stopped at the artificial 16,384 cap after 45 rules.
 
-- Observation: the earlier and current loss paths used probabilities from a different distribution than the one that sampled the response.
-  Evidence: vLLM 0.25.1 defaults to `raw_logprobs` and calculates returned log probabilities before XGrammar masks logits. The response is sampled from the constrained distribution, while rollout, teacher, and current-student terms were raw full-vocabulary probabilities.
+- Observation: global reserve selection made target 171's fallback harder rather than safer.
+  Evidence: the primary contained 43 source segments. Its chosen remaining reserve contained 74. Two compatible 20/21-segment candidates had already been claimed by targets 322 and 243. Compatibility alone was correct; greedy global allocation was not capacity-safe.
 
-- Observation: checkpoint 96 used an especially weak teacher signal even though the teacher transported successfully.
-  Evidence: the historical beta-one, sampled-top-one, tail-bucket branch included the student's sampled token and an aggregate all-other bucket; teacher top one was fetched but did not enter that support. The teacher could reduce confidence in one sampled mistake but could not name its preferred actor, effect, qualification, boundary, or abstention token.
+- Observation: some unexecuted candidates are inherently too large for one legal JSON response even after raising the cap.
+  Evidence: the plan has 480 candidates. Above 64 segments are four primary rules, three reserve rules, one full-graph primary, and one evidence primary. The 106-segment target-132 packet spans definitions, prohibitions, duties, records, notices, training, review, and planning. Target 37 has 93 segments and target 283 is a 76-segment full graph. Their prompts can fit while their complete structured outputs cannot be assumed to close inside the 40,960-token request envelope. Prompt-length validation alone is insufficient.
 
-- Observation: the checkpoint-96 sealed scope result is serving-confounded.
-  Evidence: six rules responses reached exactly 16,384 tokens; 62.27% to 98.63% of each failed response was trailing whitespace. The training rollout path bounded whitespace, while the managed evaluation path did not. The raw sealed prompt/schema hash matched the base comparison for the inspected case, so the failure is not explained by a different benchmark prompt.
+- Observation: the failed run made more progress than the optimizer count alone shows.
+  Evidence: retained traces contain 185 accepted unique outputs, but only the first 180 were consumed and scored by 15 complete twelve-row optimizer updates. Five rows of update 16 were admitted before target 171 failed; no backward/update consumed those five. Always report admitted and optimizer-consumed counts separately.
 
-- Observation: raw YAML metadata is sent to both training and sealed-evaluation models.
-  Evidence: `scope_opd_prompts.py` returns the full YAML text, `scope_opd_tasks.py` stores it as the system prompt, and `program.py` sends it verbatim. This is unnecessary noise, but it does not by itself explain checkpoint 96's relative regression because both compared models received the same sealed prompt.
+- Observation: logical 12 is supported by sustained production evidence.
+  Evidence: logical 4/physical 1 achieved 5.56 scored tokens/s; logical 12/physical 1 achieved 15.23; physical 2 and 3 fell to 9.51 and 10.44 while consuming more memory. Production attempt two sustained 14.49 scored tokens/s across 15 updates.
 
-- Observation: the future full plan contains real hidden-label leakage that checkpoint 96 never encountered.
-  Evidence: constructed-incomplete units contain `::incomplete::<hash>` in their model-facing `context_id`. The first 96 historical targets contained zero constructed-incomplete tasks, but the complete plan contains 34.
+- Observation: low utilization is caused by heterogeneous autoregressive decode, not a shortage of the configured resident limit.
+  Evidence: rollout occupied 95-97% of update time. GPU utilization was about 18% and peak VRAM 58.52 GiB, but the 131 production vLLM calls had a median request batch of two and maximum ten. No call reached the existing resident limit of twelve. Target 171's primary and reserve each consumed about 923 seconds, and its fatal trace spent 1,847.6 seconds in model generation. One long straggler dominates a logical wave; increasing `max_num_seqs` cannot make that straggler finish sooner.
 
-- Observation: the first 96 targets were not a representative checkpoint prefix.
-  Evidence: the prefix contained evidence/rules/graph `24/55/17`, full/standalone `29/67`, determinate/multiple/incomplete `87/9/0`, and length quartiles `24/15/23/34`. It could not demonstrate incomplete-context learning or balanced graph transfer.
+- Observation: logical 24 changes the experiment, not just throughput.
+  Evidence: with physical one and accumulation 24, 384 targets yield only 16 policy-refresh/optimizer updates rather than 32. Generating 24 and updating twice would make the second half stale/off-policy after the first update. No evidence shows this produces an equally good student.
 
-- Observation: the Policy allocation ledger is not cold-start safe at production concurrency.
-  Evidence: 12 simultaneous constructors against fresh database files failed 3 of 20 forced rounds with `sqlite3.OperationalError: database is locked`. The committed test pre-created the database, masking first-open WAL/DDL contention.
+- Observation: incomplete prefixes can be teacher-scored but should not be added as auxiliary loss in this production experiment.
+  Evidence: the current bridge has one accepted positive-mask output per logical row. Adding a rejected prefix changes target weighting and the qualified objective, cannot teach tokens that were never sampled, and may reinforce a teacher-likely runaway prefix. Retain it as diagnostic evidence and obtain one complete replacement instead.
 
-- Observation: throughput tuning is already sufficient and should not be repeated.
-  Evidence: logical/physical/accumulation `12/1/12` took 634.11 seconds for 12 targets; `4/1/4` took 2,112.83 seconds, `12/2/6` took 805.64 seconds, and `12/3/4` took 1,130.05 seconds. Generation is the bottleneck, so larger physical batches spent more memory without improving it.
+- Observation: true end-of-run ragged backfill is not a Policy-only change.
+  Evidence: PostTrain's Verifiers bridge and IW-OPD trainer require exact input/output cardinality and one nonempty trainable branch per row. This plan uses robust in-slot retry/fallback. A future dynamic sampler/replacement-ID framework contract may add deferred backfill, but it is unnecessary overhead for this run.
 
-- Observation: the existing production work package is stale.
-  Evidence: `.posttrain/work_packages/gemma4_e2b_scope_opd_from_12b.yaml` still resolves 384 optimizer steps, logical batch one, accumulation one, environment concurrency one, resident sequence one, and the historical sparse loss.
+- Observation: exact per-stage prompt qualification closed the earlier raw-prompt metadata and profile-wide inventory gaps.
+  Evidence: `render_semantic_prompt()` emits only role, objective, instructions, output rules, skeleton, and examples; model-visible context IDs are opaque hashes; request invariants are stage-specific; and the maintained release verifier checks every applicable profile/shape/stage materialization. It rejects trace identifiers, decision labels, Gold/expected answers or counts, stage-inappropriate invariants, altered source text/IDs, token-budget violations, and student/teacher semantic-message divergence before native template rendering.
 
-- Observation: the first packed corrected image still contained `trl==1.9.2.post1`.
-  Evidence: actual jobs inherit backend dependencies from the published online-RL job-kind and install framework source with `--no-deps`. Immutable inspection of image `sha256:8e6fc6aaf98ddf9f86b874623e7fe932e8c5cd46f572b7c9ff155646abbb685f` proved the stale version before any GPU submission.
-
-- Observation: `trl==1.9.2.post2` was already assigned to a different CarbonTeq source line.
-  Evidence: remote tag `carbonteq-v1.9.2.post2` resolves to commit `216023d99324fae89dd58629130ba3bb043582ed`, not this experiment's fork. The first correction became post3; a later remote post4 collision was also preserved, so the final constrained-replay loader correction is the immutable post5 release.
-
-- Observation: two exact-image canaries correctly failed before optimizer step one and exposed integration seams that offline component tests had not represented.
-  Evidence: `opd2can01-nativeq-e2b12b-c12-r16-v1` failed because Python model variants carried chat-template fingerprints but catalog serialization omitted them. Retry `...-r1` failed because vLLM 0.25.1 loads custom logits processors using `module:Class`, while the fork supplied `module.Class`. Both runs were preserved and reconciled; catalog serialization now has a regression, and TRL post5 uses and tests the exact vLLM loader contract.
-
-- Observation: Verifiers stores the trailing generation-prompt scaffold on the sampled assistant node with a false mask.
-  Evidence: corrected canary `opd2can01-nativeq-e2b12b-c12-r16-v1-r2` reached real heterogeneous rollout generation, then failed closed because Policy hashed the whole assistant node as completion while the generator ledger hashed only sampled completion IDs. Policy and PostTrain now split at the single contiguous sampled-mask boundary: preceding nodes plus the false-mask scaffold are the exact prompt; the true-mask suffix is the exact completion. Focused Policy and PostTrain regressions exercise the real scaffold shape before another image is packed.
-
-- Observation: exact constrained teacher replay is correct but the first implementation is not operationally viable.
-  Evidence: `opd2can01-nativeq-e2b12b-c12-r16-v1-r3` accepted all twelve rollouts and recorded 12,216 scored tokens, crossing every earlier deterministic failure boundary, but did not return teacher latency, loss, or a backward pass after more than one hour. The teacher endpoint autoregressively forced every known completion token while repeating XGrammar state transitions and vocabulary masking inside vLLM's per-token callback. That projects to more than 32 hours for 32 updates, so production was not submitted.
-
-- Observation: PostTrain's generated context was correct while the dedicated BuildKit builder retained a stale named-context mount.
-  Evidence: the new package manifest hashed to `f44ff96009454e816e1b55339c25fc408b89802934713c46ac383163d49147cc`, but the builder repeatedly observed the old `04f4e6a8...` manifest at that path and failed closed. Quarantining the one generated cache directory was insufficient; restarting only `posttrain-opd-clean` made the isolated qualification consume the correct manifest. No source or run evidence was removed.
-
-- Observation: the selected semantic completion begins after a fixed assistant scaffold that must also advance XGrammar replay state.
-  Evidence: retained canary trace `7c220e2cb452476dadde144ff97a6b49` has 169 selected-node tokens with mask `[false, false, false, true, ...]`; the three-token prefix is `[105, 4368, 107]`. The previous scorer started XGrammar at the first true-mask token and correctly failed it as disallowed. PostTrain now appends that exact scaffold to the teacher-native prompt and seeds both teacher and current-student matchers before normalizing selected tokens; TRL post7 preserves the field through buffered micro-slices.
-
-- Observation: scorer-side schema reordering creates a different XGrammar FSM from the colocated rollout path.
-  Evidence: canary `opd2can05-prefixq-e2b12b-c12-r16-v1` first proved that `sort_keys=True` was wrong. Production attempt `opd2prod01-correctedq-e2b12b-c384-r16-v1` then crossed optimizer step one and retained 24 accepted traces, but its second cohort failed because the replacement transformation reordered optional properties behind required properties. Exact replay of the retained schemas showed three otherwise valid rules completions becoming disallowed at optional `value` fields. vLLM compiles Policy's in-memory schema insertion order unchanged. PostTrain now preserves that order exactly in the scorer; all 24 retained selected completions replay through the corrected teacher matcher, including the three former failures. Canonical Policy validation and schema digests remain unchanged.
+- Observation: prior qualification did not rebuild the universal/runtime images because their immutable manifests were already present in the internal registry; the current launch discovered that those pinned manifests had since been removed.
+  Evidence: registry inspection rejected the configured base and online-RL digests before any GPU submission. Reconstructing the current source/lock closure then exposed two supply-chain gaps: the runtime builder assumed the base already existed, and the internal package index required the machine CA inside the universal base. PostTrain now builds the base before the kind, accepts a typed machine trust bundle without disabling TLS, records a local-rebuild digest instead of impersonating the historical release digest, and uses a 300-second package-download timeout for multi-hundred-megabyte CUDA wheels. These changes affect packaging only; they do not alter the OPD objective or configuration.
 
 ## Decision Log
 
-- Decision: amend the canonical baseline before changing cross-template teacher scoring.
-  Rationale: model-native teacher prefixes alter the previous meaning of “exact token scoring.” The exact completion token sequence remains preserved, but the conditioning prefix becomes model-native. This must be explicit rather than hidden in an adapter.
-  Date/Author: 2026-08-12 / Codex.
+- Decision: keep production geometry at logical 12, physical 1, accumulation 12.
+  Rationale: it is the fastest validated geometry and preserves 32 optimizer updates. More physical batching was slower; more resident capacity alone has no effect; logical 24 creates an unqualified convergence trade-off.
+  Date/Author: 2026-08-17 / Codex.
 
-- Decision: use corrected constrained IW-OPD as the production objective; do not add the proposed sparse teacher-top-k anchor to this run.
-  Rationale: constrained IW-OPD is the maintained objective and can be made mathematically consistent. A hybrid anchor introduces a second, unqualified objective and a new top-k hyperparameter. A one-step smoke cannot establish its quality advantage, and an objective sweep conflicts with the request to start quickly. The historical top-one failure is adopted as a prohibition against reusing that weak loss, not as evidence for an untested replacement.
-  Date/Author: 2026-08-12 / Codex.
+- Decision: increase the rules-stage ceiling to 32,768 while retaining the 40,960 per-call sequence cap.
+  Rationale: PostTrain already computes `effective_max = min(stage_cap, trainer_cap, sequence_cap - rendered_prompt_tokens)`. Target 171 therefore receives 32,768 tokens and its long reserve 31,916, never exceeding the existing call or model envelope. Evidence and graph caps remain 2,048 and 8,192.
+  Date/Author: 2026-08-17 / Codex.
 
-- Decision: retain the previously qualified hyperparameters and runtime geometry.
-  Rationale: rank, learning rate, context limits, prefill, memory reservations, cache choices, MTP choice, and logical/physical batching have direct live evidence. The new fixes change correctness contracts, not the measured hardware bottleneck.
-  Date/Author: 2026-08-12 / Codex.
+- Decision: do not split legal source units by default.
+  Rationale: splitting can destroy parent-child, inherited qualification, and multiple-valid context. First replace an infeasible candidate with another complete same-stratum legal unit. If replacement is impossible, split only at reviewed top-level legal boundaries while copying required parent context. Never use arbitrary token windows. Multiple-valid and constructed-incomplete registry units should normally be replaced because splitting may change their decision class.
+  Date/Author: 2026-08-17 / Codex.
 
-- Decision: run exactly two live pre-production canaries.
-  Rationale: offline tests can close deterministic math, rendering, schema, allocation, and recovery boundaries. One live training update is still required to prove student generation, native teacher scoring, constrained loss, accumulation, memory, and artifacts together. One managed-evaluation canary is required because the historical whitespace defect exists only on that distinct serving path. Nothing else has an unclosed live boundary.
-  Date/Author: 2026-08-12 / Codex.
+- Decision: use deterministic in-slot retry followed by capacity-aware alternate selection.
+  Rationale: it maintains the exact fixed twelve-row trainer contract. Every attempt gets a persisted ordinal, seed, reason, and digest. Only one accepted response enters the loss. Rejected attempts remain trace evidence and cannot feed dependencies, while augmenting-path reassignment prevents an early target from permanently consuming a rare target's only safe reserve.
+  Date/Author: 2026-08-17 / Codex.
 
-- Decision: reuse the verified seed-2907 twelve-target cohort for the training canary.
-  Rationale: its exact indices are `31, 49, 70, 75, 78, 98, 126, 163, 182, 233, 278, 329`. It covers all three stages, all four prompt profiles, all four quartiles, four full trajectories, target 78, target 98, and two constructed-incomplete tasks. It produces one optimizer update under the production `12/1/12` geometry.
-  Date/Author: 2026-08-12 / Codex.
+- Decision: compute fallback assignment globally before launch rather than claim compatible reserves greedily at runtime.
+  Rationale: rare-degree and long q4/rules targets must receive safe capacity first. A deterministic capacity-one compatibility graph with augmenting-path/min-cost-flow reassignment can protect scarce candidates while preferring lower prompt/segment/output risk. Its exact observed and doubled per-stratum failure vectors must satisfy a Hall-style capacity proof.
+  Date/Author: 2026-08-17 / Codex.
 
-- Decision: do not repeat live MTP, prefix-cache, prefill, physical-batch, logical-batch, LoRA, learning-rate, Trackio, HF, or Claude probes.
-  Rationale: MTP and student prefix caching remain deliberately off; prefill 4,096 and `12/1/12` are measured winners; HF publication and Trackio/Claude evaluation were exercised successfully by checkpoint 96. Repeating them cannot validate the new teacher/loss contracts.
-  Date/Author: 2026-08-12 / Codex.
+- Decision: do not use failure-prefix auxiliary loss in this experiment.
+  Rationale: it changes the qualified objective and fixed target weighting, requires ragged trainer rows, and does not teach an unseen valid closing structure. It may be studied separately with its own baseline amendment and live qualification.
+  Date/Author: 2026-08-17 / Codex.
 
-- Decision: predeclare checkpoint 32 as the experiment model.
-  Rationale: Policy Prism currently has no independent non-sealed Gold domain suite suitable for selecting among quarter checkpoints. Using sealed scope to choose a checkpoint would leak qualification evidence, while one-step or source-only structural scores cannot identify legal quality. Checkpoints 8/16/24 remain recovery and later exploratory evidence. A separate future experiment may add a reviewed non-sealed Gold selection suite.
-  Date/Author: 2026-08-12 / Codex.
+- Decision: start final production from base E2B.
+  Rationale: changed caps, retry identity, fallback assignment, and plan hashes make the retained step-8 recovery scientifically incompatible. The failed checkpoint remains reproducibility evidence, not a resume source.
+  Date/Author: 2026-08-17 / Codex.
 
-- Decision: keep existing business KPI definitions unchanged.
-  Rationale: KPI redesign and historical re-derivation are outside this experiment. Raw traces and compatibility metadata remain available for honest interpretation.
-  Date/Author: 2026-08-12 / Codex.
+- Decision: predeclare step 32 as the final model.
+  Rationale: there is no independent non-sealed Gold set for checkpoint selection. Selecting among 8/16/24/32 with the sealed benchmark would leak qualification evidence. Earlier checkpoints are recovery and exploratory evidence only.
+  Date/Author: 2026-08-17 / Codex.
 
-- Decision: work only on the existing PostTrain and Policy Prism OPD feature branches and one new TRL fork branch.
-  Rationale: the PostTrain feature branch already contains the qualified release merge and Policy-specific deltas. Merging a newer `main` now would invalidate qualification and introduce conflicts unrelated to this experiment.
-  Date/Author: 2026-08-12 / Codex.
+- Decision: run only two live canaries and keep their combined GPU time at or below 90 minutes.
+  Rationale: existing evaluation evidence already establishes that 12B is stronger than E2B. Offline/exact-image tests close deterministic failures; one production-shaped update proves exact student/teacher prompt handling, target-171 completion, cardinality, constrained probabilities, loss, and artifacts; one managed-serving canary proves the distinct evaluation path. No extra teacher comparison or MTP, cache, prefill, LoRA, LR, memory, or batch sweep is justified.
+  Date/Author: 2026-08-17 / Codex.
 
-- Decision: use a private, hash-labelled OCI overlay for the corrected TRL runtime closure.
-  Rationale: the internal devpi index is readable but this workstation has no upload credential; an attempted upload correctly returned HTTP 401. The overlay derives from the immutable published online-RL parent, replaces only TRL with the locally built post5 wheel using `--no-deps`, asserts its imported version during build, and records source and wheel hashes in OCI labels. Digest `sha256:6f00649ac8c5bc75db479389f4957fa62a603cbf842c3e51c2f5182fc7c84cc4` remains private under `registry.lan/carbonteq`. The exact actual-job image must still pass immutable import and behavioral gates before use.
-  Date/Author: 2026-08-12 / Codex.
+- Decision: do not bypass the missing runtime manifests by submitting an unverified mutable tag or reusing a historical job image.
+  Rationale: the current experiment depends on corrected TRL, PostTrain, and Policy source that earlier images do not contain. Rebuilding and pinning exact digests is the shortest reproducible path; it is a one-time registry repair, not an additional model smoke.
+  Date/Author: 2026-08-17 / Codex.
 
-- Decision: reject the post5 teacher replay runtime and test exactly one semantics-preserving post6 optimization.
-  Rationale: production cannot start from a measured greater-than-one-hour update. Post6 pre-walks the known completion's grammar states once on CPU and reuses exact allowed-token sets during scoring; it preserves the selected token, schema digest, constrained denominator, and per-position alignment evidence. Unit tests prove bool and signed compressed XGrammar masks decode identically and that runtime callbacks perform no matcher traversal. A single identical GPU canary is necessary and sufficient to measure whether this removes the bottleneck; no parameter sweep is introduced.
-  Date/Author: 2026-08-12 / Codex.
-
-- Decision: use a frozen colocated Transformers teacher for constrained scoring instead of token-serial vLLM replay.
-  Rationale: both vLLM replay implementations remained proportional to completion length and missed the overnight budget. The local path performs one teacher hidden-state forward and bounded vocabulary chunks, retains teacher-native prompt rendering and exact student completion IDs, and applies the identical XGrammar allowed set and digest evidence at every selected position. Dense-vs-chunked tests prove exact constrained probabilities; the single live canary remains the release gate for memory, latency, finite loss, and backward behavior.
-  Date/Author: 2026-08-13 / Codex.
-
-- Decision: preserve the exact rollout-schema insertion order in teacher and current-student XGrammar scoring.
-  Rationale: vLLM's rollout path serializes the in-memory Policy mapping without sorting or required-property reordering. Any scorer-only reordering defines a different grammar, even when the JSON Schema is semantically equivalent. Exact insertion-order preservation is the only byte-for-byte faithful replay contract and is proven against all 24 retained completions from the first production attempt.
-  Date/Author: 2026-08-13 / Codex.
+- Decision: keep existing business KPI definitions.
+  Rationale: the user explicitly excluded KPI redesign and historical re-derivation from this experiment.
+  Date/Author: 2026-08-17 / Codex.
 
 ## Outcomes & Retrospective
 
-The historical experiment produced a recoverable checkpoint and useful failure evidence, not a successful final model. Its optimizer was numerically stable and teacher transport did not fail, but the teacher was conditioned on the wrong model template, the objective mixed constrained sampling with raw probabilities, the first 96 tasks were unrepresentative, and six scope evaluation pipelines were lost to a serving whitespace loop. More steps under that same contract would not have repaired those issues.
+The experiment is not complete. The current qualified backend has demonstrated stable memory-safe constrained IW-OPD, 15 finite optimizer updates, zero teacher failures, and a valid step-8 checkpoint pair. It has not produced a final model because target-level output capacity and fallback allocation were incomplete, and failure finalization was not idempotent.
 
-The final outcome has not yet been produced. At completion, update this section with the exact TRL, PostTrain, and Policy Prism commits; image digest; canary and production run IDs; measured update time; checkpoint artifacts; Hugging Face revision; sealed results; finalized run directories; and any residual scientific limitation. A low domain score remains a valid negative experiment. Operational success must never be rewritten as scientific improvement.
+At completion, replace this paragraph with exact PostTrain, Policy Prism, and TRL commits; task-plan and selection hashes; OCI image digest; canary and production run IDs; measured update/runtime figures; step-32 artifact and Hugging Face revisions; scope/recovery results; finalized directories; and the explicit `accept`, `revise`, or `reject` qualification decision. Operational completion does not imply scientific improvement: the final scope comparison must use base E2B non-thinking, and recovery must not regress beyond the predeclared tolerance.
 
 ## Context and Orientation
 
-Three repositories participate and must remain independently reproducible.
+Three repositories participate:
 
-`/home/ali-awais-safdar/Post-Train/posttrain` is the framework workspace. Work stays on `feat/gemma-policy-prism-opd-e2b-12b`, currently rooted at `8c0d76637cc0eba87a6c3d360a2d92f6a99d29db`. `packages/train` owns typed distillation requests and private TRL integration; `packages/serve` owns managed-vLLM configuration; `packages/eval` owns the Verifiers evaluation adapter; `packages/common` owns model identity; `.posttrain` project files do not live here for this experiment.
+* `/home/ali-awais-safdar/Post-Train/posttrain` is the framework repository. Work only on `feat/gemma-policy-prism-opd-e2b-12b`, currently at `8af9467`. `packages/train` owns the TRL bridge, constrained loss, checkpoint publication, and artifact callbacks. `apps/cli` owns run recovery and materialization commands. Do not change `main`.
+* `/home/ali-awais-safdar/Policy Prism` owns the project environment, task plans, admission, ledger, prompts, catalog overlays, work packages, and permanent evaluation evidence. Work only on `feat/scope-opd-e2b-12b-environment-v1`, currently at `61b0b83`. The environment source commit embedded in a job must be the final descendant produced by this plan, not merely the repository HEAD at plan-writing time.
+* `/home/ali-awais-safdar/Post-Train/trl` owns generic constrained IW-OPD trainer behavior. The currently qualified fork source is `78b61a4d37a7bf8ad7e61bd604ba9e3c3c316897` (`trl==1.9.2.post7`). No further TRL change is indicated by the target-171 or checkpoint-finalization failures.
+* The CarbonTeq Trackio fork owns generic read-only artifact hydration. No checkout is currently present. If the installed `carbonteq-trackio==0.31.5.post12` cannot fetch an immutable artifact without calling `use_artifact`, acquire the fork at its exact consumed source, add a small read-only `Api.artifact(...)` surface with a no-consumer-edge regression, publish it immutably, and update the PostTrain pin. Do not implement host export by opening a cosmetic Trackio run.
 
-`/home/ali-awais-safdar/Policy Prism` owns the environment and project composition. Work stays on `feat/scope-opd-e2b-12b-environment-v1`, currently rooted at `79627530d907b4e3565ddd912db2327f64f72174`. `packages/normative-verifiers` owns prompts, staged tasks, admission, allocation, deterministic plans, completion validation, and finalization. `.posttrain/catalog` and `.posttrain/work_packages` bind exact framework selections. `evaluation-runs` owns permanent finalized benchmark evidence.
+The immutable base inputs are:
 
-`/home/ali-awais-safdar/Post-Train/trl` is the expected sibling checkout of the CarbonTeq TRL fork. It is not presently available locally. Create it from `carbonteq-ai/trl`, verify `origin` and `upstream`, and branch from the exact currently consumed fork source `a82ecebc0fa081efd58302a34a553445fc73271d`. Generic teacher-server constrained scoring belongs there. The fork must be committed, pushed, documented in `CARBONTEQ_FORK.md`, released immutably, and only then pinned by PostTrain.
-
-The immutable model inputs remain:
-
-| Role | Repository | Revision |
+| Role | Model | Revision |
 | --- | --- | --- |
 | Student | `google/gemma-4-E2B-it` | `3e22461f65e89153144f8adb70e3b8c2cc9845a7` |
 | Teacher | `google/gemma-4-12B-it` | `707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7` |
 | Ordered token mapping | both | `059d0f7dd1efb018ec9801f316c99ab31a7c39e712de08626ac90c1898b42416` |
 
-The GPU target is one NVIDIA RTX PRO 6000 Blackwell Workstation Edition with 96 GiB. “Logical batch” means how many fresh targets are generated and scored for one optimizer update. “Physical batch” means how many sequences enter one differentiable forward/backward slice. Gradient accumulation combines twelve physical-one slices into the logical-twelve update.
+The training project is `policy-prism-scope-opd-e2b-12b`. The GPU is one NVIDIA RTX PRO 6000 Blackwell Workstation Edition with 96 GiB. A logical batch is the twelve fresh targets generated for one optimizer update. Physical batch one means the differentiable forward/backward sees one long sequence at a time. Accumulation twelve combines those gradients into one update.
 
-The probability names used below are important. `pS` and `pT` mean raw full-vocabulary student and teacher distributions. `qS` and `qT` mean those distributions after applying the exact XGrammar allowed-token mask and renormalizing. Structured rollouts are sampled from `qS`; therefore constrained IW-OPD must use `qS`, `qT`, and the current trainable student's `qCurrent`.
+An attempt is one model response for a candidate. An admitted output is structurally complete and eligible for a logical target. A consumed output is one of the twelve admitted rows actually included in a completed optimizer update. A reserve is an alternate complete source candidate. The compatibility graph records which capacity-one reserves can serve which targets and the deterministic cost used when runtime reassignment is needed.
 
-## Frozen experiment configuration
+## Frozen Production Configuration
 
-The original experiment's useful findings are retained exactly unless the corrected one-update canary disproves compatibility.
+| Setting | Value |
+| --- | --- |
+| Population | 384 unique logical targets, each consumed once |
+| Stage totals | 77 evidence / 230 rules / 77 graph |
+| Logical / physical / accumulation | `12 / 1 / 12` |
+| Optimizer updates | 32 |
+| LoRA | rank 16 / alpha 32 / dropout 0 |
+| Learning rate | `1e-5` |
+| Scheduler / warmup / clip | linear / 0 / 1.0 |
+| IW-OPD gamma / epsilon | `0.5 / 1e-8` |
+| Prompt / call / trainer max | 32,768 / 40,960 / 49,152 |
+| Stage output caps | evidence 2,048 / rules 32,768 / graph 8,192 |
+| Concurrency / resident sequences | 12 / 12 |
+| Prefill | chunked, 4,096 tokens |
+| Student vLLM memory utilization | 0.20 |
+| Teacher backend | colocated Transformers 4.57.6 BF16 |
+| Student prefix cache / MTP | off / off |
+| Teacher prefix cache | not applicable to the qualified local scoring backend |
+| KV / execution / TP | FP8 / eager / 1 |
+| Checkpoints | recovery pairs every 4 steps, retain eight; scientific model views at 8, 16, 24, 32 |
+| Production seed | `20260807` |
+| Provider timeout | 86,400 seconds |
 
-| Setting | Production value | Evidence/rationale |
-| --- | --- | --- |
-| Population | 384 reviewed targets, each optimized once | One complete task-plan pass; no replay of checkpoint 96 |
-| Stage totals | 77 evidence / 230 rules / 77 graph | Original Policy design |
-| Logical / physical / accumulation | `12 / 1 / 12` | Fastest measured, 634.11 seconds per 12 targets |
-| Optimizer updates | 32 | `384 / 12` |
-| LoRA | rank 16 / alpha 32 / dropout 0 | Stable historical and qualified configuration |
-| Learning rate | `1e-5` | Qualified IW-OPD value; no LR sweep |
-| Scheduler / warmup | linear / 0 | Original configuration |
-| Gradient clipping | 1.0 | Existing safety setting |
-| IW-OPD gamma / epsilon | `0.5 / 1e-8` | Maintained backend defaults already qualified numerically |
-| Probability space | XGrammar-constrained | Corrected contract; raw full-vocabulary is rejected |
-| Teacher prompt alignment | model-native prefix, exact completion IDs | Corrected cross-template contract |
-| Maximum prompt / call / trainer sequence | `32,768 / 40,960 / 49,152` | Existing task/token audit and training envelope |
-| Maximum outputs | evidence 2,048 / rules 16,384 / graph 8,192 | Original stage contract |
-| Environment concurrency / resident sequences | `12 / 12` | Qualified heterogeneous rollout wave |
-| Chunked prefill | enabled, 4,096 tokens | Fastest qualified prefill setting |
-| Student / teacher memory reservation | `0.20 / 0.35` | Qualified on 96 GiB GPU |
-| Prefix caching | student off / teacher on | Student invalidation after LoRA sync is unproven; teacher is frozen |
-| MTP | off | No proven gain for this Policy IW-OPD path |
-| KV / execution / parallelism | FP8 KV / eager / TP1 | Qualified path |
-| Checkpoints | 8, 16, 24, 32; retain four | Recovery at every 96 targets |
-| Seed | `20260807` | Predeclared production seed |
-| Provider timeout | 86,400 seconds | Safety ceiling, not duration estimate |
-
-The old selection-lock and task-plan hashes are historical parents:
-
-    selection-lock: 0e6cf112560e6b6a2c55ba3d622adda4c728ffef7a7442494be948d27921ec37
-    task-plan:      678465cc2f81e7d965be85587e02b69326d72f3c9358316811c3ef0535e3b0cc
-
-Prompt rendering, opaque incomplete IDs, and deterministic reordering will change the executable release hashes. Regenerate them once, record both new 64-character values in this plan, and make the final resolved job assert them. Do not continue to claim the old hashes after changing model-facing tasks.
+Do not change these during production. Any scientific/configuration change requires a new run ID and a fresh start from base.
 
 ## Plan of Work
 
-### Milestone 1: amend the exact-token OPD contract
+### Milestone 1: preserve and close the failed-run evidence
 
-Update `docs/post-training/02-primitives.md` so cross-template distillation preserves the exact generated completion IDs while each model renders the same semantic messages with its own immutable template. Update `docs/post-training/05-apis.md` to add typed prompt-alignment and probability-space settings. Update `docs/post-training/06-observation-and-lineage.md` to require student/teacher template fingerprints, both prompt-prefix digests, completion-token digest, grammar/schema digest, allowed-set evidence, and q-logprob alignment.
+First make PostTrain checkpoint publication idempotent. In `packages/train/src/posttrain/train/backends/trl/common.py`, centralize the publication registry used by the periodic callback and the later failure-preservation path. Reuse an existing logical artifact only when its provider identity and content digest are identical. A collision with different bytes must remain a hard error.
 
-Define two typed settings rather than backend-option strings:
+Add a regression in `packages/train/tests/test_trl_common.py` that publishes step 8, injects a later trainer failure, calls failure preservation, observes no second upload, and records the run as failed. The error path must reuse the latest already-published complete checkpoint; it must not serialize newer incomplete state under the old step-8 name. Same name plus same digest is a no-op, same name plus different digest fails closed, and genuinely newer complete state gets its own actual-step logical name. Keep Trackio's global duplicate-name rejection strict; idempotence belongs to PostTrain's checkpoint publisher.
 
-    TeacherPromptAlignment = "exact_full_sequence" | "model_native_prefix_exact_completion"
-    DistillationProbabilitySpace = "raw_full_vocab" | "generation_constrained"
+Extend `apps/cli/src/posttrain_cli/commands/run_cmd.py` with `pt run recover-terminal-tracking RUN_ID`, a guarded recovery path for a provider-terminal run whose tracking record remained non-terminal because finalization failed. The command must inspect the provider state and immutable run record, refuse a running provider, append the missing terminal evidence once, and reconcile. Do not rewrite metrics or artifacts. Use it to finalize `opd2prod02-schemaexact-e2b12b-c384-r16-v1`, preserving its step-8 artifacts and trace evidence.
 
-The Policy work package must select the second value of each. `exact_full_sequence` remains valid for model pairs with identical templates. `generation_constrained` requires one identical structured-output grammar over the exact completion token positions and fails closed when any position cannot be replayed.
+Acceptance is a reconciled failed run with Trackio terminal, no duplicate artifact, and unchanged step-8 digests.
 
-Acceptance is a documentation diff that retains on-policy freshness and same-token-mapping requirements while making E2B-from-12B behavior unambiguous. No implementation begins under an undocumented reinterpretation.
+### Milestone 2: make long structured targets complete without changing the objective
 
-### Milestone 2: correct Policy Prism's model-facing contract
+In Policy Prism's `scope_opd_tokens.py`, raise only the rules cap from 16,384 to 32,768. In PostTrain's production settings, set trainer `max_completion_length` to 32,768. Preserve the 40,960 per-call sequence cap. The existing generator in `packages/train/src/posttrain/train/backends/trl/online_rl.py` must continue to compute the effective limit from the actual rendered prompt, so no request exceeds the sequence envelope.
 
-In `scope_opd_prompts.py` parse prompt YAML into structured semantic fields. Keep `prompt_id`, `stage`, `tangents`, response configuration, source stratification, and hidden decision data in trace/config metadata, but render only role, objective, instructions, stage-specific output rules, skeleton, and examples into the system message. Apply the same semantic renderer to sealed evaluation so future train/eval prompt behavior is intentional and snapshot-tested.
+Add source-derived generation-only `maxItems` and string limits where they can be proven from supplied source structure, but never use Gold answers or expected rule counts. Canonical validation schemas remain unchanged. The bounds must admit every historical valid output. They are guards against impossible unbounded structures, not substitutes for the larger legitimate capacity.
 
-In `normative_stages.py`, remove the model-facing `context_id` or replace it with an opaque hash that contains no decision-class word. Emit stage-specific invariants: evidence covers every supplied segment exactly once and in order; rules may emit zero, one, or many rules per segment while supplied IDs are fixed and prior counts are advisory; graph fixes admitted rule/qualification IDs and forbids duplicate nodes, edges, or attachments. Do not tell graph generation about segment-count rules.
+Do not impose a fixed global `maxItems=64`. Historical maximum 54 does not prove that 64 is sufficient for an unseen 93/106-segment legal unit. Compute a reviewed source-specific conservative upper bound from supplied source structure that exceeds every plausible independently operative rule. Replay all historical accepted outputs against it. If that bound cannot fit the request's token envelope, replace or explicitly repartition the candidate before packaging rather than forcing valid JSON to close while omitting rules.
 
-Keep all four training profiles, including the benchmark profile. Add semantic coverage assertions—not word-count assertions—for actors, agency duties, legal effects, parent inheritance, zero/one/many decomposition, conditions/exceptions, ambiguity/insufficient context, exact quotes, fixed IDs, duplicate prevention, and one closed JSON object. Add missing independently authored guidance/examples only where a coverage assertion proves a gap.
+Add an output-feasibility gate for all 480 primaries and reserves. It must estimate the conservative structured expansion from source sections, object skeleton, quotes, and nested qualifications—not merely prompt tokens. Reject or replace any candidate whose complete reviewed legal unit cannot fit `min(32,768, 40,960 - rendered_prompt_tokens)`. Offline reviewed/silver inventories may support this estimate but must never enter model messages, schemas, or traces. Replacement with a complete same-stratum unit is mandatory first. If replacement is impossible, a reviewed top-level legal partition becomes an explicit new candidate/target: copy required parent context, recalculate decision class and every distribution/instrument cap, rebalance the 384-target plan, and regenerate all hashes. A partition cannot transparently masquerade as the old logical target. This gate must explicitly cover target 132's 106-segment rules primary, target 37's 93-segment constructed-incomplete rules primary, target 283's 76-segment full-graph primary, and every candidate above 50 segments. Keep target 171's 43-segment primary for the live canary; demote or remove its 74-segment reserve in favor of the compatible 20/21-segment class.
 
-Preserve the intended OPD admission boundary. Malformed JSON, schema failure, unknown references, duplicate IDs, repetition, provider error, and `finish_reason=length` remain non-trainable. A structurally valid but legally wrong actor, effect, qualification, quote, or ambiguity decision remains trainable; do not add `require_abstention=True` as a structural gate for constructed-incomplete tasks.
+In `scope_opd_ledger.py`, persist an attempt ordinal, deterministic seed, rejection reason, selected candidate, and request/response digest. In `harness.py`, retry the same candidate once for a structural failure using the next deterministic seed. A length failure under the new larger effective cap immediately advances to the assigned fallback. The rejected text is retained in the trace but receives no loss and cannot feed a later stage.
 
-Reorder the same 384 reviewed targets through a deterministic stratified interleaver. Every consecutive 96-target checkpoint block must contain all stages, all profiles, both shapes, all decision classes, all quartiles, and proportional source domains. Require exactly 24 targets from each length quartile and exactly 32 full plus 64 standalone tasks in every block. Stage, profile, and decision counts may differ by at most one from their proportional allocation while preserving final totals. Preserve family isolation, sealed-family exclusion, instrument caps, and reserve compatibility. Classify or reject the one current `unknown` source domain.
+If the selected stage is already admitted, failure of an optional later diagnostic stage must not invalidate it. If a required prefix is unusable, the whole candidate is rejected and the same logical target selects the next safe alternate through the compatibility graph.
 
-Make `ScopeOpdLedger` cold-start safe. Acquire a persistent sibling `fcntl.flock` before first schema initialization; under the lock open SQLite with a 60-second busy timeout, set WAL once, create tables transactionally, set `PRAGMA user_version=1`, and close. Migrate version-zero databases idempotently and reject unknown versions. Normal task constructors must not rerun mutating WAL/DDL. Operational connections retain foreign keys, the busy timeout, and the selected durability.
+### Milestone 2A: certify the Policy Prism prompt environment
 
-Regenerate candidates, task plan, selection lock, token-budget summary, and hashes. Audit every actual reserve rendered with its logical primary's profile/shape. Pin the resulting source commit in later catalog selections.
+Do not treat YAML parsing or a profile-wide keyword search as prompt qualification. Render the exact model-facing system and user messages for every production primary, reserve, execution profile, shape, and stage after plan regeneration. Write an ignored-state audit receipt containing their hashes and checks. The receipt must prove:
 
-### Milestone 3: implement generic teacher-native constrained scoring in the TRL fork
+* trace-only `prompt_id`, profile ID, hidden decision class, registry identity, Gold labels, expected answers, and expected counts are absent from model messages;
+* model-visible context identifiers are opaque and cannot reveal `constructed_incomplete` or another hidden class;
+* source text and task-owned IDs survive the YAML round trip byte-for-byte;
+* evidence, rules, and graph requests contain only their stage-specific invariants and exact required dependency;
+* a rejected candidate branch never appears in the selected prompt, dependency, mask, or loss row;
+* student and teacher receive the same semantic messages rendered through their own pinned native chat templates, with template and prompt-token digests; and
+* every rendered request passes prompt, completion, and full-sequence budgets under the final tokenizer and schema.
 
-Clone or update `/home/ali-awais-safdar/Post-Train/trl`, verify `origin=carbonteq-ai/trl` and `upstream=huggingface/trl`, and create a feature branch from `a82ecebc0fa081efd58302a34a553445fc73271d`. Do not place this generic scoring behavior only in PostTrain.
+Replace the current combined-profile keyword gate with a stage-specific semantic rubric for all twelve training prompts. Evidence prompts must fully specify inventory coverage, inherited parent context, exact source preservation, and stopping. Rules prompts must fully specify actors and agency duties; obligations, prohibitions, permissions, rights, powers, definitions, and constitutive effects; zero/one/many decomposition; parent inheritance; conditions and exceptions; exact quotes; multiple-valid and insufficient-context behavior; fixed IDs; duplicate prevention; and terminal JSON. Graph prompts must fully specify admitted-ID ownership, qualifier attachment, source relationships, duplicate prevention, and terminal JSON. Examples across each profile must exercise legally difficult cases rather than merely contain the relevant words.
 
-Extend IW-OPD teacher requests so each row may provide a teacher-native prompt prefix, exact student completion IDs, a structured-output specification, and the expected completion/schema digests. The teacher server must replay the same grammar from the completion boundary, compute the selected token's logit and `logsumexp` over the exact allowed tokens at each position, and return `log qT` plus selected-token IDs, allowed-token counts, and a deterministic allowed-set digest. It must not generate a teacher completion or retokenize student completion text.
+Review and strengthen any semantically thin prompt before regenerating the plan. The current variation files are materially shorter and contain fewer examples than the benchmark contracts; brevity is acceptable only when the stage rubric and examples prove equivalent legal instructions. The benchmark profile remains in training as explicitly chosen by the user, while sealed source families and text remain excluded. Record one human-readable audit table and one automated snapshot for every exact rendered stage message.
 
-Expose processed student rollout log probabilities `log qS` from the colocated vLLM path. Fail if the selected token is disallowed, if output token IDs differ, if the grammar cannot be replayed, or if a row lacks the required schema under `generation_constrained` mode. Keep the raw path available for unconstrained users.
+An incorrect but schema-valid legal answer, including a wrong ambiguity or abstention decision, remains trainable. Prompt qualification must not convert semantic mistakes into structural rejection. Only provider errors, non-stop truncation, malformed or schema-invalid JSON, repetition, unknown IDs, or unusable dependencies trigger retry/fallback.
 
-The implementation must avoid retaining sequence-by-vocabulary tensors or a full completion-by-vocabulary bitmask. Advance one grammar matcher per row and process bounded token-position chunks. Document the maintained delta, compatibility constraints, and tests in the fork's `CARBONTEQ_FORK.md`; run the fork suite; commit and push; publish the next immutable internal release; and record its commit, tag, wheel hash, and sdist hash.
+### Milestone 3: replace greedy shared reserves with a capacity-proven plan
 
-### Milestone 4: integrate corrected OPD in PostTrain
+Change the Policy plan builder in `scope_opd_data.py` so fallback capacity is planned globally and deterministically. Build a compatibility graph whose reserve nodes have capacity one. Process rare-degree targets first and use runtime augmenting-path/min-cost-flow reassignment when a claim would otherwise strand another target. Cost must prefer lower rendered-prompt tokens, fewer source segments, lower historical output-risk, and unused instrument exposure while retaining exact stage/quartile/decision compatibility and the primary's execution profile/shape. Do not pretend 96 reserves provide 384 independent dedicated fallbacks.
 
-Add immutable concrete chat-template fingerprints to Gemma model variants. E2B and 12B may retain the verified common ordered-token fingerprint, but they must not pretend to share one concrete template identity. Validate both identities in `OnPolicyDistillationRequest` according to the selected prompt-alignment mode.
+The full plan must prove a complete assignment under:
 
-Extend the backend-neutral Verifiers distillation projection so the selected training node retains the exact semantic messages, response format, selected completion IDs, prompt/completion digests, and schema digest needed for teacher-native rendering. Continue to verify the selected branch/node and mask only selected target-stage tokens. A rejected candidate's messages or tokens must never enter the selected row.
+* the exact twelve rejected attempts observed in production attempt two;
+* target 171 and every retained 16K case failing its first attempt;
+* a per-stratum failure vector computed from the exact twelve observed rejections, plus its component-wise doubled stress vector;
+* restart after any completed checkpoint; and
+* concurrent atomic claims without duplicate candidate consumption.
 
-In the TRL adapter, render the student prefix with E2B and teacher prefix with 12B from the same semantic messages, append identical completion IDs, and align teacher results by completion position. Record both prefix hashes and template hashes. Replace the current full-vocabulary denominator in `_memory_safe_server_iw_opd_loss` with a chunked XGrammar-allowed `logsumexp`; use the returned `qS` and `qT`. Retain the global valid-token numerator/denominator across physical-one accumulation slices and the memory-safe Gemma hidden-state/LM-head path.
+Record both exact failure vectors in the generated summary and this plan. Prove Hall-style capacity for every stressed compatibility subset and runtime reassignment under those vectors. If the existing 96 reserves cannot satisfy the proof, add reviewed complete candidates before launch. Do not weaken legal-family exclusion, sealed isolation, source-domain limits, instrument caps, or exact stage/decision/quartile distributions merely to increase capacity.
 
-Add typed managed-vLLM structured-output backend support in `packages/serve`. Policy Gemma evaluation bindings must start vLLM with XGrammar and send the generation-only schema plus request-level `whitespace_pattern=r" ?"`. Preserve the canonical schema for local admission. The already-correct Verifiers `chat_template_kwargs` nesting under `extra_body` remains unchanged and regression-tested.
+Regenerate the plan, selection lock, summary, candidate schemas, and hashes. Record the new values in this document and in immutable catalog entries. Never mutate historical selections or packages.
 
-Add one intentional artifact-export CLI flow backed by the existing tracked materialization contract so publication/finalization never depends on ad hoc `/tmp` scripts. It must use a uniquely named export/provenance run, select exact logical artifact names, verify provider and PostTrain content digests, download atomically under `.posttrain/state`, write receipts, reject ambiguity/overwrite, and resume idempotently. This run is expected to appear in Trackio because it records a real artifact-consumption edge; its name and purpose must make it distinct from training/evaluation.
+### Milestone 4: create maintained evidence/materialization surfaces
 
-Update `packages/train/pyproject.toml`, `uv.lock`, runtime locks, `docs/tooling/trl/README.md`, and CI wheel references only after the TRL fork is committed, pushed, and published. Build a fresh job-kind/actual-job closure; do not reuse the old image.
+Add one narrow read-only command:
 
-### Milestone 5: close every deterministic boundary offline and in the exact image
+    pt run artifact materialize RUN_ID --logical-name LOGICAL_NAME [--output DIRECTORY]
 
-Run focused tests before broad suites. The required behavior—not a particular test-file layout—is:
+It must resolve one exact output edge, fetch the immutable provider version without creating a Trackio consumer run, verify provider manifest and PostTrain content digests, download atomically under ignored `.posttrain/state/materialized-artifacts`, and write a deterministic receipt. Ambiguous names, missing digests, or mismatches fail closed. A cached rerun must revalidate bytes and return the same receipt.
 
-1. E2B and 12B ordered token mappings match; template fingerprints differ; each model renders its exact known native prefix; the teacher request contains the 12B prefix and the exact E2B completion IDs.
-2. A tiny vocabulary/schema reference computes dense `qS`, `qT`, `qCurrent` and exact constrained IW-OPD loss/gradients. The memory-safe chunked implementation matches it. Physical-one/accumulation-twelve matches one logical-twelve batch with variable masks and lengths.
-3. vLLM's sampled-token processed log probability equals an independently replayed XGrammar probability. Teacher and current-student allowed-set digests match at every selected position. Raw-vs-constrained mismatches fail closed.
-4. Controlled non-sealed legal fixtures prove teacher signal direction before optimization: for eight source-family-disjoint cases, the 12B teacher ranks the correct structured completion above a matched wrong actor/effect/qualification/abstention perturbation in at least seven cases and at least one case of each perturbation class. Use length-normalized completion q-loglikelihood and record paired margins.
-5. All twelve training profile/stage prompts render semantic content only, contain every required legal concept, and contain no model-facing metadata/hidden-label values. Every stage receives only its own invariants.
-6. Every actual candidate/reserve/profile/shape prompt is under cap after rendering. All 1,293 static stage schemas and empty/ordinary/maximum realistic dynamic graph schemas compile under XGrammar 0.2.3. Canonical validation still enforces unsupported wire constraints such as `uniqueItems`.
-7. Target 78's forced cross-profile reserve claim, target 98's exact source ID, dynamic graph dependency IDs, maximum-three replacement behavior, restart, and selected-branch purity all pass.
-8. Fifty fresh 12-thread and twenty fresh 12-process ledger rounds complete with zero lock error, duplicate claim, or duplicate slot. Checkpoint backup/restore preserves exact schema version, attempts, claims, accepted targets, and integrity.
-9. The reordered plan preserves the exact 384-target population and final distribution while every 96-target block satisfies the stratification contract.
-10. Managed evaluation emits XGrammar server configuration and request-level bounded whitespace, preserves `extra_body.chat_template_kwargs`, and rejects top-level `chat_template_kwargs`.
-11. Checkpoint model/recovery pairs retain adapter, optimizer, scheduler, RNG, trainer state, tokenizer identities, and SQLite ledger together.
+Implement the generic read-only fetch in the Trackio fork if needed, following `docs/tooling/forks.md`: commit/push the fork first, update its `CARBONTEQ_FORK.md`, then update `docs/tooling/trackio/README.md`, the exact package pin, and `uv.lock` in PostTrain. This work may proceed while the long training run uses the already qualified tracking writer, but it must finish before publication/finalization.
 
-Then pack both canaries and production. Execute a release verifier inside each relevant image. It must import the pinned TRL and Policy packages, assert exact source commits and dependency versions, compile the real schemas, run the cold-ledger barrier, render both model prefixes, and execute the analytic constrained-loss check. A host-only green suite is insufficient.
+Add the Policy Prism completion validator `policy-prism-verifiers validate-scope-opd-completion`, rather than relying on an untracked `/tmp` script. It must validate run view, reconciliation, training summary, all trace rows, checkpoint-32 recovery ledger, plan identities, and materialization receipts. It writes an atomic deterministic ignored-state receipt; it does not create another Trackio run.
 
-### Milestone 6: run only the two necessary live canaries
+Add `policy-prism-verifiers verify-scope-opd-release` as the maintained exhaustive release gate. Given the regenerated plan and retained-attempt fixture, it checks all schema compilation, prompt/output envelopes, exact historical replay, fallback-capacity vectors, cold-ledger stress receipts, and immutable source hashes. The packed job must invoke the same gate inside its isolated image before publication.
 
-The total GPU canary budget is 90 minutes, excluding OCI build time. Do not add an exploratory arm when a canary fails; diagnose the failed contract and rerun only the same canary after a reviewed fix.
+Add `pt tracking check --write` as a credential-safe authenticated preflight. It reports endpoint/project/write capability without printing the token and without creating a user-visible training/evaluation run. A rejected or missing token stops before GPU submission.
 
-The first canary is one real optimizer update from base E2B using the exact production objective, LoRA, model revisions, `12/1/12` geometry, concurrency/resident 12, prefill 4,096, memory reservations, cache choices, XGrammar settings, and seed-2907 cohort. Its twelve indices are:
+Add `policy-prism-verifiers build-serving-metadata` to construct and validate finalization metadata from training/evaluation run views, exact materialization receipts, and the immutable Hugging Face revision. This replaces fragile hand-written `jq` objects.
 
-    31, 49, 70, 75, 78, 98, 126, 163, 182, 233, 278, 329
+These surfaces may be implemented while images build, but both must pass before training is declared complete or any adapter is published.
 
-This is not an optimization sweep. It is the minimal end-to-end proof of student generation, teacher-native constrained scoring, one finite accumulated backward/update, target 78/98 behavior, constructed-incomplete handling, ledger concurrency, checkpoint sidecar, and Trackio evidence.
+### Milestone 5: prove all deterministic boundaries before GPU use
 
-The training canary passes only when all twelve logical targets are accepted exactly once; every selected completion has matching student/teacher completion IDs and allowed-set digests; both model-native prefix hashes are present and different; teacher controlled-fixture ranking passes; scored tokens are positive; teacher/provider/truncation/schema/source/graph/SQLite failures are zero; loss and gradient are finite; resident wave exceeds one; peak system memory stays below 85 GiB; and step-one model plus recovery artifacts reconcile consistently. The prior measured update was 634.11 seconds. Investigate if the corrected update exceeds 1,200 trainer seconds or the provider run exceeds 45 minutes.
+Policy Prism tests must cover:
 
-The second canary uses the one-step adapter as an explicit model input to `eval/verifiers-managed@1`. It runs exactly two non-sealed diagnostic cases through the final managed Gemma evaluation binding: one long rules-only q4 candidate and one long full graph q4 candidate. Use stable candidate/source identities rather than sealed cases. Claude judging is disabled because this canary tests serving, not legal quality.
+* all 197 retained candidate attempts, with 185 admissions and twelve classified rejections;
+* target 171's exact prompt budgets and successful completion/fallback under the new cap;
+* all 480 primaries/reserves and every actual fallback/profile/shape materialization under prompt and call caps;
+* output-feasibility of every primary/reserve, explicitly including the 93/106-segment packets and every 74-105-segment candidate;
+* canonical and exact XGrammar wire schema compilation, including dynamic graph schemas;
+* target 78 forced cross-profile fallback and target 98 exact identifiers;
+* deterministic attempt ordinals/seeds across retry and restart;
+* global capacity assignment under twice observed correlated failure;
+* twelve-thread and twelve-process cold-ledger initialization/claims, repeated at least 50 fresh paths;
+* an accepted selected stage surviving an optional downstream diagnostic failure; and
+* no rejected branch appearing in selected messages, masks, or loss inputs;
+* exact rendered-message snapshots and hashes for every production materialization;
+* stage-specific semantic rubrics for all twelve training prompts;
+* absence of trace-only and hidden labels from every system and user message; and
+* exact student/teacher semantic-message identity before native template rendering.
 
-The serving canary passes only when both pipelines end with `finish_reason=stop`, both canonical schemas validate, no stage reaches its token ceiling, no response contains a trailing-whitespace run beyond the bounded pattern, dynamic graph IDs match admitted rules, the LoRA adapter is actually loaded, native traces upload, and reconciliation is consistent. The job must finish within the remaining 90-minute combined canary budget.
+PostTrain tests must cover:
 
-No other live smoke is required. Trackio writing, HF publication, OpenRouter/Claude, dstack placement, and the base serving stack already succeeded during checkpoint-96 qualification; credentials and service health are checked read-only before launch.
+* constrained student/teacher/current-student log-probability and gradient equality;
+* model-native template and schema-order identity;
+* exact one-output-per-input bridge cardinality for retry-resolved rows;
+* 12/1/12 sliced loss/gradient equivalence;
+* periodic checkpoint followed by later failure, with idempotent reuse;
+* terminal tracking recovery idempotence;
+* read-only artifact materialization digest checks; and
+* exact adapter override for evaluation, proving `model-adapter` step 32 rather than base or `training-checkpoint`.
 
-### Milestone 7: freeze and package production
+Pack new actual-job images and inspect their immutable contents. Fail before GPU submission unless imported TRL, PostTrain, Policy Prism source, task-plan hash, selection hash, settings, and image labels exactly match the final commits. Compile schemas and rerun target-171 budget/allocation checks inside the image.
 
-After both canaries pass, capture immutable TRL, PostTrain, and Policy Prism commits and push each owning branch in dependency order: TRL first, PostTrain pin/integration second, Policy source third, Policy catalog/work packages fourth. Both primary feature worktrees must be clean and match their remote branches.
+### Milestone 6: run only the two necessary canaries
 
-Add new selections instead of mutating historical ones: a production environment with 384 tasks and concurrency 12; settings with 32 steps, physical batch one, accumulation 12, and checkpoints every eight; a constrained-IW-OPD rank-16 binding; the qualified rollout/teacher bindings; and `gemma4_e2b_scope_opd_iwopd_scope384_final.yaml`. Resolve exact new selection-lock/task-plan hashes and exact model/template/tokenizer/source identities. The production job must have no checkpoint-96, canary-adapter, canary-ledger, or previous-run input.
+Create a new production-shaped canary selection with exactly these twelve risk boundaries: target 171; target 132 or its reviewed same-stratum replacement/split; target 283 or its reviewed replacement/split; target 37; retained length-failure targets 322, 211, 358, and 372; duplicate-rule targets 243 and 212; and graph-reference targets 354 and 003. If plan regeneration changes logical IDs, freeze the immutable candidate/source identity rather than relying on the old index.
 
-`pt job diff` between the corrected-training canary and production packages must show only the deliberate task population, step/checkpoint cadence, artifact retention, and run-description changes. Objective, models, templates, runtime code, dependency lock, LoRA, sampling, generation, memory, concurrency, and target must be identical.
+Run one update at 12/1/12 from base E2B and configure the canary to publish a paired checkpoint at step 1. It passes only when:
 
-### Milestone 8: launch, monitor, recover, and validate the 384-target run
+* 12/12 unique targets are admitted and consumed;
+* target 171 completes below its effective limit;
+* no request ends `finish_reason=length`;
+* the stressed compatibility graph retains a valid alternate assignment;
+* rejected attempts remain diagnostic and absent from dependencies/loss;
+* bridge cardinality is exactly twelve;
+* loss and gradient norm are finite, scored tokens positive, and teacher failures zero;
+* ledger, trace, attempt ordinal, seed, and digests agree;
+* one model/recovery checkpoint pair publishes exactly once; and
+* reconciliation is consistent.
 
-Use a unique run ID beginning with `opdprod2`. Submit with a 24-hour safety timeout. Remain attached through model loading, the controlled teacher-signal gate, the first twelve accepted targets, the first finite update, and the first successfully uploaded trace batch. Because the first configured checkpoint is step eight, do not claim recoverability after step one.
+Then run the existing two-case non-sealed managed evaluation canary against that adapter. It passes only when the LoRA is loaded, both JSON responses close and stop, bounded whitespace is active, there are zero truncations/errors, and a Verifiers artifact reconciles consistently.
 
-At every update require `accepted_count == global_step * 12`, twelve unique targets, positive scored tokens, zero teacher failures, finite loss/gradient, no duplicate candidate/reserve, and reserve use within each stage/quartile/decision stratum. Negative IW-OPD loss is allowed. Warn when a stratum consumes more than half its reserves before half its primaries; stop on exhaustion or repeated systematic structural failure. Investigate two consecutive updates above 1,800 seconds or unexplained sustained system memory above 85 GiB.
+The combined GPU wall time for the training and serving canaries is capped at 90 minutes. Use only the fixed cases and settings above. A failure stops production and is diagnosed; do not turn this into a parameter sweep.
 
-At checkpoints 8/16/24/32 require paired model/recovery artifacts and ledger accepted counts 96/192/288/384. Infrastructure-only interruption resumes from the latest complete pair under a new run ID with identical image, models, plan, objective, batches, scheduler, seeds, and restored SQLite ledger. Before step eight restart from base. Never resume deterministic schema/ledger/reserve failure, NaN/Inf, systematic teacher failure, or any code/configuration change.
+### Milestone 7: freeze and launch fresh production
 
-After provider success, reconcile and materialize the exact terminal traces, summary, step-32 model view, and step-32 recovery view through the export flow. Run a Policy Prism completion validator. It must prove 32 finite updates, 384 accepted unique logical targets, exact slots `0..383`, twelve targets per update, final stage totals `77/230/77`, exact plan IDs/hashes, zero teacher errors/truncations, trace-ledger-candidate/digest agreement, SQLite integrity, checkpoint pairs at all four milestones, and no missing artifact roles. Provider success alone is insufficient.
+Create additive immutable project entries and these new work-package names:
 
-### Milestone 9: publish checkpoint 32 and qualify it sequentially
+* `gemma4_e2b_scope_opd_resilient_canary12.yaml`
+* `gemma4_e2b_scope_opd_resilient_production384.yaml`
+* `gemma4_e2b_scope_opd_resilient_serving_canary.yaml`
+* `gemma4_e2b_scope_opd_resilient_scope_eval.yaml`
+* `gemma4_e2b_scope_opd_resilient_recovery_eval.yaml`
 
-Predeclared checkpoint 32 is the experiment result. Materialize only its `model-adapter` view for publication; never upload the `training-checkpoint`. Verify PEFT rank 16, alpha 32, dropout zero, exact base repository/revision, safetensors loadability, absence of optimizer/scheduler/RNG/base weights, provider digest, and PostTrain content digest.
+Do not modify historical corrected packages. The production resolved plan must assert 384 targets, 32 steps, physical one, accumulation twelve, concurrency/resident twelve, rules cap 32,768, all immutable source/model hashes, and no checkpoint input.
 
-Publish privately to `carbonteq/gemma-4-e2b-policy-prism-scope-opd-from-12b-lora-v1`. The model card records model/template/tokenizer identities, all three source commits, training run/step, task hashes, constrained-IW-OPD definition, runtime configuration, canary evidence, known limitations, and evaluation status. Resolve the immutable 40-character HF revision, fresh-download it into a different ignored directory, and require a byte-identical complete file manifest.
+Use this unique production ID:
 
-Register one final OPD adapter variant and inference binding using the exact Trackio and HF identities. Run sealed scope first with a unique `opd2sc32...` ID. Require 18 expected/included traces, zero failures/truncations/errors, bounded whitespace, complete Claude judging, one native evaluation artifact, and consistent reconciliation. Only after scope releases the GPU run recovery under `opd2rc32...`; require the corresponding 17/17 gate.
+    opd3prod01-resilient-e2b12b-c384-r16-v1
 
-Materialize both native evaluation artifacts through the export flow and finalize directly into `Policy Prism/evaluation-runs`. Require `manifest.json`, `traces.jsonl`, `business-kpis.json`, `engineering-metrics.json`, and `semantic-diagnostics.json` for each, plus the updated catalog. Run `validate-runs` and the existing KPI check without changing KPI definitions. Prompt and serving corrections will produce new compatibility hashes; record them and compare with historical runs as cross-prompt/cross-serving evidence, as explicitly accepted for this experiment.
+Submit from base E2B only. Stay attached through the first finite optimizer update and the first complete model/recovery checkpoint. During the run require, after every completed step, exactly `global_step * 12` consumed unique targets, finite metrics, positive scored tokens, zero teacher failures, no duplicate selected candidate, and a feasible remaining compatibility assignment. Record rejected attempts and fallback pressure by stage/quartile/decision without treating individual rejections as run failure.
 
-Commit and push the final Policy Prism model catalog, evaluation directories, and `evaluation-runs/catalog.json`. Update this living plan with final evidence, commit and push the PostTrain branch, then clean only the new provider workspaces after HF fresh verification and Policy finalization. Retain Trackio, HF, checkpoints, failed-run, and evaluation evidence.
+Publish paired recovery checkpoints every four updates and retain all eight pairs, limiting an infrastructure interruption to at most three completed updates of replay. At steps 8, 16, 24, and 32, additionally mark the model views used for scientific comparison and verify ledger accepted counts 96, 192, 288, and 384. Provider success alone is insufficient. Reconcile and run the Policy completion validator; require 384 unique consumed targets, 32 finite updates, exact stage/plan distributions, zero selected errors/truncations, all trace sync complete, and consistent artifact digests.
+
+### Milestone 8: publish the exact step-32 adapter
+
+Materialize the step-32 `model-adapter` view, not the `training-checkpoint`. Verify `adapter_config.json`, rank 16, alpha 32, dropout zero, base revision, safetensors readability, file/tree digest, and absence of optimizer, scheduler, RNG, or full base weights.
+
+Create an accurate model card recording student/teacher revisions, all three source commits, run ID, step 32, task-plan hashes, constrained IW-OPD contract, training configuration, artifact identities/digests, limitations, and evaluation status. Publish privately to:
+
+    carbonteq/gemma-4-e2b-policy-prism-scope-opd-from-12b-lora-v1
+
+Resolve the immutable Hugging Face commit, download it fresh at that commit, and compare the complete file SHA-256 manifest. Record both the evaluated weight commit and any later model-card-only commit.
+
+### Milestone 9: evaluate scope then recovery against the adapter
+
+Register one immutable OPD model variant/inference binding with the exact Trackio artifact/content digest, base/teacher revisions, step 32, LoRA config, and Hugging Face weight revision. New evaluation packages must consume this variant or use the explicit checkpoint override:
+
+    --model-from-run "$OPD_RUN" --model-checkpoint-step 32 --model-seat model
+
+Before rollout one, inspect the resolved plan and assert input kind `model-adapter`, optimizer step 32, exact content digest, base revision, LoRA rank 16, and the OPD project. Refuse any plan resolving base E2B or a recovery checkpoint.
+
+Run sealed scope first with a unique ID such as `opd3prod01-ckpt32-scope-v11`. Require 18 expected/included, zero failures/truncations/errors, complete trace sync and Claude judging, one Verifiers artifact, provider success, and consistent reconciliation. Only after the GPU is free run recovery as `opd3prod01-ckpt32-recovery-v1`; require the analogous 17-case gate. The two jobs must not overlap on the single dstack target.
+
+### Milestone 10: finalize, compare, decide, and push
+
+Materialize each exact native `verifiers-evaluation` artifact into ignored Policy Prism state using the maintained read-only command. Generate serving metadata from the verified training, adapter, HF, evaluation-image, work-package, and evaluation-artifact receipts; never substitute an evaluation digest for the adapter digest.
+
+Run `policy-prism-verifiers finalize-run` directly into `/home/ali-awais-safdar/Policy Prism/evaluation-runs`. Each directory must contain:
+
+* `manifest.json`
+* `traces.jsonl`
+* `business-kpis.json`
+* `engineering-metrics.json`
+* `semantic-diagnostics.json`
+
+Validate all runs and catalog updates. Compare scope only with the base E2B non-thinking scope baseline. Compare recovery only with the corresponding base E2B recovery baseline. Keep the current KPI definitions. Record one explicit decision: `accept`, `revise`, or `reject` under the predeclared domain and recovery criteria.
+
+The model may remain on Hugging Face with an accurate negative-result card if scientifically rejected. Commit and push finalized Policy evidence on the Policy OPD feature branch and the completed living plan on the PostTrain OPD feature branch. Do not modify either repository's main/develop branch.
 
 ## Concrete Steps
 
-The later execution goal runs these commands and updates them with newly produced immutable values. Never print secrets.
+All secrets are loaded from the maintained PostTrain environment file and must never be printed. Exact generated selection IDs, source commits, image digests, artifact logical names, and HF revisions must be written into this living plan as they become known.
 
-First verify the three repository boundaries. In PostTrain:
+Configure a control terminal from the PostTrain repository:
 
     export POSTTRAIN_ROOT=/home/ali-awais-safdar/Post-Train/posttrain
     export POLICY_ROOT="/home/ali-awais-safdar/Policy Prism"
-    export TRL_ROOT=/home/ali-awais-safdar/Post-Train/trl
-    export KIT=/home/ali-awais-safdar/Post-Train/posttrain-setup-v0.2.2-20260728/posttrain-setup
     export POSTTRAIN_ENV_FILE="$POLICY_ROOT/.env.posttrain"
 
     cd "$POSTTRAIN_ROOT"
-    git switch feat/gemma-policy-prism-opd-e2b-12b
-    git add docs/plan/policy-prism-gemma4-e2b-12b-opd.md
-    git commit -m "docs(opd): finalize corrected E2B from 12B experiment plan"
-    git push origin feat/gemma-policy-prism-opd-e2b-12b
-    test -z "$(git status --porcelain)"
-    test "$(git rev-parse HEAD)" = "$(git rev-parse origin/feat/gemma-policy-prism-opd-e2b-12b)"
-
-In Policy Prism:
-
-    cd "$POLICY_ROOT"
-    git switch feat/scope-opd-e2b-12b-environment-v1
-    test -z "$(git status --porcelain)"
-    test "$(git rev-parse HEAD)" = "$(git rev-parse origin/feat/scope-opd-e2b-12b-environment-v1)"
-
-Create the missing fork checkout without changing either main branch:
-
-    if [ ! -d "$TRL_ROOT/.git" ]; then
-      git clone git@github.com:carbonteq-ai/trl.git "$TRL_ROOT"
-    fi
-    cd "$TRL_ROOT"
-    git remote get-url origin
-    if ! git remote get-url upstream >/dev/null 2>&1; then
-      git remote add upstream https://github.com/huggingface/trl.git
-    fi
-    git remote get-url upstream
-    git fetch origin
-    if git show-ref --verify --quiet \
-      refs/heads/feat/iwopd-native-template-constrained-logprobs; then
-      git switch feat/iwopd-native-template-constrained-logprobs
-    else
-      git switch -c feat/iwopd-native-template-constrained-logprobs \
-        a82ecebc0fa081efd58302a34a553445fc73271d
-    fi
-
-If the directory already exists, fetch and create/switch the same feature branch from the pinned commit instead of cloning again. Do not base the work on an unreviewed newer fork head.
-
-After implementing each repository's milestone, run its focused tests, update its maintained documentation, commit only that repository, and push only its feature branch. Publish the TRL release before editing PostTrain's immutable pin.
-
-Policy Prism focused validation runs from `$POLICY_ROOT`:
-
-    UV_CACHE_DIR=/tmp/policy-prism-uv-cache \
-    uv run --no-sync pytest \
-      packages/normative-verifiers/tests/test_scope_opd.py \
-      packages/normative-verifiers/tests/test_program.py \
-      packages/normative-verifiers/tests/test_data_and_plugins.py \
-      packages/normative-verifiers/tests/test_yaml_prompts_and_quotes.py
-
-    UV_CACHE_DIR=/tmp/policy-prism-uv-cache \
-    uv run --no-sync ruff check \
-      packages/normative-verifiers/src/policy_prism_normative_verifiers \
-      packages/normative-verifiers/tests
-
-    UV_CACHE_DIR=/tmp/policy-prism-uv-cache \
-    uv run --no-sync mypy --strict \
-      packages/normative-verifiers/src/policy_prism_normative_verifiers
-
-    UV_CACHE_DIR=/tmp/policy-prism-uv-cache \
-    uv run --no-sync --package policy-prism-normative-verifiers \
-    policy-prism-verifiers build-scope-opd-plan \
-      --registry packages/normative-verifiers/src/policy_prism_normative_verifiers/resources/scope_opd_plan/review-registry.json \
-      --output-dir packages/normative-verifiers/src/policy_prism_normative_verifiers/resources/scope_opd_plan \
-      --tokenizer google/gemma-4-E2B-it \
-      --check
-
-    git diff --check
-
-The new release verifier must also be invokable explicitly and produce a machine-readable pass receipt:
-
-    UV_CACHE_DIR=/tmp/policy-prism-uv-cache \
-    uv run --no-sync --package policy-prism-normative-verifiers \
-    policy-prism-verifiers verify-scope-opd-runtime \
-      --plan-revision policy-prism-scope-opd-plan-v3 \
-      --xgrammar-version 0.2.3 \
-      --ledger-concurrency 12 \
-      --output .posttrain/state/opd-verification/host-receipt.json
-
-PostTrain focused validation runs from `$POSTTRAIN_ROOT`:
-
-    UV_CACHE_DIR=/tmp/posttrain-uv-cache \
-    uv run --no-sync pytest \
-      packages/common/tests \
-      packages/train/tests/test_api.py \
-      packages/train/tests/test_trl_sparse_distillation.py \
-      packages/train/tests/test_trl_online_rl.py \
-      packages/train/tests/test_verifiers_grpo_bridge.py \
-      packages/train/tests/test_trl_checkpoint_artifacts.py \
-      packages/train/tests/test_checkpoints.py \
-      packages/serve/tests/test_vllm_bindings.py \
-      packages/eval/tests/test_api.py
-
-    UV_CACHE_DIR=/tmp/posttrain-uv-cache uv run --no-sync ruff check .
-    UV_CACHE_DIR=/tmp/posttrain-uv-cache uv run --no-sync pyright
-    UV_CACHE_DIR=/tmp/posttrain-uv-cache uv run --no-sync lint-imports
-    git diff --check
-
-After the immutable dependency pin is final, run the locked and broad release ladder:
-
-    UV_CACHE_DIR=/tmp/posttrain-uv-cache uv sync --all-packages --locked --python 3.13
-    UV_CACHE_DIR=/tmp/posttrain-uv-cache uv run ruff check .
-    UV_CACHE_DIR=/tmp/posttrain-uv-cache uv run pyright
-    UV_CACHE_DIR=/tmp/posttrain-uv-cache uv run lint-imports
-    UV_CACHE_DIR=/tmp/posttrain-uv-cache uv run pytest
-    git diff --check
-
-Configure the PostTrain control terminal only after commits and locks are immutable:
-
-    cd "$POSTTRAIN_ROOT"
-    set -a
-    . "$KIT/bundle/posttrain.env"
-    . /home/ali-awais-safdar/.config/posttrain/credentials/huggingface.env
-    . "$POSTTRAIN_ENV_FILE"
-    set +a
 
     pt() {
-      XDG_CONFIG_HOME=/tmp/posttrain-opd-empty-config \
       UV_CACHE_DIR=/tmp/posttrain-uv-cache \
       uv run --no-sync --package posttrain posttrain \
         --project-root "$POLICY_ROOT" \
@@ -466,150 +420,293 @@ Configure the PostTrain control terminal only after commits and locks are immuta
         "$@"
     }
 
-    test -n "$HF_TOKEN"
-    test -n "$DSTACK_TOKEN"
-    test -n "$OPENROUTER_API_KEY"
-    pt doctor
+Before edits, assert repository identity and cleanliness:
+
+    git branch --show-current
+    git status --short
+    git -C "$POLICY_ROOT" branch --show-current
+    git -C "$POLICY_ROOT" status --short
+
+Expected branches are `feat/gemma-policy-prism-opd-e2b-12b` and `feat/scope-opd-e2b-12b-environment-v1`. Preserve unrelated user changes if either tree is dirty.
+
+Commit only the implementation files on the two guarded feature branches before packing:
+
+    cd "$POSTTRAIN_ROOT"
+    test "$(git branch --show-current)" = feat/gemma-policy-prism-opd-e2b-12b
+    git add docs/plan/policy-prism-gemma4-e2b-12b-opd.md \
+      packages/train apps/cli packages/tracking-trackio \
+      docs/tooling/trackio uv.lock
+    git diff --cached --check
+    git commit -m "fix(opd): make resilient production completion reproducible"
+    git push origin feat/gemma-policy-prism-opd-e2b-12b
+
+    cd "$POLICY_ROOT"
+    test "$(git branch --show-current)" = feat/scope-opd-e2b-12b-environment-v1
+    git add packages/normative-verifiers .posttrain/catalog .posttrain/work_packages
+    git diff --cached --check
+    git commit -m "fix(opd): close long-target and fallback capacity boundaries"
+    git push origin feat/scope-opd-e2b-12b-environment-v1
+
+If the Trackio fork is changed, commit and push its dedicated feature branch before the PostTrain pin commit, as required by `docs/tooling/forks.md`. Inspect `git status --short` before every `git add`; never include unrelated user files.
+
+After implementing the guarded recovery, terminalize and reconcile the stranded run exactly once:
+
+    pt run recover-terminal-tracking \
+      opd2prod02-schemaexact-e2b12b-c384-r16-v1
+    pt run reconcile opd2prod02-schemaexact-e2b12b-c384-r16-v1
+
+Expected recovery reports a provider-terminal failed run, one reused step-8 checkpoint pair, and a saved audit receipt. Repeating it must report an idempotent already-recovered result.
+
+After implementation, run focused tests first and then the relevant release ladders. Exact test paths/names added by implementation must replace the descriptive filters below in this document:
+
+    cd "$POSTTRAIN_ROOT"
+    uv sync --all-packages --locked --python 3.13
+    uv run pytest packages/train/tests/test_trl_common.py \
+      packages/train/tests/test_trl_checkpoint_artifacts.py \
+      packages/train/tests/test_trl_sparse_distillation.py \
+      apps/cli/tests/test_cli.py -q
+    uv run pytest packages/train/tests apps/cli/tests \
+      packages/tracking-trackio/tests -q
+    uv run ruff check packages/train apps/cli
+    uv run pyright packages/train apps/cli
+    uv run lint-imports
+    git diff --check
+
+    cd "$POLICY_ROOT"
+    UV_CACHE_DIR=/tmp/policy-prism-uv-cache \
+      uv run pytest packages/normative-verifiers/tests/test_scope_opd.py -q
+    UV_CACHE_DIR=/tmp/policy-prism-uv-cache uv run ruff check \
+      packages/normative-verifiers
+    UV_CACHE_DIR=/tmp/policy-prism-uv-cache uv run mypy --strict \
+      packages/normative-verifiers/src
+    git diff --check
+
+Materialize the retained attempt authority and run the maintained host release gate:
+
+    export FAILED_RUN=opd2prod02-schemaexact-e2b12b-c384-r16-v1
+    export FAILED_STATE="$POLICY_ROOT/.posttrain/state/opd-release/$FAILED_RUN"
+    install -d "$FAILED_STATE"
+    pt --json run show "$FAILED_RUN" > "$FAILED_STATE/run-view.json"
+    export FAILED_TRACE_LOGICAL="$(
+      jq -er '.view.artifacts.items[]
+        | select(.direction == "output" and .kind == "evaluation-traces")
+        | .logical_name' "$FAILED_STATE/run-view.json"
+    )"
+    pt run artifact materialize "$FAILED_RUN" \
+      --logical-name "$FAILED_TRACE_LOGICAL" \
+      --output "$FAILED_STATE/traces"
+
+    cd "$POLICY_ROOT"
+    UV_CACHE_DIR=/tmp/policy-prism-uv-cache \
+      uv run --no-sync --package policy-prism-normative-verifiers \
+      policy-prism-verifiers verify-scope-opd-release \
+        --selection production \
+        --retained-traces "$FAILED_STATE/traces/artifact/traces.jsonl" \
+        --output "$FAILED_STATE/release-verification.json"
+
+Expected receipt contains `"pass": true`, all 480 candidates, exact observed/doubled per-stratum failure vectors, and the target 171/132/283/37 results. This same command must be an isolated pack-time preflight in both training packages.
+
+Immediately before any live submission, run the credential-safe check:
+
+    cd "$POSTTRAIN_ROOT"
+    pt tracking check --write
+
+Expected output identifies `policy-prism-scope-opd-e2b-12b` and `write: available` without displaying a token or creating a run.
+
+Validate and pack the newly created immutable packages from the PostTrain control terminal:
+
     pt catalog validate
-    pt workers
+    pt work-package validate gemma4_e2b_scope_opd_resilient_canary12.yaml
+    pt work-package validate gemma4_e2b_scope_opd_resilient_production384.yaml
+    pt work-package validate gemma4_e2b_scope_opd_resilient_serving_canary.yaml
+    pt work-package validate gemma4_e2b_scope_opd_resilient_scope_eval.yaml
+    pt work-package validate gemma4_e2b_scope_opd_resilient_recovery_eval.yaml
 
-Expected preflight is a valid catalog, reachable Trackio/registry/dstack/HF services, and `carbonteq-ai-workstation.lan` healthy, reachable, idle, and exposing one RTX PRO 6000 block. Verify HF read access to both gated Gemma revisions and private CarbonTeq write access without displaying the token.
-
-Validate, plan, and pack the three new packages:
-
-    pt work-package validate gemma4_e2b_scope_opd_correctness_c12_lb12.yaml
-    pt work-package validate gemma4_e2b_scope_opd_eval_serving_canary.yaml
-    pt work-package validate gemma4_e2b_scope_opd_iwopd_scope384_final.yaml
-
-    pt job plan gemma4_e2b_scope_opd_correctness_c12_lb12.yaml --job train
-    pt job plan gemma4_e2b_scope_opd_eval_serving_canary.yaml --job evaluate
-    pt job plan gemma4_e2b_scope_opd_iwopd_scope384_final.yaml --job train
-
-    pt job pack gemma4_e2b_scope_opd_correctness_c12_lb12.yaml \
-      --job train --build-missing
-    pt job pack gemma4_e2b_scope_opd_eval_serving_canary.yaml \
+    pt job plan gemma4_e2b_scope_opd_resilient_production384.yaml --job distill
+    pt job pack gemma4_e2b_scope_opd_resilient_canary12.yaml \
+      --job distill --build-missing
+    pt job pack gemma4_e2b_scope_opd_resilient_production384.yaml \
+      --job distill --build-missing
+    pt job pack gemma4_e2b_scope_opd_resilient_serving_canary.yaml \
       --job evaluate --build-missing
-    pt job pack gemma4_e2b_scope_opd_iwopd_scope384_final.yaml \
-      --job train --build-missing
+    pt job pack gemma4_e2b_scope_opd_resilient_scope_eval.yaml \
+      --job evaluate --build-missing
+    pt job pack gemma4_e2b_scope_opd_resilient_recovery_eval.yaml \
+      --job evaluate --build-missing
 
-Record all OCI digests. Run the Policy runtime verifier inside the packed training image and the two-case request/whitespace verifier inside the packed eval image. `pt job diff` must show no unintended objective/runtime/model difference between canary and production training packages.
+The exact-image gate must run after packing and before submission. It must print the final source commits, plan hashes, TRL version, image digest, schema compilation result, target-171 budget result, capacity-assignment result, and checkpoint-finalization result. Record that transcript under `Artifacts and Notes`.
 
-Run the corrected training canary first:
+Use these canary IDs:
 
-    export OPD_CANARY_RUN=opdcorr1-nativeq-e2b12b-r16-lb12-step1
+    export TRAIN_CANARY_RUN=opd3can01-longrules-e2b12b-c12-r16-v1
+    export SERVE_CANARY_RUN=opd3can02-evalserve-e2b12b-r16-v1
 
-    pt job run gemma4_e2b_scope_opd_correctness_c12_lb12.yaml \
-      --job train \
+Submit the training canary, wait, reconcile, and run its scientific gate:
+
+    pt job run gemma4_e2b_scope_opd_resilient_canary12.yaml \
+      --job distill \
       --provider dstack \
       --env HF_TOKEN \
-      --timeout-seconds 5400 \
-      --run-id "$OPD_CANARY_RUN"
+      --timeout-seconds 3900 \
+      --run-id "$TRAIN_CANARY_RUN"
 
-    pt run logs "$OPD_CANARY_RUN" --follow
-    pt run wait "$OPD_CANARY_RUN" --timeout-seconds 5400
-    pt run reconcile "$OPD_CANARY_RUN"
-    pt run checkpoint show "$OPD_CANARY_RUN" --step 1 --files
-    pt run checkpoint verify "$OPD_CANARY_RUN" --step 1
+    pt run logs "$TRAIN_CANARY_RUN" --follow
+    pt run wait "$TRAIN_CANARY_RUN" --timeout-seconds 3900
+    pt run reconcile "$TRAIN_CANARY_RUN"
+    export TRAIN_CANARY_STATE="$POLICY_ROOT/.posttrain/state/completion/$TRAIN_CANARY_RUN"
+    install -d "$TRAIN_CANARY_STATE"
+    pt --json run show "$TRAIN_CANARY_RUN" > "$TRAIN_CANARY_STATE/run-view.json"
+    pt --json run checkpoint show "$TRAIN_CANARY_RUN" --step 1 --files \
+      > "$TRAIN_CANARY_STATE/checkpoint-1.json"
 
-Do not start the serving canary unless the complete training-canary gate in Milestone 6 passes.
+    export TRAIN_CANARY_TRACES="$(jq -er '.view.artifacts.items[]
+      | select(.direction == "output" and .kind == "evaluation-traces")
+      | .logical_name' "$TRAIN_CANARY_STATE/run-view.json")"
+    export TRAIN_CANARY_SUMMARY="$(jq -er '.view.artifacts.items[]
+      | select(.direction == "output" and .kind == "training-summary")
+      | .logical_name' "$TRAIN_CANARY_STATE/run-view.json")"
+    export TRAIN_CANARY_RECOVERY="$(jq -er '.recovery.logical_name'
+      "$TRAIN_CANARY_STATE/checkpoint-1.json")"
 
-Run the managed serving canary against the exact step-one model view:
+    pt run artifact materialize "$TRAIN_CANARY_RUN" \
+      --logical-name "$TRAIN_CANARY_TRACES" \
+      --output "$TRAIN_CANARY_STATE/traces"
+    pt run artifact materialize "$TRAIN_CANARY_RUN" \
+      --logical-name "$TRAIN_CANARY_SUMMARY" \
+      --output "$TRAIN_CANARY_STATE/summary"
+    pt run artifact materialize "$TRAIN_CANARY_RUN" \
+      --logical-name "$TRAIN_CANARY_RECOVERY" \
+      --output "$TRAIN_CANARY_STATE/recovery"
 
-    export OPD_EVAL_CANARY_RUN=opdev01-nativeq-e2b12b-step1-managed-eval
+    cd "$POLICY_ROOT"
+    UV_CACHE_DIR=/tmp/policy-prism-uv-cache \
+      uv run --no-sync --package policy-prism-normative-verifiers \
+      policy-prism-verifiers validate-scope-opd-completion \
+        --run-view "$TRAIN_CANARY_STATE/run-view.json" \
+        --reconciliation "$POLICY_ROOT/.posttrain/state/executions/$TRAIN_CANARY_RUN/reconciliation.json" \
+        --traces-receipt "$TRAIN_CANARY_STATE/traces/materialization.json" \
+        --summary-receipt "$TRAIN_CANARY_STATE/summary/materialization.json" \
+        --recovery-receipt "$TRAIN_CANARY_STATE/recovery/materialization.json" \
+        --expected-targets 12 \
+        --expected-updates 1 \
+        --require-target scope-opd-0171 \
+        --output "$TRAIN_CANARY_STATE/completion.json"
 
-    pt job run gemma4_e2b_scope_opd_eval_serving_canary.yaml \
+Expected output is a deterministic receipt with `"pass": true`, twelve consumed rows, one finite update, zero teacher failures, completed target 171, and a unique paired step-1 checkpoint. `pt --json run show` alone is not the scientific gate.
+
+Run the managed serving canary against the canary's model view using the exact override supported by the resolved job:
+
+    pt job run gemma4_e2b_scope_opd_resilient_serving_canary.yaml \
       --job evaluate \
       --provider dstack \
       --env HF_TOKEN \
-      --timeout-seconds 3600 \
-      --run-id "$OPD_EVAL_CANARY_RUN" \
-      --model-from-run "$OPD_CANARY_RUN" \
+      --model-from-run "$TRAIN_CANARY_RUN" \
       --model-checkpoint-step 1 \
-      --model-seat model
+      --model-seat model \
+      --timeout-seconds 900 \
+      --run-id "$SERVE_CANARY_RUN"
 
-    pt run logs "$OPD_EVAL_CANARY_RUN" --follow
-    pt run wait "$OPD_EVAL_CANARY_RUN" --timeout-seconds 3600
-    pt run reconcile "$OPD_EVAL_CANARY_RUN"
+    pt run logs "$SERVE_CANARY_RUN" --follow
+    pt run wait "$SERVE_CANARY_RUN" --timeout-seconds 900
+    pt run reconcile "$SERVE_CANARY_RUN"
 
-After both receipts pass and the GPU is idle, submit production:
+    pt --json run show "$SERVE_CANARY_RUN" | jq -e '
+      .view as $v |
+      ($v.run.status == "succeeded") and
+      ($v.completeness.state == "complete") and
+      ($v.evaluation.expected == 2) and
+      ($v.evaluation.included == 2) and
+      ($v.evaluation.failures == 0) and
+      ($v.evaluation.truncated == 0) and
+      ([ $v.evaluation.traces[] | select(.error != null) ] | length == 0) and
+      ([ $v.summary[] | select(.key == "trace_sync_complete") | .value ][0] == 1)
+    '
 
-    export OPD_RUN=opdprod2-nativeq-iwopd-e2b12b-r16-lb12-scope384
+Do not launch production unless both canary gates pass. Their individual ceilings total 80 minutes, leaving ten minutes for the transition inside one shared 90-minute wall-clock budget measured from the first GPU assignment. Cancel the sequence at the shared deadline even if an individual command still has time.
 
-    pt job run gemma4_e2b_scope_opd_iwopd_scope384_final.yaml \
-      --job train \
+Submit fresh production:
+
+    export OPD_RUN=opd3prod01-resilient-e2b12b-c384-r16-v1
+
+    pt job run gemma4_e2b_scope_opd_resilient_production384.yaml \
+      --job distill \
       --provider dstack \
       --env HF_TOKEN \
       --timeout-seconds 86400 \
       --run-id "$OPD_RUN"
 
-    pt run status "$OPD_RUN"
     pt run logs "$OPD_RUN" --follow
-
-At completion:
-
     pt run wait "$OPD_RUN" --timeout-seconds 86400
     pt run reconcile "$OPD_RUN"
     pt run checkpoint list "$OPD_RUN"
-    for step in 8 16 24 32; do
-      pt run checkpoint show "$OPD_RUN" --step "$step" --files
-      pt run checkpoint verify "$OPD_RUN" --step "$step"
+    for STEP in 8 16 24 32; do
+      pt run checkpoint verify "$OPD_RUN" --step "$STEP" --deep
     done
 
-Start one explicit artifact-export run and add the exact step-32 model, step-32 recovery, native trace, and summary logical names obtained from `pt --json run show "$OPD_RUN"` and `pt --json run checkpoint show "$OPD_RUN" --step 32 --files`. The maintained interface is:
+    export OPD_STATE="$POLICY_ROOT/.posttrain/state/completion/$OPD_RUN"
+    install -d "$OPD_STATE"
+    pt --json run show "$OPD_RUN" > "$OPD_STATE/run-view.json"
+    pt --json run checkpoint show "$OPD_RUN" --step 32 --files \
+      > "$OPD_STATE/checkpoint-32.json"
 
-    export MODEL_EXPORT_RUN=opdexp02-nativeq-e2b12b-step32-model
-    export MODEL_EXPORT_ROOT="$POLICY_ROOT/.posttrain/state/exports/$MODEL_EXPORT_RUN"
+Resolve and materialize the terminal traces, summary, and step-32 recovery logical names:
 
-    pt artifact export begin \
-      --run-id "$MODEL_EXPORT_RUN" \
-      --output "$MODEL_EXPORT_ROOT"
+    export OPD_TRACES="$(jq -er '.view.artifacts.items[]
+      | select(.direction == "output" and .kind == "evaluation-traces")
+      | .logical_name' "$OPD_STATE/run-view.json")"
+    export OPD_SUMMARY="$(jq -er '.view.artifacts.items[]
+      | select(.direction == "output" and .kind == "training-summary")
+      | .logical_name' "$OPD_STATE/run-view.json")"
+    export OPD_RECOVERY="$(jq -er '.recovery.logical_name'
+      "$OPD_STATE/checkpoint-32.json")"
 
-    pt artifact export add "$MODEL_EXPORT_RUN" \
-      --source-run "$OPD_RUN" \
-      --logical-name "<exact-step-32-model-logical-name>" \
-      --destination model
-    pt artifact export add "$MODEL_EXPORT_RUN" \
-      --source-run "$OPD_RUN" \
-      --logical-name "<exact-step-32-recovery-logical-name>" \
-      --destination recovery
-    pt artifact export add "$MODEL_EXPORT_RUN" \
-      --source-run "$OPD_RUN" \
-      --logical-name "<exact-native-traces-logical-name>" \
-      --destination traces
-    pt artifact export add "$MODEL_EXPORT_RUN" \
-      --source-run "$OPD_RUN" \
-      --logical-name "<exact-summary-logical-name>" \
-      --destination summary
-    pt artifact export finish "$MODEL_EXPORT_RUN"
+    pt run artifact materialize "$OPD_RUN" \
+      --logical-name "$OPD_TRACES" --output "$OPD_STATE/traces"
+    pt run artifact materialize "$OPD_RUN" \
+      --logical-name "$OPD_SUMMARY" --output "$OPD_STATE/summary"
+    pt run artifact materialize "$OPD_RUN" \
+      --logical-name "$OPD_RECOVERY" --output "$OPD_STATE/recovery"
 
-Replace only the four angle-bracket values after reading the immutable output links; do not guess them. `finish` must report matching provider/content digests for every receipt.
-
-Capture the provider-neutral run view, then validate the exact exported evidence rather than mutable provider state:
-
-    pt --json run show "$OPD_RUN" > "$MODEL_EXPORT_ROOT/run-view.json"
+Then run:
 
     cd "$POLICY_ROOT"
     UV_CACHE_DIR=/tmp/policy-prism-uv-cache \
-    uv run --no-sync --package policy-prism-normative-verifiers \
-    policy-prism-verifiers validate-scope-opd-run \
-      --run-id "$OPD_RUN" \
-      --run-view "$MODEL_EXPORT_ROOT/run-view.json" \
-      --traces "$MODEL_EXPORT_ROOT/traces/artifact/traces.jsonl" \
-      --summary-root "$MODEL_EXPORT_ROOT/summary/artifact" \
-      --checkpoint-root "$MODEL_EXPORT_ROOT/recovery/artifact" \
-      --materialization-root "$MODEL_EXPORT_ROOT" \
-      --output "$POLICY_ROOT/.posttrain/state/opd-completion/$OPD_RUN/completion.json"
+      uv run --no-sync --package policy-prism-normative-verifiers \
+      policy-prism-verifiers validate-scope-opd-completion \
+        --run-view "$OPD_STATE/run-view.json" \
+        --reconciliation "$POLICY_ROOT/.posttrain/state/executions/$OPD_RUN/reconciliation.json" \
+        --traces-receipt "$OPD_STATE/traces/materialization.json" \
+        --summary-receipt "$OPD_STATE/summary/materialization.json" \
+        --recovery-receipt "$OPD_STATE/recovery/materialization.json" \
+        --expected-targets 384 \
+        --expected-updates 32 \
+        --output "$OPD_STATE/completion.json"
 
-The command must report `pass: true`, `global_step: 32`, `accepted_targets: 384`, and `teacher_failures: 0` before publication or evaluation.
+Expected output is `"pass": true`. Do not publish on provider success or reconciliation alone.
 
-Publish the verified adapter directory from the model receipt:
+Resolve and materialize the exact step-32 model view. Do not materialize the recovery view as a model:
 
-    export ADAPTER_DIR="$MODEL_EXPORT_ROOT/model/artifact"
-    export HF_MODEL_REPO=carbonteq/gemma-4-e2b-policy-prism-scope-opd-from-12b-lora-v1
+    export MODEL_LOGICAL_NAME="$(
+      jq -er '.model.logical_name' "$OPD_STATE/checkpoint-32.json"
+    )"
+    export MODEL_STAGE="$POLICY_ROOT/.posttrain/state/publication/$OPD_RUN/model-step32"
+    pt run artifact materialize "$OPD_RUN" \
+      --logical-name "$MODEL_LOGICAL_NAME" \
+      --output "$MODEL_STAGE"
+    export ADAPTER_DIR="$MODEL_STAGE/artifact"
 
     test -f "$ADAPTER_DIR/adapter_config.json"
-    find "$ADAPTER_DIR" -name '*.safetensors' -type f
+    find "$ADAPTER_DIR" -name '*.safetensors' -type f -print -quit | grep -q .
+    test ! -e "$ADAPTER_DIR/optimizer.pt"
+    test ! -e "$ADAPTER_DIR/scheduler.pt"
 
+Create `$ADAPTER_DIR/README.md` with the verified model card described in Milestone 8. Load the protected Hugging Face credential without printing it and publish privately:
+
+    set -a
+    . /home/ali-awais-safdar/.config/posttrain/credentials/huggingface.env
+    set +a
+
+    export HF_MODEL_REPO=carbonteq/gemma-4-e2b-policy-prism-scope-opd-from-12b-lora-v1
     cd "$POSTTRAIN_ROOT"
     uv run --no-sync --package posttrain-train hf repos create \
       "$HF_MODEL_REPO" \
@@ -622,35 +719,70 @@ Publish the verified adapter directory from the model receipt:
       "$ADAPTER_DIR" . \
       --repo-type model \
       --private \
-      --commit-message "Publish corrected Policy Prism E2B from 12B constrained IW-OPD adapter"
+      --commit-message "Publish Policy Prism Gemma 4 E2B from 12B IW-OPD step-32 adapter"
 
-    export HF_MODEL_REVISION="$(
+    export HF_WEIGHT_REVISION="$(
       uv run --no-sync --package posttrain-train python -c \
-      'import os; from huggingface_hub import HfApi; print(HfApi().model_info(os.environ["HF_MODEL_REPO"]).sha)'
+        'import os; from huggingface_hub import HfApi; print(HfApi().model_info(os.environ["HF_MODEL_REPO"]).sha)'
     )"
-    test "${#HF_MODEL_REVISION}" -eq 40
+    test -n "$HF_WEIGHT_REVISION"
 
-Fresh-download that exact revision into a different ignored directory and compare the complete SHA-256 manifest before adding the final Policy model/catalog entries.
+    export HF_VERIFY_DIR="$POLICY_ROOT/.posttrain/state/publication/$OPD_RUN/hf-verify"
+    test ! -e "$HF_VERIFY_DIR"
+    uv run --no-sync --package posttrain-train python -c \
+      'import os; from huggingface_hub import snapshot_download; snapshot_download(repo_id=os.environ["HF_MODEL_REPO"], revision=os.environ["HF_WEIGHT_REVISION"], local_dir=os.environ["HF_VERIFY_DIR"])'
 
-After the final immutable Policy model and evaluation work packages validate and pack, run scope then recovery sequentially:
+    (cd "$ADAPTER_DIR" && find . -path './.cache' -prune -o -type f -print0 \
+      | sort -z | xargs -0 sha256sum) \
+      > "$MODEL_STAGE/source-sha256.txt"
+    (cd "$HF_VERIFY_DIR" && find . -path './.cache' -prune -o -type f -print0 \
+      | sort -z | xargs -0 sha256sum) \
+      > "$MODEL_STAGE/download-sha256.txt"
+    diff -u "$MODEL_STAGE/source-sha256.txt" "$MODEL_STAGE/download-sha256.txt"
 
-    export SCOPE_RUN=opd2sc32-nativeq-e2b12b-r16-scope-v11
-    export RECOVERY_RUN=opd2rc32-nativeq-e2b12b-r16-recovery-v1
+Record `HF_WEIGHT_REVISION` and both manifests in this plan. If the model card is updated after evaluation, record a second card revision while retaining the evaluated weight revision.
 
-    pt job run gemma4_e2b_scope_opd_final_scope_eval.yaml \
+Submit final evaluations sequentially only after the final adapter binding validates:
+
+    export SCOPE_EVAL_RUN=opd3prod01-ckpt32-scope-v11
+    export RECOVERY_EVAL_RUN=opd3prod01-ckpt32-recovery-v1
+
+    export FINAL_PLAN_STATE="$POLICY_ROOT/.posttrain/state/finalization/$OPD_RUN/plans"
+    install -d "$FINAL_PLAN_STATE"
+    pt --json job plan gemma4_e2b_scope_opd_resilient_scope_eval.yaml \
+      --job evaluate \
+      --model-from-run "$OPD_RUN" \
+      --model-checkpoint-step 32 \
+      --model-seat model > "$FINAL_PLAN_STATE/scope.json"
+    pt --json job plan gemma4_e2b_scope_opd_resilient_recovery_eval.yaml \
+      --job evaluate \
+      --model-from-run "$OPD_RUN" \
+      --model-checkpoint-step 32 \
+      --model-seat model > "$FINAL_PLAN_STATE/recovery.json"
+
+    jq -e '
+      ([.. | objects
+        | select(.kind? == "model-adapter" and .checkpoint_step? == 32)]
+        | length == 1) and
+      ([.. | objects | select(.kind? == "training-checkpoint")] | length == 0)
+    ' "$FINAL_PLAN_STATE/scope.json" "$FINAL_PLAN_STATE/recovery.json"
+
+    pt job run gemma4_e2b_scope_opd_resilient_scope_eval.yaml \
       --job evaluate \
       --provider dstack \
       --env HF_TOKEN \
       --env OPENROUTER_API_KEY \
+      --model-from-run "$OPD_RUN" \
+      --model-checkpoint-step 32 \
+      --model-seat model \
       --timeout-seconds 21600 \
-      --run-id "$SCOPE_RUN"
+      --run-id "$SCOPE_EVAL_RUN"
 
-    pt run wait "$SCOPE_RUN" --timeout-seconds 21600
-    pt run reconcile "$SCOPE_RUN"
+    pt run logs "$SCOPE_EVAL_RUN" --follow
+    pt run wait "$SCOPE_EVAL_RUN" --timeout-seconds 21600
+    pt run reconcile "$SCOPE_EVAL_RUN"
 
-Run the 18-case scientific gate and verify the GPU placement is released before submitting recovery:
-
-    pt --json run show "$SCOPE_RUN" | jq -e '
+    pt --json run show "$SCOPE_EVAL_RUN" | jq -e '
       .view as $v |
       ($v.run.status == "succeeded") and
       ($v.completeness.state == "complete") and
@@ -660,27 +792,29 @@ Run the 18-case scientific gate and verify the GPU placement is released before 
       ($v.evaluation.truncated == 0) and
       ([ $v.evaluation.traces[] | select(.error != null) ] | length == 0) and
       ([ $v.summary[] | select(.key == "trace_sync_complete") | .value ][0] == 1) and
-      ([ $v.artifacts.items[] |
-         select(.direction == "output" and .kind == "verifiers-evaluation") ] |
-       length == 1)
+      ([ $v.artifacts.items[]
+        | select(.direction == "output" and .kind == "verifiers-evaluation") ]
+        | length == 1)
     '
 
-This must print `true`. Also require `pt workers` to show no placement held by the scope run.
+Only after the 18-case gate is true:
 
-    pt job run gemma4_e2b_scope_opd_final_recovery_eval.yaml \
+    pt job run gemma4_e2b_scope_opd_resilient_recovery_eval.yaml \
       --job evaluate \
       --provider dstack \
       --env HF_TOKEN \
       --env OPENROUTER_API_KEY \
+      --model-from-run "$OPD_RUN" \
+      --model-checkpoint-step 32 \
+      --model-seat model \
       --timeout-seconds 21600 \
-      --run-id "$RECOVERY_RUN"
+      --run-id "$RECOVERY_EVAL_RUN"
 
-    pt run wait "$RECOVERY_RUN" --timeout-seconds 21600
-    pt run reconcile "$RECOVERY_RUN"
+    pt run logs "$RECOVERY_EVAL_RUN" --follow
+    pt run wait "$RECOVERY_EVAL_RUN" --timeout-seconds 21600
+    pt run reconcile "$RECOVERY_EVAL_RUN"
 
-Run the 17-case scientific gate:
-
-    pt --json run show "$RECOVERY_RUN" | jq -e '
+    pt --json run show "$RECOVERY_EVAL_RUN" | jq -e '
       .view as $v |
       ($v.run.status == "succeeded") and
       ($v.completeness.state == "complete") and
@@ -690,117 +824,216 @@ Run the 17-case scientific gate:
       ($v.evaluation.truncated == 0) and
       ([ $v.evaluation.traces[] | select(.error != null) ] | length == 0) and
       ([ $v.summary[] | select(.key == "trace_sync_complete") | .value ][0] == 1) and
-      ([ $v.artifacts.items[] |
-         select(.direction == "output" and .kind == "verifiers-evaluation") ] |
-       length == 1)
+      ([ $v.artifacts.items[]
+        | select(.direction == "output" and .kind == "verifiers-evaluation") ]
+        | length == 1)
     '
 
-This must print `true`. Materialize each exact `verifiers-evaluation` output through a separate, clearly named evaluation-evidence export run, then finalize from Policy Prism:
+Materialize each exact evaluation artifact and derive every finalization path from receipts:
 
-    export EVAL_EXPORT_RUN=opdexp03-nativeq-e2b12b-sealed-evidence
-    export EVAL_EXPORT_ROOT="$POLICY_ROOT/.posttrain/state/native-evals"
+    export SCOPE_STATE="$POLICY_ROOT/.posttrain/state/finalization/$SCOPE_EVAL_RUN"
+    export RECOVERY_STATE="$POLICY_ROOT/.posttrain/state/finalization/$RECOVERY_EVAL_RUN"
+    install -d "$SCOPE_STATE" "$RECOVERY_STATE"
 
-    pt artifact export begin \
-      --run-id "$EVAL_EXPORT_RUN" \
-      --output "$EVAL_EXPORT_ROOT"
-    pt artifact export add "$EVAL_EXPORT_RUN" \
-      --source-run "$SCOPE_RUN" \
-      --logical-name "<exact-scope-verifiers-evaluation-logical-name>" \
-      --destination "$SCOPE_RUN"
-    pt artifact export add "$EVAL_EXPORT_RUN" \
-      --source-run "$RECOVERY_RUN" \
-      --logical-name "<exact-recovery-verifiers-evaluation-logical-name>" \
-      --destination "$RECOVERY_RUN"
-    pt artifact export finish "$EVAL_EXPORT_RUN"
+    pt --json run show "$SCOPE_EVAL_RUN" > "$SCOPE_STATE/run-view.json"
+    pt --json run show "$RECOVERY_EVAL_RUN" > "$RECOVERY_STATE/run-view.json"
 
-The exporter writes each provider payload below its destination's `artifact/` directory and a verified receipt beside it. It refuses either destination when existing bytes do not match. Then finalize from Policy Prism:
+    export SCOPE_EVAL_LOGICAL="$(jq -er '.view.artifacts.items[]
+      | select(.direction == "output" and .kind == "verifiers-evaluation")
+      | .logical_name' "$SCOPE_STATE/run-view.json")"
+    export RECOVERY_EVAL_LOGICAL="$(jq -er '.view.artifacts.items[]
+      | select(.direction == "output" and .kind == "verifiers-evaluation")
+      | .logical_name' "$RECOVERY_STATE/run-view.json")"
+
+    pt run artifact materialize "$SCOPE_EVAL_RUN" \
+      --logical-name "$SCOPE_EVAL_LOGICAL" \
+      --output "$SCOPE_STATE/native"
+    pt run artifact materialize "$RECOVERY_EVAL_RUN" \
+      --logical-name "$RECOVERY_EVAL_LOGICAL" \
+      --output "$RECOVERY_STATE/native"
+
+    export SCOPE_NATIVE="$SCOPE_STATE/native/artifact"
+    export RECOVERY_NATIVE="$RECOVERY_STATE/native/artifact"
+    export SCOPE_SERVING_METADATA="$SCOPE_STATE/serving-metadata.json"
+    export RECOVERY_SERVING_METADATA="$RECOVERY_STATE/serving-metadata.json"
+    export SCOPE_FINAL_ID=gemma-4-e2b-policy-prism-iwopd-r16-from-12b-opd3prod01-v11-sealed-scope
+    export RECOVERY_FINAL_ID=gemma-4-e2b-policy-prism-iwopd-r16-from-12b-opd3prod01-v11-sealed-recovery
+
+    test -f "$SCOPE_NATIVE/config.toml"
+    test -f "$SCOPE_NATIVE/traces.jsonl"
+    test "$(wc -l < "$SCOPE_NATIVE/traces.jsonl")" -eq 18
+    test -f "$RECOVERY_NATIVE/config.toml"
+    test -f "$RECOVERY_NATIVE/traces.jsonl"
+    test "$(wc -l < "$RECOVERY_NATIVE/traces.jsonl")" -eq 17
+
+Create and validate serving metadata from exact receipts, not manually copied values:
 
     cd "$POLICY_ROOT"
     UV_CACHE_DIR=/tmp/policy-prism-uv-cache \
-    uv run --no-sync --package policy-prism-normative-verifiers \
-    policy-prism-verifiers finalize-run \
-      --input ".posttrain/state/native-evals/$SCOPE_RUN/artifact" \
-      --run-id "gemma-4-e2b-policy-prism-nativeq-iwopd-r16-from-12b-opdprod2-v11-sealed-scope" \
-      --serving-metadata ".posttrain/state/finalization/$SCOPE_RUN/serving-metadata.json" \
-      --output-root "$POLICY_ROOT/evaluation-runs"
+      uv run --no-sync --package policy-prism-normative-verifiers \
+      policy-prism-verifiers build-serving-metadata \
+        --training-run-view "$OPD_STATE/run-view.json" \
+        --evaluation-run-view "$SCOPE_STATE/run-view.json" \
+        --adapter-receipt "$MODEL_STAGE/materialization.json" \
+        --evaluation-receipt "$SCOPE_STATE/native/materialization.json" \
+        --hf-repo "$HF_MODEL_REPO" \
+        --hf-revision "$HF_WEIGHT_REVISION" \
+        --output "$SCOPE_SERVING_METADATA"
 
     UV_CACHE_DIR=/tmp/policy-prism-uv-cache \
-    uv run --no-sync --package policy-prism-normative-verifiers \
-    policy-prism-verifiers finalize-run \
-      --input ".posttrain/state/native-evals/$RECOVERY_RUN/artifact" \
-      --run-id "gemma-4-e2b-policy-prism-nativeq-iwopd-r16-from-12b-opdprod2-v1-sealed-recovery" \
-      --serving-metadata ".posttrain/state/finalization/$RECOVERY_RUN/serving-metadata.json" \
-      --output-root "$POLICY_ROOT/evaluation-runs"
+      uv run --no-sync --package policy-prism-normative-verifiers \
+      policy-prism-verifiers build-serving-metadata \
+        --training-run-view "$OPD_STATE/run-view.json" \
+        --evaluation-run-view "$RECOVERY_STATE/run-view.json" \
+        --adapter-receipt "$MODEL_STAGE/materialization.json" \
+        --evaluation-receipt "$RECOVERY_STATE/native/materialization.json" \
+        --hf-repo "$HF_MODEL_REPO" \
+        --hf-revision "$HF_WEIGHT_REVISION" \
+        --output "$RECOVERY_SERVING_METADATA"
+
+    jq -e --arg revision "$HF_WEIGHT_REVISION" \
+      '.adapter_hf_revision == $revision and .optimizer_step == 32' \
+      "$SCOPE_SERVING_METADATA" "$RECOVERY_SERVING_METADATA"
+
+Finalize from the Policy Prism repository:
+
+    cd "$POLICY_ROOT"
+    UV_CACHE_DIR=/tmp/policy-prism-uv-cache \
+      uv run --no-sync --package policy-prism-normative-verifiers \
+      policy-prism-verifiers finalize-run \
+        --input "$SCOPE_NATIVE" \
+        --run-id "$SCOPE_FINAL_ID" \
+        --serving-metadata "$SCOPE_SERVING_METADATA" \
+        --output-root "$POLICY_ROOT/evaluation-runs"
 
     UV_CACHE_DIR=/tmp/policy-prism-uv-cache \
-    uv run --no-sync --package policy-prism-normative-verifiers \
-    policy-prism-verifiers validate-runs --root evaluation-runs
+      uv run --no-sync --package policy-prism-normative-verifiers \
+      policy-prism-verifiers finalize-run \
+        --input "$RECOVERY_NATIVE" \
+        --run-id "$RECOVERY_FINAL_ID" \
+        --serving-metadata "$RECOVERY_SERVING_METADATA" \
+        --output-root "$POLICY_ROOT/evaluation-runs"
 
     UV_CACHE_DIR=/tmp/policy-prism-uv-cache \
-    uv run --no-sync --package policy-prism-normative-verifiers \
-    policy-prism-verifiers derive-business-kpis \
-      --all \
-      --root evaluation-runs \
-      --check
+      uv run --no-sync --package policy-prism-normative-verifiers \
+      policy-prism-verifiers validate-runs --root evaluation-runs
 
-The serving-metadata files must be generated from verified PostTrain/HF receipts, not written from guessed digests. Before committing, require 18/17 trace counts, semantic status `complete`, the standard five files in each directory, and catalog entries for both.
+    test -f "$POLICY_ROOT/evaluation-runs/$SCOPE_FINAL_ID/manifest.json"
+    test -f "$POLICY_ROOT/evaluation-runs/$RECOVERY_FINAL_ID/manifest.json"
+
+The scientific decision is predeclared against these exact base E2B non-thinking directories:
+
+* scope: `gemma-4-e2b-it-bf16-runpod-a100-sxm-prompt-v2-v11-sealed-scope-20260803`;
+* recovery: `gemma-4-e2b-it-bf16-runpod-a100-sxm-prompt-v2-v11-sealed-recovery-20260803`.
+
+Mark `accept` only when scope is operationally 18/18, expected rules matched is strictly above the base 40/68, ambiguity handled is at least 12/18, contract/source checks are at least 4/18, required legal text is at least 32/33, and rule subjects captured are at least 16/68. These keep the scope-tangent improvement primary while preventing an apparent gain from discarding basic coverage.
+
+Recovery is a no-regression gate: require operational 17/17, expected rules found at least 223/460, contract/source checks at least 7/17, required legal text at least 238/376, and recovered rule meaning at least 87/460. Mark `revise` when all operational/evidence gates pass but the scope improvement or recovery thresholds do not; mark `reject` when operational reliability fails or the adapter materially regresses both scope coverage and recovery. Record exact metrics and the decision in this plan and the model card.
+
+Update only the verified model card with the final scope/recovery metrics and decision, then record a separate card revision:
+
+    uv run --no-sync --package posttrain-train hf upload \
+      "$HF_MODEL_REPO" \
+      "$ADAPTER_DIR/README.md" README.md \
+      --repo-type model \
+      --private \
+      --commit-message "Record sealed Policy Prism qualification results"
+
+    export HF_CARD_REVISION="$(
+      uv run --no-sync --package posttrain-train python -c \
+        'import os; from huggingface_hub import HfApi; print(HfApi().model_info(os.environ["HF_MODEL_REPO"]).sha)'
+    )"
+    test -n "$HF_CARD_REVISION"
+
+The evaluated weight identity remains `HF_WEIGHT_REVISION`; `HF_CARD_REVISION` records metadata only. Re-download the safetensors at the card revision and verify their digest still equals the evaluated weight manifest.
+
+Commit and push permanent results only after all final validation passes:
+
+    cd "$POLICY_ROOT"
+    test "$(git branch --show-current)" = feat/scope-opd-e2b-12b-environment-v1
+    git add "evaluation-runs/$SCOPE_FINAL_ID" \
+      "evaluation-runs/$RECOVERY_FINAL_ID" \
+      evaluation-runs/catalog.json
+    git diff --cached --check
+    git commit -m "eval(opd): retain E2B from 12B sealed qualification"
+    git push origin feat/scope-opd-e2b-12b-environment-v1
+
+    cd "$POSTTRAIN_ROOT"
+    test "$(git branch --show-current)" = feat/gemma-policy-prism-opd-e2b-12b
+    git add docs/plan/policy-prism-gemma4-e2b-12b-opd.md
+    git diff --cached --check
+    git commit -m "docs(opd): record final E2B from 12B outcome"
+    git push origin feat/gemma-policy-prism-opd-e2b-12b
+
+    git status --short
+    git -C "$POLICY_ROOT" status --short
 
 ## Validation and Acceptance
 
-The implementation is ready for the production GPU only when every deterministic gate passes in the packed images and both live canaries pass within the 90-minute GPU budget. “Ready” means all known deterministic boundaries are closed; it is not a promise that no stochastic output or infrastructure failure can occur.
+The implementation is launch-ready only when all deterministic host and exact-image tests pass, both Git trees are clean and pushed on the two specified feature branches, credentials are accepted without printing them, the registry and Trackio are writable, and the GPU is healthy and idle.
 
-The experiment is complete only when all of the following are observable:
+The prompt environment is accepted only when the exact-render receipt and all twelve stage-specific rubrics pass. The training canary is accepted only by all gates in Milestone 6. Production is accepted only when provider state is succeeded, reconciliation is consistent, no required artifact role is missing, 384 unique targets are consumed exactly once, 32 update rows have finite loss and gradient norms, teacher-failure sum is zero, selected outputs have no errors/truncations, alternate assignment remains feasible, trace sync is complete, every four-step recovery pair verifies, and checkpoints 8/16/24/32 have the expected ledger counts.
 
-- the canonical contract describes model-native prefixes and exact completion-token alignment;
-- the pinned TRL release returns constrained teacher log probabilities and reproducible allowed-set evidence;
-- the PostTrain run proves E2B/12B native prefix digests, exact completion IDs, and q-probability alignment;
-- Policy prompts contain no model-facing metadata/hidden labels and use stage-correct invariants;
-- the ledger passes cold-start and checkpoint recovery at concurrency 12;
-- the canary update and managed serving cases are fully valid;
-- production has 32 finite updates over exactly 384 accepted unique targets and four complete checkpoint pairs;
-- step 32 is privately published and fresh-download verified;
-- sealed scope is 18/18 and recovery is 17/17 operationally complete with Claude evidence;
-- both evaluations exist in standard five-file Policy directories and validate;
-- TRL, PostTrain, and Policy Prism branches are clean and pushed.
+Scope is accepted operationally only at 18/18 with zero failures/truncations/errors and complete Claude evidence. Recovery is accepted operationally only at 17/17 under the same rules. Scientific acceptance additionally requires the predeclared scope improvement and recovery no-regression decision. A null generic Verifiers mean reward is not itself a failure when Policy Prism's domain metrics are authoritative.
 
-A final domain score below base E2B is a scientifically valid negative outcome if every operational gate above passes. Do not silently extend training, select a sealed-best checkpoint, or change the objective after seeing sealed results.
+Hugging Face publication is accepted only when a fresh download at the immutable commit produces the same complete file manifest and a loadable adapter. Finalization is accepted only when each directory contains the standard five files, `evaluation-runs/catalog.json` is updated, all run validation passes, and serving metadata separates adapter, evaluation artifact, training, and HF identities.
+
+## Monitoring and Grounded Time Budget
+
+The failed corrected run took 27,258 trainer seconds for 15 complete updates, or about 30.3 minutes per update. A straight 32-update projection is 16.2 trainer hours. Larger per-request capacity may lengthen a few calls, while avoiding discarded 16K retries may recover time. Therefore use the target-171 canary to recalculate, but reserve 14-19 hours for training and another 2-4 hours for publication, scope/recovery, finalization, and commits. The provider timeout remains 24 hours as a safety ceiling.
+
+During production, investigate if the first finite update is absent after 60 minutes, if two consecutive updates exceed 60 minutes without trace/GPU progress, if CUDA OOM occurs, if system memory grows unexpectedly above 85 GiB, if teacher failures become nonzero, or if a fallback stratum approaches proven capacity. Quiet logs alone are not a failure; correlate provider state, trace heartbeat, and GPU work.
+
+Do not try to maximize the GPU utilization percentage. Autoregressive heterogeneous generation is latency-bound, and measured throughput—not utilization—is the optimization objective. Logical 12 remains the best evidence-backed balance of speed and 32 policy updates.
 
 ## Idempotence and Recovery
 
-All generated plans, verification receipts, packs, and artifact exports must be content-addressed and safe to rerun. Commands should reuse a verified cache only when source/config/content digests still match. A changed prompt, schema, model identity, dependency pin, source commit, or task order creates a new package and run ID.
+Catalog entries and work packages are additive and versioned. Never reuse a failed or completed run ID. Re-running validation, packing, artifact materialization, completion validation, and final run validation must be idempotent.
 
-Never reuse a failed run ID. Preserve failed evidence and diagnose it. Retry the same canary after a code fix with an incremented suffix; do not introduce a new parameter arm. Submit recovery only for infrastructure interruption from a complete paired checkpoint, and restore model/trainer/optimizer/scheduler/RNG/ledger together. No cleanup occurs until HF fresh verification and both Policy finalizations succeed.
+An infrastructure-only interruption may resume from the latest complete paired recovery checkpoint when image, code, plan, model identities, batch geometry, optimizer/scheduler, seeds, and ledger are unchanged. Roll back model/optimizer/RNG and SQLite ledger together. Before step 8, restart from base. A deterministic schema, allocation, cap, NaN/Inf, systematic teacher, or code/config failure requires a fresh run and a new ID.
 
-Do not delete historical checkpoint-96, qualification, Trackio, HF, or evaluation evidence. Do not reset, rebase, force-push, or mutate either main branch. Do not merge current main into the qualified PostTrain experiment branch during this plan.
+The production attempt in this plan starts fresh because its task contract changes. Do not delete prior runs. Preserve Trackio artifacts, provider workspaces, failed traces, checkpoint pairs, materialization receipts, and finalized evidence until the model is fresh-verified on Hugging Face and both Policy directories validate. Cleanup only the new provider workspaces afterward; never delete Trackio, HF, or `evaluation-runs` evidence as part of cleanup.
 
 ## Artifacts and Notes
 
-Authoritative historical evidence retained by this plan includes:
+Historical evidence that must remain traceable:
 
-- PostTrain historical checkpoint-96 plan/evaluation commit: `8c0d76637cc0eba87a6c3d360a2d92f6a99d29db`.
-- Policy historical finalized-evaluation commit: `79627530d907b4e3565ddd912db2327f64f72174`.
-- Base E2B non-thinking scope run: `gemma-4-e2b-it-bf16-runpod-a100-sxm-prompt-v2-v11-sealed-scope-20260803`.
-- Checkpoint-96 scope run: `gemma-4-e2b-policy-prism-opd-sparse-rkl-r16-from-12b-step96-v11-sealed-scope-20260812`.
-- Historical checkpoint-96 private HF revision: `4f1fe9c75031396a11bcc44e2193f96df9003054`.
-- Fastest capacity run: logical/physical/accumulation `12/1/12`, 634.11 trainer seconds, 34.74 GiB trainer peak.
-- Largest completed physical batch: three, 1,130.05 trainer seconds, 49.83 GiB trainer peak, 67.48 GiB system peak.
+* failed production: `opd2prod02-schemaexact-e2b12b-c384-r16-v1`;
+* admitted outputs: 185; optimizer-consumed outputs: 180; complete updates: 15;
+* scored tokens: 394,989; teacher failures: zero;
+* step-8 model digest prefix: `ae192ce4`; recovery digest prefix: `df5d999b`;
+* fatal target: `scope-opd-0171`;
+* retained candidate attempts: 197; accepted: 185; rejected: twelve;
+* retained 16,384-token incomplete prefixes: seven, all meaningful and with zero trailing whitespace;
+* qualified TRL source: `78b61a4d37a7bf8ad7e61bd604ba9e3c3c316897`;
+* current PostTrain fix head: `8af9467`; current Policy Prism fix head: `61b0b83`.
 
-The previous 5h38m point estimate equals `634.11 * 32` and excludes new constrained-scoring overhead. After the one-update canary, replace it with:
-
-    measured_training_hours = corrected_canary_trainer_seconds * 32 / 3600
-
-If the corrected step remains 634 to 900 seconds, expect roughly 5.6 to 8.0 trainer hours and about 7 to 10 hours through reconciliation. If it is 900 to 1,200 seconds, expect 8 to 10.7 trainer hours. Above 1,200 seconds, diagnose the implementation before production rather than accepting an unmeasured overnight duration. Scope/recovery evaluation and HF/finalization typically add 2 to 5 hours. The 24-hour provider timeout remains a ceiling.
+As execution proceeds, append concise evidence here: final commits, task/selection hashes, exact package/image digests, exact canary cohort, test counts, canary results, production checkpoints, final adapter receipt, Hugging Face weight/card revisions, evaluation artifact receipts, finalized directory names, domain comparison, and qualification decision.
 
 ## Interfaces and Dependencies
 
-At completion, PostTrain public distillation settings expose typed teacher prompt alignment and probability space. `OnPolicyDistillationRequest` validates ordered token mapping, concrete template fingerprints, inference renderer compatibility, and structured grammar requirements. The backend-neutral rollout row carries semantic messages and response-format identity separately from student token IDs. The private TRL adapter constructs model-native prefixes and exact completion alignment.
+Policy Prism must end with:
 
-The TRL fork accepts per-row teacher-native prompt IDs, exact completion IDs, and a structured-output specification; its teacher server returns selected-token IDs, constrained log probabilities, allowed-token counts, and allowed-set digests without generating a completion. Its colocated generation returns processed sampled-token log probabilities when constrained mode is selected.
+* stage-specific dynamic output budgeting with rules cap 32,768 and effective sequence clipping;
+* generation-only schema bounds derived from supplied source structure, never Gold counts;
+* a complete output-feasibility audit that replaces unsafe units or splits only at reviewed legal boundaries;
+* ledger attempts identified by logical target, candidate, and ordinal with deterministic seed/reason/digests;
+* a deterministic capacity-one compatibility graph with runtime augmenting-path reassignment and an offline Hall-style capacity proof;
+* selected-stage independence from optional diagnostic failure;
+* a committed `validate-scope-opd-completion` CLI and negative fixtures; and
+* new immutable resilient environment/catalog/work-package entries.
 
-Policy Prism owns semantic prompt rendering, task schemas, source/decision metadata, staged admission, dynamic graph references, deterministic plan ordering, allocation/replacement, ledger state, and the 384-target completion validator. PostTrain and TRL must not encode Policy-specific legal meanings.
+PostTrain must end with:
 
-Managed evaluation uses PostTrain's typed vLLM XGrammar backend selection and Policy's per-request generation-only schema plus bounded whitespace. Canonical JSON Schema validation remains Policy-owned after generation.
+* one idempotent checkpoint publication registry shared by periodic and failure paths;
+* guarded terminal tracking recovery for provider-terminal/tracking-nonterminal runs;
+* read-only digest-verifying artifact materialization that creates no cosmetic Trackio run;
+* deep checkpoint verification backed by that read-only provider fetch rather than Trackio's current `unsupported` result;
+* exact evaluation checkpoint model override assertions; and
+* regressions for every new behavior.
 
-Credentials are read only from existing protected environment files. Required live services are Hugging Face, the CarbonTeq OCI registry, dstack, Trackio, and OpenRouter for final Claude judging. No secret, signed URL, or raw token is written into commits, manifests, receipts, traces, or this plan.
+TRL post7 remains unchanged unless implementation evidence demonstrates a generic trainer defect. Trackio's duplicate-artifact rule remains strict. Hugging Face receives only the adapter/model card, never optimizer or recovery state. OpenRouter receives sealed context/model outputs only during the two explicitly authorized Claude-judged final evaluations.
 
-Revision note (2026-08-12): this revision supersedes the earlier launch plan after a full checkpoint-96 root-cause audit. It retains the proven hardware/configuration findings, adds the required cross-template and constrained-probability corrections, removes KPI redesign and unvalidated semantic-abstention rejection, narrows live preflight to two evidence-driven canaries, and preserves the complete training/publication/evaluation/finalization path.
+## Revision Note
+
+2026-08-17: rewrote the plan after exact production-attempt-two trace analysis. The prior plan incorrectly described target 171 as a repeated malformed/whitespace loop and proposed insufficient schema bounds. The retained responses were meaningful JSON prefixes stopped by an artificial 16,384-token cap, while greedy reserve allocation had consumed safer candidates. This revision adds the 32,768 dynamic rules capacity, capacity-aware fallback assignment, deterministic in-slot retry, idempotent checkpoint finalization, exact target-171 canary, grounded 12/1/12 throughput decision, fresh-run requirement, corrected evaluation adapter binding, and complete publication/finalization path.
