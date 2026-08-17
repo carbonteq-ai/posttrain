@@ -9,11 +9,13 @@ from types import SimpleNamespace
 
 import pytest
 from posttrain.common import ContractError
+from posttrain.execution import RuntimeImageRef
 from posttrain.runtime_images.manifest import load_manifest
 from posttrain_cli.checks import runtime_images_check
 from posttrain_cli.cli import main
 from posttrain_cli.context import CliState
 from posttrain_cli.execution_config import load_local_execution_config
+from posttrain_cli.runtime_image_builds import build_runtime_images
 from posttrain_cli.runtime_images import (
     ensure_kind_image_ready,
     verify_registry,
@@ -277,6 +279,45 @@ def test_build_missing_refuses_to_pack_when_configured_digest_stays_stale(
             manifest=_manifest(),
             inspector=inspector,
         )
+
+
+def test_runtime_rebuild_builds_and_verifies_base_before_kind(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    registry = _registry(tmp_path, monkeypatch)
+    manifest = _manifest()
+
+    class _Builder:
+        def __init__(self) -> None:
+            self.requests = []
+
+        def build(self, request):
+            self.requests.append(request)
+            if request.profile == "base":
+                image = RuntimeImageRef(
+                    f"registry.internal/team/posttrain-base@{manifest.base.digest}"
+                )
+            else:
+                image = RuntimeImageRef(
+                    f"registry.internal/team/posttrain-kind-{request.profile}"
+                    f"@{manifest.kinds[request.profile].digest}"
+                )
+            return SimpleNamespace(image=image, lock_digest=request.lock_digest)
+
+    builder = _Builder()
+    results = build_runtime_images(
+        registry,
+        variants=["online-rl-trl-py312"],
+        builder=builder,
+    )
+
+    assert [request.profile for request in builder.requests] == [
+        "base",
+        "online-rl-trl-py312",
+    ]
+    assert builder.requests[1].base_image.value.endswith(manifest.base.digest)
+    assert results[0].matches_published_digest
 
 
 def test_doctor_fails_when_a_configured_image_is_not_this_release(

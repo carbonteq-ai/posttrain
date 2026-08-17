@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from posttrain.common import ContractError
+from posttrain.execution import RuntimeImageRef
 from posttrain.runtime_images import (
     BASE_BAKE_FILE,
     BASE_DEFINITION,
@@ -76,7 +77,9 @@ def _request(
     registry: RegistryBinding,
     root: Path,
     source_digest: str,
+    base_image: RuntimeImageRef | None = None,
 ) -> RuntimeBuildRequest:
+    resolved_base = base_image or registry.universal_image
     return RuntimeBuildRequest(
         profile=variant,
         bake_file=(root / KIND_BAKE_FILE).resolve(),
@@ -86,12 +89,12 @@ def _request(
         source_digest=source_digest,
         # Computed from the shipped lock, never restated by a human.
         lock_digest=lock_digest(constraint_lock(variant)),
-        base_image=registry.universal_image,
+        base_image=resolved_base,
         builder=registry.buildx_builder,
         # POSTTRAIN_BASE_IMAGE is what the shipped kind Bake file declares.
         # RuntimeBuildRequest also emits BASE_IMAGE, which that file does not
         # declare and Bake silently ignores, leaving FROM blank.
-        variables={"POSTTRAIN_BASE_IMAGE": registry.universal_image.value},
+        variables={"POSTTRAIN_BASE_IMAGE": resolved_base.value},
     )
 
 
@@ -141,6 +144,22 @@ def build_runtime_images(
     source_digest = _source_digest(root)
     resolved = builder or BuildKitRuntimeBuilder(receipt_root=_receipt_root(registry))
 
+    base_result = resolved.build(
+        _base_request(
+            registry=registry,
+            root=root,
+            source_digest=source_digest,
+        )
+    )
+    published_base = manifest.base.digest
+    observed_base = base_result.image.value.rsplit("@", 1)[1]
+    if observed_base != published_base:
+        raise ContractError(
+            "rebuilt base image does not match this release: "
+            f"expected {published_base}, observed {observed_base}; "
+            "do not build job-kind images from an unverified base"
+        )
+
     built: list[RuntimeImageBuild] = []
     for variant in variants:
         if variant not in manifest.kinds:
@@ -148,7 +167,15 @@ def build_runtime_images(
                 f"this release does not publish runtime variant {variant!r}; "
                 "published variants are " + ", ".join(sorted(manifest.kinds))
             )
-        result = resolved.build(_request(variant, registry=registry, root=root, source_digest=source_digest))
+        result = resolved.build(
+            _request(
+                variant,
+                registry=registry,
+                root=root,
+                source_digest=source_digest,
+                base_image=base_result.image,
+            )
+        )
         published = manifest.kinds[variant].digest
         observed = result.image.value.rsplit("@", 1)[1]
         built.append(
