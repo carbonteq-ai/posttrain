@@ -33,8 +33,9 @@ After the exact image and two short canaries in this plan pass, launch a fresh p
 - [x] (2026-08-17) Add maintained exact release, explicit-target completion, read-only materialization, Trackio write-preflight, and serving-metadata commands. Focused Policy and PostTrain tests pass.
 - [x] (2026-08-17) Reconstruct trusted base `sha256:8ea6238d52895e67716b2ca6d5de185e14bd234495a67a5846e99d55e0ce2040`, then reject the first online-RL rebuild after exact inspection showed that it still contained TRL post1.
 - [x] (2026-08-17) Isolate the OPD online-RL dependency closure from the shared supervised lock; preserve the shared post1 closure and publish the corrected TRL post7 online-RL runtime `sha256:ac3496de75a61dddc840650d7956b51dc90511cd2e588d6bcff16516d0caa8d7` with lock digest `11e1f0b6f32d656186143a25ef21b527113437b06738249c25a90f7e28f231fd`.
-- [ ] Finish the in-progress exact canary job-image push from a clean pushed PostTrain commit, record its immutable digest, and pack the production/evaluation job images.
-- [ ] Run the exhaustive release gate inside the exact packed training image and finish credential/registry/GPU preflight.
+- [x] (2026-08-18) Pack canary image `sha256:1d6baef8cafaee39ae9f311caea53867bca971dc63030a26c0dd98d41c95a433`; verify TRL post7, all 1,303 schemas, 384 targets/480 candidates, and 50 twelve-worker cold-ledger rounds inside that exact image.
+- [x] (2026-08-18) Preserve and reconcile admission-only canary `opd3can01-longrules-e2b12b-c12-r16-v1`. It failed before model load or target generation because the resilient 32,768+32,768 trainer envelope exceeded rollout revision 7's 49,152 declared context. Add a distillation static validator and Policy rollout revision 9 with a 65,536 declared context; Policy commit `b6222c7` is pushed.
+- [ ] Repack only the corrected canary job image from clean pushed commits, repeat the exact-image release gate, and record the replacement immutable digest. Pack production/evaluation only after both live canaries pass.
 - [ ] Run one 12-target target-171 training canary and one two-case managed-serving canary within a combined 90-minute GPU budget.
 - [ ] Launch one fresh 384-target run from base E2B; verify all 32 updates, eight four-step recovery pairs, and scientific views at 8, 16, 24, and 32.
 - [ ] Materialize, verify, document, and privately publish the exact step-32 model adapter.
@@ -68,6 +69,7 @@ The known failure chain is:
 | Evaluation model binding | Existing corrected evaluation packages bind base E2B. | New final packages must resolve the exact step-32 `model-adapter`, never the recovery checkpoint or base model. Assert this before rollout one. |
 | Tracking credential | A later Trackio token rotation temporarily prevented new tracked jobs even though earlier qualification had succeeded. | Load the current protected credential file, perform a non-secret authenticated preflight immediately before submission, and fail before GPU allocation if write access is rejected. |
 | Prompt qualification | Current code removes trace metadata and label leakage, but its inventory test checks semantic words across an entire profile rather than the exact stage message. | Audit every rendered production message and enforce per-stage legal rubrics. Existing evaluation evidence already establishes that 12B is stronger than E2B, so no extra teacher-versus-student GPU comparison is required. |
+| Distillation planning | The resilient settings allowed 32,768 prompt plus 32,768 completion tokens, but rollout revision 7 declared 49,152 total tokens. Distillation had no static seat validator, so validation and packaging passed before the worker rejected the request. | Reuse runtime request selection validation during static work-package preparation and regression-test the mismatch. Rollout revision 9 declares 65,536 for admission while Policy's actual per-call sequence cap remains 40,960. |
 
 ## Surprises & Discoveries
 
@@ -107,6 +109,9 @@ The known failure chain is:
 - Observation: the framework source pin alone did not determine the TRL installed in an actual job.
   Evidence: exact inspection found `trl==1.9.2.post1` in the first rebuilt parent because job source wheels install with `--no-deps`; the runtime profile and constraint lock remain authoritative for third-party packages. Replacing the shared workspace lock would have silently changed every supervised/evaluation runtime, so the corrected design gives only `online-rl-trl-py312` a post7-specific lock. Runtime tests now require the online profile and lock to match `packages/train/pyproject.toml`, while the shared supervised profile remains post1.
 
+- Observation: work-package validation previously did not validate distillation's cross-seat context envelope.
+  Evidence: the first resilient canary reached the provider and Trackio but raised `rollout model length must cover distillation prompt and completion limits` before loading either model. GRPO already had a static validator; distillation did not. The shared selection validator is now called by both runtime request construction and static job preparation, and the exact 640-versus-639 regression fails before packaging.
+
 ## Decision Log
 
 - Decision: keep production geometry at logical 12, physical 1, accumulation 12.
@@ -116,6 +121,10 @@ The known failure chain is:
 - Decision: increase the rules-stage ceiling to 32,768 while retaining the 40,960 per-call sequence cap.
   Rationale: PostTrain already computes `effective_max = min(stage_cap, trainer_cap, sequence_cap - rendered_prompt_tokens)`. Target 171 therefore receives 32,768 tokens and its long reserve 31,916, never exceeding the existing call or model envelope. Evidence and graph caps remain 2,048 and 8,192.
   Date/Author: 2026-08-17 / Codex.
+
+- Decision: declare a 65,536-token rollout context for the resilient 32,768+32,768 trainer envelope without raising Policy's actual 40,960 per-call cap.
+  Rationale: the model natively supports the declared envelope, while every production request remains dynamically clipped by the stricter Policy contract. This satisfies framework admission without weakening the source-specific safety cap or reducing the newly required long-rules capacity.
+  Date/Author: 2026-08-18 / Codex.
 
 - Decision: do not split legal source units by default.
   Rationale: splitting can destroy parent-child, inherited qualification, and multiple-valid context. First replace an infeasible candidate with another complete same-stratum legal unit. If replacement is impossible, split only at reviewed top-level legal boundaries while copying required parent context. Never use arbitrary token windows. Multiple-valid and constructed-incomplete registry units should normally be replaced because splitting may change their decision class.

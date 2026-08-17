@@ -146,57 +146,84 @@ class OnPolicyDistillationRequest:
     def __post_init__(self) -> None:
         if not self.bridge.dataset.examples:
             raise ValueError("on-policy distillation requires at least one rollout example")
-        if self.student.id == self.teacher.id:
-            raise ValueError("on-policy distillation requires distinct student and teacher variants")
-        if self.rollout_inference.model.id != self.student.id:
-            raise ValueError("distillation rollout inference must select the student model variant")
-        if self.teacher_inference.model.id != self.teacher.id:
-            raise ValueError("distillation teacher inference must select the teacher model variant")
-        if self.rollout_inference.renderer != self.student.renderer_contract:
-            raise ValueError("distillation rollout renderer is incompatible with the student model")
-        if self.teacher_inference.renderer != self.teacher.renderer_contract:
-            raise ValueError("distillation scoring renderer is incompatible with the teacher model")
-        if "rollout" not in self.rollout_inference.purpose:
-            raise ValueError("distillation rollout inference must declare the rollout purpose")
-        if "teacher-score" not in self.teacher_inference.purpose:
-            raise ValueError("distillation teacher inference must declare the teacher-score purpose")
-        student_fingerprint = self.student.tokenizer_fingerprint
-        teacher_fingerprint = self.teacher.tokenizer_fingerprint
-        if student_fingerprint is None or teacher_fingerprint is None:
-            raise ValueError("distillation requires immutable student and teacher tokenizer fingerprints")
-        if student_fingerprint != teacher_fingerprint:
-            raise ValueError("distillation requires identical student and teacher token-id mappings")
-        student_template = self.student.chat_template_fingerprint
-        teacher_template = self.teacher.chat_template_fingerprint
-        if self.settings.teacher_prompt_alignment == "exact_full_sequence":
-            if student_template is not None and teacher_template is not None and student_template != teacher_template:
-                raise ValueError(
-                    "exact-full-sequence distillation requires identical student and teacher chat templates"
-                )
-        elif student_template is None or teacher_template is None:
-            raise ValueError("model-native-prefix distillation requires immutable chat-template fingerprints")
-        if (
-            self.settings.probability_space == "generation_constrained"
-            and self.settings.teacher_prompt_alignment != "model_native_prefix_exact_completion"
-        ):
-            raise ValueError("generation-constrained distillation requires model-native prompt alignment")
-        _validate_training(self.student, self.settings.loop, self.training, self.quantization)
-        sequence_length = self.settings.max_prompt_length + self.settings.max_completion_length
-        _validate_sequence_length(sequence_length, self.training)
-        for role, binding in (
-            ("rollout", self.rollout_inference),
-            ("teacher-score", self.teacher_inference),
-        ):
-            engine_limit = binding.engine.get("max_model_len")
-            if isinstance(engine_limit, int) and sequence_length > engine_limit:
-                raise ValueError(f"{role} model length must cover distillation prompt and completion limits")
-        expected_batch = self.settings.num_prompts_per_step * self.settings.num_generations
-        global_batch = self.training.runtime.global_batch_size
-        if isinstance(global_batch, int) and global_batch != expected_batch:
-            raise ValueError("training global batch must equal distillation prompts times generations")
-        plan_id = self.rollout_inference.engine.get("quantization_plan_id")
-        if plan_id is not None and (self.quantization is None or plan_id != self.quantization.id):
-            raise ValueError("distillation rollout quantization must reference the selected quantization plan")
+        validate_on_policy_distillation_selections(
+            student=self.student,
+            teacher=self.teacher,
+            settings=self.settings,
+            training=self.training,
+            rollout_inference=self.rollout_inference,
+            teacher_inference=self.teacher_inference,
+            quantization=self.quantization,
+        )
+
+
+def validate_on_policy_distillation_selections(
+    *,
+    student: ModelVariant,
+    teacher: ModelVariant,
+    settings: OnPolicyDistillationSettings,
+    training: TrainingBinding,
+    rollout_inference: InferenceBinding,
+    teacher_inference: InferenceBinding,
+    quantization: QuantizationPlan | None = None,
+) -> None:
+    """Validate distillation selections without loading the environment.
+
+    Work-package planning uses this selection-only seam to reject incompatible
+    model, trainer, and inference envelopes before an image is built or a
+    provider run is submitted. Runtime request construction calls the same
+    validator after the environment bridge has been loaded.
+    """
+
+    if student.id == teacher.id:
+        raise ValueError("on-policy distillation requires distinct student and teacher variants")
+    if rollout_inference.model.id != student.id:
+        raise ValueError("distillation rollout inference must select the student model variant")
+    if teacher_inference.model.id != teacher.id:
+        raise ValueError("distillation teacher inference must select the teacher model variant")
+    if rollout_inference.renderer != student.renderer_contract:
+        raise ValueError("distillation rollout renderer is incompatible with the student model")
+    if teacher_inference.renderer != teacher.renderer_contract:
+        raise ValueError("distillation scoring renderer is incompatible with the teacher model")
+    if "rollout" not in rollout_inference.purpose:
+        raise ValueError("distillation rollout inference must declare the rollout purpose")
+    if "teacher-score" not in teacher_inference.purpose:
+        raise ValueError("distillation teacher inference must declare the teacher-score purpose")
+    student_fingerprint = student.tokenizer_fingerprint
+    teacher_fingerprint = teacher.tokenizer_fingerprint
+    if student_fingerprint is None or teacher_fingerprint is None:
+        raise ValueError("distillation requires immutable student and teacher tokenizer fingerprints")
+    if student_fingerprint != teacher_fingerprint:
+        raise ValueError("distillation requires identical student and teacher token-id mappings")
+    student_template = student.chat_template_fingerprint
+    teacher_template = teacher.chat_template_fingerprint
+    if settings.teacher_prompt_alignment == "exact_full_sequence":
+        if student_template is not None and teacher_template is not None and student_template != teacher_template:
+            raise ValueError("exact-full-sequence distillation requires identical student and teacher chat templates")
+    elif student_template is None or teacher_template is None:
+        raise ValueError("model-native-prefix distillation requires immutable chat-template fingerprints")
+    if (
+        settings.probability_space == "generation_constrained"
+        and settings.teacher_prompt_alignment != "model_native_prefix_exact_completion"
+    ):
+        raise ValueError("generation-constrained distillation requires model-native prompt alignment")
+    _validate_training(student, settings.loop, training, quantization)
+    sequence_length = settings.max_prompt_length + settings.max_completion_length
+    _validate_sequence_length(sequence_length, training)
+    for role, binding in (
+        ("rollout", rollout_inference),
+        ("teacher-score", teacher_inference),
+    ):
+        engine_limit = binding.engine.get("max_model_len")
+        if isinstance(engine_limit, int) and sequence_length > engine_limit:
+            raise ValueError(f"{role} model length must cover distillation prompt and completion limits")
+    expected_batch = settings.num_prompts_per_step * settings.num_generations
+    global_batch = training.runtime.global_batch_size
+    if isinstance(global_batch, int) and global_batch != expected_batch:
+        raise ValueError("training global batch must equal distillation prompts times generations")
+    plan_id = rollout_inference.engine.get("quantization_plan_id")
+    if plan_id is not None and (quantization is None or plan_id != quantization.id):
+        raise ValueError("distillation rollout quantization must reference the selected quantization plan")
 
 
 def _validate_training(
@@ -228,6 +255,7 @@ __all__ = [
     "EnvironmentSelection",
     "GRPORequest",
     "OnPolicyDistillationRequest",
+    "validate_on_policy_distillation_selections",
     "SAMPORequest",
     "SFTRequest",
 ]

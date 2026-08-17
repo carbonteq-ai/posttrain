@@ -72,6 +72,7 @@ from posttrain.train import (
     sampo,
     sft,
     transform,
+    validate_on_policy_distillation_selections,
 )
 from posttrain.work import JobDefinition, ResolvedSeats
 
@@ -315,6 +316,7 @@ def distillation_definition(
         run,
         "Generate fresh student rollouts, score with the teacher, and apply distillation.",
         required_artifact_roles=("model", "summary"),
+        static_validator=_validate_distillation_seats,
     )
 
 
@@ -361,6 +363,7 @@ def resumable_distillation_definition(
         run,
         "Resume on-policy distillation from an immutable trainer checkpoint.",
         required_artifact_roles=("model", "summary"),
+        static_validator=_validate_distillation_seats,
     )
 
 
@@ -813,6 +816,20 @@ def _validate_online_rl_batch_seats(seats: ResolvedSeats) -> None:
     global_batch = training.runtime.global_batch_size
     if isinstance(global_batch, int) and global_batch != expected_batch:
         raise ContractError("training global batch must equal prompt groups times generations")
+
+
+def _validate_distillation_seats(seats: ResolvedSeats) -> None:
+    try:
+        validate_on_policy_distillation_selections(
+            student=_seat(seats, "student", ModelVariant),
+            teacher=_seat(seats, "teacher", ModelVariant),
+            settings=_seat(seats, "settings", OnPolicyDistillationSettings),
+            training=_seat(seats, "training", TrainingBinding),
+            rollout_inference=_seat(seats, "rollout_inference", InferenceBinding),
+            teacher_inference=_seat(seats, "teacher_inference", InferenceBinding),
+        )
+    except ValueError as error:
+        raise ContractError(str(error)) from error
 
 
 def _recovery_checkpoint(context: RunContext) -> LocalArtifactRef | None:

@@ -41,6 +41,7 @@ from posttrain.eval import (
 )
 from posttrain.jobs import (
     build_job_runtime,
+    distillation_definition,
     grpo_definition,
     preference_data_prepare_definition,
     remote_evaluation_definition,
@@ -51,6 +52,7 @@ from posttrain.jobs import (
 from posttrain.jobs.definitions import _materialize_grpo_policy
 from posttrain.train import (
     GRPOSettings,
+    OnPolicyDistillationSettings,
     SFTRequest,
     SFTSettings,
     TrainingBinding,
@@ -473,6 +475,37 @@ def test_static_grpo_preparation_rejects_training_batch_mismatch() -> None:
             {
                 "settings": settings,
                 "training": training,
+            }
+        )
+
+
+def test_static_distillation_preparation_rejects_rollout_context_mismatch() -> None:
+    catalog = open_catalog(scope="jobs-test")
+    student = _selection(catalog, "model", "models/qwen3.5-0.8b@bf16")
+    teacher = _selection(catalog, "model", "models/qwen3.5-2b@bf16")
+    settings = _selection(catalog, "training", "qwen3.5-0.8b/on-policy-distill-smoke-v1")
+    training = _selection(catalog, "training", "training/qwen3.5-0.8b-trl-distill-lora@1")
+    rollout = _selection(catalog, "inference", "inference/qwen3.5-0.8b-vllm-distill-rollout@1")
+    teacher_inference = _selection(catalog, "inference", "inference/qwen3.5-2b-vllm-teacher-score@1")
+    assert isinstance(settings, OnPolicyDistillationSettings)
+    assert isinstance(training, TrainingBinding)
+    assert isinstance(rollout, InferenceBinding)
+    definition = distillation_definition()
+    assert definition.static_validator is not None
+
+    invalid_rollout = replace(rollout, engine={**rollout.engine, "max_model_len": 639})
+    with pytest.raises(
+        ContractError,
+        match="rollout model length must cover distillation prompt and completion limits",
+    ):
+        definition.static_validator(
+            {
+                "student": student,
+                "teacher": teacher,
+                "settings": settings,
+                "training": training,
+                "rollout_inference": invalid_rollout,
+                "teacher_inference": teacher_inference,
             }
         )
 

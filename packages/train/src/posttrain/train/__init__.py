@@ -94,7 +94,14 @@ from .profiles import (
     shape_soft_overlong_reward,
 )
 from .rendering import RenderedPreferenceExample, RenderedSFTExample, render_preferences, render_supervised
-from .requests import DPORequest, GRPORequest, OnPolicyDistillationRequest, SAMPORequest, SFTRequest
+from .requests import (
+    DPORequest,
+    GRPORequest,
+    OnPolicyDistillationRequest,
+    SAMPORequest,
+    SFTRequest,
+    validate_on_policy_distillation_selections,
+)
 from .results import TeacherScoringSummary, TrainingResult, TrainingSummary
 from .sampo_advantages import SAMPOAdvantages, compute_sampo_advantages
 from .transform import (
@@ -136,6 +143,7 @@ __all__ = [
     "SAMPOSettings",
     "SAMPOAdvantages",
     "OnPolicyDistillationRequest",
+    "validate_on_policy_distillation_selections",
     "OnPolicyDistillationSettings",
     "NormalizedGRPOStep",
     "FullParameterUpdate",
