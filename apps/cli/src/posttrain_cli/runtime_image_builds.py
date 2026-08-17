@@ -91,6 +91,7 @@ def _request(
         lock_digest=lock_digest(constraint_lock(variant)),
         base_image=resolved_base,
         builder=registry.buildx_builder,
+        trust_bundle=registry.trust_bundle,
         # POSTTRAIN_BASE_IMAGE is what the shipped kind Bake file declares.
         # RuntimeBuildRequest also emits BASE_IMAGE, which that file does not
         # declare and Bake silently ignores, leaving FROM blank.
@@ -114,6 +115,7 @@ def _base_request(
         lock_digest=lock_digest(),
         base_image=registry.universal_image,
         builder=registry.buildx_builder,
+        trust_bundle=registry.trust_bundle,
     )
 
 

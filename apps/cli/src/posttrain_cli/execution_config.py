@@ -126,6 +126,7 @@ class RegistryBinding:
     receipt_root: Path | None = None
     bake_file: Path | None = None
     framework_source_root: Path | None = None
+    trust_bundle: Path | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -909,12 +910,25 @@ def _parse_registry(
             "receipt_root",
             "bake_file",
             "framework_source_root",
+            "trust_bundle",
         },
         "registry",
     )
     receipt_value = payload.get("receipt_root")
     bake_value = payload.get("bake_file")
     framework_source_value = payload.get("framework_source_root")
+    trust_bundle_value = payload.get("trust_bundle")
+    trust_bundle = (
+        _configured_path(
+            trust_bundle_value,
+            base,
+            "registry.trust_bundle",
+        )
+        if trust_bundle_value is not None
+        else None
+    )
+    if trust_bundle is not None and not trust_bundle.is_file():
+        raise ContractError(f"registry trust bundle is missing: {trust_bundle}")
     mirror_prefix = _optional_config_string(
         payload.get("mirror_prefix"),
         "registry.mirror_prefix",
@@ -977,6 +991,7 @@ def _parse_registry(
             if framework_source_value is not None
             else None
         ),
+        trust_bundle=trust_bundle,
     )
 
 

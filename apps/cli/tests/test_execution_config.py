@@ -1105,6 +1105,7 @@ def test_machine_config_preserves_project_registry_build_policy(
                 'buildx_builder = "project-builder"',
                 'receipt_root = "runtime-builds"',
                 'framework_source_root = "/srv/posttrain"',
+                'trust_bundle = "/etc/ssl/certs/ca-certificates.crt"',
                 "",
             )
         ),
@@ -1128,6 +1129,7 @@ def test_machine_config_preserves_project_registry_build_policy(
     assert loaded.registry.buildx_builder == "project-builder"
     assert loaded.registry.receipt_root == (layout.state / "runtime-builds").resolve()
     assert loaded.registry.framework_source_root == Path("/srv/posttrain")
+    assert loaded.registry.trust_bundle == Path("/etc/ssl/certs/ca-certificates.crt")
     assert loaded.defaults.provider == "local"
 
 
