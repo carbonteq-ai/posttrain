@@ -1088,6 +1088,49 @@ def test_machine_config_extends_defaults_without_owning_dstack_worker_storage(
     assert environment["POSTTRAIN_REGISTRY"] == "project.example/jobs"
 
 
+def test_machine_config_preserves_project_registry_build_policy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    layout = _layout(tmp_path)
+    _write_runtime_environment(tmp_path / "posttrain.env", "POSTTRAIN_REGISTRY=project.example/jobs\n")
+    layout.state.mkdir(parents=True, exist_ok=True)
+    execution_config = layout.state / "execution.toml"
+    execution_config.write_text(
+        "\n".join(
+            (
+                "schema_version = 1",
+                "",
+                "[registry]",
+                'buildx_builder = "project-builder"',
+                'receipt_root = "runtime-builds"',
+                'framework_source_root = "/srv/posttrain"',
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    execution_config.chmod(0o600)
+    config_home = tmp_path / "config"
+    config_dir = config_home / "posttrain"
+    config_dir.mkdir(parents=True)
+    (config_dir / "config.toml").write_text(
+        "schema_version = 1\ndefault_provider = \"local\"\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
+
+    loaded = load_local_execution_config(layout)
+
+    assert loaded.machine is not None
+    assert loaded.registry is not None
+    assert loaded.registry.repository == "project.example/jobs/posttrain-job"
+    assert loaded.registry.buildx_builder == "project-builder"
+    assert loaded.registry.receipt_root == (layout.state / "runtime-builds").resolve()
+    assert loaded.registry.framework_source_root == Path("/srv/posttrain")
+    assert loaded.defaults.provider == "local"
+
+
 def test_machine_config_rejects_local_dns_hostnames(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

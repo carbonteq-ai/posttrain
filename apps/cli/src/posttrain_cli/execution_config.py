@@ -178,13 +178,18 @@ def load_local_execution_config(
             dstack=machine.dstack,
             machine=machine,
         )
+        runtime_values = load_execution_environment(provisional)
+        project_registry = _load_project_registry(
+            configured,
+            environ=runtime_values,
+        )
         return LocalExecutionConfig(
             path=machine.path,
             defaults=machine.defaults,
             environment_file=runtime_environment.path,
             local=machine.local,
             dstack=machine.dstack,
-            registry=derived_registry(environ=load_execution_environment(provisional)),
+            registry=project_registry or derived_registry(environ=runtime_values),
             machine=machine,
         )
     if not configured.exists():
@@ -272,6 +277,50 @@ def load_local_execution_config(
         local=local,
         dstack=dstack,
         registry=registry,
+    )
+
+
+def _load_project_registry(
+    configured: Path,
+    *,
+    environ: Mapping[str, str],
+) -> RegistryBinding | None:
+    """Load project-owned image-build policy alongside machine authority.
+
+    Machine configuration owns providers, credentials, storage, and tracking.
+    A project's execution file may still need to select its OCI repository,
+    buildx builder, and receipt/source roots for reproducible runtime builds.
+    """
+
+    if not configured.exists():
+        return None
+    if not configured.is_file():
+        raise ContractError(f"execution configuration is not a file: {configured}")
+    if configured.stat().st_mode & 0o077:
+        raise ContractError(f"execution configuration must not be accessible by group or others: {configured}")
+    try:
+        payload = tomllib.loads(configured.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as error:
+        raise ContractError(f"invalid execution configuration {configured}: {error}") from error
+    if not isinstance(payload, dict):
+        raise ContractError(f"invalid execution configuration {configured}")
+    _reject_unknown(
+        payload,
+        {
+            "schema_version",
+            "environment_file",
+            "defaults",
+            "providers",
+            "registry",
+        },
+        "root",
+    )
+    if payload.get("schema_version") != 1:
+        raise ContractError("execution configuration schema_version must be 1")
+    return _parse_registry(
+        payload.get("registry"),
+        base=configured.parent,
+        environ=environ,
     )
 
 
