@@ -12,9 +12,7 @@ No system can honestly guarantee that a GPU, network, registry, Trackio, Hugging
 
 ## Launch Verdict
 
-Do not submit the 384-target run until the two required live canaries pass. The deterministic blockers below are implemented and host-tested. Exact-image verification is in progress after discovering that the previously published online-RL parent still installed TRL post1 even though the framework source selected post7. The corrected OPD-only runtime now uses its own dependency lock and leaves supervised, evaluation, and other runtime closures unchanged.
-
-After the exact image and two short canaries in this plan pass, launch a fresh production run from base E2B. Do not resume the failed step-8 checkpoint because token limits, retry identity, reserve assignment, and the task-plan hash changed.
+The two required live canaries passed and the fresh production run completed 29 finite updates without a numerical, teacher, memory, or selected-output failure. It then stopped at a deterministic rolling-instrument allocation boundary. The corrected Policy plan has an exhaustively proved bounded resilience fallback, and its step-28 checkpoint is scientifically compatible because the existing 336 accepted assignments are unchanged. A first recovery attempt exposed a separate TRL repeated-dataloader skip defect and performed zero updates; that evidence is retained and must not be used as a model result. Resume again from the original step-28 pair only after the pinned TRL post8 loader fix passes exact-image qualification.
 
 ## Progress
 
@@ -35,9 +33,15 @@ After the exact image and two short canaries in this plan pass, launch a fresh p
 - [x] (2026-08-17) Isolate the OPD online-RL dependency closure from the shared supervised lock; preserve the shared post1 closure and publish the corrected TRL post7 online-RL runtime `sha256:ac3496de75a61dddc840650d7956b51dc90511cd2e588d6bcff16516d0caa8d7` with lock digest `11e1f0b6f32d656186143a25ef21b527113437b06738249c25a90f7e28f231fd`.
 - [x] (2026-08-18) Pack canary image `sha256:1d6baef8cafaee39ae9f311caea53867bca971dc63030a26c0dd98d41c95a433`; verify TRL post7, all 1,303 schemas, 384 targets/480 candidates, and 50 twelve-worker cold-ledger rounds inside that exact image.
 - [x] (2026-08-18) Preserve and reconcile admission-only canary `opd3can01-longrules-e2b12b-c12-r16-v1`. It failed before model load or target generation because the resilient 32,768+32,768 trainer envelope exceeded rollout revision 7's 49,152 declared context. Add a distillation static validator and Policy rollout revision 9 with a 65,536 declared context; Policy commit `b6222c7` is pushed.
-- [ ] Repack only the corrected canary job image from clean pushed commits, repeat the exact-image release gate, and record the replacement immutable digest. Pack production/evaluation only after both live canaries pass.
-- [ ] Run one 12-target target-171 training canary and one two-case managed-serving canary within a combined 90-minute GPU budget.
-- [ ] Launch one fresh 384-target run from base E2B; verify all 32 updates, eight four-step recovery pairs, and scientific views at 8, 16, 24, and 32.
+- [x] (2026-08-18) Pack corrected training-canary image `sha256:ce4c0b89b61af0a612e2a4cf701eeb16a8f8760dea1ae29cd794aba7307b0ae6`; verify TRL post7, all 1,303 schemas, 384 targets/480 candidates, and 50 twelve-worker cold-ledger rounds inside that exact image.
+- [x] (2026-08-18) Run and reconcile training canary `opd3can03-resilient-longrules-c12-r16-v2`: all twelve historical/highest-risk targets completed, target 171 closed below its effective cap, one finite update scored 18,178 tokens with zero teacher failures or selected truncations, and the paired step-1 checkpoint plus exact completion receipt validate.
+- [x] (2026-08-18) Correct the completion validator to compare explicit canary targets against their immutable non-contiguous production slots. Policy Prism commit `33fd15b` is pushed; the retained canary receipt is valid without rerunning training.
+- [x] (2026-08-18) Preserve serving canary `opd3can04-managedserve-step1-r16-v2`: all six model stages completed, but the evaluation adapter incorrectly required training-only sampled-token masks and reported two finalization failures. Separate serving from training finalization in Policy Prism commit `67bd383`, version the immutable serving selection in `5a4817b`, and retain the failed evidence.
+- [x] (2026-08-18) Run corrected managed-serving canary `opd3can05-managedserve-step1-r16-v3` against the exact canary checkpoint-1 adapter: 2/2 traces, all six stage admissions accepted with `finish_reason=stop`, zero failures/truncations, complete trace sync, and consistent reconciliation. Pack production image `sha256:d5f6217a9821410baf09055b9f5b2b9d10084426b4bb13433e0c189ae24b9783` with package key `eb23a05e62548578d5ffba55cf99302fc16d52977cd23544f00df8e84e235555`.
+- [x] (2026-08-18) Preserve production run `opd3prod01-resilient-e2b12b-c384-r16-v1` after 29 finite updates. The step-28 model/recovery pair contains 336 accepted targets and a valid SQLite ledger; update 29 was not checkpointed and will be replayed. The run stopped only because target 149 had no strict-cap-three fallback under the rolling instrument window.
+- [x] (2026-08-18) Add three reviewed reserves without changing any prior candidate identity or primary assignment; prefer the strict cap and permit bounded cap four only when strict allocation is impossible. Prove the exact checkpoint-28 tail and every single remaining-target forced failure complete all 384 targets. Policy commits `f6fdf35` and `775d655` are pushed.
+- [x] (2026-08-18) Retain and reconcile zero-update recovery attempt `opd3prod01r1-resume28-e2b12b-c384-r16-v1`. It loaded the exact step-28 recovery pair and resolved the correct max-step-32 configuration, but Accelerate interpreted 336 repeated batches as 336 underlying logical batches, exhausted the 32-batch loader, and exited at global step 28.
+- [ ] (2026-08-18) Pin and exact-image qualify TRL post8 from `9b2a6619bd62c12be5fcd5d5c4481c6c95802d8b`. Its repeated batch sampler makes checkpoint skipping operate on the real 384-batch sequence; the exact 28-of-32 unit proof leaves 48 repeated batches beginning at rows 336-347. Resume the original step-28 checkpoint under a new run ID and require updates 29-32 plus the combined 384-target completion receipt.
 - [ ] Materialize, verify, document, and privately publish the exact step-32 model adapter.
 - [ ] Run sealed scope and recovery sequentially against that adapter; finalize, validate, compare, commit, and push the results.
 
@@ -112,6 +116,9 @@ The known failure chain is:
 - Observation: work-package validation previously did not validate distillation's cross-seat context envelope.
   Evidence: the first resilient canary reached the provider and Trackio but raised `rollout model length must cover distillation prompt and completion limits` before loading either model. GRPO already had a static validator; distillation did not. The shared selection validator is now called by both runtime request construction and static job preparation, and the exact 640-versus-639 regression fails before packaging.
 
+- Observation: a gradient-accumulated IW-OPD checkpoint could restore weights and global step while silently skipping all remaining data.
+  Evidence: the step-28 recovery resolved 384 repeated batches over 32 underlying logical batches. Transformers requested that Accelerate skip 336 repeated batches, but `_RepeatBatchDataLoader` exposed the underlying batch sampler, so Accelerate attempted to skip 336 of 32 logical batches and returned an empty loader. TRL post8 exposes a sampler describing the repeated sequence; the exact regression now returns 48 batches and begins at dataset rows 336-347.
+
 ## Decision Log
 
 - Decision: keep production geometry at logical 12, physical 1, accumulation 12.
@@ -162,6 +169,10 @@ The known failure chain is:
   Rationale: only the OPD backend consumes the new constrained IW-OPD fork. A shared-lock replacement would invalidate unrelated SFT, evaluation, and runtime manifests. A dedicated immutable constraint lock makes the actual installed closure explicit and testable without broadening this experiment's change surface.
   Date/Author: 2026-08-17 / Codex.
 
+- Decision: resume the original step-28 checkpoint with TRL post8 rather than restart 336 completed targets.
+  Rationale: the Policy tail correction preserves every already accepted candidate and all objective-defining settings. The only trainer change corrects data-position restoration; weights, optimizer, scheduler, RNG, source plan, ledger, batch geometry, and constrained IW-OPD objective remain unchanged. The zero-update recovery produced no optimizer change and is evidence only, not a resume source.
+  Date/Author: 2026-08-18 / Codex.
+
 - Decision: keep existing business KPI definitions.
   Rationale: the user explicitly excluded KPI redesign and historical re-derivation from this experiment.
   Date/Author: 2026-08-17 / Codex.
@@ -176,9 +187,9 @@ At completion, replace this paragraph with exact PostTrain, Policy Prism, and TR
 
 Three repositories participate:
 
-* `/home/ali-awais-safdar/Post-Train/posttrain` is the framework repository. Work only on `feat/gemma-policy-prism-opd-e2b-12b`, whose last pushed commit before the runtime-lock correction is `d6f5716`. `packages/train` owns the TRL bridge, constrained loss, checkpoint publication, and artifact callbacks. `apps/cli` owns run recovery and materialization commands. Do not change `main`.
-* `/home/ali-awais-safdar/Policy Prism` owns the project environment, task plans, admission, ledger, prompts, catalog overlays, work packages, and permanent evaluation evidence. Work only on `feat/scope-opd-e2b-12b-environment-v1`, currently at `e3f2439`. The environment source commit embedded in a job must be this reviewed commit or an explicitly validated descendant, not merely another repository HEAD.
-* `/home/ali-awais-safdar/Post-Train/trl` owns generic constrained IW-OPD trainer behavior. The currently qualified fork source is `78b61a4d37a7bf8ad7e61bd604ba9e3c3c316897` (`trl==1.9.2.post7`). No further TRL change is indicated by the target-171 or checkpoint-finalization failures.
+* `/home/ali-awais-safdar/Post-Train/posttrain` is the framework repository. Work only on `feat/gemma-policy-prism-opd-e2b-12b`. `packages/train` owns the TRL bridge, constrained loss, checkpoint publication, and artifact callbacks. `apps/cli` owns run recovery and materialization commands. Do not change `main`.
+* `/home/ali-awais-safdar/Policy Prism` owns the project environment, task plans, admission, ledger, prompts, catalog overlays, work packages, and permanent evaluation evidence. Work only on `feat/scope-opd-e2b-12b-environment-v1`, currently at pushed commit `775d655`. The environment source commit embedded in a job must be this reviewed commit or an explicitly validated descendant, not merely another repository HEAD.
+* `/home/ali-awais-safdar/Post-Train/trl` owns generic constrained IW-OPD trainer behavior. The checkpoint-safe candidate is `9b2a6619bd62c12be5fcd5d5c4481c6c95802d8b` (`trl==1.9.2.post8`), with the functional loader change at `5c95ef32444bd71c8408d4f94cf19f6bb5b25278`.
 * The CarbonTeq Trackio fork owns generic read-only artifact hydration. No checkout is currently present. If the installed `carbonteq-trackio==0.31.5.post12` cannot fetch an immutable artifact without calling `use_artifact`, acquire the fork at its exact consumed source, add a small read-only `Api.artifact(...)` surface with a no-consumer-edge regression, publish it immutably, and update the PostTrain pin. Do not implement host export by opening a cosmetic Trackio run.
 
 The immutable base inputs are:
@@ -390,7 +401,11 @@ Register one immutable OPD model variant/inference binding with the exact Tracki
 
     --model-from-run "$OPD_RUN" --model-checkpoint-step 32 --model-seat model
 
-Before rollout one, inspect the resolved plan and assert input kind `model-adapter`, optimizer step 32, exact content digest, base revision, LoRA rank 16, and the OPD project. Refuse any plan resolving base E2B or a recovery checkpoint.
+Before submission, inspect and materialize the ready step-32 checkpoint model view and
+assert kind `model-adapter`, optimizer step 32, exact content digest, base revision,
+LoRA rank 16, and the OPD project. Use the managed-serving-canary-qualified `job run`
+override path, then assert the retained evaluation input lineage is that exact model
+view and contains no `training-checkpoint`. Refuse base E2B or a recovery view.
 
 Run sealed scope first with a unique ID such as `opd3prod01-ckpt32-scope-v11`. Require 18 expected/included, zero failures/truncations/errors, complete trace sync and Claude judging, one Verifiers artifact, provider success, and consistent reconciliation. Only after the GPU is free run recovery as `opd3prod01-ckpt32-recovery-v1`; require the analogous 17-case gate. The two jobs must not overlap on the single dstack target.
 
@@ -548,8 +563,8 @@ The exact-image gate must run after packing and before submission. It must print
 
 Use these canary IDs:
 
-    export TRAIN_CANARY_RUN=opd3can01-longrules-e2b12b-c12-r16-v1
-    export SERVE_CANARY_RUN=opd3can02-evalserve-e2b12b-r16-v1
+    export TRAIN_CANARY_RUN=opd3can03-resilient-longrules-c12-r16-v2
+    export SERVE_CANARY_RUN=opd3can05-managedserve-step1-r16-v3
 
 Submit the training canary, wait, reconcile, and run its scientific gate:
 
@@ -594,15 +609,26 @@ Submit the training canary, wait, reconcile, and run its scientific gate:
       policy-prism-verifiers validate-scope-opd-completion \
         --run-view "$TRAIN_CANARY_STATE/run-view.json" \
         --reconciliation "$POLICY_ROOT/.posttrain/state/executions/$TRAIN_CANARY_RUN/reconciliation.json" \
-        --traces-receipt "$TRAIN_CANARY_STATE/traces/materialization.json" \
-        --summary-receipt "$TRAIN_CANARY_STATE/summary/materialization.json" \
-        --recovery-receipt "$TRAIN_CANARY_STATE/recovery/materialization.json" \
+        --traces "$TRAIN_CANARY_STATE/traces/artifact/verifiers-traces.jsonl" \
+        --checkpoint-root "$TRAIN_CANARY_STATE/recovery/artifact" \
+        --plan-root "$POLICY_ROOT/packages/normative-verifiers/src/policy_prism_normative_verifiers/resources/scope_opd_plan" \
         --expected-targets 12 \
         --expected-updates 1 \
-        --require-target scope-opd-0171 \
+        --expected-target-id scope-opd-0003 \
+        --expected-target-id scope-opd-0037 \
+        --expected-target-id scope-opd-0132 \
+        --expected-target-id scope-opd-0171 \
+        --expected-target-id scope-opd-0211 \
+        --expected-target-id scope-opd-0212 \
+        --expected-target-id scope-opd-0243 \
+        --expected-target-id scope-opd-0283 \
+        --expected-target-id scope-opd-0322 \
+        --expected-target-id scope-opd-0354 \
+        --expected-target-id scope-opd-0358 \
+        --expected-target-id scope-opd-0372 \
         --output "$TRAIN_CANARY_STATE/completion.json"
 
-Expected output is a deterministic receipt with `"pass": true`, twelve consumed rows, one finite update, zero teacher failures, completed target 171, and a unique paired step-1 checkpoint. `pt --json run show` alone is not the scientific gate.
+Expected output is a deterministic receipt with `"valid": true`, twelve consumed rows, one finite update, zero teacher failures, completed target 171, and a unique paired step-1 checkpoint. `pt --json run show` alone is not the scientific gate.
 
 Run the managed serving canary against the canary's model view using the exact override supported by the resolved job:
 
@@ -613,7 +639,7 @@ Run the managed serving canary against the canary's model view using the exact o
       --model-from-run "$TRAIN_CANARY_RUN" \
       --model-checkpoint-step 1 \
       --model-seat model \
-      --timeout-seconds 900 \
+      --timeout-seconds 3600 \
       --run-id "$SERVE_CANARY_RUN"
 
     pt run logs "$SERVE_CANARY_RUN" --follow
@@ -649,7 +675,7 @@ Submit fresh production:
     pt run wait "$OPD_RUN" --timeout-seconds 86400
     pt run reconcile "$OPD_RUN"
     pt run checkpoint list "$OPD_RUN"
-    for STEP in 8 16 24 32; do
+    for STEP in 4 8 12 16 20 24 28 32; do
       pt run checkpoint verify "$OPD_RUN" --step "$STEP" --deep
     done
 
@@ -685,9 +711,9 @@ Then run:
       policy-prism-verifiers validate-scope-opd-completion \
         --run-view "$OPD_STATE/run-view.json" \
         --reconciliation "$POLICY_ROOT/.posttrain/state/executions/$OPD_RUN/reconciliation.json" \
-        --traces-receipt "$OPD_STATE/traces/materialization.json" \
-        --summary-receipt "$OPD_STATE/summary/materialization.json" \
-        --recovery-receipt "$OPD_STATE/recovery/materialization.json" \
+        --traces "$OPD_STATE/traces/artifact/verifiers-traces.jsonl" \
+        --checkpoint-root "$OPD_STATE/recovery/artifact" \
+        --plan-root "$POLICY_ROOT/packages/normative-verifiers/src/policy_prism_normative_verifiers/resources/scope_opd_plan" \
         --expected-targets 384 \
         --expected-updates 32 \
         --output "$OPD_STATE/completion.json"
@@ -757,25 +783,24 @@ Submit final evaluations sequentially only after the final adapter binding valid
     export SCOPE_EVAL_RUN=opd3prod01-ckpt32-scope-v11
     export RECOVERY_EVAL_RUN=opd3prod01-ckpt32-recovery-v1
 
-    export FINAL_PLAN_STATE="$POLICY_ROOT/.posttrain/state/finalization/$OPD_RUN/plans"
-    install -d "$FINAL_PLAN_STATE"
-    pt --json job plan gemma4_e2b_scope_opd_resilient_scope_eval.yaml \
-      --job evaluate \
-      --model-from-run "$OPD_RUN" \
-      --model-checkpoint-step 32 \
-      --model-seat model > "$FINAL_PLAN_STATE/scope.json"
-    pt --json job plan gemma4_e2b_scope_opd_resilient_recovery_eval.yaml \
-      --job evaluate \
-      --model-from-run "$OPD_RUN" \
-      --model-checkpoint-step 32 \
-      --model-seat model > "$FINAL_PLAN_STATE/recovery.json"
-
+    export FINAL_LAUNCH_STATE="$POLICY_ROOT/.posttrain/state/finalization/$OPD_RUN/launch"
+    install -d "$FINAL_LAUNCH_STATE"
+    pt --json run checkpoint show "$OPD_RUN" --step 32 --files \
+      > "$FINAL_LAUNCH_STATE/checkpoint-32.json"
     jq -e '
-      ([.. | objects
-        | select(.kind? == "model-adapter" and .checkpoint_step? == 32)]
-        | length == 1) and
-      ([.. | objects | select(.kind? == "training-checkpoint")] | length == 0)
-    ' "$FINAL_PLAN_STATE/scope.json" "$FINAL_PLAN_STATE/recovery.json"
+      .ready == true and
+      .step == 32 and
+      .model.kind == "model-adapter" and
+      .model.metadata.checkpoint_step == 32 and
+      .model.metadata.checkpoint_view == "model" and
+      .recovery.kind == "training-checkpoint" and
+      .recovery.metadata.checkpoint_step == 32
+    ' "$FINAL_LAUNCH_STATE/checkpoint-32.json"
+
+`job plan` and `job pack` intentionally do not accept model overrides. The supported
+override is applied atomically by `job run`; the successful managed-serving canary
+already proves that path. Retain and inspect the resulting input lineage after each
+evaluation instead of inventing an unsupported dry-run command.
 
     pt job run gemma4_e2b_scope_opd_resilient_scope_eval.yaml \
       --job evaluate \
@@ -791,6 +816,20 @@ Submit final evaluations sequentially only after the final adapter binding valid
     pt run logs "$SCOPE_EVAL_RUN" --follow
     pt run wait "$SCOPE_EVAL_RUN" --timeout-seconds 21600
     pt run reconcile "$SCOPE_EVAL_RUN"
+
+    pt --json run show "$SCOPE_EVAL_RUN" > "$FINAL_LAUNCH_STATE/scope-run-view.json"
+    jq -e --arg training_run "$OPD_RUN" '
+      ([.view.artifacts.items[]
+        | select(.direction == "input"
+                 and .kind == "model-adapter"
+                 and .artifact.provider_metadata.checkpoint_step == 32
+                 and .artifact.provider_metadata.checkpoint_view == "model"
+                 and .artifact.provider_metadata.run_id == $training_run)]
+        | length == 1) and
+      ([.view.artifacts.items[]
+        | select(.direction == "input" and .kind == "training-checkpoint")]
+        | length == 0)
+    ' "$FINAL_LAUNCH_STATE/scope-run-view.json"
 
     pt --json run show "$SCOPE_EVAL_RUN" | jq -e '
       .view as $v |
@@ -823,6 +862,20 @@ Only after the 18-case gate is true:
     pt run logs "$RECOVERY_EVAL_RUN" --follow
     pt run wait "$RECOVERY_EVAL_RUN" --timeout-seconds 21600
     pt run reconcile "$RECOVERY_EVAL_RUN"
+
+    pt --json run show "$RECOVERY_EVAL_RUN" > "$FINAL_LAUNCH_STATE/recovery-run-view.json"
+    jq -e --arg training_run "$OPD_RUN" '
+      ([.view.artifacts.items[]
+        | select(.direction == "input"
+                 and .kind == "model-adapter"
+                 and .artifact.provider_metadata.checkpoint_step == 32
+                 and .artifact.provider_metadata.checkpoint_view == "model"
+                 and .artifact.provider_metadata.run_id == $training_run)]
+        | length == 1) and
+      ([.view.artifacts.items[]
+        | select(.direction == "input" and .kind == "training-checkpoint")]
+        | length == 0)
+    ' "$FINAL_LAUNCH_STATE/recovery-run-view.json"
 
     pt --json run show "$RECOVERY_EVAL_RUN" | jq -e '
       .view as $v |
@@ -881,28 +934,34 @@ Create and validate serving metadata from exact receipts, not manually copied va
     cd "$POLICY_ROOT"
     UV_CACHE_DIR=/tmp/policy-prism-uv-cache \
       uv run --no-sync --package policy-prism-normative-verifiers \
-      policy-prism-verifiers build-serving-metadata \
+      policy-prism-verifiers build-scope-opd-serving-metadata \
         --training-run-view "$OPD_STATE/run-view.json" \
         --evaluation-run-view "$SCOPE_STATE/run-view.json" \
-        --adapter-receipt "$MODEL_STAGE/materialization.json" \
-        --evaluation-receipt "$SCOPE_STATE/native/materialization.json" \
-        --hf-repo "$HF_MODEL_REPO" \
+        --model-materialization "$MODEL_STAGE/materialization.json" \
+        --evaluation-materialization "$SCOPE_STATE/native/materialization.json" \
+        --hf-repository "$HF_MODEL_REPO" \
         --hf-revision "$HF_WEIGHT_REVISION" \
         --output "$SCOPE_SERVING_METADATA"
 
     UV_CACHE_DIR=/tmp/policy-prism-uv-cache \
       uv run --no-sync --package policy-prism-normative-verifiers \
-      policy-prism-verifiers build-serving-metadata \
+      policy-prism-verifiers build-scope-opd-serving-metadata \
         --training-run-view "$OPD_STATE/run-view.json" \
         --evaluation-run-view "$RECOVERY_STATE/run-view.json" \
-        --adapter-receipt "$MODEL_STAGE/materialization.json" \
-        --evaluation-receipt "$RECOVERY_STATE/native/materialization.json" \
-        --hf-repo "$HF_MODEL_REPO" \
+        --model-materialization "$MODEL_STAGE/materialization.json" \
+        --evaluation-materialization "$RECOVERY_STATE/native/materialization.json" \
+        --hf-repository "$HF_MODEL_REPO" \
         --hf-revision "$HF_WEIGHT_REVISION" \
         --output "$RECOVERY_SERVING_METADATA"
 
-    jq -e --arg revision "$HF_WEIGHT_REVISION" \
-      '.adapter_hf_revision == $revision and .optimizer_step == 32' \
+    export MODEL_CONTENT_DIGEST="$(jq -er '.content_digest' "$MODEL_STAGE/materialization.json")"
+    jq -e \
+      --arg revision "$HF_WEIGHT_REVISION" \
+      --arg training_run "$OPD_RUN" \
+      --arg model_revision "$MODEL_CONTENT_DIGEST" \
+      '.hf_revision == $revision
+       and .training_run_id == $training_run
+       and .model_revision == $model_revision' \
       "$SCOPE_SERVING_METADATA" "$RECOVERY_SERVING_METADATA"
 
 Finalize from the Policy Prism repository:
@@ -1015,7 +1074,7 @@ Historical evidence that must remain traceable:
 * fatal target: `scope-opd-0171`;
 * retained candidate attempts: 197; accepted: 185; rejected: twelve;
 * retained 16,384-token incomplete prefixes: seven, all meaningful and with zero trailing whitespace;
-* qualified TRL source: `78b61a4d37a7bf8ad7e61bd604ba9e3c3c316897`;
+* checkpoint-safe TRL source: `9b2a6619bd62c12be5fcd5d5c4481c6c95802d8b`;
 * current PostTrain fix head: `8af9467`; current Policy Prism fix head: `61b0b83`.
 
 As execution proceeds, append concise evidence here: final commits, task/selection hashes, exact package/image digests, exact canary cohort, test counts, canary results, production checkpoints, final adapter receipt, Hugging Face weight/card revisions, evaluation artifact receipts, finalized directory names, domain comparison, and qualification decision.
@@ -1042,7 +1101,7 @@ PostTrain must end with:
 * exact evaluation checkpoint model override assertions; and
 * regressions for every new behavior.
 
-TRL post7 remains unchanged unless implementation evidence demonstrates a generic trainer defect. Trackio's duplicate-artifact rule remains strict. Hugging Face receives only the adapter/model card, never optimizer or recovery state. OpenRouter receives sealed context/model outputs only during the two explicitly authorized Claude-judged final evaluations.
+TRL post8 changes only repeated-dataloader checkpoint positioning; the constrained objective and model behavior remain unchanged. Trackio's duplicate-artifact rule remains strict. Hugging Face receives only the adapter/model card, never optimizer or recovery state. OpenRouter receives sealed context/model outputs only during the two explicitly authorized Claude-judged final evaluations.
 
 ## Revision Note
 

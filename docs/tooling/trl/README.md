@@ -11,12 +11,16 @@ rewards, and Verifiers environment implementations remain independently owned.
 
 The production framework installs the immutable internal release
 `trl==1.9.2.post1`. The Policy Prism constrained-IWOPD feature branch instead
-pins the pushed candidate `trl==1.9.2.post7` directly at
-`carbonteq-ai/trl@78b61a4d37a7bf8ad7e61bd604ba9e3c3c316897` until its independent
+pins the pushed candidate `trl==1.9.2.post8` directly at
+`carbonteq-ai/trl@9b2a6619bd62c12be5fcd5d5c4481c6c95802d8b` until its independent
 internal-index promotion is complete. The fork is based on upstream TRL 1.9.2 and
 keeps the trainer runtime compatible with `datasets 4.6.1` so Verifiers v1 and
 TRL can share one environment. Project-specific job policy and environments
 remain outside the fork.
+The post8 candidate additionally makes gradient-accumulated checkpoint resumes
+skip the repeated generation-batch sequence rather than the shorter underlying
+logical-batch loader. This preserves exact data position when IW-OPD resumes
+from a nonterminal checkpoint.
 Its entropy metrics also preserve chunked-memory behavior for non-contiguous
 sequence slices, which is required for DPO on large-vocabulary models.
 The fork also exposes colocated vLLM's engine-level speculative configuration
