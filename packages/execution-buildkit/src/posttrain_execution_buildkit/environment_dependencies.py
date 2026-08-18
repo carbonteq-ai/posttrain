@@ -9,8 +9,10 @@ import re
 import shutil
 import subprocess
 import tempfile
+import zipfile
 from collections.abc import Mapping
 from dataclasses import dataclass
+from email.parser import Parser
 from pathlib import Path
 from typing import Protocol
 
@@ -196,8 +198,6 @@ def _materialize_host_constraints(
     if runtime_vendor_root is None or not runtime_vendor_root.is_dir():
         raise DependencyResolutionError("runtime vendored wheel root is unavailable on the packaging host")
 
-    staged_root = working_directory / "runtime-vendor"
-    staged_root.mkdir()
     replacements: dict[str, str] = {}
     for match in matches:
         filename = match.group("filename")
@@ -205,16 +205,37 @@ def _materialize_host_constraints(
         source = runtime_vendor_root / filename
         if not source.is_file() or source.is_symlink() or _file_digest(source) != expected_digest:
             raise DependencyResolutionError("runtime vendored wheel differs from its immutable constraint")
-        destination = staged_root / filename
-        shutil.copyfile(source, destination)
-        replacements[match.group(0)] = (
-            f"{match.group('package')} @ {destination.as_uri()}#sha256={expected_digest}"
-        )
+        wheel_name, wheel_version = _wheel_identity(source)
+        if re.sub(r"[-_.]+", "-", wheel_name).lower() != re.sub(
+            r"[-_.]+", "-", match.group("package")
+        ).lower():
+            raise DependencyResolutionError("runtime vendored wheel package identity is inconsistent")
+        replacements[match.group(0)] = f"{match.group('package')}=={wheel_version}"
 
     rewritten = "\n".join(replacements.get(line.strip(), line) for line in contents.splitlines()) + "\n"
     host_constraints = working_directory / "host-kind-constraints.txt"
     host_constraints.write_text(rewritten, encoding="utf-8")
     return host_constraints
+
+
+def _wheel_identity(path: Path) -> tuple[str, str]:
+    try:
+        with zipfile.ZipFile(path) as archive:
+            metadata = tuple(
+                item
+                for item in archive.infolist()
+                if item.filename.endswith(".dist-info/METADATA") and not item.is_dir()
+            )
+            if len(metadata) != 1 or metadata[0].file_size > 1024 * 1024:
+                raise DependencyResolutionError("runtime vendored wheel metadata is invalid")
+            document = Parser().parsestr(archive.read(metadata[0]).decode("utf-8"))
+    except (OSError, UnicodeDecodeError, zipfile.BadZipFile) as error:
+        raise DependencyResolutionError("runtime vendored wheel metadata is unreadable") from error
+    name = document.get("Name", "").strip()
+    version = document.get("Version", "").strip()
+    if not _PACKAGE_NAME.fullmatch(name) or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._+!-]*", version) is None:
+        raise DependencyResolutionError("runtime vendored wheel metadata identity is invalid")
+    return name, version
 
 
 @dataclass(frozen=True, slots=True)

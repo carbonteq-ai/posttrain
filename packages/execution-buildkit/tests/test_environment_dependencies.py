@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import zipfile
 from collections.abc import Mapping
 from pathlib import Path
 from types import SimpleNamespace
@@ -292,12 +293,12 @@ def test_uv_gateway_maps_runtime_vendor_wheel_to_verified_host_copy(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    wheel_contents = b"immutable-wheel"
-    wheel_digest = _digest(wheel_contents)
     vendor_root = (tmp_path / "vendor").absolute()
     vendor_root.mkdir()
     wheel = vendor_root / "trl-1.9.2.post12-py3-none-any.whl"
-    wheel.write_bytes(wheel_contents)
+    with zipfile.ZipFile(wheel, "w") as archive:
+        archive.writestr("trl-1.9.2.post12.dist-info/METADATA", "Name: trl\nVersion: 1.9.2.post12\n")
+    wheel_digest = _digest(wheel.read_bytes())
     work = (tmp_path / "work").absolute()
     work.mkdir()
     requirements = work / "requirements.in"
@@ -334,8 +335,7 @@ def test_uv_gateway_maps_runtime_vendor_wheel_to_verified_host_copy(
     selected = work / arguments[arguments.index("--constraint") + 1]
     rewritten = selected.read_text(encoding="utf-8")
     assert "file:///opt/posttrain/vendor" not in rewritten
-    assert (work / "runtime-vendor" / wheel.name).as_uri() in rewritten
-    assert _digest((work / "runtime-vendor" / wheel.name).read_bytes()) == wheel_digest
+    assert rewritten == "trl==1.9.2.post12\n"
 
 
 def test_uv_gateway_rejects_missing_or_drifted_runtime_vendor_wheel(tmp_path: Path) -> None:
