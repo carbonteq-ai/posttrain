@@ -30,6 +30,11 @@ _PINNED_REQUIREMENT = re.compile(
     r"==[^\s;\\]+(?:\s*;\s*.+)?$"
 )
 _FULL_GIT_REVISION = re.compile(r"git\+https://[^@\s]+@[0-9a-f]{40}(?:#[^\s]+)?$")
+_VENDORED_WHEEL = re.compile(
+    r"^[A-Za-z0-9][A-Za-z0-9._-]*\s*@\s*"
+    r"file:///opt/posttrain/vendor/[A-Za-z0-9][A-Za-z0-9._-]*\.whl"
+    r"#sha256=[0-9a-f]{64}$"
+)
 _URL_USERINFO = re.compile(r"https?://[^/\s:@]+(?::[^@/\s]*)?@")
 _SENSITIVE_QUERY = re.compile(
     r"[?&](?:access[_-]?token|api[_-]?key|auth|credential|password|secret|token)=",
@@ -431,7 +436,7 @@ def _normalize_constraints(contents: str) -> str:
             raise ContractError("kind dependency constraints must not contain secrets")
         if (
             lowered.startswith(("-r ", "--requirement ", "-c ", "--constraint "))
-            or "file://" in lowered
+            or ("file://" in lowered and _VENDORED_WHEEL.fullmatch(stripped) is None)
             or stripped.startswith(("/", "\\"))
             or "${" in stripped
         ):

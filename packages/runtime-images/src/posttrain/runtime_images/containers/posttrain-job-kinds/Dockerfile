@@ -33,6 +33,7 @@ RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locke
       --requirement /opt/posttrain/profiles/supervised.txt
 
 FROM vllm-kind-common AS online-rl-trl-py312-dependencies
+COPY containers/posttrain-job-kinds/vendor/ /opt/posttrain/vendor/
 WORKDIR /opt/posttrain/profiles
 RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locked \
     uv pip install \

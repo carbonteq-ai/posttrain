@@ -2084,7 +2084,7 @@ triton==3.6.0 \
     #   liger-kernel
     #   torch
     #   xgrammar
-trl @ git+https://github.com/carbonteq-ai/trl.git@9b2a6619bd62c12be5fcd5d5c4481c6c95802d8b
+trl @ file:///opt/posttrain/vendor/trl-1.9.2.post12-py3-none-any.whl#sha256=18fb20353171b100887b464b4b486b2dca5c24d356d70e7aea09e239b3f43881
     # via posttrain-train
 typer==0.25.1 \
     --hash=sha256:75caa44ed46a03fb2dab8808753ffacdbfea88495e74c85a28c5eefcf5f39c89 \
@@ -2174,7 +2174,7 @@ uvloop==0.22.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'c
     # via
     #   uvicorn
     #   verifiers
-verifiers @ git+https://github.com/PrimeIntellect-ai/verifiers.git@284a868d6a9022109b749710672a0460e8a996d4
+verifiers @ file:///opt/posttrain/vendor/verifiers-0.2.1.dev64-py3-none-any.whl#sha256=7588f4fc4d76de1501e759cf19ee2d24cbb5207d6c0103069a178e89f932df87
     # via
     #   posttrain-data
     #   posttrain-eval

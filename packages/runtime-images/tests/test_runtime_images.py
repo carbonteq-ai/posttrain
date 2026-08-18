@@ -100,7 +100,7 @@ def test_online_rl_profile_uses_the_pinned_trl_fork_release() -> None:
     )
     trl_contract = train_document["tool"]["posttrain"]["trl"]
     version = trl_contract["version"]
-    revision = trl_contract["source-revision"]
+    wheel_sha256 = trl_contract["wheel-sha256"]
 
     with definition_root() as root:
         profile = (
@@ -109,7 +109,35 @@ def test_online_rl_profile_uses_the_pinned_trl_fork_release() -> None:
     lock = read_lock(ONLINE_RL_TRL_LOCK).decode()
 
     assert f"trl=={version}" in profile.splitlines()
-    assert f"trl @ git+https://github.com/carbonteq-ai/trl.git@{revision}" in lock.splitlines()
+    wheel_name = f"trl-{version}-py3-none-any.whl"
+    wheel_url = f"file:///opt/posttrain/vendor/{wheel_name}"
+    assert f"trl @ {wheel_url}#sha256={wheel_sha256}" in lock.splitlines()
+    with definition_root() as root:
+        wheel = root / "containers/posttrain-job-kinds/vendor" / wheel_name
+        assert hashlib.sha256(wheel.read_bytes()).hexdigest() == wheel_sha256
+
+
+def test_online_rl_profile_uses_the_pinned_verifiers_wheel() -> None:
+    repository_root = Path(__file__).resolve().parents[3]
+    train_document = tomllib.loads(
+        (repository_root / "packages/train/pyproject.toml").read_text(encoding="utf-8")
+    )
+    contract = train_document["tool"]["posttrain"]["verifiers"]
+    version = contract["version"]
+    wheel_sha256 = contract["wheel-sha256"]
+
+    with definition_root() as root:
+        profile = (
+            root / "containers/posttrain-job-kinds/profiles/online-rl-trl-py312.txt"
+        ).read_text(encoding="utf-8")
+        wheel_name = f"verifiers-{version}-py3-none-any.whl"
+        wheel = root / "containers/posttrain-job-kinds/vendor" / wheel_name
+        assert hashlib.sha256(wheel.read_bytes()).hexdigest() == wheel_sha256
+    lock = read_lock(ONLINE_RL_TRL_LOCK).decode()
+
+    assert f"verifiers=={version}" in profile.splitlines()
+    wheel_url = f"file:///opt/posttrain/vendor/{wheel_name}"
+    assert f"verifiers @ {wheel_url}#sha256={wheel_sha256}" in lock.splitlines()
 
 
 def test_verl_is_the_only_variant_with_separate_backend_constraints() -> None:

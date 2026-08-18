@@ -12,7 +12,7 @@ No system can honestly guarantee that a GPU, network, registry, Trackio, Hugging
 
 ## Launch Verdict
 
-The two required live canaries passed and the fresh production run completed 29 finite updates without a numerical, teacher, memory, or selected-output failure. It then stopped at a deterministic rolling-instrument allocation boundary. The corrected Policy plan has an exhaustively proved bounded resilience fallback, and its step-28 checkpoint is scientifically compatible because the existing 336 accepted assignments are unchanged. A first recovery attempt exposed a separate TRL repeated-dataloader skip defect and performed zero updates; that evidence is retained and must not be used as a model result. Resume again from the original step-28 pair only after the pinned TRL post8 loader fix passes exact-image qualification.
+The two required live canaries passed and the fresh production run completed 29 finite updates without a numerical, teacher, memory, or selected-output failure. It then stopped at a deterministic rolling-instrument allocation boundary. The corrected Policy plan has an exhaustively proved bounded resilience fallback, and its step-28 checkpoint is scientifically compatible because the existing 336 accepted assignments are unchanged. A first recovery attempt exposed a separate TRL repeated-dataloader skip defect and performed zero updates; that evidence is retained and must not be used as a model result. Resume again from the original step-28 pair only after the pinned TRL post12 loader fix passes exact-image qualification.
 
 ## Progress
 
@@ -41,7 +41,7 @@ The two required live canaries passed and the fresh production run completed 29 
 - [x] (2026-08-18) Preserve production run `opd3prod01-resilient-e2b12b-c384-r16-v1` after 29 finite updates. The step-28 model/recovery pair contains 336 accepted targets and a valid SQLite ledger; update 29 was not checkpointed and will be replayed. The run stopped only because target 149 had no strict-cap-three fallback under the rolling instrument window.
 - [x] (2026-08-18) Add three reviewed reserves without changing any prior candidate identity or primary assignment; prefer the strict cap and permit bounded cap four only when strict allocation is impossible. Prove the exact checkpoint-28 tail and every single remaining-target forced failure complete all 384 targets. Policy commits `f6fdf35` and `775d655` are pushed.
 - [x] (2026-08-18) Retain and reconcile zero-update recovery attempt `opd3prod01r1-resume28-e2b12b-c384-r16-v1`. It loaded the exact step-28 recovery pair and resolved the correct max-step-32 configuration, but Accelerate interpreted 336 repeated batches as 336 underlying logical batches, exhausted the 32-batch loader, and exited at global step 28.
-- [ ] (2026-08-18) Pin and exact-image qualify TRL post8 from `9b2a6619bd62c12be5fcd5d5c4481c6c95802d8b`. Its repeated batch sampler makes checkpoint skipping operate on the real 384-batch sequence; the exact 28-of-32 unit proof leaves 48 repeated batches beginning at rows 336-347. Resume the original step-28 checkpoint under a new run ID and require updates 29-32 plus the combined 384-target completion receipt.
+- [x] (2026-08-18) Pin and exact-image qualify TRL post12 from `3b3e1a6d1fc53f7e52807e676cc0cd9a020250a9`. Runtime `sha256:2fa925615d103d580790c37b3cfcc0226cc40cbdf05140b4b0ef663354394d04` has lock digest `c46660338b06e25996df1864810bbe23172aec7063fab3e5474406e049ba8468`; exact execution leaves 48 repeated batches beginning at rows 336-347 and ending at 372-383. Resume the original step-28 checkpoint under a new run ID and require updates 29-32 plus the combined 384-target completion receipt.
 - [ ] Materialize, verify, document, and privately publish the exact step-32 model adapter.
 - [ ] Run sealed scope and recovery sequentially against that adapter; finalize, validate, compare, commit, and push the results.
 
@@ -111,13 +111,16 @@ The known failure chain is:
   Evidence: registry inspection rejected the configured base and online-RL digests before any GPU submission. Reconstructing the current source/lock closure then exposed two supply-chain gaps: the runtime builder assumed the base already existed, and the internal package index required the machine CA inside the universal base. PostTrain now builds the base before the kind, accepts a typed machine trust bundle without disabling TLS, records a local-rebuild digest instead of impersonating the historical release digest, and uses a 300-second package-download timeout for multi-hundred-megabyte CUDA wheels. These changes affect packaging only; they do not alter the OPD objective or configuration.
 
 - Observation: the framework source pin alone did not determine the TRL installed in an actual job.
-  Evidence: exact inspection found `trl==1.9.2.post1` in the first rebuilt parent because job source wheels install with `--no-deps`; the runtime profile and constraint lock remain authoritative for third-party packages. Replacing the shared workspace lock would have silently changed every supervised/evaluation runtime, so the corrected design gives only `online-rl-trl-py312` a post7-specific lock. Runtime tests now require the online profile and lock to match `packages/train/pyproject.toml`, while the shared supervised profile remains post1.
+  Evidence: exact inspection found `trl==1.9.2.post1` in the first rebuilt parent because job source wheels install with `--no-deps`; the runtime profile and constraint lock remain authoritative for third-party packages. Replacing the shared workspace lock would have silently changed every supervised/evaluation runtime, so the corrected design gives only `online-rl-trl-py312` a dedicated OPD lock. Runtime tests now require the online profile and lock to match `packages/train/pyproject.toml`, while the shared supervised profile remains post1.
+
+- Observation: the provisional `post8` version collided with different bytes already retained by the internal stable index, and Docker could not reliably fetch either Git history or a release asset from GitHub.
+  Evidence: the stable index advertised `trl==1.9.2.post8` with wheel digest `993375...`, while the checkpoint-safe candidate wheel was `dbdffd...`. The corrected release is uniquely versioned and tagged as `trl==1.9.2.post12` at `3b3e1a6d1fc53f7e52807e676cc0cd9a020250a9`. Its dedicated runtime context vendors the byte-identical release wheel with digest `18fb203...`, so BuildKit installs a local, hash-verified file without external GitHub access.
 
 - Observation: work-package validation previously did not validate distillation's cross-seat context envelope.
   Evidence: the first resilient canary reached the provider and Trackio but raised `rollout model length must cover distillation prompt and completion limits` before loading either model. GRPO already had a static validator; distillation did not. The shared selection validator is now called by both runtime request construction and static job preparation, and the exact 640-versus-639 regression fails before packaging.
 
 - Observation: a gradient-accumulated IW-OPD checkpoint could restore weights and global step while silently skipping all remaining data.
-  Evidence: the step-28 recovery resolved 384 repeated batches over 32 underlying logical batches. Transformers requested that Accelerate skip 336 repeated batches, but `_RepeatBatchDataLoader` exposed the underlying batch sampler, so Accelerate attempted to skip 336 of 32 logical batches and returned an empty loader. TRL post8 exposes a sampler describing the repeated sequence; the exact regression now returns 48 batches and begins at dataset rows 336-347.
+  Evidence: the step-28 recovery resolved 384 repeated batches over 32 underlying logical batches. Transformers requested that Accelerate skip 336 repeated batches, but `_RepeatBatchDataLoader` exposed the underlying batch sampler, so Accelerate attempted to skip 336 of 32 logical batches and returned an empty loader. TRL post12 exposes a sampler describing the repeated sequence; the exact regression now returns 48 batches and begins at dataset rows 336-347.
 
 ## Decision Log
 
@@ -169,7 +172,7 @@ The known failure chain is:
   Rationale: only the OPD backend consumes the new constrained IW-OPD fork. A shared-lock replacement would invalidate unrelated SFT, evaluation, and runtime manifests. A dedicated immutable constraint lock makes the actual installed closure explicit and testable without broadening this experiment's change surface.
   Date/Author: 2026-08-17 / Codex.
 
-- Decision: resume the original step-28 checkpoint with TRL post8 rather than restart 336 completed targets.
+- Decision: resume the original step-28 checkpoint with TRL post12 rather than restart 336 completed targets.
   Rationale: the Policy tail correction preserves every already accepted candidate and all objective-defining settings. The only trainer change corrects data-position restoration; weights, optimizer, scheduler, RNG, source plan, ledger, batch geometry, and constrained IW-OPD objective remain unchanged. The zero-update recovery produced no optimizer change and is evidence only, not a resume source.
   Date/Author: 2026-08-18 / Codex.
 
@@ -189,7 +192,7 @@ Three repositories participate:
 
 * `/home/ali-awais-safdar/Post-Train/posttrain` is the framework repository. Work only on `feat/gemma-policy-prism-opd-e2b-12b`. `packages/train` owns the TRL bridge, constrained loss, checkpoint publication, and artifact callbacks. `apps/cli` owns run recovery and materialization commands. Do not change `main`.
 * `/home/ali-awais-safdar/Policy Prism` owns the project environment, task plans, admission, ledger, prompts, catalog overlays, work packages, and permanent evaluation evidence. Work only on `feat/scope-opd-e2b-12b-environment-v1`, currently at pushed commit `775d655`. The environment source commit embedded in a job must be this reviewed commit or an explicitly validated descendant, not merely another repository HEAD.
-* `/home/ali-awais-safdar/Post-Train/trl` owns generic constrained IW-OPD trainer behavior. The checkpoint-safe candidate is `9b2a6619bd62c12be5fcd5d5c4481c6c95802d8b` (`trl==1.9.2.post8`), with the functional loader change at `5c95ef32444bd71c8408d4f94cf19f6bb5b25278`.
+* `/home/ali-awais-safdar/Post-Train/trl` owns generic constrained IW-OPD trainer behavior. The checkpoint-safe release is `3b3e1a6d1fc53f7e52807e676cc0cd9a020250a9` (`trl==1.9.2.post12`), with the functional loader change at `5c95ef32444bd71c8408d4f94cf19f6bb5b25278`.
 * The CarbonTeq Trackio fork owns generic read-only artifact hydration. No checkout is currently present. If the installed `carbonteq-trackio==0.31.5.post12` cannot fetch an immutable artifact without calling `use_artifact`, acquire the fork at its exact consumed source, add a small read-only `Api.artifact(...)` surface with a no-consumer-edge regression, publish it immutably, and update the PostTrain pin. Do not implement host export by opening a cosmetic Trackio run.
 
 The immutable base inputs are:
@@ -1074,7 +1077,7 @@ Historical evidence that must remain traceable:
 * fatal target: `scope-opd-0171`;
 * retained candidate attempts: 197; accepted: 185; rejected: twelve;
 * retained 16,384-token incomplete prefixes: seven, all meaningful and with zero trailing whitespace;
-* checkpoint-safe TRL source: `9b2a6619bd62c12be5fcd5d5c4481c6c95802d8b`;
+* checkpoint-safe TRL source: `3b3e1a6d1fc53f7e52807e676cc0cd9a020250a9`;
 * current PostTrain fix head: `8af9467`; current Policy Prism fix head: `61b0b83`.
 
 As execution proceeds, append concise evidence here: final commits, task/selection hashes, exact package/image digests, exact canary cohort, test counts, canary results, production checkpoints, final adapter receipt, Hugging Face weight/card revisions, evaluation artifact receipts, finalized directory names, domain comparison, and qualification decision.
@@ -1101,7 +1104,7 @@ PostTrain must end with:
 * exact evaluation checkpoint model override assertions; and
 * regressions for every new behavior.
 
-TRL post8 changes only repeated-dataloader checkpoint positioning; the constrained objective and model behavior remain unchanged. Trackio's duplicate-artifact rule remains strict. Hugging Face receives only the adapter/model card, never optimizer or recovery state. OpenRouter receives sealed context/model outputs only during the two explicitly authorized Claude-judged final evaluations.
+TRL post12 changes only repeated-dataloader checkpoint positioning relative to the qualified post7 runtime; the constrained objective and model behavior remain unchanged. Trackio's duplicate-artifact rule remains strict. Hugging Face receives only the adapter/model card, never optimizer or recovery state. OpenRouter receives sealed context/model outputs only during the two explicitly authorized Claude-judged final evaluations.
 
 ## Revision Note
 

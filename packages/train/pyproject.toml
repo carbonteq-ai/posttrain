@@ -20,7 +20,7 @@ trl = [
     "torch>=2.11,<2.12",
     "torchvision>=0.26,<0.27",
     "transformers>=5.14,<5.15",
-    "trl==1.9.2.post8",
+    "trl==1.9.2.post12",
     "peft>=0.19,<0.20",
     "datasets>=4.6.1,<4.7",
     "accelerate>=1.14,<1.15",
@@ -47,14 +47,19 @@ posttrain-common = { workspace = true }
 posttrain-data = { workspace = true }
 torch = { index = "pytorch-cu130" }
 torchvision = { index = "pytorch-cu130" }
-trl = { git = "https://github.com/carbonteq-ai/trl.git", rev = "9b2a6619bd62c12be5fcd5d5c4481c6c95802d8b" }
+trl = { git = "https://github.com/carbonteq-ai/trl.git", rev = "3b3e1a6d1fc53f7e52807e676cc0cd9a020250a9" }
 
 [tool.posttrain.trl]
-version = "1.9.2.post8"
-release-tag = "carbonteq-v1.9.2.post8"
-source-revision = "9b2a6619bd62c12be5fcd5d5c4481c6c95802d8b"
-wheel-sha256 = "dbdffd125ae6bd947b37652e4b983d9f3cf797768cf2d5b83605ca8a51c079fc"
-sdist-sha256 = "6dec69b09069061f92acf386f523dff8c51187196419c639ba69e262cde5d9b1"
+version = "1.9.2.post12"
+release-tag = "carbonteq-v1.9.2.post12"
+source-revision = "3b3e1a6d1fc53f7e52807e676cc0cd9a020250a9"
+wheel-sha256 = "18fb20353171b100887b464b4b486b2dca5c24d356d70e7aea09e239b3f43881"
+sdist-sha256 = "deec69ff3cb40766ecdb737c9d5f067d28633ca05c6899304e20c749dc0cc860"
+
+[tool.posttrain.verifiers]
+version = "0.2.1.dev64"
+source-revision = "284a868d6a9022109b749710672a0460e8a996d4"
+wheel-sha256 = "7588f4fc4d76de1501e759cf19ee2d24cbb5207d6c0103069a178e89f932df87"
 
 [build-system]
 requires = ["hatchling"]

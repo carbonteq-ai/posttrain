@@ -6,7 +6,7 @@ import importlib.metadata
 import unittest
 import warnings
 
-TRL_RELEASE = "1.9.2.post8"
+TRL_RELEASE = "1.9.2.post12"
 
 
 class TrlVllmCompatibilityTest(unittest.TestCase):

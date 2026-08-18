@@ -278,6 +278,29 @@ def test_rejects_secret_nonportable_or_mutable_kind_constraints(
         KindDependencyConstraints("online-rl", contents)
 
 
+def test_accepts_hash_locked_wheel_from_runtime_vendor_directory() -> None:
+    selected = KindDependencyConstraints(
+        "online-rl",
+        "trl @ file:///opt/posttrain/vendor/trl-1.9.2.post12-py3-none-any.whl"
+        f"#sha256={'a' * 64}\n",
+    )
+
+    assert "file:///opt/posttrain/vendor/trl-1.9.2.post12-py3-none-any.whl" in selected.contents
+
+
+@pytest.mark.parametrize(
+    "location",
+    [
+        "file:///opt/posttrain/vendor/trl.whl",
+        "file:///opt/posttrain/vendor/../trl.whl#sha256=" + "a" * 64,
+        "file:///opt/posttrain/trl.whl#sha256=" + "a" * 64,
+    ],
+)
+def test_rejects_unhashed_or_out_of_boundary_vendored_wheel(location: str) -> None:
+    with pytest.raises(ContractError, match="expanded and portable"):
+        KindDependencyConstraints("online-rl", f"trl @ {location}\n")
+
+
 def test_provided_packages_are_normalized_validated_and_digest_bound() -> None:
     selected = KindDependencyConstraints(
         "online-rl",
