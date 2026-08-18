@@ -12,7 +12,7 @@ No system can honestly guarantee that a GPU, network, registry, Trackio, Hugging
 
 ## Launch Verdict
 
-The two required live canaries passed and the fresh production run completed 29 finite updates without a numerical, teacher, memory, or selected-output failure. It then stopped at a deterministic rolling-instrument allocation boundary. The corrected Policy plan has an exhaustively proved bounded resilience fallback, and its step-28 checkpoint is scientifically compatible because the existing 336 accepted assignments are unchanged. A first recovery attempt exposed a separate TRL repeated-dataloader skip defect and performed zero updates; that evidence is retained and must not be used as a model result. Resume again from the original step-28 pair only after the pinned TRL post12 loader fix passes exact-image qualification.
+Execution is complete. The exact step-28 checkpoint resumed under the qualified TRL post12 loader and finished updates 29-32; the combined completion receipt validates all 384 targets and 32 finite updates. The adapter is published and byte-verified on Hugging Face. Sealed scope and recovery both completed operationally with full Claude evidence and are finalized in Policy Prism. The predeclared scientific verdict is `revise`: complete-rule recovery improves materially, but the primary end-to-end scope benchmark does not beat base E2B non-thinking.
 
 ## Progress
 
@@ -43,8 +43,12 @@ The two required live canaries passed and the fresh production run completed 29 
 - [x] (2026-08-18) Retain and reconcile zero-update recovery attempt `opd3prod01r1-resume28-e2b12b-c384-r16-v1`. It loaded the exact step-28 recovery pair and resolved the correct max-step-32 configuration, but Accelerate interpreted 336 repeated batches as 336 underlying logical batches, exhausted the 32-batch loader, and exited at global step 28.
 - [x] (2026-08-18) Pin and exact-image qualify TRL post12 from `3b3e1a6d1fc53f7e52807e676cc0cd9a020250a9`. Runtime `sha256:2fa925615d103d580790c37b3cfcc0226cc40cbdf05140b4b0ef663354394d04` has lock digest `c46660338b06e25996df1864810bbe23172aec7063fab3e5474406e049ba8468`; exact execution leaves 48 repeated batches beginning at rows 336-347 and ending at 372-383. Resume the original step-28 checkpoint under a new run ID and require updates 29-32 plus the combined 384-target completion receipt.
 - [x] (2026-08-18) Correct the machine-local runtime override to the post12 digest and make host dependency resolution verify image-owned `/opt/posttrain/vendor` wheel hashes and metadata before using their exact versions as host-only constraints. The runtime retains the canonical file URLs; the host mapping fails closed on a missing, mismatched, or malformed wheel.
-- [ ] Materialize, verify, document, and privately publish the exact step-32 model adapter.
-- [ ] Run sealed scope and recovery sequentially against that adapter; finalize, validate, compare, commit, and push the results.
+- [x] (2026-08-18) Resume the exact step-28 pair as `opd3prod01r2-resume28-e2b12b-c384-r16-v1` and complete updates 29-32. The maintained validator proves 384 unique accepted targets, 32 finite updates, exact evidence/rules/graph counts `77/230/77`, zero teacher failures, zero selected truncations, and intact predecessor/checkpoint/ledger lineage.
+- [x] (2026-08-18) Materialize and byte-verify the exact step-32 adapter. Trackio model digest is `d1f2ca4e35179ddd176657ec522a5a9760aea9d2bc839dc3ae27f0c8a181a814`, PostTrain content digest is `321aa499e982896ca17ad3f2125f3ad857532b7e870b68d89665e6783b227be4`, and adapter weights SHA-256 is `2240b7c7f6e14eed766e3aef6211348a5a6a1fc189f20e539790c04a6453221b`.
+- [x] (2026-08-18) Publish the private adapter to `carbonteq/gemma-4-e2b-policy-prism-scope-opd-from-12b-lora-v1`. The evaluated weight/card revision is `219a93c00e40e4a4a5b6e3374fa864024a13f72d`; the qualification-card revision is `3bee00fcc4856aabf464698b0cb0141831ffc6b0`. A fresh download at the latter retains the exact adapter weight SHA-256.
+- [x] (2026-08-18) Run scope `opd3final02-e2b12b-r16-scope-v11-v2` and recovery `opd3final02-e2b12b-r16-recovery-v1-v2` sequentially against the immutable HF adapter. Scope is 18/18 and recovery 17/17 with zero errors/truncations, complete trace sync, complete Claude evidence, and consistent reconciliation.
+- [x] (2026-08-18) Finalize both standard five-file evaluation directories, reproduce all KPI files from retained traces, and validate all 93 Policy Prism runs/1,628 traces. The predeclared scientific decision is `revise`: recovery improves substantially, but scope does not beat base E2B non-thinking.
+- [x] (2026-08-18) Commit and push finalized Policy Prism evidence as `2be72a1`; complete this living plan on the PostTrain OPD feature branch and verify both branches are clean and synchronized.
 
 ## What Failed and Why Earlier Validation Missed It
 
@@ -126,6 +130,15 @@ The known failure chain is:
 - Observation: a machine-local image override and a runtime-only wheel URL can outlive an otherwise correct published runtime manifest.
   Evidence: the first resume pack inspected the stale local `ac349...` runtime instead of published post12. After correcting that pointer, host `uv pip compile` rejected `/opt/posttrain/vendor/...` because the path exists only inside the image; mapping that URL directly to a host wheel then conflicted with Policy Prism's byte-equivalent immutable Git requirement. Packaging now verifies the shipped runtime wheel hash and metadata, uses its exact version only for host resolution, and retains the canonical container URL as the immutable runtime identity.
 
+- Observation: correcting serving removed the checkpoint-96 operational failure, but corrected IW-OPD still did not improve the primary scope benchmark.
+  Evidence: the final scope run completed 18/18 with no truncation, versus 12/18 for checkpoint 96. Against base E2B non-thinking, however, expected rules fell from 40/68 to 28/68 and contract/source checks from 4/18 to 2/18. Claude-supported returned-rule precision rose from 45/49 (91.8%) to 34/35 (97.1%), showing a conservative precision/coverage trade rather than the required scope improvement.
+
+- Observation: the same adapter materially improves complete-rule recovery, but the gain is uneven and does not establish general scope transfer.
+  Evidence: recovery expected rules increase from 223/460 to 337/460, required text from 238/376 to 376/376, preserved meaning from 87/460 to 178/460, and source assignment from 83/460 to 147/460. The largest single gain is the long Ohio 5122-14-10 case, from 0/148 to 108/148 matched rules; one 42 CFR case regresses by six rules. Source-family-macro recovery pipeline score moves more modestly from `0.536944` to `0.561567`.
+
+- Observation: the final prompt, teacher, probability, and serving mechanics are internally correct; the remaining weakness is objective/task transfer, not a reproduced runtime mismatch.
+  Evidence: the completion validator proves exact selected-token digests and 32 finite constrained IW-OPD updates with zero teacher failures. The final run uses model-native E2B/12B prompt rendering and identical per-position XGrammar allowed sets for student rollout, teacher scoring, and current-student loss. Both evaluations use semantic-only stage prompts, task-owned IDs, canonical validation, and bounded whitespace; all 87 sampled model stages finish with `stop`, with one additional valid abstention skip. IW-OPD can reweight tokens the student sampled but cannot directly teach omitted rules it never sampled; 230/384 optimized targets are rules, while only 77 are evidence and 77 graph, and only 128 tasks are full trajectories. This explains direct recovery gains and weak end-to-end scope transfer without implying that the corrected teacher likelihoods were misaligned.
+
 ## Decision Log
 
 - Decision: keep production geometry at logical 12, physical 1, accumulation 12.
@@ -184,18 +197,26 @@ The known failure chain is:
   Rationale: the user explicitly excluded KPI redesign and historical re-derivation from this experiment.
   Date/Author: 2026-08-17 / Codex.
 
+- Decision: record the final scientific outcome as `revise`, not `accept` or operational failure.
+  Rationale: both evaluation jobs are complete, reproducible, and operationally valid; recovery exceeds most base thresholds by a wide margin. The primary scope acceptance rule is not met (28/68 expected rules versus base 40/68, 2/18 contract/source checks versus 4/18, and 14/68 captured subjects versus 16/68), while recovery misses only the 7/17 contract/source threshold at 6/17 and improves the substantive recovery metrics. The adapter is retained as a valid recovery-oriented research result but is not qualified as a better end-to-end scope model.
+  Date/Author: 2026-08-18 / Codex.
+
 ## Outcomes & Retrospective
 
-The experiment is not complete. The current qualified backend has demonstrated stable memory-safe constrained IW-OPD, 15 finite optimizer updates, zero teacher failures, and a valid step-8 checkpoint pair. It has not produced a final model because target-level output capacity and fallback allocation were incomplete, and failure finalization was not idempotent.
+The experiment completed mechanically and evidentially. Production used PostTrain source `4739d229323200fb0af954e915b7891dc999f7a3`, Policy training environment `f6fdf357f3c02df0628e6aad08163150f65013f7`, TRL post12 `3b3e1a6d1fc53f7e52807e676cc0cd9a020250a9`, task-plan SHA-256 `167958d25f6aef90945beff3d1ca83df9cafb6615bad42723eb00aef61bc8d54`, selection-lock SHA-256 `9252681767cff6ab3558e3b8b95e6d9cf8f4cbf95a1d1d914cc531d276ef7278`, and actual-job image `registry.lan/carbonteq/posttrain-job@sha256:daf7945360a46694546c29de31324026f2fda2481bfb273e0919ee84f75a4a47`. The predecessor and exact step-28 resume together consumed all 384 targets in 32 finite updates with zero teacher failures.
 
-At completion, replace this paragraph with exact PostTrain, Policy Prism, and TRL commits; task-plan and selection hashes; OCI image digest; canary and production run IDs; measured update/runtime figures; step-32 artifact and Hugging Face revisions; scope/recovery results; finalized directories; and the explicit `accept`, `revise`, or `reject` qualification decision. Operational completion does not imply scientific improvement: the final scope comparison must use base E2B non-thinking, and recovery must not regress beyond the predeclared tolerance.
+The exact rank-16 adapter is private at `carbonteq/gemma-4-e2b-policy-prism-scope-opd-from-12b-lora-v1`. Weight revision `219a93c00e40e4a4a5b6e3374fa864024a13f72d` and qualification-card revision `3bee00fcc4856aabf464698b0cb0141831ffc6b0` contain the same safetensors SHA-256 `2240b7c7f6e14eed766e3aef6211348a5a6a1fc189f20e539790c04a6453221b`.
+
+The final scope artifact `64b7204cc30067114f636cb7eb9fa4e324b0f1cc7fa750e70cc7c5c3b085ed79` produced 18/18 complete traces, 47/47 Claude packets, and the directory `gemma-4-e2b-policy-prism-scope-iwopd-r16-from-12b-v1-v11-sealed-scope-20260818`. The final recovery artifact `17f2ebe2225dd3c28d9af047df7a6807c8a894d6c6d0e14abc099c395d589223` produced 17/17 complete traces, 115/115 Claude packets, and the corresponding `...sealed-recovery-20260818` directory. Both reconciliations are consistent; KPI derivation is byte-consistent; all 93 finalized runs and 1,628 traces validate.
+
+Scientific decision: **revise**. Scope reliability is repaired and returned-rule precision improves, but rule coverage drops from 40/68 to 28/68, so the adapter does not meet the scope-improvement objective. Recovery improves from 223/460 to 337/460 expected rules and from 87/460 to 178/460 meaning-preserved rules. The experiment therefore demonstrates useful but uneven teacher transfer: strong direct long-form rule-recovery gains, no end-to-end scope improvement, and a conservative omission tendency consistent with sampled-token IW-OPD. A future iteration should add a coverage-aware signal or teacher-generated alternatives/non-sealed Gold supervision and increase jointly optimized full trajectories; simply extending this same objective is not justified by these results.
 
 ## Context and Orientation
 
 Three repositories participate:
 
 * `/home/ali-awais-safdar/Post-Train/posttrain` is the framework repository. Work only on `feat/gemma-policy-prism-opd-e2b-12b`. `packages/train` owns the TRL bridge, constrained loss, checkpoint publication, and artifact callbacks. `apps/cli` owns run recovery and materialization commands. Do not change `main`.
-* `/home/ali-awais-safdar/Policy Prism` owns the project environment, task plans, admission, ledger, prompts, catalog overlays, work packages, and permanent evaluation evidence. Work only on `feat/scope-opd-e2b-12b-environment-v1`, currently at pushed commit `775d655`. The environment source commit embedded in a job must be this reviewed commit or an explicitly validated descendant, not merely another repository HEAD.
+* `/home/ali-awais-safdar/Policy Prism` owns the project environment, task plans, admission, ledger, prompts, catalog overlays, work packages, and permanent evaluation evidence. Work only on `feat/scope-opd-e2b-12b-environment-v1`, now pushed through final-evidence commit `2be72a1`. The immutable training and evaluation source commits remain recorded in their run manifests rather than being inferred from repository HEAD.
 * `/home/ali-awais-safdar/Post-Train/trl` owns generic constrained IW-OPD trainer behavior. The checkpoint-safe release is `3b3e1a6d1fc53f7e52807e676cc0cd9a020250a9` (`trl==1.9.2.post12`), with the functional loader change at `5c95ef32444bd71c8408d4f94cf19f6bb5b25278`.
 * The CarbonTeq Trackio fork owns generic read-only artifact hydration. No checkout is currently present. If the installed `carbonteq-trackio==0.31.5.post12` cannot fetch an immutable artifact without calling `use_artifact`, acquire the fork at its exact consumed source, add a small read-only `Api.artifact(...)` surface with a no-consumer-edge regression, publish it immutably, and update the PostTrain pin. Do not implement host export by opening a cosmetic Trackio run.
 
@@ -1082,7 +1103,7 @@ Historical evidence that must remain traceable:
 * retained candidate attempts: 197; accepted: 185; rejected: twelve;
 * retained 16,384-token incomplete prefixes: seven, all meaningful and with zero trailing whitespace;
 * checkpoint-safe TRL source: `3b3e1a6d1fc53f7e52807e676cc0cd9a020250a9`;
-* current PostTrain fix head: `8af9467`; current Policy Prism fix head: `61b0b83`.
+* production PostTrain source: `4739d229323200fb0af954e915b7891dc999f7a3`; final Policy Prism evidence commit: `2be72a1`.
 
 As execution proceeds, append concise evidence here: final commits, task/selection hashes, exact package/image digests, exact canary cohort, test counts, canary results, production checkpoints, final adapter receipt, Hugging Face weight/card revisions, evaluation artifact receipts, finalized directory names, domain comparison, and qualification decision.
 
