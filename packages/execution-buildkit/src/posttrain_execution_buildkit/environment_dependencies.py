@@ -31,9 +31,9 @@ _PINNED_REQUIREMENT = re.compile(
 )
 _FULL_GIT_REVISION = re.compile(r"git\+https://[^@\s]+@[0-9a-f]{40}(?:#[^\s]+)?$")
 _VENDORED_WHEEL = re.compile(
-    r"^[A-Za-z0-9][A-Za-z0-9._-]*\s*@\s*"
-    r"file:///opt/posttrain/vendor/[A-Za-z0-9][A-Za-z0-9._-]*\.whl"
-    r"#sha256=[0-9a-f]{64}$"
+    r"^(?P<package>[A-Za-z0-9][A-Za-z0-9._-]*)\s*@\s*"
+    r"file:///opt/posttrain/vendor/(?P<filename>[A-Za-z0-9][A-Za-z0-9._-]*\.whl)"
+    r"#sha256=(?P<digest>[0-9a-f]{64})$"
 )
 _URL_USERINFO = re.compile(r"https?://[^/\s:@]+(?::[^@/\s]*)?@")
 _SENSITIVE_QUERY = re.compile(
@@ -83,6 +83,7 @@ class UvDependencyCompileCli:
         executable: str = "uv",
         *,
         index_environment: Mapping[str, str] | None = None,
+        runtime_vendor_root: Path | None = None,
     ) -> None:
         self._executable = executable
         supplied = dict(index_environment or {})
@@ -100,6 +101,9 @@ class UvDependencyCompileCli:
         ):
             raise ContractError("dependency-index URL must be credential-free HTTP(S)")
         self._index_environment = supplied
+        if runtime_vendor_root is not None and not runtime_vendor_root.is_absolute():
+            raise ContractError("runtime vendor root must be absolute")
+        self._runtime_vendor_root = runtime_vendor_root
 
     def compile(
         self,
@@ -112,6 +116,11 @@ class UvDependencyCompileCli:
         python_platform: str,
         provided_packages: tuple[str, ...],
     ) -> None:
+        host_constraints = _materialize_host_constraints(
+            constraints,
+            working_directory=working_directory,
+            runtime_vendor_root=self._runtime_vendor_root,
+        )
         environment = {
             name: value
             for name in (
@@ -150,7 +159,7 @@ class UvDependencyCompileCli:
         arguments.extend(
             [
                 "--constraint",
-                constraints.name,
+                host_constraints.name,
                 "--output-file",
                 output.name,
                 requirements.name,
@@ -166,6 +175,46 @@ class UvDependencyCompileCli:
         )
         if result.returncode != 0:
             raise DependencyResolutionError(f"uv dependency resolution failed with exit code {result.returncode}")
+
+
+def _materialize_host_constraints(
+    constraints: Path,
+    *,
+    working_directory: Path,
+    runtime_vendor_root: Path | None,
+) -> Path:
+    """Map image-owned wheel URLs to verified temporary host copies for uv."""
+
+    contents = constraints.read_text(encoding="utf-8")
+    matches = tuple(
+        match
+        for line in contents.splitlines()
+        if (match := _VENDORED_WHEEL.fullmatch(line.strip())) is not None
+    )
+    if not matches:
+        return constraints
+    if runtime_vendor_root is None or not runtime_vendor_root.is_dir():
+        raise DependencyResolutionError("runtime vendored wheel root is unavailable on the packaging host")
+
+    staged_root = working_directory / "runtime-vendor"
+    staged_root.mkdir()
+    replacements: dict[str, str] = {}
+    for match in matches:
+        filename = match.group("filename")
+        expected_digest = match.group("digest")
+        source = runtime_vendor_root / filename
+        if not source.is_file() or source.is_symlink() or _file_digest(source) != expected_digest:
+            raise DependencyResolutionError("runtime vendored wheel differs from its immutable constraint")
+        destination = staged_root / filename
+        shutil.copyfile(source, destination)
+        replacements[match.group(0)] = (
+            f"{match.group('package')} @ {destination.as_uri()}#sha256={expected_digest}"
+        )
+
+    rewritten = "\n".join(replacements.get(line.strip(), line) for line in contents.splitlines()) + "\n"
+    host_constraints = working_directory / "host-kind-constraints.txt"
+    host_constraints.write_text(rewritten, encoding="utf-8")
+    return host_constraints
 
 
 @dataclass(frozen=True, slots=True)

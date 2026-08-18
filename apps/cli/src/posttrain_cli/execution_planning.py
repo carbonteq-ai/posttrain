@@ -208,6 +208,11 @@ class PlannedJobPackage:
             backend_kind_constraints=backend_constraints,
             dependency_gateway=UvDependencyCompileCli(
                 index_environment=dependency_index_environment,
+                runtime_vendor_root=(
+                    registry.constraint_profiles[self.pack_plan.spec.runtime_variant]
+                    .path.parent.parent
+                    / "vendor"
+                ),
             ),
         )
         pack_service = JobPackService(

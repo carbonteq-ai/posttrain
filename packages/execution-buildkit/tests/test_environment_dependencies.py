@@ -288,6 +288,83 @@ def test_accepts_hash_locked_wheel_from_runtime_vendor_directory() -> None:
     assert "file:///opt/posttrain/vendor/trl-1.9.2.post12-py3-none-any.whl" in selected.contents
 
 
+def test_uv_gateway_maps_runtime_vendor_wheel_to_verified_host_copy(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    wheel_contents = b"immutable-wheel"
+    wheel_digest = _digest(wheel_contents)
+    vendor_root = (tmp_path / "vendor").absolute()
+    vendor_root.mkdir()
+    wheel = vendor_root / "trl-1.9.2.post12-py3-none-any.whl"
+    wheel.write_bytes(wheel_contents)
+    work = (tmp_path / "work").absolute()
+    work.mkdir()
+    requirements = work / "requirements.in"
+    requirements.write_text("foo==1\n", encoding="utf-8")
+    constraints = work / "constraints.txt"
+    constraints.write_text(
+        "trl @ file:///opt/posttrain/vendor/trl-1.9.2.post12-py3-none-any.whl"
+        f"#sha256={wheel_digest}\n",
+        encoding="utf-8",
+    )
+    observed: dict[str, object] = {}
+
+    def fake_run(arguments, **kwargs):
+        observed["arguments"] = arguments
+        observed["kwargs"] = kwargs
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(
+        "posttrain_execution_buildkit.environment_dependencies.subprocess.run",
+        fake_run,
+    )
+    UvDependencyCompileCli(runtime_vendor_root=vendor_root).compile(
+        requirements=requirements,
+        constraints=constraints,
+        output=work / "output.txt",
+        working_directory=work,
+        python_version="3.13.12",
+        python_platform="x86_64-unknown-linux-gnu",
+        provided_packages=(),
+    )
+
+    arguments = observed["arguments"]
+    assert isinstance(arguments, list)
+    selected = work / arguments[arguments.index("--constraint") + 1]
+    rewritten = selected.read_text(encoding="utf-8")
+    assert "file:///opt/posttrain/vendor" not in rewritten
+    assert (work / "runtime-vendor" / wheel.name).as_uri() in rewritten
+    assert _digest((work / "runtime-vendor" / wheel.name).read_bytes()) == wheel_digest
+
+
+def test_uv_gateway_rejects_missing_or_drifted_runtime_vendor_wheel(tmp_path: Path) -> None:
+    work = (tmp_path / "work").absolute()
+    work.mkdir()
+    requirements = work / "requirements.in"
+    requirements.write_text("foo==1\n", encoding="utf-8")
+    constraints = work / "constraints.txt"
+    constraints.write_text(
+        "trl @ file:///opt/posttrain/vendor/trl.whl"
+        f"#sha256={_digest(b'expected')}\n",
+        encoding="utf-8",
+    )
+    vendor_root = (tmp_path / "vendor").absolute()
+    vendor_root.mkdir()
+    (vendor_root / "trl.whl").write_bytes(b"drifted")
+
+    with pytest.raises(DependencyResolutionError, match="differs"):
+        UvDependencyCompileCli(runtime_vendor_root=vendor_root).compile(
+            requirements=requirements,
+            constraints=constraints,
+            output=work / "output.txt",
+            working_directory=work,
+            python_version="3.13.12",
+            python_platform="x86_64-unknown-linux-gnu",
+            provided_packages=(),
+        )
+
+
 @pytest.mark.parametrize(
     "location",
     [
@@ -399,6 +476,7 @@ def test_uv_gateway_uses_one_non_shell_compile_with_fixed_safety_flags(
     requirements = root / "requirements.in"
     constraints = root / "constraints.txt"
     output = root / "requirements.txt"
+    constraints.write_text("foo==1\n", encoding="utf-8")
 
     UvDependencyCompileCli("/opt/uv").compile(
         requirements=requirements,
@@ -446,6 +524,7 @@ def test_uv_gateway_uses_only_explicit_credential_free_index_binding(
         fake_run,
     )
     root = tmp_path.absolute()
+    (root / "constraints.txt").write_text("foo==1\n", encoding="utf-8")
     UvDependencyCompileCli(
         "/opt/uv",
         index_environment={
@@ -504,6 +583,7 @@ def test_uv_gateway_reports_conflict_without_echoing_resolver_output(
         fake_run,
     )
     root = tmp_path.absolute()
+    (root / "constraints.txt").write_text("foo==1\n", encoding="utf-8")
     with pytest.raises(DependencyResolutionError) as caught:
         UvDependencyCompileCli().compile(
             requirements=root / "requirements.in",

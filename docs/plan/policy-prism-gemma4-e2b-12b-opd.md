@@ -42,6 +42,7 @@ The two required live canaries passed and the fresh production run completed 29 
 - [x] (2026-08-18) Add three reviewed reserves without changing any prior candidate identity or primary assignment; prefer the strict cap and permit bounded cap four only when strict allocation is impossible. Prove the exact checkpoint-28 tail and every single remaining-target forced failure complete all 384 targets. Policy commits `f6fdf35` and `775d655` are pushed.
 - [x] (2026-08-18) Retain and reconcile zero-update recovery attempt `opd3prod01r1-resume28-e2b12b-c384-r16-v1`. It loaded the exact step-28 recovery pair and resolved the correct max-step-32 configuration, but Accelerate interpreted 336 repeated batches as 336 underlying logical batches, exhausted the 32-batch loader, and exited at global step 28.
 - [x] (2026-08-18) Pin and exact-image qualify TRL post12 from `3b3e1a6d1fc53f7e52807e676cc0cd9a020250a9`. Runtime `sha256:2fa925615d103d580790c37b3cfcc0226cc40cbdf05140b4b0ef663354394d04` has lock digest `c46660338b06e25996df1864810bbe23172aec7063fab3e5474406e049ba8468`; exact execution leaves 48 repeated batches beginning at rows 336-347 and ending at 372-383. Resume the original step-28 checkpoint under a new run ID and require updates 29-32 plus the combined 384-target completion receipt.
+- [x] (2026-08-18) Correct the machine-local runtime override to the post12 digest and make host dependency resolution map image-owned `/opt/posttrain/vendor` requirements to verified temporary copies of the same shipped wheels. The mapping fails closed on a missing or mismatched wheel; 191 execution-buildkit/CLI tests pass.
 - [ ] Materialize, verify, document, and privately publish the exact step-32 model adapter.
 - [ ] Run sealed scope and recovery sequentially against that adapter; finalize, validate, compare, commit, and push the results.
 
@@ -121,6 +122,9 @@ The known failure chain is:
 
 - Observation: a gradient-accumulated IW-OPD checkpoint could restore weights and global step while silently skipping all remaining data.
   Evidence: the step-28 recovery resolved 384 repeated batches over 32 underlying logical batches. Transformers requested that Accelerate skip 336 repeated batches, but `_RepeatBatchDataLoader` exposed the underlying batch sampler, so Accelerate attempted to skip 336 of 32 logical batches and returned an empty loader. TRL post12 exposes a sampler describing the repeated sequence; the exact regression now returns 48 batches and begins at dataset rows 336-347.
+
+- Observation: a machine-local image override and a runtime-only wheel URL can outlive an otherwise correct published runtime manifest.
+  Evidence: the first resume pack inspected the stale local `ac349...` runtime instead of published post12. After correcting that pointer, host `uv pip compile` rejected `/opt/posttrain/vendor/...` because the path exists only inside the image. Packaging now maps only hash-pinned wheels from the shipped runtime vendor directory into a temporary host resolution directory, verifies every digest, and retains the canonical container URL as the immutable runtime identity.
 
 ## Decision Log
 
