@@ -154,6 +154,20 @@ or registry credentials, and it is separate from the protected release
 builder. Details: [04 · Framework](./04-framework.md), [05 · APIs](./05-apis.md),
 and the [portable image supply-chain plan](../plan/portable-runtime-image-supply-chain.md).
 
+**Amendment — site-wide remote-builder authorization (2026-08-19):** a
+remote-builder bearer credential authenticates one infrastructure principal,
+not one Posttrain project. The credential is configured once in protected
+machine state and may build any valid project namespace admitted by that site.
+`project_id` remains mandatory for repository derivation, durable request
+isolation, receipts, and audit evidence, but it is not a credential scope or an
+operator-maintained authorization list. The service continues to reject an
+arbitrary client repository and derives the only permitted project repository
+from its site-owned prefix plus `project_id`; authentication identity never
+changes image identity. Raw credentials remain outside framework
+distributions and project trees. Details: [05 · APIs](./05-apis.md),
+[ADR 0016](../decisions/0016-site-wide-remote-builder-authorization.md), and the
+[implementation plan](../plan/site-wide-remote-builder-authorization.md).
+
 **Amendment — paired-assistant MTP rollout (2026-08-05):**
 `ModelCapabilities.mtp` means that a selected model can participate in
 rollout-only multi-token prediction through the selected backend. The

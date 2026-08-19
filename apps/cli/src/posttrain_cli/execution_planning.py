@@ -852,6 +852,7 @@ def _plan_job_package_from_intent(
     local_config = _with_registry_override(
         load_local_execution_config(layout, env_file=env_file),
         registry_prefix,
+        project_id=layout.project_id,
     )
     if local_publication and local_config.registry is None:
         local_config = replace(local_config, registry=derived_local_registry())
@@ -1065,12 +1066,17 @@ def _registry(local_config: LocalExecutionConfig) -> RegistryBinding:
 def _with_registry_override(
     local_config: LocalExecutionConfig,
     registry_prefix: str | None,
+    *,
+    project_id: str | None = None,
 ) -> LocalExecutionConfig:
     """Apply the explicit, one-invocation publication destination override."""
 
     if registry_prefix is None:
         return local_config
-    override = derived_registry(environ={REGISTRY_ENVIRONMENT_VARIABLE: registry_prefix})
+    override = derived_registry(
+        environ={REGISTRY_ENVIRONMENT_VARIABLE: registry_prefix},
+        project_id=project_id,
+    )
     if override is None:
         raise ContractError("--registry must name a non-empty OCI registry prefix")
     registry = local_config.registry

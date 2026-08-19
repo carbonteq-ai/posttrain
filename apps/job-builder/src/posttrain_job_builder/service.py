@@ -21,7 +21,7 @@ from posttrain.execution_pack import JobBuilderCapabilities
 from posttrain.runtime_images import JOB_BAKE_FILE, cached_definition_root, published_manifest_digest
 from posttrain_execution_buildkit import BuildKitJobImagePublisher, job_build_definition_digest
 
-from .http import BearerTokenAuthorizer, PrincipalGrant, ProjectRepositoryPolicy, create_http_app
+from .http import BearerTokenAuthorizer, InfrastructureGrant, ProjectRepositoryPolicy, create_http_app
 from .store import FileSystemJobContextStore
 from .worker import JobBuildWorker
 
@@ -34,7 +34,7 @@ class ServiceConfig:
     staging_root: Path
     receipt_root: Path
     repository_prefix: str
-    token_grants: Mapping[str, PrincipalGrant]
+    infrastructure_grants: Mapping[str, InfrastructureGrant]
     builder: str
     python_index_url: str | None
     max_context_bytes: int = 64 * 1024 * 1024
@@ -64,31 +64,32 @@ def load_config(environ: Mapping[str, str] | None = None) -> ServiceConfig:
         "staging_root",
         "receipt_root",
         "repository_prefix",
-        "token_grants",
+        "infrastructure_grants",
         "builder",
     }
     optional = {"python_index_url", "max_context_bytes", "max_file_count", "max_blob_bytes", "poll_seconds"}
     if set(payload) - required - optional or not required.issubset(payload):
         raise ContractError("job builder configuration has unsupported fields")
-    grants_raw = payload["token_grants"]
+    grants_raw = payload["infrastructure_grants"]
     if not isinstance(grants_raw, dict):
-        raise ContractError("job builder token grants are invalid")
-    grants: dict[str, PrincipalGrant] = {}
+        raise ContractError("job builder infrastructure grants are invalid")
+    grants: dict[str, InfrastructureGrant] = {}
     for digest, grant in grants_raw.items():
-        if not isinstance(digest, str) or not isinstance(grant, dict) or set(grant) != {"principal", "project_ids"}:
-            raise ContractError("job builder token grants are invalid")
-        principal, project_ids = grant["principal"], grant["project_ids"]
-        if not isinstance(principal, str) or not isinstance(project_ids, list) or not all(
-            isinstance(project_id, str) for project_id in project_ids
-        ):
-            raise ContractError("job builder token grants are invalid")
-        grants[digest] = PrincipalGrant(principal, frozenset(project_ids))
+        if not isinstance(digest, str) or not isinstance(grant, dict) or set(grant) != {"principal"}:
+            raise ContractError("job builder infrastructure grants are invalid")
+        principal = grant["principal"]
+        if not isinstance(principal, str):
+            raise ContractError("job builder infrastructure grants are invalid")
+        try:
+            grants[digest] = InfrastructureGrant(principal)
+        except ValueError as error:
+            raise ContractError("job builder infrastructure grants are invalid") from error
     return ServiceConfig(
         store_root=_absolute_path(payload["store_root"], "store_root"),
         staging_root=_absolute_path(payload["staging_root"], "staging_root"),
         receipt_root=_absolute_path(payload["receipt_root"], "receipt_root"),
         repository_prefix=_string(payload["repository_prefix"], "repository_prefix"),
-        token_grants=grants,
+        infrastructure_grants=grants,
         builder=_string(payload["builder"], "builder"),
         python_index_url=_optional_string(payload.get("python_index_url"), "python_index_url"),
         max_context_bytes=_positive_int(payload.get("max_context_bytes", 64 * 1024 * 1024), "max_context_bytes"),
@@ -125,7 +126,7 @@ def create_app(config: ServiceConfig | None = None) -> FastAPI:
     app = create_http_app(
         store=store,
         capabilities=capabilities,
-        authorizer=BearerTokenAuthorizer(config.token_grants),
+        authorizer=BearerTokenAuthorizer(config.infrastructure_grants),
         repositories=ProjectRepositoryPolicy(config.repository_prefix),
     )
     app.router.lifespan_context = _worker_lifespan(worker, config.poll_seconds)

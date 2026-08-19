@@ -259,6 +259,20 @@ BuildKit arguments, registry credential, model, checkpoint, or undeclared
 archive. Configured remote mode does not affect `job pack --local`, which
 always produces a local OCI export.
 
+The remote-builder credential authenticates a site infrastructure principal,
+not a project. It is referenced once from protected machine configuration and
+is never stored under `.posttrain/` or included in a framework distribution.
+Every request still names the manifest's `project_id`; the server validates it
+as an untrusted namespace and uses it to derive the only permitted repository,
+isolate durable request and receipt state, and retain audit evidence. The
+server does not maintain a credential-to-project allowlist, so adding a new
+project does not require issuing or expanding a credential. Separate
+credentials are justified only for infrastructure-principal rotation or
+independent operational revocation, never merely because a new Posttrain
+project exists. Both client and server derive the repository as
+`<site-prefix>/<project_id>/posttrain-job`; the authenticated principal remains
+an audit and durable-state scope and does not change OCI image identity.
+
 Initialization writes the project layout and an installable project package,
 then creates the project environment and installs dependencies. There is no
 separate `posttrain sync` command. Work-package execution builds a default

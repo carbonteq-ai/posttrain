@@ -20,10 +20,9 @@ def _config_file(tmp_path: Path) -> tuple[Path, str]:
                 "staging_root": str((tmp_path / "staging").resolve()),
                 "receipt_root": str((tmp_path / "receipts").resolve()),
                 "repository_prefix": "registry.example/posttrain-projects",
-                "token_grants": {
+                "infrastructure_grants": {
                     hashlib.sha256(token.encode()).hexdigest(): {
                         "principal": "hammad",
-                        "project_ids": ["ambient-agent"],
                     }
                 },
                 "builder": "posttrain-job-builder",
@@ -56,4 +55,28 @@ def test_service_rejects_an_unprotected_config_file(tmp_path: Path) -> None:
     path.chmod(0o644)
 
     with pytest.raises(ContractError, match="protected absolute file"):
+        load_config({"POSTTRAIN_JOB_BUILDER_CONFIG": str(path)})
+
+
+def test_service_rejects_legacy_project_scoped_token_grants(tmp_path: Path) -> None:
+    path, _ = _config_file(tmp_path)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    grants = payload.pop("infrastructure_grants")
+    payload["token_grants"] = {
+        digest: {**grant, "project_ids": ["ambient-agent"]} for digest, grant in grants.items()
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ContractError, match="unsupported fields"):
+        load_config({"POSTTRAIN_JOB_BUILDER_CONFIG": str(path)})
+
+
+def test_service_rejects_project_ids_inside_an_infrastructure_grant(tmp_path: Path) -> None:
+    path, _ = _config_file(tmp_path)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    digest, grant = next(iter(payload["infrastructure_grants"].items()))
+    payload["infrastructure_grants"] = {digest: {**grant, "project_ids": ["ambient-agent"]}}
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ContractError, match="infrastructure grants are invalid"):
         load_config({"POSTTRAIN_JOB_BUILDER_CONFIG": str(path)})

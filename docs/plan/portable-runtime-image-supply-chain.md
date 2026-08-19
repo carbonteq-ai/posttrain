@@ -6,6 +6,13 @@ date as work proceeds.
 
 This document must be maintained in accordance with `docs/templates/PLAN.md`.
 
+Revision note, 2026-08-19: ADR 0016 and
+`docs/plan/site-wide-remote-builder-authorization.md` supersede this plan's
+first-deployment choice to attach project allowlists to bearer credentials.
+The remote builder now authenticates a site infrastructure principal once;
+`project_id` remains a validated repository, durable-state, receipt, and audit
+namespace but is not a credential scope.
+
 ## Purpose / Big Picture
 
 Today the `posttrain` framework cannot be used from an installed wheel. A
@@ -791,20 +798,22 @@ and it uses exactly the images the installed framework was released with.
   later requires that change.
   Date/Author: 2026-08-14 / user and Codex.
 
-- Decision: server authorization derives the actual-job repository from the
-  authenticated principal and project namespace; clients cannot submit an
-  arbitrary repository.
-  Rationale: project code and selected small datasets are private. Opaque
-  bearer tokens mapped to project scopes are sufficient for the first private
-  deployment when stored only as hashes server-side and supplied to clients by
-  environment variable. The service alone holds project-scoped push
-  credentials; the token, Docker credentials, and other secrets never enter a
-  build context or layer. Because repository is already part of
+- Decision: server authorization authenticates one site infrastructure
+  principal and derives the actual-job repository from the configured site
+  prefix plus the request's validated project namespace; clients cannot submit
+  an arbitrary repository. Authentication identity does not change image
+  identity. This supersedes the 2026-08-14 project-allowlist design.
+  Rationale: project code and selected small datasets are private, but project
+  creation must not require credential issuance or an authorization-list edit.
+  Opaque bearer token hashes belong to protected infrastructure state. The
+  service alone holds registry push credentials; the token, Docker credentials,
+  and other secrets never enter a build context or layer. Because repository
+  is already part of
   `ImagePublicationSpec` and therefore the publication key, the CLI resolves
   the same policy-derived repository before materialization and the service
   requires an exact match; local fallback then targets the same repository and
   preserves identity.
-  Date/Author: 2026-08-14 / user and Codex.
+  Date/Author: 2026-08-19 / user and Codex. See ADR 0016.
 
 - Decision: create a new distribution `posttrain-runtime-images` exposing the
   module `posttrain.runtime_images`, rather than adding the package data to
@@ -1049,9 +1058,9 @@ The invariants are:
     verifier. Transport selection cannot change job meaning. A remote service
     version that cannot reproduce the requested definition reports `blocked`.
 17. A service request names no arbitrary output repository. Authentication
-    resolves one principal and its allowed project namespaces; the service
-    derives the actual-job repository and uses only that namespace's scoped
-    push credential.
+    resolves one site infrastructure principal; the service validates the
+    request project namespace, derives the actual-job repository, and uses only
+    infrastructure-owned registry credentials.
 18. Context admission finishes before BuildKit starts. The service recomputes
     every blob digest, manifest digest, package key, publication key, framework
     definition digest, kind identity, total bytes, file count, and largest-file
@@ -1087,7 +1096,7 @@ The lifecycle cases are summarized below.
 | Remote service unavailable before upload | Show the failure and permit an explicit retry or local-builder fallback with the same plan | Silently switch builders after partial external state or change identity |
 | Remote service restarts while building | Recover durable request state, inspect the deterministic remote tag, then requeue only if no verified image exists | Assume failure and overwrite a matching immutable tag |
 | Client release unsupported by service | Return `blocked` with accepted release/definition digests and use local fallback or operator upgrade | Download a client-provided Dockerfile or dynamically install unreviewed code |
-| One project token attempts another namespace | Reject before blob admission and emit metadata-only audit evidence | Accept a client-supplied repository or reuse another project's credentials |
+| A valid site token submits a repository that does not match its project namespace | Reject before blob admission and emit metadata-only audit evidence | Accept a client-supplied repository |
 
 ### Transfer budget matrix
 
@@ -1168,7 +1177,7 @@ Direct BuildKit access would let a user submit an arbitrary Dockerfile and is
 too broad a trust boundary. Its API accepts a content-addressed Posttrain job
 context and publication key, enforces project namespace, byte, concurrency and
 platform budgets, selects the framework-owned Dockerfile by installed release,
-uses project-scoped registry credentials, and returns the verified image digest
+uses infrastructure-owned registry credentials, and returns the verified image digest
 and transfer receipt. A small installation can omit this service and keep the
 current per-developer local builder; the CLI transfer plan then makes the cold
 VPN cost explicit before the user starts the build.
@@ -1673,13 +1682,14 @@ layer counts, and receipt digest. It never returns build logs containing source
 or environment values. Cancel is idempotent; it cancels an upload/queue/build
 where possible but returns the verified publication if one won the race.
 
-For the first private deployment, use opaque bearer tokens whose SHA-256 values
-and project scopes are stored in a protected server configuration. The client
+For the first private deployment, use an opaque infrastructure bearer token
+whose SHA-256 value and site principal are stored in protected server
+configuration. The client
 reads the token only from `POSTTRAIN_JOB_BUILDER_TOKEN`; the endpoint may come
 from `POSTTRAIN_JOB_BUILDER_URL` or machine-local execution configuration.
 Neither value is committed. VPN reachability is not authentication. The
-service derives a project-scoped repository such as
-`registry.lan/posttrain-projects/<principal>/<project>/posttrain-job`; it
+service validates the request project namespace and derives a repository such as
+`registry.lan/posttrain-projects/<project>/posttrain-job`; it
 accepts the repository only when it exactly matches that derived value and
 never accepts a client Docker credential. Audit events contain
 principal, project, keys, state transition, byte counts, and result code, not

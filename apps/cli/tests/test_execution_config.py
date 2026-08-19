@@ -87,10 +87,14 @@ def test_explicit_registry_override_changes_only_the_publication_destination(tmp
     registry = derived_local_registry()
     configuration = LocalExecutionConfig(path=tmp_path / "config.toml", registry=registry)
 
-    overridden = _with_registry_override(configuration, "registry.example/team")
+    overridden = _with_registry_override(
+        configuration,
+        "registry.example/team",
+        project_id="execution-config-tests",
+    )
 
     assert overridden.registry is not None
-    assert overridden.registry.repository == "registry.example/team/posttrain-job"
+    assert overridden.registry.repository == "registry.example/team/execution-config-tests/posttrain-job"
     assert overridden.registry.universal_image == registry.universal_image
     assert overridden.registry.kind_images == registry.kind_images
     assert overridden.registry.constraint_profiles == registry.constraint_profiles
@@ -112,7 +116,9 @@ def test_project_runtime_environment_is_authoritative_over_shell_registry(
 
     assert configuration.environment_file == (tmp_path / "posttrain.env").resolve()
     assert configuration.registry is not None
-    assert configuration.registry.repository == "registry.project.example/posttrain/posttrain-job"
+    assert configuration.registry.repository == (
+        "registry.project.example/posttrain/execution-config-tests/posttrain-job"
+    )
 
 
 def test_machine_keeps_provider_ownership_but_allows_project_candidate_registry(
@@ -187,7 +193,9 @@ def test_explicit_runtime_environment_replaces_the_project_file(tmp_path: Path) 
 
     assert configuration.environment_file == override.resolve()
     assert configuration.registry is not None
-    assert configuration.registry.repository == "registry.override.example/posttrain/posttrain-job"
+    assert configuration.registry.repository == (
+        "registry.override.example/posttrain/execution-config-tests/posttrain-job"
+    )
 
 
 def test_run_evidence_locator_survives_project_configuration_drift(
@@ -903,7 +911,7 @@ def test_registry_resolves_from_the_environment_with_no_configuration_file(
     assert loaded.registry is not None
 
     manifest = _candidate_manifest()
-    assert loaded.registry.repository == "registry.internal/team/posttrain-job"
+    assert loaded.registry.repository == "registry.internal/team/execution-config-tests/posttrain-job"
     assert set(loaded.registry.kind_images) == set(manifest.kinds)
     assert loaded.registry.universal_image.value == manifest.base.reference(manifest.default_prefix)
     for variant, image in manifest.kinds.items():
@@ -936,7 +944,7 @@ def test_trailing_slashes_in_the_environment_prefix_are_ignored(
 
     loaded = load_local_execution_config(layout)
     assert loaded.registry is not None
-    assert loaded.registry.repository == "registry.internal/team/posttrain-job"
+    assert loaded.registry.repository == "registry.internal/team/execution-config-tests/posttrain-job"
 
 
 def test_no_registry_anywhere_yields_no_binding_rather_than_a_guess(
