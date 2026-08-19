@@ -46,6 +46,11 @@ deployment, rollback, and live qualification. No raw credential is committed.
 - [ ] (2026-08-19 06:13Z) Publish the accepted implementation as Posttrain
   v0.3.20, update ai-infra to the immutable release revision, redeploy, and
   qualify the released source rather than the pre-release commit.
+- [x] (2026-08-19 06:27Z) Prepare and qualify the retained v0.3.20 candidate in
+  protected workflow run `32223062319`. Exact-source CI, the no-cache
+  index-only consumer install, and the real packed RTX PRO job all passed; the
+  development-index wheelhouse and evidence are retained for byte-identical
+  promotion.
 
 ## Surprises & Discoveries
 
@@ -94,6 +99,10 @@ deployment, rollback, and live qualification. No raw credential is committed.
   correctly rejected the stale generated catalog dependency digest. Running
   `posttrain-release lock-dependencies` regenerated the digest from the exact
   release lock before the v0.3.20 candidate gates.
+- Observation: the v0.3.20 version bump did not change any OCI input or runtime
+  lock. The candidate reused the registry-verified image digests and generated
+  only the required `published.toml` framework-version update from 0.3.19 to
+  0.3.20.
 
 ## Decision Log
 
