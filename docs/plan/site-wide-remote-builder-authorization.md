@@ -35,11 +35,14 @@ deployment, rollback, and live qualification. No raw credential is committed.
 - [x] (2026-08-19 09:18Z) Run focused Posttrain and ai-infra validation and
   record the observed evidence. The broader Posttrain suite has one unrelated
   catalog lock-hash failure, described below.
-- [ ] Commit Posttrain first, then commit `ai-infra` against that immutable
-  Posttrain revision. This remains pending because the user has not requested
-  commits.
-- [ ] Deploy and qualify the live service from the committed revisions. This
-  remains pending because deployment from dirty source is prohibited.
+- [x] (2026-08-19 10:04Z) Commit and push Posttrain on
+  `codex/site-wide-builder-auth`, then commit and push `ai-infra` against the
+  immutable Posttrain source. The deployed Posttrain source revision is
+  `c65e346df1b909790a76b0781641266e14ceedcc`.
+- [x] (2026-08-19 10:38Z) Deploy and qualify the live service from committed
+  revisions. The protected receipt records ai-infra revision
+  `80cca2aaac6e9a3ec1e033ed34e89d73f5591320`, the Posttrain revision above,
+  archive SHA-256, and `qualification: succeeded`.
 
 ## Surprises & Discoveries
 
@@ -78,6 +81,11 @@ deployment, rollback, and live qualification. No raw credential is committed.
   adapter-test error: `SDKRun` is passed where Trackio's `Run` type is expected
   in `packages/tracking-trackio/tests/test_adapter.py:264`. Type checking the
   files changed by this plan reports zero errors.
+- Observation: the machine CA bundle was parsed into `MachineConfig` but the
+  remote-builder HTTPX client did not receive it, so a valid site credential
+  still failed against private HTTPS. The client now creates its TLS context
+  from the configured absolute CA bundle; the real framework client receives
+  HTTP 200 from authenticated capabilities.
 
 ## Decision Log
 
@@ -110,23 +118,29 @@ deployment, rollback, and live qualification. No raw credential is committed.
   Rationale: the working trees contain unrelated user changes, and live
   deployment must be tied to immutable source revisions.
   Date/Author: 2026-08-19 / Codex.
+- Decision: after the user explicitly authorized the immutable rollout, use
+  clean worktrees from current `origin/main` rather than switching either dirty
+  primary checkout.
+  Rationale: this kept unrelated release work intact while ensuring both
+  deployed repositories were clean, committed, and pushed.
+  Date/Author: 2026-08-19 / user and Codex.
 
 ## Outcomes & Retrospective
 
-The decision, baseline amendment, Posttrain implementation, focused tests, and
-reproducible `ai-infra` deployment source are complete in the working trees.
-Focused acceptance passed with 57 tests; repository-wide Ruff, affected-file
-Pyright, import-contract, Ansible syntax, shell syntax, and whitespace checks
-passed. The full Posttrain suite reached 1261 passed and 23 skipped with one
-unrelated stale catalog dependency-lock hash failure. Repository-wide Pyright
-also reports one unrelated Trackio adapter-test type mismatch; this plan does
-not alter that package.
+The site-wide authorization architecture is implemented, committed, pushed,
+deployed, and qualified. The live builder selects immutable Posttrain revision
+`c65e346df1b909790a76b0781641266e14ceedcc`; its rootless BuildKit and API units
+are active. Public liveness returns 200, readiness returns 204, authenticated
+capabilities returns 200 through the framework client, and a structurally valid
+request naming an arbitrary repository returns 403 before blob admission.
 
-No source was committed and no live state was changed. The live builder still
-runs the older project-scoped implementation from an editable, dirty checkout;
-the local client credential is still invalid. Immutable commits, deployment,
-and live qualification remain separate pending milestones requiring explicit
-authorization.
+The workstation now references protected machine credential
+`job-builder-infrastructure`; the invalid five-byte `job-builder-ambient` file
+was retained under a dated retired name for recovery. Focused acceptance passes
+58 tests, affected-file Pyright reports zero errors, and Ruff, import contracts,
+Ansible syntax, shell syntax, and whitespace checks pass. The previously
+recorded unrelated repository-wide catalog-hash and Trackio test typing issues
+remain outside this change.
 
 ## Context and Orientation
 
