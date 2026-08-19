@@ -4,4 +4,4 @@ schema_version = 1
 [locks."trl-fork@current"]
 source = "uv.lock"
 source_revision = "69cf80a7319079ec5523841553467e119ebc1cec"
-dependency_lock_sha256 = "dc49c5b546f4ff86e5cecad2ce22b85acab1d802a948b3c00d7655c8766ea04a"
+dependency_lock_sha256 = "6418c5fbaa9d378af767d739b8ba407eb05bcb7595920ecde3401b26541a9d98"

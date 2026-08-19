@@ -62,9 +62,7 @@ def test_service_rejects_legacy_project_scoped_token_grants(tmp_path: Path) -> N
     path, _ = _config_file(tmp_path)
     payload = json.loads(path.read_text(encoding="utf-8"))
     grants = payload.pop("infrastructure_grants")
-    payload["token_grants"] = {
-        digest: {**grant, "project_ids": ["ambient-agent"]} for digest, grant in grants.items()
-    }
+    payload["token_grants"] = {digest: {**grant, "project_ids": ["ambient-agent"]} for digest, grant in grants.items()}
     path.write_text(json.dumps(payload), encoding="utf-8")
 
     with pytest.raises(ContractError, match="unsupported fields"):

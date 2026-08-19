@@ -69,9 +69,7 @@ def _client(tmp_path: Path) -> TestClient:
     app = create_http_app(
         store=FileSystemJobContextStore(root=(tmp_path / "store").resolve(), capabilities=capabilities),
         capabilities=capabilities,
-        authorizer=BearerTokenAuthorizer(
-            {hashlib.sha256(token.encode()).hexdigest(): InfrastructureGrant("alice")}
-        ),
+        authorizer=BearerTokenAuthorizer({hashlib.sha256(token.encode()).hexdigest(): InfrastructureGrant("alice")}),
         repositories=ProjectRepositoryPolicy("registry.example/posttrain-projects"),
     )
     return TestClient(app)

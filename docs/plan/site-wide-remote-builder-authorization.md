@@ -43,6 +43,9 @@ deployment, rollback, and live qualification. No raw credential is committed.
   revisions. The protected receipt records ai-infra revision
   `80cca2aaac6e9a3ec1e033ed34e89d73f5591320`, the Posttrain revision above,
   archive SHA-256, and `qualification: succeeded`.
+- [ ] (2026-08-19 06:13Z) Publish the accepted implementation as Posttrain
+  v0.3.20, update ai-infra to the immutable release revision, redeploy, and
+  qualify the released source rather than the pre-release commit.
 
 ## Surprises & Discoveries
 
@@ -86,6 +89,11 @@ deployment, rollback, and live qualification. No raw credential is committed.
   still failed against private HTTPS. The client now creates its TLS context
   from the configured absolute CA bundle; the real framework client receives
   HTTP 200 from authenticated capabilities.
+- Observation: adding the BuildKit and runtime-image workspace dependencies to
+  the composed job-builder service changed `uv.lock`, so required Quality
+  correctly rejected the stale generated catalog dependency digest. Running
+  `posttrain-release lock-dependencies` regenerated the digest from the exact
+  release lock before the v0.3.20 candidate gates.
 
 ## Decision Log
 
