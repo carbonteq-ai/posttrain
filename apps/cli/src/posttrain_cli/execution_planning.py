@@ -289,8 +289,11 @@ class PlannedJobPackage:
         choice = resolve_job_builder(self.local_config.machine, cli_override=self.builder_override)
         if choice.mode == "local":
             return self._local_publisher()
-        binding = self.local_config.machine.services.job_builder if self.local_config.machine is not None else None
-        if binding is None or binding.endpoint is None:
+        machine = self.local_config.machine
+        if machine is None:
+            raise ContractError("remote job builder requires machine [services.job_builder] configuration")
+        binding = machine.services.job_builder
+        if binding.endpoint is None:
             raise ContractError("remote job builder requires machine [services.job_builder] configuration")
         environment = load_execution_environment(self.local_config)
         token = environment.get("POSTTRAIN_JOB_BUILDER_TOKEN")
@@ -304,6 +307,7 @@ class PlannedJobPackage:
                 release_manifest_digest=published_manifest_digest(),
                 build_definition_digest=job_build_definition_digest(bake_file),
                 receipt_root=(self.layout.state / "publications").resolve(),
+                ca_bundle=machine.local.trust_bundle,
                 request_timeout_seconds=float(binding.request_timeout_seconds),
                 upload_concurrency=binding.upload_concurrency,
             )

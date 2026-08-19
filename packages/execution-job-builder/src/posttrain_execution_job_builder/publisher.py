@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import ssl
 import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -37,6 +38,7 @@ class RemoteJobBuilderConfig:
     release_manifest_digest: str
     build_definition_digest: str
     receipt_root: Path
+    ca_bundle: Path | None = None
     request_timeout_seconds: float = 30.0
     poll_timeout_seconds: float = 60.0 * 60.0
     poll_interval_seconds: float = 2.0
@@ -53,6 +55,8 @@ class RemoteJobBuilderConfig:
             raise ContractError("remote job builder definition digests must be SHA-256")
         if not self.receipt_root.is_absolute():
             raise ContractError("remote job builder receipt root must be absolute")
+        if self.ca_bundle is not None and (not self.ca_bundle.is_absolute() or not self.ca_bundle.is_file()):
+            raise ContractError("remote job builder CA bundle must be an existing absolute file")
         if min(self.request_timeout_seconds, self.poll_timeout_seconds, self.poll_interval_seconds) <= 0:
             raise ContractError("remote job builder timeouts must be positive")
         if self.upload_concurrency <= 0:
@@ -64,7 +68,8 @@ class RemoteJobImagePublisher:
 
     def __init__(self, config: RemoteJobBuilderConfig, *, client: httpx.Client | None = None) -> None:
         self._config = config
-        self._client = client or httpx.Client(timeout=config.request_timeout_seconds)
+        verify = ssl.create_default_context(cafile=str(config.ca_bundle)) if config.ca_bundle is not None else True
+        self._client = client or httpx.Client(timeout=config.request_timeout_seconds, verify=verify)
 
     def publish(self, request: JobImagePublicationRequest) -> PublishedJobImage:
         if request.local_output is not None or request.local_tag is not None:
