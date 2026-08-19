@@ -8,7 +8,9 @@ requires-python = ">=3.13,<3.14"
 dependencies = [
     "fastapi>=0.136.3,<0.137",
     "posttrain-common",
+    "posttrain-execution-buildkit",
     "posttrain-execution-pack",
+    "posttrain-runtime-images",
     "uvicorn>=0.51,<0.52",
 ]
 
@@ -17,7 +19,9 @@ package = true
 
 [tool.uv.sources]
 posttrain-common = { workspace = true }
+posttrain-execution-buildkit = { workspace = true }
 posttrain-execution-pack = { workspace = true }
+posttrain-runtime-images = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

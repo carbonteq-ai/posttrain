@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import ssl
 from pathlib import Path
+from unittest.mock import patch
 
 import httpx
 from posttrain.execution import JobPackageManifest, RuntimeImageRef
@@ -113,3 +115,23 @@ def test_remote_publisher_plans_uploads_seals_polls_and_writes_a_local_receipt(t
         f"POST /v1/job-publications/{request.publication_key}:seal",
         f"GET /v1/job-publications/{request.publication_key}",
     ]
+
+
+def test_remote_publisher_uses_the_machine_ca_bundle(tmp_path: Path) -> None:
+    ca_bundle = Path("/etc/ssl/certs/ca-certificates.crt")
+    config = RemoteJobBuilderConfig(
+        endpoint="https://job-builder.example",
+        token="redacted",
+        release_manifest_digest="a" * 64,
+        build_definition_digest="b" * 64,
+        receipt_root=(tmp_path / "receipts").resolve(),
+        ca_bundle=ca_bundle,
+    )
+
+    with patch("posttrain_execution_job_builder.publisher.httpx.Client") as client:
+        RemoteJobImagePublisher(config)
+
+    assert client.call_args.kwargs["timeout"] == config.request_timeout_seconds
+    verify = client.call_args.kwargs["verify"]
+    assert isinstance(verify, ssl.SSLContext)
+    assert verify.cert_store_stats()["x509_ca"] > 0

@@ -16,18 +16,18 @@ from posttrain.execution_pack import (
 from posttrain_job_builder import (
     BearerTokenAuthorizer,
     FileSystemJobContextStore,
-    PrincipalGrant,
+    InfrastructureGrant,
     ProjectRepositoryPolicy,
     create_http_app,
 )
 
 
-def _request(tmp_path: Path) -> JobPublicationPlanRequest:
-    root = (tmp_path / "context").resolve()
-    root.mkdir()
+def _request(tmp_path: Path, project_id: str = "project") -> JobPublicationPlanRequest:
+    root = (tmp_path / project_id / "context").resolve()
+    root.mkdir(parents=True)
     (root / "source.py").write_bytes(b"print('hello')\n")
     manifest = JobPackageManifest(
-        project_id="project",
+        project_id=project_id,
         work_package_id="package",
         job_id="job",
         job_definition_id="job-definition",
@@ -43,7 +43,7 @@ def _request(tmp_path: Path) -> JobPublicationPlanRequest:
         kind_image=RuntimeImageRef("registry.example/kind@sha256:" + "2" * 64),
         runtime_variant="eval-py313",
     )
-    publication = ImagePublicationSpec("registry.example/posttrain-projects/alice/project/posttrain-job")
+    publication = ImagePublicationSpec(f"registry.example/posttrain-projects/{project_id}/posttrain-job")
     context = PackedJobContext(root, manifest, "8" * 64, publication_key_for(manifest, publication))
     return JobPublicationPlanRequest(
         manifest,
@@ -69,9 +69,7 @@ def _client(tmp_path: Path) -> TestClient:
     app = create_http_app(
         store=FileSystemJobContextStore(root=(tmp_path / "store").resolve(), capabilities=capabilities),
         capabilities=capabilities,
-        authorizer=BearerTokenAuthorizer(
-            {hashlib.sha256(token.encode()).hexdigest(): PrincipalGrant("alice", frozenset({"project"}))}
-        ),
+        authorizer=BearerTokenAuthorizer({hashlib.sha256(token.encode()).hexdigest(): InfrastructureGrant("alice")}),
         repositories=ProjectRepositoryPolicy("registry.example/posttrain-projects"),
     )
     return TestClient(app)
@@ -88,7 +86,7 @@ def test_authenticated_manifest_first_upload_flow(tmp_path: Path) -> None:
     assert plan.status_code == 200
     assert plan.json()["state"] == "upload-required"
     for descriptor in request.context.files:
-        content = (tmp_path / "context" / descriptor.path).read_bytes()
+        content = (tmp_path / request.project_id / "context" / descriptor.path).read_bytes()
         response = client.put(
             f"/v1/job-publications/{request.publication_key}/blobs/{descriptor.sha256}",
             headers=headers,
@@ -125,6 +123,47 @@ def test_plan_rejects_an_unscoped_repository_before_upload(tmp_path: Path) -> No
         "/v1/job-publications:plan",
         headers={"Authorization": "Bearer test-token", "X-Posttrain-Project": "project"},
         json=unscoped.to_payload(),
+    )
+
+    assert response.status_code == 403
+
+
+def test_one_infrastructure_credential_admits_multiple_project_namespaces(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    first = _request(tmp_path, "project-a")
+    second = _request(tmp_path, "project-b")
+
+    for request in (first, second):
+        response = client.post(
+            "/v1/job-publications:plan",
+            headers={"Authorization": "Bearer test-token", "X-Posttrain-Project": request.project_id},
+            json=request.to_payload(),
+        )
+        assert response.status_code == 200
+        assert response.json()["state"] == "upload-required"
+
+
+def test_project_namespace_cannot_select_another_projects_repository(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    request = _request(tmp_path, "project-a")
+    wrong_repository = ImagePublicationSpec("registry.example/posttrain-projects/project-b/posttrain-job")
+    mismatched = JobPublicationPlanRequest(
+        request.manifest,
+        wrong_repository,
+        JobContextManifest(
+            request.context.package_key,
+            publication_key_for(request.manifest, wrong_repository),
+            request.context.context_digest,
+            request.context.files,
+        ),
+        request.release_manifest_digest,
+        request.build_definition_digest,
+    )
+
+    response = client.post(
+        "/v1/job-publications:plan",
+        headers={"Authorization": "Bearer test-token", "X-Posttrain-Project": "project-a"},
+        json=mismatched.to_payload(),
     )
 
     assert response.status_code == 403

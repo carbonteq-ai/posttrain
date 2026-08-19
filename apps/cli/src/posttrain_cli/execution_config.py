@@ -258,6 +258,7 @@ def load_local_execution_config(
         project_registry = _load_project_registry_override(
             configured,
             environ=runtime_values,
+            project_id=layout.project_id,
         )
         return LocalExecutionConfig(
             path=machine.path,
@@ -265,7 +266,7 @@ def load_local_execution_config(
             environment_file=runtime_environment.path,
             local=machine.local,
             dstack=machine.dstack,
-            registry=project_registry or derived_registry(environ=runtime_values),
+            registry=project_registry or derived_registry(environ=runtime_values, project_id=layout.project_id),
             machine=machine,
         )
     if not configured.exists():
@@ -275,7 +276,7 @@ def load_local_execution_config(
         return LocalExecutionConfig(
             configured,
             environment_file=runtime_environment.path,
-            registry=derived_registry(environ=runtime_environment.for_execution()),
+            registry=derived_registry(environ=runtime_environment.for_execution(), project_id=layout.project_id),
         )
     if not configured.is_file():
         raise ContractError(f"execution configuration is not a file: {configured}")
@@ -344,8 +345,9 @@ def load_local_execution_config(
         payload.get("registry"),
         base=configured.parent,
         environ=runtime_values,
+        project_id=layout.project_id,
     )
-    registry = parsed_registry or derived_registry(environ=runtime_values)
+    registry = parsed_registry or derived_registry(environ=runtime_values, project_id=layout.project_id)
     return LocalExecutionConfig(
         path=configured,
         defaults=defaults,
@@ -360,6 +362,7 @@ def _load_project_registry_override(
     configured: Path,
     *,
     environ: Mapping[str, str],
+    project_id: str,
 ) -> RegistryBinding | None:
     """Load only a project-scoped immutable runtime selection under a machine.
 
@@ -385,6 +388,7 @@ def _load_project_registry_override(
         payload.get("registry"),
         base=configured.parent,
         environ=environ,
+        project_id=project_id,
     )
 
 
@@ -994,6 +998,7 @@ def _resolved_repository(
     *,
     context: str,
     environ: Mapping[str, str] | None = None,
+    project_id: str | None = None,
 ) -> str:
     if declared is not None:
         return _required_config_string(declared, context)
@@ -1004,14 +1009,19 @@ def _resolved_repository(
             f"set {REGISTRY_ENVIRONMENT_VARIABLE} to an OCI registry prefix you can "
             f"push to, or declare [registry].repository in the execution configuration"
         )
-    return f"{prefix}/{_JOB_REPOSITORY_SUFFIX}"
+    project_segment = f"/{project_id}" if project_id is not None else ""
+    return f"{prefix}{project_segment}/{_JOB_REPOSITORY_SUFFIX}"
 
 
-def derived_registry(environ: Mapping[str, str] | None = None) -> RegistryBinding | None:
+def derived_registry(
+    environ: Mapping[str, str] | None = None,
+    *,
+    project_id: str | None = None,
+) -> RegistryBinding | None:
     """Build a registry binding with no execution configuration file at all."""
     if configured_registry_prefix(environ) is None:
         return None
-    return _parse_registry({}, base=Path.cwd(), environ=environ)
+    return _parse_registry({}, base=Path.cwd(), environ=environ, project_id=project_id)
 
 
 def derived_local_registry() -> RegistryBinding:
@@ -1031,6 +1041,7 @@ def _parse_registry(
     *,
     base: Path,
     environ: Mapping[str, str] | None = None,
+    project_id: str | None = None,
 ) -> RegistryBinding | None:
     if value is None:
         return None
@@ -1089,6 +1100,7 @@ def _parse_registry(
             payload.get("repository"),
             context="registry.repository",
             environ=environ,
+            project_id=project_id,
         ),
         universal_image=RuntimeImageRef(
             _required_config_string(universal_value, "registry.universal_image")

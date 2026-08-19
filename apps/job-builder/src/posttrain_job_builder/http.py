@@ -21,40 +21,42 @@ from .store import FileSystemJobContextStore
 
 
 @dataclass(frozen=True, slots=True)
-class PrincipalGrant:
-    """One opaque bearer token's permitted developer-builder scope."""
+class InfrastructureGrant:
+    """One opaque bearer token's site infrastructure identity.
+
+    Project identity is supplied by each immutable job manifest and remains a
+    namespace and audit boundary.  It is deliberately not an authorization
+    list attached to this credential.
+    """
 
     principal: str
-    project_ids: frozenset[str]
 
     def __post_init__(self) -> None:
         if not self.principal or "/" in self.principal or "\\" in self.principal:
-            raise ValueError("job builder principal is invalid")
-        if not self.project_ids or any(not value or "/" in value or "\\" in value for value in self.project_ids):
-            raise ValueError("job builder project grants are invalid")
+            raise ValueError("job builder infrastructure principal is invalid")
 
 
 class BearerTokenAuthorizer:
     """Matches only SHA-256 token digests stored in protected service config."""
 
-    def __init__(self, token_grants: Mapping[str, PrincipalGrant]) -> None:
-        if not token_grants:
-            raise ValueError("job builder requires at least one token grant")
+    def __init__(self, infrastructure_grants: Mapping[str, InfrastructureGrant]) -> None:
+        if not infrastructure_grants:
+            raise ValueError("job builder requires at least one infrastructure grant")
         if any(
             len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest)
-            for digest in token_grants
+            for digest in infrastructure_grants
         ):
             raise ValueError("job builder token digest is invalid")
-        self._token_grants = dict(token_grants)
+        self._infrastructure_grants = dict(infrastructure_grants)
 
-    def authenticate(self, authorization: str | None) -> PrincipalGrant:
+    def authenticate(self, authorization: str | None) -> InfrastructureGrant:
         if authorization is None or not authorization.startswith("Bearer "):
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "missing bearer token")
         token = authorization.removeprefix("Bearer ")
         if not token or token != token.strip():
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid bearer token")
         observed = hashlib.sha256(token.encode()).hexdigest()
-        for expected, grant in self._token_grants.items():
+        for expected, grant in self._infrastructure_grants.items():
             if hmac.compare_digest(expected, observed):
                 return grant
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid bearer token")
@@ -69,10 +71,10 @@ class ProjectRepositoryPolicy:
             raise ValueError("job builder repository prefix is invalid")
         self._prefix = normalized
 
-    def repository_for(self, grant: PrincipalGrant, project_id: str) -> str:
-        if project_id not in grant.project_ids:
-            raise HTTPException(status.HTTP_403_FORBIDDEN, "project scope is not authorized")
-        return f"{self._prefix}/{grant.principal}/{project_id}/posttrain-job"
+    def repository_for(self, project_id: str) -> str:
+        if not project_id or "/" in project_id or "\\" in project_id or project_id in {".", ".."}:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "project namespace is invalid")
+        return f"{self._prefix}/{project_id}/posttrain-job"
 
 
 def create_http_app(
@@ -108,7 +110,7 @@ def create_http_app(
             publication = JobPublicationPlanRequest.from_payload(await request.json())
         except (ContractError, ValueError) as error:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "invalid job publication plan") from error
-        expected_repository = repositories.repository_for(grant, publication.project_id)
+        expected_repository = repositories.repository_for(publication.project_id)
         if publication.publication.repository != expected_repository:
             raise HTTPException(status.HTTP_403_FORBIDDEN, "publication repository is not authorized")
         try:
@@ -129,7 +131,7 @@ def create_http_app(
         grant = authorizer.authenticate(authorization)
         if x_posttrain_project is None:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "project scope is required")
-        repositories.repository_for(grant, x_posttrain_project)
+        repositories.repository_for(x_posttrain_project)
         if content_length is None or content_length < 0:
             raise HTTPException(status.HTTP_411_LENGTH_REQUIRED, "content length is required")
         if content_length > capabilities.max_blob_bytes:
@@ -156,7 +158,7 @@ def create_http_app(
         grant = authorizer.authenticate(authorization)
         if x_posttrain_project is None:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "project scope is required")
-        repositories.repository_for(grant, x_posttrain_project)
+        repositories.repository_for(x_posttrain_project)
         try:
             return store.seal(
                 principal=grant.principal,
@@ -175,7 +177,7 @@ def create_http_app(
         grant = authorizer.authenticate(authorization)
         if x_posttrain_project is None:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "project scope is required")
-        repositories.repository_for(grant, x_posttrain_project)
+        repositories.repository_for(x_posttrain_project)
         try:
             record = store.get(
                 principal=grant.principal, project_id=x_posttrain_project, publication_key=publication_key
@@ -201,7 +203,7 @@ def create_http_app(
         grant = authorizer.authenticate(authorization)
         if x_posttrain_project is None:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "project scope is required")
-        repositories.repository_for(grant, x_posttrain_project)
+        repositories.repository_for(x_posttrain_project)
         try:
             record = store.cancel(
                 principal=grant.principal, project_id=x_posttrain_project, publication_key=publication_key
@@ -221,4 +223,4 @@ def create_http_app(
     return app
 
 
-__all__ = ["BearerTokenAuthorizer", "PrincipalGrant", "ProjectRepositoryPolicy", "create_http_app"]
+__all__ = ["BearerTokenAuthorizer", "InfrastructureGrant", "ProjectRepositoryPolicy", "create_http_app"]
