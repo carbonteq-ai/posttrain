@@ -66,6 +66,19 @@ owner = "posttrain-training"
 replacement_condition = "Promote after a retained 96 GiB GPU run completes both optimizer updates and reloads the adapter; retire if a maintained successor architecture replaces this support plane."
 
 [[gates]]
+id = "gemma4-e4b-visual-sft"
+work_package = ".posttrain/work_packages/gemma4_e4b_visual_sft_qualification.yaml"
+job_id = "train"
+tier = "experimental"
+state = "candidate"
+job_kind = "train.sft"
+acceptance = "training-summary"
+experiment_family = "gemma4-multimodal-sft"
+hypothesis = "The pinned TRL capsule can consume ordered images and produce a finite, reloadable language-only LoRA adapter for Gemma 4 E4B."
+owner = "posttrain-training"
+replacement_condition = "Promote after a retained 96 GiB GPU run completes both visual optimizer updates, records finite loss and gradient norm, and reloads the adapter with its processor; retire if a maintained multimodal SFT gate replaces it."
+
+[[gates]]
 id = "gemma4-unified-grpo-mtp"
 work_package = ".posttrain/work_packages/gemma4_unified_grpo_mtp_qualification.yaml"
 job_id = "grpo"

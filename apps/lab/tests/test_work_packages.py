@@ -272,9 +272,10 @@ def test_same_work_package_config_can_enable_the_optional_eval_cell() -> None:
     [
         ("gemma4_31b_serve_smoke_qualification.yaml", "inference/gemma4-31b-it-vllm-screen@1"),
         ("gemma4_31b_sft_qualification.yaml", "models/gemma4-31b-it@bf16"),
+        ("gemma4_e4b_visual_sft_qualification.yaml", "datasets/gemma4-e4b-visual-sft-qualification@1"),
     ],
 )
-def test_gemma4_31b_qualification_work_packages_resolve(filename: str, expected_id: str) -> None:
+def test_gemma4_qualification_work_packages_resolve(filename: str, expected_id: str) -> None:
     package = load_work_package(WORK_PACKAGES / filename)
     catalog = open_catalog(scope=package.project_id, overlays=(WORKSPACE / "apps/lab/.posttrain/catalog",))
     resolved = resolve_work_package(catalog, package)
