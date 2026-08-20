@@ -47,12 +47,19 @@ examples require a new product-level selection or job-kind meaning, stop and add
   path/digest/type validation, Hugging Face and NeMo round trips, and text-only row-shape compatibility. Validation
   passed: all 54 data tests, all 178 training tests, scoped Ruff, formatting, Pyright, and all import-boundary
   contracts. Eight existing or opt-in training tests skipped as designed.
-- [ ] Materialize, digest-lock, package, and runtime-verify dataset asset bundles without weakening existing
-  fail-closed package verification.
-- [ ] Add a visual branch to the private TRL SFT adapter while preserving the existing text-only path unchanged.
+- [x] (2026-08-20 15:41Z) Materialized, digest-locked, packaged, and runtime-verified optional dataset asset bundles.
+  The manifest and job lock enumerate every regular file, runtime verification retains the exact-file-set invariant,
+  and text-only lock payloads omit the new fields. Focused tests cover ordered assets, mutation, deletion, additions,
+  and symlink rejection.
+- [x] (2026-08-20 15:41Z) Added a dataset-modality-selected visual branch to the private TRL SFT adapter while
+  preserving the renderer-pretokenized text path. Visual rows use the pinned prompt-completion shape, `AutoProcessor`,
+  completion-only loss, no packing or padding-free mode, and no truncation by default; the saved adapter also retains
+  its processor.
 - [ ] Add static Gemma 4 E4B multimodal SFT catalog selections, fixtures, and a two-step Lab qualification work
   package.
-- [ ] Pass focused tests and the complete non-GPU repository validation ladder.
+- [ ] (2026-08-20 15:41Z) Focused and static repository validation passes. The full suite reached 1,293 passes and
+  25 skips; three pre-existing macOS host-assumption failures remain (`/var` resolving to `/private/var` and a Linux
+  CA bundle path absent on macOS). No failure touches the changed packages or multimodal contracts.
 - [ ] Build and publish an immutable actual-job image and complete a real Gemma 4 E4B GPU smoke run with retained
   adapter and reload evidence.
 - [ ] Package the PolicyPrism project training work package and managed Verifiers domain-evaluation work package.
@@ -93,6 +100,12 @@ examples require a new product-level selection or job-kind meaning, stop and add
   Evidence: the lock selects the CUDA build `torch==2.11.0+cu130`, for which no macOS arm64 distribution exists. The
   exact TRL compatibility test therefore skips without the optional dependency locally and must run in the Linux
   supervised runtime before Milestone 1 is closed.
+
+- Observation: The complete test suite contains three host-specific failures on macOS that are unrelated to this
+  branch.
+  Evidence: two execution-configuration assertions assume Linux `/var` and `/etc` path behavior, and one remote
+  builder test requires `/etc/ssl/certs/ca-certificates.crt`. Ruff, formatting, Pyright, import contracts, and all
+  focused data, execution, pack, runtime, and train tests pass.
 
 ## Decision Log
 
@@ -160,16 +173,31 @@ examples require a new product-level selection or job-kind meaning, stop and add
   owns its data and evaluation semantics.
   Date/Author: 2026-08-20 / Codex.
 
+- Decision: Lock visual assets individually and also lock a canonical bundle digest, while omitting both fields for
+  text-only datasets.
+  Rationale: Individual locks identify the exact portable files used by training; the bundle digest makes the set and
+  its deterministic path order part of package identity. Conditional serialization preserves the established
+  two-file text dataset package shape.
+  Date/Author: 2026-08-20 / Codex.
+
+- Decision: Restrict the first visual translation to homogeneous datasets with one final textual assistant target.
+  Rationale: TRL's pinned prompt-completion collator can then mask the complete conditioning prompt unambiguously.
+  Mixed text/visual populations, tool records, or multiple trainable messages fail before model loading instead of
+  silently changing loss semantics.
+  Date/Author: 2026-08-20 / Codex.
+
 ## Outcomes & Retrospective
 
 The exact pinned-TRL proof now exists as an executable collator test plus an opt-in exact Gemma E4B processor probe,
 and source inspection of the pinned fork confirms the required ordered-image, processor, vision-tensor,
 completion-mask, and no-truncation path. Their real execution remains a Linux-runtime gate rather than being
 represented as a Mac result. The canonical data layer now has a backend-neutral ordered media contract with strict
-portable identity and unchanged text-only exports. All 54 data tests pass. The next implementation boundary is
-immutable materialization and actual-job packaging of the referenced assets; no trainer translation should consume
-host paths before that boundary is complete. The complete training package suite also passes with 178 tests and 8
-designed skips, including the two new probes on this host.
+portable identity and unchanged text-only exports. Dataset materialization, actual-job locks, copied build contexts,
+and runtime verification now carry and verify the complete asset bundle. The TRL adapter selects its visual path from
+dataset media, validates model capability before loading weights, re-verifies every asset, emits visual data-profile
+evidence, and retains the processor with the trained artifact. The next implementation boundary is the Gemma E4B
+fixture and two-step qualification work package. Repository-wide static checks pass; the only full-suite failures are
+three unrelated Linux-path assumptions exercised on macOS.
 
 ## Context and Orientation
 
@@ -177,12 +205,14 @@ Posttrain expresses work through catalog selections, work packages, reusable job
 requests, and immutable actual-job OCI images. An actual-job image is the complete content-addressed unit submitted to
 Docker or dstack. It contains the project code, dependency closure, configuration, dataset snapshots, and the
 framework job-kind image. A dataset snapshot is currently a canonical `data.jsonl` plus `manifest.json`.
+Visual snapshots additionally own a digest-locked `assets/` tree enumerated by both the materialization manifest and
+the actual-job package lock.
 
-`packages/data/src/posttrain/data/models.py` defines framework-neutral records. `SupervisedExample` currently contains
-messages, the ordered indices of messages that receive loss, optional tools, and JSON metadata. It has no first-class
-media references. `packages/data/src/posttrain/data/adapters/huggingface.py` imports and exports supported supervised
-JSONL shapes. `packages/data/src/posttrain/data/catalog.py::DatasetMaterialization` records the prepared JSONL path,
-manifest path, digest, example count, and provenance.
+`packages/data/src/posttrain/data/models.py` defines framework-neutral records. `SupervisedExample` contains messages,
+the ordered indices of messages that receive loss, optional tools, JSON metadata, and an ordered tuple of immutable
+`SupervisedMedia` references. `packages/data/src/posttrain/data/adapters/huggingface.py` imports and exports supported
+supervised JSONL shapes. `packages/data/src/posttrain/data/catalog.py::DatasetMaterialization` records the prepared
+JSONL, manifest, optional asset locks, bundle digest, example count, and provenance.
 
 `packages/execution-pack/src/posttrain/execution_pack/datasets.py` materializes selected datasets and copies them into
 the actual-job build context. `packages/execution/src/posttrain/execution/job_package.py::DatasetPackageLock` records
@@ -551,3 +581,8 @@ Revision note (2026-08-20): Added the pinned-TRL multimodal compatibility proof 
 `SupervisedMedia` contract with ordered adapter round trips and backward-compatible text exports. Recorded the macOS
 arm64 versus locked CUDA dependency limitation explicitly, leaving real TRL test execution as a Linux supervised
 runtime acceptance gate rather than weakening or silently substituting the pinned dependency.
+
+Revision note (2026-08-20): Completed deterministic visual asset materialization, package locks, actual-job copying,
+runtime exact-set verification, and the modality-selected TRL visual translation. Added focused positive and
+fail-closed tests, processor retention, completion-only loss, explicit no-truncation behavior, and visual input
+profile metrics. Recorded the three unrelated Linux-path assumptions that prevent a fully green suite on macOS.
