@@ -15,7 +15,7 @@
 # framework release may reuse an image only when its runtime inputs still match.
 
 schema_version = 1
-framework_version = "0.3.20"
+framework_version = "0.3.20+policyprism.vlm.20260820.1"
 default_prefix = "registry.lan/carbonteq"
 
 [base]
@@ -67,10 +67,10 @@ base_digest = "sha256:55987a566f5fa7b3fd8af219b2a2dc51315219e2ca82f597f6c940bc73
 
 [kinds.supervised]
 repository = "posttrain-kind-supervised"
-digest = "sha256:8f5279eba0701cab0f69b8bf2c04bb708ceb6ff2d0f25af3145f16c5e756c2ca"
-lock_digest = "b604e70a9c58931d2a7f2734e30f6738d7d20b5413ef0a019558f09c2f350728"
+digest = "sha256:e4e6e3ad6cd7234927c864eff3cae731975166fc52d4b90162095787b5a97d1c"
+lock_digest = "d438e434d597f05e929c55ed8f1c2b34c1ec1f7154ed2ffb8af9bed75a5517a3"
 constraint_lock = "containers/posttrain-job-kinds/locks/supervised.lock.txt"
-runtime_source_digest = "591379b4840cdf66b78e7850ef61cb904b610209ed1a9a71000cd08b5c1b0801"
+runtime_source_digest = "9cdd9cbeb65458bf58bca3b6f1ca76a0cf1a4972581d5bda4be46adb5122c68b"
 base_digest = "sha256:55987a566f5fa7b3fd8af219b2a2dc51315219e2ca82f597f6c940bc7332d595"
 
 [kinds.transform]
