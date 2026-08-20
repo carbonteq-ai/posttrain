@@ -678,3 +678,14 @@ completed a further visual optimizer step with finite loss `0.3317` and gradient
 consistent with five retained artifacts and no missing required roles. The continued adapter is Trackio version `v0`
 with digest `dae60e0634784ce29c7c4e5e68b7b419850832ff0394ec52082383aba60ba7d1`. This closes the generic visual SFT
 adapter-consumption and reload gate before PolicyPrism project training.
+
+Revision note (2026-08-20): Materialized the real PolicyPrism visual project inputs from the approved human-reviewed
+dataset artifact: 276 non-gold training records and 69 non-gold validation records, with zero sealed-set overlap and
+the frozen prompt digest `a3e9b70b1dc82412b9eb3cedebeb3d681932dc8cf1c3b2e9a52fb1c1a63bc460`. Added one-step
+worst-case train/validation canaries, a bounded 69-step initial Gemma E4B LoRA work package, and managed baseline
+evaluation bindings for the immutable 100-PDF sealed set. Complete local OCI qualification passed for both training
+packages. The PolicyPrism Verifiers environment was migrated to the pinned v1 `EnvConfig` and typed-taskset contract;
+an isolated exact-dependency load proved its non-gold visual canary contains ten ordered page images plus the frozen
+prompt. Local OCI qualification of the evaluation image remains pending only because the native BuildKit endpoint
+stopped accepting connections after the workstation ran out of disk space; remote evaluation must not be submitted
+until that local packaging gate is rerun successfully.
