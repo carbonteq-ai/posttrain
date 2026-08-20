@@ -39,10 +39,10 @@ examples require a new product-level selection or job-kind meaning, stop and add
   packages even though the pinned TRL fork contains a vision-language collator path.
 - [x] (2026-08-20 08:43Z) Created this implementation-ready plan on the separate
   `feature/policyprism-gemma-vlm-sft` branch.
-- [ ] (2026-08-20 09:04Z) Added an exact-version multimodal prompt-completion collator test and an opt-in probe for
-  the pinned Gemma E4B processor. Source inspection confirms the pinned fork provides the required behavior. Real
-  execution is pending in the Linux supervised runtime because the locked CUDA Torch build is unavailable on macOS
-  arm64; the base environment correctly reports both tests skipped rather than substituting another TRL version.
+- [x] (2026-08-20 14:00Z) Added an exact-version multimodal prompt-completion collator test and an opt-in probe for
+  the pinned Gemma E4B processor. Source inspection and remote Linux execution confirm that the pinned fork provides
+  the required ordered-image, processor, completion-mask, and vision-tensor behavior. The base macOS environment
+  still reports the CUDA-dependent probe skipped rather than substituting another TRL version.
 - [x] (2026-08-20 09:04Z) Added frozen `SupervisedMedia` references, ordered media on `SupervisedExample`, strict
   path/digest/type validation, Hugging Face and NeMo round trips, and text-only row-shape compatibility. Validation
   passed: all 54 data tests, all 178 training tests, scoped Ruff, formatting, Pyright, and all import-boundary
@@ -67,8 +67,16 @@ examples require a new product-level selection or job-kind meaning, stop and add
   same three pre-existing macOS host-assumption failures remain (`/var` resolving to `/private/var` and a Linux CA
   bundle path absent on macOS). Linux execution of the pinned processor probe and the two optimizer steps is still
   required before qualification can be called complete.
-- [ ] Build and publish an immutable actual-job image and complete a real Gemma 4 E4B GPU smoke run with retained
-  adapter and reload evidence.
+- [x] (2026-08-20 14:00Z) Built and published immutable supervised and actual-job images, then completed real Gemma 4
+  E4B visual SFT run `18a279b9-9d82-4f4e-9b13-539ee8e29bd1` on the assigned RTX worker. Both optimizer steps had
+  finite losses and gradient norms, and Trackio reconciliation retained the final adapter as immutable version `v0`
+  with content digest `76bc42ece7cda3050bb9f30bad3cd2d0647cd112f6de3d4b3d455e0b340ccc39`.
+- [ ] (2026-08-20 14:32Z) Added and locally packaged the composed adapter-reload qualification. Its catalog model pins
+  the exact Trackio artifact and Gemma base revision, and the job materializes it as `model_adapter` before one more
+  visual SFT update. Focused catalog, work-package, and TRL tests report 47 passes and one expected local CUDA skip.
+  Immutable package `1f15ce6ec3be6205e6a5ddf1bfa312332d7fa45bfa6466dca013d84ddae84343` and actual-job image
+  `registry.lan/carbonteq/posttrain-lab/posttrain-job@sha256:7469f7439639dca6ea2d0428f1cb52e8a28bc97479caa5dd118a70fbff607d34`
+  are ready for the remote reload run.
 - [x] (2026-08-20 12:12Z) Closed two asset-verification regressions exposed by the first real pack attempt. The
   provider-neutral pack service and actual-job Dockerfile smoke verifier now include every locked dataset asset in
   their closed file sets and verify its size and digest. Focused validation invocations report 44 and 38 passes
@@ -243,9 +251,11 @@ and runtime verification now carry and verify the complete asset bundle. The TRL
 dataset media, validates model capability before loading weights, re-verifies every asset, emits visual data-profile
 evidence, and retains the processor with the trained artifact. The Lab now resolves a two-page E4B visual fixture,
 two-step qualification settings, language-only LoRA binding, and classified candidate work package. Static checks,
-processor retention, adapter reload routing, and intended-module enforcement pass. The next implementation boundary
-is immutable actual-job packaging and the real remote GPU qualification; the only full-suite failures are three
-unrelated Linux-path assumptions exercised on macOS.
+processor retention, adapter reload routing, and intended-module enforcement pass. The corrected supervised runtime
+and the first immutable actual job have now completed the two-step remote GPU qualification with a retained Trackio
+adapter. A second immutable job is packaged to materialize that exact artifact and continue visual SFT for one step;
+its remote success is the final generic reload gate before binding PolicyPrism's real training data. The only
+full-suite failures are three unrelated Linux-path assumptions exercised on macOS.
 
 ## Context and Orientation
 
@@ -649,3 +659,11 @@ worker. Gemma 4 E4B completed two optimizer steps with finite losses `0.9947` an
 recovery, checkpoint-model, model, and summary artifact roles. This proves remote visual processor loading, visual TRL
 training, finite optimization, and adapter retention through the actual-job path. Adapter consumption/reload remains
 the next composed-job gate before full PolicyPrism training.
+
+Revision note (2026-08-20): Reconciled the successful run and pinned its retained Trackio adapter as catalog model
+`models/gemma4-e4b-it@bf16/sft-visual-qualification-v0`. Added a one-step visual continuation work package that
+materializes the immutable adapter through Posttrain's standard `model_adapter` input and reloads it on the pinned
+multimodal Gemma base. Expanded validation reports 84 passes and one expected local CUDA skip. Release checks, local
+packaging, and OCI qualification succeeded with package
+`1f15ce6ec3be6205e6a5ddf1bfa312332d7fa45bfa6466dca013d84ddae84343` and actual-job image digest
+`7469f7439639dca6ea2d0428f1cb52e8a28bc97479caa5dd118a70fbff607d34`.
