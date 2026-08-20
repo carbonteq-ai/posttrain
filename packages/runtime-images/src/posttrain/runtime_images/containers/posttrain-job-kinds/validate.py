@@ -121,6 +121,11 @@ def _validate_boundaries() -> None:
         )
 
     kind_dockerfile = (KINDS / "Dockerfile").read_text()
+    supervised_profile = (KINDS / "profiles" / "supervised.txt").read_text()
+    _require(
+        "torchvision==0.26.0+cu130" in supervised_profile,
+        "supervised image must install the locked Torchvision required by visual processors",
+    )
     _require("ARG POSTTRAIN_BASE_IMAGE" in kind_dockerfile, "kind images need an explicit parent image")
     _require(
         "locks/build-tools.lock.txt" in kind_dockerfile and "--require-hashes" in kind_dockerfile,

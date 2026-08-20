@@ -172,7 +172,13 @@ def test_narrow_runtime_locks_pin_every_profile_root_and_artifact() -> None:
 
     expected_roots = {
         BASE_LOCK: {"torch", "triton"},
-        constraint_lock("supervised"): {"carbonteq-trackio", "pydantic", "pyyaml", "trl"},
+        constraint_lock("supervised"): {
+            "carbonteq-trackio",
+            "pydantic",
+            "pyyaml",
+            "torchvision",
+            "trl",
+        },
         constraint_lock("online-rl-trl-py312"): {"carbonteq-trackio", "trl", "vllm", "verifiers"},
         constraint_lock("online-rl-verl-py313"): {"carbonteq-trackio", "verifiers"},
         constraint_lock("eval"): {"carbonteq-trackio", "datasets", "vllm", "verifiers"},
@@ -249,6 +255,14 @@ def test_every_kind_installs_the_shared_framework_runtime() -> None:
     assert "--requirement /opt/posttrain/profiles/common.txt" in transform
     assert "trackio" in dockerfile.split("FROM transform AS transform-smoke", 1)[1]
     assert "posttrain_tracking_trackio.adapter, trackio" in job_dockerfile
+
+
+def test_supervised_kind_declares_the_visual_processor_dependency() -> None:
+    with definition_root() as root:
+        kind_root = root / "containers/posttrain-job-kinds"
+        profile = (kind_root / "profiles/supervised.txt").read_text()
+
+    assert "torchvision==0.26.0+cu130" in profile
 
 
 def test_actual_job_verifiers_include_digest_locked_dataset_assets() -> None:
