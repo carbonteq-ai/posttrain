@@ -549,6 +549,7 @@ def _parse_dstack(value: object, *, base: Path) -> DstackBinding | None:
             payload.get("trust_bundle"),
             base,
             "providers.dstack.trust_bundle",
+            preserve_symlinks=True,
         ),
         _optional_nonnegative_int(
             payload.get("capacity_wait_seconds"),
@@ -618,7 +619,12 @@ def load_machine_config() -> MachineConfig | None:
     storage = _parse_storage(payload.get("storage"), base=machine_state_root, context="storage")
     trust = _mapping(payload.get("trust"), context="trust", allow_none=True)
     _reject_unknown(trust, {"ca_bundle"}, "trust")
-    trust_bundle = _optional_configured_path(trust.get("ca_bundle"), path.parent, "trust.ca_bundle")
+    trust_bundle = _optional_configured_path(
+        trust.get("ca_bundle"),
+        path.parent,
+        "trust.ca_bundle",
+        preserve_symlinks=True,
+    )
     if trust_bundle is not None and not trust_bundle.is_file():
         raise ContractError(f"Posttrain machine trust bundle is missing: {trust_bundle}")
     credential_payload = _mapping(payload.get("credentials"), context="credentials", allow_none=True)
@@ -857,17 +863,17 @@ def resolve_trust_bundle(configured: Path | None) -> ResolvedTrustBundle:
     machine says it has no internal authority.
     """
     if configured is not None:
-        resolved = configured.expanduser()
-        if not resolved.is_file():
-            raise ContractError(f"configured providers trust_bundle does not exist: {resolved}")
-        return ResolvedTrustBundle(resolved.resolve(), "configured")
+        declared = configured.expanduser().absolute()
+        if not declared.is_file():
+            raise ContractError(f"configured providers trust_bundle does not exist: {declared}")
+        return ResolvedTrustBundle(declared, "configured")
 
     declared = os.environ.get(TRUST_BUNDLE_ENVIRONMENT_VARIABLE, "").strip()
     if declared:
-        resolved = Path(declared).expanduser()
-        if not resolved.is_file():
-            raise ContractError(f"{TRUST_BUNDLE_ENVIRONMENT_VARIABLE} does not name a file: {resolved}")
-        return ResolvedTrustBundle(resolved.resolve(), "environment")
+        path = Path(declared).expanduser().absolute()
+        if not path.is_file():
+            raise ContractError(f"{TRUST_BUNDLE_ENVIRONMENT_VARIABLE} does not name a file: {path}")
+        return ResolvedTrustBundle(path, "environment")
 
     if WELL_KNOWN_TRUST_BUNDLE.is_file():
         return ResolvedTrustBundle(WELL_KNOWN_TRUST_BUNDLE, "convention")
@@ -1425,8 +1431,14 @@ def _optional_configured_path(
     value: object,
     base: Path,
     context: str,
+    *,
+    preserve_symlinks: bool = False,
 ) -> Path | None:
-    return _configured_path(value, base, context) if value is not None else None
+    if value is None:
+        return None
+    configured = Path(_required_config_string(value, context)).expanduser()
+    candidate = configured if configured.is_absolute() else base / configured
+    return candidate.absolute() if preserve_symlinks else candidate.resolve()
 
 
 def _configured_executable_path(value: object, base: Path, context: str) -> Path:
