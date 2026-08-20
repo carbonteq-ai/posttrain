@@ -9,7 +9,14 @@ from pathlib import Path
 
 import pytest
 from posttrain.catalog import load_catalog_layer, packaged_base_directory
-from posttrain.common import CatalogRef, ContractError, ExecutionTarget, InferenceBinding, ModelVariant
+from posttrain.common import (
+    CatalogRef,
+    ContractError,
+    ExecutionTarget,
+    InferenceBinding,
+    ModelVariant,
+    TrackioArtifactRef,
+)
 from posttrain.data import DatasetLoadPlan
 from posttrain.environment import VerifiersV1ConfigActivation
 from posttrain.eval import EnvironmentBinding, EnvironmentSource, EvaluationPlan
@@ -167,6 +174,32 @@ def test_gemma4_e4b_visual_sft_qualification_is_pinned_and_language_only() -> No
     assert re.fullmatch(target, "model.vision_tower.layers.0.self_attn.q_proj") is None
     assert re.fullmatch(target, "model.audio_tower.layers.0.self_attn.q_proj") is None
     assert re.fullmatch(target, "model.language_model.embed_tokens") is None
+
+
+def test_gemma4_e4b_visual_adapter_reload_qualification_is_immutable() -> None:
+    catalog = open_catalog(
+        scope="posttrain-lab",
+        overlays=(WORKSPACE / "apps" / "lab" / ".posttrain" / "catalog",),
+    )
+    model = catalog.resolve(CatalogRef("model", "models/gemma4-e4b-it@bf16/sft-visual-qualification-v0")).value
+    settings = catalog.resolve(CatalogRef("training", "gemma4-e4b-it/visual-adapter-reload-qualification-v1")).value
+
+    assert isinstance(model, ModelVariant)
+    assert isinstance(model.artifact, TrackioArtifactRef)
+    assert model.artifact.project == "posttrain-lab"
+    assert model.artifact.name == "training-models-gemma4-e4b-it-bf16-sft-lora-adapter"
+    assert model.artifact.version == "v0"
+    assert model.form == "peft-adapter"
+    assert model.parent == "models/gemma4-e4b-it@bf16"
+    assert model.base.repo_id == "google/gemma-4-E4B-it"
+    assert model.base.revision == "ee0ef6023621cff504d758262d4e04895a5af4a2"
+    assert model.provenance["source_run_id"] == "18a279b9-9d82-4f4e-9b13-539ee8e29bd1"
+    assert model.provenance["posttrain_content_digest"] == (
+        "76bc42ece7cda3050bb9f30bad3cd2d0647cd112f6de3d4b3d455e0b340ccc39"
+    )
+    assert isinstance(settings, SFTSettings)
+    assert settings.loop.max_steps == 1
+    assert settings.visual_no_truncation is True
 
 
 def test_every_evaluation_plan_declares_success_for_every_environment() -> None:

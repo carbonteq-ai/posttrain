@@ -1,0 +1,47 @@
+project_id: posttrain-lab
+work_package_id: train/gemma4-e4b-it/visual-adapter-reload-qualification
+stage: train
+description: Materialize and reload the retained Gemma 4 E4B visual LoRA adapter, then complete one visual SFT optimizer update.
+recipe:
+  type: inline
+  id: recipes/gemma4-e4b-it-visual-adapter-reload-qualification@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    dataset: dataset
+    settings: training
+    training: training
+  jobs:
+    - id: train
+      kind: train.sft
+      definition: train/trl-sft@1
+  expected_artifacts:
+    - reloaded trained adapter with processor
+    - training summary
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/gemma4-e4b-it@bf16/sft-visual-qualification-v0
+  dataset:
+    type: ref
+    family: dataset
+    id: datasets/gemma4-e4b-visual-sft-qualification@1
+  settings:
+    type: ref
+    family: training
+    id: gemma4-e4b-it/visual-adapter-reload-qualification-v1
+  training:
+    type: ref
+    family: training
+    id: training/gemma4-e4b-it-trl-visual-lora-qualification@1
+enabled_optional_jobs: []
+metadata:
+  question: Can Posttrain materialize the retained visual adapter and continue Gemma 4 E4B visual SFT from it?
+  labels:
+    - qualification
+    - gemma4
+    - multimodal
+    - sft
+    - adapter-reload

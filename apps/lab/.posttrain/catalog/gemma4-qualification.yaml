@@ -1,3 +1,33 @@
+model:
+  models/gemma4-e4b-it@bf16/sft-visual-qualification-v0:
+    artifact:
+      kind: trackio
+      project: posttrain-lab
+      name: training-models-gemma4-e4b-it-bf16-sft-lora-adapter
+      version: v0
+    base:
+      kind: hub
+      repo_id: google/gemma-4-E4B-it
+      revision: ee0ef6023621cff504d758262d4e04895a5af4a2
+    form: peft-adapter
+    weight_precision: bf16
+    family: gemma4
+    parameters: 7996156490
+    instruction_tuned: true
+    renderer_contract: gemma4-tools@1
+    capabilities:
+      modalities: [text, image, audio]
+      native_context_window: 131072
+      mtp: true
+    parent: models/gemma4-e4b-it@bf16
+    provenance:
+      operation: sft
+      parameter_update_kind: lora
+      source_run_id: 18a279b9-9d82-4f4e-9b13-539ee8e29bd1
+      base_model_repo_id: google/gemma-4-E4B-it
+      base_model_revision: ee0ef6023621cff504d758262d4e04895a5af4a2
+      posttrain_content_digest: 76bc42ece7cda3050bb9f30bad3cd2d0647cd112f6de3d4b3d455e0b340ccc39
+
 environment:
   gemma4-gsm8k-mtp-qualification:
     category: math-reasoning
@@ -47,6 +77,19 @@ dataset:
       kind: messages
 
 training:
+  gemma4-e4b-it/visual-adapter-reload-qualification-v1:
+    selection_type: sft-settings
+    revision: "1"
+    loop:
+      max_steps: 1
+      max_length: 512
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 1
+      learning_rate: 0.0001
+      logging_steps: 1
+      checkpoint_steps: 1
+      checkpoint_limit: 1
+    visual_no_truncation: true
   gemma4-e4b-it/visual-sft-qualification-v1:
     selection_type: sft-settings
     revision: "1"
