@@ -270,6 +270,8 @@ def emit_parameter_counts(context: RunContext, model: Any, update: ParameterUpda
         raise RuntimeError(f"training selected no parameters: trainable={trainable}, total={total}")
     if not isinstance(update, FullParameterUpdate) and trainable >= total:
         raise RuntimeError(f"invalid PEFT parameter selection: trainable={trainable}, total={total}")
+    if isinstance(update, LoRAUpdate | QLoRAUpdate):
+        _validate_lora_trainable_parameters(model, update)
     context.metrics(
         {
             "train/parameters_total": total,
@@ -277,6 +279,29 @@ def emit_parameter_counts(context: RunContext, model: Any, update: ParameterUpda
             "train/parameters_trainable_fraction": trainable / total,
         }
     )
+
+
+def _validate_lora_trainable_parameters(model: Any, update: LoRAUpdate | QLoRAUpdate) -> None:
+    trainable_names = tuple(name for name, parameter in model.named_parameters() if parameter.requires_grad)
+    if not trainable_names:
+        raise RuntimeError("LoRA training selected no named trainable parameters")
+    invalid_lora = tuple(name for name in trainable_names if ".lora_" not in name)
+    if invalid_lora:
+        raise RuntimeError("LoRA training exposed non-adapter parameters: " + ", ".join(invalid_lora[:5]))
+    if update.target_modules == "all-linear":
+        return
+    try:
+        target = re.compile(update.target_modules)
+    except re.error as error:
+        raise ValueError(f"LoRA target_modules is not a valid regular expression: {error}") from error
+    mismatched: list[str] = []
+    for name in trainable_names:
+        module = name.split(".lora_", maxsplit=1)[0]
+        module = module.removeprefix("base_model.model.")
+        if target.fullmatch(module) is None:
+            mismatched.append(name)
+    if mismatched:
+        raise RuntimeError("LoRA training exposed parameters outside target_modules: " + ", ".join(mismatched[:5]))
 
 
 def emit_runtime_versions(context: RunContext, imports: dict[str, Any]) -> None:

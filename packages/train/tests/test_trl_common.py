@@ -1,17 +1,19 @@
 """Focused tests for family-aware TRL model loading."""
 
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import Any, cast
 
 import pytest
-from posttrain.common import ProducedArtifact
-from posttrain.common.variants import GEMMA_4_12B_IT, LFM_25_12B_THINKING, QWEN_35_2B
+from posttrain.common import LocalArtifactRef, ProducedArtifact, RunContext
+from posttrain.common.variants import GEMMA_4_12B_IT, GEMMA_4_E4B_IT, LFM_25_12B_THINKING, QWEN_35_2B
 from posttrain.train import LoRAUpdate, TrainingLoop
 from posttrain.train.backends.trl.common import (
     checkpoint_callback_type,
+    emit_parameter_counts,
+    finish_training,
     load_processor,
     load_trainable_model,
     preserve_recovery_checkpoint_after_error,
@@ -130,6 +132,127 @@ def test_trainable_model_loader_honors_requested_dtype() -> None:
     ]
     with pytest.raises(ValueError, match="bfloat16.*float32"):
         load_trainable_model(QWEN_35_2B, LoRAUpdate(), cast(TrainingLoop, loop), imports, model_dtype="float16")
+
+
+def test_gemma_e4b_adapter_reload_uses_the_multimodal_base(tmp_path: Path) -> None:
+    calls: list[tuple[object, Path, bool]] = []
+    adapter = tmp_path / "adapter"
+    adapter.mkdir()
+
+    class Factory:
+        @staticmethod
+        def from_pretrained(_repo: str, **_kwargs: object) -> Any:
+            return SimpleNamespace(config=SimpleNamespace(use_cache=True))
+
+    class PeftFactory:
+        @staticmethod
+        def from_pretrained(base: object, path: Path, *, is_trainable: bool) -> object:
+            calls.append((base, path, is_trainable))
+            return "reloaded-adapter"
+
+    model = replace(
+        GEMMA_4_E4B_IT,
+        id="gemma4-e4b-it-qualification-adapter",
+        artifact=LocalArtifactRef(adapter.resolve(), "a" * 64),
+        form="peft-adapter",
+        parent=GEMMA_4_E4B_IT.id,
+        revision=None,
+        digest=None,
+    )
+    imports = {
+        "torch": SimpleNamespace(bfloat16="bf16", float32="fp32"),
+        "AutoModelForCausalLM": CausalFactory,
+        "AutoModelForMultimodalLM": Factory,
+        "PeftModel": PeftFactory,
+    }
+
+    loaded = load_trainable_model(
+        model,
+        LoRAUpdate(),
+        cast(TrainingLoop, SimpleNamespace(gradient_checkpointing=False)),
+        imports,
+    )
+
+    assert loaded == "reloaded-adapter"
+    assert len(calls) == 1
+    assert calls[0][1:] == (adapter, True)
+
+
+def test_parameter_evidence_rejects_lora_outside_the_language_target() -> None:
+    class Parameter:
+        def __init__(self, size: int, *, trainable: bool) -> None:
+            self._size = size
+            self.requires_grad = trainable
+
+        def numel(self) -> int:
+            return self._size
+
+    parameters = {
+        "base_model.model.model.language_model.layers.0.self_attn.q_proj.lora_A.default.weight": Parameter(
+            4, trainable=True
+        ),
+        "base_model.model.model.vision_tower.layers.0.self_attn.q_proj.lora_A.default.weight": Parameter(
+            4, trainable=True
+        ),
+        "base_model.model.model.language_model.embed_tokens.weight": Parameter(100, trainable=False),
+    }
+    model = SimpleNamespace(
+        parameters=lambda: iter(parameters.values()),
+        named_parameters=lambda: iter(parameters.items()),
+    )
+    update = LoRAUpdate(
+        target_modules=(
+            r"^model[.]language_model[.]layers[.]\d+[.]"
+            r"(self_attn[.](q_proj|k_proj|v_proj|o_proj)|mlp[.](gate_proj|up_proj|down_proj))$"
+        )
+    )
+
+    with pytest.raises(RuntimeError, match="outside target_modules.*vision_tower"):
+        emit_parameter_counts(cast(RunContext, SimpleNamespace(metrics=lambda _values: None)), model, update)
+
+
+def test_finish_training_retains_the_processor_with_the_adapter(tmp_path: Path) -> None:
+    class Trainer:
+        args = SimpleNamespace(output_dir=str(tmp_path / "checkpoints"))
+        state = SimpleNamespace(global_step=2, log_history=[{"loss": 0.5, "step": 2}])
+
+        @staticmethod
+        def save_model(path: Path) -> None:
+            path.mkdir(parents=True)
+            (path / "adapter_config.json").write_text("{}\n", encoding="utf-8")
+            (path / "adapter_model.safetensors").write_bytes(b"adapter")
+
+    class Processor:
+        @staticmethod
+        def save_pretrained(path: Path) -> None:
+            (path / "processor_config.json").write_text("{}\n", encoding="utf-8")
+
+    imports = {
+        "get_last_checkpoint": lambda _path: None,
+        "torch": SimpleNamespace(cuda=SimpleNamespace(is_available=lambda: False)),
+    }
+    train_output = SimpleNamespace(
+        metrics={
+            "train_loss": 0.5,
+            "train_runtime": 1.0,
+            "train_samples_per_second": 1.0,
+            "train_steps_per_second": 2.0,
+        }
+    )
+
+    result = finish_training(
+        cast(RunContext, SimpleNamespace(metrics=lambda _values: None)),
+        Trainer(),
+        train_output,
+        Processor(),
+        tmp_path,
+        "sft",
+        LoRAUpdate(),
+        imports,
+    )
+
+    assert result.model_dir == tmp_path / "adapter"
+    assert (result.model_dir / "processor_config.json").is_file()
 
 
 def test_gemma_mtp_materializes_the_pinned_assistant_before_trl(monkeypatch) -> None:
