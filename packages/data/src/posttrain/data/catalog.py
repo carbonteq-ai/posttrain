@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import runpy
 import shutil
 import tempfile
@@ -11,7 +12,7 @@ import warnings
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from importlib.resources import files as resource_files
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 from typing import Any, Literal, cast
 
@@ -110,6 +111,35 @@ DatasetLoadPlan = DatasetSelection
 
 
 @dataclass(frozen=True, slots=True)
+class MaterializedDatasetAsset:
+    """One verified regular file owned by a dataset materialization."""
+
+    path: str
+    sha256: str
+    size_bytes: int
+
+    def __post_init__(self) -> None:
+        path = PurePosixPath(self.path)
+        if (
+            not self.path
+            or "\\" in self.path
+            or path.is_absolute()
+            or path.as_posix() != self.path
+            or not path.is_relative_to(PurePosixPath("assets"))
+            or len(path.parts) < 2
+            or any(part in {"", ".", ".."} for part in path.parts)
+        ):
+            raise ContractError("dataset asset path must be a normalized relative path below assets/")
+        if re.fullmatch(r"[0-9a-f]{64}", self.sha256) is None:
+            raise ContractError("dataset asset digest must be SHA-256")
+        if self.size_bytes < 0:
+            raise ContractError("dataset asset size cannot be negative")
+
+    def to_payload(self) -> dict[str, JsonValue]:
+        return {"path": self.path, "sha256": self.sha256, "size_bytes": self.size_bytes}
+
+
+@dataclass(frozen=True, slots=True)
 class DatasetMaterialization:
     """Result of resolving and validating a dataset into project-local state."""
 
@@ -122,6 +152,8 @@ class DatasetMaterialization:
     examples: int
     created: bool
     build_key: str = ""
+    assets: tuple[MaterializedDatasetAsset, ...] = ()
+    assets_digest: str | None = None
 
 
 def decode_dataset_selection(
@@ -336,6 +368,13 @@ def materialize_dataset(
     content_sha256 = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
     destination.mkdir(parents=True, exist_ok=True)
     data_path.write_text(serialized, encoding="utf-8")
+    assets = _materialize_assets(
+        plan,
+        _declared_assets(normalized),
+        destination=destination,
+        project_root=project_root,
+        input_root=resolved_input_root,
+    )
     manifest = {
         "schema_version": 1,
         "selection_id": plan.id,
@@ -347,6 +386,9 @@ def materialize_dataset(
         "examples": len(normalized),
         "data": data_path.name,
     }
+    if assets:
+        manifest["assets"] = [asset.to_payload() for asset in assets]
+        manifest["assets_digest"] = _assets_digest(assets)
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return _read_materialization(plan, data_path, manifest_path, created=True)
 
@@ -436,6 +478,13 @@ def _materialize_typed_dataset(
         staging_data = staging / data_path.name
         staging_manifest = staging / manifest_path.name
         staging_data.write_text(serialized, encoding="utf-8")
+        assets = _materialize_assets(
+            plan,
+            _declared_assets(normalized),
+            destination=staging,
+            project_root=project_root,
+            input_root=resolved_input_root,
+        )
         manifest = {
             "schema_version": MATERIALIZER_SCHEMA_VERSION,
             "selection_id": plan.id,
@@ -465,6 +514,9 @@ def _materialize_typed_dataset(
             "size_bytes": len(serialized.encode("utf-8")),
             "data": data_path.name,
         }
+        if assets:
+            manifest["assets"] = [asset.to_payload() for asset in assets]
+            manifest["assets_digest"] = _assets_digest(assets)
         staging_manifest.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         # Validate before promotion; an incomplete staging directory is never a
         # cache hit.  ``_read_materialization`` also checks output digest.
@@ -810,6 +862,132 @@ def _normalized_project_input_path(configured: str) -> str:
     return configured
 
 
+def _declared_assets(rows: Iterable[Mapping[str, Any]]) -> tuple[tuple[str, str], ...]:
+    declared: dict[str, str] = {}
+    for row in rows:
+        media = row.get("media", ())
+        if not isinstance(media, list | tuple):
+            raise ContractError("normalized supervised media must be a sequence")
+        for value in media:
+            if not isinstance(value, Mapping):
+                raise ContractError("normalized supervised media entries must be objects")
+            path = value.get("path")
+            digest = value.get("sha256")
+            if not isinstance(path, str) or not isinstance(digest, str):
+                raise ContractError("normalized supervised media entries require path and sha256")
+            MaterializedDatasetAsset(path, digest, 0)
+            previous = declared.setdefault(path, digest)
+            if previous != digest:
+                raise ContractError(f"dataset asset path {path!r} has conflicting digests")
+    return tuple(sorted(declared.items()))
+
+
+def _materialize_assets(
+    plan: DatasetLoadPlan,
+    declared: tuple[tuple[str, str], ...],
+    *,
+    destination: Path,
+    project_root: Path,
+    input_root: Path,
+) -> tuple[MaterializedDatasetAsset, ...]:
+    del project_root
+    assets: list[MaterializedDatasetAsset] = []
+    for relative, expected_digest in declared:
+        contents = _asset_source_bytes(plan, relative, input_root=input_root)
+        observed_digest = hashlib.sha256(contents).hexdigest()
+        if observed_digest != expected_digest:
+            raise ContractError(
+                f"dataset asset {relative!r} digest mismatch: expected {expected_digest}, got {observed_digest}"
+            )
+        if not contents:
+            raise ContractError(f"dataset asset {relative!r} cannot be empty")
+        target = destination.joinpath(*PurePosixPath(relative).parts)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.exists() or target.is_symlink():
+            raise ContractError(f"dataset asset destination already exists: {relative}")
+        target.write_bytes(contents)
+        assets.append(MaterializedDatasetAsset(relative, observed_digest, len(contents)))
+    return tuple(assets)
+
+
+def _asset_source_bytes(plan: DatasetLoadPlan, relative: str, *, input_root: Path) -> bytes:
+    if plan.source_kind == "fixture":
+        source = cast(Mapping[str, JsonValue], plan.source)
+        package, _, _ = cast(str, source["resource"]).partition(":")
+        resource = resource_files(package).joinpath(relative)
+        if not resource.is_file():
+            raise ContractError(f"fixture dataset asset not found: {relative}")
+        return resource.read_bytes()
+    source = _safe_project_file(input_root, relative, "dataset asset")
+    return source.read_bytes()
+
+
+def _assets_digest(assets: tuple[MaterializedDatasetAsset, ...]) -> str:
+    payload = [asset.to_payload() for asset in assets]
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def _manifest_assets(
+    manifest: Mapping[str, Any],
+    *,
+    root: Path,
+    content: bytes,
+) -> tuple[tuple[MaterializedDatasetAsset, ...], str | None]:
+    raw_assets = manifest.get("assets")
+    raw_digest = manifest.get("assets_digest")
+    if raw_assets is None and raw_digest is None:
+        if (root / "assets").exists():
+            raise ContractError(f"materialized text dataset contains an undeclared assets directory at {root}")
+        if _declared_assets(_jsonl_rows(content.decode("utf-8"), source=str(root / "data.jsonl"))):
+            raise ContractError(f"materialized visual dataset omits its asset manifest at {root}")
+        return (), None
+    if not isinstance(raw_assets, list) or not raw_assets or not isinstance(raw_digest, str):
+        raise ContractError(f"materialized dataset has invalid asset metadata at {root}")
+    assets: list[MaterializedDatasetAsset] = []
+    for value in raw_assets:
+        if not isinstance(value, Mapping) or set(value) != {"path", "sha256", "size_bytes"}:
+            raise ContractError(f"materialized dataset has invalid asset record at {root}")
+        path = value.get("path")
+        digest = value.get("sha256")
+        size = value.get("size_bytes")
+        if (
+            not isinstance(path, str)
+            or not isinstance(digest, str)
+            or not isinstance(size, int)
+            or isinstance(size, bool)
+        ):
+            raise ContractError(f"materialized dataset has invalid asset record at {root}")
+        assets.append(MaterializedDatasetAsset(path, digest, size))
+    ordered = tuple(assets)
+    if tuple(asset.path for asset in ordered) != tuple(sorted(asset.path for asset in ordered)):
+        raise ContractError(f"materialized dataset asset records are not deterministically ordered at {root}")
+    if len({asset.path for asset in ordered}) != len(ordered):
+        raise ContractError(f"materialized dataset contains duplicate asset records at {root}")
+    if _assets_digest(ordered) != raw_digest:
+        raise ContractError(f"materialized dataset asset bundle digest mismatch at {root}")
+    declared = _declared_assets(_jsonl_rows(content.decode("utf-8"), source=str(root / "data.jsonl")))
+    if declared != tuple((asset.path, asset.sha256) for asset in ordered):
+        raise ContractError(f"materialized dataset asset records differ from data.jsonl at {root}")
+    asset_root = root / "assets"
+    if not asset_root.is_dir() or asset_root.is_symlink():
+        raise ContractError(f"materialized dataset asset directory is missing at {root}")
+    expected = {asset.path for asset in ordered}
+    observed: set[str] = set()
+    for path in asset_root.rglob("*"):
+        if path.is_symlink() or (not path.is_dir() and not path.is_file()):
+            raise ContractError(f"materialized dataset assets contain a symlink or special file at {root}")
+        if path.is_file():
+            observed.add(path.relative_to(root).as_posix())
+    if observed != expected:
+        raise ContractError(f"materialized dataset asset files differ from the manifest at {root}")
+    for asset in ordered:
+        path = root.joinpath(*PurePosixPath(asset.path).parts)
+        contents = path.read_bytes()
+        if len(contents) != asset.size_bytes or hashlib.sha256(contents).hexdigest() != asset.sha256:
+            raise ContractError(f"materialized dataset asset differs from its lock: {asset.path}")
+    return ordered, raw_digest
+
+
 def _read_materialization(
     plan: DatasetLoadPlan,
     data_path: Path,
@@ -844,6 +1022,7 @@ def _read_materialization(
     examples = manifest.get("examples")
     if not isinstance(examples, int) or examples < 1:
         raise ContractError(f"materialized dataset cache has invalid example count at {manifest_path}")
+    assets, assets_digest = _manifest_assets(manifest, root=manifest_path.parent, content=content)
     return DatasetMaterialization(
         selection_id=plan.id,
         selection_revision=plan.revision,
@@ -854,6 +1033,8 @@ def _read_materialization(
         examples=examples,
         created=created,
         build_key=build_key_value,
+        assets=assets,
+        assets_digest=assets_digest,
     )
 
 
@@ -861,6 +1042,7 @@ __all__ = [
     "DATA_CATALOG_DECODERS",
     "DatasetLoadPlan",
     "DatasetMaterialization",
+    "MaterializedDatasetAsset",
     "decode_dataset_selection",
     "load_materialized_dataset",
     "materialize_dataset",

@@ -12,7 +12,7 @@ from pathlib import Path
 
 from posttrain.common import ContractError
 from posttrain.data import DatasetLoadPlan, DatasetMaterialization, materialize_dataset
-from posttrain.execution import DatasetPackageLock
+from posttrain.execution import DatasetAssetLock, DatasetPackageLock
 
 from .contracts import DatasetPackRequest
 
@@ -96,6 +96,24 @@ class ImmutableDatasetPackager:
             shutil.copyfile(materialized.manifest_path, manifest_path)
             _verify_copy(data_path, materialized.content_sha256)
             manifest = _read_manifest(manifest_path)
+            asset_locks: list[DatasetAssetLock] = []
+            for asset in materialized.assets:
+                source = materialized.manifest_path.parent.joinpath(*Path(asset.path).parts)
+                target = destination.joinpath(*Path(asset.path).parts)
+                if source.is_symlink() or not source.is_file():
+                    raise ContractError(f"dataset materialization asset is not a regular file: {asset.path}")
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(source, target)
+                _verify_copy(target, asset.sha256)
+                if target.stat().st_size != asset.size_bytes:
+                    raise ContractError(f"dataset materialization asset size differs from its manifest: {asset.path}")
+                asset_locks.append(
+                    DatasetAssetLock(
+                        package_path=(relative_root / asset.path).as_posix(),
+                        digest=asset.sha256,
+                        size_bytes=asset.size_bytes,
+                    )
+                )
             locks.append(
                 DatasetPackageLock(
                     seat_name=request.seat_name,
@@ -120,6 +138,8 @@ class ImmutableDatasetPackager:
                     dependency_lock_digest=_optional_digest(
                         manifest.get("dependency_lock_digest"), "dataset dependency lock digest"
                     ),
+                    assets=tuple(asset_locks),
+                    assets_digest=materialized.assets_digest,
                 )
             )
         return MaterializedDatasetPackages(output_root, tuple(locks))
@@ -155,6 +175,23 @@ def _verify_materialization(
     if materialized.build_key:
         if manifest.get("build_key") != materialized.build_key:
             raise ContractError("dataset materialization build key differs from its manifest")
+    expected_assets = [asset.to_payload() for asset in materialized.assets]
+    if materialized.assets:
+        if manifest.get("assets") != expected_assets or manifest.get("assets_digest") != materialized.assets_digest:
+            raise ContractError("dataset materialization assets differ from its manifest")
+        asset_root = materialized.manifest_path.parent / "assets"
+        if not asset_root.is_dir() or asset_root.is_symlink():
+            raise ContractError("dataset materialization asset directory is missing")
+        observed: set[str] = set()
+        for path in asset_root.rglob("*"):
+            if path.is_symlink() or (not path.is_dir() and not path.is_file()):
+                raise ContractError("dataset materialization assets contain a symlink or special file")
+            if path.is_file():
+                observed.add(path.relative_to(materialized.manifest_path.parent).as_posix())
+        if observed != {asset.path for asset in materialized.assets}:
+            raise ContractError("dataset materialization asset files differ from its manifest")
+    elif manifest.get("assets") is not None or manifest.get("assets_digest") is not None:
+        raise ContractError("text dataset materialization cannot declare asset metadata")
 
 
 def _read_manifest(path: Path) -> dict[str, object]:

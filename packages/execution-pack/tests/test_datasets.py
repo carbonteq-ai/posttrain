@@ -10,6 +10,7 @@ from posttrain.data import (
     DatasetLoadPlan,
     DatasetMaterialization,
     LocalDatasetInput,
+    MaterializedDatasetAsset,
     PythonDatasetBuilder,
 )
 from posttrain.execution_pack import DatasetPackRequest, ImmutableDatasetPackager
@@ -90,6 +91,89 @@ def test_packages_verified_dataset_with_portable_seat_lock(
     assert lock.package_path.startswith("datasets/dataset-")
     assert (output / lock.package_path).is_file()
     assert (output / lock.manifest_path).is_file()
+
+
+def test_packages_visual_assets_with_digest_locks(tmp_path: Path) -> None:
+    asset_bytes = b"page image"
+    asset_digest = hashlib.sha256(asset_bytes).hexdigest()
+
+    def materializer(
+        plan: DatasetLoadPlan,
+        state_dir: Path,
+        project_root: Path,
+    ) -> DatasetMaterialization:
+        del project_root
+        root = state_dir / "visual-materialization"
+        (root / "assets/document").mkdir(parents=True)
+        data = (
+            json.dumps(
+                {
+                    "messages": [
+                        {"role": "user", "content": "Extract"},
+                        {"role": "assistant", "content": "{}"},
+                    ],
+                    "media": [
+                        {
+                            "kind": "image",
+                            "path": "assets/document/page.png",
+                            "sha256": asset_digest,
+                            "mime_type": "image/png",
+                            "metadata": {},
+                        }
+                    ],
+                },
+                sort_keys=True,
+            ).encode()
+            + b"\n"
+        )
+        digest = hashlib.sha256(data).hexdigest()
+        asset = MaterializedDatasetAsset("assets/document/page.png", asset_digest, len(asset_bytes))
+        assets_digest = hashlib.sha256(
+            json.dumps([asset.to_payload()], sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        (root / "data.jsonl").write_bytes(data)
+        (root / "assets/document/page.png").write_bytes(asset_bytes)
+        (root / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "selection_id": plan.id,
+                    "selection_revision": plan.revision,
+                    "dataset_revision": plan.dataset_revision,
+                    "source_kind": plan.source_kind,
+                    "content_sha256": digest,
+                    "examples": 1,
+                    "data": "data.jsonl",
+                    "assets": [asset.to_payload()],
+                    "assets_digest": assets_digest,
+                }
+            ),
+            encoding="utf-8",
+        )
+        return DatasetMaterialization(
+            plan.id,
+            plan.revision,
+            plan.source_kind,
+            root / "data.jsonl",
+            root / "manifest.json",
+            digest,
+            1,
+            True,
+            assets=(asset,),
+            assets_digest=assets_digest,
+        )
+
+    output = (tmp_path / "context").resolve()
+    result = ImmutableDatasetPackager(
+        state_dir=(tmp_path / "state").resolve(),
+        project_root=tmp_path.resolve(),
+        materializer=materializer,
+    ).package((DatasetPackRequest("dataset", _plan()),), output_root=output)
+
+    lock = result.locks[0]
+    assert lock.assets_digest is not None
+    assert len(lock.assets) == 1
+    assert (output / lock.assets[0].package_path).read_bytes() == asset_bytes
 
 
 def test_rejects_duplicate_dataset_seats(tmp_path: Path) -> None:

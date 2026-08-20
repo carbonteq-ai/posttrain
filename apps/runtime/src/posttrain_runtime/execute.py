@@ -33,6 +33,7 @@ from posttrain.common import (
 from posttrain.data import (
     DatasetLoadPlan,
     DatasetMaterialization,
+    MaterializedDatasetAsset,
     load_materialized_dataset,
     validate_materialized_dataset,
 )
@@ -733,6 +734,17 @@ def _configure_runtime(
                     content_sha256=lock.digest,
                     examples=examples,
                     created=False,
+                    assets=tuple(
+                        MaterializedDatasetAsset(
+                            path=PurePosixPath(asset.package_path)
+                            .relative_to(PurePosixPath(lock.package_path).parent)
+                            .as_posix(),
+                            sha256=asset.digest,
+                            size_bytes=asset.size_bytes,
+                        )
+                        for asset in lock.assets
+                    ),
+                    assets_digest=lock.assets_digest,
                 ),
             )
         if isinstance(value, EnvironmentBinding):
@@ -1131,7 +1143,11 @@ def _verify_datasets(
     dataset_root = root / "datasets"
     if not dataset_root.is_dir() or dataset_root.is_symlink():
         raise ContractError("job package dataset directory is missing")
-    expected_files = {relative for lock in manifest.datasets for relative in (lock.package_path, lock.manifest_path)}
+    expected_files = {
+        relative
+        for lock in manifest.datasets
+        for relative in (lock.package_path, lock.manifest_path, *(asset.package_path for asset in lock.assets))
+    }
     observed_files: set[str] = set()
     for path in dataset_root.rglob("*"):
         if path.is_symlink() or (not path.is_dir() and not path.is_file()):
@@ -1170,6 +1186,27 @@ def _verify_datasets(
         for field, value in expected.items():
             if dataset_manifest.get(field) != value:
                 raise ContractError(f"packaged dataset manifest has invalid {field}: {lock.seat_name}")
+        raw_assets = dataset_manifest.get("assets")
+        raw_assets_digest = dataset_manifest.get("assets_digest")
+        if lock.assets:
+            dataset_root_relative = PurePosixPath(lock.package_path).parent
+            expected_assets = [
+                {
+                    "path": PurePosixPath(asset.package_path).relative_to(dataset_root_relative).as_posix(),
+                    "sha256": asset.digest,
+                    "size_bytes": asset.size_bytes,
+                }
+                for asset in lock.assets
+            ]
+            if raw_assets != expected_assets or raw_assets_digest != lock.assets_digest:
+                raise ContractError(f"packaged dataset assets differ from their lock: {lock.seat_name}")
+            for asset in lock.assets:
+                asset_path = _package_path(root, asset.package_path, "dataset asset", prefix="datasets")
+                asset_contents = asset_path.read_bytes()
+                if len(asset_contents) != asset.size_bytes or _bytes_digest(asset_contents) != asset.digest:
+                    raise ContractError(f"packaged dataset asset differs from its lock: {asset.package_path}")
+        elif raw_assets is not None or raw_assets_digest is not None:
+            raise ContractError(f"text dataset manifest unexpectedly declares assets: {lock.seat_name}")
         examples = dataset_manifest.get("examples")
         if (
             not isinstance(examples, int)

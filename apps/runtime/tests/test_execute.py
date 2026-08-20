@@ -27,6 +27,7 @@ from posttrain.data import (
     SupervisedDataSource,
 )
 from posttrain.execution import (
+    DatasetAssetLock,
     DatasetPackageLock,
     EnvironmentActivationLock,
     EnvironmentPackageLock,
@@ -361,9 +362,12 @@ def _actual_job(
     root: Path,
     *,
     with_dataset: bool = False,
+    with_dataset_assets: bool = False,
     target_override: bool = False,
     tracking: str = "none",
 ) -> tuple[Path, JobPackageManifest]:
+    if with_dataset_assets and not with_dataset:
+        raise ValueError("dataset assets require with_dataset=True")
     job = root.resolve()
     (job / "locks").mkdir(parents=True)
     (job / "sources/framework/runtime").mkdir(parents=True)
@@ -425,7 +429,47 @@ def _actual_job(
     if with_dataset:
         dataset_root = job / "datasets/sft/locked"
         dataset_root.mkdir(parents=True)
-        data = b'{"messages":[{"content":"hello","role":"user"},{"content":"world","role":"assistant"}]}\n'
+        asset_locks: tuple[DatasetAssetLock, ...] = ()
+        asset_record: dict[str, object] | None = None
+        assets_digest: str | None = None
+        if with_dataset_assets:
+            asset_bytes = b"page image"
+            asset_digest = _digest(asset_bytes)
+            asset_relative = "assets/document/page.png"
+            asset_path = dataset_root / asset_relative
+            asset_path.parent.mkdir(parents=True)
+            asset_path.write_bytes(asset_bytes)
+            asset_record = {
+                "path": asset_relative,
+                "sha256": asset_digest,
+                "size_bytes": len(asset_bytes),
+            }
+            assets_digest = _semantic_digest([asset_record])
+            asset_locks = (
+                DatasetAssetLock(
+                    "datasets/sft/locked/assets/document/page.png",
+                    asset_digest,
+                    len(asset_bytes),
+                ),
+            )
+            row = {
+                "messages": [
+                    {"content": "hello", "role": "user"},
+                    {"content": "world", "role": "assistant"},
+                ],
+                "media": [
+                    {
+                        "kind": "image",
+                        "path": asset_relative,
+                        "sha256": asset_digest,
+                        "mime_type": "image/png",
+                        "metadata": {},
+                    }
+                ],
+            }
+            data = (json.dumps(row, sort_keys=True) + "\n").encode()
+        else:
+            data = b'{"messages":[{"content":"hello","role":"user"},{"content":"world","role":"assistant"}]}\n'
         data_digest = _digest(data)
         (dataset_root / "data.jsonl").write_bytes(data)
         dataset_manifest = {
@@ -438,6 +482,10 @@ def _actual_job(
             "examples": 1,
             "data": "data.jsonl",
         }
+        if with_dataset_assets:
+            assert asset_record is not None
+            dataset_manifest["assets"] = [asset_record]
+            dataset_manifest["assets_digest"] = assets_digest
         (dataset_root / "manifest.json").write_text(
             json.dumps(dataset_manifest),
             encoding="utf-8",
@@ -455,6 +503,8 @@ def _actual_job(
                 manifest_path="datasets/sft/locked/manifest.json",
                 size_bytes=len(data),
                 num_records=1,
+                assets=asset_locks,
+                assets_digest=assets_digest,
             ),
         )
     manifest = JobPackageManifest(
@@ -776,6 +826,50 @@ def test_worker_loads_the_verified_packaged_dataset_without_rematerializing(
 
     assert result.status == "succeeded"
     assert seen == ["run-runtime-1"]
+
+
+def test_worker_loads_verified_visual_dataset_assets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    manifest_path, manifest = _actual_job(
+        tmp_path / "job",
+        with_dataset=True,
+        with_dataset_assets=True,
+    )
+    seen: list[str] = []
+    monkeypatch.setenv("POSTTRAIN_EXECUTION", _launch(manifest))
+    monkeypatch.setattr("posttrain_runtime.execute._RUN_ROOT", (tmp_path / "runs").resolve())
+    monkeypatch.setattr(
+        "posttrain_runtime.execute.build_job_runtime",
+        lambda request, tracking: _runtime(request.catalog, seen, with_dataset=True),
+    )
+
+    result = execute_manifest(manifest_path)
+
+    assert result.status == "succeeded"
+    assert seen == ["run-runtime-1"]
+
+
+@pytest.mark.parametrize("operation", ["modify", "remove", "add"])
+def test_worker_rejects_visual_dataset_asset_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    operation: str,
+) -> None:
+    manifest_path, manifest = _actual_job(
+        tmp_path / "job",
+        with_dataset=True,
+        with_dataset_assets=True,
+    )
+    monkeypatch.setenv("POSTTRAIN_EXECUTION", _launch(manifest))
+    asset = manifest_path.parent / "datasets/sft/locked/assets/document/page.png"
+    if operation == "modify":
+        asset.write_bytes(b"tampered")
+    elif operation == "remove":
+        asset.unlink()
+    else:
+        (asset.parent / "additional.png").write_bytes(b"additional")
+
+    with pytest.raises(ContractError, match="dataset (files differ|asset differs)"):
+        execute_manifest(manifest_path)
 
 
 @pytest.mark.parametrize(
