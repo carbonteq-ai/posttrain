@@ -75,6 +75,12 @@ examples require a new product-level selection or job-kind meaning, stop and add
   across execution-pack, runtime, and runtime-image tests. A local linux/amd64 OCI package for the two-step Gemma visual smoke passed
   actual-job qualification with package key
   `402b766c5531884d7b74925b82fc849e3b6895c1e066e98d7e4f96fe511047f0`.
+- [ ] (2026-08-20 13:43Z) Submitted the first RTX Pro 6000 visual smoke as run
+  `bca64b49-6488-40b0-9e53-241aecc28a64`. Placement succeeded, but the runtime stopped before model loading because
+  macOS canonicalized the configured cross-host trust path from `/etc/posttrain/trust/internal-ca.pem` to
+  `/private/etc/posttrain/trust/internal-ca.pem`. The narrow repair preserves configured trust-path spelling while
+  still requiring an existing certificate file. Focused configuration and dstack tests pass, and `posttrain doctor`
+  now reports the Linux worker path. Repackaging and remote retry remain pending.
 - [ ] Package the PolicyPrism project training work package and managed Verifiers domain-evaluation work package.
 - [ ] Run the frozen visual baseline and post-SFT evaluation on the sealed set, then record comparable metric deltas.
 
@@ -132,6 +138,13 @@ examples require a new product-level selection or job-kind meaning, stop and add
   Evidence: the first real visual pack failed first in `_validate_dataset_packages` and then in the Dockerfile smoke,
   because both expected only `data.jsonl` and `manifest.json` even though the manifest carried valid asset locks.
   Both paths now have asset-aware checks and the real local OCI pack succeeds.
+
+- Observation: A configured certificate path can be a cross-host dstack instance contract, not merely a local file
+  identity.
+  Evidence: on macOS, `Path.resolve()` rewrote `/etc/posttrain/trust/internal-ca.pem` to the host-only path
+  `/private/etc/posttrain/trust/internal-ca.pem`. dstack mounted that spelling on the Linux worker, where the runtime
+  found no parseable certificate and failed before model loading. Preserving the validated absolute spelling keeps
+  the shared `/etc/posttrain/trust/internal-ca.pem` worker contract intact without disabling TLS verification.
 
 ## Decision Log
 
