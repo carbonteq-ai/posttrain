@@ -371,6 +371,31 @@ def _validate_manifest(root: Path) -> None:
             _file_digest(data_path) == dataset.get("digest"),
             "dataset digest differs from its lock",
         )
+        assets = dataset.get("assets", [])
+        _require(isinstance(assets, list), "dataset assets must be a list")
+        dataset_root = PurePosixPath(dataset["package_path"]).parent
+        for asset in assets:
+            _require(isinstance(asset, dict), "dataset asset lock must be an object")
+            package_path = asset.get("package_path")
+            _require(isinstance(package_path, str), "dataset asset package_path must be a string")
+            relative = PurePosixPath(package_path)
+            _require(
+                not relative.is_absolute()
+                and ".." not in relative.parts
+                and relative.is_relative_to(dataset_root / "assets"),
+                f"dataset asset must stay below its dataset assets directory: {package_path}",
+            )
+            asset_path = root / package_path
+            _require(asset_path.is_file(), f"dataset asset is missing from context: {package_path}")
+            _require(
+                asset_path.stat().st_size == asset.get("size_bytes"),
+                "dataset asset size differs from its lock",
+            )
+            _require(
+                _file_digest(asset_path) == asset.get("digest"),
+                "dataset asset digest differs from its lock",
+            )
+            expected_dataset_files.add(package_path)
     observed_dataset_files = {
         path.relative_to(root).as_posix()
         for path in (root / "datasets").rglob("*")

@@ -455,7 +455,10 @@ expected_dataset_files = set()
 for dataset in manifest.datasets:
     data = Path(dataset.package_path)
     metadata = Path(dataset.manifest_path)
-    expected_dataset_files.update((data.as_posix(), metadata.as_posix()))
+    assets = tuple((asset, Path(asset.package_path)) for asset in dataset.assets)
+    expected_dataset_files.update(
+        (data.as_posix(), metadata.as_posix(), *(path.as_posix() for _, path in assets))
+    )
     if (
         data.parts[0] != "datasets"
         or metadata.parts[0] != "datasets"
@@ -467,6 +470,14 @@ for dataset in manifest.datasets:
         raise SystemExit(
             f"staged dataset differs from its lock: {dataset.seat_name}"
         )
+    for asset, path in assets:
+        if (
+            path.parts[0] != "datasets"
+            or not path.is_file()
+            or path.stat().st_size != asset.size_bytes
+            or file_digest(path) != asset.digest
+        ):
+            raise SystemExit(f"staged dataset asset differs from its lock: {asset.package_path}")
 observed_dataset_files = {
     path.as_posix()
     for path in Path("datasets").rglob("*")

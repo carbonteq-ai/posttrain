@@ -69,6 +69,12 @@ examples require a new product-level selection or job-kind meaning, stop and add
   required before qualification can be called complete.
 - [ ] Build and publish an immutable actual-job image and complete a real Gemma 4 E4B GPU smoke run with retained
   adapter and reload evidence.
+- [x] (2026-08-20 12:12Z) Closed two asset-verification regressions exposed by the first real pack attempt. The
+  provider-neutral pack service and actual-job Dockerfile smoke verifier now include every locked dataset asset in
+  their closed file sets and verify its size and digest. Focused validation invocations report 44 and 38 passes
+  across execution-pack, runtime, and runtime-image tests. A local linux/amd64 OCI package for the two-step Gemma visual smoke passed
+  actual-job qualification with package key
+  `402b766c5531884d7b74925b82fc849e3b6895c1e066e98d7e4f96fe511047f0`.
 - [ ] Package the PolicyPrism project training work package and managed Verifiers domain-evaluation work package.
 - [ ] Run the frozen visual baseline and post-SFT evaluation on the sealed set, then record comparable metric deltas.
 
@@ -120,6 +126,12 @@ examples require a new product-level selection or job-kind meaning, stop and add
   `apps/lab/src/posttrain_lab/qualification/gates.toml` caused the qualification inventory tests to fail as designed.
   The E4B visual smoke is now registered as an experimental candidate rather than silently expanding the active
   release gate set.
+
+- Observation: Unit coverage of the dataset packager and runtime verifier did not cover the two other closed-world
+  file-set checks used by `JobPackService` and the actual-job Dockerfile.
+  Evidence: the first real visual pack failed first in `_validate_dataset_packages` and then in the Dockerfile smoke,
+  because both expected only `data.jsonl` and `manifest.json` even though the manifest carried valid asset locks.
+  Both paths now have asset-aware checks and the real local OCI pack succeeds.
 
 ## Decision Log
 

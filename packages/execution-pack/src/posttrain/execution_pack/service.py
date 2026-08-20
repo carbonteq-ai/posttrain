@@ -1050,6 +1050,7 @@ def _validate_dataset_packages(
     for value in locks:
         package_path = PurePosixPath(value.package_path)
         manifest_path = PurePosixPath(value.manifest_path)
+        asset_paths = tuple(PurePosixPath(asset.package_path) for asset in value.assets)
         if (
             not package_path.is_relative_to(PurePosixPath("datasets"))
             or not manifest_path.is_relative_to(PurePosixPath("datasets"))
@@ -1057,9 +1058,10 @@ def _validate_dataset_packages(
             or manifest_path == PurePosixPath("datasets")
         ):
             raise ContractError("dataset package paths must stay below datasets/")
-        if package_path in expected_files or manifest_path in expected_files:
+        declared_paths = (package_path, manifest_path, *asset_paths)
+        if any(path in expected_files for path in declared_paths):
             raise ContractError("dataset package paths must be unique")
-        expected_files.update((package_path, manifest_path))
+        expected_files.update(declared_paths)
         data = root.joinpath(*package_path.parts)
         manifest = root.joinpath(*manifest_path.parts)
         if not data.is_file() or data.is_symlink() or not manifest.is_file() or manifest.is_symlink():
@@ -1075,6 +1077,14 @@ def _validate_dataset_packages(
         if not isinstance(payload, dict):
             raise ContractError("dataset package manifest must be an object")
         _validate_dataset_manifest_lock(payload, value)
+        for asset, asset_path in zip(value.assets, asset_paths, strict=True):
+            materialized_asset = root.joinpath(*asset_path.parts)
+            if not materialized_asset.is_file() or materialized_asset.is_symlink():
+                raise ContractError("dataset package asset files are missing")
+            if materialized_asset.stat().st_size != asset.size_bytes:
+                raise ContractError("dataset package asset size differs from its lock")
+            if _file_digest(materialized_asset) != asset.digest:
+                raise ContractError("dataset package asset digest differs from its lock")
 
     observed_files = {path.relative_to(root) for path in (root / "datasets").rglob("*") if path.is_file()}
     if observed_files != {Path(*relative.parts) for relative in expected_files}:
@@ -1104,6 +1114,22 @@ def _validate_dataset_manifest_lock(
         expected = getattr(lock, field_name)
         if expected is not None and manifest.get(field_name) != expected:
             raise ContractError(f"dataset {field_name.replace('_', ' ')} differs from its lock")
+    raw_assets = manifest.get("assets")
+    raw_assets_digest = manifest.get("assets_digest")
+    if lock.assets:
+        dataset_root = PurePosixPath(lock.package_path).parent
+        expected_assets = [
+            {
+                "path": PurePosixPath(asset.package_path).relative_to(dataset_root).as_posix(),
+                "sha256": asset.digest,
+                "size_bytes": asset.size_bytes,
+            }
+            for asset in lock.assets
+        ]
+        if raw_assets != expected_assets or raw_assets_digest != lock.assets_digest:
+            raise ContractError("dataset package assets differ from their lock")
+    elif raw_assets is not None or raw_assets_digest is not None:
+        raise ContractError("text dataset manifest unexpectedly declares assets")
 
 
 def _verify_staged_context(

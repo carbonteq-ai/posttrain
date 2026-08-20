@@ -251,6 +251,18 @@ def test_every_kind_installs_the_shared_framework_runtime() -> None:
     assert "posttrain_tracking_trackio.adapter, trackio" in job_dockerfile
 
 
+def test_actual_job_verifiers_include_digest_locked_dataset_assets() -> None:
+    with definition_root() as root:
+        job_root = root / "containers/posttrain-job"
+        dockerfile = (job_root / "Dockerfile").read_text()
+        validator = (job_root / "validate.py").read_text()
+
+    assert "for asset in dataset.assets" in dockerfile
+    assert "file_digest(path) != asset.digest" in dockerfile
+    assert 'assets = dataset.get("assets", [])' in validator
+    assert '_file_digest(asset_path) == asset.get("digest")' in validator
+
+
 def test_base_runtime_lock_retains_the_reviewed_mirrored_triton_artifact() -> None:
     requirements = _logical_requirements(BASE_LOCK)
     assert requirements["triton"].startswith("triton @ https://pypi.lan/root/pypi/+f/10c/7f76c6e72d2ef/")
