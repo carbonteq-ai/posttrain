@@ -79,7 +79,7 @@ def test_supervised_media_rejects_unsafe_or_noncanonical_paths(path: str) -> Non
     (
         ({"sha256": "A" * 64}, "64 lowercase hexadecimal"),
         ({"sha256": "1" * 63}, "64 lowercase hexadecimal"),
-        ({"mime_type": "application/pdf"}, "image/jpeg, image/png, or image/webp"),
+        ({"mime_type": "application/pdf"}, "image/jpeg, image/png, image/webp, or image/x-portable-pixmap"),
         ({"kind": "audio"}, "kind must be image"),
     ),
 )
@@ -100,6 +100,16 @@ def test_supervised_example_rejects_duplicate_media_paths() -> None:
 
     with pytest.raises(ValueError, match="paths must be unique"):
         _example(first, conflicting)
+
+
+def test_supervised_media_accepts_reviewable_portable_pixmap_fixtures() -> None:
+    media = SupervisedMedia(
+        "assets/documents/example/page-0001.ppm",
+        _FIRST_DIGEST,
+        "image/x-portable-pixmap",
+    )
+
+    assert media.mime_type == "image/x-portable-pixmap"
 
 
 def test_huggingface_media_round_trip_preserves_order_and_metadata() -> None:

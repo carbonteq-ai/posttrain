@@ -13,7 +13,7 @@ from posttrain.common import JsonValue
 
 _ID = re.compile(r"^[a-z0-9][a-z0-9._/-]*$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
-_IMAGE_MIME_TYPES = frozenset({"image/jpeg", "image/png", "image/webp"})
+_IMAGE_MIME_TYPES = frozenset({"image/jpeg", "image/png", "image/webp", "image/x-portable-pixmap"})
 
 type MessageRecord = Mapping[str, JsonValue]
 type ToolRecord = Mapping[str, JsonValue]
@@ -92,7 +92,9 @@ class SupervisedMedia:
         if self.kind != "image":
             raise ValueError("supervised media kind must be image")
         if self.mime_type not in _IMAGE_MIME_TYPES:
-            raise ValueError("supervised image media must use image/jpeg, image/png, or image/webp")
+            raise ValueError(
+                "supervised image media must use image/jpeg, image/png, image/webp, or image/x-portable-pixmap"
+            )
         if _SHA256.fullmatch(self.sha256) is None:
             raise ValueError("supervised media sha256 must be 64 lowercase hexadecimal characters")
         object.__setattr__(self, "metadata", _freeze_mapping(self.metadata))

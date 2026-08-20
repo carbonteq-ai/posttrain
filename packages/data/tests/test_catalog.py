@@ -53,6 +53,34 @@ def test_packaged_fixture_materialization_is_idempotent(tmp_path: Path) -> None:
     assert len(source.examples) == 2
 
 
+def test_packaged_visual_fixture_materializes_ordered_digest_locked_assets(tmp_path: Path) -> None:
+    plan = decode_dataset_selection(
+        CatalogRef("dataset", "datasets/gemma4-e4b-visual-sft-qualification@1"),
+        {
+            "id": "datasets/gemma4-e4b-visual-sft-qualification@1",
+            "revision": "1",
+            "kind": "supervised",
+            "source": {
+                "kind": "fixture",
+                "resource": "posttrain.data.fixtures:gemma4_visual_sft.jsonl",
+            },
+            "format": {"kind": "messages"},
+        },
+        {},
+    )
+
+    materialized = materialize_dataset(plan, state_dir=tmp_path / "state", project_root=tmp_path)
+    source = resolve_dataset_source(plan, state_dir=tmp_path / "state", project_root=tmp_path)
+
+    assert materialized.examples == 1
+    assert len(materialized.assets) == 2
+    assert isinstance(source, SupervisedDataset)
+    assert [item.metadata["page_number"] for item in source.examples[0].media] == [1, 2]
+    for item in source.examples[0].media:
+        path = materialized.path.parent / item.path
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == item.sha256
+
+
 def test_declared_builder_reuses_cache_and_rebuilds_when_an_input_changes(tmp_path: Path) -> None:
     data = tmp_path / "data" / "raw.txt"
     data.parent.mkdir()
