@@ -55,11 +55,18 @@ examples require a new product-level selection or job-kind meaning, stop and add
   preserving the renderer-pretokenized text path. Visual rows use the pinned prompt-completion shape, `AutoProcessor`,
   completion-only loss, no packing or padding-free mode, and no truncation by default; the saved adapter also retains
   its processor.
-- [ ] Add static Gemma 4 E4B multimodal SFT catalog selections, fixtures, and a two-step Lab qualification work
-  package.
-- [ ] (2026-08-20 15:41Z) Focused and static repository validation passes. The full suite reached 1,293 passes and
-  25 skips; three pre-existing macOS host-assumption failures remain (`/var` resolving to `/private/var` and a Linux
-  CA bundle path absent on macOS). No failure touches the changed packages or multimodal contracts.
+- [x] (2026-08-20 11:47Z) Added a license-safe two-page PPM fixture, visual dataset selection, E4B two-step SFT
+  settings, language-only rank-8 LoRA binding, Lab work package, and candidate qualification inventory entry. Static
+  catalog tests prove that the target expression includes language attention and MLP projections while excluding
+  vision, audio, and embedding modules. Runtime parameter evidence rejects any trainable non-LoRA parameter or LoRA
+  parameter outside the selected expression. Processor retention and multimodal adapter reload routing have focused
+  tests. Work-package validation and semantic job planning both pass.
+- [ ] (2026-08-20 11:47Z) The local repository validation ladder is complete except for the user-owned
+  `git diff --check`: locked sync, Ruff, formatting, Pyright, and all eight import contracts pass. Focused
+  qualification tests report 92 passes and one expected skip. The full suite reports 1,301 passes and 25 skips; the
+  same three pre-existing macOS host-assumption failures remain (`/var` resolving to `/private/var` and a Linux CA
+  bundle path absent on macOS). Linux execution of the pinned processor probe and the two optimizer steps is still
+  required before qualification can be called complete.
 - [ ] Build and publish an immutable actual-job image and complete a real Gemma 4 E4B GPU smoke run with retained
   adapter and reload evidence.
 - [ ] Package the PolicyPrism project training work package and managed Verifiers domain-evaluation work package.
@@ -106,6 +113,13 @@ examples require a new product-level selection or job-kind meaning, stop and add
   Evidence: two execution-configuration assertions assume Linux `/var` and `/etc` path behavior, and one remote
   builder test requires `/etc/ssl/certs/ca-certificates.crt`. Ruff, formatting, Pyright, import contracts, and all
   focused data, execution, pack, runtime, and train tests pass.
+
+- Observation: The Lab treats every retained work package as an explicitly classified qualification gate or
+  experiment.
+  Evidence: adding the visual SFT work package without an entry in
+  `apps/lab/src/posttrain_lab/qualification/gates.toml` caused the qualification inventory tests to fail as designed.
+  The E4B visual smoke is now registered as an experimental candidate rather than silently expanding the active
+  release gate set.
 
 ## Decision Log
 
@@ -173,6 +187,13 @@ examples require a new product-level selection or job-kind meaning, stop and add
   owns its data and evaluation semantics.
   Date/Author: 2026-08-20 / Codex.
 
+- Decision: Use tiny ASCII portable-pixmap images for the Lab qualification fixture and support their registered MIME
+  type in the generic image-media contract.
+  Rationale: the fixture remains license-safe, human-reviewable, deterministic, and patchable as source while PIL
+  still exercises the same image loading and RGB conversion boundary used for production PNG, JPEG, and WebP pages.
+  Portable pixmap is a qualification convenience, not a PolicyPrism production rendering recommendation.
+  Date/Author: 2026-08-20 / Codex.
+
 - Decision: Lock visual assets individually and also lock a canonical bundle digest, while omitting both fields for
   text-only datasets.
   Rationale: Individual locks identify the exact portable files used by training; the bundle digest makes the set and
@@ -195,9 +216,11 @@ represented as a Mac result. The canonical data layer now has a backend-neutral 
 portable identity and unchanged text-only exports. Dataset materialization, actual-job locks, copied build contexts,
 and runtime verification now carry and verify the complete asset bundle. The TRL adapter selects its visual path from
 dataset media, validates model capability before loading weights, re-verifies every asset, emits visual data-profile
-evidence, and retains the processor with the trained artifact. The next implementation boundary is the Gemma E4B
-fixture and two-step qualification work package. Repository-wide static checks pass; the only full-suite failures are
-three unrelated Linux-path assumptions exercised on macOS.
+evidence, and retains the processor with the trained artifact. The Lab now resolves a two-page E4B visual fixture,
+two-step qualification settings, language-only LoRA binding, and classified candidate work package. Static checks,
+processor retention, adapter reload routing, and intended-module enforcement pass. The next implementation boundary
+is immutable actual-job packaging and the real remote GPU qualification; the only full-suite failures are three
+unrelated Linux-path assumptions exercised on macOS.
 
 ## Context and Orientation
 
@@ -361,8 +384,9 @@ small rank consistent with existing qualification settings, per-device batch siz
 accumulation, gradient checkpointing, BF16, logging each step, and one retained final checkpoint.
 
 Extend Lab catalog, work-package, and qualification inventory tests. Static acceptance is that catalog resolution,
-work-package validation, job planning, and job packing succeed without a GPU and identify the supervised runtime
-variant. No PolicyPrism data or prompt belongs in this Lab fixture.
+work-package validation, and job planning succeed without a GPU. Actual-job packaging and supervised-runtime
+identification are the first gates of Milestone 6 because they require the configured builder and registry. No
+PolicyPrism data or prompt belongs in this Lab fixture.
 
 ### Milestone 6: Validate, package, publish, and run the GPU smoke
 
@@ -428,11 +452,9 @@ Run focused tests during implementation:
 
 Run static work-package checks using the exact new visual qualification file names recorded during Milestone 5:
 
-    uv run posttrain work-package validate apps/lab/.posttrain/work_packages/<gemma4-e4b-visual-sft>.yaml
-    uv run posttrain job plan apps/lab/.posttrain/work_packages/<gemma4-e4b-visual-sft>.yaml --job train
-
-Replace the angle-bracket placeholder in this living plan as soon as the work-package filename is chosen. Do not run
-the placeholder literally.
+    cd apps/lab
+    uv run posttrain work-package validate .posttrain/work_packages/gemma4_e4b_visual_sft_qualification.yaml
+    uv run posttrain job plan .posttrain/work_packages/gemma4_e4b_visual_sft_qualification.yaml --job train
 
 Run the full repository validation ladder:
 
