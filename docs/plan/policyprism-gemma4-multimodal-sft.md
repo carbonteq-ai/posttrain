@@ -39,10 +39,14 @@ examples require a new product-level selection or job-kind meaning, stop and add
   packages even though the pinned TRL fork contains a vision-language collator path.
 - [x] (2026-08-20 08:43Z) Created this implementation-ready plan on the separate
   `feature/policyprism-gemma-vlm-sft` branch.
-- [ ] Prove the exact pinned TRL and Transformers stack with a focused multimodal prompt-completion integration
-  test before changing production contracts.
-- [ ] Add a framework-neutral ordered media contract to supervised examples and preserve it through canonical JSONL
-  adapters.
+- [ ] (2026-08-20 09:04Z) Added an exact-version multimodal prompt-completion collator test and an opt-in probe for
+  the pinned Gemma E4B processor. Source inspection confirms the pinned fork provides the required behavior. Real
+  execution is pending in the Linux supervised runtime because the locked CUDA Torch build is unavailable on macOS
+  arm64; the base environment correctly reports both tests skipped rather than substituting another TRL version.
+- [x] (2026-08-20 09:04Z) Added frozen `SupervisedMedia` references, ordered media on `SupervisedExample`, strict
+  path/digest/type validation, Hugging Face and NeMo round trips, and text-only row-shape compatibility. Validation
+  passed: all 54 data tests, all 178 training tests, scoped Ruff, formatting, Pyright, and all import-boundary
+  contracts. Eight existing or opt-in training tests skipped as designed.
 - [ ] Materialize, digest-lock, package, and runtime-verify dataset asset bundles without weakening existing
   fail-closed package verification.
 - [ ] Add a visual branch to the private TRL SFT adapter while preserving the existing text-only path unchanged.
@@ -84,6 +88,12 @@ examples require a new product-level selection or job-kind meaning, stop and add
   initially freezing vision layers, and fine-tuning language, attention, and MLP layers. That matches the repository's
   existing Gemma LoRA target pattern, subject to exact E4B module discovery.
 
+- Observation: The repository's locked supervised dependency stack cannot be installed on the developer's macOS
+  arm64 host.
+  Evidence: the lock selects the CUDA build `torch==2.11.0+cu130`, for which no macOS arm64 distribution exists. The
+  exact TRL compatibility test therefore skips without the optional dependency locally and must run in the Linux
+  supervised runtime before Milestone 1 is closed.
+
 ## Decision Log
 
 - Decision: Implement and qualify the capability on the existing branch
@@ -117,6 +127,14 @@ examples require a new product-level selection or job-kind meaning, stop and add
   bloat and duplicated memory.
   Date/Author: 2026-08-20 / Codex.
 
+- Decision: Name the public reference `SupervisedMedia`, restrict its first schema to image assets below `assets/`,
+  and use tuple position as the authoritative page order.
+  Rationale: One normalized package-relative path plus MIME type and SHA-256 identity is sufficient for portable
+  packaging. Tuple order avoids redundant page-order fields that could conflict, while optional JSON metadata can
+  retain source page numbers for audit without controlling training order. Text-only exports omit the media field so
+  their existing row shape remains unchanged.
+  Date/Author: 2026-08-20 / Codex.
+
 - Decision: Use conversational prompt-completion records for the visual TRL translation and train only on the
   completion.
   Rationale: The PolicyPrism instruction and images are conditioning input; the deterministic canonical JSON is the
@@ -144,11 +162,14 @@ examples require a new product-level selection or job-kind meaning, stop and add
 
 ## Outcomes & Retrospective
 
-Planning is complete and no production code has changed. The implementation is intentionally split at independently
-verifiable boundaries: exact dependency behavior, canonical media representation, immutable packaging, trainer
-translation, static qualification, real GPU evidence, and project integration. This prevents a local trainer demo from
-being mistaken for a portable Posttrain job. Update this section after each milestone with what passed, what remains,
-and any change to the original scope.
+The exact pinned-TRL proof now exists as an executable collator test plus an opt-in exact Gemma E4B processor probe,
+and source inspection of the pinned fork confirms the required ordered-image, processor, vision-tensor,
+completion-mask, and no-truncation path. Their real execution remains a Linux-runtime gate rather than being
+represented as a Mac result. The canonical data layer now has a backend-neutral ordered media contract with strict
+portable identity and unchanged text-only exports. All 54 data tests pass. The next implementation boundary is
+immutable materialization and actual-job packaging of the referenced assets; no trainer translation should consume
+host paths before that boundary is complete. The complete training package suite also passes with 178 tests and 8
+designed skips, including the two new probes on this host.
 
 ## Context and Orientation
 
@@ -194,8 +215,8 @@ The exact Posttrain TRL dependency is declared in `packages/train/pyproject.toml
 rules say generic trainer/runtime fixes belong in the sibling CarbonTeq TRL fork, while Posttrain-specific selections,
 packaging, and evidence belong here. If the dependency probe proves a fork fix is required, use a sibling `../trl`
 checkout, update its `CARBONTEQ_FORK.md`, add fork regression tests, publish the fork commit first, then update
-`docs/tooling/trl/README.md`, `packages/train/pyproject.toml`, and `uv.lock` in Posttrain. Do not mix uncommitted changes
-between repositories.
+`docs/tooling/trl/README.md`, `packages/train/pyproject.toml`, and `uv.lock` in Posttrain. Do not mix uncommitted
+changes between repositories.
 
 ## Plan of Work
 
@@ -525,3 +546,8 @@ dataset, package, runtime, Gemma qualification, and evaluation paths and inspect
 plan records the manager's separate-branch, Gemma multimodal smoke, packaging, publication, and Verifiers evaluation
 requirements; gates any TRL fork edit on a focused exact-version failure; and keeps PolicyPrism policy out of reusable
 framework packages.
+
+Revision note (2026-08-20): Added the pinned-TRL multimodal compatibility proof and completed the backend-neutral
+`SupervisedMedia` contract with ordered adapter round trips and backward-compatible text exports. Recorded the macOS
+arm64 versus locked CUDA dependency limitation explicitly, leaving real TRL test execution as a Linux supervised
+runtime acceptance gate rather than weakening or silently substituting the pinned dependency.
