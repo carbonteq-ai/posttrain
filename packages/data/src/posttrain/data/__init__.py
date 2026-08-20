@@ -58,6 +58,7 @@ from .models import (
     SupervisedDataset,
     SupervisedDataSource,
     SupervisedExample,
+    SupervisedMedia,
     ToolRecord,
 )
 from .partitioning import (
@@ -106,6 +107,7 @@ __all__ = [
     "SupervisedDataSource",
     "SupervisedDataset",
     "SupervisedExample",
+    "SupervisedMedia",
     "SupervisedPartitionManifest",
     "SupervisedPartitionPlan",
     "ToolRecord",
