@@ -71,12 +71,16 @@ examples require a new product-level selection or job-kind meaning, stop and add
   E4B visual SFT run `18a279b9-9d82-4f4e-9b13-539ee8e29bd1` on the assigned RTX worker. Both optimizer steps had
   finite losses and gradient norms, and Trackio reconciliation retained the final adapter as immutable version `v0`
   with content digest `76bc42ece7cda3050bb9f30bad3cd2d0647cd112f6de3d4b3d455e0b340ccc39`.
-- [ ] (2026-08-20 14:32Z) Added and locally packaged the composed adapter-reload qualification. Its catalog model pins
+- [x] (2026-08-20 15:15Z) Added, packaged, and remotely completed the composed adapter-reload qualification. Its
+  catalog model pins
   the exact Trackio artifact and Gemma base revision, and the job materializes it as `model_adapter` before one more
   visual SFT update. Focused catalog, work-package, and TRL tests report 47 passes and one expected local CUDA skip.
   Immutable package `1f15ce6ec3be6205e6a5ddf1bfa312332d7fa45bfa6466dca013d84ddae84343` and actual-job image
   `registry.lan/carbonteq/posttrain-lab/posttrain-job@sha256:7469f7439639dca6ea2d0428f1cb52e8a28bc97479caa5dd118a70fbff607d34`
-  are ready for the remote reload run.
+  produced successful run `30b0627c-a440-4c72-8000-07a64b946ad7`. The continued step had loss `0.3317`, gradient
+  norm `3.185`, and mean token accuracy `0.9231`. Reconciliation is consistent with no missing required artifact
+  roles; the continued adapter was retained as Trackio version `v0` with digest
+  `dae60e0634784ce29c7c4e5e68b7b419850832ff0394ec52082383aba60ba7d1`.
 - [x] (2026-08-20 12:12Z) Closed two asset-verification regressions exposed by the first real pack attempt. The
   provider-neutral pack service and actual-job Dockerfile smoke verifier now include every locked dataset asset in
   their closed file sets and verify its size and digest. Focused validation invocations report 44 and 38 passes
@@ -667,3 +671,10 @@ multimodal Gemma base. Expanded validation reports 84 passes and one expected lo
 packaging, and OCI qualification succeeded with package
 `1f15ce6ec3be6205e6a5ddf1bfa312332d7fa45bfa6466dca013d84ddae84343` and actual-job image digest
 `7469f7439639dca6ea2d0428f1cb52e8a28bc97479caa5dd118a70fbff607d34`.
+
+Revision note (2026-08-20): Completed adapter-reload run `30b0627c-a440-4c72-8000-07a64b946ad7` on the assigned RTX
+worker. Posttrain materialized the prior Trackio adapter, reloaded it on the pinned multimodal Gemma base, and
+completed a further visual optimizer step with finite loss `0.3317` and gradient norm `3.185`. Reconciliation is
+consistent with five retained artifacts and no missing required roles. The continued adapter is Trackio version `v0`
+with digest `dae60e0634784ce29c7c4e5e68b7b419850832ff0394ec52082383aba60ba7d1`. This closes the generic visual SFT
+adapter-consumption and reload gate before PolicyPrism project training.
