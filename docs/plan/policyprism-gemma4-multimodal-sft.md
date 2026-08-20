@@ -640,3 +640,12 @@ omitted Torchvision. Added the workspace-pinned Torchvision package to the super
 static validation of the authored profile and generated narrow lock. This makes the processor's visual runtime
 dependency part of the immutable supervised image contract rather than a project-level workaround. The real Gemma
 processor import remains an acceptance condition of the remote two-step visual qualification.
+
+Revision note (2026-08-20): Published the corrected supervised candidate image at
+`registry.lan/carbonteq/posttrain-kind-supervised@sha256:e4e6e3ad6cd7234927c864eff3cae731975166fc52d4b90162095787b5a97d1c`
+and completed remote visual SFT qualification run `18a279b9-9d82-4f4e-9b13-539ee8e29bd1` on the assigned CarbonTeq RTX
+worker. Gemma 4 E4B completed two optimizer steps with finite losses `0.9947` and `0.6037`, finite gradient norms
+`5.856` and `3.174`, and final mean token accuracy `0.8462`. The run finished with status `succeeded` and published
+recovery, checkpoint-model, model, and summary artifact roles. This proves remote visual processor loading, visual TRL
+training, finite optimization, and adapter retention through the actual-job path. Adapter consumption/reload remains
+the next composed-job gate before full PolicyPrism training.
