@@ -1,9 +1,0 @@
-{
-  "base_image": "registry.lan/carbonteq/posttrain-base@sha256:55987a566f5fa7b3fd8af219b2a2dc51315219e2ca82f597f6c940bc7332d595",
-  "build_key": "a5b0382a9e5ab098eb36483901d18054ad198d89d0707a4e6d8aff2567b1e31b",
-  "image": "registry.lan/carbonteq/posttrain-kind-supervised@sha256:e4e6e3ad6cd7234927c864eff3cae731975166fc52d4b90162095787b5a97d1c",
-  "lock_digest": "d438e434d597f05e929c55ed8f1c2b34c1ec1f7154ed2ffb8af9bed75a5517a3",
-  "profile": "supervised",
-  "schema": "posttrain.runtime-build-receipt.v1",
-  "source_digest": "9cdd9cbeb65458bf58bca3b6f1ca76a0cf1a4972581d5bda4be46adb5122c68b"
-}
