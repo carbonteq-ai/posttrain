@@ -12,6 +12,7 @@ from posttrain.common.variants import GEMMA_4_12B_IT, LFM_25_12B_THINKING, QWEN_
 from posttrain.train import LoRAUpdate, TrainingLoop
 from posttrain.train.backends.trl.common import (
     checkpoint_callback_type,
+    load_processor,
     load_trainable_model,
     preserve_recovery_checkpoint_after_error,
     publish_interrupted_recovery_checkpoint,
@@ -33,6 +34,30 @@ IMPORTS = {
     "AutoModelForCausalLM": CausalFactory,
     "AutoModelForMultimodalLM": MultimodalFactory,
 }
+
+
+def test_load_processor_uses_pinned_model_revision_and_normalizes_tokenizer() -> None:
+    calls: list[tuple[str, dict[str, object]]] = []
+    tokenizer = SimpleNamespace(pad_token_id=None, pad_token=None, eos_token="<eos>", padding_side="left")
+    processor = SimpleNamespace(tokenizer=tokenizer)
+
+    class ProcessorFactory:
+        @staticmethod
+        def from_pretrained(repo_id: str, **kwargs: object) -> object:
+            calls.append((repo_id, kwargs))
+            return processor
+
+    loaded = load_processor(GEMMA_4_12B_IT, {"AutoProcessor": ProcessorFactory})
+
+    assert loaded is processor
+    assert calls == [
+        (
+            GEMMA_4_12B_IT.base.repo_id,
+            {"revision": GEMMA_4_12B_IT.base.revision, "trust_remote_code": False},
+        )
+    ]
+    assert tokenizer.pad_token == "<eos>"
+    assert tokenizer.padding_side == "right"
 
 
 @dataclass

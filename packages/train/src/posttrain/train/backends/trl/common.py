@@ -33,9 +33,11 @@ def framework_imports() -> dict[str, Any]:
         import torch
         from datasets import Dataset
         from peft import LoraConfig, PeftModel, get_peft_model, prepare_model_for_kbit_training
+        from PIL import Image
         from transformers import (
             AutoModelForCausalLM,
             AutoModelForMultimodalLM,
+            AutoProcessor,
             AutoTokenizer,
             BitsAndBytesConfig,
             TrainerCallback,
@@ -52,7 +54,9 @@ def framework_imports() -> dict[str, Any]:
         "prepare_model_for_kbit_training": prepare_model_for_kbit_training,
         "AutoModelForCausalLM": AutoModelForCausalLM,
         "AutoModelForMultimodalLM": AutoModelForMultimodalLM,
+        "AutoProcessor": AutoProcessor,
         "AutoTokenizer": AutoTokenizer,
+        "Image": Image,
         "BitsAndBytesConfig": BitsAndBytesConfig,
         "TrainerCallback": TrainerCallback,
         "get_last_checkpoint": get_last_checkpoint,
@@ -167,6 +171,21 @@ def load_tokenizer(model: ModelVariant, imports: dict[str, Any]) -> Any:
         tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "right"
     return tokenizer
+
+
+def load_processor(model: ModelVariant, imports: dict[str, Any]) -> Any:
+    processor = imports["AutoProcessor"].from_pretrained(
+        model.base.repo_id,
+        revision=model.base.revision,
+        trust_remote_code=False,
+    )
+    tokenizer = getattr(processor, "tokenizer", None)
+    if tokenizer is None:
+        raise ValueError(f"model variant {model.id!r} processor has no tokenizer")
+    if tokenizer.pad_token_id is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = "right"
+    return processor
 
 
 def trainable_model_factory(model: ModelVariant, imports: dict[str, Any]) -> Any:
@@ -640,7 +659,7 @@ def finish_training(
     context: RunContext,
     trainer: Any,
     train_output: Any,
-    tokenizer: Any,
+    processing_class: Any,
     workspace: Path,
     technique: Literal["sft", "dpo", "grpo", "dapo", "olmo3", "sampo", "distill"],
     update: ParameterUpdatePlan,
@@ -648,7 +667,7 @@ def finish_training(
 ) -> BackendTrainingResult:
     model_dir = workspace / ("weights" if isinstance(update, FullParameterUpdate) else "adapter")
     trainer.save_model(model_dir)
-    tokenizer.save_pretrained(model_dir)
+    processing_class.save_pretrained(model_dir)
     latest = imports["get_last_checkpoint"](trainer.args.output_dir)
     latest_path = Path(latest).resolve() if latest is not None else None
     if isinstance(update, LoRAUpdate | QLoRAUpdate):
@@ -703,6 +722,7 @@ __all__ = [
     "emit_runtime_versions",
     "finish_training",
     "framework_imports",
+    "load_processor",
     "load_tokenizer",
     "load_trainable_model",
     "preserve_recovery_checkpoint_after_error",
