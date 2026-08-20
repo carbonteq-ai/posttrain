@@ -633,3 +633,10 @@ Revision note (2026-08-20): Completed deterministic visual asset materialization
 runtime exact-set verification, and the modality-selected TRL visual translation. Added focused positive and
 fail-closed tests, processor retention, completion-only loss, explicit no-truncation behavior, and visual input
 profile metrics. Recorded the three unrelated Linux-path assumptions that prevent a fully green suite on macOS.
+
+Revision note (2026-08-20): The second remote visual qualification reached the assigned RTX GPU, installed internal
+trust, and initialized Trackio, then failed while importing `Gemma4Processor` because the supervised runtime image
+omitted Torchvision. Added the workspace-pinned Torchvision package to the supervised runtime profile and strengthened
+static validation of the authored profile and generated narrow lock. This makes the processor's visual runtime
+dependency part of the immutable supervised image contract rather than a project-level workaround. The real Gemma
+processor import remains an acceptance condition of the remote two-step visual qualification.
