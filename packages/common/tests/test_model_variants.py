@@ -5,7 +5,9 @@ from posttrain.common.variants import (
     GEMMA_4_31B_IT,
     GEMMA_4_E2B_IT,
     GEMMA_4_E4B_IT,
+    LFM_25_12B_INSTRUCT,
     LFM_25_12B_THINKING,
+    LFM_25_350M,
     QWEN35_THINKING_RENDERER_CONTRACT,
     QWEN_35_08B,
     QWEN_35_2B,
@@ -16,6 +18,20 @@ def test_foundation_variants_publish_explicit_model_and_renderer_contracts() -> 
     assert LFM_25_12B_THINKING.family == "lfm2.5"
     assert LFM_25_12B_THINKING.capabilities.native_context_window == 32_768
     assert LFM_25_12B_THINKING.renderer.id == "lfm2.5-tools@1"
+    assert LFM_25_350M.base.repo_id == "LiquidAI/LFM2.5-350M"
+    assert LFM_25_350M.base.revision == "9e6c6ccf47cd318696e137d381a7ded8fe4df09f"
+    assert LFM_25_350M.parameters == 354_483_968
+    assert LFM_25_12B_INSTRUCT.base.repo_id == "LiquidAI/LFM2.5-1.2B-Instruct"
+    assert LFM_25_12B_INSTRUCT.base.revision == "df58c174f05ff733f83f8cae10ea9298224c8006"
+    assert LFM_25_12B_INSTRUCT.parameters == 1_170_340_608
+    assert LFM_25_12B_INSTRUCT.capabilities.native_context_window == 32_768
+    assert LFM_25_12B_INSTRUCT.renderer.id == "lfm2.5-instruct-tools@1"
+    assert LFM_25_12B_INSTRUCT.renderer is LFM_25_350M.renderer
+    assert LFM_25_12B_INSTRUCT.renderer is not LFM_25_12B_THINKING.renderer
+    assert LFM_25_12B_INSTRUCT.tokenizer_fingerprint == LFM_25_350M.tokenizer_fingerprint
+    assert LFM_25_12B_INSTRUCT.provenance["chat_template_sha256"] == (
+        "ba551d58630afa3190b1be3602e28301f3d2e9bbac978dfc49d6d825171648b6"
+    )
     assert QWEN_35_2B.capabilities.native_context_window == 262_144
     assert QWEN_35_2B.renderer.model_family == QWEN_35_2B.family
     assert QWEN_35_2B.renderer.id == "qwen3.5-tools@1"

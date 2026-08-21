@@ -2,8 +2,17 @@
 
 from __future__ import annotations
 
+import hashlib
+
 import pytest
-from posttrain.common.variants import GEMMA_4_12B_IT, GEMMA_4_31B_IT, LFM_25_12B_THINKING, QWEN_35_2B
+from posttrain.common.variants import (
+    GEMMA_4_12B_IT,
+    GEMMA_4_31B_IT,
+    LFM_25_12B_INSTRUCT,
+    LFM_25_12B_THINKING,
+    LFM_25_350M,
+    QWEN_35_2B,
+)
 
 TOOLS = [
     {
@@ -74,6 +83,36 @@ def test_lfm_package_template_preserves_openai_tool_history() -> None:
     assert '<|tool_call_start|>[weather(city="Paris")]<|tool_call_end|>' in rendered
     assert "<|im_start|>tool\nsunny<|im_end|>" in rendered
     assert "null" not in rendered
+
+
+def test_lfm_instruct_template_is_exact_and_separate_from_thinking() -> None:
+    instruct = LFM_25_12B_INSTRUCT.conversation.chat_template.text()
+    thinking = LFM_25_12B_THINKING.conversation.chat_template.text()
+
+    assert instruct is not None
+    assert hashlib.sha256(instruct.encode()).hexdigest() == (
+        "ba551d58630afa3190b1be3602e28301f3d2e9bbac978dfc49d6d825171648b6"
+    )
+    assert instruct != thinking
+    assert LFM_25_350M.conversation.chat_template.text() == instruct
+
+
+@pytest.mark.parametrize("variant", [LFM_25_350M, LFM_25_12B_INSTRUCT])
+def test_lfm_instruct_template_renders_deterministic_chatml_without_reasoning(variant) -> None:
+    tokenizer = _local_tokenizer(variant)
+    messages = [
+        {"role": "system", "content": "Return JSON."},
+        {"role": "user", "content": "Classify this clause."},
+        {"role": "assistant", "content": '{"decision":"attach"}'},
+    ]
+    template = variant.conversation.chat_template.text()
+    rendered = tokenizer.apply_chat_template(messages, chat_template=template, tokenize=False)
+    repeated = tokenizer.apply_chat_template(messages, chat_template=template, tokenize=False)
+
+    assert rendered == repeated
+    assert rendered.startswith("<|startoftext|><|im_start|>system\n")
+    assert rendered.endswith('{"decision":"attach"}<|im_end|>\n')
+    assert "<think>" not in rendered
 
 
 @pytest.mark.parametrize("variant", [GEMMA_4_12B_IT, GEMMA_4_31B_IT])

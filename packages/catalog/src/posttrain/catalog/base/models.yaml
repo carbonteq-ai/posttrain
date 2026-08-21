@@ -69,6 +69,48 @@ model:
       mtp: false
     provenance:
       source: huggingface
+  models/lfm2.5-350m@bf16:
+    artifact:
+      kind: hub
+      repo_id: LiquidAI/LFM2.5-350M
+      revision: 9e6c6ccf47cd318696e137d381a7ded8fe4df09f
+    form: foundation
+    weight_precision: bf16
+    family: lfm2.5
+    parameters: 354483968
+    instruction_tuned: true
+    renderer_contract: lfm2.5-instruct-tools@1
+    tokenizer_fingerprint: df1d8d5ec5d091b460562ffd545e4a5e91d17d4a0db7ebe733be34ed374377bd
+    capabilities:
+      modalities: [text]
+      native_context_window: 32768
+      mtp: false
+    provenance:
+      source: huggingface
+      license: lfm1.0
+      upstream_architecture: Lfm2ForCausalLM
+      chat_template_sha256: ba551d58630afa3190b1be3602e28301f3d2e9bbac978dfc49d6d825171648b6
+  models/lfm2.5-1.2b-instruct@bf16:
+    artifact:
+      kind: hub
+      repo_id: LiquidAI/LFM2.5-1.2B-Instruct
+      revision: df58c174f05ff733f83f8cae10ea9298224c8006
+    form: foundation
+    weight_precision: bf16
+    family: lfm2.5
+    parameters: 1170340608
+    instruction_tuned: true
+    renderer_contract: lfm2.5-instruct-tools@1
+    tokenizer_fingerprint: df1d8d5ec5d091b460562ffd545e4a5e91d17d4a0db7ebe733be34ed374377bd
+    capabilities:
+      modalities: [text]
+      native_context_window: 32768
+      mtp: false
+    provenance:
+      source: huggingface
+      license: lfm1.0
+      upstream_architecture: Lfm2ForCausalLM
+      chat_template_sha256: ba551d58630afa3190b1be3602e28301f3d2e9bbac978dfc49d6d825171648b6
   models/gemma4-e2b-it@bf16:
     artifact:
       kind: hub
