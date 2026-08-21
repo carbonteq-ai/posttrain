@@ -13,6 +13,7 @@ from posttrain.execution import ExecutionEvidenceSource
 from .execution_config import (
     load_execution_environment,
     load_local_execution_config,
+    resolve_trust_bundle,
 )
 
 
@@ -21,6 +22,12 @@ def project_tracking_environment(layout: ProjectLayout) -> dict[str, str]:
 
     local = load_local_execution_config(layout)
     environment = load_execution_environment(local)
+    configured_trust = (
+        local.dstack.trust_bundle
+        if local.dstack is not None
+        else (local.local.trust_bundle if local.local is not None else None)
+    )
+    trust_bundle = resolve_trust_bundle(configured_trust).path
     verify_paths = ssl.get_default_verify_paths()
     default_ca = next(
         (
@@ -38,6 +45,8 @@ def project_tracking_environment(layout: ProjectLayout) -> dict[str, str]:
         configured = environment.get(name)
         if configured:
             os.environ.setdefault(name, configured)
+        elif trust_bundle is not None:
+            os.environ.setdefault(name, str(trust_bundle))
         elif default_ca:
             os.environ.setdefault(name, default_ca)
     return environment
