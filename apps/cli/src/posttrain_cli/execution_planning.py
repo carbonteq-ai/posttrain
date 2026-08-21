@@ -151,16 +151,17 @@ class PlannedJobPackage:
         project_source = snapshotter.materialize(self.project_source_request)
         project_environment_sources: dict[str, Path] = {}
         for request in self.pack_plan.spec.project_environment_sources:
+            package_root = (self.layout.root / request.path).resolve()
             snapshot = snapshotter.materialize(
                 SourceSnapshotRequest(
-                    root=self.layout.root,
-                    includes=(request.path,),
-                    install_roots=(request.path,),
+                    root=package_root,
+                    includes=(".",),
+                    install_roots=(".",),
                 )
             )
             if snapshot.digest != request.tree_digest:
                 raise ContractError("project environment source changed after planning; run job plan again")
-            project_environment_sources[request.path] = snapshot.package.root / request.path
+            project_environment_sources[request.path] = snapshot.package.root
         if self.framework_source_request is not None:
             framework_source = snapshotter.materialize(self.framework_source_request)
             framework_package = framework_source.package

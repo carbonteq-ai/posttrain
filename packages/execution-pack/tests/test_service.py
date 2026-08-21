@@ -12,6 +12,8 @@ from posttrain.common import ContractError, JsonValue
 from posttrain.data import DatasetLoadPlan, DatasetMaterialization
 from posttrain.execution import (
     BackendRuntimeIdentity,
+    DatasetAssetLock,
+    DatasetPackageLock,
     EnvironmentActivationLock,
     EnvironmentPackageLock,
     RuntimeImageRef,
@@ -36,7 +38,7 @@ from posttrain.execution_pack import (
     SourcePackage,
     digest_source_package,
 )
-from posttrain.execution_pack.service import _backend_runtime_lock
+from posttrain.execution_pack.service import _backend_runtime_lock, _validate_dataset_packages
 
 COMMIT = "1" * 40
 BASE = RuntimeImageRef(f"registry.lan/posttrain/base@sha256:{'b' * 64}")
@@ -666,6 +668,61 @@ def test_rejects_dataset_packager_files_without_locks(tmp_path: Path) -> None:
             output_root=(tmp_path / "packages").resolve(),
             dataset_packager=_RogueDatasetPackager(),
         ).pack(_plan(inputs), inputs)
+
+
+def test_validates_digest_locked_dataset_assets_in_closed_package(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    dataset_root = root / "datasets/sft/locked"
+    asset_path = dataset_root / "assets/document/page.png"
+    asset_path.parent.mkdir(parents=True)
+    asset = b"page image"
+    asset_path.write_bytes(asset)
+    asset_digest = hashlib.sha256(asset).hexdigest()
+    data = b'{"messages":[]}\n'
+    data_digest = hashlib.sha256(data).hexdigest()
+    (dataset_root / "data.jsonl").write_bytes(data)
+    asset_record = {
+        "path": "assets/document/page.png",
+        "sha256": asset_digest,
+        "size_bytes": len(asset),
+    }
+    assets_digest = _digest_json([asset_record])
+    (dataset_root / "manifest.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "assets": [asset_record],
+                "assets_digest": assets_digest,
+            }
+        ),
+        encoding="utf-8",
+    )
+    lock = DatasetPackageLock(
+        seat_name="dataset",
+        selection_id="datasets/sft@1",
+        selection_revision="1",
+        dataset_revision="1",
+        kind="supervised",
+        schema_version=1,
+        digest=data_digest,
+        package_path="datasets/sft/locked/data.jsonl",
+        manifest_path="datasets/sft/locked/manifest.json",
+        size_bytes=len(data),
+        assets=(
+            DatasetAssetLock(
+                "datasets/sft/locked/assets/document/page.png",
+                asset_digest,
+                len(asset),
+            ),
+        ),
+        assets_digest=assets_digest,
+    )
+
+    _validate_dataset_packages(root, (lock,))
+
+    asset_path.write_bytes(b"tampered")
+    with pytest.raises(ContractError, match="asset size differs"):
+        _validate_dataset_packages(root, (lock,))
 
 
 def test_rejects_dirty_retained_context(tmp_path: Path) -> None:

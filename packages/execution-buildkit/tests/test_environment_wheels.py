@@ -6,7 +6,11 @@ from types import SimpleNamespace
 
 import pytest
 from posttrain.common import ContractError
-from posttrain.execution_pack import ProjectEnvironmentSourceRequest
+from posttrain.execution_pack import (
+    ProjectEnvironmentSourceRequest,
+    SourcePackage,
+    digest_source_package,
+)
 from posttrain_execution_buildkit import (
     EnvironmentWheelRequest,
     GitSourceLock,
@@ -142,7 +146,11 @@ def test_builds_a_project_snapshot_without_git_metadata(tmp_path: Path) -> None:
     (root / "pyproject.toml").write_text('[project]\nname = "toy-env"\nversion = "1.0.0"\n')
     gateway = FakeWheelGateway({"toy_env": {"toy_env-1.0.0-py3-none-any.whl": b"wheel"}})
     builder = ImmutableEnvironmentWheelBuilder(output_root=(tmp_path / "wheels").absolute(), gateway=gateway)
-    request = ProjectEnvironmentSourceRequest("toy-env", "environments/toy_env", _tree_digest(root))
+    request = ProjectEnvironmentSourceRequest(
+        "toy-env",
+        "environments/toy_env",
+        digest_source_package(SourcePackage(root, (".",))),
+    )
 
     result = builder.build_project_sources({request.path: root}, (request,))
 

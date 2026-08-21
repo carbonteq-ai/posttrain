@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
@@ -18,7 +19,7 @@ from posttrain.common import (
     TraceObservation,
 )
 from posttrain.common.variants import QWEN_35_2B
-from posttrain.data import SupervisedDataset, SupervisedExample
+from posttrain.data import SupervisedDataset, SupervisedExample, SupervisedMedia
 from posttrain.train import (
     QWEN35_RENDERER,
     QLoRAUpdate,
@@ -35,6 +36,9 @@ from posttrain.train.backends.trl.sft import (
     _evaluated_at_step,
     _observed_sft_trainer_type,
     _sft_arguments,
+    _visual_modality,
+    _visual_row,
+    _visual_text_token_counts,
 )
 from posttrain.train.catalog_schema import decode_training_selection
 from posttrain.train.rendering import RenderedSFTExample
@@ -143,12 +147,14 @@ def test_catalog_decodes_explicit_sft_validation_schedule() -> None:
                 "on_start": True,
                 "at_end": True,
             },
+            "visual_no_truncation": False,
         },
         {},
     )
 
     assert isinstance(settings, SFTSettings)
     assert settings.validation == SFTValidationSettings(4, 2, True, True)
+    assert settings.visual_no_truncation is False
 
 
 def test_sft_arguments_enable_loss_only_validation() -> None:
@@ -159,6 +165,108 @@ def test_sft_arguments_enable_loss_only_validation() -> None:
     assert arguments["eval_on_start"] is True
     assert arguments["per_device_eval_batch_size"] == 1
     assert arguments["prediction_loss_only"] is True
+
+
+def test_visual_sft_arguments_enable_trl_vlm_preparation_without_truncation() -> None:
+    arguments = _sft_arguments(_request(), Path("/tmp/sft-validation"), visual=True)
+
+    assert "dataset_kwargs" not in arguments
+    assert arguments["completion_only_loss"] is True
+    assert arguments["assistant_only_loss"] is False
+    assert arguments["packing"] is False
+    assert arguments["padding_free"] is False
+    assert arguments["max_length"] is None
+
+
+def test_visual_modality_rejects_mixed_examples() -> None:
+    request = _request()
+    train = request.data.load()
+    media = SupervisedMedia("assets/document/page.png", "a" * 64, "image/png")
+    mixed = SupervisedDataset(
+        "dataset/mixed",
+        "1",
+        (
+            train.examples[0],
+            SupervisedExample(
+                "example/visual",
+                train.examples[0].messages,
+                (1,),
+                media=(media,),
+            ),
+        ),
+    )
+
+    try:
+        _visual_modality(mixed, None, request)
+    except ValueError as error:
+        assert "cannot mix" in str(error)
+    else:
+        raise AssertionError("mixed-modality SFT dataset was accepted")
+
+
+def test_visual_row_preserves_page_order_and_verifies_digests(tmp_path: Path) -> None:
+    first = b"first"
+    second = b"second"
+    root = tmp_path.resolve()
+    (root / "assets/document").mkdir(parents=True)
+    (root / "assets/document/page-0001.png").write_bytes(first)
+    (root / "assets/document/page-0002.png").write_bytes(second)
+    example = SupervisedExample(
+        "example/visual",
+        (
+            {"role": "user", "content": "Extract JSON"},
+            {"role": "assistant", "content": "{}"},
+        ),
+        (1,),
+        media=(
+            SupervisedMedia("assets/document/page-0002.png", hashlib.sha256(second).hexdigest(), "image/png"),
+            SupervisedMedia("assets/document/page-0001.png", hashlib.sha256(first).hexdigest(), "image/png"),
+        ),
+    )
+    opened: list[str] = []
+
+    class FakeImage:
+        def __init__(self, path: Path) -> None:
+            opened.append(path.name)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args) -> None:
+            return None
+
+        def convert(self, mode: str):
+            assert mode == "RGB"
+            return self
+
+        def copy(self):
+            return object()
+
+    image_module = SimpleNamespace(open=lambda path: FakeImage(path))
+
+    row = _visual_row(example, root, {"Image": image_module})
+
+    assert opened == ["page-0002.png", "page-0001.png"]
+    assert row["prompt"] == [{"role": "user", "content": "Extract JSON"}]
+    assert row["completion"] == [{"role": "assistant", "content": "{}"}]
+
+
+def test_visual_profile_counts_text_tokens_without_labeling_images_as_tokens() -> None:
+    train = _request().data.load()
+
+    class Tokenizer:
+        def apply_chat_template(self, messages, *, tokenize: bool, add_generation_prompt: bool):
+            assert messages == [{"role": "user", "content": "Prompt"}]
+            assert tokenize is True
+            assert add_generation_prompt is True
+            return [1, 2, 3]
+
+        def __call__(self, content: str, *, add_special_tokens: bool):
+            assert content == "Answer"
+            assert add_special_tokens is False
+            return {"input_ids": [4, 5]}
+
+    assert _visual_text_token_counts(train, SimpleNamespace(tokenizer=Tokenizer())) == (3, 2)
 
 
 def test_validation_logs_use_training_validation_namespace(tmp_path: Path) -> None:

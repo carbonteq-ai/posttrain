@@ -441,7 +441,7 @@ def _environment_source_requests(
                 raise ContractError(
                     f"project-path environment {source.package!r} must contain a regular pyproject.toml: {source.path}"
                 )
-            snapshot = SourceSnapshotRequest(root=root, includes=(source.path,), install_roots=(source.path,))
+            snapshot = SourceSnapshotRequest(root=package_root, includes=(".",), install_roots=(".",))
             digest = ImmutableSourceSnapshotter(
                 cache_root=(root / ".posttrain" / "state" / "pack" / "sources")
             ).inspect(snapshot)

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import replace
 
 import pytest
 from posttrain.common import ContractError
 from posttrain.execution import (
     BackendRuntimeLock,
+    DatasetAssetLock,
     DatasetPackageLock,
     EnvironmentActivationLock,
     EnvironmentPackageLock,
@@ -100,6 +103,31 @@ def test_job_package_round_trips_and_excludes_execution_identity() -> None:
             "runtime_image",
         }
     )
+
+
+def test_dataset_asset_locks_round_trip_without_changing_text_lock_shape() -> None:
+    manifest = _manifest()
+    text_payload = manifest.datasets[0].to_payload()
+    asset = DatasetAssetLock(
+        "datasets/gsm8k-train/assets/document/page.png",
+        "2" * 64,
+        128,
+    )
+    assets_digest = hashlib.sha256(
+        json.dumps(
+            [{"path": "assets/document/page.png", "sha256": "2" * 64, "size_bytes": 128}],
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+    ).hexdigest()
+    visual = replace(
+        manifest,
+        datasets=(replace(manifest.datasets[0], assets=(asset,), assets_digest=assets_digest),),
+    )
+
+    assert "assets" not in text_payload
+    assert "assets_digest" not in text_payload
+    assert JobPackageManifest.from_bytes(visual.to_bytes()) == visual
 
 
 def test_job_package_key_changes_with_meaning_but_not_a_run() -> None:

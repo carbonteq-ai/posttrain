@@ -1,5 +1,6 @@
 """Tests for declarative dataset catalog selections and materialization."""
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -50,6 +51,34 @@ def test_packaged_fixture_materialization_is_idempotent(tmp_path: Path) -> None:
     assert source.id == "datasets/posttrain-sft-smoke"
     assert source.revision == "1"
     assert len(source.examples) == 2
+
+
+def test_packaged_visual_fixture_materializes_ordered_digest_locked_assets(tmp_path: Path) -> None:
+    plan = decode_dataset_selection(
+        CatalogRef("dataset", "datasets/gemma4-e4b-visual-sft-qualification@1"),
+        {
+            "id": "datasets/gemma4-e4b-visual-sft-qualification@1",
+            "revision": "1",
+            "kind": "supervised",
+            "source": {
+                "kind": "fixture",
+                "resource": "posttrain.data.fixtures:gemma4_visual_sft.jsonl",
+            },
+            "format": {"kind": "messages"},
+        },
+        {},
+    )
+
+    materialized = materialize_dataset(plan, state_dir=tmp_path / "state", project_root=tmp_path)
+    source = resolve_dataset_source(plan, state_dir=tmp_path / "state", project_root=tmp_path)
+
+    assert materialized.examples == 1
+    assert len(materialized.assets) == 2
+    assert isinstance(source, SupervisedDataset)
+    assert [item.metadata["page_number"] for item in source.examples[0].media] == [1, 2]
+    for item in source.examples[0].media:
+        path = materialized.path.parent / item.path
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == item.sha256
 
 
 def test_declared_builder_reuses_cache_and_rebuilds_when_an_input_changes(tmp_path: Path) -> None:
@@ -189,6 +218,101 @@ def test_project_dataset_source_rejects_symlinked_input(tmp_path: Path) -> None:
         revision="1",
         kind="supervised",
         source={"kind": "nemo", "path": "data/selected.jsonl"},
+        format="messages",
+    )
+
+    with pytest.raises(ContractError, match="cannot traverse symlinks"):
+        materialize_dataset(plan, state_dir=tmp_path / "state", project_root=tmp_path)
+
+
+def test_visual_dataset_materializes_digest_locked_ordered_assets(tmp_path: Path) -> None:
+    first = b"first page"
+    second = b"second page"
+    assets = tmp_path / "assets" / "document"
+    assets.mkdir(parents=True)
+    (assets / "page-0001.png").write_bytes(first)
+    (assets / "page-0002.png").write_bytes(second)
+    data = tmp_path / "data.jsonl"
+    data.write_text(
+        json.dumps(
+            {
+                "messages": [
+                    {"role": "user", "content": "Extract JSON"},
+                    {"role": "assistant", "content": "{}"},
+                ],
+                "media": [
+                    {
+                        "kind": "image",
+                        "path": "assets/document/page-0002.png",
+                        "sha256": hashlib.sha256(second).hexdigest(),
+                        "mime_type": "image/png",
+                        "metadata": {"page": 2},
+                    },
+                    {
+                        "kind": "image",
+                        "path": "assets/document/page-0001.png",
+                        "sha256": hashlib.sha256(first).hexdigest(),
+                        "mime_type": "image/png",
+                        "metadata": {"page": 1},
+                    },
+                ],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    plan = DatasetLoadPlan(
+        id="datasets/visual@1",
+        revision="1",
+        kind="supervised",
+        source={"kind": "jsonl", "path": "data.jsonl"},
+        format="messages",
+    )
+
+    materialized = materialize_dataset(plan, state_dir=tmp_path / "state", project_root=tmp_path)
+    loaded = resolve_dataset_source(plan, state_dir=tmp_path / "state", project_root=tmp_path)
+
+    assert isinstance(loaded, SupervisedDataset)
+    assert tuple(asset.path for asset in materialized.assets) == (
+        "assets/document/page-0001.png",
+        "assets/document/page-0002.png",
+    )
+    assert materialized.assets_digest is not None
+    assert [media.metadata["page"] for media in loaded.examples[0].media] == [2, 1]
+    assert (materialized.manifest_path.parent / "assets/document/page-0001.png").read_bytes() == first
+
+
+def test_visual_dataset_rejects_symlinked_asset(tmp_path: Path) -> None:
+    outside = tmp_path / "outside.png"
+    outside.write_bytes(b"outside")
+    assets = tmp_path / "assets" / "document"
+    assets.mkdir(parents=True)
+    (assets / "page.png").symlink_to(outside)
+    (tmp_path / "data.jsonl").write_text(
+        json.dumps(
+            {
+                "messages": [
+                    {"role": "user", "content": "Extract JSON"},
+                    {"role": "assistant", "content": "{}"},
+                ],
+                "media": [
+                    {
+                        "kind": "image",
+                        "path": "assets/document/page.png",
+                        "sha256": hashlib.sha256(b"outside").hexdigest(),
+                        "mime_type": "image/png",
+                    }
+                ],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    plan = DatasetLoadPlan(
+        id="datasets/visual-symlink@1",
+        revision="1",
+        kind="supervised",
+        source={"kind": "jsonl", "path": "data.jsonl"},
         format="messages",
     )
 

@@ -8,4 +8,5 @@ protobuf==7.35.1
 renderers==0.1.8
 sentencepiece==0.2.2
 transformers==5.14.1
+torchvision==0.26.0+cu130
 trl==1.9.2.post11

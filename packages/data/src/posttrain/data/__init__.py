@@ -26,6 +26,7 @@ from .catalog import (
     DatasetLoadPlan,
     DatasetMaterialization,
     DatasetSelection,
+    MaterializedDatasetAsset,
     decode_dataset_selection,
     load_materialized_dataset,
     materialize_dataset,
@@ -58,6 +59,7 @@ from .models import (
     SupervisedDataset,
     SupervisedDataSource,
     SupervisedExample,
+    SupervisedMedia,
     ToolRecord,
 )
 from .partitioning import (
@@ -73,6 +75,7 @@ __all__ = [
     "DatasetLoadPlan",
     "DatasetSelection",
     "DatasetMaterialization",
+    "MaterializedDatasetAsset",
     "BuiltDatasetSource",
     "DatasetAccessPolicy",
     "DatasetBuildContext",
@@ -106,6 +109,7 @@ __all__ = [
     "SupervisedDataSource",
     "SupervisedDataset",
     "SupervisedExample",
+    "SupervisedMedia",
     "SupervisedPartitionManifest",
     "SupervisedPartitionPlan",
     "ToolRecord",

@@ -1,3 +1,33 @@
+model:
+  models/gemma4-e4b-it@bf16/sft-visual-qualification-v0:
+    artifact:
+      kind: trackio
+      project: posttrain-lab
+      name: training-models-gemma4-e4b-it-bf16-sft-lora-adapter
+      version: v0
+    base:
+      kind: hub
+      repo_id: google/gemma-4-E4B-it
+      revision: ee0ef6023621cff504d758262d4e04895a5af4a2
+    form: peft-adapter
+    weight_precision: bf16
+    family: gemma4
+    parameters: 7996156490
+    instruction_tuned: true
+    renderer_contract: gemma4-tools@1
+    capabilities:
+      modalities: [text, image, audio]
+      native_context_window: 131072
+      mtp: true
+    parent: models/gemma4-e4b-it@bf16
+    provenance:
+      operation: sft
+      parameter_update_kind: lora
+      source_run_id: 18a279b9-9d82-4f4e-9b13-539ee8e29bd1
+      base_model_repo_id: google/gemma-4-E4B-it
+      base_model_revision: ee0ef6023621cff504d758262d4e04895a5af4a2
+      posttrain_content_digest: 76bc42ece7cda3050bb9f30bad3cd2d0647cd112f6de3d4b3d455e0b340ccc39
+
 environment:
   gemma4-gsm8k-mtp-qualification:
     category: math-reasoning
@@ -36,7 +66,65 @@ environment:
       primary_metric: reward
       pass_rate_metric: reward
 
+dataset:
+  datasets/gemma4-e4b-visual-sft-qualification@1:
+    revision: "1"
+    kind: supervised
+    source:
+      kind: fixture
+      resource: posttrain.data.fixtures:gemma4_visual_sft.jsonl
+    format:
+      kind: messages
+
 training:
+  gemma4-e4b-it/visual-adapter-reload-qualification-v1:
+    selection_type: sft-settings
+    revision: "1"
+    loop:
+      max_steps: 1
+      max_length: 512
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 1
+      learning_rate: 0.0001
+      logging_steps: 1
+      checkpoint_steps: 1
+      checkpoint_limit: 1
+    visual_no_truncation: true
+  gemma4-e4b-it/visual-sft-qualification-v1:
+    selection_type: sft-settings
+    revision: "1"
+    loop:
+      max_steps: 2
+      max_length: 512
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 1
+      learning_rate: 0.0002
+      logging_steps: 1
+      checkpoint_steps: 2
+      checkpoint_limit: 1
+    visual_no_truncation: true
+  training/gemma4-e4b-it-trl-visual-lora-qualification@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.9.2.post11
+    renderer:
+      id: gemma4-off-v1
+      model_family: gemma4
+      implementation: default
+      reasoning_mode: "off"
+    update:
+      kind: lora
+      rank: 8
+      alpha: 16
+      target_modules: ^model[.]language_model[.]layers[.]\d+[.](self_attn[.](q_proj|k_proj|v_proj|o_proj)|mlp[.](gate_proj|up_proj|down_proj))$
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    runtime:
+      global_batch_size: 1
+    backend_options:
+      dependency_lock: trl-fork@current
+      source_revision: 69cf80a7319079ec5523841553467e119ebc1cec
+      dependency_lock_sha256: 6418c5fbaa9d378af767d739b8ba407eb05bcb7595920ecde3401b26541a9d98
+      use_liger_kernel: false
   gemma4-12b-it/sft-qualification-v1:
     selection_type: sft-settings
     revision: "1"

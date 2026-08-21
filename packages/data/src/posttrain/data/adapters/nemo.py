@@ -44,13 +44,16 @@ def preferences_from_nemo(
 
 
 def to_nemo_sft_rows(dataset: SupervisedDataset) -> list[dict[str, Any]]:
-    return [
-        {
+    rows: list[dict[str, Any]] = []
+    for example in dataset.examples:
+        row = {
             "messages": example.message_records(),
             "tools": example.tool_records(),
         }
-        for example in dataset.examples
-    ]
+        if example.media:
+            row["media"] = example.media_records()
+        rows.append(row)
+    return rows
 
 
 def to_nemo_preference_rows(dataset: PreferenceDataset, *, task_name: str) -> list[dict[str, Any]]:

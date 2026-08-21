@@ -79,6 +79,7 @@ class SFTSettings:
     loop: TrainingLoop
     revision: str = "1"
     validation: SFTValidationSettings | None = None
+    visual_no_truncation: bool = True
 
     def __post_init__(self) -> None:
         _validate_settings(self.id, self.revision)

@@ -1198,6 +1198,18 @@ torch==2.11.0+cu130 \
     #   vllm
     #   xgrammar
 
+torchvision==0.26.0+cu130 \
+    --hash=sha256:110659ff38cd1d2ca0ac6e6a0f2c842fcb5fe739dfe65ff7456a12b2c4dce775 \
+    --hash=sha256:3af2c699719cc0e2518bf317664200e5a987fb75a25b9b3bf3817a4796ddd64f \
+    --hash=sha256:441a98bed4fff1d54b8450499e377e1a605bec31f2ecb1a38a340f95dcc83897 \
+    --hash=sha256:64de855465d6de60583e776889fad9412480f9f9e04fdd8d17ae96fa93864e9a \
+    --hash=sha256:a7e19c3ab5c6d8e3c9f8c6d427f6b8862dfb8227ea4a758ea7a709951daf2f0d \
+    --hash=sha256:c3ac485da79552b4f579c525c826f7a63288b0d1cafc1201b16e1148bfdea69a
+    # via
+    #   posttrain-serve
+    #   posttrain-train
+    #   vllm
+
 tqdm==4.69.0 \
     --hash=sha256:700c5e85dcd5f009dd6222588a29180a193a748247a5d855b4d67db93d79a53b \
     --hash=sha256:9979978912be667a6ef21fd5d8abf54e324e63d82f7f43c360792ebc2bc4e622

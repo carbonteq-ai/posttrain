@@ -9,7 +9,14 @@ from typing import Any, Literal, cast
 
 from posttrain.common import JsonValue
 
-from ..models import MessageRecord, PreferenceDataset, PreferenceExample, SupervisedDataset, SupervisedExample
+from ..models import (
+    MessageRecord,
+    PreferenceDataset,
+    PreferenceExample,
+    SupervisedDataset,
+    SupervisedExample,
+    SupervisedMedia,
+)
 
 type SFTFormat = Literal["auto", "messages", "prompt-completion", "alpaca", "sharegpt"]
 type PreferenceFormat = Literal["auto", "trl", "tulu", "nemo-ranked"]
@@ -54,6 +61,40 @@ def _tools(row: Mapping[str, Any]) -> tuple[Mapping[str, JsonValue], ...]:
     if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
         raise ValueError("tools must be a sequence of tool definitions")
     return tuple(cast(Mapping[str, JsonValue], _mapping(tool, field="tools")) for tool in value)
+
+
+def _media(row: Mapping[str, Any]) -> tuple[SupervisedMedia, ...]:
+    value = row.get("media")
+    if value is None:
+        return ()
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        raise ValueError("media must be a sequence of media definitions")
+    media: list[SupervisedMedia] = []
+    allowed = {"kind", "path", "sha256", "mime_type", "metadata"}
+    for raw_item in value:
+        item = _mapping(raw_item, field="media")
+        unexpected = sorted(set(item).difference(allowed))
+        if unexpected:
+            raise ValueError(f"media definition has unknown fields: {', '.join(unexpected)}")
+        path = item.get("path")
+        sha256 = item.get("sha256")
+        mime_type = item.get("mime_type")
+        kind = item.get("kind", "image")
+        raw_metadata = item.get("metadata", {})
+        if not all(isinstance(value, str) for value in (path, sha256, mime_type, kind)):
+            raise ValueError("media kind, path, sha256, and mime_type must be strings")
+        if not isinstance(raw_metadata, Mapping):
+            raise ValueError("media metadata must be an object")
+        media.append(
+            SupervisedMedia(
+                path=cast(str, path),
+                sha256=cast(str, sha256),
+                mime_type=cast(str, mime_type),
+                kind=cast(Literal["image"], kind),
+                metadata=cast(Mapping[str, JsonValue], raw_metadata),
+            )
+        )
+    return tuple(media)
 
 
 def _identity(row: Mapping[str, Any], index: int) -> tuple[str, dict[str, JsonValue]]:
@@ -128,6 +169,7 @@ def supervised_from_huggingface(
                 trainable_message_indices=trainable,
                 tools=_tools(row),
                 metadata=row_metadata,
+                media=_media(row),
             )
         )
     return SupervisedDataset(dataset_id, revision, tuple(examples), metadata=metadata or {})
@@ -216,16 +258,19 @@ def preferences_from_huggingface(
 
 
 def to_huggingface_sft_rows(dataset: SupervisedDataset) -> list[dict[str, Any]]:
-    return [
-        {
+    rows: list[dict[str, Any]] = []
+    for example in dataset.examples:
+        row = {
             "id": example.id,
             "messages": example.message_records(),
             "tools": example.tool_records(),
             "trainable_message_indices": list(example.trainable_message_indices),
             "metadata": dict(example.metadata),
         }
-        for example in dataset.examples
-    ]
+        if example.media:
+            row["media"] = example.media_records()
+        rows.append(row)
+    return rows
 
 
 def to_huggingface_preference_rows(dataset: PreferenceDataset) -> list[dict[str, Any]]:

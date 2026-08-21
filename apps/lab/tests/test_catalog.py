@@ -3,12 +3,21 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
 from posttrain.catalog import load_catalog_layer, packaged_base_directory
-from posttrain.common import CatalogRef, ContractError, ExecutionTarget, InferenceBinding, ModelVariant
+from posttrain.common import (
+    CatalogRef,
+    ContractError,
+    ExecutionTarget,
+    InferenceBinding,
+    ModelVariant,
+    TrackioArtifactRef,
+)
+from posttrain.data import DatasetLoadPlan
 from posttrain.environment import VerifiersV1ConfigActivation
 from posttrain.eval import EnvironmentBinding, EnvironmentSource, EvaluationPlan
 from posttrain.train import (
@@ -132,6 +141,65 @@ def test_gemma4_dense_matrix_selections_resolve_with_shared_runtime_contract() -
         assert inference.engine["text_only"] is True
         assert inference.engine["tool_call_parser"] == "gemma4"
         assert inference.engine["reasoning_parser"] == "gemma4"
+
+
+def test_gemma4_e4b_visual_sft_qualification_is_pinned_and_language_only() -> None:
+    catalog = open_catalog(
+        scope="posttrain-lab",
+        overlays=(WORKSPACE / "apps" / "lab" / ".posttrain" / "catalog",),
+    )
+    model = catalog.resolve(CatalogRef("model", "models/gemma4-e4b-it@bf16")).value
+    dataset = catalog.resolve(CatalogRef("dataset", "datasets/gemma4-e4b-visual-sft-qualification@1")).value
+    settings = catalog.resolve(CatalogRef("training", "gemma4-e4b-it/visual-sft-qualification-v1")).value
+    training = catalog.resolve(CatalogRef("training", "training/gemma4-e4b-it-trl-visual-lora-qualification@1")).value
+
+    assert isinstance(model, ModelVariant)
+    assert model.capabilities.modalities == ("text", "image", "audio")
+    assert isinstance(dataset, DatasetLoadPlan)
+    assert dataset.source_kind == "fixture"
+    assert isinstance(settings, SFTSettings)
+    assert settings.loop.max_steps == 2
+    assert settings.visual_no_truncation is True
+    assert isinstance(training, TrainingBinding)
+    assert isinstance(training.update, LoRAUpdate)
+    assert training.backend == "trl@1.9.2.post11"
+    assert training.backend_options["source_revision"] == "69cf80a7319079ec5523841553467e119ebc1cec"
+    assert (
+        training.backend_options["dependency_lock_sha256"]
+        == hashlib.sha256((WORKSPACE / "uv.lock").read_bytes()).hexdigest()
+    )
+    target = training.update.target_modules
+    assert re.fullmatch(target, "model.language_model.layers.0.self_attn.q_proj") is not None
+    assert re.fullmatch(target, "model.language_model.layers.17.mlp.down_proj") is not None
+    assert re.fullmatch(target, "model.vision_tower.layers.0.self_attn.q_proj") is None
+    assert re.fullmatch(target, "model.audio_tower.layers.0.self_attn.q_proj") is None
+    assert re.fullmatch(target, "model.language_model.embed_tokens") is None
+
+
+def test_gemma4_e4b_visual_adapter_reload_qualification_is_immutable() -> None:
+    catalog = open_catalog(
+        scope="posttrain-lab",
+        overlays=(WORKSPACE / "apps" / "lab" / ".posttrain" / "catalog",),
+    )
+    model = catalog.resolve(CatalogRef("model", "models/gemma4-e4b-it@bf16/sft-visual-qualification-v0")).value
+    settings = catalog.resolve(CatalogRef("training", "gemma4-e4b-it/visual-adapter-reload-qualification-v1")).value
+
+    assert isinstance(model, ModelVariant)
+    assert isinstance(model.artifact, TrackioArtifactRef)
+    assert model.artifact.project == "posttrain-lab"
+    assert model.artifact.name == "training-models-gemma4-e4b-it-bf16-sft-lora-adapter"
+    assert model.artifact.version == "v0"
+    assert model.form == "peft-adapter"
+    assert model.parent == "models/gemma4-e4b-it@bf16"
+    assert model.base.repo_id == "google/gemma-4-E4B-it"
+    assert model.base.revision == "ee0ef6023621cff504d758262d4e04895a5af4a2"
+    assert model.provenance["source_run_id"] == "18a279b9-9d82-4f4e-9b13-539ee8e29bd1"
+    assert model.provenance["posttrain_content_digest"] == (
+        "76bc42ece7cda3050bb9f30bad3cd2d0647cd112f6de3d4b3d455e0b340ccc39"
+    )
+    assert isinstance(settings, SFTSettings)
+    assert settings.loop.max_steps == 1
+    assert settings.visual_no_truncation is True
 
 
 def test_every_evaluation_plan_declares_success_for_every_environment() -> None:

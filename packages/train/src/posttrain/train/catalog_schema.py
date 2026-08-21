@@ -140,6 +140,7 @@ class SFTSettingsSchema(TrainCatalogSchema):
     revision: str = "1"
     loop: TrainingLoopSchema
     validation: SFTValidationSettingsSchema | None = None
+    visual_no_truncation: bool = True
 
 
 class DPOSettingsSchema(TrainCatalogSchema):
@@ -268,10 +269,11 @@ def decode_training_selection(
             SFTValidationSettings(**payload.validation.model_dump()) if payload.validation is not None else None
         )
         return SFTSettings(
-            payload.id,
-            TrainingLoop(**payload.loop.model_dump()),
-            payload.revision,
-            validation,
+            id=payload.id,
+            loop=TrainingLoop(**payload.loop.model_dump()),
+            revision=payload.revision,
+            validation=validation,
+            visual_no_truncation=payload.visual_no_truncation,
         )
     if isinstance(payload, DPOSettingsSchema):
         return DPOSettings(

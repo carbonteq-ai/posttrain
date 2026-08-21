@@ -33,9 +33,11 @@ def framework_imports() -> dict[str, Any]:
         import torch
         from datasets import Dataset
         from peft import LoraConfig, PeftModel, get_peft_model, prepare_model_for_kbit_training
+        from PIL import Image
         from transformers import (
             AutoModelForCausalLM,
             AutoModelForMultimodalLM,
+            AutoProcessor,
             AutoTokenizer,
             BitsAndBytesConfig,
             TrainerCallback,
@@ -52,7 +54,9 @@ def framework_imports() -> dict[str, Any]:
         "prepare_model_for_kbit_training": prepare_model_for_kbit_training,
         "AutoModelForCausalLM": AutoModelForCausalLM,
         "AutoModelForMultimodalLM": AutoModelForMultimodalLM,
+        "AutoProcessor": AutoProcessor,
         "AutoTokenizer": AutoTokenizer,
+        "Image": Image,
         "BitsAndBytesConfig": BitsAndBytesConfig,
         "TrainerCallback": TrainerCallback,
         "get_last_checkpoint": get_last_checkpoint,
@@ -169,6 +173,21 @@ def load_tokenizer(model: ModelVariant, imports: dict[str, Any]) -> Any:
     return tokenizer
 
 
+def load_processor(model: ModelVariant, imports: dict[str, Any]) -> Any:
+    processor = imports["AutoProcessor"].from_pretrained(
+        model.base.repo_id,
+        revision=model.base.revision,
+        trust_remote_code=False,
+    )
+    tokenizer = getattr(processor, "tokenizer", None)
+    if tokenizer is None:
+        raise ValueError(f"model variant {model.id!r} processor has no tokenizer")
+    if tokenizer.pad_token_id is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = "right"
+    return processor
+
+
 def trainable_model_factory(model: ModelVariant, imports: dict[str, Any]) -> Any:
     """Select the Transformers factory required by a supported model family."""
 
@@ -251,6 +270,8 @@ def emit_parameter_counts(context: RunContext, model: Any, update: ParameterUpda
         raise RuntimeError(f"training selected no parameters: trainable={trainable}, total={total}")
     if not isinstance(update, FullParameterUpdate) and trainable >= total:
         raise RuntimeError(f"invalid PEFT parameter selection: trainable={trainable}, total={total}")
+    if isinstance(update, LoRAUpdate | QLoRAUpdate):
+        _validate_lora_trainable_parameters(model, update)
     context.metrics(
         {
             "train/parameters_total": total,
@@ -258,6 +279,29 @@ def emit_parameter_counts(context: RunContext, model: Any, update: ParameterUpda
             "train/parameters_trainable_fraction": trainable / total,
         }
     )
+
+
+def _validate_lora_trainable_parameters(model: Any, update: LoRAUpdate | QLoRAUpdate) -> None:
+    trainable_names = tuple(name for name, parameter in model.named_parameters() if parameter.requires_grad)
+    if not trainable_names:
+        raise RuntimeError("LoRA training selected no named trainable parameters")
+    invalid_lora = tuple(name for name in trainable_names if ".lora_" not in name)
+    if invalid_lora:
+        raise RuntimeError("LoRA training exposed non-adapter parameters: " + ", ".join(invalid_lora[:5]))
+    if update.target_modules == "all-linear":
+        return
+    try:
+        target = re.compile(update.target_modules)
+    except re.error as error:
+        raise ValueError(f"LoRA target_modules is not a valid regular expression: {error}") from error
+    mismatched: list[str] = []
+    for name in trainable_names:
+        module = name.split(".lora_", maxsplit=1)[0]
+        module = module.removeprefix("base_model.model.")
+        if target.fullmatch(module) is None:
+            mismatched.append(name)
+    if mismatched:
+        raise RuntimeError("LoRA training exposed parameters outside target_modules: " + ", ".join(mismatched[:5]))
 
 
 def emit_runtime_versions(context: RunContext, imports: dict[str, Any]) -> None:
@@ -640,7 +684,7 @@ def finish_training(
     context: RunContext,
     trainer: Any,
     train_output: Any,
-    tokenizer: Any,
+    processing_class: Any,
     workspace: Path,
     technique: Literal["sft", "dpo", "grpo", "dapo", "olmo3", "sampo", "distill"],
     update: ParameterUpdatePlan,
@@ -648,7 +692,7 @@ def finish_training(
 ) -> BackendTrainingResult:
     model_dir = workspace / ("weights" if isinstance(update, FullParameterUpdate) else "adapter")
     trainer.save_model(model_dir)
-    tokenizer.save_pretrained(model_dir)
+    processing_class.save_pretrained(model_dir)
     latest = imports["get_last_checkpoint"](trainer.args.output_dir)
     latest_path = Path(latest).resolve() if latest is not None else None
     if isinstance(update, LoRAUpdate | QLoRAUpdate):
@@ -703,6 +747,7 @@ __all__ = [
     "emit_runtime_versions",
     "finish_training",
     "framework_imports",
+    "load_processor",
     "load_tokenizer",
     "load_trainable_model",
     "preserve_recovery_checkpoint_after_error",

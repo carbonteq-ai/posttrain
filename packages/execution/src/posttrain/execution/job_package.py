@@ -229,6 +229,30 @@ class EnvironmentActivationLock:
 
 
 @dataclass(frozen=True, slots=True)
+class DatasetAssetLock:
+    """One regular dataset asset copied into an immutable job package."""
+
+    package_path: str
+    digest: str
+    size_bytes: int
+
+    def __post_init__(self) -> None:
+        path = _relative_path(self.package_path, "dataset asset package path")
+        if not path.is_relative_to(PurePosixPath("datasets")) or "assets" not in path.parts:
+            raise ContractError("dataset asset package path must be below a dataset assets directory")
+        _digest(self.digest, "dataset asset")
+        if self.size_bytes < 1:
+            raise ContractError("dataset asset size must be positive")
+
+    def to_payload(self) -> dict[str, JsonValue]:
+        return {
+            "package_path": self.package_path,
+            "digest": self.digest,
+            "size_bytes": self.size_bytes,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class DatasetPackageLock:
     """One immutable dataset snapshot copied into an actual-job image."""
 
@@ -250,6 +274,8 @@ class DatasetPackageLock:
     builder_target: str | None = None
     code_snapshot_digest: str | None = None
     dependency_lock_digest: str | None = None
+    assets: tuple[DatasetAssetLock, ...] = ()
+    assets_digest: str | None = None
 
     def __post_init__(self) -> None:
         if not _IDENTITY.fullmatch(self.seat_name):
@@ -278,9 +304,30 @@ class DatasetPackageLock:
             _digest(self.code_snapshot_digest, "dataset code snapshot")
         if self.dependency_lock_digest is not None:
             _digest(self.dependency_lock_digest, "dataset dependency lock")
+        asset_paths = tuple(asset.package_path for asset in self.assets)
+        if asset_paths != tuple(sorted(asset_paths)) or len(asset_paths) != len(set(asset_paths)):
+            raise ContractError("dataset asset locks must be unique and ordered by package path")
+        dataset_root = PurePosixPath(self.package_path).parent
+        if any(not PurePosixPath(asset.package_path).is_relative_to(dataset_root / "assets") for asset in self.assets):
+            raise ContractError("dataset asset locks must remain below the locked dataset assets directory")
+        if bool(self.assets) != (self.assets_digest is not None):
+            raise ContractError("dataset asset locks and bundle digest must be present together")
+        if self.assets_digest is not None:
+            _digest(self.assets_digest, "dataset asset bundle")
+            payload = [
+                {
+                    "path": PurePosixPath(asset.package_path).relative_to(dataset_root).as_posix(),
+                    "sha256": asset.digest,
+                    "size_bytes": asset.size_bytes,
+                }
+                for asset in self.assets
+            ]
+            observed = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+            if observed != self.assets_digest:
+                raise ContractError("dataset asset bundle digest does not match its locks")
 
     def to_payload(self) -> dict[str, JsonValue]:
-        return {
+        payload: dict[str, JsonValue] = {
             "seat_name": self.seat_name,
             "selection_id": self.selection_id,
             "selection_revision": self.selection_revision,
@@ -298,6 +345,10 @@ class DatasetPackageLock:
             "code_snapshot_digest": self.code_snapshot_digest,
             "dependency_lock_digest": self.dependency_lock_digest,
         }
+        if self.assets:
+            payload["assets"] = [asset.to_payload() for asset in self.assets]
+            payload["assets_digest"] = self.assets_digest
+        return payload
 
 
 @dataclass(frozen=True, slots=True)
@@ -846,6 +897,8 @@ def _dataset_lock(value: object) -> DatasetPackageLock:
     builder_target = value.get("builder_target")
     code_snapshot_digest = value.get("code_snapshot_digest")
     dependency_lock_digest = value.get("dependency_lock_digest")
+    raw_assets = value.get("assets", [])
+    assets_digest = value.get("assets_digest")
     if kind not in {"supervised", "preference"}:
         raise TypeError("dataset kind")
     if not isinstance(schema_version, int) or isinstance(schema_version, bool):
@@ -856,6 +909,10 @@ def _dataset_lock(value: object) -> DatasetPackageLock:
         raise TypeError("dataset lock size")
     if num_records is not None and (not isinstance(num_records, int) or isinstance(num_records, bool)):
         raise TypeError("dataset lock record count")
+    if not isinstance(raw_assets, list):
+        raise TypeError("dataset asset locks")
+    if assets_digest is not None and not isinstance(assets_digest, str):
+        raise TypeError("dataset asset bundle digest")
     if build_key is not None and not isinstance(build_key, str):
         raise TypeError("dataset build key")
     if materializer_schema_version is not None and (
@@ -886,7 +943,20 @@ def _dataset_lock(value: object) -> DatasetPackageLock:
         builder_target=builder_target,
         code_snapshot_digest=code_snapshot_digest,
         dependency_lock_digest=dependency_lock_digest,
+        assets=tuple(_dataset_asset_lock(item) for item in raw_assets),
+        assets_digest=assets_digest,
     )
+
+
+def _dataset_asset_lock(value: object) -> DatasetAssetLock:
+    if not isinstance(value, dict) or set(value) != {"package_path", "digest", "size_bytes"}:
+        raise TypeError("dataset asset lock")
+    package_path = _required_string(value.get("package_path"), "dataset asset package path")
+    digest = _required_string(value.get("digest"), "dataset asset digest")
+    size_bytes = value.get("size_bytes")
+    if not isinstance(size_bytes, int) or isinstance(size_bytes, bool):
+        raise TypeError("dataset asset size")
+    return DatasetAssetLock(package_path, digest, size_bytes)
 
 
 def _required_string(value: object, label: str) -> str:
@@ -898,6 +968,7 @@ def _required_string(value: object, label: str) -> str:
 __all__ = [
     "JOB_PACKAGE_MANIFEST_PATH",
     "JOB_PACKAGE_WORKER_COMMAND",
+    "DatasetAssetLock",
     "DatasetPackageLock",
     "EnvironmentActivationLock",
     "EnvironmentPackageLock",

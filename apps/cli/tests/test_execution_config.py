@@ -1310,6 +1310,20 @@ def test_an_explicit_trust_bundle_wins_over_every_other_source(
     assert resolved.source == "configured"
 
 
+def test_trust_bundle_preserves_a_cross_host_instance_path_symlink(tmp_path: Path) -> None:
+    authority = tmp_path / "authority.pem"
+    authority.write_text("-----BEGIN CERTIFICATE-----\nX\n", encoding="utf-8")
+    configured = tmp_path / "etc" / "posttrain" / "trust" / "internal-ca.pem"
+    configured.parent.mkdir(parents=True)
+    configured.symlink_to(authority)
+
+    resolved = resolve_trust_bundle(configured)
+
+    assert resolved.path == configured.absolute()
+    assert resolved.path != configured.resolve()
+    assert resolved.source == "configured"
+
+
 def test_the_environment_supplies_a_bundle_when_nothing_is_configured(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
