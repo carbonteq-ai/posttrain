@@ -37,7 +37,7 @@ from ..execution_provider import (
 from ..output import emit, json_value
 from ..purge_surface import render_plan, save_run_preview
 from ..run_resolve import project_admission_entries, purged_run_ids, resolve_run_id
-from ..tracking_config import project_observatory_settings
+from ..tracking_config import project_observatory_settings, project_tracking_environment
 
 RUN_MODE_CHOICE = click.Choice(RUN_MODE_CHOICES)
 
@@ -87,6 +87,38 @@ def register(app: typer.Typer) -> None:
         help="inspect committed checkpoint views for one run",
     )
     run_app.add_typer(checkpoint_app, name="checkpoint")
+
+    @run_app.command(
+        "tracking-preflight",
+        help="verify authenticated remote tracking writes without creating a run",
+    )
+    def run_tracking_preflight_cmd(ctx: typer.Context) -> None:
+        state: CliState = ctx.obj
+        layout = state.layout()
+        if layout.tracking != "trackio":
+            raise ContractError("tracking preflight currently requires a Trackio project")
+        environment = project_tracking_environment(layout)
+        project = environment.get("POSTTRAIN_TRACKIO_PROJECT", layout.project_id)
+        server_url = environment.get("POSTTRAIN_TRACKIO_SERVER_URL")
+        write_token = environment.get("TRACKIO_WRITE_TOKEN")
+        from posttrain_tracking_trackio import require_remote_trackio_ready
+
+        require_remote_trackio_ready(
+            project=project,
+            server_url=server_url,
+            write_token=write_token,
+        )
+        emit(
+            state,
+            {
+                "provider": "trackio",
+                "project": project,
+                "server_url": server_url,
+                "authenticated_write": True,
+                "run_created": False,
+            },
+            f"Trackio authenticated write ready: {project} ({server_url})",
+        )
 
     def _checkpoint_links(layout, run_id: str):
         source = tracking_source_for_project(layout)

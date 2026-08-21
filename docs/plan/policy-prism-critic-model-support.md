@@ -16,6 +16,10 @@ Policy Prism needs three small causal language-model bases for a fair classifica
 - [x] (2026-08-21 15:13Z) Ran the locked full validation ladder: Ruff, Pyright, import contracts, and 1,272 tests passed; 25 environment-dependent tests skipped.
 - [x] (2026-08-21 15:18Z) Created two focused commits and prepared both for delivery only to `origin/feat/policy-prism-critic-model-support` (`c974c7e`, `2ddbee8`).
 - [ ] During the later Policy Prism model-comparison phase, capture real vLLM load/generation and post-SFT LoRA reload evidence on the selected GPU. No GPU allocation is part of this implementation phase.
+- [x] (2026-08-21) Extended the frozen training-loop contract with finite non-negative weight decay and the cosine scheduler required by the selected Policy Prism critic SFT runs.
+- [x] (2026-08-21) Added a standalone authenticated Trackio preflight that creates no run, matching the approved SFT handoff on the current main-derived branch.
+- [x] (2026-08-21) Re-ran the complete locked repository gate after the SFT amendments: Ruff, Pyright, all 8 import contracts, and 1,279 tests passed; 25 environment-dependent tests skipped.
+- [ ] Submit and later reconcile the two Policy Prism critic SFT jobs; submission and qualification evidence remain outside the model-support-only commits above.
 
 ## Surprises & Discoveries
 
@@ -29,6 +33,12 @@ Policy Prism needs three small causal language-model bases for a fair classifica
   Evidence: a locked minimal test environment with Transformers 5.14.1 and renderers 0.1.8 executed the new real-tokenizer cases; 7 applicable tests passed while unrelated uncached model cases skipped.
 - Observation: the first full-suite run exposed one fixed-set inventory test that needed the two new model IDs.
   Evidence: after adding `lfm2.5-350m` and `lfm2.5-1.2b-instruct` to `IdentityContractTests`, the entire 1,294-collected-test run passed with 1,272 passed and 25 skipped.
+- Observation: the approved Policy Prism SFT recipe requires cosine scheduling and weight decay, but the main-derived `TrainingLoop` exposed neither exact contract.
+  Evidence: before this amendment the scheduler literal accepted only linear and constant variants, and TRL trainer arguments did not receive `weight_decay`.
+- Observation: the handoff calls `posttrain run tracking-preflight`, but that command was not present on current `origin/main` even though the reusable Trackio readiness API was already maintained and tested.
+  Evidence: the feature branch now adds only the CLI wrapper and its no-run unit test; it does not import the unrelated OPD recovery changes where the command first appeared.
+- Observation: PostTrain already rejects non-finite loss or gradient metrics in its shared TRL observation callback.
+  Evidence: the new SFT-specific first-step regression proves `loss=nan` at global step 1 raises `FloatingPointError`; no duplicate callback was introduced.
 
 ## Decision Log
 
@@ -46,6 +56,12 @@ Policy Prism needs three small causal language-model bases for a fair classifica
   Date/Author: 2026-08-21 / Codex.
 - Decision: treat real GPU loading and trained-adapter reload as a live qualification gate in the subsequent authorized evaluation/SFT phase, while unit-testing command and adapter lifecycle construction here.
   Rationale: this phase adds PostTrain support and does not authorize starting the RunPod evaluation or local RTX training job. Code must not claim live evidence that was not produced.
+  Date/Author: 2026-08-21 / Codex.
+- Decision: add `weight_decay` to the shared `TrainingLoop` with a behavior-preserving zero default and make cosine an explicit scheduler option.
+  Rationale: optimization intent belongs to algorithm settings, and passing the exact frozen values through the existing TRL translation keeps the SFT work packages reproducible without Policy Prism-specific trainer code.
+  Date/Author: 2026-08-21 / Codex.
+- Decision: expose the existing authenticated Trackio readiness check through the primary CLI rather than carrying a temporary handoff script.
+  Rationale: job submission must prove tracking writes before spending GPU time; a narrow reusable command is safer and matches the product CLI boundary.
   Date/Author: 2026-08-21 / Codex.
 
 ## Outcomes & Retrospective
@@ -132,3 +148,5 @@ At completion, `posttrain.common.variants` exports `LFM_25_350M`, `LFM_25_12B_IN
 Revision note (2026-08-21): created the living plan after verifying the repository baseline and official immutable artifacts so subsequent implementation and qualification can resume from this file alone.
 
 Revision note (2026-08-21): recorded completed inference/SFT contracts, exact-tokenizer rendering evidence, the full validation result, and the remaining live-GPU qualification boundary.
+
+Revision note (2026-08-21): extended the plan for the authorized critic SFT phase after discovering that the approved optimizer and Trackio preflight contracts were not representable on the current main-derived branch. The changes remain framework-generic and preserve existing defaults.

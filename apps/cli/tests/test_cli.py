@@ -97,6 +97,36 @@ def test_cache_commands_are_exposed(capsys) -> None:
     assert "prune" in help_text
 
 
+def test_tracking_preflight_uses_project_credentials_without_creating_a_run(
+    tmp_path: Path,
+    capsys,
+    monkeypatch,
+) -> None:
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+    calls: list[tuple[str, str | None, str | None]] = []
+    monkeypatch.setattr(
+        "posttrain_cli.commands.run_cmd.project_tracking_environment",
+        lambda _layout: {
+            "POSTTRAIN_TRACKIO_PROJECT": "policy-prism",
+            "POSTTRAIN_TRACKIO_SERVER_URL": "https://trackio.example",
+            "TRACKIO_WRITE_TOKEN": "secret",
+        },
+    )
+    monkeypatch.setattr(
+        "posttrain_tracking_trackio.require_remote_trackio_ready",
+        lambda *, project, server_url, write_token: calls.append(
+            (project, server_url, write_token)
+        ),
+    )
+
+    assert main(["--project-root", str(project), "run", "tracking-preflight"]) == 0
+
+    assert calls == [("policy-prism", "https://trackio.example", "secret")]
+    assert "authenticated write ready" in capsys.readouterr().out
+
+
 def test_recovery_checkpoint_rebinds_a_new_training_run() -> None:
     from posttrain.tracking import ArtifactLink, StoredArtifact
     from posttrain_cli.execution_config import ResolvedExecutionSettings
