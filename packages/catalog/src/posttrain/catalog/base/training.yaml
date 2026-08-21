@@ -157,6 +157,16 @@ training:
     revision: "1"
     loop:
       max_steps: 2
+  lfm2.5-350m-instruct/sft-smoke-v1:
+    selection_type: sft-settings
+    revision: "1"
+    loop:
+      max_steps: 2
+  lfm2.5-1.2b-instruct/sft-smoke-v1:
+    selection_type: sft-settings
+    revision: "1"
+    loop:
+      max_steps: 2
   lfm2.5-1.2b/dpo-smoke-v2:
     selection_type: dpo-settings
     revision: "1"
@@ -272,6 +282,27 @@ training:
     target: targets/local-cuda-8gb
     parallelism:
       sequence_length_divisor: 2
+    backend_options:
+      dependency_lock: trl-fork@current
+  training/lfm2.5-instruct-trl-lora@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.8.0
+    renderer:
+      id: lfm2.5-instruct-v1
+      model_family: lfm2.5
+      implementation: default
+      reasoning_mode: "off"
+    update:
+      kind: lora
+      rank: 8
+      alpha: 16
+      target_modules: all-linear
+    target: targets/local-cuda-8gb
+    parallelism:
+      sequence_length_divisor: 2
+    runtime:
+      global_batch_size: 2
     backend_options:
       dependency_lock: trl-fork@current
   training/lfm2.5-trl-qlora@1:

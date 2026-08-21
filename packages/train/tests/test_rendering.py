@@ -3,10 +3,17 @@
 from __future__ import annotations
 
 import pytest
-from posttrain.common.variants import GEMMA_4_12B_IT, LFM_25_12B_THINKING, QWEN_35_2B
+from posttrain.common.variants import (
+    GEMMA_4_12B_IT,
+    LFM_25_12B_INSTRUCT,
+    LFM_25_12B_THINKING,
+    LFM_25_350M,
+    QWEN_35_2B,
+)
 from posttrain.data import PreferenceDataset, PreferenceExample, SupervisedDataset, SupervisedExample
 from posttrain.train import (
     GEMMA4_RENDERER,
+    LFM25_INSTRUCT_RENDERER,
     LFM25_RENDERER,
     QWEN35_RENDERER,
     render_preferences,
@@ -33,6 +40,8 @@ def _load_tokenizer(model):
     (
         (QWEN_35_2B, QWEN35_RENDERER),
         (LFM_25_12B_THINKING, LFM25_RENDERER),
+        (LFM_25_350M, LFM25_INSTRUCT_RENDERER),
+        (LFM_25_12B_INSTRUCT, LFM25_INSTRUCT_RENDERER),
         (GEMMA_4_12B_IT, GEMMA4_RENDERER),
     ),
 )
@@ -59,6 +68,44 @@ def test_renderer_builds_nonempty_assistant_only_sft_masks(model, profile) -> No
     decoded = tokenizer.decode(sample.input_ids, skip_special_tokens=False)
     assert "Solve 2 + 2" in decoded
     assert "#### 4" in decoded
+
+
+@pytest.mark.parametrize("model", [LFM_25_350M, LFM_25_12B_INSTRUCT])
+def test_lfm_instruct_sft_masks_only_assistant_and_preserves_stop_without_truncation(model) -> None:
+    tokenizer = _load_tokenizer(model)
+    target = '{"decision":"attach","edge_types":["CONDITIONED_BY"]}'
+    dataset = SupervisedDataset(
+        "policy-prism-lfm-instruct-sft-golden-v1",
+        "c" * 40,
+        (
+            SupervisedExample(
+                "policy-prism/train/0",
+                (
+                    {"role": "system", "content": "Return only valid JSON."},
+                    {"role": "user", "content": "Classify the relationship."},
+                    {"role": "assistant", "content": target},
+                ),
+                (2,),
+            ),
+        ),
+    )
+
+    sample = render_supervised(tokenizer, model, dataset, LFM25_INSTRUCT_RENDERER, max_length=512)[0]
+    trained_ids = [
+        token for token, label in zip(sample.input_ids, sample.labels, strict=True) if label != -100
+    ]
+    masked_ids = [
+        token for token, label in zip(sample.input_ids, sample.labels, strict=True) if label == -100
+    ]
+    trained = tokenizer.decode(trained_ids, skip_special_tokens=False)
+    masked = tokenizer.decode(masked_ids, skip_special_tokens=False)
+
+    assert sample.source_length == len(sample.input_ids)
+    assert sample.source_supervised_tokens == len(trained_ids)
+    assert target in trained
+    assert trained.endswith("<|im_end|>\n")
+    assert "Classify the relationship." in masked
+    assert "Classify the relationship." not in trained
 
 
 def test_gemma_renderer_masks_tool_observations_from_sft_loss() -> None:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 from posttrain.common import ExecutionTarget, InferenceBinding, JsonValue, Workload
-from posttrain.common.variants import LFM_25_12B_THINKING, QWEN_35_2B
+from posttrain.common.variants import LFM_25_12B_INSTRUCT, LFM_25_12B_THINKING, QWEN_35_2B
 from posttrain.serve.prompts import load_prompt_corpus
 
 
@@ -65,6 +65,30 @@ def lfm_screen_binding(local_cuda_target: ExecutionTarget) -> InferenceBinding:
         sampling={"max_tokens": 128, "temperature": 0.0},
         target=local_cuda_target,
         purpose=("screen", "smoke"),
+    )
+
+
+@pytest.fixture
+def lfm_instruct_binding(local_cuda_target: ExecutionTarget) -> InferenceBinding:
+    engine = _screen_engine()
+    engine.update(
+        {
+            "max_model_len": 32_768,
+            "dtype": "bfloat16",
+            "max_num_seqs": 16,
+            "tool_call_parser": "lfm2",
+        }
+    )
+    return InferenceBinding(
+        id="inference/lfm2.5-1.2b-instruct-vllm-eval@1",
+        revision="1",
+        model=LFM_25_12B_INSTRUCT,
+        backend="vllm@0.25.1",
+        renderer=LFM_25_12B_INSTRUCT.renderer.id,
+        engine=engine,
+        sampling={"max_tokens": 512, "temperature": 0.0},
+        target=local_cuda_target,
+        purpose=("screen", "eval", "smoke"),
     )
 
 

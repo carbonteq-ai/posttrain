@@ -507,3 +507,51 @@ inference:
       temperature: 0.0
     target: targets/local-cuda-8gb
     purpose: [eval]
+  inference/lfm2.5-350m-instruct-vllm-eval@1:
+    revision: "1"
+    model: models/lfm2.5-350m@bf16
+    backend: vllm@0.25.1
+    renderer: lfm2.5-instruct-tools@1
+    engine:
+      max_model_len: 32768
+      gpu_memory_utilization: 0.75
+      dtype: bfloat16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 16
+      max_num_batched_tokens: 4096
+      kv_cache_dtype: auto
+      text_only: true
+      skip_mm_profiling: true
+      tool_call_parser: lfm2
+    sampling:
+      max_tokens: 512
+      temperature: 0.0
+    target: targets/local-cuda-8gb
+    purpose: [screen, eval, smoke]
+  inference/lfm2.5-1.2b-instruct-vllm-eval@1:
+    revision: "1"
+    model: models/lfm2.5-1.2b-instruct@bf16
+    backend: vllm@0.25.1
+    renderer: lfm2.5-instruct-tools@1
+    engine:
+      max_model_len: 32768
+      gpu_memory_utilization: 0.75
+      dtype: bfloat16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 16
+      max_num_batched_tokens: 4096
+      kv_cache_dtype: auto
+      text_only: true
+      skip_mm_profiling: true
+      tool_call_parser: lfm2
+    sampling:
+      max_tokens: 512
+      temperature: 0.0
+    target: targets/local-cuda-8gb
+    purpose: [screen, eval, smoke]

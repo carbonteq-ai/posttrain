@@ -334,6 +334,7 @@ def _validate_settings(identifier: str, revision: str) -> None:
 QWEN35_RENDERER = TrainingRenderer("qwen3.5-off-v1", "qwen3.5", "qwen3.5", "off")
 QWEN35_THINKING_RENDERER = TrainingRenderer("qwen3.5-thinking-v1", "qwen3.5", "qwen3.5", "thinking")
 LFM25_RENDERER = TrainingRenderer("lfm2.5-native-v1", "lfm2.5", "default", "native")
+LFM25_INSTRUCT_RENDERER = TrainingRenderer("lfm2.5-instruct-v1", "lfm2.5", "default", "off")
 GEMMA4_RENDERER = TrainingRenderer("gemma4-off-v1", "gemma4", "default", "off")
 
 QWEN35_SFT_SMOKE = SFTSettings("qwen3.5-2b/sft-smoke-v2", TrainingLoop(max_steps=2))
@@ -342,6 +343,11 @@ QWEN35_DPO_SMOKE = DPOSettings(
     TrainingLoop(max_steps=2, max_length=448, learning_rate=1e-4),
 )
 LFM25_SFT_SMOKE = SFTSettings("lfm2.5-1.2b/sft-smoke-v2", TrainingLoop(max_steps=2))
+LFM25_350M_INSTRUCT_SFT_SMOKE = SFTSettings("lfm2.5-350m-instruct/sft-smoke-v1", TrainingLoop(max_steps=2))
+LFM25_12B_INSTRUCT_SFT_SMOKE = SFTSettings(
+    "lfm2.5-1.2b-instruct/sft-smoke-v1",
+    TrainingLoop(max_steps=2),
+)
 LFM25_DPO_SMOKE = DPOSettings(
     "lfm2.5-1.2b/dpo-smoke-v2",
     TrainingLoop(max_steps=2, learning_rate=1e-4),
@@ -367,6 +373,9 @@ __all__ = [
     "OnPolicyDistillationSettings",
     "SAMPOSettings",
     "LFM25_DPO_SMOKE",
+    "LFM25_350M_INSTRUCT_SFT_SMOKE",
+    "LFM25_12B_INSTRUCT_SFT_SMOKE",
+    "LFM25_INSTRUCT_RENDERER",
     "LFM25_RENDERER",
     "GEMMA4_RENDERER",
     "LFM25_SFT_SMOKE",

@@ -11,10 +11,10 @@ Policy Prism needs three small causal language-model bases for a fair classifica
 - [x] (2026-08-21 14:10Z) Fetched `origin`, recorded the release baseline, and created `feat/policy-prism-critic-model-support` directly from `origin/main`.
 - [x] (2026-08-21 14:38Z) Verified the three upstream repositories, exact revisions, parameter counts, tokenizer bytes, templates, and operational context limits.
 - [x] (2026-08-21 14:55Z) Added the two exact LFM BF16 variants and a dedicated package-owned Instruct renderer contract.
-- [ ] Add vLLM inference and TRL all-linear LoRA bindings for both LFM Instruct variants.
-- [ ] Complete renderer, assistant-mask, stop-token, no-truncation, command, adapter, and catalog tests.
-- [ ] Run the locked full validation ladder and record results.
-- [ ] Create two focused commits and push only `origin/feat/policy-prism-critic-model-support`.
+- [x] (2026-08-21 14:58Z) Added vLLM inference and TRL all-linear LoRA bindings for both LFM Instruct variants.
+- [x] (2026-08-21 15:06Z) Completed renderer, assistant-mask, stop-token, no-truncation, command, adapter, and catalog tests.
+- [x] (2026-08-21 15:13Z) Ran the locked full validation ladder: Ruff, Pyright, import contracts, and 1,272 tests passed; 25 environment-dependent tests skipped.
+- [x] (2026-08-21 15:18Z) Created two focused commits and prepared both for delivery only to `origin/feat/policy-prism-critic-model-support` (`c974c7e`, `2ddbee8`).
 - [ ] During the later Policy Prism model-comparison phase, capture real vLLM load/generation and post-SFT LoRA reload evidence on the selected GPU. No GPU allocation is part of this implementation phase.
 
 ## Surprises & Discoveries
@@ -25,6 +25,10 @@ Policy Prism needs three small causal language-model bases for a fair classifica
   Evidence: the pinned Thinking template hashes to `f05bf4b967dc993bdc7a2fe6e43759ee218eb0eb340d68b063e1c4f8ad148176`; the Instruct template contains explicit Transformers `{% generation %}` boundaries that support assistant-only loss masks.
 - Observation: the upstream JSON configs advertise 128,000 positions, while both official model cards state a supported context length of 32,768 tokens.
   Evidence: this plan uses 32,768 as the operational and catalog capability limit instead of claiming the larger raw configuration value.
+- Observation: the repository's default test environment intentionally omits Transformers and the training renderer dependency, so tokenizer tests skip in the ordinary full suite.
+  Evidence: a locked minimal test environment with Transformers 5.14.1 and renderers 0.1.8 executed the new real-tokenizer cases; 7 applicable tests passed while unrelated uncached model cases skipped.
+- Observation: the first full-suite run exposed one fixed-set inventory test that needed the two new model IDs.
+  Evidence: after adding `lfm2.5-350m` and `lfm2.5-1.2b-instruct` to `IdentityContractTests`, the entire 1,294-collected-test run passed with 1,272 passed and 25 skipped.
 
 ## Decision Log
 
@@ -46,7 +50,7 @@ Policy Prism needs three small causal language-model bases for a fair classifica
 
 ## Outcomes & Retrospective
 
-The branch and exact renderer/model identities are complete. Inference, SFT bindings, final tests, validation evidence, and delivery commits remain in progress.
+The exact variants, dedicated Instruct renderer, vLLM bindings, TRL all-linear LoRA binding, SFT settings, and all requested contract tests are complete. The official tokenizer/template tests proved deterministic rendering, assistant-only masking, supervised stop-token placement, and no target truncation. Static and full test gates pass, and the two focused delivery commits are complete. Actual GPU model loading and a trained-adapter reload remain a correctly identified live gate for the subsequent evaluation/SFT phase.
 
 ## Context and Orientation
 
@@ -111,8 +115,20 @@ Official-artifact evidence:
     LFM Instruct chat_template.jinja sha256 ba551d58630afa3190b1be3602e28301f3d2e9bbac978dfc49d6d825171648b6
     LFM Thinking chat_template.jinja sha256 f05bf4b967dc993bdc7a2fe6e43759ee218eb0eb340d68b063e1c4f8ad148176
 
+Validation evidence:
+
+    uv sync --all-packages --locked --python 3.13: resolved 287, checked 106
+    uv run ruff check .: passed
+    uv run pyright: 0 errors, 0 warnings
+    uv run lint-imports: 8 contracts kept, 0 broken
+    uv run pytest: 1272 passed, 25 skipped
+    exact LFM tokenizer/rendering subset: 7 passed, unrelated uncached variants skipped
+    git diff --check: passed
+
 ## Interfaces and Dependencies
 
 At completion, `posttrain.common.variants` exports `LFM_25_350M`, `LFM_25_12B_INSTRUCT`, and `LFM25_INSTRUCT_RENDERER_CONTRACT`. The base catalog exposes `models/lfm2.5-350m@bf16`, `models/lfm2.5-1.2b-instruct@bf16`, matching vLLM inference selections, one shared Instruct TRL LoRA binding, and Instruct SFT smoke settings. These reuse the existing `ModelVariant`, `RendererContract`, `InferenceBinding`, `TrainingBinding`, `SFTSettings`, and PEFT/vLLM adapter mechanisms; no Policy Prism-specific model profiles or provider integration are introduced.
 
 Revision note (2026-08-21): created the living plan after verifying the repository baseline and official immutable artifacts so subsequent implementation and qualification can resume from this file alone.
+
+Revision note (2026-08-21): recorded completed inference/SFT contracts, exact-tokenizer rendering evidence, the full validation result, and the remaining live-GPU qualification boundary.

@@ -10,7 +10,7 @@ from pathlib import Path
 
 import httpx
 from posttrain.common import InferenceBinding, LocalArtifactRef
-from posttrain.common.variants import LFM_25_12B_THINKING, QWEN_35_2B
+from posttrain.common.variants import LFM_25_12B_INSTRUCT, LFM_25_12B_THINKING, QWEN_35_2B
 from posttrain.serve import (
     Endpoint,
     GenerationRequest,
@@ -102,6 +102,49 @@ def test_qwen_launch_command_keeps_8gb_text_only_constraints(qwen_screen_binding
     assert "--skip-mm-profiling" in command
     mm_limits = json.loads(command[command.index("--limit-mm-per-prompt") + 1])
     assert mm_limits == {"image": 0, "video": 0, "audio": 0}
+
+
+def test_lfm_instruct_vllm_command_uses_exact_non_reasoning_contract(
+    tmp_path: Path,
+    lfm_instruct_binding: InferenceBinding,
+) -> None:
+    template = tmp_path / "lfm-instruct-chat.jinja"
+    command = build_vllm_command(ServeLaunchRequest(lfm_instruct_binding), template)
+
+    assert command[1:3] == ("serve", LFM_25_12B_INSTRUCT.base.repo_id)
+    assert command[command.index("--revision") + 1] == LFM_25_12B_INSTRUCT.base.revision
+    assert command[command.index("--dtype") + 1] == "bfloat16"
+    assert command[command.index("--max-model-len") + 1] == "32768"
+    assert command[command.index("--tool-call-parser") + 1] == "lfm2"
+    assert command[command.index("--chat-template") + 1] == str(template)
+    assert "--reasoning-parser" not in command
+
+
+def test_lfm_instruct_vllm_reload_attaches_adapter_to_exact_base(
+    tmp_path: Path,
+    lfm_instruct_binding: InferenceBinding,
+) -> None:
+    adapter_dir = tmp_path / "adapter"
+    adapter_dir.mkdir()
+    adapter = replace(
+        LFM_25_12B_INSTRUCT,
+        id="models/lfm2.5-1.2b-instruct/policy-prism-test",
+        artifact=LocalArtifactRef(adapter_dir, "c" * 64),
+        form="peft-adapter",
+        revision=None,
+        digest="c" * 64,
+        parent=LFM_25_12B_INSTRUCT.id,
+        provenance={"parameter_update_kind": "lora"},
+    )
+
+    request = ServeLaunchRequest(replace(lfm_instruct_binding, model=adapter))
+    command = build_vllm_command(request)
+
+    assert command[1:3] == ("serve", LFM_25_12B_INSTRUCT.base.repo_id)
+    assert command[command.index("--revision") + 1] == LFM_25_12B_INSTRUCT.base.revision
+    assert command[command.index("--lora-modules") + 1] == f"{adapter.id}={adapter_dir}"
+    assert "--enable-lora" in command
+    assert request.endpoint.model == adapter.id
 
 
 def test_managed_server_uses_the_inference_binding_startup_budget(

@@ -20,10 +20,15 @@ evaluation depend on vLLM. Putting vLLM parser names in the shared model profile
 would leak one backend into every consumer.
 
 The pinned Qwen3.5 template supports its XML tool-call grammar and explicit
-`enable_thinking` flag. The pinned LFM2.5 template advertises tools but does not
+`enable_thinking` flag. The pinned LFM2.5 Thinking template advertises tools but does not
 reconstruct an OpenAI assistant `tool_calls` history: `content=None` renders as
 `null`, losing the call on the next turn. That breaks multi-turn tool-use
 environments even though vLLM can parse newly generated LFM calls.
+
+LFM2.5-350M and LFM2.5-1.2B-Instruct use a newer, byte-identical upstream
+template with explicit assistant-generation boundaries. They are instruction
+models, so binding them to the Thinking renderer or reasoning parser would
+change both their token contract and response semantics.
 
 ## Decision
 
@@ -40,13 +45,17 @@ environments even though vLLM can parse newly generated LFM calls.
   tokenizer-level golden tests.
 - Qwen3.5 uses its pinned tokenizer template, XML function/parameter elements,
   and explicit `native`, `off`, and `thinking` modes.
-- LFM2.5 uses a package-owned template derived from its pinned tokenizer
+- LFM2.5 Thinking uses a package-owned template derived from its pinned tokenizer
   template. The override preserves OpenAI assistant tool-call history as the
   model's native Pythonic call list between `<|tool_call_start|>` and
   `<|tool_call_end|>`.
+- LFM2.5 Instruct uses a separate package-owned, byte-exact copy of the pinned
+  upstream Instruct template. Its renderer has reasoning disabled, retains the
+  native Pythonic tool grammar, and exposes the template's generation markers
+  to assistant-only SFT masking.
 - A `VllmServeProfile` owns vLLM frontend parser selection. Qwen uses
-  `qwen3_xml` and `qwen3`; LFM uses `lfm2` and the tag-compatible
-  `deepseek_r1` reasoning parser.
+  `qwen3_xml` and `qwen3`; LFM uses the `lfm2` tool parser. Only a reasoning
+  model receives a reasoning parser; the LFM Instruct bindings omit it.
 - Training renderers consume the shared conversation contract and add
   technique-specific loss masks. Evaluation environments provide tools and
   scoring semantics but do not redefine model formatting.
@@ -93,6 +102,9 @@ change independently of the model's native protocol.
 - The LFM override is
   `posttrain/common/templates/lfm25_tool_chat.jinja` and is included in the
   `posttrain-common` wheel.
+- The LFM Instruct template is
+  `posttrain/common/templates/lfm25_instruct_chat.jinja`; its pinned SHA-256 is
+  `ba551d58630afa3190b1be3602e28301f3d2e9bbac978dfc49d6d825171648b6`.
 - vLLM parser choices live in `posttrain.serve.profiles` and are emitted only
   when an online vLLM endpoint is launched.
 - Tests load the exact pinned tokenizers when locally available and verify
@@ -107,3 +119,5 @@ change independently of the model's native protocol.
 
 - 2026-07-20: Established shared conversation contracts, backend-owned parser
   choices, and the tested LFM tool-history template override.
+- 2026-08-21: Added a distinct, hash-pinned LFM2.5 Instruct contract and kept
+  reasoning parsing exclusive to the Thinking variant.

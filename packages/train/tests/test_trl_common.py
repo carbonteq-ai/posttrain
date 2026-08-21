@@ -7,8 +7,8 @@ from types import ModuleType, SimpleNamespace
 from typing import Any, cast
 
 import pytest
-from posttrain.common import ProducedArtifact
-from posttrain.common.variants import GEMMA_4_12B_IT, LFM_25_12B_THINKING, QWEN_35_2B
+from posttrain.common import LocalArtifactRef, ProducedArtifact
+from posttrain.common.variants import GEMMA_4_12B_IT, LFM_25_12B_INSTRUCT, LFM_25_12B_THINKING, QWEN_35_2B
 from posttrain.train import LoRAUpdate, TrainingLoop
 from posttrain.train.backends.trl.common import (
     checkpoint_callback_type,
@@ -105,6 +105,99 @@ def test_trainable_model_loader_honors_requested_dtype() -> None:
     ]
     with pytest.raises(ValueError, match="bfloat16.*float32"):
         load_trainable_model(QWEN_35_2B, LoRAUpdate(), cast(TrainingLoop, loop), imports, model_dtype="float16")
+
+
+def test_lfm_instruct_lora_uses_all_linear_and_exact_revision() -> None:
+    calls: list[tuple[str, object]] = []
+    base = SimpleNamespace(config=SimpleNamespace(use_cache=True))
+
+    class Factory:
+        @staticmethod
+        def from_pretrained(repo: str, **kwargs: object) -> Any:
+            calls.append((repo, kwargs))
+            return base
+
+    def lora_config(**kwargs: object) -> object:
+        calls.append(("lora", kwargs))
+        return kwargs
+
+    imports = {
+        "torch": SimpleNamespace(bfloat16="bf16", float32="fp32"),
+        "AutoModelForCausalLM": Factory,
+        "AutoModelForMultimodalLM": Factory,
+        "get_peft_model": lambda model, config: (model, config),
+        "LoraConfig": lora_config,
+    }
+
+    loaded = load_trainable_model(
+        LFM_25_12B_INSTRUCT,
+        LoRAUpdate(rank=8, alpha=16, target_modules="all-linear"),
+        TrainingLoop(max_steps=1),
+        imports,
+    )
+
+    assert isinstance(loaded, tuple)
+    assert loaded[0] is base
+    assert calls[0][0] == LFM_25_12B_INSTRUCT.base.repo_id
+    load_options = calls[0][1]
+    assert isinstance(load_options, dict)
+    assert load_options["revision"] == LFM_25_12B_INSTRUCT.base.revision
+    assert calls[1] == (
+        "lora",
+        {
+            "r": 8,
+            "lora_alpha": 16,
+            "lora_dropout": 0.0,
+            "target_modules": "all-linear",
+            "bias": "none",
+            "task_type": "CAUSAL_LM",
+        },
+    )
+
+
+def test_lfm_instruct_adapter_resume_uses_peft_reload_path(tmp_path: Path) -> None:
+    adapter_dir = tmp_path / "adapter"
+    adapter_dir.mkdir()
+    adapter = LFM_25_12B_INSTRUCT.__class__(
+        id="models/lfm2.5-1.2b-instruct/resume-test",
+        artifact=LocalArtifactRef(adapter_dir, "d" * 64),
+        form="peft-adapter",
+        weight_precision=LFM_25_12B_INSTRUCT.weight_precision,
+        family=LFM_25_12B_INSTRUCT.family,
+        parameters=LFM_25_12B_INSTRUCT.parameters,
+        instruction_tuned=True,
+        renderer=LFM_25_12B_INSTRUCT.renderer,
+        capabilities=LFM_25_12B_INSTRUCT.capabilities,
+        base=LFM_25_12B_INSTRUCT.base,
+        digest="d" * 64,
+        tokenizer_fingerprint=LFM_25_12B_INSTRUCT.tokenizer_fingerprint,
+        parent=LFM_25_12B_INSTRUCT.id,
+    )
+    base = SimpleNamespace(config=SimpleNamespace(use_cache=True))
+    reloads: list[tuple[object, Path, bool]] = []
+
+    class Factory:
+        @staticmethod
+        def from_pretrained(_repo: str, **_kwargs: object) -> Any:
+            return base
+
+    class PeftModel:
+        @staticmethod
+        def from_pretrained(model: object, path: Path, *, is_trainable: bool) -> str:
+            reloads.append((model, path, is_trainable))
+            return "reloaded"
+
+    imports = {
+        "torch": SimpleNamespace(bfloat16="bf16", float32="fp32"),
+        "AutoModelForCausalLM": Factory,
+        "AutoModelForMultimodalLM": Factory,
+        "PeftModel": PeftModel,
+    }
+
+    loaded = load_trainable_model(adapter, LoRAUpdate(), TrainingLoop(max_steps=1), imports)
+
+    assert loaded == "reloaded"
+    assert reloads == [(base, adapter_dir, True)]
 
 
 def test_gemma_mtp_materializes_the_pinned_assistant_before_trl(monkeypatch) -> None:

@@ -71,6 +71,8 @@ class IdentityContractTests(unittest.TestCase):
             {
                 "qwen3.5-0.8b",
                 "qwen3.5-2b",
+                "lfm2.5-350m",
+                "lfm2.5-1.2b-instruct",
                 "lfm2.5-1.2b-thinking",
                 "gemma4-e2b-it",
                 "gemma4-e4b-it",
