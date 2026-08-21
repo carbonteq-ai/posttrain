@@ -19,6 +19,8 @@ Policy Prism needs three small causal language-model bases for a fair classifica
 - [x] (2026-08-21) Extended the frozen training-loop contract with finite non-negative weight decay and the cosine scheduler required by the selected Policy Prism critic SFT runs.
 - [x] (2026-08-21) Added a standalone authenticated Trackio preflight that creates no run, matching the approved SFT handoff on the current main-derived branch.
 - [x] (2026-08-21) Re-ran the complete locked repository gate after the SFT amendments: Ruff, Pyright, all 8 import contracts, and 1,279 tests passed; 25 environment-dependent tests skipped.
+- [x] (2026-08-22) Extended resolved job-plan evidence to preserve tokenizer fingerprints, checkpoint/logging policy, gradient-checkpointing state, and loss-only validation settings before immutable packing.
+- [x] (2026-08-22) Re-ran the complete framework gate after the plan-evidence change: Ruff, Pyright, all 8 import contracts, and 1,289 tests passed; 25 environment-dependent tests skipped.
 - [ ] Submit and later reconcile the two Policy Prism critic SFT jobs; submission and qualification evidence remain outside the model-support-only commits above.
 
 ## Surprises & Discoveries

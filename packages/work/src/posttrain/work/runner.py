@@ -659,6 +659,7 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
             "weight_precision": value.weight_precision,
             "family": value.family,
             "renderer": value.renderer.id,
+            "tokenizer_fingerprint": value.tokenizer_fingerprint,
             "parent": value.parent,
         }
     if isinstance(value, ExecutionTarget):
@@ -708,8 +709,16 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
             "lr_scheduler_type": loop.lr_scheduler_type,
             "weight_decay": loop.weight_decay,
             "max_grad_norm": loop.max_grad_norm,
+            "logging_steps": loop.logging_steps,
+            "checkpoint_steps": loop.checkpoint_steps,
+            "checkpoint_limit": loop.checkpoint_limit,
+            "gradient_checkpointing": loop.gradient_checkpointing,
             "seed": loop.seed,
         }
+        if isinstance(value, SFTSettings):
+            details["validation"] = (
+                asdict(value.validation) if value.validation is not None else None
+            )
         if isinstance(value, DPOSettings):
             details.update({"beta": value.beta, "loss_kernel": value.loss_kernel})
         if isinstance(value, GRPOSettings):

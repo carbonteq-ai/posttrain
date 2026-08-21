@@ -31,7 +31,13 @@ from posttrain.eval import (
     EvaluationSignalRef,
     EvaluationSuccessDefinition,
 )
-from posttrain.train import ActiveGroupSampling, GRPOSettings, SFTSettings, TrainingLoop
+from posttrain.train import (
+    ActiveGroupSampling,
+    GRPOSettings,
+    SFTSettings,
+    SFTValidationSettings,
+    TrainingLoop,
+)
 from posttrain.work import (
     FinalizedRunResult,
     JobDefinition,
@@ -257,7 +263,11 @@ def test_training_snapshot_retains_optimizer_contract() -> None:
             lr_scheduler_type="cosine",
             weight_decay=0.01,
             max_grad_norm=0.75,
+            logging_steps=4,
+            checkpoint_steps=5,
+            checkpoint_limit=2,
         ),
+        validation=SFTValidationSettings(steps=10, per_device_batch_size=2),
     )
 
     snapshot = _selection_details(settings)
@@ -266,6 +276,22 @@ def test_training_snapshot_retains_optimizer_contract() -> None:
     assert snapshot["lr_scheduler_type"] == "cosine"
     assert snapshot["weight_decay"] == 0.01
     assert snapshot["max_grad_norm"] == 0.75
+    assert snapshot["logging_steps"] == 4
+    assert snapshot["checkpoint_steps"] == 5
+    assert snapshot["checkpoint_limit"] == 2
+    assert snapshot["gradient_checkpointing"] is True
+    assert snapshot["validation"] == {
+        "steps": 10,
+        "per_device_batch_size": 2,
+        "on_start": False,
+        "at_end": True,
+    }
+
+
+def test_model_snapshot_retains_tokenizer_fingerprint() -> None:
+    snapshot = _selection_details(QWEN_35_2B)
+
+    assert snapshot["tokenizer_fingerprint"] == QWEN_35_2B.tokenizer_fingerprint
 
 
 def test_detached_preflight_rejects_tool_environment_with_plain_inference() -> None:
