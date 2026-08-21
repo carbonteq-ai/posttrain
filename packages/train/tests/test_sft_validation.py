@@ -136,7 +136,11 @@ def test_catalog_decodes_explicit_sft_validation_schedule() -> None:
             "selection_type": "sft-settings",
             "id": "qwen3.5-2b/sft-validation-test",
             "revision": "2",
-            "loop": {"max_steps": 8},
+            "loop": {
+                "max_steps": 8,
+                "lr_scheduler_type": "cosine",
+                "weight_decay": 0.01,
+            },
             "validation": {
                 "steps": 4,
                 "per_device_batch_size": 2,
@@ -148,6 +152,8 @@ def test_catalog_decodes_explicit_sft_validation_schedule() -> None:
     )
 
     assert isinstance(settings, SFTSettings)
+    assert settings.loop.lr_scheduler_type == "cosine"
+    assert settings.loop.weight_decay == 0.01
     assert settings.validation == SFTValidationSettings(4, 2, True, True)
 
 

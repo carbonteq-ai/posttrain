@@ -1473,6 +1473,28 @@ def test_trl_callback_retains_finite_values_before_non_finite_metric(tmp_path: P
     }.items() <= observer.events[-1].attributes.items()
 
 
+def test_trl_callback_fails_closed_on_non_finite_first_sft_step(tmp_path: Path) -> None:
+    observer = Observer()
+    context = _run_context(
+        tmp_path.resolve(),
+        observer,
+        job_kind="train.sft",
+        run_id="runs/sft-first-step-non-finite",
+    )
+    callback = callback_type(context, {"TrainerCallback": object})()
+
+    with pytest.raises(FloatingPointError, match="loss=nan"):
+        callback.on_log(
+            SimpleNamespace(max_grad_norm=1.0),
+            SimpleNamespace(global_step=1),
+            SimpleNamespace(),
+            logs={"loss": float("nan"), "grad_norm": 0.5},
+        )
+
+    assert observer.events[-1].name == "training_non_finite_metric"
+    assert observer.events[-1].attributes["global_step"] == 1
+
+
 def test_live_trl_metrics_keep_retained_reward_signal_and_delegate_step_time() -> None:
     values = _normalize_live_grpo_metrics(
         4,

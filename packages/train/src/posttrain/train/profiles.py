@@ -32,7 +32,8 @@ class TrainingLoop:
     gradient_accumulation_steps: int = 1
     learning_rate: float = 2e-4
     warmup_ratio: float = 0.0
-    lr_scheduler_type: Literal["linear", "constant", "constant_with_warmup"] = "linear"
+    lr_scheduler_type: Literal["linear", "cosine", "constant", "constant_with_warmup"] = "linear"
+    weight_decay: float = 0.0
     max_grad_norm: float = 1.0
     logging_steps: int = 1
     checkpoint_steps: int = 1
@@ -53,7 +54,16 @@ class TrainingLoop:
             raise ValueError("training loop counts must be positive")
         if self.checkpoint_steps < 0:
             raise ValueError("checkpoint steps must be non-negative")
-        if self.learning_rate <= 0 or not 0 <= self.warmup_ratio < 1 or self.max_grad_norm <= 0:
+        if (
+            not math.isfinite(self.learning_rate)
+            or self.learning_rate <= 0
+            or not math.isfinite(self.warmup_ratio)
+            or not 0 <= self.warmup_ratio < 1
+            or not math.isfinite(self.weight_decay)
+            or self.weight_decay < 0
+            or not math.isfinite(self.max_grad_norm)
+            or self.max_grad_norm <= 0
+        ):
             raise ValueError("invalid training optimization values")
 
 

@@ -103,10 +103,11 @@ class TrainingLoopSchema(TrainCatalogSchema):
     max_length: int = Field(default=512, gt=0)
     per_device_batch_size: int = Field(default=1, gt=0)
     gradient_accumulation_steps: int = Field(default=1, gt=0)
-    learning_rate: float = Field(default=2e-4, gt=0)
-    warmup_ratio: float = Field(default=0.0, ge=0, lt=1)
-    lr_scheduler_type: Literal["linear", "constant", "constant_with_warmup"] = "linear"
-    max_grad_norm: float = Field(default=1.0, gt=0)
+    learning_rate: float = Field(default=2e-4, gt=0, allow_inf_nan=False)
+    warmup_ratio: float = Field(default=0.0, ge=0, lt=1, allow_inf_nan=False)
+    lr_scheduler_type: Literal["linear", "cosine", "constant", "constant_with_warmup"] = "linear"
+    weight_decay: float = Field(default=0.0, ge=0, allow_inf_nan=False)
+    max_grad_norm: float = Field(default=1.0, gt=0, allow_inf_nan=False)
     logging_steps: int = Field(default=1, gt=0)
     checkpoint_steps: int = Field(default=1, ge=0)
     checkpoint_limit: int = Field(default=1, gt=0)

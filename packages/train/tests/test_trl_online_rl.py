@@ -103,6 +103,22 @@ def test_trl_constant_with_warmup_scheduler_is_forwarded(tmp_path: Path) -> None
     assert arguments["lr_scheduler_type"] == "constant_with_warmup"
 
 
+def test_trl_cosine_scheduler_and_weight_decay_are_forwarded(tmp_path: Path) -> None:
+    arguments = trainer_arguments(
+        TrainingLoop(max_steps=20, lr_scheduler_type="cosine", weight_decay=0.01),
+        tmp_path,
+    )
+
+    assert arguments["lr_scheduler_type"] == "cosine"
+    assert arguments["weight_decay"] == 0.01
+
+
+@pytest.mark.parametrize("weight_decay", [-0.01, float("nan"), float("inf")])
+def test_training_loop_rejects_invalid_weight_decay(weight_decay: float) -> None:
+    with pytest.raises(ValueError, match="optimization"):
+        TrainingLoop(max_steps=1, weight_decay=weight_decay)
+
+
 def test_trl_policy_generator_reuses_loaded_trainer_and_preserves_exact_tokens(monkeypatch) -> None:
     monkeypatch.setattr("posttrain.train.backends.trl.online_rl.create_renderer", lambda *args: FakeRenderer())
     profile = replace(QWEN35_GRPO_SMOKE, max_completion_length=2)

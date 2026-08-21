@@ -704,6 +704,10 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
             "per_device_batch_size": loop.per_device_batch_size,
             "gradient_accumulation_steps": loop.gradient_accumulation_steps,
             "learning_rate": loop.learning_rate,
+            "warmup_ratio": loop.warmup_ratio,
+            "lr_scheduler_type": loop.lr_scheduler_type,
+            "weight_decay": loop.weight_decay,
+            "max_grad_norm": loop.max_grad_norm,
             "seed": loop.seed,
         }
         if isinstance(value, DPOSettings):

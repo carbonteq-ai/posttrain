@@ -430,6 +430,7 @@ def trainer_arguments(loop: TrainingLoop, output_dir: Path) -> dict[str, Any]:
         "per_device_train_batch_size": loop.per_device_batch_size,
         "gradient_accumulation_steps": loop.gradient_accumulation_steps,
         "learning_rate": loop.learning_rate,
+        "weight_decay": loop.weight_decay,
         "warmup_steps": math.ceil(loop.max_steps * loop.warmup_ratio),
         "lr_scheduler_type": loop.lr_scheduler_type,
         "max_grad_norm": loop.max_grad_norm,

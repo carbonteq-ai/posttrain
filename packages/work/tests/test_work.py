@@ -31,7 +31,7 @@ from posttrain.eval import (
     EvaluationSignalRef,
     EvaluationSuccessDefinition,
 )
-from posttrain.train import ActiveGroupSampling, GRPOSettings, TrainingLoop
+from posttrain.train import ActiveGroupSampling, GRPOSettings, SFTSettings, TrainingLoop
 from posttrain.work import (
     FinalizedRunResult,
     JobDefinition,
@@ -246,6 +246,26 @@ def test_grpo_snapshot_retains_algorithm_and_active_sampling_contract() -> None:
     assert snapshot["active_sampling"] == {"max_candidate_batches": 10}
     assert snapshot["advantage_scaling"] == "none"
     assert snapshot["clip_epsilon_high"] == pytest.approx(0.272)
+
+
+def test_training_snapshot_retains_optimizer_contract() -> None:
+    settings = SFTSettings(
+        "training/sft-optimizer-contract@1",
+        TrainingLoop(
+            max_steps=10,
+            warmup_ratio=0.03,
+            lr_scheduler_type="cosine",
+            weight_decay=0.01,
+            max_grad_norm=0.75,
+        ),
+    )
+
+    snapshot = _selection_details(settings)
+
+    assert snapshot["warmup_ratio"] == 0.03
+    assert snapshot["lr_scheduler_type"] == "cosine"
+    assert snapshot["weight_decay"] == 0.01
+    assert snapshot["max_grad_norm"] == 0.75
 
 
 def test_detached_preflight_rejects_tool_environment_with_plain_inference() -> None:
