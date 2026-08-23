@@ -15,7 +15,7 @@
 # framework release may reuse an image only when its runtime inputs still match.
 
 schema_version = 1
-framework_version = "0.3.20"
+framework_version = "0.3.21"
 default_prefix = "registry.lan/carbonteq"
 
 [base]
