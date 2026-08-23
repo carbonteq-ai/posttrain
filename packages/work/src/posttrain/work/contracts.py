@@ -109,6 +109,7 @@ class WorkPackage:
     recipe: CatalogRef | Recipe
     bindings: Mapping[str, SeatBinding]
     enabled_optional_jobs: tuple[str, ...] = ()
+    evidence_retention: Literal["standard", "pinned"] = "standard"
     metadata: Mapping[str, JsonValue] = field(default_factory=dict)
     description: str | None = None
 
@@ -121,6 +122,8 @@ class WorkPackage:
             raise ContractError("work-package recipe refs must use the recipe family")
         if len(set(self.enabled_optional_jobs)) != len(self.enabled_optional_jobs):
             raise ContractError("enabled optional job ids must be unique")
+        if self.evidence_retention not in {"standard", "pinned"}:
+            raise ContractError("work-package evidence retention must be standard or pinned")
         for job_id in self.enabled_optional_jobs:
             validate_selection_id(job_id, "enabled optional job id")
         if any(not name.strip() for name in self.bindings):
@@ -239,6 +242,7 @@ class WorkPackageSchema(_Schema):
     recipe: RecipeSelectionSchema
     bindings: dict[str, CatalogRefSchema]
     enabled_optional_jobs: tuple[str, ...] = ()
+    evidence_retention: Literal["standard", "pinned"] = "standard"
     metadata: dict[str, JsonValue] = Field(default_factory=dict)
     description: str | None = Field(default=None, min_length=1)
 
@@ -276,6 +280,7 @@ def load_work_package(path: Path) -> WorkPackage:
         recipe=recipe,
         bindings={name: CatalogRef(binding.family, binding.id) for name, binding in schema.bindings.items()},
         enabled_optional_jobs=schema.enabled_optional_jobs,
+        evidence_retention=schema.evidence_retention,
         metadata=schema.metadata,
         description=schema.description,
     )

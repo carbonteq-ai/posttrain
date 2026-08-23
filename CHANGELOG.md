@@ -4,6 +4,37 @@ All notable changes to Posttrain are documented here. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with a coordinated
 version across first-party distributions.
 
+## 0.3.21 - 2026-08-23
+
+This release separates routine terminal cleanup, rebuildable cache pruning,
+durable evidence retention, and intentional cross-plane erasure into explicit
+lifecycle contracts.
+
+### Added
+
+- Work packages can mark run evidence as `standard` or `pinned`; the resolved
+  policy is retained through admission, submission, and tracking.
+- Purge previews require a non-secret reason and produce digest-bound plans,
+  retry-safe per-plane journals, and privacy-bounded machine-local tombstones.
+- CLI audit views can include intentionally purged runs without restoring or
+  exposing deleted metrics, traces, artifacts, or diagnostics.
+
+### Changed
+
+- Controller and manual reconciliation automatically release only the exact
+  terminal execution workspace after durable evidence has settled.
+- Run purge remains non-cascading by default; cascade and project purge use
+  project-scoped ownership closure, protect shared consumers and pinned runs,
+  and revalidate saved action targets before mutation.
+
+### Qualification
+
+- Focused lifecycle coverage proves project isolation, reference protection,
+  retry-safe partial failure, minimal tombstones, and equivalent local/remote
+  cleanup contracts.
+- Disposable Ambient local and dstack qualifications proved cross-plane purge
+  and automatic workspace cleanup while preserving retained Trackio evidence.
+
 ## 0.3.16 - Unreleased
 
 This release completes the generic sampling contract for the maintained TRL

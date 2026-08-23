@@ -131,6 +131,7 @@ def _run_config(spec: RunSpec, started_at: datetime) -> dict[str, JsonValue]:
         "run_id": spec.run_id,
         "job_kind": spec.job_kind,
         "job_definition_version": spec.job_definition_version,
+        "evidence_retention": spec.evidence_retention,
         "started_at": started_at.isoformat(),
         "resolved_selections": dict(spec.resolved_inputs),
         "source_metadata": dict(spec.source_metadata),

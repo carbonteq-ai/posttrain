@@ -189,6 +189,7 @@ def _run_config(spec: RunSpec, started_at: datetime) -> dict[str, JsonValue]:
         "run_id": spec.run_id,
         "job_kind": spec.job_kind,
         "job_definition_version": spec.job_definition_version,
+        "evidence_retention": spec.evidence_retention,
         "started_at": started_at.isoformat(),
         "resolved_selections": dict(spec.resolved_inputs),
         "source_metadata": dict(spec.source_metadata),
@@ -623,6 +624,7 @@ class TrackioCancelledRunRecovery:
                 run_id=expected.run_id,
                 job_kind=expected.job_kind,
                 job_definition_version=expected.job_definition_version,
+                evidence_retention="standard",
             ),
         )
         tracked.finish(RunOutcome("cancelled", expected.started_at, finished_at))
@@ -703,17 +705,28 @@ class TrackioLifecycleAdmin:
     endpoints is selected.
     """
 
-    def __init__(self, server_url: str, *, write_token: str | None = None) -> None:
+    def __init__(
+        self,
+        server_url: str,
+        *,
+        write_token: str | None = None,
+        ca_bundle: Path | None = None,
+    ) -> None:
         if not server_url.strip():
             raise ValueError("Trackio server URL cannot be empty")
+        if ca_bundle is not None and (not ca_bundle.is_absolute() or not ca_bundle.is_file()):
+            raise ContractError("Trackio lifecycle CA bundle must be an existing absolute file")
         base_url, url_token = parse_trackio_server_url(server_url)
         token = write_token or url_token or os.getenv("TRACKIO_WRITE_TOKEN")
         if not token:
             raise ContractError("Trackio purge requires TRACKIO_WRITE_TOKEN")
+        httpx_kwargs: dict[str, Any] = {"timeout": 30.0}
+        if ca_bundle is not None:
+            httpx_kwargs["verify"] = str(ca_bundle)
         self._client = RemoteClient(
             base_url,
             write_token=token,
-            httpx_kwargs={"timeout": 30.0},
+            httpx_kwargs=httpx_kwargs,
             verbose=False,
         )
 

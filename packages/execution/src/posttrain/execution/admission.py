@@ -905,6 +905,7 @@ def _encode_plan(plan: ExecutionPlan) -> dict[str, Any]:
                 "resolved_inputs": _json_value(spec.resolved_inputs),
                 "source_metadata": _json_value(spec.source_metadata),
                 "required_artifact_roles": list(spec.required_artifact_roles),
+                "evidence_retention": spec.evidence_retention,
                 "artifacts": {
                     name: {
                         "kind": item.kind,
@@ -976,6 +977,7 @@ def _decode_plan(value: object) -> ExecutionPlan:
         source_metadata=spec.get("source_metadata", {}),
         artifacts=artifacts,
         required_artifact_roles=tuple(spec.get("required_artifact_roles", ())),
+        evidence_retention=spec.get("evidence_retention", "standard"),
     )
     target = ExecutionTarget(**raw["target"])
     policy = ExecutionPolicy(**raw["policy"])

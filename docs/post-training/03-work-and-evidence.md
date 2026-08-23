@@ -264,6 +264,38 @@ terminal window, but pruning must first write a compact mode-protected receipt
 containing the run, placement, provider, image, timestamp, and terminal
 admission state.
 
+### Terminal cleanup, retention, and purge
+
+Terminal provider state is not permission to erase a run. After the retained
+evidence barrier, Posttrain may automatically **clean up** only the exact
+provider execution, run workspace, and run-scoped local image recorded for that
+run. Cleanup retains durable metrics, traces, artifacts, lineage, checkpoints,
+and compact control receipts. It is retryable from the same receipt.
+
+**Retention** decides whether otherwise valid durable run evidence remains
+available. The initial policy has `standard` (the project or work-package
+default) and `pinned` (no policy-driven expiry). Retention is not a deletion
+operation. Local rebuildable pack and BuildKit material is governed separately
+by the cache lifecycle and must not be treated as retained run evidence.
+
+**Purge** is an explicit, irreversible erasure of one run or project and only
+the provider, tracking, artifact, actual-job-image, and local resources that
+its complete ownership and lineage closure exclusively owns. It is for
+disposable history, corrupt or sensitive evidence, decommissioning, or
+security/legal erasure—not routine completion, archiving, or disk pressure. A
+purge first creates a read-only, reasoned, digest-bound plan. It blocks when a
+surviving run consumes selected evidence, an image/artifact has an unselected
+owner, or ownership inventory is incomplete. A requested cascade may include
+only a complete same-project consumer closure; cross-project consumers block.
+
+After a successful purge, Posttrain retains a minimal **tombstone** outside the
+purged run/project state: logical IDs, plan ID and digest, safe reason, time,
+actor when available, and per-plane outcomes. A tombstone contains no prompts,
+metrics, traces, checkpoints, configs, artifacts, logs, diagnostics, signed
+URLs, tokens, or credentials. It is available only through Posttrain's local
+operator audit commands; Observatory omits purged runs and does not attempt to
+distinguish intentional erasure from unavailable evidence.
+
 ### Run role
 
 **Job kind** answers *what executed*. **Run role** answers *why this run exists

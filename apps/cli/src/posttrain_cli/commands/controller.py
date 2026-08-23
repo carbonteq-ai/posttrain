@@ -9,7 +9,7 @@ from typing import Annotated, Any
 
 import typer
 from posttrain.catalog import ProjectLayout, load_project_layout
-from posttrain.execution import ExecutionSubmissionStore, reconcile_execution, save_reconciliation
+from posttrain.execution import ExecutionSubmissionStore, cleanup_execution, reconcile_execution, save_reconciliation
 
 from ..context import CliState
 from ..execution_config import resolve_admission_state_root
@@ -89,9 +89,20 @@ async def controller_sweep(layout: ProjectLayout) -> list[dict[str, Any]]:
                 "receipt": str(receipt),
             }
             if result.settled:
+                cleanup = await cleanup_execution(
+                    service,
+                    store,
+                    reconciliation_source_for_run(owner, initial.run_id),
+                    initial.run_id,
+                )
                 next_admission = admission.acknowledge_reconciled(initial.run_id)
                 event["released"] = True
                 event["next_run_id"] = next_admission.entry.run_id if next_admission is not None else None
+                event["cleanup"] = {
+                    "provider": cleanup.provider_disposition,
+                    "workspace": cleanup.workspace_disposition,
+                    "reclaimed_bytes": cleanup.workspace_reclaimed_bytes,
+                }
             events.append(event)
         except Exception as error:
             events.append(

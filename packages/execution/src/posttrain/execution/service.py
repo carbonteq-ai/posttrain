@@ -35,7 +35,7 @@ from .receipts import ExecutionJournal
 
 _RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
-_SCHEMA = "posttrain.execution-submission.v7"
+_SCHEMA = "posttrain.execution-submission.v8"
 _SUPPORTED_SCHEMAS = frozenset(
     {
         "posttrain.execution-submission.v1",
@@ -45,6 +45,7 @@ _SUPPORTED_SCHEMAS = frozenset(
         "posttrain.execution-submission.v5",
         "posttrain.execution-submission.v6",
         "posttrain.execution-submission.v7",
+        "posttrain.execution-submission.v8",
         _SCHEMA,
     }
 )
@@ -116,6 +117,7 @@ class ExecutionSubmission:
     execution_policy: ExecutionPolicy | None = None
     legacy_bundle_digest: str | None = None
     local_image: str | None = None
+    evidence_retention: str = "standard"
 
     def __post_init__(self) -> None:
         if not _RUN_ID.fullmatch(self.run_id):
@@ -132,6 +134,8 @@ class ExecutionSubmission:
             or any(character.isspace() for character in self.local_image)
         ):
             raise ContractError("execution submission local image tag is invalid")
+        if self.evidence_retention not in {"standard", "pinned"}:
+            raise ContractError("execution submission evidence retention is invalid")
         if self.legacy_bundle_digest is not None and not _SHA256.fullmatch(self.legacy_bundle_digest):
             raise ContractError("legacy execution submission bundle digest must be SHA-256")
         if self.submitted_at.tzinfo is None or self.submitted_at.utcoffset() is None:
@@ -169,6 +173,7 @@ class ExecutionSubmission:
             self.idempotency_key,
             self.job_image,
             self.local_image or "",
+            self.evidence_retention,
             *self.required_artifact_roles,
             str(self.run_workspace) if self.run_workspace is not None else "",
             str(self.evidence_source_recorded),
@@ -474,17 +479,17 @@ class ExecutionSubmissionStore:
         path = self.submission_path(submission.run_id)
         path.parent.mkdir(parents=True, exist_ok=True)
         temporary = path.parent / f".submission-{uuid.uuid4().hex}.tmp"
-        schema = _SCHEMA if submission.execution_policy is not None else "posttrain.execution-submission.v6"
         encoded = (
             json.dumps(
                 {
-                    "schema": schema,
+                    "schema": _SCHEMA,
                     "run_id": submission.run_id,
                     "provider": submission.provider,
                     "provider_id": submission.provider_id,
                     "idempotency_key": submission.idempotency_key,
                     "job_image": submission.job_image,
                     "local_image": submission.local_image,
+                    "evidence_retention": submission.evidence_retention,
                     "submitted_at": submission.submitted_at.isoformat(),
                     "required_artifact_roles": submission.required_artifact_roles,
                     "run_workspace": (str(submission.run_workspace) if submission.run_workspace is not None else None),
@@ -608,6 +613,7 @@ class JobExecutionService:
             provider_source_recorded=True,
             execution_policy=plan.request.policy,
             local_image=plan.request.local_image,
+            evidence_retention=plan.request.run_spec.evidence_retention,
         )
         return self._store.save(submission)
 
@@ -719,6 +725,7 @@ def _submission_from_payload(payload: dict[str, Any]) -> ExecutionSubmission:
                 "posttrain.execution-submission.v5",
                 "posttrain.execution-submission.v6",
                 "posttrain.execution-submission.v7",
+                _SCHEMA,
             }
             else "runtime_image"
         )
@@ -726,6 +733,7 @@ def _submission_from_payload(payload: dict[str, Any]) -> ExecutionSubmission:
         evidence_source_recorded = schema in {
             "posttrain.execution-submission.v5",
             "posttrain.execution-submission.v6",
+            "posttrain.execution-submission.v7",
             _SCHEMA,
         }
         if evidence_source_recorded and recorded_payload is not True:
@@ -744,7 +752,11 @@ def _submission_from_payload(payload: dict[str, Any]) -> ExecutionSubmission:
             if evidence_source_recorded and isinstance(evidence_payload, dict)
             else None
         )
-        provider_source_recorded = schema in {"posttrain.execution-submission.v6", _SCHEMA}
+        provider_source_recorded = schema in {
+            "posttrain.execution-submission.v6",
+            "posttrain.execution-submission.v7",
+            _SCHEMA,
+        }
         if provider_source_recorded and payload.get("provider_source_recorded") is not True:
             raise ContractError("execution submission must record its provider source")
         provider_payload = payload.get("provider_source")
@@ -754,7 +766,7 @@ def _submission_from_payload(payload: dict[str, Any]) -> ExecutionSubmission:
             else None
         )
         policy_payload = payload.get("execution_policy")
-        if schema == _SCHEMA and not isinstance(policy_payload, dict):
+        if schema == "posttrain.execution-submission.v7" and not isinstance(policy_payload, dict):
             raise ContractError("execution submission must record its execution policy")
         execution_policy = (
             ExecutionPolicy(
@@ -781,6 +793,9 @@ def _submission_from_payload(payload: dict[str, Any]) -> ExecutionSubmission:
             execution_policy=execution_policy,
             legacy_bundle_digest=(str(payload["bundle_digest"]) if payload.get("bundle_digest") is not None else None),
             local_image=(str(payload["local_image"]) if payload.get("local_image") is not None else None),
+            evidence_retention=(
+                str(payload.get("evidence_retention", "standard")) if schema == _SCHEMA else "standard"
+            ),
         )
     except (KeyError, TypeError, ValueError) as error:
         raise ContractError("execution submission fields are invalid") from error

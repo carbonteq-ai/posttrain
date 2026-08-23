@@ -38,6 +38,7 @@ type Stage = Literal["screen", "train", "qualify"]
 type RunStatus = Literal["running", "succeeded", "partial", "failed", "cancelled", "unsupported"]
 type RunOutcomeStatus = Literal["succeeded", "partial", "failed", "cancelled", "unsupported"]
 type ArtifactIntegrityState = Literal["verified", "failed", "unsupported"]
+type EvidenceRetention = Literal["standard", "pinned"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,6 +95,7 @@ class RunSpec:
     source_metadata: Mapping[str, JsonValue] = field(default_factory=dict)
     artifacts: Mapping[str, ArtifactInput] = field(default_factory=dict)
     required_artifact_roles: tuple[str, ...] = ()
+    evidence_retention: EvidenceRetention = "standard"
 
     def __post_init__(self) -> None:
         validate_selection_id(self.project_id, "project id")
@@ -106,6 +108,8 @@ class RunSpec:
             raise ContractError("required artifact roles cannot be empty")
         if len(set(self.required_artifact_roles)) != len(self.required_artifact_roles):
             raise ContractError("required artifact roles must be unique")
+        if self.evidence_retention not in {"standard", "pinned"}:
+            raise ContractError("run evidence retention must be standard or pinned")
         object.__setattr__(self, "resolved_inputs", MappingProxyType(dict(self.resolved_inputs)))
         object.__setattr__(self, "source_metadata", MappingProxyType(dict(self.source_metadata)))
         object.__setattr__(self, "artifacts", MappingProxyType(dict(self.artifacts)))
@@ -196,6 +200,7 @@ __all__ = [
     "ArtifactIntegrityResult",
     "ArtifactIntegrityState",
     "ArtifactPublicationHandle",
+    "EvidenceRetention",
     "RunDataSource",
     "RunError",
     "RunOutcome",

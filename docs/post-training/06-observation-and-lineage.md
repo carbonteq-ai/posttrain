@@ -476,6 +476,31 @@ Adapters may need local files (checkpoints, Verifiers JSONL, logs, staging):
 
 The filesystem is not a parallel run registry.
 
+### Retention and intentional erasure
+
+Durable evidence is retained by default after execution-workspace cleanup. Its
+initial retention class is `standard` (project/work-package policy) or `pinned`
+(no policy-driven expiry). Trace sampling controls what enters evidence; it is
+not a substitute for retention and does not authorize deleting retained traces.
+
+An intentional purge deletes one selected logical run or project only after a
+digest-bound preview proves the complete ownership/consumer closure. A produced
+artifact, native replay bundle, trace projection, or actual-job registry
+manifest remains when a surviving owner or consumer exists. A run purge may
+cascade only through a complete same-project consumer closure. Unknown
+lineage/owner inventory and external consumers are blockers. Deleting an OCI
+manifest does not imply that shared registry layers were physically reclaimed;
+registry garbage collection is infrastructure-owned.
+
+Purge removes both a native replay bundle and its queryable projection when
+they are selected as one logical evidence unit. It never selects shared
+framework base/kind images. After erasure, a minimal tombstone may retain
+logical IDs, purge plan ID/digest, safe reason, actor when available, time, and
+per-plane outcome. It must contain no evidence payload, metric, trace,
+checkpoint, config, artifact metadata, prompt, diagnostic, signed URL, token,
+or credential. Read products render this state as intentional `purged` history,
+not as a failed, missing, or zero-valued observation.
+
 ## Security and redaction
 
 - Never store secrets, tokens, or signed URLs in resolved snapshots or metrics.
