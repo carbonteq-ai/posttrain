@@ -48,6 +48,7 @@ from .service import (
     JobPackService,
     PackedJobContext,
     ProjectConfigBundle,
+    digest_job_context,
     digest_source_package,
     staged_context_directories,
 )
@@ -105,6 +106,7 @@ __all__ = [
     "staged_context_directories",
     "has_active_lease",
     "activation_resource_sources",
+    "digest_job_context",
     "digest_source_package",
     "environment_bindings",
     "plan_job_pack",

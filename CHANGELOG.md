@@ -4,6 +4,39 @@ All notable changes to Posttrain are documented here. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with a coordinated
 version across first-party distributions.
 
+## 0.3.22 - 2026-08-23
+
+This release completes the migration path from historical retained job-pack
+state to the bounded cache lifecycle introduced in the v0.3 series.
+
+### Added
+
+- `posttrain cache migrate-legacy-pack` previews and prepares only the selected
+  project's historical assembled contexts for normal cache pruning.
+- Verified LAN-registry publications retain compact materialization records;
+  missing, stale, or ambiguous legacy publication metadata produces a minimal
+  project-local discard record instead of retaining a heavyweight context.
+
+### Changed
+
+- Unleased internal OCI layouts below `.posttrain/state/cache` are consistently
+  treated as disposable transport cache. Explicit user-owned local exports
+  remain outside that namespace and are never pruned.
+- Historical migration validates project and package identity, refuses
+  symlinked or leased contexts, never mutates Trackio, registry images,
+  execution evidence, or another project, and leaves deletion to the existing
+  dry-run-first cache pruner.
+
+### Qualification
+
+- Focused CLI and pack coverage proves dry-run behavior, verified compact
+  records, fallback discard journals, active-lease protection, and exact
+  project-local pruning.
+- Ambient migration removed 54 historical contexts and 13 internal OCI
+  layouts (155,025,370,976 logical bytes), increased free disk space from about
+  136 GB to 300 GB, and preserved the aggregate checksum of every execution
+  evidence file.
+
 ## 0.3.21 - 2026-08-23
 
 This release separates routine terminal cleanup, rebuildable cache pruning,

@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Annotated
 
 import typer
+from posttrain_execution_buildkit import BuildxCli
 
 from ..context import CliState
 from ..execution_config import MachineCachePolicy, load_machine_config
 from ..output import emit
-from ..state_layout import explain_cache, prune_cache
+from ..state_layout import explain_cache, migrate_legacy_pack, prune_cache
 
 
 def register(app: typer.Typer) -> None:
@@ -94,4 +96,45 @@ def register(app: typer.Typer) -> None:
             state,
             report.as_json(),
             f"Cache prune {'applied' if apply else 'dry run'}; reclaimable bytes: {report.reclaimable_bytes}; removed bytes: {report.removed_bytes}",
+        )
+
+    @cache_app.command(
+        "migrate-legacy-pack",
+        help="prepare this project's historical pack cache for safe pruning",
+    )
+    def migrate_legacy_pack_cmd(
+        ctx: typer.Context,
+        apply: Annotated[
+            bool,
+            typer.Option(
+                "--apply",
+                help="commit compact migration evidence; without this the command is a dry run",
+            ),
+        ] = False,
+    ) -> None:
+        state: CliState = ctx.obj
+        gateway = BuildxCli()
+
+        def verify_remote(image: str) -> bool:
+            expected = image.rpartition("@sha256:")[2]
+            if len(expected) != 64:
+                return False
+            output = gateway.invoke(("imagetools", "inspect", image, "--format", "{{json .Manifest.Digest}}"))
+            try:
+                observed = json.loads(output)
+            except json.JSONDecodeError:
+                return False
+            return observed == f"sha256:{expected}"
+
+        report = migrate_legacy_pack(state.layout(), verify_remote=verify_remote, apply=apply)
+        emit(
+            state,
+            report.as_json(),
+            (
+                f"Legacy pack migration {'applied' if apply else 'dry run'}; "
+                f"migratable bytes: {report.migratable_bytes}; "
+                f"protected bytes: {report.protected_bytes}; "
+                f"records committed: {report.records_committed}; "
+                f"discard records committed: {report.discard_records_committed}"
+            ),
         )

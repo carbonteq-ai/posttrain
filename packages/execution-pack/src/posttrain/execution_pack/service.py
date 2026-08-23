@@ -530,6 +530,17 @@ def digest_source_package(source: SourcePackage) -> str:
     return _tree_digest(source.root)
 
 
+def digest_job_context(root: Path) -> str:
+    """Return the canonical digest for an assembled job context.
+
+    Historical-state migration uses the same digest implementation as normal
+    materialization so it cannot manufacture a compact record from a dirty or
+    structurally invalid tree.
+    """
+
+    return _tree_digest(root)
+
+
 def _create_layout(root: Path) -> None:
     for relative in _STAGED_CONTEXT_DIRECTORIES:
         (root / relative).mkdir(parents=True, exist_ok=True)
