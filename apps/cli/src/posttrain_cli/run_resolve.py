@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from posttrain.catalog import ProjectLayout
 from posttrain.common import ContractError
-from posttrain.execution import AdmissionEntry, ExecutionSubmissionStore, PurgeStore
+from posttrain.execution import AdmissionEntry, ExecutionSubmissionStore, PurgeStore, PurgeTombstone
 
 from .execution_config import resolve_admission_state_root
 from .execution_provider import execution_admission_service
@@ -39,6 +39,28 @@ def purged_run_ids(layout: ProjectLayout) -> set[str]:
                 continue
             purged.update(plan.run_ids)
     return purged
+
+
+def purged_run_tombstones(layout: ProjectLayout) -> dict[str, PurgeTombstone]:
+    """Return the minimal completed-purge audit state for this project only."""
+
+    values: dict[str, PurgeTombstone] = {}
+    stores = (PurgeStore(resolve_admission_state_root()), PurgeStore(layout.state))
+    for store in stores:
+        if not store.root.is_dir():
+            continue
+        for directory in store.root.iterdir():
+            if not directory.is_dir() or not store.tombstone_path(directory.name).is_file():
+                continue
+            try:
+                tombstone = store.load_tombstone(directory.name)
+            except Exception:
+                continue
+            if tombstone.project_id != layout.project_id or tombstone.status != "purged":
+                continue
+            for run_id in tombstone.run_ids:
+                values[run_id] = tombstone
+    return values
 
 
 def project_admission_entries(

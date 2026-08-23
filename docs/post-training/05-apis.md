@@ -149,7 +149,11 @@ posttrain run cancel RUN_ID
 posttrain run retry-submit RUN_ID
 posttrain run reconcile RUN_ID
 posttrain run cleanup RUN_ID
+posttrain run purge RUN_ID --reason REASON [--note SAFE_NOTE] [--cascade]
 posttrain run show RUN_ID
+posttrain project purge --reason REASON [--note SAFE_NOTE]
+posttrain purge show PURGE_ID
+posttrain purge apply PURGE_ID --expect-digest SHA256 --yes
 posttrain run checkpoint list RUN_ID
 posttrain run checkpoint show RUN_ID --step STEP
 posttrain run checkpoint verify RUN_ID --step STEP
@@ -200,6 +204,27 @@ integrity checks are reported as `unsupported`, never as verified.
 `run_id` exists, `run` owns provider lifecycle, admission state, retained
 evidence reconciliation, and cleanup. This noun split supersedes the earlier
 draft spelling of lifecycle commands under `posttrain job`.
+
+`run cleanup` is normally scheduled after terminal evidence reconciliation and
+is retained as an idempotent retry/diagnosis command. It releases only the exact
+provider execution, workspace, and run-scoped local image; it does not delete
+tracking evidence, artifact versions, or registry manifests. `cache prune` is
+a separate local-only rebuildable-storage operation and never calls a provider,
+registry, or tracking deletion API.
+
+`run purge` and `project purge` are read-only, destructive-operation previews.
+They require a non-secret reason and report the complete ownership/lineage
+closure, resources retained because they have surviving owners, warnings,
+blockers, logical-byte estimates, and an immutable digest. `--cascade` is
+available only for a same-project run-consumer closure. Apply is exclusively
+`posttrain purge apply`, which requires the saved plan ID, its exact digest, and
+explicit confirmation. A blocked plan or changed ownership cannot be applied.
+No command performs registry-wide garbage collection.
+
+Default `run list` and ordinary run views show retained operational history.
+`posttrain run list --include-purged` also shows minimal, labeled tombstones for
+intentionally erased history; it never recreates or presents erased evidence as
+missing, failed, or zero-valued data.
 
 An actual-job image is identified by content, not by a declared version. The
 package key is a digest over resolved catalog selections, resolved

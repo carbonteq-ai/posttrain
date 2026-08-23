@@ -121,6 +121,29 @@ def test_trackio_lifecycle_admin_maps_digest_bound_run_purge(
     assert receipt.deleted_provider_run_ids == ("run-a",)
 
 
+def test_trackio_lifecycle_admin_uses_the_supplied_machine_ca_bundle(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    bundle = (tmp_path / "infrastructure-ca.pem").resolve()
+    bundle.write_text("test certificate", encoding="utf-8")
+    captured: dict[str, Any] = {}
+
+    class Client:
+        pass
+
+    def remote_client(*_args: Any, **kwargs: Any) -> Client:
+        captured.update(kwargs)
+        return Client()
+
+    monkeypatch.setenv("TRACKIO_WRITE_TOKEN", "test-token")
+    monkeypatch.setattr("posttrain_tracking_trackio.adapter.RemoteClient", remote_client)
+
+    TrackioLifecycleAdmin("https://trackio.example", ca_bundle=bundle)
+
+    assert captured["httpx_kwargs"] == {"timeout": 30.0, "verify": str(bundle)}
+
+
 def test_trace_fact_writer_uses_exact_run_and_does_not_open_or_finish_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

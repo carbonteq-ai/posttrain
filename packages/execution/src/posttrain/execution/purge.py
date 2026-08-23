@@ -24,13 +24,22 @@ from posttrain.common import ContractError, JsonValue
 
 PurgeMode = Literal["run", "project"]
 PurgePlane = Literal["provider", "registry", "tracking", "local"]
+PurgeTombstoneStatus = Literal["applying", "partial", "purged"]
+PurgeTombstonePlaneOutcome = Literal["not-applicable", "pending", "applying", "completed", "deferred", "failed"]
 
-_PLAN_SCHEMA = "posttrain.execution-purge-plan.v1"
+_PLAN_SCHEMA_V1 = "posttrain.execution-purge-plan.v1"
+_PLAN_SCHEMA_V2 = "posttrain.execution-purge-plan.v2"
 _RECEIPT_SCHEMA = "posttrain.execution-purge-receipt.v1"
 _JOURNAL_SCHEMA = "posttrain.execution-purge-journal.v1"
 _DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 _PURGE_ID = re.compile(r"^purge-[0-9a-f]{16}$")
 _ACTION_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
+_REASON_CATEGORY = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
+
+type PurgePlanSchema = Literal[
+    "posttrain.execution-purge-plan.v1",
+    "posttrain.execution-purge-plan.v2",
+]
 
 
 def _mapping(value: Mapping[str, JsonValue]) -> Mapping[str, JsonValue]:
@@ -46,6 +55,139 @@ def _require_text(value: str, label: str) -> str:
 def _timestamp(value: datetime, label: str) -> None:
     if value.tzinfo is None or value.utcoffset() is None:
         raise ContractError(f"purge {label} must be timezone-aware")
+
+
+@dataclass(frozen=True, slots=True)
+class PurgeReason:
+    """Safe, non-secret authorization context bound into a v2 purge plan."""
+
+    category: str
+    note: str | None = None
+    actor: str | None = None
+
+    def __post_init__(self) -> None:
+        if not _REASON_CATEGORY.fullmatch(self.category):
+            raise ContractError("purge reason category must be a lowercase slug")
+        for label, value, maximum in (
+            ("reason note", self.note, 280),
+            ("reason actor", self.actor, 128),
+        ):
+            if value is None:
+                continue
+            if not value.strip() or "\x00" in value or "\n" in value or "\r" in value:
+                raise ContractError(f"purge {label} must be one non-empty line")
+            if len(value) > maximum:
+                raise ContractError(f"purge {label} exceeds {maximum} characters")
+
+    def payload(self) -> dict[str, str | None]:
+        return {"category": self.category, "note": self.note, "actor": self.actor}
+
+
+@dataclass(frozen=True, slots=True)
+class PurgeTombstone:
+    """Privacy-bounded audit state retained after cross-plane erasure."""
+
+    purge_id: str
+    plan_digest: str
+    mode: PurgeMode
+    project_id: str
+    run_ids: tuple[str, ...]
+    reason: PurgeReason
+    status: PurgeTombstoneStatus
+    plane_outcomes: Mapping[PurgePlane, PurgeTombstonePlaneOutcome]
+    updated_at: datetime
+
+    def __post_init__(self) -> None:
+        if not _PURGE_ID.fullmatch(self.purge_id):
+            raise ContractError("purge tombstone id is not valid")
+        if not _DIGEST.fullmatch(self.plan_digest):
+            raise ContractError("purge tombstone digest must be SHA-256")
+        if self.mode not in {"run", "project"}:
+            raise ContractError("purge tombstone mode is invalid")
+        _require_text(self.project_id, "tombstone project id")
+        if not self.run_ids or len(set(self.run_ids)) != len(self.run_ids):
+            raise ContractError("purge tombstone run ids must be non-empty and unique")
+        if self.status not in {"applying", "partial", "purged"}:
+            raise ContractError("purge tombstone status is invalid")
+        expected_planes = {"provider", "registry", "tracking", "local"}
+        outcomes = dict(self.plane_outcomes)
+        if set(outcomes) != expected_planes:
+            raise ContractError("purge tombstone must state every plane outcome")
+        valid_outcomes = {"not-applicable", "pending", "applying", "completed", "deferred", "failed"}
+        if any(outcome not in valid_outcomes for outcome in outcomes.values()):
+            raise ContractError("purge tombstone plane outcome is invalid")
+        if self.status == "purged" and any(
+            outcome not in {"not-applicable", "completed"} for outcome in outcomes.values()
+        ):
+            raise ContractError("purged tombstone cannot retain pending plane outcomes")
+        object.__setattr__(self, "plane_outcomes", MappingProxyType(outcomes))
+        _timestamp(self.updated_at, "tombstone update time")
+
+    def payload(self) -> dict[str, object]:
+        return {
+            "schema": "posttrain.execution-purge-tombstone.v1",
+            "purge_id": self.purge_id,
+            "plan_digest": self.plan_digest,
+            "mode": self.mode,
+            "project_id": self.project_id,
+            "run_ids": list(self.run_ids),
+            "reason": self.reason.payload(),
+            "status": self.status,
+            "plane_outcomes": dict(self.plane_outcomes),
+            "updated_at": self.updated_at.isoformat(),
+        }
+
+    @classmethod
+    def from_plan(
+        cls,
+        plan: PurgePlan,
+        events: Sequence[Mapping[str, object]],
+        *,
+        updated_at: datetime | None = None,
+    ) -> PurgeTombstone:
+        if plan.reason is None:
+            raise ContractError("legacy purge plan cannot create a tombstone")
+        action_statuses: dict[str, str] = {}
+        for event in events:
+            action_id = event.get("action_id")
+            event_status = event.get("status")
+            if isinstance(action_id, str) and isinstance(event_status, str):
+                action_statuses[action_id] = event_status
+        outcomes: dict[PurgePlane, PurgeTombstonePlaneOutcome] = {}
+        for plane in ("provider", "registry", "tracking", "local"):
+            actions = tuple(action for action in plan.actions if action.plane == plane)
+            statuses = tuple(action_statuses.get(action.action_id) for action in actions)
+            if not actions:
+                outcome: PurgeTombstonePlaneOutcome = "not-applicable"
+            elif all(status in {"completed", "skipped"} for status in statuses):
+                outcome = "completed"
+            elif any(status == "failed" for status in statuses):
+                outcome = "failed"
+            elif any(status == "deferred" for status in statuses):
+                outcome = "deferred"
+            elif any(status == "started" for status in statuses):
+                outcome = "applying"
+            else:
+                outcome = "pending"
+            outcomes[plane] = outcome
+        status: PurgeTombstoneStatus
+        if all(outcome in {"not-applicable", "completed"} for outcome in outcomes.values()):
+            status = cast(PurgeTombstoneStatus, "purged")
+        elif any(outcome in {"failed", "deferred"} for outcome in outcomes.values()):
+            status = cast(PurgeTombstoneStatus, "partial")
+        else:
+            status = cast(PurgeTombstoneStatus, "applying")
+        return cls(
+            purge_id=plan.purge_id,
+            plan_digest=plan.digest,
+            mode=plan.mode,
+            project_id=plan.project_id,
+            run_ids=plan.run_ids,
+            reason=plan.reason,
+            status=status,
+            plane_outcomes=outcomes,
+            updated_at=updated_at or datetime.now(UTC),
+        )
 
 
 def _canonical_bytes(payload: Mapping[str, object]) -> bytes:
@@ -119,14 +261,22 @@ class PurgePlan:
     local_actions: tuple[PurgeAction, ...]
     warnings: tuple[str, ...]
     blockers: tuple[str, ...]
+    reason: PurgeReason | None
     digest: str
     created_at: datetime
+    schema: PurgePlanSchema = _PLAN_SCHEMA_V2
 
     def __post_init__(self) -> None:
         if not _PURGE_ID.fullmatch(self.purge_id):
             raise ContractError("purge id is not valid")
+        if self.schema not in {_PLAN_SCHEMA_V1, _PLAN_SCHEMA_V2}:
+            raise ContractError("purge plan schema is invalid")
         if self.mode not in {"run", "project"}:
             raise ContractError("purge mode is invalid")
+        if self.schema == _PLAN_SCHEMA_V2 and self.reason is None:
+            raise ContractError("purge plan reason is required")
+        if self.schema == _PLAN_SCHEMA_V1 and self.reason is not None:
+            raise ContractError("legacy purge plan cannot contain a reason")
         _require_text(self.project_id, "project id")
         if not self.run_ids and self.mode == "run":
             raise ContractError("run purge plan must select at least one run")
@@ -138,6 +288,10 @@ class PurgePlan:
             raise ContractError("purge root run must be selected")
         if len(set(self.dependency_edges)) != len(self.dependency_edges):
             raise ContractError("purge dependency edges must be unique")
+        selected_runs = set(self.run_ids)
+        for producer, consumer in self.dependency_edges:
+            if producer not in selected_runs or consumer not in selected_runs:
+                raise ContractError("purge dependency edges must stay inside the selected run closure")
         action_groups = (
             self.provider_actions,
             self.registry_actions,
@@ -153,6 +307,13 @@ class PurgePlan:
             unknown = set(action.depends_on) - known
             if unknown:
                 raise ContractError("purge action depends on unknown action(s): " + ", ".join(sorted(unknown)))
+            target_run_id = action.target.get("run_id")
+            if action.kind == "tracking.delete_project":
+                if self.mode != "project":
+                    raise ContractError("run purge cannot contain a project deletion action")
+                continue
+            if isinstance(target_run_id, str) and target_run_id not in selected_runs:
+                raise ContractError("purge action target must belong to the selected run closure")
         _timestamp(self.created_at, "creation time")
         if not _DIGEST.fullmatch(self.digest):
             raise ContractError("purge plan digest must be SHA-256")
@@ -174,7 +335,7 @@ class PurgePlan:
         """Return the digest-covered fields, excluding timestamps and labels."""
 
         return {
-            "schema": _PLAN_SCHEMA,
+            "schema": self.schema,
             "mode": self.mode,
             "project_id": self.project_id,
             "run_ids": list(self.run_ids),
@@ -186,6 +347,7 @@ class PurgePlan:
             "local_actions": [action.payload() for action in self.local_actions],
             "warnings": list(self.warnings),
             "blockers": list(self.blockers),
+            **({"reason": self.reason.payload()} if self.reason is not None else {}),
         }
 
     def computed_digest(self) -> str:
@@ -206,13 +368,14 @@ class PurgePlan:
         local_actions: Sequence[PurgeAction] = (),
         warnings: Sequence[str] = (),
         blockers: Sequence[str] = (),
+        reason: PurgeReason,
         created_at: datetime | None = None,
     ) -> PurgePlan:
         """Build a plan and derive its collision-checked content address."""
 
         creation = created_at or datetime.now(UTC)
         payload = {
-            "schema": _PLAN_SCHEMA,
+            "schema": _PLAN_SCHEMA_V2,
             "mode": mode,
             "project_id": project_id,
             "run_ids": list(run_ids),
@@ -224,6 +387,7 @@ class PurgePlan:
             "local_actions": [action.payload() for action in local_actions],
             "warnings": list(warnings),
             "blockers": list(blockers),
+            "reason": reason.payload(),
         }
         digest = _digest(payload)
         return cls(
@@ -239,8 +403,10 @@ class PurgePlan:
             local_actions=tuple(local_actions),
             warnings=tuple(warnings),
             blockers=tuple(blockers),
+            reason=reason,
             digest=digest,
             created_at=creation,
+            schema=_PLAN_SCHEMA_V2,
         )
 
 
@@ -331,6 +497,10 @@ class PurgeStore:
         self._validate_id(purge_id)
         return self._root / purge_id / "receipt.json"
 
+    def tombstone_path(self, purge_id: str) -> Path:
+        self._validate_id(purge_id)
+        return self._root / purge_id / "tombstone.json"
+
     def save_plan(self, plan: PurgePlan) -> PurgePlan:
         """Persist an immutable plan, reusing an identical content address."""
 
@@ -345,9 +515,11 @@ class PurgeStore:
 
     def load_plan(self, purge_id: str) -> PurgePlan:
         payload = self._read_object(self.plan_path(purge_id), "purge plan")
-        if payload.get("schema") != _PLAN_SCHEMA:
+        schema = payload.get("schema")
+        if schema not in {_PLAN_SCHEMA_V1, _PLAN_SCHEMA_V2}:
             raise ContractError(f"purge plan {purge_id} has an unsupported schema")
         try:
+            reason = self._reason(payload["reason"]) if schema == _PLAN_SCHEMA_V2 else None
             return PurgePlan(
                 purge_id=purge_id,
                 mode=cast(PurgeMode, payload["mode"]),
@@ -371,8 +543,10 @@ class PurgeStore:
                 ),
                 warnings=tuple(str(value) for value in _sequence(payload["warnings"], "warnings")),
                 blockers=tuple(str(value) for value in _sequence(payload["blockers"], "blockers")),
+                reason=reason,
                 digest=str(payload["digest"]),
                 created_at=datetime.fromisoformat(str(payload["created_at"])),
+                schema=cast(PurgePlanSchema, schema),
             )
         except (KeyError, TypeError, ValueError, IndexError) as error:
             raise ContractError(f"purge plan {purge_id} is invalid") from error
@@ -439,6 +613,49 @@ class PurgeStore:
         except (KeyError, TypeError, ValueError) as error:
             raise ContractError(f"purge receipt {purge_id} is invalid") from error
 
+    def save_tombstone(self, tombstone: PurgeTombstone) -> PurgeTombstone:
+        plan = self.load_plan(tombstone.purge_id)
+        if plan.reason is None:
+            raise ContractError("legacy purge plan cannot create a tombstone")
+        if (
+            tombstone.plan_digest != plan.digest
+            or tombstone.mode != plan.mode
+            or tombstone.project_id != plan.project_id
+            or tombstone.run_ids != plan.run_ids
+            or tombstone.reason != plan.reason
+        ):
+            raise ContractError(f"purge tombstone {tombstone.purge_id} does not match its plan")
+        self._write_json(self.tombstone_path(tombstone.purge_id), tombstone.payload())
+        return tombstone
+
+    def update_tombstone(self, purge_id: str) -> PurgeTombstone:
+        plan = self.load_plan(purge_id)
+        tombstone = PurgeTombstone.from_plan(plan, self.journal(purge_id))
+        return self.save_tombstone(tombstone)
+
+    def load_tombstone(self, purge_id: str) -> PurgeTombstone:
+        payload = self._read_object(self.tombstone_path(purge_id), "purge tombstone")
+        if payload.get("schema") != "posttrain.execution-purge-tombstone.v1":
+            raise ContractError(f"purge tombstone {purge_id} has an unsupported schema")
+        try:
+            outcomes = _object(payload["plane_outcomes"], "tombstone plane outcomes")
+            return PurgeTombstone(
+                purge_id=purge_id,
+                plan_digest=str(payload["plan_digest"]),
+                mode=cast(PurgeMode, payload["mode"]),
+                project_id=str(payload["project_id"]),
+                run_ids=tuple(str(value) for value in _sequence(payload["run_ids"], "tombstone run ids")),
+                reason=self._reason(payload["reason"]),
+                status=cast(PurgeTombstoneStatus, payload["status"]),
+                plane_outcomes={
+                    cast(PurgePlane, plane): cast(PurgeTombstonePlaneOutcome, outcome)
+                    for plane, outcome in outcomes.items()
+                },
+                updated_at=datetime.fromisoformat(str(payload["updated_at"])),
+            )
+        except (KeyError, TypeError, ValueError) as error:
+            raise ContractError(f"purge tombstone {purge_id} is invalid") from error
+
     @staticmethod
     def _validate_id(purge_id: str) -> None:
         if not _PURGE_ID.fullmatch(purge_id):
@@ -481,6 +698,26 @@ class PurgeStore:
             )
         except (KeyError, TypeError, ValueError) as error:
             raise ContractError("purge action is invalid") from error
+
+    @staticmethod
+    def _reason(value: object) -> PurgeReason:
+        if not isinstance(value, dict):
+            raise ContractError("purge reason must be an object")
+        try:
+            category = value["category"]
+            note = value.get("note")
+            actor = value.get("actor")
+            if (
+                not isinstance(category, str)
+                or note is not None
+                and not isinstance(note, str)
+                or actor is not None
+                and not isinstance(actor, str)
+            ):
+                raise TypeError
+            return PurgeReason(category=category, note=note, actor=actor)
+        except (KeyError, TypeError) as error:
+            raise ContractError("purge reason is invalid") from error
 
     @staticmethod
     def _read_object(path: Path, label: str) -> dict[str, object]:
@@ -553,6 +790,8 @@ def apply_purge_plan(
     """
 
     plan = store.load_plan(purge_id)
+    if plan.reason is not None:
+        store.update_tombstone(purge_id)
     if plan.blockers:
         raise ContractError("purge plan is blocked: " + "; ".join(plan.blockers))
     try:
@@ -576,6 +815,8 @@ def apply_purge_plan(
         if executor is None:
             raise ContractError(f"purge has no executor for {action.plane!r}")
         store.append_journal(purge_id, action_id=action.action_id, status="started")
+        if plan.reason is not None:
+            store.update_tombstone(purge_id)
         try:
             executor.revalidate(action)
             executor.apply(action)
@@ -586,6 +827,8 @@ def apply_purge_plan(
                 status="deferred",
                 detail=str(error),
             )
+            if plan.reason is not None:
+                store.update_tombstone(purge_id)
             raise PurgeApplyDeferred(action.action_id, error) from error
         except Exception as error:
             store.append_journal(
@@ -594,8 +837,12 @@ def apply_purge_plan(
                 status="failed",
                 detail=f"{type(error).__name__}: {error}",
             )
+            if plan.reason is not None:
+                store.update_tombstone(purge_id)
             raise PurgeApplyError(action.action_id, error) from error
         store.append_journal(purge_id, action_id=action.action_id, status="completed")
+        if plan.reason is not None:
+            store.update_tombstone(purge_id)
         completed.add(action.action_id)
 
     receipt = PurgeReceipt(
@@ -606,7 +853,10 @@ def apply_purge_plan(
         failed_action=None,
         completed_at=datetime.now(UTC),
     )
-    return store.save_receipt(receipt)
+    saved = store.save_receipt(receipt)
+    if plan.reason is not None:
+        store.update_tombstone(purge_id)
+    return saved
 
 
 __all__ = [
@@ -620,5 +870,9 @@ __all__ = [
     "PurgePlan",
     "PurgePlane",
     "PurgeReceipt",
+    "PurgeReason",
+    "PurgeTombstone",
+    "PurgeTombstonePlaneOutcome",
+    "PurgeTombstoneStatus",
     "PurgeStore",
 ]

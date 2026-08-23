@@ -8,6 +8,7 @@ from posttrain.execution import (
     PurgeAction,
     PurgeApplyError,
     PurgePlane,
+    PurgeReason,
     PurgeRunCandidate,
     PurgeStore,
     RegistryManifestRef,
@@ -81,7 +82,12 @@ def test_disposable_three_run_fixture_is_leaf_first_and_resumable(tmp_path: Path
             "leaf": _candidate("leaf"),
         }
     )
-    plan = build_run_purge_plan(catalog, root_run_id="producer", cascade=True)
+    plan = build_run_purge_plan(
+        catalog,
+        root_run_id="producer",
+        reason=PurgeReason(category="disposable-fixture"),
+        cascade=True,
+    )
     assert plan.blockers == ()
     store = PurgeStore(tmp_path.resolve())
     store.save_plan(plan)

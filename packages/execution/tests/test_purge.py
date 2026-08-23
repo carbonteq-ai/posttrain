@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -11,6 +13,7 @@ from posttrain.execution import (
     PurgeApplyDeferred,
     PurgeApplyError,
     PurgePlan,
+    PurgeReason,
     PurgeReceipt,
     PurgeStore,
     apply_purge_plan,
@@ -41,6 +44,7 @@ def _plan(*, created_at: datetime | None = None, blockers: tuple[str, ...] = ())
         provider_actions=(provider,),
         tracking_actions=(tracking,),
         blockers=blockers,
+        reason=PurgeReason(category="disposable-fixture"),
         created_at=created_at,
     )
 
@@ -59,6 +63,40 @@ def test_plan_is_content_addressed_and_excludes_creation_time() -> None:
         first.actions[0].target["provider"] = "other"  # type: ignore[index]
 
 
+def test_reason_is_required_and_changes_the_plan_digest() -> None:
+    first = _plan()
+    provider = first.provider_actions[0]
+
+    changed = PurgePlan.build(
+        mode="run",
+        project_id="purge-fixture",
+        run_ids=("run-1",),
+        root_run_id="run-1",
+        provider_actions=(provider,),
+        tracking_actions=first.tracking_actions,
+        reason=PurgeReason(category="sensitive", note="consent withdrawn"),
+    )
+
+    assert first.digest != changed.digest
+    assert changed.reason == PurgeReason(category="sensitive", note="consent withdrawn")
+    with pytest.raises(TypeError):
+        PurgePlan.build(  # type: ignore[call-arg]
+            mode="run",
+            project_id="purge-fixture",
+            run_ids=("run-1",),
+            root_run_id="run-1",
+        )
+
+
+@pytest.mark.parametrize("category", ("", "ContainsUppercase", "has spaces", "x" * 65))
+def test_reason_rejects_noncanonical_or_unsafe_values(category: str) -> None:
+    with pytest.raises(ContractError, match="reason category"):
+        PurgeReason(category=category)
+
+    with pytest.raises(ContractError, match="one non-empty line"):
+        PurgeReason(category="sensitive", note="line one\nline two")
+
+
 def test_plan_rejects_unknown_action_dependency() -> None:
     action = PurgeAction(
         action_id="tracking:run-1",
@@ -75,6 +113,7 @@ def test_plan_rejects_unknown_action_dependency() -> None:
             run_ids=("run-1",),
             root_run_id="run-1",
             tracking_actions=(action,),
+            reason=PurgeReason(category="disposable-fixture"),
         )
 
 
@@ -110,6 +149,59 @@ def test_store_persists_plan_journal_and_receipt_idempotently(tmp_path: Path) ->
     assert store.save_receipt(receipt) == receipt
     assert store.load_receipt(plan.purge_id) == receipt
     assert store.receipt_path(plan.purge_id).stat().st_mode & 0o777 == 0o600
+
+
+def test_store_reads_a_legacy_v1_plan_without_a_reason(tmp_path: Path) -> None:
+    action = PurgeAction(
+        action_id="provider:run-1",
+        plane="provider",
+        kind="provider.cleanup",
+        target={"provider": "dstack", "provider_id": "native-1"},
+    )
+    legacy_payload = {
+        "schema": "posttrain.execution-purge-plan.v1",
+        "mode": "run",
+        "project_id": "purge-fixture",
+        "run_ids": ["run-1"],
+        "root_run_id": "run-1",
+        "dependency_edges": [],
+        "provider_actions": [action.payload()],
+        "registry_actions": [],
+        "tracking_actions": [],
+        "local_actions": [],
+        "warnings": [],
+        "blockers": [],
+    }
+    digest = (
+        "sha256:"
+        + hashlib.sha256(
+            json.dumps(legacy_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
+        ).hexdigest()
+    )
+    plan = PurgePlan(
+        purge_id=PurgeStore.purge_id_for_digest(digest),
+        mode="run",
+        project_id="purge-fixture",
+        run_ids=("run-1",),
+        root_run_id="run-1",
+        dependency_edges=(),
+        provider_actions=(action,),
+        registry_actions=(),
+        tracking_actions=(),
+        local_actions=(),
+        warnings=(),
+        blockers=(),
+        reason=None,
+        digest=digest,
+        created_at=datetime.now(UTC),
+        schema="posttrain.execution-purge-plan.v1",
+    )
+    store = PurgeStore(tmp_path.resolve())
+    store.save_plan(plan)
+
+    loaded = store.load_plan(plan.purge_id)
+    assert loaded.schema == "posttrain.execution-purge-plan.v1"
+    assert loaded.reason is None
 
 
 def test_store_rejects_receipt_for_another_plan(tmp_path: Path) -> None:
@@ -157,6 +249,14 @@ def test_apply_is_journaled_and_resumes_after_failure(tmp_path: Path) -> None:
         "started",
         "failed",
     ]
+    partial = store.load_tombstone(plan.purge_id)
+    assert partial.status == "partial"
+    assert dict(partial.plane_outcomes) == {
+        "provider": "completed",
+        "registry": "not-applicable",
+        "tracking": "failed",
+        "local": "not-applicable",
+    }
 
     receipt = apply_purge_plan(
         store,
@@ -172,6 +272,18 @@ def test_apply_is_journaled_and_resumes_after_failure(tmp_path: Path) -> None:
         "check:tracking:run-1",
         "apply:tracking:run-1",
     ]
+    tombstone = store.load_tombstone(plan.purge_id)
+    assert tombstone.status == "purged"
+    assert tombstone.reason == PurgeReason(category="disposable-fixture")
+    assert dict(tombstone.plane_outcomes) == {
+        "provider": "completed",
+        "registry": "not-applicable",
+        "tracking": "completed",
+        "local": "not-applicable",
+    }
+    payload = store.tombstone_path(plan.purge_id).read_text(encoding="utf-8")
+    assert "temporary outage" not in payload
+    assert "disposable-fixture" in payload
 
 
 def test_apply_records_deferred_action_without_unblocking_dependents(tmp_path: Path) -> None:
@@ -206,3 +318,37 @@ def test_apply_records_deferred_action_without_unblocking_dependents(tmp_path: P
         {"provider": executor, "tracking": executor, "registry": executor, "local": executor},
     )
     assert receipt.completed_actions == ("provider:run-1", "tracking:run-1")
+
+
+def test_tombstone_exists_before_local_action_is_revalidated(tmp_path: Path) -> None:
+    store = PurgeStore(tmp_path.resolve())
+    plan = PurgePlan.build(
+        mode="run",
+        project_id="purge-fixture",
+        run_ids=("run-1",),
+        root_run_id="run-1",
+        local_actions=(
+            PurgeAction(
+                action_id="local:run-1:0",
+                plane="local",
+                kind="local.remove_path",
+                target={"run_id": "run-1", "path": "/tmp/posttrain-fixture/run-1"},
+            ),
+        ),
+        reason=PurgeReason(category="disposable-fixture"),
+    )
+    store.save_plan(plan)
+
+    class LocalExecutor:
+        def revalidate(self, action: PurgeAction) -> None:
+            assert action.plane == "local"
+            tombstone = store.load_tombstone(plan.purge_id)
+            assert tombstone.status == "applying"
+            assert tombstone.plane_outcomes["local"] == "applying"
+
+        def apply(self, action: PurgeAction) -> None:
+            assert action.action_id == "local:run-1:0"
+
+    receipt = apply_purge_plan(store, plan.purge_id, {"local": LocalExecutor()})
+    assert receipt.completed_actions == ("local:run-1:0",)
+    assert store.load_tombstone(plan.purge_id).status == "purged"

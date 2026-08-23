@@ -16,6 +16,7 @@ from posttrain.common import ContractError, StoredArtifactRef
 from posttrain.execution import (
     ExecutionSubmissionStore,
     LogCursor,
+    PurgeReason,
     cleanup_execution,
     reconcile_execution,
     recover_cancelled_tracking,
@@ -36,7 +37,7 @@ from ..execution_provider import (
 )
 from ..output import emit, json_value
 from ..purge_surface import render_plan, save_run_preview
-from ..run_resolve import project_admission_entries, purged_run_ids, resolve_run_id
+from ..run_resolve import project_admission_entries, purged_run_ids, purged_run_tombstones, resolve_run_id
 from ..tracking_config import project_observatory_settings
 
 RUN_MODE_CHOICE = click.Choice(RUN_MODE_CHOICES)
@@ -281,6 +282,7 @@ def register(app: typer.Typer) -> None:
         layout = state.layout()
         admission = execution_admission_service(layout)
         purged_ids = purged_run_ids(layout)
+        tombstones = purged_run_tombstones(layout) if include_purged else {}
         purged = set() if include_purged else purged_ids
         submissions = tuple(
             submission
@@ -343,6 +345,15 @@ def register(app: typer.Typer) -> None:
                     "admission_state": entry.state if entry is not None else None,
                     "queue_position": entry.position if entry is not None else None,
                     "purged": run_id in purged_ids,
+                    "purge": (
+                        {
+                            "status": tombstone.status,
+                            "reason": tombstone.reason.payload(),
+                            "plane_outcomes": dict(tombstone.plane_outcomes),
+                        }
+                        if (tombstone := tombstones.get(run_id)) is not None
+                        else None
+                    ),
                 }
             )
         payload.sort(
@@ -719,9 +730,20 @@ def register(app: typer.Typer) -> None:
                 run_id,
             )
         )
-        save_reconciliation(ExecutionSubmissionStore(layout.state), result)
+        store = ExecutionSubmissionStore(layout.state)
+        save_reconciliation(store, result)
         next_admission = None
+        cleanup = None
         if result.settled:
+            cleanup = asyncio.run(
+                cleanup_execution(
+                    service,
+                    store,
+                    reconciliation_source_for_run(layout, run_id),
+                    run_id,
+                    diagnostic_limit=500,
+                )
+            )
             try:
                 admission = execution_admission_service(layout)
                 admission.status(run_id)
@@ -732,6 +754,7 @@ def register(app: typer.Typer) -> None:
         missing = ", ".join(result.missing_artifact_roles) or "none"
         payload = json_value(result)
         assert isinstance(payload, dict)
+        payload["cleanup"] = json_value(cleanup) if cleanup is not None else None
         payload["next_admission"] = (
             {
                 "run_id": next_admission.entry.run_id,
@@ -755,6 +778,8 @@ def register(app: typer.Typer) -> None:
         if next_admission is not None:
             detail = next_admission.entry.message or "none"
             lines.append(f"Next admission: {next_admission.entry.run_id} ({next_admission.entry.state}; {detail})")
+        if cleanup is not None:
+            lines.append(f"Cleanup: {cleanup.provider_disposition}; workspace={cleanup.workspace_disposition}")
         emit(
             state,
             payload,
@@ -813,13 +838,15 @@ def register(app: typer.Typer) -> None:
     def run_purge_cmd(
         ctx: typer.Context,
         run_id: Annotated[str, typer.Argument(help="full canonical run id; prefixes and --last are unsupported")],
+        reason: Annotated[str, typer.Option("--reason", help="safe reason category, for example disposable-smoke")],
+        note: Annotated[str | None, typer.Option("--note", help="optional safe one-line audit note")] = None,
         cascade: Annotated[
             bool, typer.Option("--cascade", help="include the complete same-project consumer closure")
         ] = False,
     ) -> None:
         state: CliState = ctx.obj
         layout = state.layout()
-        plan = save_run_preview(layout, run_id, cascade=cascade)
+        plan = save_run_preview(layout, run_id, cascade=cascade, reason=PurgeReason(category=reason, note=note))
         emit(state, plan, render_plan(plan))
 
     @run_app.command("show", help="show one recorded run view")

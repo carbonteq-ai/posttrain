@@ -16,8 +16,10 @@ from posttrain.execution import (
     PurgeActionExecutor,
     PurgePlan,
     PurgePlane,
+    PurgeReason,
     PurgeRunCandidate,
     PurgeStore,
+    PurgeTombstone,
     RegistryManifestRef,
     apply_purge_plan,
     build_project_purge_plan,
@@ -35,8 +37,23 @@ from .state_layout import cache_path
 from .tracking_config import project_tracking_environment
 
 
-def candidate_catalog(layout: Any) -> dict[str, PurgeRunCandidate]:
-    """Build a deliberately fail-closed local inventory for preview commands."""
+def candidate_catalog(
+    layout: Any,
+    *,
+    discover_lineage_for: tuple[str, ...] | None = None,
+    refresh_status_for: tuple[str, ...] | None = None,
+) -> dict[str, PurgeRunCandidate]:
+    """Build a deliberately fail-closed local inventory for preview commands.
+
+    Run previews still need the complete local identity map: a Trackio consumer
+    might belong to another submitted framework run.  They do *not* need to
+    issue one remote lineage request per historical run merely to preview one
+    selected root.  ``discover_lineage_for`` limits remote discovery to that
+    root (or roots); project preview deliberately leaves it unset. Provider
+    status follows the same rule: historical receipts supply the identity map,
+    while a run preview refreshes only the root whose terminality it must
+    prove.
+    """
 
     store = ExecutionSubmissionStore(layout.state)
     purge_stores = _plan_stores(layout)
@@ -62,10 +79,11 @@ def candidate_catalog(layout: Any) -> dict[str, PurgeRunCandidate]:
                     tracking_provider_run_id = value if isinstance(value, str) else None
             except (OSError, json.JSONDecodeError):
                 reconciled = False
-        try:
-            state = execution_service_for_run(layout, submission.run_id).status(submission.run_id).state
-        except Exception:
-            pass
+        if refresh_status_for is None or submission.run_id in refresh_status_for:
+            try:
+                state = execution_service_for_run(layout, submission.run_id).status(submission.run_id).state
+            except Exception:
+                pass
         image = None
         try:
             image = RegistryManifestRef.parse(submission.job_image)
@@ -100,8 +118,9 @@ def candidate_catalog(layout: Any) -> dict[str, PurgeRunCandidate]:
                 project_id=layout.project_id,
             ),
             lineage_complete=False,
+            evidence_retention=submission.evidence_retention,
         )
-    _populate_trackio_lineage(layout, candidates)
+    _populate_trackio_lineage(layout, candidates, discover_run_ids=discover_lineage_for)
     return candidates
 
 
@@ -141,7 +160,12 @@ def _completed_purge_planes(
     return tuple(sorted(completed))
 
 
-def _populate_trackio_lineage(layout: Any, candidates: dict[str, PurgeRunCandidate]) -> None:
+def _populate_trackio_lineage(
+    layout: Any,
+    candidates: dict[str, PurgeRunCandidate],
+    *,
+    discover_run_ids: tuple[str, ...] | None = None,
+) -> None:
     trackio_candidates = {
         run_id: candidate for run_id, candidate in candidates.items() if candidate.evidence_provider == "trackio"
     }
@@ -154,7 +178,11 @@ def _populate_trackio_lineage(layout: Any, candidates: dict[str, PurgeRunCandida
         server_url = environment.get("POSTTRAIN_TRACKIO_SERVER_URL")
         if not server_url:
             raise RuntimeError("POSTTRAIN_TRACKIO_SERVER_URL is not configured")
-        admin = admin_type(server_url, write_token=environment.get("TRACKIO_WRITE_TOKEN"))
+        admin = admin_type(
+            server_url,
+            write_token=environment.get("TRACKIO_WRITE_TOKEN"),
+            ca_bundle=_machine_trust_bundle(),
+        )
     except Exception as error:
         for run_id, candidate in tuple(trackio_candidates.items()):
             candidates[run_id] = _lineage_failure(
@@ -163,6 +191,11 @@ def _populate_trackio_lineage(layout: Any, candidates: dict[str, PurgeRunCandida
             )
         return
     provider_to_run = {candidate.tracking_provider_run_id: run_id for run_id, candidate in trackio_candidates.items()}
+    if discover_run_ids is not None:
+        requested = set(discover_run_ids)
+        trackio_candidates = {
+            run_id: candidate for run_id, candidate in trackio_candidates.items() if run_id in requested
+        }
     for run_id, candidate in tuple(trackio_candidates.items()):
         if "tracking" in candidate.completed_planes:
             candidates[run_id] = _replace_lineage(
@@ -249,8 +282,27 @@ def load_saved_plan(layout: Any, purge_id: str) -> PurgePlan:
     return saved_plan_store(layout, purge_id).load_plan(purge_id)
 
 
-def save_run_preview(layout: Any, run_id: str, *, cascade: bool) -> PurgePlan:
-    candidates = candidate_catalog(layout)
+def load_saved_tombstone(layout: Any, purge_id: str) -> PurgeTombstone | None:
+    """Return the safe audit state when a v2 purge has begun."""
+
+    store = saved_plan_store(layout, purge_id)
+    if not store.tombstone_path(purge_id).is_file():
+        return None
+    return store.load_tombstone(purge_id)
+
+
+def save_run_preview(
+    layout: Any,
+    run_id: str,
+    *,
+    cascade: bool,
+    reason: PurgeReason,
+) -> PurgePlan:
+    candidates = candidate_catalog(
+        layout,
+        discover_lineage_for=(run_id,) if not cascade else None,
+        refresh_status_for=(run_id,) if not cascade else None,
+    )
     registry_owners, registry_blockers = _registry_image_inventory(layout, candidates)
     plan = build_run_purge_plan(
         _Catalog(
@@ -259,12 +311,13 @@ def save_run_preview(layout: Any, run_id: str, *, cascade: bool) -> PurgePlan:
             registry_blockers=registry_blockers,
         ),
         root_run_id=run_id,
+        reason=reason,
         cascade=cascade,
     )
     return plan_store(layout).save_plan(plan)
 
 
-def save_project_preview(layout: Any) -> PurgePlan:
+def save_project_preview(layout: Any, *, reason: PurgeReason) -> PurgePlan:
     candidates = candidate_catalog(layout)
     registry_owners, registry_blockers = _registry_image_inventory(layout, candidates)
     plan = build_project_purge_plan(
@@ -274,25 +327,12 @@ def save_project_preview(layout: Any) -> PurgePlan:
             registry_blockers=registry_blockers,
         ),
         project_id=layout.project_id,
+        reason=reason,
     )
-    if not plan.blockers:
-        plan = PurgePlan.build(
-            mode=plan.mode,
-            project_id=plan.project_id,
-            run_ids=plan.run_ids,
-            root_run_id=None,
-            dependency_edges=plan.dependency_edges,
-            provider_actions=plan.provider_actions,
-            registry_actions=plan.registry_actions,
-            tracking_actions=plan.tracking_actions,
-            local_actions=plan.local_actions,
-            warnings=plan.warnings,
-            blockers=("project purge cross-plane inventory adapters are not configured",),
-        )
     return plan_store(layout).save_plan(plan)
 
 
-def render_plan(plan: PurgePlan) -> str:
+def render_plan(plan: PurgePlan, *, tombstone: PurgeTombstone | None = None) -> str:
     counts = {
         "provider": len(plan.provider_actions),
         "registry": len(plan.registry_actions),
@@ -302,6 +342,7 @@ def render_plan(plan: PurgePlan) -> str:
     lines = [
         "Purge preview — no changes made",
         f"Target: {plan.root_run_id or plan.project_id} (project: {plan.project_id})",
+        f"Reason: {plan.reason.category if plan.reason is not None else 'legacy plan (no reason recorded)'}",
         f"Closure: {len(plan.run_ids)} runs, {len(plan.dependency_edges)} artifact-consumer edges",
         f"Provider: {counts['provider']} terminal records/workspaces",
         f"OCI: {counts['registry']} digest-pinned actual-job manifests",
@@ -315,7 +356,15 @@ def render_plan(plan: PurgePlan) -> str:
     if plan.blockers:
         lines.append("Next: resolve blockers and create a new preview")
     else:
-        lines.append(f"Next: posttrain purge apply {plan.purge_id}")
+        lines.append(f"Next: posttrain purge apply {plan.purge_id} --expect-digest {plan.digest} --yes")
+    if tombstone is not None:
+        lines.extend(
+            (
+                f"Tombstone: {tombstone.status}",
+                "Plane outcomes: "
+                + ", ".join(f"{plane}={outcome}" for plane, outcome in tombstone.plane_outcomes.items()),
+            )
+        )
     return "\n".join(lines)
 
 
@@ -329,6 +378,8 @@ def apply_saved_plan(
     layout = state.layout()
     store = saved_plan_store(layout, purge_id)
     plan = store.load_plan(purge_id)
+    if plan.reason is None:
+        raise ValueError("legacy purge plans cannot be applied; create a new preview with --reason")
     if expected_digest is not None and expected_digest != plan.digest:
         raise ValueError("purge plan digest does not match --expect-digest")
     if plan.blockers:
@@ -408,11 +459,24 @@ def _apply_executors(layout: Any, plan: PurgePlan) -> dict[PurgePlane, PurgeActi
             admin = module.TrackioLifecycleAdmin(
                 server_url,
                 write_token=environment.get("TRACKIO_WRITE_TOKEN"),
+                ca_bundle=_machine_trust_bundle(),
             )
             executors["tracking"] = module.TrackioPurgeActionExecutor(admin)
         except Exception as error:
             raise RuntimeError(f"Trackio purge adapter is unavailable ({type(error).__name__})") from error
     return executors
+
+
+def _machine_trust_bundle() -> Path | None:
+    """Use the operator-owned trust root for private tracking ingress.
+
+    Tracking destinations and tokens are project-scoped runtime choices; the
+    CA anchor is machine infrastructure policy and must never be supplied from
+    a project environment file or weakened with an insecure TLS override.
+    """
+
+    machine = load_machine_config()
+    return machine.local.trust_bundle if machine is not None else None
 
 
 def _registry_image_inventory(
@@ -570,6 +634,7 @@ __all__ = [
     "apply_saved_plan",
     "candidate_catalog",
     "load_saved_plan",
+    "load_saved_tombstone",
     "plan_store",
     "render_plan",
     "save_project_preview",

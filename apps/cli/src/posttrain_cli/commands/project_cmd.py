@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from typing import Annotated
+
 import typer
+from posttrain.execution import PurgeReason
 
 from ..context import CliState
 from ..output import emit
@@ -41,8 +44,12 @@ def register(app: typer.Typer) -> None:
         )
 
     @project_app.command("purge", help="preview destructive deletion for the opened project")
-    def project_purge_cmd(ctx: typer.Context) -> None:
+    def project_purge_cmd(
+        ctx: typer.Context,
+        reason: Annotated[str, typer.Option("--reason", help="safe reason category, for example decommission")],
+        note: Annotated[str | None, typer.Option("--note", help="optional safe one-line audit note")] = None,
+    ) -> None:
         state: CliState = ctx.obj
         layout = state.layout()
-        plan = save_project_preview(layout)
+        plan = save_project_preview(layout, reason=PurgeReason(category=reason, note=note))
         emit(state, plan, render_plan(plan))

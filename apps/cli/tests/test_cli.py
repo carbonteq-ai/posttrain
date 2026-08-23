@@ -326,7 +326,21 @@ def test_purge_preview_is_plan_only_and_blocked_until_inventory_is_complete(
     assert main(["init", str(project)]) == 0
     capsys.readouterr()
 
-    assert main(["--json", "--project-root", str(project), "run", "purge", "missing-run"]) == 0
+    assert (
+        main(
+            [
+                "--json",
+                "--project-root",
+                str(project),
+                "run",
+                "purge",
+                "missing-run",
+                "--reason",
+                "disposable-fixture",
+            ]
+        )
+        == 0
+    )
     preview = json.loads(capsys.readouterr().out)
     assert preview["mode"] == "run"
     assert preview["blockers"] == ["run 'missing-run' was not found"]
@@ -2576,6 +2590,7 @@ def test_run_lifecycle_commands_use_the_canonical_run_id(
         ("cancel", "run-1"),
         ("recover", "run-1"),
         ("reconcile", "run-1"),
+        ("cleanup", "run-1"),
         ("cleanup", "run-1"),
     ]
     reconciliation = project / ".posttrain" / "state" / "executions" / "run-1" / "reconciliation.json"

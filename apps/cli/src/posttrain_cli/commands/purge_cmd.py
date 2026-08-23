@@ -7,8 +7,8 @@ from typing import Annotated
 import typer
 
 from ..context import CliState
-from ..output import emit
-from ..purge_surface import apply_saved_plan, load_saved_plan, render_plan
+from ..output import emit, json_value
+from ..purge_surface import apply_saved_plan, load_saved_plan, load_saved_tombstone, render_plan
 
 
 def register(app: typer.Typer) -> None:
@@ -23,8 +23,13 @@ def register(app: typer.Typer) -> None:
         purge_id: Annotated[str, typer.Argument(help="content-addressed purge id")],
     ) -> None:
         state: CliState = ctx.obj
-        plan = load_saved_plan(state.layout(), purge_id)
-        emit(state, plan, render_plan(plan))
+        layout = state.layout()
+        plan = load_saved_plan(layout, purge_id)
+        tombstone = load_saved_tombstone(layout, purge_id)
+        payload = json_value(plan)
+        assert isinstance(payload, dict)
+        payload["tombstone"] = json_value(tombstone) if tombstone is not None else None
+        emit(state, payload, render_plan(plan, tombstone=tombstone))
 
     @purge_app.command("apply", help="apply a reviewed purge plan")
     def purge_apply_cmd(

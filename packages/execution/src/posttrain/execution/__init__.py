@@ -81,8 +81,12 @@ from .purge import (
     PurgeMode,
     PurgePlan,
     PurgePlane,
+    PurgeReason,
     PurgeReceipt,
     PurgeStore,
+    PurgeTombstone,
+    PurgeTombstonePlaneOutcome,
+    PurgeTombstoneStatus,
     apply_purge_plan,
 )
 from .purge_planner import (
@@ -198,6 +202,10 @@ __all__ = [
     "PurgeMode",
     "PurgePlan",
     "PurgePlane",
+    "PurgeReason",
+    "PurgeTombstone",
+    "PurgeTombstonePlaneOutcome",
+    "PurgeTombstoneStatus",
     "PurgeReceipt",
     "PurgeStore",
     "apply_purge_plan",

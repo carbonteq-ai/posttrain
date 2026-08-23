@@ -137,7 +137,8 @@ def test_submission_store_is_idempotent_and_rejects_conflicts(tmp_path: Path) ->
     assert store.load(submission.run_id) == submission
     assert store.submission_path(submission.run_id).stat().st_mode & 0o777 == 0o600
     payload = json.loads(store.submission_path(submission.run_id).read_text(encoding="utf-8"))
-    assert payload["schema"] == "posttrain.execution-submission.v6"
+    assert payload["schema"] == "posttrain.execution-submission.v8"
+    assert payload["evidence_retention"] == "standard"
     assert payload["evidence_source_recorded"] is True
     assert payload["evidence_source"] is None
     assert payload["job_image"] == submission.job_image
@@ -165,7 +166,7 @@ def test_submission_records_the_exact_execution_policy(tmp_path: Path) -> None:
     loaded = store.load(store.save(submission).run_id)
     assert loaded.execution_policy == ExecutionPolicy(timeout_seconds=90_000, max_attempts=2, priority=4)
     payload = json.loads(store.submission_path(submission.run_id).read_text(encoding="utf-8"))
-    assert payload["schema"] == "posttrain.execution-submission.v7"
+    assert payload["schema"] == "posttrain.execution-submission.v8"
     assert payload["execution_policy"] == {
         "timeout_seconds": 90_000,
         "max_attempts": 2,

@@ -9,7 +9,7 @@ from typing import Protocol
 
 from posttrain.common import ContractError
 
-from .purge import PurgeAction, PurgeMode, PurgePlan, PurgePlane
+from .purge import PurgeAction, PurgeMode, PurgePlan, PurgePlane, PurgeReason
 from .registry import RegistryManifestRef
 
 
@@ -34,6 +34,7 @@ class PurgeRunCandidate:
     workspace: Path | None = None
     local_paths: tuple[Path, ...] = ()
     completed_planes: tuple[PurgePlane, ...] = ()
+    evidence_retention: str = "standard"
 
     def __post_init__(self) -> None:
         for label, value in (
@@ -63,6 +64,8 @@ class PurgeRunCandidate:
             raise ContractError("purge candidate completed planes must be unique")
         if any(plane not in {"provider", "registry", "tracking", "local"} for plane in self.completed_planes):
             raise ContractError("purge candidate completed plane is invalid")
+        if self.evidence_retention not in {"standard", "pinned"}:
+            raise ContractError("purge candidate evidence retention is invalid")
 
 
 class PurgeRunCatalog(Protocol):
@@ -79,6 +82,7 @@ def build_run_purge_plan(
     catalog: PurgeRunCatalog,
     *,
     root_run_id: str,
+    reason: PurgeReason,
     cascade: bool = False,
 ) -> PurgePlan:
     """Build a blocked-or-applicable run plan without mutating any adapter."""
@@ -92,8 +96,12 @@ def build_run_purge_plan(
             project_id="unknown",
             run_ids=(root_run_id,),
             root_run_id=root_run_id,
+            reason=reason,
             blockers=(f"run {root_run_id!r} was not found",),
         )
+
+    if root.evidence_retention == "pinned":
+        warnings.append(f"run {root.run_id!r} is pinned; explicit run purge overrides its retention pin")
 
     selected: dict[str, PurgeRunCandidate] = {}
     visiting: set[str] = set()
@@ -106,6 +114,8 @@ def build_run_purge_plan(
             return
         visiting.add(candidate.run_id)
         _validate_candidate(root, candidate, blockers)
+        if candidate.run_id != root.run_id and candidate.evidence_retention == "pinned":
+            blockers.append(f"pinned run {candidate.run_id!r} cannot be added by a cascade purge")
         selected[candidate.run_id] = candidate
         consumers = tuple(candidate.consumers)
         if candidate.external_consumers:
@@ -143,6 +153,7 @@ def build_run_purge_plan(
         ),
         warnings=warnings,
         blockers=[*blockers, *catalog.registry_inventory_blockers()],
+        reason=reason,
     )
 
 
@@ -150,6 +161,7 @@ def build_project_purge_plan(
     catalog: PurgeRunCatalog,
     *,
     project_id: str,
+    reason: PurgeReason,
 ) -> PurgePlan:
     """Build a blocked-or-applicable plan for every known run in one project."""
 
@@ -166,6 +178,10 @@ def build_project_purge_plan(
         root = next(iter(selected.values()))
         for candidate in selected.values():
             _validate_candidate(root, candidate, blockers)
+            if candidate.evidence_retention == "pinned":
+                blockers.append(
+                    f"pinned run {candidate.run_id!r} cannot be included in project purge without explicit run selection"
+                )
             for consumer in candidate.consumers:
                 if consumer not in selected:
                     blockers.append(f"run {candidate.run_id!r} has unmatched consumer {consumer!r}")
@@ -187,6 +203,7 @@ def build_project_purge_plan(
             ),
             warnings=warnings,
             blockers=[*blockers, *catalog.registry_inventory_blockers()],
+            reason=reason,
         )
     return PurgePlan.build(
         mode="project",
@@ -195,6 +212,7 @@ def build_project_purge_plan(
         root_run_id=None,
         warnings=tuple(warnings),
         blockers=tuple(dict.fromkeys(blockers)),
+        reason=reason,
     )
 
 
@@ -208,6 +226,7 @@ def _assemble_plan(
     dependency_edges: tuple[tuple[str, str], ...],
     warnings: list[str],
     blockers: list[str],
+    reason: PurgeReason,
 ) -> PurgePlan:
     run_ids = tuple(selected)
     provider_actions: list[PurgeAction] = []
@@ -330,6 +349,7 @@ def _assemble_plan(
         local_actions=tuple(local_actions),
         warnings=tuple(dict.fromkeys(warnings)),
         blockers=tuple(dict.fromkeys(blockers)),
+        reason=reason,
     )
 
 

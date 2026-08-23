@@ -229,6 +229,7 @@ def run_work_package(context: WorkPackageContext, package: WorkPackage) -> WorkP
             source_metadata=context.source_metadata,
             artifacts=_artifact_inputs(seats),
             required_artifact_roles=definition.required_artifact_roles,
+            evidence_retention=package.evidence_retention,
         )
         execution_value = context.executor(
             spec,
@@ -348,6 +349,7 @@ def prepare_work_package_job(
         source_metadata=context.source_metadata,
         artifacts=_artifact_inputs(seats),
         required_artifact_roles=definition.required_artifact_roles,
+        evidence_retention=package.evidence_retention,
     )
     return PreparedWorkPackageJob(resolved, job, definition, seats, spec)
 
