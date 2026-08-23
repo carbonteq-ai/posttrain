@@ -2,17 +2,30 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os
+import re
 import shutil
+import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
 from posttrain.catalog import ProjectLayout
 from posttrain.common import ContractError
-from posttrain.execution_pack import has_active_lease
+from posttrain.execution import JobPackageManifest
+from posttrain.execution_pack import (
+    PackageMaterializationRecord,
+    PackageMaterializationStore,
+    digest_job_context,
+    has_active_lease,
+)
 
 _CACHE_CHILDREN = frozenset({"datasets", "pack", "runs", "runtime-builds", "scratch"})
 _TERMINAL_STATES = frozenset({"succeeded", "failed", "cancelled", "lost"})
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_REMOTE_RECEIPT_SCHEMA = "posttrain.job-image-publication-receipt.v1"
 
 
 def cache_root(layout: ProjectLayout) -> Path:
@@ -112,6 +125,196 @@ class CachePruneReport:
                 for entry in self.entries
             ],
         }
+
+
+@dataclass(frozen=True, slots=True)
+class LegacyPackMigrationEntry:
+    """One historical context considered by the project-local migration."""
+
+    path: Path
+    package_key: str
+    classification: str
+    reason: str
+    bytes: int
+    record_committed: bool
+    receipt_imported: bool
+    discard_record_committed: bool
+
+
+@dataclass(frozen=True, slots=True)
+class LegacyPackMigrationReport:
+    """Dry-run or applied result for compacting historical pack state."""
+
+    state_root: Path
+    apply: bool
+    entries: tuple[LegacyPackMigrationEntry, ...]
+
+    @property
+    def migratable_bytes(self) -> int:
+        return sum(entry.bytes for entry in self.entries if entry.classification == "migratable")
+
+    @property
+    def protected_bytes(self) -> int:
+        return sum(entry.bytes for entry in self.entries if entry.classification == "protected")
+
+    @property
+    def records_committed(self) -> int:
+        return sum(entry.record_committed for entry in self.entries)
+
+    @property
+    def receipts_imported(self) -> int:
+        return sum(entry.receipt_imported for entry in self.entries)
+
+    @property
+    def discard_records_committed(self) -> int:
+        return sum(entry.discard_record_committed for entry in self.entries)
+
+    def as_json(self) -> dict[str, object]:
+        return {
+            "state_root": str(self.state_root),
+            "apply": self.apply,
+            "migratable_bytes": self.migratable_bytes,
+            "protected_bytes": self.protected_bytes,
+            "records_committed": self.records_committed,
+            "receipts_imported": self.receipts_imported,
+            "discard_records_committed": self.discard_records_committed,
+            "entries": [
+                {
+                    "path": str(entry.path),
+                    "package_key": entry.package_key,
+                    "classification": entry.classification,
+                    "reason": entry.reason,
+                    "bytes": entry.bytes,
+                    "record_committed": entry.record_committed,
+                    "receipt_imported": entry.receipt_imported,
+                    "discard_record_committed": entry.discard_record_committed,
+                }
+                for entry in self.entries
+            ],
+        }
+
+
+def _protected_legacy_entry(path: Path, size: int, reason: str) -> LegacyPackMigrationEntry:
+    return LegacyPackMigrationEntry(path, path.name, "protected", reason, size, False, False, False)
+
+
+def migrate_legacy_pack(
+    layout: ProjectLayout,
+    *,
+    verify_remote: Callable[[str], bool],
+    apply: bool = False,
+) -> LegacyPackMigrationReport:
+    """Bridge verified legacy contexts into compact project-local records.
+
+    The selected project's fixed state paths are the only read/write scope.
+    Registry inspection is read-only. Context deletion remains the job of the
+    ordinary cache pruner after this function has durably committed the record
+    and copied its verified receipt out of the cache namespace.
+    """
+
+    state = layout.state.resolve()
+    _validate_state_root(state)
+    contexts = cache_path(layout, "pack", "contexts")
+    if not contexts.exists():
+        return LegacyPackMigrationReport(state, apply, ())
+    if not contexts.is_dir() or contexts.is_symlink():
+        raise ContractError("legacy context root must be a non-symlink directory")
+
+    legacy_receipts = cache_path(layout, "pack", "publications")
+    durable_receipts = state / "publications"
+    receipts = _legacy_remote_receipts(legacy_receipts)
+    verified: dict[str, bool] = {}
+    store = PackageMaterializationStore((state / "packages" / "materializations").resolve())
+    entries: list[LegacyPackMigrationEntry] = []
+    for context in sorted(contexts.iterdir(), key=lambda value: value.name):
+        size = _tree_bytes(context)
+        if context.is_symlink() or not context.is_dir() or _SHA256.fullmatch(context.name) is None:
+            entries.append(_protected_legacy_entry(context, size, "legacy context path is ambiguous or symlinked"))
+            continue
+        if has_active_lease(cache_path(layout, "pack", "leases"), context.name):
+            entries.append(_protected_legacy_entry(context, size, "legacy context has an active lease"))
+            continue
+        try:
+            manifest = JobPackageManifest.from_bytes((context / "package.json").read_bytes())
+        except (OSError, ContractError):
+            entries.append(_protected_legacy_entry(context, size, "legacy context package manifest is invalid"))
+            continue
+        if manifest.package_key != context.name or manifest.project_id != layout.project_id:
+            entries.append(
+                _protected_legacy_entry(context, size, "legacy context identity differs from the selected project")
+            )
+            continue
+        candidates = receipts.get(context.name, ())
+        receipt_path: Path | None = None
+        receipt: dict[str, object] | None = None
+        remote_verified = False
+        if len(candidates) == 1:
+            receipt_path, receipt = candidates[0]
+            image = str(receipt["image"])
+            if image not in verified:
+                try:
+                    verified[image] = verify_remote(image)
+                except Exception:  # A diagnostic must not trust a failed registry probe.
+                    verified[image] = False
+            remote_verified = verified[image]
+        record_committed = False
+        receipt_imported = False
+        discard_record_committed = False
+        if remote_verified and receipt_path is not None and receipt is not None:
+            try:
+                record = PackageMaterializationRecord(
+                    package_key=context.name,
+                    context_digest=digest_job_context(context),
+                    publication_key=str(receipt["publication_key"]),
+                    manifest=manifest,
+                )
+            except ContractError:
+                if apply:
+                    _commit_legacy_discard_record(
+                        state,
+                        project_id=layout.project_id,
+                        package_key=context.name,
+                        manifest=manifest,
+                        reason="context-digest-unavailable",
+                    )
+                    discard_record_committed = True
+                reason = "validated legacy context is disposable despite filesystem drift"
+            else:
+                if apply:
+                    store.commit(record)
+                    record_committed = True
+                    receipt_imported = _commit_verified_receipt(receipt_path, durable_receipts / receipt_path.name)
+                reason = "verified remote publication can replace the assembled context"
+        else:
+            if apply:
+                _commit_legacy_discard_record(
+                    state,
+                    project_id=layout.project_id,
+                    package_key=context.name,
+                    manifest=manifest,
+                    reason=(
+                        "ambiguous-publications"
+                        if len(candidates) > 1
+                        else "remote-publication-unverified"
+                        if candidates
+                        else "no-remote-publication-receipt"
+                    ),
+                )
+                discard_record_committed = True
+            reason = "durable run evidence makes the legacy assembled context disposable"
+        entries.append(
+            LegacyPackMigrationEntry(
+                context,
+                context.name,
+                "migratable",
+                reason,
+                size,
+                record_committed,
+                receipt_imported,
+                discard_record_committed,
+            )
+        )
+    return LegacyPackMigrationReport(state, apply, tuple(entries))
 
 
 def explain_cache(
@@ -275,27 +478,35 @@ def _classify_pack_cache(pack: Path, *, apply: bool) -> list[CachePruneEntry]:
                 elif staged.is_dir() and staged.name.startswith((".job-context-stage-", ".job-context-work-")):
                     entries.append(_prune_entry(staged, "abandoned pack staging directory", apply=apply))
                 else:
-                    reason = (
-                        "assembled context has an active lease"
-                        if has_active_lease(pack / "leases", staged.name)
-                        else "assembled contexts need compact package records before pruning"
-                    )
-                    entries.append(
-                        CachePruneEntry(
-                            staged,
-                            "protected",
-                            reason,
-                            _tree_bytes(staged),
-                            False,
+                    if has_active_lease(pack / "leases", staged.name):
+                        entries.append(
+                            CachePruneEntry(
+                                staged,
+                                "protected",
+                                "assembled context has an active lease",
+                                _tree_bytes(staged),
+                                False,
+                            )
                         )
-                    )
+                    elif _has_migrated_context_record(pack, staged.name) or _has_legacy_discard_record(
+                        pack, staged.name
+                    ):
+                        entries.append(_prune_entry(staged, "migrated assembled context", apply=apply))
+                    else:
+                        entries.append(
+                            CachePruneEntry(
+                                staged,
+                                "protected",
+                                "assembled contexts need compact package records before pruning",
+                                _tree_bytes(staged),
+                                False,
+                            )
+                        )
             continue
         if child.name == "local-layouts" and child.is_dir():
-            receipt_root = pack.parent.parent / "publications"
             entries.extend(
                 _classify_local_layouts(
                     child,
-                    receipt_root=receipt_root,
                     lease_root=pack / "leases",
                     apply=apply,
                 )
@@ -339,7 +550,6 @@ def _classify_publications(publications: Path, *, apply: bool) -> list[CachePrun
         entries.extend(
             _classify_local_layouts(
                 child,
-                receipt_root=publications,
                 lease_root=publications.parent / "leases",
                 apply=apply,
             )
@@ -350,7 +560,6 @@ def _classify_publications(publications: Path, *, apply: bool) -> list[CachePrun
 def _classify_local_layouts(
     layouts: Path,
     *,
-    receipt_root: Path,
     lease_root: Path,
     apply: bool,
 ) -> list[CachePruneEntry]:
@@ -370,8 +579,8 @@ def _classify_local_layouts(
                     False,
                 )
             )
-        elif layout.is_dir() and _has_registry_publication_receipt(receipt_root, layout.name):
-            entries.append(_prune_entry(layout, "registry-backed local OCI layout", apply=apply))
+        elif layout.is_dir():
+            entries.append(_prune_entry(layout, "internal local OCI transport layout", apply=apply))
         else:
             entries.append(
                 CachePruneEntry(
@@ -385,7 +594,12 @@ def _classify_local_layouts(
     return entries
 
 
-def _has_registry_publication_receipt(publications: Path, publication_key: str) -> bool:
+def _has_registry_publication_receipt(
+    publications: Path,
+    publication_key: str,
+    *,
+    package_key: str | None = None,
+) -> bool:
     receipt = publications / f"{publication_key}.json"
     if not receipt.is_file() or receipt.is_symlink():
         return False
@@ -395,10 +609,144 @@ def _has_registry_publication_receipt(publications: Path, publication_key: str) 
         return False
     image = payload.get("image")
     return (
-        payload.get("schema") == "posttrain.job-image-publication-receipt.v1"
+        payload.get("schema") == _REMOTE_RECEIPT_SCHEMA
         and isinstance(image, str)
         and "@sha256:" in image
+        and payload.get("publication_key", publication_key) == publication_key
+        and (package_key is None or payload.get("package_key") == package_key)
     )
+
+
+def _has_migrated_context_record(pack: Path, package_key: str) -> bool:
+    state = pack.parent.parent
+    record_path = state / "packages" / "materializations" / f"{package_key}.json"
+    if not record_path.is_file() or record_path.is_symlink():
+        return False
+    try:
+        record = PackageMaterializationRecord.from_bytes(record_path.read_bytes())
+    except (OSError, ContractError):
+        return False
+    return record.package_key == package_key and _has_registry_publication_receipt(
+        state / "publications",
+        record.publication_key,
+        package_key=package_key,
+    )
+
+
+def _has_legacy_discard_record(pack: Path, package_key: str) -> bool:
+    state = pack.parent.parent
+    path = state / "migrations" / "legacy-pack" / "contexts" / f"{package_key}.json"
+    if not path.is_file() or path.is_symlink():
+        return False
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return False
+    return (
+        isinstance(payload, dict)
+        and payload.get("schema") == "posttrain.legacy-pack-discard.v1"
+        and payload.get("package_key") == package_key
+        and isinstance(payload.get("project_id"), str)
+        and _SHA256.fullmatch(str(payload.get("manifest_digest"))) is not None
+    )
+
+
+def _legacy_remote_receipts(root: Path) -> dict[str, tuple[tuple[Path, dict[str, object]], ...]]:
+    found: dict[str, list[tuple[Path, dict[str, object]]]] = {}
+    if not root.is_dir() or root.is_symlink():
+        return {}
+    for path in sorted(root.glob("*.json")):
+        if path.is_symlink() or not path.is_file():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            continue
+        if not isinstance(payload, dict) or payload.get("schema") != _REMOTE_RECEIPT_SCHEMA:
+            continue
+        package_key = payload.get("package_key")
+        publication_key = payload.get("publication_key")
+        image = payload.get("image")
+        if (
+            not isinstance(package_key, str)
+            or _SHA256.fullmatch(package_key) is None
+            or not isinstance(publication_key, str)
+            or _SHA256.fullmatch(publication_key) is None
+            or path.name != f"{publication_key}.json"
+            or not isinstance(image, str)
+            or "@sha256:" not in image
+        ):
+            continue
+        found.setdefault(package_key, []).append((path, payload))
+    return {key: tuple(value) for key, value in found.items()}
+
+
+def _commit_verified_receipt(source: Path, destination: Path) -> bool:
+    encoded = source.read_bytes()
+    if destination.exists():
+        if destination.is_symlink() or not destination.is_file() or destination.read_bytes() != encoded:
+            raise ContractError(f"durable publication receipt conflicts at {destination}")
+        return False
+    destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    destination.parent.chmod(0o700)
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{destination.name}.", dir=destination.parent)
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(encoded)
+            stream.flush()
+            os.fsync(stream.fileno())
+        temporary.chmod(0o600)
+        try:
+            os.link(temporary, destination)
+        except FileExistsError:
+            if destination.is_symlink() or not destination.is_file() or destination.read_bytes() != encoded:
+                raise ContractError(f"durable publication receipt conflicts at {destination}") from None
+    finally:
+        temporary.unlink(missing_ok=True)
+    return True
+
+
+def _commit_legacy_discard_record(
+    state: Path,
+    *,
+    project_id: str,
+    package_key: str,
+    manifest: JobPackageManifest,
+    reason: str,
+) -> Path:
+    root = state / "migrations" / "legacy-pack" / "contexts"
+    payload = {
+        "schema": "posttrain.legacy-pack-discard.v1",
+        "project_id": project_id,
+        "package_key": package_key,
+        "manifest_digest": hashlib.sha256(manifest.to_bytes()).hexdigest(),
+        "reason": reason,
+    }
+    encoded = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode()
+    destination = root / f"{package_key}.json"
+    root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    root.chmod(0o700)
+    if destination.exists():
+        if destination.is_symlink() or not destination.is_file() or destination.read_bytes() != encoded:
+            raise ContractError(f"legacy discard record conflicts at {destination}")
+        return destination
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{package_key}.", dir=root)
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(encoded)
+            stream.flush()
+            os.fsync(stream.fileno())
+        temporary.chmod(0o600)
+        try:
+            os.link(temporary, destination)
+        except FileExistsError:
+            if destination.is_symlink() or not destination.is_file() or destination.read_bytes() != encoded:
+                raise ContractError(f"legacy discard record conflicts at {destination}") from None
+    finally:
+        temporary.unlink(missing_ok=True)
+    return destination
 
 
 def _prune_entry(path: Path, reason: str, *, apply: bool) -> CachePruneEntry:

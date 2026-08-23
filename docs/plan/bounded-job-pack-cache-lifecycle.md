@@ -178,6 +178,31 @@ making that change.
   contexts all contain `package.json`, 80 legacy publication receipts exist,
   and no compact materialization records have been migrated yet. The planner
   reports 168,282,955,310 protected bytes and 505,624,505 rebuildable bytes;
+- [x] (2026-08-23) Restarted Milestone 6 from clean `origin/main` after the
+  v0.3.21 release and refreshed Ambient without mutation. Ambient still runs
+  v0.3.19 and now has 54 legacy contexts, 13 legacy internal OCI layouts, 69
+  newer compact materialization records, and 196,121,903,723 classified cache
+  bytes. The historical contexts and layouts remain protected pending the
+  project-scoped migration below; the filesystem currently has about 136 GiB
+  free, so this is controlled lifecycle work rather than emergency deletion.
+- [x] (2026-08-23) Implemented and validated `posttrain cache migrate-legacy-pack`
+  as a dry-run-first, project-local bridge from valid legacy manifests and
+  receipts to compact materialization records and explicitly classified
+  internal layouts.
+- [x] (2026-08-23) Ran the migration against Ambient. The dry run classified
+  all 54 contexts (101,876,275,314 bytes) as migratable with zero protected:
+  27 had one live LAN-registry publication and 27 required minimal discard
+  records. The applied normal prune then removed exactly those 54 contexts and
+  13 unleased internal OCI layouts, 155,025,370,976 logical bytes in total.
+  Filesystem free space rose from about 136 GB to 300 GB, execution evidence
+  retained aggregate SHA-256
+  `d9bbffc2228165192b8440193fd3ba3cc71da526257ff4a929ca9795e5a21c59`,
+  and the post-prune classifier reports 41,096,562,217 protected bytes with
+  zero immediately reclaimable.
+- [x] (2026-08-23) Upgraded Ambient's existing dirty dependency change from
+  Posttrain v0.3.19 to the released v0.3.21 without touching its unrelated
+  source/config edits; `uv lock --check`, `uv sync --locked`, and
+  `posttrain --version` confirm the installed v0.3.21 package family.
   no prune or migration apply was attempted.
 - [x] (2026-08-10) Qualified direct local-daemon publication against the real
   named builder. The first canary exposed two owning-layer contract defects:
@@ -271,6 +296,20 @@ making that change.
   repeated real pack is both bounded and reusable.
 
 ## Surprises & Discoveries
+
+- Observation: Ambient is not wholly legacy. It already contains 69 protected
+  compact materialization records alongside 54 older retained contexts.
+  Evidence: the refreshed 2026-08-23 inventory found records under
+  `.posttrain/state/packages/materializations` and separately found 54
+  directories under `cache/pack/contexts`; the migration must bridge only the
+  latter and must treat an existing matching record as an idempotent success.
+
+- Observation: the 13 remaining legacy OCI layouts occupy two historical
+  internal cache locations: two under `cache/pack/local-layouts` and eleven
+  under `cache/pack/publications/local-layouts`.
+  Evidence: both locations are below the selected Ambient project's cache
+  root. They are not explicit user exports, but an active lease or unfinished
+  local execution must still protect the matching layout.
 
 - Observation: the largest remaining tree is not BuildKit; it is retained
   framework build contexts under the project.
@@ -465,6 +504,37 @@ making that change.
   actor eligibility.
 
 ## Decision Log
+
+- Decision: make historical pack migration an explicit project-scoped command,
+  separate from ordinary `cache prune`, and keep it dry-run by default.
+  Rationale: migration establishes compact durable evidence from legacy bytes;
+  pruning removes bytes already classified as rebuildable. Keeping those
+  meanings separate makes retries and audits understandable while one command
+  can still prepare all eligible objects in a single apply invocation.
+  Date/Author: 2026-08-23 / implementation.
+
+- Decision: migration may inspect only the selected project's
+  `.posttrain/state`, may write only its protected materialization/journal
+  roots, and may classify only cache descendants from that same project. It
+  never deletes registry images, Trackio artifacts, checkpoints, execution
+  evidence, or another project's state.
+  Rationale: project identity and filesystem containment are stronger safety
+  boundaries than global run discovery. Remote receipts and execution records
+  are read-only proof inputs, not migration targets.
+  Date/Author: 2026-08-23 / implementation.
+
+- Decision: an old assembled context does not have to remain byte-for-byte
+  reproducible on the submitting workstation before it can be discarded.
+  Commit a full compact materialization record when one unique LAN-registry
+  receipt verifies; otherwise commit a minimal project-local discard record
+  after validating the package manifest. In both cases an active cache lease
+  is the deletion blocker, while Trackio artifacts and registry images remain
+  outside the migration's mutation scope.
+  Rationale: assembled contexts and internal OCI layouts are transport cache,
+  not replay or resume authorities. Retaining tens of gigabytes because old
+  publication metadata is absent or ambiguous confuses local reconstruction
+  convenience with durable run evidence.
+  Date/Author: 2026-08-23 / user direction and implementation.
 
 - Decision: do not disguise framework truncation fixes as a Reasoning Gym
   package release; advance the external environment pin only for a verified,
@@ -949,11 +1019,13 @@ explicitly exported, and identifies staging directories left by dead builds.
 Dry-run output includes totals and refuses ambiguous/symlinked/dirty entries.
 
 Apply migration in small immutable batches, journaling each decision so an
-interruption is retryable. Do not delete a legacy context until its compact
-record is committed and any referenced remote publication is verified. Do not
-delete a local layout that is the only named output of an unfinished local
-operation. Existing execution and artifact records are read-only inputs to
-protection, never migration targets.
+interruption is retryable. Prefer a compact materialization record when one
+unique referenced remote publication verifies. If legacy publication metadata
+is missing, ambiguous, or stale, validate the package manifest and commit a
+minimal discard record instead; do not retain the assembled context merely to
+preserve workstation-local reconstruction. Internal local layouts are cache,
+not explicit exports, and are reclaimable when unleased. Existing execution
+and artifact records are read-only protection inputs, never migration targets.
 
 In ai-infra, from the existing dirty checkout, run the read-only builder plan.
 When no build is active, recreate `posttrain-builder` using the repository
@@ -995,6 +1067,15 @@ publication keys, registry digest, before/after local bytes, BuildKit
 qualification receipt, CLI dry-run/applied prune receipts, and proof that model
 and checkpoint artifacts were unchanged. Release notes describe the developer
 behavior, not internal cache implementation.
+
+Live migration evidence on 2026-08-23 closes the historical workstation-space
+part of Milestone 6. The new command verified 27 unique registry publications,
+committed or idempotently checked their compact records and durable receipts,
+and wrote 27 privacy-minimal discard records for contexts whose old publication
+mapping was missing, stale, or ambiguous. The normal pruner—not the migration
+command—then removed 101.88 GB of assembled contexts and 53.15 GB of internal
+OCI transport layouts. No execution record changed, no Trackio or registry
+delete API was invoked, and all Ambient source-worktree changes were preserved.
 
 ## Concrete Steps
 

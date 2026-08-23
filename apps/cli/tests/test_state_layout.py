@@ -6,8 +6,9 @@ from pathlib import Path
 import pytest
 from posttrain.catalog import load_project_layout
 from posttrain.common import ContractError
+from posttrain.execution import JobPackageManifest, RuntimeImageRef
 from posttrain.execution_pack import CacheLease
-from posttrain_cli.state_layout import cache_path, explain_cache, migrate_state, prune_cache
+from posttrain_cli.state_layout import cache_path, explain_cache, migrate_legacy_pack, migrate_state, prune_cache
 
 
 def _project(tmp_path: Path) -> Path:
@@ -16,6 +17,26 @@ def _project(tmp_path: Path) -> Path:
     control.mkdir(parents=True)
     (control / "project.toml").write_text('schema_version = 1\nproject_id = "state-test"\n', encoding="utf-8")
     return root
+
+
+def _manifest(*, project_id: str = "state-test") -> JobPackageManifest:
+    return JobPackageManifest(
+        project_id=project_id,
+        work_package_id="work",
+        job_id="job",
+        job_definition_id="definition",
+        job_kind="train.sft",
+        resolved_inputs_digest="a" * 64,
+        framework_source_digest="a" * 64,
+        project_source_digest="a" * 64,
+        runtime_dependencies_digest="a" * 64,
+        code_requirements_digest="a" * 64,
+        resolved_config_digest="a" * 64,
+        project_config_digest="a" * 64,
+        universal_image=RuntimeImageRef(f"registry.example/base@sha256:{'b' * 64}"),
+        kind_image=RuntimeImageRef(f"registry.example/kind@sha256:{'c' * 64}"),
+        runtime_variant="supervised",
+    )
 
 
 def test_in_place_migration_moves_only_known_rebuildable_entries(tmp_path: Path) -> None:
@@ -120,7 +141,7 @@ def test_cache_prune_handles_legacy_cache_and_rejects_unscoped_root(tmp_path: Pa
         prune_cache(load_project_layout(root), state_root=tmp_path)
 
 
-def test_cache_prune_removes_only_registry_backed_local_layouts(tmp_path: Path) -> None:
+def test_cache_prune_removes_internal_local_layouts_regardless_of_remote_receipt(tmp_path: Path) -> None:
     root = _project(tmp_path)
     publications = root / ".posttrain" / "state" / "cache" / "pack" / "publications"
     layouts = publications / "local-layouts"
@@ -142,9 +163,9 @@ def test_cache_prune_removes_only_registry_backed_local_layouts(tmp_path: Path) 
 
     report = prune_cache(load_project_layout(root), apply=True)
 
-    assert report.removed_bytes == len("published")
+    assert report.removed_bytes == len("published") + len("keep")
     assert not verified.exists()
-    assert unpublished.is_dir()
+    assert not unpublished.exists()
     assert (publications / "verified.json").is_file()
 
 
@@ -213,3 +234,112 @@ def test_cache_explain_matches_a_content_key_and_reports_protection(tmp_path: Pa
     assert len(entries) == 1
     assert entries[0].classification == "protected"
     assert "compact package records" in entries[0].reason
+
+
+def test_legacy_pack_migration_commits_verified_record_then_prune_removes_context(tmp_path: Path) -> None:
+    root = _project(tmp_path)
+    state = root / ".posttrain" / "state"
+    manifest = _manifest()
+    context = state / "cache" / "pack" / "contexts" / manifest.package_key
+    context.mkdir(parents=True)
+    (context / "package.json").write_bytes(manifest.to_bytes())
+    (context / "payload").write_text("legacy", encoding="utf-8")
+    publication_key = "d" * 64
+    publications = state / "cache" / "pack" / "publications"
+    publications.mkdir()
+    receipt = publications / f"{publication_key}.json"
+    receipt.write_text(
+        json.dumps(
+            {
+                "schema": "posttrain.job-image-publication-receipt.v1",
+                "package_key": manifest.package_key,
+                "publication_key": publication_key,
+                "image": f"registry.example/job@sha256:{'e' * 64}",
+            }
+        ),
+        encoding="utf-8",
+    )
+    layout = load_project_layout(root)
+
+    dry_run = migrate_legacy_pack(layout, verify_remote=lambda _image: True)
+
+    assert dry_run.migratable_bytes == len(manifest.to_bytes()) + len("legacy")
+    assert dry_run.records_committed == 0
+    assert not (state / "packages" / "materializations").exists()
+
+    applied = migrate_legacy_pack(layout, verify_remote=lambda _image: True, apply=True)
+
+    assert applied.records_committed == 1
+    assert applied.receipts_imported == 1
+    assert (state / "packages" / "materializations" / f"{manifest.package_key}.json").is_file()
+    assert (state / "publications" / receipt.name).is_file()
+    pruned = prune_cache(layout, apply=True)
+    assert pruned.removed_bytes >= len("legacy")
+    assert not context.exists()
+
+
+def test_legacy_pack_migration_journals_context_without_a_receipt(tmp_path: Path) -> None:
+    root = _project(tmp_path)
+    state = root / ".posttrain" / "state"
+    manifest = _manifest()
+    context = state / "cache" / "pack" / "contexts" / manifest.package_key
+    context.mkdir(parents=True)
+    (context / "package.json").write_bytes(manifest.to_bytes())
+    layout = load_project_layout(root)
+
+    report = migrate_legacy_pack(layout, verify_remote=lambda _image: False, apply=True)
+
+    assert report.discard_records_committed == 1
+    assert report.records_committed == 0
+    marker = state / "migrations" / "legacy-pack" / "contexts" / f"{manifest.package_key}.json"
+    assert marker.is_file()
+    prune_cache(layout, apply=True)
+    assert not context.exists()
+
+
+def test_legacy_pack_migration_protects_an_active_context_lease(tmp_path: Path) -> None:
+    root = _project(tmp_path)
+    state = root / ".posttrain" / "state"
+    manifest = _manifest()
+    context = state / "cache" / "pack" / "contexts" / manifest.package_key
+    context.mkdir(parents=True)
+    (context / "package.json").write_bytes(manifest.to_bytes())
+    lease = CacheLease.acquire(state / "cache" / "pack" / "leases", manifest.package_key)
+    try:
+        report = migrate_legacy_pack(load_project_layout(root), verify_remote=lambda _image: True, apply=True)
+    finally:
+        lease.release()
+
+    assert report.protected_bytes == len(manifest.to_bytes())
+    assert report.discard_records_committed == 0
+    assert context.is_dir()
+
+
+def test_legacy_pack_migration_uses_discard_record_when_context_digest_is_unavailable(tmp_path: Path) -> None:
+    root = _project(tmp_path)
+    state = root / ".posttrain" / "state"
+    manifest = _manifest()
+    context = state / "cache" / "pack" / "contexts" / manifest.package_key
+    context.mkdir(parents=True)
+    (context / "package.json").write_bytes(manifest.to_bytes())
+    (context / ".env").write_text("not-retained", encoding="utf-8")
+    publication_key = "d" * 64
+    publications = state / "cache" / "pack" / "publications"
+    publications.mkdir()
+    (publications / f"{publication_key}.json").write_text(
+        json.dumps(
+            {
+                "schema": "posttrain.job-image-publication-receipt.v1",
+                "package_key": manifest.package_key,
+                "publication_key": publication_key,
+                "image": f"registry.example/job@sha256:{'e' * 64}",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report = migrate_legacy_pack(load_project_layout(root), verify_remote=lambda _image: True, apply=True)
+
+    assert report.discard_records_committed == 1
+    assert report.records_committed == 0
+    assert "filesystem drift" in report.entries[0].reason
