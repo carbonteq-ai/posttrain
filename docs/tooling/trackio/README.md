@@ -3,19 +3,22 @@
 The platform uses [`carbonteq-ai/trackio`](https://github.com/carbonteq-ai/trackio),
 an additive fork of upstream Trackio. Workspace packages keep the normal
 `import trackio` API. The current framework dependency is
-`carbonteq-trackio==0.31.5.post14.dev18`, built from immutable fork commit
-`21d9ebeffeae84cae95dc424b83d617a48f8d265`. Its wheel
-(`ee988a495f9d8f1618a66fa84276a34f06c9f994017e591cc3130200bf3645ad`) and
-sdist (`a08f23e173de226ec092825ff3eee12221e373736c40f97fdaf37c0e99d3ad6e`)
-were released manually as `carbonteq-v0.31.5.post14.dev18`, published
-unchanged to `carbonteq/dev` by Posttrain workflow `32706453302`, then promoted
-byte-for-byte to `carbonteq/stable` by workflow `32706528612` after the local
-production-Doris read qualification. The development suffix is part of the immutable
-version; it does not make the stable-index publication mutable.
+`carbonteq-trackio==0.31.5.post14.dev19`, built from immutable fork commit
+`b0f2ceb042dc741b458634efb5981604ead97702`. Its wheel
+(`e92436100adc657993f7fc1e51008a4c5f6a63786c97afb2899962c872c8d5ea`) and
+sdist (`b310e9ed1220ce1327229bf8370b90efb6cbee578c42866435cb8c10c7c99501`)
+were released manually as `carbonteq-v0.31.5.post14.dev19`, published
+unchanged to `carbonteq/dev` by Posttrain workflow `32739171972`, then promoted
+byte-for-byte to `carbonteq/stable` by workflow `32739265154` after real-Doris
+read, write, and artifact-finalization qualification. The development suffix is
+part of the immutable version; it does not make the stable-index publication mutable.
 This release adds generic typed trace facts: Posttrain supplies the versioned
 scalar projection from native Verifiers records, Trackio persists facts on the
 trace row plus a dynamic reward-component relation, and readers request only
 approved aggregate dimensions and measures.
+The release also bounds and reuses Doris connections, reserves two pool slots
+for artifact metadata finalization, and turns pool pressure into retryable
+backpressure instead of exhausting the Doris service-user connection limit.
 It also repairs stale completed resumable-upload receipts: when retention has
 removed the referenced content-addressed blob, the server reopens the
 idempotent session and accepts the bytes again instead of failing completion

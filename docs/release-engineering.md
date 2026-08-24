@@ -291,9 +291,10 @@ The framework is feature-rich but not release-complete:
 
 - The primary CLI performs composition-level work-package validation; concrete
   first-party job-definition preflight and `posttrain work-package run` remain.
-- Trackio `carbonteq-v0.31.5.post14.dev18` is released and promoted
+- Trackio `carbonteq-v0.31.5.post14.dev19` is released and promoted
   byte-for-byte to the stable index. It retains durable asynchronous trace/fact
-  delivery and adds storage-bounded, named-field metric projection for Doris.
+  delivery and storage-bounded metric projection, and adds bounded reusable
+  Doris connections with reserved artifact-finalization admission.
   Service deployment and production Observatory timing remain operational gates.
 - Other maintained forks and external environments need the same independent
   receipt whenever a clean consumer cannot resolve them from the internal
