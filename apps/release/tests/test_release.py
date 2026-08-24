@@ -1024,9 +1024,12 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert '--framework-wheelhouse "${framework_wheelhouse}"' in candidate
     assert "qualification_profile:" in candidate
     assert "rtx-pro-96gb" in candidate
-    assert "qualification_target_args" not in candidate
+    assert "rtx-4090-24gb" in candidate
+    assert 'qualification_target_args=(--target "targets/pop-os-rtx-4090-24gb")' in candidate
+    assert 'qualification_target_args=()' in candidate
+    assert '"${qualification_target_args[@]}"' in candidate
     assert "rtx4090-24gb" not in candidate
-    assert 'qualification_host="pop-os.lan"' not in candidate
+    assert 'qualification_host="pop-os.lan"' in candidate
     assert 'qualification_target="targets/carbonteq-rtx-pro-6000-96gb"' not in candidate
 
     assert "candidate-version --simple-url" not in candidate

@@ -279,9 +279,10 @@ Before stable release, one documented remote GPU gate must execute a supported
 training or evaluation work package, record evidence, and retrieve it through
 Observatory from the same provider. The candidate dispatch chooses one named
 qualification profile, not an arbitrary host or memory override: the default
-The `rtx-pro-96gb` release profile uses the RTX PRO 6000. The retired
-`rtx4090-24gb` profile must not be selected even if stale scheduler inventory
-still advertises it. The retained capacity
+The `rtx-pro-96gb` release profile uses the RTX PRO 6000. The bounded
+`rtx-4090-24gb` profile may use the explicitly placed `pop-os` RTX 4090 after
+the capacity receipt verifies that the live dstack inventory reports that
+exact healthy, idle hardware. The retained capacity
 receipt records the exact selected host and hardware.
 
 ## Remaining release gates
