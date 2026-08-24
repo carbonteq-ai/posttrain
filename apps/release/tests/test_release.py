@@ -1026,7 +1026,7 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert "rtx-pro-96gb" in candidate
     assert "rtx-4090-24gb" in candidate
     assert 'qualification_target_args=(--target "targets/pop-os-rtx-4090-24gb")' in candidate
-    assert 'qualification_target_args=()' in candidate
+    assert "qualification_target_args=()" in candidate
     assert '"${qualification_target_args[@]}"' in candidate
     assert "rtx4090-24gb" not in candidate
     assert 'qualification_host="pop-os.lan"' in candidate
