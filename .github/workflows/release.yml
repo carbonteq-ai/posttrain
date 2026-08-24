@@ -120,13 +120,12 @@ jobs:
         run: |
           candidate_run="$(gh run view "${CANDIDATE_RUN_ID}" \
             --repo "${GITHUB_REPOSITORY}" \
-            --json workflowName,event,status,conclusion,headSha,headBranch)"
+            --json workflowName,event,status,conclusion,headSha)"
           test "$(jq -r '.workflowName // empty' <<<"${candidate_run}")" = "Prepare release candidate"
           test "$(jq -r '.event // empty' <<<"${candidate_run}")" = "workflow_dispatch"
           test "$(jq -r '.status // empty' <<<"${candidate_run}")" = "completed"
           test "$(jq -r '.conclusion // empty' <<<"${candidate_run}")" = "success"
           candidate_sha="$(jq -r '.headSha // empty' <<<"${candidate_run}")"
-          candidate_branch="$(jq -r '.headBranch // empty' <<<"${candidate_run}")"
           candidate_tree="$(gh api \
             "repos/${GITHUB_REPOSITORY}/commits/${candidate_sha}" \
             --jq '.commit.tree.sha')"
@@ -146,13 +145,13 @@ jobs:
             else
               # A squash merge loses the candidate commit's ancestry and may
               # include an allowlisted generated manifest in the same merged
-              # tree. Fetch the exact accepted internal branch and compare the
-              # two trees directly; a three-dot comparison would incorrectly
+              # tree. Fetch the exact accepted SHA rather than the branch tip,
+              # which may advance after candidate acceptance, and compare the
+              # two trees directly. A three-dot comparison would incorrectly
               # include the complete squash merge from their shared base.
-              test -n "${candidate_branch}"
-              git fetch --no-tags origin \
-                "refs/heads/${candidate_branch}:refs/remotes/origin/${candidate_branch}"
-              test "$(git rev-parse "refs/remotes/origin/${candidate_branch}")" = "${candidate_sha}"
+              candidate_ref="refs/remotes/origin/release-candidate-${CANDIDATE_RUN_ID}"
+              git fetch --no-tags origin "${candidate_sha}:${candidate_ref}"
+              test "$(git rev-parse "${candidate_ref}")" = "${candidate_sha}"
               # Release-only workflow and release-test edits do not enter any
               # wheel or runtime image. Permit those post-candidate changes,
               # but reject every build-input change so candidate bytes cannot
