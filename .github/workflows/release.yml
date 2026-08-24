@@ -120,12 +120,13 @@ jobs:
         run: |
           candidate_run="$(gh run view "${CANDIDATE_RUN_ID}" \
             --repo "${GITHUB_REPOSITORY}" \
-            --json workflowName,event,status,conclusion,headSha)"
+            --json workflowName,event,status,conclusion,headSha,headBranch)"
           test "$(jq -r '.workflowName // empty' <<<"${candidate_run}")" = "Prepare release candidate"
           test "$(jq -r '.event // empty' <<<"${candidate_run}")" = "workflow_dispatch"
           test "$(jq -r '.status // empty' <<<"${candidate_run}")" = "completed"
           test "$(jq -r '.conclusion // empty' <<<"${candidate_run}")" = "success"
           candidate_sha="$(jq -r '.headSha // empty' <<<"${candidate_run}")"
+          candidate_branch="$(jq -r '.headBranch // empty' <<<"${candidate_run}")"
           candidate_tree="$(gh api \
             "repos/${GITHUB_REPOSITORY}/commits/${candidate_sha}" \
             --jq '.commit.tree.sha')"
@@ -143,26 +144,20 @@ jobs:
             if [[ "${candidate_tree}" = "${release_tree}" ]]; then
               echo "candidate source has the identical merged tree after squash merge"
             else
-              # A squash merge loses the candidate commit's ancestry. Locate
-              # the commit on main with its exact tree, then compare only the
-              # changes after that equivalent baseline. A three-dot GitHub
-              # comparison would instead include the complete squash merge.
-              candidate_equivalent_commit=""
-              while IFS= read -r commit; do
-                if [[ "$(git rev-parse "${commit}^{tree}")" = "${candidate_tree}" ]]; then
-                  candidate_equivalent_commit="${commit}"
-                  break
-                fi
-              done < <(git rev-list "${RELEASE_SOURCE_SHA}")
-              if [[ -z "${candidate_equivalent_commit}" ]]; then
-                echo "accepted candidate tree has no equivalent merged commit" >&2
-                exit 1
-              fi
+              # A squash merge loses the candidate commit's ancestry and may
+              # include an allowlisted generated manifest in the same merged
+              # tree. Fetch the exact accepted internal branch and compare the
+              # two trees directly; a three-dot comparison would incorrectly
+              # include the complete squash merge from their shared base.
+              test -n "${candidate_branch}"
+              git fetch --no-tags origin \
+                "refs/heads/${candidate_branch}:refs/remotes/origin/${candidate_branch}"
+              test "$(git rev-parse "refs/remotes/origin/${candidate_branch}")" = "${candidate_sha}"
               # Release-only workflow and release-test edits do not enter any
               # wheel or runtime image. Permit those post-candidate changes,
               # but reject every build-input change so candidate bytes cannot
               # be promoted for a different package source.
-              unsafe_files="$(git diff --name-only "${candidate_equivalent_commit}" "${RELEASE_SOURCE_SHA}" \
+              unsafe_files="$(git diff --name-only "${candidate_sha}" "${RELEASE_SOURCE_SHA}" \
                 | while IFS= read -r path; do
                     case "${path}" in
                       .github/*|apps/release/tests/*|docs/plan/*|docs/publishing.md) ;;
@@ -174,8 +169,8 @@ jobs:
                 printf 'candidate build inputs changed:\\n%s\\n' "${unsafe_files}" >&2
                 exit 1
               fi
-              release_tag_sha="${candidate_equivalent_commit}"
-              echo "candidate build inputs are unchanged after ${candidate_equivalent_commit}; only release plumbing differs"
+              release_tag_sha="${candidate_sha}"
+              echo "candidate build inputs are unchanged after ${candidate_sha}; only release plumbing differs"
             fi
           fi
           candidate_artifact="$(gh api \
