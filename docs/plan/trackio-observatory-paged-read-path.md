@@ -38,6 +38,8 @@ The work spans two repositories with separate ownership. Generic storage and API
 - [x] (2026-08-24) Apply the same Doris JSON-key projection to system telemetry, retain Trackio's existing run-wide 3,000-sample bound, and stop background refreshes from rebuilding the full automatic view while Metrics, System metrics, Traces, Artifacts, or Run config is active.
 - [x] (2026-08-24) Run the complete validation ladder in both clean worktrees and qualify a local Trackio plus local Observatory against the production Doris database and artifact registry using read-only requests.
 - [x] (2026-08-24) Commit and publish Trackio first, update the immutable Trackio pin and `uv.lock` in the framework, and prepare the coordinated Posttrain release. New model/evaluation qualification jobs are intentionally omitted; the protected release canary remains governed by the release workflow.
+- [x] (2026-08-24) Diagnose the first protected canary as 96-GiB worker contention and restore the explicitly placed RTX 4090 profile after live dstack inventory again proved the host is a healthy 24-GiB RTX 4090.
+- [x] (2026-08-24) Diagnose the replacement canary failure as Doris connection exhaustion during Trackio artifact finalization, close only 86 stale Trackio sessions older than five minutes, and retain the 14 recent sessions without restarting Trackio or Doris.
 
 ## Surprises & Discoveries
 
@@ -91,6 +93,8 @@ The work spans two repositories with separate ownership. Generic storage and API
   Evidence: the first local bounded metric request took 18--34 seconds even though direct projected pages contained only 44 points per selected series. Adding the opt-in `drop_empty` storage predicate reduced the same request to about 0.27--0.33 seconds.
 - Observation: the CLI project launcher deliberately reloads the protected machine/project tracking endpoint and can override a process-level test URL. A qualification that only exports `POSTTRAIN_TRACKIO_SERVER_URL` can therefore appear local while still calling the deployed service.
   Evidence: the first local Observatory emitted no requests to the local Trackio access log. Launching `posttrain_observatory.serve` with an explicit `ObservatorySettings.trackio_server_url` produced the expected local request stream.
+- Observation: the protected v0.3.23 canary reached the explicitly selected RTX 4090 and completed its transform path, but Trackio artifact finalization failed because Doris reported all 100 connections for the Trackio user occupied. Doris showed 86 sessions older than five minutes while the Trackio container had only two established Doris TCP connections; closing only those stale sessions restored capacity to 14 of 100.
+  Evidence: candidate run `32709713384`, bounded dstack workload logs for provider run `pt-6ecb8a4c902f55085e47d154`, live Doris `information_schema.processlist`, and the Trackio container network namespace on 2026-08-24.
 
 ## Decision Log
 
