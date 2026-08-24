@@ -88,9 +88,9 @@ brotli==1.2.0 \
     --hash=sha256:c8565e3cdc1808b1a34714b553b262c5de5fbda202285782173ec137fd13709f \
     --hash=sha256:e310f77e41941c13340a95976fe66a8a95b01e783d430eeaf7a2f87e0a57dd0a
     # via carbonteq-trackio
-carbonteq-trackio==0.31.5.post14.dev18 \
-    --hash=sha256:a08f23e173de226ec092825ff3eee12221e373736c40f97fdaf37c0e99d3ad6e \
-    --hash=sha256:ee988a495f9d8f1618a66fa84276a34f06c9f994017e591cc3130200bf3645ad
+carbonteq-trackio==0.31.5.post14.dev19 \
+    --hash=sha256:b310e9ed1220ce1327229bf8370b90efb6cbee578c42866435cb8c10c7c99501 \
+    --hash=sha256:e92436100adc657993f7fc1e51008a4c5f6a63786c97afb2899962c872c8d5ea
     # via posttrain-awq-runtime
 certifi==2026.6.17 \
     --hash=sha256:024c88eeec92ca068db80f02b8b07c9cef7b9fe261d1d535abfd5abd6f6af432 \

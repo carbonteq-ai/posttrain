@@ -184,7 +184,7 @@ cachetools==7.1.4 \
     --hash=sha256:437f55a4e0c1b01a4f3077cc470e6991d47430970e36fbcb77e2be0df4fc1cd6
     # via vllm
 
-carbonteq-trackio @ https://pypi.lan/carbonteq/stable/+f/ee9/88a495f9d8f16/carbonteq_trackio-0.31.5.post14.dev18-py3-none-any.whl#sha256=ee988a495f9d8f1618a66fa84276a34f06c9f994017e591cc3130200bf3645ad
+carbonteq-trackio @ https://pypi.lan/carbonteq/stable/+f/e92/436100adc6579/carbonteq_trackio-0.31.5.post14.dev19-py3-none-any.whl#sha256=e92436100adc657993f7fc1e51008a4c5f6a63786c97afb2899962c872c8d5ea
     # via posttrain-tracking-trackio
 
 cbor2==6.1.3 \
