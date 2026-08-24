@@ -15,6 +15,11 @@ on:
         options:
           - rtx-pro-96gb
           - rtx-4090-24gb
+      run_gpu_qualification:
+        description: Run the packed GPU qualification job
+        required: false
+        default: true
+        type: boolean
       retire_failed_candidate_run_id:
         description: Optional failed candidate run whose complete development version may be retired after receipt verification
         required: false
@@ -296,6 +301,7 @@ jobs:
 
       - name: Run one real packed GPU qualification through dstack
         id: qualification
+        if: ${{ inputs.run_gpu_qualification }}
         run: |
           set +e
           qualification_target_args=()
