@@ -221,7 +221,7 @@ async def test_metric_series_pushes_bounds_and_preserves_replay_logical_steps() 
     )
 
     assert [(point.step, point.value) for point in result.series[0].points] == [(0, 0.7)]
-    assert source.metric_reads == [(('train/rl/reward_mean',), 0, 0, 100)]
+    assert source.metric_reads == [(("train/rl/reward_mean",), 0, 0, 100)]
 
 
 @pytest.mark.asyncio
