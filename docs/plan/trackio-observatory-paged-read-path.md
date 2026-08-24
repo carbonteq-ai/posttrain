@@ -27,7 +27,7 @@ The work spans two repositories with separate ownership. Generic storage and API
 - [x] (2026-08-07) Stop opening the first trace detail automatically; trace-list summaries are fetched when the trace section opens and the full transcript is fetched only after an explicit trace selection.
 - [x] (2026-08-07) Isolate the remaining large-run delay to Trackio client/server revision skew: starting the working-tree Trackio server was insufficient while Observatory still imported the installed post10 client and therefore materialized every trace to compute `trace_count`.
 - [x] (2026-08-07) Relaunch the local Observatory process with the same Trackio working tree on its import path and remeasure the large RTX PRO GRPO overview and trace tab independently.
-- [ ] Decide whether to publish/pin the Trackio fork; no release or production switch is authorized by this plan alone.
+- [x] (2026-08-24) Publish and promote the immutable Trackio dev18 fork assets, then select the exact stable package in Posttrain.
 - [x] (2026-08-07) Split trace population aggregates from the paged trace table. Optimization jobs use their recorded `train/rl/*` population aggregates and fetch only one 100-row summary page; evaluation jobs can request aggregate-only evidence independently.
 - [x] (2026-08-07) Add cursor pagination, explicit load-more behavior, and exact-detail click-through to the Observatory HTTP, MCP, service, and frontend contracts.
 - [x] (2026-08-07) Reuse the bounded run metadata already loaded for Overview for trace pages and detail reads, with a 60-second expiry for live runs and a five-minute expiry for terminal runs.
@@ -37,7 +37,7 @@ The work spans two repositories with separate ownership. Generic storage and API
 - [x] (2026-08-24) Strip point attributes from chart presentation after replay projection, cache source-health probes for 60 seconds, and cache Trackio run metadata for 15 seconds so adjacent tab requests reuse the same metadata read.
 - [x] (2026-08-24) Apply the same Doris JSON-key projection to system telemetry, retain Trackio's existing run-wide 3,000-sample bound, and stop background refreshes from rebuilding the full automatic view while Metrics, System metrics, Traces, Artifacts, or Run config is active.
 - [x] (2026-08-24) Run the complete validation ladder in both clean worktrees and qualify a local Trackio plus local Observatory against the production Doris database and artifact registry using read-only requests.
-- [ ] Commit and publish Trackio first, update the immutable Trackio pin and `uv.lock` in the framework, then deploy and qualify the exact revisions. No release or production mutation is authorized by this plan alone.
+- [x] (2026-08-24) Commit and publish Trackio first, update the immutable Trackio pin and `uv.lock` in the framework, and prepare the coordinated Posttrain release. New model/evaluation qualification jobs are intentionally omitted; the protected release canary remains governed by the release workflow.
 
 ## Surprises & Discoveries
 
@@ -153,7 +153,7 @@ The trace-tab gate is complete for optimization jobs. GRPO/DAPO no longer runs t
 
 The 2026-08-24 follow-up implements and locally qualifies the missing full-stack metric projection. Ordinary and system history now project named JSON fields in Doris; logical step bounds, empty-row omission, and bounded pages reach storage; replay rows remain visible in logical windows; chart presentation omits attributes after using them for logical projection; and the frontend no longer fetches a complete generic view merely to open Metrics. The local API measured sources at about 0.15 seconds, project runs at 0.17 seconds, selected metrics at 0.33 seconds, a 100-row trace page at 0.27 seconds, system metrics at 1.8 seconds, and Overview at 3.8 seconds. System payload fell from about 800 KB to 166 KB. Browser section paints measured about 0.27 seconds for Metrics, 0.39 seconds for Rollouts, 0.27 seconds for Artifacts and Run Config, and 1.98 seconds for System metrics. The read-only artifact bucket/prefix probe succeeded.
 
-Validation is complete in source: Trackio reports 418 passed and 6 skipped unit tests plus repository-wide Ruff; Posttrain reports 1,286 passed and 23 skipped tests, 73 frontend tests, TypeScript checking, production frontend build, repository-wide Ruff, Pyright, import contracts, and clean diffs. Publication, immutable pinning, deployment, and production timing remain separate gates.
+Validation is complete in source: Trackio reports 418 passed and 6 skipped unit tests plus repository-wide Ruff; Posttrain reports 1,286 passed and 23 skipped tests, 73 frontend tests, TypeScript checking, production frontend build, repository-wide Ruff, Pyright, import contracts, and clean diffs. Trackio dev18 is committed, published, promoted byte-for-byte to the stable index, and selected by the framework. Posttrain publication, service deployment, and production timing remain separate gates.
 
 ## Context and Orientation
 
