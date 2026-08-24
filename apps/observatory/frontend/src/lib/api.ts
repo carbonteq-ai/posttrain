@@ -405,6 +405,18 @@ export type DistillationPairing = {
   batchIds: string[];
 };
 
+export type MetricCatalog = {
+  namespaces: Array<{ name: string; metrics: string[] }>;
+  total: number;
+};
+
+export type MetricSeriesSet = {
+  series: MetricSeries[];
+  downsampled: boolean;
+  requested_points: number;
+  returned_points: number;
+};
+
 export type RunView = {
   requested_mode: 'auto' | 'job' | 'generic';
   resolved_mode: 'job' | 'generic';
@@ -452,13 +464,8 @@ export type RunView = {
       };
     } | null;
     alerts?: Array<{ id: string; severity: string; message: string; field: string | null }>;
-    metric_catalog?: { namespaces: Array<{ name: string; metrics: string[] }>; total: number };
-    selected_series?: {
-      series: MetricSeries[];
-      downsampled: boolean;
-      requested_points: number;
-      returned_points: number;
-    } | null;
+    metric_catalog?: MetricCatalog;
+    selected_series?: MetricSeriesSet | null;
     evaluation?: TraceEvaluation;
     comparison_key?: string;
     question?: string;
@@ -706,6 +713,23 @@ export const api = {
     metrics.forEach((metric) => query.append('metric', metric));
     return request<RunView>(`/api/v1/runs/${key}/view?${query}`);
   },
+  metrics: (key: string, signal?: AbortSignal) =>
+    request<MetricCatalog>(`/api/v1/runs/${key}/metrics`, { signal }),
+  metricSeries: (
+    key: string,
+    names: string[],
+    options: { startStep?: number; endStep?: number; maxPoints?: number; signal?: AbortSignal } = {},
+  ) => request<MetricSeriesSet>(`/api/v1/runs/${key}/metric-series`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    signal: options.signal,
+    body: JSON.stringify({
+      names,
+      start_step: options.startStep ?? null,
+      end_step: options.endStep ?? null,
+      max_points: options.maxPoints ?? 400,
+    }),
+  }),
   comparisonKey: (key: string) => request<RunComparisonKey>(`/api/v1/runs/${key}/comparison-key`),
   system: (key: string) => request<SystemMetrics>(`/api/v1/runs/${key}/system-metrics`),
   evaluation: (key: string, includeTraces = true) => {

@@ -64,6 +64,20 @@ facts and leaves an early fact durable for retry. Explicit `Run.flush()` and
 for maintenance callers. Posttrain's training adapter uses only the new
 enqueue operation, so optimizer progress is not coupled to Doris latency.
 
+The current unreleased read candidate adds storage-applied metric step windows
+and named JSON-field projection. Observatory can request only the selected
+metric names and logical step interval in bounded pages; Doris no longer sends
+the full per-step JSON object to Trackio for those reads. Requested system
+metrics use the same named-field projection while Trackio retains its existing
+3,000-sample run-wide bound. The opt-in `drop_empty` history argument applies a
+requested-key existence predicate before pagination, so sparse selected-series
+pages contain observations rather than unrelated timestamp/step-only rows.
+Posttrain preserves resumed/replayed points by
+resolving their recorded logical `source_step` before presenting a requested
+window. This is source behavior only until Trackio is committed, published,
+pinned in `packages/tracking-trackio/pyproject.toml` and `uv.lock`, deployed,
+and qualified through the live Observatory waterfall.
+
 Dev11 adds the bounded generic `/bulk_upsert_trace_facts` endpoint. Posttrain
 uses it only for one already-projected historical page at a time; all facts
 remain individually trace-keyed, idempotent, and receipt-backed. This avoids

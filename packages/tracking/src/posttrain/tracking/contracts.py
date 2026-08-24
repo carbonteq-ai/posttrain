@@ -184,7 +184,15 @@ class RunDataSource(Protocol):
 
     async def get_run(self, run_id: str) -> RunDetail: ...
 
-    async def metric_series(self, run_id: str, names: tuple[str, ...]) -> tuple[MetricSeries, ...]: ...
+    async def metric_series(
+        self,
+        run_id: str,
+        names: tuple[str, ...],
+        *,
+        start_step: int | None = None,
+        end_step: int | None = None,
+        page_size: int = 1000,
+    ) -> tuple[MetricSeries, ...]: ...
 
     async def traces(self, run_id: str, query: TraceQuery) -> TracePage: ...
 
