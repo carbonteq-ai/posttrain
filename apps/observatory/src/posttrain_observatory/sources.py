@@ -6,6 +6,7 @@ import asyncio
 from collections import defaultdict
 from collections.abc import Mapping
 from threading import Lock
+from time import monotonic
 from types import MappingProxyType
 
 from posttrain.tracking import RunDataSource, RunQuery
@@ -33,11 +34,15 @@ def _contract_text(inputs: Mapping[str, object], contract: str, field: str) -> s
 
 
 class RunSourceRegistry:
+    _SOURCE_SUMMARY_TTL_SECONDS = 60.0
+
     def __init__(self, sources: Mapping[str, RunDataSource]) -> None:
         self._validate_sources(sources)
         self._configured_sources = dict(sources)
         self._snapshot: Mapping[str, RunDataSource] = MappingProxyType(dict(sources))
         self._lock = Lock()
+        self._source_summaries: tuple[SourceSummary, ...] | None = None
+        self._source_summaries_at = 0.0
 
     @staticmethod
     def _validate_sources(sources: Mapping[str, RunDataSource]) -> None:
@@ -53,6 +58,8 @@ class RunSourceRegistry:
         }
         with self._lock:
             self._snapshot = MappingProxyType({**discovered, **self._configured_sources})
+            self._source_summaries = None
+            self._source_summaries_at = 0.0
         return tuple(sorted(discovered))
 
     @property
@@ -71,7 +78,12 @@ class RunSourceRegistry:
         return self._resolve(self._snapshot, locator)
 
     async def sources(self) -> tuple[SourceSummary, ...]:
-        snapshot = self._snapshot
+        with self._lock:
+            snapshot = self._snapshot
+            cached = self._source_summaries
+            cached_at = self._source_summaries_at
+        if cached is not None and monotonic() - cached_at < self._SOURCE_SUMMARY_TTL_SECONDS:
+            return cached
 
         async def probe(source_id: str, source: RunDataSource) -> SourceSummary:
             try:
@@ -94,9 +106,14 @@ class RunSourceRegistry:
                 capabilities=source.capabilities,
             )
 
-        return tuple(
+        summaries = tuple(
             await asyncio.gather(*(probe(source_id, source) for source_id, source in sorted(snapshot.items())))
         )
+        with self._lock:
+            if snapshot is self._snapshot:
+                self._source_summaries = summaries
+                self._source_summaries_at = monotonic()
+        return summaries
 
     async def list_runs(
         self,

@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Release qualification intentionally uses the known 96 GiB worker. dstack's
-# scheduler state does not include arbitrary host processes, so a generic
-# memory-only target can select a machine whose GPU is already occupied.
+# Release qualification intentionally uses an explicit named worker selected by
+# the workflow's hardware profile. dstack's scheduler state does not include
+# arbitrary host processes, so a generic memory-only target can select a machine
+# whose GPU is already occupied.
 dstack_bin="${POSTTRAIN_DSTACK_BIN:-/opt/posttrain-dstack-client/bin/dstack}"
 output="${1:-.release/dstack-capacity.json}"
 target_host="${POSTTRAIN_DSTACK_HOST:-carbonteq-ai-workstation.lan}"

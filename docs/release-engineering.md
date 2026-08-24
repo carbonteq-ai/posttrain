@@ -279,9 +279,10 @@ Before stable release, one documented remote GPU gate must execute a supported
 training or evaluation work package, record evidence, and retrieve it through
 Observatory from the same provider. The candidate dispatch chooses one named
 qualification profile, not an arbitrary host or memory override: the default
-The `rtx-pro-96gb` release profile uses the RTX PRO 6000. The retired
-`rtx4090-24gb` profile must not be selected even if stale scheduler inventory
-still advertises it. The retained capacity
+The `rtx-pro-96gb` release profile uses the RTX PRO 6000. The bounded
+`rtx-4090-24gb` profile may use the explicitly placed `pop-os` RTX 4090 after
+the capacity receipt verifies that the live dstack inventory reports that
+exact healthy, idle hardware. The retained capacity
 receipt records the exact selected host and hardware.
 
 ## Remaining release gates
@@ -290,10 +291,10 @@ The framework is feature-rich but not release-complete:
 
 - The primary CLI performs composition-level work-package validation; concrete
   first-party job-definition preflight and `posttrain work-package run` remain.
-- Trackio `carbonteq-v0.31.5.post14.dev17` is a released, hash-verified
-  development candidate. It restores durable asynchronous trace/fact delivery;
-  real-Doris readback and byte-preserving stable promotion remain gates for the
-  current Posttrain candidate.
+- Trackio `carbonteq-v0.31.5.post14.dev18` is released and promoted
+  byte-for-byte to the stable index. It retains durable asynchronous trace/fact
+  delivery and adds storage-bounded, named-field metric projection for Doris.
+  Service deployment and production Observatory timing remain operational gates.
 - Other maintained forks and external environments need the same independent
   receipt whenever a clean consumer cannot resolve them from the internal
   index.

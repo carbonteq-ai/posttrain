@@ -784,7 +784,7 @@ def test_fork_ledger_cross_checks_direct_runtime_environment_and_service_boundar
 
     entries = {entry.id: entry for entry in load_fork_ledger(repository_root)}
 
-    assert entries["carbonteq-trackio"].version == "0.31.5.post14.dev17"
+    assert entries["carbonteq-trackio"].version == "0.31.5.post14.dev18"
     assert entries["trl"].revision == "69cf80a7319079ec5523841553467e119ebc1cec"
     assert entries["verl"].release_tag == "carbonteq-v0.9.0.dev2"
     assert entries["vllm"].artifacts["source_archive_sha256"] == (
@@ -1024,9 +1024,12 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert '--framework-wheelhouse "${framework_wheelhouse}"' in candidate
     assert "qualification_profile:" in candidate
     assert "rtx-pro-96gb" in candidate
-    assert "qualification_target_args" not in candidate
+    assert "rtx-4090-24gb" in candidate
+    assert 'qualification_target_args=(--target "targets/pop-os-rtx-4090-24gb")' in candidate
+    assert "qualification_target_args=()" in candidate
+    assert '"${qualification_target_args[@]}"' in candidate
     assert "rtx4090-24gb" not in candidate
-    assert 'qualification_host="pop-os.lan"' not in candidate
+    assert 'qualification_host="pop-os.lan"' in candidate
     assert 'qualification_target="targets/carbonteq-rtx-pro-6000-96gb"' not in candidate
 
     assert "candidate-version --simple-url" not in candidate

@@ -27,10 +27,19 @@ The work spans two repositories with separate ownership. Generic storage and API
 - [x] (2026-08-07) Stop opening the first trace detail automatically; trace-list summaries are fetched when the trace section opens and the full transcript is fetched only after an explicit trace selection.
 - [x] (2026-08-07) Isolate the remaining large-run delay to Trackio client/server revision skew: starting the working-tree Trackio server was insufficient while Observatory still imported the installed post10 client and therefore materialized every trace to compute `trace_count`.
 - [x] (2026-08-07) Relaunch the local Observatory process with the same Trackio working tree on its import path and remeasure the large RTX PRO GRPO overview and trace tab independently.
-- [ ] Decide whether to publish/pin the Trackio fork; no release or production switch is authorized by this plan alone.
+- [x] (2026-08-24) Publish and promote the immutable Trackio dev18 fork assets, then select the exact stable package in Posttrain.
 - [x] (2026-08-07) Split trace population aggregates from the paged trace table. Optimization jobs use their recorded `train/rl/*` population aggregates and fetch only one 100-row summary page; evaluation jobs can request aggregate-only evidence independently.
 - [x] (2026-08-07) Add cursor pagination, explicit load-more behavior, and exact-detail click-through to the Observatory HTTP, MCP, service, and frontend contracts.
 - [x] (2026-08-07) Reuse the bounded run metadata already loaded for Overview for trace pages and detail reads, with a 60-second expiry for live runs and a five-minute expiry for terminal runs.
+- [x] (2026-08-24) Measure the deployed Observatory waterfall and payload shape for the active Ambient GRPO run. Sources took about 6.3 seconds, direct run metadata about 13.8 seconds, the automatic view about 7.4 seconds and 1.26 MB, and the old Metrics tab about 17.5 seconds before it could issue its selected-series request.
+- [x] (2026-08-24) Extend generic metric history with inclusive logical step bounds, bounded provider pages, Doris JSON-key projection, and replay-step preservation in Trackio and the framework adapters.
+- [x] (2026-08-24) Change the Metrics tab to fetch its catalog and selected bounded series directly instead of fetching a complete generic run view first.
+- [x] (2026-08-24) Strip point attributes from chart presentation after replay projection, cache source-health probes for 60 seconds, and cache Trackio run metadata for 15 seconds so adjacent tab requests reuse the same metadata read.
+- [x] (2026-08-24) Apply the same Doris JSON-key projection to system telemetry, retain Trackio's existing run-wide 3,000-sample bound, and stop background refreshes from rebuilding the full automatic view while Metrics, System metrics, Traces, Artifacts, or Run config is active.
+- [x] (2026-08-24) Run the complete validation ladder in both clean worktrees and qualify a local Trackio plus local Observatory against the production Doris database and artifact registry using read-only requests.
+- [x] (2026-08-24) Commit and publish Trackio first, update the immutable Trackio pin and `uv.lock` in the framework, and prepare the coordinated Posttrain release. New model/evaluation qualification jobs are intentionally omitted; the protected release canary remains governed by the release workflow.
+- [x] (2026-08-24) Diagnose the first protected canary as 96-GiB worker contention and restore the explicitly placed RTX 4090 profile after live dstack inventory again proved the host is a healthy 24-GiB RTX 4090.
+- [x] (2026-08-24) Diagnose the replacement canary failure as Doris connection exhaustion during Trackio artifact finalization, close only 86 stale Trackio sessions older than five minutes, and retain the 14 recent sessions without restarting Trackio or Doris.
 
 ## Surprises & Discoveries
 
@@ -74,6 +83,18 @@ The work spans two repositories with separate ownership. Generic storage and API
   Evidence: direct HTTP timings for `/traces?limit=100` and `/traces?limit=100&cursor=100` against the live local Doris-backed run on 2026-08-07.
 - Observation: an aggregate-only evaluation response removes raw trace rows from browser transfer but still costs approximately 12 seconds and 227 KB on this 16,767-rollout training run because Observatory computes 5,000-record evaluation-style slices. Optimization jobs no longer issue that request. A future large evaluation population may still justify provider-native aggregate projection, but it is no longer on the GRPO/DAPO page-load path.
   Evidence: direct `/traces-evaluation?include_traces=false` timing and the browser/server request log showing no evaluation request when opening the optimization trace tab.
+- Observation: the deployed 2026-08-24 run view still serialized metric-point attributes into every chart even though the chart renderer does not use them. About 75 percent of the 1.26 MB automatic-view chart payload was repeated attribute data.
+  Evidence: browser response-body inspection of the active Ambient GRPO run showed 38 unique plotted series and roughly 843 KB of point attributes, so the excess was not duplicate chart selection.
+- Observation: the Metrics tab still performed two sequential job-independent reads: a complete generic view followed by a selected metric-series request. Periodic automatic-view refresh could overlap those reads and multiply Doris and serialization work.
+  Evidence: the browser network waterfall showed `/view?mode=generic` taking about 17.5 seconds before the selected `metric` request began, while a periodic `/view?mode=auto` was concurrently in flight.
+- Observation: system history was already capped to a run-wide 3,000-sample response, but Doris selected and decoded the complete JSON object for every retained sample before filtering requested keys in Python.
+  Evidence: `trackio/doris_storage.py::get_system_logs` selected `metrics`; its normal metric counterpart now proves `JSON_EXTRACT` can project the requested keys while preserving the same logical values.
+- Observation: named JSON projection alone still returned rows where every selected name was absent. Replay-safe scans and sparse metric cards therefore paid for pages of empty timestamp/step records.
+  Evidence: the first local bounded metric request took 18--34 seconds even though direct projected pages contained only 44 points per selected series. Adding the opt-in `drop_empty` storage predicate reduced the same request to about 0.27--0.33 seconds.
+- Observation: the CLI project launcher deliberately reloads the protected machine/project tracking endpoint and can override a process-level test URL. A qualification that only exports `POSTTRAIN_TRACKIO_SERVER_URL` can therefore appear local while still calling the deployed service.
+  Evidence: the first local Observatory emitted no requests to the local Trackio access log. Launching `posttrain_observatory.serve` with an explicit `ObservatorySettings.trackio_server_url` produced the expected local request stream.
+- Observation: the protected v0.3.23 canary reached the explicitly selected RTX 4090 and completed its transform path, but Trackio artifact finalization failed because Doris reported all 100 connections for the Trackio user occupied. Doris showed 86 sessions older than five minutes while the Trackio container had only two established Doris TCP connections; closing only those stale sessions restored capacity to 14 of 100.
+  Evidence: candidate run `32709713384`, bounded dstack workload logs for provider run `pt-6ecb8a4c902f55085e47d154`, live Doris `information_schema.processlist`, and the Trackio container network namespace on 2026-08-24.
 
 ## Decision Log
 
@@ -113,6 +134,18 @@ The work spans two repositories with separate ownership. Generic storage and API
 - Decision: Keep aggregate-only evaluation and paged summary reads as separate API calls. An evaluation can progressively render its first trace page while whole-population aggregates resolve, and a training job can omit the evaluation request entirely.
   Rationale: page browsing, whole-population interpretation, and exact transcript inspection have different cost and payload shapes and should not block one another.
   Date/Author: 2026-08-07 / Codex.
+- Decision: Preserve replay semantics while applying `start_step` and `end_step` in storage. A small attributes-only scan locates appended replay rows whose physical provider step is outside the logical requested range, then exact provider-step reads retrieve only those rows.
+  Rationale: applying physical bounds alone would silently lose resumed/replayed evidence; disabling all bounds for replay-capable runs would retain the production performance failure.
+  Date/Author: 2026-08-24 / Codex.
+- Decision: Treat each Observatory section as an independent read surface. Metrics uses catalog plus selected series, System metrics uses bounded projected host telemetry, Traces uses summary pages plus exact detail, and non-active sections do not trigger a full automatic-view refresh.
+  Rationale: tab navigation must not load unrelated evidence, and a 60-second refresh must not recreate the same cross-tab waterfall in the background.
+  Date/Author: 2026-08-24 / Codex.
+- Decision: Use short-lived caches only for source health and immutable-shaped run metadata, not metric values or trace pages.
+  Rationale: 60-second source-health and 15-second metadata reuse removes adjacent duplicate probes while bounded evidence endpoints continue to reflect live values on each request.
+  Date/Author: 2026-08-24 / Codex.
+- Decision: Add `drop_empty` as an opt-in Trackio history argument and apply its predicate before pagination; retain the historical timestamp/step-only rows when the option is omitted.
+  Rationale: Observatory needs pages of selected observations rather than pages of unrelated sparse rows, but existing Trackio consumers may depend on projected history retaining every physical occurrence.
+  Date/Author: 2026-08-24 / Codex.
 
 ## Outcomes & Retrospective
 
@@ -121,6 +154,10 @@ The local Trackio fork now supports bounded history/system reads, provider-side 
 The large-run timeout has now been reproduced and removed from the local preview by making Observatory import the same Trackio working tree as the local Trackio server. The old client/server mismatch remains a production release gate: the deployed post10 pair lacks the bounded contract, and there is no published immutable Trackio revision or updated framework pin.
 
 The trace-tab gate is complete for optimization jobs. GRPO/DAPO no longer runs the 5,000-record evaluation projection. It reads full-population learning evidence from the run's recorded scalar metrics, requests 100 summary rows at a time, merges pages explicitly in the UI, and requests one complete transcript only after selection. Against the 16,767-rollout RTX PRO run, a warmed first page was approximately 0.21 seconds and 219 KB and the next page was approximately 0.31 seconds and 220 KB, versus the former approximately 11.1-second, 11.2 MB response. Aggregate-only evaluation remains independently available and honest; very large evaluation jobs may still need a provider-native aggregation endpoint if live measurements show the current bounded scan is too slow.
+
+The 2026-08-24 follow-up implements and locally qualifies the missing full-stack metric projection. Ordinary and system history now project named JSON fields in Doris; logical step bounds, empty-row omission, and bounded pages reach storage; replay rows remain visible in logical windows; chart presentation omits attributes after using them for logical projection; and the frontend no longer fetches a complete generic view merely to open Metrics. The local API measured sources at about 0.15 seconds, project runs at 0.17 seconds, selected metrics at 0.33 seconds, a 100-row trace page at 0.27 seconds, system metrics at 1.8 seconds, and Overview at 3.8 seconds. System payload fell from about 800 KB to 166 KB. Browser section paints measured about 0.27 seconds for Metrics, 0.39 seconds for Rollouts, 0.27 seconds for Artifacts and Run Config, and 1.98 seconds for System metrics. The read-only artifact bucket/prefix probe succeeded.
+
+Validation is complete in source: Trackio reports 418 passed and 6 skipped unit tests plus repository-wide Ruff; Posttrain reports 1,286 passed and 23 skipped tests, 73 frontend tests, TypeScript checking, production frontend build, repository-wide Ruff, Pyright, import contracts, and clean diffs. Trackio dev18 is committed, published, promoted byte-for-byte to the stable index, and selected by the framework. Posttrain publication, service deployment, and production timing remain separate gates.
 
 ## Context and Orientation
 
@@ -184,3 +221,7 @@ The live response is intentionally abbreviated and contains no credentials.
 The final Trackio client interface must preserve `Run.history(keys=None, scalar_only=False)` and add optional page arguments without changing defaults; similarly for `Run.system_history`. `Run.traces` must accept `include_payload`, and `Run.trace_count` must be an aggregate read. Server endpoints `/get_run_history`, `/get_system_logs`, `/get_traces`, `/get_trace_count`, and `/get_runs_for_project` must accept validated optional bounds. `TrackioDataSource.traces` must continue returning `posttrain.tracking.TracePage` and use `TraceQuery`'s cursor/limit; its optional `get_trace` method is the exact-detail seam used by Observatory. SQLite and Doris remain interchangeable implementations of the same logical results. The framework package continues to depend on the immutable Trackio fork pin; that pin is updated only in a later release step after the fork commit is available.
 
 Plan revision note (2026-08-07): initial plan created after tracing the unbounded Trackio-to-Observatory read path; scope deliberately separates generic Trackio pagination from framework adapter behavior. Updated the plan after clarifying that trace list pages must be summary-only while click-through detail loads one complete trace.
+
+Plan revision note (2026-08-24): updated after a live browser waterfall showed that metric JSON projection, chart serialization, duplicate metadata reads, system-metric JSON decoding, and cross-tab refresh behavior were the remaining bottlenecks. The plan now records the implemented full-stack bounds and the still-pending release/deployment gates.
+
+Plan revision note (2026-08-24, local qualification): recorded the empty-row pagination repair, explicit local-endpoint wiring requirement, complete validation results, production-data timings, and read-only artifact-registry evidence.

@@ -3,14 +3,14 @@
 The platform uses [`carbonteq-ai/trackio`](https://github.com/carbonteq-ai/trackio),
 an additive fork of upstream Trackio. Workspace packages keep the normal
 `import trackio` API. The current framework dependency is
-`carbonteq-trackio==0.31.5.post14.dev17`, built from immutable fork commit
-`ec7d0635f5cbf215a7566e4c3a9d54952504c4c7`. Its wheel
-(`e9fe814b24a3043b96fc3cf912b84bb59fad936513512d82be6eb7338e6783f9`) and
-sdist (`2c9f7a4bf2ea3de9e7cf9ea0eabd39273215d2de0310fc0232e1d5a3103e4c2a`)
-were released manually as `carbonteq-v0.31.5.post14.dev17`, published
-unchanged to `carbonteq/dev` by Posttrain workflow `31912187051`, then promoted
-byte-for-byte to `carbonteq/stable` by workflow `31912744698` after the live
-Doris trace/fact qualification. The development suffix is part of the immutable
+`carbonteq-trackio==0.31.5.post14.dev18`, built from immutable fork commit
+`21d9ebeffeae84cae95dc424b83d617a48f8d265`. Its wheel
+(`ee988a495f9d8f1618a66fa84276a34f06c9f994017e591cc3130200bf3645ad`) and
+sdist (`a08f23e173de226ec092825ff3eee12221e373736c40f97fdaf37c0e99d3ad6e`)
+were released manually as `carbonteq-v0.31.5.post14.dev18`, published
+unchanged to `carbonteq/dev` by Posttrain workflow `32706453302`, then promoted
+byte-for-byte to `carbonteq/stable` by workflow `32706528612` after the local
+production-Doris read qualification. The development suffix is part of the immutable
 version; it does not make the stable-index publication mutable.
 This release adds generic typed trace facts: Posttrain supplies the versioned
 scalar projection from native Verifiers records, Trackio persists facts on the
@@ -63,6 +63,19 @@ facts and leaves an early fact durable for retry. Explicit `Run.flush()` and
 `Run.upsert_trace_facts()` retain their synchronous read-after-write meaning
 for maintenance callers. Posttrain's training adapter uses only the new
 enqueue operation, so optimizer progress is not coupled to Doris latency.
+
+Dev18 adds storage-applied metric step windows
+and named JSON-field projection. Observatory can request only the selected
+metric names and logical step interval in bounded pages; Doris no longer sends
+the full per-step JSON object to Trackio for those reads. Requested system
+metrics use the same named-field projection while Trackio retains its existing
+3,000-sample run-wide bound. The opt-in `drop_empty` history argument applies a
+requested-key existence predicate before pagination, so sparse selected-series
+pages contain observations rather than unrelated timestamp/step-only rows.
+Posttrain preserves resumed/replayed points by
+resolving their recorded logical `source_step` before presenting a requested
+window. The fork release and stable package publication are complete; service
+deployment and production timing remain separate operational gates.
 
 Dev11 adds the bounded generic `/bulk_upsert_trace_facts` endpoint. Posttrain
 uses it only for one already-projected historical page at a time; all facts
