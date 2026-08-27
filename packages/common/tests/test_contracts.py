@@ -107,7 +107,10 @@ class IdentityContractTests(unittest.TestCase):
             },
         )
         package_template = FOUNDATION_VARIANTS["lfm2.5-1.2b-thinking"].trace_identity()
-        self.assertEqual(package_template["tokenizer_revision"], "95053d21d8e0b7ca99421a2127ae39c64f685ff3")
+        self.assertEqual(
+            package_template["tokenizer_revision"],
+            "df1d8d5ec5d091b460562ffd545e4a5e91d17d4a0db7ebe733be34ed374377bd",
+        )
         self.assertRegex(str(package_template["template_revision"]), r"^package-sha256:[0-9a-f]{64}$")
 
         with self.assertRaisesRegex(ContractError, "pinned base artifact"):

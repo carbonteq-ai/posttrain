@@ -10,6 +10,7 @@ import pytest
 from posttrain.common import (
     Catalog,
     CatalogRef,
+    ContractError,
     EventObservation,
     ExecutionTarget,
     InferenceBinding,
@@ -397,6 +398,24 @@ def test_native_verifiers_sampling_preserves_complete_generation_policy() -> Non
     )
     evaluation = replace(
         evaluation,
+        inference=replace(
+            evaluation.inference,
+            sampling={
+                "temperature": 1.0,
+                "top_p": 0.95,
+                "top_k": 20,
+                "min_p": 0.0,
+                "repetition_penalty": 1.05,
+                "presence_penalty": 1.5,
+                "seed": 20260827,
+                "mode_id": "qwen-thinking-card-v1",
+                "maximum_context": 32768,
+                "reasoning_parser": "qwen3",
+                "streaming_enabled": True,
+                "chat_template_kwargs": {"enable_thinking": True},
+            },
+            reasoning_mode="thinking",
+        ),
         plan=replace(evaluation.plan, environments=(environment,)),
     )
 
@@ -408,8 +427,21 @@ def test_native_verifiers_sampling_preserves_complete_generation_policy() -> Non
         "min_p": 0.0,
         "repetition_penalty": 1.05,
         "presence_penalty": 1.5,
-        "chat_template_kwargs": {"enable_thinking": False},
+        "seed": 20260827,
+        "mode_id": "qwen-thinking-card-v1",
+        "maximum_context": 32768,
+        "reasoning_parser": "qwen3",
+        "streaming_enabled": True,
+        "chat_template_kwargs": {"enable_thinking": True},
     }
+
+
+def test_inference_reasoning_mode_must_belong_to_the_model_renderer() -> None:
+    evaluation = request()
+    thinking = replace(evaluation.inference, reasoning_mode="thinking")
+    assert replace(evaluation, inference=thinking).resolved_reasoning_mode == "thinking"
+    with pytest.raises(ContractError, match="unsupported reasoning mode"):
+        replace(evaluation.inference, reasoning_mode="unsupported")
 
 
 def test_remote_binding_maps_to_the_native_verifiers_client_without_a_custom_loop(tmp_path: Path) -> None:

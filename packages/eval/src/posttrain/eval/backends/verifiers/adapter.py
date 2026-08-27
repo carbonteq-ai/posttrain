@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol, cast
 
-from posttrain.common import JsonValue, RunContext, TraceObservation
+from posttrain.common import InferenceBinding, JsonValue, RunContext, TraceObservation
 from posttrain.environment import project_verifiers_trace_facts, verifiers_trace_attributes
 
 from ...requests import EvaluateRequest, RemotePolicy
@@ -59,9 +59,19 @@ def _native_sampling(request: EvaluateRequest) -> dict[str, JsonValue]:
     if policy.reasoning_effort is not None:
         values["reasoning_effort"] = policy.reasoning_effort
     if not isinstance(request.model, RemotePolicy):
+        if not isinstance(request.inference, InferenceBinding):
+            raise TypeError("local model evaluation requires a local inference binding")
+        inference = cast(InferenceBinding, request.inference)
+        values.update(inference.sampling)
         template_kwargs = request.model.conversation.reasoning_mode(request.resolved_reasoning_mode).kwargs()
-        if template_kwargs:
-            values["chat_template_kwargs"] = cast(dict[str, JsonValue], template_kwargs)
+        declared_kwargs = values.get("chat_template_kwargs")
+        if declared_kwargs is not None and not isinstance(declared_kwargs, dict):
+            raise ValueError("inference chat_template_kwargs must be an object")
+        merged_kwargs = dict(cast(dict[str, JsonValue], declared_kwargs or {}))
+        for key, value in template_kwargs.items():
+            merged_kwargs.setdefault(key, value)
+        if merged_kwargs:
+            values["chat_template_kwargs"] = merged_kwargs
     service = request.remote_service
     if service is not None:
         values.update(service.request_defaults)

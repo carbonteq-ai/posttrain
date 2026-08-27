@@ -4,7 +4,7 @@ This ExecPlan is a living document. The sections `Progress`, `Surprises & Discov
 
 ## Purpose / Big Picture
 
-Policy Prism needs three small causal language-model bases for a fair classification and relationship-linking comparison: Qwen3.5-0.8B, LFM2.5-350M, and LFM2.5-1.2B-Instruct. After this work, PostTrain can identify the exact immutable weights and tokenizer, render LFM Instruct conversations without the LFM Thinking behavior, serve both LFM bases through vLLM, and fine-tune either with assistant-only TRL LoRA. This change supplies capability; it does not run the Policy Prism comparison or merge this feature branch into `main`.
+Policy Prism needs exact small causal language-model subjects for a fair classification and relationship-linking comparison: Qwen3.5-0.8B in non-thinking and thinking modes, LFM2.5-350M, LFM2.5-1.2B-Instruct, and the separate LFM2.5-1.2B-Thinking checkpoint. After this work, PostTrain can identify the exact immutable weights and tokenizer, apply each model-card decoding and reasoning contract, render LFM Instruct conversations without pretending it has a thinking switch, serve the variants through vLLM, and fine-tune the supported Instruct bases with assistant-only TRL LoRA. This change supplies capability; it does not run the Policy Prism comparison or merge this feature branch into `main`.
 
 ## Progress
 
@@ -22,13 +22,14 @@ Policy Prism needs three small causal language-model bases for a fair classifica
 - [x] (2026-08-22) Extended resolved job-plan evidence to preserve tokenizer fingerprints, checkpoint/logging policy, gradient-checkpointing state, and loss-only validation settings before immutable packing.
 - [x] (2026-08-22) Re-ran the complete framework gate after the plan-evidence change: Ruff, Pyright, all 8 import contracts, and 1,289 tests passed; 25 environment-dependent tests skipped.
 - [ ] Submit and later reconcile the two Policy Prism critic SFT jobs; submission and qualification evidence remain outside the model-support-only commits above.
+- [x] (2026-08-27) Connected each evaluation inference binding's complete sampling and reasoning-mode selection to the native Verifiers request, refreshed the exact LFM Thinking revision/template/parser, and validated the Policy Prism decoding path offline. Live GPU handshakes remain part of the later prompt-v3 model-selection run.
 
 ## Surprises & Discoveries
 
 - Observation: the LFM2.5-350M and LFM2.5-1.2B-Instruct repositories contain byte-identical tokenizers and chat templates at the requested revisions.
   Evidence: `tokenizer.json` hashes to `df1d8d5ec5d091b460562ffd545e4a5e91d17d4a0db7ebe733be34ed374377bd`; `chat_template.jinja` hashes to `ba551d58630afa3190b1be3602e28301f3d2e9bbac978dfc49d6d825171648b6` for both.
-- Observation: the official LFM Instruct template is not the Thinking template and is also more complete than PostTrain's older Thinking compatibility template.
-  Evidence: the pinned Thinking template hashes to `f05bf4b967dc993bdc7a2fe6e43759ee218eb0eb340d68b063e1c4f8ad148176`; the Instruct template contains explicit Transformers `{% generation %}` boundaries that support assistant-only loss masks.
+- Observation: the exact current LFM Thinking revision uses the same tokenizer and chat-template bytes as the pinned Instruct revision; PostTrain's older Thinking compatibility template was stale.
+  Evidence: both exact artifacts hash to tokenizer `df1d8d5ec5d091b460562ffd545e4a5e91d17d4a0db7ebe733be34ed374377bd` and chat template `ba551d58630afa3190b1be3602e28301f3d2e9bbac978dfc49d6d825171648b6`; mode and reasoning-parser behavior remain checkpoint/binding-specific.
 - Observation: the upstream JSON configs advertise 128,000 positions, while both official model cards state a supported context length of 32,768 tokens.
   Evidence: this plan uses 32,768 as the operational and catalog capability limit instead of claiming the larger raw configuration value.
 - Observation: the repository's default test environment intentionally omits Transformers and the training renderer dependency, so tokenizer tests skip in the ordinary full suite.
@@ -41,6 +42,8 @@ Policy Prism needs three small causal language-model bases for a fair classifica
   Evidence: the feature branch now adds only the CLI wrapper and its no-run unit test; it does not import the unrelated OPD recovery changes where the command first appeared.
 - Observation: PostTrain already rejects non-finite loss or gradient metrics in its shared TRL observation callback.
   Evidence: the new SFT-specific first-step regression proves `loss=nan` at global step 1 raises `FloatingPointError`; no duplicate callback was introduced.
+- Observation: the canonical product documents already assign purpose-specific generation defaults to `InferenceBinding.sampling`, but the Verifiers evaluation adapter currently takes generation values only from the environment cell.
+  Evidence: `docs/post-training/02-primitives.md` assigns temperature and output limits to the inference binding, while `_native_sampling` in the Verifiers adapter currently reads `request.environment.sampling` and ignores the selected local inference binding's sampling mapping.
 
 ## Decision Log
 
@@ -65,10 +68,16 @@ Policy Prism needs three small causal language-model bases for a fair classifica
 - Decision: expose the existing authenticated Trackio readiness check through the primary CLI rather than carrying a temporary handoff script.
   Rationale: job submission must prove tracking writes before spending GPU time; a narrow reusable command is safer and matches the product CLI boundary.
   Date/Author: 2026-08-21 / Codex.
+- Decision: make local evaluation sampling resolve from environment defaults followed by the selected inference binding, and make the inference binding own an optional explicit reasoning mode.
+  Rationale: environment defaults retain task-owned output budgets, while the selected model/runtime binding must authoritatively supply model-card sampling and renderer mode. This implements the already-frozen product ownership without a Policy Prism-specific framework type.
+  Date/Author: 2026-08-27 / Codex.
+- Decision: defer real vLLM calls to the prompt-v3 model-selection execution and accept this slice using exact catalog contracts, a real HTTP-compatible fake endpoint, and offline tokenizer measurements.
+  Rationale: live handshakes and the full model-selection evaluation can share the same GPU allocation and exact run manifests without weakening the offline runtime-contract tests.
+  Date/Author: 2026-08-27 / Codex.
 
 ## Outcomes & Retrospective
 
-The exact variants, dedicated Instruct renderer, vLLM bindings, TRL all-linear LoRA binding, SFT settings, and all requested contract tests are complete. The official tokenizer/template tests proved deterministic rendering, assistant-only masking, supervised stop-token placement, and no target truncation. Static and full test gates pass, and the two focused delivery commits are complete. Actual GPU model loading and a trained-adapter reload remain a correctly identified live gate for the subsequent evaluation/SFT phase.
+The exact variants, dedicated Instruct renderer, vLLM bindings, TRL all-linear LoRA binding, SFT settings, and requested contract tests are complete. Evaluation sampling now resolves from task defaults followed by the selected inference binding, preserving exact Qwen/LFM card modes and renderer kwargs. The official LFM Thinking revision, tokenizer/template identity, BF16 runtime, and `qwen3` parser are corrected. Focused contracts, catalog validation, and import boundaries pass. Actual GPU loading and HTTP parameter acceptance remain a deliberately deferred handshake at the start of prompt-v3 model selection.
 
 ## Context and Orientation
 
@@ -83,6 +92,7 @@ The immutable model matrix is:
 - `Qwen/Qwen3.5-0.8B` at `2fc06364715b967f1860aea9cf38778875588b17`; existing PostTrain support is reused.
 - `LiquidAI/LFM2.5-350M` at `9e6c6ccf47cd318696e137d381a7ded8fe4df09f`; 354,483,968 BF16 parameters.
 - `LiquidAI/LFM2.5-1.2B-Instruct` at `df58c174f05ff733f83f8cae10ea9298224c8006`; 1,170,340,608 BF16 parameters.
+- `LiquidAI/LFM2.5-1.2B-Thinking` at `f313478934a7612d22991f752959d7a1a8756fec`; separate BF16 reasoning subject for evaluation only.
 
 ## Plan of Work
 
@@ -131,7 +141,7 @@ Official-artifact evidence:
 
     LFM Instruct tokenizer.json sha256 df1d8d5ec5d091b460562ffd545e4a5e91d17d4a0db7ebe733be34ed374377bd
     LFM Instruct chat_template.jinja sha256 ba551d58630afa3190b1be3602e28301f3d2e9bbac978dfc49d6d825171648b6
-    LFM Thinking chat_template.jinja sha256 f05bf4b967dc993bdc7a2fe6e43759ee218eb0eb340d68b063e1c4f8ad148176
+    LFM Thinking chat_template.jinja sha256 ba551d58630afa3190b1be3602e28301f3d2e9bbac978dfc49d6d825171648b6
 
 Validation evidence:
 
@@ -142,6 +152,8 @@ Validation evidence:
     uv run pytest: 1272 passed, 25 skipped
     exact LFM tokenizer/rendering subset: 7 passed, unrelated uncached variants skipped
     git diff --check: passed
+    2026-08-27 focused decoding contracts: 51 passed, 2 skipped
+    2026-08-27 catalog validation: 80 base entries, 94 project entries
 
 ## Interfaces and Dependencies
 

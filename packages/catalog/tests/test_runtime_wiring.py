@@ -83,7 +83,64 @@ def test_lfm_instruct_catalog_resolves_exact_eval_and_sft_contracts(tmp_path: Pa
         assert inference.engine["max_model_len"] == 32_768
         assert inference.engine["tool_call_parser"] == "lfm2"
         assert "reasoning_parser" not in inference.engine
+        assert inference.reasoning_mode == "off"
+        if model_id == "models/lfm2.5-1.2b-instruct@bf16":
+            assert inference.sampling["top_k"] == 50
+            assert inference.sampling["repetition_penalty"] == 1.05
         assert isinstance(settings, SFTSettings)
         request = SFTRequest(model=model, data=dataset, settings=settings, training=training)
         assert request.training.renderer.model_family == request.model.family
         assert request.data.descriptor.num_examples == 2
+
+
+def test_policy_prism_critic_modes_resolve_exact_model_card_contracts() -> None:
+    catalog = open_catalog(scope="empty-project")
+    expected = {
+        "inference/qwen3.5-0.8b-vllm-eval-off@1": {
+            "temperature": 1.0,
+            "top_p": 1.0,
+            "top_k": 20,
+            "presence_penalty": 2.0,
+            "reasoning_mode": "off",
+            "streaming_enabled": False,
+            "parser": None,
+        },
+        "inference/qwen3.5-0.8b-vllm-eval-thinking@1": {
+            "temperature": 1.0,
+            "top_p": 0.95,
+            "top_k": 20,
+            "presence_penalty": 1.5,
+            "reasoning_mode": "thinking",
+            "streaming_enabled": True,
+            "parser": "qwen3",
+        },
+        "inference/lfm2.5-1.2b-instruct-vllm-eval@1": {
+            "temperature": 0.1,
+            "top_p": 1.0,
+            "top_k": 50,
+            "presence_penalty": 0.0,
+            "reasoning_mode": "off",
+            "streaming_enabled": False,
+            "parser": None,
+        },
+        "inference/lfm2.5-1.2b-vllm-eval@1": {
+            "temperature": 0.05,
+            "top_p": 1.0,
+            "top_k": 50,
+            "presence_penalty": 0.0,
+            "reasoning_mode": "native",
+            "streaming_enabled": True,
+            "parser": "qwen3",
+        },
+    }
+    for binding_id, contract in expected.items():
+        inference = catalog.resolve(CatalogRef("inference", binding_id)).value
+        assert isinstance(inference, InferenceBinding)
+        assert inference.engine["max_model_len"] == 32_768
+        assert inference.engine.get("reasoning_parser") == contract["parser"]
+        assert inference.reasoning_mode == contract["reasoning_mode"]
+        for key in ("temperature", "top_p", "top_k", "presence_penalty", "streaming_enabled"):
+            assert inference.sampling[key] == contract[key]
+        assert inference.sampling["min_p"] == 0.0
+        assert inference.sampling["repetition_penalty"] in {1.0, 1.05}
+        assert inference.sampling["maximum_context"] == 32_768

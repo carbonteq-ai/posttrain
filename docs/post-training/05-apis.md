@@ -364,6 +364,7 @@ is a **field** (`engine`), not its own catalog family. See
 | `renderer` | Renderer contract |
 | `engine` | Backend-owned runtime settings (KV cache, TP, speculative, mem util, …); paired-assistant MTP mappings include an immutable assistant repository and revision |
 | `sampling` | Defaults for generation or token scoring for this purpose |
+| `reasoning_mode` | Optional explicit renderer reasoning mode; otherwise the model default |
 | `target` | `ExecutionTarget` |
 | `purpose` | screen \| eval \| rollout \| teacher-score \| smoke \| handoff |
 | `capabilities` | Portable interaction capabilities this complete model/backend binding is qualified to provide |

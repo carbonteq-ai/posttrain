@@ -56,19 +56,23 @@ model:
     artifact:
       kind: hub
       repo_id: LiquidAI/LFM2.5-1.2B-Thinking
-      revision: 95053d21d8e0b7ca99421a2127ae39c64f685ff3
+      revision: f313478934a7612d22991f752959d7a1a8756fec
     form: foundation
     weight_precision: bf16
     family: lfm2.5
     parameters: 1170000000
     instruction_tuned: true
     renderer_contract: lfm2.5-tools@1
+    tokenizer_fingerprint: df1d8d5ec5d091b460562ffd545e4a5e91d17d4a0db7ebe733be34ed374377bd
     capabilities:
       modalities: [text]
       native_context_window: 32768
       mtp: false
     provenance:
       source: huggingface
+      license: lfm1.0
+      upstream_architecture: Lfm2ForCausalLM
+      chat_template_sha256: ba551d58630afa3190b1be3602e28301f3d2e9bbac978dfc49d6d825171648b6
   models/lfm2.5-350m@bf16:
     artifact:
       kind: hub

@@ -107,6 +107,7 @@ class InferenceBinding:
     target: ExecutionTarget
     purpose: tuple[Purpose, ...]
     capabilities: tuple[str, ...] = ()
+    reasoning_mode: str | None = None
     startup_timeout_seconds: float = 180.0
 
     def __post_init__(self) -> None:
@@ -124,6 +125,8 @@ class InferenceBinding:
             raise ContractError("inference capabilities must be unique")
         for capability in self.capabilities:
             validate_selection_id(capability, "inference capability")
+        if self.reasoning_mode is not None:
+            self.model.conversation.reasoning_mode(self.reasoning_mode)
         if "tool-calling" in self.capabilities and self.model.conversation.tool_calls is None:
             raise ContractError("tool-calling inference requires a model renderer with a tool-call protocol")
         if self.startup_timeout_seconds <= 0:

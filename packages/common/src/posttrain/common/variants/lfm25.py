@@ -105,7 +105,7 @@ LFM_25_12B_THINKING = ModelVariant(
     id="lfm2.5-1.2b-thinking",
     artifact=HubModelRef(
         repo_id="LiquidAI/LFM2.5-1.2B-Thinking",
-        revision="95053d21d8e0b7ca99421a2127ae39c64f685ff3",
+        revision="f313478934a7612d22991f752959d7a1a8756fec",
     ),
     form="foundation",
     weight_precision="bf16",
@@ -116,6 +116,13 @@ LFM_25_12B_THINKING = ModelVariant(
     renderer=LFM25_RENDERER_CONTRACT,
     base=HubModelRef(
         repo_id="LiquidAI/LFM2.5-1.2B-Thinking",
-        revision="95053d21d8e0b7ca99421a2127ae39c64f685ff3",
+        revision="f313478934a7612d22991f752959d7a1a8756fec",
     ),
+    tokenizer_fingerprint=_LFM25_TOKENIZER_FINGERPRINT,
+    provenance={
+        "source": "huggingface",
+        "license": "lfm1.0",
+        "upstream_architecture": "Lfm2ForCausalLM",
+        "chat_template_sha256": "ba551d58630afa3190b1be3602e28301f3d2e9bbac978dfc49d6d825171648b6",
+    },
 )

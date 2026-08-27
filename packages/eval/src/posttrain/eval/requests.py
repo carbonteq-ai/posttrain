@@ -8,7 +8,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Literal
+from typing import Literal, cast
 from urllib.parse import urlsplit
 
 from posttrain.common import (
@@ -451,7 +451,15 @@ class EvaluateRequest:
     def resolved_reasoning_mode(self) -> str:
         if isinstance(self.model, RemotePolicy):
             return "provider-default"
-        return self.reasoning_mode or self.model.default_reasoning_mode
+        if not isinstance(self.inference, InferenceBinding):
+            raise TypeError("local evaluation requires a local inference binding")
+        inference = cast(InferenceBinding, self.inference)
+        model = cast(ModelVariant, self.model)
+        return (
+            self.reasoning_mode
+            or inference.reasoning_mode
+            or model.default_reasoning_mode
+        )
 
     @property
     def resolved_endpoint(self) -> EvaluationEndpoint:

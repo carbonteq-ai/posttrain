@@ -1,4 +1,70 @@
 inference:
+  inference/qwen3.5-0.8b-vllm-eval-off@1:
+    revision: "1"
+    model: models/qwen3.5-0.8b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools@1
+    engine:
+      max_model_len: 32768
+      gpu_memory_utilization: 0.75
+      dtype: bfloat16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 8
+      max_num_batched_tokens: 4096
+      kv_cache_dtype: auto
+      text_only: true
+      skip_mm_profiling: true
+    sampling:
+      temperature: 1.0
+      top_p: 1.0
+      top_k: 20
+      min_p: 0.0
+      presence_penalty: 2.0
+      repetition_penalty: 1.0
+      seed: 20260827
+      mode_id: qwen-non-thinking-card-v1
+      maximum_context: 32768
+      streaming_enabled: false
+    reasoning_mode: "off"
+    target: targets/local-cuda-8gb
+    purpose: [screen, eval, smoke]
+  inference/qwen3.5-0.8b-vllm-eval-thinking@1:
+    revision: "1"
+    model: models/qwen3.5-0.8b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools@1
+    engine:
+      max_model_len: 32768
+      gpu_memory_utilization: 0.75
+      dtype: bfloat16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 8
+      max_num_batched_tokens: 4096
+      kv_cache_dtype: auto
+      text_only: true
+      skip_mm_profiling: true
+      reasoning_parser: qwen3
+    sampling:
+      temperature: 1.0
+      top_p: 0.95
+      top_k: 20
+      min_p: 0.0
+      presence_penalty: 1.5
+      repetition_penalty: 1.0
+      seed: 20260827
+      mode_id: qwen-thinking-card-v1
+      maximum_context: 32768
+      reasoning_parser: qwen3
+      streaming_enabled: true
+    reasoning_mode: thinking
+    target: targets/local-cuda-8gb
+    purpose: [screen, eval, smoke]
   inference/qwen3.5-0.8b-vllm-automationbench-rollout-mtp@1:
     revision: "1"
     model: models/qwen3.5-0.8b@bf16
@@ -476,7 +542,7 @@ inference:
       text_only: true
       skip_mm_profiling: true
       tool_call_parser: lfm2
-      reasoning_parser: lfm2
+      reasoning_parser: qwen3
     sampling:
       max_tokens: 128
       temperature: 0.0
@@ -490,21 +556,31 @@ inference:
     engine:
       max_model_len: 32768
       gpu_memory_utilization: 0.75
-      dtype: float16
+      dtype: bfloat16
       load_format: auto
       enforce_eager: true
       enable_chunked_prefill: true
       disable_log_stats: false
       max_num_seqs: 4
       max_num_batched_tokens: 4096
-      kv_cache_dtype: turboquant_k8v4
+      kv_cache_dtype: auto
       text_only: true
       skip_mm_profiling: true
       tool_call_parser: lfm2
-      reasoning_parser: lfm2
+      reasoning_parser: qwen3
     sampling:
-      max_tokens: 4096
-      temperature: 0.0
+      temperature: 0.05
+      top_p: 1.0
+      top_k: 50
+      min_p: 0.0
+      presence_penalty: 0.0
+      repetition_penalty: 1.05
+      seed: 20260827
+      mode_id: lfm-thinking-card-v1
+      maximum_context: 32768
+      reasoning_parser: qwen3
+      streaming_enabled: true
+    reasoning_mode: native
     target: targets/local-cuda-8gb
     purpose: [eval]
   inference/lfm2.5-350m-instruct-vllm-eval@1:
@@ -529,6 +605,7 @@ inference:
     sampling:
       max_tokens: 512
       temperature: 0.0
+    reasoning_mode: "off"
     target: targets/local-cuda-8gb
     purpose: [screen, eval, smoke]
   inference/lfm2.5-1.2b-instruct-vllm-eval@1:
@@ -551,7 +628,16 @@ inference:
       skip_mm_profiling: true
       tool_call_parser: lfm2
     sampling:
-      max_tokens: 512
-      temperature: 0.0
+      temperature: 0.1
+      top_p: 1.0
+      top_k: 50
+      min_p: 0.0
+      presence_penalty: 0.0
+      repetition_penalty: 1.05
+      seed: 20260827
+      mode_id: lfm-instruct-card-v1
+      maximum_context: 32768
+      streaming_enabled: false
+    reasoning_mode: "off"
     target: targets/local-cuda-8gb
     purpose: [screen, eval, smoke]

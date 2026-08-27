@@ -130,6 +130,7 @@ InferenceBinding      → how those weights generate tokens for a purpose
   ├── backend         → which engine binary (vLLM@…, …)
   ├── engine          → engine-level config (KV cache, TP, speculative, …)
   ├── sampling        → generation defaults for that purpose
+  ├── reasoning_mode  → explicit renderer mode for this binding, or the model default
   └── target          → ExecutionTarget (device / VRAM / placement)
 ```
 
