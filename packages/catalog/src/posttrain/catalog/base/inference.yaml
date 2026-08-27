@@ -603,8 +603,16 @@ inference:
       skip_mm_profiling: true
       tool_call_parser: lfm2
     sampling:
-      max_tokens: 512
-      temperature: 0.0
+      temperature: 0.1
+      top_p: 1.0
+      top_k: 50
+      min_p: 0.0
+      presence_penalty: 0.0
+      repetition_penalty: 1.05
+      seed: 20260827
+      mode_id: lfm-instruct-card-v1
+      maximum_context: 32768
+      streaming_enabled: false
     reasoning_mode: "off"
     target: targets/local-cuda-8gb
     purpose: [screen, eval, smoke]
