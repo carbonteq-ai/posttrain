@@ -48,7 +48,16 @@ def _select_checkpoint_output(
     candidates = tuple(
         link for link in links if getattr(link, "direction", None) == "output" and getattr(link, "kind", None) in kinds
     )
-    if step is not None:
+    if step is None:
+        terminal = tuple(
+            link
+            for link in candidates
+            if "checkpoint_step"
+            not in getattr(getattr(link, "artifact", None), "provider_metadata", {})
+        )
+        if terminal:
+            candidates = terminal
+    else:
         candidates = tuple(
             link
             for link in candidates
