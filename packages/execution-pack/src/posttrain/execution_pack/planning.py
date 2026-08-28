@@ -441,7 +441,10 @@ def _environment_source_requests(
                 raise ContractError(
                     f"project-path environment {source.package!r} must contain a regular pyproject.toml: {source.path}"
                 )
-            snapshot = SourceSnapshotRequest(root=root, includes=(source.path,), install_roots=(source.path,))
+            # The wheel builder verifies the selected package root, not the
+            # enclosing project snapshot. Derive the lock with paths relative
+            # to that same root so planning and materialization agree.
+            snapshot = SourceSnapshotRequest(root=package_root, includes=(".",), install_roots=(".",))
             digest = ImmutableSourceSnapshotter(
                 cache_root=(root / ".posttrain" / "state" / "pack" / "sources")
             ).inspect(snapshot)
