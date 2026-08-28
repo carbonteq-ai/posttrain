@@ -56,6 +56,13 @@ def test_actual_job_from_arguments_are_declared_in_global_scope() -> None:
     assert "ARG POSTTRAIN_KIND_IMAGE" in global_scope
 
 
+def test_actual_job_copies_declared_environment_resources() -> None:
+    with definition_root() as root:
+        dockerfile = (root / "containers/posttrain-job/Dockerfile").read_text()
+
+    assert "COPY --from=packaged-context /environment-resources/ environment-resources/" in dockerfile
+
+
 def test_eval_kind_installs_one_locked_runtime_and_marks_it_preinstalled() -> None:
     with definition_root() as root:
         dockerfile = (root / "containers/posttrain-job-kinds/Dockerfile").read_text()

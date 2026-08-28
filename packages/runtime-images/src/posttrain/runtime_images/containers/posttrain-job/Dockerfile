@@ -189,6 +189,7 @@ RUN "${VIRTUAL_ENV}/bin/python" -c \
 
 COPY --from=packaged-context /config/ config/
 COPY --from=packaged-context /datasets/ datasets/
+COPY --from=packaged-context /environment-resources/ environment-resources/
 RUN cp "context-package-${PACKAGE_KEY}.json" package.json
 
 # Fail the build if the staged manifest is not the authoritative contract, if
