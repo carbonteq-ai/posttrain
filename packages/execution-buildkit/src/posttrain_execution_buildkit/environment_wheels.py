@@ -16,7 +16,12 @@ from pathlib import Path
 from typing import Protocol
 
 from posttrain.common import ContractError
-from posttrain.execution_pack import EnvironmentWheelRequest, ProjectEnvironmentSourceRequest
+from posttrain.execution_pack import (
+    EnvironmentWheelRequest,
+    ProjectEnvironmentSourceRequest,
+    SourcePackage,
+    digest_source_package,
+)
 
 from .git_sources import (
     LockedGitSubdirectory,
@@ -225,7 +230,8 @@ class ImmutableEnvironmentWheelBuilder:
                 raise ContractError(f"project environment source was not materialized: {request.path}") from error
             if not package_root.is_absolute() or package_root.is_symlink() or not package_root.is_dir():
                 raise ContractError(f"project environment source is not a regular directory: {request.path}")
-            if _tree_digest(package_root) != request.tree_digest:
+            source_package = SourcePackage(package_root, (".",))
+            if digest_source_package(source_package) != request.tree_digest:
                 raise ContractError(f"project environment source differs from its planned digest: {request.path}")
             pyproject = package_root / "pyproject.toml"
             if not pyproject.is_file() or pyproject.is_symlink():
@@ -233,7 +239,7 @@ class ImmutableEnvironmentWheelBuilder:
             _verify_project_name(pyproject, request.package)
             wheel = self._build_one(package_root)
             try:
-                if _tree_digest(package_root) != request.tree_digest:
+                if digest_source_package(source_package) != request.tree_digest:
                     raise ContractError(f"project environment source changed during wheel build: {request.path}")
                 wheel_digest = _file_digest(wheel)
                 wheel_size = wheel.stat().st_size
