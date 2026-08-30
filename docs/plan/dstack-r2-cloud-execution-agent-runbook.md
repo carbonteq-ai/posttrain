@@ -39,6 +39,9 @@ and revise the living plan before changing direction:
   digest authority.
 - The universal base image stays unchanged. Preserve inherited OCI blobs and
   publish with no forced recompression.
+- Images and owned resources are selected by immutable digests or stable
+  logical/provider IDs. Timestamps belong only in receipt observations; never
+  use them as image identity, cache lineage, or cleanup selectors.
 - CUDA compatibility stays in the veRL child and is selected automatically by
   the image runtime before CUDA consumers import.
 - dstack receives generic provider-neutral contracts. CarbonTeq hostnames,
@@ -161,6 +164,12 @@ the next row.
 | H — Resilience matrix | Candidate deployments only | Every declared functional failure/restart path passes with bounded resources and no leaks; production fallback remains off |
 | I — Security | Owning forks -> `ai-infra` | Redaction, least privilege, ingress restrictions, secret scans, and negative tests pass; existing credentials are unchanged |
 | J — Promotion | `ai-infra` | Idle-fleet gate passes; immutable release is deployed; bounded fallback, observation window, and rollback are proven |
+
+Current completion: P0 and A are complete. Begin with B unless the living plan
+records newer evidence. Milestone A's retained exact actual-job digest is
+`sha256:38412b847e7977f5c0747d88d2399feabf0a7f5ab2c3a33bd976b703cda50bb9`;
+its successful RunPod receipt is protected under
+`../ai-infra/.state/qualifications/runpod-runtime/successful-canary.json`.
 
 ## Focused execution protocol
 
