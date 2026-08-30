@@ -22,6 +22,7 @@ from posttrain.runtime_images import (
     cached_definition_root,
     constraint_lock,
     lock_digest,
+    runtime_cache_lineage,
     runtime_reproducibility_epoch,
 )
 from posttrain.runtime_images.manifest import ManifestError, PublishedImage, PublishedManifest, load_manifest
@@ -139,11 +140,20 @@ def _bake_variables(
     if variant is not None:
         identity = backend_runtime_identity(variant)
         if identity is not None:
+            lineage = runtime_cache_lineage(variant)
+            if lineage is None:
+                raise ValueError(f"{variant} has backend identity but no cache lineage")
             variables.update(
                 {
+                    "CREATED": lineage.created,
                     "DEPENDENCY_LOCK_SHA256": identity.dependency_lock_digest,
                     "FORK_REVISION": identity.source_revision,
+                    "RELEASE_CREATED": created,
+                    "RELEASE_SOURCE_REVISION": revision,
+                    "RELEASE_VERSION": version,
+                    "SOURCE_REVISION": lineage.source_revision,
                     "SOURCE_REPOSITORY": identity.source_repository,
+                    "VERSION": lineage.version,
                 }
             )
     return variables

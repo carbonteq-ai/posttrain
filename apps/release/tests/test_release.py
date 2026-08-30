@@ -1387,13 +1387,20 @@ def test_verl_build_variables_come_from_the_current_runtime_profile() -> None:
     assert variables["DEPENDENCY_LOCK_SHA256"] == identity.dependency_lock_digest
     assert variables["FORK_REVISION"] == identity.source_revision
     assert variables["SOURCE_REPOSITORY"] == identity.source_repository
+    assert variables["SOURCE_REVISION"] == "841e78aba299972da109b40d1c740404cc4dc42a"
+    assert variables["CREATED"] == "2026-08-23T18:31:48+05:00"
+    assert variables["VERSION"] == "0.3.21"
+    assert variables["RELEASE_CREATED"] == "2026-08-13T00:00:00Z"
+    assert variables["RELEASE_SOURCE_REVISION"] == "a" * 40
+    assert variables["RELEASE_VERSION"] == "0.3.16rc5"
 
 
 def test_verl_reproducibility_epoch_is_runtime_lineage_owned() -> None:
-    from posttrain.runtime_images import runtime_reproducibility_epoch
+    from posttrain.runtime_images import runtime_cache_lineage, runtime_reproducibility_epoch
 
     assert runtime_reproducibility_epoch("online-rl-verl-py313") == 1_787_491_908
     assert runtime_reproducibility_epoch("serve") is None
+    assert runtime_cache_lineage("online-rl-verl-py313") is not None
 
 
 def test_unchanged_runtime_images_are_reused_across_framework_versions(

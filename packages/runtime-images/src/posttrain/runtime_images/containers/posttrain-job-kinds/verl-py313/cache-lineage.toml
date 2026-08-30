@@ -1,0 +1,11 @@
+schema_version = 1
+
+# These are the exact legacy build arguments and filesystem epoch used by the
+# qualified 24-layer veRL prefix. They are cache inputs, not current release
+# identity. Current commit/version/time remain truthful in OCI labels through
+# separate RELEASE_* arguments. Change this file only for an intentional full
+# cache-lineage rebuild.
+created = "2026-08-23T18:31:48+05:00"
+source_revision = "841e78aba299972da109b40d1c740404cc4dc42a"
+version = "0.3.21"
+source_date_epoch = 1787491908

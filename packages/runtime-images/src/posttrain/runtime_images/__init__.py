@@ -47,6 +47,7 @@ BASE_LOCK = KIND_DEFINITION / "locks" / "base.lock.txt"
 TRANSFORM_LOCK = KIND_DEFINITION / "locks" / "transform.lock.txt"
 VERL_BACKEND_LOCK = KIND_DEFINITION / "verl-py313" / "release" / "backend-constraints.txt"
 VERL_PROFILE = KIND_DEFINITION / "verl-py313" / "profile.toml"
+VERL_CACHE_LINEAGE = KIND_DEFINITION / "verl-py313" / "cache-lineage.toml"
 
 VERL_DEPENDENCY_LOCK_LABEL = "org.carbonteq.posttrain.verl-dependency-lock-sha256"
 VERL_SOURCE_REPOSITORY_LABEL = "org.carbonteq.posttrain.verl-source-repository"
@@ -75,6 +76,16 @@ class BackendRuntimeImageIdentity:
     dependency_lock_digest: str
 
 
+@dataclass(frozen=True, slots=True)
+class RuntimeCacheLineage:
+    """Legacy build inputs retained solely to reuse a published layer prefix."""
+
+    created: str
+    source_revision: str
+    version: str
+    source_date_epoch: int
+
+
 def backend_runtime_identity(variant: str) -> BackendRuntimeImageIdentity | None:
     """Return the immutable backend identity baked into ``variant``, if any."""
     if variant not in RUNTIME_VARIANTS:
@@ -94,24 +105,37 @@ def backend_runtime_identity(variant: str) -> BackendRuntimeImageIdentity | None
     return BackendRuntimeImageIdentity(repository, revision, digest)
 
 
-def runtime_reproducibility_epoch(variant: str) -> int | None:
-    """Return the stable filesystem epoch owned by a runtime lineage.
+def runtime_cache_lineage(variant: str) -> RuntimeCacheLineage | None:
+    """Return stable cache inputs owned by a runtime lineage.
 
-    Release commit timestamps belong in OCI labels, but using them to rewrite
-    layer timestamps would invalidate every otherwise-identical blob on each
-    framework commit. The veRL profile therefore owns one epoch for its current
-    cache lineage; changing it is an explicit full-lineage rebuild.
+    These values are not release identity. Current release metadata is supplied
+    separately to OCI labels. Changing this record is an explicit full-lineage
+    rebuild because BuildKit would no longer reuse the existing layer prefix.
     """
 
     if variant not in RUNTIME_VARIANTS:
         raise ValueError(f"unknown runtime variant: {variant!r}")
     if variant != "online-rl-verl-py313":
         return None
-    profile = tomllib.loads(read_resource(VERL_PROFILE).decode("utf-8"))
-    epoch = profile.get("reproducibility_epoch")
+    payload = tomllib.loads(read_resource(VERL_CACHE_LINEAGE).decode("utf-8"))
+    created = payload.get("created")
+    revision = payload.get("source_revision")
+    version = payload.get("version")
+    epoch = payload.get("source_date_epoch")
+    if not isinstance(created, str) or not created:
+        raise ValueError("veRL cache lineage has no creation time")
+    if not isinstance(revision, str) or re.fullmatch(r"[0-9a-f]{40}", revision) is None:
+        raise ValueError("veRL cache lineage has no full source revision")
+    if not isinstance(version, str) or not version:
+        raise ValueError("veRL cache lineage has no version")
     if isinstance(epoch, bool) or not isinstance(epoch, int) or epoch <= 0:
-        raise ValueError("veRL profile has no positive reproducibility epoch")
-    return epoch
+        raise ValueError("veRL cache lineage has no positive source-date epoch")
+    return RuntimeCacheLineage(created, revision, version, epoch)
+
+
+def runtime_reproducibility_epoch(variant: str) -> int | None:
+    lineage = runtime_cache_lineage(variant)
+    return lineage.source_date_epoch if lineage is not None else None
 
 
 def backend_runtime_labels(
@@ -226,8 +250,10 @@ __all__ = [
     "KIND_BAKE_FILE",
     "KIND_DEFINITION",
     "RUNTIME_VARIANTS",
+    "RuntimeCacheLineage",
     "TRANSFORM_LOCK",
     "VERL_BACKEND_LOCK",
+    "VERL_CACHE_LINEAGE",
     "VERL_DEPENDENCY_LOCK_LABEL",
     "VERL_PROFILE",
     "VERL_SOURCE_REPOSITORY_LABEL",
@@ -242,5 +268,6 @@ __all__ = [
     "lock_digest",
     "read_lock",
     "read_resource",
+    "runtime_cache_lineage",
     "runtime_reproducibility_epoch",
 ]
