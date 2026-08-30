@@ -56,6 +56,18 @@ def test_actual_job_from_arguments_are_declared_in_global_scope() -> None:
     assert "ARG POSTTRAIN_KIND_IMAGE" in global_scope
 
 
+def test_actual_job_verifies_source_before_package_build_backends_run() -> None:
+    """Build metadata created by uv must not invalidate sealed source inputs."""
+
+    with definition_root() as root:
+        dockerfile = (root / "containers/posttrain-job/Dockerfile").read_text()
+
+    copied = dockerfile.index("COPY --from=packaged-context /sources/ sources/")
+    verified = dockerfile.index("# Verify immutable source inputs")
+    installed = dockerfile.index("--requirement locks/code.requirements.txt")
+    assert copied < verified < installed
+
+
 def test_eval_kind_installs_one_locked_runtime_and_marks_it_preinstalled() -> None:
     with definition_root() as root:
         dockerfile = (root / "containers/posttrain-job-kinds/Dockerfile").read_text()
