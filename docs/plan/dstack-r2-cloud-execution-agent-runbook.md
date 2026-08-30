@@ -165,8 +165,12 @@ the next row.
 | I — Security | Owning forks -> `ai-infra` | Redaction, least privilege, ingress restrictions, secret scans, and negative tests pass; existing credentials are unchanged |
 | J — Promotion | `ai-infra` | Idle-fleet gate passes; immutable release is deployed; bounded fallback, observation window, and rollback are proven |
 
-Current completion: P0 and A are complete. Begin with B unless the living plan
-records newer evidence. Milestone A's retained exact actual-job digest is
+Current completion: P0 and A are complete. B has proved its waiting-to-ready
+provider-call boundary and successful cold-pull CUDA execution with published
+dstack commit `e1e0921007297e19d39dd2e189b94b6761663d60`, but still lacks the
+live restart-resume and readiness-timeout gates, so resume B rather than
+advancing to C. Milestone A's retained
+exact actual-job digest is
 `sha256:38412b847e7977f5c0747d88d2399feabf0a7f5ab2c3a33bd976b703cda50bb9`;
 its successful RunPod receipt is protected under
 `../ai-infra/.state/qualifications/runpod-runtime/successful-canary.json`.

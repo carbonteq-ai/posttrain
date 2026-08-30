@@ -45,10 +45,15 @@ specific machine.
 Production still runs the upstream image
 `dstackai/dstack:0.20.29@sha256:6d57647be04cad42dff2343f4f50d41a3b8bb438ebc67165bc56aa92858e69ce`.
 The published CarbonTeq candidate is commit
-`371ff53b1d67f254bc6cc4259aae8653c3916b7d` on branch
-`codex/graceful-cancellation-stop-duration`. Production is still on the
-upstream image until one matching server/runner/shim release is built and
-deployed.
+`e1e0921007297e19d39dd2e189b94b6761663d60` on branch
+`codex/registry-default-auth`. Production is still on the upstream image until
+one matching server/runner/shim release passes the two-worker promotion gate.
+The branch includes exact-host server credential injection and live RunPod GPU
+spot discovery, exact-digest image-readiness admission, a bounded RunPod
+provisioning-timeout override for large cold image pulls, and immediate
+provider-absence reporting while a Pod is provisioning. Its current
+uncommitted successor also removes environment values from runner diagnostic
+trace events.
 
 ## Candidate fork
 
@@ -64,6 +69,34 @@ new task submissions and preserves a 300-second compatibility fallback for
 legacy stored jobs. The detailed maintained delta and validation commands are
 in `/home/hammad/projects/dstack/CARBONTEQ_FORK.md`.
 
+The same fork candidate also applies server-owned default registry credentials
+to an already-qualified image hostname only when that hostname exactly equals
+the configured default registry and run-level auth is absent. This supports one
+digest-pinned canonical image across LAN and cloud placement without teaching
+dstack about R2, mirrors, or split DNS. Prefix, suffix, and port mismatches do
+not receive credentials.
+
+Runner diagnostic logs must contain environment variable names only, never
+their values. This is required for cloud operation because provider, registry,
+and tracking credentials can all be present in the job environment. Until the
+redaction successor is published and deployed, operators must not use
+diagnostic-log mode for credential-bearing cloud jobs.
+
+RunPod pulls and unpacks the job image before its dstack runner becomes
+reachable. ai-infra configures the successor's optional
+`provisioning_timeout_seconds` for the actual-job canary and dstack persists the
+resolved value with the provider attempt. Omitting the setting preserves the
+upstream 20-minute RunPod default; it is not a task runtime limit and does not
+change `max_duration`.
+
+If RunPod removes an interruptible Pod before runner connection, the adapter
+now treats provider absence as authoritative and fails that provisioning
+attempt immediately. A Pod that still exists without runtime port metadata
+continues waiting. Live qualification on the published candidate waited for
+R2 verification with zero Pods, then completed the actual CUDA image on an
+A100 in `EUR-IS-1`; the Pod and temporary registry objects were absent after
+cleanup.
+
 ## Operational configuration
 
 The ai-infra release must:
@@ -75,7 +108,9 @@ The ai-infra release must:
    templates to the same component release;
 5. allow dstack component reconciliation to update both retained workers; and
 6. retain the existing locked dstack Python client because the patch does not
-   change the client protocol.
+   change the client protocol; and
+7. keep the canonical pull username and password only in protected server
+   environment variables alongside the exact canonical registry hostname.
 
 Framework jobs use a bounded stop duration and execute
 `posttrain-runtime` without an intermediate shell that swallows signals.
@@ -107,4 +142,8 @@ The release gate remains:
 - both GPU workers returning healthy and idle; and
 - a normal framework `run reconcile` plus evidence-gated cleanup.
 
-Selected fork commit: `371ff53b1d67f254bc6cc4259aae8653c3916b7d`.
+Selected published candidate commit:
+`e1e0921007297e19d39dd2e189b94b6761663d60`. Its matching server, runner, and
+shim are packaged and publicly staged for qualification but intentionally not
+promoted while the two-worker production gate is closed. Diagnostic redaction
+remains an unpublished successor and is deferred to the security milestone.

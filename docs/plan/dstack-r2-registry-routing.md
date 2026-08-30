@@ -61,6 +61,31 @@ The post-canary scope also closes the gaps that the successful stateless A100 te
 - [x] (2026-08-30) Completed Production Milestone A. `posttrain-runtime execute` performs a typed CUDA driver preflight before importing backend code, selects native or the image-declared compatibility payload, and re-execs at most once. The accepted veRL kind is `sha256:1c63c3c...`; the exact actual-job image is `registry.carbonteq.com/carbonteq/posttrain-lab/posttrain-job@sha256:38412b847e7977f5c0747d88d2399feabf0a7f5ab2c3a33bd976b703cda50bb9`. Its 25 inherited normalized content descriptors preserve the accepted kind's digest, size, media type, and order, and its 18 job layers add 1,987,302 compressed bytes without forced recompression. The same immutable actual-job digest selected `native` and executed CUDA on the local RTX 3070 Ti and a RunPod A100-SXM4-80GB; RunPod run `64079330-90a0-4aa4-adfd-c159b67c4fca` completed for $0.1073 and provider Pod `8q1xongay7nw7b` is absent. Current RunPod hosts expose driver API 13000, so the automatic compatibility branch could not be re-exercised live on this successor; it remains unit-covered and was previously proven with the rollback kind on an older RunPod driver.
 - [x] (2026-08-30) Completed Milestone A publication and cleanup. The actual-job image plus its publication and provenance manifests are verified in the R2-backed registry. Exact rejected candidates `sha256:ad9bd883...`, `sha256:0b56deae...`, and `sha256:86b4ec9d...`, their build tags, and their controller rows were deleted from both registries through exact identities. Offline Distribution garbage collection removed 46 unowned LAN blobs and 21 unowned R2 blobs; the accepted kind, rollback kind, and actual-job digest still resolve at both endpoints. The R2 registry prefix now contains 12,575,923,255 bytes, approximately 4,368,227,478 bytes below the earlier comparable inventory. Every qualification Pod is absent and legacy temporary state is gone. Shared BuildKit cache was retained because rejected candidates could not be mapped uniquely to cache records; the recent large records belong to the accepted image, and broad pruning would damage useful cache.
 - [x] (2026-08-30) Accepted veRL kind image `sha256:1c63c3c3aa5a132ed5643a3b6df686eff5be6283925a8ce1457d413cf9497f8b`. Its first 24 ordered layer descriptors are byte-identical to rollback `sha256:9bf4ff...`; only the intended final compatibility/declaration layer changes, to `sha256:5ab237...` at 104,220,061 compressed bytes. The published manifest pins the accepted digest, and its actual-job packing, local/RunPod qualification, publication, and cleanup gates are complete.
+- [ ] (2026-08-30) Production Milestone B has passed its waiting-to-ready and
+  successful cold-pull gates. Published dstack commit `e1e092100729...` kept
+  the run in `waiting` with zero Pods, admitted one A100 only after exact R2
+  verification, persisted a 30-minute provider-create timeout, and completed
+  CUDA from the actual image in `EUR-IS-1` for $0.1684. A separate real Pod
+  disappearance during provisioning produced the immediate provider-absence
+  fix. Every owned Pod and derivative is absent. Restart-resume and
+  readiness-timeout live qualifications remain open, so Milestone B is not yet
+  complete.
+- [x] (2026-08-30) Recovered and hardened registry cleanup after an unsafe
+  production trial of `garbage-collect --delete-untagged` deleted digest-only
+  image roots. Cloud admission remained blocked while all 17 controller roots
+  were reconciled. The actual-job attestation manifest was restored
+  byte-for-byte from the retained BuildKit cache, every root now resolves in
+  both registries, and RunPod has no Pods. The production GC workflow now
+  snapshots and verifies all roots, refuses an active mirror or RunPod Pod,
+  omits `--delete-untagged`, restores services in `finally`, and retains a
+  protected receipt.
+- [x] (2026-08-30) Removed 13 exact aliases from nine legacy qualification and
+  canary repositories, then ran default LAN GC. Shared canonical manifests
+  remained live, all 17 durable roots passed post-GC verification, R2 retained
+  413 objects totaling 12,575,923,639 bytes, and LAN registry storage fell by
+  6,375,102,899 bytes to 195,172,150,846 bytes. The separately bounded shared
+  BuildKit cache remains intact because broad pruning would discard useful
+  compilation cache and it supplied the exact recovery bytes.
 
 ## Surprises & Discoveries
 
@@ -136,6 +161,23 @@ The post-canary scope also closes the gaps that the successful stateless A100 te
 - Observation: recursive OCI accounting adds only 139,875 bytes to the seven-root layer union, but notification scope can dominate storage.
   Evidence: configs, indexes, attestations, and manifests bring the canonical release graph to 9,217,421,130 unique bytes. Live S3 inventory nevertheless measured 16,944,150,733 bytes because automatic notifications had admitted temporary `carbonteq-qualification/*` candidates. Pending qualification copies were removed without touching LAN artifacts; automatic mirroring is now restricted to canonical `carbonteq/` repositories, and already-uploaded candidate blobs require offline target-registry garbage collection.
 
+- Observation: an OCI derivative can inherit child manifests that are not
+  qualification-owned.
+  Evidence: the config-only Milestone B derivative reused the actual-job
+  attestation digest. Cleanup classified every derivative child as new and
+  removed that shared manifest alias; the subsequent unsafe GC made the loss
+  visible at the canonical root. Qualification ownership is now the derivative
+  top-level digest plus only child digests absent from the snapshotted source
+  graph, and cleanup re-verifies all inherited manifests.
+
+- Observation: Distribution's `--delete-untagged` option is incompatible with
+  digest-only production roots.
+  Evidence: the production R2 registry deliberately consumes untagged manifests
+  by immutable digest. The option deleted those live roots even though their
+  controller receipts were verified. Default GC preserved all 17 restored
+  roots and removed only blobs unreachable after exact repository/digest
+  deletion.
+
 - Observation: R2 presigned URLs are method-specific.
   Evidence: reusing a redirect signed for `HEAD` as a ranged `GET` returned HTTP 403 in the first disposable test. The corrected harness obtains and validates separate redirects for each method, sanitizes request failures so signed URLs cannot appear in retained output, and cleaned the failed run's unique object prefix immediately.
 
@@ -205,6 +247,14 @@ The post-canary scope also closes the gaps that the successful stateless A100 te
 - Observation: dstack 0.20 requires an explicit fleet even when a cloud backend is configured.
   Evidence: a task constrained to RunPod failed before provider creation with `The project has no fleets`. A backend fleet with `nodes: 0..1` remained a zero-cost template, scaled to one Pod for the matching task, and was deleted after the run. Backend credentials alone are therefore not a provisioning policy.
 
+- Observation: dstack's fixed 20-minute RunPod provisioning timeout includes
+  provider-side image pull and unpack.
+  Evidence: the immutable 9 GB actual-job derivative reached a healthy A100 Pod
+  and served authenticated OCI reads plus signed R2 redirects, but the runner
+  never became reachable before the fixed deadline. The approximately $0.45
+  observed cost at $1.39/hour is consistent with that bound. The task's
+  `max_duration` begins only after the runner starts and was not the cause.
+
 - Observation: no current RunPod backend setting can default or require storage for runs.
   Evidence: `RunpodBackendConfig` currently contains only `regions` and `community_cloud` in addition to credentials. A run's `configuration.volumes` defaults to an empty list, and `RunpodCompute.run_job` passes a network-volume ID only when that list already resolves to one explicit volume. The apply-policy plugin can rewrite a submitted spec but runs before final backend/data-center selection and cannot atomically create, own, retry, or delete a provider resource.
 
@@ -224,6 +274,16 @@ The post-canary scope also closes the gaps that the successful stateless A100 te
 
 - Decision: Treat public-image availability as a pre-provisioning condition for RunPod.
   Rationale: RunPod pulls the image as part of pod creation, so a certificate installed during provisioning is too late. The real cloud gate must ensure the exact manifest is verified in the public R2-backed registry before RunPod becomes eligible, without moving R2 knowledge into Job Builder or Posttrain.
+  Date/Author: 2026-08-30 / Codex
+
+- Decision: Make RunPod's runner-readiness timeout an optional bounded backend
+  setting and persist its resolved value with the provider attempt.
+  Rationale: cold-pull size and provider throughput are placement concerns, not
+  workload runtime. Omission preserves dstack's 20-minute behavior; ai-infra
+  may select 30 minutes for the qualified 9 GB image. Persisting the timeout and
+  provider-create timestamp makes restart behavior stable and prevents mirror
+  waiting from consuming the pull budget. The setting remains generic
+  provider configuration and carries no R2, repository, or Posttrain meaning.
   Date/Author: 2026-08-30 / Codex
 
 - Decision: Keep ai-infra service ownership centralized and expose only narrow cloud runtime edges.
@@ -291,7 +351,13 @@ The post-canary scope also closes the gaps that the successful stateless A100 te
   Date/Author: 2026-08-29 / Codex
 
 - Decision: Registry garbage collection is an offline, infrastructure-owned operation.
-  Rationale: the compatibility proof deletes the manifest, stops the disposable registry, runs the pinned Distribution binary's collector, and verifies the unreferenced layer is absent from R2. Ordinary publication, project cleanup, and a running production registry never invoke it.
+  Rationale: an owning workflow first removes exact obsolete repository/digest
+  aliases. A guarded infrastructure plan snapshots every durable root, requires
+  an idle mirror and zero RunPod Pods, stops only selected registry services,
+  runs the pinned Distribution collector without `--delete-untagged`, restores
+  services even after failure, and verifies every root afterward. The
+  `--delete-untagged` option is allowed only in the isolated disposable
+  compatibility registry whose complete namespace is synthetic.
   Date/Author: 2026-08-29 / Codex
 
 - Decision: Cloud-capable publications are complete only after both registry copies verify the same manifest digest.
@@ -331,6 +397,27 @@ The post-canary scope also closes the gaps that the successful stateless A100 te
 Planning and disposable tests established that no dstack image-routing feature is required. The same canonical digest was pulled successfully by separate Docker daemons whose DNS answers selected different registries. Milestone 1 proved the pinned Distribution 3 image against the real private R2 bucket, including multipart storage, method-specific signed redirects, ranged resume, clean pull, deletion, and offline GC. The production edge now implements the corrected path: the LAN canonical endpoint returns the filesystem-registry manifest, the dedicated Tunnel listener returns the byte-identical R2 manifest, public anonymous/authenticated/delete checks return 401/200/405, and a real LAN manifest event reached a verified R2 receipt without any Job Builder call. The optimized seven-root graph is seeded and the accepted actual-job manifest is verified publicly. The incorrect framework-facing Job Builder readiness seam has been removed. Remaining registry rollout gates are managed-worker Docker trust and bounded cloud admission during mirror lag.
 
 Production Milestone A is complete. Exact actual-job digest `sha256:38412b847e...` was mirrored, pulled, and executed without an environment override on both the local RTX 3070 Ti and a RunPod A100-SXM4-80GB; both current hosts selected the native CUDA path and returned the expected tensor result. The successful RunPod canary cost $0.1073 and every owned Pod is absent. Exact rejected manifests and controller rows are gone, offline garbage collection reclaimed 21 proven-orphan R2 blobs and 46 proven-orphan LAN blobs, and all accepted/rollback roots remain readable. Shared BuildKit cache remains intact because no rejected record had exact ownership evidence. The current production fleet still blocks immutable dstack promotion without disturbing unrelated work. The next functional sequence is actual-job registry admission, public Trackio plus self-hosted RustFS transport, provider-authoritative attempts, hooks, run-scoped storage, recovery, inventory, and the resilience matrix. Diagnostic redaction publication, credential-boundary validation, and the complete security audit remain the final engineering milestone before production rollout; active credentials remain unchanged.
+
+Milestone B's core admission and cold-pull path are now live-proven with dstack
+commit `e1e0921007297e19d39dd2e189b94b6761663d60`. Mirror waiting created no Pod;
+exact verification admitted A100 Pod `jxiycu43yo8i44` in `EUR-IS-1`; the 9 GB
+image reached the runner in about three minutes under the persisted 30-minute
+provider-create timeout; and the actual image completed its CUDA/PyTorch probe.
+Run `45c70c7d-2f08-453b-b21a-e544839e8683` finished `done` at $0.1684 and the
+Pod was absent. An earlier live spot disappearance during provisioning exposed
+and fixed RunPod's silent absent-Pod wait; a missing Pod now terminates that
+attempt immediately while a present Pod without runtime metadata keeps waiting.
+Restart-resume and readiness-timeout live gates remain open, so Milestone B is
+not yet complete.
+
+All admission derivatives, rows, and Pods are absent. Guarded exact cleanup
+removed legacy test aliases and reclaimed about 5.94 GiB from LAN storage; the
+final canary GC reclaimed another 167,276 bytes and eight objects/files from
+each registry while preserving all 17 roots. Eight exited qualification
+containers, eight two-week-old `posttrain-local` tags, and three superseded
+dstack canary tags were removed locally, reducing Docker image storage from
+159 GB to 96.95 GB. Shared parent layers and the 4.379 GB BuildKit cache remain
+intact because blanket pruning would degrade rebuild caching.
 
 ## Context and Orientation
 
@@ -402,7 +489,17 @@ Persist the guard snapshot and state with the attempt: `waiting`, `ready`, `time
 
 Implement the core model and server pipeline in `../dstack/src/dstack/_internal/core/` and `../dstack/src/dstack/_internal/server/background/pipeline_tasks/`; render its RunPod-only configuration in `../ai-infra/ansible/roles/control/templates/dstack-config.yml.j2`. Extend the registry controller status response only if a stable machine-readable state is missing; do not expose copy commands, endpoints, or credentials. Tests must prove absent configuration is byte-for-byte compatible, LAN placement bypasses the guard, pending state creates no provider call, verified state creates exactly one provider call, timeout is pre-start, malformed/non-digest images fail closed, duplicate processing is idempotent, and restart resumes waiting.
 
-The real gate publishes a tiny actual-job image through the existing remote builder, delays its mirror worker deliberately, submits one RunPod-constrained run, and proves the account has no Pod until the receipt becomes `verified`. It then releases the mirror, observes exactly one Pod, executes the immutable digest, and confirms deletion. This is the point at which actual-job rather than job-kind mirroring is proven.
+The real gate creates a config-only derivative of the already-qualified
+actual-job image in the same canonical repository, preserving every inherited
+layer while producing a new immutable digest. It snapshots the source manifest
+graph, delays the mirror worker deliberately, submits one RunPod-constrained
+run, and proves the account has no Pod until the receipt becomes `verified`.
+It then releases the mirror, observes exactly one Pod, permits a bounded
+30-minute provider pull/unpack window distinct from the two-minute CUDA task
+runtime, executes the immutable digest, and confirms deletion. Cleanup removes
+only the derivative top-level and genuinely new child manifests, re-verifies
+every inherited source manifest, and runs guarded default GC when needed. This
+is the point at which actual-job rather than job-kind mirroring is proven.
 
 #### Production Milestone C — Give cloud jobs durable Trackio transport
 
@@ -1039,3 +1136,23 @@ reachability checks. Shared BuildKit records remain because none could be
 attributed exclusively to rejected candidates. Clarified that immutable
 digests and stable logical/provider IDs own identity and cleanup; timestamps
 remain receipt metadata only.
+
+2026-08-30: Recorded the partial Milestone B live result and registry cleanup
+recovery. The generic readiness gate proved zero provider creation while
+waiting and exactly one provider call after verification, while the fixed
+20-minute cold-pull provisioning limit remained a failed acceptance gate. Replaced unsafe
+`--delete-untagged` production GC with root-snapshot plan/apply tooling, fixed
+derivative ownership to exclude inherited manifests, restored all 17 roots,
+and removed exact legacy test aliases before reclaiming about 5.94 GiB from the
+LAN registry. Immutable digests remain image and cleanup identity; temporary
+tags are commit-derived construction handles only, never time-based lineage.
+
+2026-08-30: Requalified Milestone B with published dstack successor
+`e1e0921007297e19d39dd2e189b94b6761663d60`. The exact digest waited with zero
+Pods, then ran CUDA successfully on an A100 after R2 verification, finished at
+$0.1684, and cleaned every owned provider and registry resource. A real
+provider-side disappearance during provisioning produced the missing-Pod
+lifecycle fix. Final guarded GC preserved all 17 roots, and exact local removal
+of old qualification containers/images reduced Docker image storage by about
+62 GB without pruning shared BuildKit cache. Restart-resume and readiness
+timeout remain the only open Milestone B live gates.
