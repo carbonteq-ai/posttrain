@@ -488,7 +488,10 @@ def _write_materialization_record(
 
     record_root.mkdir(parents=True, exist_ok=True, mode=0o700)
     record_root.chmod(0o700)
-    destination = record_root / f"{record.package_key}.json"
+    # Package bytes are provider-neutral, while publication identity includes
+    # the destination repository. Keep one immutable record per publication so
+    # switching between LAN and cloud registries cannot conflict.
+    destination = record_root / f"{record.publication_key}.json"
     if destination.exists():
         if destination.is_symlink() or not destination.is_file():
             raise ContractError("materialization record path is not a regular file")
@@ -500,7 +503,9 @@ def _write_materialization_record(
             raise ContractError("materialization record conflicts with an existing package")
         return destination
 
-    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{record.package_key}.", suffix=".tmp", dir=record_root)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{record.publication_key}.", suffix=".tmp", dir=record_root
+    )
     temporary = Path(temporary_name)
     try:
         with os.fdopen(descriptor, "wb") as stream:

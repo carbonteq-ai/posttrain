@@ -82,10 +82,12 @@ def test_remote_transfer_values_bind_the_existing_package_identity(tmp_path: Pat
         ),
         release_manifest_digest="a" * 64,
         build_definition_digest="b" * 64,
+        allow_deferred_qualification=True,
     )
 
     assert request.package_key == context.manifest.package_key
     assert request.project_id == "project"
+    assert JobPublicationPlanRequest.from_payload(request.to_payload()).allow_deferred_qualification
     plan = JobContextTransferPlan(
         publication_key=request.publication_key,
         state=JobPublicationState.UPLOAD_REQUIRED,

@@ -83,6 +83,7 @@ class RemoteJobImagePublisher:
             context,
             self._config.release_manifest_digest,
             self._config.build_definition_digest,
+            request.allow_deferred_qualification,
         )
         plan = self._plan(plan_request)
         if plan.publication_key != request.publication_key:

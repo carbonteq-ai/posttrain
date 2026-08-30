@@ -113,11 +113,33 @@ class PackageMaterializationStore:
             raise ContractError("materialization record root must be absolute")
         self._root = root
 
-    def resolve(self, plan_key: str) -> PackageMaterializationRecord | None:
+    def resolve(
+        self,
+        plan_key: str,
+        *,
+        publication_key: str | None = None,
+    ) -> PackageMaterializationRecord | None:
+        if _SHA256.fullmatch(plan_key) is None:
+            raise ContractError("materialization record plan key must be SHA-256")
+        if publication_key is not None and _SHA256.fullmatch(publication_key) is None:
+            raise ContractError("materialization record publication key must be SHA-256")
+        matches = list(self.resolve_all(plan_key))
+        if publication_key is not None:
+            matches = [record for record in matches if record.publication_key == publication_key]
+        if not matches:
+            return None
+        if len(matches) > 1:
+            raise ContractError("materialization record lookup is ambiguous across publications")
+        return matches[0]
+
+    def resolve_all(self, plan_key: str) -> tuple[PackageMaterializationRecord, ...]:
+        """Return every immutable publication record for one semantic plan."""
+
         if _SHA256.fullmatch(plan_key) is None:
             raise ContractError("materialization record plan key must be SHA-256")
         if not self._root.is_dir():
-            return None
+            return ()
+        matches: list[PackageMaterializationRecord] = []
         for path in self._root.glob("*.json"):
             if path.is_symlink() or not path.is_file():
                 continue
@@ -126,15 +148,19 @@ class PackageMaterializationStore:
             except (OSError, ContractError):
                 continue
             if record.plan_key == plan_key:
-                return record
-        return None
+                matches.append(record)
+        return tuple(sorted(matches, key=lambda record: record.publication_key))
 
     def commit(self, record: PackageMaterializationRecord) -> Path:
         self._root.mkdir(parents=True, exist_ok=True, mode=0o700)
         self._root.chmod(0o700)
-        path = self._root / f"{record.package_key}.json"
+        # A content-identical package may be published to several registries.
+        # Publication identity, rather than package identity, therefore owns
+        # the immutable record filename. Historical package-keyed records are
+        # still discovered by resolve().
+        path = self._root / f"{record.publication_key}.json"
         encoded = record.to_bytes()
-        temporary = self._root / f".{record.package_key}.tmp"
+        temporary = self._root / f".{record.publication_key}.tmp"
         try:
             descriptor = temporary.open("xb")
         except FileExistsError:

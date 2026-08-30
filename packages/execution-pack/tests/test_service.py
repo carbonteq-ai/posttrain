@@ -339,7 +339,7 @@ def test_packs_and_reuses_one_deterministic_provider_neutral_context(
         publication=plan.publication,
     )
     assert first.publication_key == publication.publication_key
-    record_path = tmp_path / "records" / f"{first.manifest.package_key}.json"
+    record_path = tmp_path / "records" / f"{first.publication_key}.json"
     record = PackageMaterializationRecord.from_bytes(record_path.read_bytes())
     assert record.package_key == first.manifest.package_key
     assert record.context_digest == first.context_digest

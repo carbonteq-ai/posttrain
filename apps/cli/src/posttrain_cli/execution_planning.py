@@ -316,12 +316,19 @@ class PlannedJobPackage:
     def pack(self, *, allow_deferred_qualification: bool = False) -> PackedJobPackage:
         """Materialize the exact inputs and publish or reuse the actual-job image."""
 
-        record = PackageMaterializationStore((self.layout.state / "packages" / "materializations").resolve()).resolve(
-            self.pack_plan.plan_key
+        records = PackageMaterializationStore(
+            (self.layout.state / "packages" / "materializations").resolve()
+        ).resolve_all(self.pack_plan.plan_key)
+        record = next(
+            (
+                candidate
+                for candidate in records
+                if candidate.publication_key
+                == _publication_key(candidate.manifest, self.pack_plan.publication)
+            ),
+            None,
         )
-        if record is not None and record.publication_key == _publication_key(
-            record.manifest, self.pack_plan.publication
-        ):
+        if record is not None:
             resolver = getattr(self._publisher(), "resolve", None)
             if resolver is not None:
                 image = resolver(

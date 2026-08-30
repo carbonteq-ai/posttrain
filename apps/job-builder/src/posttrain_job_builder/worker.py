@@ -47,6 +47,7 @@ class JobBuildWorker:
                     manifest=claim.record.request.manifest,
                     staged_context=context,
                     publication=claim.record.request.publication,
+                    allow_deferred_qualification=claim.record.request.allow_deferred_qualification,
                     source_context_digest=claim.record.request.context.context_digest,
                 )
             )
