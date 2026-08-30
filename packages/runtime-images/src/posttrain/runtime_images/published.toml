@@ -45,10 +45,10 @@ provided_packages = ["verifiers"]
 
 [kinds.online-rl-verl-py313]
 repository = "posttrain-kind-online-rl-verl-py313"
-digest = "sha256:9bf4ff554416e34fdd0a484102c243bd470054212111ab65a0864015a860df38"
+digest = "sha256:1c63c3c3aa5a132ed5643a3b6df686eff5be6283925a8ce1457d413cf9497f8b"
 lock_digest = "f93d10a9cf44e0ad1f62d0d9f0e1380f08aebdf120b747e64cfb265e2909432c"
 constraint_lock = "containers/posttrain-job-kinds/locks/online-rl-verl-py313.lock.txt"
-runtime_source_digest = "a2a1c37481051d064c9b42b367932986e78d15465900963ba27145567b4f5e83"
+runtime_source_digest = "0a92454ee8aa9a0cafbeaf9c173d1a342333d2b818834cbaf660e14b3539630f"
 base_digest = "sha256:55987a566f5fa7b3fd8af219b2a2dc51315219e2ca82f597f6c940bc7332d595"
 backend_constraint_lock = "containers/posttrain-job-kinds/verl-py313/release/backend-constraints.txt"
 backend_lock_digest = "688cc6f99ad98b6279421a6d98d25c7a37cef5dc1a38aaeba78fc0b425b69d0e"
