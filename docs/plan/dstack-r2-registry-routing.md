@@ -45,6 +45,17 @@ The post-canary scope also closes the gaps that the successful stateless A100 te
 - [x] (2026-08-30) Qualified a public-image RunPod spot lifecycle on an isolated candidate control plane without touching the production database or LAN task. A zero-node RunPod-only fleet selected an RTX PRO 6000 Blackwell Server Edition in `EUR-IS-1` at $2.09/hour; CUDA reported 97,887 MiB visible VRAM and driver 595.91.07. dstack reported `submitted -> provisioning -> running -> terminating -> done`, fleet deletion completed, and the RunPod API reported zero active Pods afterward.
 - [x] (2026-08-30) Published the cache-preserving veRL replacement to the canonical LAN repository at `sha256:fea65ed6037f52f44f5f901fb1b95c5888fe6d47c8799e0dbcdc6f1318add28d` after FlashInfer JIT, CUDA/NCCL, Qwen3.5 vLLM generation, exact-parent, cold-pull, warm-pull, and actual-job qualification gates passed on the current 8 GiB Pop!_OS GPU. The updated release manifest reduces the seven-root deduplicated compressed union to 9,217,281,255 bytes, so release-root R2 seeding is within the 10 GB-month free allowance.
 - [x] (2026-08-30) Qualified the real R2 registry path with the veRL runtime on RunPod A100 spot capacity. The universal base remained `sha256:55987a...`; the veRL-only image `sha256:9bf4ff...` adds NVIDIA's pinned 104,195,781-byte CUDA 13 compatibility payload after all 24 previously qualified layers, leaves it inactive by default, passes local CUDA on the Pop!_OS RTX 3070 Ti, and passes PyTorch CUDA 13 execution on an A100 80 GB PCIe spot Pod in `CA-MTL-3` at $1.39/hour when the RunPod task activates the payload. The mirror receipt reached `verified`, the task completed with exit code 0 for $0.0711, and the RunPod API confirmed the Pod was deleted.
+- [x] (2026-08-30) Proved RunPod's explicit network-volume recovery primitive
+  with a bounded external-interruption canary. Logical dstack run
+  `0805bef0-0e6b-4789-86df-3555be4c1db0` wrote a marker from its first A100
+  spot Pod, lost that Pod through a direct RunPod API deletion outside dstack,
+  retried on a distinct Pod in `US-WA-1`, and read the exact marker from the
+  same 10 GB network volume. The run finished `done` for $0.0486 and cleanup
+  confirmed zero Pods and zero volumes. This validates the provider storage
+  primitive, not Milestone F: automatic per-logical-run creation, ownership,
+  fencing, and cleanup receipts remain unimplemented. Running-Pod absence also
+  waited for the runner-unreachable fallback for roughly three minutes, which
+  confirms Milestone D's provider-authoritative observation is still required.
 - [x] (2026-08-30) Removed raw environment values from the dstack runner's `Starting exec` diagnostic trace. The unpublished fork successor logs sorted variable names only, and the complete Go executor package passes under Go 1.25. Until that successor is released, diagnostic mode remains forbidden for credential-bearing cloud jobs.
 - [ ] Promote dstack commit `d2586c3871525e461bcbc442deaa511af2a87758` to the production control plane. Candidate server and component digest checks passed, but the release gate correctly rolled back because `pop-os.lan` was already unreachable and the RTX PRO 6000 LAN worker is busy with run `6dffd449-12e5-4bda-b449-defdcb30a0a4`. Do not cancel that run or weaken the two-worker qualification gate.
 - [x] (2026-08-30) Completed Milestone 2: the external R2-backed registry, private push ingress, public read-only pull ingress, canonical hostname, and split public/LAN routing are deployed and qualified. Managed-worker restart/trust proof remains a rollout gate in Milestone 5 rather than registry construction work.
@@ -407,8 +418,8 @@ Run `45c70c7d-2f08-453b-b21a-e544839e8683` finished `done` at $0.1684 and the
 Pod was absent. An earlier live spot disappearance during provisioning exposed
 and fixed RunPod's silent absent-Pod wait; a missing Pod now terminates that
 attempt immediately while a present Pod without runtime metadata keeps waiting.
-Restart-resume and readiness-timeout live gates remain open, so Milestone B is
-not yet complete.
+Restart-resume and readiness-timeout gates subsequently passed with zero
+provider cost, so Milestone B is complete.
 
 All admission derivatives, rows, and Pods are absent. Guarded exact cleanup
 removed legacy test aliases and reclaimed about 5.94 GiB from LAN storage; the
