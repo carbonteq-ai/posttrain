@@ -156,10 +156,14 @@ def test_verl_sampling_contract_canary_resolves_the_complete_policy() -> None:
 
     training = resolved.snapshot["training"]
     assert isinstance(training, dict)
+    assert training["selection_id"] == "training/qwen3.5-0.8b-verl-grpo-sampling-contract-canary-lora@3"
     assert training["resolved"]["runtime"]["global_batch_size"] == 2  # type: ignore[index]
     assert training["resolved"]["backend"] == "verl@808923d487aa2c524fda02cf5289110541b4221f"  # type: ignore[index]
     assert training["resolved"]["backend_options"]["source_revision"] == (  # type: ignore[index]
         "808923d487aa2c524fda02cf5289110541b4221f"
+    )
+    assert training["resolved"]["backend_options"]["dependency_lock_sha256"] == (  # type: ignore[index]
+        "19f96d07e64c3664b4c09d41db9b98142aa3ec3d0bdbfa3179012dd0d7d2f2ed"
     )
 
     environment = resolved.snapshot["environment"]

@@ -485,6 +485,45 @@ training:
         - actor_rollout_ref.actor.entropy_from_logits_with_chunking=true
         - actor_rollout_ref.actor.entropy_from_logits_chunk_size=256
         - actor_rollout_ref.actor.fsdp_config.use_torch_compile=false
+  training/qwen3.5-0.8b-verl-grpo-sampling-contract-canary-lora@3:
+    selection_type: training-binding
+    revision: "3"
+    backend: verl@808923d487aa2c524fda02cf5289110541b4221f
+    renderer:
+      id: qwen3.5-off-v1
+      model_family: qwen3.5
+      implementation: qwen3.5
+      reasoning_mode: "off"
+    update:
+      kind: lora
+      rank: 8
+      alpha: 16
+      target_modules: ".*language_model.*[.](o_proj|down_proj)$"
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    parallelism:
+      sequence_length_divisor: 2
+    runtime:
+      global_batch_size: 2
+      nodes: 1
+      devices_per_node: 1
+      parameter_offload: false
+      optimizer_offload: false
+    backend_options:
+      python_executable: /opt/posttrain-verl/bin/python
+      working_directory: /opt/posttrain-verl/workdir
+      source_revision: 808923d487aa2c524fda02cf5289110541b4221f
+      dependency_lock_sha256: 19f96d07e64c3664b4c09d41db9b98142aa3ec3d0bdbfa3179012dd0d7d2f2ed
+      source_dirty: false
+      attention_implementation: sdpa
+      hydra_overrides:
+        - actor_rollout_ref.model.use_remove_padding=false
+        - actor_rollout_ref.model.enable_gradient_checkpointing=true
+        - actor_rollout_ref.model.use_fused_kernels=true
+        - actor_rollout_ref.model.fused_kernel_options.impl_backend=torch
+        - actor_rollout_ref.actor.strategy=fsdp2
+        - actor_rollout_ref.actor.entropy_from_logits_with_chunking=true
+        - actor_rollout_ref.actor.entropy_from_logits_chunk_size=256
+        - actor_rollout_ref.actor.fsdp_config.use_torch_compile=false
 
 inference:
   inference/qwen3.5-0.8b-vllm-distill-rollout@2:
