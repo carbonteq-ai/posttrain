@@ -28,7 +28,7 @@ target:
       max_price: 1.0
       disk_gb: 100
   targets/runpod-a100-80gb-spot-qualification:
-    revision: "1"
+    revision: "2"
     device_class: nvidia-cuda
     memory_gb: 80
     placement:
@@ -39,7 +39,7 @@ target:
       managed_run_storage: true
       gpu_names:
         - A100
-      max_price: 1.6
+      max_price: 2.5
       disk_gb: 100
   targets/runpod-rtx-pro-6000-spot-qualification:
     revision: "1"
