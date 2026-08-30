@@ -17,6 +17,7 @@ from posttrain.runtime_images import (
     KIND_BAKE_FILE,
     KIND_DEFINITION,
     RUNTIME_VARIANTS,
+    VERL_BAKE_FILE,
     backend_constraint_lock,
     backend_runtime_identity,
     cached_definition_root,
@@ -86,7 +87,6 @@ def _kind_source_paths(variant: str) -> tuple[Path, ...]:
     """
 
     common = (
-        Path(KIND_BAKE_FILE),
         Path(KIND_DEFINITION) / "locks" / "build-tools.lock.txt",
         Path(KIND_DEFINITION) / "profiles" / "common.txt",
         Path(constraint_lock(variant)),
@@ -98,10 +98,15 @@ def _kind_source_paths(variant: str) -> tuple[Path, ...]:
             Path(KIND_DEFINITION) / "verl-py313",
         )
     return (
+        Path(KIND_BAKE_FILE),
         *common,
         Path(KIND_DEFINITION) / "Dockerfile",
         Path(KIND_DEFINITION) / "profiles" / f"{variant}.txt",
     )
+
+
+def _kind_bake_file(variant: str) -> Path:
+    return Path(VERL_BAKE_FILE) if variant == "online-rl-verl-py313" else Path(KIND_BAKE_FILE)
 
 
 def _kind_source_digest(root: Path, variant: str) -> str:
@@ -546,7 +551,7 @@ def publish_release(
         result = builder.build(
             RuntimeBuildRequest(
                 profile=variant,
-                bake_file=(root / KIND_BAKE_FILE).resolve(),
+                bake_file=(root / _kind_bake_file(variant)).resolve(),
                 context=root,
                 target=f"{_KIND_REPOSITORY_PREFIX}{variant}",
                 repository=f"{normalized}/{_KIND_REPOSITORY_PREFIX}{variant}",
@@ -624,7 +629,7 @@ def publish_release(
         lock = constraint_lock(variant)
         request = RuntimeBuildRequest(
             profile=variant,
-            bake_file=(root / KIND_BAKE_FILE).resolve(),
+            bake_file=(root / _kind_bake_file(variant)).resolve(),
             context=root,
             target=f"{_KIND_REPOSITORY_PREFIX}{variant}",
             repository=f"{normalized}/{_KIND_REPOSITORY_PREFIX}{variant}",

@@ -22,18 +22,6 @@ variable "REGISTRY" {
   default = "registry.lan/carbonteq"
 }
 
-variable "RELEASE_CREATED" {
-  default = ""
-}
-
-variable "RELEASE_SOURCE_REVISION" {
-  default = ""
-}
-
-variable "RELEASE_VERSION" {
-  default = "dev"
-}
-
 variable "SOURCE_REVISION" {
   default = ""
 }
@@ -114,14 +102,11 @@ target "posttrain-kind-online-rl-verl-py313" {
     FORK_REVISION = FORK_REVISION
     LOCK_DIGEST = LOCK_DIGEST
     POSTTRAIN_BASE_IMAGE = POSTTRAIN_BASE_IMAGE
-    RELEASE_CREATED = RELEASE_CREATED
-    RELEASE_SOURCE_REVISION = RELEASE_SOURCE_REVISION
-    RELEASE_VERSION = RELEASE_VERSION
     SOURCE_REVISION = SOURCE_REVISION
     SOURCE_REPOSITORY = SOURCE_REPOSITORY
     VERSION = VERSION
   }
-  tags = ["${REGISTRY}/posttrain-kind-online-rl-verl-py313:${RELEASE_VERSION}"]
+  tags = ["${REGISTRY}/posttrain-kind-online-rl-verl-py313:${VERSION}"]
   output = [
     "type=image,push=true,compression=zstd,compression-level=1,force-compression=false,oci-mediatypes=true"
   ]

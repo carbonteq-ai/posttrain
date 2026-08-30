@@ -46,6 +46,7 @@ WORKSPACE_LOCK = KIND_DEFINITION / "locks" / "workspace.lock.txt"
 BASE_LOCK = KIND_DEFINITION / "locks" / "base.lock.txt"
 TRANSFORM_LOCK = KIND_DEFINITION / "locks" / "transform.lock.txt"
 VERL_BACKEND_LOCK = KIND_DEFINITION / "verl-py313" / "release" / "backend-constraints.txt"
+VERL_BAKE_FILE = KIND_DEFINITION / "verl-py313" / "docker-bake.hcl"
 VERL_PROFILE = KIND_DEFINITION / "verl-py313" / "profile.toml"
 VERL_CACHE_LINEAGE = KIND_DEFINITION / "verl-py313" / "cache-lineage.toml"
 
@@ -253,6 +254,7 @@ __all__ = [
     "RuntimeCacheLineage",
     "TRANSFORM_LOCK",
     "VERL_BACKEND_LOCK",
+    "VERL_BAKE_FILE",
     "VERL_CACHE_LINEAGE",
     "VERL_DEPENDENCY_LOCK_LABEL",
     "VERL_PROFILE",

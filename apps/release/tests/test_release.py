@@ -1494,6 +1494,11 @@ def test_kind_source_selection_is_variant_local() -> None:
     assert Path("containers/posttrain-job-kinds/profiles/serve.txt") in serve
     assert Path("containers/posttrain-job-kinds/verl-py313") in verl
     assert Path("containers/posttrain-job-kinds/Dockerfile") not in verl
+    assert Path("containers/posttrain-job-kinds/docker-bake.hcl") not in verl
+    assert publish._kind_bake_file("online-rl-verl-py313") == Path(
+        "containers/posttrain-job-kinds/verl-py313/docker-bake.hcl"
+    )
+    assert publish._kind_bake_file("serve") == Path("containers/posttrain-job-kinds/docker-bake.hcl")
 
 
 def test_public_ci_trackio_mirror_matches_locked_distribution() -> None:
