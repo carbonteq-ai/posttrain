@@ -21,8 +21,6 @@ ARG CUTLASS_BASE_WHEEL_URL="https://files.pythonhosted.org/packages/0a/6e/bfe256
 ARG CUTLASS_BASE_WHEEL_SHA256="e59da7d89e5e4f8514c6530843f910f9d8734d8042dcaa079c9d9c5063eb3514"
 ARG CUTLASS_CU13_WHEEL_URL="https://files.pythonhosted.org/packages/5c/9f/b7928ff505e577c1021c07b206ce32d285aae793763d524023c1800b6dc9/nvidia_cutlass_dsl_libs_cu13-4.5.2-cp313-cp313-manylinux_2_28_x86_64.whl"
 ARG CUTLASS_CU13_WHEEL_SHA256="c7a5ce1c01616fc4c3ac492e011c543a79c3dde86aaf20a8af55e9d40ef2b2e6"
-ARG TORCH_C_DLPACK_WHEEL_URL="https://files.pythonhosted.org/packages/2d/68/f434b48700f3e04f33882f54d8d3910327b935f55e14ec49da7d607bf470/torch_c_dlpack_ext-0.1.5-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl"
-ARG TORCH_C_DLPACK_WHEEL_SHA256="debe62e5ef93e631065d6b9f6e60d3d39bae6b89fa1b25d9523f40b3efbf8aba"
 
 # The cache-lineage record owns a stable epoch. Python emits hash-based
 # bytecode and BuildKit rewrites new layer timestamps to that epoch, so later
@@ -83,6 +81,9 @@ RUN test -n "${DEPENDENCY_LOCK_SHA256}" && \
     test -f /opt/posttrain-verl-build/release/pyproject.toml && \
     test -f /opt/posttrain-verl-build/release/uv.lock && \
     echo "${DEPENDENCY_LOCK_SHA256}  /opt/posttrain-verl-build/release/uv.lock" | sha256sum --check -
+
+ARG TORCH_C_DLPACK_WHEEL_URL="https://files.pythonhosted.org/packages/2d/68/f434b48700f3e04f33882f54d8d3910327b935f55e14ec49da7d607bf470/torch_c_dlpack_ext-0.1.5-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl"
+ARG TORCH_C_DLPACK_WHEEL_SHA256="debe62e5ef93e631065d6b9f6e60d3d39bae6b89fa1b25d9523f40b3efbf8aba"
 
 # FlashInfer and torch-c-dlpack-ext both ship an unnamespaced build_backend.py.
 # uv installs independent wheels concurrently, so restore the locked
