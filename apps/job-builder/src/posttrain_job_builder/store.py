@@ -398,6 +398,10 @@ class FileSystemJobContextStore:
             try:
                 for relative in staged_context_directories():
                     destination.joinpath(*relative.split("/")).mkdir(parents=True, exist_ok=True, mode=0o700)
+                for relative in record.request.context.directories:
+                    directory = destination.joinpath(*relative.parts)
+                    directory.mkdir(parents=True, exist_ok=True, mode=0o755)
+                    directory.chmod(0o755)
                 for descriptor in record.request.context.files:
                     source = self._blob_path(descriptor.sha256)
                     self._verify_blob(source, descriptor)
@@ -456,7 +460,7 @@ class FileSystemJobContextStore:
         if not set(request.publication.platforms).issubset(capabilities.platforms):
             raise ContractError("job builder does not support the requested platforms")
         if (
-            len(request.context.files) > capabilities.max_file_count
+            len(request.context.files) + len(request.context.directories) > capabilities.max_file_count
             or request.context.total_bytes > capabilities.max_context_bytes
         ):
             raise ContractError("job builder context exceeds its admitted limits")
