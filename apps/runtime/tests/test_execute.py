@@ -43,7 +43,36 @@ from posttrain.work import (
     prepare_work_package_job,
 )
 from posttrain_runtime import execute_manifest, qualify_manifest
-from posttrain_runtime.execute import _project_config_digest, _qualification_timeout, _qualify_activation, _tree_digest
+from posttrain_runtime.execute import (
+    _project_config_digest,
+    _qualification_timeout,
+    _qualify_activation,
+    _tree_digest,
+    _verify_backend_worktree,
+)
+
+
+def test_backend_worktree_accepts_deterministic_revision_marker(tmp_path: Path) -> None:
+    revision = "8" * 40
+    (tmp_path / ".posttrain-source-revision").write_text(revision + "\n", encoding="utf-8")
+
+    _verify_backend_worktree(tmp_path, revision)
+
+
+def test_backend_worktree_rejects_marker_with_git_metadata(tmp_path: Path) -> None:
+    revision = "8" * 40
+    (tmp_path / ".posttrain-source-revision").write_text(revision + "\n", encoding="utf-8")
+    (tmp_path / ".git").mkdir()
+
+    with pytest.raises(ContractError, match="retains Git metadata"):
+        _verify_backend_worktree(tmp_path, revision)
+
+
+def test_backend_worktree_rejects_wrong_revision_marker(tmp_path: Path) -> None:
+    (tmp_path / ".posttrain-source-revision").write_text("7" * 40 + "\n", encoding="utf-8")
+
+    with pytest.raises(ContractError, match="source marker differs"):
+        _verify_backend_worktree(tmp_path, "8" * 40)
 
 
 def test_qualification_loads_each_verifiers_taskset_offline(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

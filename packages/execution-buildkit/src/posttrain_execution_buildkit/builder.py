@@ -172,6 +172,10 @@ class RuntimeBuildRequest:
     attestations: bool = False
     compression_level: int = 1
     force_compression: bool = False
+    # When set, BuildKit rewrites newly generated layer timestamps to this
+    # Unix epoch. Inherited parent descriptors remain reusable because the
+    # exporter still refuses forced recompression.
+    source_date_epoch: int | None = None
     # Optional machine-owned PEM bundle used to establish image trust while
     # building against private HTTPS package indexes. The local path is never
     # part of image identity; the bundle bytes are.
@@ -204,6 +208,8 @@ class RuntimeBuildRequest:
             raise ContractError("runtime build variables must be non-secret named values")
         if self.compression_level < 0 or self.compression_level > 22:
             raise ContractError("runtime build compression_level must be between 0 and 22")
+        if self.source_date_epoch is not None and self.source_date_epoch <= 0:
+            raise ContractError("runtime build source_date_epoch must be a positive Unix timestamp")
         for ref in self.cache_from:
             if not ref or any(token in ref.upper() for token in ("TOKEN", "PASSWORD", "SECRET")):
                 raise ContractError("runtime build cache_from refs must be non-secret image references")
@@ -223,6 +229,7 @@ class RuntimeBuildRequest:
             "attestations": self.attestations,
             "compression_level": self.compression_level,
             "force_compression": self.force_compression,
+            "source_date_epoch": self.source_date_epoch,
             "trust_bundle_sha256": (_file_digest(self.trust_bundle) if self.trust_bundle is not None else None),
         }
         return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
@@ -322,6 +329,7 @@ class BuildKitRuntimeBuilder:
             "--set",
             f"{request.target}.output=type=cacheonly",
             *self._trust_arguments(request),
+            *self._reproducibility_arguments(request),
             *self._variable_arguments(request),
             "--call",
             "check",
@@ -337,7 +345,7 @@ class BuildKitRuntimeBuilder:
             "type=image,push=true,"
             f"compression=zstd,compression-level={request.compression_level},"
             f"force-compression={'true' if request.force_compression else 'false'},"
-            "oci-mediatypes=true"
+            "oci-mediatypes=true" + (",rewrite-timestamp=true" if request.source_date_epoch is not None else "")
         )
         arguments = [
             "bake",
@@ -367,6 +375,7 @@ class BuildKitRuntimeBuilder:
         for ref in request.cache_from:
             arguments.extend(("--set", f"{request.target}.cache-from=type=registry,ref={ref}"))
         arguments.extend(self._trust_arguments(request))
+        arguments.extend(self._reproducibility_arguments(request))
         arguments.extend(self._variable_arguments(request))
         arguments.append(request.target)
         return arguments
@@ -382,6 +391,14 @@ class BuildKitRuntimeBuilder:
             f"fs.read={request.trust_bundle}",
             "--set",
             f"{request.target}.secrets=id=posttrain_ca_bundle,src={request.trust_bundle}",
+        ]
+
+    def _reproducibility_arguments(self, request: RuntimeBuildRequest) -> list[str]:
+        if request.source_date_epoch is None:
+            return []
+        return [
+            "--set",
+            f"{request.target}.args.SOURCE_DATE_EPOCH={request.source_date_epoch}",
         ]
 
     def _variable_arguments(self, request: RuntimeBuildRequest) -> list[str]:

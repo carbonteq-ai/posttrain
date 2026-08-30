@@ -236,6 +236,28 @@ def test_attestations_opt_in_and_change_the_build_key(tmp_path: Path) -> None:
     assert ("--provenance", "mode=max") == (call[call.index("--provenance")], call[call.index("--provenance") + 1])
 
 
+def test_source_date_epoch_rewrites_new_layers_and_changes_the_build_key(tmp_path: Path) -> None:
+    request = _request(tmp_path)
+    reproducible = replace(request, source_date_epoch=1_787_491_908)
+    assert request.build_key != reproducible.build_key
+    gateway = FakeBuildx()
+    builder = BuildKitRuntimeBuilder(gateway, receipt_root=(tmp_path / "receipts").resolve())
+
+    builder.build(reproducible)
+
+    check_call = gateway.calls[0]
+    build_call = next(call for call in gateway.calls if "--metadata-file" in call)
+    expected_arg = f"{request.target}.args.SOURCE_DATE_EPOCH=1787491908"
+    assert expected_arg in check_call
+    assert expected_arg in build_call
+    assert any("rewrite-timestamp=true" in item for item in build_call)
+
+
+def test_source_date_epoch_must_be_positive(tmp_path: Path) -> None:
+    with pytest.raises(ContractError, match="positive Unix timestamp"):
+        replace(_request(tmp_path), source_date_epoch=0)
+
+
 def test_builder_checks_pushes_verifies_and_reuses_receipt(tmp_path: Path) -> None:
     gateway = FakeBuildx()
     builder = BuildKitRuntimeBuilder(

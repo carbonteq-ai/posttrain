@@ -6,6 +6,7 @@ import hashlib
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import replace
+from datetime import datetime
 from pathlib import Path
 
 from posttrain.common import ContractError
@@ -146,6 +147,22 @@ def _bake_variables(
                 }
             )
     return variables
+
+
+def _source_date_epoch(created: str) -> int:
+    """Convert the release commit timestamp into BuildKit's stable epoch."""
+
+    normalized = created.removesuffix("Z") + "+00:00" if created.endswith("Z") else created
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError as exc:
+        raise ValueError(f"release created timestamp is not ISO 8601: {created!r}") from exc
+    if parsed.tzinfo is None:
+        raise ValueError("release created timestamp must include a timezone")
+    epoch = int(parsed.timestamp())
+    if epoch <= 0:
+        raise ValueError("release created timestamp must be after the Unix epoch")
+    return epoch
 
 
 def _normalize_variants(variants: Sequence[str] | None) -> tuple[str, ...]:
@@ -550,6 +567,7 @@ def publish_release(
                     variant=variant,
                 ),
                 cache_from=cache_from,
+                source_date_epoch=(_source_date_epoch(created) if variant == "online-rl-verl-py313" else None),
                 **build_opts,
             )
         )
@@ -626,6 +644,7 @@ def publish_release(
                 base_image=published_base.value,
                 variant=variant,
             ),
+            source_date_epoch=(_source_date_epoch(created) if variant == "online-rl-verl-py313" else None),
             **build_opts,
         )
         if builder.has_receipt(request):

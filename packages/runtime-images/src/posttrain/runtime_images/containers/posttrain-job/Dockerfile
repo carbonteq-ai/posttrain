@@ -98,12 +98,12 @@ COPY --from=packaged-context /sources/ sources/
 # environment: doing so would drag their dependencies in, and those conflict
 # with veRL's. The isolated veRL process nevertheless needs the backend-neutral
 # contracts, portable Verifiers bridge, agent loop, and finalizer. Project those
-# three namespace packages as source instead of installing a second, misleading
+# four namespace packages as source instead of installing a second, misleading
 # copy of the framework distribution. Project code remains control-only;
 # selected external environments arrive as immutable wheels.
 RUN if [ "${RUNTIME_VARIANT}" = "online-rl-verl-py313" ]; then \
       install -d "${POSTTRAIN_VERL_PYTHONPATH}/posttrain"; \
-      for package in common data train; do \
+      for package in common data environment train; do \
         source="sources/framework/packages/${package}/src/posttrain/${package}"; \
         test -d "${source}"; \
         cp -a "${source}" "${POSTTRAIN_VERL_PYTHONPATH}/posttrain/"; \
@@ -436,20 +436,29 @@ if manifest.backend_runtime is not None:
     if tree_digest(Path(backend.projection_path)) != backend.projection_digest:
         raise SystemExit("veRL worker projection differs from the package manifest")
     worktree = Path(backend.working_directory)
-    head = subprocess.run(
-        ["git", "-C", str(worktree), "rev-parse", "HEAD"],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
-    status = subprocess.run(
-        ["git", "-C", str(worktree), "status", "--porcelain=v1"],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout
-    if head != backend.source_revision or status:
-        raise SystemExit("veRL kind worktree differs from the package manifest")
+    revision_marker = worktree / ".posttrain-source-revision"
+    if revision_marker.is_file():
+        if (worktree / ".git").exists():
+            raise SystemExit("veRL immutable source snapshot unexpectedly retains Git metadata")
+        if revision_marker.read_text(encoding="utf-8").strip() != backend.source_revision:
+            raise SystemExit("veRL kind source marker differs from the package manifest")
+    else:
+        # Compatibility for already-published kind images from before source
+        # snapshots carried a deterministic revision marker.
+        head = subprocess.run(
+            ["git", "-C", str(worktree), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        status = subprocess.run(
+            ["git", "-C", str(worktree), "status", "--porcelain=v1"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        if head != backend.source_revision or status:
+            raise SystemExit("veRL kind worktree differs from the package manifest")
 
 expected_dataset_files = set()
 for dataset in manifest.datasets:

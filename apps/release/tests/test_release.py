@@ -1389,6 +1389,15 @@ def test_verl_build_variables_come_from_the_current_runtime_profile() -> None:
     assert variables["SOURCE_REPOSITORY"] == identity.source_repository
 
 
+def test_release_created_timestamp_has_a_stable_buildkit_epoch() -> None:
+    from posttrain_release.publish import _source_date_epoch
+
+    assert _source_date_epoch("2026-08-23T18:31:48+05:00") == 1_787_491_908
+    assert _source_date_epoch("2026-08-23T13:31:48Z") == 1_787_491_908
+    with pytest.raises(ValueError, match="timezone"):
+        _source_date_epoch("2026-08-23T13:31:48")
+
+
 def test_unchanged_runtime_images_are_reused_across_framework_versions(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

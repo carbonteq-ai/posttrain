@@ -48,6 +48,24 @@ FORBIDDEN_ENVIRONMENTS = (
     "reverse-text",
     "reverse_text",
 )
+SHARED_HEAVY_DISTRIBUTIONS = (
+    "nvidia-cublas",
+    "nvidia-cuda-cupti",
+    "nvidia-cuda-nvrtc",
+    "nvidia-cudnn-cu13",
+    "nvidia-cufft",
+    "nvidia-cufile",
+    "nvidia-curand",
+    "nvidia-cusolver",
+    "nvidia-cusparse",
+    "nvidia-cusparselt-cu13",
+    "nvidia-nccl-cu13",
+    "nvidia-nvjitlink",
+    "nvidia-nvshmem-cu13",
+    "nvidia-nvtx",
+    "torch",
+    "triton",
+)
 
 
 def _require(condition: bool, message: str) -> None:
@@ -175,6 +193,50 @@ def _validate_boundaries() -> None:
         verl_profile.get("control_python") == "3.13.12" and verl_profile.get("backend_python") == "3.13.12",
         "veRL control and backend must both run the qualified interpreter",
     )
+    verl_root = KINDS / "verl-py313"
+    sharing_policy_path = verl_root / "shared-heavy.toml"
+    sharing_tool_path = verl_root / "validate_shared_fallback.py"
+    _require(sharing_policy_path.is_file(), "veRL shared-heavy policy is missing")
+    _require(sharing_tool_path.is_file(), "veRL shared fallback validator is missing")
+    sharing_policy = tomllib.loads(sharing_policy_path.read_text(encoding="utf-8"))
+    _require(sharing_policy.get("schema_version") == 1, "veRL shared-heavy policy schema must be 1")
+    _require(
+        tuple(sharing_policy.get("distributions", ())) == SHARED_HEAVY_DISTRIBUTIONS,
+        "veRL shared-heavy policy must retain the qualified distribution allowlist",
+    )
+    verl_dockerfile = (verl_root / "Dockerfile").read_text(encoding="utf-8")
+    sync_position = verl_dockerfile.index("UV_COMPILE_BYTECODE=0 uv sync ")
+    sharing_position = verl_dockerfile.index("validate_shared_fallback.py", sync_position)
+    cleanup_position = verl_dockerfile.index("rm -rf /opt/posttrain-verl-build", sharing_position)
+    _require(
+        "\nRUN " not in verl_dockerfile[sync_position:cleanup_position],
+        "veRL partial sync, fallback validation, and cleanup must remain one Docker RUN",
+    )
+    for distribution in SHARED_HEAVY_DISTRIBUTIONS:
+        _require(
+            f"--no-install-package {distribution}" in verl_dockerfile[sync_position:sharing_position],
+            f"veRL uv partial sync must reuse {distribution} from the control environment",
+        )
+    for fragment in (
+        "--control-site",
+        "--backend-site",
+        "--backend-lock",
+        "--policy",
+        "--report",
+        "--fallback-file",
+        "posttrain-control-fallback.pth",
+        "/opt/posttrain-verl/release/shared-heavy-report.json",
+        "/opt/posttrain-verl/release/shared-heavy.toml",
+        'VLLM_VERSION_OVERRIDE="${VLLM_RUNTIME_VERSION}"',
+        'ENV PYTHONHASHSEED="0"',
+        "UV_COMPILE_BYTECODE=0 uv python install",
+        "UV_COMPILE_BYTECODE=0 uv sync",
+        "compileall --invalidation-mode checked-hash",
+        "ARG SOURCE_DATE_EPOCH",
+        'SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH}"',
+        "rm -rf /opt/posttrain-verl/workdir/.git",
+    ):
+        _require(fragment in verl_dockerfile, f"veRL Dockerfile omits shared fallback input: {fragment}")
 
 
 def _validate_bake() -> None:
