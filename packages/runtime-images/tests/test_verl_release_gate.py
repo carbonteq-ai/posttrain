@@ -144,6 +144,17 @@ def test_candidate_orders_overlapping_cutlass_wheels_before_compilation() -> Non
     assert base_install < cu13_install < compile_position
 
 
+def test_candidate_resolves_unnamespaced_build_backend_collision_before_compilation() -> None:
+    dockerfile = (PROFILE_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    restore_position = dockerfile.index("names=[name for name in archive.namelist()")
+    compile_position = dockerfile.index("BACKEND_STDLIB=", restore_position)
+
+    assert "TORCH_C_DLPACK_WHEEL_SHA256" in dockerfile
+    assert "torch_c_dlpack_ext-0.1.5-cp313-cp313-manylinux_2_28_x86_64.whl" in dockerfile
+    assert "names == ['build_backend.py']" in dockerfile[restore_position:compile_position]
+    assert restore_position < compile_position
+
+
 def test_ready_profile_still_fails_closed_without_release_inputs(tmp_path: Path) -> None:
     profile = release_gate.ReleaseProfile.read(PROFILE_ROOT / "profile.toml")
 

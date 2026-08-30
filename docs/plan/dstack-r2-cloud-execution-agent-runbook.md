@@ -175,6 +175,7 @@ new repository document—with exactly these items:
 [ ] live mutation planned and bounded
 [ ] live acceptance green
 [ ] exact provider cleanup confirmed
+[ ] rejected image and uniquely owned cache cleanup confirmed
 [ ] safe receipt retained
 [ ] living plan updated
 ```
@@ -191,6 +192,7 @@ producer fork code/tests
 -> bounded apply
 -> verify
 -> cleanup
+-> exact rejected-publication cleanup
 -> receipt
 ```
 
