@@ -181,13 +181,17 @@ exact actual-job digest is
 its successful RunPod receipt is protected under
 `../ai-infra/.state/qualifications/runpod-runtime/successful-canary.json`.
 
-The retry-policy follow-up is implemented locally for general validation only:
-24-hour initial capacity admission, a non-resetting two-hour interruption
-window, five interruption recoveries, stable plus-or-minus-20-percent jitter
-over the existing capped exponential base schedule, ten-minute failed-region
-cooldowns, and compact retry state retained independently of submission rows.
-Do not run a production canary for this follow-up until it is deliberately
-published and selected through the normal immutable fork release gate.
+The retry-policy follow-up is published and selected at dstack commit
+`a73c3314ab54cbe0e6056f6dad2e33e173596be6`: 24-hour initial capacity
+admission, a non-resetting two-hour interruption window, five interruption
+recoveries, stable plus-or-minus-20-percent jitter over the existing capped
+exponential base schedule, ten-minute failed-region cooldowns, and compact
+retry state retained independently of submission rows. The immutable release
+gate passed. Live logical run `runpod-recovery-sft-20260831-r14` then proved
+empty-volume deletion, regional rotation, cooldown waiting, and a fresh
+post-cooldown A100 allocation attempt without creating a Pod or incurring GPU
+cost; it remains pending under the declared capacity-admission budget because
+RunPod returned no capacity.
 
 ## Focused execution protocol
 

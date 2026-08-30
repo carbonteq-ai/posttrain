@@ -45,13 +45,11 @@ acceptable, and use an exact hostname only when qualification requires that
 specific machine.
 
 Production runs the matching CarbonTeq server, runner, and shim release from
-commit `6494f15c7a36a2cdb92cec2f9b33696adb143fef`. The published regional-failover
-candidate is commit `e9d74b0cfd330500879946141469313e46de2e7d` on branch
-`codex/registry-default-auth`; it must pass the same immutable release gate
-before replacing the selected release.
-The bounded retry-budget and failed-region cooldown successor is local dstack
-commit `deb3aafcd2706f98f7d43ba8ba975d7737e3bc6e`; it has general test evidence
-only and is not yet published or deployed.
+commit `a73c3314ab54cbe0e6056f6dad2e33e173596be6` on branch
+`codex/registry-default-auth`. This selected release includes regional
+failover, bounded retry budgets, and failed-region cooldowns and passed the
+immutable release, component, idle-worker rolling, and scheduler-cancellation
+gates.
 The branch includes exact-host server credential injection and live RunPod GPU
 spot discovery, exact-digest image-readiness admission, a bounded RunPod
 provisioning-timeout override for large cold image pulls, and immediate
@@ -117,6 +115,11 @@ next-cheapest eligible region. Any provisioning record or attachment closes
 that failover path permanently, so checkpoint-bearing storage never moves
 between regions. A failed region cools down for ten minutes; when every region
 is cooling down, the run waits instead of immediately cycling through them.
+The managed mount remains recognizable after dstack persists it into the run
+specification, while arbitrary user volumes remain untouched. Rotation counts
+only no-capacity failures recorded after the current regional volume became
+active, preventing an earlier region's failure from evicting a newly created
+replacement.
 
 The maintained retry successor stores compact per-event attempt counters and
 the first event timestamp on the logical run, independent of pruned submission
