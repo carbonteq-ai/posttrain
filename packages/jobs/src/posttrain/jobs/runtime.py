@@ -35,9 +35,10 @@ def build_job_runtime(
         raise ValueError(f"extra job definitions cannot shadow standard ids: {', '.join(sorted(shadowed))}")
     definitions.update(extras)
     scratch_root = request.state_dir / "scratch"
+    recoverable = os.getenv("POSTTRAIN_INTERRUPTION_RECOVERY") == "1"
     selected_tracking = tracking or "trackio"
     if selected_tracking == "none":
-        executor = partial(execute_run, scratch_root=scratch_root)
+        executor = partial(execute_run, scratch_root=scratch_root, recoverable=recoverable)
     elif selected_tracking == "trackio":
         from posttrain_tracking_trackio import TrackioBackend, TrackioSettings
 
@@ -53,6 +54,7 @@ def build_job_runtime(
             execute_run_tracked_finalized,
             backend=backend,
             scratch_root=scratch_root,
+            recoverable=recoverable,
         )
     elif selected_tracking == "wandb":
         from posttrain_tracking_wandb import WandbBackend, WandbSettings
@@ -75,6 +77,7 @@ def build_job_runtime(
             execute_run_tracked_finalized,
             backend=backend,
             scratch_root=scratch_root,
+            recoverable=recoverable,
         )
     else:
         raise ValueError(f"unknown tracking backend: {selected_tracking}")

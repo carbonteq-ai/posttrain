@@ -16,7 +16,7 @@ from posttrain.common import (
     StoredArtifactRef,
 )
 from posttrain.tracking import ArtifactInput, RunOutcome, RunSpec
-from posttrain.work import execute_run_tracked, execute_run_tracked_finalized
+from posttrain.work import execute_run, execute_run_tracked, execute_run_tracked_finalized
 
 
 class PublishingRun:
@@ -101,6 +101,22 @@ def _spec() -> RunSpec:
         job_kind="train.sft",
         job_definition_version="train/sft@1",
     )
+
+
+def test_recoverable_execution_uses_the_canonical_retained_workspace(tmp_path: Path) -> None:
+    observed: list[Path] = []
+
+    def operation(context):
+        observed.append(context.workspace)
+        (context.workspace / "checkpoint-marker").write_text("step-1", encoding="utf-8")
+        return "done"
+
+    spec = _spec()
+    assert execute_run(spec, operation, scratch_root=tmp_path, recoverable=True) == "done"
+
+    assert observed == [(tmp_path / spec.run_id).resolve()]
+    assert (observed[0] / "checkpoint-marker").read_text(encoding="utf-8") == "step-1"
+    assert (observed[0] / ".posttrain-recovery.json").is_file()
 
 
 def test_finalized_execution_returns_exact_identity_before_cleanup(

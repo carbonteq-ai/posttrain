@@ -26,9 +26,11 @@ Prefer capacity-only
 targets (`device_class` / `memory_gb`) unless you need a specific worker — see
 [getting-started.md](../../getting-started.md) § “Run on dstack”.
 
-The protected dstack binding may set `capacity_wait_seconds`. Posttrain maps
-that only to dstack's persistent `no-capacity` retry event, leaving
-interruption and runtime-error retries disabled. Use `posttrain run queue` to
+The protected dstack binding sets `capacity_wait_seconds` to 86,400 for the
+24-hour capacity-admission window. Training jobs also retry provider-confirmed
+interruptions for at most two hours from the first interruption and at most
+five recoveries. Neither clock resets after successful provisioning, and
+arbitrary runtime errors remain fail-fast. Use `posttrain run queue` to
 inspect provider-native waiting independently of `posttrain workers`, which
 reports framework admission placements. `posttrain run status RUN_ID` reports
 the requested logical target and hostname constraints separately from the
@@ -42,20 +44,21 @@ dstack's capacity wait. Omit `placement.instances` when any matching worker is
 acceptable, and use an exact hostname only when qualification requires that
 specific machine.
 
-Production still runs the upstream image
-`dstackai/dstack:0.20.29@sha256:6d57647be04cad42dff2343f4f50d41a3b8bb438ebc67165bc56aa92858e69ce`.
-The published CarbonTeq candidate is commit
-`663974b843ff995052e4d4fdcdcb2e221777ae1e` on branch
-`codex/registry-default-auth`. Production is still on the upstream image until
-one matching server/runner/shim release passes the two-worker promotion gate.
+Production runs the matching CarbonTeq server, runner, and shim release from
+commit `6494f15c7a36a2cdb92cec2f9b33696adb143fef`. The published regional-failover
+candidate is commit `e9d74b0cfd330500879946141469313e46de2e7d` on branch
+`codex/registry-default-auth`; it must pass the same immutable release gate
+before replacing the selected release.
+The bounded retry-budget and failed-region cooldown successor is local dstack
+commit `deb3aafcd2706f98f7d43ba8ba975d7737e3bc6e`; it has general test evidence
+only and is not yet published or deployed.
 The branch includes exact-host server credential injection and live RunPod GPU
 spot discovery, exact-digest image-readiness admission, a bounded RunPod
 provisioning-timeout override for large cold image pulls, and immediate
 provider-absence reporting while a Pod is provisioning or running. It also
 supports opt-in, per-logical-run RunPod network storage for single-node spot
-tasks, including retry reuse and terminal cleanup. Its current
-uncommitted successor also removes environment values from runner diagnostic
-trace events.
+tasks, including retry reuse, pre-start regional failover, and terminal
+cleanup. Runner diagnostics emit environment names only and never values.
 
 ## Candidate fork
 
@@ -78,11 +81,9 @@ digest-pinned canonical image across LAN and cloud placement without teaching
 dstack about R2, mirrors, or split DNS. Prefix, suffix, and port mismatches do
 not receive credentials.
 
-Runner diagnostic logs must contain environment variable names only, never
-their values. This is required for cloud operation because provider, registry,
-and tracking credentials can all be present in the job environment. Until the
-redaction successor is published and deployed, operators must not use
-diagnostic-log mode for credential-bearing cloud jobs.
+Runner diagnostic logs contain environment variable names only, never their
+values. This is required for cloud operation because provider, registry, and
+tracking credentials can all be present in the job environment.
 
 RunPod pulls and unpacks the job image before its dstack runner becomes
 reachable. ai-infra configures the successor's optional
@@ -100,7 +101,8 @@ A100 in `EUR-IS-1`; the Pod and temporary registry objects were absent after
 cleanup.
 
 For single-node spot tasks, ai-infra may configure RunPod `run_storage` with a
-Secure Cloud region, size, and absolute mount path. Dstack then creates one
+Secure Cloud region pool, size, and absolute mount path. Dstack chooses the
+lowest-priced live eligible region and creates one
 network volume owned by the logical run, injects that generated mount into the
 persisted run and job specifications, reuses it across interruption retries,
 and schedules it for deletion only when the logical run becomes terminal. A
@@ -108,6 +110,20 @@ unique run owner is the fencing boundary. Explicit volumes, services,
 multinode tasks, on-demand placement, and other providers keep their existing
 behavior. Provider delete failures remain retryable and do not create a false
 deleted event or timestamp.
+
+If provider allocation or volume creation fails before any Pod has provisioned,
+the candidate deletes the still-empty volume and reuses its logical row in the
+next-cheapest eligible region. Any provisioning record or attachment closes
+that failover path permanently, so checkpoint-bearing storage never moves
+between regions. A failed region cools down for ten minutes; when every region
+is cooling down, the run waits instead of immediately cycling through them.
+
+The maintained retry successor stores compact per-event attempt counters and
+the first event timestamp on the logical run, independent of pruned submission
+rows. Pending retries use the existing 15s, 30s, 1m, 2m, 5m, 10m exponential
+base schedule with stable per-run, per-attempt jitter of plus or minus 20
+percent. The ten-minute value is the base cap, so the jittered delay is bounded
+between eight and twelve minutes once the cap is reached.
 
 The immutable `663974b8` candidate passed the automatic-storage interruption
 canary on 2026-08-30. Logical run
@@ -163,8 +179,6 @@ The release gate remains:
 - both GPU workers returning healthy and idle; and
 - a normal framework `run reconcile` plus evidence-gated cleanup.
 
-Selected published candidate commit:
-`663974b843ff995052e4d4fdcdcb2e221777ae1e`. Its matching server, runner, and
-shim are packaged and publicly staged for qualification but intentionally not
-promoted while the two-worker production gate is closed. Diagnostic redaction
-remains an unpublished successor and is deferred to the security milestone.
+Selected production commit:
+`6494f15c7a36a2cdb92cec2f9b33696adb143fef`. Regional-failover candidate:
+`e9d74b0cfd330500879946141469313e46de2e7d`.

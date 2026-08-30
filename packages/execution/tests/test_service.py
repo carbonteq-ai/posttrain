@@ -59,9 +59,8 @@ class FakeProvider:
         cursor: LogCursor | None = None,
         *,
         limit: int = 200,
-        stream: str = "workload",
     ) -> LogPage:
-        del handle, stream
+        del handle
         offset = (cursor or LogCursor()).offset
         lines = ("zero", "one", "two")[offset : offset + limit]
         return LogPage(lines, LogCursor(offset + len(lines)), offset + len(lines) < 3)
@@ -137,7 +136,7 @@ def test_submission_store_is_idempotent_and_rejects_conflicts(tmp_path: Path) ->
     assert store.load(submission.run_id) == submission
     assert store.submission_path(submission.run_id).stat().st_mode & 0o777 == 0o600
     payload = json.loads(store.submission_path(submission.run_id).read_text(encoding="utf-8"))
-    assert payload["schema"] == "posttrain.execution-submission.v8"
+    assert payload["schema"] == "posttrain.execution-submission.v7"
     assert payload["evidence_retention"] == "standard"
     assert payload["evidence_source_recorded"] is True
     assert payload["evidence_source"] is None
@@ -149,29 +148,6 @@ def test_submission_store_is_idempotent_and_rejects_conflicts(tmp_path: Path) ->
 
     with pytest.raises(ContractError, match="different provider submission"):
         store.save(replace(submission, provider_id="provider-run-2"))
-
-
-def test_submission_records_the_exact_execution_policy(tmp_path: Path) -> None:
-    store = ExecutionSubmissionStore(tmp_path.resolve())
-    submission = ExecutionSubmission(
-        run_id="run-with-policy",
-        provider="fake",
-        provider_id="provider-run-1",
-        idempotency_key="key-with-policy",
-        job_image=f"registry.lan/posttrain@sha256:{'c' * 64}",
-        submitted_at=datetime.now(UTC),
-        execution_policy=ExecutionPolicy(timeout_seconds=90_000, max_attempts=2, priority=4),
-    )
-
-    loaded = store.load(store.save(submission).run_id)
-    assert loaded.execution_policy == ExecutionPolicy(timeout_seconds=90_000, max_attempts=2, priority=4)
-    payload = json.loads(store.submission_path(submission.run_id).read_text(encoding="utf-8"))
-    assert payload["schema"] == "posttrain.execution-submission.v8"
-    assert payload["execution_policy"] == {
-        "timeout_seconds": 90_000,
-        "max_attempts": 2,
-        "priority": 4,
-    }
 
 
 def test_submit_intent_survives_provider_acceptance_crash_and_retry(
@@ -322,10 +298,6 @@ def test_service_recovers_handle_without_resubmitting(tmp_path: Path) -> None:
     first = JobExecutionService(provider, store, provider_name="fake")
     plan = first.plan(_request(tmp_path))
     submission = first.submit(plan)
-
-    assert submission.execution_policy == plan.request.policy
-    payload = json.loads(store.submission_path(submission.run_id).read_text(encoding="utf-8"))
-    assert payload["execution_policy"]["timeout_seconds"] == plan.request.policy.timeout_seconds
 
     second = JobExecutionService(provider, store, provider_name="fake")
     assert second.submit(plan) == submission

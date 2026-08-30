@@ -168,14 +168,26 @@ the next row.
 Current completion: P0, A, and B are complete. B proved waiting-to-ready,
 cold-pull CUDA execution, restart-resume, and readiness-timeout behavior with
 published dstack commit `e1e0921007297e19d39dd2e189b94b6761663d60`.
-An explicit-volume spot canary also recovered the same marker after the first
-Pod was deleted directly through the RunPod API, but it exposed the still-open
-provider-authoritative observation and automatic run-storage work in D and F.
-Resume C next. Milestone A's retained
+The deployed successor `663974b843ff995052e4d4fdcdcb2e221777ae1e` now reports
+provider-confirmed RunPod absence and owns automatic single-node spot storage.
+The framework-aligned canary mounted that volume at `/var/lib/posttrain`,
+recovered the same marker after direct API deletion of the first Pod, and
+confirmed both Pods and the volume absent after completion. Resume C next;
+return to D only for any explicit attempt-history gap exposed by the real
+training qualification, and do not rebuild F into a second storage subsystem.
+Milestone A's retained
 exact actual-job digest is
 `sha256:38412b847e7977f5c0747d88d2399feabf0a7f5ab2c3a33bd976b703cda50bb9`;
 its successful RunPod receipt is protected under
 `../ai-infra/.state/qualifications/runpod-runtime/successful-canary.json`.
+
+The retry-policy follow-up is implemented locally for general validation only:
+24-hour initial capacity admission, a non-resetting two-hour interruption
+window, five interruption recoveries, stable plus-or-minus-20-percent jitter
+over the existing capped exponential base schedule, ten-minute failed-region
+cooldowns, and compact retry state retained independently of submission rows.
+Do not run a production canary for this follow-up until it is deliberately
+published and selected through the normal immutable fork release gate.
 
 ## Focused execution protocol
 

@@ -566,10 +566,6 @@ def register(app: typer.Typer) -> None:
             int,
             typer.Option("--limit", min=1, max=2000),
         ] = 200,
-        stream: Annotated[
-            str,
-            typer.Option("--stream", click_type=click.Choice(("workload", "diagnostic"))),
-        ] = "workload",
         follow: Annotated[
             bool,
             typer.Option("--follow", "-f", help="keep polling until the run is terminal"),
@@ -587,7 +583,7 @@ def register(app: typer.Typer) -> None:
         collected: list[str] = []
         truncated = False
         while True:
-            page = service.logs(run_id, LogCursor(cursor), limit=limit, stream=stream)  # type: ignore[arg-type]
+            page = service.logs(run_id, LogCursor(cursor), limit=limit)
             if page.lines:
                 if state.json_output:
                     collected.extend(page.lines)
@@ -610,7 +606,6 @@ def register(app: typer.Typer) -> None:
                     "next_offset": cursor,
                     "truncated": truncated,
                     "followed": follow,
-                    "stream": stream,
                 },
                 "",
             )
@@ -779,7 +774,9 @@ def register(app: typer.Typer) -> None:
             detail = next_admission.entry.message or "none"
             lines.append(f"Next admission: {next_admission.entry.run_id} ({next_admission.entry.state}; {detail})")
         if cleanup is not None:
-            lines.append(f"Cleanup: {cleanup.provider_disposition}; workspace={cleanup.workspace_disposition}")
+            lines.append(
+                f"Cleanup: {cleanup.provider_disposition}; workspace={cleanup.workspace_disposition}"
+            )
         emit(
             state,
             payload,

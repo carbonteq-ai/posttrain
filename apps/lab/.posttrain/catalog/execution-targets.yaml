@@ -13,3 +13,59 @@ target:
       world_size: 1
       instances:
         - hostname: carbonteq-ai-workstation.lan
+  targets/runpod-l40s-spot-qualification:
+    revision: "1"
+    device_class: nvidia-cuda
+    memory_gb: 48
+    placement:
+      world_size: 1
+      backends:
+        - runpod
+      spot_policy: spot
+      managed_run_storage: true
+      gpu_names:
+        - L40S
+      max_price: 1.0
+      disk_gb: 100
+  targets/runpod-a100-80gb-spot-qualification:
+    revision: "1"
+    device_class: nvidia-cuda
+    memory_gb: 80
+    placement:
+      world_size: 1
+      backends:
+        - runpod
+      spot_policy: spot
+      managed_run_storage: true
+      gpu_names:
+        - A100
+      max_price: 1.6
+      disk_gb: 100
+  targets/runpod-rtx-pro-6000-spot-qualification:
+    revision: "1"
+    device_class: nvidia-cuda
+    memory_gb: 96
+    placement:
+      world_size: 1
+      backends:
+        - runpod
+      spot_policy: spot
+      managed_run_storage: true
+      gpu_names:
+        - RTXPRO6000WK
+      max_price: 1.9
+      disk_gb: 100
+  targets/runpod-l4-spot-qualification:
+    revision: "1"
+    device_class: nvidia-cuda
+    memory_gb: 24
+    placement:
+      world_size: 1
+      backends:
+        - runpod
+      spot_policy: spot
+      managed_run_storage: true
+      gpu_names:
+        - L4
+      max_price: 0.5
+      disk_gb: 100

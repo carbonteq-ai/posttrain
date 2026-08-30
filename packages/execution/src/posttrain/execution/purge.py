@@ -707,13 +707,7 @@ class PurgeStore:
             category = value["category"]
             note = value.get("note")
             actor = value.get("actor")
-            if (
-                not isinstance(category, str)
-                or note is not None
-                and not isinstance(note, str)
-                or actor is not None
-                and not isinstance(actor, str)
-            ):
+            if not isinstance(category, str) or note is not None and not isinstance(note, str) or actor is not None and not isinstance(actor, str):
                 raise TypeError
             return PurgeReason(category=category, note=note, actor=actor)
         except (KeyError, TypeError) as error:

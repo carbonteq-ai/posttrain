@@ -468,13 +468,23 @@ weights.
 Adapters may need local files (checkpoints, Verifiers JSONL, logs, staging):
 
 1. host opens the observer run
-2. host creates a temporary workspace keyed by `run_id`
+2. host creates a workspace keyed by `run_id`; it may persist across fenced
+   attempts when the run declares interruptible recovery
 3. adapter streams metrics, events, and traces
 4. durable outputs are published as artifacts / edges
 5. run finalizes with status
-6. workspace is deleted unless an explicit recovery policy retains it
+6. workspace is deleted after the retained-evidence and provider cleanup
+   barriers unless an explicit recovery or retention policy keeps it
 
 The filesystem is not a parallel run registry.
+
+An interrupted same-run retry records a new `run_attempt` but does not create a
+new logical run or a second lineage node. A complete local checkpoint is the
+first same-workspace recovery source. Incomplete directories are ignored. If
+the workspace contains evidence of prior progress but no complete compatible
+checkpoint, the runtime fails recovery instead of starting over. A Trackio-
+verified `training-checkpoint` remains the provider-neutral fallback when a new
+run or replacement workspace is required.
 
 ### Retention and intentional erasure
 

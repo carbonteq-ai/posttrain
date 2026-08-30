@@ -10,7 +10,11 @@ actual-job image publication, local-image export, and the BuildKit cache
 boundary. It complements `docs/plan/dx-packing-environments-datasets.md`: that
 plan defines what belongs in a job package; this plan defines which local bytes
 remain after the package has been published and how developers inspect and
-reclaim them.
+reclaim them. Terminal execution cleanup, retained run evidence, and intentional
+cross-plane erasure are governed by
+`docs/plan/run-cleanup-retention-and-purge-lifecycle.md`; this cache plan must
+never delete Trackio evidence, provider history, registry manifests, or durable
+artifacts.
 
 ## Purpose / Big Picture
 
@@ -57,6 +61,52 @@ path automatically collects only expired, unleased, rebuildable objects when
 the configured budget or free-space guard is crossed. It never invokes a
 Docker-wide prune.
 
+### Developer experience contract
+
+The happy path requires no cache command and no project configuration. A
+developer runs `posttrain job run ...`; Posttrain reuses shared base/kind
+images, BuildKit layers, and content-addressed source, wheel, dependency, and
+dataset objects, then removes the complete assembled context after verified
+handoff. A remote dstack run hands off by publishing the digest-pinned
+actual-job image to the registry. A local run hands off by loading a run-scoped
+image into the selected Docker daemon. Only that loaded local image remains
+protected while its run is nonterminal. Checkpoint retention continues through
+the configured Trackio-backed artifact store and is not part of cache policy.
+
+Routine success emits one compact line rather than a cleanup tutorial:
+
+    Image published: registry.lan/carbonteq/posttrain-job@sha256:...
+    Local build material: 0 B retained; reusable cache: 18.4/40 GiB
+
+Posttrain applies safe lifecycle cleanup automatically at the end of pack and
+terminal local-run reconciliation. Before an expensive pack it enforces the
+host free-space guard and automatically collects expired staging plus unleased
+reusable objects only when needed. If safe automatic collection cannot make
+enough room, it fails before copying and prints the exact short recovery
+command rather than leaving a half-built multi-gigabyte context.
+
+Manual interaction is deliberately limited to three progressively disclosed
+commands:
+
+    posttrain cache status
+    posttrain cache prune
+    posttrain cache prune --apply
+
+`status` is read-only and answers what is consuming space and why. `prune` is
+also read-only and previews exact paths, ownership classes, and bytes.
+`prune --apply` is the single repair and legacy-cleanup action; it performs any
+safe compact-record migration internally, so developers do not run a separate
+`cache migrate` workflow. `cache explain KEY` remains an optional maintainer
+diagnostic, not a required step in the golden path. Defaults ship with the
+framework; machine configuration exists only for operators who need a
+different budget or free-space guard.
+
+The product never asks a project developer to choose checkpoint retention,
+registry garbage collection, BuildKit garbage collection, or Docker-wide
+cleanup from this command family. Registry image retention and shared BuildKit
+policy are infrastructure responsibilities. Explicit OCI exports at
+user-selected paths are deliverables and remain outside automatic cleanup.
+
 This work does **not** amend the frozen product baseline. The canonical product
 already defines the actual-job OCI image as the immutable distribution unit,
 the execution workspace as disposable after durable outputs are published,
@@ -68,6 +118,23 @@ making that change.
 
 ## Progress
 
+- [x] (2026-08-23) Reframed the remaining lifecycle around developer
+  experience: zero cache commands on the normal pack/run path, one
+  dry-run/apply pair for legacy repair, transport-aware remote versus local
+  handoff, existing Trackio checkpoint ownership, and bounded shared caches for
+  build speed.
+- [x] (2026-08-23) Re-audited Ambient after newer runs: 200,895,994,192
+  bytes were in project-local Posttrain state, of which only 4,774,247,123
+  bytes were already classified as rebuildable. Applied the scoped framework
+  prune and recovered those bytes; no protected context, receipt, execution,
+  source snapshot, or qualification artifact was removed.
+- [ ] (2026-08-23) Resume Milestone 6 legacy package migration (completed:
+  counted 54 retained contexts, 42 compact records with only one matching a
+  retained legacy context, 60 registry receipts, and 21 local receipts;
+  applied the existing 4,774,247,123-byte safe prune and wrote compact records
+  for 27 legacy contexts without deleting them; remaining: replace the
+  registry-liveness prototype with transport-aware local-versus-remote
+  ownership, validate, then apply the revised cleanup to Ambient).
 - [x] (2026-08-10) Read the canonical work/evidence, framework, API, and
   observation/lineage contracts and confirmed that no baseline amendment is
   required.
@@ -178,31 +245,6 @@ making that change.
   contexts all contain `package.json`, 80 legacy publication receipts exist,
   and no compact materialization records have been migrated yet. The planner
   reports 168,282,955,310 protected bytes and 505,624,505 rebuildable bytes;
-- [x] (2026-08-23) Restarted Milestone 6 from clean `origin/main` after the
-  v0.3.21 release and refreshed Ambient without mutation. Ambient still runs
-  v0.3.19 and now has 54 legacy contexts, 13 legacy internal OCI layouts, 69
-  newer compact materialization records, and 196,121,903,723 classified cache
-  bytes. The historical contexts and layouts remain protected pending the
-  project-scoped migration below; the filesystem currently has about 136 GiB
-  free, so this is controlled lifecycle work rather than emergency deletion.
-- [x] (2026-08-23) Implemented and validated `posttrain cache migrate-legacy-pack`
-  as a dry-run-first, project-local bridge from valid legacy manifests and
-  receipts to compact materialization records and explicitly classified
-  internal layouts.
-- [x] (2026-08-23) Ran the migration against Ambient. The dry run classified
-  all 54 contexts (101,876,275,314 bytes) as migratable with zero protected:
-  27 had one live LAN-registry publication and 27 required minimal discard
-  records. The applied normal prune then removed exactly those 54 contexts and
-  13 unleased internal OCI layouts, 155,025,370,976 logical bytes in total.
-  Filesystem free space rose from about 136 GB to 300 GB, execution evidence
-  retained aggregate SHA-256
-  `d9bbffc2228165192b8440193fd3ba3cc71da526257ff4a929ca9795e5a21c59`,
-  and the post-prune classifier reports 41,096,562,217 protected bytes with
-  zero immediately reclaimable.
-- [x] (2026-08-23) Upgraded Ambient's existing dirty dependency change from
-  Posttrain v0.3.19 to the released v0.3.21 without touching its unrelated
-  source/config edits; `uv lock --check`, `uv sync --locked`, and
-  `posttrain --version` confirm the installed v0.3.21 package family.
   no prune or migration apply was attempted.
 - [x] (2026-08-10) Qualified direct local-daemon publication against the real
   named builder. The first canary exposed two owning-layer contract defects:
@@ -297,19 +339,13 @@ making that change.
 
 ## Surprises & Discoveries
 
-- Observation: Ambient is not wholly legacy. It already contains 69 protected
-  compact materialization records alongside 54 older retained contexts.
-  Evidence: the refreshed 2026-08-23 inventory found records under
-  `.posttrain/state/packages/materializations` and separately found 54
-  directories under `cache/pack/contexts`; the migration must bridge only the
-  latter and must treat an existing matching record as an idempotent success.
-
-- Observation: the 13 remaining legacy OCI layouts occupy two historical
-  internal cache locations: two under `cache/pack/local-layouts` and eleven
-  under `cache/pack/publications/local-layouts`.
-  Evidence: both locations are below the selected Ambient project's cache
-  root. They are not explicit user exports, but an active lease or unfinished
-  local execution must still protect the matching layout.
+- Observation: the current 196.1 GB protection set is mainly a migration gap,
+  not active run data or base images.
+  Evidence: the 2026-08-23 classifier attributes about 94.9 GiB to 54
+  assembled contexts, 49.5 GiB to 13 local OCI layouts, 20.6 GiB to source
+  snapshots, and 16.0 GiB to qualification state. Only one of the 54 retained
+  contexts has a matching compact materialization record even though 42 newer
+  compact records exist elsewhere in durable state.
 
 - Observation: the largest remaining tree is not BuildKit; it is retained
   framework build contexts under the project.
@@ -505,36 +541,47 @@ making that change.
 
 ## Decision Log
 
-- Decision: make historical pack migration an explicit project-scoped command,
-  separate from ordinary `cache prune`, and keep it dry-run by default.
-  Rationale: migration establishes compact durable evidence from legacy bytes;
-  pruning removes bytes already classified as rebuildable. Keeping those
-  meanings separate makes retries and audits understandable while one command
-  can still prepare all eligible objects in a single apply invocation.
-  Date/Author: 2026-08-23 / implementation.
+- Decision: continue Milestone 6 in this plan and migrate legacy contexts into
+  compact records before broad cache collection; do not add an age-only or
+  terminal-run shortcut that deletes ambiguous package material.
+  Rationale: run age does not prove that the only reproducible actual-job image
+  exists elsewhere. A compact record plus a matching durable registry receipt
+  provides the required recovery authority while keeping execution records,
+  metrics, checkpoints, and publication evidence outside the prune target.
+  Date/Author: 2026-08-23 / Codex
 
-- Decision: migration may inspect only the selected project's
-  `.posttrain/state`, may write only its protected materialization/journal
-  roots, and may classify only cache descendants from that same project. It
-  never deletes registry images, Trackio artifacts, checkpoints, execution
-  evidence, or another project's state.
-  Rationale: project identity and filesystem containment are stronger safety
-  boundaries than global run discovery. Remote receipts and execution records
-  are read-only proof inputs, not migration targets.
-  Date/Author: 2026-08-23 / implementation.
+- Decision: assembled contexts are temporary builder inputs, not a recovery
+  copy. Remove them after a successful handoff: verified registry publication
+  for a dstack/remote runner or verified daemon load for a local runner. A
+  project-local cache does not protect remote actual-job images after
+  publication; registry retention owns them. For local execution, protect only
+  the run-scoped loaded image while a nonterminal execution references it.
+  Rationale: base images, job-kind images, bounded BuildKit layers, and reusable
+  content-addressed source/wheel/dataset objects provide build acceleration
+  without retaining a complete duplicate context per package. The handoff
+  receipt, rather than run age or checkpoint availability, is the correct
+  context deletion boundary.
+  Date/Author: 2026-08-23 / Codex, superseding the same-day registry-liveness
+  requirement for context collection.
 
-- Decision: an old assembled context does not have to remain byte-for-byte
-  reproducible on the submitting workstation before it can be discarded.
-  Commit a full compact materialization record when one unique LAN-registry
-  receipt verifies; otherwise commit a minimal project-local discard record
-  after validating the package manifest. In both cases an active cache lease
-  is the deletion blocker, while Trackio artifacts and registry images remain
-  outside the migration's mutation scope.
-  Rationale: assembled contexts and internal OCI layouts are transport cache,
-  not replay or resume authorities. Retaining tens of gigabytes because old
-  publication metadata is absent or ambiguous confuses local reconstruction
-  convenience with durable run evidence.
-  Date/Author: 2026-08-23 / user direction and implementation.
+- Decision: keep one resume behavior. A new run selects its current package and
+  binds the immutable recovery checkpoint already retained by the configured
+  Trackio-backed artifact store; cache cleanup does not add checkpoint
+  retention or alternate resume modes.
+  Rationale: checkpoint lifecycle already belongs to run artifact storage and
+  is independent of builder cache ownership. Reintroducing it into cache
+  classification would duplicate authority and unnecessarily protect local
+  bytes.
+  Date/Author: 2026-08-23 / Codex
+
+- Decision: make cache lifecycle invisible on the happy path and collapse
+  legacy repair into `posttrain cache prune --apply`; do not require a
+  standalone `cache migrate` step.
+  Rationale: ordinary builds already have the handoff information needed to
+  release temporary contexts. Developers should use cache commands only for
+  inspection, exceptional disk pressure, or one-time legacy cleanup, and the
+  manual recovery path should be one preview plus one apply command.
+  Date/Author: 2026-08-23 / Codex
 
 - Decision: do not disguise framework truncation fixes as a Reasoning Gym
   package release; advance the external environment pin only for a verified,
@@ -961,8 +1008,18 @@ active leases and protected control records; candidates are unreferenced cache
 objects ordered by expired staging first, then class priority, then LRU. The
 default is dry-run. `--apply` executes the immutable plan with precondition
 checks so a new lease or changed inode causes a skip, not a race. Output must
-show reclaimed and skipped bytes. `--json` retains the normal CLI structured
-output contract.
+show reclaimed and skipped bytes. For legacy state, the same plan includes
+atomic compact-record creation immediately before deletion when handoff
+evidence is valid. There is no required public migration command. `--json`
+retains the normal CLI structured output contract.
+
+The default happy path performs the same classifier internally without noisy
+output. Successful pack removes the assembled context immediately after
+registry publication or local daemon load. Pack preflight invokes safe
+collection automatically only when the project budget or host free-space guard
+is crossed. Terminal local-run reconciliation removes only its run-scoped
+loaded image. If automatic collection is insufficient, the error gives the
+largest protected classes and the exact `posttrain cache status` command.
 
 The command only mutates the selected project's `.posttrain/state/cache`.
 BuildKit status tells the developer whether infrastructure GC is configured,
@@ -1013,19 +1070,25 @@ remote provider.
 
 Implement a migration planner for legacy pack state. It inventories each
 legacy context, extracts and validates `package.json` into a compact
-materialization record, imports valid remote receipts after registry
-verification, classifies full local layouts as reclaimable unless they were
-explicitly exported, and identifies staging directories left by dead builds.
-Dry-run output includes totals and refuses ambiguous/symlinked/dirty entries.
+materialization record, validates remote-publication or local-load handoff
+receipts, classifies full internal local layouts as reclaimable unless they
+were explicitly exported, and identifies staging directories left by dead
+builds. A remote publication receipt proves that local ownership ended when
+publication was verified; later registry liveness affects cache-hit reuse but
+does not turn the project workstation into a registry backup. A local-load
+receipt protects the run-scoped daemon image through nonterminal execution but
+does not protect its assembled context. Dry-run output includes totals and
+refuses ambiguous, symlinked, or dirty entries.
 
 Apply migration in small immutable batches, journaling each decision so an
-interruption is retryable. Prefer a compact materialization record when one
-unique referenced remote publication verifies. If legacy publication metadata
-is missing, ambiguous, or stale, validate the package manifest and commit a
-minimal discard record instead; do not retain the assembled context merely to
-preserve workstation-local reconstruction. Internal local layouts are cache,
-not explicit exports, and are reclaimable when unleased. Existing execution
-and artifact records are read-only protection inputs, never migration targets.
+interruption is retryable. Expose that work through the normal
+`posttrain cache prune --apply` transaction rather than a second developer
+workflow. Do not delete a legacy context until its compact record and handoff
+evidence are committed. Contexts with an active lease remain protected;
+unsubmitted abandoned contexts become candidates after the configured debug
+TTL. Do not delete a user-selected local export or a run-scoped local image
+still referenced by a nonterminal execution. Existing execution and artifact
+records are read-only inputs to classification, never migration targets.
 
 In ai-infra, from the existing dirty checkout, run the read-only builder plan.
 When no build is active, recreate `posttrain-builder` using the repository
@@ -1068,15 +1131,6 @@ qualification receipt, CLI dry-run/applied prune receipts, and proof that model
 and checkpoint artifacts were unchanged. Release notes describe the developer
 behavior, not internal cache implementation.
 
-Live migration evidence on 2026-08-23 closes the historical workstation-space
-part of Milestone 6. The new command verified 27 unique registry publications,
-committed or idempotently checked their compact records and durable receipts,
-and wrote 27 privacy-minimal discard records for contexts whose old publication
-mapping was missing, stale, or ambiguous. The normal pruner—not the migration
-command—then removed 101.88 GB of assembled contexts and 53.15 GB of internal
-OCI transport layouts. No execution record changed, no Trackio or registry
-delete API was invoked, and all Ambient source-worktree changes were preserved.
-
 ## Concrete Steps
 
 Work from `/home/hammad/projects/rl` unless a command names another repository.
@@ -1107,6 +1161,13 @@ For Milestone 5, retain fake-gateway tests and add Docker integration tests
 behind the existing Docker marker. Verify exact tag ownership and ensure a
 user-owned export outside state survives every cache operation.
 
+For Milestone 6, test the legacy planner through `cache prune`, not a required
+standalone migration command. The dry-run must include planned compact-record
+writes and deletions without mutating either. Apply must commit the record,
+revalidate the handoff receipt and lease preconditions, delete the context, and
+journal the result as one retryable transaction. Run the same apply twice and
+expect the second invocation to report no work.
+
 Use the focused ladder during implementation:
 
     uv run pytest packages/execution-pack/tests -q
@@ -1129,12 +1190,12 @@ Before release, run the repository ladder:
 Capture live disk evidence with scoped commands rather than global deletion:
 
     du -sh .posttrain/state/cache/pack/*
-    posttrain cache status --json
-    posttrain cache prune --json
+    posttrain --json cache status
+    posttrain --json cache prune
 
 The applied command is allowed only after reviewing the dry-run receipt:
 
-    posttrain cache prune --apply --json
+    posttrain --json cache prune --apply
 
 ## Validation and Acceptance
 
@@ -1167,6 +1228,21 @@ The feature is accepted when all of these checks pass:
   reports BuildKit as a distinct backend scope.
 - Automatic collection occurs only under configured pressure and never blocks
   a successful cache hit on unnecessary cleanup.
+- A normal remote `job run` publishes the digest-pinned actual-job image,
+  removes its local context/layout, and requires no cache command. A normal
+  local `job run` loads a run-scoped daemon image, removes its context/layout,
+  protects only that loaded image while nonterminal, and removes it during
+  terminal reconciliation.
+- The first pack after installing the framework succeeds with packaged cache
+  defaults and no `[cache]` configuration. A custom machine policy changes
+  only retention pressure, never package or image identity.
+- `cache status` and dry-run `cache prune` are read-only. Their human output
+  names the three largest consumers, reclaimable bytes, protected bytes, and
+  one next action without requiring the developer to understand leases,
+  BuildKit internals, or registry implementation.
+- Legacy cleanup requires at most `posttrain cache prune` followed by
+  `posttrain cache prune --apply`; no separate migration, checkpoint, Docker,
+  or registry-GC command is part of the project workflow.
 - Direct local load and explicit OCI export produce equivalent package
   manifests. The export survives cache prune; transient transport does not.
 - The Ambient Reasoning Gym canary excludes unrelated Hotpot bytes. A selected
@@ -1186,10 +1262,13 @@ content is a no-op; conflicting content fails closed. Contexts and local
 transport layouts are created below unique lease ids, so a retry never mutates
 an in-use path.
 
-Migration is plan/apply and journaled. If it stops after writing a compact
-record but before deleting a legacy context, rerunning observes the identical
-record and resumes deletion. If registry verification fails, preserve the
-legacy context and report it; do not infer that local bytes are disposable.
+Legacy repair is part of the cache plan/apply transaction and is journaled. If
+it stops after writing a compact record but before deleting a legacy context,
+rerunning observes the identical record and resumes deletion. A registry
+lookup failure prevents treating an old image as a reusable cache hit, but a
+previously committed publication-handoff receipt still authorizes removal of
+the redundant local context. Missing or conflicting handoff evidence fails
+closed and is explained without deleting the candidate.
 
 Cache prune separates planning and application. Apply revalidates every
 candidate's key, path, type, lease state, and observed size/inode facts. A
@@ -1283,3 +1362,17 @@ can resolve a verified image without a staged context, and successful or
 failed planned publication removes only framework-owned retained contexts.
 The remaining work is legacy-state migration, local-daemon/export semantics,
 BuildKit host qualification, and released Ambient adoption.
+
+Revision note (2026-08-23): resumed the living plan from the current Ambient
+inventory and made developer experience an explicit acceptance contract. The
+normal path now requires zero cache commands; remote registry publication and
+local daemon load are distinct handoff boundaries; only run-scoped local
+images remain locally protected; shared caches stay bounded for build speed;
+Trackio checkpoint retention remains unchanged; and one dry-run/apply cache
+workflow absorbs legacy record migration instead of requiring a separate
+manual command.
+
+Revision note (2026-08-23): cross-linked the companion run lifecycle plan and
+made this plan's negative authority explicit. Cache pruning owns only local,
+rebuildable packing material and cannot become a shortcut for provider,
+registry, tracking, artifact, or run-history erasure.

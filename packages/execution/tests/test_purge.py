@@ -172,12 +172,9 @@ def test_store_reads_a_legacy_v1_plan_without_a_reason(tmp_path: Path) -> None:
         "warnings": [],
         "blockers": [],
     }
-    digest = (
-        "sha256:"
-        + hashlib.sha256(
-            json.dumps(legacy_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
-        ).hexdigest()
-    )
+    digest = "sha256:" + hashlib.sha256(
+        json.dumps(legacy_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
+    ).hexdigest()
     plan = PurgePlan(
         purge_id=PurgeStore.purge_id_for_digest(digest),
         mode="run",

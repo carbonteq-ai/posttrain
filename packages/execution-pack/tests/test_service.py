@@ -429,13 +429,13 @@ def test_verl_backend_identity_rejects_host_paths_and_digests_projection(
     tmp_path: Path,
 ) -> None:
     framework_root = tmp_path / "framework"
-    for package in ("common", "data", "train"):
+    for package in ("common", "data", "environment", "train"):
         path = framework_root / "packages" / package / "src" / "posttrain" / package
         path.mkdir(parents=True)
         (path / "__init__.py").write_text(f'"""{package}."""\n', encoding="utf-8")
     source = SourcePackage(
         root=framework_root.resolve(),
-        install_roots=("packages/common", "packages/data", "packages/train"),
+        install_roots=("packages/common", "packages/data", "packages/environment", "packages/train"),
     )
     options = {
         "python_executable": "/opt/posttrain-verl/bin/python",

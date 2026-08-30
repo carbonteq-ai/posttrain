@@ -232,10 +232,18 @@ every client. Posttrain does not hold a host placement for them: each run
 keys only itself (`run:<run_id>`), so nothing queues behind another posttrain
 process while the provider's own scheduler remains authoritative. A configured
 provider capacity-wait window may retry only a pre-start no-capacity event; it
-must not retry an interruption or runtime error because either can repeat user
-code without a new framework attempt. Queue inspection distinguishes framework
-admission from provider-native capacity waiting and reports the requested
-logical target and host constraints separately from the assigned hostname.
+must not normally retry an interruption or runtime error because either can
+repeat user code without a new framework attempt. The narrow exception is a
+training job that declares exact same-run recovery: the provider must classify
+an interruption authoritatively, fence the previous writer, reattach the same
+run-scoped workspace, and the runtime must select a complete checkpoint before
+advancing. That retry keeps the canonical run identity and increments attempt
+identity. Runtime failures remain non-retryable. If prior training progress is
+present but no complete compatible checkpoint can be selected, the attempt
+fails rather than restarting from step zero. Queue inspection distinguishes
+framework admission from provider-native capacity waiting and reports the
+requested logical target and host constraints separately from the assigned
+hostname.
 
 A waiting run retains its immutable execution plan and evidence destination,
 can be inspected or cancelled by canonical `run_id`, and must not contact a

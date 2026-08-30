@@ -60,8 +60,8 @@ The post-canary scope also closes the gaps that the successful stateless A100 te
 - [ ] Promote dstack commit `d2586c3871525e461bcbc442deaa511af2a87758` to the production control plane. Candidate server and component digest checks passed, but the release gate correctly rolled back because `pop-os.lan` was already unreachable and the RTX PRO 6000 LAN worker is busy with run `6dffd449-12e5-4bda-b449-defdcb30a0a4`. Do not cancel that run or weaken the two-worker qualification gate.
 - [x] (2026-08-30) Completed Milestone 2: the external R2-backed registry, private push ingress, public read-only pull ingress, canonical hostname, and split public/LAN routing are deployed and qualified. Managed-worker restart/trust proof remains a rollout gate in Milestone 5 rather than registry construction work.
 - [x] (2026-08-30) Completed Milestone 3: LAN registry notifications feed the durable exact-digest mirror, canonical repository filtering and restart-safe receipts are deployed, release roots are seeded, and the infrastructure-owned reconcile/readiness API is available. Cloud admission still needs to consume that readiness result before it creates billable compute.
-- [ ] Complete Production Milestones A–C (automatic guarded CUDA activation; cloud provisioning wait on exact verified registry receipt; public Trackio writes plus direct presigned artifacts to the existing self-hosted RustFS S3 service).
-- [ ] Complete Production Milestones D–G (provider-authoritative attempts; transactional lifecycle hooks; spot-only per-run network volumes with fencing and cleanup receipts; same-volume and cross-data-center checkpoint recovery; truthful inventory).
+- [ ] Complete Production Milestone C: public Trackio writes plus direct presigned artifacts to the existing self-hosted RustFS S3 service. Production Milestones A and B are complete.
+- [ ] Complete the remaining Production Milestones E and G, plus any attempt-history detail still required by D. Provider-authoritative RunPod absence and the framework-aligned same-volume retry/terminal cleanup path in F are operationally qualified; transactional hooks, cross-data-center recovery, and truthful inventory remain.
 - [ ] Complete Production Milestone H functional resilience matrix while production fallback remains disabled.
 - [ ] Complete Production Milestone I security hardening last: publish diagnostic redaction, validate least-privilege credential boundaries, and pass negative/security tests while preserving the working credentials.
 - [ ] Complete Production Milestone J: deploy one immutable server/runner/shim release only when the LAN promotion gate is idle, then enable bounded project-scoped fallback with rollback retained.
@@ -69,6 +69,8 @@ The post-canary scope also closes the gaps that the successful stateless A100 te
 - [x] (2026-08-30) Corrected the security scope at the user's direction. Existing credentials remain in protected ai-infra state; the final security milestone validates handling and privilege without replacing them.
 - [x] (2026-08-30) Added the goal-runnable agent runbook with one-milestone focus, scoped context loading, focused-test-first validation, bounded external mutations, receipt-driven progress, and explicit recovery and stop conditions.
 - [x] (2026-08-30) Refined the runbook's focus rule: completed decisions are not reopened speculatively, while adjacent evidence-backed improvements to quality, maintainability, operability, tests, and developer experience may ship with the active release unit.
+- [x] (2026-08-30) Reconciled the deployed lifecycle state after the production release moved to dstack `663974b843ff995052e4d4fdcdcb2e221777ae1e`. Provider-confirmed missing RunPod Pods now terminate the affected attempt promptly, and automatic single-node spot storage creates one run-owned volume, reuses it across retries, and schedules deletion after logical-run termination. The remaining storage defect is configuration rather than another ownership subsystem: ai-infra mounted the managed volume at `/workspace`, while the framework contract writes runs and caches beneath `/var/lib/posttrain`.
+- [x] (2026-08-30) Aligned the ai-infra RunPod storage policy to `/var/lib/posttrain` and applied the config-only control-plane update without interrupting the existing LAN run. The repeated external-deletion canary used dstack `663974b843ff...`, created one 10 GB volume in `US-WA-1`, deleted first Pod `2zs708...`, recovered the exact marker from replacement Pod `aa2ckm...` after provider absence was recognized in 44.097 seconds, and finished for $0.0415. Both Pods, the volume, and isolated local control container are absent; the protected receipt is `.state/qualifications/runpod-spot-recovery/receipt.json` in ai-infra.
 - [x] (2026-08-30) Completed Production Milestone A. `posttrain-runtime execute` performs a typed CUDA driver preflight before importing backend code, selects native or the image-declared compatibility payload, and re-execs at most once. The accepted veRL kind is `sha256:1c63c3c...`; the exact actual-job image is `registry.carbonteq.com/carbonteq/posttrain-lab/posttrain-job@sha256:38412b847e7977f5c0747d88d2399feabf0a7f5ab2c3a33bd976b703cda50bb9`. Its 25 inherited normalized content descriptors preserve the accepted kind's digest, size, media type, and order, and its 18 job layers add 1,987,302 compressed bytes without forced recompression. The same immutable actual-job digest selected `native` and executed CUDA on the local RTX 3070 Ti and a RunPod A100-SXM4-80GB; RunPod run `64079330-90a0-4aa4-adfd-c159b67c4fca` completed for $0.1073 and provider Pod `8q1xongay7nw7b` is absent. Current RunPod hosts expose driver API 13000, so the automatic compatibility branch could not be re-exercised live on this successor; it remains unit-covered and was previously proven with the rollback kind on an older RunPod driver.
 - [x] (2026-08-30) Completed Milestone A publication and cleanup. The actual-job image plus its publication and provenance manifests are verified in the R2-backed registry. Exact rejected candidates `sha256:ad9bd883...`, `sha256:0b56deae...`, and `sha256:86b4ec9d...`, their build tags, and their controller rows were deleted from both registries through exact identities. Offline Distribution garbage collection removed 46 unowned LAN blobs and 21 unowned R2 blobs; the accepted kind, rollback kind, and actual-job digest still resolve at both endpoints. The R2 registry prefix now contains 12,575,923,255 bytes, approximately 4,368,227,478 bytes below the earlier comparable inventory. Every qualification Pod is absent and legacy temporary state is gone. Shared BuildKit cache was retained because rejected candidates could not be mapped uniquely to cache records; the recent large records belong to the accepted image, and broad pruning would damage useful cache.
 - [x] (2026-08-30) Accepted veRL kind image `sha256:1c63c3c3aa5a132ed5643a3b6df686eff5be6283925a8ce1457d413cf9497f8b`. Its first 24 ordered layer descriptors are byte-identical to rollback `sha256:9bf4ff...`; only the intended final compatibility/declaration layer changes, to `sha256:5ab237...` at 104,220,061 compressed bytes. The published manifest pins the accepted digest, and its actual-job packing, local/RunPod qualification, publication, and cleanup gates are complete.
@@ -538,19 +540,19 @@ Implement two generic executors: a signed HTTP webhook and a server-admin fixed-
 
 Cover commit/dispatch races, restart, duplicate delivery, bounded exponential retry, timeout, acknowledgement, dead letter, disabled hooks, receiver deduplication, and safe payloads. A live proof restarts the dstack server after committing an event but before delivery and observes exactly one receiver action after recovery. Hooks report lifecycle; they do not own RunPod Pods or volumes and cannot override authoritative provider state.
 
-#### Production Milestone F — Add spot-only run-scoped network storage
+#### Production Milestone F — Qualify spot-only run-scoped network storage against the framework path
 
-Add optional `run_storage` to provider backend configuration exactly as described later in Milestone 4B. Absence preserves current behavior. For `mode: per_run`, `required_for: [spot]`, and `required: true`, evaluate policy only after RunPod offer/data-center selection. Persist the resolved policy and logical-run owner before creating a volume, create exactly one RunPod network volume in that data center, and pass its provider id to every attempt Pod at `/workspace`. Never silently fall back to container disk or ephemeral volume disk.
+The maintained dstack release already provides optional backend-level `run_storage`: absence preserves current behavior, while a single-node RunPod spot run receives one logical-run-owned network volume that is reused across retries and deleted after termination. Configure the production RunPod backend to mount that volume at `/var/lib/posttrain`, the framework's existing worker state root. This makes `/var/lib/posttrain/runs/<run-id>` and its model and compile cache siblings durable across attempts without adding provider vocabulary to Posttrain. Never silently fall back to container disk or ephemeral volume disk.
 
 Create a durable run-volume ownership model separate from named shared volumes. It records logical run, provider, data center, volume id, size, mount path, policy revision, writer attempt, lifecycle state, finalization deadline, deletion attempts, provider absence, and cleanup receipt. A retry loads that owner rather than evaluating defaults again. RunPod's one-network-volume limit means an explicit named volume conflicts with mandatory per-run policy and must fail before provisioning.
 
 Enforce an exclusive writer lease. A new attempt may attach only after authoritative provider evidence confirms the prior Pod absent or a provider-specific fence succeeds. Prefer same-volume, same-data-center retry. Terminal success or cancellation enters a cleanup barrier: compute must be absent, required finalizers must acknowledge or hit their bounded deadline, volume deletion must be requested idempotently, provider absence must be confirmed, and only then is the cleanup receipt complete. A reconciler resumes partial deletion and reports orphans without deleting an unowned resource.
 
-Unit and integration tests must prove no-policy compatibility, no implicit volume for on-demand or LAN runs, exactly one volume for a logical spot run, attach-before-command, failure-closed create/attach, retry reuse, named-volume conflict, fencing, terminal cleanup, cancellation cleanup, server restart during deletion, and orphan reporting. The real canary writes a marker beneath `/workspace`, loses its first Pod, attaches a second attempt to the same volume, reads the marker, completes, and leaves both Pod and volume absent with a retained receipt.
+Retain the focused dstack tests for no-policy compatibility, no implicit volume for on-demand or LAN runs, exactly one volume for a logical spot run, attach-before-command, failure-closed create/attach, retry reuse, terminal cleanup, cancellation cleanup, and server restart during deletion. The real canary writes a marker beneath `/var/lib/posttrain/runs/<qualification-run>`, loses its first Pod, attaches a second attempt to the same volume, reads the marker, completes, and leaves both Pod and volume absent with a retained receipt. Do not add a second volume state machine unless this qualification exposes a concrete ownership or cleanup failure.
 
 #### Production Milestone G — Add checkpoint recovery and truthful inventory
 
-Keep local save cadence and durable publication cadence distinct. A trainer writes a checkpoint atomically to `/workspace`; only complete checkpoints are candidates for Trackio background publication. Trackio's verified artifact pointer is the provider-neutral recovery authority. Same-data-center retry reads the volume first. When bounded local capacity is exhausted, create a new volume elsewhere, restore the latest exact Trackio checkpoint into it, record that it may be older than the volume state, and start a new attempt. Never select an incomplete multipart upload or a mutable `latest` pointer without resolving it to an immutable digest.
+Keep local save cadence and durable publication cadence distinct. A trainer writes a checkpoint atomically beneath `/var/lib/posttrain/runs/<run-id>`; only complete checkpoints are candidates for Trackio background publication. Trackio's verified artifact pointer is the provider-neutral recovery authority. Same-data-center retry reads the volume first. When bounded local capacity is exhausted, create a new volume elsewhere, restore the latest exact Trackio checkpoint into it, record that it may be older than the volume state, and start a new attempt. Never select an incomplete multipart upload or a mutable `latest` pointer without resolving it to an immutable digest.
 
 Add `GET /api/project/{project_name}/inventory` and `dstack inventory`. Return separate backend configuration, retained LAN capacity, provider candidates, active allocations, run-scoped storage, and automation deliveries. Every provider-derived record has source, observed time, and freshness; stale or unknown is never rendered as available. Surface logical run, attempt, Pod, volume, cleanup, and hook relationships without embedding Trackio payloads or secrets.
 
@@ -683,7 +685,7 @@ configuration. Its initial rendered ai-infra form is:
               required: true
               required_for: [spot]
               size_gb: 100
-              mount_path: /workspace
+              mount_path: /var/lib/posttrain
               retain_across_attempts: true
               cleanup: after_run
               finalization_timeout: 15m
@@ -910,7 +912,7 @@ omitted and proves the provider request contains no implicit volume, preserving
 the current behavior. It then enables ai-infra's spot-only `per_run` policy,
 proves an on-demand job still creates no implicit volume, and proves one logical
 spot run creates exactly one network volume in the selected data center before
-its first pod, exposes `/workspace` inside every attempt, and never starts user
+its first pod, exposes `/var/lib/posttrain` inside every attempt, and never starts user
 code if storage creation or attachment fails. A forced spot
 interruption must create a new attempt attached to the same provider volume.
 Success and cancellation must both finish with provider-confirmed pod and volume
@@ -1075,7 +1077,7 @@ authenticated RunPod backend and mandatory spot policy from protected
 `.state/secrets/vars.yml`, mark rendering/application tasks `no_log: true`, and
 validate that `required: true` cannot be combined with an off/empty mode or an
 invalid mount path. The initial site policy applies to spot attempts, uses 100
-GB mounted at `/workspace`, retains it across attempts, deletes it after
+GB mounted at `/var/lib/posttrain`, retains it across attempts, deletes it after
 logical-run terminal state, and has a 15-minute finalization deadline.
 
 The first real cloud provider is an external dependency and must be selected and configured before Milestone 4 can complete. Store its credentials only in dstack's protected server configuration. The provider must support the selected GPU, container image pulls from a private OCI registry, and automatic instance termination. Provider choice does not alter the R2 or image-identity contracts in this plan.
@@ -1167,3 +1169,12 @@ lifecycle fix. Final guarded GC preserved all 17 roots, and exact local removal
 of old qualification containers/images reduced Docker image storage by about
 62 GB without pruning shared BuildKit cache. Restart-resume and readiness
 timeout remain the only open Milestone B live gates.
+
+2026-08-30: Reconciled the plan with deployed dstack successor
+`663974b843ff995052e4d4fdcdcb2e221777ae1e` and replaced the stale `/workspace`
+site policy with the framework-owned `/var/lib/posttrain` state root. The
+bounded automatic-storage canary recovered a marker from a second spot Pod on
+the same run-owned volume, then confirmed both Pods and the volume absent. This
+revision deliberately narrows the remaining work: reuse the deployed volume
+lifecycle, finish Trackio/RustFS transport and real checkpoint resume, and add
+no second storage controller without new failure evidence.

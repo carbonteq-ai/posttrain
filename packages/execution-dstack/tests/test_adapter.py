@@ -125,7 +125,16 @@ def test_translation_and_submit_have_no_secret_values(tmp_path: Path) -> None:
     assert "files" not in plan_config
     assert "files" not in submit_config
     assert plan.details["job_image"] == plan.request.image.value
-    assert all(config["retry"] is False for _, config in configurations)
+    assert all(
+        config["retry"]
+        == {
+            "on_events": ["interruption"],
+            "duration": 7_200,
+            "duration_by_event": {"interruption": 7_200},
+            "max_attempts_by_event": {"interruption": 5},
+        }
+        for _, config in configurations
+    )
     assert all(
         config["volumes"]
         == [
@@ -156,6 +165,44 @@ def test_translation_and_submit_have_no_secret_values(tmp_path: Path) -> None:
     assert all(config["tags"]["posttrain_job_image_digest"] == "b" * 64 for _, config in configurations)
     assert all(config["tags"]["posttrain_attempt"] == "1" for _, config in configurations)
     assert "secret" not in str(configurations)
+
+
+def test_managed_run_storage_omits_instance_mounts_and_private_ca(tmp_path: Path) -> None:
+    gateway = FakeGateway()
+    provider = DstackExecutionProvider(
+        gateway,
+        project="posttrain",
+        trust_bundle=Path("/var/lib/posttrain/trust/ca-certificates.crt"),
+    )
+    request = _request(tmp_path)
+    target = replace(
+        request.target,
+        placement={
+            "backends": ["runpod"],
+            "regions": ["US-MO-1"],
+            "spot_policy": "spot",
+            "managed_run_storage": True,
+        },
+    )
+
+    provider.plan(replace(request, target=target))
+
+    configuration = gateway.calls[-1][1]["configuration"]
+    assert "volumes" not in configuration
+    assert "setup" not in configuration
+    launch_environment = configuration["_posttrain_launch_env"]
+    assert "POSTTRAIN_EXTRA_CA_BUNDLE" not in launch_environment
+    assert launch_environment["HF_HOME"] == "/opt/posttrain/run/.cache/huggingface"
+    assert launch_environment["TORCHINDUCTOR_CACHE_DIR"] == "/opt/posttrain/run/.cache/compile/torchinductor"
+    assert launch_environment["TRITON_CACHE_DIR"] == "/opt/posttrain/run/.cache/compile/triton"
+
+
+def test_managed_run_storage_requires_boolean(tmp_path: Path) -> None:
+    request = _request(tmp_path)
+    target = replace(request.target, placement={"managed_run_storage": "yes"})
+
+    with pytest.raises(ValueError, match="managed_run_storage must be a boolean"):
+        DstackExecutionProvider(FakeGateway(), project="posttrain").plan(replace(request, target=target))
 
 
 def _sdk_bridge_module(monkeypatch: pytest.MonkeyPatch):
@@ -436,7 +483,7 @@ def test_dstack_maps_mandatory_instance_trust_bundle_as_additional_authorities(
 
 
 @pytest.mark.parametrize("max_attempts", [1, 2, 5])
-def test_admitted_task_is_fail_fast_for_every_framework_attempt_policy(
+def test_training_retries_only_provider_interruption_for_every_framework_attempt_policy(
     tmp_path: Path,
     max_attempts: int,
 ) -> None:
@@ -453,8 +500,15 @@ def test_admitted_task_is_fail_fast_for_every_framework_attempt_policy(
     plan_configuration = gateway.calls[0][1]["configuration"]
     submit_configuration = gateway.calls[1][1]["configuration"]
     assert request.policy.max_attempts == max_attempts
-    assert plan_configuration["retry"] is False
-    assert submit_configuration["retry"] is False
+    expected_retry = {
+        "on_events": ["interruption"],
+        "duration": 7_200,
+        "duration_by_event": {"interruption": 7_200},
+        "max_attempts_by_event": {"interruption": 5},
+    }
+    assert plan_configuration["retry"] == expected_retry
+    assert submit_configuration["retry"] == expected_retry
+    assert plan_configuration["_posttrain_launch_env"]["POSTTRAIN_INTERRUPTION_RECOVERY"] == "1"
     assert "files" not in plan_configuration
     assert "files" not in submit_configuration
 
@@ -477,11 +531,43 @@ def test_capacity_wait_retries_only_pre_start_no_capacity(
     assert all(
         configuration["retry"]
         == {
-            "on_events": ["no-capacity"],
+            "on_events": ["no-capacity", "interruption"],
             "duration": 86_400,
+            "duration_by_event": {
+                "no-capacity": 86_400,
+                "interruption": 7_200,
+            },
+            "max_attempts_by_event": {"interruption": 5},
         }
         for configuration in configurations
     )
+
+
+def test_target_can_constrain_backend_region_and_spot_policy(tmp_path: Path) -> None:
+    gateway = FakeGateway()
+    provider = DstackExecutionProvider(gateway, project="posttrain")
+    request = _request(tmp_path)
+    request = replace(
+        request,
+        target=replace(
+            request.target,
+            placement={
+                **request.target.placement,
+                "backends": ["runpod"],
+                "regions": ["US-MO-1"],
+                "spot_policy": "spot",
+                "max_price": 1.0,
+            },
+        ),
+    )
+
+    provider.plan(request)
+
+    configuration = gateway.calls[0][1]["configuration"]
+    assert configuration["backends"] == ["runpod"]
+    assert configuration["regions"] == ["US-MO-1"]
+    assert configuration["spot_policy"] == "spot"
+    assert configuration["max_price"] == 1.0
 
 
 def test_gpu_memory_maximum_must_cover_the_target_minimum(tmp_path: Path) -> None:
