@@ -15,6 +15,10 @@ backend_environment_lock_path = "locks/runtime.backend.requirements.txt"
 backend_dependency_lock_path = "/opt/posttrain-verl/release/uv.lock"
 source_repository = "https://github.com/carbonteq-ai/verl.git"
 upstream_revision = "a35908ca3c9632859c58d6a2855d858918ae21dc"
+# Stable across framework releases so an additive image change can retain the
+# current lineage's byte-identical layer descriptors. Change only when a full
+# cache-lineage rebuild is intentional.
+reproducibility_epoch = 1787491908
 
 # The fork commit and dependency-only Python 3.13.12 lock are immutable. Real
 # kind smokes and bounded GPU qualifications completed on the maintained

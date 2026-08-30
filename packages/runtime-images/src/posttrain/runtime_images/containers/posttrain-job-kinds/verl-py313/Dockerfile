@@ -6,14 +6,11 @@ FROM ${CUDA_COMPAT_IMAGE} AS cuda-compat
 
 FROM ${POSTTRAIN_BASE_IMAGE} AS online-rl-verl-py313
 
-ARG CREATED
 ARG DEPENDENCY_LOCK_SHA256
 ARG FORK_REVISION
 ARG LOCK_DIGEST
-ARG SOURCE_REVISION
 ARG SOURCE_REPOSITORY
 ARG SOURCE_DATE_EPOCH
-ARG VERSION
 ARG VLLM_BINARY_WHEEL_URL="https://files.pythonhosted.org/packages/35/9d/c379618ce0abfc2679607d403c0f586b07e9c9c33d08c5bdd6196cb524e0/vllm-0.25.1-cp38-abi3-manylinux_2_28_x86_64.whl"
 ARG VLLM_BINARY_WHEEL_SHA256="16fc7a28df1576eb6f7ca0455026551b8f9adb674c19c66059359ef3e964bd1e"
 ARG VLLM_RUNTIME_VERSION="0.25.2.dev2+g7817d8457.precompiled"
@@ -22,10 +19,9 @@ ARG CUTLASS_BASE_WHEEL_SHA256="e59da7d89e5e4f8514c6530843f910f9d8734d8042dcaa079
 ARG CUTLASS_CU13_WHEEL_URL="https://files.pythonhosted.org/packages/5c/9f/b7928ff505e577c1021c07b206ce32d285aae793763d524023c1800b6dc9/nvidia_cutlass_dsl_libs_cu13-4.5.2-cp313-cp313-manylinux_2_28_x86_64.whl"
 ARG CUTLASS_CU13_WHEEL_SHA256="c7a5ce1c01616fc4c3ac492e011c543a79c3dde86aaf20a8af55e9d40ef2b2e6"
 
-# The release builder supplies the source commit time. Python then emits
-# hash-based bytecode, while BuildKit rewrites new layer timestamps to the same
-# epoch. This keeps uncached rebuilds descriptor-identical without touching the
-# inherited base blobs.
+# The runtime profile owns a stable cache-lineage epoch. Python emits hash-based
+# bytecode and BuildKit rewrites new layer timestamps to that epoch, so later
+# framework commits can retain descriptor-identical runtime layers.
 ENV PYTHONHASHSEED="0" \
     CUDA_HOME="/opt/posttrain-verl/lib/python3.13/site-packages/nvidia/cu13" \
     CPATH="/opt/posttrain/venv/lib/python3.13/site-packages/nvidia/cu13/include" \
@@ -184,6 +180,9 @@ RUN --mount=from=cuda-compat,source=/usr/local/cuda-13.0/compat,target=/mnt/cuda
       > /opt/posttrain/runtime/cuda-compat.json && \
     touch -d "@${SOURCE_DATE_EPOCH}" /opt/posttrain/runtime/cuda-compat.json
 
+ARG CREATED
+ARG SOURCE_REVISION
+ARG VERSION
 LABEL org.opencontainers.image.created="${CREATED}" \
       org.opencontainers.image.description="Python 3.13 veRL runtime for online reinforcement-learning jobs" \
       org.opencontainers.image.revision="${SOURCE_REVISION}" \

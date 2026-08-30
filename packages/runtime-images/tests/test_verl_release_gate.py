@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import sys
+import tomllib
 from dataclasses import replace
 from pathlib import Path
 
@@ -74,6 +75,17 @@ def test_candidate_carries_pinned_cuda_compat_without_globally_activating_it() -
     assert "payload_digest" in dockerfile
     assert dockerfile.count("/opt/posttrain/runtime/cuda-compat.json") == 2
     assert 'ENV LD_LIBRARY_PATH="/usr/local/cuda-13.0/compat"' not in dockerfile
+
+
+def test_candidate_keeps_release_labels_out_of_filesystem_cache_keys() -> None:
+    profile = tomllib.loads((PROFILE_ROOT / "profile.toml").read_text(encoding="utf-8"))
+    dockerfile = (PROFILE_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    compat_layer = dockerfile.index("RUN --mount=from=cuda-compat")
+
+    assert profile["reproducibility_epoch"] == 1_787_491_908
+    assert dockerfile.index("ARG CREATED", compat_layer) > compat_layer
+    assert dockerfile.index("ARG SOURCE_REVISION", compat_layer) > compat_layer
+    assert dockerfile.index("ARG VERSION", compat_layer) > compat_layer
 
 
 def test_candidate_uses_uv_partial_sync_with_a_validated_control_fallback() -> None:

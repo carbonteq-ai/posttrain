@@ -94,6 +94,26 @@ def backend_runtime_identity(variant: str) -> BackendRuntimeImageIdentity | None
     return BackendRuntimeImageIdentity(repository, revision, digest)
 
 
+def runtime_reproducibility_epoch(variant: str) -> int | None:
+    """Return the stable filesystem epoch owned by a runtime lineage.
+
+    Release commit timestamps belong in OCI labels, but using them to rewrite
+    layer timestamps would invalidate every otherwise-identical blob on each
+    framework commit. The veRL profile therefore owns one epoch for its current
+    cache lineage; changing it is an explicit full-lineage rebuild.
+    """
+
+    if variant not in RUNTIME_VARIANTS:
+        raise ValueError(f"unknown runtime variant: {variant!r}")
+    if variant != "online-rl-verl-py313":
+        return None
+    profile = tomllib.loads(read_resource(VERL_PROFILE).decode("utf-8"))
+    epoch = profile.get("reproducibility_epoch")
+    if isinstance(epoch, bool) or not isinstance(epoch, int) or epoch <= 0:
+        raise ValueError("veRL profile has no positive reproducibility epoch")
+    return epoch
+
+
 def backend_runtime_labels(
     variant: str,
     identity: BackendRuntimeImageIdentity | None = None,
@@ -222,4 +242,5 @@ __all__ = [
     "lock_digest",
     "read_lock",
     "read_resource",
+    "runtime_reproducibility_epoch",
 ]
