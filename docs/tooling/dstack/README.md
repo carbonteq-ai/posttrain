@@ -45,13 +45,15 @@ specific machine.
 Production still runs the upstream image
 `dstackai/dstack:0.20.29@sha256:6d57647be04cad42dff2343f4f50d41a3b8bb438ebc67165bc56aa92858e69ce`.
 The published CarbonTeq candidate is commit
-`e1e0921007297e19d39dd2e189b94b6761663d60` on branch
+`663974b843ff995052e4d4fdcdcb2e221777ae1e` on branch
 `codex/registry-default-auth`. Production is still on the upstream image until
 one matching server/runner/shim release passes the two-worker promotion gate.
 The branch includes exact-host server credential injection and live RunPod GPU
 spot discovery, exact-digest image-readiness admission, a bounded RunPod
 provisioning-timeout override for large cold image pulls, and immediate
-provider-absence reporting while a Pod is provisioning. Its current
+provider-absence reporting while a Pod is provisioning or running. It also
+supports opt-in, per-logical-run RunPod network storage for single-node spot
+tasks, including retry reuse and terminal cleanup. Its current
 uncommitted successor also removes environment values from runner diagnostic
 trace events.
 
@@ -96,6 +98,25 @@ continues waiting. Live qualification on the published candidate waited for
 R2 verification with zero Pods, then completed the actual CUDA image on an
 A100 in `EUR-IS-1`; the Pod and temporary registry objects were absent after
 cleanup.
+
+For single-node spot tasks, ai-infra may configure RunPod `run_storage` with a
+Secure Cloud region, size, and absolute mount path. Dstack then creates one
+network volume owned by the logical run, injects that generated mount into the
+persisted run and job specifications, reuses it across interruption retries,
+and schedules it for deletion only when the logical run becomes terminal. A
+unique run owner is the fencing boundary. Explicit volumes, services,
+multinode tasks, on-demand placement, and other providers keep their existing
+behavior. Provider delete failures remain retryable and do not create a false
+deleted event or timestamp.
+
+The immutable `663974b8` candidate passed the automatic-storage interruption
+canary on 2026-08-30. Logical run
+`dfed0521-0f75-4773-b86e-38358a19fd98` created one 10 GB volume in
+`CA-MTL-3`, lost its first A100 Pod through a direct provider API deletion,
+observed a distinct retry after 51.059 seconds, recovered the exact marker from
+the same volume, and finished `done`. Dstack then removed both Pods and the
+owned volume. The cost estimate was $0.0302 and final provider inventory was
+empty.
 
 ## Operational configuration
 
@@ -143,7 +164,7 @@ The release gate remains:
 - a normal framework `run reconcile` plus evidence-gated cleanup.
 
 Selected published candidate commit:
-`e1e0921007297e19d39dd2e189b94b6761663d60`. Its matching server, runner, and
+`663974b843ff995052e4d4fdcdcb2e221777ae1e`. Its matching server, runner, and
 shim are packaged and publicly staged for qualification but intentionally not
 promoted while the two-worker production gate is closed. Diagnostic redaction
 remains an unpublished successor and is deferred to the security milestone.
