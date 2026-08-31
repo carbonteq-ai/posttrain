@@ -45,7 +45,7 @@ acceptable, and use an exact hostname only when qualification requires that
 specific machine.
 
 Production runs the matching CarbonTeq server, runner, and shim release from
-commit `a73c3314ab54cbe0e6056f6dad2e33e173596be6` on branch
+commit `c1fda1a8e1d7bb6978d086073d467636ac15b4f1` on branch
 `codex/registry-default-auth`. This selected release includes regional
 failover, bounded retry budgets, and failed-region cooldowns and passed the
 immutable release, component, idle-worker rolling, and scheduler-cancellation
@@ -57,6 +57,8 @@ provider-absence reporting while a Pod is provisioning or running. It also
 supports opt-in, per-logical-run RunPod network storage for single-node spot
 tasks, including retry reuse, pre-start regional failover, and terminal
 cleanup. Runner diagnostics emit environment names only and never values.
+Live spot offers are also cross-checked against RunPod's authenticated
+per-data-center GPU stock before managed storage is created.
 
 ## Candidate fork
 
@@ -99,8 +101,10 @@ A100 in `EUR-IS-1`; the Pod and temporary registry objects were absent after
 cleanup.
 
 For single-node spot tasks, ai-infra may configure RunPod `run_storage` with a
-Secure Cloud region pool, size, and absolute mount path. Dstack chooses the
-lowest-priced live eligible region and creates one
+Secure Cloud region pool, size, and absolute mount path. Dstack cross-checks
+each live offer against RunPod's authenticated per-data-center GPU stock,
+rejects regions without reported stock, and ranks `High`, `Medium`, then `Low`
+before price and configured order. Only then does it create one
 network volume owned by the logical run, injects that generated mount into the
 persisted run and job specifications, reuses it across interruption retries,
 and schedules it for deletion only when the logical run becomes terminal. A
@@ -109,9 +113,10 @@ multinode tasks, on-demand placement, and other providers keep their existing
 behavior. Provider delete failures remain retryable and do not create a false
 deleted event or timestamp.
 
-If provider allocation or volume creation fails before any Pod has provisioned,
+The stock signal is admission evidence, not a capacity reservation. If provider
+allocation or volume creation still fails before any Pod has provisioned,
 the candidate deletes the still-empty volume and reuses its logical row in the
-next-cheapest eligible region. Any provisioning record or attachment closes
+next eligible region. Any provisioning record or attachment closes
 that failover path permanently, so checkpoint-bearing storage never moves
 between regions. A failed region cools down for ten minutes; when every region
 is cooling down, the run waits instead of immediately cycling through them.
@@ -120,6 +125,12 @@ specification, while arbitrary user volumes remain untouched. Rotation counts
 only no-capacity failures recorded after the current regional volume became
 active, preventing an earlier region's failure from evicting a newly created
 replacement.
+
+The infrastructure pool must contain only regions that both report stock for
+the requested GPU and support RunPod network volumes. The current
+North-America-first A100 pool is `US-KS-2`, `US-CA-2`, `US-WA-1`, and
+`CA-MTL-3`. `US-MD-1` currently reports stronger A100 stock but is deliberately
+excluded because RunPod's live volume API rejects network volumes there.
 
 The maintained retry successor stores compact per-event attempt counters and
 the first event timestamp on the logical run, independent of pruned submission

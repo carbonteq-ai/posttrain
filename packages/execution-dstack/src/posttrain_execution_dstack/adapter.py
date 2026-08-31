@@ -128,7 +128,7 @@ class DstackSdkBridge:
         )
         if result.returncode != 0:
             error_lines = [line.strip() for line in result.stderr.splitlines() if line.strip()]
-            detail = error_lines[-1][:500] if error_lines else "no diagnostic was returned"
+            detail = " | ".join(error_lines[-8:])[:1500] if error_lines else "no diagnostic was returned"
             raise RuntimeError(f"dstack SDK bridge {action} failed with exit code {result.returncode}: {detail}")
         value = json.loads(result.stdout)
         if not isinstance(value, dict):

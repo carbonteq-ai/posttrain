@@ -290,6 +290,29 @@ def test_sdk_bridge_lifecycle_actions_do_not_require_submission_configuration(tm
     assert response == {"project": "posttrain", "run_name": "pt-example"}
 
 
+def test_sdk_bridge_failure_preserves_the_bounded_validation_context(tmp_path: Path) -> None:
+    python = tmp_path / "python"
+    python.symlink_to(Path(sys.executable))
+    bridge = tmp_path / "bridge.py"
+    bridge.write_text(
+        "import sys\n"
+        "for line in ('trace header', 'retry -> duration_by_event', "
+        "'extra fields not permitted', 'value could not be parsed to a boolean'):\n"
+        "    print(line, file=sys.stderr)\n"
+        "raise SystemExit(1)\n",
+        encoding="utf-8",
+    )
+    sdk = DstackSdkBridge(python, bridge=bridge)
+
+    with pytest.raises(RuntimeError) as error:
+        sdk.invoke("plan", {"project": "posttrain"})
+
+    message = str(error.value)
+    assert "retry -> duration_by_event" in message
+    assert "extra fields not permitted" in message
+    assert "value could not be parsed to a boolean" in message
+
+
 def test_sdk_cleanup_waits_through_transient_worker_capacity_gap(monkeypatch: pytest.MonkeyPatch) -> None:
     module = _sdk_bridge_module(monkeypatch)
     attempts: list[int] = []

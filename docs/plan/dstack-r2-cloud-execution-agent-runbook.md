@@ -193,6 +193,19 @@ post-cooldown A100 allocation attempt without creating a Pod or incurring GPU
 cost; it remains pending under the declared capacity-admission budget because
 RunPod returned no capacity.
 
+The deployed successor replaces r14's price-first region choice with an
+availability-first gate. It reads RunPod's authenticated per-data-center GPU
+`stockStatus`, excludes blank/unreported stock, and ranks `High`, `Medium`, then
+`Low` before price and infrastructure order. The ai-infra pool is the current
+North American intersection of positive A100 stock and network-volume support:
+`US-KS-2`, `US-CA-2`, `US-WA-1`, and `CA-MTL-3`. `US-MD-1` reports Medium A100
+stock but is not volume-capable and is therefore excluded. Volume creation
+remains immediately before the Pod attempt because RunPod does not expose a
+reservable capacity lease; an allocation race still uses the existing
+empty-volume rotation and cooldown path. Live r16 proved valid-volume creation,
+no-capacity cleanup, and regional rotation with zero active Pods; it remains
+queued within the admission budget.
+
 ## Focused execution protocol
 
 At the start of each milestone, create a scratch checklist in task state—not a
