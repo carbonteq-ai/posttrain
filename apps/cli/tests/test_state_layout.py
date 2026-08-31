@@ -7,8 +7,14 @@ import pytest
 from posttrain.catalog import load_project_layout
 from posttrain.common import ContractError
 from posttrain.execution import JobPackageManifest, RuntimeImageRef
-from posttrain.execution_pack import CacheLease
-from posttrain_cli.state_layout import cache_path, explain_cache, migrate_legacy_pack, migrate_state, prune_cache
+from posttrain.execution_pack import CacheLease, PackageMaterializationRecord
+from posttrain_cli.state_layout import (
+    cache_path,
+    explain_cache,
+    migrate_legacy_pack_cache,
+    migrate_state,
+    prune_cache,
+)
 
 
 def _project(tmp_path: Path) -> Path:
@@ -19,24 +25,50 @@ def _project(tmp_path: Path) -> Path:
     return root
 
 
-def _manifest(*, project_id: str = "state-test") -> JobPackageManifest:
+def _manifest() -> JobPackageManifest:
+    digest = "a" * 64
     return JobPackageManifest(
-        project_id=project_id,
+        project_id="project",
         work_package_id="work",
         job_id="job",
         job_definition_id="definition",
         job_kind="train.sft",
-        resolved_inputs_digest="a" * 64,
-        framework_source_digest="a" * 64,
-        project_source_digest="a" * 64,
-        runtime_dependencies_digest="a" * 64,
-        code_requirements_digest="a" * 64,
-        resolved_config_digest="a" * 64,
-        project_config_digest="a" * 64,
+        resolved_inputs_digest=digest,
+        framework_source_digest=digest,
+        project_source_digest=digest,
+        runtime_dependencies_digest=digest,
+        code_requirements_digest=digest,
+        resolved_config_digest=digest,
+        project_config_digest=digest,
         universal_image=RuntimeImageRef(f"registry.example/base@sha256:{'b' * 64}"),
         kind_image=RuntimeImageRef(f"registry.example/kind@sha256:{'c' * 64}"),
         runtime_variant="supervised",
     )
+
+
+def _legacy_context_with_receipt(root: Path) -> tuple[Path, str, str]:
+    manifest = _manifest()
+    publication_key = "e" * 64
+    image = f"registry.example/job@sha256:{'f' * 64}"
+    state = root / ".posttrain" / "state"
+    context = state / "cache" / "pack" / "contexts" / manifest.package_key
+    context.mkdir(parents=True)
+    (context / "package.json").write_bytes(manifest.to_bytes())
+    (context / "payload").write_text("legacy bytes", encoding="utf-8")
+    publications = state / "cache" / "pack" / "publications"
+    publications.mkdir()
+    (publications / f"{publication_key}.json").write_text(
+        json.dumps(
+            {
+                "schema": "posttrain.job-image-publication-receipt.v1",
+                "package_key": manifest.package_key,
+                "publication_key": publication_key,
+                "image": image,
+            }
+        ),
+        encoding="utf-8",
+    )
+    return context, publication_key, image
 
 
 def test_in_place_migration_moves_only_known_rebuildable_entries(tmp_path: Path) -> None:
@@ -141,7 +173,7 @@ def test_cache_prune_handles_legacy_cache_and_rejects_unscoped_root(tmp_path: Pa
         prune_cache(load_project_layout(root), state_root=tmp_path)
 
 
-def test_cache_prune_removes_internal_local_layouts_regardless_of_remote_receipt(tmp_path: Path) -> None:
+def test_cache_prune_removes_only_registry_backed_local_layouts(tmp_path: Path) -> None:
     root = _project(tmp_path)
     publications = root / ".posttrain" / "state" / "cache" / "pack" / "publications"
     layouts = publications / "local-layouts"
@@ -163,9 +195,9 @@ def test_cache_prune_removes_internal_local_layouts_regardless_of_remote_receipt
 
     report = prune_cache(load_project_layout(root), apply=True)
 
-    assert report.removed_bytes == len("published") + len("keep")
+    assert report.removed_bytes == len("published")
     assert not verified.exists()
-    assert not unpublished.exists()
+    assert unpublished.is_dir()
     assert (publications / "verified.json").is_file()
 
 
@@ -236,110 +268,57 @@ def test_cache_explain_matches_a_content_key_and_reports_protection(tmp_path: Pa
     assert "compact package records" in entries[0].reason
 
 
-def test_legacy_pack_migration_commits_verified_record_then_prune_removes_context(tmp_path: Path) -> None:
+def test_legacy_pack_migration_is_read_only_by_default(tmp_path: Path) -> None:
     root = _project(tmp_path)
-    state = root / ".posttrain" / "state"
-    manifest = _manifest()
-    context = state / "cache" / "pack" / "contexts" / manifest.package_key
-    context.mkdir(parents=True)
-    (context / "package.json").write_bytes(manifest.to_bytes())
-    (context / "payload").write_text("legacy", encoding="utf-8")
-    publication_key = "d" * 64
-    publications = state / "cache" / "pack" / "publications"
-    publications.mkdir()
-    receipt = publications / f"{publication_key}.json"
-    receipt.write_text(
-        json.dumps(
-            {
-                "schema": "posttrain.job-image-publication-receipt.v1",
-                "package_key": manifest.package_key,
-                "publication_key": publication_key,
-                "image": f"registry.example/job@sha256:{'e' * 64}",
-            }
-        ),
-        encoding="utf-8",
-    )
+    context, publication_key, image = _legacy_context_with_receipt(root)
     layout = load_project_layout(root)
 
-    dry_run = migrate_legacy_pack(layout, verify_remote=lambda _image: True)
+    report = migrate_legacy_pack_cache(layout, verify_registry_image=lambda value: value == image)
 
-    assert dry_run.migratable_bytes == len(manifest.to_bytes()) + len("legacy")
-    assert dry_run.records_committed == 0
-    assert not (state / "packages" / "materializations").exists()
-
-    applied = migrate_legacy_pack(layout, verify_remote=lambda _image: True, apply=True)
-
-    assert applied.records_committed == 1
-    assert applied.receipts_imported == 1
-    assert (state / "packages" / "materializations" / f"{manifest.package_key}.json").is_file()
-    assert (state / "publications" / receipt.name).is_file()
-    pruned = prune_cache(layout, apply=True)
-    assert pruned.removed_bytes >= len("legacy")
-    assert not context.exists()
-
-
-def test_legacy_pack_migration_journals_context_without_a_receipt(tmp_path: Path) -> None:
-    root = _project(tmp_path)
-    state = root / ".posttrain" / "state"
-    manifest = _manifest()
-    context = state / "cache" / "pack" / "contexts" / manifest.package_key
-    context.mkdir(parents=True)
-    (context / "package.json").write_bytes(manifest.to_bytes())
-    layout = load_project_layout(root)
-
-    report = migrate_legacy_pack(layout, verify_remote=lambda _image: False, apply=True)
-
-    assert report.discard_records_committed == 1
-    assert report.records_committed == 0
-    marker = state / "migrations" / "legacy-pack" / "contexts" / f"{manifest.package_key}.json"
-    assert marker.is_file()
-    prune_cache(layout, apply=True)
-    assert not context.exists()
-
-
-def test_legacy_pack_migration_protects_an_active_context_lease(tmp_path: Path) -> None:
-    root = _project(tmp_path)
-    state = root / ".posttrain" / "state"
-    manifest = _manifest()
-    context = state / "cache" / "pack" / "contexts" / manifest.package_key
-    context.mkdir(parents=True)
-    (context / "package.json").write_bytes(manifest.to_bytes())
-    lease = CacheLease.acquire(state / "cache" / "pack" / "leases", manifest.package_key)
-    try:
-        report = migrate_legacy_pack(load_project_layout(root), verify_remote=lambda _image: True, apply=True)
-    finally:
-        lease.release()
-
-    assert report.protected_bytes == len(manifest.to_bytes())
-    assert report.discard_records_committed == 0
+    assert report.apply is False
+    assert report.entries[0].classification == "migratable"
+    assert report.entries[0].publication_key == publication_key
+    assert not (root / ".posttrain" / "state" / "packages" / "materializations").exists()
+    assert prune_cache(layout).reclaimable_bytes == 0
     assert context.is_dir()
 
 
-def test_legacy_pack_migration_uses_discard_record_when_context_digest_is_unavailable(tmp_path: Path) -> None:
+def test_legacy_pack_migration_makes_registry_backed_context_reclaimable(tmp_path: Path) -> None:
     root = _project(tmp_path)
-    state = root / ".posttrain" / "state"
-    manifest = _manifest()
-    context = state / "cache" / "pack" / "contexts" / manifest.package_key
-    context.mkdir(parents=True)
-    (context / "package.json").write_bytes(manifest.to_bytes())
-    (context / ".env").write_text("not-retained", encoding="utf-8")
-    publication_key = "d" * 64
-    publications = state / "cache" / "pack" / "publications"
-    publications.mkdir()
-    (publications / f"{publication_key}.json").write_text(
-        json.dumps(
-            {
-                "schema": "posttrain.job-image-publication-receipt.v1",
-                "package_key": manifest.package_key,
-                "publication_key": publication_key,
-                "image": f"registry.example/job@sha256:{'e' * 64}",
-            }
-        ),
-        encoding="utf-8",
+    context, publication_key, image = _legacy_context_with_receipt(root)
+    layout = load_project_layout(root)
+
+    migration = migrate_legacy_pack_cache(
+        layout,
+        verify_registry_image=lambda value: value == image,
+        apply=True,
     )
 
-    report = migrate_legacy_pack(load_project_layout(root), verify_remote=lambda _image: True, apply=True)
+    assert migration.entries[0].applied
+    record_path = root / ".posttrain" / "state" / "packages" / "materializations" / f"{publication_key}.json"
+    record = PackageMaterializationRecord.from_bytes(record_path.read_bytes())
+    assert record.package_key == context.name
+    assert record.publication_key == publication_key
+    dry_run = prune_cache(layout)
+    assert any(entry.path == context and entry.classification == "rebuildable" for entry in dry_run.entries)
 
-    assert report.discard_records_committed == 1
-    assert report.records_committed == 0
-    assert "filesystem drift" in report.entries[0].reason
+    applied = prune_cache(layout, apply=True)
+
+    assert applied.removed_bytes > 0
+    assert not context.exists()
+    assert record_path.is_file()
+
+
+def test_legacy_pack_migration_protects_context_when_registry_image_is_missing(tmp_path: Path) -> None:
+    root = _project(tmp_path)
+    context, _publication_key, _image = _legacy_context_with_receipt(root)
+
+    report = migrate_legacy_pack_cache(
+        load_project_layout(root),
+        verify_registry_image=lambda _value: False,
+        apply=True,
+    )
+
+    assert report.entries[0].classification == "protected"
+    assert "live immutable image" in report.entries[0].reason
+    assert context.is_dir()

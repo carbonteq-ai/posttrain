@@ -22,6 +22,7 @@ from posttrain.execution_pack import (
 def _context(tmp_path: Path) -> PackedJobContext:
     root = (tmp_path / "context").resolve()
     root.mkdir(exist_ok=True)
+    (root / "empty" / "nested").mkdir(parents=True, exist_ok=True)
     (root / "b.txt").write_text("b", encoding="utf-8")
     (root / "a.txt").write_text("a", encoding="utf-8")
     return PackedJobContext(
@@ -52,6 +53,7 @@ def test_context_manifest_is_canonical_and_content_addressed(tmp_path: Path) -> 
     manifest = JobContextManifest.from_packed_context(_context(tmp_path))
 
     assert [file.path.as_posix() for file in manifest.files] == ["a.txt", "b.txt"]
+    assert [path.as_posix() for path in manifest.directories] == ["empty", "empty/nested"]
     assert manifest.total_bytes == 2
     assert manifest.digest == JobContextManifest.from_packed_context(_context(tmp_path)).digest
     assert b'"schema":"posttrain.job-context-manifest.v1"' in manifest.to_bytes()
@@ -79,13 +81,16 @@ def test_remote_transfer_values_bind_the_existing_package_identity(tmp_path: Pat
             publication_key=publication_key_for(context.manifest, publication),
             context_digest=manifest.context_digest,
             files=manifest.files,
+            directories=manifest.directories,
         ),
         release_manifest_digest="a" * 64,
         build_definition_digest="b" * 64,
+        allow_deferred_qualification=True,
     )
 
     assert request.package_key == context.manifest.package_key
     assert request.project_id == "project"
+    assert JobPublicationPlanRequest.from_payload(request.to_payload()).allow_deferred_qualification
     plan = JobContextTransferPlan(
         publication_key=request.publication_key,
         state=JobPublicationState.UPLOAD_REQUIRED,

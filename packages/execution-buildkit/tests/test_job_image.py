@@ -351,6 +351,8 @@ def test_publisher_checks_smokes_pushes_verifies_and_reuses_receipt(
     assert first.image == second.image
     assert first.image.value == (f"{request.publication.repository}@sha256:{gateway.digest}")
     assert first.receipt.stat().st_mode & 0o777 == 0o600
+    published_check = next(call for call in gateway.calls if call[-1] == "posttrain-job" and "--call" in call)
+    assert "posttrain-job.output=type=cacheonly" in published_check
     build_calls = [call for call in gateway.calls if "--metadata-file" in call]
     assert len(build_calls) == 1
     build = build_calls[0]

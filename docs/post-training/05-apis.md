@@ -184,6 +184,15 @@ artifact version, and digest. The host injects that recovery artifact as
 view. The trainer restores optimizer, scheduler, RNG, trainer, and adapter or
 weight state from that checkpoint before advancing the logical step.
 
+Automatic recovery after an interruptible provider loss is different: it
+retains the same canonical run and advances only provider attempt identity. It
+is eligible only when the job declares same-run recovery and the provider
+reattaches the fenced run workspace. The runtime selects the latest complete,
+compatible checkpoint already in that workspace before executing another
+training step. Prior progress without a valid checkpoint is a terminal recovery
+error, never permission to replay from step zero. If the original workspace is
+unavailable, recovery becomes the explicit cross-run artifact flow above.
+
 `job run --model-from-run` selects the immutable model view for the requested
 checkpoint step and is valid for any job definition that declares a compatible
 model input seat, including train, eval, and serve. A LoRA source supplies only

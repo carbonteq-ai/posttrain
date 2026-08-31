@@ -7,15 +7,8 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
-from .execute import execute_manifest, qualify_manifest
-from .trust import install_additional_trust
-
 
 def main() -> None:
-    # Before anything verifies a certificate, including the runtime's own
-    # tracking calls.
-    install_additional_trust()
-
     parser = argparse.ArgumentParser(prog="posttrain-runtime")
     commands = parser.add_subparsers(dest="command", required=True)
     execute = commands.add_parser("execute")
@@ -27,9 +20,26 @@ def main() -> None:
     arguments = parser.parse_args()
 
     if arguments.command == "execute":
+        # This must run before importing execute or a selected backend: either
+        # may load libcuda into the process and make library-path changes too
+        # late to affect CUDA initialization.
+        from .cuda_compat import activate_cuda_compatibility
+
+        activate_cuda_compatibility()
+        from .trust import install_additional_trust
+
+        install_additional_trust()
+        from .execute import execute_manifest
+
         result = execute_manifest(arguments.manifest)
         print(json.dumps(asdict(result), sort_keys=True, separators=(",", ":")))
     if arguments.command == "qualify":
+        # Offline package qualification deliberately does not require a GPU.
+        from .trust import install_additional_trust
+
+        install_additional_trust()
+        from .execute import qualify_manifest
+
         result = qualify_manifest(
             arguments.manifest,
             timeout_seconds=arguments.timeout_seconds,

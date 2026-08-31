@@ -17,9 +17,7 @@ from posttrain.common import ContractError
 
 from .contracts import (
     ExecutionHandle,
-    ExecutionLogStream,
     ExecutionPlan,
-    ExecutionPolicy,
     ExecutionProvider,
     ExecutionRecord,
     ExecutionRequest,
@@ -35,7 +33,7 @@ from .receipts import ExecutionJournal
 
 _RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
-_SCHEMA = "posttrain.execution-submission.v8"
+_SCHEMA = "posttrain.execution-submission.v7"
 _SUPPORTED_SCHEMAS = frozenset(
     {
         "posttrain.execution-submission.v1",
@@ -45,7 +43,6 @@ _SUPPORTED_SCHEMAS = frozenset(
         "posttrain.execution-submission.v5",
         "posttrain.execution-submission.v6",
         "posttrain.execution-submission.v7",
-        "posttrain.execution-submission.v8",
         _SCHEMA,
     }
 )
@@ -114,7 +111,6 @@ class ExecutionSubmission:
     evidence_source_recorded: bool = True
     provider_source: ExecutionProviderSource | None = None
     provider_source_recorded: bool = True
-    execution_policy: ExecutionPolicy | None = None
     legacy_bundle_digest: str | None = None
     local_image: str | None = None
     evidence_retention: str = "standard"
@@ -183,15 +179,6 @@ class ExecutionSubmission:
                 tuple(str(value) for value in self.provider_source.as_dict().values())
                 if self.provider_source
                 else ("",)
-            ),
-            *(
-                (
-                    str(self.execution_policy.timeout_seconds),
-                    str(self.execution_policy.max_attempts),
-                    str(self.execution_policy.priority),
-                )
-                if self.execution_policy is not None
-                else ("", "", "")
             ),
             self.legacy_bundle_digest or "",
         )
@@ -509,15 +496,6 @@ class ExecutionSubmissionStore:
                     "provider_source": (
                         submission.provider_source.as_dict() if submission.provider_source is not None else None
                     ),
-                    "execution_policy": (
-                        {
-                            "timeout_seconds": submission.execution_policy.timeout_seconds,
-                            "max_attempts": submission.execution_policy.max_attempts,
-                            "priority": submission.execution_policy.priority,
-                        }
-                        if submission.execution_policy is not None
-                        else None
-                    ),
                 },
                 sort_keys=True,
                 separators=(",", ":"),
@@ -611,7 +589,6 @@ class JobExecutionService:
             evidence_source_recorded=True,
             provider_source=self._provider_source,
             provider_source_recorded=True,
-            execution_policy=plan.request.policy,
             local_image=plan.request.local_image,
             evidence_retention=plan.request.run_spec.evidence_retention,
         )
@@ -634,12 +611,9 @@ class JobExecutionService:
         cursor: LogCursor | None = None,
         *,
         limit: int = 200,
-        stream: ExecutionLogStream = "workload",
     ) -> LogPage:
         submission = self._submission(run_id)
-        if stream == "workload":
-            return self._provider.logs(submission.handle, cursor, limit=limit)
-        return self._provider.logs(submission.handle, cursor, limit=limit, stream=stream)
+        return self._provider.logs(submission.handle, cursor, limit=limit)
 
     def cancel(self, run_id: str) -> None:
         submission = self._submission(run_id)
@@ -725,7 +699,6 @@ def _submission_from_payload(payload: dict[str, Any]) -> ExecutionSubmission:
                 "posttrain.execution-submission.v5",
                 "posttrain.execution-submission.v6",
                 "posttrain.execution-submission.v7",
-                _SCHEMA,
             }
             else "runtime_image"
         )
@@ -733,7 +706,6 @@ def _submission_from_payload(payload: dict[str, Any]) -> ExecutionSubmission:
         evidence_source_recorded = schema in {
             "posttrain.execution-submission.v5",
             "posttrain.execution-submission.v6",
-            "posttrain.execution-submission.v7",
             _SCHEMA,
         }
         if evidence_source_recorded and recorded_payload is not True:
@@ -752,29 +724,13 @@ def _submission_from_payload(payload: dict[str, Any]) -> ExecutionSubmission:
             if evidence_source_recorded and isinstance(evidence_payload, dict)
             else None
         )
-        provider_source_recorded = schema in {
-            "posttrain.execution-submission.v6",
-            "posttrain.execution-submission.v7",
-            _SCHEMA,
-        }
+        provider_source_recorded = schema in {"posttrain.execution-submission.v6", _SCHEMA}
         if provider_source_recorded and payload.get("provider_source_recorded") is not True:
             raise ContractError("execution submission must record its provider source")
         provider_payload = payload.get("provider_source")
         provider_source = (
             ExecutionProviderSource.from_dict(provider_payload)
             if provider_source_recorded and provider_payload is not None
-            else None
-        )
-        policy_payload = payload.get("execution_policy")
-        if schema == "posttrain.execution-submission.v7" and not isinstance(policy_payload, dict):
-            raise ContractError("execution submission must record its execution policy")
-        execution_policy = (
-            ExecutionPolicy(
-                timeout_seconds=int(policy_payload["timeout_seconds"]),
-                max_attempts=int(policy_payload.get("max_attempts", 1)),
-                priority=int(policy_payload.get("priority", 0)),
-            )
-            if isinstance(policy_payload, dict)
             else None
         )
         return ExecutionSubmission(
@@ -790,7 +746,6 @@ def _submission_from_payload(payload: dict[str, Any]) -> ExecutionSubmission:
             evidence_source_recorded=evidence_source_recorded,
             provider_source=provider_source,
             provider_source_recorded=provider_source_recorded,
-            execution_policy=execution_policy,
             legacy_bundle_digest=(str(payload["bundle_digest"]) if payload.get("bundle_digest") is not None else None),
             local_image=(str(payload["local_image"]) if payload.get("local_image") is not None else None),
             evidence_retention=(

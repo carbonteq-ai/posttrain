@@ -13,6 +13,12 @@ dependencies = [
     "latex2sympy2-extended>=1.10,<2",
     "liger-kernel>=0.7,<0.8",
     "math-verify>=0.9,<1",
+    # The CUDA toolkit metadata leaves nvcc unconstrained and otherwise lets it
+    # float beyond PyTorch's CUDA 13.0 runtime headers. FlashInfer runtime JIT
+    # requires the compiler and those headers to share the same toolkit minor.
+    "nvidia-cuda-crt==13.0.88",
+    "nvidia-cuda-nvcc==13.0.88",
+    "nvidia-nvvm==13.0.88",
     "numpy>=2,<3",
     "orjson>=3.11,<4",
     "packaging>=20",
@@ -39,6 +45,7 @@ dependencies = [
 
 [tool.uv]
 package = false
+environments = ["sys_platform == 'linux' and python_full_version == '3.13.12'"]
 
 [tool.uv.sources]
 torch = { index = "pytorch-cu130" }

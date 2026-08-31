@@ -26,7 +26,7 @@ existing code remains prototype evidence rather than an interface constraint.
 | [Evaluation and environments](./evaluation-and-environments.md) | How do general evaluation, domain evaluation, Verifiers, and serving benchmarks relate? |
 | [Proposed evaluation signal interpretation](./proposed-evaluation-signal-interpretation.md) | How should environment-native rewards, metrics, pass rate, task slices, aggregation, and comparison be modeled without reinterpreting traces? |
 | [Tool-using environment execution](./tool-using-environment-execution.md) | How do portable tool requirements, packed Verifiers/MCP execution, model protocols, and backend parsers compose without environment-specific framework code? |
-| [Infrastructure and job lifecycle](./infrastructure-and-job-lifecycle.md) | Which local infrastructure services exist, what roles do they own, and how does a digest-pinned job move from planning through scheduling, evidence reconciliation, and cleanup? |
+| [Infrastructure and job lifecycle](./infrastructure-and-job-lifecycle.md) | Which local and cloud infrastructure services exist, how do dstack-owned spot attempts, run-scoped storage, generic automation hooks, truthful inventory, evidence reconciliation, and cleanup compose? |
 | [LAN release runner](./lan-release-runner.md) | How do GitHub approval, a private-network runner, development qualification, stable promotion, and tag-last finalization form one release transaction? |
 | [Training and inference](./training-and-inference.md) | What do the reusable train/eval/serve packages expose, and which framework details remain internal? |
 | [Observability](./observability.md) | What is recorded for runs, metrics, events, samples, and native artifacts? |
@@ -41,9 +41,15 @@ Canonical supervised and preference data ownership is defined by
 [ADR 0011](../decisions/0011-canonical-posttraining-data.md).
 The proposed dependency-to-platform promotion contract is recorded in
 [ADR 0014](../decisions/0014-attested-release-promotion-graph.md).
+The proposed dstack storage, lifecycle-hook, spot-recovery, and inventory
+contract is recorded in
+[ADR 0017](../decisions/0017-dstack-run-scoped-storage-and-lifecycle-hooks.md).
 
 ## Revision history
 
+- 2026-08-30: Extended the infrastructure delivery architecture and linked ADR
+  0017 for RunPod spot recovery, run-scoped storage, durable hooks, cleanup, and
+  fleet inventory.
 - 2026-08-09: Added the proposed attested release-promotion decision after the
   0.3.3 candidate exposed implicit generated inputs and dependency deployment gaps.
 - 2026-08-06: Added the source-grounded local infrastructure and job-lifecycle map.

@@ -391,7 +391,7 @@ class JobPackService:
             (stage / "package.json").write_bytes(manifest.to_bytes())
             _normalize_tree_metadata(stage)
             _verify_staged_context(stage, manifest)
-            context_digest = _tree_digest(stage)
+            context_digest = digest_context_tree(stage)
             lease = CacheLease.acquire(self._lease_root, manifest.package_key)
             try:
                 destination = self._retain(
@@ -488,7 +488,10 @@ def _write_materialization_record(
 
     record_root.mkdir(parents=True, exist_ok=True, mode=0o700)
     record_root.chmod(0o700)
-    destination = record_root / f"{record.package_key}.json"
+    # Package bytes are provider-neutral, while publication identity includes
+    # the destination repository. Keep one immutable record per publication so
+    # switching between LAN and cloud registries cannot conflict.
+    destination = record_root / f"{record.publication_key}.json"
     if destination.exists():
         if destination.is_symlink() or not destination.is_file():
             raise ContractError("materialization record path is not a regular file")
@@ -500,7 +503,7 @@ def _write_materialization_record(
             raise ContractError("materialization record conflicts with an existing package")
         return destination
 
-    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{record.package_key}.", suffix=".tmp", dir=record_root)
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{record.publication_key}.", suffix=".tmp", dir=record_root)
     temporary = Path(temporary_name)
     try:
         with os.fdopen(descriptor, "wb") as stream:
@@ -527,7 +530,7 @@ def digest_source_package(source: SourcePackage) -> str:
     """Compute the portable digest expected by a semantic job-pack plan."""
 
     _validate_source_package(source)
-    return _tree_digest(source.root)
+    return digest_context_tree(source.root)
 
 
 def digest_job_context(root: Path) -> str:
@@ -538,7 +541,7 @@ def digest_job_context(root: Path) -> str:
     structurally invalid tree.
     """
 
-    return _tree_digest(root)
+    return digest_context_tree(root)
 
 
 def _create_layout(root: Path) -> None:
@@ -723,7 +726,7 @@ def _manifest_source_path(
 def _validate_source_package(source: SourcePackage) -> None:
     if not source.root.is_dir() or source.root.is_symlink() or not any(source.root.iterdir()):
         raise ContractError("source package root must be a non-empty directory")
-    _tree_digest(source.root)
+    digest_context_tree(source.root)
     for configured in source.install_roots:
         selected = source.root if configured == "." else source.root.joinpath(*configured.split("/"))
         if (
@@ -741,7 +744,7 @@ def _copy_source_package(source: SourcePackage, destination: Path) -> None:
     _validate_source_package(source)
     for child in sorted(source.root.iterdir(), key=lambda path: path.name):
         _copy_entry(child, destination / child.name)
-    if _tree_digest(destination) != _tree_digest(source.root):
+    if digest_context_tree(destination) != digest_context_tree(source.root):
         raise ContractError("staged source tree differs from its selected source")
 
 
@@ -814,7 +817,7 @@ def _staged_framework_digest(root: Path) -> str:
     if wheels:
         return _framework_wheel_digest(wheels)
     if has_source:
-        return _tree_digest(source)
+        return digest_context_tree(source)
     raise ContractError("no framework code is staged in the job context")
 
 
@@ -959,7 +962,7 @@ def _backend_runtime_lock(
         raise ContractError("veRL training selection differs from the immutable kind image dependency lock")
     projection = work / "verl-worker-projection"
     (projection / "posttrain").mkdir(parents=True)
-    for package in ("common", "data", "train"):
+    for package in ("common", "data", "environment", "train"):
         source = framework_source.root / "packages" / package / "src" / "posttrain" / package
         if not source.is_dir() or source.is_symlink():
             raise ContractError(f"framework snapshot lacks veRL worker projection package: {package}")
@@ -973,7 +976,7 @@ def _backend_runtime_lock(
         dependency_lock_digest=dependency_digest,
         working_directory="/opt/posttrain-verl/workdir",
         projection_path="/opt/posttrain-verl/projection",
-        projection_digest=_tree_digest(projection),
+        projection_digest=digest_context_tree(projection),
         worker_module="posttrain.train.backends.verl.worker",
     )
 
@@ -1157,7 +1160,7 @@ def _verify_staged_context(
             "framework code",
         ),
         (
-            _tree_digest(root / "sources/project"),
+            digest_context_tree(root / "sources/project"),
             manifest.project_source_digest,
             "project source",
         ),
@@ -1280,7 +1283,7 @@ def _verify_retained_context(
     package_key: str,
     context_digest: str,
 ) -> None:
-    if not destination.is_dir() or destination.is_symlink() or _tree_digest(destination) != context_digest:
+    if not destination.is_dir() or destination.is_symlink() or digest_context_tree(destination) != context_digest:
         raise ContractError("retained job context contains dirty filesystem drift")
     retained = JobPackageManifest.from_bytes((destination / "package.json").read_bytes())
     if retained.package_key != package_key:
@@ -1308,7 +1311,9 @@ def _normalize_tree_metadata(root: Path) -> None:
     os.utime(root, (0, 0), follow_symlinks=False)
 
 
-def _tree_digest(root: Path) -> str:
+def digest_context_tree(root: Path) -> str:
+    """Return the canonical digest of one immutable packed context tree."""
+
     if not root.is_dir() or root.is_symlink():
         raise ContractError("tree digest root must be a regular directory")
     entries: list[dict[str, JsonValue]] = []

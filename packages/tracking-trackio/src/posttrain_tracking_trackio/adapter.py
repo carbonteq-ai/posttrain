@@ -524,18 +524,29 @@ class TrackioBackend:
 
         return self._open_run(spec, resume="must", started_at=started_at)
 
+    def start_or_resume_run(self, spec: RunSpec, *, started_at: datetime) -> TrackioTrackedRun:
+        """Idempotently open the full canonical run identity after interruption."""
+
+        return self._open_run(
+            spec,
+            resume="allow",
+            started_at=started_at,
+            full_run_name=True,
+        )
+
     def _open_run(
         self,
         spec: RunSpec,
         *,
         resume: str,
         started_at: datetime | None = None,
+        full_run_name: bool = False,
     ) -> TrackioTrackedRun:
         started_at = started_at or datetime.now(UTC)
         project = self.settings.project or spec.project_id
         run = trackio.init(
             project=project,
-            name=f"{spec.job_kind}-{spec.run_id[:8]}",
+            name=f"{spec.job_kind}-{spec.run_id if full_run_name else spec.run_id[:8]}",
             group=spec.work_package_id,
             server_url=self.settings.server_url,
             config=_run_config(spec, started_at),

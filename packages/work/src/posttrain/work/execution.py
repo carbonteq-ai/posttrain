@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
+import os
 import tempfile
 from collections.abc import Callable, Mapping
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -24,6 +27,7 @@ from posttrain.tracking import (
     RunOutcome,
     RunOutcomeStatus,
     RunSpec,
+    TrackedRun,
     TrackingBackend,
 )
 
@@ -31,6 +35,8 @@ type RunOperation[ResultT] = Callable[[RunContext], ResultT]
 type RunFinalizer[ResultT] = Callable[[RunContext, ResultT], None]
 type RunFailureFinalizer = Callable[[RunContext, BaseException], None]
 type ArtifactMaterializer = Callable[[Mapping[str, ArtifactInput], Path], Mapping[str, LocalArtifactRef]]
+
+_WORKSPACE_MARKER = ".posttrain-recovery.json"
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,13 +60,19 @@ def execute_run[ResultT](
     materialize: ArtifactMaterializer | None = None,
     finalize: RunFinalizer[ResultT] | None = None,
     finalize_failure: RunFailureFinalizer | None = None,
+    recoverable: bool = False,
 ) -> ResultT:
-    """Execute one canonical job-kind run in an ephemeral workspace."""
+    """Execute one canonical job-kind run in an ephemeral or retained workspace."""
 
     if scratch_root is not None:
         scratch_root.mkdir(parents=True, exist_ok=True)
-    directory = str(scratch_root) if scratch_root is not None else None
-    with tempfile.TemporaryDirectory(prefix="posttrain-", dir=directory) as workspace:
+    if recoverable:
+        workspace_path, _ = _prepare_recoverable_workspace(spec, scratch_root)
+        workspace_scope = nullcontext(str(workspace_path))
+    else:
+        directory = str(scratch_root) if scratch_root is not None else None
+        workspace_scope = tempfile.TemporaryDirectory(prefix="posttrain-", dir=directory)
+    with workspace_scope as workspace:
         workspace_path = Path(workspace).resolve()
         if spec.artifacts and materialize is None:
             raise RuntimeError("this run requires an artifact materializer")
@@ -121,6 +133,7 @@ def execute_run_tracked[ResultT](
     backend: TrackingBackend,
     scratch_root: Path | None = None,
     success_status: RunOutcomeStatus = "succeeded",
+    recoverable: bool = False,
 ) -> ResultT:
     """Execute and durably finalize one run through the selected backend.
 
@@ -132,8 +145,7 @@ def execute_run_tracked[ResultT](
     if success_status == "failed" or success_status == "cancelled":
         raise ValueError("failed and cancelled statuses are derived from exceptional exits")
 
-    started_at = datetime.now(UTC)
-    tracked = backend.start_run(spec)
+    started_at, tracked = _start_tracked_run(backend, spec, scratch_root, recoverable)
 
     def materialize(inputs: Mapping[str, ArtifactInput], workspace: Path) -> Mapping[str, LocalArtifactRef]:
         return tracked.materialize_inputs(inputs, workspace / "inputs")
@@ -153,6 +165,7 @@ def execute_run_tracked[ResultT](
             materialize=materialize,
             finalize=flush_artifacts,
             finalize_failure=flush_artifacts,
+            recoverable=recoverable,
         )
     except (KeyboardInterrupt, SystemExit, OperationCancelled) as error:
         try:
@@ -189,14 +202,14 @@ def execute_run_tracked_finalized[ResultT](
     backend: TrackingBackend,
     scratch_root: Path | None = None,
     success_status: RunOutcomeStatus = "succeeded",
+    recoverable: bool = False,
 ) -> FinalizedRunResult[ResultT]:
     """Execute a tracked run and resolve every committed output before cleanup."""
 
     if success_status == "failed" or success_status == "cancelled":
         raise ValueError("failed and cancelled statuses are derived from exceptional exits")
 
-    started_at = datetime.now(UTC)
-    tracked = backend.start_run(spec)
+    started_at, tracked = _start_tracked_run(backend, spec, scratch_root, recoverable)
     published: tuple[PublishedArtifact, ...] = ()
 
     def materialize(inputs: Mapping[str, ArtifactInput], workspace: Path) -> Mapping[str, LocalArtifactRef]:
@@ -242,6 +255,7 @@ def execute_run_tracked_finalized[ResultT](
             materialize=materialize,
             finalize=finalize,
             finalize_failure=finalize_failure,
+            recoverable=recoverable,
         )
     except (KeyboardInterrupt, SystemExit, OperationCancelled) as error:
         try:
@@ -269,6 +283,51 @@ def execute_run_tracked_finalized[ResultT](
         raise
     tracked.finish(RunOutcome(success_status, started_at, datetime.now(UTC)))
     return FinalizedRunResult(result, published)
+
+
+def _prepare_recoverable_workspace(spec: RunSpec, scratch_root: Path | None) -> tuple[Path, datetime]:
+    if scratch_root is None:
+        raise ContractError("recoverable execution requires a persistent scratch root")
+    root = scratch_root.resolve()
+    workspace = (root / spec.run_id).resolve()
+    if workspace.parent != root:
+        raise ContractError("recoverable workspace escapes its scratch root")
+    marker = workspace / _WORKSPACE_MARKER
+    if marker.exists():
+        payload = json.loads(marker.read_text(encoding="utf-8"))
+        if payload.get("run_id") != spec.run_id or payload.get("job_kind") != spec.job_kind:
+            raise ContractError("recoverable workspace identity differs from the requested run")
+        started_at = datetime.fromisoformat(str(payload["started_at"]))
+        if started_at.tzinfo is None:
+            raise ContractError("recoverable workspace start time must be timezone-aware")
+        return workspace, started_at
+    workspace.mkdir(parents=True, exist_ok=False)
+    started_at = datetime.now(UTC)
+    payload = {
+        "schema": "posttrain.recoverable-workspace.v1",
+        "run_id": spec.run_id,
+        "job_kind": spec.job_kind,
+        "started_at": started_at.isoformat(),
+    }
+    temporary = marker.with_suffix(f".tmp.{os.getpid()}")
+    temporary.write_text(json.dumps(payload, sort_keys=True) + "\n", encoding="utf-8")
+    os.replace(temporary, marker)
+    return workspace, started_at
+
+
+def _start_tracked_run(
+    backend: TrackingBackend,
+    spec: RunSpec,
+    scratch_root: Path | None,
+    recoverable: bool,
+) -> tuple[datetime, TrackedRun]:
+    if not recoverable:
+        return datetime.now(UTC), backend.start_run(spec)
+    _, started_at = _prepare_recoverable_workspace(spec, scratch_root)
+    opener = getattr(backend, "start_or_resume_run", None)
+    if not callable(opener):
+        raise ContractError("recoverable execution requires an idempotent tracking backend")
+    return started_at, cast(TrackedRun, opener(spec, started_at=started_at))
 
 
 __all__ = [

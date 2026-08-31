@@ -21,6 +21,7 @@ from posttrain_job_builder import FileSystemJobContextStore, JobBuildWorker
 def _request(tmp_path: Path) -> JobPublicationPlanRequest:
     root = (tmp_path / "context").resolve()
     root.mkdir()
+    (root / "empty" / "nested").mkdir(parents=True)
     (root / "source.py").write_bytes(b"print('hello')\n")
     manifest = JobPackageManifest(
         project_id="project",
@@ -74,6 +75,7 @@ class FakePublisher:
     def publish(self, request):
         self.seen_context = request.staged_context
         assert (request.staged_context / "source.py").read_bytes() == b"print('hello')\n"
+        assert (request.staged_context / "empty" / "nested").is_dir()
         assert (request.staged_context / "wheels" / "framework").is_dir()
         receipt = (self.tmp_path / "publisher-receipt.json").resolve()
         receipt.write_text("{}\n", encoding="utf-8")

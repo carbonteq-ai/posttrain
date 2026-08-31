@@ -125,7 +125,16 @@ def test_translation_and_submit_have_no_secret_values(tmp_path: Path) -> None:
     assert "files" not in plan_config
     assert "files" not in submit_config
     assert plan.details["job_image"] == plan.request.image.value
-    assert all(config["retry"] is False for _, config in configurations)
+    assert all(
+        config["retry"]
+        == {
+            "on_events": ["interruption"],
+            "duration": 7_200,
+            "duration_by_event": {"interruption": 7_200},
+            "max_attempts_by_event": {"interruption": 5},
+        }
+        for _, config in configurations
+    )
     assert all(
         config["volumes"]
         == [
@@ -156,6 +165,45 @@ def test_translation_and_submit_have_no_secret_values(tmp_path: Path) -> None:
     assert all(config["tags"]["posttrain_job_image_digest"] == "b" * 64 for _, config in configurations)
     assert all(config["tags"]["posttrain_attempt"] == "1" for _, config in configurations)
     assert "secret" not in str(configurations)
+
+
+def test_managed_run_storage_omits_instance_mounts_and_private_ca(tmp_path: Path) -> None:
+    gateway = FakeGateway()
+    provider = DstackExecutionProvider(
+        gateway,
+        project="posttrain",
+        trust_bundle=Path("/var/lib/posttrain/trust/ca-certificates.crt"),
+    )
+    request = _request(tmp_path)
+    target = replace(
+        request.target,
+        placement={
+            "backends": ["runpod"],
+            "regions": ["US-MO-1"],
+            "spot_policy": "spot",
+            "managed_run_storage": True,
+        },
+    )
+
+    provider.plan(replace(request, target=target))
+
+    configuration = gateway.calls[-1][1]["configuration"]
+    assert "volumes" not in configuration
+    assert configuration["tags"]["posttrain_managed_run_storage"] == "true"
+    assert "setup" not in configuration
+    launch_environment = configuration["_posttrain_launch_env"]
+    assert "POSTTRAIN_EXTRA_CA_BUNDLE" not in launch_environment
+    assert launch_environment["HF_HOME"] == "/opt/posttrain/run/.cache/huggingface"
+    assert launch_environment["TORCHINDUCTOR_CACHE_DIR"] == "/opt/posttrain/run/.cache/compile/torchinductor"
+    assert launch_environment["TRITON_CACHE_DIR"] == "/opt/posttrain/run/.cache/compile/triton"
+
+
+def test_managed_run_storage_requires_boolean(tmp_path: Path) -> None:
+    request = _request(tmp_path)
+    target = replace(request.target, placement={"managed_run_storage": "yes"})
+
+    with pytest.raises(ValueError, match="managed_run_storage must be a boolean"):
+        DstackExecutionProvider(FakeGateway(), project="posttrain").plan(replace(request, target=target))
 
 
 def _sdk_bridge_module(monkeypatch: pytest.MonkeyPatch):
@@ -241,6 +289,29 @@ def test_sdk_bridge_lifecycle_actions_do_not_require_submission_configuration(tm
     response = sdk.invoke("status", {"project": "posttrain", "run_name": "pt-example"})
 
     assert response == {"project": "posttrain", "run_name": "pt-example"}
+
+
+def test_sdk_bridge_failure_preserves_the_bounded_validation_context(tmp_path: Path) -> None:
+    python = tmp_path / "python"
+    python.symlink_to(Path(sys.executable))
+    bridge = tmp_path / "bridge.py"
+    bridge.write_text(
+        "import sys\n"
+        "for line in ('trace header', 'retry -> duration_by_event', "
+        "'extra fields not permitted', 'value could not be parsed to a boolean'):\n"
+        "    print(line, file=sys.stderr)\n"
+        "raise SystemExit(1)\n",
+        encoding="utf-8",
+    )
+    sdk = DstackSdkBridge(python, bridge=bridge)
+
+    with pytest.raises(RuntimeError) as error:
+        sdk.invoke("plan", {"project": "posttrain"})
+
+    message = str(error.value)
+    assert "retry -> duration_by_event" in message
+    assert "extra fields not permitted" in message
+    assert "value could not be parsed to a boolean" in message
 
 
 def test_sdk_cleanup_waits_through_transient_worker_capacity_gap(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -403,6 +474,50 @@ def test_sdk_cleanup_returns_deferred_evidence_for_queued_exact_worker_task(
     assert configurations[0]["retry"] == {"on_events": ["no-capacity"], "duration": 86_400}
 
 
+@pytest.mark.parametrize(
+    ("active", "workspace_state", "emptied"),
+    [
+        (True, "provider-managed-deferred", False),
+        (False, "provider-managed-removed", True),
+    ],
+)
+def test_sdk_cleanup_uses_managed_volume_absence_as_terminal_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+    active: bool,
+    workspace_state: str,
+    emptied: bool,
+) -> None:
+    module = _sdk_bridge_module(monkeypatch)
+    volume_name = "run-12345678123456781234567812345678"
+    native = _Native(
+        id="12345678-1234-5678-1234-567812345678",
+        run_spec=_Native(
+            configuration=_Native(
+                tags={},
+                volumes=[_Native(name=volume_name)],
+            )
+        ),
+    )
+    source = _Native(_run=native)
+    volumes = [_Native(name=volume_name)] if active else []
+    client = _Native(
+        project="posttrain",
+        client=_Native(volumes=_Native(list=lambda **_kwargs: volumes)),
+    )
+
+    response = module._managed_run_storage_cleanup(
+        client,
+        source,
+        "/var/lib/posttrain/runs/test-run",
+        "gpu-worker-a",
+    )
+
+    assert response is not None
+    assert response["workspace_state"] == workspace_state
+    assert response["emptied"] is emptied
+    assert response["reclaimed_bytes"] == 0
+
+
 def test_dstack_maps_mandatory_instance_trust_bundle_as_additional_authorities(
     tmp_path: Path,
 ) -> None:
@@ -436,7 +551,7 @@ def test_dstack_maps_mandatory_instance_trust_bundle_as_additional_authorities(
 
 
 @pytest.mark.parametrize("max_attempts", [1, 2, 5])
-def test_admitted_task_is_fail_fast_for_every_framework_attempt_policy(
+def test_training_retries_only_provider_interruption_for_every_framework_attempt_policy(
     tmp_path: Path,
     max_attempts: int,
 ) -> None:
@@ -453,8 +568,15 @@ def test_admitted_task_is_fail_fast_for_every_framework_attempt_policy(
     plan_configuration = gateway.calls[0][1]["configuration"]
     submit_configuration = gateway.calls[1][1]["configuration"]
     assert request.policy.max_attempts == max_attempts
-    assert plan_configuration["retry"] is False
-    assert submit_configuration["retry"] is False
+    expected_retry = {
+        "on_events": ["interruption"],
+        "duration": 7_200,
+        "duration_by_event": {"interruption": 7_200},
+        "max_attempts_by_event": {"interruption": 5},
+    }
+    assert plan_configuration["retry"] == expected_retry
+    assert submit_configuration["retry"] == expected_retry
+    assert plan_configuration["_posttrain_launch_env"]["POSTTRAIN_INTERRUPTION_RECOVERY"] == "1"
     assert "files" not in plan_configuration
     assert "files" not in submit_configuration
 
@@ -477,11 +599,43 @@ def test_capacity_wait_retries_only_pre_start_no_capacity(
     assert all(
         configuration["retry"]
         == {
-            "on_events": ["no-capacity"],
+            "on_events": ["no-capacity", "interruption"],
             "duration": 86_400,
+            "duration_by_event": {
+                "no-capacity": 86_400,
+                "interruption": 7_200,
+            },
+            "max_attempts_by_event": {"interruption": 5},
         }
         for configuration in configurations
     )
+
+
+def test_target_can_constrain_backend_region_and_spot_policy(tmp_path: Path) -> None:
+    gateway = FakeGateway()
+    provider = DstackExecutionProvider(gateway, project="posttrain")
+    request = _request(tmp_path)
+    request = replace(
+        request,
+        target=replace(
+            request.target,
+            placement={
+                **request.target.placement,
+                "backends": ["runpod"],
+                "regions": ["US-MO-1"],
+                "spot_policy": "spot",
+                "max_price": 1.0,
+            },
+        ),
+    )
+
+    provider.plan(request)
+
+    configuration = gateway.calls[0][1]["configuration"]
+    assert configuration["backends"] == ["runpod"]
+    assert configuration["regions"] == ["US-MO-1"]
+    assert configuration["spot_policy"] == "spot"
+    assert configuration["max_price"] == 1.0
 
 
 def test_gpu_memory_maximum_must_cover_the_target_minimum(tmp_path: Path) -> None:
@@ -622,6 +776,59 @@ def test_cleanup_reports_exact_worker_capacity_wait_as_deferred(tmp_path: Path) 
     handle = provider.submit(provider.plan(request))
 
     with pytest.raises(ProviderCleanupDeferred, match="retry the same immutable purge"):
+        provider.cleanup(
+            handle,
+            run_id="test-run",
+            run_workspace=Path("/var/lib/posttrain/runs/test-run"),
+            runtime_image=request.image,
+        )
+
+
+def test_cleanup_accepts_provider_managed_volume_absence(tmp_path: Path) -> None:
+    gateway = FakeGateway()
+    gateway.status = "done"
+    gateway.cleanup_response = {
+        "cleanup_run_name": None,
+        "hostname": "gpu-worker-a",
+        "workspace": "/var/lib/posttrain/runs/test-run",
+        "workspace_state": "provider-managed-removed",
+        "emptied": True,
+        "reclaimed_bytes": 0,
+    }
+    provider = DstackExecutionProvider(gateway, project="posttrain")
+    request = _request(tmp_path)
+    handle = provider.submit(provider.plan(request))
+
+    cleanup = provider.cleanup(
+        handle,
+        run_id="test-run",
+        run_workspace=Path("/var/lib/posttrain/runs/test-run"),
+        runtime_image=request.image,
+    )
+
+    assert cleanup.disposition == "provider-managed"
+    assert cleanup.workspace_disposition == "removed"
+    assert cleanup.workspace_reclaimed_bytes == 0
+    assert "run-owned storage volume is absent" in cleanup.message
+
+
+def test_cleanup_defers_while_provider_managed_volume_exists(tmp_path: Path) -> None:
+    gateway = FakeGateway()
+    gateway.status = "done"
+    gateway.cleanup_response = {
+        "cleanup_run_name": None,
+        "cleanup_status": "provider-storage-deleting",
+        "hostname": "gpu-worker-a",
+        "workspace": "/var/lib/posttrain/runs/test-run",
+        "workspace_state": "provider-managed-deferred",
+        "emptied": False,
+        "reclaimed_bytes": 0,
+    }
+    provider = DstackExecutionProvider(gateway, project="posttrain")
+    request = _request(tmp_path)
+    handle = provider.submit(provider.plan(request))
+
+    with pytest.raises(ProviderCleanupDeferred, match="still deleting"):
         provider.cleanup(
             handle,
             run_id="test-run",

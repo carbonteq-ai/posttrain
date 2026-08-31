@@ -44,7 +44,6 @@ from posttrain_tracking_trackio import (
     require_remote_trackio_ready,
 )
 from posttrain_tracking_trackio.adapter import _trackio_trace_facts
-from trackio.run import Run as TrackioSDKRun
 from trackio.sqlite_storage import SQLiteStorage
 
 from packages.tracking.tests.conformance import (
@@ -285,10 +284,7 @@ def test_tracked_run_enqueues_later_trace_facts_without_flushing_training() -> N
             raise AssertionError("new Trackio builds use the durable enqueue API")
 
     sdk_run = SDKRun()
-    # This focused double exercises only the nonblocking trace-fact seam.  The
-    # adapter accepts the concrete SDK run at runtime, so keep the production
-    # type at the boundary rather than duplicating the entire SDK surface here.
-    tracked = TrackioTrackedRun(cast(TrackioSDKRun, sdk_run), "project-a", conformance_spec("run-a"))
+    tracked = TrackioTrackedRun(cast(Any, sdk_run), "project-a", conformance_spec("run-a"))
     tracked.trace_fact_update(
         TraceFactUpdateObservation(
             "verifiers",
@@ -563,6 +559,31 @@ def test_trackio_backend_resumes_without_replacing_config_or_starting_monitors(
     assert config["started_at"] == STARTED.isoformat()
     assert captured["auto_log_gpu"] is False
     assert captured["auto_log_cpu"] is False
+
+
+def test_trackio_backend_create_or_resume_uses_full_canonical_run_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    class StubRun:
+        id = "provider-run"
+
+    def fake_init(**kwargs: object) -> Any:
+        captured.update(kwargs)
+        return StubRun()
+
+    monkeypatch.setattr("posttrain_tracking_trackio.adapter.trackio.init", fake_init)
+    run_id = "00000000-0000-4000-8000-000000000099"
+
+    TrackioBackend(TrackioSettings(project="monitoring")).start_or_resume_run(
+        _spec(run_id),
+        started_at=STARTED,
+    )
+
+    assert captured["resume"] == "allow"
+    assert captured["name"] == f"train.sft-{run_id}"
+    assert cast(dict[str, object], captured["config"])["started_at"] == STARTED.isoformat()
 
 
 def test_exact_cancelled_recovery_rechecks_identity_and_provider_id(

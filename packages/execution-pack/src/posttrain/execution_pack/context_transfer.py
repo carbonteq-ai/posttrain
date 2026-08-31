@@ -98,6 +98,7 @@ class JobPublicationPlanRequest:
     context: JobContextManifest
     release_manifest_digest: str
     build_definition_digest: str
+    allow_deferred_qualification: bool = False
 
     def __post_init__(self) -> None:
         for label, value in (
@@ -108,6 +109,8 @@ class JobPublicationPlanRequest:
                 raise ContractError(f"job builder {label} digest must be SHA-256")
         if self.context.package_key != self.manifest.package_key:
             raise ContractError("job builder context package key differs from the manifest")
+        if not isinstance(self.allow_deferred_qualification, bool):
+            raise ContractError("job builder deferred qualification flag must be boolean")
         expected = publication_key_for(self.manifest, self.publication)
         if self.context.publication_key != expected:
             raise ContractError("job builder context publication key differs from the publication spec")
@@ -132,18 +135,22 @@ class JobPublicationPlanRequest:
             "context": self.context.to_payload(),
             "release_manifest_digest": self.release_manifest_digest,
             "build_definition_digest": self.build_definition_digest,
+            "allow_deferred_qualification": self.allow_deferred_qualification,
         }
 
     @classmethod
     def from_payload(cls, payload: object) -> JobPublicationPlanRequest:
-        if not isinstance(payload, dict) or set(payload) != {
+        allowed = {
             "schema",
             "manifest",
             "publication",
             "context",
             "release_manifest_digest",
             "build_definition_digest",
-        }:
+            "allow_deferred_qualification",
+        }
+        required = allowed - {"allow_deferred_qualification"}
+        if not isinstance(payload, dict) or set(payload) - allowed or not required.issubset(payload):
             raise ContractError("job publication plan payload is invalid")
         if payload["schema"] != "posttrain.job-publication-plan.v1":
             raise ContractError("job publication plan schema is unsupported")
@@ -151,12 +158,16 @@ class JobPublicationPlanRequest:
         build_definition_digest = payload["build_definition_digest"]
         if not isinstance(release_manifest_digest, str) or not isinstance(build_definition_digest, str):
             raise ContractError("job publication plan payload has invalid digest fields")
+        allow_deferred_qualification = payload.get("allow_deferred_qualification", False)
+        if not isinstance(allow_deferred_qualification, bool):
+            raise ContractError("job publication plan payload has invalid deferred qualification flag")
         return cls(
             JobPackageManifest.from_payload(payload["manifest"]),
             ImagePublicationSpec.from_payload(payload["publication"]),
             JobContextManifest.from_payload(payload["context"]),
             cast(str, release_manifest_digest),
             cast(str, build_definition_digest),
+            allow_deferred_qualification,
         )
 
 

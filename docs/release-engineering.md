@@ -278,10 +278,10 @@ The fixture is the smallest executable consumer example:
 Before stable release, one documented remote GPU gate must execute a supported
 training or evaluation work package, record evidence, and retrieve it through
 Observatory from the same provider. The candidate dispatch chooses one named
-qualification profile, not an arbitrary host or memory override: the default
-The `rtx-pro-96gb` release profile uses the RTX PRO 6000. The bounded
-`rtx-4090-24gb` profile may use the explicitly placed `pop-os` RTX 4090 after
-the capacity receipt verifies that the live dstack inventory reports that
+qualification profile, not an arbitrary host or memory override. The default
+`rtx-pro-96gb` release profile uses the RTX PRO 6000. The bounded
+`rtx-3070ti-8gb` profile may use the explicitly placed `pop-os` RTX 3070 Ti
+after the capacity receipt verifies that the live dstack inventory reports that
 exact healthy, idle hardware. The retained capacity
 receipt records the exact selected host and hardware.
 

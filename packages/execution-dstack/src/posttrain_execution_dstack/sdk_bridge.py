@@ -127,6 +127,53 @@ def _native_status(run):
     return str(getattr(run.status, "value", run.status)).lower()
 
 
+def _managed_run_storage_name(run):
+    """Return dstack's deterministic run-owned volume name when configured.
+
+    The server writes the managed volume mount into the retained effective run
+    spec before provisioning. This also recognizes runs submitted before the
+    explicit Posttrain marker was added.
+    """
+
+    native = run._run
+    try:
+        configuration = native.run_spec.configuration
+        native_run_id = str(native.id).replace("-", "")
+    except AttributeError:
+        return None
+    tags = getattr(configuration, "tags", None) or {}
+    marked = tags.get("posttrain_managed_run_storage") == "true"
+    expected_name = f"run-{native_run_id}"
+    volumes = getattr(configuration, "volumes", None) or ()
+    retained = any(getattr(volume, "name", None) == expected_name for volume in volumes)
+    return expected_name if marked or retained else None
+
+
+def _managed_run_storage_cleanup(client, source, workspace, hostname):
+    volume_name = _managed_run_storage_name(source)
+    if volume_name is None:
+        return None
+    active_names = {str(volume.name) for volume in client.client.volumes.list(project_name=client.project)}
+    if volume_name in active_names:
+        return {
+            "cleanup_run_name": None,
+            "cleanup_status": "provider-storage-deleting",
+            "hostname": hostname,
+            "workspace": workspace,
+            "workspace_state": "provider-managed-deferred",
+            "emptied": False,
+            "reclaimed_bytes": 0,
+        }
+    return {
+        "cleanup_run_name": None,
+        "hostname": hostname,
+        "workspace": workspace,
+        "workspace_state": "provider-managed-removed",
+        "emptied": True,
+        "reclaimed_bytes": 0,
+    }
+
+
 def _cleanup_command():
     cleanup_path = "/opt/posttrain/cleanup"
     return "\n".join(
@@ -226,6 +273,14 @@ def cleanup_workspace(payload):
         observed_hostname = source.hostname
     except (AttributeError, RuntimeError, ValueError):
         observed_hostname = None
+    managed_cleanup = _managed_run_storage_cleanup(
+        client,
+        source,
+        workspace,
+        observed_hostname or "unassigned",
+    )
+    if managed_cleanup is not None:
+        return managed_cleanup
     if not observed_hostname:
         if native not in {"failed", "terminated"} or assignment_state(source._run) != "never-assigned":
             raise RuntimeError(

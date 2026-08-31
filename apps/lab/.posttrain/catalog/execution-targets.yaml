@@ -5,10 +5,10 @@ target:
     memory_gb: 24
     placement:
       world_size: 1
-  targets/pop-os-rtx-4090-24gb:
+  targets/pop-os-rtx-3070ti-8gb:
     revision: "1"
     device_class: nvidia-cuda
-    memory_gb: 24
+    memory_gb: 8
     placement:
       world_size: 1
       instances:
@@ -21,3 +21,73 @@ target:
       world_size: 1
       instances:
         - hostname: carbonteq-ai-workstation.lan
+  targets/runpod-l40s-spot-qualification:
+    revision: "1"
+    device_class: nvidia-cuda
+    memory_gb: 48
+    placement:
+      world_size: 1
+      backends:
+        - runpod
+      spot_policy: spot
+      managed_run_storage: true
+      gpu_names:
+        - L40S
+      max_price: 1.0
+      disk_gb: 100
+  targets/runpod-a100-80gb-spot-qualification:
+    revision: "2"
+    device_class: nvidia-cuda
+    memory_gb: 80
+    placement:
+      world_size: 1
+      backends:
+        - runpod
+      spot_policy: spot
+      managed_run_storage: true
+      gpu_names:
+        - A100
+      max_price: 2.5
+      disk_gb: 100
+  targets/runpod-rtx-pro-6000-spot-qualification:
+    revision: "2"
+    device_class: nvidia-cuda
+    memory_gb: 96
+    placement:
+      world_size: 1
+      backends:
+        - runpod
+      spot_policy: spot
+      managed_run_storage: true
+      gpu_names:
+        - RTXPRO6000
+      max_price: 3.0
+      disk_gb: 100
+  targets/runpod-rtx-4090-spot-qualification:
+    revision: "1"
+    device_class: nvidia-cuda
+    memory_gb: 24
+    placement:
+      world_size: 1
+      backends:
+        - runpod
+      spot_policy: spot
+      managed_run_storage: true
+      gpu_names:
+        - RTX4090
+      max_price: 1.0
+      disk_gb: 100
+  targets/runpod-l4-spot-qualification:
+    revision: "1"
+    device_class: nvidia-cuda
+    memory_gb: 24
+    placement:
+      world_size: 1
+      backends:
+        - runpod
+      spot_policy: spot
+      managed_run_storage: true
+      gpu_names:
+        - L4
+      max_price: 0.5
+      disk_gb: 100

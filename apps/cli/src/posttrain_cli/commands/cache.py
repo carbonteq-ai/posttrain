@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-import json
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Annotated
 
 import typer
-from posttrain_execution_buildkit import BuildxCli
 
 from ..context import CliState
 from ..execution_config import MachineCachePolicy, load_machine_config
 from ..output import emit
-from ..state_layout import explain_cache, migrate_legacy_pack, prune_cache
+from ..state_layout import explain_cache, migrate_legacy_pack_cache, prune_cache
 
 
 def register(app: typer.Typer) -> None:
@@ -98,43 +98,44 @@ def register(app: typer.Typer) -> None:
             f"Cache prune {'applied' if apply else 'dry run'}; reclaimable bytes: {report.reclaimable_bytes}; removed bytes: {report.removed_bytes}",
         )
 
-    @cache_app.command(
-        "migrate-legacy-pack",
-        help="prepare this project's historical pack cache for safe pruning",
-    )
-    def migrate_legacy_pack_cmd(
+    @cache_app.command("migrate", help="verify and record safely recoverable legacy package contexts")
+    def migrate_cmd(
         ctx: typer.Context,
         apply: Annotated[
             bool,
-            typer.Option(
-                "--apply",
-                help="commit compact migration evidence; without this the command is a dry run",
-            ),
+            typer.Option("--apply", help="write compact records; without this the command is a read-only plan"),
         ] = False,
     ) -> None:
         state: CliState = ctx.obj
-        gateway = BuildxCli()
+        docker = shutil.which("docker")
+        verification: dict[str, bool] = {}
 
-        def verify_remote(image: str) -> bool:
-            expected = image.rpartition("@sha256:")[2]
-            if len(expected) != 64:
+        def verify(image: str) -> bool:
+            if image in verification:
+                return verification[image]
+            if docker is None:
+                verification[image] = False
                 return False
-            output = gateway.invoke(("imagetools", "inspect", image, "--format", "{{json .Manifest.Digest}}"))
             try:
-                observed = json.loads(output)
-            except json.JSONDecodeError:
-                return False
-            return observed == f"sha256:{expected}"
+                result = subprocess.run(
+                    [docker, "buildx", "imagetools", "inspect", image],
+                    check=False,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=30,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                verification[image] = False
+            else:
+                verification[image] = result.returncode == 0
+            return verification[image]
 
-        report = migrate_legacy_pack(state.layout(), verify_remote=verify_remote, apply=apply)
+        report = migrate_legacy_pack_cache(state.layout(), verify_registry_image=verify, apply=apply)
         emit(
             state,
             report.as_json(),
             (
-                f"Legacy pack migration {'applied' if apply else 'dry run'}; "
-                f"migratable bytes: {report.migratable_bytes}; "
-                f"protected bytes: {report.protected_bytes}; "
-                f"records committed: {report.records_committed}; "
-                f"discard records committed: {report.discard_records_committed}"
+                f"Legacy package migration {'applied' if apply else 'dry run'}; "
+                f"migratable bytes: {report.migratable_bytes}; migrated bytes: {report.migrated_bytes}"
             ),
         )

@@ -60,7 +60,7 @@ def test_materialization_record_rejects_tampered_manifest_digest() -> None:
         PackageMaterializationRecord.from_payload(payload)
 
 
-def test_materialization_store_resolves_by_plan_and_rejects_conflicting_package(tmp_path) -> None:
+def test_materialization_store_resolves_by_plan_and_publication(tmp_path) -> None:
     manifest = _manifest()
     record = PackageMaterializationRecord(
         package_key=manifest.package_key,
@@ -75,7 +75,30 @@ def test_materialization_store_resolves_by_plan_and_rejects_conflicting_package(
 
     assert path.is_file()
     assert path.stat().st_mode & 0o077 == 0
-    assert store.resolve("f" * 64) == record
+    assert path.name == f"{'e' * 64}.json"
+    assert store.resolve("f" * 64, publication_key="e" * 64) == record
     store.commit(record)
     with pytest.raises(ContractError, match="conflicts"):
         store.commit(replace(record, context_digest="0" * 64))
+
+
+def test_materialization_store_keeps_distinct_registry_publications(tmp_path) -> None:
+    manifest = _manifest()
+    first = PackageMaterializationRecord(
+        package_key=manifest.package_key,
+        context_digest="d" * 64,
+        publication_key="e" * 64,
+        manifest=manifest,
+        plan_key="f" * 64,
+    )
+    second = replace(first, publication_key="0" * 64)
+    store = PackageMaterializationStore(tmp_path.resolve())
+
+    store.commit(first)
+    store.commit(second)
+
+    assert store.resolve("f" * 64, publication_key="e" * 64) == first
+    assert store.resolve("f" * 64, publication_key="0" * 64) == second
+    assert store.resolve_all("f" * 64) == (second, first)
+    with pytest.raises(ContractError, match="ambiguous"):
+        store.resolve("f" * 64)

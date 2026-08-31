@@ -98,12 +98,12 @@ COPY --from=packaged-context /sources/ sources/
 # environment: doing so would drag their dependencies in, and those conflict
 # with veRL's. The isolated veRL process nevertheless needs the backend-neutral
 # contracts, portable Verifiers bridge, agent loop, and finalizer. Project those
-# three namespace packages as source instead of installing a second, misleading
+# four namespace packages as source instead of installing a second, misleading
 # copy of the framework distribution. Project code remains control-only;
 # selected external environments arrive as immutable wheels.
 RUN if [ "${RUNTIME_VARIANT}" = "online-rl-verl-py313" ]; then \
       install -d "${POSTTRAIN_VERL_PYTHONPATH}/posttrain"; \
-      for package in common data train; do \
+      for package in common data environment train; do \
         source="sources/framework/packages/${package}/src/posttrain/${package}"; \
         test -d "${source}"; \
         cp -a "${source}" "${POSTTRAIN_VERL_PYTHONPATH}/posttrain/"; \
@@ -118,10 +118,78 @@ RUN if [ "${RUNTIME_VARIANT}" = "online-rl-verl-py313" ]; then \
 # already hash-bound code requirements so uv can build those packages without
 # mutating their source metadata or treating either snapshot as a standalone
 # partial checkout.
-RUN python - <<'PY'
+RUN python - "${FRAMEWORK_SOURCE_DIGEST}" "${PROJECT_SOURCE_DIGEST}" <<'PY'
+import hashlib
 import json
+import stat
+import sys
 import tomllib
 from pathlib import Path
+
+framework_source_digest, project_source_digest = sys.argv[1:]
+
+
+def file_digest(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def semantic_digest(value: object) -> str:
+    return hashlib.sha256(
+        json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+
+
+def tree_digest(root: Path) -> str:
+    entries = []
+    for path in sorted(root.rglob("*")):
+        relative = path.relative_to(root).as_posix()
+        mode = path.lstat().st_mode
+        if path.is_symlink():
+            raise SystemExit(f"staged tree contains a symlink: {relative}")
+        if stat.S_ISDIR(mode):
+            entries.append({"path": relative, "type": "directory"})
+        elif stat.S_ISREG(mode):
+            entries.append(
+                {
+                    "path": relative,
+                    "type": "file",
+                    "sha256": file_digest(path),
+                    "executable": bool(mode & 0o111),
+                }
+            )
+        else:
+            raise SystemExit(f"staged tree contains a special file: {relative}")
+    if not entries:
+        raise SystemExit(f"staged tree is empty: {root}")
+    return semantic_digest({"entries": entries})
+
+
+# Verify immutable source inputs before uv invokes package build backends,
+# which may create harmless build metadata inside their source directories.
+framework_wheels = sorted(
+    path for path in Path("wheels/framework").glob("*.whl") if path.is_file()
+)
+framework_source_files = [
+    path for path in Path("sources/framework").rglob("*") if path.is_file()
+]
+if framework_wheels and framework_source_files:
+    raise SystemExit("framework code was staged both as source and as wheels")
+if framework_wheels:
+    observed_framework = semantic_digest(
+        [{"name": path.name, "sha256": file_digest(path)} for path in framework_wheels]
+    )
+elif framework_source_files:
+    observed_framework = tree_digest(Path("sources/framework"))
+else:
+    raise SystemExit("no framework code was staged")
+if observed_framework != framework_source_digest:
+    raise SystemExit("staged framework code differs from the package manifest")
+if tree_digest(Path("sources/project")) != project_source_digest:
+    raise SystemExit("staged project source differs from the package manifest")
 
 requirements = Path("locks/code.requirements.txt").read_text(encoding="utf-8").splitlines()
 members = []
@@ -333,29 +401,6 @@ for lock in manifest.runtime_dependency_locks:
         raise SystemExit(
             f"staged {lock.role} runtime dependency lock differs from the manifest"
         )
-# Framework code arrives either as a source tree or as built distributions.
-# Whichever route was used, its digest must be the one the manifest records.
-framework_wheels = sorted(
-    path for path in Path("wheels/framework").glob("*.whl") if path.is_file()
-)
-framework_source_files = [
-    path for path in Path("sources/framework").rglob("*") if path.is_file()
-]
-if framework_wheels and framework_source_files:
-    raise SystemExit("framework code was staged both as source and as wheels")
-if framework_wheels:
-    observed_framework = semantic_digest(
-        [{"name": path.name, "sha256": file_digest(path)} for path in framework_wheels]
-    )
-elif framework_source_files:
-    observed_framework = tree_digest(Path("sources/framework"))
-else:
-    raise SystemExit("no framework code was staged")
-if observed_framework != manifest.framework_source_digest:
-    raise SystemExit("staged framework code differs from the package manifest")
-if tree_digest(Path("sources/project")) != manifest.project_source_digest:
-    raise SystemExit("staged project source differs from the package manifest")
-
 resolved = json.loads(Path("config/resolved.json").read_text())
 expected_identities = {
     "project_id": manifest.project_id,
@@ -436,20 +481,29 @@ if manifest.backend_runtime is not None:
     if tree_digest(Path(backend.projection_path)) != backend.projection_digest:
         raise SystemExit("veRL worker projection differs from the package manifest")
     worktree = Path(backend.working_directory)
-    head = subprocess.run(
-        ["git", "-C", str(worktree), "rev-parse", "HEAD"],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
-    status = subprocess.run(
-        ["git", "-C", str(worktree), "status", "--porcelain=v1"],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout
-    if head != backend.source_revision or status:
-        raise SystemExit("veRL kind worktree differs from the package manifest")
+    revision_marker = worktree / ".posttrain-source-revision"
+    if revision_marker.is_file():
+        if (worktree / ".git").exists():
+            raise SystemExit("veRL immutable source snapshot unexpectedly retains Git metadata")
+        if revision_marker.read_text(encoding="utf-8").strip() != backend.source_revision:
+            raise SystemExit("veRL kind source marker differs from the package manifest")
+    else:
+        # Compatibility for already-published kind images from before source
+        # snapshots carried a deterministic revision marker.
+        head = subprocess.run(
+            ["git", "-C", str(worktree), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        status = subprocess.run(
+            ["git", "-C", str(worktree), "status", "--porcelain=v1"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        if head != backend.source_revision or status:
+            raise SystemExit("veRL kind worktree differs from the package manifest")
 
 expected_dataset_files = set()
 for dataset in manifest.datasets:

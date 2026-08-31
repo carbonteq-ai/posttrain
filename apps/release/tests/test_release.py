@@ -1024,11 +1024,11 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert '--framework-wheelhouse "${framework_wheelhouse}"' in candidate
     assert "qualification_profile:" in candidate
     assert "rtx-pro-96gb" in candidate
-    assert "rtx-4090-24gb" in candidate
-    assert 'qualification_target_args=(--target "targets/pop-os-rtx-4090-24gb")' in candidate
+    assert "rtx-3070ti-8gb" in candidate
+    assert 'qualification_target_args=(--target "targets/pop-os-rtx-3070ti-8gb")' in candidate
     assert "qualification_target_args=()" in candidate
     assert '"${qualification_target_args[@]}"' in candidate
-    assert "rtx4090-24gb" not in candidate
+    assert "rtx-4090-24gb" not in candidate
     assert 'qualification_host="pop-os.lan"' in candidate
     assert 'qualification_target="targets/carbonteq-rtx-pro-6000-96gb"' not in candidate
 
@@ -1391,6 +1391,20 @@ def test_verl_build_variables_come_from_the_current_runtime_profile() -> None:
     assert variables["DEPENDENCY_LOCK_SHA256"] == identity.dependency_lock_digest
     assert variables["FORK_REVISION"] == identity.source_revision
     assert variables["SOURCE_REPOSITORY"] == identity.source_repository
+    assert variables["SOURCE_REVISION"] == "841e78aba299972da109b40d1c740404cc4dc42a"
+    assert variables["CREATED"] == "2026-08-23T18:31:48+05:00"
+    assert variables["VERSION"] == "0.3.21"
+    assert variables["RELEASE_CREATED"] == "2026-08-13T00:00:00Z"
+    assert variables["RELEASE_SOURCE_REVISION"] == "a" * 40
+    assert variables["RELEASE_VERSION"] == "0.3.16rc5"
+
+
+def test_verl_reproducibility_epoch_is_runtime_lineage_owned() -> None:
+    from posttrain.runtime_images import runtime_cache_lineage, runtime_reproducibility_epoch
+
+    assert runtime_reproducibility_epoch("online-rl-verl-py313") == 1_787_491_908
+    assert runtime_reproducibility_epoch("serve") is None
+    assert runtime_cache_lineage("online-rl-verl-py313") is not None
 
 
 def test_unchanged_runtime_images_are_reused_across_framework_versions(
@@ -1484,6 +1498,11 @@ def test_kind_source_selection_is_variant_local() -> None:
     assert Path("containers/posttrain-job-kinds/profiles/serve.txt") in serve
     assert Path("containers/posttrain-job-kinds/verl-py313") in verl
     assert Path("containers/posttrain-job-kinds/Dockerfile") not in verl
+    assert Path("containers/posttrain-job-kinds/docker-bake.hcl") not in verl
+    assert publish._kind_bake_file("online-rl-verl-py313") == Path(
+        "containers/posttrain-job-kinds/verl-py313/docker-bake.hcl"
+    )
+    assert publish._kind_bake_file("serve") == Path("containers/posttrain-job-kinds/docker-bake.hcl")
 
 
 def test_public_ci_trackio_mirror_matches_locked_distribution() -> None:

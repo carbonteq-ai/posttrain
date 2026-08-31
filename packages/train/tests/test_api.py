@@ -601,6 +601,42 @@ def test_canonical_sft_request_uses_settings_and_explicit_training_binding() -> 
     assert observer.events[0].attributes["work_package_id"] == "work-packages/gsm8k-slice-3"
 
 
+def test_sft_resumes_latest_complete_checkpoint_from_retained_workspace(tmp_path: Path) -> None:
+    workspace = (tmp_path / "workspace").resolve()
+    checkpoint = workspace / "training/sft/trainer/checkpoint-4"
+    checkpoint.mkdir(parents=True)
+    for name in ("trainer_state.json", "optimizer.pt", "scheduler.pt", "rng_state_0.pth"):
+        (checkpoint / name).write_bytes(name.encode())
+    observed: list[LocalArtifactRef | None] = []
+
+    def runner(context, request, dataset, validation_dataset, output_dir):
+        observed.append(request.resume_from)
+        return _backend(context, request, dataset, validation_dataset, output_dir)
+
+    sft(
+        _run_context(workspace, Observer()),
+        SFTRequest(QWEN_35_2B, _supervised(), QWEN35_SFT_SMOKE, _training()),
+        runner=runner,
+    )
+
+    assert observed[0] is not None
+    assert observed[0].path == checkpoint
+
+
+def test_sft_refuses_retained_progress_without_complete_checkpoint(tmp_path: Path) -> None:
+    workspace = (tmp_path / "workspace").resolve()
+    checkpoint = workspace / "training/sft/trainer/checkpoint-4"
+    checkpoint.mkdir(parents=True)
+    (checkpoint / "trainer_state.json").write_text("{}", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="no complete recovery checkpoint"):
+        sft(
+            _run_context(workspace, Observer()),
+            SFTRequest(QWEN_35_2B, _supervised(), QWEN35_SFT_SMOKE, _training()),
+            runner=_backend,
+        )
+
+
 def test_transform_materializes_catalog_resolvable_child_variant(tmp_path: Path) -> None:
     observer = Observer()
     source = QWEN_35_2B

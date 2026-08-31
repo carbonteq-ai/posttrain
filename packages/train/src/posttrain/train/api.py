@@ -111,6 +111,65 @@ def _digest(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _prepare_interruption_recovery[
+    RequestT: SFTRequest | DPORequest | GRPORequest | SAMPORequest | OnPolicyDistillationRequest
+](
+    context: TrainingContext,
+    request: RequestT,
+    output_dir: Path,
+) -> RequestT:
+    """Reuse only a complete checkpoint from this run's retained workspace."""
+
+    if not output_dir.exists():
+        output_dir.mkdir(parents=True)
+        return request
+    if not output_dir.is_dir():
+        raise RuntimeError("training output path is not a directory")
+
+    backend = request.training.backend.split("@", 1)[0]
+    if backend == "trl":
+        candidates = sorted(
+            (
+                path
+                for path in output_dir.glob("checkpoint-*")
+                if path.is_dir() and path.name.removeprefix("checkpoint-").isdigit()
+            ),
+            key=lambda path: int(path.name.removeprefix("checkpoint-")),
+        )
+        complete = [
+            path
+            for path in candidates
+            if (path / "trainer_state.json").is_file()
+            and (path / "optimizer.pt").is_file()
+            and (path / "scheduler.pt").is_file()
+            and any(path.glob("rng_state*.pth"))
+        ]
+    elif backend == "verl":
+        candidates = sorted(
+            (
+                path
+                for path in (output_dir / "checkpoints").glob("global_step_*")
+                if path.is_dir() and path.name.removeprefix("global_step_").isdigit()
+            ),
+            key=lambda path: int(path.name.removeprefix("global_step_")),
+        )
+        complete = [path for path in candidates if (path / "actor").is_dir() and any((path / "actor").rglob("*"))]
+    else:
+        candidates = []
+        complete = []
+
+    if complete:
+        checkpoint = complete[-1].resolve()
+        context.event(
+            "training_interruption_recovery_selected",
+            {"backend": backend, "checkpoint": checkpoint.name},
+        )
+        return replace(request, resume_from=LocalArtifactRef(checkpoint, _digest(checkpoint)))
+    if any(output_dir.iterdir()):
+        raise RuntimeError("retained training progress has no complete recovery checkpoint; refusing a silent restart")
+    return request
+
+
 def _finish(
     context: TrainingContext,
     request: SFTRequest | DPORequest | GRPORequest | SAMPORequest | OnPolicyDistillationRequest,
@@ -298,7 +357,7 @@ def sft(
         )
     context.event("training_started", attributes)
     output_dir = context.workspace / "training" / "sft" / "trainer"
-    output_dir.mkdir(parents=True, exist_ok=False)
+    request = _prepare_interruption_recovery(context, request, output_dir)
     return _finish(
         context,
         request,
@@ -329,7 +388,7 @@ def dpo(
     }
     context.event("training_started", attributes)
     output_dir = context.workspace / "training" / "dpo" / "trainer"
-    output_dir.mkdir(parents=True, exist_ok=False)
+    request = _prepare_interruption_recovery(context, request, output_dir)
     return _finish(context, request, "dpo", runner(context, request, dataset, output_dir), dataset)
 
 
@@ -351,7 +410,7 @@ def grpo(
     }
     context.event("training_started", attributes)
     output_dir = context.workspace / "training" / request.settings.algorithm / "trainer"
-    output_dir.mkdir(parents=True, exist_ok=False)
+    request = _prepare_interruption_recovery(context, request, output_dir)
     backend = _run_environment_backend(
         context,
         request.bridge,
@@ -379,7 +438,7 @@ def sampo(
     }
     context.event("training_started", attributes)
     output_dir = context.workspace / "training" / "sampo" / "trainer"
-    output_dir.mkdir(parents=True, exist_ok=False)
+    request = _prepare_interruption_recovery(context, request, output_dir)
     backend = _run_environment_backend(
         context,
         request.bridge,
@@ -415,7 +474,7 @@ def distill(
     }
     context.event("training_started", attributes)
     output_dir = context.workspace / "training" / "distill" / "trainer"
-    output_dir.mkdir(parents=True, exist_ok=False)
+    request = _prepare_interruption_recovery(context, request, output_dir)
     backend = _run_environment_backend(
         context,
         request.bridge,

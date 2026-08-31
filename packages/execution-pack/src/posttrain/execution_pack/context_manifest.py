@@ -73,6 +73,7 @@ class JobContextManifest:
     publication_key: str
     context_digest: str
     files: tuple[ContextFile, ...]
+    directories: tuple[PurePosixPath, ...] = ()
 
     def __post_init__(self) -> None:
         for name, value in (
@@ -85,6 +86,17 @@ class JobContextManifest:
         paths = tuple(file.path for file in self.files)
         if not paths or paths != tuple(sorted(paths)) or len(set(paths)) != len(paths):
             raise ContractError("job context manifest files must be non-empty, unique, and sorted")
+        if (
+            self.directories != tuple(sorted(self.directories))
+            or len(set(self.directories)) != len(self.directories)
+            or any(
+                path.is_absolute() or not path.parts or any(part in {"", ".", ".."} for part in path.parts)
+                for path in self.directories
+            )
+        ):
+            raise ContractError("job context manifest directories must be safe, unique, and sorted")
+        if set(paths) & set(self.directories):
+            raise ContractError("job context path cannot be both a file and a directory")
 
     @property
     def total_bytes(self) -> int:
@@ -101,6 +113,7 @@ class JobContextManifest:
             "publication_key": self.publication_key,
             "context_digest": self.context_digest,
             "files": [file.to_payload() for file in self.files],
+            "directories": [path.as_posix() for path in self.directories],
         }
 
     def to_bytes(self) -> bytes:
@@ -108,13 +121,16 @@ class JobContextManifest:
 
     @classmethod
     def from_payload(cls, payload: object) -> JobContextManifest:
-        if not isinstance(payload, dict) or set(payload) != {
+        allowed = {
             "schema",
             "package_key",
             "publication_key",
             "context_digest",
             "files",
-        }:
+            "directories",
+        }
+        required = allowed - {"directories"}
+        if not isinstance(payload, dict) or set(payload) - allowed or not required.issubset(payload):
             raise ContractError("job context manifest payload is invalid")
         if payload["schema"] != _SCHEMA:
             raise ContractError("job context manifest schema is unsupported")
@@ -122,24 +138,31 @@ class JobContextManifest:
         publication_key = payload["publication_key"]
         context_digest = payload["context_digest"]
         files = payload["files"]
-        if not all(
-            isinstance(value, str) for value in (package_key, publication_key, context_digest)
-        ) or not isinstance(files, list):
+        directories = payload.get("directories", [])
+        if (
+            not all(isinstance(value, str) for value in (package_key, publication_key, context_digest))
+            or not isinstance(files, list)
+            or not isinstance(directories, list)
+            or not all(isinstance(value, str) for value in directories)
+        ):
             raise ContractError("job context manifest payload has invalid field types")
         return cls(
             cast(str, package_key),
             cast(str, publication_key),
             cast(str, context_digest),
             tuple(ContextFile.from_payload(item) for item in files),
+            tuple(PurePosixPath(cast(str, item)) for item in directories),
         )
 
     @classmethod
     def from_packed_context(cls, context: PackedJobContext) -> JobContextManifest:
         files: list[ContextFile] = []
+        directories: list[PurePosixPath] = []
         for path in sorted(context.root.rglob("*")):
             if path.is_symlink():
                 raise ContractError("packed job context must not contain symbolic links")
             if path.is_dir():
+                directories.append(PurePosixPath(path.relative_to(context.root).as_posix()))
                 continue
             if not path.is_file():
                 raise ContractError("packed job context must contain only regular files and directories")
@@ -153,7 +176,13 @@ class JobContextManifest:
                     stat.S_IMODE(metadata.st_mode),
                 )
             )
-        return cls(context.manifest.package_key, context.publication_key, context.context_digest, tuple(files))
+        return cls(
+            context.manifest.package_key,
+            context.publication_key,
+            context.context_digest,
+            tuple(files),
+            tuple(directories),
+        )
 
 
 def _file_sha256(path: Path) -> str:

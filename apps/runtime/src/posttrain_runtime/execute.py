@@ -552,7 +552,20 @@ def _verify_backend_runtime(root: Path, manifest: JobPackageManifest) -> None:
     projection = Path(backend.projection_path)
     if _tree_digest(projection) != backend.projection_digest:
         raise ContractError("veRL worker projection differs from its manifest")
-    worktree = Path(backend.working_directory)
+    _verify_backend_worktree(Path(backend.working_directory), backend.source_revision)
+
+
+def _verify_backend_worktree(worktree: Path, source_revision: str) -> None:
+    """Verify a deterministic source snapshot, with legacy Git compatibility."""
+
+    revision_marker = worktree / ".posttrain-source-revision"
+    if revision_marker.is_file():
+        if (worktree / ".git").exists():
+            raise ContractError("veRL immutable source snapshot unexpectedly retains Git metadata")
+        if revision_marker.read_text(encoding="utf-8").strip() != source_revision:
+            raise ContractError("veRL capsule source marker differs from its manifest")
+        return
+
     try:
         head = subprocess.run(
             ["git", "-C", str(worktree), "rev-parse", "HEAD"],
@@ -568,7 +581,7 @@ def _verify_backend_runtime(root: Path, manifest: JobPackageManifest) -> None:
         ).stdout
     except (OSError, subprocess.CalledProcessError) as error:
         raise ContractError("veRL capsule worktree cannot be verified") from error
-    if head != backend.source_revision or status:
+    if head != source_revision or status:
         raise ContractError("veRL capsule worktree differs from its manifest")
 
 

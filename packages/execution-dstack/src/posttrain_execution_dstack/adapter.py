@@ -39,6 +39,9 @@ POSTTRAIN_NOFILE_LIMIT = 65536
 _EXTRA_TRUST_VARIABLE = "POSTTRAIN_EXTRA_CA_BUNDLE"
 _RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _HOSTNAME = re.compile(r"^(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
+_MANAGED_RUN_STORAGE_ROOT = Path("/opt/posttrain/run")
+_INTERRUPTION_RECOVERY_SECONDS = 2 * 60 * 60
+_MAX_INTERRUPTION_RECOVERIES = 5
 
 _STATE: dict[str, ExecutionState] = {
     "pending": "queued",
@@ -125,7 +128,7 @@ class DstackSdkBridge:
         )
         if result.returncode != 0:
             error_lines = [line.strip() for line in result.stderr.splitlines() if line.strip()]
-            detail = error_lines[-1][:500] if error_lines else "no diagnostic was returned"
+            detail = " | ".join(error_lines[-8:])[:1500] if error_lines else "no diagnostic was returned"
             raise RuntimeError(f"dstack SDK bridge {action} failed with exit code {result.returncode}: {detail}")
         value = json.loads(result.stdout)
         if not isinstance(value, dict):
@@ -205,6 +208,9 @@ class DstackExecutionProvider:
                 "dstack no longer accepts execution bundles; pack and submit an immutable actual-job image"
             )
         placement = request.target.placement
+        managed_run_storage = placement.get("managed_run_storage", False)
+        if not isinstance(managed_run_storage, bool):
+            raise ValueError("dstack managed_run_storage must be a boolean")
         gpu: dict[str, Any] = {"count": _integer(placement.get("gpu_count"), 1)}
         if names := _sequence(placement.get("gpu_names")):
             gpu["name"] = [str(name) for name in names]
@@ -221,8 +227,22 @@ class DstackExecutionProvider:
                     )
                 gpu["memory"] = f"{minimum_memory}GB..{maximum_memory}GB"
         launch_environment = request.launch_environment(provider="dstack")
-        if self._trust_bundle is not None:
+        recover_interruption = request.run_spec.stage == "train"
+        if recover_interruption:
+            launch_environment["POSTTRAIN_INTERRUPTION_RECOVERY"] = "1"
+        if self._trust_bundle is not None and not managed_run_storage:
             launch_environment.update({_EXTRA_TRUST_VARIABLE: str(TRUST_BUNDLE_CONTAINER_PATH)})
+        if managed_run_storage:
+            # A provisioned worker has no meaningful access to the submitter's
+            # host paths. dstack owns one network volume mounted at the stable
+            # runtime root; caches live below it and survive a spot replacement.
+            launch_environment.update(
+                {
+                    "HF_HOME": str(_MANAGED_RUN_STORAGE_ROOT / ".cache/huggingface"),
+                    "TORCHINDUCTOR_CACHE_DIR": str(_MANAGED_RUN_STORAGE_ROOT / ".cache/compile/torchinductor"),
+                    "TRITON_CACHE_DIR": str(_MANAGED_RUN_STORAGE_ROOT / ".cache/compile/triton"),
+                }
+            )
         command = shlex.join(request.command)
         command = f"ulimit -n {POSTTRAIN_NOFILE_LIMIT} 2>/dev/null || true; exec {command}"
         configuration: dict[str, Any] = {
@@ -237,30 +257,33 @@ class DstackExecutionProvider:
                 "disk": {"size": f"{_integer(placement.get('disk_gb'), 100)}GB.."},
             },
             "priority": request.policy.priority,
-            # Capacity waiting happens before arbitrary user code starts and
-            # does not create another framework execution attempt. Other
-            # provider retry events stay disabled because they may repeat an
-            # admitted training attempt after user code has run.
-            "retry": (
-                {
-                    "on_events": ["no-capacity"],
-                    "duration": self._capacity_wait_seconds,
-                }
-                if self._capacity_wait_seconds
-                else False
-            ),
+            # Arbitrary runtime errors remain fail-fast. Training retries only
+            # after dstack has authoritatively classified provider interruption;
+            # the retained run workspace then supplies the recovery checkpoint.
+            "retry": self._retry_policy(request, recover_interruption),
             "max_duration": request.policy.timeout_seconds,
             "tags": {
                 "posttrain_run_id": request.run_spec.run_id,
                 "posttrain_attempt": str(request.attempt),
                 "posttrain_job_image_digest": request.image.digest,
+                "posttrain_managed_run_storage": str(managed_run_storage).lower(),
             },
         }
         if fleets := _sequence(placement.get("fleets")):
             configuration["fleets"] = fleets
         if instances := _sequence(placement.get("instances")):
             configuration["instances"] = instances
-        if request.mounts:
+        if backends := _sequence(placement.get("backends")):
+            configuration["backends"] = backends
+        if regions := _sequence(placement.get("regions")):
+            configuration["regions"] = regions
+        spot_policy = placement.get("spot_policy")
+        if isinstance(spot_policy, str):
+            configuration["spot_policy"] = spot_policy
+        max_price = placement.get("max_price")
+        if isinstance(max_price, int | float) and not isinstance(max_price, bool):
+            configuration["max_price"] = float(max_price)
+        if request.mounts and not managed_run_storage:
             configuration["volumes"] = [
                 {
                     "instance_path": str(mount.instance_path),
@@ -269,7 +292,7 @@ class DstackExecutionProvider:
                 }
                 for mount in request.mounts
             ]
-        if self._trust_bundle is not None:
+        if self._trust_bundle is not None and not managed_run_storage:
             volumes = configuration.setdefault("volumes", [])
             volumes.append(
                 {
@@ -280,6 +303,30 @@ class DstackExecutionProvider:
             )
             configuration["setup"] = [f"test -f {shlex.quote(str(TRUST_BUNDLE_CONTAINER_PATH))}"]
         return configuration
+
+    def _retry_policy(self, request: ExecutionRequest, recover_interruption: bool) -> dict[str, Any] | bool:
+        events: list[str] = []
+        if self._capacity_wait_seconds:
+            events.append("no-capacity")
+        if recover_interruption:
+            events.append("interruption")
+        if not events:
+            return False
+        duration_by_event: dict[str, int] = {}
+        max_attempts_by_event: dict[str, int] = {}
+        if self._capacity_wait_seconds:
+            duration_by_event["no-capacity"] = self._capacity_wait_seconds
+        if recover_interruption:
+            duration_by_event["interruption"] = _INTERRUPTION_RECOVERY_SECONDS
+            max_attempts_by_event["interruption"] = _MAX_INTERRUPTION_RECOVERIES
+        return {
+            "on_events": events,
+            # Backward-compatible fallback for older dstack servers. The
+            # event-specific values are authoritative on the maintained fork.
+            "duration": max(duration_by_event.values()),
+            "duration_by_event": duration_by_event,
+            "max_attempts_by_event": max_attempts_by_event,
+        }
 
     def plan(self, request: ExecutionRequest) -> ExecutionPlan:
         configuration = self._configuration(request, allow_legacy_bundle=True)
@@ -407,6 +454,14 @@ class DstackExecutionProvider:
         if (
             response.get("hostname") == hostname
             and response.get("workspace") == str(run_workspace)
+            and response.get("workspace_state") == "provider-managed-deferred"
+            and response.get("emptied") is False
+            and response.get("reclaimed_bytes") == 0
+        ):
+            raise ProviderCleanupDeferred("dstack is still deleting the run-owned storage volume; retry cleanup")
+        if (
+            response.get("hostname") == hostname
+            and response.get("workspace") == str(run_workspace)
             and response.get("workspace_state") == "deferred"
             and response.get("emptied") is False
             and response.get("reclaimed_bytes") == 0
@@ -435,6 +490,20 @@ class DstackExecutionProvider:
                     "assignment history proves no worker workspace was created"
                 ),
                 workspace_disposition="not-created",
+                workspace_reclaimed_bytes=0,
+            )
+        if (
+            response.get("hostname") == hostname
+            and response.get("workspace") == str(run_workspace)
+            and response.get("workspace_state") == "provider-managed-removed"
+            and response.get("emptied") is True
+            and response.get("reclaimed_bytes") == 0
+        ):
+            return ProviderCleanupResult(
+                handle,
+                "provider-managed",
+                "dstack confirmed the run-owned storage volume is absent",
+                workspace_disposition="removed",
                 workspace_reclaimed_bytes=0,
             )
         if (

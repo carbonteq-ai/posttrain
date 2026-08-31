@@ -219,7 +219,7 @@ class BuildKitJobImagePublisher:
             else CacheLease.acquire(self._local_layout_root.parent / "leases", request.publication_key)
         )
         try:
-            self._check_definition(request, local=True)
+            self._check_definition(request)
             self._gateway.invoke(self._smoke_arguments(request))
             receipt.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
             layout.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -307,7 +307,7 @@ class BuildKitJobImagePublisher:
         lease = CacheLease.acquire(self._local_layout_root.parent / "leases", request.publication_key)
         metadata = self._receipt_root / f".local-daemon-metadata-{uuid.uuid4().hex}.json"
         try:
-            self._check_definition(request, local=True)
+            self._check_definition(request)
             self._gateway.invoke(self._smoke_arguments(request))
             self._receipt_root.mkdir(parents=True, exist_ok=True, mode=0o700)
             self._gateway.invoke(self._local_daemon_arguments(request, tag, metadata))
@@ -371,10 +371,10 @@ class BuildKitJobImagePublisher:
             _PUBLISHED_TARGET,
         ]
 
-    def _check_definition(self, request: JobImagePublicationRequest, *, local: bool = False) -> None:
+    def _check_definition(self, request: JobImagePublicationRequest) -> None:
         for target in (_PUBLISHED_TARGET, _SMOKE_TARGET):
-            local_output = (
-                ("--set", f"{_PUBLISHED_TARGET}.output=type=cacheonly") if local and target == _PUBLISHED_TARGET else ()
+            validation_output = (
+                ("--set", f"{_PUBLISHED_TARGET}.output=type=cacheonly") if target == _PUBLISHED_TARGET else ()
             )
             self._gateway.invoke(
                 (
@@ -384,7 +384,7 @@ class BuildKitJobImagePublisher:
                     *self._entitlement_arguments(request),
                     *self._builder_arguments(),
                     *self._context_arguments(request),
-                    *local_output,
+                    *validation_output,
                     *self._variable_arguments(request),
                     "--call",
                     "check",

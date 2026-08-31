@@ -34,7 +34,7 @@ REQUIRED_BACKEND_VENV = "/opt/posttrain-verl"
 REQUIRED_BACKEND_PROJECTION = "/opt/posttrain-verl/projection"
 REQUIRED_BACKEND_PYTHONPATH_VARIABLE = "POSTTRAIN_VERL_PYTHONPATH"
 REQUIRED_BACKEND_WORKER_MODULE = "posttrain.train.backends.verl.worker"
-REQUIRED_PROJECTION_PACKAGES = ("common", "data", "train")
+REQUIRED_PROJECTION_PACKAGES = ("common", "data", "environment", "train")
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ACTUAL_JOB_DOCKERFILE = ROOT / "posttrain-job" / "Dockerfile"
 DEFAULT_KIND_BAKE_FILE = ROOT / "posttrain-job-kinds" / "docker-bake.hcl"
@@ -43,6 +43,8 @@ DEFAULT_VERL_BAKE_FILE = Path(__file__).with_name("docker-bake.hcl")
 DEFAULT_RELEASE_PROJECT = Path(__file__).with_name("release") / "pyproject.toml"
 DEFAULT_RELEASE_LOCK = Path(__file__).with_name("release") / "uv.lock"
 DEFAULT_BACKEND_CONSTRAINTS = Path(__file__).with_name("release") / "backend-constraints.txt"
+DEFAULT_SHARED_HEAVY_POLICY = Path(__file__).with_name("shared-heavy.toml")
+DEFAULT_SHARED_FALLBACK_VALIDATOR = Path(__file__).with_name("validate_shared_fallback.py")
 
 
 @dataclass(frozen=True)
@@ -176,7 +178,7 @@ def validate_definition(profile: ReleaseProfile) -> tuple[str, ...]:
     if profile.backend_working_directory == profile.backend_projection_path:
         errors.append("veRL worktree and worker projection must be separate")
     if profile.worker_projection_packages != REQUIRED_PROJECTION_PACKAGES:
-        errors.append("veRL worker projection packages must be common, data, and train")
+        errors.append("veRL worker projection packages must be common, data, environment, and train")
     if not profile.source_repository.startswith("https://github.com/"):
         errors.append("veRL source repository must be a secret-free HTTPS GitHub URL")
     if FULL_REVISION.fullmatch(profile.upstream_revision) is None:
@@ -281,6 +283,8 @@ def validate_repository_integration(
     for label, path in (
         ("veRL kind Dockerfile", DEFAULT_VERL_DOCKERFILE),
         ("veRL kind Bake file", DEFAULT_VERL_BAKE_FILE),
+        ("veRL shared-heavy policy", DEFAULT_SHARED_HEAVY_POLICY),
+        ("veRL shared fallback validator", DEFAULT_SHARED_FALLBACK_VALIDATOR),
     ):
         if not path.is_file():
             errors.append(f"{label} is missing: {path}")
@@ -316,13 +320,43 @@ def validate_repository_integration(
         verl_dockerfile = DEFAULT_VERL_DOCKERFILE.read_text(encoding="utf-8")
         for label, fragment in (
             ("precompiled fork install", "VLLM_USE_PRECOMPILED=1"),
+            ("fork-qualified runtime version", 'VLLM_VERSION_OVERRIDE="${VLLM_RUNTIME_VERSION}"'),
+            ("deterministic backend bytecode", "compileall --invalidation-mode checked-hash"),
             (
                 "binary wheel checksum",
                 "16fc7a28df1576eb6f7ca0455026551b8f9adb674c19c66059359ef3e964bd1e",
             ),
+            ("shared-heavy policy", "shared-heavy.toml"),
+            ("shared fallback validator", "validate_shared_fallback.py"),
+            ("shared-heavy control root", "--control-site"),
+            ("shared-heavy backend root", "--backend-site"),
+            ("backend lock validation", "--backend-lock"),
+            ("shared-heavy report", "shared-heavy-report.json"),
+            ("uv partial sync", "--no-install-package torch"),
+            ("lower-precedence fallback", "posttrain-control-fallback.pth"),
+            ("fail-closed fallback validation", "--fallback-file"),
+            ("reproducible Python bytecode epoch", 'SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH}"'),
+            ("cache-independent uv installation", 'UV_LINK_MODE="copy"'),
+            (
+                "pinned CUTLASS base wheel",
+                "e59da7d89e5e4f8514c6530843f910f9d8734d8042dcaa079c9d9c5063eb3514",
+            ),
+            (
+                "pinned CUTLASS CUDA 13 wheel",
+                "c7a5ce1c01616fc4c3ac492e011c543a79c3dde86aaf20a8af55e9d40ef2b2e6",
+            ),
+            ("deterministic source revision marker", ".posttrain-source-revision"),
+            ("deterministic source snapshot", "rm -rf /opt/posttrain-verl/workdir/.git"),
         ):
             if fragment not in verl_dockerfile:
-                errors.append(f"veRL kind Dockerfile omits vLLM {label}: {fragment}")
+                errors.append(f"veRL kind Dockerfile omits {label}: {fragment}")
+        sync_position = verl_dockerfile.find("UV_COMPILE_BYTECODE=0 uv sync ")
+        sharing_position = verl_dockerfile.find("validate_shared_fallback.py", sync_position)
+        cleanup_position = verl_dockerfile.find("rm -rf /opt/posttrain-verl-build", sharing_position)
+        if min(sync_position, sharing_position, cleanup_position) < 0:
+            errors.append("veRL shared fallback sequence is incomplete")
+        elif "\nRUN " in verl_dockerfile[sync_position:cleanup_position]:
+            errors.append("veRL partial sync and shared fallback validation must commit in one Docker RUN")
 
     target = f'target "posttrain-kind-{profile.profile_id}"'
     if not kind_bake_file.is_file():

@@ -168,6 +168,20 @@ distributions and project trees. Details: [05 · APIs](./05-apis.md),
 [ADR 0016](../decisions/0016-site-wide-remote-builder-authorization.md), and the
 [implementation plan](../plan/site-wide-remote-builder-authorization.md).
 
+**Amendment — interruptible same-run recovery (2026-08-31):** a provider may
+retry an interrupted training attempt after user code starts only when the job
+declares exact same-run recovery, the provider fences the prior writer and
+reattaches the same run-scoped workspace, and the runtime resumes a complete
+checkpoint before advancing. The canonical run identity remains unchanged and
+attempt identity advances. Runtime failures are not retryable, and an
+interrupted run with prior progress but no valid checkpoint must fail rather
+than silently restart from step zero. Explicit recovery from a different run
+continues to use an immutable `training-checkpoint` artifact. Details:
+[03 · Work and evidence](./03-work-and-evidence.md),
+[05 · APIs](./05-apis.md), [06 · Observation](./06-observation-and-lineage.md),
+[ADR 0017](../decisions/0017-dstack-run-scoped-storage-and-lifecycle-hooks.md),
+and the [cloud execution plan](../plan/dstack-r2-registry-routing.md).
+
 **Amendment — paired-assistant MTP rollout (2026-08-05):**
 `ModelCapabilities.mtp` means that a selected model can participate in
 rollout-only multi-token prediction through the selected backend. The

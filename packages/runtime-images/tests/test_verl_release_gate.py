@@ -35,15 +35,125 @@ def test_candidate_definition_preserves_two_python_environments() -> None:
         profile.backend_constraints_sha256
         == hashlib.sha256((PROFILE_ROOT / "release" / "backend-constraints.txt").read_bytes()).hexdigest()
     )
-    assert profile.worker_projection_packages == ("common", "data", "train")
+    assert profile.worker_projection_packages == ("common", "data", "environment", "train")
 
 
 def test_candidate_image_smokes_both_python_313_environments() -> None:
     dockerfile = (PROFILE_ROOT / "Dockerfile").read_text(encoding="utf-8")
 
+    assert "import ray, torch, transformers, tensordict, verl, verifiers, vllm" in dockerfile
+    assert "0.25.2.dev2+g7817d8457.precompiled" in dockerfile
+    assert 'VLLM_VERSION_OVERRIDE="${VLLM_RUNTIME_VERSION}"' in dockerfile
+    assert 'CUDA_HOME="/opt/posttrain-verl/lib/python3.13/site-packages/nvidia/cu13"' in dockerfile
+    assert 'CPATH="/opt/posttrain/venv/lib/python3.13/site-packages/nvidia/cu13/include"' in dockerfile
+    assert 'LIBRARY_PATH="/opt/posttrain/venv/lib/python3.13/site-packages/nvidia/cu13/lib"' in dockerfile
+    assert "apt-get install --yes --no-install-recommends curl g++" in dockerfile
+    assert 'ln -s lib "${CUDA_HOME}/lib64"' in dockerfile
+    assert 'ln -s libcudart.so.13 "${CUDA_HOME}/lib/libcudart.so"' in dockerfile
+    assert "ln -s /opt/posttrain-verl/bin/ninja /usr/local/bin/ninja" in dockerfile
+    assert 'ln -s "${CUDA_HOME}/bin/nvcc" /usr/local/bin/nvcc' in dockerfile
+    assert "command -v g++ >/dev/null" in dockerfile
     assert (
         '"import sys, hatchling, pydantic, yaml, verifiers; assert sys.version_info[:3] == (3, 13, 12)"'
     ) in dockerfile
+
+
+def test_candidate_carries_pinned_cuda_compat_without_globally_activating_it() -> None:
+    dockerfile = (PROFILE_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    source_clone = dockerfile.index("RUN git clone")
+    compat_copy = dockerfile.index("RUN --mount=from=cuda-compat")
+
+    assert (
+        "nvidia/cuda:13.0.2-base-ubuntu24.04@sha256:605fb0c8acf8674e164d822da8a8521f3a655056e569f0899e72ae940e1fe7dc"
+    ) in dockerfile
+    assert source_clone < compat_copy
+    assert '"compat_path":"/usr/local/cuda-13.0/compat"' in dockerfile
+    assert '"runtime_api_version":13000' in dockerfile
+    assert '"schema_version":1' in dockerfile
+    assert "payload_digest" in dockerfile
+    assert dockerfile.count("/opt/posttrain/runtime/cuda-compat.json") == 2
+    assert 'ENV LD_LIBRARY_PATH="/usr/local/cuda-13.0/compat"' not in dockerfile
+
+
+def test_candidate_keeps_release_labels_out_of_filesystem_cache_keys() -> None:
+    dockerfile = (PROFILE_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    compat_layer = dockerfile.index("RUN --mount=from=cuda-compat")
+
+    assert dockerfile.index("ARG RELEASE_CREATED", compat_layer) > compat_layer
+    assert dockerfile.index("ARG RELEASE_SOURCE_REVISION", compat_layer) > compat_layer
+    assert dockerfile.index("ARG RELEASE_VERSION", compat_layer) > compat_layer
+    assert 'org.opencontainers.image.created="${RELEASE_CREATED}"' in dockerfile
+    assert 'org.opencontainers.image.revision="${RELEASE_SOURCE_REVISION}"' in dockerfile
+
+
+def test_candidate_uses_uv_partial_sync_with_a_validated_control_fallback() -> None:
+    dockerfile = (PROFILE_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    sync_position = dockerfile.index("UV_COMPILE_BYTECODE=0 uv sync ")
+    sharing_position = dockerfile.index("validate_shared_fallback.py", sync_position)
+    cleanup_position = dockerfile.index("rm -rf /opt/posttrain-verl-build", sharing_position)
+
+    assert "\nRUN " not in dockerfile[sync_position:cleanup_position]
+    assert "--control-site" in dockerfile[sharing_position:cleanup_position]
+    assert "--backend-site" in dockerfile[sharing_position:cleanup_position]
+    assert "--backend-lock" in dockerfile[sharing_position:cleanup_position]
+    assert "--fallback-file" in dockerfile[sharing_position:cleanup_position]
+    assert "--no-install-package torch" in dockerfile[sync_position:sharing_position]
+    assert "--no-install-package triton" in dockerfile[sync_position:sharing_position]
+    assert "--no-install-package nvidia-cuda-runtime" not in dockerfile[sync_position:sharing_position]
+    assert "posttrain-control-fallback.pth" in dockerfile[sync_position:cleanup_position]
+    assert "/opt/posttrain-verl/release/shared-heavy-report.json" in dockerfile
+    assert "/opt/posttrain-verl/release/shared-heavy.toml" in dockerfile
+
+
+def test_candidate_normalizes_generated_timestamps_without_rewriting_its_parent() -> None:
+    dockerfile = (PROFILE_ROOT / "Dockerfile").read_text(encoding="utf-8")
+
+    assert "ARG SOURCE_DATE_EPOCH" in dockerfile
+    assert 'SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH}"' in dockerfile
+    assert 'PYTHONHASHSEED="0"' in dockerfile
+    assert 'UV_LINK_MODE="copy"' in dockerfile
+    assert "UV_COMPILE_BYTECODE=0 uv sync" in dockerfile
+    assert "UV_COMPILE_BYTECODE=0 uv python install" in dockerfile
+    assert 'sysconfig.get_path("stdlib")' in dockerfile
+    assert dockerfile.count("compileall --invalidation-mode checked-hash") == 2
+    assert "find /tmp -maxdepth 1 -type f -name 'uv-*.lock' -delete" in dockerfile
+    assert "/var/cache/ldconfig/aux-cache" in dockerfile
+    assert "/var/log/dpkg.log" in dockerfile
+    assert ".posttrain-source-revision" in dockerfile
+    assert "rm -rf /opt/posttrain-verl/workdir/.git" in dockerfile
+
+
+def test_candidate_orders_overlapping_cutlass_wheels_before_compilation() -> None:
+    dockerfile = (PROFILE_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    base_install = dockerfile.index(
+        "UV_COMPILE_BYTECODE=0 uv pip install --python /opt/posttrain-verl --no-deps --reinstall"
+    )
+    cu13_install = dockerfile.index(
+        "UV_COMPILE_BYTECODE=0 uv pip install --python /opt/posttrain-verl --no-deps --reinstall",
+        base_install + 1,
+    )
+    compile_position = dockerfile.index("BACKEND_STDLIB=", cu13_install)
+
+    assert "CUTLASS_BASE_WHEEL_SHA256" in dockerfile
+    assert "CUTLASS_CU13_WHEEL_SHA256" in dockerfile
+    assert "nvidia_cutlass_dsl_libs_base" in dockerfile[base_install:cu13_install]
+    assert "nvidia_cutlass_dsl_libs_cu13" in dockerfile[cu13_install:compile_position]
+    assert "sed -i '/uv_cache\\.json,/d'" in dockerfile[cu13_install:compile_position]
+    assert "-type f -name uv_cache.json -delete" in dockerfile[cu13_install:compile_position]
+    assert base_install < cu13_install < compile_position
+
+
+def test_candidate_resolves_unnamespaced_build_backend_collision_before_compilation() -> None:
+    dockerfile = (PROFILE_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    apt_position = dockerfile.index("RUN apt-get update")
+    wheel_arg_position = dockerfile.index("ARG TORCH_C_DLPACK_WHEEL_URL")
+    restore_position = dockerfile.index("names=[name for name in archive.namelist()")
+    compile_position = dockerfile.index("BACKEND_STDLIB=", restore_position)
+
+    assert "TORCH_C_DLPACK_WHEEL_SHA256" in dockerfile
+    assert "torch_c_dlpack_ext-0.1.5-cp313-cp313-manylinux_2_28_x86_64.whl" in dockerfile
+    assert "names == ['build_backend.py']" in dockerfile[restore_position:compile_position]
+    assert apt_position < wheel_arg_position < restore_position < compile_position
 
 
 def test_ready_profile_still_fails_closed_without_release_inputs(tmp_path: Path) -> None:
@@ -108,8 +218,8 @@ def test_ready_verl_and_trl_variants_are_explicitly_publishable() -> None:
         assert f"{argument} = {argument}" in bake
 
     dockerfile = (PROFILE_ROOT / "Dockerfile").read_text()
-    assert 'org.opencontainers.image.revision="${SOURCE_REVISION}"' in dockerfile
-    assert 'org.opencontainers.image.version="${VERSION}"' in dockerfile
+    assert 'org.opencontainers.image.revision="${RELEASE_SOURCE_REVISION}"' in dockerfile
+    assert 'org.opencontainers.image.version="${RELEASE_VERSION}"' in dockerfile
     assert 'org.carbonteq.posttrain.lock-digest="${LOCK_DIGEST}"' in dockerfile
 
 
@@ -130,13 +240,17 @@ def test_actual_job_definition_projects_worker_into_backend_environment() -> Non
     assert 'POSTTRAIN_VERL_PYTHONPATH="/opt/posttrain-verl/projection"' in contents
     assert 'test -x "/opt/posttrain-verl/bin/python"' in contents
     assert '--python "/opt/posttrain-verl/bin/python"' in contents
-    assert "for package in common data train" in contents
+    assert "for package in common data environment train" in contents
     assert 'source="sources/framework/packages/${package}/src/posttrain/${package}"' in contents
     assert 'PYTHONPATH="${POSTTRAIN_VERL_PYTHONPATH}"' in contents
     assert '"/opt/posttrain-verl/bin/python" -s -B -c' in contents
     assert (
         "import posttrain.common, posttrain.data, posttrain.train, posttrain.train.backends.verl.worker"
     ) in contents
+    assert 'revision_marker = worktree / ".posttrain-source-revision"' in contents
+    assert "veRL immutable source snapshot unexpectedly retains Git metadata" in contents
+    assert "revision_marker.read_text" in contents
+    assert "Compatibility for already-published kind images" in contents
 
 
 def test_ready_profile_requires_a_publication_target(tmp_path: Path) -> None:
