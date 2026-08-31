@@ -4,6 +4,39 @@ All notable changes to Posttrain are documented here. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with a coordinated
 version across first-party distributions.
 
+## 0.3.25 - 2026-08-31
+
+This release makes digest-pinned Posttrain jobs portable between retained LAN
+workers and dstack-managed RunPod spot capacity while preserving one image
+identity and evidence lifecycle.
+
+### Added
+
+- RunPod spot qualification targets for RTX 4090 and RTX PRO 6000 capacity,
+  with provider-managed run storage and explicit price/stock constraints.
+- Automatic CUDA forward-compatibility selection for the veRL runtime without
+  creating hardware-specific image lineages or globally forcing the payload.
+- Immutable package-source sealing checks for remote actual-job builds.
+
+### Changed
+
+- The veRL image keeps stable parent descriptors, cache-lineage epochs, and
+  backend packages while updating the shared control environment to the
+  current Trackio release. Publication continues without forced recompression.
+- dstack cleanup recognizes run-owned storage as provider-managed: it waits
+  while the volume exists and completes from authoritative volume absence
+  instead of scheduling an exact-host task on a deleted cloud worker.
+- Runtime publication and remote build validation preserve registry-scoped
+  package identities and sealed build contexts.
+
+### Qualification
+
+- The v0.3.25 veRL image passed manifest/lock validation, a clean LAN pull, the
+  current Trackio import, and PyTorch CUDA execution on the local RTX 3070 Ti.
+- RunPod qualification r21 completed two training steps, retained seven
+  Trackio artifact records, and ended with both Pod and network volume absent;
+  reconciliation now reaches admission `completed`.
+
 ## 0.3.22 - 2026-08-23
 
 This release completes the migration path from historical retained job-pack

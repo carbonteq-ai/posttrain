@@ -12,6 +12,7 @@ from posttrain.execution import (
     BundleRef,
     ExecutionEvidenceSource,
     ExecutionHandle,
+    ExecutionLogStream,
     ExecutionPlan,
     ExecutionPolicy,
     ExecutionProviderSource,
@@ -59,8 +60,9 @@ class FakeProvider:
         cursor: LogCursor | None = None,
         *,
         limit: int = 200,
+        stream: ExecutionLogStream = "workload",
     ) -> LogPage:
-        del handle
+        del handle, stream
         offset = (cursor or LogCursor()).offset
         lines = ("zero", "one", "two")[offset : offset + limit]
         return LogPage(lines, LogCursor(offset + len(lines)), offset + len(lines) < 3)

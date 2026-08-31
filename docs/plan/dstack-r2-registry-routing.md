@@ -122,6 +122,25 @@ The post-canary scope also closes the gaps that the successful stateless A100 te
   registry/fleet configuration, rebase Posttrain onto current `main`, qualify
   the exact candidate artifacts, merge, promote those same bytes, and create
   the final tag last.
+- [x] (2026-08-31) Merged maintained dstack PR 1 at
+  `524557edd5d83005f70e301f18d87d982accd5c7` and ai-infra PR 14 at
+  `7e9cf3fbe179f45684c7623854c2f5c317828b58`. Posttrain now includes current
+  v0.3.24 `main` plus the cloud-execution branch.
+- [x] (2026-08-31) Published the v0.3.25 veRL image at
+  `sha256:2e8180e2cf58ee75699127caedce4d151311d892dc9003f0df5f7811dee9f148`
+  without forced recompression. The image updates the shared control lock to
+  Trackio `0.31.5.post14.dev19` while retaining the qualified veRL backend
+  revision and CUDA payload. A clean LAN pull printed the expected Trackio
+  version and completed CUDA tensor execution on the RTX 3070 Ti. The
+  tagged-root mirror verified R2 in one attempt from 05:20:03Z to 05:22:26Z.
+- [x] (2026-08-31) Passed the local v0.3.25 validation ladder: 1,329 Python
+  tests passed with 23 expected skips; Ruff, Pyright, all eight import
+  contracts, the 157-test image/release/catalog subset, catalog validation,
+  `posttrain-release check`, 73 frontend tests, TypeScript checking, and the
+  production frontend build passed. Pyright first exposed stale execution test
+  doubles missing the provider log-stream parameter; the narrow protocol fix
+  now passes 14 focused service tests. npm reports five dependency audit
+  findings and the existing large-chunk warning; neither was auto-mutated.
 
 ## Surprises & Discoveries
 

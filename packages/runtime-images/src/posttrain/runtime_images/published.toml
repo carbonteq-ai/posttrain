@@ -15,7 +15,7 @@
 # framework release may reuse an image only when its runtime inputs still match.
 
 schema_version = 1
-framework_version = "0.3.24"
+framework_version = "0.3.25"
 default_prefix = "registry.lan/carbonteq"
 
 [base]
@@ -45,10 +45,10 @@ provided_packages = ["verifiers"]
 
 [kinds.online-rl-verl-py313]
 repository = "posttrain-kind-online-rl-verl-py313"
-digest = "sha256:1c63c3c3aa5a132ed5643a3b6df686eff5be6283925a8ce1457d413cf9497f8b"
-lock_digest = "f93d10a9cf44e0ad1f62d0d9f0e1380f08aebdf120b747e64cfb265e2909432c"
+digest = "sha256:2e8180e2cf58ee75699127caedce4d151311d892dc9003f0df5f7811dee9f148"
+lock_digest = "a59b7a83840acb071493c3d41f190151dcaa58ac8f9c0206f32bf071ab0bff70"
 constraint_lock = "containers/posttrain-job-kinds/locks/online-rl-verl-py313.lock.txt"
-runtime_source_digest = "0a92454ee8aa9a0cafbeaf9c173d1a342333d2b818834cbaf660e14b3539630f"
+runtime_source_digest = "b86b426f03e55e2b4fbb73f4e4067725973585abb1ce2a8c69a02596909e29b8"
 base_digest = "sha256:55987a566f5fa7b3fd8af219b2a2dc51315219e2ca82f597f6c940bc7332d595"
 backend_constraint_lock = "containers/posttrain-job-kinds/verl-py313/release/backend-constraints.txt"
 backend_lock_digest = "688cc6f99ad98b6279421a6d98d25c7a37cef5dc1a38aaeba78fc0b425b69d0e"
