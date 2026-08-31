@@ -55,6 +55,20 @@ target:
         - RTXPRO6000
       max_price: 3.0
       disk_gb: 100
+  targets/runpod-rtx-4090-spot-qualification:
+    revision: "1"
+    device_class: nvidia-cuda
+    memory_gb: 24
+    placement:
+      world_size: 1
+      backends:
+        - runpod
+      spot_policy: spot
+      managed_run_storage: true
+      gpu_names:
+        - RTX4090
+      max_price: 1.0
+      disk_gb: 100
   targets/runpod-l4-spot-qualification:
     revision: "1"
     device_class: nvidia-cuda
