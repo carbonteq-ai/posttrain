@@ -45,7 +45,7 @@ acceptable, and use an exact hostname only when qualification requires that
 specific machine.
 
 Production runs the matching CarbonTeq server, runner, and shim release from
-commit `ae5dac6576b0f19b49e81b31781f3b9f14e95361` on branch
+commit `ff60da0395f2b5832f99e50a8d1f4f6ebf3367c4` on branch
 `codex/registry-default-auth`. This selected release includes regional
 failover, bounded retry budgets, and failed-region cooldowns and passed the
 immutable release, component, idle-worker rolling, and scheduler-cancellation
@@ -216,5 +216,6 @@ The release gate remains:
 - a normal framework `run reconcile` plus evidence-gated cleanup.
 
 Selected production commit:
-`ae5dac6576b0f19b49e81b31781f3b9f14e95361`. Current reviewed successor:
-`ff60da0395f2b5832f99e50a8d1f4f6ebf3367c4`.
+`ff60da0395f2b5832f99e50a8d1f4f6ebf3367c4`. The idle Pop!_OS worker passed
+the exact component and cancellation gates; the busy RTX PRO worker completes
+rolling shim convergence after its protected job finishes.
