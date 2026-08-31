@@ -68,6 +68,21 @@ def test_skip_mm_profiling_requires_text_only_mode() -> None:
         VllmEngineConfig(max_model_len=1_024, gpu_memory_utilization=0.75, skip_mm_profiling=True)
 
 
+def test_vllm_engine_exposes_throughput_scheduling_flags() -> None:
+    engine = VllmEngineConfig(
+        max_model_len=8_192,
+        gpu_memory_utilization=0.88,
+        enable_prefix_caching=True,
+        async_scheduling=True,
+    )
+
+    kwargs = engine.as_vllm_kwargs()
+    assert kwargs["enable_prefix_caching"] is True
+    assert kwargs["async_scheduling"] is True
+    assert "--enable-prefix-caching" in engine.as_cli_args()
+    assert "--async-scheduling" in engine.as_cli_args()
+
+
 def test_local_matrix_stops_at_concurrency_four_and_requires_turboquant_at_32k() -> None:
     cells = CORE_INFERENCE_V1.cells(max_concurrency=4)
     assert {cell.concurrency for cell in cells} == {1, 2, 4}

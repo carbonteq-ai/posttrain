@@ -23,6 +23,7 @@ Policy Prism needs exact small causal language-model subjects for a fair classif
 - [x] (2026-08-22) Re-ran the complete framework gate after the plan-evidence change: Ruff, Pyright, all 8 import contracts, and 1,289 tests passed; 25 environment-dependent tests skipped.
 - [ ] Submit and later reconcile the two Policy Prism critic SFT jobs; submission and qualification evidence remain outside the model-support-only commits above.
 - [x] (2026-08-27) Connected each evaluation inference binding's complete sampling and reasoning-mode selection to the native Verifiers request, refreshed the exact LFM Thinking revision/template/parser, and validated the Policy Prism decoding path offline. Live GPU handshakes remain part of the later prompt-v3 model-selection run.
+- [x] (2026-08-31) Exposed vLLM prefix caching and asynchronous scheduling as typed engine selections so the approved RTX 3070 Ti evaluation packages can carry their complete throughput contract into the immutable serving command.
 
 ## Surprises & Discoveries
 
@@ -74,6 +75,9 @@ Policy Prism needs exact small causal language-model subjects for a fair classif
 - Decision: defer real vLLM calls to the prompt-v3 model-selection execution and accept this slice using exact catalog contracts, a real HTTP-compatible fake endpoint, and offline tokenizer measurements.
   Rationale: live handshakes and the full model-selection evaluation can share the same GPU allocation and exact run manifests without weakening the offline runtime-contract tests.
   Date/Author: 2026-08-27 / Codex.
+- Decision: model vLLM prefix caching and asynchronous scheduling as generic engine fields rather than Policy Prism launch-script arguments.
+  Rationale: both are ordinary vLLM 0.25.1 serving controls, and immutable evaluation packages must preserve them through normal PostTrain selection and command construction.
+  Date/Author: 2026-08-31 / Codex.
 
 ## Outcomes & Retrospective
 
