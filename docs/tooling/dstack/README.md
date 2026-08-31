@@ -59,9 +59,11 @@ tasks, including retry reuse, pre-start regional failover, and terminal
 cleanup. Runner diagnostics emit environment names only and never values.
 Live spot offers are also cross-checked against RunPod's authenticated
 per-data-center GPU stock before managed storage is created.
-Candidate branch commit `b1648775893a0905caed32ffddc73164d24ed0f8`
-contains the same maintained delta merged with current CarbonTeq `master`; its
-runner Go checks remain a CI gate before it replaces the deployed release.
+Published successor `ff60da0395f2b5832f99e50a8d1f4f6ebf3367c4`
+contains the same maintained delta merged with current CarbonTeq `master` and
+one no-op Alembic merge revision joining the upstream gateway and CarbonTeq
+run-lifecycle migration branches. Its release deployment and runner Go checks
+remain gates before it replaces the deployed release.
 
 ## Candidate fork
 
@@ -215,4 +217,4 @@ The release gate remains:
 
 Selected production commit:
 `ae5dac6576b0f19b49e81b31781f3b9f14e95361`. Current reviewed successor:
-`b1648775893a0905caed32ffddc73164d24ed0f8`.
+`ff60da0395f2b5832f99e50a8d1f4f6ebf3367c4`.
