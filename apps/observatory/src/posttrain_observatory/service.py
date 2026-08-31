@@ -508,6 +508,21 @@ def _logical_metric_series(series: MetricSeries) -> MetricSeries:
     return MetricSeries(name=series.name, points=tuple(retained))
 
 
+def _presentation_metric_series(series: MetricSeries) -> MetricSeries:
+    """Drop reducer-only point metadata from chart payloads.
+
+    Logical replay projection has already consumed ``source_step`` and the UI
+    charts render only value, step, and observation time. Repeating attributes
+    on every chart point made ordinary run views megabytes larger without
+    changing anything visible.
+    """
+
+    return MetricSeries(
+        name=series.name,
+        points=tuple(point.model_copy(update={"attributes": {}}) for point in series.points),
+    )
+
+
 def _percentile(values: list[float], percentile: float) -> float:
     ordered = sorted(values)
     index = max(0, min(len(ordered) - 1, int((len(ordered) - 1) * percentile + 0.5)))
@@ -711,6 +726,27 @@ def _downsample(series: MetricSeries, maximum: int) -> tuple[MetricSeries, bool]
         selected[-1] = points[-1]
     selected.sort(key=lambda point: point.step if point.step is not None else -1)
     return MetricSeries(name=series.name, points=tuple(selected)), True
+
+
+async def _read_metric_series(
+    source: RunDataSource,
+    run_id: str,
+    names: tuple[str, ...],
+    *,
+    chunk_size: int = 16,
+) -> tuple[MetricSeries, ...]:
+    """Read a wide metric view through a small bounded fan-out.
+
+    Doris must extract each requested JSON field. Splitting a wide telemetry
+    definition avoids one expression-heavy query while keeping the fan-out
+    below the provider's ordinary request concurrency.
+    """
+
+    chunks = tuple(names[index : index + chunk_size] for index in range(0, len(names), chunk_size))
+    if not chunks:
+        return ()
+    pages = await asyncio.gather(*(source.metric_series(run_id, chunk) for chunk in chunks))
+    return tuple(series for page in pages for series in page)
 
 
 def _config_values(value: JsonValue, key: str) -> tuple[JsonValue, ...]:
@@ -1097,10 +1133,13 @@ class ObservatoryService:
             detail = await source.get_run(locator.run_id)
         names = tuple(sorted(definition.metric_names))
         series_values, artifacts = await asyncio.gather(
-            source.metric_series(locator.run_id, names), source.artifacts(locator.run_id)
+            _read_metric_series(source, locator.run_id, names), source.artifacts(locator.run_id)
         )
         series_values = tuple(_logical_metric_series(series) for series in series_values)
         by_name = {series.name: series for series in series_values}
+        presentation_by_name = {
+            name: _presentation_metric_series(_downsample(series, 400)[0]) for name, series in by_name.items()
+        }
         summary = tuple(
             SummaryValue(
                 key=field.key,
@@ -1122,7 +1161,7 @@ class ObservatoryService:
                 key=chart.key,
                 title=chart.title,
                 question=chart.question,
-                series=tuple(by_name.get(name, MetricSeries(name=name)) for name in chart.metrics),
+                series=tuple(presentation_by_name.get(name, MetricSeries(name=name)) for name in chart.metrics),
             )
             for chart in definition.charts
             if any(by_name.get(name, MetricSeries(name=name)).points for name in chart.metrics)
@@ -1298,9 +1337,12 @@ class ObservatoryService:
                 }
             )
         )
-        series_values = await source.metric_series(locator.run_id, requested)
+        series_values = await _read_metric_series(source, locator.run_id, requested)
         series_values = tuple(_logical_metric_series(series) for series in series_values)
         by_name = {series.name: series for series in series_values}
+        presentation_by_name = {
+            name: _presentation_metric_series(_downsample(series, 400)[0]) for name, series in by_name.items()
+        }
         sample_count = max(
             (len(series.points) for name, series in by_name.items() if name.startswith("system/")),
             default=0,
@@ -1346,7 +1388,7 @@ class ObservatoryService:
                 ),
             ),
         ):
-            group_series = tuple(by_name[name] for name in names if name in by_name)
+            group_series = tuple(presentation_by_name[name] for name in names if name in presentation_by_name)
             if group_series:
                 groups.append(SystemMetricGroup(key=key, title=title, series=group_series))
         execution_targets = execution_target_contexts(detail.resolved_inputs)
@@ -1477,7 +1519,14 @@ class ObservatoryService:
         if unknown:
             raise ValueError(f"unknown metric names: {', '.join(sorted(unknown))}")
         raw = tuple(
-            _logical_metric_series(series) for series in await source.metric_series(locator.run_id, query.names)
+            _logical_metric_series(series)
+            for series in await source.metric_series(
+                locator.run_id,
+                query.names,
+                start_step=query.start_step,
+                end_step=query.end_step,
+                page_size=min(max(query.max_points * 2, 100), 2000),
+            )
         )
         filtered = []
         requested = 0

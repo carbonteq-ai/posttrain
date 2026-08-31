@@ -197,6 +197,12 @@ receipt instead of rebuilding or re-running completed checks.
   96-GiB RTX PRO 6000 profile; stale scheduler identity is not accepted as
   hardware proof.
 
+- Observation: on 2026-08-24 the live dstack inventory again reported the
+  `pop-os.lan` worker as a healthy, idle RTX 4090 with 24 GiB of GPU memory.
+  The bounded 4090 release profile was restored with an explicit hostname and
+  capacity receipt so it can run the 0.8B transform canary when the 96-GiB
+  worker is occupied; generic memory-only placement remains disallowed.
+
 - Observation: `posttrain-release readiness` currently records only Trackio
   and TRL even though the executable runtime also selects CarbonTeq veRL and
   vLLM revisions, AutomationBench arrives through an external environment

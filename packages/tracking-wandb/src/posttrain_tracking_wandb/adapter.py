@@ -559,14 +559,30 @@ class WandbDataSource:
             trace_count=trace_count,
         )
 
-    async def metric_series(self, run_id: str, names: tuple[str, ...]) -> tuple[MetricSeries, ...]:
+    async def metric_series(
+        self,
+        run_id: str,
+        names: tuple[str, ...],
+        *,
+        start_step: int | None = None,
+        end_step: int | None = None,
+        page_size: int = 1000,
+    ) -> tuple[MetricSeries, ...]:
+        del page_size
         return await self._read(
             "_metric_series",
-            (run_id, names),
-            lambda: self._metric_series(run_id, names),
+            (run_id, names, start_step, end_step),
+            lambda: self._metric_series(run_id, names, start_step=start_step, end_step=end_step),
         )
 
-    def _metric_series(self, run_id: str, names: tuple[str, ...]) -> tuple[MetricSeries, ...]:
+    def _metric_series(
+        self,
+        run_id: str,
+        names: tuple[str, ...],
+        *,
+        start_step: int | None = None,
+        end_step: int | None = None,
+    ) -> tuple[MetricSeries, ...]:
         run = self._run(run_id)
         points = {name: [] for name in names}
         default_names = tuple(name for name in names if name not in _CANONICAL_WANDB_SYSTEM_METRICS)
@@ -576,15 +592,27 @@ class WandbDataSource:
                 if not isinstance(value, int | float) or isinstance(value, bool):
                     continue
                 observed = row.get("_timestamp")
+                attributes = _unflatten_attributes(row, f"{name}/attributes") or _unflatten_attributes(
+                    row, "metric/attributes"
+                )
+                source_step = attributes.get("source_step")
+                step = (
+                    source_step
+                    if attributes.get("observation_source") == "verifiers"
+                    and isinstance(source_step, int)
+                    and not isinstance(source_step, bool)
+                    else row.get("posttrain/step")
+                )
+                if (start_step is not None and (not isinstance(step, int) or step < start_step)) or (
+                    end_step is not None and (not isinstance(step, int) or step > end_step)
+                ):
+                    continue
                 points[name].append(
                     MetricPoint(
                         value=float(value),
                         step=row.get("posttrain/step"),
                         observed_at=_aware_datetime(observed, "metric timestamp") if observed else None,
-                        attributes=(
-                            _unflatten_attributes(row, f"{name}/attributes")
-                            or _unflatten_attributes(row, "metric/attributes")
-                        ),
+                        attributes=attributes,
                     )
                 )
         system_names = tuple(name for name in names if name in _CANONICAL_WANDB_SYSTEM_METRICS)

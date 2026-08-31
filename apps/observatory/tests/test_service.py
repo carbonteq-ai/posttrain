@@ -36,10 +36,29 @@ from pydantic import ValidationError
 NOW = datetime(2026, 7, 22, tzinfo=UTC)
 
 
+def _metric_point_step(point: MetricPoint) -> int | None:
+    source_step = point.attributes.get("source_step")
+    if (
+        point.attributes.get("observation_source") == "verifiers"
+        and isinstance(source_step, int)
+        and not isinstance(source_step, bool)
+    ):
+        return source_step
+    return point.step
+
+
+def _metric_point_in_range(point: MetricPoint, start_step: int | None, end_step: int | None) -> bool:
+    step = _metric_point_step(point)
+    return (start_step is None or step is None or step >= start_step) and (
+        end_step is None or step is None or step <= end_step
+    )
+
+
 class FakeRunDataSource:
     def __init__(self, details: dict[str, RunDetail], series: dict[str, dict[str, MetricSeries]]) -> None:
         self.details = details
         self.series = series
+        self.metric_reads: list[tuple[tuple[str, ...], int | None, int | None, int]] = []
         self.capabilities = TrackingCapabilities(provider="fixture", live_traces=True)
 
     async def list_runs(self, query: RunQuery) -> tuple[RunSummary, ...]:
@@ -48,9 +67,28 @@ class FakeRunDataSource:
     async def get_run(self, run_id: str) -> RunDetail:
         return self.details[run_id]
 
-    async def metric_series(self, run_id: str, names: tuple[str, ...]) -> tuple[MetricSeries, ...]:
+    async def metric_series(
+        self,
+        run_id: str,
+        names: tuple[str, ...],
+        *,
+        start_step: int | None = None,
+        end_step: int | None = None,
+        page_size: int = 1000,
+    ) -> tuple[MetricSeries, ...]:
+        self.metric_reads.append((names, start_step, end_step, page_size))
         values = self.series[run_id]
-        return tuple(values.get(name, MetricSeries(name=name)) for name in names)
+        return tuple(
+            MetricSeries(
+                name=name,
+                points=tuple(
+                    point
+                    for point in values.get(name, MetricSeries(name=name)).points
+                    if _metric_point_in_range(point, start_step, end_step)
+                ),
+            )
+            for name in names
+        )
 
     async def traces(self, run_id: str, query: object) -> TracePage:
         del run_id, query
@@ -147,6 +185,43 @@ async def test_metric_series_uses_replay_source_steps_and_preserves_distinct_wav
     assert [point.step for point in result.series[0].points] == [0, 1]
     assert [point.value for point in result.series[0].points] == [0.1, 0.3]
     assert [point.value for point in result.series[1].points] == [10.0, 10.01]
+
+
+@pytest.mark.asyncio
+async def test_metric_series_pushes_bounds_and_preserves_replay_logical_steps() -> None:
+    run_id = "runs/replayed-window"
+    details = {
+        run_id: RunDetail(
+            summary=_summary(run_id, "train.grpo"),
+            metric_names=("train/rl/reward_mean",),
+        )
+    }
+    source = FakeRunDataSource(
+        details,
+        {
+            run_id: {
+                "train/rl/reward_mean": MetricSeries(
+                    name="train/rl/reward_mean",
+                    points=(
+                        MetricPoint(value=0.2, step=1),
+                        MetricPoint(
+                            value=0.7,
+                            step=56,
+                            attributes={"observation_source": "verifiers", "source_step": 0},
+                        ),
+                    ),
+                )
+            }
+        },
+    )
+
+    result = await ObservatoryService(source).get_metric_series(
+        run_id,
+        MetricSeriesQuery(names=("train/rl/reward_mean",), start_step=0, end_step=0, max_points=10),
+    )
+
+    assert [(point.step, point.value) for point in result.series[0].points] == [(0, 0.7)]
+    assert source.metric_reads == [(("train/rl/reward_mean",), 0, 0, 100)]
 
 
 @pytest.mark.asyncio

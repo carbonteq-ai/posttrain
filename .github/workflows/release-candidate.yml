@@ -14,6 +14,12 @@ on:
         type: choice
         options:
           - rtx-pro-96gb
+          - rtx-4090-24gb
+      run_gpu_qualification:
+        description: Run the packed GPU qualification job
+        required: false
+        default: true
+        type: boolean
       retire_failed_candidate_run_id:
         description: Optional failed candidate run whose complete development version may be retired after receipt verification
         required: false
@@ -295,12 +301,19 @@ jobs:
 
       - name: Run one real packed GPU qualification through dstack
         id: qualification
+        if: ${{ inputs.run_gpu_qualification }}
         run: |
           set +e
+          qualification_target_args=()
           case "${{ inputs.qualification_profile }}" in
             rtx-pro-96gb)
               qualification_host="carbonteq-ai-workstation.lan"
               qualification_min_gpu_memory_mib=90112
+              ;;
+            rtx-4090-24gb)
+              qualification_target_args=(--target "targets/pop-os-rtx-4090-24gb")
+              qualification_host="pop-os.lan"
+              qualification_min_gpu_memory_mib=22528
               ;;
             *)
               echo "unsupported qualification profile: ${{ inputs.qualification_profile }}" >&2
@@ -370,6 +383,7 @@ jobs:
             apps/lab/.posttrain/work_packages/qwen08b_transform_qualification.yaml \
             --job transform \
             --provider dstack \
+            "${qualification_target_args[@]}" \
             --registry "${JOB_REGISTRY}" \
             --framework-wheelhouse "${framework_wheelhouse}" \
             --run-id "release-candidate-${{ github.run_id }}"

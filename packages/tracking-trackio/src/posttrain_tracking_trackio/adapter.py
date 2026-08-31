@@ -10,6 +10,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from threading import Lock
+from time import monotonic
 from typing import Any, Literal, cast
 
 import trackio
@@ -971,11 +973,14 @@ class TrackioPurgeActionExecutor:
 
 class TrackioDataSource:
     _DETAIL_EVENT_LIMIT = 256
+    _DETAIL_CACHE_SECONDS = 15.0
 
     def __init__(self, project: str, *, server_url: str | None = None) -> None:
         self.project = project
         self._api = trackio.Api(server_url=server_url)
         self._provider_runs_by_id: dict[str, Any] = {}
+        self._detail_cache: dict[str, tuple[float, RunDetail]] = {}
+        self._detail_cache_lock = Lock()
 
     @property
     def capabilities(self) -> TrackingCapabilities:
@@ -989,14 +994,14 @@ class TrackioDataSource:
             trace_facts=("available" if hasattr(trackio, "TraceFactsQuery") else "unavailable"),
         )
 
-    def _summary(self, run: Any) -> RunSummary:
-        raw = run.summary()
-        config = raw.get("config")
+    def _summary(self, run: Any, raw: Mapping[str, Any] | None = None) -> RunSummary:
+        resolved_raw: Mapping[str, Any] = run.summary() if raw is None else raw
+        config = resolved_raw.get("config")
         lifecycle: dict[str, Any] = {}
         # Lifecycle is written at run start and completion. Read only the tail
         # of the history; the old full-history call made opening one run scale
         # with every rollout metric ever recorded.
-        log_count = raw.get("num_logs")
+        log_count = resolved_raw.get("num_logs")
         offset = max(int(log_count) - 1000, 0) if isinstance(log_count, int) else 0
         for row in self._history_page(run, tuple(_LIFECYCLE_KEYS), limit=1000, offset=offset):
             if "run/status" in row:
@@ -1025,6 +1030,106 @@ class TrackioDataSource:
                 raise
             rows = run.history(keys=keys)
             return rows[offset : offset + limit]
+
+    @staticmethod
+    def _history_pages(
+        run: Any,
+        keys: tuple[str, ...],
+        *,
+        page_size: int,
+        start_step: int | None = None,
+        end_step: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Read projected history in bounded provider pages.
+
+        New Trackio servers apply the step window in storage. The fallback
+        retains compatibility with the currently released client while still
+        bounding each page read.
+        """
+
+        rows: list[dict[str, Any]] = []
+        offset = 0
+        supports_step_bounds = True
+        supports_drop_empty = True
+        while True:
+            kwargs = {"keys": keys, "limit": page_size, "offset": offset}
+            if supports_step_bounds:
+                kwargs.update({"start_step": start_step, "end_step": end_step})
+            if supports_drop_empty:
+                kwargs["drop_empty"] = True
+            try:
+                page = run.history(**kwargs)
+            except TypeError as error:
+                if "unexpected keyword argument" not in str(error):
+                    raise
+                if supports_drop_empty:
+                    supports_drop_empty = False
+                    continue
+                if supports_step_bounds:
+                    supports_step_bounds = False
+                    continue
+                raise
+            raw_count = len(page)
+            if not supports_step_bounds and (start_step is not None or end_step is not None):
+                page = [
+                    row
+                    for row in page
+                    if isinstance((step := row.get("step")), int)
+                    and not isinstance(step, bool)
+                    and (start_step is None or step >= start_step)
+                    and (end_step is None or step <= end_step)
+                ]
+            rows.extend(page)
+            if raw_count < page_size:
+                return rows
+            offset += page_size
+
+    @staticmethod
+    def _logical_step(step: object, attributes: Mapping[str, Any]) -> int | None:
+        source_step = attributes.get("source_step")
+        if (
+            attributes.get("observation_source") == "verifiers"
+            and isinstance(source_step, int)
+            and not isinstance(source_step, bool)
+            and source_step >= 0
+        ):
+            return source_step
+        return step if isinstance(step, int) and not isinstance(step, bool) and step >= 0 else None
+
+    @classmethod
+    def _replay_provider_steps(
+        cls,
+        run: Any,
+        names: tuple[str, ...],
+        *,
+        page_size: int,
+        start_step: int | None,
+        end_step: int | None,
+    ) -> tuple[int, ...]:
+        if start_step is None and end_step is None:
+            return ()
+        attribute_names = tuple(f"{name}/attributes" for name in names)
+        rows = cls._history_pages(
+            run,
+            ("metric/attributes", *attribute_names),
+            page_size=page_size,
+        )
+        provider_steps: set[int] = set()
+        for row in rows:
+            provider_step = row.get("step")
+            if not isinstance(provider_step, int) or isinstance(provider_step, bool):
+                continue
+            batch_attributes = _json_mapping(row.get("metric/attributes"))
+            for name in names:
+                attributes = _json_mapping(row.get(f"{name}/attributes")) or batch_attributes
+                logical_step = cls._logical_step(provider_step, attributes)
+                if logical_step == provider_step:
+                    continue
+                if (start_step is None or logical_step is not None and logical_step >= start_step) and (
+                    end_step is None or logical_step is not None and logical_step <= end_step
+                ):
+                    provider_steps.add(provider_step)
+        return tuple(sorted(provider_steps))
 
     def _compose_summary(
         self,
@@ -1133,15 +1238,24 @@ class TrackioDataSource:
 
         return await asyncio.to_thread(self._get_run, run_id)
 
+    def _cached_detail(self, run_id: str) -> RunDetail | None:
+        with self._detail_cache_lock:
+            cached = self._detail_cache.get(run_id)
+        if cached is None or monotonic() - cached[0] >= self._DETAIL_CACHE_SECONDS:
+            return None
+        return cached[1]
+
     def _get_run(self, run_id: str) -> RunDetail:
+        if (cached := self._cached_detail(run_id)) is not None:
+            return cached
         provider_run = self._provider_run(run_id)
-        summary = self._summary(provider_run)
-        config = provider_run.config or {}
+        raw_summary = provider_run.summary()
+        summary = self._summary(provider_run, raw_summary)
+        config = raw_summary.get("config") or {}
         # Run detail is a metadata request, not a request for the complete
         # time-series payload.  The summary already carries the metric catalog;
         # fetching every history row here made a large RL run block the
         # Observatory event loop before the page could render.
-        raw_summary = provider_run.summary()
         metric_names = {
             str(name)
             for name in raw_summary.get("metrics", [])
@@ -1182,7 +1296,7 @@ class TrackioDataSource:
             # count endpoint, so retain its exact (but temporary) behavior;
             # the pinned client path above is the production bounded path.
             trace_count = len(provider_run.traces())
-        return RunDetail(
+        detail = RunDetail(
             summary=summary,
             resolved_inputs=_json_mapping(config.get("resolved_selections")),
             source_metadata=_json_mapping(config.get("source_metadata")),
@@ -1190,22 +1304,84 @@ class TrackioDataSource:
             events=tuple(events),
             trace_count=trace_count,
         )
+        with self._detail_cache_lock:
+            self._detail_cache[run_id] = (monotonic(), detail)
+        return detail
 
-    async def metric_series(self, run_id: str, names: tuple[str, ...]) -> tuple[MetricSeries, ...]:
+    async def metric_series(
+        self,
+        run_id: str,
+        names: tuple[str, ...],
+        *,
+        start_step: int | None = None,
+        end_step: int | None = None,
+        page_size: int = 1000,
+    ) -> tuple[MetricSeries, ...]:
         """Read selected metric history on the provider worker pool."""
 
-        return await asyncio.to_thread(self._metric_series, run_id, names)
+        return await asyncio.to_thread(
+            self._metric_series,
+            run_id,
+            names,
+            start_step=start_step,
+            end_step=end_step,
+            page_size=page_size,
+        )
 
-    def _metric_series(self, run_id: str, names: tuple[str, ...]) -> tuple[MetricSeries, ...]:
+    def _metric_series(
+        self,
+        run_id: str,
+        names: tuple[str, ...],
+        *,
+        start_step: int | None = None,
+        end_step: int | None = None,
+        page_size: int = 1000,
+    ) -> tuple[MetricSeries, ...]:
+        if page_size < 1 or page_size > 10_000:
+            raise ValueError("metric page_size must be between 1 and 10000")
+        if start_step is not None and end_step is not None and start_step > end_step:
+            raise ValueError("metric start_step cannot exceed end_step")
         provider_run = self._provider_run(run_id)
         raw: dict[str, list[dict[str, object]]] = {name: [] for name in names}
         attribute_names = tuple(f"{name}/attributes" for name in names)
-        for row in provider_run.history((*names, "metric/attributes", *attribute_names)):
+        rows = self._history_pages(
+            provider_run,
+            (*names, "metric/attributes", *attribute_names),
+            page_size=page_size,
+            start_step=start_step,
+            end_step=end_step,
+        )
+        replay_steps = self._replay_provider_steps(
+            provider_run,
+            names,
+            page_size=page_size,
+            start_step=start_step,
+            end_step=end_step,
+        )
+        for replay_step in replay_steps:
+            if (start_step is None or replay_step >= start_step) and (end_step is None or replay_step <= end_step):
+                continue
+            rows.extend(
+                self._history_pages(
+                    provider_run,
+                    (*names, "metric/attributes", *attribute_names),
+                    page_size=page_size,
+                    start_step=replay_step,
+                    end_step=replay_step,
+                )
+            )
+        rows.sort(key=lambda row: (str(row.get("timestamp") or ""), int(row.get("step") or 0)))
+        for row in rows:
             batch_attributes = _json_mapping(row.get("metric/attributes"))
             for name in names:
                 if name not in row:
                     continue
                 attributes = _json_mapping(row.get(f"{name}/attributes")) or batch_attributes
+                logical_step = self._logical_step(row.get("step"), attributes)
+                if (start_step is not None and (logical_step is None or logical_step < start_step)) or (
+                    end_step is not None and (logical_step is None or logical_step > end_step)
+                ):
+                    continue
                 raw[name].append(
                     {
                         "value": row[name],
@@ -1236,7 +1412,8 @@ class TrackioDataSource:
             values_by_name[name] = MetricSeries(name=name, points=tuple(points))
         requested_system_names = tuple(name for name in names if name.startswith("system/"))
         if requested_system_names:
-            summary = self._summary(provider_run)
+            detail = self._cached_detail(run_id)
+            summary = detail.summary if detail is not None else self._summary(provider_run)
             started_at = summary.started_at
             finished_at = summary.finished_at
             system_source_names = tuple(
@@ -1246,6 +1423,9 @@ class TrackioDataSource:
                 for source_name in (source[0],)
             )
             try:
+                # Trackio bounds the default response to 3,000 samples while
+                # preserving coverage across the run. Requested keys are now
+                # projected in Doris instead of decoding each full JSON blob.
                 system_rows = provider_run.system_history(keys=system_source_names)
             except TypeError as error:
                 if "unexpected keyword argument" not in str(error):

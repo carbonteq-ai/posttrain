@@ -784,7 +784,7 @@ def test_fork_ledger_cross_checks_direct_runtime_environment_and_service_boundar
 
     entries = {entry.id: entry for entry in load_fork_ledger(repository_root)}
 
-    assert entries["carbonteq-trackio"].version == "0.31.5.post14.dev17"
+    assert entries["carbonteq-trackio"].version == "0.31.5.post14.dev19"
     assert entries["trl"].revision == "69cf80a7319079ec5523841553467e119ebc1cec"
     assert entries["verl"].release_tag == "carbonteq-v0.9.0.dev2"
     assert entries["vllm"].artifacts["source_archive_sha256"] == (
@@ -1024,9 +1024,12 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert '--framework-wheelhouse "${framework_wheelhouse}"' in candidate
     assert "qualification_profile:" in candidate
     assert "rtx-pro-96gb" in candidate
-    assert "qualification_target_args" not in candidate
+    assert "rtx-4090-24gb" in candidate
+    assert 'qualification_target_args=(--target "targets/pop-os-rtx-4090-24gb")' in candidate
+    assert "qualification_target_args=()" in candidate
+    assert '"${qualification_target_args[@]}"' in candidate
     assert "rtx4090-24gb" not in candidate
-    assert 'qualification_host="pop-os.lan"' not in candidate
+    assert 'qualification_host="pop-os.lan"' in candidate
     assert 'qualification_target="targets/carbonteq-rtx-pro-6000-96gb"' not in candidate
 
     assert "candidate-version --simple-url" not in candidate
@@ -1077,10 +1080,11 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert "--jq '.commit.tree.sha'" in final
     assert 'release_tree="$(git rev-parse "${RELEASE_SOURCE_SHA}^{tree}")"' in final
     assert 'if [[ "${candidate_tree}" = "${release_tree}" ]]; then' in final
-    assert 'done < <(git rev-list "${RELEASE_SOURCE_SHA}")' in final
-    assert 'git diff --name-only "${candidate_equivalent_commit}" "${RELEASE_SOURCE_SHA}"' in final
-    assert "accepted candidate tree has no equivalent merged commit" in final
-    assert 'release_tag_sha="${candidate_equivalent_commit}"' in final
+    assert 'candidate_ref="refs/remotes/origin/release-candidate-${CANDIDATE_RUN_ID}"' in final
+    assert 'git fetch --no-tags origin "${candidate_sha}:${candidate_ref}"' in final
+    assert 'test "$(git rev-parse "${candidate_ref}")" = "${candidate_sha}"' in final
+    assert 'git diff --name-only "${candidate_sha}" "${RELEASE_SOURCE_SHA}"' in final
+    assert 'release_tag_sha="${candidate_sha}"' in final
     assert 'echo "RELEASE_TAG_SHA=${release_tag_sha}" >> "$GITHUB_ENV"' in final
     assert 'test "$(git rev-parse "v${POSTTRAIN_RELEASE_VERSION}^{}")" = "${RELEASE_TAG_SHA}"' in final
     assert ".github/*|apps/release/tests/*|docs/plan/*|docs/publishing.md" in final

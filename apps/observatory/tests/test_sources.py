@@ -82,3 +82,27 @@ async def test_source_scoped_run_list_and_direct_run_do_not_scan_other_sources()
     assert resolved.locator == listed[0].locator
     assert ambient.get_calls == 1
     assert other.get_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_source_health_is_cached_until_discovery_changes() -> None:
+    class CountingFixture(FixtureRunDataSource):
+        def __init__(self) -> None:
+            super().__init__()
+            self.list_calls = 0
+
+        async def list_runs(self, query: RunQuery):
+            self.list_calls += 1
+            return await super().list_runs(query)
+
+    configured = CountingFixture()
+    discovered = CountingFixture()
+    registry = RunSourceRegistry({"manual": configured})
+
+    assert await registry.sources() == await registry.sources()
+    assert configured.list_calls == 1
+
+    registry.reconcile_discovered({"discovered": discovered})
+    assert len(await registry.sources()) == 2
+    assert configured.list_calls == 2
+    assert discovered.list_calls == 1

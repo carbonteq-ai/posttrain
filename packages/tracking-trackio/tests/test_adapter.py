@@ -1103,6 +1103,59 @@ async def test_trackio_write_read_conformance(trackio_dir: Path) -> None:
         tracked.finish(RunOutcome("cancelled", STARTED, STARTED + timedelta(seconds=6)))
 
 
+@pytest.mark.asyncio
+async def test_trackio_metric_series_pages_projected_windows_and_recovers_replay(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+    rows = [
+        {"step": 0, "timestamp": "2026-08-24T00:00:00+00:00", "train/rl/reward_mean": 0.2},
+        {
+            "step": 56,
+            "timestamp": "2026-08-24T00:01:00+00:00",
+            "train/rl/reward_mean": 0.7,
+            "train/rl/reward_mean/attributes": {
+                "observation_source": "verifiers",
+                "source_step": 0,
+            },
+        },
+    ]
+
+    class ProviderRun:
+        def history(self, **kwargs: Any) -> list[dict[str, Any]]:
+            calls.append(kwargs)
+            selected = [
+                row
+                for row in rows
+                if (kwargs.get("start_step") is None or row["step"] >= kwargs["start_step"])
+                and (kwargs.get("end_step") is None or row["step"] <= kwargs["end_step"])
+            ]
+            offset = kwargs["offset"]
+            page = selected[offset : offset + kwargs["limit"]]
+            keys = set(kwargs["keys"])
+            return [
+                {key: value for key, value in row.items() if key in keys or key in {"step", "timestamp"}}
+                for row in page
+            ]
+
+    source = TrackioDataSource("trackio-bounded-metrics")
+    monkeypatch.setattr(source, "_provider_run", lambda _run_id: ProviderRun())
+
+    (series,) = await source.metric_series(
+        "run-1",
+        ("train/rl/reward_mean",),
+        start_step=0,
+        end_step=0,
+        page_size=1,
+    )
+
+    assert [(point.step, point.value) for point in series.points] == [(0, 0.2), (56, 0.7)]
+    assert all(call["limit"] == 1 for call in calls)
+    assert calls[0]["start_step"] == 0
+    assert calls[0]["end_step"] == 0
+    assert any(call.get("start_step") == 56 and call.get("end_step") == 56 for call in calls)
+
+
 def test_trackio_artifact_queue_backpressure_drains_before_retry(
     monkeypatch: pytest.MonkeyPatch,
     trackio_dir: Path,

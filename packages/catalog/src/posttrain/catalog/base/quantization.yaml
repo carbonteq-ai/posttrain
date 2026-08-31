@@ -6,7 +6,7 @@ quantization:
     recipe_digest: 8bb52267f5c761ab14894258b2baa4778bc6d62c73c931581d7daad86e5e62a7
     weight_format: int4-group128
     backend: llmcompressor@655b83d1240c37920a603b747bbfb6c218f66383
-    dependency_lock_digest: 3f7fbacd7739455847d6db3936d8b5045fcb85af3c4587c912d980f45c6814e4
+    dependency_lock_digest: 35d191653b31114f04753d3baa4601be04dac90d4406250e4dde1f3773a6806d
     calibration:
       dataset_id: openai/gsm8k
       dataset_revision: main
@@ -29,7 +29,7 @@ quantization:
     recipe_digest: 0cd2afe95009f6a7e518745ae6347c61d678b0c97e2f569bc47e1ac2c841c8c4
     weight_format: int4-group128
     backend: llmcompressor@655b83d1240c37920a603b747bbfb6c218f66383
-    dependency_lock_digest: 3f7fbacd7739455847d6db3936d8b5045fcb85af3c4587c912d980f45c6814e4
+    dependency_lock_digest: 35d191653b31114f04753d3baa4601be04dac90d4406250e4dde1f3773a6806d
     excluded_modules:
       - model.visual
     output_weight_precision: int4

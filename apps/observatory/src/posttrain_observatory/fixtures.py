@@ -27,6 +27,24 @@ from posttrain.tracking import (
 NOW = datetime(2026, 7, 22, 4, 0, tzinfo=UTC)
 
 
+def _metric_point_step(point: MetricPoint) -> int | None:
+    source_step = point.attributes.get("source_step")
+    if (
+        point.attributes.get("observation_source") == "verifiers"
+        and isinstance(source_step, int)
+        and not isinstance(source_step, bool)
+    ):
+        return source_step
+    return point.step
+
+
+def _metric_point_in_range(point: MetricPoint, start_step: int | None, end_step: int | None) -> bool:
+    step = _metric_point_step(point)
+    return (start_step is None or step is None or step >= start_step) and (
+        end_step is None or step is None or step <= end_step
+    )
+
+
 def _series(
     name: str,
     values: tuple[float, ...],
@@ -560,9 +578,28 @@ class FixtureRunDataSource(RunDataSource):
         except KeyError as error:
             raise LookupError(f"fixture run {run_id!r} does not exist") from error
 
-    async def metric_series(self, run_id: str, names: tuple[str, ...]) -> tuple[MetricSeries, ...]:
+    async def metric_series(
+        self,
+        run_id: str,
+        names: tuple[str, ...],
+        *,
+        start_step: int | None = None,
+        end_step: int | None = None,
+        page_size: int = 1000,
+    ) -> tuple[MetricSeries, ...]:
+        del page_size
         values = self._metrics[run_id]
-        return tuple(values.get(name, MetricSeries(name=name)) for name in names)
+        return tuple(
+            MetricSeries(
+                name=name,
+                points=tuple(
+                    point
+                    for point in values.get(name, MetricSeries(name=name)).points
+                    if _metric_point_in_range(point, start_step, end_step)
+                ),
+            )
+            for name in names
+        )
 
     async def traces(self, run_id: str, query: TraceQuery) -> TracePage:
         values = self._traces[run_id]

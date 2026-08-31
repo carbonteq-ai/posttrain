@@ -232,28 +232,15 @@ const dpoView = {
 
 const genericMetricNames = ['train/loss', 'train/learning_rate', 'train/grad_norm', 'train/entropy'];
 
-function genericView(selected: string[] = []) {
+function metricSeries(selected: string[]) {
   return {
-    requested_mode: 'generic',
-    resolved_mode: 'generic',
-    fallback_reason: null,
-    view: {
-      view_kind: 'generic',
-      run: run.run,
-      metric_catalog: { namespaces: [{ name: 'train', metrics: genericMetricNames }], total: genericMetricNames.length },
-      selected_series: selected.length ? {
-        series: selected.map((name, index) => ({ name, points: [{ value: index + 0.25, step: 1 }, { value: index + 0.5, step: 2 }] })),
-        downsampled: false,
-        requested_points: selected.length * 2,
-        returned_points: selected.length * 2,
-      } : null,
-      events: [],
-      artifacts: { items: [] },
-      resolved_inputs: {},
-      source_metadata: {},
-      trace_count: 0,
-      trace_evaluation_enabled: false,
-    },
+    series: selected.map((name, index) => ({
+      name,
+      points: [{ value: index + 0.25, step: 1 }, { value: index + 0.5, step: 2 }],
+    })),
+    downsampled: false,
+    requested_points: selected.length * 2,
+    returned_points: selected.length * 2,
   };
 }
 
@@ -1082,15 +1069,24 @@ describe('Observatory React product shell', () => {
   });
 
   it('renders independently scaled metric cards and allows more than three selections', async () => {
-    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
             const path = String(input);
             if (path === '/api/v1/sources') return new Response(JSON.stringify(sources));
       if (path === '/api/v1/runs?source_id=fixture&limit=1000') {
         return new Response(JSON.stringify([run]), { status: 200, headers: { 'content-type': 'application/json' } });
       }
-      if (path.includes('mode=generic')) {
-        const selected = new URL(path, 'http://observatory.local').searchParams.getAll('metric');
-        return new Response(JSON.stringify(genericView(selected)), { status: 200, headers: { 'content-type': 'application/json' } });
+      if (path.endsWith('/metrics')) {
+        return new Response(JSON.stringify({
+          namespaces: [{ name: 'train', metrics: genericMetricNames }],
+          total: genericMetricNames.length,
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      if (path.endsWith('/metric-series')) {
+        const selected = JSON.parse(String(init?.body)).names as string[];
+        return new Response(JSON.stringify(metricSeries(selected)), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
       }
       return new Response(JSON.stringify(view), { status: 200, headers: { 'content-type': 'application/json' } });
     }));

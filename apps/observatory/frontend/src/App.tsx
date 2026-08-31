@@ -37,7 +37,9 @@ import {
   type Artifact,
   type DistillationPairing,
   type MetricHelp,
+  type MetricCatalog,
   type MetricSeries,
+  type MetricSeriesSet,
   type RolloutBehavior,
   type RunItem,
   type RunComparison,
@@ -128,6 +130,17 @@ function readRoute(): BrowserRoute {
   const run = path.match(/^\/runs\/([^/]+)$/);
   if (run) return { kind: 'run', runKey: decodeURIComponent(run[1]) };
   return { kind: 'invalid' };
+}
+
+function sourceIdFromRunKey(runKey: string): string | null {
+  try {
+    const encoded = runKey.replaceAll('-', '+').replaceAll('_', '/');
+    const padded = encoded + '='.repeat((4 - encoded.length % 4) % 4);
+    const value: unknown = JSON.parse(atob(padded));
+    return Array.isArray(value) && value.length === 2 && typeof value[0] === 'string' ? value[0] : null;
+  } catch {
+    return null;
+  }
 }
 
 function routePath(route: BrowserRoute): string {
@@ -732,7 +745,6 @@ export default function App() {
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [compareCandidates, setCompareCandidates] = useState<RunItem[]>([]);
   const [compareCandidateLoading, setCompareCandidateLoading] = useState(false);
-  const [mode, setMode] = useState<'auto' | 'generic'>('auto');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
@@ -828,9 +840,14 @@ export default function App() {
           return;
         }
         if (route.kind === 'run' && selectedRunKeyRef.current !== route.runKey) {
-          const item = await api.run(route.runKey);
-          if (cancelled) return;
-          await hydrateProject(item.locator.source_id, item.run_key);
+          const sourceId = sourceIdFromRunKey(route.runKey);
+          if (sourceId) {
+            await hydrateProject(sourceId, route.runKey);
+          } else {
+            const item = await api.run(route.runKey);
+            if (cancelled) return;
+            await hydrateProject(item.locator.source_id, item.run_key);
+          }
           return;
         }
         if (route.kind === 'invalid') setError('This Observatory path is not recognised.');
@@ -854,7 +871,6 @@ export default function App() {
     setServingCapacity(null);
     setSection('Overview');
     setSurface('run');
-    setMode('auto');
     setSystem(null);
     setEvaluation(null);
     setRolloutBehavior(null);
@@ -1006,18 +1022,10 @@ export default function App() {
           });
         }
       }
-      if (next === 'Metrics' && mode !== 'generic') {
-        setMode('generic');
-        await loadView(selected, 'generic');
-      }
-      if (next === 'Overview' && mode !== 'auto') {
-        setMode('auto');
-        await loadView(selected, 'auto');
-      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     }
-  }, [evaluation, loadView, mode, selected, system, tracePage]);
+  }, [evaluation, selected, system, tracePage]);
 
   const loadMoreTraces = useCallback(async () => {
     if (!selected || !tracePage?.next_cursor || traceLoadingMore) return;
@@ -1058,9 +1066,8 @@ export default function App() {
           if (selectedRunKeyRef.current !== runKey) return;
           setTracePage(page);
           if (current.run.job_kind.startsWith('eval.')) setEvaluation(await api.evaluation(runKey, false));
-        } else {
-          const nextMode = section === 'Metrics' ? 'generic' : 'auto';
-          const view = await api.view(runKey, nextMode);
+        } else if (section === 'Overview' && surface === 'run') {
+          const view = await api.view(runKey, 'auto');
           if (selectedRunKeyRef.current === runKey) setLoadedView({ runKey, response: view });
         }
       } catch (cause) {
@@ -1069,7 +1076,7 @@ export default function App() {
     };
     const interval = window.setInterval(() => { void refreshActiveTab(); }, 60_000);
     return () => window.clearInterval(interval);
-  }, [route, section, selected]);
+  }, [route, section, selected, surface]);
 
   const activeProject = selectedProject ?? selected?.run.project_id ?? '';
   const activeSourceId = selectedSourceId ?? selected?.locator.source_id ?? '';
@@ -1299,7 +1306,7 @@ export default function App() {
                   onCompare={() => { void openCompare(selected.run_key); }}
                 />
           )}
-          {section === 'Metrics' && <GenericMetrics response={response} runKey={selected.run_key} />}
+          {section === 'Metrics' && <GenericMetrics runKey={selected.run_key} />}
           {section === 'System metrics' && <SystemView system={system} />}
           {section === 'Traces & evaluation' && (
             <TraceView
@@ -1962,16 +1969,33 @@ function CompareView({ runs, jobKind, selectedKeys, comparison, loading, candida
   </>;
 }
 
-function GenericMetrics({ response, runKey }: { response: RunView; runKey: string }) {
-  const catalog = response.view.metric_catalog;
+function GenericMetrics({ runKey }: { runKey: string }) {
+  const [catalog, setCatalog] = useState<MetricCatalog | null>(null);
   const names = useMemo(() => catalog?.namespaces.flatMap((namespace) => namespace.metrics) ?? [], [catalog]);
   const initial = useMemo(() => names.filter((name) => !name.startsWith('system/')).slice(0, 3), [names]);
   const [selected, setSelected] = useState<string[]>(initial);
-  const [series, setSeries] = useState(response.view.selected_series ?? null);
+  const [series, setSeries] = useState<MetricSeriesSet | null>(null);
+  const [loadingCatalog, setLoadingCatalog] = useState(true);
   const [loadingSeries, setLoadingSeries] = useState(false);
+  const [metricError, setMetricError] = useState('');
   const [query, setQuery] = useState('');
   const [hoveredStep, setHoveredStep] = useState<number | null>(null);
   const onHoverStep = useCallback((step: number | null) => setHoveredStep(step), []);
+  useEffect(() => {
+    const controller = new AbortController();
+    setCatalog(null);
+    setLoadingCatalog(true);
+    setMetricError('');
+    void api.metrics(runKey, controller.signal)
+      .then((value) => setCatalog(value))
+      .catch((cause: unknown) => {
+        if (!controller.signal.aborted) setMetricError(cause instanceof Error ? cause.message : String(cause));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingCatalog(false);
+      });
+    return () => controller.abort();
+  }, [runKey]);
   useEffect(() => {
     setSelected(initial);
     setSeries(null);
@@ -1983,23 +2007,28 @@ function GenericMetrics({ response, runKey }: { response: RunView; runKey: strin
       setSeries(null);
       return;
     }
-    let cancelled = false;
+    const controller = new AbortController();
     setLoadingSeries(true);
-    api.view(runKey, 'generic', selected)
+    setMetricError('');
+    api.metricSeries(runKey, selected, { maxPoints: 400, signal: controller.signal })
       .then((value) => {
-        if (!cancelled) setSeries(value.view.selected_series ?? null);
+        if (!controller.signal.aborted) setSeries(value);
+      })
+      .catch((cause: unknown) => {
+        if (!controller.signal.aborted) setMetricError(cause instanceof Error ? cause.message : String(cause));
       })
       .finally(() => {
-        if (!cancelled) setLoadingSeries(false);
+        if (!controller.signal.aborted) setLoadingSeries(false);
       });
-    return () => { cancelled = true; };
+    return () => controller.abort();
   }, [runKey, selected]);
-  if (!catalog) return <EmptyState title="Generic view unavailable" body="Return to Overview and reopen Metrics to request the generic evidence projection." />;
+  if (loadingCatalog) return <><PageHeading eyebrow="RAW, BOUNDED EVIDENCE" title="Metric workspace" subtitle="Loading the recorded metric catalog…" /><div className="mt-6 grid gap-4 md:grid-cols-2"><div className="obs-card"><ChartFallback height={280} /></div><div className="obs-card"><ChartFallback height={280} /></div></div></>;
+  if (!catalog) return <EmptyState title="Metric catalog unavailable" body={metricError || 'The selected run did not return a metric catalog.'} />;
   const normalizedQuery = query.trim().toLowerCase();
   const visibleNamespaces = catalog.namespaces
     .map((namespace) => ({ ...namespace, metrics: namespace.metrics.filter((metric) => metric.toLowerCase().includes(normalizedQuery)) }))
     .filter((namespace) => namespace.metrics.length > 0);
-  return <><PageHeading eyebrow="RAW, BOUNDED EVIDENCE" title="Metric workspace" subtitle="Select recorded metrics for independent, unit-safe inspection. Each metric keeps its own card, scale, and latest value." /><div className="mt-6 grid gap-4 xl:grid-cols-[292px_minmax(0,1fr)]"><aside className="obs-card self-start p-4"><div className="flex items-center justify-between"><h2 className="text-[13px] font-medium">Metric catalog</h2><span className="text-[11px] text-muted">{selected.length}/{MAX_SELECTED_METRICS} selected</span></div><label className="obs-control mt-3 flex h-8 items-center gap-2 px-2.5"><MagnifyingGlass size={13} /><input aria-label="Filter metrics" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`${catalog.total} recorded metrics`} className="w-full bg-transparent text-[11px] outline-none" /></label><div className="mt-4 max-h-[640px] space-y-4 overflow-auto pr-1">{visibleNamespaces.map((namespace) => <section key={namespace.name}><h3 className="type-label">{namespace.name}</h3><div className="mt-2 space-y-0.5">{namespace.metrics.map((metric) => { const checked = selected.includes(metric); const atLimit = !checked && selected.length >= MAX_SELECTED_METRICS; return <label key={metric} className={`flex items-start gap-2 border-b border-divider py-2 text-xs ${atLimit ? 'cursor-not-allowed text-muted' : 'cursor-pointer'}`} title={atLimit ? `Remove a card before selecting more than ${MAX_SELECTED_METRICS} metrics.` : undefined}><input type="checkbox" checked={checked} disabled={atLimit} onChange={() => setSelected((values) => checked ? values.filter((name) => name !== metric) : [...values, metric])} className="mt-0.5 accent-violet-700" /><code className="break-all">{metric}</code></label>; })}</div></section>)}</div></aside><section aria-label="Selected metric cards" className="min-w-0"><div className="mb-3 flex items-end justify-between gap-3"><div><h2 className="text-[13px] font-medium">Selected metrics</h2><p className="mt-1 text-xs text-muted">Raw evidence only; no job-specific health judgment is applied.</p></div>{series && <span className="text-[11px] text-muted">{series.returned_points}/{series.requested_points} points{series.downsampled ? ' · downsampled' : ''}</span>}</div>{loadingSeries && !series ? <div className="grid gap-4 md:grid-cols-2"><div className="obs-card"><ChartFallback height={280} /></div><div className="obs-card"><ChartFallback height={280} /></div></div> : series?.series.length ? <><div className="grid gap-4 md:grid-cols-2">{series.series.map((metric) => <GenericMetricCard key={metric.name} metric={metric} hoveredStep={hoveredStep} onHoverStep={onHoverStep} onRemove={() => setSelected((values) => values.filter((name) => name !== metric.name))} />)}</div>{loadingSeries && <p className="mt-3 text-[11px] text-muted">Refreshing selected metrics…</p>}</> : <div className="obs-card"><EmptyState title="Select a metric" body={`Choose up to ${MAX_SELECTED_METRICS} recorded metrics. Each selection appears as an independent card.`} /></div>}</section></div></>;
+  return <><PageHeading eyebrow="RAW, BOUNDED EVIDENCE" title="Metric workspace" subtitle="Select recorded metrics for independent, unit-safe inspection. Each metric keeps its own card, scale, and latest value." />{metricError && <p className="mt-3 text-xs text-rose-700">{metricError}</p>}<div className="mt-6 grid gap-4 xl:grid-cols-[292px_minmax(0,1fr)]"><aside className="obs-card self-start p-4"><div className="flex items-center justify-between"><h2 className="text-[13px] font-medium">Metric catalog</h2><span className="text-[11px] text-muted">{selected.length}/{MAX_SELECTED_METRICS} selected</span></div><label className="obs-control mt-3 flex h-8 items-center gap-2 px-2.5"><MagnifyingGlass size={13} /><input aria-label="Filter metrics" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`${catalog.total} recorded metrics`} className="w-full bg-transparent text-[11px] outline-none" /></label><div className="mt-4 max-h-[640px] space-y-4 overflow-auto pr-1">{visibleNamespaces.map((namespace) => <section key={namespace.name}><h3 className="type-label">{namespace.name}</h3><div className="mt-2 space-y-0.5">{namespace.metrics.map((metric) => { const checked = selected.includes(metric); const atLimit = !checked && selected.length >= MAX_SELECTED_METRICS; return <label key={metric} className={`flex items-start gap-2 border-b border-divider py-2 text-xs ${atLimit ? 'cursor-not-allowed text-muted' : 'cursor-pointer'}`} title={atLimit ? `Remove a card before selecting more than ${MAX_SELECTED_METRICS} metrics.` : undefined}><input type="checkbox" checked={checked} disabled={atLimit} onChange={() => setSelected((values) => checked ? values.filter((name) => name !== metric) : [...values, metric])} className="mt-0.5 accent-violet-700" /><code className="break-all">{metric}</code></label>; })}</div></section>)}</div></aside><section aria-label="Selected metric cards" className="min-w-0"><div className="mb-3 flex items-end justify-between gap-3"><div><h2 className="text-[13px] font-medium">Selected metrics</h2><p className="mt-1 text-xs text-muted">Raw evidence only; no job-specific health judgment is applied.</p></div>{series && <span className="text-[11px] text-muted">{series.returned_points}/{series.requested_points} points{series.downsampled ? ' · downsampled' : ''}</span>}</div>{loadingSeries && !series ? <div className="grid gap-4 md:grid-cols-2"><div className="obs-card"><ChartFallback height={280} /></div><div className="obs-card"><ChartFallback height={280} /></div></div> : series?.series.length ? <><div className="grid gap-4 md:grid-cols-2">{series.series.map((metric) => <GenericMetricCard key={metric.name} metric={metric} hoveredStep={hoveredStep} onHoverStep={onHoverStep} onRemove={() => setSelected((values) => values.filter((name) => name !== metric.name))} />)}</div>{loadingSeries && <p className="mt-3 text-[11px] text-muted">Refreshing selected metrics…</p>}</> : <div className="obs-card"><EmptyState title="Select a metric" body={`Choose up to ${MAX_SELECTED_METRICS} recorded metrics. Each selection appears as an independent card.`} /></div>}</section></div></>;
 }
 
 function SystemView({ system }: { system: SystemMetrics | null }) {
