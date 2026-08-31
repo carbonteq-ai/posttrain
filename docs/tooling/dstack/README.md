@@ -45,7 +45,7 @@ acceptable, and use an exact hostname only when qualification requires that
 specific machine.
 
 Production runs the matching CarbonTeq server, runner, and shim release from
-commit `c1fda1a8e1d7bb6978d086073d467636ac15b4f1` on branch
+commit `ceb919e2753ed99bed3c048907a9d905b1dd9d48` on branch
 `codex/registry-default-auth`. This selected release includes regional
 failover, bounded retry budgets, and failed-region cooldowns and passed the
 immutable release, component, idle-worker rolling, and scheduler-cancellation
@@ -131,6 +131,13 @@ the requested GPU and support RunPod network volumes. The current
 North-America-first A100 pool is `US-KS-2`, `US-CA-2`, `US-WA-1`, and
 `CA-MTL-3`. `US-MD-1` currently reports stronger A100 stock but is deliberately
 excluded because RunPod's live volume API rejects network volumes there.
+
+RunPod can return HTTP 500 after creating a network volume. Provider volume
+names are therefore deterministic per logical volume and region. Dstack adopts
+an existing exact name before create and performs bounded read-after-error
+reconciliation; region and size must match. This makes a delayed provider
+result recoverable on the next cooldown visit instead of leaving an unowned
+random-suffix volume.
 
 The maintained retry successor stores compact per-event attempt counters and
 the first event timestamp on the logical run, independent of pruned submission

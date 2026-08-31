@@ -206,6 +206,14 @@ empty-volume rotation and cooldown path. Live r16 proved valid-volume creation,
 no-capacity cleanup, and regional rotation with zero active Pods; it remains
 queued within the admission budget.
 
+The same live run later exposed an ambiguous RunPod volume create: the API
+returned HTTP 500 but eventually materialized the volume, so the pre-fix random
+provider name became unowned after rotation. Deployed successor
+`ceb919e2753ed99bed3c048907a9d905b1dd9d48` uses deterministic per-run-and-region
+names, adopts exact existing matches, and performs bounded read-after-error
+reconciliation. The two confirmed pre-fix US-CA orphans were deleted by exact
+ID; r16 retained only its dstack-owned deterministic volume.
+
 ## Focused execution protocol
 
 At the start of each milestone, create a scratch checklist in task state—not a
