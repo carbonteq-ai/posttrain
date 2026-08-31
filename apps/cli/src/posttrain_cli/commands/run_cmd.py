@@ -774,9 +774,7 @@ def register(app: typer.Typer) -> None:
             detail = next_admission.entry.message or "none"
             lines.append(f"Next admission: {next_admission.entry.run_id} ({next_admission.entry.state}; {detail})")
         if cleanup is not None:
-            lines.append(
-                f"Cleanup: {cleanup.provider_disposition}; workspace={cleanup.workspace_disposition}"
-            )
+            lines.append(f"Cleanup: {cleanup.provider_disposition}; workspace={cleanup.workspace_disposition}")
         emit(
             state,
             payload,

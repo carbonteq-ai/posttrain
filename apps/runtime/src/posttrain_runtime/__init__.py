@@ -21,4 +21,5 @@ def __getattr__(name: str) -> object:
         return qualify_manifest
     raise AttributeError(name)
 
+
 __all__ = ["execute_manifest", "qualify_manifest"]

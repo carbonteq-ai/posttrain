@@ -458,9 +458,7 @@ class DstackExecutionProvider:
             and response.get("emptied") is False
             and response.get("reclaimed_bytes") == 0
         ):
-            raise ProviderCleanupDeferred(
-                "dstack is still deleting the run-owned storage volume; retry cleanup"
-            )
+            raise ProviderCleanupDeferred("dstack is still deleting the run-owned storage volume; retry cleanup")
         if (
             response.get("hostname") == hostname
             and response.get("workspace") == str(run_workspace)

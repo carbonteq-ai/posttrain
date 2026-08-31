@@ -64,8 +64,7 @@ def test_candidate_carries_pinned_cuda_compat_without_globally_activating_it() -
     compat_copy = dockerfile.index("RUN --mount=from=cuda-compat")
 
     assert (
-        "nvidia/cuda:13.0.2-base-ubuntu24.04"
-        "@sha256:605fb0c8acf8674e164d822da8a8521f3a655056e569f0899e72ae940e1fe7dc"
+        "nvidia/cuda:13.0.2-base-ubuntu24.04@sha256:605fb0c8acf8674e164d822da8a8521f3a655056e569f0899e72ae940e1fe7dc"
     ) in dockerfile
     assert source_clone < compat_copy
     assert '"compat_path":"/usr/local/cuda-13.0/compat"' in dockerfile

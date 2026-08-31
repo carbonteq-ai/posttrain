@@ -90,9 +90,7 @@ class JobContextManifest:
             self.directories != tuple(sorted(self.directories))
             or len(set(self.directories)) != len(self.directories)
             or any(
-                path.is_absolute()
-                or not path.parts
-                or any(part in {"", ".", ".."} for part in path.parts)
+                path.is_absolute() or not path.parts or any(part in {"", ".", ".."} for part in path.parts)
                 for path in self.directories
             )
         ):
@@ -141,10 +139,11 @@ class JobContextManifest:
         context_digest = payload["context_digest"]
         files = payload["files"]
         directories = payload.get("directories", [])
-        if not all(
-            isinstance(value, str) for value in (package_key, publication_key, context_digest)
-        ) or not isinstance(files, list) or not isinstance(directories, list) or not all(
-            isinstance(value, str) for value in directories
+        if (
+            not all(isinstance(value, str) for value in (package_key, publication_key, context_digest))
+            or not isinstance(files, list)
+            or not isinstance(directories, list)
+            or not all(isinstance(value, str) for value in directories)
         ):
             raise ContractError("job context manifest payload has invalid field types")
         return cls(

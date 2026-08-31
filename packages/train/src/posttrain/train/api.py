@@ -111,7 +111,9 @@ def _digest(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _prepare_interruption_recovery[RequestT: SFTRequest | DPORequest | GRPORequest | SAMPORequest | OnPolicyDistillationRequest](
+def _prepare_interruption_recovery[
+    RequestT: SFTRequest | DPORequest | GRPORequest | SAMPORequest | OnPolicyDistillationRequest
+](
     context: TrainingContext,
     request: RequestT,
     output_dir: Path,
@@ -164,9 +166,7 @@ def _prepare_interruption_recovery[RequestT: SFTRequest | DPORequest | GRPOReque
         )
         return replace(request, resume_from=LocalArtifactRef(checkpoint, _digest(checkpoint)))
     if any(output_dir.iterdir()):
-        raise RuntimeError(
-            "retained training progress has no complete recovery checkpoint; refusing a silent restart"
-        )
+        raise RuntimeError("retained training progress has no complete recovery checkpoint; refusing a silent restart")
     return request
 
 

@@ -16,9 +16,7 @@ DECLARATION_PATH = Path("/opt/posttrain/runtime/cuda-compat.json")
 MODE_VARIABLE = "POSTTRAIN_CUDA_COMPAT_MODE"
 _REEXEC_GUARD = "_POSTTRAIN_CUDA_COMPAT_REEXEC"
 _VALID_MODES = frozenset({"auto", "off", "force"})
-_DECLARATION_FIELDS = frozenset(
-    {"schema_version", "runtime_api_version", "compat_path", "payload_digest"}
-)
+_DECLARATION_FIELDS = frozenset({"schema_version", "runtime_api_version", "compat_path", "payload_digest"})
 _DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
 
 

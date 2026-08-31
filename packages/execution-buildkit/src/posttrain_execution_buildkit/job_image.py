@@ -374,9 +374,7 @@ class BuildKitJobImagePublisher:
     def _check_definition(self, request: JobImagePublicationRequest) -> None:
         for target in (_PUBLISHED_TARGET, _SMOKE_TARGET):
             validation_output = (
-                ("--set", f"{_PUBLISHED_TARGET}.output=type=cacheonly")
-                if target == _PUBLISHED_TARGET
-                else ()
+                ("--set", f"{_PUBLISHED_TARGET}.output=type=cacheonly") if target == _PUBLISHED_TARGET else ()
             )
             self._gateway.invoke(
                 (

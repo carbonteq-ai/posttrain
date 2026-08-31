@@ -281,10 +281,7 @@ def test_rejects_secret_nonportable_or_mutable_kind_constraints(
 def test_accepts_full_git_revision_with_environment_marker() -> None:
     selected = KindDependencyConstraints(
         "online-rl-verl-py313",
-        (
-            "verl @ git+https://github.com/example/verl.git@"
-            f"{'a' * 40} ; sys_platform == 'linux'\n"
-        ),
+        (f"verl @ git+https://github.com/example/verl.git@{'a' * 40} ; sys_platform == 'linux'\n"),
     )
 
     assert "sys_platform == 'linux'" in selected.contents
@@ -295,10 +292,7 @@ def test_rejects_mutable_git_revision_with_environment_marker(revision: str) -> 
     with pytest.raises(ContractError, match="full immutable commit"):
         KindDependencyConstraints(
             "online-rl-verl-py313",
-            (
-                "verl @ git+https://github.com/example/verl.git@"
-                f"{revision} ; sys_platform == 'linux'\n"
-            ),
+            (f"verl @ git+https://github.com/example/verl.git@{revision} ; sys_platform == 'linux'\n"),
         )
 
 

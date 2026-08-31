@@ -65,10 +65,7 @@ def test_cli_import_stays_cuda_neutral_until_command_dispatch() -> None:
         [
             sys.executable,
             "-c",
-            (
-                "import sys; import posttrain_runtime.cli; "
-                "assert 'posttrain_runtime.execute' not in sys.modules"
-            ),
+            ("import sys; import posttrain_runtime.cli; assert 'posttrain_runtime.execute' not in sys.modules"),
         ],
         check=False,
         capture_output=True,

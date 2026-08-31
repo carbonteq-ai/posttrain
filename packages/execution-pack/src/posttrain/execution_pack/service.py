@@ -503,9 +503,7 @@ def _write_materialization_record(
             raise ContractError("materialization record conflicts with an existing package")
         return destination
 
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=f".{record.publication_key}.", suffix=".tmp", dir=record_root
-    )
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{record.publication_key}.", suffix=".tmp", dir=record_root)
     temporary = Path(temporary_name)
     try:
         with os.fdopen(descriptor, "wb") as stream:

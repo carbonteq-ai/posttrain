@@ -748,7 +748,9 @@ def _submission_from_payload(payload: dict[str, Any]) -> ExecutionSubmission:
             provider_source_recorded=provider_source_recorded,
             legacy_bundle_digest=(str(payload["bundle_digest"]) if payload.get("bundle_digest") is not None else None),
             local_image=(str(payload["local_image"]) if payload.get("local_image") is not None else None),
-            evidence_retention=(str(payload.get("evidence_retention", "standard")) if schema == _SCHEMA else "standard"),
+            evidence_retention=(
+                str(payload.get("evidence_retention", "standard")) if schema == _SCHEMA else "standard"
+            ),
         )
     except (KeyError, TypeError, ValueError) as error:
         raise ContractError("execution submission fields are invalid") from error

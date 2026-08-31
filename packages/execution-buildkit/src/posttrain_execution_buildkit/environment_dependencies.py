@@ -29,9 +29,7 @@ _PINNED_REQUIREMENT = re.compile(
     r"(?:\[[A-Za-z0-9,._-]+\])?"
     r"==[^\s;\\]+(?:\s*;\s*.+)?$"
 )
-_FULL_GIT_REVISION = re.compile(
-    r"git\+https://[^@\s]+@[0-9a-f]{40}(?:#[^\s;]+)?(?:\s*;\s*.+)?$"
-)
+_FULL_GIT_REVISION = re.compile(r"git\+https://[^@\s]+@[0-9a-f]{40}(?:#[^\s;]+)?(?:\s*;\s*.+)?$")
 _URL_USERINFO = re.compile(r"https?://[^/\s:@]+(?::[^@/\s]*)?@")
 _SENSITIVE_QUERY = re.compile(
     r"[?&](?:access[_-]?token|api[_-]?key|auth|credential|password|secret|token)=",

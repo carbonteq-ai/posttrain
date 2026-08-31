@@ -323,8 +323,7 @@ class PlannedJobPackage:
             (
                 candidate
                 for candidate in records
-                if candidate.publication_key
-                == _publication_key(candidate.manifest, self.pack_plan.publication)
+                if candidate.publication_key == _publication_key(candidate.manifest, self.pack_plan.publication)
             ),
             None,
         )

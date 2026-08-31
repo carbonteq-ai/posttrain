@@ -153,10 +153,7 @@ def _managed_run_storage_cleanup(client, source, workspace, hostname):
     volume_name = _managed_run_storage_name(source)
     if volume_name is None:
         return None
-    active_names = {
-        str(volume.name)
-        for volume in client.client.volumes.list(project_name=client.project)
-    }
+    active_names = {str(volume.name) for volume in client.client.volumes.list(project_name=client.project)}
     if volume_name in active_names:
         return {
             "cleanup_run_name": None,
