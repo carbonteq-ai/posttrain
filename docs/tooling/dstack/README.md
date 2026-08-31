@@ -126,11 +126,15 @@ only no-capacity failures recorded after the current regional volume became
 active, preventing an earlier region's failure from evicting a newly created
 replacement.
 
-The infrastructure pool must contain only regions that both report stock for
-the requested GPU and support RunPod network volumes. The current
-North-America-first A100 pool is `US-KS-2`, `US-CA-2`, `US-WA-1`, and
-`CA-MTL-3`. `US-MD-1` currently reports stronger A100 stock but is deliberately
-excluded because RunPod's live volume API rejects network volumes there.
+The infrastructure pool must contain only regions that support RunPod network
+volumes. The backend additionally sets `minimum_stock_status: medium`, so Low
+rows are ineligible instead of serving as a fallback. Workloads retain their
+own GPU and price requirements. The current RTX PRO 6000 qualification pool
+includes the volume-proven Medium zones `EUR-IS-1` and `US-NC-2`, plus verified
+volume zones that become eligible only if they later report Medium-or-better
+stock. `EUR-IS-2` currently reports Medium GPU stock but is deliberately
+excluded because a live volume-create probe returned RunPod's authoritative
+"does not support network volumes" error.
 
 RunPod can return HTTP 500 after creating a network volume. Provider volume
 names are therefore deterministic per logical volume and region. Dstack adopts

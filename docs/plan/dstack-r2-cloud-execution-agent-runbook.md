@@ -195,16 +195,25 @@ RunPod returned no capacity.
 
 The deployed successor replaces r14's price-first region choice with an
 availability-first gate. It reads RunPod's authenticated per-data-center GPU
-`stockStatus`, excludes blank/unreported stock, and ranks `High`, `Medium`, then
-`Low` before price and infrastructure order. The ai-infra pool is the current
-North American intersection of positive A100 stock and network-volume support:
-`US-KS-2`, `US-CA-2`, `US-WA-1`, and `CA-MTL-3`. `US-MD-1` reports Medium A100
-stock but is not volume-capable and is therefore excluded. Volume creation
+`stockStatus`, and ai-infra now sets a hard `minimum_stock_status: medium` so
+Low and blank rows are excluded rather than merely ranked later. The current
+RTX PRO 6000 target revision 2 permits up to $3.00/hour. Its pool contains only
+network-volume-capable Secure Cloud zones; live create/read/delete probes
+confirmed `EUR-IS-1` and `US-NC-2`, while `EUR-IS-2` was rejected by RunPod as
+not supporting network volumes despite Medium GPU stock. Volume creation
 remains immediately before the Pod attempt because RunPod does not expose a
 reservable capacity lease; an allocation race still uses the existing
 empty-volume rotation and cooldown path. Live r16 proved valid-volume creation,
 no-capacity cleanup, and regional rotation with zero active Pods; it remains
 queued within the admission budget.
+
+R16 was later terminated at zero compute cost because its immutable target was
+still A100-only and admitted Low stock. Replacement r17 uses RTX PRO 6000,
+target revision 2, the Medium floor, and a $3.00/hour ceiling. Both `EUR-IS-1`
+and `US-NC-2` advertised Medium and accepted the run volume, but RunPod's final
+Pod mutation lost both capacity races. Dstack removed the still-empty regional
+storage and retained r17 pending within its capacity-admission budget at zero
+compute cost.
 
 The same live run later exposed an ambiguous RunPod volume create: the API
 returned HTTP 500 but eventually materialized the volume, so the pre-fix random

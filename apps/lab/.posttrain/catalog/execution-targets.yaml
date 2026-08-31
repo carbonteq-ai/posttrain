@@ -42,7 +42,7 @@ target:
       max_price: 2.5
       disk_gb: 100
   targets/runpod-rtx-pro-6000-spot-qualification:
-    revision: "1"
+    revision: "2"
     device_class: nvidia-cuda
     memory_gb: 96
     placement:
@@ -52,8 +52,8 @@ target:
       spot_policy: spot
       managed_run_storage: true
       gpu_names:
-        - RTXPRO6000WK
-      max_price: 1.9
+        - RTXPRO6000
+      max_price: 3.0
       disk_gb: 100
   targets/runpod-l4-spot-qualification:
     revision: "1"
