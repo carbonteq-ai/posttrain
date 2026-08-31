@@ -266,6 +266,7 @@ class DstackExecutionProvider:
                 "posttrain_run_id": request.run_spec.run_id,
                 "posttrain_attempt": str(request.attempt),
                 "posttrain_job_image_digest": request.image.digest,
+                "posttrain_managed_run_storage": str(managed_run_storage).lower(),
             },
         }
         if fleets := _sequence(placement.get("fleets")):
@@ -453,6 +454,16 @@ class DstackExecutionProvider:
         if (
             response.get("hostname") == hostname
             and response.get("workspace") == str(run_workspace)
+            and response.get("workspace_state") == "provider-managed-deferred"
+            and response.get("emptied") is False
+            and response.get("reclaimed_bytes") == 0
+        ):
+            raise ProviderCleanupDeferred(
+                "dstack is still deleting the run-owned storage volume; retry cleanup"
+            )
+        if (
+            response.get("hostname") == hostname
+            and response.get("workspace") == str(run_workspace)
             and response.get("workspace_state") == "deferred"
             and response.get("emptied") is False
             and response.get("reclaimed_bytes") == 0
@@ -481,6 +492,20 @@ class DstackExecutionProvider:
                     "assignment history proves no worker workspace was created"
                 ),
                 workspace_disposition="not-created",
+                workspace_reclaimed_bytes=0,
+            )
+        if (
+            response.get("hostname") == hostname
+            and response.get("workspace") == str(run_workspace)
+            and response.get("workspace_state") == "provider-managed-removed"
+            and response.get("emptied") is True
+            and response.get("reclaimed_bytes") == 0
+        ):
+            return ProviderCleanupResult(
+                handle,
+                "provider-managed",
+                "dstack confirmed the run-owned storage volume is absent",
+                workspace_disposition="removed",
                 workspace_reclaimed_bytes=0,
             )
         if (

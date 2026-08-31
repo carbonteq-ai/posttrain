@@ -45,7 +45,7 @@ acceptable, and use an exact hostname only when qualification requires that
 specific machine.
 
 Production runs the matching CarbonTeq server, runner, and shim release from
-commit `ceb919e2753ed99bed3c048907a9d905b1dd9d48` on branch
+commit `ae5dac6576b0f19b49e81b31781f3b9f14e95361` on branch
 `codex/registry-default-auth`. This selected release includes regional
 failover, bounded retry budgets, and failed-region cooldowns and passed the
 immutable release, component, idle-worker rolling, and scheduler-cancellation
@@ -59,6 +59,9 @@ tasks, including retry reuse, pre-start regional failover, and terminal
 cleanup. Runner diagnostics emit environment names only and never values.
 Live spot offers are also cross-checked against RunPod's authenticated
 per-data-center GPU stock before managed storage is created.
+Candidate branch commit `b1648775893a0905caed32ffddc73164d24ed0f8`
+contains the same maintained delta merged with current CarbonTeq `master`; its
+runner Go checks remain a CI gate before it replaces the deployed release.
 
 ## Candidate fork
 
@@ -159,6 +162,12 @@ the same volume, and finished `done`. Dstack then removed both Pods and the
 owned volume. The cost estimate was $0.0302 and final provider inventory was
 empty.
 
+Qualification r21 additionally proved the framework cleanup boundary for a
+successful managed-storage job. Dstack removed the terminal Pod and run-owned
+volume; Posttrain then retained seven Trackio artifact records and completed
+reconciliation from provider-confirmed volume absence without scheduling an
+impossible exact-host cleanup task on the deleted cloud worker.
+
 ## Operational configuration
 
 The ai-infra release must:
@@ -205,5 +214,5 @@ The release gate remains:
 - a normal framework `run reconcile` plus evidence-gated cleanup.
 
 Selected production commit:
-`6494f15c7a36a2cdb92cec2f9b33696adb143fef`. Regional-failover candidate:
-`e9d74b0cfd330500879946141469313e46de2e7d`.
+`ae5dac6576b0f19b49e81b31781f3b9f14e95361`. Current reviewed successor:
+`b1648775893a0905caed32ffddc73164d24ed0f8`.

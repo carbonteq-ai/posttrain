@@ -99,8 +99,42 @@ The post-canary scope also closes the gaps that the successful stateless A100 te
   6,375,102,899 bytes to 195,172,150,846 bytes. The separately bounded shared
   BuildKit cache remains intact because broad pruning would discard useful
   compilation cache and it supplied the exact recovery bytes.
+- [x] (2026-08-31) Isolated the remaining r21 terminal-evidence defect. The
+  successful managed-storage run had already reached dstack `done`, and dstack
+  had confirmed both its Pod and run-owned network volume absent, but
+  Posttrain still submitted a persistent-worker exact-host cleanup task after
+  that ephemeral worker disappeared. Added a provider-managed cleanup path
+  that recognizes dstack's retained deterministic run-volume mount, waits
+  while that volume remains active, and treats its authoritative absence as
+  workspace removal without scheduling another worker. The explicit target
+  marker covers new runs while the retained dstack mount recognizes r21 and
+  older runs. All 34 focused adapter and bridge tests plus Ruff and diff checks
+  pass. This aligns the existing provider-owned cleanup contract and does not
+  amend the frozen product baseline.
+- [x] (2026-08-31) Re-ran reconciliation for live qualification
+  `runpod-recovery-sft-20260831-r21` through the corrected adapter. It reached
+  `consistent` with outcome `succeeded`, retained all seven Trackio artifact
+  records, wrote a cleanup receipt with `workspace_disposition: removed`, and
+  used dstack's confirmed volume absence without creating an exact-worker
+  cleanup run.
+- [ ] (2026-08-31) Complete the v0.3.25 release train in producer order:
+  publish and merge the maintained dstack fork, commit and review the ai-infra
+  registry/fleet configuration, rebase Posttrain onto current `main`, qualify
+  the exact candidate artifacts, merge, promote those same bytes, and create
+  the final tag last.
 
 ## Surprises & Discoveries
+
+- Observation: exact-worker cleanup and managed run-storage cleanup are
+  mutually exclusive ownership models.
+  Evidence: successful run r21 used a dstack-owned RunPod volume whose retained
+  name derives from the logical dstack run UUID. dstack removed that volume
+  only after provider absence, then removed the Pod. A subsequent exact-host
+  task could never reach the deleted ephemeral hostname, leaving otherwise
+  complete evidence in `terminal_pending_evidence`. The dstack active-volume
+  view is an authoritative deletion barrier: presence means defer; absence
+  after a retained managed-volume mount means the provider-owned workspace has
+  been removed.
 
 - Observation: the automatic selector belongs to the actual-job entrypoint, while the veRL kind image owns only the compatibility declaration and payload.
   Evidence: `posttrain-runtime` is installed when the actual-job image is built, not in the reusable kind layer. The Milestone A cross-host gate must therefore run one immutable actual-job digest on both the local RTX 3070 Ti and RunPod; qualifying the kind image directly would bypass the new selector. The local host reports CUDA driver API version 13000, equal to the image runtime requirement, so its expected selection is native.

@@ -189,6 +189,7 @@ def test_managed_run_storage_omits_instance_mounts_and_private_ca(tmp_path: Path
 
     configuration = gateway.calls[-1][1]["configuration"]
     assert "volumes" not in configuration
+    assert configuration["tags"]["posttrain_managed_run_storage"] == "true"
     assert "setup" not in configuration
     launch_environment = configuration["_posttrain_launch_env"]
     assert "POSTTRAIN_EXTRA_CA_BUNDLE" not in launch_environment
@@ -473,6 +474,50 @@ def test_sdk_cleanup_returns_deferred_evidence_for_queued_exact_worker_task(
     assert configurations[0]["retry"] == {"on_events": ["no-capacity"], "duration": 86_400}
 
 
+@pytest.mark.parametrize(
+    ("active", "workspace_state", "emptied"),
+    [
+        (True, "provider-managed-deferred", False),
+        (False, "provider-managed-removed", True),
+    ],
+)
+def test_sdk_cleanup_uses_managed_volume_absence_as_terminal_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+    active: bool,
+    workspace_state: str,
+    emptied: bool,
+) -> None:
+    module = _sdk_bridge_module(monkeypatch)
+    volume_name = "run-12345678123456781234567812345678"
+    native = _Native(
+        id="12345678-1234-5678-1234-567812345678",
+        run_spec=_Native(
+            configuration=_Native(
+                tags={},
+                volumes=[_Native(name=volume_name)],
+            )
+        ),
+    )
+    source = _Native(_run=native)
+    volumes = [_Native(name=volume_name)] if active else []
+    client = _Native(
+        project="posttrain",
+        client=_Native(volumes=_Native(list=lambda **_kwargs: volumes)),
+    )
+
+    response = module._managed_run_storage_cleanup(
+        client,
+        source,
+        "/var/lib/posttrain/runs/test-run",
+        "gpu-worker-a",
+    )
+
+    assert response is not None
+    assert response["workspace_state"] == workspace_state
+    assert response["emptied"] is emptied
+    assert response["reclaimed_bytes"] == 0
+
+
 def test_dstack_maps_mandatory_instance_trust_bundle_as_additional_authorities(
     tmp_path: Path,
 ) -> None:
@@ -731,6 +776,59 @@ def test_cleanup_reports_exact_worker_capacity_wait_as_deferred(tmp_path: Path) 
     handle = provider.submit(provider.plan(request))
 
     with pytest.raises(ProviderCleanupDeferred, match="retry the same immutable purge"):
+        provider.cleanup(
+            handle,
+            run_id="test-run",
+            run_workspace=Path("/var/lib/posttrain/runs/test-run"),
+            runtime_image=request.image,
+        )
+
+
+def test_cleanup_accepts_provider_managed_volume_absence(tmp_path: Path) -> None:
+    gateway = FakeGateway()
+    gateway.status = "done"
+    gateway.cleanup_response = {
+        "cleanup_run_name": None,
+        "hostname": "gpu-worker-a",
+        "workspace": "/var/lib/posttrain/runs/test-run",
+        "workspace_state": "provider-managed-removed",
+        "emptied": True,
+        "reclaimed_bytes": 0,
+    }
+    provider = DstackExecutionProvider(gateway, project="posttrain")
+    request = _request(tmp_path)
+    handle = provider.submit(provider.plan(request))
+
+    cleanup = provider.cleanup(
+        handle,
+        run_id="test-run",
+        run_workspace=Path("/var/lib/posttrain/runs/test-run"),
+        runtime_image=request.image,
+    )
+
+    assert cleanup.disposition == "provider-managed"
+    assert cleanup.workspace_disposition == "removed"
+    assert cleanup.workspace_reclaimed_bytes == 0
+    assert "run-owned storage volume is absent" in cleanup.message
+
+
+def test_cleanup_defers_while_provider_managed_volume_exists(tmp_path: Path) -> None:
+    gateway = FakeGateway()
+    gateway.status = "done"
+    gateway.cleanup_response = {
+        "cleanup_run_name": None,
+        "cleanup_status": "provider-storage-deleting",
+        "hostname": "gpu-worker-a",
+        "workspace": "/var/lib/posttrain/runs/test-run",
+        "workspace_state": "provider-managed-deferred",
+        "emptied": False,
+        "reclaimed_bytes": 0,
+    }
+    provider = DstackExecutionProvider(gateway, project="posttrain")
+    request = _request(tmp_path)
+    handle = provider.submit(provider.plan(request))
+
+    with pytest.raises(ProviderCleanupDeferred, match="still deleting"):
         provider.cleanup(
             handle,
             run_id="test-run",
