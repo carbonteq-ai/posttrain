@@ -1098,8 +1098,9 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert 'git fetch --no-tags origin "${candidate_sha}:${candidate_ref}"' in final
     assert 'test "$(git rev-parse "${candidate_ref}")" = "${candidate_sha}"' in final
     assert 'git diff --name-only "${candidate_sha}" "${RELEASE_SOURCE_SHA}"' in final
-    assert 'release_tag_sha="${candidate_sha}"' in final
-    assert 'echo "RELEASE_TAG_SHA=${release_tag_sha}" >> "$GITHUB_ENV"' in final
+    assert 'release_tag_sha="${candidate_sha}"' not in final
+    assert 'echo "RELEASE_TAG_SHA=${RELEASE_SOURCE_SHA}" >> "$GITHUB_ENV"' in final
+    assert 'echo "RELEASE_TAG_SHA=${MERGED_SHA}" >> "$GITHUB_ENV"' in final
     assert 'test "$(git rev-parse "v${POSTTRAIN_RELEASE_VERSION}^{}")" = "${RELEASE_TAG_SHA}"' in final
     assert ".github/*|apps/release/tests/*|docs/plan/*|docs/publishing.md" in final
     assert "packages/runtime-images/src/posttrain/runtime_images/published.toml) ;;" in final
