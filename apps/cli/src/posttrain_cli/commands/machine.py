@@ -82,6 +82,13 @@ def register(app: typer.Typer) -> None:
             str | None,
             typer.Option("--job-registry", help="default OCI repository prefix for project jobs"),
         ] = None,
+        job_builder_endpoint: Annotated[
+            str | None,
+            typer.Option(
+                "--job-builder-endpoint",
+                help="remote service that builds and publishes project job images",
+            ),
+        ] = None,
         dstack_project: Annotated[
             str | None,
             typer.Option("--dstack-project", help="dstack project selected by the client adapter"),
@@ -99,6 +106,7 @@ def register(app: typer.Typer) -> None:
             trackio_endpoint=trackio_endpoint,
             python_index_url=python_index_url,
             job_registry=job_registry,
+            job_builder_endpoint=job_builder_endpoint,
             dstack_project=dstack_project,
             dstack_python=dstack_python or (Path(sys.executable) if dstack_project is not None else None),
         )

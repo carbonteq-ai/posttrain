@@ -88,7 +88,8 @@ not depend on the shell that launched the CLI. Initialize them once:
 posttrain machine init \
   --trackio-endpoint https://trackio.lan \
   --python-index-url https://pypi.lan/carbonteq/stable/+simple/ \
-  --job-registry registry.lan/carbonteq
+  --job-registry registry.lan/carbonteq \
+  --job-builder-endpoint https://ai-control.lan/job-builder
 ```
 
 This writes the non-secret `$XDG_CONFIG_HOME/posttrain/config.toml` (normally
@@ -99,6 +100,7 @@ their scoped files:
 ```bash
 printf '%s\n' 'TRACKIO_WRITE_TOKEN=...' > ~/.config/posttrain/credentials/trackio.env
 printf '%s\n' 'HF_TOKEN=...' > ~/.config/posttrain/credentials/huggingface.env
+printf '%s\n' 'POSTTRAIN_JOB_BUILDER_TOKEN=...' > ~/.config/posttrain/credentials/job-builder.env
 chmod 600 ~/.config/posttrain/credentials/*.env
 ```
 
@@ -106,6 +108,9 @@ The config stores endpoints and credential *names*, never token values. The
 framework injects each source only into its consumer: a dstack token is not
 part of a job's runtime map, and Trackio credentials are not sent to dstack's
 client process merely because both are configured on the same machine.
+The remote builder owns registry publication. Developer machines never receive
+OCI push credentials, OCI pull credentials, RunPod credentials, or the object
+storage credentials behind the cloud registry.
 
 ## 4. Create a project
 
