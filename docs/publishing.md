@@ -143,13 +143,16 @@ accepted release.
 1. **Local ladder green on the commit you intend to ship.** Unpushed commits
    are invisible to CI. If the branch is red locally, fixing it after merge is
    already too late for anyone who pulled the merge commit.
-2. **Push the internal release branch** (`git push -u origin HEAD` when the
-   upstream is new). Candidate workflows never execute fork revisions or
-   `pull_request` events.
+2. **Push a `codex/*` internal release branch** (`git push -u origin HEAD` when
+   the upstream is new). The protected `release-candidate` environment accepts
+   only this branch family. Dispatch the workflow itself from that same branch
+   and pass that exact branch as `source_ref`; `main`, `release/*`, fork
+   revisions, and `pull_request` refs are intentionally rejected.
 3. **Wait for CI green on that push.** The last green check on an older SHA
    does not cover commits that were never pushed. `MERGEABLE` on a pull
    request only means GitHub sees no conflicts — it is not “ready.”
-4. **Dispatch Prepare candidate** through the protected release environment.
+4. **Dispatch Prepare candidate** through the protected release environment,
+   with the workflow ref and `source_ref` set to the same `codex/*` branch.
    It builds the authored final version once, publishes only to
    `carbonteq/dev`, qualifies changed OCI images and real jobs, and generates
    receipts. It does not create the final tag or write Python artifacts to
@@ -227,6 +230,28 @@ their required server revisions are deployed. Private-CA validation, live
 service compatibility, registry readback, named hardware capacity and the real
 GPU canary remain protected-runner checks because a workstation cannot prove
 those external states.
+
+The candidate workflow also has a credential-free GitHub-hosted `preflight`
+job. It proves that the workflow ref and `source_ref` are the same eligible
+`codex/*` branch, the branch is current and descends from `main`, the version
+has no GitHub tag or release, and exact-source Quality is green. Only then can
+GitHub evaluate the protected LAN job. On the LAN runner, stable/development
+version vacancy and named dstack capacity are checked before BuildKit or OCI
+publication. These checks are deliberately duplicated at the trust boundary:
+local checks help the operator, while workflow checks prevent an expensive or
+irreversible action when the dispatch is wrong or external state changed.
+
+Dispatch with both refs aligned:
+
+```bash
+branch="$(git branch --show-current)"
+case "${branch}" in codex/*) ;; *) echo "release branch must match codex/*" >&2; exit 1;; esac
+gh workflow run release-candidate.yml \
+  --ref "${branch}" \
+  -f source_ref="${branch}" \
+  -f qualification_profile=rtx-3070ti-8gb \
+  -f run_gpu_qualification=true
+```
 
 If a candidate fails, classify the owning boundary before retrying. A private
 CA failure belongs to runner trust configuration; an installed/retained wheel

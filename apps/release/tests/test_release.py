@@ -1033,6 +1033,18 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert 'qualification_target="targets/carbonteq-rtx-pro-6000-96gb"' not in candidate
 
     assert "candidate-version --simple-url" not in candidate
+    assert "preflight:" in candidate
+    assert "runs-on: ubuntu-latest" in candidate
+    assert 'test "${GITHUB_REF_NAME}" = "${SOURCE_REF}"' in candidate
+    assert '[[ "${SOURCE_REF}" = codex/* ]]' in candidate
+    assert "git check-ref-format --branch" in candidate
+    assert "needs: preflight" in candidate
+    assert "QUALITY_RUN_ID: ${{ needs.preflight.outputs.quality_run_id }}" in candidate
+    assert "Reject occupied development versions before image work" in candidate
+    assert "Verify qualification capacity before image publication" in candidate
+    assert candidate.index("Verify qualification capacity before image publication") < candidate.index(
+        "Build changed OCI inputs and retain the generated manifest"
+    )
     assert "posttrain-release readiness-check" in candidate
     assert "posttrain-readiness" in candidate
     assert "QUALITY_RUN_ID" in candidate
