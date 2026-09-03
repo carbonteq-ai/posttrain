@@ -473,8 +473,20 @@ jobs:
           fi
           .release/consumer-venv/bin/posttrain --project-root apps/lab run reconcile \
             "release-candidate-${{ github.run_id }}" || true
-          .release/consumer-venv/bin/posttrain --project-root apps/lab run cleanup \
-            "release-candidate-${{ github.run_id }}" || true
+          cleanup_status=1
+          for cleanup_attempt in $(seq 1 18); do
+            .release/consumer-venv/bin/posttrain --project-root apps/lab run cleanup \
+              "release-candidate-${{ github.run_id }}"
+            cleanup_status=$?
+            if [[ "${cleanup_status}" -eq 0 ]]; then
+              break
+            fi
+            echo "waiting for exact-worker cleanup evidence: attempt=${cleanup_attempt}/18" >&2
+            sleep 10
+          done
+          if [[ "${status}" -eq 0 && "${cleanup_status}" -ne 0 ]]; then
+            status="${cleanup_status}"
+          fi
           exit "$status"
 
       - name: Capture the post-build cache and release evidence

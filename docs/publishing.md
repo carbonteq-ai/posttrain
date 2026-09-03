@@ -225,6 +225,13 @@ packing. This is intentionally redundant with local wheel testing: local tests
 prove the source, while the cold index-only install proves the published bytes
 and defeats stale runner cache state.
 
+After the real job reaches a terminal state, candidate cleanup is also a gate.
+The exact-worker purge may remain submitted briefly while dstack releases the
+worker. The workflow retries the same immutable cleanup request for up to three
+minutes and accepts the candidate only after cleanup evidence is terminal; it
+does not create parallel purge tasks or silently turn pending cleanup into a
+successful release.
+
 Do not dispatch until maintained-fork assets have immutable release hashes and
 their required server revisions are deployed. Private-CA validation, live
 service compatibility, registry readback, named hardware capacity and the real
