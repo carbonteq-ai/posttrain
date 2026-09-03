@@ -45,8 +45,8 @@ acceptable, and use an exact hostname only when qualification requires that
 specific machine.
 
 Production runs the matching CarbonTeq server, runner, and shim release from
-commit `ff60da0395f2b5832f99e50a8d1f4f6ebf3367c4` on branch
-`codex/registry-default-auth`. This selected release includes regional
+commit `85cab941fb4f8e243c7014c278ea01705f89651e` on the CarbonTeq `master`
+branch. This selected release includes regional
 failover, bounded retry budgets, and failed-region cooldowns and passed the
 immutable release, component, idle-worker rolling, and scheduler-cancellation
 gates.
@@ -59,15 +59,15 @@ tasks, including retry reuse, pre-start regional failover, and terminal
 cleanup. Runner diagnostics emit environment names only and never values.
 Live spot offers are also cross-checked against RunPod's authenticated
 per-data-center GPU stock before managed storage is created.
-Published successor `ff60da0395f2b5832f99e50a8d1f4f6ebf3367c4`
-contains the same maintained delta merged with current CarbonTeq `master` and
-one no-op Alembic merge revision joining the upstream gateway and CarbonTeq
-run-lifecycle migration branches. Its release deployment and runner Go checks
-remain gates before it replaces the deployed release.
+The release also preserves the current core offer-query contract when the
+RunPod backend supplies either adjusted or full offers. Production keeps Low
+stock eligible as a fallback after High and Medium because RunPod's Low signal
+means scarce rather than unavailable; provider create races still use bounded
+retry and failed-region cooldown.
 
-## Candidate fork
+## Maintained fork behavior
 
-The candidate fixes graceful task cancellation. Upstream resolves
+The fork fixes graceful task cancellation. Upstream resolves
 `stop_duration` but the installed and current upstream runner path gives the
 application about ten seconds before forced termination. This can kill the
 stable post-training runtime while it is finalizing Trackio state or a bounded
@@ -79,7 +79,7 @@ new task submissions and preserves a 300-second compatibility fallback for
 legacy stored jobs. The detailed maintained delta and validation commands are
 in `/home/hammad/projects/dstack/CARBONTEQ_FORK.md`.
 
-The same fork candidate also applies server-owned default registry credentials
+The same fork also applies server-owned default registry credentials
 to an already-qualified image hostname only when that hostname exactly equals
 the configured default registry and run-level auth is absent. This supports one
 digest-pinned canonical image across LAN and cloud placement without teaching
@@ -91,7 +91,7 @@ values. This is required for cloud operation because provider, registry, and
 tracking credentials can all be present in the job environment.
 
 RunPod pulls and unpacks the job image before its dstack runner becomes
-reachable. ai-infra configures the successor's optional
+reachable. ai-infra configures the release's optional
 `provisioning_timeout_seconds` for the actual-job canary and dstack persists the
 resolved value with the provider attempt. Omitting the setting preserves the
 upstream 20-minute RunPod default; it is not a task runtime limit and does not
@@ -100,7 +100,7 @@ change `max_duration`.
 If RunPod removes an interruptible Pod before runner connection, the adapter
 now treats provider absence as authoritative and fails that provisioning
 attempt immediately. A Pod that still exists without runtime port metadata
-continues waiting. Live qualification on the published candidate waited for
+continues waiting. Live qualification before promotion waited for
 R2 verification with zero Pods, then completed the actual CUDA image on an
 A100 in `EUR-IS-1`; the Pod and temporary registry objects were absent after
 cleanup.
@@ -120,7 +120,7 @@ deleted event or timestamp.
 
 The stock signal is admission evidence, not a capacity reservation. If provider
 allocation or volume creation still fails before any Pod has provisioned,
-the candidate deletes the still-empty volume and reuses its logical row in the
+the fork deletes the still-empty volume and reuses its logical row in the
 next eligible region. Any provisioning record or attachment closes
 that failover path permanently, so checkpoint-bearing storage never moves
 between regions. A failed region cools down for ten minutes; when every region
@@ -132,12 +132,10 @@ active, preventing an earlier region's failure from evicting a newly created
 replacement.
 
 The infrastructure pool must contain only regions that support RunPod network
-volumes. The backend additionally sets `minimum_stock_status: medium`, so Low
-rows are ineligible instead of serving as a fallback. Workloads retain their
-own GPU and price requirements. The current RTX PRO 6000 qualification pool
-includes the volume-proven Medium zones `EUR-IS-1` and `US-NC-2`, plus verified
-volume zones that become eligible only if they later report Medium-or-better
-stock. `EUR-IS-2` currently reports Medium GPU stock but is deliberately
+volumes. The backend sets `minimum_stock_status: low`, so Low rows remain an
+eligible last fallback after High and Medium. Workloads retain their own GPU
+and price requirements. The current pool contains only volume-proven zones.
+`EUR-IS-2` is deliberately
 excluded because a live volume-create probe returned RunPod's authoritative
 "does not support network volumes" error.
 
@@ -148,7 +146,7 @@ reconciliation; region and size must match. This makes a delayed provider
 result recoverable on the next cooldown visit instead of leaving an unowned
 random-suffix volume.
 
-The maintained retry successor stores compact per-event attempt counters and
+The maintained retry logic stores compact per-event attempt counters and
 the first event timestamp on the logical run, independent of pruned submission
 rows. Pending retries use the existing 15s, 30s, 1m, 2m, 5m, 10m exponential
 base schedule with stable per-run, per-attempt jitter of plus or minus 20
@@ -216,6 +214,9 @@ The release gate remains:
 - a normal framework `run reconcile` plus evidence-gated cleanup.
 
 Selected production commit:
-`ff60da0395f2b5832f99e50a8d1f4f6ebf3367c4`. The idle Pop!_OS worker passed
-the exact component and cancellation gates; the busy RTX PRO worker completes
-rolling shim convergence after its protected job finishes.
+`85cab941fb4f8e243c7014c278ea01705f89651e`. The immutable server image and
+runner/shim components were deployed together; the protected running job kept
+the same run, submission, hostname, and status through the rollout. The idle
+Pop!_OS worker passed exact-component and graceful-cancellation gates. A live
+read-only offer query then returned Low-stock A100 and RTX PRO 6000 offers from
+the configured network-volume-capable region pool without creating a Pod.
