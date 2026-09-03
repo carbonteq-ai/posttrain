@@ -840,6 +840,7 @@ def test_init_sft_template_writes_installable_project_and_valid_standard_job(
     settings = (project / ".posttrain" / "catalog" / "settings.yaml").read_text(encoding="utf-8")
     work_package = (project / ".posttrain" / "work_packages" / "sft.yaml").read_text(encoding="utf-8")
     assert '"posttrain[observatory,trackio,trl]' in pyproject
+    assert "[tool.uv]\nsystem-certs = true" in pyproject
     assert "carbonteq-ai/trackio.git" not in pyproject
     assert "carbonteq-trackio" not in pyproject
     assert "carbonteq-ai/trl.git" not in pyproject

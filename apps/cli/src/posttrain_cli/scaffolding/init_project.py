@@ -116,6 +116,9 @@ def starter_pyproject(project_id: str, template: str) -> str:
         "[tool.posttrain.pack]",
         'project_packages = ["."]',
         'source_includes = ["pyproject.toml", "src"]',
+        "",
+        "[tool.uv]",
+        "system-certs = true",
     ]
 
     workspace = workspace_root()
