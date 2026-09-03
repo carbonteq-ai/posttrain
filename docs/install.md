@@ -115,7 +115,7 @@ framework monorepo:
 ```bash
 git clone <carbonteq-project>
 cd <carbonteq-project>
-uv sync --locked --python 3.13
+uv sync --system-certs --locked --python 3.13
 uv run posttrain doctor
 uv run posttrain catalog validate
 uv run posttrain work-package validate <name>.yaml

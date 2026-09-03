@@ -62,6 +62,11 @@ store. The job image merges it with the authorities it already has, and a
 union assembled here would instead pin every job to whatever the machine that
 submitted it happened to trust.
 
+Starter projects persist `system-certs = true` in their `uv` configuration, so
+their initial and later dependency syncs use this machine trust store without
+requiring a shell environment variable. Certificate verification remains
+enabled; the project never embeds or copies the private CA.
+
 `posttrain doctor` reports which authority jobs will be given and warns if it
 reaches jobs but is missing from this machine's own store.
 

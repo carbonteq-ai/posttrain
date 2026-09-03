@@ -33,14 +33,22 @@ FRAMEWORK_PACKAGES = (
 
 
 def _run(*command: str, cwd: Path, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
+    completed = subprocess.run(
         command,
         cwd=cwd,
         env=env,
-        check=True,
+        check=False,
         text=True,
         capture_output=True,
     )
+    if completed.returncode != 0:
+        rendered = " ".join(command)
+        pytest.fail(
+            f"external command failed ({completed.returncode}): {rendered}\n"
+            f"stdout:\n{completed.stdout}\n"
+            f"stderr:\n{completed.stderr}"
+        )
+    return completed
 
 
 def _trackio_requirement() -> str:

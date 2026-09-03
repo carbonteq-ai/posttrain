@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       source_ref:
-        description: Internal release branch containing the candidate source
+        description: Protected codex/* release branch containing the candidate source
         required: true
         type: string
       qualification_profile:
@@ -44,28 +44,46 @@ env:
   JOB_REGISTRY: registry.lan/carbonteq
 
 jobs:
-  candidate:
-    environment: release-candidate
-    runs-on: [self-hosted, linux, x64, lan-release]
+  # Environment branch policies are evaluated before an environment-scoped job
+  # starts, so these checks must run in a separate unprotected job. Keep this
+  # job free of LAN credentials, private services, image builds, and GPUs.
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      quality_run_id: ${{ steps.source.outputs.quality_run_id }}
+      source_sha: ${{ steps.source.outputs.source_sha }}
+      version: ${{ steps.source.outputs.version }}
     steps:
-      - name: Checkout the approved internal release branch
+      - name: Checkout the requested release source
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ inputs.source_ref }}
           fetch-depth: 0
 
-      - name: Prepare release evidence directory
-        run: mkdir -p .release
-
-      - name: Reject stale, forked, or automatic sources
+      - name: Reject an ineligible or stale dispatch before protected work
+        id: source
         env:
           GH_TOKEN: ${{ github.token }}
           SOURCE_REF: ${{ inputs.source_ref }}
         run: |
           test "${GITHUB_REPOSITORY}" = carbonteq-ai/posttrain
+          test "${GITHUB_REF_TYPE}" = branch
+          test "${GITHUB_REF_NAME}" = "${SOURCE_REF}"
+          [[ "${SOURCE_REF}" = codex/* ]]
+          git check-ref-format --branch "${SOURCE_REF}"
           git fetch --no-tags origin main "refs/heads/${SOURCE_REF}:refs/remotes/origin/${SOURCE_REF}"
-          test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/remotes/origin/${SOURCE_REF}")"
           source_sha="$(git rev-parse HEAD)"
+          test "${source_sha}" = "$(git rev-parse "refs/remotes/origin/${SOURCE_REF}")"
+          git merge-base --is-ancestor origin/main "${source_sha}"
+
+          version="$(sed -n 's/^version = "\([^" ]*\)"$/\1/p' release/manifest.toml)"
+          test -n "${version}"
+          if git ls-remote --exit-code origin "refs/tags/v${version}" >/dev/null 2>&1 \
+            || gh release view "v${version}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "version ${version} already has an immutable GitHub release identity" >&2
+            exit 1
+          fi
+
           quality_conclusion=""
           quality_status=""
           for attempt in $(seq 1 120); do
@@ -83,7 +101,7 @@ jobs:
                   '[.[] | select(.headSha == $sha and (.event == "push" or .event == "pull_request" or .event == "workflow_dispatch"))] | sort_by(.createdAt) | last.databaseId // empty' \
                   <<<"${runs}")"
                 test -n "${quality_run_id}"
-                echo "QUALITY_RUN_ID=${quality_run_id}" >> "$GITHUB_ENV"
+                echo "quality_run_id=${quality_run_id}" >> "$GITHUB_OUTPUT"
                 break
                 ;;
               failure|cancelled|timed_out|action_required|startup_failure)
@@ -95,6 +113,34 @@ jobs:
             sleep 5
           done
           test "${quality_conclusion}" = success
+          echo "source_sha=${source_sha}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+  candidate:
+    needs: preflight
+    environment: release-candidate
+    runs-on: [self-hosted, linux, x64, lan-release]
+    env:
+      QUALITY_RUN_ID: ${{ needs.preflight.outputs.quality_run_id }}
+    steps:
+      - name: Checkout the approved internal release branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ inputs.source_ref }}
+          fetch-depth: 0
+
+      - name: Prepare release evidence directory
+        run: mkdir -p .release
+
+      - name: Confirm the protected checkout matches the accepted preflight
+        env:
+          SOURCE_REF: ${{ inputs.source_ref }}
+          SOURCE_SHA: ${{ needs.preflight.outputs.source_sha }}
+        run: |
+          test "${GITHUB_REPOSITORY}" = carbonteq-ai/posttrain
+          git fetch --no-tags origin main "refs/heads/${SOURCE_REF}:refs/remotes/origin/${SOURCE_REF}"
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/remotes/origin/${SOURCE_REF}")"
+          test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
 
       - name: Install locked release tooling
         run: |
@@ -127,6 +173,36 @@ jobs:
           fi
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "final development candidate=${version}"
+
+      - name: Reject occupied development versions before image work
+        if: inputs.retire_failed_candidate_run_id == ''
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          if curl --fail --silent --show-error --max-time 20 \
+            "${PYPI_DEV_PROJECT_SIMPLE}" \
+            | grep -Eq -- "posttrain-${version}(-py3-none-any[.]whl|[.]tar[.]gz)([<#])"; then
+            echo "development already contains ${version}; provide the failed candidate run for audited retirement or advance the version" >&2
+            exit 1
+          fi
+
+      - name: Verify qualification capacity before image publication
+        if: ${{ inputs.run_gpu_qualification }}
+        run: |
+          case "${{ inputs.qualification_profile }}" in
+            rtx-pro-96gb)
+              export POSTTRAIN_DSTACK_HOST=carbonteq-ai-workstation.lan
+              export POSTTRAIN_DSTACK_MIN_GPU_MEMORY_MIB=90112
+              ;;
+            rtx-3070ti-8gb)
+              export POSTTRAIN_DSTACK_HOST=pop-os.lan
+              export POSTTRAIN_DSTACK_MIN_GPU_MEMORY_MIB=8192
+              ;;
+            *)
+              echo "unsupported qualification profile: ${{ inputs.qualification_profile }}" >&2
+              exit 2
+              ;;
+          esac
+          scripts/release/verify-dstack-capacity .release/dstack-capacity-preflight.json
 
       - name: Capture the pre-build BuildKit cache
         run: buildctl --addr unix:///var/lib/github-runner/buildkit/buildkitd.sock du
@@ -397,8 +473,20 @@ jobs:
           fi
           .release/consumer-venv/bin/posttrain --project-root apps/lab run reconcile \
             "release-candidate-${{ github.run_id }}" || true
-          .release/consumer-venv/bin/posttrain --project-root apps/lab run cleanup \
-            "release-candidate-${{ github.run_id }}" || true
+          cleanup_status=1
+          for cleanup_attempt in $(seq 1 18); do
+            .release/consumer-venv/bin/posttrain --project-root apps/lab run cleanup \
+              "release-candidate-${{ github.run_id }}"
+            cleanup_status=$?
+            if [[ "${cleanup_status}" -eq 0 ]]; then
+              break
+            fi
+            echo "waiting for exact-worker cleanup evidence: attempt=${cleanup_attempt}/18" >&2
+            sleep 10
+          done
+          if [[ "${status}" -eq 0 && "${cleanup_status}" -ne 0 ]]; then
+            status="${cleanup_status}"
+          fi
           exit "$status"
 
       - name: Capture the post-build cache and release evidence
@@ -426,6 +514,7 @@ jobs:
             .release/published-manifest.diff
             .release/runtime-images-verify.json
             .release/dstack-capacity.json
+            .release/dstack-capacity-preflight.json
             .release/buildkit-cache-after.txt
             .release/failed-candidate-receipt.json
             .release/candidate-retirement-preflight.json

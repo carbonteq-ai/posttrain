@@ -4,6 +4,42 @@ All notable changes to Posttrain are documented here. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with a coordinated
 version across first-party distributions.
 
+## 0.3.26 - 2026-09-03
+
+This release makes the infrastructure-owned remote image builder a first-class
+machine setup option while keeping cloud and registry credentials out of
+developer environments.
+
+### Added
+
+- `posttrain machine init --job-builder-endpoint` writes the remote builder
+  service binding, its named credential reference, and a mode-0600 credential
+  placeholder in one idempotent machine initialization flow.
+- Starter projects persist `uv` system-certificate trust, so the initial and
+  later dependency syncs honor an organization CA installed in the operating
+  system store without requiring a shell environment variable.
+
+### Changed
+
+- The getting-started path now separates the developer's scoped Job Builder
+  token from infrastructure-owned OCI push, OCI pull, RunPod, and cloud object
+  storage credentials.
+- RunPod operations documentation records the deployed dstack release and
+  clarifies that Low stock means scarce capacity rather than no capacity.
+  Infrastructure still ranks High and Medium first and retains bounded retry
+  and failed-region cooldown.
+
+### Qualification
+
+- Focused and full CLI coverage validate the generated remote-builder binding,
+  credential reference, protected file mode, and compatibility with existing
+  machine initialization.
+- External-consumer failures now retain the failed command's stdout and stderr,
+  making certificate and maintained-fork resolution failures actionable.
+- The deployed dstack release remained healthy through rolling replacement and
+  returned live Low-stock A100 and RTX PRO 6000 offers without creating a paid
+  Pod.
+
 ## 0.3.25 - 2026-08-31
 
 This release makes digest-pinned Posttrain jobs portable between retained LAN
