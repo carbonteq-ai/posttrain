@@ -171,6 +171,16 @@ accepted release.
    final-version distributions, promotes them unchanged to stable, verifies
    readback, and creates the final tag last. It does not rebuild or requalify.
 
+The final tag always names the reviewed, CI-green merged `main` commit. The
+promotion receipt binds that commit to the exact qualified candidate SHA, tree,
+and artifact hashes. Never tag the pre-squash candidate commit: besides making
+the public source identity differ from the reviewed default branch, GitHub
+correctly rejects an Actions token that tries to expose an unmerged workflow
+revision through a tag. If stable promotion succeeded but tag creation failed,
+fix the release plumbing on `main` and rerun final publication with the same
+accepted `candidate_run_id`; stable readback is idempotent and must reuse the
+exact existing bytes without rebuilding or requalifying.
+
 GitHub Actions is the control plane: it records candidate and final commits,
 approvals, logs, receipts, prereleases, the final tag, and release assets. A
 repository-scoped self-hosted runner with the `lan-release` label is the

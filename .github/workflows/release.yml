@@ -60,6 +60,7 @@ jobs:
         if: inputs.resume_from_run_id != ''
         env:
           GH_TOKEN: ${{ github.token }}
+          MERGED_SHA: ${{ inputs.merged_sha }}
           RESUME_FROM_RUN_ID: ${{ inputs.resume_from_run_id }}
         run: |
           mkdir -p .release/resume
@@ -85,8 +86,8 @@ jobs:
           git merge-base --is-ancestor "${source_sha}" "$(git rev-parse origin/main)"
           test "$(git show "${source_sha}:release/manifest.toml" | sed -n 's/^version = "\([^"]*\)"$/\1/p')" = "${version}"
           echo "POSTTRAIN_RELEASE_VERSION=${version}" >> "$GITHUB_ENV"
-          echo "RELEASE_SOURCE_SHA=${source_sha}" >> "$GITHUB_ENV"
-          echo "RELEASE_TAG_SHA=${source_sha}" >> "$GITHUB_ENV"
+          echo "RELEASE_SOURCE_SHA=${MERGED_SHA}" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG_SHA=${MERGED_SHA}" >> "$GITHUB_ENV"
           echo "resuming immutable ${version} artifacts from ${source_sha}"
 
       - name: Verify the final source and lock
@@ -130,7 +131,6 @@ jobs:
             "repos/${GITHUB_REPOSITORY}/commits/${candidate_sha}" \
             --jq '.commit.tree.sha')"
           release_tree="$(git rev-parse "${RELEASE_SOURCE_SHA}^{tree}")"
-          release_tag_sha="${RELEASE_SOURCE_SHA}"
           # A candidate normally comes from the merged commit's ancestry. A
           # squash merge deliberately removes that ancestry, so accept the
           # candidate only when the merged tree is byte-for-byte identical.
@@ -168,7 +168,6 @@ jobs:
                 printf 'candidate build inputs changed:\\n%s\\n' "${unsafe_files}" >&2
                 exit 1
               fi
-              release_tag_sha="${candidate_sha}"
               echo "candidate build inputs are unchanged after ${candidate_sha}; only release plumbing differs"
             fi
           fi
@@ -216,7 +215,10 @@ jobs:
           cp "${candidate_checksums}" .release/release-SHA256SUMS
           echo "POSTTRAIN_RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
           echo "RELEASE_SOURCE_SHA=${RELEASE_SOURCE_SHA}" >> "$GITHUB_ENV"
-          echo "RELEASE_TAG_SHA=${release_tag_sha}" >> "$GITHUB_ENV"
+          # The tag names the reviewed, CI-green default-branch commit. The
+          # promotion receipt separately binds its released bytes to the exact
+          # qualified candidate source and tree.
+          echo "RELEASE_TAG_SHA=${RELEASE_SOURCE_SHA}" >> "$GITHUB_ENV"
           echo "CANDIDATE_SOURCE_SHA=${candidate_sha}" >> "$GITHUB_ENV"
           echo "CANDIDATE_SOURCE_TREE=${candidate_tree}" >> "$GITHUB_ENV"
 
