@@ -31,6 +31,7 @@ def initialize_machine(
     trackio_endpoint: str | None = None,
     python_index_url: str | None = None,
     job_registry: str | None = None,
+    job_builder_endpoint: str | None = None,
     dstack_project: str | None = None,
     dstack_python: Path | None = None,
 ) -> MachineInitialization:
@@ -65,6 +66,7 @@ def initialize_machine(
             "# PIP_INDEX_URL=https://USER:TOKEN@pypi.example/simple/\n"
         ),
         "dstack.env": "# DSTACK_TOKEN=\n",
+        "job-builder.env": "# POSTTRAIN_JOB_BUILDER_TOKEN=\n",
     }
     credential_files: list[Path] = []
     for filename, contents in credential_specs.items():
@@ -107,7 +109,7 @@ def initialize_machine(
                 'credentials = "trackio-default"',
             )
         )
-    if python_index_url is not None or job_registry is not None:
+    if python_index_url is not None or job_registry is not None or job_builder_endpoint is not None:
         lines.extend(("", "[services]"))
         if python_index_url is not None:
             lines.extend(
@@ -118,6 +120,18 @@ def initialize_machine(
             )
         if job_registry is not None:
             lines.append(f"job_registry = {json.dumps(job_registry)}")
+        if job_builder_endpoint is not None:
+            lines.extend(
+                (
+                    "",
+                    "[services.job_builder]",
+                    'mode = "remote"',
+                    f"endpoint = {json.dumps(job_builder_endpoint)}",
+                    'credentials = "job-builder-default"',
+                    "request_timeout_seconds = 900",
+                    "upload_concurrency = 4",
+                )
+            )
     lines.extend(("", "[huggingface]", 'credentials = "huggingface-default"'))
     lines.extend(
         (
@@ -152,6 +166,9 @@ def initialize_machine(
             "",
             "[credentials.dstack-default]",
             'file = "credentials/dstack.env"',
+            "",
+            "[credentials.job-builder-default]",
+            'file = "credentials/job-builder.env"',
             "",
         )
     )

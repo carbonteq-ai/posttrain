@@ -677,6 +677,8 @@ def test_machine_init_creates_shared_defaults_and_scoped_credentials(
                 "https://pypi.lan/simple/",
                 "--job-registry",
                 "registry.lan/posttrain",
+                "--job-builder-endpoint",
+                "https://ai-control.lan/job-builder",
                 "--dstack-project",
                 "main",
             ]
@@ -692,13 +694,21 @@ def test_machine_init_creates_shared_defaults_and_scoped_credentials(
     assert config.stat().st_mode & 0o077 == 0o044
     assert not (project / ".posttrain" / "state" / "execution.toml").exists()
     assert "TRACKIO_WRITE_TOKEN" not in config.read_text(encoding="utf-8")
-    for filename in ("trackio.env", "huggingface.env", "python-index.env", "dstack.env"):
+    for filename in (
+        "trackio.env",
+        "huggingface.env",
+        "python-index.env",
+        "dstack.env",
+        "job-builder.env",
+    ):
         assert (credentials / filename).stat().st_mode & 0o077 == 0
 
     assert main(["--json", "machine", "show"]) == 0
     shown = json.loads(capsys.readouterr().out)
     assert shown["name"] == "rtx-pro-96gb.lan"
     assert shown["credentials"]["dstack-default"].endswith("/credentials/dstack.env")
+    assert shown["services"]["job_builder"]["mode"] == "remote"
+    assert shown["services"]["job_builder"]["endpoint"] == "https://ai-control.lan/job-builder"
     assert "dstack-secret" not in json.dumps(shown)
 
     (credentials / "trackio.env").write_text("TRACKIO_WRITE_TOKEN=trackio-secret\n", encoding="utf-8")
@@ -708,6 +718,10 @@ def test_machine_init_creates_shared_defaults_and_scoped_credentials(
         encoding="utf-8",
     )
     (credentials / "dstack.env").write_text("DSTACK_TOKEN=dstack-secret\n", encoding="utf-8")
+    (credentials / "job-builder.env").write_text(
+        "POSTTRAIN_JOB_BUILDER_TOKEN=builder-secret\n",
+        encoding="utf-8",
+    )
 
     loaded = load_local_execution_config(load_project_layout(project))
     environment = load_execution_environment(loaded)
@@ -717,6 +731,7 @@ def test_machine_init_creates_shared_defaults_and_scoped_credentials(
     assert environment["UV_INDEX_USERNAME"] == "reader"
     assert environment["UV_INDEX_PASSWORD"] == "index-secret"
     assert environment["POSTTRAIN_REGISTRY"] == "registry.lan/posttrain"
+    assert environment["POSTTRAIN_JOB_BUILDER_TOKEN"] == "builder-secret"
     assert "DSTACK_TOKEN" not in environment
     assert loaded.dstack is not None
     assert loaded.dstack.environment_file == credentials / "dstack.env"
