@@ -19,6 +19,8 @@ from posttrain.eval import (
 from posttrain.execution import RuntimeImageRef
 from posttrain.execution_pack import (
     ImagePublicationSpec,
+    ImmutableSourceSnapshotter,
+    SourceSnapshotRequest,
     environment_bindings,
     plan_job_pack,
 )
@@ -283,6 +285,15 @@ def test_plan_derives_project_environment_tree_identity_without_git(tmp_path) ->
         publication=PUBLICATION,
         project_root=tmp_path,
     )
+    expected_package_digest = ImmutableSourceSnapshotter(
+        cache_root=(tmp_path / "unused-cache").resolve()
+    ).inspect(
+        SourceSnapshotRequest(
+            root=package.resolve(),
+            includes=(".",),
+            install_roots=(".",),
+        )
+    )
     (package / "toy.py").write_text("VALUE = 2\n", encoding="utf-8")
     second = plan_job_pack(
         prepared,
@@ -296,6 +307,7 @@ def test_plan_derives_project_environment_tree_identity_without_git(tmp_path) ->
 
     assert not first.spec.git_sources
     assert first.spec.project_environment_sources[0].path == "environments/toy_env"
+    assert first.spec.project_environment_sources[0].tree_digest == expected_package_digest
     assert first.plan_key != second.plan_key
 
 

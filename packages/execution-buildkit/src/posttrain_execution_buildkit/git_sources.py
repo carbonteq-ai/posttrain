@@ -284,7 +284,12 @@ def _tree_digest(root: Path) -> str:
     visit(root, PurePosixPath("."))
     if not entries:
         raise ContractError("Git source tree cannot be empty")
-    return hashlib.sha256(json.dumps(entries, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    # Match execution-pack's canonical source-tree identity. Planning and
+    # building live in separate packages so neither side may use a different
+    # JSON envelope for the same file tree.
+    return hashlib.sha256(
+        json.dumps({"entries": entries}, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
 
 
 def _file_digest(path: Path) -> str:
