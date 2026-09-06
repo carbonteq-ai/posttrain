@@ -1,0 +1,18 @@
+{
+  "schema": "posttrain.trl-retained-fork-lifecycle.v1",
+  "trl": "1.12.0.post2",
+  "torch": "2.11.0+cu130",
+  "transformers": "5.14.1",
+  "device": "NVIDIA GeForce RTX 3070 Ti",
+  "model": "trl-internal-testing/tiny-Qwen2ForCausalLM-2.5",
+  "model_revision": "4b10ebee6e13a2669155516652960f50984399fd",
+  "optimizer_updates": 2,
+  "gradient_accumulation_steps": 2,
+  "gradient_norms": [
+    0.0006211530417203903,
+    0.0007489965646527708
+  ],
+  "checkpoint_resume_matches_uninterrupted": true,
+  "export_generated_tokens": 4,
+  "scope": "tiny-fixture native CUDA IW-OPD; excludes vLLM, LoRA, veRL and quality qualification"
+}

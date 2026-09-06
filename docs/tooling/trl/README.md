@@ -2,9 +2,9 @@
 
 ## Stable-base upgrade candidate (2026-09-06)
 
-Candidate `1.12.0.post1` integrates upstream v1.12.0 and retained fork features
-at `6a5532e2f51e4e1cdc8a891582514a50f68a775a`. Immutable tag:
-`carbonteq-v1.12.0.post1`. The release and its hashes are recorded in
+Candidate `1.12.0.post2` integrates upstream v1.12.0 and retained fork features
+at `95a787b6c04f91a5d485fd827d31b1e1fb67ae8e`. Immutable tag:
+`carbonteq-v1.12.0.post2`. The release and its hashes are recorded in
 `packages/train/pyproject.toml`. Validation: 140 focused source checks,
 45 installed-wheel tests, and 26 framework adapter checks passed. Liger now
 requires >=0.8.2; use the upstream full-window normalization once. The framework
@@ -15,8 +15,25 @@ and rollout waves, LoRA sync, and chunked projection remain in the fork.
 This branch is for development-channel runtime qualification, not a stable
 promotion. Do not merge its pins until the built images pass real optimizer,
 rollout weight-sync, checkpoint/resume, and exported-inference gates. Candidate
-publication is Posttrain Actions run `34006220244`. Existing historical
+publication is Posttrain Actions run `34007394648`. Existing historical
 qualification below does not certify this new artifact.
+
+Post2 repairs the checkpoint dataloader recovery failure found on CUDA in
+post1: repetition now lives in the sampler/stream before Accelerate prepares
+the loader. Twelve map/streaming skip regressions cover accumulation 1/2/3 and
+one/two completions. The installed post2 wheel passes native CUDA IW-OPD with
+two nonzero-gradient updates, matching resumed/uninterrupted weights, and
+export/reload/generation at accumulation 1 and 2. Receipts are under
+`docs/tooling/trl/evidence/2026-09-06/`; this tiny-fixture gate excludes vLLM,
+LoRA, veRL, and model quality. Reproduce with the candidate Python:
+
+```bash
+python scripts/qualification/trl_retained_fork_lifecycle.py --output /tmp/trl-cuda-new
+python scripts/qualification/trl_retained_fork_lifecycle.py --output /tmp/trl-cuda-ga2-new --gradient-accumulation-steps 2
+```
+
+Output directories must not already exist. Keep failed runs for diagnosis;
+retry with a new output directory. Do not overwrite retained release assets.
 
 TRL is the execution library behind `packages/train`.
 
@@ -27,7 +44,7 @@ semantics, and instrumentation hooks belong to the `train` package boundary.
 The lab's injected observation context maps those hooks to Trackio. Datasets,
 rewards, and Verifiers environment implementations remain independently owned.
 
-The current framework selection resolves `trl==1.9.2.post11` from
+The previous stable framework selection resolved `trl==1.9.2.post11` from
 `carbonteq/stable`,
 built from `carbonteq-ai/trl` commit
 `69cf80a7319079ec5523841553467e119ebc1cec`. Its prerelease tag,

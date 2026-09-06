@@ -14,10 +14,10 @@ env:
   CARBONTEQ_TRACKIO_WHEEL_URL: https://github.com/carbonteq-ai/trackio/releases/download/carbonteq-v0.31.5.post14.dev19/carbonteq_trackio-0.31.5.post14.dev19-py3-none-any.whl
   CARBONTEQ_TRACKIO_WHEEL_SHA256: e92436100adc657993f7fc1e51008a4c5f6a63786c97afb2899962c872c8d5ea
   CARBONTEQ_TRACKIO_WHEEL_PATH: /tmp/carbonteq_trackio-0.31.5.post14.dev19-py3-none-any.whl
-  CARBONTEQ_TRL_WHEEL_URL: https://github.com/carbonteq-ai/trl/releases/download/carbonteq-v1.12.0.post1/trl-1.12.0.post1-py3-none-any.whl
-  CARBONTEQ_TRL_WHEEL_SHA256: cf242fafdfe476b7b8a250b300d6cbd52f502410a4053f4a9bac3366287727c5
-  CARBONTEQ_TRL_WHEEL_PATH: /tmp/trl-1.12.0.post1-py3-none-any.whl
-  POSTTRAIN_CONSUMER_EXTRA_WHEELS: /tmp/carbonteq_trackio-0.31.5.post14.dev19-py3-none-any.whl:/tmp/trl-1.12.0.post1-py3-none-any.whl
+  CARBONTEQ_TRL_WHEEL_URL: https://github.com/carbonteq-ai/trl/releases/download/carbonteq-v1.12.0.post2/trl-1.12.0.post2-py3-none-any.whl
+  CARBONTEQ_TRL_WHEEL_SHA256: 8b19cd7fad5a28cf9ced4a7fac93bfaaedaac154faf019a3d3dd6abeaaa45c26
+  CARBONTEQ_TRL_WHEEL_PATH: /tmp/trl-1.12.0.post2-py3-none-any.whl
+  POSTTRAIN_CONSUMER_EXTRA_WHEELS: /tmp/carbonteq_trackio-0.31.5.post14.dev19-py3-none-any.whl:/tmp/trl-1.12.0.post2-py3-none-any.whl
 
 jobs:
   quality:

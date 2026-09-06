@@ -785,7 +785,7 @@ def test_fork_ledger_cross_checks_direct_runtime_environment_and_service_boundar
     entries = {entry.id: entry for entry in load_fork_ledger(repository_root)}
 
     assert entries["carbonteq-trackio"].version == "0.31.5.post14.dev19"
-    assert entries["trl"].revision == "6a5532e2f51e4e1cdc8a891582514a50f68a775a"
+    assert entries["trl"].revision == "95a787b6c04f91a5d485fd827d31b1e1fb67ae8e"
     assert entries["verl"].release_tag == "carbonteq-v0.9.0.post1"
     assert entries["vllm"].artifacts["source_archive_sha256"] == (
         "8d4736461fbc3bf72075b4d84417208b3c5fc9ffc6f48bf26cbe9ef955cf307b"
