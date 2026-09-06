@@ -14,19 +14,19 @@ control_environment_lock_path = "locks/runtime.control.requirements.txt"
 backend_environment_lock_path = "locks/runtime.backend.requirements.txt"
 backend_dependency_lock_path = "/opt/posttrain-verl/release/uv.lock"
 source_repository = "https://github.com/carbonteq-ai/verl.git"
-upstream_revision = "a35908ca3c9632859c58d6a2855d858918ae21dc"
+upstream_revision = "483b8a009ba3a97563edee3a19887e4862b8094a"
 
 # The fork commit and dependency-only Python 3.13.12 lock are immutable. Real
 # kind smokes and bounded GPU qualifications completed on the maintained
 # runtime, including two-step distillation run
 # verl-distill-shared-pool-retentionfix-20260730 on the 96 GB worker. The
 # 2026-07-30 release decision promotes this profile into the publication graph.
-fork_revision = "808923d487aa2c524fda02cf5289110541b4221f"
-release_tag = "carbonteq-v0.9.0.dev2"
-release_wheel_sha256 = "eb93aed8b3d7e3ba760c4c13a7b7c2b18aa6e51d210ec4f22c74e21a71de8eb5"
-release_sdist_sha256 = "894461b63309cb2057d591e806346be6fea5a5bb00e140d7270498b4fdfe595f"
-dependency_lock_sha256 = "19f96d07e64c3664b4c09d41db9b98142aa3ec3d0bdbfa3179012dd0d7d2f2ed"
-backend_constraints_sha256 = "688cc6f99ad98b6279421a6d98d25c7a37cef5dc1a38aaeba78fc0b425b69d0e"
+fork_revision = "cec7e74c361bb973b641db8dfbb75a5544c33139"
+release_tag = "carbonteq-v0.9.0.post1"
+release_wheel_sha256 = "3d66ac6b78848ef591dd6e4be4d324fcac12c27247a05ad1c14dcf9fb370256e"
+release_sdist_sha256 = "6da77c10e5d37399c655b15e3ed78d520be2ca648ed763d43ccb7404dfe53d72"
+dependency_lock_sha256 = "248fdc44d80b3db6cf02dd1f6d52855d062c7a3f9c8145fe655117095b126e6a"
+backend_constraints_sha256 = "622a1f3057293c9d9a3948fd54a69573ae6fa86070055e239cbd1aa7bbbc94c4"
 [dependencies]
 torch = "2.11.0+cu130"
 transformers = "5.14.1"

@@ -1,5 +1,22 @@
 # veRL training backend
 
+## Stable-base upgrade candidate (2026-09-06)
+
+Candidate `0.9.0.post1` integrates stable upstream v0.9.0 at
+`cec7e74c361bb973b641db8dfbb75a5544c33139`, tag `carbonteq-v0.9.0.post1`.
+The release hashes and new dependency-lock/constraint digests are in
+`packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/verl-py313/profile.toml`.
+Validation: 151 focused CPU source tests and 63 installed-wheel tests passed.
+SAMPO/V1 transport, bounded refill, dense teacher alignment, repaired position
+IDs, QLoRA and speculative counters remain. Equivalent upstream REINFORCE++
+and PRIME fixes replace their maintained implementations.
+
+This is a development-channel runtime candidate, not stable promotion.
+Posttrain Actions `34006221953` publishes retained bytes to dev. CPU tests used
+Ray 2.49.2; the built runtime retains 2.56.1 and needs its own model/optimizer,
+checkpoint/reload, and weight-sync gates. Historical qualification below does
+not certify the upgraded runtime.
+
 The framework exposes veRL as the general versioned training backend product
 `verl@<version-or-revision>`. The public operation names and requests remain
 `train.grpo` / `GRPORequest` and `train.distill` /

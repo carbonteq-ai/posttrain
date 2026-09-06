@@ -158,6 +158,7 @@ def test_trl_sampo_selects_sequence_clipping_and_precomputed_advantages(tmp_path
     arguments = _online_rl_arguments(request, tmp_path, {})
 
     assert arguments["loss_type"] == "grpo"
+    assert arguments["use_bias_correction_kl"] is False
     assert arguments["importance_sampling_level"] == "sequence"
     assert arguments["use_precomputed_advantages"] is True
     assert arguments["dynamic_sampling"] is True

@@ -347,7 +347,7 @@ wheels = [
 [[package]]
 name = "carbonteq-trackio"
 version = "0.31.5.post14.dev19"
-source = { registry = "https://pypi.lan/carbonteq/stable/+simple/" }
+source = { registry = "https://pypi.lan/carbonteq/dev/+simple/" }
 dependencies = [
     { name = "boto3" },
     { name = "brotli" },
@@ -362,9 +362,9 @@ dependencies = [
     { name = "starlette" },
     { name = "uvicorn", extra = ["standard"] },
 ]
-sdist = { url = "https://pypi.lan/carbonteq/stable/+f/b31/0e9ed1220ce13/carbonteq_trackio-0.31.5.post14.dev19.tar.gz", hash = "sha256:b310e9ed1220ce1327229bf8370b90efb6cbee578c42866435cb8c10c7c99501" }
+sdist = { url = "https://pypi.lan/carbonteq/dev/+f/b31/0e9ed1220ce13/carbonteq_trackio-0.31.5.post14.dev19.tar.gz", hash = "sha256:b310e9ed1220ce1327229bf8370b90efb6cbee578c42866435cb8c10c7c99501" }
 wheels = [
-    { url = "https://pypi.lan/carbonteq/stable/+f/e92/436100adc6579/carbonteq_trackio-0.31.5.post14.dev19-py3-none-any.whl", hash = "sha256:e92436100adc657993f7fc1e51008a4c5f6a63786c97afb2899962c872c8d5ea" },
+    { url = "https://pypi.lan/carbonteq/dev/+f/e92/436100adc6579/carbonteq_trackio-0.31.5.post14.dev19-py3-none-any.whl", hash = "sha256:e92436100adc657993f7fc1e51008a4c5f6a63786c97afb2899962c872c8d5ea" },
 ]
 
 [[package]]
@@ -1359,15 +1359,15 @@ wheels = [
 
 [[package]]
 name = "liger-kernel"
-version = "0.8.0"
+version = "0.8.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "torch" },
     { name = "triton" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/41/d6/85f032b40fc30c969e817f9f3527f987b508171b46d9958befd0868855fd/liger_kernel-0.8.0.tar.gz", hash = "sha256:f98b94faf018814a0757e7b72bb8ebaaf12a78782cd09b157732acca2791e72c", size = 3989670, upload-time = "2026-04-30T23:02:15.183Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ff/a5/27575f85fd91cb92a0d72b4c37daa79021334926b5c4624f7ce9fa15e6ae/liger_kernel-0.8.2.tar.gz", hash = "sha256:387673ed6bf64fc8150cc8315fed578d2fc717ec3450f53489f480880223c1b8", size = 6136426, upload-time = "2026-08-18T20:54:30.62Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7c/6b/eb29b56f128a819e2cded552e293212c57daa949481206b82490b207deac/liger_kernel-0.8.0-py3-none-any.whl", hash = "sha256:e1f03eeb4ba6a6a413d585dacf92c4c15d164bab5844fa4ead2fede6bcac469c", size = 403120, upload-time = "2026-04-30T23:02:13.443Z" },
+    { url = "https://files.pythonhosted.org/packages/e2/b3/a66f1d9143697784ad2c2abf665b02c47aa17857232ed72224588186103c/liger_kernel-0.8.2-py3-none-any.whl", hash = "sha256:84c0a7bc9bf4d4cf8ea5ba89ff84d28686afc94215b220851d9f57dc87852741", size = 644266, upload-time = "2026-08-18T20:54:28.728Z" },
 ]
 
 [[package]]
@@ -3018,7 +3018,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "carbonteq-trackio", specifier = "==0.31.5.post14.dev19", index = "https://pypi.lan/carbonteq/stable/+simple/" },
+    { name = "carbonteq-trackio", specifier = "==0.31.5.post14.dev19", index = "https://pypi.lan/carbonteq/dev/+simple/" },
     { name = "posttrain-common", editable = "packages/common" },
     { name = "posttrain-tracking", editable = "packages/tracking" },
 ]
@@ -3088,7 +3088,7 @@ requires-dist = [
     { name = "datasets", marker = "extra == 'trl'", specifier = ">=4.6.1,<4.7" },
     { name = "httpx", specifier = ">=0.28,<0.29" },
     { name = "huggingface-hub", marker = "extra == 'trl'", specifier = ">=1.24,<1.25" },
-    { name = "liger-kernel", marker = "extra == 'trl'", specifier = ">=0.8,<0.9" },
+    { name = "liger-kernel", marker = "extra == 'trl'", specifier = ">=0.8.2,<0.9" },
     { name = "nvidia-cuda-cccl", marker = "sys_platform == 'linux' and extra == 'trl-vllm'", specifier = "==13.0.85" },
     { name = "nvidia-cuda-crt", marker = "sys_platform == 'linux' and extra == 'trl-vllm'", specifier = "==13.0.88" },
     { name = "nvidia-cuda-nvcc", marker = "sys_platform == 'linux' and extra == 'trl-vllm'", specifier = "==13.0.88" },
@@ -3104,7 +3104,7 @@ requires-dist = [
     { name = "torch", marker = "extra == 'trl'", specifier = ">=2.11,<2.12", index = "https://download.pytorch.org/whl/cu130" },
     { name = "torchvision", marker = "extra == 'trl'", specifier = ">=0.26,<0.27", index = "https://download.pytorch.org/whl/cu130" },
     { name = "transformers", marker = "extra == 'trl'", specifier = ">=5.14,<5.15" },
-    { name = "trl", marker = "extra == 'trl'", specifier = "==1.9.2.post11", index = "https://pypi.lan/carbonteq/stable/+simple/" },
+    { name = "trl", marker = "extra == 'trl'", specifier = "==1.12.0.post1", index = "https://pypi.lan/carbonteq/dev/+simple/" },
     { name = "verifiers", marker = "extra == 'verifiers'", git = "https://github.com/PrimeIntellect-ai/verifiers.git?rev=284a868d6a9022109b749710672a0460e8a996d4" },
     { name = "vllm", marker = "extra == 'trl-vllm'", specifier = "==0.25.1" },
 ]
@@ -4465,8 +4465,8 @@ wheels = [
 
 [[package]]
 name = "trl"
-version = "1.9.2.post11"
-source = { registry = "https://pypi.lan/carbonteq/stable/+simple/" }
+version = "1.12.0.post1"
+source = { registry = "https://pypi.lan/carbonteq/dev/+simple/" }
 dependencies = [
     { name = "accelerate" },
     { name = "datasets" },
@@ -4474,9 +4474,9 @@ dependencies = [
     { name = "packaging" },
     { name = "transformers" },
 ]
-sdist = { url = "https://pypi.lan/carbonteq/stable/+f/a48/df92892129243/trl-1.9.2.post11.tar.gz", hash = "sha256:a48df92892129243b80f87b3c6a46ea4bdb8ad8f6cebc18be09f6fdbbfe4fd2a" }
+sdist = { url = "https://pypi.lan/carbonteq/dev/+f/1e7/bae5ee846972b/trl-1.12.0.post1.tar.gz", hash = "sha256:1e7bae5ee846972be7763e66dbd0b1149d99fb44c51125e2499adf4773d2e127" }
 wheels = [
-    { url = "https://pypi.lan/carbonteq/stable/+f/ae9/5f7787936f7e9/trl-1.9.2.post11-py3-none-any.whl", hash = "sha256:ae95f7787936f7e944766611c5545048b7710bf34e7404bb1e1a027698aa604a" },
+    { url = "https://pypi.lan/carbonteq/dev/+f/cf2/42fafdfe476b7/trl-1.12.0.post1-py3-none-any.whl", hash = "sha256:cf242fafdfe476b7b8a250b300d6cbd52f502410a4053f4a9bac3366287727c5" },
 ]
 
 [[package]]

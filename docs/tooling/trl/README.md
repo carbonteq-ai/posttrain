@@ -1,5 +1,23 @@
 # TRL
 
+## Stable-base upgrade candidate (2026-09-06)
+
+Candidate `1.12.0.post1` integrates upstream v1.12.0 and retained fork features
+at `6a5532e2f51e4e1cdc8a891582514a50f68a775a`. Immutable tag:
+`carbonteq-v1.12.0.post1`. The release and its hashes are recorded in
+`packages/train/pyproject.toml`. Validation: 140 focused source checks,
+45 installed-wheel tests, and 26 framework adapter checks passed. Liger now
+requires >=0.8.2; use the upstream full-window normalization once. The framework
+explicitly retains its existing sampled-k3 KL gradient across the upstream
+default change. Raw policy parity, exact-token IW-OPD, bounded active sampling
+and rollout waves, LoRA sync, and chunked projection remain in the fork.
+
+This branch is for development-channel runtime qualification, not a stable
+promotion. Do not merge its pins until the built images pass real optimizer,
+rollout weight-sync, checkpoint/resume, and exported-inference gates. Candidate
+publication is Posttrain Actions run `34006220244`. Existing historical
+qualification below does not certify this new artifact.
+
 TRL is the execution library behind `packages/train`.
 
 The rebuilt `train` package will expose reusable SFT, DPO, and RL operations.

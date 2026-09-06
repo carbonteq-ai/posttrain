@@ -568,6 +568,9 @@ def _online_rl_arguments(
             "max_completion_length": request.settings.max_completion_length,
             "chat_template_kwargs": template_kwargs,
             "beta": request.settings.beta,
+            # Preserve the framework's sampled-k3 KL gradient across the
+            # upstream default change; corrected KL is a distinct objective.
+            "use_bias_correction_kl": False,
             "loss_type": loss_type,
             "epsilon": request.settings.clip_epsilon_low,
             "epsilon_high": epsilon_high,
