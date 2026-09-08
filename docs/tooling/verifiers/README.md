@@ -23,7 +23,8 @@ cannot inject the already-loaded policy; runtime-image publication and the
 corrected cloud retry remain open.
 
 The canonical fork checkout also contains local synchronization candidate
-`2f4ad241` on `codex/carbonteq-verifiers-latest`, merging upstream main
+`36eac9d5e04ef29b584b6fa4f027af00cd76ea19` on
+`codex/carbonteq-verifiers-latest`, merging upstream main
 `27bbd216df0af719a43705866b2cf6139bcc95de`. Its complete v1 suite passes, with
 only credential-dependent Prime cases skipped. This candidate is deliberately
 not called selected or published: the immutable workspace pin remains
