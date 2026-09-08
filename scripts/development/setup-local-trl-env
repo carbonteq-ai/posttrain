@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  echo "usage: $0 TRL_CHECKOUT" >&2
+  exit 2
+}
+
+[[ $# -eq 1 ]] || usage
+repository_root="$(git rev-parse --show-toplevel)"
+trl_checkout="$(cd "$1" && pwd)"
+
+[[ -f "${trl_checkout}/pyproject.toml" && -d "${trl_checkout}/trl" ]] || {
+  echo "TRL_CHECKOUT must be a TRL repository root: ${trl_checkout}" >&2
+  exit 1
+}
+
+cd "$repository_root"
+
+# The lock remains the baseline dependency closure. The final editable install
+# replaces only TRL itself and resolves no dependencies, so candidate work
+# cannot silently perturb Torch, vLLM, Transformers, or the framework lock.
+uv sync \
+  --package posttrain-train \
+  --extra trl \
+  --extra trl-vllm \
+  --group dev \
+  --frozen \
+  --python 3.13
+uv pip install \
+  --python "${repository_root}/.venv/bin/python" \
+  --no-deps \
+  --editable "$trl_checkout"
+
+"${repository_root}/.venv/bin/python" - "$repository_root" "$trl_checkout" <<'PY'
+import sys
+from pathlib import Path
+
+import posttrain.train
+import trl
+
+repository_root = Path(sys.argv[1]).resolve()
+trl_checkout = Path(sys.argv[2]).resolve()
+posttrain_source = Path(posttrain.train.__file__).resolve()
+trl_source = Path(trl.__file__).resolve()
+if not posttrain_source.is_relative_to(repository_root):
+    raise SystemExit(f"Posttrain did not resolve from this worktree: {posttrain_source}")
+if not trl_source.is_relative_to(trl_checkout):
+    raise SystemExit(f"TRL did not resolve from the candidate checkout: {trl_source}")
+print(f"Posttrain source: {posttrain_source}")
+print(f"TRL source: {trl_source}")
+print(f"TRL version: {trl.__version__}")
+PY

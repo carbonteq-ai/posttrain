@@ -1,5 +1,18 @@
 # Continuous rollout workers and native asynchronous training integration
 
+Revision 25 — 2026-09-09. Fast source qualification now uses a dedicated
+Posttrain worktree and a worktree-local Python environment. The setup command
+first installs the repository's frozen TRL/vLLM dependency closure, then
+replaces only TRL with a `--no-deps` editable checkout. Imports are checked to
+prove Posttrain resolves from that worktree and TRL resolves from the selected
+fork. This is the inner development loop for CPU tests and local GPU harnesses;
+it does not change `uv.lock`, package pins, or release evidence. The local
+actual-job capsule remains the outer qualification gate. In the first setup,
+34 Posttrain async integration tests and 20 selected native TRL lifecycle,
+admission, and failure tests passed. Re-running `uv sync` restores the released
+TRL wheel, so use `scripts/development/setup-local-trl-env TRL_CHECKOUT` to
+refresh the environment and reapply the source overlay deterministically.
+
 Revision 24 — 2026-09-09. The local executor is now the development
 qualification path for candidate backend work. It packs a selected TRL or veRL
 checkout as a bounded, content-addressed source snapshot into the existing
