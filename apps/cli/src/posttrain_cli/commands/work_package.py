@@ -191,6 +191,7 @@ def pack_work_package_cmd(
     framework_wheelhouse: Path | None = None,
     allow_deferred_qualification: bool = False,
     builder: str | None = None,
+    backend_source: Path | None = None,
 ) -> PackedJobPackage | LocalPackedJobPackage:
     """Pack one job to an immutable registry image or local OCI layout."""
 
@@ -198,6 +199,8 @@ def pack_work_package_cmd(
         raise ContractError("--local-output requires --local")
     if local and builder == "remote":
         raise ContractError("--builder remote cannot be combined with --local")
+    if backend_source is not None and not local:
+        raise ContractError("--backend-source requires --local; development backend capsules are never published")
 
     _layout, catalog, _resolved_path, package = load_work_package_bundle(state, path)
     job = resolve_job_id(catalog, package, job)
@@ -214,6 +217,7 @@ def pack_work_package_cmd(
         local_publication=local,
         framework_wheelhouse=framework_wheelhouse,
         builder=builder,
+        backend_source=backend_source,
     )
     _require_verified_kind_image(planned, build_missing=build_missing)
     if local:
