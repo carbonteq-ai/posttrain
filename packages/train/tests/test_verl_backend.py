@@ -74,6 +74,7 @@ from posttrain.train.backends.verl.worker import (
     _write_dataset,
     build_hydra_overrides,
 )
+from posttrain.train.online_rl import BehaviorPolicySpan
 from pydantic import ValidationError
 
 
@@ -266,10 +267,16 @@ def test_verl_policy_generator_preserves_complete_sampling_policy(monkeypatch: p
     class ServerManager:
         def __init__(self) -> None:
             self.request: dict[str, object] | None = None
+            self.spans = iter(((3, 3), (3, 4), (4, 5)))
 
         async def generate(self, **kwargs):
             self.request = kwargs
-            return SimpleNamespace(token_ids=(3, 4), log_probs=(-0.1, -0.2))
+            start, end = next(self.spans)
+            return SimpleNamespace(
+                token_ids=(3, 4),
+                log_probs=(-0.1, -0.2),
+                extra_fields={"min_global_steps": start, "max_global_steps": end},
+            )
 
     agent_loop = importlib.import_module(module_name)
     server = ServerManager()
@@ -296,6 +303,8 @@ def test_verl_policy_generator_preserves_complete_sampling_policy(monkeypatch: p
     )
 
     assert result.completion_ids == (3, 4)
+    assert result.behavior_policy == BehaviorPolicySpan(3, 3)
+    assert generator.behavior_policy == BehaviorPolicySpan(3, 3)
     assert server.request is not None
     assert server.request["sampling_params"] == {
         "max_tokens": 32,
@@ -342,6 +351,7 @@ def test_verl_policy_generator_preserves_complete_sampling_policy(monkeypatch: p
         "presence_penalty": 1.5,
         "logprobs": True,
     }
+    assert generator.behavior_policy == BehaviorPolicySpan(3, 5)
     generator.set_sampling_overrides({"max_tokens": 33})
     with pytest.raises(ValueError, match="exceeds the environment output limit"):
         asyncio.run(generator.generate(PolicyTurnRequest(messages=({"role": "user", "content": "hello"},), sampling=sampling)))

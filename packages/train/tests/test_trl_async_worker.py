@@ -29,6 +29,12 @@ class OrderedProducer:
                 await asyncio.sleep(1)
         return (sample(call, target_policy_version),)
 
+    async def prepare_model_update(self, model_version):
+        pass
+
+    async def activate_model_version(self, model_version):
+        pass
+
     async def aclose(self):
         self.closed = True
 
@@ -59,6 +65,12 @@ class FailingProducer:
     async def produce_group(self, target_policy_version):
         del target_policy_version
         raise ValueError("broken environment source")
+
+    async def prepare_model_update(self, model_version):
+        pass
+
+    async def activate_model_version(self, model_version):
+        pass
 
     async def aclose(self):
         pass
@@ -101,6 +113,12 @@ class FullQueueProducer:
     async def produce_group(self, target_policy_version):
         return (sample(1, target_policy_version), sample(1, target_policy_version))
 
+    async def prepare_model_update(self, model_version):
+        pass
+
+    async def activate_model_version(self, model_version):
+        pass
+
     async def aclose(self):
         self.closed = True
 
@@ -119,3 +137,59 @@ def test_shutdown_remains_responsive_when_native_queue_is_full():
     worker.stop()
 
     assert producer.closed
+
+
+class UpdateGateProducer:
+    def __init__(self):
+        self.calls = 0
+        self.first_started = threading.Event()
+        self.release_first = threading.Event()
+        self.second_started = threading.Event()
+        self.lifecycle = []
+
+    async def produce_group(self, target_policy_version):
+        self.calls += 1
+        call = self.calls
+        if call == 1:
+            self.first_started.set()
+            while not self.release_first.is_set():
+                await asyncio.sleep(0.01)
+        elif call == 2:
+            self.second_started.set()
+        else:
+            while True:
+                await asyncio.sleep(1)
+        return (sample(call, target_policy_version),)
+
+    async def prepare_model_update(self, model_version):
+        self.lifecycle.append(("prepare", model_version))
+
+    async def activate_model_version(self, model_version):
+        self.lifecycle.append(("activate", model_version))
+
+    async def aclose(self):
+        pass
+
+
+def test_weight_update_gates_new_groups_until_version_activation():
+    producer = UpdateGateProducer()
+    worker = TrlAsyncRolloutWorker(
+        producer, initial_model_version=1, max_inflight_groups=1, queue_maxsize=2, shutdown_timeout_s=2
+    )
+    worker.start()
+    try:
+        assert producer.first_started.wait(timeout=1)
+        worker.prepare_model_update(2)
+        producer.release_first.set()
+        first = worker.rollout_buffer.get(timeout=1)
+        assert first.model_version == 1
+        assert not producer.second_started.wait(timeout=0.1)
+
+        worker.update_model_version(2)
+        assert producer.second_started.wait(timeout=1)
+        second = worker.rollout_buffer.get(timeout=1)
+        assert second.model_version == 2
+    finally:
+        worker.stop()
+
+    assert producer.lifecycle == [("prepare", 2), ("activate", 2)]

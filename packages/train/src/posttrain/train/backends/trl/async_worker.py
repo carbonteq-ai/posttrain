@@ -15,6 +15,10 @@ class AsyncGroupProducer(Protocol):
 
     async def produce_group(self, target_policy_version: int) -> Sequence[Any]: ...
 
+    async def prepare_model_update(self, model_version: int) -> None: ...
+
+    async def activate_model_version(self, model_version: int) -> None: ...
+
     async def aclose(self) -> None: ...
 
 
@@ -53,7 +57,9 @@ class TrlAsyncRolloutWorker:
         self._thread: threading.Thread | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._stop_event: asyncio.Event | None = None
+        self._admission_open: asyncio.Event | None = None
         self._ready = threading.Event()
+        self._initialized = False
         self._failure: BaseException | None = None
         self._last_progress = time.monotonic()
 
@@ -62,6 +68,7 @@ class TrlAsyncRolloutWorker:
             if self._thread is not None:
                 raise RuntimeError("async rollout worker is already started")
             self._failure = None
+            self._initialized = False
             self._last_progress = time.monotonic()
             self._ready.clear()
             thread = threading.Thread(target=self._thread_main, name="posttrain-async-rollouts", daemon=True)
@@ -71,7 +78,8 @@ class TrlAsyncRolloutWorker:
             raise RuntimeError("async rollout worker did not initialize within its startup timeout")
         with self._lock:
             failure = self._failure
-        if failure is not None:
+            initialized = self._initialized
+        if not initialized and failure is not None:
             raise RuntimeError(f"async rollout worker failed during startup: {failure}") from failure
 
     def stop(self) -> None:
@@ -92,11 +100,39 @@ class TrlAsyncRolloutWorker:
         if failure is not None:
             raise RuntimeError(f"async rollout worker failed: {failure}") from failure
 
+    def prepare_model_update(self, model_version: int) -> None:
+        with self._lock:
+            if model_version <= self._model_version:
+                raise ValueError("next async model version must be greater than the live version")
+            loop = self._loop
+        if loop is None:
+            return
+        future = asyncio.run_coroutine_threadsafe(self._prepare_model_update(model_version), loop)
+        future.result(timeout=self._shutdown_timeout_s)
+
     def update_model_version(self, model_version: int) -> None:
         with self._lock:
             if model_version < self._model_version:
                 raise ValueError("async model version cannot move backwards")
+            loop = self._loop
+        if loop is None:
+            with self._lock:
+                self._model_version = model_version
+            return
+        future = asyncio.run_coroutine_threadsafe(self._activate_model_version(model_version), loop)
+        future.result(timeout=self._shutdown_timeout_s)
+
+    async def _prepare_model_update(self, model_version: int) -> None:
+        assert self._admission_open is not None
+        self._admission_open.clear()
+        await self._producer.prepare_model_update(model_version)
+
+    async def _activate_model_version(self, model_version: int) -> None:
+        assert self._admission_open is not None
+        with self._lock:
             self._model_version = model_version
+        await self._producer.activate_model_version(model_version)
+        self._admission_open.set()
 
     def check_health(self, stale_after_s: float) -> None:
         if stale_after_s <= 0:
@@ -126,14 +162,22 @@ class TrlAsyncRolloutWorker:
     async def _run(self) -> None:
         loop = asyncio.get_running_loop()
         stop_event = asyncio.Event()
+        admission_open = asyncio.Event()
+        admission_open.set()
         with self._lock:
             self._loop = loop
             self._stop_event = stop_event
+            self._admission_open = admission_open
+            self._initialized = True
         self._ready.set()
         pending: set[asyncio.Task[tuple[int, Sequence[Any]]]] = set()
         try:
             while not stop_event.is_set():
-                while len(pending) < self._max_inflight_groups and not stop_event.is_set():
+                while (
+                    admission_open.is_set()
+                    and len(pending) < self._max_inflight_groups
+                    and not stop_event.is_set()
+                ):
                     with self._lock:
                         target_version = self._model_version
                     pending.add(asyncio.create_task(self._produce(target_version)))
@@ -158,6 +202,7 @@ class TrlAsyncRolloutWorker:
             with self._lock:
                 self._loop = None
                 self._stop_event = None
+                self._admission_open = None
 
     async def _produce(self, target_version: int) -> tuple[int, Sequence[Any]]:
         return target_version, await self._producer.produce_group(target_version)

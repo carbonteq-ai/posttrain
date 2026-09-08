@@ -6,13 +6,21 @@ import json
 import math
 import os
 from collections.abc import Mapping
+from dataclasses import replace
 from pathlib import Path
 from time import perf_counter
 from typing import Any, Literal, cast
 from uuid import uuid4
 
 from ...integrations.verifiers import load_verifiers_bridge_snapshot
-from ...online_rl import EnvironmentRollout, PolicySampling, PolicyTurnRequest, PolicyTurnResult, RolloutBatch
+from ...online_rl import (
+    BehaviorPolicySpan,
+    EnvironmentRollout,
+    PolicySampling,
+    PolicyTurnRequest,
+    PolicyTurnResult,
+    RolloutBatch,
+)
 from ...policy_messages import parsed_policy_message
 from ...profiles import shape_soft_overlong_reward
 from .reward_fields import streaming_reward_extra_info, structured_reward_metadata, training_response_mask
@@ -144,6 +152,16 @@ class VerlPolicyGenerator:
             raise ValueError(f"unsupported veRL renderer implementation: {renderer_implementation!r}")
         self._renderer = create_renderer(tokenizer, renderer_config)
         self._sampling_overrides = _validated_sampling_overrides(sampling_overrides or {})
+        self._behavior_policy: BehaviorPolicySpan | None = None
+
+    @property
+    def behavior_policy(self) -> BehaviorPolicySpan | None:
+        return self._behavior_policy
+
+    def begin_episode(self) -> None:
+        """Reset policy provenance before one agent-loop trajectory starts."""
+
+        self._behavior_policy = None
 
     def set_sampling_overrides(self, overrides: Mapping[str, Any]) -> None:
         """Install the veRL phase/per-row sampling controls for this episode."""
@@ -185,6 +203,13 @@ class VerlPolicyGenerator:
         logprobs = tuple(float(value) for value in (output.log_probs or ()))
         if len(logprobs) != len(token_ids):
             raise RuntimeError("veRL rollout log probabilities are not aligned with completion token ids")
+        behavior_policy = _behavior_policy_span(output)
+        if behavior_policy is not None:
+            self._behavior_policy = (
+                behavior_policy
+                if self._behavior_policy is None
+                else self._behavior_policy.merge(behavior_policy)
+            )
         parsed = self._renderer.parse_response(list(token_ids), tools=renderer_tools)
         message = parsed_policy_message(parsed, token_ids, self._tokenizer)
         finish_reason = _finish_reason(
@@ -213,6 +238,7 @@ class VerlPolicyGenerator:
                     }
                 ],
             },
+            behavior_policy=behavior_policy,
         )
 
 
@@ -249,8 +275,11 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
         self._emit_sampo_metadata = emit_sampo_metadata
         self._structured_algorithm = structured_algorithm
         self._reward_component_names = tuple(reward_component_names or ())
+        trainer_v1 = getattr(getattr(self.config, "trainer", None), "v1", None)
+        self._trainer_mode = str(getattr(trainer_v1, "trainer_mode", "sync"))
 
     async def run(self, sampling_params: dict[str, Any], **kwargs: Any) -> Any:
+        self._generator.begin_episode()
         self._generator.set_sampling_overrides(sampling_params)
         example_id = str(kwargs["example_id"])
         step = int(kwargs.get("global_steps", 0))
@@ -270,7 +299,14 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
         )
         if len(rollouts) != 1:
             raise RuntimeError("a veRL agent-loop row must produce exactly one Verifiers trajectory")
-        rollout = rollouts[0]
+        behavior_policy = self._generator.behavior_policy
+        if behavior_policy is None:
+            if self._trainer_mode in {"colocate_async", "separate_async"}:
+                raise RuntimeError(
+                    f"veRL {self._trainer_mode} rollouts require native min/max policy-version evidence"
+                )
+            behavior_policy = BehaviorPolicySpan(step, step)
+        rollout = replace(rollouts[0], behavior_policy=behavior_policy)
         trace_calls = rollout.trace.payload.get("calls", [])
         num_turns = len(trace_calls) if isinstance(trace_calls, list) else 0
         if len(rollout.prompt_ids) > self.rollout_config.prompt_length:
@@ -308,8 +344,8 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
                 task_reward=rollout.reward,
                 algorithm_reward=reward,
             ),
-            "min_global_steps": step,
-            "max_global_steps": step,
+            "min_global_steps": behavior_policy.start,
+            "max_global_steps": behavior_policy.end,
         }
         if self._emit_sampo_metadata:
             extra_fields.update(_sampo_metadata(rollout))
@@ -334,6 +370,32 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
             metrics=AgentLoopMetrics(generate_sequences=perf_counter() - started),
             extra_fields=extra_fields,
         )
+
+
+def _behavior_policy_span(output: Any) -> BehaviorPolicySpan | None:
+    """Read veRL's native version span from one completed or resumed generation."""
+
+    fields = getattr(output, "extra_fields", None)
+    if fields is None:
+        return None
+    if not isinstance(fields, Mapping):
+        raise RuntimeError("veRL rollout extra_fields must be a mapping")
+    fallback = fields.get("global_steps")
+    start = fields.get("min_global_steps", fallback)
+    end = fields.get("max_global_steps", fallback)
+    if start is None and end is None:
+        return None
+    if (
+        isinstance(start, bool)
+        or not isinstance(start, int)
+        or isinstance(end, bool)
+        or not isinstance(end, int)
+    ):
+        raise RuntimeError("veRL rollout policy versions must be integers")
+    try:
+        return BehaviorPolicySpan(start, end)
+    except ValueError as error:
+        raise RuntimeError(f"invalid veRL rollout policy span: {error}") from error
 
 
 def _append_rollout_reward_record(

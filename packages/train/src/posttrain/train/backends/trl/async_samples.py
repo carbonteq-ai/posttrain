@@ -11,7 +11,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from ...online_rl import EnvironmentRollout
+from ...online_rl import BehaviorPolicySpan, EnvironmentRollout
 
 
 class InvalidAsyncSampleGroup(ValueError):
@@ -19,24 +19,11 @@ class InvalidAsyncSampleGroup(ValueError):
 
 
 @dataclass(frozen=True, slots=True)
-class BehaviorPolicySpan:
-    """Oldest and newest live policy versions spanned by one episode."""
-
-    start: int
-    end: int
-
-    def __post_init__(self) -> None:
-        if self.start < 0 or self.end < self.start:
-            raise ValueError("behavior policy span must be non-negative and ordered")
-
-
-@dataclass(frozen=True, slots=True)
 class AsyncRolloutRecord:
-    """One admitted rollout plus the provenance needed by the async learner."""
+    """One admitted rollout plus its message-level native projection."""
 
     occurrence_id: str
     rollout: EnvironmentRollout
-    behavior_policy: BehaviorPolicySpan
     prompt_messages: tuple[Mapping[str, Any], ...] = ()
     completion_messages: tuple[Mapping[str, Any], ...] = ()
 
@@ -82,10 +69,12 @@ def project_async_group(
             raise InvalidAsyncSampleGroup("truncated rollouts are not admitted to async training")
         if len(rollout.sampling_logprobs) != len(rollout.completion_ids):
             raise InvalidAsyncSampleGroup("async training requires a behavior logprob for every completion token")
+        if rollout.behavior_policy is None:
+            raise InvalidAsyncSampleGroup("async training requires an episode behavior policy span")
 
         # The native learner uses this value only as a conservative freshness
         # bound. Exact behavior probabilities remain token-aligned below.
-        policy_version = record.behavior_policy.start
+        policy_version = rollout.behavior_policy.start
         group_versions.add(policy_version)
 
         input_ids = [*rollout.prompt_ids, *rollout.completion_ids]

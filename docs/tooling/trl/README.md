@@ -23,10 +23,11 @@ and retained-gradient equivalence across microbatch sizes. Wheel SHA-256:
 sdist: `ceb581cc5a3d7a4a8a34cbc1b7fbc64e7aba9e3c55a6508b4a14ce257d341bc9`.
 Live RTX PRO qualification remains pending. Harness optimization is deferred.
 
-The async rollout lifecycle is under development on pushed fork branch
-`codex/trl-parity-probe-bound` at commit
-`684696a22ef3d82dbf39f21a60fafa9e5f17514b`; it is not part of the published
-post5 package or framework pin. Against the selected vLLM 0.25.1 runtime, its
+The async rollout lifecycle is under development on fork branch
+`codex/trl-parity-probe-bound`. Its latest local candidate is
+`4302150671c8433050230bfc859529860dab0ca9`, based on pushed commit
+`684696a22ef3d82dbf39f21a60fafa9e5f17514b`; it is neither pushed nor part of
+the published post5 package or framework pin. Against the selected vLLM 0.25.1 runtime, its
 bounded Qwen 0.5B gate passes independent request completion, explicit abort,
 sampled-token logprobs, drain, staged weights/KV-cache wake, sleep, and clean
 shutdown on the local RTX 3070 Ti. The first attempt found that restoring only
@@ -37,6 +38,17 @@ weight synchronization and actor/sampler parity, native Verifiers transport,
 an immutable package/runtime image, optimizer integration, and throughput
 qualification remain open. See
 `docs/plan/async-continuous-rollout-workers.md` for the exact command and gates.
+
+The local candidate also adds an acknowledged model-request drain to native
+async GRPO and async distillation. Before weight transfer, the trainer closes
+group and model-request admission and waits for every already-admitted request
+to finish. Tool-running episodes remain alive and wait before their next model
+turn. After vLLM resumes, the trainer publishes the new policy version and
+reopens admission. This is a trainer lifecycle seam; Verifiers still owns
+environment execution and exact sampled evidence, while stale-sample policy
+and importance correction remain trainer-owned. Deterministic fork tests pass
+for ordering and the cross-process drain handshake; changed-weight GPU proof
+is still required before selection.
 
 Previous candidate: `1.12.0.post4`, commit
 `19e6c89a18617f1bd6e6385212705a67f5434962`, supersedes post3 below without

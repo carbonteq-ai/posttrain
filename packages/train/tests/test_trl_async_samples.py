@@ -1,5 +1,6 @@
 import queue
 from collections import defaultdict
+from dataclasses import replace
 from unittest.mock import Mock
 
 import pytest
@@ -32,11 +33,11 @@ def record(
         reward=0.75,
         is_truncated=truncated,
         trace=TraceObservation("verifiers", f"trace-{occurrence}", {}),
+        behavior_policy=BehaviorPolicySpan(version, version if end_version is None else end_version),
     )
     return AsyncRolloutRecord(
         occurrence_id=occurrence,
         rollout=rollout,
-        behavior_policy=BehaviorPolicySpan(version, version if end_version is None else end_version),
         prompt_messages=({"role": "user", "content": "do the task"},),
         completion_messages=({"role": "assistant", "content": "done"},),
     )
@@ -57,6 +58,18 @@ def test_projects_exact_tokens_masks_logprobs_and_native_type():
     assert samples[0].model_version == 4
     assert samples[0].advantage == 1.25
     assert samples[0].metrics == {"reward": 0.75}
+
+
+def test_behavior_policy_span_merges_turn_provenance():
+    assert BehaviorPolicySpan(4, 5).merge(BehaviorPolicySpan(3, 7)) == BehaviorPolicySpan(3, 7)
+
+
+def test_rejects_rollout_without_behavior_policy_provenance():
+    source = record("a")
+    missing = replace(source, rollout=replace(source.rollout, behavior_policy=None))
+
+    with pytest.raises(InvalidAsyncSampleGroup, match="behavior policy span"):
+        project_async_group((missing,), (0.0,), group_id=1, expected_group_size=1)
 
 
 @pytest.mark.parametrize(

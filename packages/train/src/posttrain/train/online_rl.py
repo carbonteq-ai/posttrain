@@ -17,6 +17,23 @@ type ToolRecord = Mapping[str, JsonValue]
 type TokenSpan = tuple[int, int]
 
 
+@dataclass(frozen=True, slots=True)
+class BehaviorPolicySpan:
+    """Oldest and newest live policy versions used by one generation or episode."""
+
+    start: int
+    end: int
+
+    def __post_init__(self) -> None:
+        if self.start < 0 or self.end < self.start:
+            raise ValueError("behavior policy span must be non-negative and ordered")
+
+    def merge(self, other: BehaviorPolicySpan) -> BehaviorPolicySpan:
+        """Return the smallest span containing both observations."""
+
+        return BehaviorPolicySpan(min(self.start, other.start), max(self.end, other.end))
+
+
 class EnvironmentSampling(Protocol):
     """Structural environment-owned sampling declaration."""
 
@@ -171,6 +188,7 @@ class PolicyTurnResult:
     prompt_message_spans: tuple[TokenSpan | None, ...] = ()
     prompt_is_content: tuple[bool, ...] = ()
     raw_response: Mapping[str, JsonValue] | None = None
+    behavior_policy: BehaviorPolicySpan | None = None
 
     def __post_init__(self) -> None:
         if not self.prompt_ids or not self.completion_ids:
@@ -233,6 +251,7 @@ class EnvironmentRollout:
     trace: TraceObservation
     turns: tuple[AgenticTurn, ...] = ()
     reward_evidence: RewardEvidence | None = None
+    behavior_policy: BehaviorPolicySpan | None = None
 
     def __post_init__(self) -> None:
         if not self.prompt_ids or not self.completion_ids:
