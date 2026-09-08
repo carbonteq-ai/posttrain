@@ -25,7 +25,7 @@ Live RTX PRO qualification remains pending. Harness optimization is deferred.
 
 The async rollout lifecycle is under development on fork branch
 `codex/trl-parity-probe-bound`. Its latest pushed candidate is
-`d5b8cc4631c8f7adbe8296c08804205d6eb4c74c`; it is not part of the published
+`867885e5bf00d2dbe4c6892786cfabbb24936b26`; it is not part of the published
 post5 package or framework pin. Against the selected vLLM 0.25.1 runtime, its
 bounded Qwen 0.5B gate passes independent request completion, explicit abort,
 sampled-token logprobs, drain, staged weights/KV-cache wake, sleep, and clean
@@ -51,6 +51,16 @@ for ordering and the cross-process drain handshake; changed-weight GPU proof
 is still required before selection. A transfer-failure regression additionally
 proves that the prior model version remains authoritative and inference is
 neither resumed nor reopened when weight publication fails.
+
+The candidate now includes `scripts/qualify_async_vllm_changed_weight.py` for
+the remaining native NCCL actor/sampler parity gate. It requires distinct
+trainer and inference GPUs and refuses a one-GPU topology before engine start.
+Two exploratory local attempts produced no admitted parity result: arbitrary
+callable RPC is not supported across AsyncLLM's frontend boundary, and the
+native NCCL path correctly rejects two ranks on one GPU. As of 2026-09-09 the
+two retained workers are healthy and idle but expose one GPU each, while the
+RunPod offer catalog returns no two-GPU on-demand instance. A two-GPU target or
+a qualified multi-node composition remains required.
 
 The same candidate adds optional recovery hooks for custom rollout workers.
 TRL acknowledges one group identity per sample when its collator admits that
