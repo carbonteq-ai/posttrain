@@ -6,6 +6,7 @@ import pytest
 from posttrain.common import TraceObservation
 from posttrain.train.backends.trl.async_samples import (
     AsyncRolloutRecord,
+    BehaviorPolicySpan,
     InvalidAsyncSampleGroup,
     project_async_group,
 )
@@ -18,6 +19,7 @@ def record(
     occurrence: str,
     *,
     version: int = 4,
+    end_version: int | None = None,
     example_id: str = "task-1",
     truncated: bool = False,
 ) -> AsyncRolloutRecord:
@@ -34,7 +36,7 @@ def record(
     return AsyncRolloutRecord(
         occurrence_id=occurrence,
         rollout=rollout,
-        behavior_policy_versions=(version, None, version),
+        behavior_policy=BehaviorPolicySpan(version, version if end_version is None else end_version),
         prompt_messages=({"role": "user", "content": "do the task"},),
         completion_messages=({"role": "assistant", "content": "done"},),
     )
@@ -98,3 +100,14 @@ def test_native_queue_consumer_drops_stale_sample_and_yields_fresh_sample(monkey
     assert yielded["old_log_probs"] == fresh.old_log_probs
     assert yielded["advantage"] == 0.75
     assert metrics["sample/dropped_stale_total"] == [1.0]
+
+
+def test_episode_may_span_updates_while_staleness_uses_group_start_version():
+    samples = project_async_group(
+        (record("a", version=4, end_version=5), record("b", version=4, end_version=6)),
+        (0.5, -0.5),
+        group_id=3,
+        expected_group_size=2,
+    )
+
+    assert [item.model_version for item in samples] == [4, 4]

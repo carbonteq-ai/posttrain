@@ -19,20 +19,30 @@ class InvalidAsyncSampleGroup(ValueError):
 
 
 @dataclass(frozen=True, slots=True)
+class BehaviorPolicySpan:
+    """Oldest and newest live policy versions spanned by one episode."""
+
+    start: int
+    end: int
+
+    def __post_init__(self) -> None:
+        if self.start < 0 or self.end < self.start:
+            raise ValueError("behavior policy span must be non-negative and ordered")
+
+
+@dataclass(frozen=True, slots=True)
 class AsyncRolloutRecord:
     """One admitted rollout plus the provenance needed by the async learner."""
 
     occurrence_id: str
     rollout: EnvironmentRollout
-    behavior_policy_versions: tuple[int | None, ...]
+    behavior_policy: BehaviorPolicySpan
     prompt_messages: tuple[Mapping[str, Any], ...] = ()
     completion_messages: tuple[Mapping[str, Any], ...] = ()
 
     def __post_init__(self) -> None:
         if not self.occurrence_id:
             raise ValueError("async rollout occurrence id cannot be empty")
-        if len(self.behavior_policy_versions) != len(self.rollout.completion_ids):
-            raise ValueError("behavior policy versions must align with completion ids")
 
 
 def project_async_group(
@@ -73,20 +83,9 @@ def project_async_group(
         if len(rollout.sampling_logprobs) != len(rollout.completion_ids):
             raise InvalidAsyncSampleGroup("async training requires a behavior logprob for every completion token")
 
-        sampled_versions = {
-            version
-            for version, sampled in zip(record.behavior_policy_versions, rollout.env_mask, strict=True)
-            if sampled and version is not None
-        }
-        missing_sampled_version = any(
-            sampled and version is None
-            for version, sampled in zip(record.behavior_policy_versions, rollout.env_mask, strict=True)
-        )
-        if missing_sampled_version or len(sampled_versions) != 1:
-            raise InvalidAsyncSampleGroup(
-                "every sampled token in an async rollout must have one exact behavior policy version"
-            )
-        policy_version = next(iter(sampled_versions))
+        # The native learner uses this value only as a conservative freshness
+        # bound. Exact behavior probabilities remain token-aligned below.
+        policy_version = record.behavior_policy.start
         group_versions.add(policy_version)
 
         input_ids = [*rollout.prompt_ids, *rollout.completion_ids]
@@ -127,4 +126,9 @@ def project_async_group(
     return tuple(result)
 
 
-__all__ = ["AsyncRolloutRecord", "InvalidAsyncSampleGroup", "project_async_group"]
+__all__ = [
+    "AsyncRolloutRecord",
+    "BehaviorPolicySpan",
+    "InvalidAsyncSampleGroup",
+    "project_async_group",
+]

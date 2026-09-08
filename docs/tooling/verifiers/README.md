@@ -22,6 +22,21 @@ synchronization. The failed R10 cloud attempt proved that the old upstream pin
 cannot inject the already-loaded policy; runtime-image publication and the
 corrected cloud retry remain open.
 
+The canonical fork checkout also contains local synchronization candidate
+`2f4ad241` on `codex/carbonteq-verifiers-latest`, merging upstream main
+`27bbd216df0af719a43705866b2cf6139bcc95de`. Its complete v1 suite passes, with
+only credential-dependent Prime cases skipped. This candidate is deliberately
+not called selected or published: the immutable workspace pin remains
+`c6c0097ad21da845c62e4b19aba80ef6633e4d9f` until the candidate is pushed and
+Posttrain consumer integration is qualified.
+
+Prime-RL demonstrates the intended asynchronous ownership boundary. Verifiers
+executes environments and carries the neutral episode `PolicySpan`; the
+training orchestrator stamps that span and owns scheduling barriers, policy
+publication, staleness admission, group advantages, and learner coordination.
+Posttrain follows the same split for its TRL asynchronous prototype rather than
+putting trainer state or update policy inside Verifiers.
+
 Selected commit `c6c0097ad21da845c62e4b19aba80ef6633e4d9f` additionally lets a native
 `TrainClientConfig` carry the exact selected chat template and fences the
 shared renderer cache by that template. This is required for LFM because the
