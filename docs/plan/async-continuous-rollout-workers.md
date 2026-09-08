@@ -1,5 +1,19 @@
 # Continuous rollout workers and native asynchronous training integration
 
+Revision 23 — 2026-09-09. TRL's external-server changed-weight gate passed with
+the tested implementation at `2308ab41aeedc082e154734f33cfe44809b1fdea` and
+the evidence ledger pushed at
+`b6c1206a4e7207d2243055728c4824853edab325`. The actor ran on an RTX 3070 Ti
+and the vLLM server on an RTX PRO 6000 Blackwell Workstation Edition using the
+immutable selected TRL runtime image. Base actor/server selected-token log-prob
+delta was `0.0022419691`; after a real NCCL transfer of the changed final norm
+weight it was exactly `0.0`, and the server log probability moved by
+`10.6749088764`. The run exposed and fixed fail-open HTTP control calls,
+Accelerate-dependent standalone client logging, and an empty-body control
+response assumption. Milestone C now retains only live failure-path
+qualification; optimizer updates, checkpoint/resume, publication, and public
+activation remain Milestone D.
+
 Revision 22 — 2026-09-09. Pushed TRL candidate `867885e5` adds the bounded native changed-weight actor/sampler parity probe required by Milestone C. It uses vLLM's supported NCCL weight-transfer API, changes a real actor tensor, resets the prefix cache, and teacher-forces the same token through actor and sampler with explicit parity/change thresholds. It refuses a one-GPU topology. Two exploratory local runs produced no admitted result: callable RPC cannot cross AsyncLLM's process frontend, and native NCCL correctly rejects placing trainer and inference ranks on the same GPU. Live inventory shows two idle retained workers with one GPU each and zero current RunPod two-GPU on-demand offers, even without a price ceiling. The remaining gate therefore needs a two-GPU instance or a deliberately qualified multi-node composition; this capacity constraint is not an algorithm failure.
 
 Revision 21 — 2026-09-09. Failure containment now has deterministic coverage at every local seam. Pushed TRL candidate `d5b8cc4631c8f7adbe8296c08804205d6eb4c74c` proves a failed weight transfer leaves the old model version authoritative and never resumes inference or publishes/reopens the pending version. Posttrain proves native queue starvation reaches `check_health` and an unacknowledged upstream abort is run-fatal while local gateway resources are still released. These tests qualify classification and cleanup logic; the corresponding changed-weight and failure paths must still run in the real GPU composition before activation.
@@ -31,7 +45,7 @@ Actor forward/backward optimization is explicitly out of scope: no changes to ac
 - [x] (2026-09-08) Review the linked async-RL survey, released TRL documentation, and exact fork source. Select native `AsyncGRPOTrainer` and `RolloutWorkerProtocol`, not a new Posttrain learner.
 - [x] (2026-09-08) Milestone A: implement exact-token, complete-group sample projection and test it against the installed native TRL sample and queue consumer. Public activation remains disabled.
 - [x] (2026-09-09) Milestone B: implement a bounded Verifiers producer satisfying the native worker protocol, including concrete GRPO group production, stable prompt scheduling, independent group completion, exact group-relative advantages, bounded typed rejection, run-scoped admission, sibling cancellation, lifecycle cleanup, learner-consumption acknowledgement, and checkpoint-aware replay of only unconsumed groups. Runtime selection and live resume proof remain Milestone D.
-- [ ] Milestone C: qualify served policy-version evidence across tool waits and live weight transfers (completed: backend-neutral episode spans, veRL native span propagation and deterministic prefix-resume proof, TRL's acknowledged request drain/two-phase publication gate, a run-scoped native-token admission gateway, native-episode span persistence, missing/mismatched evidence rejection, and shared-upstream failure classification; remaining: changed-weight runtime proof and live failure-path qualification before activation).
+- [ ] Milestone C: qualify served policy-version evidence across tool waits and live weight transfers (completed: backend-neutral episode spans, veRL native span propagation and deterministic prefix-resume proof, TRL's acknowledged request drain/two-phase publication gate, a run-scoped native-token admission gateway, native-episode span persistence, missing/mismatched evidence rejection, shared-upstream failure classification, and real external-server changed-weight actor/sampler parity; remaining: live failure-path qualification before activation).
 - [ ] Milestone D: amend the deferred-async baseline, activate validated backend-specific settings, and qualify real asynchronous updates, checkpoint/resume, and publication. Separately qualify episode-level GDPO; do not imply CAPO/SAMPO/OLMo parity.
 - [x] (2026-09-08) Inspect the current bridge, TRL request batching, native Verifiers process pool and training client, and canonical ownership contracts.
 - [x] (2026-09-08) Select native environment worker processes, native token-preserving clients, a single asynchronous inference owner, and fixed-policy collection barriers.
@@ -55,9 +69,9 @@ Actor forward/backward optimization is explicitly out of scope: no changes to ac
 - [x] (2026-09-08) Prove the selected TRL asynchronous engine lifecycle against a real vLLM engine before implementing worker transport.
 - [x] (2026-09-08) Implement and test native-client HTTP wire compatibility and the exact-token response contract using both the native schemas and a real LFM `TrainClient` request. Multi-turn episode execution remains open.
 - [x] (2026-09-08) Implement the additive TRL asynchronous generation lifecycle against the selected runtime. Trainer ownership and changed-weight parity remain open.
-- [ ] Integrate bounded environment workers and coordinator admission/cancellation.
-- [ ] Implement veRL worker budgets, model-independent rendering, typed episode failures, and pre-advantage group admission.
-- [ ] Qualify failure handling, numerical equivalence, and real GPU optimizer updates.
+- [x] (2026-09-09) Integrate bounded environment workers and coordinator admission/cancellation.
+- [x] (2026-09-09) Implement veRL worker budgets, model-independent rendering, typed episode failures, and pre-advantage group admission.
+- [ ] Qualify failure handling, numerical equivalence, and real GPU optimizer updates (changed-weight parity and deterministic failure semantics pass; live failure injection and optimizer updates remain).
 - [ ] Publish fork revisions, update consumer locks and documentation, and qualify the immutable runtime image before promoting the mode.
 
 ## Context and source authority
@@ -69,7 +83,7 @@ The inspected source baseline is:
 | Repository | Source baseline and role |
 | --- | --- |
 | `/home/hammad/projects/rl` | Branch `codex/pre-rollout-optimization-baseline`, created to commit the accumulated pre-optimization work; current consumer selects TRL `1.12.0.post5`. This is a development baseline, not a qualified release. |
-| `/home/hammad/projects/trl-async-training` | Canonical async-training worktree; branch `codex/trl-parity-probe-bound`, pushed candidate `867885e5bf00d2dbe4c6892786cfabbb24936b26`, including request drain, custom-worker learner acknowledgements, scheduling-state checkpoint hooks, fail-closed weight-transfer coverage, and a two-GPU native changed-weight parity probe; published post5 source remains `b9f3a09369d9cfa21950feef3e110e1fdf779c54`. The async candidate is not packaged or selected. The sibling `/home/hammad/projects/trl` checkout remains on `codex/bounded-vllm-waves` and is not the edit target. |
+| `/home/hammad/projects/trl-async-training` | Canonical async-training worktree; branch `codex/trl-parity-probe-bound`, pushed evidence tip `b6c1206a4e7207d2243055728c4824853edab325`, including request drain, custom-worker learner acknowledgements, scheduling-state checkpoint hooks, fail-closed weight-transfer coverage, and the external-server changed-weight parity gate. The passing run used implementation SHA `2308ab41aeedc082e154734f33cfe44809b1fdea`; published post5 source remains `b9f3a09369d9cfa21950feef3e110e1fdf779c54`. The async candidate is not packaged or selected. The sibling `/home/hammad/projects/trl` checkout remains on `codex/bounded-vllm-waves` and is not the edit target. |
 | `/home/hammad/projects/verifiers` | Canonical checkout; branch `codex/carbonteq-verifiers-latest`. Local synchronization candidate `36eac9d5e04ef29b584b6fa4f027af00cd76ea19` merges upstream main `27bbd216df0af719a43705866b2cf6139bcc95de` and updates `CARBONTEQ_FORK.md`; the complete upstream v1 suite passes, with credential-dependent Prime tests skipped. This candidate is not yet pushed or selected. Framework manifests, catalog references, and candidate control-runtime inputs still select published commit `c6c0097ad21da845c62e4b19aba80ef6633e4d9f`, based on `e3bcbcbe5c55297a07a5d1038e37c2408b4a3dbd`. The last published veRL backend profile deliberately retains its prior closure until replacement image publication. |
 | `/home/hammad/projects/verifiers-environments` | Canonical checkout; branch `codex/verifiers-latest-support`, commit `12ff5e1abfab369b8dec4df3ce83c5984f55ad34`. Clean after consolidation. Task semantics remain here; no changes required initially. |
 | `/home/hammad/projects/verl-upstream` | Historical work is preserved on `codex/verl-pre-rollout-optimization-baseline`, based on `a35908ca3c9632859c58d6a2855d858918ae21dc`; do not use this snapshot as the runtime implementation base. Active implementation branch `codex/verl-rollout-execution` is pushed at `9694a6242e3590acaf58a779c1151b370f313b51`, based on executable runtime pin `cec7e74c361bb973b641db8dfbb75a5544c33139` (`carbonteq-v0.9.0.post1`). This fork commit is not yet a published runtime artifact or stable framework pin. |
@@ -414,7 +428,7 @@ Start opt-in, with a new inference/training binding revision. Existing jobs reta
 
 ## Outcomes & Retrospective
 
-Current outcome: both backends have concrete components, selected interfaces, ownership, config translation, failure handling, and separate qualification gates. TRL's asynchronous engine lifecycle is proven against the selected vLLM runtime for request execution and residency transitions; its private loopback endpoint implements the native token wire with strict provenance; its fixed worker adapter and collection runner now make cancellation and safe optimizer handoff explicit. A real spawned AutomationBench worker completed the native transport and existing bridge projection path, including retained native evidence. These components are not yet activated by the trainer callback, and changed-weight parity remains open. veRL reuses Ray workers and native rollout lifecycle. Shared values and admission validation preserve algorithm semantics without a universal process manager. Optimizer integration, immutable runtime publication, and GPU speedup remain unproven.
+Current outcome: both backends have concrete components, selected interfaces, ownership, config translation, failure handling, and separate qualification gates. TRL's asynchronous engine lifecycle is proven against the selected vLLM runtime for request execution and residency transitions; its private loopback endpoint implements the native token wire with strict provenance; its fixed worker adapter and collection runner now make cancellation and safe optimizer handoff explicit. A real spawned AutomationBench worker completed the native transport and existing bridge projection path, including retained native evidence. A separate external-server GPU gate proves that an actor weight changed through the production NCCL client reaches vLLM and preserves selected-token log-probability parity. These components are not yet activated by the trainer callback. veRL reuses Ray workers and native rollout lifecycle. Shared values and admission validation preserve algorithm semantics without a universal process manager. Live failure injection, optimizer integration, immutable runtime publication, and GPU speedup remain unproven.
 
 Revision 4 review outcome: the runtime source mismatch is resolved in the plan; veRL's worker-side packing is explicitly addressed rather than deferred to a late hook. Engine feasibility precedes transport implementation. Sampling overrides, a single judge admission owner, and recoverable versus fatal failures have selected rules. Actor compute optimization is excluded. These are design decisions awaiting implementation and qualification, not completed runtime fixes.
 
@@ -479,5 +493,30 @@ Revision 20 veRL prefix-resume checkpoint: fork commit `9694a6242e3590acaf58a779
 Revision 21 deterministic failure checkpoint: TRL fork commit `d5b8cc4631c8f7adbe8296c08804205d6eb4c74c` adds a weight-publication failure regression alongside the existing success-order test. It proves `prepare` and inference pause occur before transfer, while a thrown transfer leaves `model_version` unchanged and calls neither inference resume nor rollout-worker publication. Three focused fork lifecycle tests pass. Posttrain adds explicit native health-starvation and unacknowledged-abort cases; the latter cancels the local request, releases the HTTP runner/client, and raises rather than treating uncertain cancellation as a rejected episode. Thirteen focused gateway/worker tests pass. These are deterministic gates only; real process/GPU failures remain in Milestone C.
 
 Revision 22 changed-weight qualification checkpoint: fork commit `867885e5` provides the missing bounded probe but does not claim a pass. The first local implementation attempted `Worker.apply_model`; AsyncLLM's engine-core message boundary converted its callable dataclass to a plain dictionary, so the worker rejected it before any weight changed. The replacement uses the same typed native NCCL initialization/update requests as async TRL. NCCL then rejected the local one-device topology because trainer and inference are separate ranks. The corrected probe now requires distinct device indices before engine construction. Live dstack inventory reports idle RTX 3070 Ti and RTX PRO 6000 workers with one GPU each; a direct RunPod query for two on-demand GPUs returned no offers with or without a price ceiling. No optimizer update, parity pass, model pin, image, or public activation is claimed from these attempts.
+
+Revision 23 external-server parity checkpoint: the production-shaped gate passed
+with actor and server on distinct routable hosts. The actor used the framework
+venv on the RTX 3070 Ti; the server used
+`registry.carbonteq.com/carbonteq/posttrain-kind-online-rl-trl-py312@sha256:8230413ea572158e59e3f4099b218474d339869fb3eb1676ebaf23e35d35d03d`
+on the RTX PRO 6000 with vLLM 0.25.1, Torch 2.11.0+cu130, and Transformers
+5.14.1. For token id 387, actor/server log probabilities were
+`-1.2540634871`/`-1.2563054562` before transfer and both
+`-11.9312143326` afterward. The `0.0022419691` base delta is below the `0.05`
+tolerance; exact post-transfer equality plus `10.6749088764` observed server
+movement proves the update was applied rather than hidden by cache reuse.
+
+Qualification also repaired three concrete client defects: HTTP control calls
+now reject non-success responses, standalone clients no longer require an
+initialized Accelerate logger, and a successful empty prefix-cache response is
+accepted. Eight focused lifecycle/client tests pass. The slim image explicitly
+disables FlashInfer's sampling kernel because it has no CUDA compiler. This
+does not disable FlashInfer attention or NCCL, and vLLM's
+`processed_logprobs` mode already selects the native sampler because FlashInfer
+cannot return post-top-k/top-p log probabilities. This is a correctness-runtime
+closure, not evidence about rollout-only sampler throughput. The dstack server
+terminated cleanly and released the RTX PRO; no RunPod workload was submitted.
+The next Milestone C gate is live failure injection while proving the old policy
+version remains authoritative and all resources drain. Optimizer updates,
+checkpoint/resume, packaging, and public activation remain Milestone D.
 
 Baseline checkpoint note (2026-09-08): the user requested commits preserving previous work. Framework changes are captured on `codex/pre-rollout-optimization-baseline`; historical veRL changes are separately preserved on `codex/verl-pre-rollout-optimization-baseline`. No fork pin is changed by these snapshots. Focused framework reward-admission, reward-advantage, and policy-message tests passed (32 tests); full release/GPU qualification is not implied. The two cleanup stashes remain separate and untouched.

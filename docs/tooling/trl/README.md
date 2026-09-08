@@ -25,7 +25,7 @@ Live RTX PRO qualification remains pending. Harness optimization is deferred.
 
 The async rollout lifecycle is under development on fork branch
 `codex/trl-parity-probe-bound`. Its latest pushed candidate is
-`867885e5bf00d2dbe4c6892786cfabbb24936b26`; it is not part of the published
+`b6c1206a4e7207d2243055728c4824853edab325`; it is not part of the published
 post5 package or framework pin. Against the selected vLLM 0.25.1 runtime, its
 bounded Qwen 0.5B gate passes independent request completion, explicit abort,
 sampled-token logprobs, drain, staged weights/KV-cache wake, sleep, and clean
@@ -33,10 +33,15 @@ shutdown on the local RTX 3070 Ti. The first attempt found that restoring only
 weights leaves vLLM scheduling paused and that shutting down while allocations
 remain asleep produces a CuMem cleanup error; both lifecycle transitions are
 covered by the fork tests and the repeated real-engine gate. Changed actor
-weight synchronization and actor/sampler parity, a real asynchronous
-Verifiers-to-learner run, an immutable package/runtime image, optimizer
-integration, checkpoint/resume, and throughput
-qualification remain open. See
+weight synchronization and actor/sampler parity now also pass in a distinct-host
+GPU topology. The passing implementation was
+`2308ab41aeedc082e154734f33cfe44809b1fdea`: an RTX 3070 Ti actor transferred a
+changed normalization tensor over the production NCCL client to an RTX PRO
+6000 vLLM server. Base selected-token log-prob delta was `0.0022419691`; after
+transfer it was exactly `0.0`, while the server value moved by
+`10.6749088764`. A real asynchronous Verifiers-to-learner optimizer update,
+live failure injection, an immutable candidate package, checkpoint/resume, and
+throughput qualification remain open. See
 `docs/plan/async-continuous-rollout-workers.md` for the exact command and gates.
 
 The local candidate also adds an acknowledged model-request drain to native
@@ -47,20 +52,20 @@ turn. After vLLM resumes, the trainer publishes the new policy version and
 reopens admission. This is a trainer lifecycle seam; Verifiers still owns
 environment execution and exact sampled evidence, while stale-sample policy
 and importance correction remain trainer-owned. Deterministic fork tests pass
-for ordering and the cross-process drain handshake; changed-weight GPU proof
-is still required before selection. A transfer-failure regression additionally
+for ordering and the cross-process drain handshake. A transfer-failure regression additionally
 proves that the prior model version remains authoritative and inference is
 neither resumed nor reopened when weight publication fails.
 
-The candidate now includes `scripts/qualify_async_vllm_changed_weight.py` for
-the remaining native NCCL actor/sampler parity gate. It requires distinct
-trainer and inference GPUs and refuses a one-GPU topology before engine start.
-Two exploratory local attempts produced no admitted parity result: arbitrary
-callable RPC is not supported across AsyncLLM's frontend boundary, and the
-native NCCL path correctly rejects two ranks on one GPU. As of 2026-09-09 the
-two retained workers are healthy and idle but expose one GPU each, while the
-RunPod offer catalog returns no two-GPU on-demand instance. A two-GPU target or
-a qualified multi-node composition remains required.
+The candidate includes `scripts/qualify_async_vllm_changed_weight.py` and two
+dstack task descriptions for the native NCCL actor/sampler parity gate. The
+passing server used immutable runtime image
+`registry.carbonteq.com/carbonteq/posttrain-kind-online-rl-trl-py312@sha256:8230413ea572158e59e3f4099b218474d339869fb3eb1676ebaf23e35d35d03d`.
+Its slim runtime has no CUDA compiler, so the task explicitly selects vLLM's
+native sampler. This is already required for `processed_logprobs` because the
+FlashInfer sampler cannot return post-top-k/top-p log probabilities; FlashInfer
+attention and NCCL transfer remain enabled. Rollout-only sampling performance
+with FlashInfer remains a separate benchmark, not a reason to invalidate the
+correctness gate.
 
 The same candidate adds optional recovery hooks for custom rollout workers.
 TRL acknowledges one group identity per sample when its collator admits that
@@ -77,8 +82,9 @@ gating model turns around the fork's two-phase weight publication. It records
 the served version of each request by Verifiers trace session and persists the
 resulting span in the native episode before projection. This avoids deriving
 provenance from wall-clock completion or asking Verifiers to own trainer state.
-Deterministic two-turn and shared-upstream-failure tests pass; live changed-
-weight actor/sampler parity is still a release gate.
+Deterministic two-turn and shared-upstream-failure tests pass; changed-weight
+actor/sampler parity passes, while the corresponding live failure path remains
+a release gate.
 
 Previous candidate: `1.12.0.post4`, commit
 `19e6c89a18617f1bd6e6385212705a67f5434962`, supersedes post3 below without
