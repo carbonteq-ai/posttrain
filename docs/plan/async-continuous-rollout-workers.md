@@ -1,5 +1,19 @@
 # Continuous rollout workers and native asynchronous training integration
 
+Revision 24 — 2026-09-09. The local executor is now the development
+qualification path for candidate backend work. It packs a selected TRL or veRL
+checkout as a bounded, content-addressed source snapshot into the existing
+actual-job capsule, records its digest in the package manifest, and
+daemon-loads that capsule without registry publication. TRL is reinstalled
+without dependency resolution into the control environment; veRL replaces only
+the disposable backend worktree while retaining the selected kind image's
+locked dependencies. This is neither a bind mount nor an alternate launcher.
+The option is restricted to the local executor, and the manifest makes the
+unreleased source explicit. Publishable qualification still requires an
+immutable fork artifact, consumer pin/lock update, and the normal
+registry-backed actual-job gate. Focused package, manifest, Dockerfile, and
+BuildKit contract tests pass.
+
 Revision 23 — 2026-09-09. TRL's external-server changed-weight gate passed with
 the tested implementation at `2308ab41aeedc082e154734f33cfe44809b1fdea` and
 the evidence ledger pushed at
@@ -515,8 +529,13 @@ does not disable FlashInfer attention or NCCL, and vLLM's
 cannot return post-top-k/top-p log probabilities. This is a correctness-runtime
 closure, not evidence about rollout-only sampler throughput. The dstack server
 terminated cleanly and released the RTX PRO; no RunPod workload was submitted.
-The next Milestone C gate is live failure injection while proving the old policy
-version remains authoritative and all resources drain. Optimizer updates,
-checkpoint/resume, packaging, and public activation remain Milestone D.
+The live failure-boundary gate subsequently passed: the fork's real trainer
+synchronization path received an injected failed `finish_weight_update`,
+returned HTTP 500, kept version 0 authoritative, published no pending version,
+and preserved selected-token log probability exactly (`0.0` delta before and
+after). This single-rank control-path result does not qualify distributed NCCL
+initialization failure propagation. Multi-rank failure propagation, optimizer
+updates, checkpoint/resume, publication, and public activation remain
+Milestone D.
 
 Baseline checkpoint note (2026-09-08): the user requested commits preserving previous work. Framework changes are captured on `codex/pre-rollout-optimization-baseline`; historical veRL changes are separately preserved on `codex/verl-pre-rollout-optimization-baseline`. No fork pin is changed by these snapshots. Focused framework reward-admission, reward-advantage, and policy-message tests passed (32 tests); full release/GPU qualification is not implied. The two cleanup stashes remain separate and untouched.

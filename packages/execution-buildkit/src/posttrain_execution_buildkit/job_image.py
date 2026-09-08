@@ -506,6 +506,7 @@ class BuildKitJobImagePublisher:
         manifest = request.manifest
         variables: Mapping[str, str] = {
             "ALLOW_DEFERRED_QUALIFICATION": "1" if request.allow_deferred_qualification else "0",
+            "BACKEND_SOURCE_DIGEST": manifest.backend_source_digest or "",
             "CODE_REQUIREMENTS_DIGEST": manifest.code_requirements_digest,
             "FRAMEWORK_SOURCE_DIGEST": manifest.framework_source_digest,
             "IMAGE_REPOSITORY": request.publication.repository,

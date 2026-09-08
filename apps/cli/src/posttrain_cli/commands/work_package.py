@@ -274,6 +274,7 @@ def run_work_package_cmd(
     framework_wheelhouse: Path | None = None,
     allow_deferred_qualification: bool = False,
     builder: str | None = None,
+    backend_source: Path | None = None,
 ) -> None:
     if resume_from_run_id is not None and model_from_run_id is not None:
         raise ContractError("choose either --resume-from-run or --model-from-run, not both")
@@ -298,6 +299,7 @@ def run_work_package_cmd(
             env_file=state.env_file,
             framework_wheelhouse=framework_wheelhouse,
             builder=builder,
+            backend_source=backend_source,
         )
         if resume_from_run_id is not None:
             source = tracking_source_for_project(layout)

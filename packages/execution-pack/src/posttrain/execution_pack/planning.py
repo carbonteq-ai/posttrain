@@ -166,6 +166,7 @@ class JobPackSpec:
     worker_contract_version: str = "1"
     family_registry_lock: Mapping[str, object] = field(default_factory=dict)
     project_environment_sources: tuple[ProjectEnvironmentSourceRequest, ...] = ()
+    backend_source_digest: str | None = None
 
     def __post_init__(self) -> None:
         for label, value in (
@@ -195,6 +196,13 @@ class JobPackSpec:
         ):
             if not _SHA256.fullmatch(digest):
                 raise ContractError(f"{label} digest must be SHA-256")
+        if self.backend_source_digest is not None and not _SHA256.fullmatch(self.backend_source_digest):
+            raise ContractError("backend source digest must be SHA-256")
+        if self.backend_source_digest is not None and self.runtime_variant not in {
+            "online-rl-trl-py312",
+            "online-rl-verl-py313",
+        }:
+            raise ContractError("backend source is only supported by the TRL and veRL online-RL runtime variants")
         expected_sources = tuple(
             sorted(
                 self.git_sources,
@@ -284,6 +292,7 @@ class JobPackSpec:
             "resolved_inputs_digest": self.resolved_inputs_digest,
             "framework_source_digest": self.framework_source_digest,
             "project_source_digest": self.project_source_digest,
+            "backend_source_digest": self.backend_source_digest,
             "universal_image": self.universal_image.value,
             "kind_image": self.kind_image.value,
             "datasets": [request.to_payload() for request in self.datasets],
@@ -371,6 +380,7 @@ def plan_job_pack(
     family_registry_lock: Mapping[str, object] | None = None,
     project_root: Path | None = None,
     backend_runtime_identity: BackendRuntimeIdentity | None = None,
+    backend_source_digest: str | None = None,
 ) -> JobPackPlan:
     """Derive an immutable plan without importing, fetching, building, or writing."""
 
@@ -408,6 +418,7 @@ def plan_job_pack(
         worker_contract_version=worker_contract_version,
         family_registry_lock=family_registry_lock or {},
         project_environment_sources=project_sources,
+        backend_source_digest=backend_source_digest,
     )
     return JobPackPlan(spec=spec, publication=publication)
 

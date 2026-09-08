@@ -141,6 +141,7 @@ class PlannedJobPackage:
     framework_source_inspection: SourceSnapshotInspection | None = None
     dataset_source_estimates: tuple[dict[str, object], ...] = ()
     builder_override: str | None = None
+    backend_source_request: SourceSnapshotRequest | None = None
 
     def materialize(self) -> PackedJobContext:
         """Materialize the immutable job context without publishing an image."""
@@ -149,6 +150,11 @@ class PlannedJobPackage:
         source_root = cache_path(self.layout, "pack", "sources")
         snapshotter = ImmutableSourceSnapshotter(cache_root=source_root)
         project_source = snapshotter.materialize(self.project_source_request)
+        backend_source = (
+            snapshotter.materialize(self.backend_source_request)
+            if self.backend_source_request is not None
+            else None
+        )
         project_environment_sources: dict[str, Path] = {}
         for request in self.pack_plan.spec.project_environment_sources:
             snapshot = snapshotter.materialize(
@@ -174,6 +180,8 @@ class PlannedJobPackage:
         if (
             framework_digest != self.pack_plan.spec.framework_source_digest
             or project_source.digest != self.pack_plan.spec.project_source_digest
+            or (backend_source.digest if backend_source is not None else None)
+            != self.pack_plan.spec.backend_source_digest
         ):
             raise ContractError("source bytes changed after planning; run job plan again")
 
@@ -258,6 +266,7 @@ class PlannedJobPackage:
             JobPackInputs(
                 framework_source=framework_package,
                 framework_wheels=framework_wheels,
+                backend_source=(backend_source.package if backend_source is not None else None),
                 project_source=project_source.package,
                 resolved_inputs=dict(self.prepared.spec.resolved_inputs),
                 project_config=project_config,
@@ -660,6 +669,7 @@ def plan_job_execution(
     env_file: Path | None = None,
     framework_wheelhouse: Path | None = None,
     builder: str | None = None,
+    backend_source: Path | None = None,
 ) -> PlannedJobExecution:
     """Resolve and hash one job without materializing or submitting it."""
 
@@ -680,6 +690,7 @@ def plan_job_execution(
         env_file=env_file,
         framework_wheelhouse=framework_wheelhouse,
         builder=builder,
+        backend_source=backend_source,
     )
     return PlannedJobExecution(
         package=package,
@@ -712,6 +723,7 @@ def plan_job_package(
     local_publication: bool = False,
     framework_wheelhouse: Path | None = None,
     builder: str | None = None,
+    backend_source: Path | None = None,
 ) -> PlannedJobPackage:
     """Resolve capsule bytes without requiring a provider or worker storage."""
 
@@ -728,6 +740,7 @@ def plan_job_package(
             local_publication=local_publication,
             framework_wheelhouse=framework_wheelhouse,
             builder=builder,
+            backend_source=backend_source,
         )
     return _plan_job_package(
         state,
@@ -743,6 +756,7 @@ def plan_job_package(
         local_publication=local_publication,
         framework_wheelhouse=framework_wheelhouse,
         builder=builder,
+        backend_source=backend_source,
     )
 
 
@@ -817,6 +831,7 @@ def _plan_job_package(
     local_publication: bool,
     framework_wheelhouse: Path | None,
     builder: str | None,
+    backend_source: Path | None,
 ) -> PlannedJobPackage:
     layout, catalog, work_package_path, package = load_work_package_bundle(state, path)
     context = runtime_context(
@@ -846,6 +861,7 @@ def _plan_job_package(
         local_publication=local_publication,
         framework_wheelhouse=framework_wheelhouse,
         builder=builder,
+        backend_source=backend_source,
     )
 
 
@@ -860,6 +876,7 @@ def _plan_job_package_from_intent(
     local_publication: bool,
     framework_wheelhouse: Path | None,
     builder: str | None,
+    backend_source: Path | None,
 ) -> PlannedJobPackage:
     layout = intent.layout
     local_config = _with_registry_override(
@@ -948,6 +965,14 @@ def _plan_job_package_from_intent(
         profile,
         settings.runtime_profile,
     )
+    backend_source_request = _backend_source_request(backend_source, runtime_variant)
+    if backend_source_request is not None and settings.provider != "local":
+        raise ContractError("--backend-source is a local-executor development option")
+    backend_inspection = (
+        inspector.inspect_details(backend_source_request)
+        if backend_source_request is not None
+        else None
+    )
     backend_runtime_identity = _backend_runtime_identity(registry, runtime_variant)
     _validate_backend_runtime_selection(prepared, runtime_variant, backend_runtime_identity)
     if not isinstance(catalog.family_registry_lock, FamilyRegistryLock):
@@ -963,6 +988,7 @@ def _plan_job_package_from_intent(
         family_registry_lock=catalog.family_registry_lock.to_payload(),
         project_root=layout.root,
         backend_runtime_identity=backend_runtime_identity,
+        backend_source_digest=(backend_inspection.digest if backend_inspection is not None else None),
     )
     target = _execution_target(prepared)
     if settings.runtime_profile is None:
@@ -992,6 +1018,7 @@ def _plan_job_package_from_intent(
         framework_source_inspection=framework_inspection,
         dataset_source_estimates=_dataset_source_estimates(layout.root, pack_plan),
         builder_override=_validate_builder_override(builder),
+        backend_source_request=backend_source_request,
     )
 
 
@@ -1132,6 +1159,19 @@ def _framework_source_request(configured_root: Path | None) -> SourceSnapshotReq
         includes=tuple(sorted(_FRAMEWORK_SOURCE_INCLUDES)),
         install_roots=tuple(sorted(_FRAMEWORK_INSTALL_ROOTS)),
     )
+
+
+def _backend_source_request(root: Path | None, runtime_variant: str) -> SourceSnapshotRequest | None:
+    """Select one local backend checkout for a daemon-only development capsule."""
+
+    if root is None:
+        return None
+    if not runtime_variant.startswith(("online-rl-trl-", "online-rl-verl-")):
+        raise ContractError("--backend-source requires a TRL or veRL online-RL runtime")
+    selected = root.resolve()
+    if not selected.is_dir() or not (selected / "pyproject.toml").is_file():
+        raise ContractError("--backend-source must name a checkout root with pyproject.toml")
+    return SourceSnapshotRequest(root=selected, includes=(".",), install_roots=(".",))
 
 
 def _bake_file(registry: RegistryBinding) -> Path:

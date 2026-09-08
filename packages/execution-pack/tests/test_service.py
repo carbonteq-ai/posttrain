@@ -184,6 +184,38 @@ def _plan(
     )
 
 
+def test_pack_stages_a_digest_bound_backend_source(tmp_path: Path) -> None:
+    inputs = _inputs(tmp_path)
+    backend_parent = _source(tmp_path / "backend", "trl-candidate")
+    backend = SourcePackage(
+        root=(backend_parent.root / "trl-candidate").resolve(),
+        install_roots=(".",),
+    )
+    inputs = replace(inputs, backend_source=backend)
+    base = _plan(inputs)
+    plan = replace(
+        base,
+        spec=replace(
+            base.spec,
+            job_id="grpo",
+            job_definition_id="train/trl-grpo@1",
+            job_kind="train.grpo",
+            kind_profile="online-rl",
+            runtime_variant="online-rl-trl-py312",
+            backend_source_digest=digest_source_package(backend),
+        ),
+    )
+    service = JobPackService(
+        output_root=(tmp_path / "contexts").resolve(),
+        dataset_packager=_dataset_packager(tmp_path),
+    )
+
+    context = service.pack(plan, inputs)
+
+    assert context.manifest.backend_source_digest == digest_source_package(backend)
+    assert (context.root / "sources" / "backend" / "pyproject.toml").is_file()
+
+
 def _dataset_packager(tmp_path: Path) -> ImmutableDatasetPackager:
     return ImmutableDatasetPackager(
         state_dir=(tmp_path / "dataset-state").resolve(),

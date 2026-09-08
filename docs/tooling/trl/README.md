@@ -25,7 +25,7 @@ Live RTX PRO qualification remains pending. Harness optimization is deferred.
 
 The async rollout lifecycle is under development on fork branch
 `codex/trl-parity-probe-bound`. Its latest pushed candidate is
-`b6c1206a4e7207d2243055728c4824853edab325`; it is not part of the published
+`213bc267445c8787e2ccbc7c2021360a9f6e840c`; it is not part of the published
 post5 package or framework pin. Against the selected vLLM 0.25.1 runtime, its
 bounded Qwen 0.5B gate passes independent request completion, explicit abort,
 sampled-token logprobs, drain, staged weights/KV-cache wake, sleep, and clean
@@ -39,9 +39,14 @@ GPU topology. The passing implementation was
 changed normalization tensor over the production NCCL client to an RTX PRO
 6000 vLLM server. Base selected-token log-prob delta was `0.0022419691`; after
 transfer it was exactly `0.0`, while the server value moved by
-`10.6749088764`. A real asynchronous Verifiers-to-learner optimizer update,
-live failure injection, an immutable candidate package, checkpoint/resume, and
-throughput qualification remain open. See
+`10.6749088764`. The live failure-boundary gate now injects an invalid native
+`finish_weight_update` into the real trainer synchronization path and proves
+the server keeps version 0 authoritative with unchanged selected-token
+log-probability. It is a single-rank control-path result only; repeated NCCL
+group initialization on a long-lived vLLM server remains an unqualified
+distributed failure-propagation case. A real asynchronous
+Verifiers-to-learner optimizer update, an immutable candidate package,
+checkpoint/resume, and throughput qualification remain open. See
 `docs/plan/async-continuous-rollout-workers.md` for the exact command and gates.
 
 The local candidate also adds an acknowledged model-request drain to native

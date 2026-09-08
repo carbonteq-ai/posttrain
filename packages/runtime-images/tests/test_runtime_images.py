@@ -68,6 +68,20 @@ def test_actual_job_verifies_source_before_package_build_backends_run() -> None:
     assert copied < verified < installed
 
 
+def test_actual_job_can_apply_only_a_digest_bound_backend_development_source() -> None:
+    with definition_root() as root:
+        dockerfile = (root / "containers/posttrain-job/Dockerfile").read_text()
+
+    assert "ARG BACKEND_SOURCE_DIGEST" in dockerfile
+    assert "staged backend source differs from its package digest" in dockerfile
+    assert "online-rl-trl-py312" in dockerfile
+    assert "online-rl-verl-py313" in dockerfile
+    with definition_root() as root:
+        bake = (root / "containers/posttrain-job/docker-bake.hcl").read_text()
+    assert 'variable "BACKEND_SOURCE_DIGEST"' in bake
+    assert "BACKEND_SOURCE_DIGEST = BACKEND_SOURCE_DIGEST" in bake
+
+
 def test_eval_kind_installs_one_locked_runtime_and_marks_it_preinstalled() -> None:
     with definition_root() as root:
         dockerfile = (root / "containers/posttrain-job-kinds/Dockerfile").read_text()
