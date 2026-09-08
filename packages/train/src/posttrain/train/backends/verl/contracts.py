@@ -65,6 +65,7 @@ class VerlEnvironment(VerlContract):
     dataset_id: str
     dataset_revision: str
     bridge_snapshot: Path
+    max_concurrent: int | None = Field(default=None, gt=0)
     examples: tuple[VerlEnvironmentExample, ...]
 
 

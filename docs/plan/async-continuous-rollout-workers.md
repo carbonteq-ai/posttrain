@@ -1,6 +1,6 @@
 # Asynchronous rollout requests, continuous batching, and environment workers
 
-Revision 8 — 2026-09-08. Status: asynchronous TRL foundation, shared contracts, veRL sampling propagation, and opt-in native veRL worker episode admission are implemented; worker transport, global group admission, runtime integration, and GPU qualification remain open. Repository: `/home/hammad/projects/rl`.
+Revision 9 — 2026-09-08. Status: asynchronous TRL foundation, shared contracts, veRL sampling/renderer propagation, native worker admission, V1 complete-group recovery, and opt-in framework translation are implemented; TRL worker transport, immutable runtime publication, and GPU qualification remain open. Repository: `/home/hammad/projects/rl`.
 
 ## Purpose / Big Picture
 
@@ -23,6 +23,8 @@ Actor forward/backward optimization is explicitly out of scope: no changes to ac
 - [x] (2026-09-08) Add shared `rollout_execution` identity, outcome, and capacity contracts in framework commit pending this revision: 4×8 worker capacity is constrained by the global 32-episode limit; completed outcomes are identity-fenced before admission; failed outcomes cannot manufacture a rollout.
 - [x] (2026-09-08) Preserve veRL phase/per-row sampling in `VerlPolicyGenerator`: native sampling is no longer discarded, greedy validation controls are accepted, and environment output ceilings remain enforced.
 - [x] (2026-09-08) Add and publish the generic veRL worker-local episode gate at fork commit `f73ca959`: the manager validates a provable global capacity contract and each Ray worker enforces its own opt-in `asyncio.Semaphore`; defaults remain unchanged.
+- [x] (2026-09-08) Close the active veRL V1 path at pushed fork commit `5dbf667c`: TransferQueue sessions use the worker gate, any partially failed prompt group can be replaced as one terminal unit, and Ray CPU reservations are explicit.
+- [x] (2026-09-08) Carry renderer selection and validated `backend_options.rollout_execution` through the framework adapter. The mode is revision-gated to the supporting fork and does not change the stable runtime profile.
 - [ ] Prove the pinned TRL asynchronous engine lifecycle against a real vLLM engine before implementing worker transport.
 - [ ] Implement and test the native-client wire compatibility and exact-token contract.
 - [ ] Implement the TRL asynchronous generation lifecycle against the selected runtime.
@@ -43,7 +45,7 @@ The inspected source baseline is:
 | `/tmp/trl-parity-probe.WIQjjv` | Branch `codex/trl-parity-probe-bound`; published post5 source `b9f3a09369d9cfa21950feef3e110e1fdf779c54`; inspected HEAD `68f7eb246db73aac926a437da1f043b4660265a1` includes subsequent ledger documentation. Temporary checkout location is not a deployment dependency. |
 | `/home/hammad/projects/verifiers` | Canonical checkout; branch `codex/carbonteq-verifiers-latest`, commit `90055c11896954fac429bb9120245caa6dc1dd59`; upstream base `e3bcbcbe5c55297a07a5d1038e37c2408b4a3dbd`. Clean after consolidation. |
 | `/home/hammad/projects/verifiers-environments` | Canonical checkout; branch `codex/verifiers-latest-support`, commit `12ff5e1abfab369b8dec4df3ce83c5984f55ad34`. Clean after consolidation. Task semantics remain here; no changes required initially. |
-| `/home/hammad/projects/verl-upstream` | Historical work is preserved on `codex/verl-pre-rollout-optimization-baseline`, based on `a35908ca3c9632859c58d6a2855d858918ae21dc`; do not use this snapshot as the runtime implementation base. Active implementation branch `codex/verl-rollout-execution` is pushed at `f73ca959`, based on executable runtime pin `cec7e74c361bb973b641db8dfbb75a5544c33139` (`carbonteq-v0.9.0.post1`). This fork commit is not yet a published runtime artifact or framework pin. |
+| `/home/hammad/projects/verl-upstream` | Historical work is preserved on `codex/verl-pre-rollout-optimization-baseline`, based on `a35908ca3c9632859c58d6a2855d858918ae21dc`; do not use this snapshot as the runtime implementation base. Active implementation branch `codex/verl-rollout-execution` is pushed at `5dbf667c99b29db613d1dfcded1ed90440ef6311`, based on executable runtime pin `cec7e74c361bb973b641db8dfbb75a5544c33139` (`carbonteq-v0.9.0.post1`). This fork commit is not yet a published runtime artifact or stable framework pin. |
 
 Resolve branches, dirty state, manifests, and lockfiles again when implementation starts. These are inspection anchors, not permission to overwrite later changes.
 
@@ -81,7 +83,9 @@ veRL already implements the relevant scheduling layers: `verl/experimental/agent
 
 `PosttrainVerifiersAgentLoop.run` had discarded veRL's `sampling_params`; the implemented adapter now validates and forwards phase/per-row controls to the already asynchronous server manager. It accepts greedy `temperature=0` and native `top_k=-1`, requires log probabilities, and rejects a maximum-token override above the environment limit. `packages/train/tests/test_verl_backend.py` passes 51 focused tests after this change. Renderer generalization, worker budgets, and terminal-outcome collection remain open.
 
-The native veRL capacity slice is intentionally local to an `AgentLoopWorker`: it gates individual episode coroutines but does not create an environment pool or duplicate an inference engine. A collection-wide value is valid only when it is paired with a per-worker limit whose product with `num_workers` is no greater than that value. The fork lacks a provisioned Ray test environment on this host, so its focused CPU tests compile and lint but have not executed here; this is not GPU or runtime-image evidence.
+The native veRL capacity slice is intentionally local to an `AgentLoopWorker`: it gates individual episode coroutines but does not create an environment pool or duplicate an inference engine. A collection-wide value is valid only when it is paired with a per-worker limit whose product with `num_workers` is no greater than that value. `/home/hammad/projects/verl/.venv313` provides the selected Python 3.13, Ray 2.56.1, and TransferQueue test stack; focused CPU tests execute there. This is not GPU or runtime-image evidence.
+
+The active V1 path already supplied the correct terminal group boundary: it settles every session and publishes prompt status `failure`. The actual defects were that V1 bypassed the new worker gate and that its general failure option retained partially materializable groups. Both are fixed in `5dbf667c`; the framework now selects complete-group replacement whenever bounded rollout execution is enabled. This avoids inventing a parallel Posttrain outcome protocol inside veRL.
 
 ## Decision Log
 
@@ -100,6 +104,7 @@ The native veRL capacity slice is intentionally local to an `AgentLoopWorker`: i
 13. (2026-09-08) Base veRL changes on runtime source `cec7e74c361bb973b641db8dfbb75a5544c33139`. Its worker-side packing requires two-stage collection, not merely a manager hook after packed results arrive.
 14. (2026-09-08) Enforce judge concurrency at one composition-owned admission proxy shared by all environment workers. Classify episode-local failures separately from invalid global execution state.
 15. (2026-09-08) Make veRL's episode cap a generic native agent-loop feature. A global cap is a guarantee only when the configured Ray worker count and local semaphore bounds prove it; otherwise reject configuration rather than silently oversubscribe.
+16. (2026-09-08) Reuse V1 TransferQueue prompt status as the active veRL terminal-outcome protocol. A failed sibling invalidates its complete prompt group; replacement is bounded work within the collection, not a retry of every successful group. Keep a separate typed-envelope design deferred for the legacy non-TransferQueue manager only if that path becomes a supported Posttrain target.
 
 ## Target architecture and ownership
 
@@ -326,5 +331,7 @@ Revision 6 note: updated 2026-09-08 after adding framework-owned rollout executi
 Revision 7 note: updated 2026-09-08 after veRL sampling propagation. The change affects rollout sampling only; it does not alter actor update configuration, native worker count, model renderer selection, or process orchestration.
 
 Revision 8 note: updated 2026-09-08 after fork commit `f73ca959` on pushed branch `codex/verl-rollout-execution`. It adds an opt-in native worker gate and validation only. The framework has deliberately not emitted the new settings: its immutable runtime profile still pins the parent commit, so consumer configuration must wait for a published artifact and pin update. Two-stage outcome collection/admission remains required before this gate can make partial failures safe.
+
+Revision 9 note: updated 2026-09-08 after source inspection corrected Revision 8's assumption about the active V1 path. TransferQueue already owns two-stage prompt termination and failed-group visibility. Fork commits `c5c34bfb` and `5dbf667c` route V1 sessions through the gate, preserve complete groups, and reserve Ray CPUs. The framework emits 4×8→32 native settings only for the exact supporting revision and rejects legacy revisions or oversubscription before Ray starts. The stable runtime profile and release hashes remain unchanged pending artifact and GPU qualification.
 
 Baseline checkpoint note (2026-09-08): the user requested commits preserving previous work. Framework changes are captured on `codex/pre-rollout-optimization-baseline`; historical veRL changes are separately preserved on `codex/verl-pre-rollout-optimization-baseline`. No fork pin is changed by these snapshots. Focused framework reward-admission, reward-advantage, and policy-message tests passed (32 tests); full release/GPU qualification is not implied. The two cleanup stashes remain separate and untouched.

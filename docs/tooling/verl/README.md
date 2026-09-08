@@ -1,5 +1,25 @@
 # veRL training backend
 
+## Rollout-execution candidate (unpublished)
+
+Branch `codex/verl-rollout-execution` is pushed at
+`5dbf667c99b29db613d1dfcded1ed90440ef6311`, based on the current post1
+runtime source. It adds opt-in Ray agent-worker episode limits, explicit CPU
+reservations, and complete failed-group replacement in the V1 TransferQueue
+path. The framework accepts a private
+`TrainingBinding.backend_options.rollout_execution` mapping with
+`env_workers`, `episodes_per_worker`, and `worker_native_threads`; it validates
+their product against the Verifiers bridge's global `max_concurrent` and maps
+the values to native veRL settings. Native overrides cannot replace those
+owned settings.
+
+The candidate is not the stable runtime selection. The profile below still
+pins `cec7e74c361bb973b641db8dfbb75a5544c33139` and post1 artifact hashes.
+Publication, runtime-image reconstruction, and a real GPU collection/update
+gate are required before changing that selection. Renderer construction is now
+binding-driven for Qwen and LFM, but the existing Qwen-only GPU qualification
+policy remains in force.
+
 ## GDPO/CAPO follow-on implementation (unpublished)
 
 Algorithm qualification uses deterministic synthetic turn inputs separately

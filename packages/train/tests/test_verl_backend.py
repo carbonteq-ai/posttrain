@@ -84,6 +84,7 @@ class FakeEnvironment:
 
 
 class FakeBridge:
+    max_concurrent = 32
     dataset = RolloutDataset(
         "test-rollouts-v1",
         "a" * 40,
@@ -424,6 +425,97 @@ def test_grpo_worker_maps_prompt_groups_generations_and_kl_without_importing_ver
     assert "trainer.resume_mode=disable" in overrides
     assert not any(value.startswith("trainer.resume_from_path=") for value in overrides)
     assert "trainer.logger=['console','file']" in overrides
+
+
+def test_grpo_worker_maps_bounded_rollout_execution_to_native_verl(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    request = _grpo_request()
+    training = replace(
+        request.training,
+        backend_options={
+            **request.training.backend_options,
+            "source_revision": "5dbf667c99b29db613d1dfcded1ed90440ef6311",
+            "rollout_execution": {
+                "env_workers": 4,
+                "episodes_per_worker": 8,
+                "worker_native_threads": 1,
+            },
+        },
+    )
+    plan = build_grpo_launch_plan(replace(request, training=training), tmp_path)
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+
+    overrides = build_hydra_overrides(
+        plan,
+        tmp_path / "rollouts.parquet",
+        tmp_path / "agent-loop.json",
+        tmp_path / "checkpoints",
+    )
+
+    assert "actor_rollout_ref.rollout.agent.num_workers=4" in overrides
+    assert "actor_rollout_ref.rollout.agent.num_cpus_per_worker=1" in overrides
+    assert "actor_rollout_ref.rollout.agent.max_concurrent_episodes=32" in overrides
+    assert "actor_rollout_ref.rollout.agent.max_concurrent_episodes_per_worker=8" in overrides
+    assert "trainer.v1.sampler.refill_all_failed_groups=True" in overrides
+
+
+def test_grpo_worker_rejects_rollout_capacity_above_environment_limit(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    request = _grpo_request()
+    training = replace(
+        request.training,
+        backend_options={
+            **request.training.backend_options,
+            "source_revision": "5dbf667c99b29db613d1dfcded1ed90440ef6311",
+            "rollout_execution": {
+                "env_workers": 5,
+                "episodes_per_worker": 8,
+                "worker_native_threads": 1,
+            },
+        },
+    )
+    plan = build_grpo_launch_plan(replace(request, training=training), tmp_path)
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+
+    with pytest.raises(ValueError, match="environment worker capacity exceeds"):
+        build_hydra_overrides(
+            plan,
+            tmp_path / "rollouts.parquet",
+            tmp_path / "agent-loop.json",
+            tmp_path / "checkpoints",
+        )
+
+
+def test_grpo_worker_rejects_bounded_execution_on_legacy_verl_revision(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    request = _grpo_request()
+    training = replace(
+        request.training,
+        backend_options={
+            **request.training.backend_options,
+            "rollout_execution": {
+                "env_workers": 4,
+                "episodes_per_worker": 8,
+                "worker_native_threads": 1,
+            },
+        },
+    )
+    plan = build_grpo_launch_plan(replace(request, training=training), tmp_path)
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+
+    with pytest.raises(ValueError, match="does not support bounded rollout_execution"):
+        build_hydra_overrides(
+            plan,
+            tmp_path / "rollouts.parquet",
+            tmp_path / "agent-loop.json",
+            tmp_path / "checkpoints",
+        )
 
 
 def test_grpo_prompt_shuffle_is_explicit_and_backend_neutral(

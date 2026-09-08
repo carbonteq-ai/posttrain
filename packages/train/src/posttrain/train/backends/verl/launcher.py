@@ -831,6 +831,7 @@ def _environment(
         dataset_id=request.bridge.dataset.id,
         dataset_revision=request.bridge.dataset.revision,
         bridge_snapshot=(output_dir / "verifiers-bridge.pkl").resolve(),
+        max_concurrent=getattr(request.bridge, "max_concurrent", None),
         examples=tuple(
             VerlEnvironmentExample(id=example.id, prompt=example.prompt, metadata=dict(example.metadata))
             for example in request.bridge.dataset.examples
