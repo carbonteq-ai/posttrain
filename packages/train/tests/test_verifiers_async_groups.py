@@ -1,10 +1,11 @@
 import asyncio
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
 from posttrain.common import TraceObservation
 from posttrain.train.integrations.verifiers_async_groups import VerifiersAsyncGroupProducer
-from posttrain.train.online_rl import EnvironmentRollout
+from posttrain.train.online_rl import BehaviorPolicySpan, EnvironmentRollout
 from posttrain.train.profiles import GRPOSettings, TrainingLoop
 from posttrain.train.rollout_execution import (
     CollectionExecutionError,
@@ -26,7 +27,8 @@ def settings(**overrides):
     return GRPOSettings(**values)
 
 
-def rollout(key, reward):
+def rollout(key, reward, policy_end=None):
+    policy_start = int(key.collection.policy_version)
     return EnvironmentRollout(
         example_id=key.example_id,
         prompt_ids=(1, 2),
@@ -36,11 +38,16 @@ def rollout(key, reward):
         reward=reward,
         is_truncated=False,
         trace=TraceObservation("verifiers", key.occurrence_id, {}),
+        behavior_policy=BehaviorPolicySpan(
+            policy_start,
+            policy_start if policy_end is None else policy_end,
+        ),
     )
 
 
 class PolicyAdmission:
     base_url = "http://127.0.0.1:8000/v1"
+    fatal_error = None
 
     def __init__(self):
         self.events = []
@@ -68,6 +75,7 @@ class Workers:
         self.failing_ordinal: int | None = None
         self.tasks = {}
         self.cancelled = []
+        self.policy_end = 0
 
     async def start(self, activation, client_config, execution_config):
         self.events.append(("start", activation["id"], client_config.base_url, execution_config.episode_capacity))
@@ -89,7 +97,11 @@ class Workers:
             await self.release.wait()
         if key.rollout_ordinal == self.invalid_ordinal:
             return EpisodeOutcome(key, EpisodeStatus.INVALID, error="invalid trace")
-        return EpisodeOutcome(key, EpisodeStatus.COMPLETED, rollout=rollout(key, float(key.rollout_ordinal)))
+        return EpisodeOutcome(
+            key,
+            EpisodeStatus.COMPLETED,
+            rollout=rollout(key, float(key.rollout_ordinal), self.policy_end),
+        )
 
     async def cancel(self, key):
         self.cancelled.append(key)
@@ -140,6 +152,7 @@ async def test_produces_complete_native_group_and_tracks_policy_span_across_upda
     await workers.entered.wait()
     await value.prepare_model_update(1)
     await value.activate_model_version(1)
+    workers.policy_end = 1
     workers.release.set()
 
     samples = await pending
@@ -167,6 +180,43 @@ async def test_rejects_incomplete_native_group_without_publishing_partial_sample
     await value.astart()
 
     with pytest.raises(RolloutGroupRejected, match="1 of 2"):
+        await value.produce_group(0)
+
+    await value.aclose()
+
+
+@pytest.mark.asyncio
+async def test_shared_policy_failure_stops_collection_instead_of_rejecting_group():
+    workers = Workers()
+    workers.invalid_ordinal = 1
+    policy = PolicyAdmission()
+    policy.fatal_error = CollectionExecutionError("shared inference failed")
+    value, _, _ = producer(workers, policy)
+    await value.astart()
+
+    with pytest.raises(CollectionExecutionError, match="shared inference failed"):
+        await value.produce_group(0)
+
+    state = await value.rollout_state_dict()
+    assert state["rejected_group_ids"] == []
+    await value.aclose()
+
+
+@pytest.mark.asyncio
+async def test_missing_served_policy_evidence_is_run_fatal():
+    class MissingPolicyWorkers(Workers):
+        async def run_episode(self, key, task, deadline):
+            outcome = await super().run_episode(key, task, deadline)
+            assert outcome.rollout is not None
+            return replace(
+                outcome,
+                rollout=replace(outcome.rollout, behavior_policy=None),
+            )
+
+    value, _, _ = producer(MissingPolicyWorkers())
+    await value.astart()
+
+    with pytest.raises(CollectionExecutionError, match="no served policy-version evidence"):
         await value.produce_group(0)
 
     await value.aclose()

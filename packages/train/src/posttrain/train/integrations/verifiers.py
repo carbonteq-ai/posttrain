@@ -38,6 +38,7 @@ from posttrain.environment import (
 from ..online_rl import (
     AgenticTurn,
     AsyncTerminalTraceObserver,
+    BehaviorPolicySpan,
     EnvironmentRollout,
     EnvironmentRolloutEvidence,
     EnvironmentSampling,
@@ -674,6 +675,7 @@ class VerifiersEnvironmentRolloutBridge:
                         rollout_ordinal=rollout_ordinal,
                         group_id=(batch.prompt_group_ids[rollout_ordinal] if batch.prompt_group_ids else None),
                         rollout_id=(batch.rollout_ids[rollout_ordinal] if batch.rollout_ids else None),
+                        behavior_policy=None,
                         on_completed=on_completed,
                     )
                 except InvalidNativeEpisode as error:
@@ -779,6 +781,7 @@ class VerifiersEnvironmentRolloutBridge:
         key: EpisodeKey,
         episode: Any,
         *,
+        behavior_policy: BehaviorPolicySpan | None = None,
         on_completed: AsyncTerminalTraceObserver | None = None,
     ) -> EnvironmentRollout:
         """Project a worker-returned native episode through the direct bridge contract."""
@@ -798,6 +801,7 @@ class VerifiersEnvironmentRolloutBridge:
             rollout_ordinal=key.rollout_ordinal,
             group_id=key.group_id,
             rollout_id=key.occurrence_id,
+            behavior_policy=behavior_policy,
             on_completed=on_completed,
         )
 
@@ -812,6 +816,7 @@ class VerifiersEnvironmentRolloutBridge:
         rollout_ordinal: int,
         group_id: str | None,
         rollout_id: str | None,
+        behavior_policy: BehaviorPolicySpan | None,
         on_completed: AsyncTerminalTraceObserver | None,
     ) -> EnvironmentRollout:
         """Retain and project one modern episode, regardless of process placement."""
@@ -819,14 +824,29 @@ class VerifiersEnvironmentRolloutBridge:
         from verifiers.v1.episode import GroupInfo  # pyright: ignore[reportAttributeAccessIssue]
 
         *_, TrainRunInfo, _, _, _, _ = _imports()
-        episode.record_run(TrainRunInfo(id=self.run_id, work={"type": "train", "step": logical_step}))
+        policy_record = (
+            None
+            if behavior_policy is None
+            else {"start": behavior_policy.start, "end": behavior_policy.end}
+        )
+        episode.record_run(
+            TrainRunInfo(
+                id=self.run_id,
+                work={"type": "train", "step": logical_step, "policy": policy_record},
+            )
+        )
         episode.env.name = self.environment_id
         if group_id is not None:
             episode.group = GroupInfo(id=group_id)
         for native_trace in episode.traces:
             native_trace.info.update(
                 posttrain_episode_id=episode.id,
-                posttrain_run={"type": "train", "id": self.run_id, "step": logical_step},
+                posttrain_run={
+                    "type": "train",
+                    "id": self.run_id,
+                    "step": logical_step,
+                    **({"policy": policy_record} if policy_record is not None else {}),
+                },
                 environment_id=self.environment_id,
                 task_index=task_index,
                 example_id=example_id,
@@ -872,7 +892,8 @@ class VerifiersEnvironmentRolloutBridge:
         if enrichment_error is not None:
             raise InvalidNativeEpisode("native trace retained after enrichment failure") from enrichment_error
         try:
-            return self._project(trace, observation)
+            rollout = self._project(trace, observation)
+            return replace(rollout, behavior_policy=behavior_policy)
         except VerifiersRolloutFailure as error:
             raise InvalidNativeEpisode(str(error)) from error
 

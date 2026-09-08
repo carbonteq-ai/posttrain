@@ -7,7 +7,7 @@ from typing import cast
 import pytest
 from posttrain.common import JsonValue
 from posttrain.train.integrations.verifiers import VerifiersEnvironmentRolloutBridge
-from posttrain.train.online_rl import PolicySampling, PolicyTurnResult, RolloutBatch
+from posttrain.train.online_rl import BehaviorPolicySpan, PolicySampling, PolicyTurnResult, RolloutBatch
 from posttrain.train.rollout_execution import CollectionKey, EpisodeKey
 
 
@@ -170,19 +170,27 @@ async def test_worker_episode_uses_the_same_native_projection_and_lineage(tmp_pa
         seed=7,
         rollout_ordinal=0,
     )
-    worker_rollout = await worker.project_native_episode(key, episode)
+    worker_rollout = await worker.project_native_episode(
+        key,
+        episode,
+        behavior_policy=BehaviorPolicySpan(3, 5),
+    )
 
     assert worker_rollout.prompt_ids == (10, 11, 12)
     assert worker_rollout.completion_ids == (900, 901)
     assert worker_rollout.sampling_logprobs == (-0.125, -0.25)
     assert worker_rollout.env_mask == (True, True)
     assert worker_rollout.reward == 0.75
+    assert worker_rollout.behavior_policy == BehaviorPolicySpan(3, 5)
     assert worker_rollout.trace.attributes["example_id"] == "train/000000"
     retained = module.WireEpisode.model_validate_json((tmp_path / "worker" / "episodes.jsonl").read_text())
     assert retained.run.id == "run"
     assert retained.run.work.step == 3
+    assert retained.run.work.policy.start == 3
+    assert retained.run.work.policy.end == 5
     assert retained.group.id == "group"
     assert retained.traces[0].info["posttrain_rollout_id"] == "rollout"
+    assert retained.traces[0].info["posttrain_run"]["policy"] == {"start": 3, "end": 5}
 
 
 @pytest.mark.asyncio

@@ -59,6 +59,15 @@ generated/enqueued work distinct from learner-consumed work and fails closed
 on a partially consumed relative-reward group. Whole-group batching and a real
 resume must still be qualified before the mode can be selected.
 
+Posttrain now has an unselected run-scoped token gateway for this candidate.
+It forwards native Verifiers requests to the trainer-owned vLLM server while
+gating model turns around the fork's two-phase weight publication. It records
+the served version of each request by Verifiers trace session and persists the
+resulting span in the native episode before projection. This avoids deriving
+provenance from wall-clock completion or asking Verifiers to own trainer state.
+Deterministic two-turn and shared-upstream-failure tests pass; live changed-
+weight actor/sampler parity is still a release gate.
+
 Previous candidate: `1.12.0.post4`, commit
 `19e6c89a18617f1bd6e6385212705a67f5434962`, supersedes post3 below without
 overwriting its immutable assets. Post4 initializes the bounded diagnostic

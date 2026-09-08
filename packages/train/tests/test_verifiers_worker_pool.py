@@ -7,6 +7,7 @@ from posttrain.train.integrations.verifiers_workers import (
     InvalidNativeEpisode,
     VerifiersWorkerPool,
 )
+from posttrain.train.online_rl import BehaviorPolicySpan
 from posttrain.train.rollout_execution import (
     CollectionExecutionError,
     CollectionKey,
@@ -90,7 +91,7 @@ def episode_key(collection, occurrence="rollout-1"):
     )
 
 
-def create_pool(client, projector=None, *, cancel_timeout=1.0):
+def create_pool(client, projector=None, *, cancel_timeout=1.0, behavior_policy_for_episode=None):
     return VerifiersWorkerPool(
         model="policy-model",
         sampling=SimpleNamespace(max_tokens=8),
@@ -102,6 +103,7 @@ def create_pool(client, projector=None, *, cancel_timeout=1.0):
                 native_value=episode.value,
             )
         ),
+        behavior_policy_for_episode=behavior_policy_for_episode,
         global_limit=4,
         startup_timeout=3.0,
         cancel_timeout=cancel_timeout,
@@ -177,6 +179,45 @@ async def test_async_run_admission_accepts_multiple_policy_collections_but_fence
                 asyncio.get_running_loop().time() + 5,
             )
         await workers.stop_run_admission("run-1")
+    finally:
+        await workers.aclose()
+
+
+@pytest.mark.asyncio
+async def test_episode_policy_provider_reaches_native_projector():
+    captured = []
+
+    def project(key, episode, *, behavior_policy):
+        captured.append((key, behavior_policy))
+        return SimpleNamespace(
+            example_id=key.example_id,
+            reward_evidence=None,
+            behavior_policy=behavior_policy,
+            native_value=episode.value,
+        )
+
+    client = FakeClient("unused")
+    workers = create_pool(
+        client,
+        project,
+        behavior_policy_for_episode=lambda _key, _episode: BehaviorPolicySpan(4, 6),
+    )
+    await workers.start(
+        {"id": "test-env"},
+        SimpleNamespace(type="train"),
+        RolloutExecutionConfig(env_workers=1, episodes_per_worker=1),
+    )
+    collection = CollectionKey("run-1", "collection-1", "4")
+    await workers.open_run_admission("run-1")
+    try:
+        outcome = await workers.run_episode(
+            episode_key(collection),
+            SimpleNamespace(data=Data(value=11)),
+            asyncio.get_running_loop().time() + 5,
+        )
+        assert outcome.status is EpisodeStatus.COMPLETED
+        assert cast(Any, outcome.rollout).behavior_policy == BehaviorPolicySpan(4, 6)
+        assert captured == [(episode_key(collection), BehaviorPolicySpan(4, 6))]
     finally:
         await workers.aclose()
 

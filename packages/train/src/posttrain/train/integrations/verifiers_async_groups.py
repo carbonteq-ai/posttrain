@@ -6,11 +6,10 @@ import asyncio
 import hashlib
 import math
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import replace
 from typing import Any, Protocol
 
 from ..backends.trl.async_samples import AsyncRolloutRecord, InvalidAsyncSampleGroup, project_async_group
-from ..online_rl import BehaviorPolicySpan, EnvironmentRollout
+from ..online_rl import EnvironmentRollout
 from ..profiles import GRPOSettings, shape_online_reward
 from ..rollout_execution import (
     CollectionExecutionError,
@@ -45,6 +44,9 @@ class _AsyncEnvironmentWorkers(Protocol):
 class _PolicyAdmission(Protocol):
     @property
     def base_url(self) -> str: ...
+
+    @property
+    def fatal_error(self) -> BaseException | None: ...
 
     async def start(self, initial_model_version: int) -> None: ...
 
@@ -235,6 +237,10 @@ class VerifiersAsyncGroupProducer:
                 self._active.pop(group_id, None)
         failures = [outcome for outcome in outcomes if outcome.status is not EpisodeStatus.COMPLETED]
         if failures:
+            if self._policy_admission.fatal_error is not None:
+                raise CollectionExecutionError(
+                    f"async policy gateway failed: {self._policy_admission.fatal_error}"
+                ) from self._policy_admission.fatal_error
             reasons = sorted({outcome.error or outcome.status.value for outcome in failures})
             await self._mark_rejected(group_id)
             raise RolloutGroupRejected(
@@ -247,17 +253,13 @@ class VerifiersAsyncGroupProducer:
             raise RolloutGroupRejected(
                 f"async Verifiers group uses {token_count} tokens, exceeding {self._max_group_tokens}"
             )
-        end_version = self._active_model_version
         shaped_rewards = tuple(
             shape_online_reward(self._settings, rollout.reward, len(rollout.completion_ids)) for rollout in rollouts
         )
         records = tuple(
             AsyncRolloutRecord(
                 occurrence_id=key.occurrence_id,
-                rollout=replace(
-                    rollout,
-                    behavior_policy=BehaviorPolicySpan(target_policy_version, end_version),
-                ),
+                rollout=rollout,
                 algorithm_reward=algorithm_reward,
             )
             for key, rollout, algorithm_reward in zip(keys, rollouts, shaped_rewards, strict=True)
@@ -406,6 +408,17 @@ class VerifiersAsyncGroupProducer:
             raise CollectionExecutionError("native Verifiers outcome identity changed before group projection")
         if outcome.rollout.example_id != key.example_id:
             raise CollectionExecutionError("native Verifiers rollout example identity changed")
+        behavior_policy = outcome.rollout.behavior_policy
+        if behavior_policy is None:
+            raise CollectionExecutionError("native Verifiers rollout has no served policy-version evidence")
+        try:
+            target_version = int(key.collection.policy_version)
+        except ValueError as error:
+            raise CollectionExecutionError("async collection policy version is not numeric") from error
+        if behavior_policy.start != target_version:
+            raise CollectionExecutionError(
+                "native Verifiers rollout started on a different policy than its collection"
+            )
         return outcome.rollout
 
     def _require_running(self) -> None:

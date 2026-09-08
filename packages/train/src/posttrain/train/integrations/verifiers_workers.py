@@ -11,6 +11,7 @@ from typing import Any
 
 from posttrain.common import ModelVariant
 
+from ..online_rl import BehaviorPolicySpan
 from ..profiles import TrainingRenderer
 from ..rendering import create_renderer_config
 from ..rollout_execution import (
@@ -25,7 +26,10 @@ from ..rollout_execution import (
     validate_outcome_identity,
 )
 
-type EpisodeProjector = Callable[[EpisodeKey, Any], Any | Awaitable[Any]]
+type EpisodeProjector = Callable[..., Any | Awaitable[Any]]
+type EpisodePolicySpanProvider = Callable[
+    [EpisodeKey, Any], BehaviorPolicySpan | Awaitable[BehaviorPolicySpan]
+]
 
 
 class _EpisodeDeadline(RuntimeError):
@@ -93,6 +97,7 @@ class VerifiersWorkerPool:
         model: str,
         sampling: Any,
         project_episode: EpisodeProjector,
+        behavior_policy_for_episode: EpisodePolicySpanProvider | None = None,
         global_limit: int,
         startup_timeout: float = 120.0,
         cancel_timeout: float = 10.0,
@@ -110,6 +115,7 @@ class VerifiersWorkerPool:
         self._model = model
         self._sampling = sampling
         self._project_episode = project_episode
+        self._behavior_policy_for_episode = behavior_policy_for_episode
         self._global_limit = global_limit
         self._startup_timeout = startup_timeout
         self._cancel_timeout = cancel_timeout
@@ -285,7 +291,18 @@ class VerifiersWorkerPool:
                 self._raise_if_broker_failed()
                 raise _NativeEpisodeFailure(str(error)) from error
             self._raise_if_broker_failed()
-            projected = self._project_episode(key, episode)
+            if self._behavior_policy_for_episode is None:
+                projected = self._project_episode(key, episode)
+            else:
+                pending_span = self._behavior_policy_for_episode(key, episode)
+                behavior_policy = (
+                    await pending_span if inspect.isawaitable(pending_span) else pending_span
+                )
+                projected = self._project_episode(
+                    key,
+                    episode,
+                    behavior_policy=behavior_policy,
+                )
             rollout = await projected if inspect.isawaitable(projected) else projected
             outcome = EpisodeOutcome(key=key, status=EpisodeStatus.COMPLETED, rollout=rollout)
             validate_outcome_identity(key, outcome)
