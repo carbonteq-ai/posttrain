@@ -23,6 +23,21 @@ and retained-gradient equivalence across microbatch sizes. Wheel SHA-256:
 sdist: `ceb581cc5a3d7a4a8a34cbc1b7fbc64e7aba9e3c55a6508b4a14ce257d341bc9`.
 Live RTX PRO qualification remains pending. Harness optimization is deferred.
 
+The async rollout lifecycle is under development on pushed fork branch
+`codex/trl-parity-probe-bound` at commit
+`684696a22ef3d82dbf39f21a60fafa9e5f17514b`; it is not part of the published
+post5 package or framework pin. Against the selected vLLM 0.25.1 runtime, its
+bounded Qwen 0.5B gate passes independent request completion, explicit abort,
+sampled-token logprobs, drain, staged weights/KV-cache wake, sleep, and clean
+shutdown on the local RTX 3070 Ti. The first attempt found that restoring only
+weights leaves vLLM scheduling paused and that shutting down while allocations
+remain asleep produces a CuMem cleanup error; both lifecycle transitions are
+covered by the fork tests and the repeated real-engine gate. Changed actor
+weight synchronization and actor/sampler parity, native Verifiers transport,
+an immutable package/runtime image, optimizer integration, and throughput
+qualification remain open. See
+`docs/plan/async-continuous-rollout-workers.md` for the exact command and gates.
+
 Previous candidate: `1.12.0.post4`, commit
 `19e6c89a18617f1bd6e6385212705a67f5434962`, supersedes post3 below without
 overwriting its immutable assets. Post4 initializes the bounded diagnostic

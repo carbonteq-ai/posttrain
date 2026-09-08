@@ -1,6 +1,6 @@
 # Asynchronous rollout requests, continuous batching, and environment workers
 
-Revision 9 — 2026-09-08. Status: asynchronous TRL foundation, shared contracts, veRL sampling/renderer propagation, native worker admission, V1 complete-group recovery, and opt-in framework translation are implemented; TRL worker transport, immutable runtime publication, and GPU qualification remain open. Repository: `/home/hammad/projects/rl`.
+Revision 11 — 2026-09-08. Status: the TRL session now passes a real vLLM 0.25.1 lifecycle gate, and native Verifiers worker configuration preserves the selected chat template with LFM token parity. Shared contracts, veRL sampling/renderer propagation, native worker admission, V1 complete-group recovery, and opt-in framework translation are implemented. Changed-weight parity, TRL endpoint/worker transport, immutable runtime publication, and end-to-end GPU qualification remain open. Repository: `/home/hammad/projects/rl`.
 
 ## Purpose / Big Picture
 
@@ -25,6 +25,8 @@ Actor forward/backward optimization is explicitly out of scope: no changes to ac
 - [x] (2026-09-08) Add and publish the generic veRL worker-local episode gate at fork commit `f73ca959`: the manager validates a provable global capacity contract and each Ray worker enforces its own opt-in `asyncio.Semaphore`; defaults remain unchanged.
 - [x] (2026-09-08) Close the active veRL V1 path at pushed fork commit `5dbf667c`: TransferQueue sessions use the worker gate, any partially failed prompt group can be replaced as one terminal unit, and Ray CPU reservations are explicit.
 - [x] (2026-09-08) Carry renderer selection and validated `backend_options.rollout_execution` through the framework adapter. The mode is revision-gated to the supporting fork and does not change the stable runtime profile.
+- [x] (2026-09-08) Qualify native `AsyncLLM` request completion, explicit abort acknowledgement, sampled-token logprobs, staged weights/KV wake, sleep, and clean shutdown on vLLM 0.25.1 at pushed TRL commit `684696a22ef3d82dbf39f21a60fafa9e5f17514b`; changed-weight actor/sampler parity remains a separate open gate.
+- [x] (2026-09-08) Preserve the exact selected chat template in native Verifiers `TrainClientConfig` at pushed fork commit `5c5f52fbf3822ff270096b4463b46fcd7033c1da`, include it in renderer-pool identity, and prove worker/direct LFM historical tool-call rendering parity. HTTP endpoint and full episode wire qualification remain open.
 - [ ] Prove the pinned TRL asynchronous engine lifecycle against a real vLLM engine before implementing worker transport.
 - [ ] Implement and test the native-client wire compatibility and exact-token contract.
 - [ ] Implement the TRL asynchronous generation lifecycle against the selected runtime.
@@ -42,8 +44,8 @@ The inspected source baseline is:
 | Repository | Source baseline and role |
 | --- | --- |
 | `/home/hammad/projects/rl` | Branch `codex/pre-rollout-optimization-baseline`, created to commit the accumulated pre-optimization work; current consumer selects TRL `1.12.0.post5`. This is a development baseline, not a qualified release. |
-| `/tmp/trl-parity-probe.WIQjjv` | Branch `codex/trl-parity-probe-bound`; published post5 source `b9f3a09369d9cfa21950feef3e110e1fdf779c54`; inspected HEAD `68f7eb246db73aac926a437da1f043b4660265a1` includes subsequent ledger documentation. Temporary checkout location is not a deployment dependency. |
-| `/home/hammad/projects/verifiers` | Canonical checkout; branch `codex/carbonteq-verifiers-latest`, commit `90055c11896954fac429bb9120245caa6dc1dd59`; upstream base `e3bcbcbe5c55297a07a5d1038e37c2408b4a3dbd`. Clean after consolidation. |
+| `/tmp/trl-parity-probe.WIQjjv` | Branch `codex/trl-parity-probe-bound`; published post5 source `b9f3a09369d9cfa21950feef3e110e1fdf779c54`; pushed implementation HEAD `684696a22ef3d82dbf39f21a60fafa9e5f17514b` adds and qualifies the async lifecycle. Temporary checkout location is not a deployment dependency. |
+| `/home/hammad/projects/verifiers` | Canonical checkout; branch `codex/carbonteq-verifiers-latest`, pushed implementation commit `5c5f52fbf3822ff270096b4463b46fcd7033c1da`; upstream base `e3bcbcbe5c55297a07a5d1038e37c2408b4a3dbd`. The framework's immutable package pin remains on the prior published revision until distribution and integration gates pass. |
 | `/home/hammad/projects/verifiers-environments` | Canonical checkout; branch `codex/verifiers-latest-support`, commit `12ff5e1abfab369b8dec4df3ce83c5984f55ad34`. Clean after consolidation. Task semantics remain here; no changes required initially. |
 | `/home/hammad/projects/verl-upstream` | Historical work is preserved on `codex/verl-pre-rollout-optimization-baseline`, based on `a35908ca3c9632859c58d6a2855d858918ae21dc`; do not use this snapshot as the runtime implementation base. Active implementation branch `codex/verl-rollout-execution` is pushed at `5dbf667c99b29db613d1dfcded1ed90440ef6311`, based on executable runtime pin `cec7e74c361bb973b641db8dfbb75a5544c33139` (`carbonteq-v0.9.0.post1`). This fork commit is not yet a published runtime artifact or stable framework pin. |
 
@@ -251,11 +253,24 @@ Read `packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-
 
 Before implementing HTTP or process-pool integration, run a bounded TRL GPU lifecycle proof on the pinned vLLM runtime: initialize one async engine, complete independent overlapping requests, abort one request, drain, release residency, synchronize changed LoRA weights, wake, and generate again. Verify sampled log-probability parity through the existing gate and that the second round uses updated weights. Record exact runtime versions and commands. Failure blocks the proposed async mode; it does not authorize changing precision, actor settings, or parity tolerances. The proof is small test code, not new instrumentation or a full training run.
 
-The deterministic half of this milestone is complete at TRL commit `2faf864cc5728aad6c07f3871067de4f40e3acb0`. The remaining real-engine proof must adapt the selected vLLM `AsyncLLM` implementation to `AsyncVllmSession`; it must not route requests back through `VLLMGeneration._generate_colocated_waves`. Retain `VLLMGeneration` unchanged until that proof demonstrates equivalent token and log-probability behavior.
+The deterministic half of this milestone began at TRL commit `2faf864cc5728aad6c07f3871067de4f40e3acb0`. Pushed commit `684696a22ef3d82dbf39f21a60fafa9e5f17514b` additionally checks the actual vLLM 0.25.1 async API and supplies `scripts/qualify_async_vllm_lifecycle.py`. The real-engine command below passed on the local RTX 3070 Ti with the cached Qwen 0.5B model. It completed two collection rounds, explicitly cancelled one in-flight request without returning a rollout, returned one logprob entry per sampled token, drained, slept, restored weights and KV cache in separate stages, and shut down cleanly:
+
+```bash
+cd /tmp/trl-parity-probe.WIQjjv
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+PYTHONPATH=/tmp/trl-parity-probe.WIQjjv \
+/home/hammad/projects/rl/.venv/bin/python scripts/qualify_async_vllm_lifecycle.py \
+  --model Qwen/Qwen2.5-0.5B-Instruct \
+  --max-model-len 512 --max-num-seqs 2 --gpu-memory-utilization 0.45
+```
+
+The first GPU attempt exposed that vLLM keeps scheduling paused after `wake_up(tags=["weights"])`; opening admission must restore `kv_cache` separately. Closing a still-sleeping CuMem engine also emitted a CUDA allocator cleanup error, so close now restores allocations before shutdown. The repeated gate passed without either defect. The command reports `weight_update_parity_tested: false` deliberately: changed LoRA/full actor weights and the existing raw actor/sampler parity gate still need to be connected to this single engine owner. Do not route requests back through `VLLMGeneration._generate_colocated_waves`, and retain `VLLMGeneration` unchanged until that remaining proof demonstrates equivalent token and log-probability behavior.
 
 ### Milestone 1: prove the native wire and rendering seam
 
 In RL, add focused tests beside `packages/train/tests` and `packages/environment/tests` for native `TrainClient` requests and native episode projection. Cover LFM reasoning, content, tool calls, multi-turn exact-prefix bridging, sampling settings, and log-probability arrays. Compare with the current `TrlPolicyGenerator` path using controlled token fixtures. A renderer mismatch blocks migration; fix the generic renderer seam rather than introducing task-specific string surgery.
+
+The first parity test found a real mismatch before endpoint implementation: native `TrainClient` loaded the model artifact's bundled LFM template, while Posttrain selects a corrected package template that serializes historical structured tool calls. Verifiers commit `5c5f52fbf3822ff270096b4463b46fcd7033c1da` adds optional `TrainClientConfig.chat_template`, applies it after tokenizer load, and includes it in the renderer-pool key. Posttrain's private `create_verifiers_train_client_config` requires that capability and accepts an explicitly resolved immutable tokenizer artifact/path rather than guessing from a mutable model alias. The LFM parity test compares token IDs, message attribution, and content attribution for a user to structured assistant tool call to tool-result history. Full HTTP request/response, live multi-turn prefix bridging, cancellation, and exact logprob arrays are still required before this milestone is complete.
 
 Inspect `verifiers/v1/configs/client.py`, `clients/train.py`, `serve/types.py`, and the pinned renderer client. Extend native metadata/cancellation only as demonstrated necessary. Add tests under the fork's existing test layout. Record the actual protocol and dependency version in this plan before implementing the frontend.
 
@@ -312,7 +327,7 @@ Start opt-in, with a new inference/training binding revision. Existing jobs reta
 
 ## Outcomes & Retrospective
 
-Planning outcome: both backends now have concrete components, selected interfaces, ownership, config translation, failure handling, and separate qualification gates. TRL uses a native Verifiers pool and asynchronous engine session; veRL reuses Ray workers and native rollout lifecycle. Shared values and admission validation preserve algorithm semantics without a universal process manager. Implementation, protocol compatibility, engine lifecycle parity, and GPU speedup remain unproven. No runtime code, dependency pins, active jobs, or instrumentation were changed by this planning revision.
+Current outcome: both backends have concrete components, selected interfaces, ownership, config translation, failure handling, and separate qualification gates. TRL's asynchronous engine lifecycle is now proven against the selected vLLM runtime for request execution and residency transitions; changed-weight parity and the native Verifiers wire remain open. veRL reuses Ray workers and native rollout lifecycle. Shared values and admission validation preserve algorithm semantics without a universal process manager. End-to-end protocol compatibility, optimizer integration, immutable runtime publication, and GPU speedup remain unproven.
 
 Revision 4 review outcome: the runtime source mismatch is resolved in the plan; veRL's worker-side packing is explicitly addressed rather than deferred to a late hook. Engine feasibility precedes transport implementation. Sampling overrides, a single judge admission owner, and recoverable versus fatal failures have selected rules. Actor compute optimization is excluded. These are design decisions awaiting implementation and qualification, not completed runtime fixes.
 
@@ -333,5 +348,9 @@ Revision 7 note: updated 2026-09-08 after veRL sampling propagation. The change 
 Revision 8 note: updated 2026-09-08 after fork commit `f73ca959` on pushed branch `codex/verl-rollout-execution`. It adds an opt-in native worker gate and validation only. The framework has deliberately not emitted the new settings: its immutable runtime profile still pins the parent commit, so consumer configuration must wait for a published artifact and pin update. Two-stage outcome collection/admission remains required before this gate can make partial failures safe.
 
 Revision 9 note: updated 2026-09-08 after source inspection corrected Revision 8's assumption about the active V1 path. TransferQueue already owns two-stage prompt termination and failed-group visibility. Fork commits `c5c34bfb` and `5dbf667c` route V1 sessions through the gate, preserve complete groups, and reserve Ray CPUs. The framework emits 4×8→32 native settings only for the exact supporting revision and rejects legacy revisions or oversubscription before Ray starts. The stable runtime profile and release hashes remain unchanged pending artifact and GPU qualification.
+
+Revision 10 note: updated 2026-09-08 after the bounded native vLLM 0.25.1 GPU lifecycle proof. It records the two staged-wake defects found by the first attempt, the clean repeated result, pushed TRL commit `684696a2`, and the still-open changed-weight parity gate without overstating this as trainer or throughput qualification.
+
+Revision 11 note: updated 2026-09-08 after native-client renderer parity work. A generic Verifiers config seam now carries a versioned selected chat template to workers, and Posttrain constructs it from the existing model/renderer contract. This closes the demonstrated LFM template mismatch but not the endpoint, full native episode wire, or immutable package pin.
 
 Baseline checkpoint note (2026-09-08): the user requested commits preserving previous work. Framework changes are captured on `codex/pre-rollout-optimization-baseline`; historical veRL changes are separately preserved on `codex/verl-pre-rollout-optimization-baseline`. No fork pin is changed by these snapshots. Focused framework reward-admission, reward-advantage, and policy-message tests passed (32 tests); full release/GPU qualification is not implied. The two cleanup stashes remain separate and untouched.

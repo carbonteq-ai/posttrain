@@ -75,25 +75,18 @@ def bridge_lfm25_tool_cycle(
     )
 
 
-def create_renderer(tokenizer: Any, model: ModelVariant, renderer: TrainingRenderer) -> Any:
-    """Create the pinned renderer while honoring the shared conversation contract."""
-
+def create_renderer_config(model: ModelVariant, renderer: TrainingRenderer) -> Any:
+    """Create the serializable renderer config for a model contract."""
     try:
         from renderers import (  # pyright: ignore[reportMissingImports]
             DefaultRendererConfig,
             Qwen35RendererConfig,
-        )
-        from renderers import (
-            create_renderer as create,
         )
     except ImportError as error:
         raise RuntimeError("install posttrain-train with the trl extra") from error
 
     if model.family != renderer.model_family:
         raise ValueError("training renderer is incompatible with the model family")
-    template = model.conversation.chat_template.text()
-    if template is not None:
-        tokenizer.chat_template = template
     mode = model.conversation.reasoning_mode(renderer.reasoning_mode)
     if renderer.implementation == "qwen3.5":
         enable_thinking = mode.kwargs().get("enable_thinking")
@@ -105,6 +98,23 @@ def create_renderer(tokenizer: Any, model: ModelVariant, renderer: TrainingRende
         config = DefaultRendererConfig(
             **template_kwargs,
         )
+    return config
+
+
+def create_renderer(tokenizer: Any, model: ModelVariant, renderer: TrainingRenderer) -> Any:
+    """Create the pinned renderer while honoring the shared conversation contract."""
+
+    try:
+        from renderers import (  # pyright: ignore[reportMissingImports]
+            create_renderer as create,
+        )
+    except ImportError as error:
+        raise RuntimeError("install posttrain-train with the trl extra") from error
+
+    template = model.conversation.chat_template.text()
+    if template is not None:
+        tokenizer.chat_template = template
+    config = create_renderer_config(model, renderer)
     return create(tokenizer, config)
 
 
@@ -190,6 +200,7 @@ __all__ = [
     "RenderedSFTExample",
     "bridge_lfm25_tool_cycle",
     "create_renderer",
+    "create_renderer_config",
     "render_preferences",
     "render_supervised",
 ]

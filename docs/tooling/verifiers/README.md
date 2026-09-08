@@ -22,6 +22,17 @@ synchronization. The failed R10 cloud attempt proved that the old upstream pin
 cannot inject the already-loaded policy; runtime-image publication and the
 corrected cloud retry remain open.
 
+Pushed development commit
+`5c5f52fbf3822ff270096b4463b46fcd7033c1da` additionally lets a native
+`TrainClientConfig` carry the exact selected chat template and fences the
+shared renderer cache by that template. This is required for LFM because the
+framework's versioned package template intentionally differs from the model
+artifact's bundled template when serializing historical structured tool calls.
+The fork config/cache tests and a framework worker-versus-direct LFM token and
+attribution parity test pass. This commit is not yet a published distribution
+or consumer pin; full HTTP generation, multi-turn continuation, cancellation,
+and exact-logprob integration remain release gates.
+
 CarbonTeq Verifiers is not maintained as a temporary patch awaiting upstream
 acceptance. It is the supported environment, harness, episode, trace and scorer
 runtime for Posttrain. Prime Intellect Verifiers remains an upstream source to
