@@ -25,7 +25,7 @@ Live RTX PRO qualification remains pending. Harness optimization is deferred.
 
 The async rollout lifecycle is under development on fork branch
 `codex/trl-parity-probe-bound`. Its latest pushed candidate is
-`3972dc39adf1c836f1309b263c9450c32f1863f4`; it is not part of the published
+`d5b8cc4631c8f7adbe8296c08804205d6eb4c74c`; it is not part of the published
 post5 package or framework pin. Against the selected vLLM 0.25.1 runtime, its
 bounded Qwen 0.5B gate passes independent request completion, explicit abort,
 sampled-token logprobs, drain, staged weights/KV-cache wake, sleep, and clean
@@ -48,7 +48,9 @@ reopens admission. This is a trainer lifecycle seam; Verifiers still owns
 environment execution and exact sampled evidence, while stale-sample policy
 and importance correction remain trainer-owned. Deterministic fork tests pass
 for ordering and the cross-process drain handshake; changed-weight GPU proof
-is still required before selection.
+is still required before selection. A transfer-failure regression additionally
+proves that the prior model version remains authoritative and inference is
+neither resumed nor reopened when weight publication fails.
 
 The same candidate adds optional recovery hooks for custom rollout workers.
 TRL acknowledges one group identity per sample when its collator admits that

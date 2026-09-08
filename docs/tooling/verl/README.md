@@ -3,7 +3,7 @@
 ## Rollout-execution candidate (unpublished)
 
 Branch `codex/verl-rollout-execution` is pushed at
-`5dbf667c99b29db613d1dfcded1ed90440ef6311`, based on the current post1
+`9694a6242e3590acaf58a779c1151b370f313b51`, based on the current post1
 runtime source. It adds opt-in Ray agent-worker episode limits, explicit CPU
 reservations, and complete failed-group replacement in the V1 TransferQueue
 path. The framework accepts a private
@@ -12,6 +12,15 @@ path. The framework accepts a private
 their product against the Verifiers bridge's global `max_concurrent` and maps
 the values to native veRL settings. Native overrides cannot replace those
 owned settings.
+
+The candidate also has a deterministic native partial-rollout gate. It proves
+that an aborted assistant generation resumes from the original prompt plus its
+retained generated prefix, spends only the remaining token budget, preserves
+token-aligned behavior log probabilities exactly once, and reports the served
+policy span across versions. Nine native continuation tests pass; the existing
+real AutomationBench bridge test separately proves one emitted tool action is
+executed once before the next model turn. This is CPU protocol evidence, not a
+changed-weight GPU qualification.
 
 The candidate is not the stable runtime selection. The profile below still
 pins `cec7e74c361bb973b641db8dfbb75a5544c33139` and post1 artifact hashes.

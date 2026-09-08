@@ -93,6 +93,30 @@ class FailingProducer(ProducerState):
         pass
 
 
+class StalledProducer(ProducerState):
+    def __init__(self):
+        self.entered = threading.Event()
+        self.closed = False
+
+    async def astart(self):
+        pass
+
+    async def produce_group(self, target_policy_version) -> tuple[object, ...]:
+        del target_policy_version
+        self.entered.set()
+        await asyncio.Event().wait()
+        raise AssertionError("stalled producer unexpectedly resumed")
+
+    async def prepare_model_update(self, model_version):
+        pass
+
+    async def activate_model_version(self, model_version):
+        pass
+
+    async def aclose(self):
+        self.closed = True
+
+
 class FailingStartupProducer(FailingProducer):
     def __init__(self):
         self.closed = False
@@ -161,6 +185,22 @@ def test_failure_reaches_native_health_contract_without_fake_sample():
         pytest.fail("worker failure was not reported")
     with pytest.raises(RuntimeError, match="broken environment source"):
         worker.stop()
+
+
+def test_empty_queue_with_no_producer_progress_fails_native_health_check():
+    producer = StalledProducer()
+    worker = TrlAsyncRolloutWorker(
+        producer, max_inflight_groups=1, queue_maxsize=1, shutdown_timeout_s=1
+    )
+    worker.start()
+    try:
+        assert producer.entered.wait(timeout=1)
+        time.sleep(0.02)
+        with pytest.raises(RuntimeError, match="stopped making progress"):
+            worker.check_health(0.01)
+    finally:
+        worker.stop()
+    assert producer.closed
 
 
 def test_rejected_group_is_dropped_and_next_group_can_publish():

@@ -128,3 +128,55 @@ async def test_shared_upstream_failure_poisoning_is_not_a_low_reward():
     finally:
         await gateway.aclose()
         await upstream_runner.cleanup()
+
+
+@pytest.mark.asyncio
+async def test_shutdown_requires_upstream_abort_acknowledgement_and_still_cleans_up():
+    from aiohttp import ClientSession, web
+
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    async def generate(_request):
+        entered.set()
+        await release.wait()
+        return web.json_response({"request_id": "active", "choices": []})
+
+    async def refuse_abort(_request):
+        release.set()
+        return web.json_response({"cancelled": False})
+
+    upstream_app = web.Application()
+    upstream_app.router.add_post("/inference/v1/generate", generate)
+    upstream_app.router.add_post("/inference/v1/abort", refuse_abort)
+    upstream_runner = web.AppRunner(upstream_app)
+    await upstream_runner.setup()
+    upstream_site = web.TCPSite(upstream_runner, "127.0.0.1", 0)
+    await upstream_site.start()
+    sockets = tuple(getattr(getattr(upstream_site, "_server", None), "sockets", ()) or ())
+    assert len(sockets) == 1
+    socket = sockets[0]
+    gateway = TrlAsyncPolicyGateway(
+        upstream_base_url=f"http://127.0.0.1:{socket.getsockname()[1]}"
+    )
+    await gateway.start(0)
+    client = ClientSession()
+    request = asyncio.create_task(
+        client.post(
+            f"{gateway.base_url.removesuffix('/v1')}/inference/v1/generate",
+            json={"request_id": "active", "token_ids": [1], "sampling_params": {}},
+            headers={"X-Session-ID": "trace-1"},
+        )
+    )
+    try:
+        await asyncio.wait_for(entered.wait(), timeout=1)
+
+        with pytest.raises(CollectionExecutionError, match="did not acknowledge abort"):
+            await gateway.aclose()
+
+        with pytest.raises(RuntimeError, match="has not started"):
+            _ = gateway.base_url
+        await asyncio.gather(request, return_exceptions=True)
+    finally:
+        await client.close()
+        await upstream_runner.cleanup()
