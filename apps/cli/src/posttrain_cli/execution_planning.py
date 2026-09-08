@@ -1171,7 +1171,19 @@ def _backend_source_request(root: Path | None, runtime_variant: str) -> SourceSn
     selected = root.resolve()
     if not selected.is_dir() or not (selected / "pyproject.toml").is_file():
         raise ContractError("--backend-source must name a checkout root with pyproject.toml")
-    return SourceSnapshotRequest(root=selected, includes=(".",), install_roots=(".",))
+    # Backend checkouts often carry editor/agent instructions as root symlinks.
+    # They are neither importable package code nor safe capsule input. Exclude
+    # only those named metadata paths; a symlink anywhere in candidate runtime
+    # source still fails closed in ImmutableSourceSnapshotter.
+    metadata = {".ai", ".cursor", ".git", "AGENTS.md", "CLAUDE.md"}
+    includes: list[str] = []
+    for child in selected.iterdir():
+        if child.name in metadata:
+            continue
+        if child.is_symlink():
+            raise ContractError(f"--backend-source contains an unsupported root symlink: {child.name}")
+        includes.append(child.name)
+    return SourceSnapshotRequest(root=selected, includes=tuple(sorted(includes)), install_roots=(".",))
 
 
 def _bake_file(registry: RegistryBinding) -> Path:
