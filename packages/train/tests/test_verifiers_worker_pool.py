@@ -150,6 +150,38 @@ async def test_fixed_native_pool_dispatches_and_fences_collection_identity():
 
 
 @pytest.mark.asyncio
+async def test_async_run_admission_accepts_multiple_policy_collections_but_fences_other_runs():
+    client = FakeClient("unused")
+    workers = create_pool(client)
+    await workers.start(
+        {"id": "test-env"},
+        SimpleNamespace(type="train"),
+        RolloutExecutionConfig(env_workers=1, episodes_per_worker=2),
+    )
+    await workers.open_run_admission("run-1")
+    try:
+        for collection_id, version in (("group-1", "4"), ("group-2", "5")):
+            collection = CollectionKey("run-1", collection_id, version)
+            outcome = await workers.run_episode(
+                episode_key(collection, f"rollout-{version}"),
+                SimpleNamespace(data=Data(value=int(version))),
+                asyncio.get_running_loop().time() + 5,
+            )
+            assert outcome.status is EpisodeStatus.COMPLETED
+
+        foreign = episode_key(CollectionKey("run-2", "group-3", "5"))
+        with pytest.raises(CollectionExecutionError, match="does not match"):
+            await workers.run_episode(
+                foreign,
+                SimpleNamespace(data=Data(value=6)),
+                asyncio.get_running_loop().time() + 5,
+            )
+        await workers.stop_run_admission("run-1")
+    finally:
+        await workers.aclose()
+
+
+@pytest.mark.asyncio
 async def test_deadline_and_explicit_cancel_are_episode_local_terminal_outcomes():
     client = FakeClient("unused")
     workers = create_pool(client)

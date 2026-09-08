@@ -81,9 +81,10 @@ class VerifiersWorkerPool:
     """Own a fixed native Verifiers environment-process pool.
 
     The native pool owns environment processes and episode execution. This
-    adapter owns fixed-policy admission, logical occurrence identity, deadlines,
-    and translation into terminal Posttrain outcomes. It never interprets an
-    optimization algorithm.
+    adapter owns logical occurrence identity, deadlines, admission scope, and
+    translation into terminal Posttrain outcomes. Synchronous collectors use
+    one exact collection; native async trainers admit multiple collections from
+    one run. It never interprets an optimization algorithm.
     """
 
     def __init__(
@@ -119,6 +120,7 @@ class VerifiersWorkerPool:
         self._pool_task: asyncio.Task[Any] | None = None
         self._client_config: Any | None = None
         self._collection: CollectionKey | None = None
+        self._run_id: str | None = None
         self._requests: dict[EpisodeKey, _EpisodeRegistration] = {}
         self._cancelled: set[EpisodeKey] = set()
         self._fatal_error: BaseException | None = None
@@ -183,11 +185,24 @@ class VerifiersWorkerPool:
     async def open_admission(self, collection: CollectionKey) -> None:
         async with self._lock:
             self._require_healthy()
-            if self._collection is not None:
+            if self._collection is not None or self._run_id is not None:
                 raise RuntimeError("native Verifiers worker admission is already open")
             if self._requests:
                 raise RuntimeError("cannot open worker admission while prior episodes remain active")
             self._collection = collection
+
+    async def open_run_admission(self, run_id: str) -> None:
+        """Admit independently versioned collections belonging to one async run."""
+
+        if not run_id.strip():
+            raise ValueError("native Verifiers worker run id cannot be empty")
+        async with self._lock:
+            self._require_healthy()
+            if self._collection is not None or self._run_id is not None:
+                raise RuntimeError("native Verifiers worker admission is already open")
+            if self._requests:
+                raise RuntimeError("cannot open worker admission while prior episodes remain active")
+            self._run_id = run_id
 
     async def stop_admission(self, collection: CollectionKey) -> None:
         async with self._lock:
@@ -195,6 +210,13 @@ class VerifiersWorkerPool:
             if self._collection != collection:
                 raise RuntimeError("native Verifiers worker collection identity does not match")
             self._collection = None
+
+    async def stop_run_admission(self, run_id: str) -> None:
+        async with self._lock:
+            self._require_started()
+            if self._run_id != run_id:
+                raise RuntimeError("native Verifiers worker run identity does not match")
+            self._run_id = None
 
     async def run_episode(self, key: EpisodeKey, task: Any, deadline: float) -> EpisodeOutcome:
         """Run one occurrence within its original monotonic deadline."""
@@ -206,9 +228,11 @@ class VerifiersWorkerPool:
             pool_task = self._pool_task
             if pool_task is None:  # guarded by _require_healthy
                 raise RuntimeError("native Verifiers worker broker has no lifecycle task")
-            if self._collection != key.collection:
+            exact_collection = self._collection == key.collection
+            async_run = self._run_id == key.collection.run_id
+            if not exact_collection and not async_run:
                 raise CollectionExecutionError(
-                    "episode collection does not match native worker admission"
+                    "episode collection or run does not match native worker admission"
                 )
             if key in self._requests:
                 raise CollectionExecutionError("duplicate native worker episode identity")
@@ -320,6 +344,7 @@ class VerifiersWorkerPool:
                 return
             self._closing = True
             self._collection = None
+            self._run_id = None
             active = tuple(self._requests.items())
             for key, _registration in active:
                 self._cancelled.add(key)
