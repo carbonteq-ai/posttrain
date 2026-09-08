@@ -1,6 +1,6 @@
 # Asynchronous rollout requests, continuous batching, and environment workers
 
-Revision 6 — 2026-09-08. Status: asynchronous TRL foundation and shared rollout execution contracts implemented; worker transport, runtime integration, and GPU qualification remain open. Repository: `/home/hammad/projects/rl`.
+Revision 7 — 2026-09-08. Status: asynchronous TRL foundation, shared contracts, and veRL sampling propagation implemented; worker transport, runtime integration, and GPU qualification remain open. Repository: `/home/hammad/projects/rl`.
 
 ## Purpose / Big Picture
 
@@ -21,6 +21,7 @@ Actor forward/backward optimization is explicitly out of scope: no changes to ac
 - [x] (2026-09-08) Resolve the runtime veRL source pin and specify two-stage admission, sampling precedence, global judge admission, and failure classification. Exclude actor compute optimization.
 - [x] (2026-09-08) Implement and deterministically test the additive TRL `AsyncVllmSession` lifecycle foundation at fork commit `2faf864cc5728aad6c07f3871067de4f40e3acb0`: independent completion, policy-version fencing, explicit abort/drain, sleep/wake handoff, and idempotent shutdown.
 - [x] (2026-09-08) Add shared `rollout_execution` identity, outcome, and capacity contracts in framework commit pending this revision: 4×8 worker capacity is constrained by the global 32-episode limit; completed outcomes are identity-fenced before admission; failed outcomes cannot manufacture a rollout.
+- [x] (2026-09-08) Preserve veRL phase/per-row sampling in `VerlPolicyGenerator`: native sampling is no longer discarded, greedy validation controls are accepted, and environment output ceilings remain enforced.
 - [ ] Prove the pinned TRL asynchronous engine lifecycle against a real vLLM engine before implementing worker transport.
 - [ ] Implement and test the native-client wire compatibility and exact-token contract.
 - [ ] Implement the TRL asynchronous generation lifecycle against the selected runtime.
@@ -76,6 +77,8 @@ Native `verifiers/v1/clients/train.py::TrainClient` already performs worker-loca
 Environment workers already launch isolated tool/agent subprocesses through `verifiers/v1/runtimes/subprocess.py`. Adding worker processes must not remove episode-world isolation or replicate policy/judge models. Additional CPU workers cannot by themselves accelerate GPU actor forward/backward computation.
 
 veRL already implements the relevant scheduling layers: `verl/experimental/agent_loop/agent_loop.py` creates Ray `AgentLoopWorker` processes, divides the collection across them, and gathers their results. Each worker runs concurrent episode tasks. Posttrain's `backends/verl/agent_loop.py::VerlPolicyGenerator.generate` already awaits its server manager. The remaining gaps differ from TRL: rendering explicitly constructs `Qwen35RendererConfig`, bridge calls run one row at a time, and a missing trajectory raises an exception. A semaphore local to each bridge call cannot enforce a collection-wide budget, and an unhandled episode exception can escape the worker gather. These are source findings, not a measured veRL performance diagnosis.
+
+`PosttrainVerifiersAgentLoop.run` had discarded veRL's `sampling_params`; the implemented adapter now validates and forwards phase/per-row controls to the already asynchronous server manager. It accepts greedy `temperature=0` and native `top_k=-1`, requires log probabilities, and rejects a maximum-token override above the environment limit. `packages/train/tests/test_verl_backend.py` passes 51 focused tests after this change. Renderer generalization, worker budgets, and terminal-outcome collection remain open.
 
 ## Decision Log
 
@@ -315,5 +318,7 @@ Revision 4 note: updated 2026-09-08 following review and the user's explicit rol
 Revision 5 note: updated 2026-09-08 after the first implementation slice. TRL commit `2faf864c` adds an additive asynchronous session and deterministic lifecycle tests; no consumer pin, runtime image, environment transport, actor behavior, or GPU qualification changed.
 
 Revision 6 note: updated 2026-09-08 after adding framework-owned rollout execution values and focused tests. This does not yet start processes or alter collection behavior; it makes the common admission and capacity invariants concrete before either backend consumes them.
+
+Revision 7 note: updated 2026-09-08 after veRL sampling propagation. The change affects rollout sampling only; it does not alter actor update configuration, native worker count, model renderer selection, or process orchestration.
 
 Baseline checkpoint note (2026-09-08): the user requested commits preserving previous work. Framework changes are captured on `codex/pre-rollout-optimization-baseline`; historical veRL changes are separately preserved on `codex/verl-pre-rollout-optimization-baseline`. No fork pin is changed by these snapshots. Focused framework reward-admission, reward-advantage, and policy-message tests passed (32 tests); full release/GPU qualification is not implied. The two cleanup stashes remain separate and untouched.

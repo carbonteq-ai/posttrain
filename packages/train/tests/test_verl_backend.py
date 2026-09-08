@@ -310,6 +310,31 @@ def test_verl_policy_generator_preserves_complete_sampling_policy(monkeypatch: p
     assert "min_p" not in parameters
     assert parameters["repetition_penalty"] == 1.1
     assert parameters["presence_penalty"] == 0.0
+
+    generator.set_sampling_overrides(
+        {
+            "temperature": 0.0,
+            "top_p": 1.0,
+            "top_k": -1,
+            "max_tokens": 16,
+            "logprobs": True,
+        }
+    )
+    asyncio.run(generator.generate(PolicyTurnRequest(messages=({"role": "user", "content": "hello"},), sampling=sampling)))
+    assert server.request is not None
+    assert server.request["sampling_params"] == {
+        "max_tokens": 16,
+        "temperature": 0.0,
+        "top_p": 1.0,
+        "top_k": -1,
+        "min_p": 0.01,
+        "repetition_penalty": 1.1,
+        "presence_penalty": 1.5,
+        "logprobs": True,
+    }
+    generator.set_sampling_overrides({"max_tokens": 33})
+    with pytest.raises(ValueError, match="exceeds the environment output limit"):
+        asyncio.run(generator.generate(PolicyTurnRequest(messages=({"role": "user", "content": "hello"},), sampling=sampling)))
     sys.modules.pop(module_name, None)
 
 

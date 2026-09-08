@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import json
+import math
 import os
+from collections.abc import Mapping
 from pathlib import Path
 from time import perf_counter
 from typing import Any, Literal, cast
 from uuid import uuid4
 
 from ...integrations.verifiers import load_verifiers_bridge_snapshot
-from ...online_rl import EnvironmentRollout, PolicyTurnRequest, PolicyTurnResult, RolloutBatch
+from ...online_rl import EnvironmentRollout, PolicySampling, PolicyTurnRequest, PolicyTurnResult, RolloutBatch
 from ...policy_messages import parsed_policy_message
 from ...profiles import shape_soft_overlong_reward
 from .reward_fields import streaming_reward_extra_info, structured_reward_metadata, training_response_mask
@@ -25,10 +27,104 @@ except ImportError as error:  # pragma: no cover - imported only by the isolated
     raise RuntimeError("PosttrainVerifiersAgentLoop must run inside the pinned veRL environment") from error
 
 
+_SAMPLING_OVERRIDE_KEYS = frozenset(
+    {
+        "max_tokens",
+        "temperature",
+        "top_p",
+        "top_k",
+        "min_p",
+        "repetition_penalty",
+        "presence_penalty",
+        "logprobs",
+    }
+)
+
+
+def _number(value: Any, name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value):
+        raise ValueError(f"veRL sampling override {name!r} must be a finite number")
+    return float(value)
+
+
+def _validated_sampling_overrides(overrides: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate native veRL sampling controls before they reach a rollout server."""
+    unknown = set(overrides).difference(_SAMPLING_OVERRIDE_KEYS)
+    if unknown:
+        raise ValueError(f"unsupported veRL sampling overrides: {', '.join(sorted(unknown))}")
+    result: dict[str, Any] = {}
+    if "max_tokens" in overrides:
+        value = overrides["max_tokens"]
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            raise ValueError("veRL sampling override 'max_tokens' must be a positive integer")
+        result["max_tokens"] = value
+    if "temperature" in overrides:
+        value = _number(overrides["temperature"], "temperature")
+        if value < 0:
+            raise ValueError("veRL sampling override 'temperature' cannot be negative")
+        result["temperature"] = value
+    if "top_p" in overrides:
+        value = _number(overrides["top_p"], "top_p")
+        if not 0 < value <= 1:
+            raise ValueError("veRL sampling override 'top_p' must be in (0, 1]")
+        result["top_p"] = value
+    if "top_k" in overrides:
+        value = overrides["top_k"]
+        if isinstance(value, bool) or not isinstance(value, int) or value < -1:
+            raise ValueError("veRL sampling override 'top_k' must be an integer greater than or equal to -1")
+        result["top_k"] = value
+    if "min_p" in overrides:
+        value = overrides["min_p"]
+        if value is not None:
+            value = _number(value, "min_p")
+            if not 0 <= value <= 1:
+                raise ValueError("veRL sampling override 'min_p' must be in [0, 1]")
+        result["min_p"] = value
+    if "repetition_penalty" in overrides:
+        value = _number(overrides["repetition_penalty"], "repetition_penalty")
+        if value <= 0:
+            raise ValueError("veRL sampling override 'repetition_penalty' must be positive")
+        result["repetition_penalty"] = value
+    if "presence_penalty" in overrides:
+        value = _number(overrides["presence_penalty"], "presence_penalty")
+        if not -2 <= value <= 2:
+            raise ValueError("veRL sampling override 'presence_penalty' must be in [-2, 2]")
+        result["presence_penalty"] = value
+    if "logprobs" in overrides and overrides["logprobs"] is not True:
+        raise ValueError("veRL Verifiers rollouts require logprobs=true")
+    return result
+
+
+def _effective_sampling(base: PolicySampling, overrides: Mapping[str, Any]) -> dict[str, Any]:
+    """Merge phase overrides without allowing them to expand environment output limits."""
+    max_tokens = overrides.get("max_tokens", base.max_tokens)
+    if max_tokens > base.max_tokens:
+        raise ValueError(
+            "veRL sampling override 'max_tokens' exceeds the environment output limit: "
+            f"{max_tokens} > {base.max_tokens}"
+        )
+    return {
+        "max_tokens": max_tokens,
+        "temperature": overrides.get("temperature", base.temperature),
+        "top_p": overrides.get("top_p", base.top_p),
+        "top_k": overrides.get("top_k", base.top_k),
+        "min_p": overrides.get("min_p", base.min_p),
+        "repetition_penalty": overrides.get("repetition_penalty", base.repetition_penalty),
+        "presence_penalty": overrides.get("presence_penalty", base.presence_penalty),
+    }
+
+
 class VerlPolicyGenerator:
     """Expose veRL's already-loaded rollout server through the framework policy contract."""
 
-    def __init__(self, server_manager: Any, tokenizer: Any, *, enable_thinking: bool) -> None:
+    def __init__(
+        self,
+        server_manager: Any,
+        tokenizer: Any,
+        *,
+        enable_thinking: bool,
+        sampling_overrides: Mapping[str, Any] | None = None,
+    ) -> None:
         try:
             from renderers import Qwen35RendererConfig, create_renderer  # pyright: ignore[reportMissingImports]
         except ImportError as error:  # pragma: no cover - isolated runtime dependency
@@ -36,6 +132,11 @@ class VerlPolicyGenerator:
         self._server_manager = server_manager
         self._tokenizer = tokenizer
         self._renderer = create_renderer(tokenizer, Qwen35RendererConfig(enable_thinking=enable_thinking))
+        self._sampling_overrides = _validated_sampling_overrides(sampling_overrides or {})
+
+    def set_sampling_overrides(self, overrides: Mapping[str, Any]) -> None:
+        """Install the veRL phase/per-row sampling controls for this episode."""
+        self._sampling_overrides = _validated_sampling_overrides(overrides)
 
     async def generate(self, request: PolicyTurnRequest) -> PolicyTurnResult:
         messages = [cast(dict[str, Any], dict(message)) for message in request.messages]
@@ -52,17 +153,18 @@ class VerlPolicyGenerator:
             )
         if rendered is None:
             rendered = self._renderer.render(renderer_messages, tools=renderer_tools, add_generation_prompt=True)
+        sampling = _effective_sampling(request.sampling, self._sampling_overrides)
         output = await self._server_manager.generate(
             request_id=request.session_id or uuid4().hex,
             prompt_ids=list(rendered.token_ids),
             sampling_params={key: value for key, value in {
-                "max_tokens": request.sampling.max_tokens,
-                "temperature": request.sampling.temperature,
-                "top_p": request.sampling.top_p,
-                "top_k": request.sampling.top_k,
-                "min_p": request.sampling.min_p,
-                "repetition_penalty": request.sampling.repetition_penalty,
-                "presence_penalty": request.sampling.presence_penalty,
+                "max_tokens": sampling["max_tokens"],
+                "temperature": sampling["temperature"],
+                "top_p": sampling["top_p"],
+                "top_k": sampling["top_k"],
+                "min_p": sampling["min_p"],
+                "repetition_penalty": sampling["repetition_penalty"],
+                "presence_penalty": sampling["presence_penalty"],
                 "logprobs": True,
             }.items() if value is not None},
         )
@@ -78,7 +180,7 @@ class VerlPolicyGenerator:
             token_ids,
             frozenset(self._renderer.get_stop_token_ids()),
             bool(message.get("tool_calls")),
-            request.sampling.max_tokens,
+            int(sampling["max_tokens"]),
         )
         return PolicyTurnResult(
             message=message,
@@ -136,7 +238,7 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
         self._reward_component_names = tuple(reward_component_names or ())
 
     async def run(self, sampling_params: dict[str, Any], **kwargs: Any) -> Any:
-        del sampling_params
+        self._generator.set_sampling_overrides(sampling_params)
         example_id = str(kwargs["example_id"])
         step = int(kwargs.get("global_steps", 0))
         model_id = str(kwargs["model_id"])
