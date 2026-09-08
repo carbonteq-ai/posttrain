@@ -1,9 +1,13 @@
+from types import SimpleNamespace
 from typing import Any, cast
 
+import pytest
 from posttrain.common.variants import LFM_25_12B_THINKING
+from posttrain.train.backends.trl.policy_endpoint import TrlPolicyEndpoint
 from posttrain.train.integrations.verifiers_workers import create_verifiers_train_client_config
 from posttrain.train.profiles import LFM25_RENDERER
 from posttrain.train.rendering import create_renderer
+from posttrain.train.rollout_execution import CollectionKey
 from transformers import AutoTokenizer
 
 
@@ -62,3 +66,84 @@ def test_native_worker_uses_exact_lfm_template_and_tokens(monkeypatch):
     assert worker_tokens.token_ids == direct_tokens.token_ids
     assert worker_tokens.message_indices == direct_tokens.message_indices
     assert worker_tokens.is_content == direct_tokens.is_content
+
+
+@pytest.mark.asyncio
+async def test_native_train_client_round_trips_exact_lfm_tokens_over_loopback(monkeypatch):
+    from verifiers.v1.clients.train import TrainClient
+    from verifiers.v1.dialects import ChatDialect
+    from verifiers.v1.types import SamplingConfig
+
+    monkeypatch.setenv("HF_HUB_OFFLINE", "1")
+    model = LFM_25_12B_THINKING
+    model_name = model.base.repo_id
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_name,
+        revision=model.base.revision,
+        local_files_only=True,
+    )
+    completion_ids = tokenizer.encode("Done.", add_special_tokens=False)
+
+    class Session:
+        def __init__(self):
+            self.requests = []
+
+        async def open_policy(self, version: str) -> None:
+            del version
+            return None
+
+        async def generate(self, request):
+            self.requests.append(request)
+            completion = SimpleNamespace(
+                index=0,
+                token_ids=completion_ids,
+                logprobs=[
+                    {token_id: SimpleNamespace(logprob=-0.125)}
+                    for token_id in completion_ids
+                ],
+                finish_reason="stop",
+            )
+            return SimpleNamespace(
+                request_id=request.request_id,
+                prompt_token_ids=request.prompt_token_ids,
+                outputs=[completion],
+                finished=True,
+            )
+
+        async def abort(self, request_id: str) -> bool:
+            del request_id
+            return False
+
+        async def stop_admission(self):
+            return None
+
+    session = Session()
+    endpoint = TrlPolicyEndpoint(model_name=model_name, max_model_len=4096)
+    await endpoint.start(session)
+    await endpoint.open_admission(CollectionKey("run", "collection-1", "policy-7"))
+    config = create_verifiers_train_client_config(
+        base_url=endpoint.base_url,
+        renderer_model_name=model_name,
+        model=model,
+        renderer=LFM25_RENDERER,
+        multiplex=8,
+    )
+    client = TrainClient(config)
+    try:
+        response = await client.get_response(
+            ChatDialect(),
+            {
+                "model": model_name,
+                "messages": [{"role": "user", "content": "Finish the task."}],
+            },
+            SamplingConfig(temperature=0.0, max_tokens=len(completion_ids)),
+            session_id="episode-1",
+        )
+        assert response.message.content == "Done."
+        assert response.tokens is not None
+        assert response.tokens.completion_ids == completion_ids
+        assert response.tokens.completion_logprobs == [-0.125] * len(completion_ids)
+        assert tuple(response.tokens.prompt_ids) == session.requests[0].prompt_token_ids
+    finally:
+        await client.close()
+        await endpoint.aclose()

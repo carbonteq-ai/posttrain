@@ -13,7 +13,7 @@ dependencies = [
 
 [project.optional-dependencies]
 verifiers = [
-    "verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@90055c11896954fac429bb9120245caa6dc1dd59",
+    "verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@5c5f52fbf3822ff270096b4463b46fcd7033c1da",
     "prime>=0.6",
     "torch",
     "transformers>=4.57",

@@ -427,7 +427,7 @@ environment:
     source:
       package: reverse-text
       repository: https://github.com/carbonteq-ai/verifiers
-      revision: 90055c11896954fac429bb9120245caa6dc1dd59
+      revision: 5c5f52fbf3822ff270096b4463b46fcd7033c1da
       subdirectory: environments/reverse_text
     activation:
       kind: verifiers-config
@@ -458,7 +458,7 @@ environment:
     source:
       package: code-golf
       repository: https://github.com/carbonteq-ai/verifiers
-      revision: 90055c11896954fac429bb9120245caa6dc1dd59
+      revision: 5c5f52fbf3822ff270096b4463b46fcd7033c1da
       subdirectory: environments/code_golf
     activation:
       kind: verifiers-config
@@ -490,7 +490,7 @@ environment:
     source:
       package: alphabet-sort
       repository: https://github.com/carbonteq-ai/verifiers
-      revision: 90055c11896954fac429bb9120245caa6dc1dd59
+      revision: 5c5f52fbf3822ff270096b4463b46fcd7033c1da
       subdirectory: environments/alphabet_sort
     activation:
       kind: verifiers-config

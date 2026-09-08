@@ -15,7 +15,7 @@ dependencies = [
 
 [project.optional-dependencies]
 verifiers = [
-    "verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@90055c11896954fac429bb9120245caa6dc1dd59",
+    "verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@5c5f52fbf3822ff270096b4463b46fcd7033c1da",
 ]
 trl = [
     "torch>=2.11,<2.12",
@@ -33,6 +33,7 @@ trl = [
     "huggingface-hub>=1.24,<1.25",
 ]
 trl-vllm = [
+    "aiohttp>=3.13,<4",
     "nvidia-cuda-cccl==13.0.85; sys_platform == 'linux'",
     "nvidia-cuda-crt==13.0.88; sys_platform == 'linux'",
     "nvidia-cuda-nvcc==13.0.88; sys_platform == 'linux'",

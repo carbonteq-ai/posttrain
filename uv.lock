@@ -2579,7 +2579,7 @@ verifiers = [
 requires-dist = [
     { name = "datasets", marker = "extra == 'huggingface'", specifier = ">=4.6.1,<4.7" },
     { name = "posttrain-common", editable = "packages/common" },
-    { name = "verifiers", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers.git?rev=90055c11896954fac429bb9120245caa6dc1dd59" },
+    { name = "verifiers", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers.git?rev=5c5f52fbf3822ff270096b4463b46fcd7033c1da" },
 ]
 provides-extras = ["huggingface", "verifiers"]
 
@@ -2624,7 +2624,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.12,<3" },
     { name = "torch", marker = "extra == 'verifiers'", index = "https://download.pytorch.org/whl/cu130" },
     { name = "transformers", marker = "extra == 'verifiers'", specifier = ">=4.57" },
-    { name = "verifiers", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers.git?rev=90055c11896954fac429bb9120245caa6dc1dd59" },
+    { name = "verifiers", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers.git?rev=5c5f52fbf3822ff270096b4463b46fcd7033c1da" },
 ]
 provides-extras = ["verifiers"]
 
@@ -3076,6 +3076,7 @@ trl = [
     { name = "trl" },
 ]
 trl-vllm = [
+    { name = "aiohttp" },
     { name = "nvidia-cuda-cccl", marker = "sys_platform == 'linux'" },
     { name = "nvidia-cuda-crt", marker = "sys_platform == 'linux'" },
     { name = "nvidia-cuda-nvcc", marker = "sys_platform == 'linux'" },
@@ -3089,6 +3090,7 @@ verifiers = [
 [package.metadata]
 requires-dist = [
     { name = "accelerate", marker = "extra == 'trl'", specifier = ">=1.14,<1.15" },
+    { name = "aiohttp", marker = "extra == 'trl-vllm'", specifier = ">=3.13,<4" },
     { name = "bitsandbytes", marker = "extra == 'trl'", specifier = ">=0.49,<0.50" },
     { name = "datasets", marker = "extra == 'trl'", specifier = ">=4.6.1,<4.7" },
     { name = "httpx", specifier = ">=0.28,<0.29" },
@@ -3110,7 +3112,7 @@ requires-dist = [
     { name = "torchvision", marker = "extra == 'trl'", specifier = ">=0.26,<0.27", index = "https://download.pytorch.org/whl/cu130" },
     { name = "transformers", marker = "extra == 'trl'", specifier = ">=5.14,<5.15" },
     { name = "trl", marker = "extra == 'trl'", specifier = "==1.12.0.post5", index = "https://pypi.lan/carbonteq/dev/+simple/" },
-    { name = "verifiers", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers.git?rev=90055c11896954fac429bb9120245caa6dc1dd59" },
+    { name = "verifiers", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers.git?rev=5c5f52fbf3822ff270096b4463b46fcd7033c1da" },
     { name = "vllm", marker = "extra == 'trl-vllm'", specifier = "==0.25.1" },
 ]
 provides-extras = ["verifiers", "trl", "trl-vllm"]
@@ -4634,8 +4636,8 @@ wheels = [
 
 [[package]]
 name = "verifiers"
-version = "0.3.2.dev73"
-source = { git = "https://github.com/carbonteq-ai/verifiers.git?rev=90055c11896954fac429bb9120245caa6dc1dd59#90055c11896954fac429bb9120245caa6dc1dd59" }
+version = "0.3.2.dev74"
+source = { git = "https://github.com/carbonteq-ai/verifiers.git?rev=5c5f52fbf3822ff270096b4463b46fcd7033c1da#5c5f52fbf3822ff270096b4463b46fcd7033c1da" }
 dependencies = [
     { name = "aiohttp" },
     { name = "anthropic" },

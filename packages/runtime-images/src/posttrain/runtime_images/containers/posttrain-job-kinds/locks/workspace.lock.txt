@@ -48,6 +48,7 @@ aiohttp==3.14.1 \
     --hash=sha256:faccab372e66bc76d5731525e7f1143c922271725b9d38c9f97edcc66266b451
     # via
     #   fsspec
+    #   posttrain-train
     #   verifiers
     #   vllm
 aiosignal==1.4.0 \
@@ -2226,7 +2227,7 @@ uvloop==0.22.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'c
     --hash=sha256:6e2ea3d6190a2968f4a14a23019d3b16870dd2190cd69c8180f7c632d21de68d \
     --hash=sha256:bc5ef13bbc10b5335792360623cc378d52d7e62c2de64660616478c32cd0598e
     # via uvicorn
-verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@90055c11896954fac429bb9120245caa6dc1dd59
+verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@5c5f52fbf3822ff270096b4463b46fcd7033c1da
     # via
     #   posttrain-data
     #   posttrain-eval

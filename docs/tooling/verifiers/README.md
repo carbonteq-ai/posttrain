@@ -8,7 +8,7 @@ and [06 · ingest](../../post-training/06-observation-and-lineage.md#verifiers-i
 ## Install / pin
 
 The selected independently maintained CarbonTeq distribution is
-`carbonteq-ai/verifiers@90055c11896954fac429bb9120245caa6dc1dd59`, based on
+`carbonteq-ai/verifiers@5c5f52fbf3822ff270096b4463b46fcd7033c1da`, based on
 upstream main commit `e3bcbcbe5c55297a07a5d1038e37c2408b4a3dbd` (71 commits
 after v0.3.1). It adds
 optional host-client injection through native serving/interception. The fork
@@ -22,16 +22,18 @@ synchronization. The failed R10 cloud attempt proved that the old upstream pin
 cannot inject the already-loaded policy; runtime-image publication and the
 corrected cloud retry remain open.
 
-Pushed development commit
-`5c5f52fbf3822ff270096b4463b46fcd7033c1da` additionally lets a native
+Selected commit `5c5f52fbf3822ff270096b4463b46fcd7033c1da` additionally lets a native
 `TrainClientConfig` carry the exact selected chat template and fences the
 shared renderer cache by that template. This is required for LFM because the
 framework's versioned package template intentionally differs from the model
 artifact's bundled template when serializing historical structured tool calls.
 The fork config/cache tests and a framework worker-versus-direct LFM token and
-attribution parity test pass. This commit is not yet a published distribution
-or consumer pin; full HTTP generation, multi-turn continuation, cancellation,
-and exact-logprob integration remain release gates.
+attribution parity test pass. The workspace manifests, base catalog, and
+candidate control-runtime inputs select this immutable Git revision. The last
+published veRL backend image retains its prior immutable dependency closure
+until a replacement image passes publication gates. Full native episode
+execution, multi-turn continuation, and immutable image qualification remain
+release gates.
 
 CarbonTeq Verifiers is not maintained as a temporary patch awaiting upstream
 acceptance. It is the supported environment, harness, episode, trace and scorer

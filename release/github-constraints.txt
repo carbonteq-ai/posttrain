@@ -1,6 +1,6 @@
 # Immutable maintained-fork sources used by GitHub-first framework releases.
 trl @ git+https://github.com/carbonteq-ai/trl.git@19e6c89a18617f1bd6e6385212705a67f5434962
-verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@90055c11896954fac429bb9120245caa6dc1dd59
+verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@5c5f52fbf3822ff270096b4463b46fcd7033c1da
 alphabet-sort @ git+https://github.com/PrimeIntellect-ai/verifiers.git@b2e4e8157783b2c0dffc7821044c87f29f1c3ccf#subdirectory=environments/alphabet_sort
 code-golf @ git+https://github.com/PrimeIntellect-ai/verifiers.git@b2e4e8157783b2c0dffc7821044c87f29f1c3ccf#subdirectory=environments/code_golf
 gsm8k-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@00f55a4b50ac4bb9ddd697ed6bb032a50a6fa29c#subdirectory=environments/gsm8k_v1
