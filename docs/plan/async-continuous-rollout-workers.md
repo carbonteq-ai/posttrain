@@ -1,6 +1,6 @@
 # Asynchronous rollout requests, continuous batching, and environment workers
 
-Revision 5 — 2026-09-08. Status: asynchronous TRL session foundation implemented in the fork; runtime integration and GPU qualification remain open. Repository: `/home/hammad/projects/rl`.
+Revision 6 — 2026-09-08. Status: asynchronous TRL foundation and shared rollout execution contracts implemented; worker transport, runtime integration, and GPU qualification remain open. Repository: `/home/hammad/projects/rl`.
 
 ## Purpose / Big Picture
 
@@ -20,6 +20,7 @@ Actor forward/backward optimization is explicitly out of scope: no changes to ac
 - [x] (2026-09-08) Verify canonical Verifiers checkouts after worktree cleanup and record branch/commit preflight safeguards below.
 - [x] (2026-09-08) Resolve the runtime veRL source pin and specify two-stage admission, sampling precedence, global judge admission, and failure classification. Exclude actor compute optimization.
 - [x] (2026-09-08) Implement and deterministically test the additive TRL `AsyncVllmSession` lifecycle foundation at fork commit `2faf864cc5728aad6c07f3871067de4f40e3acb0`: independent completion, policy-version fencing, explicit abort/drain, sleep/wake handoff, and idempotent shutdown.
+- [x] (2026-09-08) Add shared `rollout_execution` identity, outcome, and capacity contracts in framework commit pending this revision: 4×8 worker capacity is constrained by the global 32-episode limit; completed outcomes are identity-fenced before admission; failed outcomes cannot manufacture a rollout.
 - [ ] Prove the pinned TRL asynchronous engine lifecycle against a real vLLM engine before implementing worker transport.
 - [ ] Implement and test the native-client wire compatibility and exact-token contract.
 - [ ] Implement the TRL asynchronous generation lifecycle against the selected runtime.
@@ -184,6 +185,8 @@ All names in this section are selected implementation targets unless explicitly 
 
 Create `rollout_execution.py` with frozen, serializable values `CollectionKey(run_id, collection_id, policy_version)`, `EpisodeKey(collection, group_id, occurrence_id, seed)`, and `RolloutExecutionConfig(env_workers, episodes_per_worker, worker_native_threads)`. Logical occurrence identity is assigned before scheduling; a model request additionally has a unique turn request ID. Keep the existing native episode identity as evidence provenance rather than replacing it with these scheduling identities.
 
+Implemented as `packages/train/src/posttrain/train/rollout_execution.py`. `EpisodeKey` also retains `example_id`, because successful results must be joined to source rows before they can enter a group. `validate_execution_config` rejects capacity greater than the global limit and native-thread reservations greater than effective CPU affinity. `validate_outcome_identity` rejects late/misrouted results and mismatched structured evidence. `packages/train/tests/test_rollout_execution.py` passes three focused tests. The values are not wired to a backend yet, so no catalog setting has changed.
+
 Define `EpisodeOutcome(key, status, rollout, error)` with statuses `completed`, `invalid`, `cancelled`, and `failed`. A completed outcome contains an existing validated rollout value; other statuses contain a typed reason and optional native evidence reference, never a fabricated zero reward. A separate `CollectionExecutionError` represents an unusable engine, corrupt transport, or failed synchronization: it stops the round instead of pretending every such failure is ordinary bad model output.
 
 Expose pure functions `validate_execution_config(config, global_limit, effective_cpus)` and `validate_outcome_identity(expected, outcome)`. Reuse the existing algorithm group-admission implementation through a narrow adapter accepting ordered outcomes; do not reimplement advantage estimation in this module. Return retained row indices and excluded-group reasons. Use those indices before backend advantage estimation and all tensor packing; the same indices select rewards, masks, prompts, old log-probabilities, and metadata. Preserve each algorithm's existing incomplete/empty-group policy.
@@ -310,5 +313,7 @@ Revision 3 note: updated 2026-09-08 after worktree cleanup with canonical paths,
 Revision 4 note: updated 2026-09-08 following review and the user's explicit rollout-only scope. Added an engine feasibility gate, pinned veRL implementation base, two-stage collection, sampling precedence, global judge admission/resource handoff, and explicit error classification; no actor forward/backward optimization is included.
 
 Revision 5 note: updated 2026-09-08 after the first implementation slice. TRL commit `2faf864c` adds an additive asynchronous session and deterministic lifecycle tests; no consumer pin, runtime image, environment transport, actor behavior, or GPU qualification changed.
+
+Revision 6 note: updated 2026-09-08 after adding framework-owned rollout execution values and focused tests. This does not yet start processes or alter collection behavior; it makes the common admission and capacity invariants concrete before either backend consumes them.
 
 Baseline checkpoint note (2026-09-08): the user requested commits preserving previous work. Framework changes are captured on `codex/pre-rollout-optimization-baseline`; historical veRL changes are separately preserved on `codex/verl-pre-rollout-optimization-baseline`. No fork pin is changed by these snapshots. Focused framework reward-admission, reward-advantage, and policy-message tests passed (32 tests); full release/GPU qualification is not implied. The two cleanup stashes remain separate and untouched.
