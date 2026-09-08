@@ -123,15 +123,26 @@ class VerlPolicyGenerator:
         tokenizer: Any,
         *,
         enable_thinking: bool,
+        renderer_implementation: str = "qwen3.5",
         sampling_overrides: Mapping[str, Any] | None = None,
     ) -> None:
         try:
-            from renderers import Qwen35RendererConfig, create_renderer  # pyright: ignore[reportMissingImports]
+            from renderers import (  # pyright: ignore[reportMissingImports]
+                DefaultRendererConfig,
+                Qwen35RendererConfig,
+                create_renderer,
+            )
         except ImportError as error:  # pragma: no cover - isolated runtime dependency
-            raise RuntimeError("the veRL environment requires renderers with Qwen 3.5 support") from error
+            raise RuntimeError("the veRL environment requires the selected renderer implementation") from error
         self._server_manager = server_manager
         self._tokenizer = tokenizer
-        self._renderer = create_renderer(tokenizer, Qwen35RendererConfig(enable_thinking=enable_thinking))
+        if renderer_implementation == "qwen3.5":
+            renderer_config = Qwen35RendererConfig(enable_thinking=enable_thinking)
+        elif renderer_implementation == "default":
+            renderer_config = DefaultRendererConfig()
+        else:
+            raise ValueError(f"unsupported veRL renderer implementation: {renderer_implementation!r}")
+        self._renderer = create_renderer(tokenizer, renderer_config)
         self._sampling_overrides = _validated_sampling_overrides(sampling_overrides or {})
 
     def set_sampling_overrides(self, overrides: Mapping[str, Any]) -> None:
@@ -213,6 +224,7 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
         *args: Any,
         bridge_snapshot: str,
         enable_thinking: bool = False,
+        renderer_implementation: str = "qwen3.5",
         mask_truncated_completions: bool | None = False,
         max_completion_tokens: int,
         overlong_buffer_tokens: int | None = None,
@@ -228,6 +240,7 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
             self.server_manager,
             self.tokenizer,
             enable_thinking=enable_thinking,
+            renderer_implementation=renderer_implementation,
         )
         self._mask_truncated_completions = bool(mask_truncated_completions)
         self._max_completion_tokens = max_completion_tokens

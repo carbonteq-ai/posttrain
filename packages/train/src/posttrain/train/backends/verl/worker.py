@@ -488,6 +488,7 @@ def _write_agent_config(payload: VerlPayload, path: Path) -> None:
             "_target_": "posttrain.train.backends.verl.agent_loop.PosttrainVerifiersAgentLoop",
             "bridge_snapshot": str(payload.environment.bridge_snapshot),
             "enable_thinking": renderer.reasoning_mode == "thinking",
+            "renderer_implementation": renderer.implementation,
             "mask_truncated_completions": algorithm.mask_truncated_completions,
             "max_completion_tokens": algorithm.max_completion_length,
             "overlong_buffer_tokens": algorithm.overlong_buffer_tokens,

@@ -256,8 +256,10 @@ def test_verl_policy_generator_preserves_complete_sampling_policy(monkeypatch: p
             return ()
 
     renderers = ModuleType("renderers")
+    renderer_configs: list[object] = []
     renderers.__dict__["Qwen35RendererConfig"] = lambda *, enable_thinking: {"enable_thinking": enable_thinking}
-    renderers.__dict__["create_renderer"] = lambda tokenizer, config: FakeRenderer()
+    renderers.__dict__["DefaultRendererConfig"] = lambda: {"default": True}
+    renderers.__dict__["create_renderer"] = lambda tokenizer, config: (renderer_configs.append(config), FakeRenderer())[1]
     monkeypatch.setitem(sys.modules, "renderers", renderers)
 
     class ServerManager:
@@ -271,6 +273,13 @@ def test_verl_policy_generator_preserves_complete_sampling_policy(monkeypatch: p
     agent_loop = importlib.import_module(module_name)
     server = ServerManager()
     generator = agent_loop.VerlPolicyGenerator(server, object(), enable_thinking=False)
+    agent_loop.VerlPolicyGenerator(
+        server,
+        object(),
+        enable_thinking=False,
+        renderer_implementation="default",
+    )
+    assert renderer_configs == [{"enable_thinking": False}, {"default": True}]
     sampling = PolicySampling(
         max_tokens=32,
         temperature=0.7,
@@ -1210,7 +1219,9 @@ def test_verl_agent_loop_honors_selected_reasoning_mode(tmp_path: Path) -> None:
 
     _write_agent_config(payload, path)
 
-    assert '"enable_thinking": true' in path.read_text(encoding="utf-8")
+    config = json.loads(path.read_text(encoding="utf-8"))
+    assert config[0]["enable_thinking"] is True
+    assert config[0]["renderer_implementation"] == "qwen3.5"
 
 
 def test_verl_streaming_reward_exposes_dynamic_filter_metric() -> None:
