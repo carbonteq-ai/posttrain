@@ -27,11 +27,14 @@ class CollectionKey:
     run_id: str
     collection_id: str
     policy_version: str
+    logical_step: int = 0
 
     def __post_init__(self) -> None:
         _identifier(self.run_id, "run id")
         _identifier(self.collection_id, "collection id")
         _identifier(self.policy_version, "policy version")
+        if self.logical_step < 0:
+            raise ValueError("collection logical step must be non-negative")
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +46,7 @@ class EpisodeKey:
     group_id: str
     occurrence_id: str
     seed: int
+    rollout_ordinal: int = 0
 
     def __post_init__(self) -> None:
         _identifier(self.example_id, "example id")
@@ -50,6 +54,8 @@ class EpisodeKey:
         _identifier(self.occurrence_id, "occurrence id")
         if self.seed < 0:
             raise ValueError("episode seed must be non-negative")
+        if self.rollout_ordinal < 0:
+            raise ValueError("episode rollout ordinal must be non-negative")
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,6 +141,10 @@ class EpisodeOutcome:
 
 class CollectionExecutionError(RuntimeError):
     """A collection-wide infrastructure failure that must not become reward zero."""
+
+
+class InvalidNativeEpisode(RuntimeError):
+    """A terminal native episode that cannot become a training rollout."""
 
 
 def validate_outcome_identity(expected: EpisodeKey, outcome: EpisodeOutcome) -> None:

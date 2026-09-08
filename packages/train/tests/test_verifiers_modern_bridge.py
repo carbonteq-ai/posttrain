@@ -1,12 +1,14 @@
 """Real local native episode lifecycle with an injected exact-token policy."""
 
 import json
+from types import SimpleNamespace
 from typing import cast
 
 import pytest
 from posttrain.common import JsonValue
 from posttrain.train.integrations.verifiers import VerifiersEnvironmentRolloutBridge
 from posttrain.train.online_rl import PolicySampling, PolicyTurnResult, RolloutBatch
+from posttrain.train.rollout_execution import CollectionKey, EpisodeKey
 
 
 def test_native_judge_resolution_does_not_mutate_recoverable_selection():
@@ -111,6 +113,76 @@ async def test_modern_native_episode_retains_exact_policy_tokens(tmp_path, failu
     assert artifacts[0].metadata["replay_authority"] is True
     assert artifacts[0].metadata["episode_count"] == 1
     assert artifacts[1].metadata["replay_authority"] is False
+
+
+@pytest.mark.asyncio
+async def test_worker_episode_uses_the_same_native_projection_and_lineage(tmp_path):
+    module = pytest.importorskip("verifiers.v1.episode")
+    if not hasattr(module, "WireEpisode"):
+        pytest.skip("requires modern native episode runtime")
+    import verifiers.v1 as vf
+
+    task_data = vf.TaskData(idx=0, prompt="question")
+    task = SimpleNamespace(data=task_data)
+    trace_task = vf.TraceTask(type="Task", data=task_data)
+    trace = vf.Trace(
+        agent=vf.AgentInfo(config=vf.AgentConfig()),
+        task=trace_task,
+        nodes=[
+            vf.MessageNode(
+                parent=None,
+                message=vf.UserMessage(content="question"),
+                token_ids=[10, 11],
+                mask=[False, False],
+            ),
+            vf.MessageNode(
+                parent=0,
+                message=vf.AssistantMessage(content="ready"),
+                sampled=True,
+                token_ids=[12, 900, 901],
+                mask=[False, True, True],
+                logprobs=[-0.125, -0.25],
+            ),
+        ],
+        rewards={"task": vf.Reward(score=0.75)},
+        is_completed=True,
+        ok=True,
+    )
+    episode = module.WireEpisode.model_validate(
+        vf.Episode(task=trace_task, ok=True, traces=[trace]).model_dump(mode="python")
+    )
+
+    worker = VerifiersEnvironmentRolloutBridge(
+        dataset_id="native",
+        revision="1",
+        tasks={0: task},
+        environment_factory=object,
+        trace_path=tmp_path / "worker" / "traces.jsonl",
+        environment_id="reverse-text",
+        run_id="run",
+        sampling=PolicySampling(max_tokens=8),
+    )
+    key = EpisodeKey(
+        collection=CollectionKey("run", "collection-3", "policy-3", logical_step=3),
+        example_id="train/000000",
+        group_id="group",
+        occurrence_id="rollout",
+        seed=7,
+        rollout_ordinal=0,
+    )
+    worker_rollout = await worker.project_native_episode(key, episode)
+
+    assert worker_rollout.prompt_ids == (10, 11, 12)
+    assert worker_rollout.completion_ids == (900, 901)
+    assert worker_rollout.sampling_logprobs == (-0.125, -0.25)
+    assert worker_rollout.env_mask == (True, True)
+    assert worker_rollout.reward == 0.75
+    assert worker_rollout.trace.attributes["example_id"] == "train/000000"
+    retained = module.WireEpisode.model_validate_json((tmp_path / "worker" / "episodes.jsonl").read_text())
+    assert retained.run.id == "run"
+    assert retained.run.work.step == 3
+    assert retained.group.id == "group"
+    assert retained.traces[0].info["posttrain_rollout_id"] == "rollout"
 
 
 @pytest.mark.asyncio

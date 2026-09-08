@@ -247,3 +247,50 @@ async def test_unacknowledged_cancel_poisons_the_collection():
         with pytest.raises(CollectionExecutionError, match="could not prove drainage"):
             await workers.aclose()
         await running
+
+
+@pytest.mark.asyncio
+async def test_worker_broker_death_fails_an_active_episode_without_waiting_for_deadline():
+    class DyingPool(FakePool):
+        release = asyncio.Event()
+
+        async def run(self):
+            await self.release.wait()
+            raise RuntimeError("worker process exited")
+
+    DyingPool.release = asyncio.Event()
+    client = FakeClient("unused")
+    workers = VerifiersWorkerPool(
+        model="policy-model",
+        sampling=SimpleNamespace(max_tokens=8),
+        project_episode=lambda key, episode: SimpleNamespace(
+            example_id=key.example_id,
+            reward_evidence=None,
+            native_value=episode.value,
+        ),
+        global_limit=1,
+        startup_timeout=3,
+        cancel_timeout=1,
+        pool_factory=DyingPool,
+        client_factory=lambda _address: client,
+    )
+    await workers.start(
+        {"id": "test-env"},
+        SimpleNamespace(type="train"),
+        RolloutExecutionConfig(env_workers=1, episodes_per_worker=1),
+    )
+    collection = CollectionKey("run-1", "collection-1", "policy-1")
+    await workers.open_admission(collection)
+    running = asyncio.create_task(
+        workers.run_episode(
+            episode_key(collection),
+            SimpleNamespace(data=Data(value=1, wait=True)),
+            asyncio.get_running_loop().time() + 60,
+        )
+    )
+    await client.entered.wait()
+    DyingPool.release.set()
+    with pytest.raises(CollectionExecutionError, match="worker process exited"):
+        await asyncio.wait_for(running, timeout=1)
+    assert isinstance(workers.fatal_error, RuntimeError)
+    await workers.aclose()

@@ -3,7 +3,13 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
-from posttrain.train.backends.trl.collection_runner import ScheduledEpisode, TrlCollectionRunner
+from posttrain.train.backends.trl.collection_runner import (
+    ScheduledEpisode,
+    TrlCollectionRunner,
+    TrlNativeRolloutCollector,
+)
+from posttrain.train.integrations.verifiers import VerifiersRolloutFailure
+from posttrain.train.online_rl import RolloutBatch
 from posttrain.train.rollout_execution import (
     CollectionExecutionError,
     CollectionKey,
@@ -210,3 +216,73 @@ async def test_failed_inference_suspend_blocks_optimizer_handoff():
             await value.collect(collection, scheduled)
     finally:
         await value.aclose()
+
+
+@pytest.mark.asyncio
+async def test_native_collector_preserves_batch_identity_and_partial_failures():
+    class Bridge:
+        run_id = "run-1"
+
+        def task_for_example_id(self, example_id):
+            return SimpleNamespace(example_id=example_id)
+
+    class NativeRunner:
+        def __init__(self):
+            self.scheduled = ()
+
+        async def collect(self, collection, scheduled):
+            self.scheduled = scheduled
+            assert collection.logical_step == 4
+            return (
+                completed(scheduled[0].key),
+                EpisodeOutcome(
+                    key=scheduled[1].key,
+                    status=EpisodeStatus.INVALID,
+                    error="trace is not trainable",
+                ),
+            )
+
+    native_runner = NativeRunner()
+    collector = TrlNativeRolloutCollector(
+        runner=cast(Any, native_runner),
+        bridge=Bridge(),
+        episode_timeout=30,
+    )
+    batch = RolloutBatch(
+        example_ids=("task-1", "task-2"),
+        step=4,
+        model_id="policy",
+        prompt_group_ids=("group-1", "group-2"),
+        rollout_ids=("rollout-1", "rollout-2"),
+    )
+    with pytest.raises(VerifiersRolloutFailure) as captured:
+        await collector.collect(batch, collection_id="collection-4", policy_version="policy-3")
+    assert captured.value.completed[0].example_id == "task-1"
+    assert captured.value.failures == {1: "trace is not trainable"}
+    assert [item.key.rollout_ordinal for item in native_runner.scheduled] == [0, 1]
+    assert [item.key.group_id for item in native_runner.scheduled] == ["group-1", "group-2"]
+    assert [item.key.occurrence_id for item in native_runner.scheduled] == ["rollout-1", "rollout-2"]
+    assert native_runner.scheduled[0].key.seed != native_runner.scheduled[1].key.seed
+
+
+@pytest.mark.asyncio
+async def test_native_collector_returns_completed_rollouts_in_source_order():
+    class Bridge:
+        run_id = "run-1"
+
+        def task_for_example_id(self, example_id):
+            return SimpleNamespace(example_id=example_id)
+
+    class ReorderingRunner:
+        async def collect(self, _collection, scheduled):
+            await asyncio.sleep(0)
+            return tuple(completed(item.key) for item in scheduled)
+
+    collector = TrlNativeRolloutCollector(
+        runner=cast(Any, ReorderingRunner()),
+        bridge=Bridge(),
+        episode_timeout=30,
+    )
+    batch = RolloutBatch(("task-1", "task-2"), 1, "policy")
+    rollouts = await collector.collect(batch, collection_id="collection-1", policy_version="policy-0")
+    assert [rollout.example_id for rollout in rollouts] == ["task-1", "task-2"]

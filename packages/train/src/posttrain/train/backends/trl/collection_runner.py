@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from ...integrations.verifiers import VerifiersRolloutFailure
+from ...online_rl import EnvironmentRollout, RolloutBatch
 from ...rollout_execution import (
     CollectionExecutionError,
     CollectionKey,
@@ -217,4 +220,92 @@ class TrlCollectionRunner:
             ) from failures[0]
 
 
-__all__ = ["ScheduledEpisode", "TrlCollectionRunner"]
+class TrlNativeRolloutCollector:
+    """Translate one framework rollout batch into native worker occurrences.
+
+    Algorithm-specific group admission remains above this class. A terminal
+    episode failure is returned through the existing partial-batch exception;
+    collection infrastructure failures continue to abort the optimizer handoff.
+    """
+
+    def __init__(self, *, runner: TrlCollectionRunner, bridge: Any, episode_timeout: float) -> None:
+        if episode_timeout <= 0:
+            raise ValueError("native rollout episode timeout must be positive")
+        self._runner = runner
+        self._bridge = bridge
+        self._episode_timeout = episode_timeout
+
+    async def collect(
+        self,
+        batch: RolloutBatch,
+        *,
+        collection_id: str,
+        policy_version: str,
+    ) -> Sequence[EnvironmentRollout]:
+        if not collection_id.strip() or not policy_version.strip():
+            raise ValueError("native rollout collection and policy identities cannot be empty")
+        if batch.prompt_group_ids and len(batch.prompt_group_ids) != len(batch.example_ids):
+            raise ValueError("native rollout prompt-group identities are not aligned to the batch")
+        if batch.rollout_ids and len(batch.rollout_ids) != len(batch.example_ids):
+            raise ValueError("native rollout occurrence identities are not aligned to the batch")
+        collection = CollectionKey(
+            run_id=self._bridge.run_id,
+            collection_id=collection_id,
+            policy_version=policy_version,
+            logical_step=batch.step,
+        )
+        deadline = asyncio.get_running_loop().time() + self._episode_timeout
+        scheduled = tuple(
+            ScheduledEpisode(
+                key=EpisodeKey(
+                    collection=collection,
+                    example_id=example_id,
+                    group_id=(
+                        batch.prompt_group_ids[ordinal]
+                        if batch.prompt_group_ids
+                        else f"{collection_id}/group/{ordinal}"
+                    ),
+                    occurrence_id=(
+                        batch.rollout_ids[ordinal]
+                        if batch.rollout_ids
+                        else f"{collection_id}/response/{ordinal}"
+                    ),
+                    seed=_episode_seed(collection, ordinal),
+                    rollout_ordinal=ordinal,
+                ),
+                task=self._task(example_id),
+                deadline=deadline,
+            )
+            for ordinal, example_id in enumerate(batch.example_ids)
+        )
+        outcomes = await self._runner.collect(collection, scheduled)
+        completed: dict[int, EnvironmentRollout] = {}
+        failures: dict[int, str] = {}
+        for ordinal, outcome in enumerate(outcomes):
+            if outcome.key != scheduled[ordinal].key:
+                raise CollectionExecutionError("native rollout outcome order or identity changed")
+            if outcome.rollout is None:
+                failures[ordinal] = outcome.error or f"native episode ended as {outcome.status.value}"
+            else:
+                completed[ordinal] = outcome.rollout
+        if failures:
+            raise VerifiersRolloutFailure(
+                f"{len(failures)} of {len(outcomes)} native Verifiers rollouts failed: "
+                f"{sorted(set(failures.values()))}",
+                completed=completed,
+                failures=failures,
+            )
+        return [completed[ordinal] for ordinal in range(len(outcomes))]
+
+    def _task(self, example_id: str) -> Any:
+        return self._bridge.task_for_example_id(example_id)
+
+
+def _episode_seed(collection: CollectionKey, ordinal: int) -> int:
+    payload = "\0".join(
+        (collection.run_id, collection.collection_id, collection.policy_version, str(ordinal))
+    ).encode()
+    return int.from_bytes(hashlib.sha256(payload).digest()[:8], "big")
+
+
+__all__ = ["ScheduledEpisode", "TrlCollectionRunner", "TrlNativeRolloutCollector"]

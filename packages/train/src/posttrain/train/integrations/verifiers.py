@@ -48,6 +48,7 @@ from ..online_rl import (
     RolloutBatch,
 )
 from ..reward_projection import RewardProjection
+from ..rollout_execution import EpisodeKey, InvalidNativeEpisode
 from ..turn_rewards import native_turn_map
 
 type OnlineRLTechnique = Literal["grpo", "dapo", "olmo3", "sampo", "gdpo", "capo", "distill"]
@@ -577,6 +578,15 @@ class VerifiersEnvironmentRolloutBridge:
     def dataset(self) -> RolloutDataset:
         return self._dataset
 
+    def task_for_example_id(self, example_id: str) -> Any:
+        """Return the selected native task for one stable rollout example id."""
+
+        try:
+            _task_index, task = self._tasks_by_example_id[example_id]
+        except KeyError as error:
+            raise ValueError(f"unknown rollout example {example_id!r}") from error
+        return task
+
     async def run(self, batch: RolloutBatch, generator: PolicyGenerator) -> Sequence[EnvironmentRollout]:
         return await self._run(batch, generator, on_completed=None)
 
@@ -652,53 +662,36 @@ class VerifiersEnvironmentRolloutBridge:
                 task_index, task = self._tasks_by_example_id[example_id]
             except KeyError as error:
                 raise ValueError(f"unknown rollout example {example_id!r}") from error
-            episode = None
             if modern:
-                from verifiers.v1.episode import GroupInfo  # pyright: ignore[reportAttributeAccessIssue]
-
                 episode = await self._environment.run_episode(task, context)
-                episode.record_run(TrainRunInfo(id=self.run_id, work={"type": "train", "step": batch.step}))
-                episode.env.name = self.environment_id
-                if batch.prompt_group_ids:
-                    episode.group = GroupInfo(id=batch.prompt_group_ids[rollout_ordinal])
-                for native_trace in episode.traces:
-                    native_trace.info.update(
-                        posttrain_episode_id=episode.id,
-                        posttrain_run={"type": "train", "id": self.run_id, "step": batch.step},
-                        environment_id=self.environment_id,
+                try:
+                    rollout = await self._project_modern_episode(
+                        episode,
+                        task=task,
                         task_index=task_index,
                         example_id=example_id,
-                        task_facets=_task_facet_values(task, self.task_facet_fields),
+                        logical_step=batch.step,
+                        rollout_ordinal=rollout_ordinal,
+                        group_id=(batch.prompt_group_ids[rollout_ordinal] if batch.prompt_group_ids else None),
+                        rollout_id=(batch.rollout_ids[rollout_ordinal] if batch.rollout_ids else None),
+                        on_completed=on_completed,
                     )
-                    if batch.prompt_group_ids:
-                        native_trace.info.update(
-                            posttrain_prompt_group_id=batch.prompt_group_ids[rollout_ordinal],
-                            posttrain_rollout_id=batch.rollout_ids[rollout_ordinal],
-                        )
-                traces = [trace for trace in episode.traces if trace.agent.trainable]
-                if not episode.ok or len(traces) != 1:
-                    reason = (
-                        "native episode is not trainable "
-                        f"(ok={episode.ok}, total_traces={len(episode.traces)}, trainable_traces={len(traces)})"
-                    )
-                    for native_trace in episode.traces:
-                        native_trace.info.update(posttrain_admission_error=reason)
-                    self._preserve_episode(episode)
-                    raise VerifiersRolloutFailure(reason)
-            else:
-                traces = await self._environment.episode(task, context, n=1).run()
+                except InvalidNativeEpisode as error:
+                    raise VerifiersRolloutFailure(str(error)) from error
+                return rollout_ordinal, rollout
+
+            traces = await self._environment.episode(task, context, n=1).run()
             if len(traces) != 1:
                 raise ValueError(
                     f"Verifiers episode returned {len(traces)} traces for one scheduled branch; expected exactly one"
                 )
             trace = traces[0]
-            if not modern:
-                trace.info.update(
-                    posttrain_run={"type": "train", "id": self.run_id, "step": batch.step},
-                    environment_id=self.environment_id,
-                    task_index=task_index,
-                    example_id=example_id,
-                )
+            trace.info.update(
+                posttrain_run={"type": "train", "id": self.run_id, "step": batch.step},
+                environment_id=self.environment_id,
+                task_index=task_index,
+                example_id=example_id,
+            )
             if batch.prompt_group_ids:
                 trace.info.update(
                     posttrain_prompt_group_id=batch.prompt_group_ids[rollout_ordinal],
@@ -716,8 +709,6 @@ class VerifiersEnvironmentRolloutBridge:
                 enrichment_error = error
                 trace.info.update(posttrain_enrichment_error=type(error).__name__)
             record, observation = self._terminal_observation(trace, example_id, task_index, rollout_ordinal)
-            if episode is not None:
-                self._preserve_episode(episode)
             # Native JSONL is the replay authority.  This happens before any
             # trainable projection, including branch/token/reward validation.
             self._preserve(record)
@@ -782,6 +773,108 @@ class VerifiersEnvironmentRolloutBridge:
                 failures=failures,
             )
         return [results[ordinal] for ordinal in range(len(occurrences))]
+
+    async def project_native_episode(
+        self,
+        key: EpisodeKey,
+        episode: Any,
+        *,
+        on_completed: AsyncTerminalTraceObserver | None = None,
+    ) -> EnvironmentRollout:
+        """Project a worker-returned native episode through the direct bridge contract."""
+
+        if key.collection.run_id != self.run_id:
+            raise ValueError("native episode collection belongs to a different training run")
+        try:
+            task_index, task = self._tasks_by_example_id[key.example_id]
+        except KeyError as error:
+            raise ValueError(f"unknown native rollout example {key.example_id!r}") from error
+        return await self._project_modern_episode(
+            episode,
+            task=task,
+            task_index=task_index,
+            example_id=key.example_id,
+            logical_step=key.collection.logical_step,
+            rollout_ordinal=key.rollout_ordinal,
+            group_id=key.group_id,
+            rollout_id=key.occurrence_id,
+            on_completed=on_completed,
+        )
+
+    async def _project_modern_episode(
+        self,
+        episode: Any,
+        *,
+        task: Any,
+        task_index: int,
+        example_id: str,
+        logical_step: int,
+        rollout_ordinal: int,
+        group_id: str | None,
+        rollout_id: str | None,
+        on_completed: AsyncTerminalTraceObserver | None,
+    ) -> EnvironmentRollout:
+        """Retain and project one modern episode, regardless of process placement."""
+
+        from verifiers.v1.episode import GroupInfo  # pyright: ignore[reportAttributeAccessIssue]
+
+        *_, TrainRunInfo, _, _, _, _ = _imports()
+        episode.record_run(TrainRunInfo(id=self.run_id, work={"type": "train", "step": logical_step}))
+        episode.env.name = self.environment_id
+        if group_id is not None:
+            episode.group = GroupInfo(id=group_id)
+        for native_trace in episode.traces:
+            native_trace.info.update(
+                posttrain_episode_id=episode.id,
+                posttrain_run={"type": "train", "id": self.run_id, "step": logical_step},
+                environment_id=self.environment_id,
+                task_index=task_index,
+                example_id=example_id,
+                task_facets=_task_facet_values(task, self.task_facet_fields),
+            )
+            if group_id is not None and rollout_id is not None:
+                native_trace.info.update(
+                    posttrain_prompt_group_id=group_id,
+                    posttrain_rollout_id=rollout_id,
+                )
+        traces = [trace for trace in episode.traces if trace.agent.trainable]
+        if not episode.ok or len(traces) != 1:
+            reason = (
+                "native episode is not trainable "
+                f"(ok={episode.ok}, total_traces={len(episode.traces)}, trainable_traces={len(traces)})"
+            )
+            for native_trace in episode.traces:
+                native_trace.info.update(posttrain_admission_error=reason)
+            self._preserve_episode(episode)
+            raise InvalidNativeEpisode(reason)
+        trace = traces[0]
+        enrichment_error: Exception | asyncio.CancelledError | None = None
+        try:
+            for enrich in self.enrichers:
+                pending = enrich(trace)
+                if pending is not None:
+                    await pending
+        except (Exception, asyncio.CancelledError) as error:
+            enrichment_error = error
+            trace.info.update(posttrain_enrichment_error=type(error).__name__)
+        record, observation = self._terminal_observation(trace, example_id, task_index, rollout_ordinal)
+        self._preserve_episode(episode)
+        self._preserve(record)
+        if isinstance(enrichment_error, asyncio.CancelledError):
+            raise enrichment_error
+        if on_completed is not None:
+            try:
+                await on_completed(observation)
+            except Exception:
+                pass
+            else:
+                self.mark_live_observed(observation.external_id)
+        if enrichment_error is not None:
+            raise InvalidNativeEpisode("native trace retained after enrichment failure") from enrichment_error
+        try:
+            return self._project(trace, observation)
+        except VerifiersRolloutFailure as error:
+            raise InvalidNativeEpisode(str(error)) from error
 
     def _terminal_observation(
         self,

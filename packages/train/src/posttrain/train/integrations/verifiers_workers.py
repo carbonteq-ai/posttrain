@@ -19,15 +19,11 @@ from ..rollout_execution import (
     EpisodeKey,
     EpisodeOutcome,
     EpisodeStatus,
+    InvalidNativeEpisode,
     RolloutExecutionConfig,
     validate_execution_config,
     validate_outcome_identity,
 )
-
-
-class InvalidNativeEpisode(RuntimeError):
-    """A terminal native episode that cannot become a training rollout."""
-
 
 type EpisodeProjector = Callable[[EpisodeKey, Any], Any | Awaitable[Any]]
 
@@ -207,6 +203,9 @@ class VerifiersWorkerPool:
             raise RuntimeError("native Verifiers episode is not running in an asyncio task")
         async with self._lock:
             client, client_config = self._require_healthy()
+            pool_task = self._pool_task
+            if pool_task is None:  # guarded by _require_healthy
+                raise RuntimeError("native Verifiers worker broker has no lifecycle task")
             if self._collection != key.collection:
                 raise CollectionExecutionError(
                     "episode collection does not match native worker admission"
@@ -230,7 +229,13 @@ class VerifiersWorkerPool:
                     request_id=native_request_id,
                 )
             )
-            done, _ = await asyncio.wait({request}, timeout=remaining)
+            done, _ = await asyncio.wait({request, pool_task}, timeout=remaining, return_when=asyncio.FIRST_COMPLETED)
+            if pool_task in done:
+                if not request.done():
+                    request.cancel()
+                    await asyncio.gather(request, return_exceptions=True)
+                self._raise_if_broker_failed()
+                raise CollectionExecutionError("native Verifiers worker broker stopped during an episode")
             if not done:
                 async with self._lock:
                     self._cancelled.add(key)
@@ -427,10 +432,12 @@ class VerifiersWorkerPool:
                 key.collection.run_id,
                 key.collection.collection_id,
                 key.collection.policy_version,
+                str(key.collection.logical_step),
                 key.example_id,
                 key.group_id,
                 key.occurrence_id,
                 str(key.seed),
+                str(key.rollout_ordinal),
             )
         )
         return f"posttrain-{hashlib.sha256(identity.encode()).hexdigest()}"

@@ -13,6 +13,7 @@ from posttrain.common import JsonValue
 from ...online_rl import policy_sampling_from_binding
 from ...profiles import CAPOSettings, GDPOSettings, GRPOSettings, SAMPOSettings
 from ...requests import CAPORequest, GDPORequest, GRPORequest, SAMPORequest
+from ...rollout_execution import RolloutExecutionConfig, validate_execution_config
 from .common import trainer_arguments, vllm_rollout_options
 from .policy_rollouts import technique as _technique
 
@@ -34,6 +35,7 @@ def _online_rl_arguments(
     output_dir: Path,
     template_kwargs: dict[str, Any],
 ) -> dict[str, Any]:
+    _rollout_execution_config(request)
     arguments = trainer_arguments(request.settings.loop, output_dir)
     arguments.pop("max_length")
     settings = request.settings
@@ -200,6 +202,46 @@ def _online_rl_arguments(
     return arguments
 
 
+def _rollout_execution_config(
+    request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest,
+) -> RolloutExecutionConfig | None:
+    """Validate the opt-in native TRL worker topology without changing direct mode."""
+
+    raw = request.training.backend_options.get("rollout_execution")
+    if raw is None:
+        return None
+    if not isinstance(raw, Mapping):
+        raise ValueError("TRL backend_options.rollout_execution must be a mapping")
+    expected = {"env_workers", "episodes_per_worker", "worker_native_threads"}
+    unknown = set(raw).difference(expected)
+    missing = expected.difference(raw)
+    if unknown or missing:
+        details = []
+        if missing:
+            details.append(f"missing {', '.join(sorted(missing))}")
+        if unknown:
+            details.append(f"unknown {', '.join(sorted(unknown))}")
+        raise ValueError(f"invalid TRL rollout_execution mapping: {'; '.join(details)}")
+    values: dict[str, int] = {}
+    for name in expected:
+        value = raw[name]
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValueError(f"TRL rollout_execution.{name} must be an integer")
+        values[name] = value
+    if request.inference.backend.split("@", 1)[0] != "vllm":
+        raise ValueError("TRL rollout_execution requires a vLLM rollout inference binding")
+    if request.inference.engine.get("mode") != "colocate":
+        raise ValueError("TRL rollout_execution currently requires colocated vLLM")
+    if request.inference.engine.get("sleep_during_optimization") is not True:
+        raise ValueError("TRL rollout_execution requires inference sleep_during_optimization=true")
+    global_limit = getattr(request.bridge, "max_concurrent", None)
+    if not isinstance(global_limit, int) or isinstance(global_limit, bool):
+        raise ValueError("TRL rollout_execution requires the environment bridge to declare max_concurrent")
+    execution = RolloutExecutionConfig(**values)
+    validate_execution_config(execution, global_limit=global_limit)
+    return execution
+
+
 def _configure_liger_loss(
     trainer: Any,
     request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest,
@@ -283,6 +325,15 @@ def _online_rl_runtime_attributes(
             else None
         ),
     }
+    execution = _rollout_execution_config(request)
+    if execution is not None:
+        attributes.update(
+            rollout_request_mode="native_async",
+            rollout_env_workers=execution.env_workers,
+            rollout_episodes_per_worker=execution.episodes_per_worker,
+            rollout_worker_native_threads=execution.worker_native_threads,
+            rollout_global_concurrency=execution.episode_capacity,
+        )
     if isinstance(request, GRPORequest):
         attributes["overlong_buffer_tokens"] = request.settings.overlong_buffer_tokens
         attributes["overlong_penalty_factor"] = request.settings.overlong_penalty_factor
