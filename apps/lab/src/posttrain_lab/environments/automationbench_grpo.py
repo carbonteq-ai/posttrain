@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-VERIFIERS_REVISION = "5c5f52fbf3822ff270096b4463b46fcd7033c1da"
+VERIFIERS_REVISION = "c6c0097ad21da845c62e4b19aba80ef6633e4d9f"
 type AutomationBenchDomain = Literal["simple", "sales", "marketing", "operations", "support", "finance", "hr"]
 
 

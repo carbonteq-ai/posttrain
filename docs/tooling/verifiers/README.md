@@ -8,7 +8,7 @@ and [06 · ingest](../../post-training/06-observation-and-lineage.md#verifiers-i
 ## Install / pin
 
 The selected independently maintained CarbonTeq distribution is
-`carbonteq-ai/verifiers@5c5f52fbf3822ff270096b4463b46fcd7033c1da`, based on
+`carbonteq-ai/verifiers@c6c0097ad21da845c62e4b19aba80ef6633e4d9f`, based on
 upstream main commit `e3bcbcbe5c55297a07a5d1038e37c2408b4a3dbd` (71 commits
 after v0.3.1). It adds
 optional host-client injection through native serving/interception. The fork
@@ -22,7 +22,7 @@ synchronization. The failed R10 cloud attempt proved that the old upstream pin
 cannot inject the already-loaded policy; runtime-image publication and the
 corrected cloud retry remain open.
 
-Selected commit `5c5f52fbf3822ff270096b4463b46fcd7033c1da` additionally lets a native
+Selected commit `c6c0097ad21da845c62e4b19aba80ef6633e4d9f` additionally lets a native
 `TrainClientConfig` carry the exact selected chat template and fences the
 shared renderer cache by that template. This is required for LFM because the
 framework's versioned package template intentionally differs from the model
@@ -34,6 +34,15 @@ published veRL backend image retains its prior immutable dependency closure
 until a replacement image passes publication gates. Full native episode
 execution, multi-turn continuation, and immutable image qualification remain
 release gates.
+
+The same selected commit lets `EnvClient.run` accept a caller-owned request ID
+and exposes an acknowledged `EnvClient.cancel`. Posttrain uses an opaque digest
+of the full logical episode identity for that wire ID. This closes the previous
+fire-and-forget cancellation gap: a failed or timed-out acknowledgment poisons
+the collection instead of permitting a weight update with uncertain live work.
+The real ZMQ request/response contract and deterministic fixed-pool adapter
+lifecycle tests pass; real spawned environment-worker qualification remains
+open.
 
 CarbonTeq Verifiers is not maintained as a temporary patch awaiting upstream
 acceptance. It is the supported environment, harness, episode, trace and scorer
