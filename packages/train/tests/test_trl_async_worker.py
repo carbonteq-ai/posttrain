@@ -4,7 +4,7 @@ import threading
 import time
 
 import pytest
-from posttrain.train.backends.trl.async_worker import TrlAsyncRolloutWorker
+from posttrain.train.backends.trl.async_worker import AsyncGroupRejected, TrlAsyncRolloutWorker
 from trl.experimental.async_grpo.async_rollout_worker import RolloutSample
 
 
@@ -76,6 +76,27 @@ class FailingProducer:
         pass
 
 
+class RejectingProducer:
+    def __init__(self, *, always=False):
+        self.calls = 0
+        self.always = always
+
+    async def produce_group(self, target_policy_version):
+        self.calls += 1
+        if self.always or self.calls == 1:
+            raise AsyncGroupRejected("invalid verifier evidence")
+        return (sample(self.calls, target_policy_version),)
+
+    async def prepare_model_update(self, model_version):
+        pass
+
+    async def activate_model_version(self, model_version):
+        pass
+
+    async def aclose(self):
+        pass
+
+
 def test_failure_reaches_native_health_contract_without_fake_sample():
     worker = TrlAsyncRolloutWorker(
         FailingProducer(), max_inflight_groups=1, queue_maxsize=1, shutdown_timeout_s=2
@@ -97,10 +118,50 @@ def test_failure_reaches_native_health_contract_without_fake_sample():
         worker.stop()
 
 
+def test_rejected_group_is_dropped_and_next_group_can_publish():
+    producer = RejectingProducer()
+    worker = TrlAsyncRolloutWorker(
+        producer, max_inflight_groups=1, queue_maxsize=1, max_consecutive_rejections=2
+    )
+    worker.start()
+    try:
+        published = worker.rollout_buffer.get(timeout=1)
+        assert published.group_id == 2
+        assert worker.metrics_queue.get_nowait() == {"rollout/rejected_groups": 1.0}
+    finally:
+        worker.stop()
+
+
+def test_repeated_group_rejection_fails_at_explicit_bound():
+    worker = TrlAsyncRolloutWorker(
+        RejectingProducer(always=True),
+        max_inflight_groups=1,
+        queue_maxsize=1,
+        max_consecutive_rejections=2,
+    )
+    worker.start()
+    deadline = time.monotonic() + 1
+    while time.monotonic() < deadline:
+        try:
+            worker.check_health(1)
+        except RuntimeError as error:
+            assert "rejection limit" in str(error)
+            break
+        time.sleep(0.01)
+    else:
+        pytest.fail("bounded group rejection failure was not reported")
+    with pytest.raises(RuntimeError, match="rejection limit"):
+        worker.stop()
+
+
 def test_rejects_unbounded_queue_and_version_regression():
     producer = OrderedProducer()
     with pytest.raises(ValueError, match="positive bound"):
         TrlAsyncRolloutWorker(producer, max_inflight_groups=1, queue_maxsize=0)
+    with pytest.raises(ValueError, match="rejection limit"):
+        TrlAsyncRolloutWorker(
+            producer, max_inflight_groups=1, queue_maxsize=1, max_consecutive_rejections=0
+        )
     worker = TrlAsyncRolloutWorker(producer, initial_model_version=4, max_inflight_groups=1, queue_maxsize=1)
     with pytest.raises(ValueError, match="backwards"):
         worker.update_model_version(3)

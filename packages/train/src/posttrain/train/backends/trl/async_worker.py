@@ -22,6 +22,10 @@ class AsyncGroupProducer(Protocol):
     async def aclose(self) -> None: ...
 
 
+class AsyncGroupRejected(RuntimeError):
+    """One complete candidate group was rejected without corrupting the worker."""
+
+
 class TrlAsyncRolloutWorker:
     """Adapt an async group producer to TRL's ``RolloutWorkerProtocol``.
 
@@ -37,6 +41,7 @@ class TrlAsyncRolloutWorker:
         initial_model_version: int = 0,
         max_inflight_groups: int,
         queue_maxsize: int,
+        max_consecutive_rejections: int = 32,
         shutdown_timeout_s: float = 30.0,
     ) -> None:
         if initial_model_version < 0:
@@ -45,6 +50,8 @@ class TrlAsyncRolloutWorker:
             raise ValueError("async rollout worker requires at least one in-flight group")
         if queue_maxsize < 1:
             raise ValueError("async rollout queue must have an explicit positive bound")
+        if max_consecutive_rejections < 1:
+            raise ValueError("async rollout rejection limit must be positive")
         if shutdown_timeout_s <= 0:
             raise ValueError("async rollout shutdown timeout must be positive")
         self.rollout_buffer: queue.Queue[Any] = queue.Queue(maxsize=queue_maxsize)
@@ -52,6 +59,7 @@ class TrlAsyncRolloutWorker:
         self._producer = producer
         self._model_version = initial_model_version
         self._max_inflight_groups = max_inflight_groups
+        self._max_consecutive_rejections = max_consecutive_rejections
         self._shutdown_timeout_s = shutdown_timeout_s
         self._lock = threading.Lock()
         self._thread: threading.Thread | None = None
@@ -171,6 +179,7 @@ class TrlAsyncRolloutWorker:
             self._initialized = True
         self._ready.set()
         pending: set[asyncio.Task[tuple[int, Sequence[Any]]]] = set()
+        consecutive_rejections = 0
         try:
             while not stop_event.is_set():
                 while (
@@ -187,7 +196,19 @@ class TrlAsyncRolloutWorker:
                 done, _ = await asyncio.wait(pending, timeout=0.05, return_when=asyncio.FIRST_COMPLETED)
                 for task in done:
                     pending.remove(task)
-                    target_version, samples = task.result()
+                    try:
+                        target_version, samples = task.result()
+                    except AsyncGroupRejected:
+                        consecutive_rejections += 1
+                        self._publish_metric({"rollout/rejected_groups": 1.0})
+                        with self._lock:
+                            self._last_progress = time.monotonic()
+                        if consecutive_rejections >= self._max_consecutive_rejections:
+                            raise RuntimeError(
+                                "async rollout group rejection limit was exhausted"
+                            ) from None
+                        continue
+                    consecutive_rejections = 0
                     self._validate_native_group(samples, target_version)
                     for sample in samples:
                         await self._publish(sample, stop_event)
@@ -215,6 +236,12 @@ class TrlAsyncRolloutWorker:
             except queue.Full:
                 await asyncio.sleep(0.01)
 
+    def _publish_metric(self, values: dict[str, float]) -> None:
+        try:
+            self.metrics_queue.put_nowait(values)
+        except queue.Full:
+            pass
+
     @staticmethod
     def _validate_native_group(samples: Sequence[Any], target_version: int) -> None:
         if not samples:
@@ -230,4 +257,4 @@ class TrlAsyncRolloutWorker:
             raise RuntimeError("async group samples must share one native group id")
 
 
-__all__ = ["AsyncGroupProducer", "TrlAsyncRolloutWorker"]
+__all__ = ["AsyncGroupProducer", "AsyncGroupRejected", "TrlAsyncRolloutWorker"]
