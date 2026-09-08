@@ -1,6 +1,6 @@
 # Asynchronous rollout requests, continuous batching, and environment workers
 
-Revision 4 — 2026-09-08. Status: rollout-only architecture revised after source review; implementation and GPU qualification not started. Repository: `/home/hammad/projects/rl`.
+Revision 5 — 2026-09-08. Status: asynchronous TRL session foundation implemented in the fork; runtime integration and GPU qualification remain open. Repository: `/home/hammad/projects/rl`.
 
 ## Purpose / Big Picture
 
@@ -19,7 +19,8 @@ Actor forward/backward optimization is explicitly out of scope: no changes to ac
 - [x] (2026-09-08) Revise the design for veRL-native Ray workers, explicit component interfaces, and backend-specific lifecycle ownership; reject nested environment pools on veRL.
 - [x] (2026-09-08) Verify canonical Verifiers checkouts after worktree cleanup and record branch/commit preflight safeguards below.
 - [x] (2026-09-08) Resolve the runtime veRL source pin and specify two-stage admission, sampling precedence, global judge admission, and failure classification. Exclude actor compute optimization.
-- [ ] Prove the pinned TRL asynchronous engine lifecycle before implementing worker transport.
+- [x] (2026-09-08) Implement and deterministically test the additive TRL `AsyncVllmSession` lifecycle foundation at fork commit `2faf864cc5728aad6c07f3871067de4f40e3acb0`: independent completion, policy-version fencing, explicit abort/drain, sleep/wake handoff, and idempotent shutdown.
+- [ ] Prove the pinned TRL asynchronous engine lifecycle against a real vLLM engine before implementing worker transport.
 - [ ] Implement and test the native-client wire compatibility and exact-token contract.
 - [ ] Implement the TRL asynchronous generation lifecycle against the selected runtime.
 - [ ] Integrate bounded environment workers and coordinator admission/cancellation.
@@ -64,6 +65,8 @@ Cleanup preserved older local changes in named stashes: `pre-worktree-cleanup-20
 `packages/train/src/posttrain/train/backends/trl/online_rl.py` already collects pending requests, but its `_flush_pending` calls synchronous trainer generation on the environment event loop. A controlled blocking-generation reproduction established event-loop blocking; it did not establish what fraction of a production update is spent there. `policy_rollouts.py` enters collection using `asyncio.run`, making loop ownership part of the integration problem.
 
 The TRL fork's `trl/generation/vllm_generation.py` uses blocking colocated generation waves. vLLM already schedules continuously internally; the missing behavior is incremental request submission and independent completion across the outer harness. Renaming a batch method `async`, or putting the same whole-batch call in a thread, does not remove the wave barrier.
+
+The first fork slice, `trl/generation/async_vllm_session.py`, is deliberately an injected-engine lifecycle wrapper rather than a replacement vLLM constructor. `tests/test_async_vllm_session.py` passes using the RL workspace test environment (2 tests): a short request completes while a long request remains pending; policy synchronization is rejected during collection; abort, drain, sleep/wake, and close are fenced. The TRL checkout's own virtual environment lacks pytest/ruff, so this is a deterministic contract test, not real-vLLM or GPU evidence.
 
 The current `packages/train/src/posttrain/train/integrations/verifiers.py` uses an injected in-process policy client and direct `environment.run_episode` calls. Native Verifiers already provides `verifiers/v1/serve/pool.py::EnvServerPool` and serializable `RunRequest`/`RunResponse` messages. Its default elastic pool and `multiplex=128` do not imply four active workers for 32 episodes. Also, multiplex is a scaling parameter, not proof of a hard per-worker admission limit.
 
@@ -233,6 +236,8 @@ Read `packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-
 
 Before implementing HTTP or process-pool integration, run a bounded TRL GPU lifecycle proof on the pinned vLLM runtime: initialize one async engine, complete independent overlapping requests, abort one request, drain, release residency, synchronize changed LoRA weights, wake, and generate again. Verify sampled log-probability parity through the existing gate and that the second round uses updated weights. Record exact runtime versions and commands. Failure blocks the proposed async mode; it does not authorize changing precision, actor settings, or parity tolerances. The proof is small test code, not new instrumentation or a full training run.
 
+The deterministic half of this milestone is complete at TRL commit `2faf864cc5728aad6c07f3871067de4f40e3acb0`. The remaining real-engine proof must adapt the selected vLLM `AsyncLLM` implementation to `AsyncVllmSession`; it must not route requests back through `VLLMGeneration._generate_colocated_waves`. Retain `VLLMGeneration` unchanged until that proof demonstrates equivalent token and log-probability behavior.
+
 ### Milestone 1: prove the native wire and rendering seam
 
 In RL, add focused tests beside `packages/train/tests` and `packages/environment/tests` for native `TrainClient` requests and native episode projection. Cover LFM reasoning, content, tool calls, multi-turn exact-prefix bridging, sampling settings, and log-probability arrays. Compare with the current `TrlPolicyGenerator` path using controlled token fixtures. A renderer mismatch blocks migration; fix the generic renderer seam rather than introducing task-specific string surgery.
@@ -303,5 +308,7 @@ Revision 2 note: updated 2026-09-08 to make veRL mandatory and replace vague sha
 Revision 3 note: updated 2026-09-08 after worktree cleanup with canonical paths, exact active branches/commits, detached veRL warning, stash recovery notes, and mandatory checkout preflight. Older path references must not direct new implementation work.
 
 Revision 4 note: updated 2026-09-08 following review and the user's explicit rollout-only scope. Added an engine feasibility gate, pinned veRL implementation base, two-stage collection, sampling precedence, global judge admission/resource handoff, and explicit error classification; no actor forward/backward optimization is included.
+
+Revision 5 note: updated 2026-09-08 after the first implementation slice. TRL commit `2faf864c` adds an additive asynchronous session and deterministic lifecycle tests; no consumer pin, runtime image, environment transport, actor behavior, or GPU qualification changed.
 
 Baseline checkpoint note (2026-09-08): the user requested commits preserving previous work. Framework changes are captured on `codex/pre-rollout-optimization-baseline`; historical veRL changes are separately preserved on `codex/verl-pre-rollout-optimization-baseline`. No fork pin is changed by these snapshots. Focused framework reward-admission, reward-advantage, and policy-message tests passed (32 tests); full release/GPU qualification is not implied. The two cleanup stashes remain separate and untouched.
