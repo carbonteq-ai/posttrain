@@ -5,12 +5,11 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import math
-import random
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 from typing import Any, Protocol
 
-from ..backends.trl.async_samples import AsyncRolloutRecord, project_async_group
+from ..backends.trl.async_samples import AsyncRolloutRecord, InvalidAsyncSampleGroup, project_async_group
 from ..online_rl import BehaviorPolicySpan, EnvironmentRollout
 from ..profiles import GRPOSettings, shape_online_reward
 from ..rollout_execution import (
@@ -74,23 +73,24 @@ class _PromptSelector:
         self._base = tuple(example_ids)
         self._seed = seed
         self._shuffle = shuffle
-        self._epoch = 0
-        self._index = 0
-        self._current = self._order(0)
+    @property
+    def example_ids(self) -> tuple[str, ...]:
+        return self._base
 
-    def next(self) -> str:
-        if self._index == len(self._current):
-            self._epoch += 1
-            self._index = 0
-            self._current = self._order(self._epoch)
-        value = self._current[self._index]
-        self._index += 1
-        return value
+    def at(self, group_id: int) -> str:
+        if group_id < 0:
+            raise ValueError("async prompt group id cannot be negative")
+        epoch, index = divmod(group_id, len(self._base))
+        return self._order(epoch)[index]
 
     def _order(self, epoch: int) -> tuple[str, ...]:
         values = list(self._base)
         if self._shuffle:
-            random.Random(f"{self._seed}:{epoch}").shuffle(values)
+            values.sort(
+                key=lambda value: hashlib.sha256(
+                    f"{self._seed}\0{epoch}\0{value}".encode()
+                ).digest()
+            )
         return tuple(values)
 
 
@@ -146,6 +146,9 @@ class VerifiersAsyncGroupProducer:
         self._seed = seed
         self._selector = _PromptSelector(example_ids, seed=seed, shuffle=settings.shuffle_prompts)
         self._next_group_id = 0
+        self._replay_group_ids: list[int] = []
+        self._consumed_counts: dict[int, int] = {}
+        self._rejected_group_ids: set[int] = set()
         self._started = False
         self._closed = False
         self._policy_started = False
@@ -177,9 +180,12 @@ class VerifiersAsyncGroupProducer:
         if target_policy_version > self._active_model_version:
             raise CollectionExecutionError("async group requested an unpublished policy version")
         async with self._state_lock:
-            group_id = self._next_group_id
-            self._next_group_id += 1
-            example_id = self._selector.next()
+            if self._replay_group_ids:
+                group_id = self._replay_group_ids.pop(0)
+            else:
+                group_id = self._next_group_id
+                self._next_group_id += 1
+            example_id = self._selector.at(group_id)
         collection = CollectionKey(
             run_id=self._run_id,
             collection_id=f"async/group/{group_id}",
@@ -230,12 +236,14 @@ class VerifiersAsyncGroupProducer:
         failures = [outcome for outcome in outcomes if outcome.status is not EpisodeStatus.COMPLETED]
         if failures:
             reasons = sorted({outcome.error or outcome.status.value for outcome in failures})
+            await self._mark_rejected(group_id)
             raise RolloutGroupRejected(
                 f"{len(failures)} of {len(outcomes)} native Verifiers episodes were rejected: {reasons}"
             )
         rollouts = tuple(self._completed_rollout(key, outcome) for key, outcome in zip(keys, outcomes, strict=True))
         token_count = sum(len(row.prompt_ids) + len(row.completion_ids) for row in rollouts)
         if token_count > self._max_group_tokens:
+            await self._mark_rejected(group_id)
             raise RolloutGroupRejected(
                 f"async Verifiers group uses {token_count} tokens, exceeding {self._max_group_tokens}"
             )
@@ -255,12 +263,16 @@ class VerifiersAsyncGroupProducer:
             for key, rollout, algorithm_reward in zip(keys, rollouts, shaped_rewards, strict=True)
         )
         advantages = _grpo_advantages(shaped_rewards)
-        return project_async_group(
-            records,
-            advantages,
-            group_id=group_id,
-            expected_group_size=self._settings.num_generations,
-        )
+        try:
+            return project_async_group(
+                records,
+                advantages,
+                group_id=group_id,
+                expected_group_size=self._settings.num_generations,
+            )
+        except InvalidAsyncSampleGroup as error:
+            await self._mark_rejected(group_id)
+            raise RolloutGroupRejected(str(error)) from error
 
     async def prepare_model_update(self, model_version: int) -> None:
         self._require_running()
@@ -274,6 +286,75 @@ class VerifiersAsyncGroupProducer:
             raise ValueError("activated async policy version must exceed the active version")
         await self._policy_admission.activate_model_version(model_version)
         self._active_model_version = model_version
+
+    async def acknowledge_consumed_samples(self, group_ids: Sequence[int]) -> None:
+        """Advance recovery state from learner admission, never generation or enqueueing."""
+        self._require_running()
+        async with self._state_lock:
+            for group_id in group_ids:
+                if group_id < 0 or group_id >= self._next_group_id:
+                    raise CollectionExecutionError(f"learner acknowledged unknown async group {group_id}")
+                if group_id in self._rejected_group_ids:
+                    raise CollectionExecutionError(f"learner acknowledged rejected async group {group_id}")
+                count = self._consumed_counts.get(group_id, 0) + 1
+                if count > self._settings.num_generations:
+                    raise CollectionExecutionError(
+                        f"learner acknowledged too many samples for async group {group_id}"
+                    )
+                self._consumed_counts[group_id] = count
+
+    async def rollout_state_dict(self) -> Mapping[str, Any]:
+        """Return replay-safe scheduling state, excluding all live runtime objects."""
+        self._require_running()
+        async with self._state_lock:
+            partial = {
+                group_id: count
+                for group_id, count in self._consumed_counts.items()
+                if count != self._settings.num_generations
+            }
+            if partial:
+                raise CollectionExecutionError(
+                    f"cannot checkpoint partially consumed async groups: {sorted(partial.items())}"
+                )
+            return {
+                "format_version": 1,
+                "run_id": self._run_id,
+                "seed": self._seed,
+                "example_ids": list(self._selector.example_ids),
+                "num_generations": self._settings.num_generations,
+                "next_group_id": self._next_group_id,
+                "consumed_group_ids": sorted(self._consumed_counts),
+                "rejected_group_ids": sorted(self._rejected_group_ids),
+            }
+
+    def load_rollout_state_dict(self, state: Mapping[str, Any]) -> None:
+        """Restore a validated cursor before any environment or policy runtime starts."""
+        if self._started or self._closed:
+            raise RuntimeError("async rollout state must be restored before producer startup")
+        expected = {
+            "format_version": 1,
+            "run_id": self._run_id,
+            "seed": self._seed,
+            "example_ids": list(self._selector.example_ids),
+            "num_generations": self._settings.num_generations,
+        }
+        for name, value in expected.items():
+            if state.get(name) != value:
+                raise ValueError(f"async rollout checkpoint {name} does not match the selected run")
+        next_group_id = state.get("next_group_id")
+        consumed = _group_id_set(state.get("consumed_group_ids"), name="consumed_group_ids")
+        rejected = _group_id_set(state.get("rejected_group_ids"), name="rejected_group_ids")
+        if not isinstance(next_group_id, int) or isinstance(next_group_id, bool) or next_group_id < 0:
+            raise ValueError("async rollout checkpoint next_group_id must be a non-negative integer")
+        if consumed & rejected or any(group_id >= next_group_id for group_id in consumed | rejected):
+            raise ValueError("async rollout checkpoint group sets are inconsistent with its cursor")
+        self._next_group_id = next_group_id
+        self._consumed_counts = {
+            group_id: self._settings.num_generations for group_id in consumed
+        }
+        self._rejected_group_ids = rejected
+        settled = consumed | rejected
+        self._replay_group_ids = [group_id for group_id in range(next_group_id) if group_id not in settled]
 
     async def aclose(self) -> None:
         if self._closed:
@@ -316,6 +397,10 @@ class VerifiersAsyncGroupProducer:
                 + "; ".join(f"{type(error).__name__}: {error}" for error in errors)
             ) from errors[0]
 
+    async def _mark_rejected(self, group_id: int) -> None:
+        async with self._state_lock:
+            self._rejected_group_ids.add(group_id)
+
     def _completed_rollout(self, key: EpisodeKey, outcome: EpisodeOutcome) -> EnvironmentRollout:
         if outcome.key != key or outcome.rollout is None:
             raise CollectionExecutionError("native Verifiers outcome identity changed before group projection")
@@ -341,6 +426,17 @@ def _grpo_advantages(rewards: Sequence[float], epsilon: float = 1e-8) -> tuple[f
 def _episode_seed(run_id: str, seed: int, group_id: int, ordinal: int) -> int:
     payload = f"{run_id}\0{seed}\0{group_id}\0{ordinal}".encode()
     return int.from_bytes(hashlib.sha256(payload).digest()[:8], "big")
+
+
+def _group_id_set(value: Any, *, name: str) -> set[int]:
+    if not isinstance(value, list) or any(
+        not isinstance(item, int) or isinstance(item, bool) or item < 0 for item in value
+    ):
+        raise ValueError(f"async rollout checkpoint {name} must contain non-negative integers")
+    result = set(value)
+    if len(result) != len(value):
+        raise ValueError(f"async rollout checkpoint {name} cannot contain duplicates")
+    return result
 
 
 __all__ = ["VerifiersAsyncGroupProducer"]

@@ -220,6 +220,81 @@ async def test_failed_startup_closes_each_acquired_runtime_once():
     assert workers.events.count(("close",)) == 1
 
 
+@pytest.mark.asyncio
+async def test_checkpoint_replays_only_groups_not_consumed_by_the_learner():
+    value, _, _ = producer()
+    await value.astart()
+    consumed = await value.produce_group(0)
+    queued = await value.produce_group(0)
+    await value.acknowledge_consumed_samples([sample.group_id for sample in consumed])
+    state = await value.rollout_state_dict()
+    await value.aclose()
+
+    restored, _, _ = producer()
+    restored.load_rollout_state_dict(state)
+    await restored.astart()
+
+    replayed = await restored.produce_group(0)
+    following = await restored.produce_group(0)
+
+    assert {sample.group_id for sample in consumed} == {0}
+    assert {sample.group_id for sample in queued} == {1}
+    assert {sample.group_id for sample in replayed} == {1}
+    assert {sample.group_id for sample in following} == {2}
+    await restored.aclose()
+
+
+@pytest.mark.asyncio
+async def test_checkpoint_rejects_partially_consumed_group():
+    value, _, _ = producer()
+    await value.astart()
+    samples = await value.produce_group(0)
+    await value.acknowledge_consumed_samples([samples[0].group_id])
+
+    with pytest.raises(CollectionExecutionError, match="partially consumed"):
+        await value.rollout_state_dict()
+
+    await value.aclose()
+
+
+def test_checkpoint_identity_must_match_selected_run():
+    value, _, _ = producer()
+
+    with pytest.raises(ValueError, match="seed"):
+        value.load_rollout_state_dict(
+            {
+                "format_version": 1,
+                "run_id": "run-1",
+                "seed": 8,
+                "example_ids": ["task-a", "task-b"],
+                "num_generations": 2,
+                "next_group_id": 0,
+                "consumed_group_ids": [],
+                "rejected_group_ids": [],
+            }
+        )
+
+
+@pytest.mark.asyncio
+async def test_checkpoint_does_not_repeat_a_terminally_rejected_group():
+    workers = Workers()
+    workers.invalid_ordinal = 1
+    value, _, _ = producer(workers)
+    await value.astart()
+    with pytest.raises(RolloutGroupRejected):
+        await value.produce_group(0)
+    state = await value.rollout_state_dict()
+    await value.aclose()
+
+    restored, _, _ = producer()
+    restored.load_rollout_state_dict(state)
+    await restored.astart()
+    samples = await restored.produce_group(0)
+
+    assert {sample.group_id for sample in samples} == {1}
+    await restored.aclose()
+
+
 def test_rejects_algorithm_profiles_whose_credit_semantics_are_not_implemented():
     with pytest.raises(ValueError, match="GRPO only"):
         producer(selected_settings=settings(algorithm="dapo"))

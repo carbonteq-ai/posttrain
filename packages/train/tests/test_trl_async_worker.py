@@ -12,7 +12,18 @@ def sample(group_id: int, version: int) -> RolloutSample:
     return RolloutSample([], [], [1, 2], [0, 1], [0.0, -0.2], 0.5, version, group_id, {"reward": 1.0})
 
 
-class OrderedProducer:
+class ProducerState:
+    async def acknowledge_consumed_samples(self, group_ids):
+        pass
+
+    async def rollout_state_dict(self):
+        return {}
+
+    def load_rollout_state_dict(self, state):
+        pass
+
+
+class OrderedProducer(ProducerState):
     def __init__(self):
         self.calls = 0
         self.release_slow = threading.Event()
@@ -64,7 +75,7 @@ def test_short_group_publishes_while_unrelated_group_is_waiting():
     assert producer.closed
 
 
-class FailingProducer:
+class FailingProducer(ProducerState):
     async def astart(self):
         pass
 
@@ -107,7 +118,7 @@ def test_startup_failure_closes_producer_and_does_not_leave_worker_started():
         worker.check_health(1)
 
 
-class RejectingProducer:
+class RejectingProducer(ProducerState):
     def __init__(self, *, always=False):
         self.calls = 0
         self.always = always
@@ -201,9 +212,11 @@ def test_rejects_unbounded_queue_and_version_regression():
         worker.update_model_version(3)
 
 
-class FullQueueProducer:
+class FullQueueProducer(ProducerState):
     def __init__(self):
         self.closed = False
+        self.acknowledged = []
+        self.loaded = None
 
     async def astart(self):
         pass
@@ -219,6 +232,15 @@ class FullQueueProducer:
 
     async def aclose(self):
         self.closed = True
+
+    async def acknowledge_consumed_samples(self, group_ids):
+        self.acknowledged.extend(group_ids)
+
+    async def rollout_state_dict(self):
+        return {"acknowledged": list(self.acknowledged)}
+
+    def load_rollout_state_dict(self, state):
+        self.loaded = state
 
 
 def test_shutdown_remains_responsive_when_native_queue_is_full():
@@ -237,7 +259,24 @@ def test_shutdown_remains_responsive_when_native_queue_is_full():
     assert producer.closed
 
 
-class UpdateGateProducer:
+def test_forwards_learner_acknowledgement_and_checkpoint_state_to_producer():
+    producer = FullQueueProducer()
+    worker = TrlAsyncRolloutWorker(
+        producer, max_inflight_groups=1, queue_maxsize=2, shutdown_timeout_s=1
+    )
+    worker.load_rollout_state_dict({"cursor": 3})
+    assert producer.loaded == {"cursor": 3}
+    worker.start()
+    try:
+        worker.rollout_buffer.get(timeout=1)
+        worker.rollout_buffer.get(timeout=1)
+        worker.acknowledge_consumed_samples((1, 1))
+        assert worker.rollout_state_dict() == {"acknowledged": [1, 1]}
+    finally:
+        worker.stop()
+
+
+class UpdateGateProducer(ProducerState):
     def __init__(self):
         self.calls = 0
         self.first_started = threading.Event()

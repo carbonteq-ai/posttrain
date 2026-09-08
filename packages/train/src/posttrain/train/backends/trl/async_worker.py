@@ -6,7 +6,7 @@ import asyncio
 import queue
 import threading
 import time
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any, Protocol
 
 from ...rollout_execution import RolloutGroupRejected
@@ -22,6 +22,12 @@ class AsyncGroupProducer(Protocol):
     async def prepare_model_update(self, model_version: int) -> None: ...
 
     async def activate_model_version(self, model_version: int) -> None: ...
+
+    async def acknowledge_consumed_samples(self, group_ids: Sequence[int]) -> None: ...
+
+    async def rollout_state_dict(self) -> Mapping[str, Any]: ...
+
+    def load_rollout_state_dict(self, state: Mapping[str, Any]) -> None: ...
 
     async def aclose(self) -> None: ...
 
@@ -176,6 +182,33 @@ class TrlAsyncRolloutWorker:
         # bounded queue means the producer has useful work waiting.
         if self.rollout_buffer.empty() and time.monotonic() - last_progress > stale_after_s:
             raise RuntimeError("async rollout worker stopped making progress")
+
+    def acknowledge_consumed_samples(self, group_ids: Sequence[int]) -> None:
+        """Acknowledge samples only after TRL admits them into a learner microbatch."""
+        with self._lock:
+            loop = self._loop
+        if loop is None:
+            raise RuntimeError("cannot acknowledge samples before the async rollout worker starts")
+        future = asyncio.run_coroutine_threadsafe(
+            self._producer.acknowledge_consumed_samples(tuple(group_ids)), loop
+        )
+        future.result(timeout=self._shutdown_timeout_s)
+
+    def rollout_state_dict(self) -> Mapping[str, Any]:
+        """Snapshot durable producer scheduling metadata for a trainer checkpoint."""
+        with self._lock:
+            loop = self._loop
+        if loop is None:
+            raise RuntimeError("cannot checkpoint an async rollout worker that is not running")
+        future = asyncio.run_coroutine_threadsafe(self._producer.rollout_state_dict(), loop)
+        return future.result(timeout=self._shutdown_timeout_s)
+
+    def load_rollout_state_dict(self, state: Mapping[str, Any]) -> None:
+        """Restore scheduling metadata before worker processes or inference start."""
+        with self._lock:
+            if self._thread is not None:
+                raise RuntimeError("async rollout state must be restored before the worker starts")
+        self._producer.load_rollout_state_dict(state)
 
     def _thread_main(self) -> None:
         try:
