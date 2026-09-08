@@ -147,6 +147,10 @@ class InvalidNativeEpisode(RuntimeError):
     """A terminal native episode that cannot become a training rollout."""
 
 
+class RolloutGroupRejected(RuntimeError):
+    """One complete candidate group was rejected without invalidating the runtime."""
+
+
 def validate_outcome_identity(expected: EpisodeKey, outcome: EpisodeOutcome) -> None:
     """Fence late or misrouted completions before they reach reward admission."""
     if outcome.key != expected:

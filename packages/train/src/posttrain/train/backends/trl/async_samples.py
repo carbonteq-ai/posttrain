@@ -24,12 +24,15 @@ class AsyncRolloutRecord:
 
     occurrence_id: str
     rollout: EnvironmentRollout
+    algorithm_reward: float | None = None
     prompt_messages: tuple[Mapping[str, Any], ...] = ()
     completion_messages: tuple[Mapping[str, Any], ...] = ()
 
     def __post_init__(self) -> None:
         if not self.occurrence_id:
             raise ValueError("async rollout occurrence id cannot be empty")
+        if self.algorithm_reward is not None and not math.isfinite(self.algorithm_reward):
+            raise ValueError("async rollout algorithm reward must be finite")
 
 
 def project_async_group(
@@ -99,6 +102,16 @@ def project_async_group(
     for (record, policy_version, input_ids, completion_mask, old_log_probs), advantage in zip(
         prepared, advantages, strict=True
     ):
+        reward = record.rollout.reward if record.algorithm_reward is None else record.algorithm_reward
+        behavior_policy = record.rollout.behavior_policy
+        assert behavior_policy is not None  # validated before importing the native sample type
+        metrics = {
+            "reward": float(reward),
+            "behavior_policy_start": float(behavior_policy.start),
+            "behavior_policy_end": float(behavior_policy.end),
+        }
+        if record.algorithm_reward is not None:
+            metrics["task_reward"] = float(record.rollout.reward)
         result.append(
             RolloutSample(
                 prompt=[dict(message) for message in record.prompt_messages],
@@ -109,7 +122,7 @@ def project_async_group(
                 advantage=float(advantage),
                 model_version=policy_version,
                 group_id=group_id,
-                metrics={"reward": float(record.rollout.reward)},
+                metrics=metrics,
             )
         )
     return tuple(result)

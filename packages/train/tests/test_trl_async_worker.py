@@ -18,6 +18,9 @@ class OrderedProducer:
         self.release_slow = threading.Event()
         self.closed = False
 
+    async def astart(self):
+        pass
+
     async def produce_group(self, target_policy_version):
         self.calls += 1
         call = self.calls
@@ -62,6 +65,9 @@ def test_short_group_publishes_while_unrelated_group_is_waiting():
 
 
 class FailingProducer:
+    async def astart(self):
+        pass
+
     async def produce_group(self, target_policy_version):
         del target_policy_version
         raise ValueError("broken environment source")
@@ -76,10 +82,38 @@ class FailingProducer:
         pass
 
 
+class FailingStartupProducer(FailingProducer):
+    def __init__(self):
+        self.closed = False
+
+    async def astart(self):
+        raise ValueError("broken producer startup")
+
+    async def aclose(self):
+        self.closed = True
+
+
+def test_startup_failure_closes_producer_and_does_not_leave_worker_started():
+    producer = FailingStartupProducer()
+    worker = TrlAsyncRolloutWorker(
+        producer, max_inflight_groups=1, queue_maxsize=1, shutdown_timeout_s=1
+    )
+
+    with pytest.raises(RuntimeError, match="broken producer startup"):
+        worker.start()
+
+    assert producer.closed
+    with pytest.raises(RuntimeError, match="broken producer startup"):
+        worker.check_health(1)
+
+
 class RejectingProducer:
     def __init__(self, *, always=False):
         self.calls = 0
         self.always = always
+
+    async def astart(self):
+        pass
 
     async def produce_group(self, target_policy_version):
         self.calls += 1
@@ -171,6 +205,9 @@ class FullQueueProducer:
     def __init__(self):
         self.closed = False
 
+    async def astart(self):
+        pass
+
     async def produce_group(self, target_policy_version):
         return (sample(1, target_policy_version), sample(1, target_policy_version))
 
@@ -207,6 +244,9 @@ class UpdateGateProducer:
         self.release_first = threading.Event()
         self.second_started = threading.Event()
         self.lifecycle = []
+
+    async def astart(self):
+        pass
 
     async def produce_group(self, target_policy_version):
         self.calls += 1

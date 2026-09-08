@@ -57,7 +57,11 @@ def test_projects_exact_tokens_masks_logprobs_and_native_type():
     assert samples[0].old_log_probs == [0.0, 0.0, -0.2, 0.0, -0.4]
     assert samples[0].model_version == 4
     assert samples[0].advantage == 1.25
-    assert samples[0].metrics == {"reward": 0.75}
+    assert samples[0].metrics == {
+        "reward": 0.75,
+        "behavior_policy_start": 4.0,
+        "behavior_policy_end": 4.0,
+    }
 
 
 def test_behavior_policy_span_merges_turn_provenance():

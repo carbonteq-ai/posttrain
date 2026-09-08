@@ -9,9 +9,13 @@ import time
 from collections.abc import Sequence
 from typing import Any, Protocol
 
+from ...rollout_execution import RolloutGroupRejected
+
 
 class AsyncGroupProducer(Protocol):
     """Produce one already-scored, complete group for a published policy hint."""
+
+    async def astart(self) -> None: ...
 
     async def produce_group(self, target_policy_version: int) -> Sequence[Any]: ...
 
@@ -22,8 +26,8 @@ class AsyncGroupProducer(Protocol):
     async def aclose(self) -> None: ...
 
 
-class AsyncGroupRejected(RuntimeError):
-    """One complete candidate group was rejected without corrupting the worker."""
+class AsyncGroupRejected(RolloutGroupRejected):
+    """Compatibility name for a rejected candidate rollout group."""
 
 
 class TrlAsyncRolloutWorker:
@@ -66,6 +70,7 @@ class TrlAsyncRolloutWorker:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._stop_event: asyncio.Event | None = None
         self._admission_open: asyncio.Event | None = None
+        self._startup_task: asyncio.Task[None] | None = None
         self._ready = threading.Event()
         self._initialized = False
         self._failure: BaseException | None = None
@@ -83,11 +88,25 @@ class TrlAsyncRolloutWorker:
             self._thread = thread
             thread.start()
         if not self._ready.wait(timeout=self._shutdown_timeout_s):
+            with self._lock:
+                loop = self._loop
+                startup_task = self._startup_task
+            if loop is not None and startup_task is not None:
+                loop.call_soon_threadsafe(startup_task.cancel)
+            thread.join(timeout=self._shutdown_timeout_s)
+            if thread.is_alive():
+                raise RuntimeError(
+                    "async rollout worker startup timed out and did not cancel within its shutdown timeout"
+                )
+            with self._lock:
+                self._thread = None
             raise RuntimeError("async rollout worker did not initialize within its startup timeout")
         with self._lock:
             failure = self._failure
             initialized = self._initialized
         if not initialized and failure is not None:
+            with self._lock:
+                self._thread = None
             raise RuntimeError(f"async rollout worker failed during startup: {failure}") from failure
 
     def stop(self) -> None:
@@ -176,11 +195,17 @@ class TrlAsyncRolloutWorker:
             self._loop = loop
             self._stop_event = stop_event
             self._admission_open = admission_open
-            self._initialized = True
-        self._ready.set()
+        startup_task = asyncio.create_task(self._producer.astart(), name="posttrain-async-producer-start")
+        with self._lock:
+            self._startup_task = startup_task
         pending: set[asyncio.Task[tuple[int, Sequence[Any]]]] = set()
         consecutive_rejections = 0
         try:
+            await startup_task
+            with self._lock:
+                self._startup_task = None
+                self._initialized = True
+            self._ready.set()
             while not stop_event.is_set():
                 while (
                     admission_open.is_set()
@@ -198,7 +223,7 @@ class TrlAsyncRolloutWorker:
                     pending.remove(task)
                     try:
                         target_version, samples = task.result()
-                    except AsyncGroupRejected:
+                    except RolloutGroupRejected:
                         consecutive_rejections += 1
                         self._publish_metric({"rollout/rejected_groups": 1.0})
                         with self._lock:
@@ -224,6 +249,7 @@ class TrlAsyncRolloutWorker:
                 self._loop = None
                 self._stop_event = None
                 self._admission_open = None
+                self._startup_task = None
 
     async def _produce(self, target_version: int) -> tuple[int, Sequence[Any]]:
         return target_version, await self._producer.produce_group(target_version)
